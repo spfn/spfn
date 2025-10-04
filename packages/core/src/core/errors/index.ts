@@ -39,8 +39,8 @@ export class ConnectionError extends DatabaseError {
  * SQL 쿼리 실행 실패, 문법 오류 등
  */
 export class QueryError extends DatabaseError {
-    constructor(message: string) {
-        super(message, 500);
+    constructor(message: string, statusCode: number = 500) {
+        super(message, statusCode);
         this.name = 'QueryError';
     }
 }
@@ -75,8 +75,8 @@ export class ValidationError extends QueryError {
  * 트랜잭션 시작/커밋/롤백 실패
  */
 export class TransactionError extends DatabaseError {
-    constructor(message: string) {
-        super(message, 500);
+    constructor(message: string, statusCode: number = 500) {
+        super(message, statusCode);
         this.name = 'TransactionError';
     }
 }

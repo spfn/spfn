@@ -41,7 +41,7 @@ export async function get<T>(url: string, options?: RequestOptions): Promise<T>
         throw new Error(`GET ${finalUrl} failed: ${response.status}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
 }
 
 /**
@@ -61,7 +61,7 @@ export async function post<TRequest, TResponse>(url: string, options?: RequestOp
         throw new Error(`POST ${finalUrl} failed: ${response.status}`);
     }
 
-    return response.json();
+    return response.json() as Promise<TResponse>;
 }
 
 /**
@@ -81,7 +81,7 @@ export async function patch<TRequest, TResponse>(url: string, options?: RequestO
         throw new Error(`PATCH ${finalUrl} failed: ${response.status}`);
     }
 
-    return response.json();
+    return response.json() as Promise<TResponse>;
 }
 
 /**
@@ -99,5 +99,5 @@ export async function del<T>(url: string, options?: RequestOptions): Promise<T>
         throw new Error(`DELETE ${finalUrl} failed: ${response.status}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
 }

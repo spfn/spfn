@@ -39,8 +39,9 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const entitiesDir = join(__dirname, '..', 'entities');
-const outputDir = join(__dirname, '..', '..', 'types', 'generated');
+const projectRoot = process.cwd();
+const entitiesDir = join(projectRoot, 'src', 'server', 'entities');
+const outputDir = join(projectRoot, 'src', 'types', 'generated');
 const templatesDir = join(__dirname, 'templates');
 
 /**

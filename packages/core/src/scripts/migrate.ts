@@ -48,7 +48,7 @@ async function runMigrations()
     console.log(`📂 Migrations folder: ${join(projectRoot, 'drizzle')}`);
 
     // Connection for migration (max 1 connection)
-    const migrationConnection = postgres(DATABASE_URL, { max: 1 });
+    const migrationConnection = postgres(DATABASE_URL!, { max: 1 });
     const db = drizzle(migrationConnection);
 
     try
