@@ -1,0 +1,31 @@
+/**
+ * 🤖 AUTO-GENERATED - DO NOT EDIT
+ *
+ * Generated from: src/server/entities/{{ENTITY_NAME}}.ts
+ *
+ * ⚠️ 이 파일을 직접 수정하지 마세요!
+ * 변경사항은 npm run generate:types 실행 시 덮어씌워집니다.
+ *
+ * @generated {{TIMESTAMP}}
+ */
+import type { {{TYPE_NAME}} as {{TYPE_NAME}}Entity, Insert{{TYPE_NAME}} } from '@/server/entities/{{ENTITY_NAME}}';
+
+/**
+ * {{TYPE_NAME}} 타입 (API 응답용)
+ * - Date 필드가 string으로 직렬화됨
+ */
+export type {{TYPE_NAME}} = {
+    [K in keyof {{TYPE_NAME}}Entity]: {{TYPE_NAME}}Entity[K] extends Date
+        ? string
+        : {{TYPE_NAME}}Entity[K];
+};
+
+/**
+ * {{TYPE_NAME}} 생성 DTO
+ */
+export type Create{{TYPE_NAME}}Dto = Omit<Insert{{TYPE_NAME}}, 'id' | 'createdAt' | 'updatedAt'>;
+
+/**
+ * {{TYPE_NAME}} 수정 DTO
+ */
+export type Update{{TYPE_NAME}}Dto = Partial<Create{{TYPE_NAME}}Dto>;

@@ -1,0 +1,64 @@
+{
+  "name": "@spfn/core",
+  "version": "0.1.0",
+  "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./route": {
+      "types": "./dist/route/index.d.ts",
+      "import": "./dist/route/index.js"
+    },
+    "./db": {
+      "types": "./dist/db/index.d.ts",
+      "import": "./dist/db/index.js"
+    },
+    "./scripts": {
+      "types": "./dist/scripts/index.d.ts",
+      "import": "./dist/scripts/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "spfn",
+    "framework",
+    "nextjs",
+    "hono",
+    "typescript",
+    "fullstack"
+  ],
+  "author": "SPFN Team",
+  "license": "MIT",
+  "peerDependencies": {
+    "drizzle-orm": "^0.44.0",
+    "hono": "^4.9.0",
+    "postgres": "^3.4.0"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "chokidar": "^4.0.3",
+    "pino": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ]
+}

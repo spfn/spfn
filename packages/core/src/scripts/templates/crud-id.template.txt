@@ -1,0 +1,79 @@
+/**
+ * 🤖 AUTO-GENERATED CRUD Routes - {{TYPE_NAME}} by ID
+ *
+ * Generated from entity: {{ENTITY_NAME}}
+ *
+ * ⚠️ 수정 가능한 파일입니다.
+ * 이 파일은 존재하지 않을 때만 생성됩니다.
+ * 한 번 생성된 후에는 자유롭게 수정하세요.
+ *
+ * @generated {{TIMESTAMP}}
+ */
+import type { RouteContext } from '@/server/core';
+import { getDb } from '@/server/core';
+import { {{ENTITY_NAME}} } from '@/server/entities/{{ENTITY_NAME}}';
+import { eq } from 'drizzle-orm';
+import type { Update{{TYPE_NAME}}Dto } from '@/types/generated';
+
+export const meta = {
+  tags: ['{{ENTITY_NAME}}'],
+};
+
+/**
+ * GET /{{ENTITY_NAME}}/:id - Find {{ENTITY_NAME_SINGULAR}} by ID
+ */
+export async function GET(c: RouteContext) {
+  const id = Number(c.params.id);
+  const db = getDb();
+
+  const [{{ENTITY_NAME_SINGULAR}}] = await db
+    .select()
+    .from({{ENTITY_NAME}})
+    .where(eq({{ENTITY_NAME}}.id, id));
+
+  if (!{{ENTITY_NAME_SINGULAR}}) {
+    return c.json({ error: '{{TYPE_NAME}} not found' }, 404);
+  }
+
+  return c.json({{ENTITY_NAME_SINGULAR}});
+}
+
+/**
+ * PATCH /{{ENTITY_NAME}}/:id - Update {{ENTITY_NAME_SINGULAR}}
+ */
+export async function PATCH(c: RouteContext) {
+  const id = Number(c.params.id);
+  const body = await c.data<Update{{TYPE_NAME}}Dto>();
+  const db = getDb();
+
+  const [updated] = await db
+    .update({{ENTITY_NAME}})
+    .set(body)
+    .where(eq({{ENTITY_NAME}}.id, id))
+    .returning();
+
+  if (!updated) {
+    return c.json({ error: '{{TYPE_NAME}} not found' }, 404);
+  }
+
+  return c.json(updated);
+}
+
+/**
+ * DELETE /{{ENTITY_NAME}}/:id - Delete {{ENTITY_NAME_SINGULAR}}
+ */
+export async function DELETE(c: RouteContext) {
+  const id = Number(c.params.id);
+  const db = getDb();
+
+  const [deleted] = await db
+    .delete({{ENTITY_NAME}})
+    .where(eq({{ENTITY_NAME}}.id, id))
+    .returning();
+
+  if (!deleted) {
+    return c.json({ error: '{{TYPE_NAME}} not found' }, 404);
+  }
+
+  return c.json({ success: true });
+}

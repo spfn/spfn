@@ -1,0 +1,44 @@
+/**
+ * 🤖 AUTO-GENERATED CRUD Routes - {{TYPE_NAME}}
+ *
+ * Generated from entity: {{ENTITY_NAME}}
+ *
+ * ⚠️ 수정 가능한 파일입니다.
+ * 이 파일은 존재하지 않을 때만 생성됩니다.
+ * 한 번 생성된 후에는 자유롭게 수정하세요.
+ *
+ * @generated {{TIMESTAMP}}
+ */
+import type { RouteContext } from '@/server/core';
+import { getDb } from '@/server/core';
+import { {{ENTITY_NAME}} } from '@/server/entities/{{ENTITY_NAME}}';
+import type { Create{{TYPE_NAME}}Dto } from '@/types/generated';
+
+export const meta = {
+  tags: ['{{ENTITY_NAME}}'],
+  description: '{{TYPE_NAME}} CRUD operations',
+};
+
+/**
+ * GET /{{ENTITY_NAME}} - List all {{ENTITY_NAME}}
+ */
+export async function GET(c: RouteContext) {
+  const db = getDb();
+  const all{{TYPE_NAME}}s = await db.select().from({{ENTITY_NAME}});
+  return c.json(all{{TYPE_NAME}}s);
+}
+
+/**
+ * POST /{{ENTITY_NAME}} - Create new {{ENTITY_NAME_SINGULAR}}
+ */
+export async function POST(c: RouteContext) {
+  const body = await c.data<Create{{TYPE_NAME}}Dto>();
+  const db = getDb();
+
+  const [new{{TYPE_NAME}}] = await db
+    .insert({{ENTITY_NAME}})
+    .values(body)
+    .returning();
+
+  return c.json(new{{TYPE_NAME}}, 201);
+}
