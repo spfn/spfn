@@ -72,7 +72,7 @@ function generateRequestId(): string
 /**
  * 민감한 데이터 마스킹
  */
-function maskSensitiveData(obj: any, sensitiveFields: string[]): any
+export function maskSensitiveData(obj: any, sensitiveFields: string[]): any
 {
     if (!obj || typeof obj !== 'object') return obj;
 

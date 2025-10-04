@@ -16,13 +16,13 @@ import type { SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '@/server/core';
+import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '../query/index.js';
 
-import { buildFilters } from '@/server/core';
-import { buildSort } from '../query/sort';
-import { applyPagination, createPaginationMeta, countTotal } from '@/server/core';
-import { getDb } from './index';
-import { QueryError, fromPostgresError } from '../errors';
+import { buildFilters } from '../query/filters.js';
+import { buildSort } from '../query/sort.js';
+import { applyPagination, createPaginationMeta, countTotal } from '../query/pagination.js';
+import { getDb } from './index.js';
+import { QueryError } from '../errors/index.js';
 
 /**
  * Pageable 인터페이스 (Spring Pageable 스타일)

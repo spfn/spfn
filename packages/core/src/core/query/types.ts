@@ -5,7 +5,7 @@
  */
 
 import type { SQL } from 'drizzle-orm';
-import type { PgColumn } from 'drizzle-orm/pg-core';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 
 /**
  * 필터 연산자
@@ -120,9 +120,7 @@ export type QueryParserOptions = {
 /**
  * Drizzle 테이블 타입 (제네릭)
  */
-export type DrizzleTable = {
-  [key: string]: PgColumn;
-};
+export type DrizzleTable = PgTable<any> & Record<string, PgColumn>;
 
 /**
  * 필터 빌더 결과 타입
