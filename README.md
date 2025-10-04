@@ -115,6 +115,7 @@ npm run dev --filter=@spfn/landing
 
 ### 프로젝트 문서
 - [전체 아키텍처](./ARCHITECTURE.md) - 시스템 설계 및 구조
+- [코딩 스탠다드](./CODING_STANDARDS.md) - 코드 작성 규칙 및 스타일 가이드
 - [개발 로드맵](./ROADMAP.md) - 향후 계획 및 우선순위
 - [현재 상태](./CURRENT_STATUS.md) - 완료된 작업 및 다음 단계
 
