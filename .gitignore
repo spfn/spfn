@@ -42,3 +42,4 @@ yarn-error.log*
 # Drizzle
 drizzle
 /apps/testbed/test-results.log
+/.idea/
