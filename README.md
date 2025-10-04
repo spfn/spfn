@@ -6,15 +6,39 @@
 ## 🚀 프로젝트 구조
 
 ```
-spfn/
+spfn/                         # 모노레포 루트
 ├── apps/
-│   ├── testbed/          # 개발 테스트베드 (내부용)
-│   └── landing/          # 공식 랜딩 페이지 (spfn.dev)
+│   ├── testbed/             # ✅ 개발 테스트베드
+│   │   ├── src/
+│   │   │   ├── app/         # Next.js App Router (프론트엔드)
+│   │   │   └── server/      # Hono 백엔드
+│   │   │       ├── routes/  # API 라우트 (개발자 작성)
+│   │   │       ├── entities/# Drizzle 엔티티
+│   │   │       └── stores/  # 비즈니스 로직
+│   │   └── package.json
+│   │
+│   └── landing/             # 🚧 공식 랜딩 페이지 (spfn.dev)
+│       └── app/             # Next.js App Router
+│
 └── packages/
-    ├── auth/             # @spfn/auth - Client-Key 인증 시스템
-    ├── core/             # @spfn/core - 프레임워크 핵심 (예정)
-    └── cli/              # @spfn/cli - 코드 생성 CLI (예정)
+    ├── core/                # ✅ @spfn/core - 프레임워크 핵심
+    │   ├── src/
+    │   │   ├── core/        # 라우팅, DB, 트랜잭션 등
+    │   │   └── scripts/     # 타입/API 생성 스크립트
+    │   ├── docs/            # 프레임워크 문서
+    │   └── package.json
+    │
+    ├── auth/                # ✅ @spfn/auth - Client-Key 인증
+    │   ├── src/
+    │   │   ├── server/      # 서버 구현
+    │   │   └── shared/      # 공용 타입
+    │   ├── docs/            # 인증 시스템 문서
+    │   └── package.json
+    │
+    └── cli/                 # 🚧 @spfn/cli - 코드 생성 CLI (예정)
 ```
+
+**범례**: ✅ 완성 | 🚧 진행중
 
 ## 📦 패키지
 
@@ -29,14 +53,17 @@ Client-Key 기반 인증 시스템
 
 [문서 보기](./packages/auth/README.md)
 
-### @spfn/core (예정)
+### @spfn/core ✅
 
 프레임워크 핵심 기능
 
-- File-based Routing (Next.js 스타일)
-- 자동 트랜잭션 관리
-- Repository 패턴
-- Type-safe API 클라이언트 자동 생성
+- **File-based Routing** (Next.js App Router 스타일)
+- **자동 트랜잭션 관리** (AsyncLocalStorage 기반)
+- **Repository 패턴** (Spring Data JPA 스타일)
+- **Type-safe API 클라이언트** 자동 생성
+- **152개 테스트** 모두 통과
+
+[문서 보기](./packages/core/README.md)
 
 ### @spfn/cli (예정)
 
@@ -86,9 +113,24 @@ npm run dev --filter=@spfn/landing
 
 ## 📚 문서
 
-- [아키텍처](./apps/testbed/src/server/docs/README.md)
-- [Getting Started](./apps/testbed/src/server/docs/guides/getting-started.md)
-- [API Reference](./apps/testbed/src/server/docs/api/README.md)
+### 프로젝트 문서
+- [전체 아키텍처](./ARCHITECTURE.md) - 시스템 설계 및 구조
+- [개발 로드맵](./ROADMAP.md) - 향후 계획 및 우선순위
+- [현재 상태](./CURRENT_STATUS.md) - 완료된 작업 및 다음 단계
+
+### 프레임워크 문서
+- [Getting Started](./packages/core/docs/guides/getting-started.md)
+- [Routing Guide](./packages/core/docs/guides/routing.md)
+- [Database & Transactions](./packages/core/docs/guides/database.md)
+- [Repository Pattern](./packages/core/docs/guides/repository.md)
+- [Error Handling](./packages/core/docs/guides/error-handling.md)
+- [API Reference](./packages/core/docs/api/README.md)
+
+### 인증 시스템
+- [Auth Overview](./packages/auth/README.md)
+- [Architecture](./packages/auth/docs/architecture.md)
+- [Security](./packages/auth/docs/security.md)
+- [API Reference](./packages/auth/docs/api-reference.md)
 
 ## 🧪 테스트
 
