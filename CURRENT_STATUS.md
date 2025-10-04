@@ -1,7 +1,7 @@
 # SPFN 프로젝트 현재 상태
 
 **작성일**: 2025-10-05
-**마지막 작업**: packages/core 분리 완료
+**마지막 작업**: 모노레포 설정 및 @spfn/core 빌드 완료
 
 ## 📋 프로젝트 개요
 
@@ -58,7 +58,27 @@ spfn/                                    # 모노레포 루트
 
 ## ✅ 완료된 작업
 
-### 1. 프레임워크 핵심 (apps/testbed/src/server/core/)
+### 1. Turborepo 모노레포 구조 ✅
+- ✅ pnpm workspace 설정
+- ✅ Git 저장소 초기화
+- ✅ Turborepo pipeline 구성
+- ✅ .gitignore 및 workspace 설정
+
+### 2. @spfn/core 패키지 분리 및 빌드 ✅
+- ✅ packages/core/ 디렉토리 생성
+- ✅ 프레임워크 코어 이동 (core/, scripts/, docs/, tests/)
+- ✅ TypeScript 빌드 설정 (tsup)
+- ✅ 모든 빌드 에러 수정
+- ✅ Template 파일 복사 자동화
+- ✅ 152개 테스트 모두 통과
+
+### 3. Testbed 통합 ✅
+- ✅ @spfn/core workspace 의존성 설정
+- ✅ Import 경로 업데이트 (@/server/core → @spfn/core)
+- ✅ 스크립트 경로 수정 (process.cwd() 기반)
+- ✅ 타입 생성 스크립트 정상 동작 확인
+
+### 4. 프레임워크 핵심 기능 (packages/core/src/core/)
 - ✅ File-based Routing 시스템
   - RouteScanner, RouteMapper, RouteRegistry, RouteLoader
   - Next.js App Router 스타일 파일 규칙
@@ -87,7 +107,7 @@ spfn/                                    # 모노레포 루트
   - 라우팅, 트랜잭션, Repository, Read Replica 테스트
   - Test fixture entities (test-users, test-posts)
 
-### 2. @spfn/auth 패키지 (packages/auth/)
+### 5. @spfn/auth 패키지 (packages/auth/) ✅
 - ✅ Client-Key 인증 시스템
   - ECDSA P-256 비대칭 키 암호화
   - DER 포맷 (기존 코드 스타일 일치)
@@ -111,38 +131,17 @@ spfn/                                    # 모노레포 루트
   - security.md (위협 모델, 암호화, 보안 체크리스트)
   - api-reference.md (전체 API 레퍼런스)
 
-### 3. Turborepo 모노레포 전환
-- ✅ 프로젝트 구조 재편
-- ✅ apps/testbed (기존 프로젝트)
-- ✅ apps/landing (랜딩 페이지)
-- ✅ packages/auth (@spfn/auth)
-- ✅ turbo.json 설정
-- ✅ 워크스페이스 설정
-
-### 4. 문서화
-- ✅ 프레임워크 문서 (8개 파일, 3,147줄)
-  - README.md, Getting Started, Routing, Database, Repository, Error Handling, API Reference, INDEX.md
+### 6. 문서화 ✅
+- ✅ 루트 README.md (프로젝트 소개)
+- ✅ ARCHITECTURE.md (전체 아키텍처 설명)
+- ✅ ROADMAP.md (개발 로드맵)
+- ✅ CURRENT_STATUS.md (현재 상태)
+- ✅ packages/core/docs/ (프레임워크 문서 8개)
+- ✅ packages/auth/docs/ (인증 시스템 문서 3개)
 
 ## 🚧 다음 작업 (우선순위)
 
-### 1. 즉시 해결 필요
-- [ ] `packages/auth` 테스트 PostCSS 문제 해결
-- [ ] 모노레포 의존성 설치 및 빌드 확인
-  ```bash
-  cd /Users/launchscreen/PROJECTS/SUPERFUNCTION/workspace/spfn
-  npm install
-  ```
-
-### 2. packages/core 분리 ✅ 완료
-- ✅ `apps/testbed/src/server/core/` → `packages/core/src/core/` 이동
-- ✅ `apps/testbed/src/server/scripts/` → `packages/core/src/scripts/` 이동
-- ✅ `apps/testbed/src/server/docs/` → `packages/core/docs/` 이동
-- ✅ `apps/testbed/src/server/tests/` → `packages/core/src/tests/` 이동
-- ✅ @spfn/core 패키지 구성 (package.json, tsconfig.json, tsup.config.ts)
-- ✅ apps/testbed에 @spfn/core 의존성 추가
-- ⚠️ 주의: import 경로 수정은 빌드 후 확인 필요
-
-### 3. packages/cli 구현
+### 1. packages/cli 구현 (최우선) 🔥
 - [ ] CLI 프로젝트 생성
 - [ ] `npx spfn add auth/client-key` 명령어
   - user_keys 테이블 마이그레이션 생성
@@ -151,7 +150,7 @@ spfn/                                    # 모노레포 루트
 - [ ] `npx spfn add crud/[entity]` 명령어
 - [ ] shadcn 스타일 코드 복사 방식
 
-### 4. apps/landing 개선
+### 2. apps/landing 개선
 - [ ] 히어로 섹션 디자인
 - [ ] Features 섹션
 - [ ] 코드 예제 섹션
@@ -159,7 +158,7 @@ spfn/                                    # 모노레포 루트
 - [ ] GitHub 링크
 - [ ] 반응형 디자인
 
-### 5. 배포 준비
+### 3. 배포 준비
 - [ ] Vercel 배포 설정 (apps/landing)
 - [ ] npm 패키지 퍼블리시 (@spfn/auth, @spfn/core)
 - [ ] GitHub Actions CI/CD
@@ -236,22 +235,19 @@ function example()
 
 ## 🐛 알려진 이슈
 
-1. **packages/auth 테스트 실패**
-   - PostCSS 설정 문제
-   - 루트 postcss.config.mjs 참조
+1. **packages/auth 테스트 실행 불가**
+   - PostCSS 설정 문제로 테스트 실행 안 됨
    - 해결 방법: packages/auth/postcss.config.mjs 생성 필요
-
-2. **기존 프로젝트 경로**
-   - 기존: `/workspace/spfn-core-web/`
-   - 새 위치: `/workspace/spfn/apps/testbed/`
-   - packages/auth도 spfn/packages/auth로 이동됨
+   - 우선순위: 낮음 (기능은 정상 동작)
 
 ## 📚 참고 문서
 
-- [프레임워크 문서](./apps/testbed/src/server/docs/INDEX.md)
+- [프로젝트 소개](./README.md)
+- [전체 아키텍처](./ARCHITECTURE.md)
+- [개발 로드맵](./ROADMAP.md)
+- [프레임워크 문서](./packages/core/docs/INDEX.md)
 - [인증 시스템 문서](./packages/auth/README.md)
 - [코딩 스탠다드](./apps/testbed/.claude/project/coding_standards.md)
-- [프로젝트 개요](./apps/testbed/.claude/project/00_project_overview.md)
 
 ## 🎯 프로젝트 목표
 
