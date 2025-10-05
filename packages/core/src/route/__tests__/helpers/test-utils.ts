@@ -2,16 +2,16 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 /**
- * 테스트 fixtures 디렉토리 경로 가져오기
+ * Get test fixtures directory path
  */
 export function getFixturesPath(fixture: string): string
 {
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    return join(__dirname, '..', 'routing', 'fixtures', fixture);
+    return join(__dirname, '..', 'fixtures', fixture);
 }
 
 /**
- * 테스트용 라우트 파일 생성 헬퍼
+ * Mock route file creation helper for tests
  */
 export function createMockRouteFile(relativePath: string)
 {
