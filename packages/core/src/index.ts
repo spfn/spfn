@@ -56,6 +56,12 @@ export {
 // Database
 export { db, id, timestamps, foreignKey, optionalForeignKey } from './db/index.js';
 export { getDb } from './db/db-context.js';
+export { getDrizzleConfig, detectDialect, generateDrizzleConfigFile } from './db/drizzle-config.js';
+export type { DrizzleConfigOptions } from './db/drizzle-config.js';
+
+// Cache (Redis)
+export { getRedis, getRedisRead, setRedis, initRedis, closeRedis, getRedisInfo, createRedisFromEnv, createSingleRedisFromEnv } from './cache/index.js';
+export type { RedisClients } from './cache/index.js';
 
 // Transaction & Utils
 export { Transactional } from './utils/transaction.js';

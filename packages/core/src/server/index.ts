@@ -4,9 +4,10 @@ import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { loadRoutesFromDirectory } from '../route/route-loader.js';
-import { errorHandler } from '../middleware/error-handler.js';
-import { RequestLogger } from '../middleware/request-logger.js';
+import { loadRoutesFromDirectory } from '@/server/core/route';
+import { errorHandler } from '@/server/core/middleware';
+import { RequestLogger } from '@/server/core/middleware';
+import { initRedis } from '@/server/core/cache';
 
 import type { ServerConfig, AppFactory } from './types.js';
 
@@ -89,9 +90,13 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
  * Start SPFN server
  *
  * Automatically loads server.config.ts if exists
+ * Automatically initializes Redis from environment
  */
 export async function startServer(config?: ServerConfig): Promise<void>
 {
+    // Initialize infrastructure (Redis)
+    await initRedis();
+
     const cwd = process.cwd();
     const configPath = join(cwd, 'src', 'server', 'server.config.ts');
     const configJsPath = join(cwd, 'src', 'server', 'server.config.js');
