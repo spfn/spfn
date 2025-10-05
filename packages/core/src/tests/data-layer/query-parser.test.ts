@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { buildFilters, orFilters } from '@/server/core/query/filters';
 import { buildSort } from '@/server/core/query/sort';
 import { applyPagination, createPaginationMeta } from '@/server/core/query/pagination';
-import { users } from '@/server/entities/users';
+import { testUsers as users } from '../fixtures/entities';
 import { eq, and } from 'drizzle-orm';
 
 describe('QueryParser', () =>

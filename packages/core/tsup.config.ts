@@ -4,9 +4,9 @@ import { join } from 'path';
 
 export default defineConfig({
     entry: {
-        index: 'src/core/index.ts',
-        'route/index': 'src/core/route/index.ts',
-        'db/index': 'src/core/db/index.ts',
+        index: 'src/index.ts',
+        'route/index': 'src/route/index.ts',
+        'db/index': 'src/db/index.ts',
         'scripts/index': 'src/scripts/index.ts',
     },
     format: ['esm'],

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { testClient } from 'hono/testing';
 import { describe, expect, it } from 'vitest';
 
-import { RouteLoader } from '../../../core/route/route-loader';
+import { RouteLoader } from '../../../route/route-loader';
 import { getFixturesPath } from '../../helpers/test-utils';
 
 describe('API Routes Integration', () =>

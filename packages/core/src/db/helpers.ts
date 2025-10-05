@@ -26,10 +26,10 @@
  * - src/server/core/db/wrapped-db.ts (WrappedDb 구현)
  * - src/server/core/db/repository.ts (Repository 구현)
  */
-import { getTransaction } from '@/server/core';
+import { getTransaction } from '../async-context.js';
 
-import { db as defaultDb } from './index';
-import { WrappedDb } from './wrapped-db';
+import { db as defaultDb } from './index.js';
+import { WrappedDb } from './wrapped-db.js';
 
 /**
  * DB 인스턴스 가져오기 (WrappedDb)
