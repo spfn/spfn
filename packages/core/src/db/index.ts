@@ -1,7 +1,7 @@
 /**
  * Database Module Exports
  *
- * DB 모듈의 진입점 (Pure re-export only)
+ * Entry point for DB module (Pure re-export only)
  */
 
 // DB Instance & Connection

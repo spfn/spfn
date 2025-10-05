@@ -1,15 +1,15 @@
 /**
  * Repository Pattern (JPA Style)
  *
- * Spring JPA의 Repository 패턴을 TypeScript/Drizzle에 적용
+ * Applies Spring JPA Repository pattern to TypeScript/Drizzle
  *
- * ✅ 구현 완료:
- * - #11: Read Replica 자동 라우팅 (읽기는 Replica, 쓰기는 Primary)
+ * ✅ Implemented:
+ * - #11: Auto Read Replica routing (reads use Replica, writes use Primary)
  *
- * 📝 TODO: improvements.md 참고
- * - #4: Repository 메서드 확장 (findMany, exists, updateMany, deleteMany, upsert, countBy)
- * - #5: Drizzle Relations 지원 (findWithRelations 메서드 추가)
- * - 타입 안전성 개선 (TSelect = any → InferSelectModel)
+ * 📝 TODO: See improvements.md
+ * - #4: Extend Repository methods (findMany, exists, updateMany, deleteMany, upsert, countBy)
+ * - #5: Drizzle Relations support (add findWithRelations method)
+ * - Improve type safety (TSelect = any → InferSelectModel)
  */
 
 import type { SQL } from 'drizzle-orm';
@@ -25,7 +25,7 @@ import { getRawDb } from './db-instance.js';
 import { QueryError } from '../errors/index.js';
 
 /**
- * Pageable 인터페이스 (Spring Pageable 스타일)
+ * Pageable interface (Spring Pageable style)
  */
 export type Pageable = {
     filters?: Filters;
@@ -34,7 +34,7 @@ export type Pageable = {
 };
 
 /**
- * Page 결과 (Spring Page 스타일)
+ * Page result (Spring Page style)
  */
 export type Page<T> = {
     data: T[];
@@ -42,13 +42,13 @@ export type Page<T> = {
 };
 
 /**
- * Repository 클래스
+ * Repository class
  *
- * JPA Repository 스타일의 CRUD 메서드 제공
+ * Provides JPA Repository-style CRUD methods
  *
- * ✅ Read Replica 자동 라우팅:
- * - 읽기 메서드 (findAll, findById, findOne, findPage, count) → Replica 사용
- * - 쓰기 메서드 (save, update, delete) → Primary 사용
+ * ✅ Auto Read Replica routing:
+ * - Read methods (findAll, findById, findOne, findPage, count) → Uses Replica
+ * - Write methods (save, update, delete) → Uses Primary
  */
 export class Repository<
     TTable extends PgTable,
@@ -58,11 +58,11 @@ export class Repository<
     constructor(
         private db: PostgresJsDatabase<any>,
         private table: TTable,
-        private useReplica: boolean = true // Replica 사용 여부 (기본: true)
+        private useReplica: boolean = true // Whether to use Replica (default: true)
     ) {}
 
     /**
-     * 읽기 전용 DB 가져오기
+     * Get read-only DB
      */
     private getReadDb(): PostgresJsDatabase<any>
     {
@@ -70,7 +70,7 @@ export class Repository<
     }
 
     /**
-     * 쓰기 전용 DB 가져오기
+     * Get write-only DB
      */
     private getWriteDb(): PostgresJsDatabase<any>
     {
@@ -78,7 +78,7 @@ export class Repository<
     }
 
     /**
-     * 전체 조회 (Replica 사용)
+     * Find all records (uses Replica)
      *
      * @example
      * const users = await userRepo.findAll();
@@ -90,7 +90,7 @@ export class Repository<
     }
 
     /**
-     * 페이지네이션 조회 (Replica 사용)
+     * Find with pagination (uses Replica)
      *
      * @example
      * const result = await userRepo.findPage({
@@ -103,12 +103,12 @@ export class Repository<
     {
         const { filters = {}, sort = [], pagination = { page: 1, limit: 20 } } = pageable;
 
-        // 필터, 정렬, 페이지네이션 조건 생성
+        // Build filter, sort, and pagination conditions
         const whereCondition = buildFilters(filters, this.table as any);
         const orderBy = buildSort(sort, this.table as any);
         const { offset, limit } = applyPagination(pagination);
 
-        // Replica에서 데이터 조회
+        // Fetch data from Replica
         const readDb = this.getReadDb();
         const data = await readDb
             .select()
@@ -118,7 +118,7 @@ export class Repository<
             .limit(limit)
             .offset(offset) as TSelect[];
 
-        // 전체 개수 조회 (Replica 사용)
+        // Count total (uses Replica)
         const total = await countTotal(readDb, this.table as any, whereCondition);
         const meta = createPaginationMeta(pagination, total);
 
@@ -126,7 +126,7 @@ export class Repository<
     }
 
     /**
-     * ID로 단건 조회 (Replica 사용)
+     * Find one record by ID (uses Replica)
      *
      * @example
      * const user = await userRepo.findById(1);
@@ -151,7 +151,7 @@ export class Repository<
     }
 
     /**
-     * 조건으로 단건 조회 (Replica 사용)
+     * Find one record by condition (uses Replica)
      *
      * @example
      * const user = await userRepo.findOne(eq(users.email, 'john@example.com'));
@@ -168,7 +168,7 @@ export class Repository<
     }
 
     /**
-     * 생성 (Primary 사용)
+     * Create a new record (uses Primary)
      *
      * @example
      * const user = await userRepo.save({ email: 'john@example.com', name: 'John' });
@@ -185,7 +185,7 @@ export class Repository<
     }
 
     /**
-     * 업데이트 (Primary 사용)
+     * Update a record (uses Primary)
      *
      * @example
      * const user = await userRepo.update(1, { name: 'Jane' });
@@ -211,7 +211,7 @@ export class Repository<
     }
 
     /**
-     * 삭제 (Primary 사용)
+     * Delete a record (uses Primary)
      *
      * @example
      * const deleted = await userRepo.delete(1);
@@ -236,7 +236,7 @@ export class Repository<
     }
 
     /**
-     * 개수 조회 (Replica 사용)
+     * Count records (uses Replica)
      *
      * @example
      * const count = await userRepo.count();
