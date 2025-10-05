@@ -54,10 +54,11 @@ export {
 } from './route/types.js';
 
 // Database
-export { db, id, timestamps, foreignKey, optionalForeignKey } from './db/index.js';
+export { db, getRawDb, id, timestamps, foreignKey, optionalForeignKey } from './db/index.js';
+export type { DbConnectionType } from './db/index.js';
 export { getDb } from './db/db-context.js';
-export { getDrizzleConfig, detectDialect, generateDrizzleConfigFile } from './db/drizzle-config.js';
-export type { DrizzleConfigOptions } from './db/drizzle-config.js';
+export { getDrizzleConfig, detectDialect, generateDrizzleConfigFile } from './db/config-generator.js';
+export type { DrizzleConfigOptions } from './db/config-generator.js';
 
 // Cache (Redis)
 export { getRedis, getRedisRead, setRedis, initRedis, closeRedis, getRedisInfo, createRedisFromEnv, createSingleRedisFromEnv } from './cache/index.js';
