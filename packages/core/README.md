@@ -25,6 +25,14 @@ SPFN Framework Core - File-based routing, transactions, repository pattern for N
 - Sorting
 - Soft delete support
 
+### 🗄️ Redis Cache
+- Singleton instance management
+- Master-Replica support
+- Sentinel & Cluster patterns
+- TLS/SSL support
+- Auto-initialization
+- Environment-driven configuration
+
 ### ⚠️ Error Handling
 - Custom error classes
 - Unified error response format
@@ -39,6 +47,9 @@ SPFN Framework Core - File-based routing, transactions, repository pattern for N
 
 ```bash
 npm install @spfn/core drizzle-orm hono postgres
+
+# Optional: Redis support
+npm install ioredis
 ```
 
 ## 🚀 Quick Start
@@ -108,6 +119,36 @@ export async function POST(c: RouteContext)
     return c.json(user, 201);
 }
 ```
+
+### 4. Using Redis Cache (Optional)
+
+```bash
+# .env
+REDIS_URL=redis://localhost:6379
+```
+
+```typescript
+// Auto-initialized by startServer()
+import { startServer } from '@spfn/core';
+await startServer();
+
+// Use in your code
+import { getRedis, getRedisRead } from '@spfn/core';
+
+// Write operations
+const redis = getRedis();
+if (redis) {
+  await redis.set('user:123', JSON.stringify({ name: 'John' }));
+}
+
+// Read operations (uses replica if available)
+const redisRead = getRedisRead();
+if (redisRead) {
+  const data = await redisRead.get('user:123');
+}
+```
+
+For more details, see [Redis Cache Documentation](./src/cache/README.md).
 
 ## 📚 Documentation
 

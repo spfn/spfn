@@ -49,6 +49,11 @@
     "hono": "^4.9.0",
     "postgres": "^3.4.0"
   },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    }
+  },
   "dependencies": {
     "chalk": "^5.6.2",
     "chokidar": "^4.0.3",
@@ -57,6 +62,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "ioredis": "^5.4.1",
     "tsup": "^8.0.0",
     "typescript": "^5.3.3",
     "vitest": "^3.2.4"

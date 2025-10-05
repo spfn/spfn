@@ -27,6 +27,7 @@ import {
 import { generateKeyPair } from '../crypto.js';
 import { verifySignature } from '../signer.js';
 import { NonceManager, PublicKeyCache } from '../cache.js';
+import { getRedis, createSingleRedisFromEnv } from '@spfn/core/cache';
 
 export interface ClientKeyAuthProviderOptions<TUser = any>
 {
@@ -39,8 +40,15 @@ export interface ClientKeyAuthProviderOptions<TUser = any>
     /** Validate credentials (email/password) */
     validateCredentials: (credentials: any) => Promise<TUser | null>;
 
-    /** Redis instance for caching and nonce management */
-    redis: Redis;
+    /**
+     * Redis instance for caching and nonce management (optional)
+     * If not provided, will auto-detect from environment variables:
+     * - REDIS_URL (single instance)
+     * - REDIS_WRITE_URL + REDIS_READ_URL (master-replica)
+     * - REDIS_SENTINEL_HOSTS + REDIS_MASTER_NAME (sentinel)
+     * - REDIS_CLUSTER_NODES (cluster)
+     */
+    redis?: Redis;
 
     /** Optional configuration */
     config?: ClientKeyAuthConfig;
@@ -84,6 +92,46 @@ export class ClientKeyAuthProvider<TUser = any> implements AuthProvider<TUser>
             options.redis,
             this.config.nonceWindow
         );
+    }
+
+    /**
+     * Create provider with automatic Redis detection
+     *
+     * Priority:
+     * 1. Provided redis option
+     * 2. Global Redis instance (from initRedis)
+     * 3. Auto-detect from environment
+     * 4. undefined (memory-only fallback)
+     *
+     * @example
+     * ```typescript
+     * // Option 1: Use global Redis (recommended)
+     * const provider = await ClientKeyAuthProvider.create({
+     *   keyStore,
+     *   findUserById,
+     *   validateCredentials,
+     * });
+     *
+     * // Option 2: Provide Redis manually
+     * const provider = await ClientKeyAuthProvider.create({
+     *   redis: myRedisInstance,
+     *   keyStore,
+     *   findUserById,
+     *   validateCredentials,
+     * });
+     * ```
+     */
+    static async create<TUser = any>(
+        options: ClientKeyAuthProviderOptions<TUser>
+    ): Promise<ClientKeyAuthProvider<TUser>>
+    {
+        // Priority: provided > global > env > undefined
+        const redis = options.redis ?? getRedis() ?? await createSingleRedisFromEnv();
+
+        return new ClientKeyAuthProvider({
+            ...options,
+            redis,
+        });
     }
 
     /**

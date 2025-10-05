@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Single Redis instance (for basic tests)
+  redis-single:
+    image: redis:7-alpine
+    container_name: spfn-redis-single
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+
+  # Master instance (for master-replica tests)
+  redis-master:
+    image: redis:7-alpine
+    container_name: spfn-redis-master
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+
+  # Replica instance (for master-replica tests)
+  redis-replica:
+    image: redis:7-alpine
+    container_name: spfn-redis-replica
+    ports:
+      - "6381:6379"
+    command: redis-server --replicaof redis-master 6379 --appendonly yes
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+
+  # Redis with authentication (for auth tests)
+  redis-auth:
+    image: redis:7-alpine
+    container_name: spfn-redis-auth
+    ports:
+      - "6382:6379"
+    command: redis-server --requirepass secret123
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "secret123", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+
+networks:
+  default:
+    name: spfn-test-network
