@@ -41,15 +41,16 @@ import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-import { RouteLoader } from '@/server/core';
-import type { RouteDefinition } from '@/server/core';
+import { RouteLoader } from '../route/route-loader.js';
+import type { RouteDefinition } from '../route/types.js';
 
 // Load environment variables
 config({ path: '.env.local' });
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const routesDir = join(__dirname, '..', 'routes');
-const outputDir = join(__dirname, '..', '..', 'lib', 'api');
+const cwd = process.cwd();
+const routesDir = join(cwd, 'src', 'server', 'routes');
+const outputDir = join(cwd, 'src', 'lib', 'api');
 const templatesDir = join(__dirname, 'templates');
 
 /**

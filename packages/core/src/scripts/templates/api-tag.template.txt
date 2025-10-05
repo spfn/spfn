@@ -6,6 +6,6 @@
  *
  * @generated {{TIMESTAMP}}
  */
-import { get, post, patch, del } from '@/server/core/fetch/wrapper';
+import { get, post, patch, del } from '@spfn/core';
 {{IMPORTS}}
 {{FUNCTIONS}}
