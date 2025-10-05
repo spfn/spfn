@@ -21,7 +21,7 @@ import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '.
 import { buildFilters } from '../query/filters.js';
 import { buildSort } from '../query/sort.js';
 import { applyPagination, createPaginationMeta, countTotal } from '../query/pagination.js';
-import { getDb } from './index.js';
+import { getRawDb } from './index.js';
 import { QueryError } from '../errors/index.js';
 
 /**
@@ -66,7 +66,7 @@ export class Repository<
      */
     private getReadDb(): PostgresJsDatabase<any>
     {
-        return this.useReplica ? getDb('read') : this.db;
+        return this.useReplica ? getRawDb('read') : this.db;
     }
 
     /**
@@ -74,7 +74,7 @@ export class Repository<
      */
     private getWriteDb(): PostgresJsDatabase<any>
     {
-        return getDb('write');
+        return getRawDb('write');
     }
 
     /**

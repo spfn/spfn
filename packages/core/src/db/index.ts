@@ -110,19 +110,22 @@ export const db = primaryDb;
 export type DbConnectionType = 'read' | 'write';
 
 /**
- * DB 연결 가져오기 (읽기/쓰기 분리)
+ * Raw Drizzle DB 인스턴스 가져오기 (트랜잭션 없이 직접 사용)
+ *
+ * ⚠️ 주의: 이 함수는 AsyncLocalStorage 트랜잭션 컨텍스트를 무시합니다.
+ * 일반적인 경우 `getDb()` from './db-context.js'를 사용하세요.
  *
  * @param type - 'read' (Replica) 또는 'write' (Primary)
- * @returns Drizzle DB 인스턴스
+ * @returns Raw Drizzle DB 인스턴스
  *
  * @example
  * // 읽기 전용 쿼리 (Replica 사용)
- * const users = await getDb('read').select().from(users);
+ * const users = await getRawDb('read').select().from(users);
  *
  * // 쓰기 쿼리 (Primary 사용)
- * await getDb('write').insert(users).values({ email: 'test@example.com' });
+ * await getRawDb('write').insert(users).values({ email: 'test@example.com' });
  */
-export function getDb(type: DbConnectionType = 'write'): PostgresJsDatabase
+export function getRawDb(type: DbConnectionType = 'write'): PostgresJsDatabase
 {
     return type === 'read' ? replicaDb : primaryDb;
 }
