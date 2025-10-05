@@ -26,9 +26,9 @@
  * - src/db/wrapped-db.ts (WrappedDb implementation)
  * - src/db/repository.ts (Repository implementation)
  */
-import { getTransaction } from '../utils/async-context.js';
+import { getTransaction } from '@core/utils';
 
-import { db as defaultDb, getRawDb, type DbConnectionType } from './db-instance.js';
+import { getDatabase, type DbConnectionType } from './db-manager.js';
 import { WrappedDb } from './wrapped-db.js';
 
 /**
@@ -76,7 +76,15 @@ export function getDb(type?: DbConnectionType): WrappedDb
         return new WrappedDb(tx);
     }
 
-    // Otherwise use specified type or default
-    const rawDb = type ? getRawDb(type) : defaultDb;
+    // Otherwise use specified type or default from manager
+    const rawDb = getDatabase(type);
+    if (!rawDb)
+    {
+        throw new Error(
+            'Database not initialized. ' +
+            'Set DATABASE_URL environment variable or call initDatabase() first.'
+        );
+    }
+
     return new WrappedDb(rawDb);
 }
