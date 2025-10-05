@@ -32,15 +32,19 @@ spfn/                                    # 모노레포 루트
 ├── packages/
 │   ├── core/                            # @spfn/core (프레임워크 핵심) ✅ 분리 완료
 │   │   ├── src/
-│   │   │   ├── core/                   # 프레임워크 코어
-│   │   │   │   ├── route/             # 파일 기반 라우팅
-│   │   │   │   ├── db/                # DB 연결, Repository
+│   │   │   ├── route/                 # 파일 기반 라우팅
+│   │   │   ├── db/                    # DB 연결, Repository
+│   │   │   ├── utils/                 # 핵심 유틸리티
 │   │   │   │   ├── transaction.ts     # 트랜잭션 미들웨어
-│   │   │   │   ├── errors.ts          # 에러 클래스
-│   │   │   │   ├── logger.ts          # 로거
-│   │   │   │   └── fetch/             # Fetch 헬퍼
+│   │   │   │   └── async-context.ts   # AsyncLocalStorage
+│   │   │   ├── errors/                # 에러 클래스
+│   │   │   ├── logger/                # 로거
+│   │   │   ├── fetch/                 # Fetch 헬퍼
+│   │   │   ├── middleware/            # 미들웨어
+│   │   │   ├── query/                 # 쿼리 빌더
 │   │   │   ├── scripts/               # 코드 생성 스크립트
-│   │   │   └── tests/                 # 프레임워크 테스트 (152개)
+│   │   │   ├── tests/                 # 프레임워크 테스트 (152개)
+│   │   │   └── index.ts               # 메인 exports
 │   │   ├── docs/                       # 프레임워크 문서
 │   │   └── README.md
 │   │
@@ -78,7 +82,7 @@ spfn/                                    # 모노레포 루트
 - ✅ 스크립트 경로 수정 (process.cwd() 기반)
 - ✅ 타입 생성 스크립트 정상 동작 확인
 
-### 4. 프레임워크 핵심 기능 (packages/core/src/core/)
+### 4. 프레임워크 핵심 기능 (packages/core/src/)
 - ✅ File-based Routing 시스템
   - RouteScanner, RouteMapper, RouteRegistry, RouteLoader
   - Next.js App Router 스타일 파일 규칙

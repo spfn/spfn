@@ -1,5 +1,4 @@
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
 import type { Hono } from 'hono';
 
@@ -161,10 +160,10 @@ export class RouteLoader
 /**
  * 편의 함수: 기본 설정으로 라우트 로드
  */
-export async function loadRoutesFromDirectory(app: Hono, debug: boolean = false): Promise<void>
+export async function loadRoutesFromDirectory(app: Hono, debug: boolean = false, routesPath?: string): Promise<void>
 {
-    const __dirname = dirname(fileURLToPath(import.meta.url));
-    const routesDir = join(__dirname, '..', '..', 'routes');
+    const cwd = process.cwd();
+    const routesDir = routesPath ?? join(cwd, 'src', 'server', 'routes');
 
     const loader = new RouteLoader(routesDir, debug);
     await loader.loadRoutes(app);

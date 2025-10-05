@@ -26,7 +26,7 @@
  * - src/server/core/db/wrapped-db.ts (WrappedDb 구현)
  * - src/server/core/db/repository.ts (Repository 구현)
  */
-import { getTransaction } from '../async-context.js';
+import { getTransaction } from '../utils/async-context.js';
 
 import { db as defaultDb } from './index.js';
 import { WrappedDb } from './wrapped-db.js';
