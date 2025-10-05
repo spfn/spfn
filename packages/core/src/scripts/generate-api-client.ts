@@ -41,8 +41,8 @@ import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-import { RouteLoader } from '../route/route-loader.js';
-import type { RouteDefinition } from '../route/types.js';
+import { RouteLoader } from "../route/route-loader.js";
+import type { RouteDefinition } from "../route/types.js";
 
 // Load environment variables
 config({ path: '.env.local' });
