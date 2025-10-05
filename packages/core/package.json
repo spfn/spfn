@@ -22,6 +22,10 @@
       "types": "./dist/db/index.d.ts",
       "import": "./dist/db/index.js"
     },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
     "./scripts": {
       "types": "./dist/scripts/index.d.ts",
       "import": "./dist/scripts/index.js"
