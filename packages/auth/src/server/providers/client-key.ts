@@ -24,7 +24,7 @@ import {
     ERROR_MESSAGES,
 } from '../../shared/constants.js';
 
-import { decryptPrivateKey, encryptPrivateKey, generateKeyPair } from '../crypto.js';
+import { generateKeyPair } from '../crypto.js';
 import { verifySignature } from '../signer.js';
 import { NonceManager, PublicKeyCache } from '../cache.js';
 
@@ -176,8 +176,8 @@ export class ClientKeyAuthProvider<TUser = any> implements AuthProvider<TUser>
                 body: request.body,
                 timestamp: request.timestamp,
                 nonce: request.nonce,
-                signature: request.signature,
             },
+            request.signature,
             publicKey,
             this.config.nonceWindow
         );

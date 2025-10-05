@@ -1,0 +1,44 @@
+{
+  "name": "@spfn/cli",
+  "version": "0.1.0",
+  "description": "SPFN CLI - Add SPFN to your Next.js project",
+  "type": "module",
+  "bin": {
+    "spfn": "./bin/spfn.js"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "bin"
+  ],
+  "scripts": {
+    "build": "tsup && node scripts/copy-templates.js",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "spfn",
+    "nextjs",
+    "hono",
+    "cli",
+    "backend"
+  ],
+  "author": "SPFN Team",
+  "license": "MIT",
+  "dependencies": {
+    "@spfn/core": "workspace:*",
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "execa": "^8.0.1",
+    "fs-extra": "^11.2.0",
+    "ora": "^7.0.1",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.11.0",
+    "@types/prompts": "^2.4.9",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.3"
+  }
+}

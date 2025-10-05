@@ -6,6 +6,6 @@
  *
  * @generated {{TIMESTAMP}}
  */
-import { get, post, patch, del } from '@spfn/core';
+import { get, post, patch, del } from '@spfn/core/client';
 {{IMPORTS}}
 {{FUNCTIONS}}

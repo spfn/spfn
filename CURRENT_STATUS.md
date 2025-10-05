@@ -1,7 +1,7 @@
 # SPFN 프로젝트 현재 상태
 
 **작성일**: 2025-10-05
-**마지막 작업**: 모노레포 설정 및 @spfn/core 빌드 완료
+**마지막 작업**: Zero-Configuration 아키텍처 완성 및 CLI 구현 완료
 
 ## 📋 프로젝트 개요
 
@@ -30,10 +30,13 @@ spfn/                                    # 모노레포 루트
 │       └── app/                         # Next.js App Router
 │
 ├── packages/
-│   ├── core/                            # @spfn/core (프레임워크 핵심) ✅ 분리 완료
+│   ├── core/                            # @spfn/core (프레임워크 핵심) ✅ 완료
 │   │   ├── src/
 │   │   │   ├── route/                 # 파일 기반 라우팅
 │   │   │   ├── db/                    # DB 연결, Repository
+│   │   │   ├── server/                # 서버 추상화 (Zero-Config) ✅
+│   │   │   │   ├── index.ts           # createServer, startServer
+│   │   │   │   └── types.ts           # ServerConfig, AppFactory
 │   │   │   ├── utils/                 # 핵심 유틸리티
 │   │   │   │   ├── transaction.ts     # 트랜잭션 미들웨어
 │   │   │   │   └── async-context.ts   # AsyncLocalStorage
@@ -46,6 +49,30 @@ spfn/                                    # 모노레포 루트
 │   │   │   ├── tests/                 # 프레임워크 테스트 (152개)
 │   │   │   └── index.ts               # 메인 exports
 │   │   ├── docs/                       # 프레임워크 문서
+│   │   └── README.md
+│   │
+│   ├── cli/                             # @spfn/cli (CLI 도구) ✅ 완료
+│   │   ├── src/
+│   │   │   ├── commands/
+│   │   │   │   ├── init.ts            # spfn init (Next.js 프로젝트에 SPFN 설치)
+│   │   │   │   ├── dev.ts             # spfn dev (Next.js + Hono 동시 실행) ✅
+│   │   │   │   └── start.ts           # spfn start (프로덕션 Hono 서버) ✅
+│   │   │   ├── utils/
+│   │   │   │   ├── logger.ts          # 색상 로거
+│   │   │   │   └── package-manager.ts # 패키지 매니저 감지
+│   │   │   └── index.ts               # CLI 진입점
+│   │   ├── templates/                  # 프로젝트 템플릿 (Zero-Config) ✅
+│   │   │   └── server/                # 서버 템플릿
+│   │   │       ├── routes/            # 예제 라우트 (RouteContext 패턴)
+│   │   │       │   ├── health/index.ts
+│   │   │       │   └── examples/GET.ts
+│   │   │       ├── entities/          # 엔티티 예제
+│   │   │       │   ├── users.ts
+│   │   │       │   └── README.md
+│   │   │       ├── app.example.ts     # Level 3: 완전 커스터마이즈 예제
+│   │   │       └── server.config.example.ts  # Level 2: 부분 커스터마이즈 예제
+│   │   ├── bin/spfn.js                # CLI 실행 파일
+│   │   ├── scripts/copy-templates.js  # 빌드 스크립트
 │   │   └── README.md
 │   │
 │   └── auth/                            # @spfn/auth (인증 시스템) ✅ 완성
@@ -83,6 +110,13 @@ spfn/                                    # 모노레포 루트
 - ✅ 타입 생성 스크립트 정상 동작 확인
 
 ### 4. 프레임워크 핵심 기능 (packages/core/src/)
+- ✅ **Zero-Configuration 서버 추상화** (src/server/) 🆕
+  - `createServer()` - 자동 서버 생성 (Level 1/2/3 지원)
+  - `startServer()` - 서버 시작 + 설정 병합
+  - Level 1: 완전 자동 (개발자는 routes + entities만 작성)
+  - Level 2: server.config.ts로 부분 커스터마이즈
+  - Level 3: app.ts로 완전 제어
+
 - ✅ File-based Routing 시스템
   - RouteScanner, RouteMapper, RouteRegistry, RouteLoader
   - Next.js App Router 스타일 파일 규칙
@@ -135,24 +169,73 @@ spfn/                                    # 모노레포 루트
   - security.md (위협 모델, 암호화, 보안 체크리스트)
   - api-reference.md (전체 API 레퍼런스)
 
-### 6. 문서화 ✅
+### 6. @spfn/cli 패키지 (packages/cli/) ✅ 완료
+- ✅ CLI 프로젝트 구조 생성
+- ✅ `spfn init` 명령어 (shadcn/ui 스타일)
+  - Next.js 프로젝트 감지
+  - 패키지 매니저 자동 감지 (npm/pnpm/yarn/bun)
+  - 의존성 자동 설치 (@spfn/core, hono, drizzle-orm, etc.)
+  - Zero-Config 템플릿 복사 (routes, entities, examples)
+  - package.json 스크립트 업데이트 (dev, dev:server, start:server)
+  - .env.local.example 생성
+
+- ✅ `spfn dev` 명령어 🆕
+  - Next.js 자동 감지 (package.json 체크)
+  - 감지 성공: Next.js (3000) + Hono (4000) 동시 실행
+  - 감지 실패: Hono 서버만 실행
+  - `--server-only` 옵션으로 Hono만 실행 가능
+  - 프로세스 정리 (SIGINT, SIGTERM 핸들링)
+
+- ✅ `spfn start` 명령어 🆕
+  - 프로덕션 Hono 서버 시작
+  - @spfn/core의 startServer() 사용
+
+- ✅ Zero-Config 템플릿 🆕
+  - routes/health/index.ts - RouteContext 패턴 예제
+  - routes/examples/GET.ts - API 예제
+  - entities/users.ts + README.md - Drizzle 엔티티 예제
+  - app.example.ts - Level 3 완전 커스터마이즈 예제
+  - server.config.example.ts - Level 2 부분 커스터마이즈 예제
+  - ❌ 불필요한 보일러플레이트 제거 (index.ts, app.ts)
+
+- ✅ 개발 도구
+  - 색상 로거 (chalk)
+  - 인터랙티브 프롬프트 (prompts)
+  - 스피너 UI (ora)
+  - Allman 코딩 스타일 적용
+  - TypeScript strict 모드
+
+- ✅ README.md 문서 (완전 개정) 🆕
+  - Quick Start (3줄 설치)
+  - 모든 CLI 명령어 문서화
+  - 3-Level 설정 시스템 설명
+  - Zero-Config 프로젝트 구조
+  - Auto-detection 동작 설명
+  - Generated scripts 안내
+
+### 7. 문서화 ✅
 - ✅ 루트 README.md (프로젝트 소개)
 - ✅ ARCHITECTURE.md (전체 아키텍처 설명)
 - ✅ ROADMAP.md (개발 로드맵)
-- ✅ CURRENT_STATUS.md (현재 상태)
+- ✅ CURRENT_STATUS.md (현재 상태) - Zero-Config 아키텍처 반영 🆕
 - ✅ packages/core/docs/ (프레임워크 문서 8개)
 - ✅ packages/auth/docs/ (인증 시스템 문서 3개)
+- ✅ packages/cli/README.md (CLI 사용 가이드) - 완전 개정 🆕
 
 ## 🚧 다음 작업 (우선순위)
 
-### 1. packages/cli 구현 (최우선) 🔥
-- [ ] CLI 프로젝트 생성
-- [ ] `npx spfn add auth/client-key` 명령어
+### 1. packages/cli Phase 2-4 구현 🔥
+- [ ] Phase 2: `spfn add` 명령어
+  - `spfn add auth/client-key` - 인증 시스템 추가
   - user_keys 테이블 마이그레이션 생성
   - 인증 라우트 자동 생성
   - Next.js API Route 자동 생성
-- [ ] `npx spfn add crud/[entity]` 명령어
-- [ ] shadcn 스타일 코드 복사 방식
+- [ ] Phase 3: `spfn generate crud` 명령어
+  - CRUD 라우트 자동 생성
+  - Repository 패턴 코드 생성
+- [ ] Phase 4: 추가 명령어들
+  - `spfn generate types` - API 타입 생성
+  - `spfn db migrate` - 데이터베이스 마이그레이션
 
 ### 2. apps/landing 개선
 - [ ] 히어로 섹션 디자인
@@ -210,6 +293,13 @@ npm test                 # 테스트 (152개)
 ```bash
 npm test                 # 테스트 (현재 PostCSS 문제)
 npm run build            # tsup 빌드
+```
+
+**cli 패키지**
+```bash
+npm run build            # CLI 빌드 (tsup + 템플릿 복사)
+npm run type-check       # 타입 체크만
+npm link                 # 로컬 테스트용 글로벌 링크
 ```
 
 ## 📝 코딩 스타일
