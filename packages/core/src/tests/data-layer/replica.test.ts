@@ -7,9 +7,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { getDb, type DbConnectionType } from '@/server/core/db';
+import { getDb, type DbConnectionType } from '@core/db';
 import { testUsers } from '../fixtures/entities';
-import { Repository } from '@/server/core/db/repository';
+import { Repository } from '@core/db/repository';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 

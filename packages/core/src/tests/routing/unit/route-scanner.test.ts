@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { RouteScanner } from '@/server/core';
+import { RouteScanner } from '@core';
 import { getFixturesPath } from '../../helpers/test-utils';
 
 describe('RouteScanner', () =>

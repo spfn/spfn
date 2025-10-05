@@ -15,7 +15,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import { RequestLogger } from '@/server/core';
+import { RequestLogger } from '@core';
 
 type Env = {
   Variables: {

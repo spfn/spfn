@@ -29,8 +29,8 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
-import { db } from '@/server/core/db';
-import { getDb, Transactional } from '@/server/core';
+import { db } from '@core/db';
+import { getDb, Transactional } from '@core';
 import { testUsers, testPosts } from '../fixtures/entities';
 import { eq } from 'drizzle-orm';
 
