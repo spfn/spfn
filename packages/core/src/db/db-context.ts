@@ -1,30 +1,30 @@
 /**
  * DB Context Helper
  *
- * 트랜잭션 컨텍스트를 자동으로 감지하여 적절한 DB 인스턴스를 반환합니다.
+ * Automatically detects transaction context and returns the appropriate DB instance.
  *
- * ✅ 구현 완료:
- * - AsyncLocalStorage 기반 트랜잭션 감지
- * - 트랜잭션 없을 시 기본 DB 인스턴스 반환
- * - JPA 스타일 Repository 패턴 지원
- * - Drizzle 기본 기능 유지
+ * ✅ Implemented:
+ * - AsyncLocalStorage-based transaction detection
+ * - Returns default DB instance when no transaction
+ * - JPA-style Repository pattern support
+ * - Preserves Drizzle core features
  *
- * ⚠️ 개선 필요:
- * - 트랜잭션 중첩 감지 및 경고 로깅
- * - 트랜잭션 타임아웃 체크
+ * ⚠️ TODO:
+ * - Nested transaction detection and warning logs
+ * - Transaction timeout checks
  *
- * 💡 향후 고려사항:
- * - 강제로 기본 DB 사용하는 함수 추가 (useDefaultDb)
- * - Read Replica 자동 선택 (읽기 전용 쿼리 감지)
- * - 트랜잭션 통계 수집 (성공/실패/롤백 횟수)
- * - 트랜잭션 ID 반환 함수 (디버깅용)
+ * 💡 Future considerations:
+ * - Add function to force default DB usage (useDefaultDb)
+ * - Auto-select Read Replica (detect read-only queries)
+ * - Transaction statistics collection (success/failure/rollback count)
+ * - Return transaction ID function (for debugging)
  *
- * 🔗 관련 파일:
- * - src/utils/async-context.ts (AsyncLocalStorage 구현)
- * - src/utils/transaction.ts (Transactional 미들웨어)
- * - src/db/db-instance.ts (기본 DB 인스턴스)
- * - src/db/wrapped-db.ts (WrappedDb 구현)
- * - src/db/repository.ts (Repository 구현)
+ * 🔗 Related files:
+ * - src/utils/async-context.ts (AsyncLocalStorage implementation)
+ * - src/utils/transaction.ts (Transactional middleware)
+ * - src/db/db-instance.ts (Default DB instance)
+ * - src/db/wrapped-db.ts (WrappedDb implementation)
+ * - src/db/repository.ts (Repository implementation)
  */
 import { getTransaction } from '../utils/async-context.js';
 
@@ -32,13 +32,13 @@ import { db as defaultDb } from './db-instance.js';
 import { WrappedDb } from './wrapped-db.js';
 
 /**
- * DB 인스턴스 가져오기 (WrappedDb)
+ * Get DB instance (WrappedDb)
  *
- * - 트랜잭션 컨텍스트가 있으면: 트랜잭션 DB 반환
- * - 없으면: 기본 DB 반환
- * - WrappedDb로 래핑하여 Repository 패턴 + Drizzle 기능 모두 제공
+ * - If transaction context exists: Returns transaction DB
+ * - Otherwise: Returns default DB
+ * - Wraps with WrappedDb to provide both Repository pattern + Drizzle features
  *
- * 사용법 1: Drizzle 직접 사용
+ * Usage 1: Direct Drizzle use
  * ```typescript
  * export async function GET(c: RouteContext) {
  *   const db = getDb();
@@ -47,7 +47,7 @@ import { WrappedDb } from './wrapped-db.js';
  * }
  * ```
  *
- * 사용법 2: Repository 패턴
+ * Usage 2: Repository pattern
  * ```typescript
  * export async function GET(c: RouteContext) {
  *   const db = getDb();
@@ -57,7 +57,7 @@ import { WrappedDb } from './wrapped-db.js';
  * }
  * ```
  *
- * @returns WrappedDb 인스턴스 (트랜잭션 또는 기본 DB)
+ * @returns WrappedDb instance (transaction or default DB)
  */
 export function getDb(): WrappedDb
 {

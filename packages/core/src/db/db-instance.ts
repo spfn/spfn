@@ -1,26 +1,26 @@
 /**
  * Database Instance
  *
- * PostgreSQL + Drizzle ORM 연결 초기화 및 인스턴스 생성
+ * PostgreSQL + Drizzle ORM connection initialization and instance creation
  *
- * ✅ 구현 완료:
- * - PostgreSQL Connection Pool 설정
- * - 환경변수 자동 로드 (.env.local)
- * - DATABASE_URL 검증
- * - Drizzle ORM 인스턴스 생성
- * - 연결 실패 시 재시도 로직 (Exponential Backoff)
- * - 환경별 Connection Pool 설정 분리
- * - Read Replica 지원 (읽기/쓰기 분리) - #11
+ * ✅ Implemented:
+ * - PostgreSQL Connection Pool configuration
+ * - Automatic environment variable loading (.env.local)
+ * - DATABASE_URL validation
+ * - Drizzle ORM instance creation
+ * - Retry logic on connection failure (Exponential Backoff)
+ * - Environment-specific Connection Pool configuration
+ * - Read Replica support (read/write separation) - #11
  *
- * ⚠️ 개선 필요:
- * - DB 연결 상태 헬스체크 엔드포인트
- * - 연결 풀 모니터링 (활성/유휴 연결 수)
- * - Graceful Shutdown 로직
+ * ⚠️ TODO:
+ * - DB connection health check endpoint
+ * - Connection pool monitoring (active/idle connections)
+ * - Graceful Shutdown logic
  *
- * 💡 향후 고려사항:
- * - Connection Pool 이벤트 로깅
- * - 트랜잭션 격리 수준 설정 옵션
- * - 쿼리 로깅 및 성능 모니터링
+ * 💡 Future considerations:
+ * - Connection Pool event logging
+ * - Transaction isolation level configuration
+ * - Query logging and performance monitoring
  */
 import { config } from 'dotenv';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -35,7 +35,7 @@ if (!process.env.DATABASE_URL)
     config({ path: '.env.local' });
 }
 
-// 환경변수에서 DATABASE_URL 읽기
+// Read DATABASE_URL from environment variables
 const primaryUrl = process.env.DATABASE_URL;
 const replicaUrl = process.env.DATABASE_REPLICA_URL; // Optional
 
@@ -44,11 +44,11 @@ if (!primaryUrl)
     throw new Error('DATABASE_URL environment variable is not set');
 }
 
-// Connection Pool 및 재시도 설정
+// Connection Pool and retry configuration
 const poolConfig = getPoolConfig();
 const retryConfig = getRetryConfig();
 
-// Primary 연결 (쓰기용)
+// Primary connection (for writes)
 let primaryClientPromise: ReturnType<typeof createDatabaseConnection> | null = null;
 
 function getPrimaryClient()
@@ -64,14 +64,14 @@ function getPrimaryClient()
     return primaryClientPromise;
 }
 
-// Replica 연결 (읽기용, Optional)
+// Replica connection (for reads, optional)
 let replicaClientPromise: ReturnType<typeof createDatabaseConnection> | null = null;
 
 function getReplicaClient()
 {
     if (!replicaUrl)
     {
-        // Replica URL이 없으면 Primary 사용
+        // Use Primary if no Replica URL
         return getPrimaryClient();
     }
 
@@ -86,38 +86,38 @@ function getReplicaClient()
     return replicaClientPromise;
 }
 
-// 클라이언트 초기화
+// Initialize clients
 const primaryClient = await getPrimaryClient();
 const replicaClient = await getReplicaClient();
 
-// Drizzle 인스턴스 생성
+// Create Drizzle instances
 const primaryDb = drizzle(primaryClient);
 const replicaDb = drizzle(replicaClient);
 
 /**
- * 기본 DB 인스턴스 (Primary - 쓰기용)
+ * Default DB instance (Primary - for writes)
  */
 export const db = primaryDb;
 
 /**
- * DB 연결 타입
+ * DB connection type
  */
 export type DbConnectionType = 'read' | 'write';
 
 /**
- * Raw Drizzle DB 인스턴스 가져오기 (트랜잭션 없이 직접 사용)
+ * Get raw Drizzle DB instance (direct use without transaction)
  *
- * ⚠️ 주의: 이 함수는 AsyncLocalStorage 트랜잭션 컨텍스트를 무시합니다.
- * 일반적인 경우 `getDb()` from './db-context.js'를 사용하세요.
+ * ⚠️ Warning: This function bypasses AsyncLocalStorage transaction context.
+ * For normal cases, use `getDb()` from './db-context.js'.
  *
- * @param type - 'read' (Replica) 또는 'write' (Primary)
- * @returns Raw Drizzle DB 인스턴스
+ * @param type - 'read' (Replica) or 'write' (Primary)
+ * @returns Raw Drizzle DB instance
  *
  * @example
- * // 읽기 전용 쿼리 (Replica 사용)
+ * // Read-only query (uses Replica)
  * const users = await getRawDb('read').select().from(users);
  *
- * // 쓰기 쿼리 (Primary 사용)
+ * // Write query (uses Primary)
  * await getRawDb('write').insert(users).values({ email: 'test@example.com' });
  */
 export function getRawDb(type: DbConnectionType = 'write'): PostgresJsDatabase
