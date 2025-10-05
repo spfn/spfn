@@ -1,7 +1,7 @@
 /**
  * Database Connection Tests
  *
- * DB 연결 및 Connection Pool 테스트
+ * Test database connection and connection pool functionality
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
