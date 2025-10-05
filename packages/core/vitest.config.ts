@@ -6,12 +6,12 @@ export default defineConfig({
         globals: true,
         environment: 'node',
         include: ['src/**/*.{test,spec}.{js,ts}'],
-        setupFiles: ['src/tests/setup.ts'],
+        setupFiles: ['src/db/__tests__/setup.ts'],
     },
     resolve: {
         alias: {
             '@core': resolve(__dirname, './src'),
-            '@/server/entities': resolve(__dirname, './src/tests/fixtures/entities'),
+            '@/server/entities': resolve(__dirname, './src/db/__tests__/fixtures/entities'),
         },
     },
 });
