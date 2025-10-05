@@ -28,14 +28,14 @@
  */
 import { getTransaction } from '../utils/async-context.js';
 
-import { db as defaultDb } from './db-instance.js';
+import { db as defaultDb, getRawDb, type DbConnectionType } from './db-instance.js';
 import { WrappedDb } from './wrapped-db.js';
 
 /**
  * Get DB instance (WrappedDb)
  *
  * - If transaction context exists: Returns transaction DB
- * - Otherwise: Returns default DB
+ * - Otherwise: Returns default DB or specified connection type
  * - Wraps with WrappedDb to provide both Repository pattern + Drizzle features
  *
  * Usage 1: Direct Drizzle use
@@ -57,11 +57,26 @@ import { WrappedDb } from './wrapped-db.js';
  * }
  * ```
  *
- * @returns WrappedDb instance (transaction or default DB)
+ * Usage 3: Specify connection type
+ * ```typescript
+ * const readDb = getDb('read');   // Use read replica
+ * const writeDb = getDb('write'); // Use primary
+ * ```
+ *
+ * @param type - Optional connection type ('read' or 'write')
+ * @returns WrappedDb instance (transaction or specified DB)
  */
-export function getDb(): WrappedDb
+export function getDb(type?: DbConnectionType): WrappedDb
 {
     const tx = getTransaction();
-    const rawDb = tx ?? defaultDb;
+
+    // If transaction exists, always use transaction DB
+    if (tx)
+    {
+        return new WrappedDb(tx);
+    }
+
+    // Otherwise use specified type or default
+    const rawDb = type ? getRawDb(type) : defaultDb;
     return new WrappedDb(rawDb);
 }
