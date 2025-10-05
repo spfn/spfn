@@ -1,30 +1,30 @@
 /**
  * Logger Class
  *
- * 메인 로거 클래스
+ * Main logger class
  *
- * ✅ 구현 완료:
- * - 5가지 로그 레벨 메서드 (debug, info, warn, error, fatal)
- * - Child logger 생성 (모듈별)
- * - 다중 Transport 지원
- * - Context 객체 지원
- * - Error 객체 자동 처리
+ * ✅ Implemented:
+ * - 5 log level methods (debug, info, warn, error, fatal)
+ * - Child logger creation (per module)
+ * - Multiple Transport support
+ * - Context object support
+ * - Automatic Error object handling
  *
- * 💡 향후 고려사항:
- * - 로그 샘플링 (고빈도 로그 제한)
- * - 비동기 배치 처리
- * - 메모리 사용량 모니터링
+ * 💡 Future considerations:
+ * - Log sampling (limit high-frequency logs)
+ * - Async batch processing
+ * - Memory usage monitoring
  *
- * 🔗 관련 파일:
- * - src/logger/types.ts (타입 정의)
- * - src/logger/transports/ (Transport 구현체)
- * - src/logger/adapter-factory.ts (싱글톤 인스턴스)
+ * 🔗 Related files:
+ * - src/logger/types.ts (Type definitions)
+ * - src/logger/transports/ (Transport implementations)
+ * - src/logger/adapter-factory.ts (Singleton instance)
  */
 
 import type { LogLevel, LogMetadata, LoggerConfig, Transport } from './types';
 
 /**
- * Logger 클래스
+ * Logger class
  */
 export class Logger
 {
@@ -38,7 +38,7 @@ export class Logger
     }
 
     /**
-     * Child logger 생성 (모듈별)
+     * Create child logger (per module)
      */
     child(module: string): Logger
     {
@@ -49,7 +49,7 @@ export class Logger
     }
 
     /**
-     * Debug 로그
+     * Debug log
      */
     debug(message: string, context?: Record<string, unknown>): void
     {
@@ -57,7 +57,7 @@ export class Logger
     }
 
     /**
-     * Info 로그
+     * Info log
      */
     info(message: string, context?: Record<string, unknown>): void
     {
@@ -65,7 +65,7 @@ export class Logger
     }
 
     /**
-     * Warn 로그
+     * Warn log
      */
     warn(message: string, context?: Record<string, unknown>): void;
     warn(message: string, error: Error, context?: Record<string, unknown>): void;
@@ -82,7 +82,7 @@ export class Logger
     }
 
     /**
-     * Error 로그
+     * Error log
      */
     error(message: string, context?: Record<string, unknown>): void;
     error(message: string, error: Error, context?: Record<string, unknown>): void;
@@ -99,7 +99,7 @@ export class Logger
     }
 
     /**
-     * Fatal 로그
+     * Fatal log
      */
     fatal(message: string, context?: Record<string, unknown>): void;
     fatal(message: string, error: Error, context?: Record<string, unknown>): void;
@@ -116,7 +116,7 @@ export class Logger
     }
 
     /**
-     * 로그 처리 (내부)
+     * Log processing (internal)
      */
     private log(level: LogLevel, message: string, error?: Error, context?: Record<string, unknown>): void
     {
@@ -129,12 +129,12 @@ export class Logger
             context,
         };
 
-        // 모든 활성화된 Transport에 전달
+        // Pass to all enabled Transports
         this.processTransports(metadata);
     }
 
     /**
-     * Transport 처리
+     * Process Transports
      */
     private processTransports(metadata: LogMetadata): void
     {
@@ -142,7 +142,7 @@ export class Logger
             .filter(transport => transport.enabled)
             .map(transport => this.safeTransportLog(transport, metadata));
 
-        // Transport 에러가 로그 자체를 막지 않도록 비동기 처리
+        // Async processing to prevent Transport errors from blocking logs
         Promise.all(promises).catch(error =>
         {
             console.error('Transport error:', error);
@@ -150,7 +150,7 @@ export class Logger
     }
 
     /**
-     * Transport 로그 (에러 안전)
+     * Transport log (error-safe)
      */
     private async safeTransportLog(transport: Transport, metadata: LogMetadata): Promise<void>
     {
@@ -165,7 +165,7 @@ export class Logger
     }
 
     /**
-     * 모든 Transport 종료
+     * Close all Transports
      */
     async close(): Promise<void>
     {

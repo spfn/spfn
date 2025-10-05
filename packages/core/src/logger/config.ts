@@ -1,24 +1,24 @@
 /**
  * Logger Configuration
  *
- * 로거 설정 (환경별)
+ * Logger configuration by environment
  *
- * ✅ 구현 완료:
- * - 환경별 로그 레벨 설정
- * - Console Transport 설정
- * - File Transport 설정 (자체 구축용)
- * - 파일 로테이션 설정
- * - Slack Transport 설정 (환경변수 기반)
- * - Email Transport 설정 (환경변수 기반)
+ * ✅ Implemented:
+ * - Environment-specific log level configuration
+ * - Console Transport configuration
+ * - File Transport configuration (for self-hosted)
+ * - File rotation configuration
+ * - Slack Transport configuration (environment variable based)
+ * - Email Transport configuration (environment variable based)
  *
- * 💡 배포 시나리오:
- * - K8s: 파일 로깅 비활성화 (Stdout만)
- * - 자체 구축: LOGGER_FILE_ENABLED=true
+ * 💡 Deployment scenarios:
+ * - K8s: Disable file logging (Stdout only)
+ * - Self-hosted: LOGGER_FILE_ENABLED=true
  *
- * 🔗 관련 파일:
- * - src/logger/types.ts (타입 정의)
- * - src/logger/index.ts (메인 export)
- * - .env.local (환경변수)
+ * 🔗 Related files:
+ * - src/logger/types.ts (Type definitions)
+ * - src/logger/index.ts (Main export)
+ * - .env.local (Environment variables)
  */
 
 import type {
@@ -30,7 +30,7 @@ import type {
 } from './types';
 
 /**
- * 파일 로깅 활성화 여부 (자체 구축용)
+ * Check if file logging is enabled (for self-hosted)
  */
 export function isFileLoggingEnabled(): boolean
 {
@@ -38,7 +38,7 @@ export function isFileLoggingEnabled(): boolean
 }
 
 /**
- * 환경별 기본 로그 레벨
+ * Get default log level by environment
  */
 export function getDefaultLogLevel(): LogLevel
 {
@@ -55,12 +55,12 @@ export function getDefaultLogLevel(): LogLevel
         return 'info';
     }
 
-    // test 환경
+    // Test environment
     return 'warn';
 }
 
 /**
- * Console Transport 설정
+ * Console Transport configuration
  */
 export function getConsoleConfig(): ConsoleTransportConfig
 {
@@ -69,12 +69,12 @@ export function getConsoleConfig(): ConsoleTransportConfig
     return {
         level: 'debug',
         enabled: true,
-        colorize: !isProduction, // 개발: 컬러 출력, 프로덕션: 플레인 텍스트
+        colorize: !isProduction, // Dev: colored output, Production: plain text
     };
 }
 
 /**
- * File Transport 설정
+ * File Transport configuration
  */
 export function getFileConfig(): FileTransportConfig
 {
@@ -82,7 +82,7 @@ export function getFileConfig(): FileTransportConfig
 
     return {
         level: 'info',
-        enabled: isProduction, // 프로덕션에서만 파일 로깅
+        enabled: isProduction, // File logging in production only
         logDir: process.env.LOG_DIR || './logs',
         maxFileSize: 10 * 1024 * 1024, // 10MB
         maxFiles: 10,
@@ -90,7 +90,7 @@ export function getFileConfig(): FileTransportConfig
 }
 
 /**
- * Slack Transport 설정
+ * Slack Transport configuration
  */
 export function getSlackConfig(): SlackTransportConfig | null
 {
@@ -98,14 +98,14 @@ export function getSlackConfig(): SlackTransportConfig | null
 
     if (!webhookUrl)
     {
-        return null; // 설정되지 않으면 비활성화
+        return null; // Disabled if not configured
     }
 
     const isProduction = process.env.NODE_ENV === 'production';
 
     return {
-        level: 'error', // error 이상만 Slack 전송
-        enabled: isProduction, // 프로덕션에서만 활성화
+        level: 'error', // Send error and above to Slack
+        enabled: isProduction, // Enabled in production only
         webhookUrl,
         channel: process.env.SLACK_CHANNEL,
         username: process.env.SLACK_USERNAME || 'Logger Bot',
@@ -113,7 +113,7 @@ export function getSlackConfig(): SlackTransportConfig | null
 }
 
 /**
- * Email Transport 설정
+ * Email Transport configuration
  */
 export function getEmailConfig(): EmailTransportConfig | null
 {
@@ -122,7 +122,7 @@ export function getEmailConfig(): EmailTransportConfig | null
     const emailFrom = process.env.EMAIL_FROM;
     const emailTo = process.env.EMAIL_TO;
 
-    // 필수 설정이 없으면 비활성화
+    // Disabled if required settings are missing
     if (!smtpHost || !smtpPort || !emailFrom || !emailTo)
     {
         return null;
@@ -131,8 +131,8 @@ export function getEmailConfig(): EmailTransportConfig | null
     const isProduction = process.env.NODE_ENV === 'production';
 
     return {
-        level: 'fatal', // fatal 레벨만 이메일 전송
-        enabled: isProduction, // 프로덕션에서만 활성화
+        level: 'fatal', // Send fatal level only via email
+        enabled: isProduction, // Enabled in production only
         from: emailFrom,
         to: emailTo.split(',').map(email => email.trim()),
         smtpHost,
