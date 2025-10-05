@@ -1,7 +1,7 @@
 /**
  * Logger Adapter Factory
  *
- * Adapter 생성 및 초기화 로직
+ * Adapter creation and initialization logic
  */
 
 import { PinoAdapter } from './adapters/pino.js';
@@ -10,12 +10,12 @@ import { getDefaultLogLevel } from './config.js';
 import type { LoggerAdapter } from './adapters/types.js';
 
 /**
- * Adapter 타입
+ * Adapter type
  */
 type AdapterType = 'pino' | 'custom';
 
 /**
- * Adapter 생성
+ * Create adapter instance
  */
 function createAdapter(type: AdapterType): LoggerAdapter
 {
@@ -35,7 +35,7 @@ function createAdapter(type: AdapterType): LoggerAdapter
 }
 
 /**
- * 환경변수에서 Adapter 타입 읽기
+ * Read adapter type from environment variable
  */
 function getAdapterType(): AdapterType
 {
@@ -46,11 +46,11 @@ function getAdapterType(): AdapterType
         return adapterEnv;
     }
 
-    // 기본값: pino
+    // Default: pino
     return 'pino';
 }
 
 /**
- * 싱글톤 Logger 인스턴스
+ * Singleton Logger instance
  */
 export const logger: LoggerAdapter = createAdapter(getAdapterType());
