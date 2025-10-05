@@ -1,38 +1,60 @@
 /**
  * Database Error Classes
  *
- * 타입 안전한 에러 처리를 위한 커스텀 에러 클래스 계층 구조
- * HTTP 상태 코드와 매핑되어 API 응답에 사용
+ * Type-safe error handling with custom error class hierarchy
+ * Mapped to HTTP status codes for API responses
  */
 
 /**
- * 기본 Database Error
+ * Base Database Error
  *
- * 모든 데이터베이스 관련 에러의 베이스 클래스
+ * Base class for all database-related errors
  */
 export class DatabaseError extends Error
 {
+    public readonly statusCode: number;
+    public readonly details?: Record<string, any>;
+    public readonly timestamp: Date;
+
     constructor(
         message: string,
-        public statusCode: number = 500
+        statusCode: number = 500,
+        details?: Record<string, any>
     )
     {
         super(message);
         this.name = 'DatabaseError';
+        this.statusCode = statusCode;
+        this.details = details;
+        this.timestamp = new Date();
         Error.captureStackTrace(this, this.constructor);
+    }
+
+    /**
+     * Serialize error for API response
+     */
+    toJSON()
+    {
+        return {
+            name: this.name,
+            message: this.message,
+            statusCode: this.statusCode,
+            details: this.details,
+            timestamp: this.timestamp.toISOString()
+        };
     }
 }
 
 /**
  * Connection Error (503 Service Unavailable)
  *
- * 데이터베이스 연결 실패, Connection Pool 고갈 등
+ * Database connection failure, connection pool exhaustion, etc.
  */
 export class ConnectionError extends DatabaseError
 {
-    constructor(message: string)
+    constructor(message: string, details?: Record<string, any>)
     {
-        super(message, 503);
+        super(message, 503, details);
         this.name = 'ConnectionError';
     }
 }
@@ -40,13 +62,13 @@ export class ConnectionError extends DatabaseError
 /**
  * Query Error (500 Internal Server Error)
  *
- * SQL 쿼리 실행 실패, 문법 오류 등
+ * SQL query execution failure, syntax errors, etc.
  */
 export class QueryError extends DatabaseError
 {
-    constructor(message: string, statusCode: number = 500)
+    constructor(message: string, statusCode: number = 500, details?: Record<string, any>)
     {
-        super(message, statusCode);
+        super(message, statusCode, details);
         this.name = 'QueryError';
     }
 }
@@ -54,13 +76,13 @@ export class QueryError extends DatabaseError
 /**
  * Not Found Error (404 Not Found)
  *
- * 요청한 리소스가 존재하지 않음
+ * Requested resource does not exist
  */
 export class NotFoundError extends QueryError
 {
     constructor(resource: string, id: string | number)
     {
-        super(`${resource} with id ${id} not found`, 404);
+        super(`${resource} with id ${id} not found`, 404, { resource, id });
         this.name = 'NotFoundError';
     }
 }
@@ -68,13 +90,13 @@ export class NotFoundError extends QueryError
 /**
  * Validation Error (400 Bad Request)
  *
- * 입력 데이터 유효성 검증 실패
+ * Input data validation failure
  */
 export class ValidationError extends QueryError
 {
-    constructor(message: string)
+    constructor(message: string, details?: Record<string, any>)
     {
-        super(message, 400);
+        super(message, 400, details);
         this.name = 'ValidationError';
     }
 }
@@ -82,13 +104,13 @@ export class ValidationError extends QueryError
 /**
  * Transaction Error (500 Internal Server Error)
  *
- * 트랜잭션 시작/커밋/롤백 실패
+ * Transaction start/commit/rollback failure
  */
 export class TransactionError extends DatabaseError
 {
-    constructor(message: string, statusCode: number = 500)
+    constructor(message: string, statusCode: number = 500, details?: Record<string, any>)
     {
-        super(message, statusCode);
+        super(message, statusCode, details);
         this.name = 'TransactionError';
     }
 }
@@ -96,13 +118,13 @@ export class TransactionError extends DatabaseError
 /**
  * Deadlock Error (409 Conflict)
  *
- * 데이터베이스 데드락 발생
+ * Database deadlock detected
  */
 export class DeadlockError extends TransactionError
 {
-    constructor(message: string)
+    constructor(message: string, details?: Record<string, any>)
     {
-        super(message, 409);
+        super(message, 409, details);
         this.name = 'DeadlockError';
     }
 }
@@ -110,13 +132,13 @@ export class DeadlockError extends TransactionError
 /**
  * Duplicate Entry Error (409 Conflict)
  *
- * 유니크 제약 조건 위반 (예: 중복 이메일)
+ * Unique constraint violation (e.g., duplicate email)
  */
 export class DuplicateEntryError extends QueryError
 {
     constructor(field: string, value: string | number)
     {
-        super(`${field} '${value}' already exists`, 409);
+        super(`${field} '${value}' already exists`, 409, { field, value });
         this.name = 'DuplicateEntryError';
     }
 }

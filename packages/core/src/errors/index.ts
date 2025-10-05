@@ -1,7 +1,7 @@
 /**
  * Error Module Exports
  *
- * 에러 처리 모듈의 진입점 (Pure re-export only)
+ * Entry point for error handling module (Pure re-export only)
  */
 
 // Error Classes

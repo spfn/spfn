@@ -1,13 +1,13 @@
 /**
  * Error Utility Functions
  *
- * 에러 타입 체크 및 변환 유틸리티
+ * Error type checking and conversion utilities
  */
 
 import { DatabaseError, ConnectionError, DuplicateEntryError, DeadlockError, ValidationError, QueryError } from './database-errors.js';
 
 /**
- * 에러가 DatabaseError 계열인지 확인
+ * Check if error is a DatabaseError
  */
 export function isDatabaseError(error: unknown): error is DatabaseError
 {
@@ -15,7 +15,7 @@ export function isDatabaseError(error: unknown): error is DatabaseError
 }
 
 /**
- * PostgreSQL 에러 코드를 커스텀 에러로 변환
+ * Convert PostgreSQL error code to custom error
  *
  * @see https://www.postgresql.org/docs/current/errcodes-appendix.html
  */
@@ -30,7 +30,7 @@ export function fromPostgresError(error: any): DatabaseError
         case '08000': // connection_exception
         case '08003': // connection_does_not_exist
         case '08006': // connection_failure
-            return new ConnectionError(message);
+            return new ConnectionError(message, { code });
 
         // Unique violation
         case '23505':
@@ -43,14 +43,14 @@ export function fromPostgresError(error: any): DatabaseError
 
         // Deadlock
         case '40P01':
-            return new DeadlockError(message);
+            return new DeadlockError(message, { code });
 
         // Foreign key violation
         case '23503':
-            return new ValidationError(message);
+            return new ValidationError(message, { code, constraint: 'foreign_key' });
 
         // Default
         default:
-            return new QueryError(message);
+            return new QueryError(message, 500, { code });
     }
 }
