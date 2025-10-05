@@ -10,76 +10,70 @@
 
 ### ✅ 완성된 것
 
-1. **@spfn/core** - 프레임워크 핵심
+1. **@spfn/core** - 프레임워크 핵심 ✅
+   - Zero-Configuration 서버 추상화 (3-Level 설정)
    - File-based Routing (Next.js App Router 스타일)
    - 자동 트랜잭션 관리 (AsyncLocalStorage)
    - Repository 패턴 (Spring Data JPA 스타일)
    - Type-safe API 클라이언트 자동 생성
+   - Client/Server 분리 (@spfn/core/client)
    - 에러 처리 시스템
    - 152개 테스트 통과
 
-2. **@spfn/auth** - 인증 시스템
+2. **@spfn/auth** - 인증 시스템 ✅
    - Client-Key 인증 (ECDSA P-256)
    - 3-Tier 캐싱 (Memory → Redis → DB)
    - Replay Attack 방어
    - 완전한 문서화
 
-3. **문서화**
+3. **@spfn/cli** - CLI 도구 (Phase 1) ✅
+   - `spfn init`: Next.js 프로젝트에 SPFN 설치
+   - `spfn dev`: Next.js + Hono 동시 실행 (auto-detection)
+   - `spfn start`: 프로덕션 서버 시작
+   - Zero-Config 템플릿 (routes, entities, examples)
+   - 패키지 매니저 자동 감지 (npm/pnpm/yarn/bun)
+   - 인터랙티브 프롬프트 및 색상 로거
+
+4. **문서화** ✅
    - 프레임워크 가이드 (8개 문서)
    - 인증 시스템 문서 (3개 문서)
+   - CLI 사용 가이드 (완전 개정)
    - API Reference
+   - 아키텍처 & 로드맵 문서
 
-4. **모노레포 구조**
+5. **모노레포 구조** ✅
    - Turborepo 설정
-   - apps/ (testbed, landing)
-   - packages/ (core, auth)
+   - apps/ (testbed)
+   - packages/ (core, auth, cli)
+   - pnpm workspace
 
 ### ⚠️ 현재 약점
 
-#### 1. CLI 도구 부재 (치명적)
+#### 1. CLI 기능 제한 (Phase 2-4 미완성)
 
-**문제점:**
+**완료된 것:**
 ```bash
-# 현재: 수동으로 모든 것을 해야 함
-mkdir -p src/server/routes/users
-touch src/server/routes/users/index.ts
-# 보일러플레이트 코드 작성...
-npm run generate
+✅ spfn init    # 프로젝트 초기화
+✅ spfn dev     # 개발 서버 실행
+✅ spfn start   # 프로덕션 서버
 ```
 
-**경쟁 프레임워크:**
+**필요한 것:**
 ```bash
-# Next.js
-npx create-next-app@latest
-
-# Remix
-npx create-remix@latest
-
-# Rails
-rails new my-app
-rails generate scaffold User name:string email:string
-
-# SPFN: 없음 ❌
+❌ spfn add auth/client-key     # 모듈 추가
+❌ spfn generate crud users     # CRUD 생성
+❌ spfn generate types          # 타입 생성
+❌ spfn db migrate              # DB 마이그레이션
 ```
-
-**영향:**
-- 진입 장벽 높음
-- 생산성 낮음
-- 채택률 낮음
 
 #### 2. 통합 개발 경험 부족
 
-**문제점:**
-- 프로젝트 시작: 수동 설정
-- 모듈 추가: 수동 설치 및 설정
-- 코드 생성: 수동 작성
-- DB 마이그레이션: 여러 명령어
-
-**필요한 것:**
-- 원클릭 프로젝트 생성
-- shadcn 스타일 모듈 설치
-- 자동 코드 생성
-- 통합 마이그레이션 도구
+**현재 상태:**
+- ✅ 프로젝트 시작: 3줄 명령어로 가능
+- ✅ 개발 서버: 자동 감지 및 실행
+- ❌ 모듈 추가: 수동 설치 및 설정
+- ❌ 코드 생성: 수동 작성
+- ❌ DB 마이그레이션: 여러 명령어
 
 #### 3. 개발 도구 부족
 
@@ -98,6 +92,7 @@ rails generate scaffold User name:string email:string
 **현재:**
 - @spfn/core (핵심)
 - @spfn/auth (인증)
+- @spfn/cli (기본 기능만)
 
 **필요한 것:**
 - Storage (파일 업로드)
@@ -110,46 +105,70 @@ rails generate scaffold User name:string email:string
 
 ## 🚀 개발 로드맵
 
-### Phase 1: CLI 도구 (최우선) 🔥
+### Phase 1: CLI 기본 구현 ✅ 완료
 
-**목표**: 개발자 경험 획기적 개선
+**목표**: 프로젝트 초기화 및 개발 서버 실행
 
-**타임라인**: 2주
+**완료 날짜**: 2025-10-05
 
-**작업:**
+**완료된 작업:**
 
-1. **packages/cli 생성**
+1. ✅ **packages/cli 생성 및 구조화**
+   - TypeScript + tsup 빌드 설정
+   - Commander.js CLI 프레임워크
+   - 색상 로거 및 스피너 UI
+
+2. ✅ **spfn init 명령어**
    ```bash
-   mkdir packages/cli
-   npm init -y
+   npx @spfn/cli init
+   # → Next.js 프로젝트 감지
+   # → 패키지 매니저 자동 감지 (npm/pnpm/yarn/bun)
+   # → 의존성 자동 설치
+   # → Zero-Config 템플릿 복사
+   # → package.json 스크립트 업데이트
    ```
 
-2. **create-spfn-app 명령어**
+3. ✅ **spfn dev 명령어**
    ```bash
-   npx create-spfn-app@latest my-app
-
-   ? Select template:
-     ❯ Minimal (Core only)
-       SaaS Starter (Auth + Stripe + Email)
-       Blog (Posts + Comments)
-       E-commerce (Products + Orders)
-       API-only (No frontend)
-
-   ? Database:
-     ❯ PostgreSQL
-       MySQL
-       SQLite
-
-   ? Package manager:
-     ❯ npm
-       pnpm
-       yarn
+   npx spfn dev
+   # → Next.js + Hono 자동 감지 및 동시 실행
+   # → --server-only 옵션으로 Hono만 실행
+   # → 프로세스 정리 (SIGINT/SIGTERM)
    ```
 
-3. **spfn add 명령어** (shadcn 스타일)
+4. ✅ **spfn start 명령어**
+   ```bash
+   npx spfn start
+   # → 프로덕션 Hono 서버 시작
+   # → @spfn/core의 startServer() 사용
+   ```
+
+5. ✅ **Zero-Config 템플릿**
+   - routes/health/index.ts (헬스 체크)
+   - routes/examples/GET.ts (API 예제)
+   - entities/users.ts (Drizzle 예제)
+   - app.example.ts (Level 3 커스터마이즈)
+   - server.config.example.ts (Level 2 커스터마이즈)
+
+**달성한 결과:**
+- ✅ 프로젝트 시작: 5분 → 3줄 명령어로 단축
+- ✅ 개발 서버: 자동 감지 및 실행
+- ✅ Zero-Config: 보일러플레이트 제거
+
+---
+
+### Phase 2: CLI 고급 기능 🔥 다음 단계
+
+**목표**: 코드 생성 및 모듈 추가
+
+**예상 타임라인**: 1-2주
+
+**작업 계획:**
+
+1. **spfn add 명령어** (shadcn 스타일)
    ```bash
    npx spfn add auth/client-key
-   # → user_keys 테이블 생성
+   # → user_keys 테이블 마이그레이션 생성
    # → src/server/routes/auth/ 생성
    # → src/app/api/auth/ 생성
    # → README 업데이트
@@ -160,7 +179,7 @@ rails generate scaffold User name:string email:string
    # → 클라이언트 컴포넌트 추가
    ```
 
-4. **spfn generate 명령어**
+2. **spfn generate crud 명령어**
    ```bash
    npx spfn generate crud users
    # → src/server/entities/users.ts
@@ -168,25 +187,32 @@ rails generate scaffold User name:string email:string
    # → src/server/routes/users/[id].ts
    # → 타입 자동 생성
    # → API 클라이언트 자동 생성
-
-   npx spfn generate api posts --actions list,create,read,update,delete
-   npx spfn generate migration add_users_table
    ```
 
-5. **spfn dev 명령어**
+3. **spfn generate types 명령어**
    ```bash
-   npx spfn dev
-   # → Next.js + Hono 동시 실행
-   # → 파일 변경 감지 자동 재생성
-   # → Dev Dashboard 실행 (선택적)
+   npx spfn generate types
+   # → 기존 스크립트를 CLI로 통합
+   # → Entity → API Types 변환
+   # → Routes → API Client 생성
+   ```
+
+4. **spfn db 명령어**
+   ```bash
+   npx spfn db migrate
+   npx spfn db push
+   npx spfn db studio
+   # → Drizzle Kit 명령어 래핑
    ```
 
 **예상 결과:**
-- 프로젝트 시작: 5분 → 30초
 - CRUD API 생성: 30분 → 10초
 - 모듈 추가: 1시간 → 1분
+- DB 마이그레이션: 통합 명령어로 간소화
 
-### Phase 2: 템플릿 & 문서 (1개월)
+---
+
+### Phase 3: 템플릿 & 문서 (1개월)
 
 **목표**: 다양한 사용 사례 지원
 
@@ -210,7 +236,9 @@ rails generate scaffold User name:string email:string
    - apps/examples/ 추가
    - 실전 프로젝트 예제
 
-### Phase 3: Dev Dashboard (2개월)
+---
+
+### Phase 4: Dev Dashboard (2개월)
 
 **목표**: 개발 생산성 극대화
 
@@ -238,7 +266,9 @@ rails generate scaffold User name:string email:string
    - VS Code Extension
    - Chrome DevTools Extension (선택적)
 
-### Phase 4: 생태계 확장 (3-6개월)
+---
+
+### Phase 5: 생태계 확장 (3-6개월)
 
 **목표**: 모든 일반적 요구사항 커버
 
@@ -308,7 +338,9 @@ rails generate scaffold User name:string email:string
    - 권한 관리
    - 대시보드
 
-### Phase 5: 엔터프라이즈 기능 (6-12개월)
+---
+
+### Phase 6: 엔터프라이즈 기능 (6-12개월)
 
 **목표**: 대규모 프로덕션 준비
 
@@ -410,15 +442,16 @@ npx create-spfn-package@latest my-feature
 
 ## 🗓️ 릴리스 계획
 
-### v0.1.0 (현재)
-- ✅ @spfn/core
-- ✅ @spfn/auth
-- ✅ 기본 문서
+### v0.1.0 (2025-10-05) ✅ 완료
+- ✅ @spfn/core - Zero-Configuration 서버
+- ✅ @spfn/auth - Client-Key 인증
+- ✅ @spfn/cli Phase 1 - init/dev/start 명령어
+- ✅ 기본 문서 (3개 패키지)
 
-### v0.2.0 (2주 후)
-- 🔥 @spfn/cli
-- 🔥 create-spfn-app
-- 🔥 spfn add/generate 명령어
+### v0.2.0 (2주 후) 🔥 진행 예정
+- 🔥 @spfn/cli Phase 2 - add/generate/db 명령어
+- 🔥 create-spfn-app (standalone 프로젝트 생성)
+- 🔥 추가 문서 및 예제
 
 ### v0.3.0 (1개월 후)
 - 프로젝트 템플릿
