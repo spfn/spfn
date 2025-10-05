@@ -47,10 +47,10 @@ export { get, post, patch, del } from './fetch/wrapper.js';
 export { db } from './db/index.js';
 export { getDb } from './db/helpers.js';
 
-// Transaction
-export { Transactional } from './transaction.js';
-export { getTransaction, runWithTransaction } from './async-context.js';
-export type { TransactionContext } from './async-context.js';
+// Transaction & Utils
+export { Transactional } from './utils/transaction.js';
+export { getTransaction, runWithTransaction } from './utils/async-context.js';
+export type { TransactionContext } from './utils/async-context.js';
 
 // Logger
 export { logger } from './logger/index.js';

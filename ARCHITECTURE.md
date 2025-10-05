@@ -88,37 +88,41 @@
 ```
 @spfn/core/
 ├── src/
-│   ├── core/
-│   │   ├── route/           # File-based Routing
-│   │   │   ├── route-scanner.ts    # 파일 시스템 스캔
-│   │   │   ├── route-mapper.ts     # 라우트 정의 매핑
-│   │   │   ├── route-registry.ts   # 라우트 저장소
-│   │   │   └── route-loader.ts     # Hono 앱에 등록
-│   │   │
-│   │   ├── db/              # Database Layer
-│   │   │   ├── connection.ts       # DB 연결 관리
-│   │   │   ├── repository.ts       # Repository 패턴
-│   │   │   └── helpers.ts          # getDb() 헬퍼
-│   │   │
-│   │   ├── transaction.ts   # 트랜잭션 미들웨어
-│   │   ├── async-context.ts # AsyncLocalStorage
-│   │   ├── errors.ts        # 커스텀 에러
-│   │   ├── logger.ts        # Pino 로거
-│   │   │
-│   │   ├── middleware/      # 내장 미들웨어
-│   │   │   ├── error-handler.ts
-│   │   │   └── request-logger.ts
-│   │   │
-│   │   └── query/           # Query Builder
-│   │       ├── filters.ts          # 필터링
-│   │       ├── sort.ts             # 정렬
-│   │       └── pagination.ts       # 페이지네이션
+│   ├── route/              # File-based Routing
+│   │   ├── route-scanner.ts    # 파일 시스템 스캔
+│   │   ├── route-mapper.ts     # 라우트 정의 매핑
+│   │   ├── route-registry.ts   # 라우트 저장소
+│   │   └── route-loader.ts     # Hono 앱에 등록
 │   │
-│   └── scripts/            # 코드 생성 스크립트
-│       ├── generate-types.ts       # Entity → Types
-│       ├── generate-api-client.ts  # Routes → API Client
-│       ├── generate-crud-routes.ts # CRUD 자동 생성
-│       └── migrate.ts              # DB 마이그레이션
+│   ├── db/                 # Database Layer
+│   │   ├── connection.ts       # DB 연결 관리
+│   │   ├── repository.ts       # Repository 패턴
+│   │   └── helpers.ts          # getDb() 헬퍼
+│   │
+│   ├── utils/              # Core Utilities
+│   │   ├── transaction.ts      # 트랜잭션 미들웨어
+│   │   └── async-context.ts    # AsyncLocalStorage
+│   │
+│   ├── errors/             # 커스텀 에러
+│   ├── logger/             # Pino 로거
+│   ├── fetch/              # HTTP 클라이언트
+│   │
+│   ├── middleware/         # 내장 미들웨어
+│   │   ├── error-handler.ts
+│   │   └── request-logger.ts
+│   │
+│   ├── query/              # Query Builder
+│   │   ├── filters.ts          # 필터링
+│   │   ├── sort.ts             # 정렬
+│   │   └── pagination.ts       # 페이지네이션
+│   │
+│   ├── scripts/            # 코드 생성 스크립트
+│   │   ├── generate-types.ts       # Entity → Types
+│   │   ├── generate-api-client.ts  # Routes → API Client
+│   │   ├── generate-crud-routes.ts # CRUD 자동 생성
+│   │   └── migrate.ts              # DB 마이그레이션
+│   │
+│   └── index.ts            # Main exports
 │
 ├── docs/                   # 프레임워크 문서
 └── package.json
