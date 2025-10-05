@@ -1,9 +1,7 @@
 /**
  * Fetch Wrapper
  *
- * 최소한의 타입 안전 HTTP 클라이언트
- *
- * 🔧 미래의 @spfn/core 패키지에 포함될 코어 모듈
+ * Minimal type-safe HTTP client for browser and Next.js
  */
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -14,7 +12,7 @@ type RequestOptions<T = unknown> = {
 };
 
 /**
- * URL 파라미터 치환 (/users/:id → /users/123)
+ * Build URL with parameter substitution (/users/:id → /users/123)
  */
 function buildUrl(template: string, params?: Record<string, string>): string
 {
@@ -29,7 +27,7 @@ function buildUrl(template: string, params?: Record<string, string>): string
 }
 
 /**
- * GET 요청
+ * GET request
  */
 export async function get<T>(url: string, options?: RequestOptions): Promise<T>
 {
@@ -45,7 +43,7 @@ export async function get<T>(url: string, options?: RequestOptions): Promise<T>
 }
 
 /**
- * POST 요청
+ * POST request
  */
 export async function post<TRequest, TResponse>(url: string, options?: RequestOptions<TRequest>): Promise<TResponse>
 {
@@ -65,7 +63,7 @@ export async function post<TRequest, TResponse>(url: string, options?: RequestOp
 }
 
 /**
- * PATCH 요청
+ * PATCH request
  */
 export async function patch<TRequest, TResponse>(url: string, options?: RequestOptions<TRequest>): Promise<TResponse>
 {
@@ -85,7 +83,7 @@ export async function patch<TRequest, TResponse>(url: string, options?: RequestO
 }
 
 /**
- * DELETE 요청
+ * DELETE request
  */
 export async function del<T>(url: string, options?: RequestOptions): Promise<T>
 {
