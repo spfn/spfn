@@ -28,7 +28,7 @@
  */
 import { getTransaction } from '../utils/async-context.js';
 
-import { db as defaultDb } from './index.js';
+import { db as defaultDb } from './db-instance.js';
 import { WrappedDb } from './wrapped-db.js';
 
 /**
