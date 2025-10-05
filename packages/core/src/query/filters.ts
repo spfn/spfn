@@ -1,12 +1,12 @@
 /**
  * Filter Builder
  *
- * Drizzle ORM where 조건을 동적으로 생성하는 유틸리티
+ * Utility to dynamically build Drizzle ORM WHERE conditions
  *
- * 📝 TODO: improvements.md 참고
- * - #8: OR 조건 지원 ($or 문법으로 복잡한 조건 표현)
- * - 중첩 필터 지원 (AND/OR 혼합 조건)
- * - 필터 값 검증 (타입 체크 및 범위 검증)
+ * 📝 TODO: See improvements.md
+ * - #8: OR condition support ($or syntax for complex conditions)
+ * - Nested filter support (AND/OR mixed conditions)
+ * - Filter value validation (type checking and range validation)
  */
 
 import { and, eq, ne, gt, gte, lt, lte, like, inArray, notInArray, isNull, isNotNull, or, SQL } from 'drizzle-orm';
@@ -16,11 +16,11 @@ import type { PgColumn } from 'drizzle-orm/pg-core';
 import type { FilterOperator, Filters, FilterValue, DrizzleTable, FilterResult } from './types';
 
 /**
- * 필터 조건을 Drizzle SQL 조건으로 변환
+ * Convert filter conditions to Drizzle SQL WHERE conditions
  *
- * @param filters - 파싱된 필터 객체
- * @param table - Drizzle 테이블 스키마
- * @returns SQL where 조건 (없으면 undefined)
+ * @param filters - Parsed filter object
+ * @param table - Drizzle table schema
+ * @returns SQL WHERE condition (undefined if no filters)
  *
  * @example
  * const filters = { email: { eq: 'john@example.com' }, age: { gte: 18 } };
@@ -44,7 +44,7 @@ export function buildFilters(
             continue;
         }
 
-        // 각 연산자별 조건 생성
+        // Build condition for each operator
         for (const [operator, value] of Object.entries(filterCondition))
         {
             const condition = buildCondition(column, operator as FilterOperator, value);
@@ -55,12 +55,12 @@ export function buildFilters(
         }
     }
 
-    // 모든 조건을 AND로 결합
+    // Combine all conditions with AND
     return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
 /**
- * 단일 필터 조건을 SQL 조건으로 변환
+ * Convert single filter condition to SQL condition
  */
 function buildCondition(
     column: PgColumn,
@@ -120,7 +120,7 @@ function buildCondition(
 }
 
 /**
- * OR 조건으로 결합
+ * Combine conditions with OR
  *
  * @example
  * const conditions = [

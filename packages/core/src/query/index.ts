@@ -1,11 +1,11 @@
 /**
  * Query Module
  *
- * URL 쿼리 파라미터를 파싱하여 필터/정렬/페이지네이션을 처리하는 모듈
+ * Parse URL query parameters for filtering, sorting, and pagination
  *
  * @example
- * // 1. 미들웨어로 쿼리 파라미터 파싱
- * import { QueryParser } from '@/server/core/query';
+ * // 1. Parse query parameters with middleware
+ * import { QueryParser } from '@spfn/core';
  *
  * export const middlewares = [
  *   QueryParser({
@@ -15,9 +15,9 @@
  *   })
  * ];
  *
- * // 2. 핸들러에서 사용
+ * // 2. Use in handler
  * export async function GET(c: RouteContext) {
- *   const { filters, sort, pagination } = c.raw.get('queryParams');
+ *   const { filters, sort, pagination } = c.get('queryParams');
  *
  *   const whereCondition = buildFilters(filters, users);
  *   const orderBy = buildSort(sort, users);

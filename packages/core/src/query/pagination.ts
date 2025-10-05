@@ -1,7 +1,7 @@
 /**
  * Pagination Helper
  *
- * 페이지네이션 관련 유틸리티
+ * Pagination-related utilities
  */
 
 import { sql } from 'drizzle-orm';
@@ -11,12 +11,12 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { PaginationParams, PaginationMeta, DrizzleTable } from './types';
 
 /**
- * 쿼리 파라미터에서 페이지네이션 파싱
+ * Parse pagination from query parameters
  *
- * @param page - 페이지 번호 (쿼리에서 가져옴)
- * @param limit - 페이지 크기 (쿼리에서 가져옴)
- * @param options - 기본값/최대값 설정
- * @returns 페이지네이션 파라미터
+ * @param page - Page number (from query)
+ * @param limit - Page size (from query)
+ * @param options - Default/max configuration
+ * @returns Pagination parameters
  *
  * @example
  * const pagination = parsePagination(
@@ -37,7 +37,7 @@ export function parsePagination(
     let parsedPage = parseInt(page || '1', 10);
     let parsedLimit = parseInt(limit || String(defaultLimit), 10);
 
-    // 유효성 검증
+    // Validation
     if (isNaN(parsedPage) || parsedPage < 1)
     {
         parsedPage = 1;
@@ -48,7 +48,7 @@ export function parsePagination(
         parsedLimit = defaultLimit;
     }
 
-    // 최대값 제한
+    // Enforce maximum limit
     if (parsedLimit > maxLimit)
     {
         parsedLimit = maxLimit;
@@ -61,11 +61,11 @@ export function parsePagination(
 }
 
 /**
- * 페이지네이션 메타 정보 생성
+ * Create pagination metadata
  *
- * @param pagination - 페이지네이션 파라미터
- * @param total - 전체 데이터 개수
- * @returns 페이지네이션 메타 정보
+ * @param pagination - Pagination parameters
+ * @param total - Total count
+ * @returns Pagination metadata
  *
  * @example
  * const meta = createPaginationMeta({ page: 2, limit: 20 }, 156);
@@ -90,10 +90,10 @@ export function createPaginationMeta(
 }
 
 /**
- * Drizzle 쿼리에 페이지네이션 적용
+ * Apply pagination to Drizzle query
  *
- * @param pagination - 페이지네이션 파라미터
- * @returns { offset, limit } 객체
+ * @param pagination - Pagination parameters
+ * @returns { offset, limit } object
  *
  * @example
  * const { offset, limit } = applyPagination({ page: 2, limit: 20 });
@@ -108,12 +108,12 @@ export function applyPagination(pagination: PaginationParams)
 }
 
 /**
- * 전체 개수 조회 (카운트 쿼리)
+ * Count total records (count query)
  *
- * @param db - Drizzle DB 인스턴스
- * @param table - 테이블 스키마
- * @param whereCondition - where 조건 (선택)
- * @returns 전체 개수
+ * @param db - Drizzle DB instance
+ * @param table - Table schema
+ * @param whereCondition - WHERE condition (optional)
+ * @returns Total count
  *
  * @example
  * const total = await countTotal(db, users);
