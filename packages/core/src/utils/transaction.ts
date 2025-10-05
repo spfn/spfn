@@ -35,10 +35,10 @@
  * - 트랜잭션 타임아웃 설정
  */
 import { createMiddleware } from 'hono/factory';
-import { db } from '../db/index.js';
+import { db } from '@core/db';
 import { runWithTransaction, type TransactionDB } from './async-context.js';
-import { logger } from '../logger/index.js';
-import { fromPostgresError } from '../errors/index.js';
+import { logger } from '@core/logger';
+import { fromPostgresError } from '@core/errors';
 
 /**
  * 트랜잭션 미들웨어 옵션

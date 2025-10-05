@@ -31,7 +31,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
  * 트랜잭션 DB 타입
  * Record<string, never>는 빈 스키마를 의미하며, 실제 스키마는 런타임에 결정됩니다.
  */
-export type TransactionDB = PostgresJsDatabase<Record<string, never>>;
+export type TransactionDB = PostgresJsDatabase;
 
 export type TransactionContext = {
   tx: TransactionDB;
