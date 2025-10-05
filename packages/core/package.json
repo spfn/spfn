@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
     "./route": {
       "types": "./dist/route/index.d.ts",
       "import": "./dist/route/index.js"
@@ -40,6 +44,7 @@
   "author": "SPFN Team",
   "license": "MIT",
   "peerDependencies": {
+    "@hono/node-server": "^1.0.0",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.9.0",
     "postgres": "^3.4.0"

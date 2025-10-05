@@ -127,3 +127,6 @@ export function getDb(type: DbConnectionType = 'write'): PostgresJsDatabase
     return type === 'read' ? replicaDb : primaryDb;
 }
 
+// Schema helpers
+export { id, timestamps, foreignKey, optionalForeignKey } from './schema-helpers.js';
+

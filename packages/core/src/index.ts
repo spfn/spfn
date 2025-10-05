@@ -5,12 +5,25 @@
  *
  * @example
  * ```ts
- * import { loadRoutesFromDirectory } from '@spfn/core';
+ * // Level 1: Zero config
+ * import { startServer } from '@spfn/core';
+ * await startServer();
  *
- * const app = new Hono();
- * await loadRoutesFromDirectory(app);
+ * // Level 2: Partial config (server.config.ts)
+ * export default { port: 4000, cors: { origin: '*' } };
+ *
+ * // Level 3: Full control (app.ts)
+ * export default () => {
+ *   const app = new Hono();
+ *   // Full customization
+ *   return app;
+ * };
  * ```
  */
+
+// Server (High-level API)
+export { createServer, startServer } from './server/index.js';
+export type { ServerConfig, AppFactory } from './server/types.js';
 
 // Route System
 export { RouteLoader, loadRoutesFromDirectory } from './route/route-loader.js';
@@ -40,12 +53,9 @@ export {
     isRouteFile,
 } from './route/types.js';
 
-// Fetch Wrapper
-export { get, post, patch, del } from './fetch/wrapper.js';
-
 // Database
-export { db } from './db/index.js';
-export { getDb } from './db/helpers.js';
+export { db, id, timestamps, foreignKey, optionalForeignKey } from './db/index.js';
+export { getDb } from './db/db-context.js';
 
 // Transaction & Utils
 export { Transactional } from './utils/transaction.js';

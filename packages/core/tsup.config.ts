@@ -5,6 +5,7 @@ import { join } from 'path';
 export default defineConfig({
     entry: {
         index: 'src/index.ts',
+        'client/index': 'src/client/index.ts',
         'route/index': 'src/route/index.ts',
         'db/index': 'src/db/index.ts',
         'scripts/index': 'src/scripts/index.ts',
@@ -15,7 +16,7 @@ export default defineConfig({
     clean: true,
     splitting: false,
     treeshake: true,
-    external: ['drizzle-orm', 'hono', 'postgres', 'pino', 'chalk', 'chokidar'],
+    external: ['drizzle-orm', 'hono', '@hono/node-server', 'postgres', 'pino', 'chalk', 'chokidar', 'dotenv'],
     onSuccess: async () => {
         // Copy templates to dist
         cpSync(

@@ -53,7 +53,8 @@ export async function signRequest(
 /**
  * Verify a request signature using ECDSA (P-256 curve) with SHA-256
  *
- * @param data - Request data with signature
+ * @param data - Request data
+ * @param signature - Signature to verify (base64 encoded)
  * @param publicKey - Public key in DER format (base64 encoded)
  * @param nonceWindow - Nonce validity window in seconds
  * @returns True if signature is valid
@@ -61,6 +62,7 @@ export async function signRequest(
  */
 export async function verifySignature(
     data: SignatureData,
+    signature: string,
     publicKey: string,
     nonceWindow: number = DEFAULT_NONCE_WINDOW
 ): Promise<boolean>
@@ -98,7 +100,7 @@ export async function verifySignature(
         verifier.update(message);
         verifier.end();
 
-        return verifier.verify(keyObject, Buffer.from(data.signature, 'base64'));
+        return verifier.verify(keyObject, Buffer.from(signature, 'base64'));
     }
     catch (error)
     {
