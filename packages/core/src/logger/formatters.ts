@@ -10,8 +10,8 @@
  * - 에러 스택 트레이스 포맷팅
  *
  * 🔗 관련 파일:
- * - src/server/core/logger/types.ts (타입 정의)
- * - src/server/core/logger/transports/ (Transport 구현체)
+ * - src/logger/types.ts (타입 정의)
+ * - src/logger/transports/ (Transport 구현체)
  */
 
 import type { LogLevel, LogMetadata } from './types';

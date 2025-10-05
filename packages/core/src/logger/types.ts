@@ -10,9 +10,9 @@
  * - 환경별 설정 타입
  *
  * 🔗 관련 파일:
- * - src/server/core/logger/logger.ts (Logger 클래스)
- * - src/server/core/logger/transports/ (Transport 구현체)
- * - src/server/core/logger/config.ts (설정)
+ * - src/logger/logger.ts (Logger 클래스)
+ * - src/logger/transports/ (Transport 구현체)
+ * - src/logger/config.ts (설정)
  */
 
 /**

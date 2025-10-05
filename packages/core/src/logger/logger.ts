@@ -16,9 +16,9 @@
  * - 메모리 사용량 모니터링
  *
  * 🔗 관련 파일:
- * - src/server/core/logger/types.ts (타입 정의)
- * - src/server/core/logger/transports/ (Transport 구현체)
- * - src/server/core/logger/index.ts (싱글톤 인스턴스)
+ * - src/logger/types.ts (타입 정의)
+ * - src/logger/transports/ (Transport 구현체)
+ * - src/logger/adapter-factory.ts (싱글톤 인스턴스)
  */
 
 import type { LogLevel, LogMetadata, LoggerConfig, Transport } from './types';

@@ -21,9 +21,9 @@
  * - 프로덕션 검증됨 (Netflix, Elastic 사용)
  *
  * 🔗 관련 파일:
- * - src/server/core/logger/adapters/types.ts (인터페이스)
- * - src/server/core/logger/index.ts (Adapter 선택)
- * - src/server/core/logger/config.ts (설정)
+ * - src/logger/adapters/types.ts (인터페이스)
+ * - src/logger/index.ts (Adapter 선택)
+ * - src/logger/config.ts (설정)
  */
 
 import pino from 'pino';
