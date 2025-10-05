@@ -4,49 +4,49 @@ import { join, relative } from 'path';
 import type { RouteFile, ScanOptions } from './types';
 
 /**
- * RouteScanner: 파일 시스템 기반 라우트 파일 스캐너
+ * RouteScanner: File System Based Route File Scanner
  *
- * ## 주요 역할
- * 1. **디렉토리 재귀 탐색**: routes 폴더를 재귀적으로 탐색하여 모든 라우트 파일 발견
- * 2. **파일 필터링**: 유효한 라우트 파일만 선별 (.ts 허용, .test/.spec/.d.ts 제외)
- * 3. **RouteFile 객체 생성**: 파일 정보를 RouteFile 타입으로 변환
- * 4. **동적 라우트 감지**: [id], [...slug] 등의 패턴 자동 인식
- * 5. **제외 패턴 처리**: 사용자 정의 제외 규칙 적용
+ * ## Main Responsibilities
+ * 1. **Recursive Directory Traversal**: Recursively explore routes folder to discover all route files
+ * 2. **File Filtering**: Select only valid route files (.ts allowed, excluding .test/.spec/.d.ts)
+ * 3. **RouteFile Object Creation**: Convert file information to RouteFile type
+ * 4. **Dynamic Route Detection**: Automatically recognize patterns like [id], [...slug]
+ * 5. **Exclude Pattern Processing**: Apply user-defined exclusion rules
  *
- * ## 동작 과정
+ * ## Operation Flow
  * ```
  * scanRoutes()
  *   ↓
- * scanDirectory() (재귀)
- *   ├─ 디렉토리 → 재귀 호출
- *   └─ 파일 → isValidRouteFile() → createRouteFile()
+ * scanDirectory() (recursive)
+ *   ├─ Directory → Recursive call
+ *   └─ File → isValidRouteFile() → createRouteFile()
  *       ↓
- * RouteFile[] 반환
+ * Return RouteFile[]
  * ```
  *
- * ## RouteFile 생성 예시
+ * ## RouteFile Creation Example
  * ```typescript
- * // 입력: src/server/routes/users/[id]/posts/index.ts
+ * // Input: src/server/routes/users/[id]/posts/index.ts
  * {
  *   absolutePath: "/absolute/path/to/routes/users/[id]/posts/index.ts",
  *   relativePath: "users/[id]/posts/index.ts",
  *   segments: ["users", "[id]", "posts", "index.ts"],
- *   isDynamic: true,      // [id] 패턴 포함
- *   isCatchAll: false,    // [...slug] 패턴 아님
- *   isIndex: true         // index.ts 파일
+ *   isDynamic: true,      // Contains [id] pattern
+ *   isCatchAll: false,    // Not [...slug] pattern
+ *   isIndex: true         // Is index.ts file
  * }
  * ```
  *
- * ## 적용된 개선사항
- * ✅ **비동기 파일 시스템 API**: fs/promises 사용 (readdir, stat)
- * ✅ **에러 처리 강화**: try-catch로 명확한 에러 메시지 제공
- *    - 디렉토리 읽기 실패 → 예외 발생
- *    - 파일 접근 실패 → 경고 출력 후 계속 진행
+ * ## Applied Improvements
+ * ✅ **Async File System API**: Uses fs/promises (readdir, stat)
+ * ✅ **Enhanced Error Handling**: Provides clear error messages with try-catch
+ *    - Directory read failure → Throws exception
+ *    - File access failure → Warns and continues
  *
- * ## 추가 개선 방향
- * 1. 파일 확장자 설정 확장 (.js, .jsx, .tsx 지원 옵션)
- * 2. glob 패턴 지원 (더 유연한 파일 매칭)
- * 3. 캐싱 메커니즘 (파일 해시 기반 재스캔 방지)
+ * ## Future Improvements
+ * 1. Extend file extension configuration (.js, .jsx, .tsx support options)
+ * 2. glob pattern support (more flexible file matching)
+ * 3. Caching mechanism (prevent re-scanning based on file hash)
  */
 export class RouteScanner
 {
@@ -62,7 +62,7 @@ export class RouteScanner
     }
 
     /**
-     * 모든 라우트 파일 스캔
+     * Scan all route files
      */
     async scanRoutes(): Promise<RouteFile[]>
     {
@@ -85,7 +85,7 @@ export class RouteScanner
     }
 
     /**
-     * 디렉토리 재귀 스캔 (비동기)
+     * Recursively scan directory (async)
      */
     private async scanDirectory(dir: string, files: RouteFile[]): Promise<void>
     {
@@ -105,7 +105,7 @@ export class RouteScanner
         {
             const fullPath = join(dir, entry);
 
-            // 제외 패턴 체크
+            // Check exclude patterns
             if (this.shouldExclude(fullPath))
             {
                 this.log(`  ⏭️  Excluded: ${entry}`);
@@ -126,7 +126,7 @@ export class RouteScanner
 
             if (fileStat.isDirectory())
             {
-                // 재귀적으로 하위 디렉토리 탐색
+                // Recursively explore subdirectories
                 await this.scanDirectory(fullPath, files);
             }
             else if (fileStat.isFile() && this.isValidRouteFile(entry))
@@ -139,7 +139,7 @@ export class RouteScanner
     }
 
     /**
-     * RouteFile 객체 생성
+     * Create RouteFile object
      */
     private createRouteFile(absolutePath: string): RouteFile
     {
@@ -158,17 +158,17 @@ export class RouteScanner
     }
 
     /**
-     * 유효한 라우트 파일인지 검증
+     * Validate if file is a valid route file
      */
     private isValidRouteFile(fileName: string): boolean
     {
-        // .ts 파일만 허용
+        // Only allow .ts files
         if (!fileName.endsWith('.ts'))
         {
             return false;
         }
 
-        // .d.ts, .test.ts, .spec.ts 제외
+        // Exclude .d.ts, .test.ts, .spec.ts
         if (fileName.endsWith('.d.ts') ||
             fileName.endsWith('.test.ts') ||
             fileName.endsWith('.spec.ts'))
@@ -180,16 +180,16 @@ export class RouteScanner
     }
 
     /**
-     * 동적 라우트 여부 확인 ([id], [slug], [...slug] 등)
+     * Check if route is dynamic ([id], [slug], [...slug], etc.)
      */
     private isDynamicRoute(path: string): boolean
     {
-        // Catch-all 패턴도 동적 라우트에 포함
+        // Catch-all patterns are also considered dynamic routes
         return /\[[\w.-]+\]/.test(path);
     }
 
     /**
-     * Catch-all 라우트 여부 확인 ([...slug] 등)
+     * Check if route is catch-all ([...slug], etc.)
      */
     private isCatchAllRoute(path: string): boolean
     {
@@ -197,7 +197,7 @@ export class RouteScanner
     }
 
     /**
-     * 제외 패턴 체크
+     * Check exclude patterns
      */
     private shouldExclude(path: string): boolean
     {
@@ -205,7 +205,7 @@ export class RouteScanner
     }
 
     /**
-     * 디버그 로그
+     * Debug log
      */
     private log(...args: unknown[]): void
     {

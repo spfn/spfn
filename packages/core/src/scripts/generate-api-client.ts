@@ -342,10 +342,10 @@ function generateTagFile(tag: string, routes: RouteDefinition[]): string
 
     // 템플릿 변수 치환
     return template
-        .replace(/\{\{TAG_NAME\}\}/g, tag)
-        .replace(/\{\{IMPORTS\}\}/g, importStatement)
-        .replace(/\{\{FUNCTIONS\}\}/g, functions.join('\n'))
-        .replace(/\{\{TIMESTAMP\}\}/g, now);
+        .replace(/\{\{TAG_NAME}}/g, tag)
+        .replace(/\{\{IMPORTS}}/g, importStatement)
+        .replace(/\{\{FUNCTIONS}}/g, functions.join('\n'))
+        .replace(/\{\{TIMESTAMP}}/g, now);
 }
 
 /**
@@ -362,8 +362,8 @@ function generateIndexFile(tags: string[]): string
 
     // 템플릿 변수 치환
     return template
-        .replace(/\{\{EXPORTS\}\}/g, exports)
-        .replace(/\{\{TIMESTAMP\}\}/g, now);
+        .replace(/\{\{EXPORTS}}/g, exports)
+        .replace(/\{\{TIMESTAMP}}/g, now);
 }
 
 /**
