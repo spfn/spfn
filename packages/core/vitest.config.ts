@@ -9,7 +9,7 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            '@/server/core': resolve(__dirname, './src'),
+            '@core': resolve(__dirname, './src'),
             '@/server/entities': resolve(__dirname, './src/tests/fixtures/entities'),
         },
     },
