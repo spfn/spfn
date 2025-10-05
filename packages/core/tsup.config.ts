@@ -8,6 +8,7 @@ export default defineConfig({
         'client/index': 'src/client/index.ts',
         'route/index': 'src/route/index.ts',
         'db/index': 'src/db/index.ts',
+        'server/index': 'src/server/index.ts',
         'scripts/index': 'src/scripts/index.ts',
     },
     format: ['esm'],
