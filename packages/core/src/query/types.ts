@@ -1,14 +1,14 @@
 /**
  * Query Module Types
  *
- * 필터링, 페이지네이션, 정렬 기능을 위한 타입 정의
+ * Type definitions for filtering, pagination, and sorting features
  */
 
 import type { SQL } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 
 /**
- * 필터 연산자
+ * Filter operators
  */
 export type FilterOperator =
   | 'eq'      // equals
@@ -17,44 +17,44 @@ export type FilterOperator =
   | 'gte'     // greater than or equal
   | 'lt'      // less than
   | 'lte'     // less than or equal
-  | 'like'    // LIKE (부분 일치)
-  | 'in'      // IN (배열)
-  | 'nin'     // NOT IN (배열)
+  | 'like'    // LIKE (partial match)
+  | 'in'      // IN (array)
+  | 'nin'     // NOT IN (array)
   | 'is';     // IS NULL / IS NOT NULL
 
 /**
- * 필터 값 타입
+ * Filter value type
  */
 export type FilterValue = string | number | boolean | null | (string | number)[];
 
 /**
- * 필터 조건
+ * Filter condition
  *
- * 예: { email: { eq: 'john@example.com' } }
- * 예: { age: { gte: 18, lte: 65 } }
+ * Example: { email: { eq: 'john@example.com' } }
+ * Example: { age: { gte: 18, lte: 65 } }
  */
 export type FilterCondition = {
   [operator in FilterOperator]?: FilterValue;
 };
 
 /**
- * 전체 필터
+ * Complete filters
  *
- * 예: { email: { eq: 'john@example.com' }, role: { in: ['admin', 'user'] } }
+ * Example: { email: { eq: 'john@example.com' }, role: { in: ['admin', 'user'] } }
  */
 export type Filters = {
   [field: string]: FilterCondition;
 };
 
 /**
- * 정렬 방향
+ * Sort direction
  */
 export type SortDirection = 'asc' | 'desc';
 
 /**
- * 정렬 조건
+ * Sort condition
  *
- * 예: [{ field: 'createdAt', direction: 'desc' }, { field: 'name', direction: 'asc' }]
+ * Example: [{ field: 'createdAt', direction: 'desc' }, { field: 'name', direction: 'asc' }]
  */
 export type SortCondition = {
   field: string;
@@ -62,7 +62,7 @@ export type SortCondition = {
 };
 
 /**
- * 페이지네이션 파라미터
+ * Pagination parameters
  */
 export type PaginationParams = {
   page: number;
@@ -70,7 +70,7 @@ export type PaginationParams = {
 };
 
 /**
- * 페이지네이션 메타 정보
+ * Pagination metadata
  */
 export type PaginationMeta = {
   page: number;
@@ -82,7 +82,7 @@ export type PaginationMeta = {
 };
 
 /**
- * 쿼리 파라미터 (파싱된 결과)
+ * Query parameters (parsed result)
  */
 export type QueryParams = {
   filters: Filters;
@@ -91,43 +91,43 @@ export type QueryParams = {
 };
 
 /**
- * QueryParser 미들웨어 옵션
+ * QueryParser middleware options
  */
 export type QueryParserOptions = {
   /**
-   * 허용할 필터 필드 목록
-   * 예: ['email', 'role', 'status']
+   * Allowed filter fields
+   * Example: ['email', 'role', 'status']
    */
   filters?: string[];
 
   /**
-   * 허용할 정렬 필드 목록
-   * 예: ['createdAt', 'name', 'email']
+   * Allowed sort fields
+   * Example: ['createdAt', 'name', 'email']
    */
   sort?: string[];
 
   /**
-   * 페이지네이션 설정
+   * Pagination configuration
    */
   pagination?: {
-    /** 기본 페이지 크기 (default: 20) */
+    /** Default page size (default: 20) */
     default?: number;
-    /** 최대 페이지 크기 (default: 100) */
+    /** Maximum page size (default: 100) */
     max?: number;
   };
 };
 
 /**
- * Drizzle 테이블 타입 (제네릭)
+ * Drizzle table type (generic)
  */
 export type DrizzleTable = PgTable<any> & Record<string, PgColumn>;
 
 /**
- * 필터 빌더 결과 타입
+ * Filter builder result type
  */
 export type FilterResult = SQL<unknown> | undefined;
 
 /**
- * 정렬 빌더 결과 타입
+ * Sort builder result type
  */
 export type SortResult = SQL<unknown>[];

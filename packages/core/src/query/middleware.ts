@@ -1,7 +1,7 @@
 /**
  * QueryParser Middleware
  *
- * URL 쿼리 파라미터를 파싱하여 필터/정렬/페이지네이션 정보를 Context에 저장
+ * Parse URL query parameters and store filter/sort/pagination info in Context
  */
 
 import { createMiddleware } from 'hono/factory';
@@ -12,10 +12,10 @@ import { parseSortQuery } from './sort';
 import { parsePagination } from './pagination';
 
 /**
- * QueryParser 미들웨어
+ * QueryParser middleware
  *
- * @param options - 허용할 필터/정렬 필드 및 페이지네이션 설정
- * @returns Hono 미들웨어
+ * @param options - Allowed filter/sort fields and pagination configuration
+ * @returns Hono middleware
  *
  * @example
  * export const middlewares = [
@@ -41,21 +41,21 @@ export function QueryParser(options: QueryParserOptions = {})
 
     return createMiddleware(async (c, next) =>
     {
-        // 1. 필터 파싱
+        // 1. Parse filters
         const filters = parseFilters(c.req.query(), allowedFilters);
 
-        // 2. 정렬 파싱
+        // 2. Parse sort
         const sortQuery = c.req.query('sort');
         const sort = parseSortQuery(sortQuery, allowedSort);
 
-        // 3. 페이지네이션 파싱
+        // 3. Parse pagination
         const pagination = parsePagination(
             c.req.query('page'),
             c.req.query('limit'),
             paginationOptions
         );
 
-        // 4. Context에 저장
+        // 4. Store in context
         const queryParams: QueryParams = {
             filters,
             sort,
@@ -69,13 +69,13 @@ export function QueryParser(options: QueryParserOptions = {})
 }
 
 /**
- * 쿼리 파라미터에서 필터 파싱
+ * Parse filters from query parameters
  *
- * URL 형태: ?email[eq]=john@example.com&age[gte]=18&role[in]=admin,user
+ * URL format: ?email[eq]=john@example.com&age[gte]=18&role[in]=admin,user
  *
- * @param query - Hono req.query() 결과
- * @param allowedFields - 허용된 필드 목록
- * @returns 파싱된 필터 객체
+ * @param query - Hono req.query() result
+ * @param allowedFields - Allowed field list
+ * @returns Parsed filter object
  */
 function parseFilters(
     query: Record<string, string | string[]>,
@@ -86,21 +86,21 @@ function parseFilters(
 
     for (const [key, value] of Object.entries(query))
     {
-        // 필터 패턴: field[operator] (예: email[eq], age[gte])
+        // Filter pattern: field[operator] (e.g., email[eq], age[gte])
         const match = key.match(/^(\w+)\[(\w+)\]$/);
 
         if (!match) continue;
 
         const [, field, operator] = match;
 
-        // 허용된 필드인지 확인
+        // Check if field is allowed
         if (allowedFields.length > 0 && !allowedFields.includes(field))
         {
             console.warn(`[QueryParser] Field '${field}' is not allowed`);
             continue;
         }
 
-        // 필터 값 파싱
+        // Parse filter value
         const filterValue = parseFilterValue(operator, value);
 
         if (!filters[field])
@@ -115,37 +115,37 @@ function parseFilters(
 }
 
 /**
- * 필터 값 파싱 (타입 변환)
+ * Parse filter value (type conversion)
  */
 function parseFilterValue(operator: string, value: string | string[]): FilterValue
 {
-    // 배열 연산자 (in, nin)
+    // Array operators (in, nin)
     if (operator === 'in' || operator === 'nin')
     {
         if (Array.isArray(value)) return value;
         return value.split(',').map(v => v.trim());
     }
 
-    // null 체크 (is)
+    // Null check (is)
     if (operator === 'is')
     {
-        return value as string; // 'null' 또는 'notnull'
+        return value as string; // 'null' or 'notnull'
     }
 
-    // 단일 값
+    // Single value
     const singleValue = Array.isArray(value) ? value[0] : value;
 
-    // 숫자 변환 시도
+    // Try number conversion
     const num = Number(singleValue);
     if (!isNaN(num))
     {
         return num;
     }
 
-    // boolean 변환
+    // Boolean conversion
     if (singleValue === 'true') return true;
     if (singleValue === 'false') return false;
 
-    // 문자열 그대로 반환
+    // Return string as-is
     return singleValue;
 }

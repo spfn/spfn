@@ -1,7 +1,7 @@
 /**
  * Sort Builder
  *
- * Drizzle ORM orderBy 조건을 동적으로 생성하는 유틸리티
+ * Utility to dynamically build Drizzle ORM ORDER BY conditions
  */
 
 import { asc, desc, SQL } from 'drizzle-orm';
@@ -11,11 +11,11 @@ import type { PgColumn } from 'drizzle-orm/pg-core';
 import type { SortCondition, DrizzleTable, SortResult } from './types';
 
 /**
- * 정렬 조건을 Drizzle SQL orderBy 조건으로 변환
+ * Convert sort conditions to Drizzle SQL ORDER BY conditions
  *
- * @param sortConditions - 정렬 조건 배열
- * @param table - Drizzle 테이블 스키마
- * @returns SQL orderBy 조건 배열
+ * @param sortConditions - Sort condition array
+ * @param table - Drizzle table schema
+ * @returns SQL ORDER BY condition array
  *
  * @example
  * const sort = [
@@ -50,11 +50,11 @@ export function buildSort(
 }
 
 /**
- * 쿼리 문자열에서 정렬 조건 파싱
+ * Parse sort conditions from query string
  *
- * @param sortQuery - 정렬 쿼리 문자열 ('createdAt:desc,name:asc')
- * @param allowedFields - 허용된 필드 목록
- * @returns 정렬 조건 배열
+ * @param sortQuery - Sort query string ('createdAt:desc,name:asc')
+ * @param allowedFields - Allowed field list
+ * @returns Sort condition array
  *
  * @example
  * const sort = parseSortQuery('createdAt:desc,name:asc', ['createdAt', 'name', 'email']);
@@ -74,14 +74,14 @@ export function parseSortQuery(
     {
         const [field, direction = 'asc'] = part.trim().split(':');
 
-        // 허용된 필드인지 확인
+        // Check if field is allowed
         if (allowedFields.length > 0 && !allowedFields.includes(field))
         {
             console.warn(`[parseSortQuery] Field '${field}' is not allowed`);
             continue;
         }
 
-        // 유효한 방향인지 확인
+        // Check if direction is valid
         if (direction !== 'asc' && direction !== 'desc')
         {
             console.warn(`[parseSortQuery] Invalid direction '${direction}' for field '${field}'`);
