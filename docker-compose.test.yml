@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  # PostgreSQL for testing
+  postgres:
+    image: postgres:16-alpine
+    container_name: spfn-test-postgres
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: spfn_test
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U testuser -d spfn_test']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for testing (already exists in cache tests)
+  redis:
+    image: redis:7-alpine
+    container_name: spfn-test-redis
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_test_data:
