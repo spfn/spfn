@@ -4,52 +4,52 @@ import type { HttpMethod, RouteDefinition, RouteGroup, RouteStats } from './type
 import { RoutePriority } from './types';
 
 /**
- * RouteRegistry: 라우트 저장소 및 우선순위 관리자
+ * RouteRegistry: Route Storage and Priority Manager
  *
- * ## 주요 역할
- * 1. **라우트 저장**: RouteDefinition을 배열과 Map으로 이중 관리
- * 2. **중복 검사**: 동일한 URL 경로 중복 감지 및 에러 발생
- * 3. **충돌 검사**: 유사 패턴 라우트 경고 (예: /users/:id vs /users/:userId)
- * 4. **우선순위 정렬**: 정적 → 동적 → catch-all 순서로 정렬
- * 5. **Hono 적용**: 정렬된 라우트를 Hono 앱에 등록
- * 6. **미들웨어 주입**: 라우트별 미들웨어를 Hono 인스턴스에 적용
- * 7. **로깅**: 등록 과정을 시각적으로 출력
+ * ## Main Responsibilities
+ * 1. **Route Storage**: Dual management of RouteDefinition with array and Map
+ * 2. **Duplicate Detection**: Detect duplicate URL paths and throw errors
+ * 3. **Conflict Detection**: Warn about similar pattern routes (e.g., /users/:id vs /users/:userId)
+ * 4. **Priority Sorting**: Sort in order: static → dynamic → catch-all
+ * 5. **Hono Application**: Register sorted routes to Hono app
+ * 6. **Middleware Injection**: Apply route-specific middlewares to Hono instances
+ * 7. **Logging**: Visually output registration process
  *
- * ## 저장 구조
+ * ## Storage Structure
  * ```typescript
- * - routes: RouteDefinition[]        // 순서 유지용 배열
- * - routeMap: Map<urlPath, RouteDefinition>  // 빠른 조회용 Map
+ * - routes: RouteDefinition[]        // Array for preserving order
+ * - routeMap: Map<urlPath, RouteDefinition>  // Map for fast lookup
  * ```
  *
- * ## 정렬 기준 (getSortedRoutes)
- * 1. **우선순위** (낮을수록 먼저)
- *    - 정적(1) > 동적(2) > catch-all(3)
- * 2. **세그먼트 수** (많을수록 먼저)
+ * ## Sorting Criteria (getSortedRoutes)
+ * 1. **Priority** (lower value first)
+ *    - Static(1) > Dynamic(2) > Catch-all(3)
+ * 2. **Segment Count** (more segments first)
  *    - `/users/profile` > `/users`
- * 3. **알파벳 순**
+ * 3. **Alphabetical Order**
  *
- * ## 등록 순서 예시
+ * ## Registration Order Example
  * ```
- * 🔹 /users                    → users/index.ts (정적, 우선순위 1)
- * 🔹 /users/profile            → users/profile.ts (정적, 우선순위 1)
- * 🔸 /users/:id                → users/[id].ts (동적, 우선순위 2)
- * 🔸 /users/:id/posts          → users/[id]/posts/index.ts (동적, 우선순위 2)
- * ⭐ /posts/*                  → posts/[...slug].ts (catch-all, 우선순위 3)
+ * 🔹 /users                    → users/index.ts (static, priority 1)
+ * 🔹 /users/profile            → users/profile.ts (static, priority 1)
+ * 🔸 /users/:id                → users/[id].ts (dynamic, priority 2)
+ * 🔸 /users/:id/posts          → users/[id]/posts/index.ts (dynamic, priority 2)
+ * ⭐ /posts/*                  → posts/[...slug].ts (catch-all, priority 3)
  * ```
  *
- * ## 충돌 검사
- * - 경로가 다르지만 패턴이 동일한 경우 경고 출력
- * - 예: `/users/:id`와 `/users/:userId`는 런타임에 충돌 가능
+ * ## Conflict Detection
+ * - Warns when paths differ but patterns are identical
+ * - Example: `/users/:id` and `/users/:userId` can conflict at runtime
  *
- * ## 적용된 개선사항
- * ✅ **라우트 그룹핑**: getRoutesByTag(), getRouteGroups() 메서드 추가
- * ✅ **메타데이터 검색**: findRoutesByMeta() 메서드 추가
- * ✅ **라우트 통계**: getStats() - HTTP 메서드별, 우선순위별, 태그별 통계
+ * ## Applied Improvements
+ * ✅ **Route Grouping**: Added getRoutesByTag(), getRouteGroups() methods
+ * ✅ **Metadata Search**: Added findRoutesByMeta() method
+ * ✅ **Route Statistics**: getStats() - Statistics by HTTP method, priority, and tag
  *
- * ## 추가 개선 방향
- * 1. **와일드카드 충돌 검사**: catch-all 라우트와 동적 라우트 간 충돌 감지 강화
- * 2. **라우트 토글**: 런타임에 라우트 비활성화/활성화
- * 3. **이벤트 시스템**: 라우트 등록/수정/삭제 이벤트 발행
+ * ## Future Improvements
+ * 1. **Wildcard Conflict Detection**: Enhanced detection of conflicts between catch-all and dynamic routes
+ * 2. **Route Toggle**: Enable/disable routes at runtime
+ * 3. **Event System**: Emit route registration/modification/deletion events
  */
 export class RouteRegistry
 {
@@ -57,11 +57,11 @@ export class RouteRegistry
     private routeMap: Map<string, RouteDefinition> = new Map();
 
     /**
-     * 라우트 정의 등록
+     * Register route definition
      */
     register(definition: RouteDefinition): void
     {
-        // 중복 검사
+        // Check for duplicates
         if (this.routeMap.has(definition.urlPath))
         {
             const existing = this.routeMap.get(definition.urlPath)!;
@@ -74,28 +74,28 @@ export class RouteRegistry
             );
         }
 
-        // 충돌 검사 (동일한 패턴의 다른 파라미터명)
+        // Check for conflicts (different parameter names with same pattern)
         this.checkConflicts(definition);
 
-        // 등록
+        // Register
         this.routes.push(definition);
         this.routeMap.set(definition.urlPath, definition);
     }
 
     /**
-     * 우선순위 기반 정렬된 라우트 반환
+     * Return routes sorted by priority
      */
     getSortedRoutes(): RouteDefinition[]
     {
         return [...this.routes].sort((a, b) =>
         {
-            // 1. 우선순위 비교 (낮을수록 우선)
+            // 1. Compare priority (lower value first)
             if (a.priority !== b.priority)
             {
                 return a.priority - b.priority;
             }
 
-            // 2. 같은 우선순위면 세그먼트 수 비교 (많을수록 우선)
+            // 2. Compare segment count for same priority (more segments first)
             const aSegments = a.urlPath.split('/').filter(Boolean);
             const bSegments = b.urlPath.split('/').filter(Boolean);
 
@@ -104,13 +104,13 @@ export class RouteRegistry
                 return bSegments.length - aSegments.length;
             }
 
-            // 3. 알파벳 순
+            // 3. Alphabetical order
             return a.urlPath.localeCompare(b.urlPath);
         });
     }
 
     /**
-     * Hono 앱에 라우트 적용
+     * Apply routes to Hono app
      */
     applyToHono(app: Hono): void
     {
@@ -121,7 +121,7 @@ export class RouteRegistry
 
         for (const route of sortedRoutes)
         {
-            // 미들웨어 적용
+            // Apply middlewares
             if (route.middlewares && route.middlewares.length > 0)
             {
                 for (const middleware of route.middlewares)
@@ -130,10 +130,10 @@ export class RouteRegistry
                 }
             }
 
-            // 라우트 등록
+            // Register route
             app.route(route.urlPath, route.honoInstance);
 
-            // 로그 출력
+            // Log output
             this.logRoute(route);
         }
 
@@ -141,7 +141,7 @@ export class RouteRegistry
     }
 
     /**
-     * 등록된 모든 라우트 반환
+     * Return all registered routes
      */
     getAllRoutes(): RouteDefinition[]
     {
@@ -149,29 +149,29 @@ export class RouteRegistry
     }
 
     /**
-     * 라우트 충돌 검사
+     * Check for route conflicts
      */
     private checkConflicts(newRoute: RouteDefinition): void
     {
         for (const existing of this.routes)
         {
-            // 같은 경로면 이미 중복 검사에서 걸림
+            // Same path already caught by duplicate check
             if (existing.urlPath === newRoute.urlPath)
             {
                 continue;
             }
 
-            // 세그먼트 비교
+            // Compare segments
             const existingSegments = existing.urlPath.split('/').filter(Boolean);
             const newSegments = newRoute.urlPath.split('/').filter(Boolean);
 
-            // 세그먼트 수가 다르면 충돌 가능성 없음
+            // No conflict if segment count differs
             if (existingSegments.length !== newSegments.length)
             {
                 continue;
             }
 
-            // 모든 세그먼트가 동적이거나 동일한 정적 값인지 확인
+            // Check if all segments are either dynamic or identical static values
             let potentialConflict = true;
 
             for (let i = 0; i < existingSegments.length; i++)
@@ -179,7 +179,7 @@ export class RouteRegistry
                 const existingSeg = existingSegments[i];
                 const newSeg = newSegments[i];
 
-                // 둘 다 정적이고 값이 다르면 충돌 아님
+                // No conflict if both are static and different
                 if (!existingSeg.startsWith(':') &&
                     !newSeg.startsWith(':') &&
                     existingSeg !== newSeg)
@@ -201,7 +201,7 @@ export class RouteRegistry
     }
 
     /**
-     * 라우트 로그 출력
+     * Log route output
      */
     private logRoute(route: RouteDefinition): void
     {
@@ -213,7 +213,7 @@ export class RouteRegistry
     }
 
     /**
-     * 우선순위 아이콘
+     * Get priority icon
      */
     private getPriorityIcon(priority: number): string
     {
@@ -227,7 +227,7 @@ export class RouteRegistry
     }
 
     /**
-     * 메타 정보 문자열
+     * Get meta info string
      */
     private getMetaInfo(route: RouteDefinition): string
     {
@@ -257,7 +257,7 @@ export class RouteRegistry
     }
 
     /**
-     * 라우트 통계 생성
+     * Generate route statistics
      */
     getStats(): RouteStats
     {
@@ -282,12 +282,12 @@ export class RouteRegistry
 
         for (const route of this.routes)
         {
-            // HTTP 메서드별 집계
+            // Aggregate by HTTP method
             const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
             for (const method of methods)
             {
-                // Hono 인스턴스의 routes를 순회하며 메서드 확인
-                // (간단한 근사치: honoInstance가 해당 메서드를 가지고 있으면 카운트)
+                // Iterate through Hono instance routes to check methods
+                // (Simple approximation: count if honoInstance has the method)
                 const routes = (route.honoInstance as any).routes || [];
                 if (routes.some((r: any) => r.method === method))
                 {
@@ -295,12 +295,12 @@ export class RouteRegistry
                 }
             }
 
-            // 우선순위별 집계
+            // Aggregate by priority
             if (route.priority === RoutePriority.STATIC) stats.byPriority.static++;
             else if (route.priority === RoutePriority.DYNAMIC) stats.byPriority.dynamic++;
             else if (route.priority === RoutePriority.CATCH_ALL) stats.byPriority.catchAll++;
 
-            // 태그별 집계
+            // Aggregate by tag
             if (route.meta?.tags)
             {
                 for (const tag of route.meta.tags)
@@ -314,7 +314,7 @@ export class RouteRegistry
     }
 
     /**
-     * 태그별 라우트 그룹핑
+     * Group routes by tag
      */
     getRoutesByTag(tag: string): RouteDefinition[]
     {
@@ -322,7 +322,7 @@ export class RouteRegistry
     }
 
     /**
-     * 모든 태그별 라우트 그룹 반환
+     * Return all route groups by tag
      */
     getRouteGroups(): RouteGroup[]
     {
@@ -353,7 +353,7 @@ export class RouteRegistry
     }
 
     /**
-     * 메타데이터로 라우트 검색
+     * Find routes by metadata
      */
     findRoutesByMeta(predicate: (meta: any) => boolean): RouteDefinition[]
     {

@@ -5,69 +5,69 @@ import type { RouteDefinition, RouteFile, RouteHandler, RouteModule } from './ty
 import { RoutePriority } from './types';
 
 /**
- * RouteMapper: 파일 기반 라우트를 Hono 라우트로 변환
+ * RouteMapper: Transform File-based Routes to Hono Routes
  *
- * ## 주요 역할
- * 1. **파일 → 라우트 변환**: RouteFile을 Hono가 이해하는 RouteDefinition으로 변환
- * 2. **HTTP 메서드 핸들러 처리**: Next.js App Router 스타일(export function GET) → Hono 인스턴스
- * 3. **RouteContext 래핑**: Hono Context에 params, query, data 편의 메서드 주입
- * 4. **URL 경로 생성**: 파일 경로 → URL 경로 ([id] → :id, [...slug] → *)
- * 5. **우선순위 계산**: 정적(1) > 동적(2) > catch-all(3)
+ * ## Main Responsibilities
+ * 1. **File → Route Transformation**: Convert RouteFile to RouteDefinition understood by Hono
+ * 2. **HTTP Method Handler Processing**: Next.js App Router style (export function GET) → Hono instance
+ * 3. **RouteContext Wrapping**: Inject params, query, data convenience methods into Hono Context
+ * 4. **URL Path Generation**: File path → URL path ([id] → :id, [...slug] → *)
+ * 5. **Priority Calculation**: Static(1) > Dynamic(2) > Catch-all(3)
  *
- * ## 변환 예시
+ * ## Transformation Example
  * ```
- * 파일: src/server/routes/users/[id].ts
+ * File: src/server/routes/users/[id].ts
  * export async function GET(c: RouteContext) { ... }
  *
- * 변환 결과:
- * - URL 경로: /users/:id
- * - HTTP 메서드: GET
- * - 우선순위: 2 (DYNAMIC)
- * - 파라미터: ['id']
- * - Hono 인스턴스: new Hono().get('/', wrapHandler(GET))
+ * Result:
+ * - URL path: /users/:id
+ * - HTTP method: GET
+ * - Priority: 2 (DYNAMIC)
+ * - Parameters: ['id']
+ * - Hono instance: new Hono().get('/', wrapHandler(GET))
  * ```
  *
- * ## 적용된 개선사항
- * ✅ **메서드 체이닝 적용** (createHonoFromHandlers):
- *    - let app = new Hono() 패턴 사용
- *    - app = app.get().post().patch() 체이닝으로 타입 체인 유지
- *    - Hono RPC 타입 추론 가능성 확보
+ * ## Applied Improvements
+ * ✅ **Method Chaining Applied** (createHonoFromHandlers):
+ *    - Uses let app = new Hono() pattern
+ *    - Maintains type chain via app = app.get().post().patch() chaining
+ *    - Enables Hono RPC type inference
  *
- * ✅ **타입 안전성 강화** (wrapHandler):
- *    - any 타입 제거, RouteHandler와 Context 타입 명시
- *    - 제네릭을 활용한 data<T>() 타입 안전성 개선
+ * ✅ **Enhanced Type Safety** (wrapHandler):
+ *    - Removed any types, explicitly specified RouteHandler and Context types
+ *    - Improved data<T>() type safety using generics
  *
- * ✅ **쿼리 파라미터 처리 개선**:
- *    - for...of + entries()로 가독성 향상
- *    - 중복 키 배열 처리 로직 최적화
+ * ✅ **Improved Query Parameter Handling**:
+ *    - Enhanced readability with for...of + entries()
+ *    - Optimized duplicate key array processing logic
  *
- * ✅ **에러 메시지 개선**:
- *    - 구조화된 형식과 예제 코드 제공
- *    - 개발자 친화적 가이드라인 제시
+ * ✅ **Improved Error Messages**:
+ *    - Structured format with example code
+ *    - Developer-friendly guidelines
  *
- * ## 남은 과제
- * ❌ **동적 import로 인한 타입 손실**:
- *    - import(routeFile.absolutePath) → 런타임에만 타입 확인 가능
- *    - 해결책: 정적 타입 파일 생성 (routes-types.generated.ts)
+ * ## Remaining Challenges
+ * ❌ **Type Loss Due to Dynamic Import**:
+ *    - import(routeFile.absolutePath) → Type checking only at runtime
+ *    - Solution: Generate static type file (routes-types.generated.ts)
  */
 export class RouteMapper
 {
     /**
-     * RouteFile을 RouteDefinition으로 변환
+     * Convert RouteFile to RouteDefinition
      */
     async mapRoute(routeFile: RouteFile): Promise<RouteDefinition>
     {
-        // 동적 import로 모듈 로드
+        // Load module with dynamic import
         const module = await import(routeFile.absolutePath) as RouteModule;
 
         let honoInstance: Hono;
 
-        // 1. 기존 방식: default export로 Hono 인스턴스 제공
+        // 1. Legacy style: Hono instance via default export
         if (module.default)
         {
             honoInstance = module.default;
         }
-        // 2. Next.js App Router 스타일: HTTP 메서드 함수 export
+        // 2. Next.js App Router style: HTTP method function exports
         else if (this.hasHttpMethodHandlers(module))
         {
             honoInstance = this.createHonoFromHandlers(module);
@@ -86,13 +86,13 @@ export class RouteMapper
             );
         }
 
-        // URL 경로 생성
+        // Generate URL path
         const urlPath = this.buildUrlPath(routeFile, module);
 
-        // 파라미터 추출
+        // Extract parameters
         const params = this.extractParams(routeFile);
 
-        // 우선순위 계산
+        // Calculate priority
         const priority = this.calculatePriority(routeFile);
 
         return {
@@ -107,7 +107,7 @@ export class RouteMapper
     }
 
     /**
-     * HTTP 메서드 핸들러가 있는지 확인
+     * Check if module has HTTP method handlers
      */
     private hasHttpMethodHandlers(module: RouteModule): boolean
     {
@@ -116,40 +116,40 @@ export class RouteMapper
     }
 
     /**
-     * HTTP 메서드 핸들러로부터 Hono 인스턴스 생성
+     * Create Hono instance from HTTP method handlers
      *
-     * ✅ 메서드 체이닝 방식으로 타입 추론 가능하도록 구현
+     * ✅ Implemented with method chaining for type inference
      */
     private createHonoFromHandlers(module: RouteModule): Hono
     {
         let app = new Hono();
 
-        // HTTP 메서드 등록 (메서드 체이닝으로 타입 유지)
+        // Register HTTP methods (maintain type chain with method chaining)
         if (module.GET) app = app.get('/', this.wrapHandler(module.GET));
         if (module.POST) app = app.post('/', this.wrapHandler(module.POST));
         if (module.PUT) app = app.put('/', this.wrapHandler(module.PUT));
         if (module.PATCH) app = app.patch('/', this.wrapHandler(module.PATCH));
         if (module.DELETE) app = app.delete('/', this.wrapHandler(module.DELETE));
         if (module.OPTIONS) app = app.options('/', this.wrapHandler(module.OPTIONS));
-        // HEAD는 Hono에서 기본 지원하지 않음
+        // HEAD is not natively supported by Hono
 
         return app;
     }
 
     /**
-     * 핸들러 래퍼: Hono Context를 RouteContext로 변환
+     * Handler wrapper: Convert Hono Context to RouteContext
      *
-     * @param handler - RouteHandler (RouteContext를 받는 함수)
-     * @returns Hono의 Context를 받아 RouteContext로 변환하는 핸들러
+     * @param handler - RouteHandler (function that receives RouteContext)
+     * @returns Handler that receives Hono Context and converts it to RouteContext
      */
     private wrapHandler(handler: RouteHandler)
     {
         return async (c: Context) =>
         {
-            // 1. Path 파라미터 주입
+            // 1. Inject path parameters
             const params: Record<string, string> = c.req.param();
 
-            // 2. Query 파라미터 주입 (중복 값 배열 처리)
+            // 2. Inject query parameters (handle duplicate values as arrays)
             const query: Record<string, string | string[]> = {};
             const url = new URL(c.req.url);
 
@@ -158,7 +158,7 @@ export class RouteMapper
                 const existing = query[key];
                 if (existing !== undefined)
                 {
-                    // 중복 키: 배열로 변환
+                    // Duplicate key: convert to array
                     query[key] = Array.isArray(existing)
                         ? [...existing, value]
                         : [existing, value];
@@ -169,19 +169,19 @@ export class RouteMapper
                 }
             }
 
-            // 3. Pageable 객체 (QueryParser 미들웨어 결과)
+            // 3. Pageable object (QueryParser middleware result)
             const pageable = c.get('queryParams') || {};
 
-            // 4. Body 파싱 헬퍼 주입
+            // 4. Inject body parsing helper
             const data = async <T = unknown>(): Promise<T> =>
             {
                 return await c.req.json() as T;
             };
 
-            // 5. JSON 응답 헬퍼 주입 (원본 c.json을 그대로 바인딩)
+            // 5. Inject JSON response helper (bind original c.json)
             const json = c.json.bind(c);
 
-            // 6. RouteContext 생성
+            // 6. Create RouteContext
             const routeContext = {
                 params,
                 query,
@@ -191,55 +191,55 @@ export class RouteMapper
                 raw: c,
             };
 
-            // 7. 실제 핸들러 호출
+            // 7. Call actual handler
             return handler(routeContext);
         };
     }
 
     /**
-     * URL 경로 생성
+     * Generate URL path
      */
     private buildUrlPath(routeFile: RouteFile, module: RouteModule): string
     {
-        // 메타데이터의 prefix가 있으면 우선 사용
+        // Use metadata prefix if available
         if (module.meta?.prefix)
         {
             return module.meta.prefix;
         }
 
-        // 레거시 prefix 지원
+        // Legacy prefix support
         if (module.prefix)
         {
             return module.prefix;
         }
 
-        // 파일 경로 기반으로 URL 생성
+        // Generate URL from file path
         const segments = [...routeFile.segments];
 
-        // index.ts는 경로에서 제거
+        // Remove index.ts from path
         if (routeFile.isIndex)
         {
             segments.pop();
         }
         else
         {
-            // .ts 확장자 제거
+            // Remove .ts extension
             const lastSegment = segments[segments.length - 1];
             segments[segments.length - 1] = lastSegment.replace(/\.ts$/, '');
         }
 
-        // 세그먼트 변환
+        // Transform segments
         const transformedSegments = segments.map(segment => this.transformSegment(segment));
 
-        // 경로 조합
+        // Combine path
         const path = '/' + transformedSegments.join('/');
 
-        // 중복 슬래시 제거
+        // Remove duplicate slashes
         return path.replace(/\/+/g, '/').replace(/\/$/, '') || '/';
     }
 
     /**
-     * 세그먼트 변환 ([id] → :id, [...slug] → *)
+     * Transform segment ([id] → :id, [...slug] → *)
      */
     private transformSegment(segment: string): string
     {
@@ -252,7 +252,7 @@ export class RouteMapper
         // Dynamic: [id] → :id
         if (/^\[[\w-]+]$/.test(segment))
         {
-            const paramName = segment.slice(1, -1); // [ ] 제거
+            const paramName = segment.slice(1, -1); // Remove [ ]
             this.validateParamName(paramName);
             return ':' + paramName;
         }
@@ -262,7 +262,7 @@ export class RouteMapper
     }
 
     /**
-     * 파라미터 이름 추출
+     * Extract parameter names
      */
     private extractParams(routeFile: RouteFile): string[]
     {
@@ -270,10 +270,10 @@ export class RouteMapper
 
         for (const segment of routeFile.segments)
         {
-            // .ts 확장자 제거
+            // Remove .ts extension
             const cleanSegment = segment.replace(/\.ts$/, '');
 
-            // [id], [slug], [...slug] 등에서 파라미터 이름 추출
+            // Extract parameter name from [id], [slug], [...slug], etc.
             const match = cleanSegment.match(/^\[(\.\.\.)?(\w+)]$/);
 
             if (match)
@@ -286,7 +286,7 @@ export class RouteMapper
     }
 
     /**
-     * 우선순위 계산
+     * Calculate priority
      */
     private calculatePriority(routeFile: RouteFile): RoutePriority
     {
@@ -304,11 +304,11 @@ export class RouteMapper
     }
 
     /**
-     * 파라미터 이름 유효성 검증
+     * Validate parameter name
      */
     private validateParamName(paramName: string): void
     {
-        // 유효한 JavaScript 식별자인지 검증
+        // Check if it's a valid JavaScript identifier
         if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(paramName))
         {
             throw new Error(
@@ -317,7 +317,7 @@ export class RouteMapper
             );
         }
 
-        // 예약어 체크
+        // Check reserved words
         const reservedWords = [
             'default', 'if', 'else', 'while', 'for', 'switch',
             'case', 'break', 'continue', 'return', 'function',

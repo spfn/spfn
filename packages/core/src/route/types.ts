@@ -1,65 +1,65 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
 
 /**
- * 파일 기반 라우팅 시스템 타입 정의
+ * File-based Routing System Type Definitions
  *
- * ## 타입 흐름
+ * ## Type Flow
  * ```
- * RouteFile (스캔)
+ * RouteFile (scan)
  *   ↓
- * RouteModule (동적 import)
+ * RouteModule (dynamic import)
  *   ↓
- * RouteDefinition (변환)
+ * RouteDefinition (transformation)
  *   ↓
- * Hono App (등록)
+ * Hono App (registration)
  * ```
  *
- * ## 핵심 타입
- * 1. **RouteContext**: 라우트 핸들러용 확장 Context (params, query, data)
- * 2. **RouteHandler**: Next.js App Router 스타일 핸들러 함수 타입
- * 3. **RouteFile**: 파일 시스템 스캔 결과 (Scanner 출력)
- * 4. **RouteModule**: 동적 import 결과 (Mapper 입력)
- * 5. **RouteDefinition**: 변환된 라우트 정의 (Mapper 출력, Registry 저장)
- * 6. **RouteMeta**: 라우트 메타데이터 (auth, tags, description 등)
- * 7. **RoutePriority**: 우선순위 enum (STATIC, DYNAMIC, CATCH_ALL)
- * 8. **ScanOptions**: 스캐너 설정 옵션
+ * ## Core Types
+ * 1. **RouteContext**: Extended Context for route handlers (params, query, data)
+ * 2. **RouteHandler**: Next.js App Router style handler function type
+ * 3. **RouteFile**: File system scan result (Scanner output)
+ * 4. **RouteModule**: Dynamic import result (Mapper input)
+ * 5. **RouteDefinition**: Transformed route definition (Mapper output, Registry storage)
+ * 6. **RouteMeta**: Route metadata (auth, tags, description, etc.)
+ * 7. **RoutePriority**: Priority enum (STATIC, DYNAMIC, CATCH_ALL)
+ * 8. **ScanOptions**: Scanner configuration options
  *
- * ## 적용된 개선사항
- * ✅ **HTTP 메서드 타입**: HttpMethod 유니온 타입 추가
- * ✅ **라우트 그룹**: RouteGroup, RouteStats 타입 추가
- * ✅ **타입 가드**: isRouteFile, isRouteDefinition, isHttpMethod, hasHttpMethodHandlers
+ * ## Applied Improvements
+ * ✅ **HTTP Method Types**: Added HttpMethod union type
+ * ✅ **Route Grouping**: Added RouteGroup, RouteStats types
+ * ✅ **Type Guards**: isRouteFile, isRouteDefinition, isHttpMethod, hasHttpMethodHandlers
  *
- * ## 추가 개선 방향
- * 1. **제네릭 타입 안전성**: RouteContext에 params, body 타입 파라미터 추가
- * 2. **메타데이터 검증**: Zod/Joi 스키마 기반 메타데이터 검증
- * 3. **OpenAPI 스펙**: OpenAPI 3.0 스펙 타입 연동
+ * ## Future Improvements
+ * 1. **Generic Type Safety**: Add params, body type parameters to RouteContext
+ * 2. **Metadata Validation**: Zod/Joi schema-based metadata validation
+ * 3. **OpenAPI Spec**: OpenAPI 3.0 spec type integration
  */
 
 /**
- * RouteContext: 라우트 핸들러 전용 Context
+ * RouteContext: Route Handler Dedicated Context
  *
- * 편의 메서드 제공:
- * - params: Path 파라미터 (예: /users/:id → { id: string })
- * - query: Query 파라미터 (중복 값 배열 처리)
- * - pageable: QueryParser 미들웨어 결과 (Spring Pageable 스타일)
- * - data<T>(): Request Body 파싱 헬퍼 (제네릭 지원)
- * - json<T>(): JSON 응답 헬퍼
- * - raw: 원본 Hono Context (고급 기능: raw.req, raw.get(), raw.set() 등)
+ * Convenience methods provided:
+ * - params: Path parameters (e.g., /users/:id → { id: string })
+ * - query: Query parameters (handles duplicate values as arrays)
+ * - pageable: QueryParser middleware result (Spring Pageable style)
+ * - data<T>(): Request Body parsing helper (with generic support)
+ * - json<T>(): JSON response helper
+ * - raw: Original Hono Context (advanced features: raw.req, raw.get(), raw.set(), etc.)
  */
 export type RouteContext = {
     /**
-     * Path 파라미터 (예: /users/:id → { id: string })
+     * Path parameters (e.g., /users/:id → { id: string })
      */
     params: Record<string, string>;
 
     /**
-     * Query 파라미터 (예: /users?page=1 → { page: string })
+     * Query parameters (e.g., /users?page=1 → { page: string })
      */
     query: Record<string, string | string[]>;
 
     /**
-     * Pageable 객체 (QueryParser 미들웨어 결과)
-     * Spring Boot Pageable 스타일 (filters, sort, pagination)
+     * Pageable object (QueryParser middleware result)
+     * Spring Boot Pageable style (filters, sort, pagination)
      */
     pageable: {
         filters?: Record<string, any>;
@@ -68,82 +68,82 @@ export type RouteContext = {
     };
 
     /**
-     * Request Body 파싱 헬퍼
+     * Request Body parsing helper
      */
     data<T = unknown>(): Promise<T>;
 
     /**
-     * JSON 응답 헬퍼 (Hono Context의 json 메서드와 동일)
+     * JSON response helper (same as Hono Context's json method)
      */
     json: Context['json'];
 
     /**
-     * 원본 Hono Context (필요시 고급 기능 접근)
-     * - raw.req: Request 객체 (헤더, 쿠키 등)
-     * - raw.get(): Context 변수 읽기 (미들웨어 데이터)
-     * - raw.set(): Context 변수 설정
+     * Original Hono Context (for advanced features when needed)
+     * - raw.req: Request object (headers, cookies, etc.)
+     * - raw.get(): Read context variables (middleware data)
+     * - raw.set(): Set context variables
      */
     raw: Context;
 };
 
 /**
- * HTTP 메서드 타입
+ * HTTP method type
  */
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 
 /**
- * Next.js App Router 스타일 Route Handler
+ * Next.js App Router Style Route Handler
  *
- * RouteContext를 받아 Response를 반환하는 함수
+ * Function that receives RouteContext and returns Response
  */
 export type RouteHandler = (c: RouteContext) => Response | Promise<Response>;
 
 /**
- * 스캔된 라우트 파일 정보
+ * Scanned route file information
  */
 export type RouteFile = {
-    /** 절대 경로 */
+    /** Absolute path */
     absolutePath: string;
-    /** routes/ 기준 상대 경로 */
+    /** Relative path from routes/ */
     relativePath: string;
-    /** 경로 세그먼트 배열 */
+    /** Path segment array */
     segments: string[];
-    /** 동적 파라미터 포함 여부 [id] */
+    /** Whether it contains dynamic parameters [id] */
     isDynamic: boolean;
-    /** Catch-all 라우트 여부 [...slug] */
+    /** Whether it's a catch-all route [...slug] */
     isCatchAll: boolean;
-    /** index.ts 파일 여부 */
+    /** Whether it's an index.ts file */
     isIndex: boolean;
 };
 
 /**
- * 라우트 메타데이터 (선택적 export)
+ * Route metadata (optional export)
  */
 export type RouteMeta = {
-    /** 라우트 설명 */
+    /** Route description */
     description?: string;
-    /** OpenAPI 태그 */
+    /** OpenAPI tags */
     tags?: string[];
-    /** 인증 필요 여부 */
+    /** Whether authentication is required */
     auth?: boolean;
-    /** 커스텀 prefix (기본값: 파일 경로 기반) */
+    /** Custom prefix (default: based on file path) */
     prefix?: string;
-    /** 추가 메타데이터 */
+    /** Additional metadata */
     [key: string]: unknown;
 };
 
 /**
- * 라우트 모듈 타입 (동적 import 결과)
+ * Route module type (dynamic import result)
  *
- * 두 가지 스타일 지원:
- * 1. 기존 방식: default export로 Hono 인스턴스 제공
- * 2. Next.js 스타일: GET, POST 등 HTTP 메서드 함수 export
+ * Supports two styles:
+ * 1. Legacy style: Hono instance via default export
+ * 2. Next.js style: HTTP method function exports (GET, POST, etc.)
  */
 export type RouteModule = {
-    /** Hono 인스턴스 (기존 방식, 선택) */
+    /** Hono instance (legacy style, optional) */
     default?: Hono;
 
-    /** HTTP 메서드 핸들러 (Next.js 스타일) */
+    /** HTTP method handlers (Next.js style) */
     GET?: RouteHandler;
     POST?: RouteHandler;
     PUT?: RouteHandler;
@@ -152,36 +152,36 @@ export type RouteModule = {
     HEAD?: RouteHandler;
     OPTIONS?: RouteHandler;
 
-    /** 라우트 메타데이터 (선택) */
+    /** Route metadata (optional) */
     meta?: RouteMeta;
-    /** 미들웨어 배열 (선택) */
+    /** Middleware array (optional) */
     middlewares?: MiddlewareHandler[];
-    /** 레거시 prefix 지원 (선택) */
+    /** Legacy prefix support (optional) */
     prefix?: string;
 };
 
 /**
- * 변환된 라우트 정의
+ * Transformed route definition
  */
 export type RouteDefinition = {
-    /** URL 경로 (/users/:id) */
+    /** URL path (/users/:id) */
     urlPath: string;
-    /** 파일 경로 (routes/users/[id].ts) */
+    /** File path (routes/users/[id].ts) */
     filePath: string;
-    /** 우선순위 (1: 정적, 2: 동적, 3: catch-all) */
+    /** Priority (1: static, 2: dynamic, 3: catch-all) */
     priority: number;
-    /** 파라미터 이름 배열 ['id'] */
+    /** Parameter name array ['id'] */
     params: string[];
-    /** Hono 인스턴스 */
+    /** Hono instance */
     honoInstance: Hono;
-    /** 라우트 메타데이터 */
+    /** Route metadata */
     meta?: RouteMeta;
-    /** 미들웨어 배열 */
+    /** Middleware array */
     middlewares?: MiddlewareHandler[];
 };
 
 /**
- * 라우트 우선순위
+ * Route priority
  */
 export enum RoutePriority
 {
@@ -191,51 +191,51 @@ export enum RoutePriority
 }
 
 /**
- * 라우트 스캐너 옵션
+ * Route scanner options
  */
 export type ScanOptions = {
-    /** routes 디렉토리 경로 */
+    /** Routes directory path */
     routesDir: string;
-    /** 제외할 패턴 */
+    /** Exclude patterns */
     exclude?: RegExp[];
-    /** 디버그 로그 출력 */
+    /** Debug log output */
     debug?: boolean;
 };
 
 /**
- * 라우트 그룹 (태그별 라우트 그룹핑용)
+ * Route group (for grouping routes by tag)
  */
 export type RouteGroup = {
-    /** 그룹 이름 (태그 또는 prefix) */
+    /** Group name (tag or prefix) */
     name: string;
-    /** 그룹에 속한 라우트들 */
+    /** Routes belonging to this group */
     routes: RouteDefinition[];
 };
 
 /**
- * 라우트 통계
+ * Route statistics
  */
 export type RouteStats = {
-    /** 총 라우트 수 */
+    /** Total number of routes */
     total: number;
-    /** HTTP 메서드별 개수 */
+    /** Count by HTTP method */
     byMethod: Record<HttpMethod, number>;
-    /** 우선순위별 개수 */
+    /** Count by priority */
     byPriority: {
         static: number;
         dynamic: number;
         catchAll: number;
     };
-    /** 태그별 개수 */
+    /** Count by tag */
     byTag: Record<string, number>;
 };
 
 // ============================================================================
-// 타입 가드 함수
+// Type Guard Functions
 // ============================================================================
 
 /**
- * RouteFile 타입 가드
+ * RouteFile type guard
  */
 export function isRouteFile(value: unknown): value is RouteFile
 {
@@ -252,7 +252,7 @@ export function isRouteFile(value: unknown): value is RouteFile
 }
 
 /**
- * RouteDefinition 타입 가드
+ * RouteDefinition type guard
  */
 export function isRouteDefinition(value: unknown): value is RouteDefinition
 {
@@ -268,7 +268,7 @@ export function isRouteDefinition(value: unknown): value is RouteDefinition
 }
 
 /**
- * HttpMethod 타입 가드
+ * HttpMethod type guard
  */
 export function isHttpMethod(value: unknown): value is HttpMethod
 {
@@ -279,7 +279,7 @@ export function isHttpMethod(value: unknown): value is HttpMethod
 }
 
 /**
- * RouteModule이 Next.js 스타일인지 확인
+ * Check if RouteModule is Next.js style
  */
 export function hasHttpMethodHandlers(module: RouteModule): boolean
 {
