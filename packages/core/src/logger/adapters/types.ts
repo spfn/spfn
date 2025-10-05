@@ -14,9 +14,9 @@
  * - Bunyan Adapter
  *
  * 🔗 관련 파일:
- * - src/server/core/logger/adapters/pino.ts (Pino 구현)
- * - src/server/core/logger/adapters/custom.ts (Custom 구현)
- * - src/server/core/logger/index.ts (Adapter 선택)
+ * - src/logger/adapters/pino.ts (Pino 구현)
+ * - src/logger/adapters/custom.ts (Custom 구현)
+ * - src/logger/index.ts (Adapter 선택)
  */
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';

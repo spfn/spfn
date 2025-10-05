@@ -24,8 +24,8 @@
  * ```
  *
  * 🔗 관련 파일:
- * - src/server/core/logger/ (Logger)
- * - src/server/core/index.ts (Export)
+ * - src/logger/ (Logger)
+ * - src/index.ts (Export)
  */
 
 import type { Context, Next } from 'hono';

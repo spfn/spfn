@@ -9,9 +9,9 @@
  * - 로그 레벨별 스트림 분리 (warn/error/fatal → stderr)
  *
  * 🔗 관련 파일:
- * - src/server/core/logger/types.ts (Transport 인터페이스)
- * - src/server/core/logger/formatters.ts (포맷터)
- * - src/server/core/logger/config.ts (설정)
+ * - src/logger/types.ts (Transport 인터페이스)
+ * - src/logger/formatters.ts (포맷터)
+ * - src/logger/config.ts (설정)
  */
 
 import type { Transport, LogMetadata, LogLevel, ConsoleTransportConfig } from '../types';

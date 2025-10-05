@@ -14,9 +14,9 @@
  * - 완전한 제어가 필요한 경우
  *
  * 🔗 관련 파일:
- * - src/server/core/logger/logger.ts (Logger 클래스)
- * - src/server/core/logger/transports/ (Transport 구현)
- * - src/server/core/logger/adapters/types.ts (인터페이스)
+ * - src/logger/logger.ts (Logger 클래스)
+ * - src/logger/transports/ (Transport 구현)
+ * - src/logger/adapters/types.ts (인터페이스)
  */
 
 import { Logger } from '../logger';

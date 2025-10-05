@@ -16,8 +16,8 @@
  * - 자체 구축: LOGGER_FILE_ENABLED=true
  *
  * 🔗 관련 파일:
- * - src/server/core/logger/types.ts (타입 정의)
- * - src/server/core/logger/index.ts (메인 export)
+ * - src/logger/types.ts (타입 정의)
+ * - src/logger/index.ts (메인 export)
  * - .env.local (환경변수)
  */
 

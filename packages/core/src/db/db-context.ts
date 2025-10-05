@@ -20,11 +20,11 @@
  * - 트랜잭션 ID 반환 함수 (디버깅용)
  *
  * 🔗 관련 파일:
- * - src/server/core/async-context.ts (AsyncLocalStorage 구현)
- * - src/server/core/transaction.ts (Transactional 미들웨어)
- * - src/server/core/db/index.ts (기본 DB 인스턴스)
- * - src/server/core/db/wrapped-db.ts (WrappedDb 구현)
- * - src/server/core/db/repository.ts (Repository 구현)
+ * - src/utils/async-context.ts (AsyncLocalStorage 구현)
+ * - src/utils/transaction.ts (Transactional 미들웨어)
+ * - src/db/db-instance.ts (기본 DB 인스턴스)
+ * - src/db/wrapped-db.ts (WrappedDb 구현)
+ * - src/db/repository.ts (Repository 구현)
  */
 import { getTransaction } from '../utils/async-context.js';
 
