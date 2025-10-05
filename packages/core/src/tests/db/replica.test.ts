@@ -1,7 +1,7 @@
 /**
  * Read Replica Tests
  *
- * Primary/Replica 읽기/쓰기 분리 테스트
+ * Test Primary/Replica read/write separation
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -28,19 +28,19 @@ describe('Read Replica Support', () =>
         client = postgres(DATABASE_URL, { max: 1 });
         testDb = drizzle(client);
 
-        // Note: 테이블은 setup.ts에서 이미 생성됨 (test_users)
+        // Note: Table is already created in setup.ts (test_users)
     });
 
     afterAll(async () =>
     {
-        // 테스트 데이터 정리
+        // Clean up test data
         await client`TRUNCATE TABLE test_users CASCADE`;
         await client.end();
     });
 
     beforeEach(async () =>
     {
-        // 각 테스트 전 데이터 초기화
+        // Reset data before each test
         await client`TRUNCATE TABLE test_users CASCADE`;
     });
     describe('getDb()', () =>

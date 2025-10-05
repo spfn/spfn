@@ -1,7 +1,7 @@
 /**
  * Repository Pattern Tests
  *
- * Repository CRUD 메서드 테스트
+ * Test Repository CRUD methods
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -29,19 +29,19 @@ describe('Repository Pattern', () =>
         db = drizzle(client);
         userRepo = new Repository(db, testUsers);
 
-        // Note: 테이블은 setup.ts에서 이미 생성됨 (test_users)
+        // Note: Table is already created in setup.ts (test_users)
     });
 
     afterAll(async () =>
     {
-        // 테스트 데이터 정리
+        // Clean up test data
         await client`TRUNCATE TABLE test_users CASCADE`;
         await client.end();
     });
 
     beforeEach(async () =>
     {
-        // 각 테스트 전 데이터 초기화
+        // Reset data before each test
         await client`TRUNCATE TABLE test_users CASCADE`;
     });
 
@@ -108,7 +108,7 @@ describe('Repository Pattern', () =>
     {
         beforeEach(async () =>
         {
-            // 테스트 데이터 10개 생성
+            // Create 10 test users
             for (let i = 1; i <= 10; i++)
             {
                 await userRepo.save({
@@ -151,7 +151,7 @@ describe('Repository Pattern', () =>
             });
 
             expect(result.data).toHaveLength(10);
-            // 최신 순서인지 확인
+            // Verify descending order (newest first)
             for (let i = 0; i < result.data.length - 1; i++)
             {
                 const current = new Date(result.data[i].createdAt).getTime();
