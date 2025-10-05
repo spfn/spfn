@@ -11,5 +11,5 @@
  * ```
  */
 
-// Re-export fetch helpers
-export { get, post, patch, del } from '../fetch/wrapper.js';
+// Fetch helpers
+export { get, post, patch, del } from './fetch.js';
