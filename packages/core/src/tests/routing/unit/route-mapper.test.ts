@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
-import { RouteMapper } from '@/server/core';
-import type { RouteFile, RouteModule } from '@/server/core';
+import { RouteMapper } from '@core';
+import type { RouteFile, RouteModule } from '@core';
 import { createMockRouteFile } from '../../helpers/test-utils';
 
 describe('RouteMapper', () =>

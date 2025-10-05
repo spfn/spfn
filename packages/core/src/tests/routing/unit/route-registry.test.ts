@@ -1,4 +1,4 @@
-import { RouteDefinition, RouteRegistry } from "@/server/core";
+import { RouteDefinition, RouteRegistry } from "@core";
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 

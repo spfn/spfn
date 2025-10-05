@@ -91,10 +91,10 @@ function generateIndexFile(entityName: string): string
     const template = readFileSync(templatePath, 'utf-8');
 
     return template
-        .replace(/\{\{ENTITY_NAME\}\}/g, entityName)
-        .replace(/\{\{TYPE_NAME\}\}/g, typeName)
-        .replace(/\{\{ENTITY_NAME_SINGULAR\}\}/g, singular)
-        .replace(/\{\{TIMESTAMP\}\}/g, now);
+        .replace(/\{\{ENTITY_NAME}}/g, entityName)
+        .replace(/\{\{TYPE_NAME}}/g, typeName)
+        .replace(/\{\{ENTITY_NAME_SINGULAR}}/g, singular)
+        .replace(/\{\{TIMESTAMP}}/g, now);
 }
 
 /**
@@ -110,10 +110,10 @@ function generateIdFile(entityName: string): string
     const template = readFileSync(templatePath, 'utf-8');
 
     return template
-        .replace(/\{\{ENTITY_NAME\}\}/g, entityName)
-        .replace(/\{\{TYPE_NAME\}\}/g, typeName)
-        .replace(/\{\{ENTITY_NAME_SINGULAR\}\}/g, singular)
-        .replace(/\{\{TIMESTAMP\}\}/g, now);
+        .replace(/\{\{ENTITY_NAME}}/g, entityName)
+        .replace(/\{\{TYPE_NAME}}/g, typeName)
+        .replace(/\{\{ENTITY_NAME_SINGULAR}}/g, singular)
+        .replace(/\{\{TIMESTAMP}}/g, now);
 }
 
 /**

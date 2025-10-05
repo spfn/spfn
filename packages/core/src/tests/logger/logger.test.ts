@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { logger } from '@/server/core/logger';
+import { logger } from '@core/logger';
 
 describe('Logger', () => {
   describe('Basic Logging', () => {

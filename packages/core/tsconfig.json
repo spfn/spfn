@@ -21,8 +21,8 @@
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
     "paths": {
-      "@/server/core": ["./src"],
-      "@/server/core/*": ["./src/*"],
+      "@core": ["./src"],
+      "@core/*": ["./src/*"],
       "@/server/entities/*": ["./src/tests/fixtures/entities/*"]
     }
   },
