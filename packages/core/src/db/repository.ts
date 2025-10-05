@@ -21,7 +21,7 @@ import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '.
 import { buildFilters } from '../query/filters.js';
 import { buildSort } from '../query/sort.js';
 import { applyPagination, createPaginationMeta, countTotal } from '../query/pagination.js';
-import { getRawDb } from './index.js';
+import { getRawDb } from './db-instance.js';
 import { QueryError } from '../errors/index.js';
 
 /**
