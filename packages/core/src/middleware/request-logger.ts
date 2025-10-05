@@ -1,29 +1,29 @@
 /**
  * Request Logger Middleware
  *
- * API 요청/응답 자동 로깅 미들웨어
+ * Automatic API request/response logging middleware
  *
- * ✅ 구현 완료:
- * - 요청 시작/완료 자동 로깅
- * - 응답 시간 측정
- * - 에러 자동 로깅
- * - Request ID 생성 (분산 추적)
- * - 민감한 데이터 마스킹
- * - 제외 경로 설정 (헬스체크 등)
+ * ✅ Features:
+ * - Automatic request start/completion logging
+ * - Response time measurement
+ * - Automatic error logging
+ * - Request ID generation (distributed tracing)
+ * - Sensitive data masking
+ * - Exclude path configuration (health checks, etc.)
  *
- * 💡 특징:
- * - 모든 API 요청 자동 모니터링
- * - 성능 병목 파악
- * - 에러 추적 용이
+ * 💡 Benefits:
+ * - Automatic monitoring of all API requests
+ * - Identify performance bottlenecks
+ * - Easy error tracking
  *
- * 💡 사용 예시:
+ * 💡 Usage:
  * ```typescript
- * import { RequestLogger } from '@/server/core';
+ * import { RequestLogger } from '@spfn/core';
  *
  * app.use(RequestLogger());
  * ```
  *
- * 🔗 관련 파일:
+ * 🔗 Related files:
  * - src/logger/ (Logger)
  * - src/index.ts (Export)
  */
@@ -32,37 +32,37 @@ import type { Context, Next } from 'hono';
 import { logger } from '../logger';
 
 /**
- * Request Logger 설정
+ * Request Logger configuration
  */
 export interface RequestLoggerConfig
 {
     /**
-     * 로깅에서 제외할 경로 (헬스체크 등)
+     * Paths to exclude from logging (health checks, etc.)
      */
     excludePaths?: string[];
 
     /**
-     * 민감한 데이터 마스킹할 필드명
+     * Field names to mask for sensitive data
      */
     sensitiveFields?: string[];
 
     /**
-     * 느린 요청 임계값 (ms)
+     * Slow request threshold (ms)
      */
     slowRequestThreshold?: number;
 }
 
 /**
- * 기본 설정
+ * Default configuration
  */
 const DEFAULT_CONFIG: Required<RequestLoggerConfig> = {
     excludePaths: ['/health', '/ping', '/favicon.ico'],
     sensitiveFields: ['password', 'token', 'apiKey', 'secret', 'authorization'],
-    slowRequestThreshold: 1000, // 1초
+    slowRequestThreshold: 1000, // 1 second
 };
 
 /**
- * Request ID 생성
+ * Generate Request ID
  */
 function generateRequestId(): string
 {
@@ -70,7 +70,7 @@ function generateRequestId(): string
 }
 
 /**
- * 민감한 데이터 마스킹
+ * Mask sensitive data
  */
 export function maskSensitiveData(obj: any, sensitiveFields: string[]): any
 {
@@ -82,12 +82,12 @@ export function maskSensitiveData(obj: any, sensitiveFields: string[]): any
     {
         const lowerKey = key.toLowerCase();
 
-        // 민감한 필드면 마스킹
+        // Mask if sensitive field
         if (sensitiveFields.some(field => lowerKey.includes(field.toLowerCase())))
         {
             masked[key] = '***MASKED***';
         }
-        // 중첩 객체면 재귀적으로 마스킹
+        // Recursively mask nested objects
         else if (typeof masked[key] === 'object' && masked[key] !== null)
         {
             masked[key] = maskSensitiveData(masked[key], sensitiveFields);
@@ -98,7 +98,7 @@ export function maskSensitiveData(obj: any, sensitiveFields: string[]): any
 }
 
 /**
- * Request Logger 미들웨어
+ * Request Logger middleware
  */
 export function RequestLogger(config?: RequestLoggerConfig)
 {
@@ -109,22 +109,22 @@ export function RequestLogger(config?: RequestLoggerConfig)
     {
         const path = new URL(c.req.url).pathname;
 
-        // 제외 경로 체크
+        // Check excluded paths
         if (cfg.excludePaths.includes(path))
         {
             return next();
         }
 
-        // Request ID 생성 및 컨텍스트에 저장
+        // Generate Request ID and store in context
         const requestId = generateRequestId();
         c.set('requestId', requestId);
 
-        // 요청 정보 수집
+        // Collect request information
         const method = c.req.method;
         const userAgent = c.req.header('user-agent');
         const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
 
-        // 요청 시작 로그
+        // Log request start
         const startTime = Date.now();
 
         apiLogger.info('Request received', {
@@ -137,14 +137,14 @@ export function RequestLogger(config?: RequestLoggerConfig)
 
         try
         {
-            // 요청 처리
+            // Process request
             await next();
 
-            // 응답 완료
+            // Response completed
             const duration = Date.now() - startTime;
             const status = c.res.status;
 
-            // 응답 완료 로그
+            // Log response completion
             const logLevel = status >= 400 ? 'warn' : 'info';
             const isSlowRequest = duration >= cfg.slowRequestThreshold;
 
@@ -154,10 +154,10 @@ export function RequestLogger(config?: RequestLoggerConfig)
                 path,
                 status,
                 duration,
-                slow: isSlowRequest || undefined, // 느린 요청만 표시
+                slow: isSlowRequest || undefined, // Show only for slow requests
             });
 
-            // 느린 요청 경고
+            // Warn for slow requests
             if (isSlowRequest)
             {
                 apiLogger.warn('Slow request detected', {
@@ -171,7 +171,7 @@ export function RequestLogger(config?: RequestLoggerConfig)
         }
         catch (error)
         {
-            // 에러 발생
+            // Error occurred
             const duration = Date.now() - startTime;
 
             apiLogger.error('Request failed', error as Error, {
@@ -181,7 +181,7 @@ export function RequestLogger(config?: RequestLoggerConfig)
                 duration,
             });
 
-            // 에러를 다시 던져서 에러 핸들러가 처리하도록
+            // Re-throw error for error handler to process
             throw error;
         }
     };

@@ -1,13 +1,13 @@
 /**
  * Error Handler Middleware
  *
- * 커스텀 에러를 HTTP 응답으로 변환하는 미들웨어
+ * Middleware that converts custom errors to HTTP responses
  *
- * ✅ 기능:
- * - DatabaseError 계열을 적절한 HTTP 상태 코드로 변환
- * - 에러 로깅 (상태 코드별 로그 레벨)
- * - Production/Development 환경별 에러 응답 포맷
- * - 스택 트레이스 포함 (development only)
+ * ✅ Features:
+ * - Convert DatabaseError family to appropriate HTTP status codes
+ * - Error logging (log level by status code)
+ * - Environment-specific error response format (Production/Development)
+ * - Stack trace inclusion (development only)
  */
 import type { Context } from 'hono';
 import { isDatabaseError, type DatabaseError } from '../errors';
@@ -16,24 +16,24 @@ import { logger } from '../logger';
 const errorLogger = logger.child('error-handler');
 
 /**
- * 에러 핸들러 옵션
+ * Error handler options
  */
 export interface ErrorHandlerOptions {
   /**
-   * 스택 트레이스 포함 여부
+   * Include stack trace in response
    * @default process.env.NODE_ENV !== 'production'
    */
   includeStack?: boolean;
 
   /**
-   * 에러 로깅 활성화
+   * Enable error logging
    * @default true
    */
   enableLogging?: boolean;
 }
 
 /**
- * 에러 응답 포맷
+ * Error response format
  */
 interface ErrorResponse {
   error: {
@@ -45,9 +45,9 @@ interface ErrorResponse {
 }
 
 /**
- * 에러 핸들러 미들웨어
+ * Error handler middleware
  *
- * Hono의 onError 훅에서 사용
+ * Used in Hono's onError hook
  *
  * @example
  * ```typescript
@@ -62,13 +62,13 @@ export function errorHandler(options: ErrorHandlerOptions = {}) {
   } = options;
 
   return (err: Error, c: Context) => {
-    // DatabaseError 처리
+    // Handle DatabaseError
     if (isDatabaseError(err)) {
       const dbError = err as DatabaseError;
       const statusCode = dbError.statusCode;
 
       if (enableLogging) {
-        // 4xx는 warn, 5xx는 error
+        // 4xx: warn, 5xx: error
         if (statusCode >= 500) {
           errorLogger.error('Database error occurred', {
             type: dbError.name,
@@ -103,7 +103,7 @@ export function errorHandler(options: ErrorHandlerOptions = {}) {
       return c.json(response, statusCode as any);
     }
 
-    // 일반 에러 처리
+    // Handle general errors
     if (enableLogging) {
       errorLogger.error('Unhandled error occurred', {
         message: err.message,
