@@ -470,4 +470,96 @@ npx create-spfn-package@latest my-feature
 
 ---
 
+## 🌐 Apps & Ecosystem Strategy
+
+### 공개 앱 (github.com/your-org/spfn)
+
+프레임워크와 함께 공개되는 웹사이트들 - 커뮤니티 기여 환영
+
+#### apps/landing (spfn.dev)
+- 메인 랜딩 페이지
+- 프로젝트 소개 & Quick Start
+- Features & 코드 예제
+- Social Proof
+
+#### apps/docs (docs.spfn.dev)
+- 공식 문서 사이트
+- Getting Started, Guides, API Reference
+- 실시간 검색 & 다국어 지원
+- 커뮤니티 기여 핵심 영역
+
+#### apps/playground (play.spfn.dev)
+- 브라우저 기반 REPL
+- Monaco Editor + WebContainers
+- 템플릿 선택 & 실시간 실행
+- 공유 가능한 코드 스니펫
+
+#### apps/showcase (showcase.spfn.dev)
+- SPFN으로 만든 프로젝트 갤러리
+- 카테고리별 필터링
+- 커뮤니티 프로젝트 제출
+
+#### apps/examples
+- 실전 예제 프로젝트 모음
+- CRUD, Auth, File Upload, Real-time 등
+- `npx create-spfn-app --example crud-api`
+
+### 비공개 앱 (별도 저장소)
+
+#### SPFN Cloud Platform (cloud.spfn.dev)
+**저장소:** github.com/your-org/spfn-cloud (비공개)
+
+**목적:** 매니지드 호스팅 & 인프라 서비스
+
+**핵심 기능:**
+- 프로젝트 관리 & 배포
+- 데이터베이스 프로비저닝 (PostgreSQL)
+- 모니터링 & 로그 수집
+- 팀 관리 & 권한 제어
+- 결제 & 구독 관리 (Stripe)
+
+**기술 스택:**
+- Frontend: Next.js 15
+- Backend: @spfn/core ✨ (Dogfooding!)
+- Auth: @spfn/auth (Client-Key)
+- Database: PostgreSQL + Drizzle ORM
+- Cache: Redis
+- Infrastructure: AWS/Vercel
+
+**비즈니스 모델:**
+```
+Starter:    $20/mo  (3 projects, 1GB DB)
+Pro:        $50/mo  (10 projects, 10GB DB, Auto-scaling)
+Enterprise: Custom  (Unlimited, SLA, Support)
+```
+
+**개발 타임라인:**
+- v1.0.0 릴리스 후 착수
+- Beta: 2-3개월
+- Public Launch: 4-6개월
+
+**Dogfooding 효과:**
+- 프로덕션 환경에서 SPFN 검증
+- 실제 사용 사례 & 레퍼런스
+- 버그 조기 발견 & 개선
+- "We use what we build" 마케팅
+
+### 마케팅 시너지
+
+**오픈소스 → 클라우드 전환 퍼널:**
+```
+1. GitHub/npm에서 발견
+2. docs.spfn.dev에서 학습
+3. play.spfn.dev에서 체험
+4. Self-hosting으로 시작
+5. 성장 후 cloud.spfn.dev로 이전 💰
+```
+
+**성공 사례 참고:**
+- Supabase (오픈소스 + 클라우드)
+- Vercel (Next.js + Vercel Platform)
+- Hasura (GraphQL Engine + Cloud)
+
+---
+
 **SPFN 팀과 함께 TypeScript 풀스택의 미래를 만들어가세요! 🚀**
