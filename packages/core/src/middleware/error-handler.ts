@@ -55,7 +55,7 @@ interface ErrorResponse {
  * app.onError(errorHandler());
  * ```
  */
-export function errorHandler(options: ErrorHandlerOptions = {}) {
+export function errorHandler(options: ErrorHandlerOptions = {}): (err: Error, c: Context) => Response | Promise<Response> {
   const {
     includeStack = process.env.NODE_ENV !== 'production',
     enableLogging = true,
