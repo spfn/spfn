@@ -44,6 +44,9 @@ drizzle
 /apps/testbed/test-results.log
 /.idea/
 
+# Auto-generated guides (synced from README.md)
+packages/*/.guide/
+
 # Test apps (local development only)
 /apps/test-*
 /apps/playground
