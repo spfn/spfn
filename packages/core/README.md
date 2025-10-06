@@ -44,13 +44,31 @@ await startServer();
 
 ```typescript
 // src/server/routes/users/index.ts
-import { bind, type RouteContract } from '@spfn/core';
+import { Hono } from 'hono';
+import { bind } from '@spfn/core';
 import { Transactional } from '@spfn/core/utils';
 import { db, Repository } from '@spfn/core/db';
 import { users } from '@/server/entities/users';
 import { Type } from '@sinclair/typebox';
 
-// Define contract
+const app = new Hono();
+
+// Define contracts
+const getUsersContract = {
+  query: Type.Object({
+    page: Type.Optional(Type.Number({ minimum: 1 })),
+    limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
+  }),
+  response: Type.Object({
+    data: Type.Array(Type.Object({
+      id: Type.Number(),
+      name: Type.String(),
+      email: Type.String(),
+    })),
+    total: Type.Number(),
+  }),
+};
+
 const createUserContract = {
   body: Type.Object({
     name: Type.String(),
@@ -61,30 +79,27 @@ const createUserContract = {
     name: Type.String(),
     email: Type.String(),
   }),
-} as const satisfies RouteContract;
+};
 
-// File-level middleware (applies to all methods)
-export const middlewares = [Transactional()];
-
-export async function GET(c: RouteContext) {
+// GET /users - with validation
+app.get('/', bind(getUsersContract, async (c) => {
+  const { page = 1, limit = 10 } = c.query;
   const repo = new Repository(db, users);
   const result = await repo.findPage({
-    pagination: { page: 1, limit: 10 }
+    pagination: { page, limit }
   });
   return c.json(result);
-}
+}));
 
-// Per-route middleware with bind()
-export const POST = bind(
-  createUserContract,
-  [Transactional()],
-  async (c) => {
-    const data = await c.data(); // ✅ Auto-validated
-    const repo = new Repository(db, users);
-    const user = await repo.save(data);
-    return c.json(user);
-  }
-);
+// POST /users - with validation and transaction
+app.post('/', Transactional(), bind(createUserContract, async (c) => {
+  const data = await c.data(); // ✅ Auto-validated
+  const repo = new Repository(db, users);
+  const user = await repo.save(data);
+  return c.json(user);
+}));
+
+export default app;
 ```
 
 ## 📚 Module Exports
@@ -332,13 +347,6 @@ app.post('/', bind(createUserContract, async (c) => {
   return c.json(user, 201);
 }));
 
-// Export metadata (optional)
-export const meta = {
-  description: 'Users API',
-  tags: ['users', 'admin'],
-  auth: true
-};
-
 export default app;
 ```
 
@@ -399,12 +407,6 @@ app.delete('/', async (c) => {
   return c.json({ success: true }, 204);
 });
 
-export const meta = {
-  description: 'User detail',
-  tags: ['users'],
-  auth: true
-};
-
 export default app;
 ```
 
@@ -422,11 +424,6 @@ app.get('/*', async (c) => {
   const post = await findPostBySlug(slug);
   return c.json(post);
 });
-
-export const meta = {
-  description: 'Posts catch-all',
-  tags: ['posts', 'content']
-};
 
 export default app;
 ```
@@ -467,31 +464,33 @@ console.log(stats);
 ### Transaction Management
 
 ```typescript
+import { Hono } from 'hono';
 import { bind } from '@spfn/core';
 import { Transactional } from '@spfn/core/utils';
 
-// Option 1: File-level middleware (all methods)
-export const middlewares = [Transactional()];
+const app = new Hono();
 
-export async function POST(c: RouteContext) {
+// Option 1: Apply transaction middleware to all routes
+app.use('*', Transactional());
+
+app.post('/', bind(createUserContract, async (c) => {
+  const data = await c.data();
   // All DB operations run in a transaction
   const user = await db.insert(users).values(data).returning();
   await db.insert(profiles).values({ userId: user.id });
   await db.insert(settings).values({ userId: user.id });
   // Success → Auto-commit, Error → Auto-rollback
   return c.json(user, 201);
-}
+}));
 
-// Option 2: Per-route middleware with bind()
-export const PUT = bind(
-  contract,
-  [Transactional()],  // Only this route
-  async (c) => {
-    const data = await c.data();
-    // Transaction auto-managed
-    return c.json(data);
-  }
-);
+// Option 2: Per-route middleware
+app.put('/:id', Transactional(), bind(updateUserContract, async (c) => {
+  const data = await c.data();
+  // Transaction auto-managed
+  return c.json(data);
+}));
+
+export default app;
 ```
 
 ### Repository Pattern

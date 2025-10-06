@@ -9,20 +9,45 @@
  *
  * @generated {{TIMESTAMP}}
  */
-import type { RouteContext } from '@/server/core';
+import { Hono } from 'hono';
+import { bind } from '@spfn/core';
+import { Type } from '@sinclair/typebox';
 import { getDb } from '@/server/core';
 import { {{ENTITY_NAME}} } from '@/server/entities/{{ENTITY_NAME}}';
 import { eq } from 'drizzle-orm';
 import type { Update{{TYPE_NAME}}Dto } from '@/types/generated';
 
-export const meta = {
-  tags: ['{{ENTITY_NAME}}'],
+const app = new Hono();
+
+// Define contracts
+const get{{TYPE_NAME}}Contract = {
+  params: Type.Object({
+    id: Type.String(),
+  }),
+  response: Type.Any(),
+};
+
+const update{{TYPE_NAME}}Contract = {
+  params: Type.Object({
+    id: Type.String(),
+  }),
+  body: Type.Any(), // TODO: Replace with proper TypeBox schema
+  response: Type.Any(),
+};
+
+const delete{{TYPE_NAME}}Contract = {
+  params: Type.Object({
+    id: Type.String(),
+  }),
+  response: Type.Object({
+    success: Type.Boolean(),
+  }),
 };
 
 /**
  * GET /{{ENTITY_NAME}}/:id - Find {{ENTITY_NAME_SINGULAR}} by ID
  */
-export async function GET(c: RouteContext) {
+app.get('/', bind(get{{TYPE_NAME}}Contract, async (c) => {
   const id = Number(c.params.id);
   const db = getDb();
 
@@ -36,12 +61,12 @@ export async function GET(c: RouteContext) {
   }
 
   return c.json({{ENTITY_NAME_SINGULAR}});
-}
+}));
 
 /**
  * PATCH /{{ENTITY_NAME}}/:id - Update {{ENTITY_NAME_SINGULAR}}
  */
-export async function PATCH(c: RouteContext) {
+app.patch('/', bind(update{{TYPE_NAME}}Contract, async (c) => {
   const id = Number(c.params.id);
   const body = await c.data<Update{{TYPE_NAME}}Dto>();
   const db = getDb();
@@ -57,12 +82,12 @@ export async function PATCH(c: RouteContext) {
   }
 
   return c.json(updated);
-}
+}));
 
 /**
  * DELETE /{{ENTITY_NAME}}/:id - Delete {{ENTITY_NAME_SINGULAR}}
  */
-export async function DELETE(c: RouteContext) {
+app.delete('/', bind(delete{{TYPE_NAME}}Contract, async (c) => {
   const id = Number(c.params.id);
   const db = getDb();
 
@@ -76,4 +101,6 @@ export async function DELETE(c: RouteContext) {
   }
 
   return c.json({ success: true });
-}
+}));
+
+export default app;

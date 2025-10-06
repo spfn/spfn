@@ -119,16 +119,32 @@ export default defineConfig({
 
 ```typescript
 // ✅ Good
-export const meta = { tags: ['users'], description: 'User management' };
-export const middlewares = [Transactional()];
+import { Hono } from 'hono';
+import { bind } from '@spfn/core';
+import { Type } from '@sinclair/typebox';
+import { Transactional } from '@/server/core';
+import { Repository, getDb } from '@spfn/core/db';
+import { users } from '@/server/entities/users';
 
-export async function GET(c: RouteContext) {
-    const userRepo = new Repository(getDb(), users);
-    const result = await userRepo.findPage({
-        pagination: { page: 1, limit: 10 },
-    });
-    return c.json(result);
-}
+const app = new Hono();
+
+const getUsersContract = {
+  response: Type.Any(),
+  meta: {
+    tags: ['users'],
+    description: 'User management',
+  },
+};
+
+app.get('/', Transactional(), bind(getUsersContract, async (c) => {
+  const userRepo = new Repository(getDb(), users);
+  const result = await userRepo.findPage({
+    pagination: { page: 1, limit: 10 },
+  });
+  return c.json(result);
+}));
+
+export default app;
 ```
 
 ### 2. Error Handling
