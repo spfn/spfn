@@ -472,7 +472,7 @@ npx create-spfn-package@latest my-feature
 
 ## 🌐 Apps & Ecosystem Strategy
 
-### 공개 앱 (github.com/your-org/spfn)
+### 공개 앱 (github.com/spfn/spfn)
 
 프레임워크와 함께 공개되는 웹사이트들 - 커뮤니티 기여 환영
 
@@ -507,7 +507,7 @@ npx create-spfn-package@latest my-feature
 ### 비공개 앱 (별도 저장소)
 
 #### SPFN Cloud Platform (cloud.spfn.dev)
-**저장소:** github.com/your-org/spfn-cloud (비공개)
+**저장소:** github.com/inflike/spfn-cloud (비공개)
 
 **목적:** 매니지드 호스팅 & 인프라 서비스
 
