@@ -1,38 +1,38 @@
 /**
- * Transactional 미들웨어
+ * Transactional Middleware
  *
- * 라우트 핸들러를 트랜잭션으로 래핑합니다.
- * 성공 시 자동 커밋, 에러 시 자동 롤백
+ * Wraps route handlers in a database transaction.
+ * Auto-commits on success, auto-rolls back on error.
  *
- * ✅ 구현 완료:
- * - 자동 트랜잭션 시작/커밋/롤백
- * - AsyncLocalStorage를 통한 트랜잭션 전파
- * - Hono Context 에러 감지
- * - getDb() 헬퍼와 통합
- * - 타입 안전성 개선 (TransactionDB 타입 사용, @ts-ignore 제거)
- * - 트랜잭션 로깅 (시작/커밋/롤백)
- * - 실행 시간 측정 및 슬로우 트랜잭션 경고
- * - 트랜잭션 ID 추적 (디버깅용)
+ * ✅ Implemented:
+ * - Automatic transaction start/commit/rollback
+ * - Transaction propagation via AsyncLocalStorage
+ * - Hono Context error detection
+ * - Integration with getDb() helper
+ * - Type safety improvements (TransactionDB type, no @ts-ignore)
+ * - Transaction logging (start/commit/rollback)
+ * - Execution time measurement and slow transaction warnings
+ * - Transaction ID tracking (for debugging)
  *
- * ⚠️ 개선 필요:
- * - 트랜잭션 타임아웃 설정 추가
- * - 중첩 트랜잭션 감지 및 경고
+ * ⚠️ Needs improvement:
+ * - Add transaction timeout configuration
+ * - Detect and warn about nested transactions
  *
- * 💡 향후 고려사항:
- * - 트랜잭션 격리 수준 설정 옵션
- * - 읽기 전용 트랜잭션 모드
- * - 트랜잭션 재시도 로직 (Deadlock 발생 시)
- * - 트랜잭션 이벤트 훅 (beforeCommit, afterCommit, onRollback)
+ * 💡 Future considerations:
+ * - Transaction isolation level configuration option
+ * - Read-only transaction mode
+ * - Transaction retry logic (on deadlock)
+ * - Transaction event hooks (beforeCommit, afterCommit, onRollback)
  *
- * 🔗 관련 파일:
- * - src/server/core/async-context.ts (AsyncLocalStorage)
- * - src/server/core/db/helpers.ts (getDb 헬퍼)
- * - src/server/tests/transaction/transaction.test.ts (테스트)
+ * 🔗 Related files:
+ * - src/utils/async-context.ts (AsyncLocalStorage)
+ * - src/db/db-context.ts (getDb helper)
+ * - src/utils/__tests__/transaction.test.ts (tests)
  *
- * 📝 TODO: improvements.md 참고
- * - #13: 트랜잭션 격리 수준 설정 (withTransaction({ isolationLevel: 'SERIALIZABLE' }))
- * - 중첩 트랜잭션 savepoint 지원
- * - 트랜잭션 타임아웃 설정
+ * 📝 Future improvements:
+ * - Transaction isolation level setting (withTransaction({ isolationLevel: 'SERIALIZABLE' }))
+ * - Nested transaction savepoint support
+ * - Transaction timeout configuration
  */
 import { createMiddleware } from 'hono/factory';
 import { db } from '@core/db';
@@ -41,125 +41,155 @@ import { logger } from '@core/logger';
 import { fromPostgresError } from '@core/errors';
 
 /**
- * 트랜잭션 미들웨어 옵션
+ * Transaction middleware options
  */
-export interface TransactionalOptions {
-  /**
-   * 슬로우 트랜잭션 경고 임계값 (밀리초)
-   * @default 1000 (1초)
-   */
-  slowThreshold?: number;
+export interface TransactionalOptions
+{
+    /**
+     * Slow transaction warning threshold in milliseconds
+     * @default 1000 (1 second)
+     */
+    slowThreshold?: number;
 
-  /**
-   * 트랜잭션 로깅 활성화
-   * @default true
-   */
-  enableLogging?: boolean;
+    /**
+     * Enable transaction logging
+     * @default true
+     */
+    enableLogging?: boolean;
 }
 
 /**
- * 트랜잭션 미들웨어
+ * Transaction middleware for Hono routes
  *
- * 사용법:
+ * Automatically wraps route handlers in a database transaction.
+ * Commits on success, rolls back on error.
+ *
+ * @example
  * ```typescript
+ * // In your route file
  * export const middlewares = [Transactional()];
  *
  * export async function POST(c: RouteContext) {
- *   // 모든 DB 작업이 트랜잭션 안에서 실행됨
+ *   // All DB operations run in a transaction
  *   const [user] = await db.insert(users).values(body).returning();
  *   await db.insert(profiles).values({ userId: user.id });
- *   // 성공 시 자동 커밋
+ *   // Auto-commits on success
  *   return c.json(user, 201);
  * }
  * ```
  *
- * 🔄 트랜잭션 동작:
- * - 성공 시: 자동 커밋
- * - 에러 발생 시: 자동 롤백
- * - context.error를 감지하여 롤백 트리거
+ * @example
+ * ```typescript
+ * // With custom options
+ * export const middlewares = [
+ *   Transactional({
+ *     slowThreshold: 2000,    // Warn if transaction takes > 2s
+ *     enableLogging: false,   // Disable logging
+ *   })
+ * ];
+ * ```
  *
- * 📊 트랜잭션 로깅:
- * - 트랜잭션 시작/커밋/롤백 자동 로깅
- * - 실행 시간 측정 및 기록
- * - 슬로우 트랜잭션 경고 (기본: 1초 이상)
+ * 🔄 Transaction behavior:
+ * - Success: Auto-commit
+ * - Error: Auto-rollback
+ * - Detects context.error to trigger rollback
+ *
+ * 📊 Transaction logging:
+ * - Auto-logs transaction start/commit/rollback
+ * - Measures and records execution time
+ * - Warns about slow transactions (default: > 1s)
  */
-export function Transactional(options: TransactionalOptions = {}) {
-  const {
-    slowThreshold = 1000,
-    enableLogging = true,
-  } = options;
+export function Transactional(options: TransactionalOptions = {})
+{
+    const {
+        slowThreshold = 1000,
+        enableLogging = true,
+    } = options;
 
-  const txLogger = logger.child('transaction');
+    const txLogger = logger.child('transaction');
 
-  return createMiddleware(async (c, next) => {
-    // 트랜잭션 ID 생성 (간단한 ID, 디버깅용)
-    const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const startTime = Date.now();
-    const route = `${c.req.method} ${c.req.path}`;
+    return createMiddleware(async (c, next) =>
+    {
+        // Generate transaction ID for debugging
+        const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const startTime = Date.now();
+        const route = `${c.req.method} ${c.req.path}`;
 
-    if (enableLogging) {
-      txLogger.debug('Transaction started', { txId, route });
-    }
-
-    try {
-      // 트랜잭션 시작
-      await db.transaction(async (tx) => {
-        // AsyncLocalStorage에 트랜잭션 저장
-        await runWithTransaction(tx as TransactionDB, async () => {
-          // 핸들러 실행
-          await next();
-
-          // Hono가 에러를 catch하고 context.error에 저장하는 경우 감지
-          // Context 타입에 error 속성이 공식적으로 정의되어 있지 않으므로 타입 확장
-          type ContextWithError = typeof c & { error?: Error };
-          const contextWithError = c as ContextWithError;
-          if (contextWithError.error) {
-            // 트랜잭션 롤백을 위해 에러 throw
-            throw contextWithError.error;
-          }
-
-          // 성공 시 자동 커밋 (Drizzle이 자동 처리)
-        });
-      });
-
-      // 트랜잭션 성공 (커밋)
-      const duration = Date.now() - startTime;
-
-      if (enableLogging) {
-        if (duration >= slowThreshold) {
-          txLogger.warn('Slow transaction committed', {
-            txId,
-            route,
-            duration: `${duration}ms`,
-            threshold: `${slowThreshold}ms`,
-          });
-        } else {
-          txLogger.debug('Transaction committed', {
-            txId,
-            route,
-            duration: `${duration}ms`,
-          });
+        if (enableLogging)
+        {
+            txLogger.debug('Transaction started', { txId, route });
         }
-      }
-    } catch (error) {
-      // 트랜잭션 실패 (롤백)
-      const duration = Date.now() - startTime;
 
-      // PostgreSQL 에러를 커스텀 에러로 변환
-      const customError = fromPostgresError(error);
+        try
+        {
+            // Start transaction
+            await db.transaction(async (tx) =>
+            {
+                // Store transaction in AsyncLocalStorage
+                await runWithTransaction(tx as TransactionDB, async () =>
+                {
+                    // Execute handler
+                    await next();
 
-      if (enableLogging) {
-        txLogger.error('Transaction rolled back', {
-          txId,
-          route,
-          duration: `${duration}ms`,
-          error: customError.message,
-          errorType: customError.name,
-        });
-      }
+                    // Detect if Hono caught an error and stored it in context.error
+                    // Context type doesn't officially define error property, so we extend it
+                    type ContextWithError = typeof c & { error?: Error };
+                    const contextWithError = c as ContextWithError;
+                    if (contextWithError.error)
+                    {
+                        // Throw to rollback transaction
+                        throw contextWithError.error;
+                    }
 
-      // 에러 재throw (Hono의 에러 핸들러로 전달)
-      throw customError;
-    }
-  });
+                    // Auto-commit on success (handled by Drizzle)
+                });
+            });
+
+            // Transaction successful (committed)
+            const duration = Date.now() - startTime;
+
+            if (enableLogging)
+            {
+                if (duration >= slowThreshold)
+                {
+                    txLogger.warn('Slow transaction committed', {
+                        txId,
+                        route,
+                        duration: `${duration}ms`,
+                        threshold: `${slowThreshold}ms`,
+                    });
+                }
+                else
+                {
+                    txLogger.debug('Transaction committed', {
+                        txId,
+                        route,
+                        duration: `${duration}ms`,
+                    });
+                }
+            }
+        }
+        catch (error)
+        {
+            // Transaction failed (rolled back)
+            const duration = Date.now() - startTime;
+
+            // Convert PostgreSQL error to custom error
+            const customError = fromPostgresError(error);
+
+            if (enableLogging)
+            {
+                txLogger.error('Transaction rolled back', {
+                    txId,
+                    route,
+                    duration: `${duration}ms`,
+                    error: customError.message,
+                    errorType: customError.name,
+                });
+            }
+
+            // Re-throw for Hono's error handler
+            throw customError;
+        }
+    });
 }
