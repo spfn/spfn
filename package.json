@@ -26,5 +26,9 @@
   "engines": {
     "node": ">=18.18.0",
     "pnpm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.41",
+    "drizzle-typebox": "^0.3.3"
   }
 }
