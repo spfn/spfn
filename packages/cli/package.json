@@ -23,7 +23,7 @@
     "cli",
     "backend"
   ],
-  "author": "SPFN Team",
+  "author": "INFLIKE Inc.",
   "license": "MIT",
   "dependencies": {
     "@spfn/core": "workspace:*",
