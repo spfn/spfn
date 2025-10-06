@@ -106,15 +106,27 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 ### 기본 라우트 구조
 
 ```typescript
-import type { RouteContext } from '@/server/core';
-import { Transactional, getDb } from '@/server/core';
+import { Hono } from 'hono';
+import { bind } from '@spfn/core';
+import { Type } from '@sinclair/typebox';
+import { Transactional } from '@/server/core';
 
-export const meta = { tags: ['example'] };
-export const middlewares = [Transactional()];
+const app = new Hono();
 
-export async function GET(c: RouteContext) {
-    return c.json({ message: 'Hello' });
-}
+const exampleContract = {
+  response: Type.Object({
+    message: Type.String(),
+  }),
+  meta: {
+    tags: ['example'],
+  },
+};
+
+app.get('/', Transactional(), bind(exampleContract, async (c) => {
+  return c.json({ message: 'Hello' });
+}));
+
+export default app;
 ```
 
 ### Repository 기본 사용

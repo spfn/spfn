@@ -153,35 +153,48 @@ npm run db:migrate   # 마이그레이션 실행 + 타입 재생성
 #### 3. 라우트 작성
 ```typescript
 // src/server/routes/posts/index.ts
-import type { RouteContext } from '@/server/core';
+import { Hono } from 'hono';
+import { bind } from '@spfn/core';
+import { Type } from '@sinclair/typebox';
 import { Repository } from '@/server/core/db/repository';
 import { posts } from '@/server/entities/posts';
 import { Transactional, getDb } from '@/server/core';
 
-export const meta = {
+const app = new Hono();
+
+const getPostsContract = {
+  response: Type.Any(),
+  meta: {
     description: 'Post management endpoints',
     tags: ['posts'],
+  },
 };
 
-export const middlewares = [Transactional()];
+const createPostContract = {
+  body: Type.Any(),
+  response: Type.Any(),
+  meta: {
+    tags: ['posts'],
+  },
+};
 
-export async function GET(c: RouteContext) {
-    const postRepo = new Repository(getDb(), posts);
-    const result = await postRepo.findPage({
-        pagination: { page: 1, limit: 10 },
-        sort: [{ field: 'createdAt', direction: 'desc' }],
-    });
+app.get('/', Transactional(), bind(getPostsContract, async (c) => {
+  const postRepo = new Repository(getDb(), posts);
+  const result = await postRepo.findPage({
+    pagination: { page: 1, limit: 10 },
+    sort: [{ field: 'createdAt', direction: 'desc' }],
+  });
+  return c.json(result);
+}));
 
-    return c.json(result);
-}
+app.post('/', Transactional(), bind(createPostContract, async (c) => {
+  const data = await c.data();
+  const postRepo = new Repository(getDb(), posts);
+  const post = await postRepo.save(data);
+  return c.json(post, 201);
+}));
 
-export async function POST(c: RouteContext) {
-    const data = await c.req.json();
-    const postRepo = new Repository(getDb(), posts);
-    const post = await postRepo.save(data);
-
-    return c.json(post, 201);
-}
+export default app;
 ```
 
 #### 4. API 클라이언트 생성
