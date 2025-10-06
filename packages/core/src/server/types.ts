@@ -56,6 +56,27 @@ export interface ServerConfig
     use?: MiddlewareHandler[];
 
     /**
+     * Global middlewares with names for route-level skip control
+     * Each middleware can be skipped per route using meta.skipMiddlewares
+     *
+     * @example
+     * ```typescript
+     * import { authMiddleware } from '@spfn/auth';
+     *
+     * export default {
+     *   middlewares: [
+     *     { name: 'auth', handler: authMiddleware() },
+     *     { name: 'rateLimit', handler: rateLimitMiddleware() },
+     *   ]
+     * } satisfies ServerConfig;
+     * ```
+     */
+    middlewares?: Array<{
+        name: string;
+        handler: MiddlewareHandler;
+    }>;
+
+    /**
      * Routes directory path (default: src/server/routes)
      */
     routesPath?: string;

@@ -1,623 +1,125 @@
 # @spfn/core/route - File-based Routing System
 
-Next.js App Router-style file-based routing for Hono applications with automatic route registration.
+Type-safe, contract-based routing with automatic route discovery and runtime middleware management.
 
 ## Features
 
-- ✅ **Zero-Config**: File-based routing with Next.js App Router conventions
-- ✅ **TypeScript First**: Full type safety with RouteContext
-- ✅ **Contract-Based Routing**: TypeBox-based contracts with automatic validation
-- ✅ **Automatic Registration**: Scans, transforms, and registers routes automatically
-- ✅ **Priority Sorting**: Intelligent route priority (static > dynamic > catch-all)
-- ✅ **HTTP Method Handlers**: Export GET, POST, PUT, PATCH, DELETE functions
-- ✅ **Metadata Support**: Route descriptions, tags, auth requirements
-- ✅ **Middleware Support**: Per-route middleware injection
-- ✅ **Conflict Detection**: Warns about potential route conflicts
-- ✅ **Developer-Friendly**: Clear error messages and registration logging
+- ✅ **File-based Routing**: Next.js-style automatic route registration
+- ✅ **Contract-based Validation**: TypeBox schemas for end-to-end type safety
+- ✅ **Runtime Middleware Skip**: Route-level middleware control via contract.meta
+- ✅ **Query Arrays**: Support for `?tags=a&tags=b` → `{ tags: ['a', 'b'] }`
+- ✅ **Unified Error Handling**: All validation errors throw `ValidationError`
+- ✅ **Auto-discovery**: Scan and register routes automatically
+- ✅ **Dynamic Routes**: `[id]` → `:id`, `[...slug]` → `*`
+- ✅ **Zero Config**: Works out of the box
 
 ---
 
 ## Quick Start
 
-### 1. Create Route Files
+### 1. Create a Route File
 
-```
-src/server/routes/
-├── index.ts               # GET /
-├── users/
-│   ├── index.ts          # GET /users
-│   ├── [id].ts           # GET /users/:id
-│   └── [id]/
-│       └── posts/
-│           └── index.ts  # GET /users/:id/posts
-└── posts/
-    └── [...slug].ts      # GET /posts/* (catch-all)
-```
-
-### 2. Write Route Handlers
-
-**`src/server/routes/users/[id].ts`**:
 ```typescript
-import type { RouteContext } from '@spfn/core';
-
-// Next.js App Router style - export HTTP method functions
-export async function GET(c: RouteContext) {
-  const { id } = c.params;
-
-  return c.json({
-    userId: id,
-    name: 'John Doe'
-  });
-}
-
-export async function PATCH(c: RouteContext) {
-  const { id } = c.params;
-  const body = await c.data<{ name: string }>();
-
-  return c.json({
-    userId: id,
-    updated: body
-  });
-}
-
-// Optional metadata
-export const meta = {
-  description: 'User detail API',
-  tags: ['users'],
-  auth: true
-};
-```
-
-### 3. Load Routes in Your App
-
-**`src/server/app.ts`**:
-```typescript
+// src/server/routes/users/index.ts
 import { Hono } from 'hono';
-import { loadRoutesFromDirectory } from '@spfn/core';
-
-const app = new Hono();
-
-// Automatically load all routes
-const debug = process.env.NODE_ENV === 'development';
-await loadRoutesFromDirectory(app, debug);
-
-export { app };
-```
-
-### 4. See Results
-
-```
-🔍 Scanning routes directory: /Users/.../src/server/routes
-  ✓ users/[id].ts
-  ✓ users/index.ts
-  ✓ posts/index.ts
-📁 Found 3 route files
-
-📍 Registering routes:
-   Total: 3 routes
-
-   🔹 /users                              → users/index.ts
-   🔹 /posts                              → posts/index.ts
-   🔸 /users/:id                          → users/[id].ts (params: [id], 🔒 auth, tags: [users])
-
-📊 Route Statistics:
-   Priority: 2 static, 1 dynamic, 0 catch-all
-   Methods: GET(3), PATCH(1)
-   Tags: users(1)
-
-✅ Routes loaded in 45ms
-```
-
----
-
-## File Naming Conventions
-
-### Static Routes
-
-```
-routes/users.ts          → /users
-routes/users/profile.ts  → /users/profile
-routes/api/v1/health.ts  → /api/v1/health
-```
-
-### Index Routes
-
-```
-routes/index.ts          → /
-routes/users/index.ts    → /users
-routes/api/index.ts      → /api
-```
-
-### Dynamic Routes (Parameters)
-
-```
-routes/users/[id].ts                → /users/:id
-routes/posts/[slug].ts              → /posts/:slug
-routes/users/[id]/posts/[postId].ts → /users/:id/posts/:postId
-```
-
-### Catch-All Routes (Wildcards)
-
-```
-routes/docs/[...slug].ts  → /docs/*
-routes/assets/[...path].ts → /assets/*
-```
-
----
-
-## Contract-Based Routing with TypeBox
-
-The framework supports contract-based routing using TypeBox for type-safe, auto-validated routes.
-
-### Using bind() Function
-
-The `bind()` function provides Fastify-style contract binding with automatic validation:
-
-```typescript
-import { bind, type RouteContract } from '@spfn/core';
+import { bind } from '@spfn/core';
 import { Type } from '@sinclair/typebox';
 
-// 1. Define contract
-const getUserContract = {
-  method: 'GET' as const,
-  params: Type.Object({
-    id: Type.String(),
-  }),
-  response: Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    email: Type.String(),
-  }),
-} as const satisfies RouteContract;
-
-// 2. Create handler with bind()
-export const GET = bind(getUserContract, async (c) => {
-  // ✅ c.params.id is type-safe (string)
-  const userId = c.params.id;
-
-  return c.json({
-    id: userId,
-    name: 'John Doe',
-    email: 'john@example.com',
-  });
-});
-```
-
-### POST with Body Validation
-
-```typescript
-const createUserContract = {
-  method: 'POST' as const,
-  body: Type.Object({
-    name: Type.String({ minLength: 1 }),
-    email: Type.String({ format: 'email' }),
-    age: Type.Optional(Type.Number({ minimum: 0, maximum: 150 })),
-  }),
-  response: Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    email: Type.String(),
-    age: Type.Optional(Type.Number()),
-    createdAt: Type.String(),
-  }),
-} as const satisfies RouteContract;
-
-export const POST = bind(createUserContract, async (c) => {
-  // ✅ Body is automatically validated by bind()
-  const body = await c.data();
-
-  // ✅ body.name, body.email are type-safe
-  // ✅ body.age is optional (number | undefined)
-
-  return c.json({
-    id: '123',
-    name: body.name,
-    email: body.email,
-    age: body.age,
-    createdAt: new Date().toISOString(),
-  });
-});
-```
-
-### Complex Routes with Params, Query, and Body
-
-```typescript
-const updateUserContract = {
-  method: 'PUT' as const,
-  params: Type.Object({
-    id: Type.String(),
-  }),
-  query: Type.Object({
-    notify: Type.Optional(Type.String()),
-  }),
-  body: Type.Object({
-    name: Type.Optional(Type.String({ minLength: 1 })),
-    email: Type.Optional(Type.String({ format: 'email' })),
-  }),
-  response: Type.Object({
-    success: Type.Boolean(),
-    updated: Type.Object({
-      id: Type.String(),
-      name: Type.String(),
-      email: Type.String(),
-    }),
-  }),
-} as const satisfies RouteContract;
-
-export const PUT = bind(updateUserContract, async (c) => {
-  // ✅ All params/query/body are type-safe and validated
-  const userId = c.params.id;
-  const notify = c.query.notify;
-  const updates = await c.data();
-
-  return c.json({
-    success: true,
-    updated: {
-      id: userId,
-      name: updates.name || 'Default Name',
-      email: updates.email || 'default@example.com',
-    },
-  });
-});
-```
-
-### Type Inference from Contracts
-
-Use `InferContract` to extract types from contracts for reuse:
-
-```typescript
-import type { InferContract } from '@spfn/core';
-
-type CreateUserBody = InferContract<typeof createUserContract>['body'];
-type CreateUserResponse = InferContract<typeof createUserContract>['response'];
-
-// Use in business logic functions
-function processUser(user: CreateUserBody): CreateUserResponse {
-  return {
-    id: '123',
-    name: user.name,
-    email: user.email,
-    age: user.age,
-    createdAt: new Date().toISOString(),
-  };
-}
-```
-
-### Client-Side Type Safety
-
-Contracts enable fully type-safe client code:
-
-```typescript
-async function callApi<TContract extends RouteContract>(
-  contract: TContract,
-  options: {
-    params?: InferContract<TContract>['params'];
-    query?: InferContract<TContract>['query'];
-    body?: InferContract<TContract>['body'];
-  }
-): Promise<InferContract<TContract>['response']> {
-  const url = new URL('http://localhost:4000/api');
-
-  // Add query params
-  if (options.query) {
-    Object.entries(options.query).forEach(([key, value]) => {
-      url.searchParams.append(key, String(value));
-    });
-  }
-
-  const response = await fetch(url.toString(), {
-    method: contract.method,
-    headers: { 'Content-Type': 'application/json' },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-
-  return response.json();
-}
-
-// ✅ Fully type-safe client calls
-const user = await callApi(createUserContract, {
-  body: {
-    name: 'John',
-    email: 'john@example.com',
-    age: 30,
-  },
-});
-
-console.log(user.name); // ✅ Type-safe
-console.log(user.createdAt); // ✅ Type-safe
-```
-
-### Benefits of TypeBox + bind()
-
-1. ✅ **Type Safety**: Full TypeScript type inference from contracts
-2. ✅ **Runtime Validation**: Automatic params/query/body validation
-3. ✅ **Developer Experience**: Fastify-style bind(contract, handler) API
-4. ✅ **Reusability**: Contracts work for both server & client
-5. ✅ **Standards**: TypeBox uses JSON Schema standard
-6. ✅ **Performance**: TypeBox is faster than Zod
-
----
-
-## RouteContext API
-
-The `RouteContext` extends Hono's Context with convenient helper methods:
-
-```typescript
-type RouteContext = {
-  // Path parameters
-  params: Record<string, string>;
-
-  // Query parameters (supports duplicate values as arrays)
-  query: Record<string, string | string[]>;
-
-  // Pageable object (from QueryParser middleware)
-  pageable: {
-    filters?: Record<string, any>;
-    sort?: Array<{ field: string; direction: 'asc' | 'desc' }>;
-    pagination?: { page: number; limit: number };
-  };
-
-  // Request body parsing helper
-  data<T = unknown>(): Promise<T>;
-
-  // JSON response helper
-  json: Context['json'];
-
-  // Original Hono Context (for advanced features)
-  raw: Context;
-};
-```
-
-### Usage Examples
-
-```typescript
-export async function GET(c: RouteContext) {
-  // 1. Access path parameters
-  const { id } = c.params;
-
-  // 2. Access query parameters
-  const page = c.query.page; // string | string[]
-
-  // 3. Access pageable (if QueryParser middleware is used)
-  const { pagination, filters, sort } = c.pageable;
-
-  // 4. Parse request body with type safety
-  const body = await c.data<{ name: string; email: string }>();
-
-  // 5. Return JSON response
-  return c.json({ success: true, data: body });
-
-  // 6. Access raw Hono Context for advanced features
-  const headers = c.raw.req.header();
-  c.raw.set('customData', { foo: 'bar' });
-}
-```
-
----
-
-## Route Metadata
-
-Add metadata to routes for documentation, authentication, and organization:
-
-```typescript
-export const meta = {
-  // Route description (for OpenAPI/documentation)
-  description: 'Create a new user',
-
-  // Tags for grouping (OpenAPI tags)
-  tags: ['users', 'admin'],
-
-  // Authentication required
-  auth: true,
-
-  // Custom prefix (overrides file-based path)
-  prefix: '/api/v2/users',
-
-  // Any custom metadata
-  rateLimit: 100,
-  cacheTTL: 3600,
-};
-```
-
----
-
-## Middlewares
-
-Apply middlewares per route:
-
-```typescript
-import { bearerAuth } from 'hono/bearer-auth';
-import { logger } from 'hono/logger';
-
-export async function GET(c: RouteContext) {
-  return c.json({ message: 'Protected route' });
-}
-
-// Middlewares are applied before the route handler
-export const middlewares = [
-  logger(),
-  bearerAuth({ token: process.env.API_KEY || '' })
-];
-```
-
----
-
-## Priority System
-
-Routes are registered in this order to ensure correct matching:
-
-### 1. Static Routes (Priority 1)
-Most specific, matched first:
-```
-🔹 /users
-🔹 /users/profile
-🔹 /api/v1/health
-```
-
-### 2. Dynamic Routes (Priority 2)
-Parameter-based routes:
-```
-🔸 /users/:id
-🔸 /posts/:slug
-🔸 /users/:id/posts/:postId
-```
-
-### 3. Catch-All Routes (Priority 3)
-Wildcard routes, matched last:
-```
-⭐ /docs/*
-⭐ /assets/*
-```
-
-### Sorting Rules
-
-Within the same priority:
-1. **Segment Count**: More segments first (`/users/profile` before `/users`)
-2. **Alphabetical Order**: Lexicographic sorting
-
----
-
-## Architecture
-
-### Module Overview
-
-The routing system consists of 5 core modules:
-
-```
-┌─────────────┐    ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-│RouteScanner │ →  │ RouteMapper │ →  │RouteRegistry │ →  │     Hono    │
-│  (Scan)     │    │ (Transform) │    │  (Register)  │    │  (Apply)    │
-└─────────────┘    └─────────────┘    └──────────────┘    └─────────────┘
-      ↓                   ↓                    ↓                   ↓
-  RouteFile[]      RouteDefinition[]    Sorted Routes      app.route()
-```
-
-### Data Flow
-
-```
-1. RouteScanner: Scan file system
-   Input:  routes/ directory
-   Output: RouteFile[] (file metadata)
-
-2. RouteMapper: Transform to Hono routes
-   Input:  RouteFile[]
-   Output: RouteDefinition[] (Hono instances)
-
-3. RouteRegistry: Register and sort
-   Input:  RouteDefinition[]
-   Output: Sorted RouteDefinition[] (priority-based)
-
-4. Hono: Apply routes
-   Input:  Sorted RouteDefinition[]
-   Output: Registered Hono app
-```
-
-### Type Flow
-
-```typescript
-RouteFile {
-  absolutePath: string;
-  relativePath: string;
-  segments: string[];
-  isDynamic: boolean;
-  isCatchAll: boolean;
-  isIndex: boolean;
-}
-  ↓ (mapper.mapRoute)
-RouteDefinition {
-  urlPath: string;          // "/users/:id"
-  filePath: string;         // "users/[id].ts"
-  priority: number;         // 1, 2, or 3
-  params: string[];         // ["id"]
-  honoInstance: Hono;       // Hono instance
-  meta?: RouteMeta;         // Metadata
-  middlewares?: Middleware[];
-}
-  ↓ (registry.applyToHono)
-Hono app with registered routes
-```
-
----
-
-## Advanced Usage
-
-### Custom Routes Directory
-
-```typescript
-import { RouteLoader } from '@spfn/core/route';
-
-const loader = new RouteLoader('/custom/path/to/routes', true);
-await loader.loadRoutes(app);
-```
-
-### Route Statistics
-
-```typescript
-import { RouteRegistry } from '@spfn/core/route';
-
-const registry = new RouteRegistry();
-// ... register routes ...
-
-const stats = registry.getStats();
-console.log(stats);
-// {
-//   total: 15,
-//   byMethod: { GET: 10, POST: 3, PATCH: 2, ... },
-//   byPriority: { static: 8, dynamic: 6, catchAll: 1 },
-//   byTag: { users: 5, admin: 3, ... }
-// }
-```
-
-### Route Grouping by Tag
-
-```typescript
-const registry = new RouteRegistry();
-// ... register routes ...
-
-// Get all routes with a specific tag
-const userRoutes = registry.getRoutesByTag('users');
-
-// Get all tag groups
-const groups = registry.getRouteGroups();
-// [
-//   { name: 'users', routes: [...] },
-//   { name: 'admin', routes: [...] }
-// ]
-```
-
-### Find Routes by Metadata
-
-```typescript
-const registry = new RouteRegistry();
-// ... register routes ...
-
-// Find all routes that require authentication
-const authRoutes = registry.findRoutesByMeta(meta => meta.auth === true);
-
-// Find all routes with specific tag
-const adminRoutes = registry.findRoutesByMeta(
-  meta => meta.tags?.includes('admin')
-);
-```
-
----
-
-## Legacy Hono Style (Still Supported)
-
-You can still export Hono instances directly:
-
-```typescript
-import { Hono } from 'hono';
-
 const app = new Hono();
 
-app.get('/', (c) => {
-  return c.json({ message: 'Hello' });
+// Define contract
+const getUsersContract = {
+    query: Type.Object({
+        limit: Type.Optional(Type.Number()),
+        offset: Type.Optional(Type.Number())
+    }),
+    response: Type.Object({
+        users: Type.Array(Type.Object({
+            id: Type.Number(),
+            name: Type.String()
+        }))
+    })
+};
+
+// Bind contract to handler
+app.get('/', bind(getUsersContract, async (c) => {
+    const { limit = 10, offset = 0 } = c.query;
+
+    const users = await fetchUsers(limit, offset);
+
+    return c.json({ users });
+}));
+
+export default app;
+```
+
+### 2. Server Automatically Loads Routes
+
+```typescript
+// src/server/server.ts or server.config.ts
+import { startServer } from '@spfn/core';
+
+await startServer({
+    port: 4000,
+    debug: true
 });
 
-app.post('/', async (c) => {
-  const body = await c.req.json();
-  return c.json({ received: body });
+// ✅ Routes automatically discovered and registered
+// 🔹 /users → routes/users/index.ts
+```
+
+---
+
+## Routing Patterns
+
+### File Structure → URL Mapping
+
+```
+routes/
+├── users/
+│   ├── index.ts           → GET /users
+│   ├── [id].ts            → GET /users/:id
+│   └── [id]/
+│       └── posts.ts       → GET /users/:id/posts
+├── posts/
+│   ├── index.ts           → GET /posts
+│   └── [...slug].ts       → GET /posts/*
+└── health/
+    └── index.ts           → GET /health
+```
+
+### Dynamic Routes
+
+**Path Parameters: `[id]`**
+```typescript
+// routes/users/[id].ts
+const contract = {
+    params: Type.Object({
+        id: Type.Number()
+    }),
+    response: Type.Object({
+        user: Type.Object({
+            id: Type.Number(),
+            name: Type.String()
+        })
+    })
+};
+
+app.get('/', bind(contract, async (c) => {
+    const { id } = c.params;  // Typed as number
+    const user = await getUserById(id);
+    return c.json({ user });
+}));
+```
+
+**Catch-all Routes: `[...slug]`**
+```typescript
+// routes/docs/[...slug].ts
+const app = new Hono();
+
+app.get('/', async (c) => {
+    const slug = c.req.param('slug');  // Matches /docs/a/b/c
+    return c.json({ slug });
 });
 
 export default app;
@@ -625,193 +127,524 @@ export default app;
 
 ---
 
-## Error Messages
+## Contract-based Validation
 
-### Invalid Route File
-
-```
-❌ Invalid route file: /path/to/routes/invalid.ts
-
-Route files must export one of the following:
-
-1. Default Hono instance (Legacy style):
-   export default new Hono().get('/', ...).post('/', ...);
-
-2. HTTP method handlers (Next.js App Router style):
-   export async function GET(c: RouteContext) { ... }
-   export async function POST(c: RouteContext) { ... }
-
-Supported methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
-```
-
-### Duplicate Routes
-
-```
-❌ Duplicate route detected:
-  URL: /users
-  Existing: users/index.ts
-  New: users.ts
-```
-
-### Route Conflict Warning
-
-```
-⚠️  Potential route conflict:
-   /users/:id (users/[id].ts)
-   /users/:userId (users/[userId].ts)
-```
-
-### Invalid Parameter Name
-
-```
-❌ Invalid parameter name: default
-Parameter names cannot be JavaScript reserved words.
-```
-
----
-
-## Best Practices
-
-### 1. Use Type-Safe Bodies
+### Automatic Validation with bind()
 
 ```typescript
-interface CreateUserRequest {
-  name: string;
-  email: string;
-}
+import { bind } from '@spfn/core';
+import { Type } from '@sinclair/typebox';
 
-export async function POST(c: RouteContext) {
-  const body = await c.data<CreateUserRequest>();
+const contract = {
+    // Path parameters
+    params: Type.Object({
+        id: Type.Number()
+    }),
 
-  // body is typed as CreateUserRequest
-  return c.json({ name: body.name, email: body.email });
-}
-```
+    // Query parameters (supports arrays!)
+    query: Type.Object({
+        tags: Type.Array(Type.String()),
+        limit: Type.Optional(Type.Number())
+    }),
 
-### 2. Organize Routes by Feature
+    // Request body
+    body: Type.Object({
+        name: Type.String(),
+        email: Type.String({ format: 'email' })
+    }),
 
-```
-routes/
-├── users/           # User management
-├── posts/           # Blog posts
-├── auth/            # Authentication
-└── admin/           # Admin panel
-```
-
-### 3. Use Metadata for Documentation
-
-```typescript
-export const meta = {
-  description: 'Get user by ID',
-  tags: ['users'],
-  auth: true,
+    // Response schema
+    response: Type.Object({
+        success: Type.Boolean()
+    })
 };
-```
 
-### 4. Apply Middlewares Wisely
-
-```typescript
-// Per-route middleware
-export const middlewares = [
-  bearerAuth({ token: process.env.API_KEY || '' })
-];
-
-// Global middleware (in app.ts)
-app.use('*', cors());
-app.use('*', logger());
-```
-
-### 5. Handle Errors Gracefully
-
-```typescript
-export async function GET(c: RouteContext) {
-  try {
+app.post('/', bind(contract, async (c) => {
+    // All validated - safe to use
     const { id } = c.params;
-    const user = await db.users.findById(id);
+    const { tags, limit } = c.query;
+    const body = await c.data();  // Validated body
 
-    if (!user) {
-      return c.json({ error: 'User not found' }, 404);
-    }
+    return c.json({ success: true });
+}));
+```
 
-    return c.json(user);
-  } catch (error) {
-    console.error('Failed to fetch user:', error);
-    return c.json({ error: 'Internal server error' }, 500);
+### Query Array Support
+
+```typescript
+// Request: /posts?tags=javascript&tags=typescript
+const contract = {
+    query: Type.Object({
+        tags: Type.Array(Type.String())
+    }),
+    response: Type.Object({ posts: Type.Array(Type.Any()) })
+};
+
+app.get('/', bind(contract, async (c) => {
+    const { tags } = c.query;  // ['javascript', 'typescript']
+    return c.json({ posts: [] });
+}));
+```
+
+### Validation Errors
+
+All validation errors throw `ValidationError` (400):
+
+```json
+{
+  "error": {
+    "message": "Invalid query parameters",
+    "type": "ValidationError",
+    "statusCode": 400
   }
 }
 ```
 
 ---
 
-## Troubleshooting
+## Global Middleware Management
 
-### ⚠️ Warning: "No route files found"
+### Configure Global Middlewares
 
-**Cause:** Routes directory is empty or path is incorrect.
+```typescript
+// server.config.ts
+import type { ServerConfig } from '@spfn/core';
+import { authMiddleware } from '@spfn/auth';
+import { rateLimitMiddleware } from './middlewares/rate-limit';
 
-**Solutions:**
-1. Check routes directory path
-2. Ensure `.ts` files exist (not `.js` or `.tsx`)
-3. Verify files aren't excluded (.test.ts, .spec.ts, .d.ts)
+export default {
+    middlewares: [
+        { name: 'auth', handler: authMiddleware() },
+        { name: 'rateLimit', handler: rateLimitMiddleware() }
+    ]
+} satisfies ServerConfig;
+```
 
-### ❌ Error: "Failed to load route"
+### Skip Middlewares Per Route
 
-**Cause:** Syntax error or missing exports in route file.
+Use `contract.meta.skipMiddlewares`:
 
-**Check:**
-1. File exports either `default` Hono instance or HTTP method functions
-2. No syntax errors in the file
-3. All imports are resolvable
+```typescript
+// routes/public/health.ts
+const healthContract = {
+    response: Type.Object({
+        status: Type.String()
+    }),
+    meta: {
+        skipMiddlewares: ['auth', 'rateLimit']  // Skip both
+    }
+};
 
-### Route Not Matching
+app.get('/', bind(healthContract, async (c) => {
+    return c.json({ status: 'ok' });
+}));
+```
 
-**Cause:** Priority order or pattern conflict.
+**How it works:**
+1. Global middlewares registered for all routes
+2. `bind()` stores `contract.meta` in context
+3. `conditionalMiddleware` checks skip list at runtime
+4. Skipped middlewares call `next()` immediately
 
-**Debug:**
-1. Check route registration log
-2. Verify route priority (static > dynamic > catch-all)
-3. Look for conflict warnings
-4. Test with debug mode: `loadRoutesFromDirectory(app, true)`
+**Performance:** `< 0.1ms` overhead per request (negligible)
 
 ---
 
-## Performance Tips
+## Route Context
 
-### 1. Use Parallel Route Loading
-
-The system already uses `Promise.allSettled` for parallel processing, but you can optimize by:
-- Reducing route file size
-- Avoiding heavy computations during module loading
-- Using lazy imports for heavy dependencies
-
-### 2. Minimize Middleware Overhead
+### Available Properties
 
 ```typescript
-// ❌ Bad: Creates new middleware instance for each request
-export const middlewares = [
-  () => someHeavyMiddleware()
-];
+type RouteContext<TContract> = {
+    // Path parameters (typed via contract)
+    params: InferContract<TContract>['params'];
 
-// ✅ Good: Reuse middleware instance
-const authMiddleware = someHeavyMiddleware();
-export const middlewares = [authMiddleware];
+    // Query parameters (typed, supports arrays)
+    query: InferContract<TContract>['query'];
+
+    // Pageable object (from QueryParser middleware)
+    pageable: {
+        filters?: Record<string, any>;
+        sort?: Array<{ field: string; direction: 'asc' | 'desc' }>;
+        pagination?: { page: number; limit: number };
+    };
+
+    // Request body parser (validated)
+    data(): Promise<InferContract<TContract>['body']>;
+
+    // JSON response helper (typed)
+    json(
+        data: InferContract<TContract>['response'],
+        status?: number,
+        headers?: Record<string, string>
+    ): Response;
+
+    // Raw Hono context (for advanced usage)
+    raw: Context;
+};
 ```
 
-### 3. Cache Route Statistics
+### Example Usage
 
 ```typescript
-const registry = new RouteRegistry();
-// ... register routes ...
+app.post('/users', bind(createUserContract, async (c) => {
+    // Validated params
+    const { id } = c.params;
 
-// Cache stats to avoid recalculation
-const stats = registry.getStats();
+    // Validated query
+    const { limit } = c.query;
+
+    // Validated body
+    const userData = await c.data();
+
+    // Pageable from middleware
+    const { filters, sort, pagination } = c.pageable;
+
+    // Typed response
+    return c.json({ user: newUser });
+
+    // Raw context access
+    const token = c.raw.req.header('Authorization');
+}));
+```
+
+---
+
+## File Organization
+
+### Recommended Structure
+
+```
+src/server/
+├── routes/              # Route files (Hono apps)
+│   ├── users/
+│   │   ├── index.ts
+│   │   └── [id].ts
+│   └── posts/
+│       └── index.ts
+│
+├── contracts/           # Shared contracts (TypeBox schemas)
+│   ├── users.ts
+│   └── posts.ts
+│
+├── middlewares/         # Custom middlewares
+│   ├── auth.ts
+│   └── rate-limit.ts
+│
+├── server.config.ts     # Server configuration
+└── app.ts              # Optional: Full control
+```
+
+### Separate Contracts (Recommended)
+
+```typescript
+// contracts/users.ts
+import { Type } from '@sinclair/typebox';
+
+export const getUserContract = {
+    params: Type.Object({ id: Type.Number() }),
+    response: Type.Object({
+        user: Type.Object({
+            id: Type.Number(),
+            name: Type.String()
+        })
+    })
+};
+
+// routes/users/[id].ts
+import { getUserContract } from '../../contracts/users';
+
+app.get('/', bind(getUserContract, async (c) => {
+    // ...
+}));
+```
+
+**Why separate?**
+- ✅ Contracts can be imported in client code
+- ✅ Single source of truth for API types
+- ✅ No server-side code in client bundles
+- ✅ Shared between server and client
+
+---
+
+## Advanced Patterns
+
+### Multiple Routes Per File
+
+```typescript
+// routes/users/index.ts
+const app = new Hono();
+
+app.get('/', bind(getUsersContract, async (c) => {
+    // GET /users
+}));
+
+app.post('/', bind(createUserContract, async (c) => {
+    // POST /users
+}));
+
+app.get('/:id', bind(getUserContract, async (c) => {
+    // GET /users/:id
+}));
+
+export default app;
+```
+
+### Conditional Middleware Per Route
+
+```typescript
+// Public route - skip auth
+const publicContract = {
+    response: Type.Object({ data: Type.String() }),
+    meta: { skipMiddlewares: ['auth'] }
+};
+
+// Protected route - require auth
+const protectedContract = {
+    response: Type.Object({ data: Type.String() }),
+    // No skipMiddlewares - auth will run
+};
+
+app.get('/public', bind(publicContract, handler));
+app.get('/protected', bind(protectedContract, handler));
+```
+
+### Route-level Middleware
+
+```typescript
+import { authMiddleware } from '@spfn/auth';
+
+// Apply middleware to specific route only
+app.get('/admin', authMiddleware, bind(contract, handler));
+```
+
+---
+
+## Error Handling
+
+### Automatic Error Responses
+
+All validation errors are caught by `errorHandler()`:
+
+```typescript
+// Params validation error
+GET /users/abc
+→ 400 ValidationError: Invalid path parameters
+
+// Query validation error
+GET /users?limit=abc
+→ 400 ValidationError: Invalid query parameters
+
+// Body validation error
+POST /users { "name": 123 }
+→ 400 ValidationError: Invalid request body
+```
+
+### Custom Error Handling
+
+```typescript
+import { ValidationError } from '@spfn/core';
+
+app.post('/', bind(contract, async (c) => {
+    const data = await c.data();
+
+    if (await userExists(data.email)) {
+        throw new ValidationError('Email already exists', {
+            field: 'email',
+            value: data.email
+        });
+    }
+
+    // ...
+}));
+```
+
+---
+
+## API Reference
+
+### `bind(contract, handler)`
+
+Binds a contract to a route handler with automatic validation.
+
+```typescript
+function bind<TContract extends RouteContract>(
+    contract: TContract,
+    handler: (c: RouteContext<TContract>) => Response | Promise<Response>
+): (c: Context) => Promise<Response>
+```
+
+### `loadRoutes(app, options?)`
+
+Automatically loads routes from directory.
+
+```typescript
+function loadRoutes(
+    app: Hono,
+    options?: {
+        routesDir?: string;
+        debug?: boolean;
+        middlewares?: Array<{ name: string; handler: MiddlewareHandler }>;
+    }
+): Promise<RouteStats>
+```
+
+### `RouteContract`
+
+Contract definition type.
+
+```typescript
+type RouteContract = {
+    params?: TSchema;
+    query?: TSchema;
+    body?: TSchema;
+    response: TSchema;
+    meta?: RouteMeta;
+};
+```
+
+### `RouteMeta`
+
+Route metadata for middleware control and documentation.
+
+```typescript
+type RouteMeta = {
+    skipMiddlewares?: string[];
+    tags?: string[];
+    description?: string;
+    deprecated?: boolean;
+};
+```
+
+### `conditionalMiddleware(name, handler)`
+
+Wraps a middleware to support runtime skip control.
+
+```typescript
+function conditionalMiddleware(
+    name: string,
+    handler: MiddlewareHandler
+): MiddlewareHandler
+```
+
+---
+
+## Best Practices
+
+### 1. Use Separate Contracts
+
+```typescript
+// ✅ Good - contracts in separate file
+import { userContracts } from '../../contracts/users';
+app.get('/', bind(userContracts.list, handler));
+
+// ❌ Bad - contract inline in route
+app.get('/', bind({ response: Type.Object({...}) }, handler));
+```
+
+### 2. Skip Middlewares Explicitly
+
+```typescript
+// ✅ Good - explicit skip in contract
+const contract = {
+    response: Type.Object({...}),
+    meta: { skipMiddlewares: ['auth'] }
+};
+
+// ❌ Bad - no documentation why public
+app.get('/public', handler);
+```
+
+### 3. Use Type Inference
+
+```typescript
+// ✅ Good - let TypeScript infer types
+app.get('/', bind(contract, async (c) => {
+    const { id } = c.params;  // Type inferred from contract
+}));
+
+// ❌ Bad - manual typing
+app.get('/', bind(contract, async (c: RouteContext<typeof contract>) => {
+    // ...
+}));
+```
+
+### 4. Group Related Routes
+
+```typescript
+// ✅ Good - logical grouping
+routes/
+  users/
+    index.ts      # List/create users
+    [id].ts       # Get/update/delete user
+    [id]/
+      posts.ts    # User's posts
+
+// ❌ Bad - flat structure
+routes/
+  users.ts
+  user-detail.ts
+  user-posts.ts
+```
+
+---
+
+## Troubleshooting
+
+### Routes not loading
+
+**Cause:** Invalid file pattern or export
+
+**Solution:**
+```typescript
+// ✅ Must export Hono instance as default
+export default app;
+
+// ✅ File must be .ts (not .test.ts, .spec.ts, .d.ts)
+// routes/users/index.ts ✅
+// routes/users/index.test.ts ❌
+```
+
+### Middleware not applying
+
+**Cause:** Middleware name mismatch
+
+**Solution:**
+```typescript
+// server.config.ts
+middlewares: [
+    { name: 'auth', handler: authMiddleware() }  // name: 'auth'
+]
+
+// route contract
+meta: {
+    skipMiddlewares: ['auth']  // Must match exactly
+}
+```
+
+### Type errors with params/query
+
+**Cause:** Contract mismatch with actual types
+
+**Solution:**
+```typescript
+// ✅ URL params validated and converted
+params: Type.Object({
+    id: Type.Number()  // String → Number validation
+})
+
+// ✅ Query can be array
+query: Type.Object({
+    tags: Type.Array(Type.String())
+})
 ```
 
 ---
 
 ## Related
 
-- [FRAMEWORK_PHILOSOPHY.md](../../../../FRAMEWORK_PHILOSOPHY.md) - Design principles
-- [Hono Documentation](https://hono.dev) - Hono web framework
-- [Next.js App Router](https://nextjs.org/docs/app) - Routing conventions
 - [@spfn/core](../../README.md) - Main package documentation
+- [@spfn/core/middleware](../middleware/README.md) - Middleware system
+- [@spfn/core/errors](../errors/README.md) - Error handling
+- [Hono Documentation](https://hono.dev) - Framework reference
+- [TypeBox](https://github.com/sinclairzx81/typebox) - Schema validation
