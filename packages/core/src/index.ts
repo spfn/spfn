@@ -26,32 +26,20 @@ export { createServer, startServer } from './server/index.js';
 export type { ServerConfig, AppFactory } from './server/types.js';
 
 // Route System
-export { RouteLoader, loadRoutesFromDirectory } from './route/route-loader.js';
-export { RouteMapper } from './route/route-mapper.js';
-export { RouteRegistry } from './route/route-registry.js';
-export { RouteScanner } from './route/route-scanner.js';
+export { AutoRouteLoader, loadRoutes } from './route/auto-loader.js';
+export type { RouteInfo, RouteStats } from './route/auto-loader.js';
+export { bind } from './route/bind.js';
 
 // Route Types
 export type {
     HttpMethod,
     RouteContext,
-    RouteDefinition,
-    RouteFile,
-    RouteGroup,
+    RouteContract,
     RouteHandler,
-    RouteMeta,
-    RouteModule,
-    RoutePriority,
-    RouteStats,
-    ScanOptions,
+    InferContract,
 } from './route/types.js';
 
-export {
-    hasHttpMethodHandlers,
-    isHttpMethod,
-    isRouteDefinition,
-    isRouteFile,
-} from './route/types.js';
+export { isHttpMethod } from './route/types.js';
 
 // Database
 export { db, getRawDb, id, timestamps, foreignKey, optionalForeignKey } from './db/index.js';

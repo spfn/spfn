@@ -1,4 +1,11 @@
-import type { Context, Hono, MiddlewareHandler } from 'hono';
+import type { Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { TSchema, Static } from '@sinclair/typebox';
+
+/**
+ * Header record type compatible with Hono's c.json headers parameter
+ */
+export type HeaderRecord = Record<string, string | string[]>;
 
 /**
  * File-based Routing System Type Definitions
@@ -7,55 +14,101 @@ import type { Context, Hono, MiddlewareHandler } from 'hono';
  * ```
  * RouteFile (scan)
  *   ↓
- * RouteModule (dynamic import)
+ * RouteModule (dynamic import + contracts)
  *   ↓
- * RouteDefinition (transformation)
+ * RouteDefinition (transformation + validation)
  *   ↓
  * Hono App (registration)
  * ```
  *
  * ## Core Types
- * 1. **RouteContext**: Extended Context for route handlers (params, query, data)
- * 2. **RouteHandler**: Next.js App Router style handler function type
- * 3. **RouteFile**: File system scan result (Scanner output)
- * 4. **RouteModule**: Dynamic import result (Mapper input)
- * 5. **RouteDefinition**: Transformed route definition (Mapper output, Registry storage)
- * 6. **RouteMeta**: Route metadata (auth, tags, description, etc.)
- * 7. **RoutePriority**: Priority enum (STATIC, DYNAMIC, CATCH_ALL)
- * 8. **ScanOptions**: Scanner configuration options
+ * 1. **RouteContract**: TypeBox-based contract definition for type safety and validation
+ * 2. **RouteContext**: Extended Context for route handlers (params, query, data)
+ * 3. **RouteHandler**: Next.js App Router style handler function type
+ * 4. **RouteFile**: File system scan result (Scanner output)
+ * 5. **RouteModule**: Dynamic import result (Mapper input)
+ * 6. **RouteDefinition**: Transformed route definition (Mapper output, Registry storage)
+ * 7. **RouteMeta**: Route metadata (auth, tags, description, etc.)
+ * 8. **RoutePriority**: Priority enum (STATIC, DYNAMIC, CATCH_ALL)
+ * 9. **ScanOptions**: Scanner configuration options
  *
  * ## Applied Improvements
  * ✅ **HTTP Method Types**: Added HttpMethod union type
  * ✅ **Route Grouping**: Added RouteGroup, RouteStats types
  * ✅ **Type Guards**: isRouteFile, isRouteDefinition, isHttpMethod, hasHttpMethodHandlers
- *
- * ## Future Improvements
- * 1. **Generic Type Safety**: Add params, body type parameters to RouteContext
- * 2. **Metadata Validation**: Zod/Joi schema-based metadata validation
- * 3. **OpenAPI Spec**: OpenAPI 3.0 spec type integration
+ * ✅ **Contract-based Types**: RouteContract, InferContract for end-to-end type safety
+ * ✅ **Generic RouteContext**: RouteContext<TContract> for typed params, query, body, response
  */
+
+// ============================================================================
+// Contract Types
+// ============================================================================
+
+/**
+ * Route Contract: TypeBox-based type-safe route definition
+ *
+ * Defines the shape of request/response for a route endpoint
+ *
+ * Note: params and query are always Record<string, string> from URL,
+ * but can be validated and transformed via TypeBox schemas
+ *
+ * The HTTP method is determined by the export name (GET, POST, PUT, etc.)
+ * so it's not included in the contract.
+ */
+export type RouteContract = {
+    /** Path parameters schema (optional) - input is always Record<string, string> */
+    params?: TSchema;
+    /** Query parameters schema (optional) - input is always Record<string, string | string[]> */
+    query?: TSchema;
+    /** Request body schema (optional) */
+    body?: TSchema;
+    /** Response schema (required) */
+    response: TSchema;
+};
+
+/**
+ * Infer types from RouteContract
+ *
+ * Extracts TypeScript types from TypeBox schemas
+ */
+export type InferContract<TContract extends RouteContract> = {
+    params: TContract['params'] extends TSchema
+        ? Static<TContract['params']>
+        : Record<string, never>;
+    query: TContract['query'] extends TSchema
+        ? Static<TContract['query']>
+        : Record<string, never>;
+    body: TContract['body'] extends TSchema
+        ? Static<TContract['body']>
+        : Record<string, never>;
+    response: TContract['response'] extends TSchema
+        ? Static<TContract['response']>
+        : unknown;
+};
 
 /**
  * RouteContext: Route Handler Dedicated Context
  *
+ * Generic version with contract-based type inference
+ *
  * Convenience methods provided:
- * - params: Path parameters (e.g., /users/:id → { id: string })
- * - query: Query parameters (handles duplicate values as arrays)
+ * - params: Path parameters (typed via contract)
+ * - query: Query parameters (typed via contract)
  * - pageable: QueryParser middleware result (Spring Pageable style)
- * - data<T>(): Request Body parsing helper (with generic support)
- * - json<T>(): JSON response helper
+ * - data(): Request Body parsing helper (typed via contract)
+ * - json(): JSON response helper (typed via contract)
  * - raw: Original Hono Context (advanced features: raw.req, raw.get(), raw.set(), etc.)
  */
-export type RouteContext = {
+export type RouteContext<TContract extends RouteContract = any> = {
     /**
-     * Path parameters (e.g., /users/:id → { id: string })
+     * Path parameters (typed via contract)
      */
-    params: Record<string, string>;
+    params: InferContract<TContract>['params'];
 
     /**
-     * Query parameters (e.g., /users?page=1 → { page: string })
+     * Query parameters (typed via contract)
      */
-    query: Record<string, string | string[]>;
+    query: InferContract<TContract>['query'];
 
     /**
      * Pageable object (QueryParser middleware result)
@@ -68,14 +121,18 @@ export type RouteContext = {
     };
 
     /**
-     * Request Body parsing helper
+     * Request Body parsing helper (typed via contract)
      */
-    data<T = unknown>(): Promise<T>;
+    data(): Promise<InferContract<TContract>['body']>;
 
     /**
-     * JSON response helper (same as Hono Context's json method)
+     * JSON response helper (typed via contract)
      */
-    json: Context['json'];
+    json(
+        data: InferContract<TContract>['response'],
+        status?: ContentfulStatusCode,
+        headers?: HeaderRecord
+    ): Response;
 
     /**
      * Original Hono Context (for advanced features when needed)
@@ -99,175 +156,6 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 
 export type RouteHandler = (c: RouteContext) => Response | Promise<Response>;
 
 /**
- * Scanned route file information
- */
-export type RouteFile = {
-    /** Absolute path */
-    absolutePath: string;
-    /** Relative path from routes/ */
-    relativePath: string;
-    /** Path segment array */
-    segments: string[];
-    /** Whether it contains dynamic parameters [id] */
-    isDynamic: boolean;
-    /** Whether it's a catch-all route [...slug] */
-    isCatchAll: boolean;
-    /** Whether it's an index.ts file */
-    isIndex: boolean;
-};
-
-/**
- * Route metadata (optional export)
- */
-export type RouteMeta = {
-    /** Route description */
-    description?: string;
-    /** OpenAPI tags */
-    tags?: string[];
-    /** Whether authentication is required */
-    auth?: boolean;
-    /** Custom prefix (default: based on file path) */
-    prefix?: string;
-    /** Additional metadata */
-    [key: string]: unknown;
-};
-
-/**
- * Route module type (dynamic import result)
- *
- * Supports two styles:
- * 1. Legacy style: Hono instance via default export
- * 2. Next.js style: HTTP method function exports (GET, POST, etc.)
- */
-export type RouteModule = {
-    /** Hono instance (legacy style, optional) */
-    default?: Hono;
-
-    /** HTTP method handlers (Next.js style) */
-    GET?: RouteHandler;
-    POST?: RouteHandler;
-    PUT?: RouteHandler;
-    PATCH?: RouteHandler;
-    DELETE?: RouteHandler;
-    HEAD?: RouteHandler;
-    OPTIONS?: RouteHandler;
-
-    /** Route metadata (optional) */
-    meta?: RouteMeta;
-    /** Middleware array (optional) */
-    middlewares?: MiddlewareHandler[];
-    /** Legacy prefix support (optional) */
-    prefix?: string;
-};
-
-/**
- * Transformed route definition
- */
-export type RouteDefinition = {
-    /** URL path (/users/:id) */
-    urlPath: string;
-    /** File path (routes/users/[id].ts) */
-    filePath: string;
-    /** Priority (1: static, 2: dynamic, 3: catch-all) */
-    priority: number;
-    /** Parameter name array ['id'] */
-    params: string[];
-    /** Hono instance */
-    honoInstance: Hono;
-    /** Route metadata */
-    meta?: RouteMeta;
-    /** Middleware array */
-    middlewares?: MiddlewareHandler[];
-};
-
-/**
- * Route priority
- */
-export enum RoutePriority
-{
-    STATIC = 1,
-    DYNAMIC = 2,
-    CATCH_ALL = 3,
-}
-
-/**
- * Route scanner options
- */
-export type ScanOptions = {
-    /** Routes directory path */
-    routesDir: string;
-    /** Exclude patterns */
-    exclude?: RegExp[];
-    /** Debug log output */
-    debug?: boolean;
-};
-
-/**
- * Route group (for grouping routes by tag)
- */
-export type RouteGroup = {
-    /** Group name (tag or prefix) */
-    name: string;
-    /** Routes belonging to this group */
-    routes: RouteDefinition[];
-};
-
-/**
- * Route statistics
- */
-export type RouteStats = {
-    /** Total number of routes */
-    total: number;
-    /** Count by HTTP method */
-    byMethod: Record<HttpMethod, number>;
-    /** Count by priority */
-    byPriority: {
-        static: number;
-        dynamic: number;
-        catchAll: number;
-    };
-    /** Count by tag */
-    byTag: Record<string, number>;
-};
-
-// ============================================================================
-// Type Guard Functions
-// ============================================================================
-
-/**
- * RouteFile type guard
- */
-export function isRouteFile(value: unknown): value is RouteFile
-{
-    return (
-        typeof value === 'object' &&
-        value !== null &&
-        'absolutePath' in value &&
-        'relativePath' in value &&
-        'segments' in value &&
-        'isDynamic' in value &&
-        'isCatchAll' in value &&
-        'isIndex' in value
-    );
-}
-
-/**
- * RouteDefinition type guard
- */
-export function isRouteDefinition(value: unknown): value is RouteDefinition
-{
-    return (
-        typeof value === 'object' &&
-        value !== null &&
-        'urlPath' in value &&
-        'filePath' in value &&
-        'priority' in value &&
-        'params' in value &&
-        'honoInstance' in value
-    );
-}
-
-/**
  * HttpMethod type guard
  */
 export function isHttpMethod(value: unknown): value is HttpMethod
@@ -276,13 +164,4 @@ export function isHttpMethod(value: unknown): value is HttpMethod
         typeof value === 'string' &&
         ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(value)
     );
-}
-
-/**
- * Check if RouteModule is Next.js style
- */
-export function hasHttpMethodHandlers(module: RouteModule): boolean
-{
-    const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
-    return methods.some(method => typeof module[method] === 'function');
 }

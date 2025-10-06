@@ -6,6 +6,7 @@ Next.js App Router-style file-based routing for Hono applications with automatic
 
 - ✅ **Zero-Config**: File-based routing with Next.js App Router conventions
 - ✅ **TypeScript First**: Full type safety with RouteContext
+- ✅ **Contract-Based Routing**: TypeBox-based contracts with automatic validation
 - ✅ **Automatic Registration**: Scans, transforms, and registers routes automatically
 - ✅ **Priority Sorting**: Intelligent route priority (static > dynamic > catch-all)
 - ✅ **HTTP Method Handlers**: Export GET, POST, PUT, PATCH, DELETE functions
@@ -141,6 +142,199 @@ routes/users/[id]/posts/[postId].ts → /users/:id/posts/:postId
 routes/docs/[...slug].ts  → /docs/*
 routes/assets/[...path].ts → /assets/*
 ```
+
+---
+
+## Contract-Based Routing with TypeBox
+
+The framework supports contract-based routing using TypeBox for type-safe, auto-validated routes.
+
+### Using bind() Function
+
+The `bind()` function provides Fastify-style contract binding with automatic validation:
+
+```typescript
+import { bind, type RouteContract } from '@spfn/core';
+import { Type } from '@sinclair/typebox';
+
+// 1. Define contract
+const getUserContract = {
+  method: 'GET' as const,
+  params: Type.Object({
+    id: Type.String(),
+  }),
+  response: Type.Object({
+    id: Type.String(),
+    name: Type.String(),
+    email: Type.String(),
+  }),
+} as const satisfies RouteContract;
+
+// 2. Create handler with bind()
+export const GET = bind(getUserContract, async (c) => {
+  // ✅ c.params.id is type-safe (string)
+  const userId = c.params.id;
+
+  return c.json({
+    id: userId,
+    name: 'John Doe',
+    email: 'john@example.com',
+  });
+});
+```
+
+### POST with Body Validation
+
+```typescript
+const createUserContract = {
+  method: 'POST' as const,
+  body: Type.Object({
+    name: Type.String({ minLength: 1 }),
+    email: Type.String({ format: 'email' }),
+    age: Type.Optional(Type.Number({ minimum: 0, maximum: 150 })),
+  }),
+  response: Type.Object({
+    id: Type.String(),
+    name: Type.String(),
+    email: Type.String(),
+    age: Type.Optional(Type.Number()),
+    createdAt: Type.String(),
+  }),
+} as const satisfies RouteContract;
+
+export const POST = bind(createUserContract, async (c) => {
+  // ✅ Body is automatically validated by bind()
+  const body = await c.data();
+
+  // ✅ body.name, body.email are type-safe
+  // ✅ body.age is optional (number | undefined)
+
+  return c.json({
+    id: '123',
+    name: body.name,
+    email: body.email,
+    age: body.age,
+    createdAt: new Date().toISOString(),
+  });
+});
+```
+
+### Complex Routes with Params, Query, and Body
+
+```typescript
+const updateUserContract = {
+  method: 'PUT' as const,
+  params: Type.Object({
+    id: Type.String(),
+  }),
+  query: Type.Object({
+    notify: Type.Optional(Type.String()),
+  }),
+  body: Type.Object({
+    name: Type.Optional(Type.String({ minLength: 1 })),
+    email: Type.Optional(Type.String({ format: 'email' })),
+  }),
+  response: Type.Object({
+    success: Type.Boolean(),
+    updated: Type.Object({
+      id: Type.String(),
+      name: Type.String(),
+      email: Type.String(),
+    }),
+  }),
+} as const satisfies RouteContract;
+
+export const PUT = bind(updateUserContract, async (c) => {
+  // ✅ All params/query/body are type-safe and validated
+  const userId = c.params.id;
+  const notify = c.query.notify;
+  const updates = await c.data();
+
+  return c.json({
+    success: true,
+    updated: {
+      id: userId,
+      name: updates.name || 'Default Name',
+      email: updates.email || 'default@example.com',
+    },
+  });
+});
+```
+
+### Type Inference from Contracts
+
+Use `InferContract` to extract types from contracts for reuse:
+
+```typescript
+import type { InferContract } from '@spfn/core';
+
+type CreateUserBody = InferContract<typeof createUserContract>['body'];
+type CreateUserResponse = InferContract<typeof createUserContract>['response'];
+
+// Use in business logic functions
+function processUser(user: CreateUserBody): CreateUserResponse {
+  return {
+    id: '123',
+    name: user.name,
+    email: user.email,
+    age: user.age,
+    createdAt: new Date().toISOString(),
+  };
+}
+```
+
+### Client-Side Type Safety
+
+Contracts enable fully type-safe client code:
+
+```typescript
+async function callApi<TContract extends RouteContract>(
+  contract: TContract,
+  options: {
+    params?: InferContract<TContract>['params'];
+    query?: InferContract<TContract>['query'];
+    body?: InferContract<TContract>['body'];
+  }
+): Promise<InferContract<TContract>['response']> {
+  const url = new URL('http://localhost:4000/api');
+
+  // Add query params
+  if (options.query) {
+    Object.entries(options.query).forEach(([key, value]) => {
+      url.searchParams.append(key, String(value));
+    });
+  }
+
+  const response = await fetch(url.toString(), {
+    method: contract.method,
+    headers: { 'Content-Type': 'application/json' },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  return response.json();
+}
+
+// ✅ Fully type-safe client calls
+const user = await callApi(createUserContract, {
+  body: {
+    name: 'John',
+    email: 'john@example.com',
+    age: 30,
+  },
+});
+
+console.log(user.name); // ✅ Type-safe
+console.log(user.createdAt); // ✅ Type-safe
+```
+
+### Benefits of TypeBox + bind()
+
+1. ✅ **Type Safety**: Full TypeScript type inference from contracts
+2. ✅ **Runtime Validation**: Automatic params/query/body validation
+3. ✅ **Developer Experience**: Fastify-style bind(contract, handler) API
+4. ✅ **Reusability**: Contracts work for both server & client
+5. ✅ **Standards**: TypeBox uses JSON Schema standard
+6. ✅ **Performance**: TypeBox is faster than Zod
 
 ---
 

@@ -41,7 +41,11 @@ export const devCommand = new Command('dev')
         mkdirSync(tempDir, { recursive: true });
 
         writeFileSync(serverEntry, `
+import { config } from 'dotenv';
 import { startServer } from '@spfn/core/server';
+
+// Load .env.local
+config({ path: '.env.local' });
 
 await startServer({
     port: ${options.port},

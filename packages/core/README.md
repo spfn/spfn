@@ -11,7 +11,7 @@ A comprehensive TypeScript framework that brings file-based routing, automatic t
 ## 📦 Installation
 
 ```bash
-npm install @spfn/core hono drizzle-orm postgres
+npm install @spfn/core hono drizzle-orm postgres @sinclair/typebox
 
 # Optional: Redis support
 npm install ioredis
@@ -19,7 +19,8 @@ npm install ioredis
 
 ## 🎯 Core Features
 
-- **📁 File-based Routing** - Next.js-style API routing
+- **📁 File-based Routing** - Next.js-style API routing with TypeBox contracts
+- **✅ Contract-Based Validation** - Automatic TypeBox validation with bind()
 - **🔄 Transaction Management** - Automatic commit/rollback
 - **📦 Repository Pattern** - Spring Data-inspired data access
 - **🗄️ Redis Cache** - Master-replica support with auto-detection
@@ -43,11 +44,26 @@ await startServer();
 
 ```typescript
 // src/server/routes/users/index.ts
+import { bind, type RouteContract } from '@spfn/core';
 import { Transactional } from '@spfn/core/utils';
-import { Repository } from '@spfn/core/db';
+import { db, Repository } from '@spfn/core/db';
 import { users } from '@/server/entities/users';
-import type { RouteContext } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
 
+// Define contract
+const createUserContract = {
+  body: Type.Object({
+    name: Type.String(),
+    email: Type.String({ format: 'email' }),
+  }),
+  response: Type.Object({
+    id: Type.Number(),
+    name: Type.String(),
+    email: Type.String(),
+  }),
+} as const satisfies RouteContract;
+
+// File-level middleware (applies to all methods)
 export const middlewares = [Transactional()];
 
 export async function GET(c: RouteContext) {
@@ -58,12 +74,17 @@ export async function GET(c: RouteContext) {
   return c.json(result);
 }
 
-export async function POST(c: RouteContext) {
-  const data = await c.req.json();
-  const repo = new Repository(db, users);
-  const user = await repo.save(data);
-  return c.json(user, 201);
-}
+// Per-route middleware with bind()
+export const POST = bind(
+  createUserContract,
+  [Transactional()],
+  async (c) => {
+    const data = await c.data(); // ✅ Auto-validated
+    const repo = new Repository(db, users);
+    const user = await repo.save(data);
+    return c.json(user);
+  }
+);
 ```
 
 ## 📚 Module Exports
@@ -79,26 +100,29 @@ import { startServer, createServer } from '@spfn/core';
 
 ```typescript
 import {
-  RouteLoader,
-  loadRoutesFromDirectory,
-  RouteMapper,
-  RouteRegistry,
-  RouteScanner
+  bind,                  // Contract-based route binding
+  loadRoutes,            // Auto-load routes from directory
+  AutoRouteLoader        // Advanced route loading control
 } from '@spfn/core/route';
 
 import type {
-  RouteContext,
-  RouteHandler,
-  RouteDefinition,
-  HttpMethod
+  RouteContext,          // Type-safe route context
+  RouteContract,         // Contract definition
+  RouteHandler,          // Route handler function type
+  RouteInfo,             // Route metadata
+  RouteStats,            // Loading statistics
+  HttpMethod,            // HTTP method type
+  InferContract          // Type inference from contracts
 } from '@spfn/core/route';
 ```
 
 **Features:**
-- File-based route discovery and registration
-- Dynamic routes (`[id].ts`) and catch-all (`[...slug].ts`)
-- Automatic HTTP method mapping
-- Route metadata and tagging
+- **Auto-discovery**: Scans `src/server/routes` directory automatically
+- **File-based routing**: `index.ts` → `/`, `[id].ts` → `/:id`, `[...slug].ts` → `/*`
+- **Contract validation**: TypeBox-based type-safe validation with `bind()`
+- **Route grouping**: Natural grouping by directory structure
+- **Statistics**: Track total, by priority (static/dynamic/catch-all), by tags
+- **Type safety**: End-to-end type inference for params, query, body, response
 
 **Documentation:** [Route Module README](./src/route/README.md)
 
@@ -109,16 +133,14 @@ import {
   db,                    // Global database instance
   getDb,                 // Transaction-aware db getter
   Repository,            // Spring Data-inspired repository
-  BaseRepository,        // Base class for custom repos
   initDatabase,          // Manual initialization
   closeDatabase,         // Cleanup
   getDatabaseInfo        // Connection info
 } from '@spfn/core/db';
 
 import type {
-  RepositoryOptions,
-  FindPageOptions,
-  PageResult
+  Pageable,              // Pagination parameters
+  Page                   // Paginated result
 } from '@spfn/core/db';
 ```
 
@@ -212,44 +234,216 @@ import {
 
 ### File-based Routing
 
+**Directory Structure → URL Mapping**
+
 ```
 src/server/routes/
 ├── users/
-│   ├── index.ts              → GET/POST /api/users
-│   ├── [id].ts              → GET/PUT/DELETE /api/users/:id
+│   ├── index.ts              → /users
+│   ├── [id].ts              → /users/:id
 │   └── [id]/
 │       └── posts/
-│           └── index.ts     → GET/POST /api/users/:id/posts
+│           └── index.ts     → /users/:id/posts
+├── posts/
+│   ├── index.ts              → /posts
+│   └── [...slug].ts         → /posts/* (catch-all)
 ```
+
+**Route File Pattern**
+
+Each route file exports a Hono app instance:
+
+```typescript
+// routes/users/index.ts
+import { Hono } from 'hono';
+import { bind, type RouteContract } from '@spfn/core';
+import { Type } from '@sinclair/typebox';
+
+const app = new Hono();
+
+// Define contract with TypeBox
+const getUsersContract = {
+  query: Type.Object({
+    page: Type.Optional(Type.String()),
+    limit: Type.Optional(Type.String()),
+  }),
+  response: Type.Object({
+    users: Type.Array(Type.Object({
+      id: Type.Number(),
+      name: Type.String(),
+      email: Type.String(),
+    })),
+    total: Type.Number(),
+  }),
+} as const satisfies RouteContract;
+
+// GET /users
+app.get('/', bind(getUsersContract, async (c) => {
+  const { page = '1', limit = '10' } = c.query;
+  const users = await repo.findPage({
+    pagination: { page: Number(page), limit: Number(limit) }
+  });
+  return c.json(users);
+}));
+
+// POST /users
+const createUserContract = {
+  body: Type.Object({
+    name: Type.String(),
+    email: Type.String({ format: 'email' }),
+  }),
+  response: Type.Object({
+    id: Type.Number(),
+    name: Type.String(),
+    email: Type.String(),
+  }),
+} as const satisfies RouteContract;
+
+app.post('/', bind(createUserContract, async (c) => {
+  const data = await c.data();
+  const user = await repo.save(data);
+  return c.json(user, 201);
+}));
+
+// Export metadata (optional)
+export const meta = {
+  description: 'Users API',
+  tags: ['users', 'admin'],
+  auth: true
+};
+
+export default app;
+```
+
+**Dynamic Routes**
 
 ```typescript
 // routes/users/[id].ts
-export async function GET(c: RouteContext) {
-  const id = c.req.param('id');
-  const user = await repo.findById(Number(id));
-  return c.json(user);
-}
+import { Hono } from 'hono';
+import { bind, type RouteContract } from '@spfn/core';
+import { Type } from '@sinclair/typebox';
 
-export async function PUT(c: RouteContext) {
-  const id = c.req.param('id');
-  const data = await c.req.json();
-  const user = await repo.update(Number(id), data);
-  return c.json(user);
-}
+const app = new Hono();
 
-export async function DELETE(c: RouteContext) {
-  const id = c.req.param('id');
-  await repo.delete(Number(id));
-  return c.json({ success: true });
-}
+const getUserContract = {
+  params: Type.Object({
+    id: Type.String(),
+  }),
+  response: Type.Object({
+    id: Type.Number(),
+    name: Type.String(),
+    email: Type.String(),
+  }),
+} as const satisfies RouteContract;
+
+// GET /users/:id
+app.get('/', bind(getUserContract, async (c) => {
+  // ✅ c.params.id is type-safe and validated
+  const user = await repo.findById(Number(c.params.id));
+  if (!user) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+  return c.json(user);
+}));
+
+// PUT /users/:id
+const updateUserContract = {
+  params: Type.Object({ id: Type.String() }),
+  body: Type.Object({
+    name: Type.Optional(Type.String()),
+    email: Type.Optional(Type.String({ format: 'email' })),
+  }),
+  response: Type.Object({
+    id: Type.Number(),
+    name: Type.String(),
+    email: Type.String(),
+  }),
+} as const satisfies RouteContract;
+
+app.put('/', bind(updateUserContract, async (c) => {
+  const data = await c.data();
+  const user = await repo.update(Number(c.params.id), data);
+  return c.json(user);
+}));
+
+// DELETE /users/:id
+app.delete('/', async (c) => {
+  await repo.delete(Number(c.params.id));
+  return c.json({ success: true }, 204);
+});
+
+export const meta = {
+  description: 'User detail',
+  tags: ['users'],
+  auth: true
+};
+
+export default app;
+```
+
+**Catch-all Routes**
+
+```typescript
+// routes/posts/[...slug].ts
+import { Hono } from 'hono';
+
+const app = new Hono();
+
+// Matches /posts/2024/01/hello-world, /posts/a/b/c, etc.
+app.get('/*', async (c) => {
+  const slug = c.req.param('slug'); // "2024/01/hello-world"
+  const post = await findPostBySlug(slug);
+  return c.json(post);
+});
+
+export const meta = {
+  description: 'Posts catch-all',
+  tags: ['posts', 'content']
+};
+
+export default app;
+```
+
+**Auto-loading**
+
+Routes are automatically loaded by `startServer()`:
+
+```typescript
+import { startServer } from '@spfn/core/server';
+
+// Auto-loads all routes from src/server/routes
+await startServer();
+```
+
+Manual loading:
+
+```typescript
+import { Hono } from 'hono';
+import { loadRoutes } from '@spfn/core/route';
+
+const app = new Hono();
+
+const stats = await loadRoutes(app, {
+  routesDir: 'src/server/routes',  // Optional, default
+  debug: true                       // Show loading stats
+});
+
+console.log(stats);
+// {
+//   total: 4,
+//   byPriority: { static: 2, dynamic: 1, catchAll: 1 },
+//   byTag: { users: 2, posts: 2, admin: 1, content: 1 },
+//   routes: [...]
+// }
 ```
 
 ### Transaction Management
 
 ```typescript
+import { bind } from '@spfn/core';
 import { Transactional } from '@spfn/core/utils';
 
-// Add middleware to route
+// Option 1: File-level middleware (all methods)
 export const middlewares = [Transactional()];
 
 export async function POST(c: RouteContext) {
@@ -257,11 +451,20 @@ export async function POST(c: RouteContext) {
   const user = await db.insert(users).values(data).returning();
   await db.insert(profiles).values({ userId: user.id });
   await db.insert(settings).values({ userId: user.id });
-
-  // Success → Auto-commit
-  // Error → Auto-rollback
+  // Success → Auto-commit, Error → Auto-rollback
   return c.json(user, 201);
 }
+
+// Option 2: Per-route middleware with bind()
+export const PUT = bind(
+  contract,
+  [Transactional()],  // Only this route
+  async (c) => {
+    const data = await c.data();
+    // Transaction auto-managed
+    return c.json(data);
+  }
+);
 ```
 
 ### Repository Pattern
@@ -409,12 +612,12 @@ npm test -- --watch
 ```
 
 **Test Coverage:**
-- Route system: 35+ tests
+- Route system: 24 tests (auto-loader + bind validation)
 - Database & Repository: 45+ tests
 - Transaction management: 15+ tests
 - Redis cache: 25+ tests
 - Middleware: 10+ tests
-- Total: **150+ tests**
+- Total: **120+ tests**
 
 ## 📦 Package Exports
 
@@ -467,6 +670,7 @@ MIT - see [LICENSE](../../LICENSE) for details.
 Built with:
 - [Hono](https://hono.dev/) - Ultra-fast web framework
 - [Drizzle ORM](https://orm.drizzle.team/) - TypeScript ORM
+- [TypeBox](https://github.com/sinclairzx81/typebox) - JSON Schema validation
 - [PostgreSQL](https://www.postgresql.org/) - Database
 - [Redis](https://redis.io/) - Cache
 - [Vitest](https://vitest.dev/) - Test framework

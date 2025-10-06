@@ -4,7 +4,7 @@ import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { loadRoutesFromDirectory } from '@core/route';
+import { loadRoutes } from '@core/route';
 import { errorHandler } from '@core/middleware';
 import { RequestLogger } from '@core/middleware';
 import { initRedis } from '@core/cache';
@@ -40,7 +40,7 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
 
         // Only load routes, everything else is user's responsibility
         const debug = config?.debug ?? process.env.NODE_ENV === 'development';
-        await loadRoutesFromDirectory(app, debug, config?.routesPath);
+        await loadRoutes(app, { routesDir: config?.routesPath, debug });
 
         return app;
     }
@@ -72,7 +72,7 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
 
     // 4. Load routes
     const debug = config?.debug ?? process.env.NODE_ENV === 'development';
-    await loadRoutesFromDirectory(app, debug, config?.routesPath);
+    await loadRoutes(app, { routesDir: config?.routesPath, debug });
 
     // 5. afterRoutes hook
     await config?.afterRoutes?.(app);
