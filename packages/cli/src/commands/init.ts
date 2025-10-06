@@ -16,6 +16,30 @@ import { detectPackageManager } from '../utils/package-manager.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Find templates directory - works in both npm package and monorepo dev mode
+ * - npm package: dist/templates/
+ * - monorepo dev: ../templates/ (relative to dist/)
+ */
+function findTemplatesPath(): string
+{
+    // Case 1: npm package - templates are in dist/templates/
+    const npmPath = join(__dirname, 'templates');
+    if (existsSync(npmPath))
+    {
+        return npmPath;
+    }
+
+    // Case 2: monorepo dev - templates are in ../templates/ (parent of dist/)
+    const devPath = join(__dirname, '..', 'templates');
+    if (existsSync(devPath))
+    {
+        return devPath;
+    }
+
+    throw new Error('Templates directory not found. Please rebuild the package.');
+}
+
 interface PackageJson
 {
     name?: string;
@@ -133,14 +157,20 @@ export const initCommand = new Command('init')
 
         try
         {
-            // __dirname points to dist/ directory, templates are copied to dist/templates during build
-            const templatesDir = join(__dirname, '..', 'templates', 'server');
+            // Find templates directory (works in both npm package and monorepo dev)
+            const templatesDir = findTemplatesPath();
+            const serverTemplateDir = join(templatesDir, 'server');
             const targetDir = join(cwd, 'src', 'server');
+
+            if (!existsSync(serverTemplateDir))
+            {
+                throw new Error(`Server templates not found at: ${serverTemplateDir}`);
+            }
 
             ensureDirSync(targetDir);
 
             // Copy all template files
-            copySync(templatesDir, targetDir);
+            copySync(serverTemplateDir, targetDir);
 
             spinner.succeed('Server structure created');
         }
