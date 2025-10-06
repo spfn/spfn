@@ -60,17 +60,17 @@
     "postgres",
     "redis"
   ],
-  "author": "SPFN Team",
+  "author": "INFLIKE Inc.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/spfn.git",
+    "url": "https://github.com/spfn/spfn.git",
     "directory": "packages/core"
   },
   "bugs": {
-    "url": "https://github.com/your-org/spfn/issues"
+    "url": "https://github.com/spfn/spfn/issues"
   },
-  "homepage": "https://github.com/your-org/spfn/tree/main/packages/core#readme",
+  "homepage": "https://github.com/spfn/spfn/tree/main/packages/core#readme",
   "peerDependencies": {
     "@hono/node-server": "^1.0.0",
     "drizzle-orm": "^0.44.0",

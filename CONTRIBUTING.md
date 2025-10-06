@@ -1,6 +1,8 @@
-# Contributing to SPFN
+# Contributing to Superfunction
 
-First off, thank you for considering contributing to SPFN! It's people like you that make SPFN a great framework.
+First off, thank you for considering contributing to Superfunction! It's people like you that make Superfunction a great framework.
+
+This project is developed and maintained by **INFLIKE Inc.** We welcome contributions from the community while maintaining the project's vision and quality standards.
 
 ## 📋 Table of Contents
 
@@ -40,7 +42,7 @@ cd spfn
 3. Add the upstream repository:
 
 ```bash
-git remote add upstream https://github.com/your-org/spfn.git
+git remote add upstream https://github.com/spfn/spfn.git
 ```
 
 ### Install Dependencies
@@ -432,8 +434,8 @@ spfn/
 ## 📞 Getting Help
 
 - 📖 [Documentation](./packages/core/README.md)
-- 💬 [Discussions](https://github.com/your-org/spfn/discussions)
-- 🐛 [Issue Tracker](https://github.com/your-org/spfn/issues)
+- 💬 [Discussions](https://github.com/spfn/spfn/discussions)
+- 🐛 [Issue Tracker](https://github.com/spfn/spfn/issues)
 
 ## 🙏 Recognition
 
@@ -442,4 +444,8 @@ Contributors will be recognized in:
 - Release notes
 - GitHub contributors page
 
-Thank you for contributing to SPFN! 🎉
+Thank you for contributing to Superfunction! 🎉
+
+---
+
+**Developed by [INFLIKE Inc.](https://inflike.com)**

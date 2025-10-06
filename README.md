@@ -1,6 +1,8 @@
-# SPFN - SuperFunction
+# Superfunction (SPFN)
 
-> A TypeScript fullstack framework combining the best of Next.js and Hono
+> A TypeScript fullstack framework by INFLIKE Inc.
+>
+> Combining the best of Next.js and Hono
 >
 > The productivity of Rails + The robustness of Spring Boot, but for TypeScript
 
@@ -117,7 +119,7 @@ npx spfn generate crud users    # Generate CRUD routes
 
 ```bash
 # Clone repository
-git clone https://github.com/your-org/spfn.git
+git clone https://github.com/spfn/spfn.git
 cd spfn
 
 # Install dependencies
@@ -283,14 +285,13 @@ Built with amazing open source tools:
 ## 💬 Community & Support
 
 - 📖 [Documentation](./packages/core/README.md)
-- 🐛 [Issue Tracker](https://github.com/your-org/spfn/issues)
-- 💡 [Discussions](https://github.com/your-org/spfn/discussions)
-- 🐦 [Twitter](https://twitter.com/spfn_dev)
+- 🐛 [Issue Tracker](https://github.com/spfn/spfn/issues)
+- 💡 [Discussions](https://github.com/spfn/spfn/discussions)
 
 ## ⭐ Star History
 
-If you find SPFN useful, please consider giving it a star! ⭐
+If you find Superfunction useful, please consider giving it a star! ⭐
 
 ---
 
-**Made with ❤️ for TypeScript developers**
+**Made with ❤️ by [INFLIKE Inc.](https://inflike.com) for TypeScript developers**
