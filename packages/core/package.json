@@ -71,14 +71,21 @@
     "url": "https://github.com/spfn/spfn/issues"
   },
   "homepage": "https://github.com/spfn/spfn/tree/main/packages/core#readme",
+  "engines": {
+    "node": ">=18.18.0"
+  },
   "peerDependencies": {
     "@hono/node-server": "^1.0.0",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.9.0",
-    "postgres": "^3.4.0"
+    "postgres": "^3.4.0",
+    "typescript": "^5.0.0"
   },
   "peerDependenciesMeta": {
     "ioredis": {
+      "optional": true
+    },
+    "typescript": {
       "optional": true
     }
   },
