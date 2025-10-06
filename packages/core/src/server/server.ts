@@ -72,7 +72,11 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
 
     // 4. Load routes
     const debug = config?.debug ?? process.env.NODE_ENV === 'development';
-    await loadRoutes(app, { routesDir: config?.routesPath, debug });
+    await loadRoutes(app, {
+        routesDir: config?.routesPath,
+        debug,
+        middlewares: config?.middlewares
+    });
 
     // 5. afterRoutes hook
     await config?.afterRoutes?.(app);

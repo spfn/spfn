@@ -45,6 +45,22 @@ export type HeaderRecord = Record<string, string | string[]>;
 // ============================================================================
 
 /**
+ * Route metadata for additional configuration
+ */
+export type RouteMeta = {
+    /** Public route (skip authentication) - default: false */
+    public?: boolean;
+    /** Skip specific global middlewares by name */
+    skipMiddlewares?: string[];
+    /** OpenAPI tags for grouping */
+    tags?: string[];
+    /** Route description for documentation */
+    description?: string;
+    /** Deprecated flag */
+    deprecated?: boolean;
+};
+
+/**
  * Route Contract: TypeBox-based type-safe route definition
  *
  * Defines the shape of request/response for a route endpoint
@@ -64,6 +80,8 @@ export type RouteContract = {
     body?: TSchema;
     /** Response schema (required) */
     response: TSchema;
+    /** Route metadata (optional) */
+    meta?: RouteMeta;
 };
 
 /**

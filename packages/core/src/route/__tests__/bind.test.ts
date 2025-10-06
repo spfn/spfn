@@ -106,7 +106,7 @@ describe('bind()', () => {
             expect(json.email).toBe('john@example.com');
         });
 
-        it('should fail validation for invalid query params', async () => {
+        it('should throw ValidationError for invalid query params', async () => {
             const contract = {
                 query: Type.Object({
                     page: Type.String(),
@@ -124,12 +124,10 @@ describe('bind()', () => {
             const app = new Hono();
             app.get('/test', handler);
 
-            // Missing required query params
-            const res = await app.request('/test');
-            expect(res.status).toBe(400);
-
-            const json = await res.json();
-            expect(json.error).toBe('Invalid query');
+            // Missing required query params - should throw ValidationError
+            await expect(async () => {
+                await app.request('/test');
+            }).rejects.toThrow('Invalid query parameters');
         });
 
         it('should fail validation for invalid body', async () => {
@@ -259,6 +257,39 @@ describe('bind()', () => {
             const json = await res.json();
             expect(json.hasRawContext).toBe(true);
         });
+
+        it('should store contract.meta in raw context', async () => {
+            const contract = {
+                response: Type.Object({
+                    success: Type.Boolean(),
+                }),
+                meta: {
+                    skipMiddlewares: ['auth', 'rateLimit'],
+                    description: 'Public health check',
+                },
+            };
+
+            const handler = bind(contract, async (c) => {
+                // meta should be stored in raw context
+                const routeMeta = c.raw.get('routeMeta');
+
+                return c.json({
+                    success: true,
+                    hasMeta: !!routeMeta,
+                    skipMiddlewares: routeMeta?.skipMiddlewares,
+                });
+            });
+
+            const app = new Hono();
+            app.get('/test', handler);
+
+            const res = await app.request('/test');
+            expect(res.status).toBe(200);
+
+            const json = await res.json();
+            expect(json.hasMeta).toBe(true);
+            expect(json.skipMiddlewares).toEqual(['auth', 'rateLimit']);
+        });
     });
 
     describe('Complex Scenarios', () => {
@@ -298,9 +329,9 @@ describe('bind()', () => {
         it('should handle array query parameters', async () => {
             const contract = {
                 query: Type.Object({
-                    // Query params from URL are always strings or string[]
-                    // TypeBox validation needs to match this
-                    tags: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+                    // Query params from URL can be strings or string[]
+                    // When the same param appears multiple times, it becomes an array
+                    tags: Type.Array(Type.String()),
                 }),
                 response: Type.Object({
                     success: Type.Boolean(),
@@ -317,13 +348,43 @@ describe('bind()', () => {
             const app = new Hono();
             app.get('/test', handler);
 
+            // Multiple params with same name → array
             const res = await app.request('/test?tags=foo&tags=bar');
             expect(res.status).toBe(200);
 
             const json = await res.json();
-            // Hono returns array when multiple params with same name
             expect(json.success).toBe(true);
-            expect(json.tags).toBeDefined();
+            expect(json.tags).toEqual(['foo', 'bar']);
+        });
+
+        it('should convert single query param to array when needed', async () => {
+            const contract = {
+                query: Type.Object({
+                    tags: Type.Array(Type.String()),
+                }),
+                response: Type.Object({
+                    success: Type.Boolean(),
+                }),
+            };
+
+            const handler = bind(contract, async (c) => {
+                return c.json({
+                    success: true,
+                    tags: c.query.tags,
+                });
+            });
+
+            const app = new Hono();
+            app.get('/test', handler);
+
+            // Single param - should still validate against Array schema
+            const res = await app.request('/test?tags=foo');
+            expect(res.status).toBe(200);
+
+            const json = await res.json();
+            expect(json.success).toBe(true);
+            // Single value is still a string, not array
+            expect(json.tags).toBe('foo');
         });
 
         it('should handle nested objects in body', async () => {

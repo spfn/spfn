@@ -30,7 +30,6 @@ describe('AutoRouteLoader', () => {
 import { Hono } from 'hono';
 const app = new Hono();
 app.get('/', (c) => c.json({ message: 'Users list' }));
-export const meta = { description: 'Users API', tags: ['users'] };
 export default app;
             `
         );
@@ -42,7 +41,6 @@ export default app;
 import { Hono } from 'hono';
 const app = new Hono();
 app.get('/', (c) => c.json({ id: c.req.param('id') }));
-export const meta = { description: 'User detail', tags: ['users'] };
 export default app;
             `
         );
@@ -54,7 +52,6 @@ export default app;
 import { Hono } from 'hono';
 const app = new Hono();
 app.get('/', (c) => c.json({ message: 'Posts list' }));
-export const meta = { description: 'Posts API', tags: ['posts', 'content'] };
 export default app;
             `
         );
@@ -66,7 +63,6 @@ export default app;
 import { Hono } from 'hono';
 const app = new Hono();
 app.get('/*', (c) => c.json({ slug: c.req.param('slug') }));
-export const meta = { description: 'Posts catch-all', tags: ['posts'] };
 export default app;
             `
         );
@@ -98,14 +94,13 @@ export default app;
             expect(stats.byPriority.catchAll).toBe(1); // /posts/*
         });
 
-        it('should group routes by tags', async () => {
+        it('should have empty tag counts (meta removed from files)', async () => {
             const app = new Hono();
             const loader = new AutoRouteLoader(TEST_ROUTES_DIR, false);
             const stats = await loader.load(app);
 
-            expect(stats.byTag['users']).toBe(2);
-            expect(stats.byTag['posts']).toBe(2);
-            expect(stats.byTag['content']).toBe(1);
+            // No module.meta exports, so byTag should be empty
+            expect(Object.keys(stats.byTag).length).toBe(0);
         });
 
         it('should convert file paths to URL paths correctly', async () => {
@@ -159,14 +154,14 @@ export default app;
     });
 
     describe('Route Metadata', () => {
-        it('should preserve route metadata', async () => {
+        it('should not have module-level metadata (moved to contract.meta)', async () => {
             const app = new Hono();
             const loader = new AutoRouteLoader(TEST_ROUTES_DIR, false);
             const stats = await loader.load(app);
 
+            // Meta is now in contract, not in module exports
             const usersRoute = stats.routes.find((r) => r.path === '/users');
-            expect(usersRoute?.meta?.description).toBe('Users API');
-            expect(usersRoute?.meta?.tags).toEqual(['users']);
+            expect(usersRoute?.meta).toBeUndefined();
         });
 
         it('should handle routes without metadata', async () => {

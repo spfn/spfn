@@ -1,6 +1,7 @@
 import { readdir, stat } from 'fs/promises';
 import { join, relative } from 'path';
 import type { Hono } from 'hono';
+import { conditionalMiddleware } from '../middleware/conditional.js';
 
 /**
  * AutoRouteLoader: Simplified File-based Routing System
@@ -56,9 +57,15 @@ export type RouteStats = {
 export class AutoRouteLoader {
     private routes: RouteInfo[] = [];
     private debug: boolean;
+    private readonly middlewares: Array<{ name: string; handler: any }>;
 
-    constructor(private routesDir: string, debug = false) {
+    constructor(
+        private routesDir: string,
+        debug = false,
+        middlewares: Array<{ name: string; handler: any }> = []
+    ) {
         this.debug = debug;
+        this.middlewares = middlewares;
     }
 
     /**
@@ -160,39 +167,44 @@ export class AutoRouteLoader {
      * Load and register a single route
      */
     private async loadRoute(app: Hono, absolutePath: string): Promise<void> {
-        try {
-            // Import module
-            const module = await import(absolutePath);
+        // Import module
+        const module = await import(absolutePath);
 
-            if (!module.default) {
-                throw new Error(
-                    `Route file must export Hono instance as default: ${absolutePath}`
-                );
-            }
+        if (!module.default) {
+            throw new Error(
+                `Route file must export Hono instance as default: ${absolutePath}`
+            );
+        }
 
-            // Convert file path to URL path
-            const relativePath = relative(this.routesDir, absolutePath);
-            const urlPath = this.fileToPath(relativePath);
-            const priority = this.calculatePriority(relativePath);
+        // Convert file path to URL path
+        const relativePath = relative(this.routesDir, absolutePath);
+        const urlPath = this.fileToPath(relativePath);
+        const priority = this.calculatePriority(relativePath);
 
-            // Register route
-            app.route(urlPath, module.default);
+        // Apply global middlewares with conditional wrapper
+        // (skip logic handled at runtime via contract.meta)
+        // Note: Using urlPath without '/*' to match both base path and sub-paths
+        for (const middleware of this.middlewares) {
+            app.use(
+                urlPath,
+                conditionalMiddleware(middleware.name, middleware.handler)
+            );
+        }
 
-            // Store route info
-            this.routes.push({
-                path: urlPath,
-                file: relativePath,
-                meta: module.meta,
-                priority,
-            });
+        // Register route
+        app.route(urlPath, module.default);
 
-            if (this.debug) {
-                const icon = priority === 1 ? '🔹' : priority === 2 ? '🔸' : '⭐';
-                console.log(`   ${icon} ${urlPath.padEnd(40)} → ${relativePath}`);
-            }
-        } catch (error) {
-            console.error(`❌ Failed to load route: ${absolutePath}`);
-            throw error;
+        // Store route info
+        this.routes.push({
+            path: urlPath,
+            file: relativePath,
+            meta: undefined, // No longer using module.meta
+            priority,
+        });
+
+        if (this.debug) {
+            const icon = priority === 1 ? '🔹' : priority === 2 ? '🔸' : '⭐';
+            console.log(`   ${icon} ${urlPath.padEnd(40)} → ${relativePath}`);
         }
     }
 
@@ -280,11 +292,13 @@ export async function loadRoutes(
     options?: {
         routesDir?: string;
         debug?: boolean;
+        middlewares?: Array<{ name: string; handler: any }>;
     }
 ): Promise<RouteStats> {
     const routesDir = options?.routesDir ?? join(process.cwd(), 'src', 'server', 'routes');
     const debug = options?.debug ?? false;
+    const middlewares = options?.middlewares ?? [];
 
-    const loader = new AutoRouteLoader(routesDir, debug);
+    const loader = new AutoRouteLoader(routesDir, debug, middlewares);
     return loader.load(app);
 }

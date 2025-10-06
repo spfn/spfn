@@ -6,6 +6,8 @@
  */
 
 import type { ServerConfig } from '@spfn/core';
+// import { authMiddleware } from '@spfn/auth';
+// import { rateLimitMiddleware } from './middlewares/rate-limit';
 
 export default {
     // Server settings
@@ -32,11 +34,17 @@ export default {
         // yourCustomMiddleware(),
     ],
 
+    // Global middlewares with skip control
+    // Routes can skip specific middlewares using meta.skipMiddlewares
+    middlewares: [
+        // { name: 'auth', handler: authMiddleware() },
+        // { name: 'rateLimit', handler: rateLimitMiddleware() },
+    ],
+
     // Hooks
     beforeRoutes: async (app) =>
     {
         // Run before routes are loaded
-        // app.use('/admin/*', authMiddleware());
     },
 
     afterRoutes: async (app) =>
