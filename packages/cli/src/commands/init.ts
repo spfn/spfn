@@ -40,6 +40,16 @@ function findTemplatesPath(): string
     throw new Error('Templates directory not found. Please rebuild the package.');
 }
 
+/**
+ * Check if running in development (monorepo) environment
+ */
+function isDevEnvironment(): boolean
+{
+    // If templates are in ../templates/, we're in dev mode
+    const devPath = join(__dirname, '..', 'templates');
+    return existsSync(devPath);
+}
+
 interface PackageJson
 {
     name?: string;
@@ -181,19 +191,46 @@ export const initCommand = new Command('init')
             process.exit(1);
         }
 
-        // 4.5. Copy .guide directory (API development guides for Claude Code)
+        // 4.5. Copy .guide directory (API development guides + module READMEs for Claude Code)
         try
         {
             const templatesDir = findTemplatesPath();
             const guideTemplateDir = join(templatesDir, '.guide');
             const guideTargetDir = join(cwd, '.guide');
 
+            ensureDirSync(guideTargetDir);
+
+            // Copy API routes guide from templates
             if (existsSync(guideTemplateDir))
             {
-                ensureDirSync(guideTargetDir);
                 copySync(guideTemplateDir, guideTargetDir);
-                logger.success('Created .guide/ directory (Claude Code will reference this)');
             }
+
+            // Copy module READMEs from packages (for framework documentation)
+            const packagesDir = isDevEnvironment()
+                ? join(__dirname, '..', '..', '..', 'packages')  // monorepo: ../../../packages (from dist/)
+                : join(__dirname, '..', '..', 'packages');        // npm: ../../packages (in node_modules/@spfn/cli)
+
+            if (existsSync(packagesDir))
+            {
+                const moduleMapping = {
+                    'core': 'spfn-core.md',
+                    'auth': 'spfn-auth.md',
+                    'cli': 'spfn-cli.md',
+                };
+
+                for (const [moduleName, guideName] of Object.entries(moduleMapping))
+                {
+                    const readmePath = join(packagesDir, moduleName, 'README.md');
+                    if (existsSync(readmePath))
+                    {
+                        const targetPath = join(guideTargetDir, guideName);
+                        copySync(readmePath, targetPath);
+                    }
+                }
+            }
+
+            logger.success('Created .guide/ directory with framework documentation (Claude Code will reference this)');
         }
         catch (error)
         {
@@ -209,9 +246,12 @@ export const initCommand = new Command('init')
         // Save original dev script if exists
         const originalDev = packageJson.scripts.dev;
 
+        // Determine CLI command (development vs npm package)
+        const spfnCmd = isDevEnvironment() ? 'node ../../packages/cli/bin/spfn.js' : 'spfn';
+
         // Update scripts
-        packageJson.scripts['dev'] = 'spfn dev';
-        packageJson.scripts['dev:server'] = 'spfn dev --server-only';
+        packageJson.scripts['dev'] = `${spfnCmd} dev`;
+        packageJson.scripts['dev:server'] = `${spfnCmd} dev --server-only`;
 
         // Keep original next dev script if it existed
         if (originalDev && originalDev !== 'next dev')
@@ -225,7 +265,7 @@ export const initCommand = new Command('init')
 
         packageJson.scripts['build'] = 'next build';
         packageJson.scripts['start'] = 'next start';
-        packageJson.scripts['start:server'] = 'spfn start';
+        packageJson.scripts['start:server'] = `${spfnCmd} start`;
 
         writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
