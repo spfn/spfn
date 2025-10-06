@@ -35,10 +35,10 @@
  * - Transaction timeout configuration
  */
 import { createMiddleware } from 'hono/factory';
-import { db } from '@core/db';
+import { db } from '../db/index.js';
 import { runWithTransaction, type TransactionDB } from './async-context.js';
-import { logger } from '@core/logger';
-import { fromPostgresError } from '@core/errors';
+import { logger } from '../logger/index.js';
+import { fromPostgresError } from '../errors/index.js';
 
 /**
  * Transaction middleware options

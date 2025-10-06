@@ -96,6 +96,33 @@ import { startServer, createServer } from '@spfn/core';
 // High-level server utilities
 ```
 
+### Client Module (`@spfn/core/client`)
+
+```typescript
+import {
+  ContractClient,        // Contract-based HTTP client
+  createClient,          // Factory function
+  client,                // Default instance
+  ApiClientError         // Error class
+} from '@spfn/core/client';
+
+import type {
+  InferContract,         // Type inference from contracts
+  CallOptions,           // Client call options
+  ClientConfig           // Client configuration
+} from '@spfn/core/client';
+```
+
+**Features:**
+- **Type-safe API calls**: Infer request/response types from RouteContract
+- **Auto-validation**: TypeBox validation for requests and responses
+- **Path parameters**: Automatic URL parameter substitution
+- **Query strings**: Type-safe query parameter handling
+- **Error handling**: Custom ApiClientError with detailed info
+- **Configurable**: Custom fetch, baseUrl, headers, timeout
+
+**Documentation:** [Client Module README](./src/client/README.md)
+
 ### Route Module (`@spfn/core/route`)
 
 ```typescript
@@ -625,6 +652,7 @@ npm test -- --watch
 {
   "exports": {
     ".": "./dist/index.js",
+    "./client": "./dist/client/index.js",
     "./route": "./dist/route/index.js",
     "./db": "./dist/db/index.js",
     "./server": "./dist/server/index.js",

@@ -27,15 +27,25 @@
  * - src/server/core/async-context.ts (AsyncLocalStorage)
  * - src/server/core/db/helpers.ts (getDb 헬퍼)
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
-import { db } from '@core/db';
-import { getDb, Transactional } from '@core';
-import { testUsers, testPosts } from '../fixtures/entities';
+import { db, initDatabase, closeDatabase } from '../../db';
+import { getDb, Transactional } from '../../index.js';
+import { testUsers, testPosts } from '../../db/__tests__/fixtures/entities';
 import { eq } from 'drizzle-orm';
 
 describe('Transaction System', () => {
   let testUserId: number;
+
+  // 데이터베이스 초기화
+  beforeAll(async () => {
+    await initDatabase();
+  });
+
+  // 데이터베이스 종료
+  afterAll(async () => {
+    await closeDatabase();
+  });
 
   // 테스트 전 초기 데이터 생성
   beforeEach(async () => {

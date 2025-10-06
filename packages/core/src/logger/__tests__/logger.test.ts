@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { logger } from '@core/logger';
+import { logger } from '../index.js';
 
 describe('Logger', () => {
   describe('Basic Logging', () => {

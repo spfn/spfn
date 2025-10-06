@@ -1,15 +1,31 @@
 /**
  * SPFN Client Module
  *
- * Client-side utilities for browser and Next.js client components
- * Safe to import in Next.js - no server dependencies
+ * Contract-based type-safe API client for browser and Next.js
+ * Full end-to-end type safety with RouteContract
  *
  * @example
  * ```ts
- * import { get, post } from '@spfn/core/client';
- * const users = await get<User[]>('/users');
+ * import { createClient } from '@spfn/core/client';
+ * import { getUserContract } from './contracts';
+ *
+ * const client = createClient({ baseUrl: 'http://localhost:4000' });
+ * const user = await client.call('/users/:id', getUserContract, {
+ *   params: { id: '123' }
+ * });
+ * // ✅ user is fully typed based on contract.response
  * ```
  */
 
-// Fetch helpers
-export { get, post, patch, del } from './fetch.js';
+// Contract-based client (recommended)
+export {
+    ContractClient,
+    createClient,
+    client,
+    ApiClientError,
+} from './contract-client.js';
+
+export type {
+    ClientConfig,
+    CallOptions,
+} from './contract-client.js';

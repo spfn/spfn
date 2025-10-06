@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { createRedisFromEnv, createSingleRedisFromEnv } from './redis-factory.js';
-import { initRedis, getRedis, getRedisRead, closeRedis, setRedis, getRedisInfo } from './redis-manager.js';
+import { createRedisFromEnv, createSingleRedisFromEnv } from '../redis-factory.js';
+import { initRedis, getRedis, getRedisRead, closeRedis, setRedis, getRedisInfo } from '../redis-manager.js';
 
 describe('Redis Integration Tests', () =>
 {
