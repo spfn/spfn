@@ -7,8 +7,8 @@
 > The productivity of Rails + The robustness of Spring Boot, but for TypeScript
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
-[![Node](https://img.shields.io/badge/Node.js-18+-green)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue)](https://www.typescriptlang.org/)
+[![Node](https://img.shields.io/badge/Node.js-18.18+-green)](https://nodejs.org/)
 
 ## 🎯 What is SPFN?
 
@@ -111,9 +111,10 @@ npx spfn generate crud users    # Generate CRUD routes
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 18.18.0 or higher
 - PostgreSQL 14+
 - Redis 7+ (optional)
+- TypeScript 5.0+ (optional)
 
 ### Installation
 

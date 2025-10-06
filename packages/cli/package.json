@@ -25,6 +25,26 @@
   ],
   "author": "INFLIKE Inc.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spfn/spfn.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/spfn/spfn/issues"
+  },
+  "homepage": "https://github.com/spfn/spfn/tree/main/packages/cli#readme",
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
   "dependencies": {
     "@spfn/core": "workspace:*",
     "chalk": "^5.3.0",
