@@ -181,6 +181,26 @@ export const initCommand = new Command('init')
             process.exit(1);
         }
 
+        // 4.5. Copy .guide directory (API development guides for Claude Code)
+        try
+        {
+            const templatesDir = findTemplatesPath();
+            const guideTemplateDir = join(templatesDir, '.guide');
+            const guideTargetDir = join(cwd, '.guide');
+
+            if (existsSync(guideTemplateDir))
+            {
+                ensureDirSync(guideTargetDir);
+                copySync(guideTemplateDir, guideTargetDir);
+                logger.success('Created .guide/ directory (Claude Code will reference this)');
+            }
+        }
+        catch (error)
+        {
+            // .guide is optional, don't fail if it doesn't exist
+            logger.warn('Could not copy .guide directory (optional)');
+        }
+
         // 5. Update package.json scripts
         spinner.start('Updating package.json scripts...');
 
