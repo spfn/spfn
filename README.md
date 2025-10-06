@@ -1,176 +1,295 @@
-# SPFN - The Missing Backend for Next.js
+# SPFN - SuperFunction
 
-> TypeScript 풀스택 프레임워크
-> Rails의 생산성 + Spring Boot의 견고함
+> A TypeScript fullstack framework combining the best of Next.js and Hono
+>
+> The productivity of Rails + The robustness of Spring Boot, but for TypeScript
 
-## 🚀 프로젝트 구조
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
+[![Node](https://img.shields.io/badge/Node.js-18+-green)](https://nodejs.org/)
 
+## 🎯 What is SPFN?
+
+SPFN is a modern fullstack TypeScript framework that brings enterprise-grade backend features to the Next.js ecosystem. It combines:
+
+- **Next.js** for the frontend (App Router)
+- **Hono** for the backend (lightweight, fast)
+- **Drizzle ORM** for type-safe database operations
+- **File-based routing** for API endpoints
+- **Automatic transaction management**
+- **Repository pattern** for data access
+
+## ✨ Key Features
+
+### 🗂️ File-based API Routing
+Next.js-style routing for your backend API:
 ```
-spfn/                         # 모노레포 루트
-├── apps/
-│   ├── testbed/             # ✅ 개발 테스트베드
-│   │   ├── src/
-│   │   │   ├── app/         # Next.js App Router (프론트엔드)
-│   │   │   └── server/      # Hono 백엔드
-│   │   │       ├── routes/  # API 라우트 (개발자 작성)
-│   │   │       ├── entities/# Drizzle 엔티티
-│   │   │       └── stores/  # 비즈니스 로직
-│   │   └── package.json
-│   │
-│   └── landing/             # 🚧 공식 랜딩 페이지 (spfn.dev)
-│       └── app/             # Next.js App Router
-│
-└── packages/
-    ├── core/                # ✅ @spfn/core - 프레임워크 핵심
-    │   ├── src/
-    │   │   ├── core/        # 라우팅, DB, 트랜잭션 등
-    │   │   └── scripts/     # 타입/API 생성 스크립트
-    │   ├── docs/            # 프레임워크 문서
-    │   └── package.json
-    │
-    ├── auth/                # ✅ @spfn/auth - Client-Key 인증
-    │   ├── src/
-    │   │   ├── server/      # 서버 구현
-    │   │   └── shared/      # 공용 타입
-    │   ├── docs/            # 인증 시스템 문서
-    │   └── package.json
-    │
-    └── cli/                 # 🚧 @spfn/cli - 코드 생성 CLI (예정)
+src/server/routes/
+├── users/
+│   ├── index.ts          → GET/POST /api/users
+│   ├── [id].ts          → GET/PUT/DELETE /api/users/:id
+│   └── [id]/
+│       └── posts.ts     → GET /api/users/:id/posts
 ```
 
-**범례**: ✅ 완성 | 🚧 진행중
+### 🔄 Automatic Transaction Management
+```typescript
+// Just add middleware - transactions work automatically!
+export const middlewares = [Transactional()];
 
-## 📦 패키지
+export async function POST(c: RouteContext) {
+  // All DB operations in a transaction
+  const user = await db.insert(users).values(data).returning();
+  await db.insert(profiles).values({ userId: user.id });
+  // Auto-commit on success, auto-rollback on error
+  return c.json(user, 201);
+}
+```
 
-### @spfn/auth
+### 📦 Spring Data-inspired Repository Pattern
+```typescript
+const userRepo = new Repository(db, users);
 
-Client-Key 기반 인증 시스템
+// Pagination, filtering, sorting - all built-in
+const result = await userRepo.findPage({
+  where: { status: 'active' },
+  pagination: { page: 1, limit: 10 },
+  sort: { field: 'createdAt', order: 'desc' }
+});
+```
 
-- **ECDSA (P-256)** 비대칭 키 암호화
-- **3-Tier 캐싱** (Memory → Redis → DB)
-- **Replay Attack 방어** (Nonce + Timestamp)
-- **AES-256-GCM** Private Key 암호화
+### 🗄️ Redis Cache with Master-Replica Support
+```typescript
+// Auto-detects from environment variables
+import { getRedis, getRedisRead } from '@spfn/core';
 
-[문서 보기](./packages/auth/README.md)
+await getRedis().set('key', 'value');        // Write to master
+const value = await getRedisRead().get('key'); // Read from replica
+```
 
-### @spfn/core ✅
+### 🔐 Client-Key Authentication
+```typescript
+// ECDSA-based authentication system
+import { ClientKeyAuth } from '@spfn/auth';
 
-프레임워크 핵심 기능
+// 3-tier caching: Memory → Redis → Database
+// Replay attack protection with nonce + timestamp
+// AES-256-GCM encrypted private key storage
+```
 
-- **File-based Routing** (Next.js App Router 스타일)
-- **자동 트랜잭션 관리** (AsyncLocalStorage 기반)
-- **Repository 패턴** (Spring Data JPA 스타일)
-- **Type-safe API 클라이언트** 자동 생성
-- **152개 테스트** 모두 통과
+## 📦 Packages
 
-[문서 보기](./packages/core/README.md)
+This monorepo contains the following packages:
 
-### @spfn/cli (예정)
+### [@spfn/core](./packages/core)
+Core framework features:
+- File-based routing
+- Transaction management
+- Repository pattern
+- Redis cache
+- Error handling
+- Type generation
 
-코드 생성 CLI
+### [@spfn/auth](./packages/auth)
+Authentication system:
+- Client-Key authentication (ECDSA P-256)
+- 3-tier caching (Memory/Redis/DB)
+- Replay attack protection
+- Secure key storage (AES-256-GCM)
 
+### [@spfn/cli](./packages/cli) *(Coming Soon)*
+Code generation CLI:
 ```bash
-npx spfn add auth/client-key    # 인증 시스템 설치
-npx spfn add crud/users         # CRUD 라우트 생성
+npx spfn create my-app          # Create new project
+npx spfn add auth/client-key    # Add authentication
+npx spfn generate crud users    # Generate CRUD routes
 ```
 
-## 🛠️ 개발 시작하기
+## 🚀 Quick Start
 
-### 필수 요구사항
+### Prerequisites
 
 - Node.js 18+
 - PostgreSQL 14+
-- Redis 7+ (선택)
+- Redis 7+ (optional)
 
-### 설치
+### Installation
 
 ```bash
-# 저장소 클론
+# Clone repository
 git clone https://github.com/your-org/spfn.git
 cd spfn
 
-# 의존성 설치
-npm install
+# Install dependencies
+pnpm install
 
-# 환경 변수 설정
-cp apps/testbed/.env.local.example apps/testbed/.env.local
+# Set up environment
+cp packages/core/.env.example packages/core/.env.local
 
-# DB 마이그레이션
-cd apps/testbed
-npm run db:migrate
+# Run database migrations
+cd packages/core
+pnpm db:migrate
 ```
 
-### 개발 서버 실행
+### Development
 
 ```bash
-# 모든 앱 동시 실행
-npm run dev
+# Run all packages in watch mode
+pnpm dev
 
-# 특정 앱만 실행
-npm run dev --filter=@spfn/testbed
-npm run dev --filter=@spfn/landing
+# Run specific package
+pnpm dev --filter=@spfn/core
+
+# Run tests
+pnpm test
+
+# Build all packages
+pnpm build
 ```
 
-## 📚 문서
+## 📚 Documentation
 
-### 프로젝트 문서
-- [전체 아키텍처](./ARCHITECTURE.md) - 시스템 설계 및 구조
-- [코딩 스탠다드](./CODING_STANDARDS.md) - 코드 작성 규칙 및 스타일 가이드
-- [개발 로드맵](./ROADMAP.md) - 향후 계획 및 우선순위
-- [현재 상태](./CURRENT_STATUS.md) - 완료된 작업 및 다음 단계
+### Getting Started
+- [Quick Start Guide](./packages/core/docs/guides/getting-started.md)
+- [Architecture Overview](./ARCHITECTURE.md)
+- [Framework Philosophy](./FRAMEWORK_PHILOSOPHY.md)
 
-### 프레임워크 문서
-- [Getting Started](./packages/core/docs/guides/getting-started.md)
-- [Routing Guide](./packages/core/docs/guides/routing.md)
-- [Database & Transactions](./packages/core/docs/guides/database.md)
+### Core Concepts
+- [File-based Routing](./packages/core/src/route/README.md)
+- [Database & Transactions](./packages/core/src/db/README.md)
 - [Repository Pattern](./packages/core/docs/guides/repository.md)
+- [Redis Cache](./packages/core/src/cache/README.md)
 - [Error Handling](./packages/core/docs/guides/error-handling.md)
-- [API Reference](./packages/core/docs/api/README.md)
 
-### 인증 시스템
-- [Auth Overview](./packages/auth/README.md)
-- [Architecture](./packages/auth/docs/architecture.md)
-- [Security](./packages/auth/docs/security.md)
-- [API Reference](./packages/auth/docs/api-reference.md)
+### Advanced
+- [Transaction Management](./packages/core/src/utils/README.md)
+- [Server Configuration](./packages/core/src/server/README.md)
+- [Type Generation](./packages/core/docs/guides/type-generation.md)
+- [Authentication](./packages/auth/README.md)
 
-## 🧪 테스트
+### Contributing
+- [Contributing Guide](./CONTRIBUTING.md)
+- [Coding Standards](./CODING_STANDARDS.md)
+- [Roadmap](./ROADMAP.md)
 
-```bash
-# 모든 패키지 테스트
-npm test
+## 🏗️ Project Structure
 
-# 특정 패키지 테스트
-npm test --filter=@spfn/auth
+```
+spfn/
+├── packages/
+│   ├── core/                 # Framework core
+│   │   ├── src/
+│   │   │   ├── route/       # File-based routing
+│   │   │   ├── db/          # Database & ORM
+│   │   │   ├── cache/       # Redis cache
+│   │   │   ├── server/      # Server utilities
+│   │   │   ├── utils/       # Transaction utils
+│   │   │   ├── middleware/  # Built-in middleware
+│   │   │   ├── errors/      # Error handling
+│   │   │   └── scripts/     # Code generation
+│   │   └── docs/            # Documentation
+│   │
+│   ├── auth/                # Authentication
+│   │   ├── src/
+│   │   │   ├── server/      # Server implementation
+│   │   │   └── shared/      # Shared types
+│   │   └── docs/            # Auth documentation
+│   │
+│   └── cli/                 # CLI tool (coming soon)
+│
+├── apps/                    # Example applications
+├── ARCHITECTURE.md          # Architecture documentation
+├── CODING_STANDARDS.md      # Code style guide
+├── FRAMEWORK_PHILOSOPHY.md  # Design philosophy
+└── ROADMAP.md              # Development roadmap
 ```
 
-## 🏗️ 빌드
+## 🧪 Testing
+
+The framework includes comprehensive test coverage:
 
 ```bash
-# 모든 앱 빌드
-npm run build
+# Run all tests
+pnpm test
 
-# 특정 앱 빌드
-npm run build --filter=@spfn/landing
+# Run tests for specific package
+pnpm test --filter=@spfn/core
+
+# Run tests with coverage
+pnpm test:coverage
+
+# Run tests in watch mode
+pnpm test:watch
 ```
 
-## 🤝 기여하기
+**Test Coverage:**
+- @spfn/core: 150+ tests
+- @spfn/auth: 45+ tests
+- Total: 195+ tests passing
+
+## 📈 Roadmap
+
+### v0.1.0 (Current)
+- [x] File-based routing
+- [x] Transaction management
+- [x] Repository pattern
+- [x] Redis cache
+- [x] Client-Key authentication
+
+### v0.2.0 (Next)
+- [ ] CLI tool for code generation
+- [ ] Type-safe API client generation
+- [ ] WebSocket support
+- [ ] Real-time subscriptions
+
+### v1.0.0 (Future)
+- [ ] Production-ready deployment guides
+- [ ] Monitoring & observability
+- [ ] Performance optimization
+- [ ] Horizontal scaling patterns
+
+See [ROADMAP.md](./ROADMAP.md) for details.
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) for details.
+
+### Development Process
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`pnpm test`)
+5. Commit with conventional commits (`git commit -m 'feat: add amazing feature'`)
+6. Push to your fork (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
-## 📄 라이선스
+## 📄 License
 
-MIT
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- Next.js - 프론트엔드 프레임워크
-- Hono - 백엔드 서버
-- Drizzle ORM - 데이터베이스 ORM
-- Turborepo - 모노레포 관리
+Built with amazing open source tools:
+
+- [Next.js](https://nextjs.org/) - React framework
+- [Hono](https://hono.dev/) - Ultrafast web framework
+- [Drizzle ORM](https://orm.drizzle.team/) - TypeScript ORM
+- [Turborepo](https://turbo.build/) - Monorepo build system
+- [PostgreSQL](https://www.postgresql.org/) - Database
+- [Redis](https://redis.io/) - Cache & pub/sub
+- [Vitest](https://vitest.dev/) - Testing framework
+
+## 💬 Community & Support
+
+- 📖 [Documentation](./packages/core/README.md)
+- 🐛 [Issue Tracker](https://github.com/your-org/spfn/issues)
+- 💡 [Discussions](https://github.com/your-org/spfn/discussions)
+- 🐦 [Twitter](https://twitter.com/spfn_dev)
+
+## ⭐ Star History
+
+If you find SPFN useful, please consider giving it a star! ⭐
 
 ---
 
