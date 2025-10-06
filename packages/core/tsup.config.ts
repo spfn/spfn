@@ -9,6 +9,7 @@ export default defineConfig({
         'route/index': 'src/route/index.ts',
         'db/index': 'src/db/index.ts',
         'server/index': 'src/server/index.ts',
+        'utils/index': 'src/utils/index.ts',
         'scripts/index': 'src/scripts/index.ts',
     },
     format: ['esm'],
