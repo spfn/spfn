@@ -2,11 +2,12 @@
  * Example Route: GET /examples
  *
  * File naming patterns:
+ * - routes/index.ts -> / (root route)
  * - routes/users/index.ts -> /users (all HTTP methods in one file)
- * - routes/users/GET.ts -> GET /users (single method per file)
  * - routes/users/[id].ts -> /users/:id (dynamic parameter)
+ * - routes/posts/[...slug].ts -> /posts/* (catch-all route)
  *
- * Export named functions for each HTTP method: GET, POST, PATCH, DELETE
+ * Export named functions for each HTTP method: GET, POST, PUT, PATCH, DELETE
  */
 
 import type { RouteContext } from '@spfn/core';

@@ -122,8 +122,7 @@ export async function startServer(config?: ServerConfig): Promise<void>
     const app = await createServer(finalConfig);
 
     // Start server
-    const { host, port } = finalConfig;
-    console.log(`🚀 SPFN Server starting on http://${host}:${port}`);
+    const { host, port, debug } = finalConfig;
 
     serve(
     {
@@ -132,5 +131,8 @@ export async function startServer(config?: ServerConfig): Promise<void>
         hostname: host,
     });
 
-    console.log(`✅ Server ready at http://${host}:${port}`);
+    // Clean output similar to Next.js
+    console.log(`   ▲ SPFN ${debug ? 'dev' : 'production'}`);
+    console.log(`   - Local:        http://${host}:${port}`);
+    console.log('');
 }

@@ -1,7 +1,7 @@
 # SPFN 프로젝트 현재 상태
 
-**작성일**: 2025-10-05
-**마지막 작업**: Zero-Configuration 아키텍처 완성 및 CLI 구현 완료
+**작성일**: 2025-10-06
+**마지막 작업**: 로깅 시스템 개선 및 기본 라우트 구조 최적화
 
 ## 📋 프로젝트 개요
 
@@ -352,6 +352,47 @@ function example()
 - Spring Boot의 견고함 (Enterprise Patterns, Transactions)
 - TypeScript 생태계 (Full Type Safety)
 - 현대적 아키텍처 (Frontend/Backend Separation)
+
+---
+
+## 📅 최근 업데이트 (2025-10-06)
+
+### 로깅 시스템 개선
+- ✅ Production 환경에서 간결한 로그 출력
+  - Route scanner verbose 로그 제거
+  - Route registration 상세 로그를 debug 모드로만 표시
+  - Redis 초기화 메시지 제거
+  - 서버 시작 메시지 Next.js 스타일로 간소화
+- ✅ Debug 모드 플래그 추가
+  - `RouteLoader`, `RouteRegistry`, `RouteScanner`에 debug 옵션
+  - Debug 모드에서만 상세 통계 출력
+  - Production: 간결한 한 줄 로그
+
+### 기본 라우트 구조 최적화
+- ✅ 루트 경로 (`/`) 추가
+  - API 웰컴 페이지 (이름, 버전, 엔드포인트 목록)
+  - 404 대신 유용한 정보 제공
+- ✅ Health check 간소화
+  - `/health` → 모니터링 전용 최소 응답 `{ status: "ok" }`
+  - Kubernetes probes, 로드밸런서용
+- ✅ Examples 라우트 컨벤션 수정
+  - `examples/GET.ts` → `examples/index.ts` (Next.js 컨벤션)
+  - 파일명 패턴 문서 업데이트
+
+### CLI 템플릿 업데이트
+- ✅ 3개 기본 라우트 제공
+  - `routes/index.ts` - 루트 웰컴 페이지
+  - `routes/health/index.ts` - 헬스체크
+  - `routes/examples/index.ts` - 사용 예제
+- ✅ 로컬 테스트 환경 구축 완료
+  - `apps/project-k`에서 workspace dependency로 프레임워크 테스트
+  - Next.js 15.5.4 + SPFN 통합 확인
+
+### 빌드 시스템 안정화
+- ✅ @spfn/auth Redis Cluster 타입 지원
+- ✅ @spfn/cli fs-extra ESM import 수정
+- ✅ monorepo에서 pnpm workspace 프로토콜 지원
+- ✅ CLI dev 명령어 tsx 실행 방식 수정
 
 ---
 

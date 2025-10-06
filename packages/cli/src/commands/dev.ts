@@ -1,8 +1,9 @@
 import { Command } from 'commander';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { spawn } from 'child_process';
+import { execa } from 'execa';
 import { logger } from '../utils/logger.js';
+import { detectPackageManager } from '../utils/package-manager.js';
 
 export const devCommand = new Command('dev')
     .description('Start SPFN development server (detects and runs Next.js + Hono)')
@@ -33,74 +34,75 @@ export const devCommand = new Command('dev')
             hasNext = !!(packageJson.dependencies?.next || packageJson.devDependencies?.next);
         }
 
+        // Create a temporary server entry file
+        const tempDir = join(cwd, 'node_modules', '.spfn');
+        const serverEntry = join(tempDir, 'server.mjs');
+
+        mkdirSync(tempDir, { recursive: true });
+
+        writeFileSync(serverEntry, `
+import { startServer } from '@spfn/core/server';
+
+await startServer({
+    port: ${options.port},
+    host: '${options.host}',
+    routesPath: ${options.routes ? `'${options.routes}'` : 'undefined'},
+    debug: true
+});
+`);
+
+        const pm = detectPackageManager(cwd);
+
         // Run server only mode
         if (options.serverOnly || !hasNext)
         {
-            await runHonoServer(options);
+            logger.info(`Starting SPFN Server on http://${options.host}:${options.port}\n`);
+
+            try
+            {
+                await execa(pm === 'npm' ? 'npx' : pm,
+                    pm === 'npm' ? ['tsx', serverEntry] : ['exec', 'tsx', serverEntry],
+                    {
+                        stdio: 'inherit',
+                        cwd,
+                    }
+                );
+            }
+            catch (error)
+            {
+                logger.error(`Failed to start server: ${error}`);
+                process.exit(1);
+            }
+
             return;
         }
 
-        // Run both Next.js + Hono with concurrently
-        logger.info('Starting Next.js + SPFN Server...\n');
+        // Run both Next.js + Hono
+        const nextCmd = pm === 'npm' ? 'npx next dev' : `${pm} exec next dev`;
+        const serverCmd = pm === 'npm' ? `npx tsx ${serverEntry}` : `${pm} exec tsx ${serverEntry}`;
 
-        const nextProcess = spawn('npx', ['next', 'dev'],
+        try
         {
-            stdio: 'inherit',
-            shell: true,
-            cwd,
-        });
-
-        const honoProcess = spawn('node', ['--loader', 'tsx', '--no-warnings', '-e',
-            `import { startServer } from '@spfn/core';
-             await startServer({
-                port: ${options.port},
-                host: '${options.host}',
-                debug: true
-             });`
-        ],
+            await execa(pm === 'npm' ? 'npx' : pm,
+                pm === 'npm'
+                    ? ['concurrently', '--raw', '--kill-others', `"${nextCmd}"`, `"${serverCmd}"`]
+                    : ['exec', 'concurrently', '--raw', '--kill-others', `"${nextCmd}"`, `"${serverCmd}"`],
+                {
+                    stdio: 'inherit',
+                    cwd,
+                    shell: true,
+                }
+            );
+        }
+        catch (error)
         {
-            stdio: 'inherit',
-            shell: true,
-            cwd,
-        });
+            // Concurrently was killed by user (Ctrl+C), this is expected
+            if ((error as any).exitCode === 130)
+            {
+                process.exit(0);
+            }
 
-        // Handle process termination
-        const cleanup = () =>
-        {
-            nextProcess.kill();
-            honoProcess.kill();
-            process.exit(0);
-        };
-
-        process.on('SIGINT', cleanup);
-        process.on('SIGTERM', cleanup);
+            logger.error(`Failed to start development servers: ${error}`);
+            process.exit(1);
+        }
     });
-
-async function runHonoServer(options: any): Promise<void>
-{
-    try
-    {
-        const { startServer } = await import('@spfn/core');
-
-        await startServer(
-        {
-            port: parseInt(options.port),
-            host: options.host,
-            routesPath: options.routes,
-            debug: true,
-        });
-    }
-    catch (error)
-    {
-        if ((error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND')
-        {
-            logger.error('@spfn/core is not installed.');
-            logger.info('Run "spfn init" first to set up your project.');
-        }
-        else
-        {
-            logger.error(`Failed to start server: ${error}`);
-        }
-        process.exit(1);
-    }
-}

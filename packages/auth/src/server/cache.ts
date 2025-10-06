@@ -5,7 +5,7 @@
  * L3: Database (slowest, ~10ms)
  */
 
-import type { Redis } from 'ioredis';
+import type { Redis, Cluster } from 'ioredis';
 
 import { isValidPublicKey } from './crypto.js';
 import {
@@ -17,7 +17,7 @@ import {
 export interface PublicKeyCacheOptions
 {
     /** Redis client instance (optional) */
-    redis?: Redis;
+    redis?: Redis | Cluster;
 
     /** Memory cache TTL in seconds */
     memoryTTL?: number;
@@ -35,7 +35,7 @@ export interface PublicKeyCacheOptions
 export class PublicKeyCache
 {
     private memory: Map<string, { publicKey: string; expiresAt: number }> = new Map();
-    private redis?: Redis;
+    private redis?: Redis | Cluster;
     private memoryTTL: number;
     private redisTTL: number;
     private maxMemorySize: number;
@@ -208,13 +208,13 @@ export class PublicKeyCache
  */
 export class NonceManager
 {
-    private redis?: Redis;
+    private redis?: Redis | Cluster;
     private window: number;
     private memoryNonces: Map<string, number> = new Map();
     private maxMemorySize: number;
     private warnedAboutRedis = false;
 
-    constructor(redis?: Redis, window: number = 60, maxMemorySize: number = 10000)
+    constructor(redis?: Redis | Cluster, window: number = 60, maxMemorySize: number = 10000)
     {
         this.redis = redis;
         this.window = window;

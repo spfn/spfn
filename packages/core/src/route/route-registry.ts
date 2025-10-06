@@ -55,6 +55,12 @@ export class RouteRegistry
 {
     private routes: RouteDefinition[] = [];
     private routeMap: Map<string, RouteDefinition> = new Map();
+    private readonly debug: boolean;
+
+    constructor(debug: boolean = false)
+    {
+        this.debug = debug;
+    }
 
     /**
      * Register route definition
@@ -116,8 +122,11 @@ export class RouteRegistry
     {
         const sortedRoutes = this.getSortedRoutes();
 
-        console.log('\n📍 Registering routes:');
-        console.log(`   Total: ${sortedRoutes.length} routes\n`);
+        if (this.debug)
+        {
+            console.log('\n📍 Registering routes:');
+            console.log(`   Total: ${sortedRoutes.length} routes\n`);
+        }
 
         for (const route of sortedRoutes)
         {
@@ -133,11 +142,17 @@ export class RouteRegistry
             // Register route
             app.route(route.urlPath, route.honoInstance);
 
-            // Log output
-            this.logRoute(route);
+            // Log output (debug mode only)
+            if (this.debug)
+            {
+                this.logRoute(route);
+            }
         }
 
-        console.log('');
+        if (this.debug)
+        {
+            console.log('');
+        }
     }
 
     /**

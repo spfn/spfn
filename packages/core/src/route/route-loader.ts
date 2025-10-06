@@ -55,9 +55,11 @@ export class RouteLoader
     private scanner: RouteScanner;
     private mapper: RouteMapper;
     private registry: RouteRegistry;
+    private readonly debug: boolean;
 
     constructor(routesDir: string, debug: boolean = false)
     {
+        this.debug = debug;
         this.scanner = new RouteScanner({
             routesDir,
             debug,
@@ -69,7 +71,7 @@ export class RouteLoader
         });
 
         this.mapper = new RouteMapper();
-        this.registry = new RouteRegistry();
+        this.registry = new RouteRegistry(debug);
     }
 
     /**
@@ -127,25 +129,31 @@ export class RouteLoader
         const stats = this.registry.getStats();
         const elapsed = Date.now() - startTime;
 
-        console.log(`\n📊 Route Statistics:`);
-        console.log(`   Priority: ${stats.byPriority.static} static, ${stats.byPriority.dynamic} dynamic, ${stats.byPriority.catchAll} catch-all`);
+        // Simple output in production, detailed in debug mode
+        if (this.debug)
+        {
+            console.log(`\n📊 Route Statistics:`);
+            console.log(`   Priority: ${stats.byPriority.static} static, ${stats.byPriority.dynamic} dynamic, ${stats.byPriority.catchAll} catch-all`);
 
-        const methodCounts = Object.entries(stats.byMethod)
-            .filter(([_, count]) => count > 0)
-            .map(([method, count]) => `${method}(${count})`)
-            .join(', ');
-        if (methodCounts) {
-            console.log(`   Methods: ${methodCounts}`);
-        }
-
-        if (Object.keys(stats.byTag).length > 0) {
-            const tagCounts = Object.entries(stats.byTag)
-                .map(([tag, count]) => `${tag}(${count})`)
+            const methodCounts = Object.entries(stats.byMethod)
+                .filter(([_, count]) => count > 0)
+                .map(([method, count]) => `${method}(${count})`)
                 .join(', ');
-            console.log(`   Tags: ${tagCounts}`);
-        }
+            if (methodCounts)
+            {
+                console.log(`   Methods: ${methodCounts}`);
+            }
 
-        console.log(`\n✅ Routes loaded in ${elapsed}ms\n`);
+            if (Object.keys(stats.byTag).length > 0)
+            {
+                const tagCounts = Object.entries(stats.byTag)
+                    .map(([tag, count]) => `${tag}(${count})`)
+                    .join(', ');
+                console.log(`   Tags: ${tagCounts}`);
+            }
+
+            console.log(`\n✅ Routes loaded in ${elapsed}ms\n`);
+        }
     }
 
     /**
