@@ -21,10 +21,26 @@
     "authentication",
     "client-key",
     "asymmetric-cryptography",
-    "typescript"
+    "typescript",
+    "ecdsa",
+    "p-256",
+    "security",
+    "aes-256-gcm",
+    "replay-attack-prevention",
+    "nonce",
+    "caching"
   ],
   "author": "SPFN Team",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/spfn.git",
+    "directory": "packages/auth"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/spfn/issues"
+  },
+  "homepage": "https://github.com/your-org/spfn/tree/main/packages/auth#readme",
   "peerDependencies": {
     "drizzle-orm": "^0.30.0",
     "hono": "^4.0.0",
