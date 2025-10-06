@@ -51,10 +51,26 @@
     "nextjs",
     "hono",
     "typescript",
-    "fullstack"
+    "fullstack",
+    "backend",
+    "file-based-routing",
+    "transaction",
+    "repository-pattern",
+    "drizzle-orm",
+    "postgres",
+    "redis"
   ],
   "author": "SPFN Team",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/spfn.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/spfn/issues"
+  },
+  "homepage": "https://github.com/your-org/spfn/tree/main/packages/core#readme",
   "peerDependencies": {
     "@hono/node-server": "^1.0.0",
     "drizzle-orm": "^0.44.0",
