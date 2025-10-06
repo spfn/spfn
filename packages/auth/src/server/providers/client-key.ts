@@ -8,7 +8,7 @@
 
 import crypto from 'node:crypto';
 
-import type { Redis } from 'ioredis';
+import type { Redis, Cluster } from 'ioredis';
 
 import type {
     AuthProvider,
@@ -27,7 +27,7 @@ import {
 import { generateKeyPair } from '../crypto.js';
 import { verifySignature } from '../signer.js';
 import { NonceManager, PublicKeyCache } from '../cache.js';
-import { getRedis, createSingleRedisFromEnv } from '@spfn/core/cache';
+import { getRedis } from '@spfn/core';
 
 export interface ClientKeyAuthProviderOptions<TUser = any>
 {
@@ -48,7 +48,7 @@ export interface ClientKeyAuthProviderOptions<TUser = any>
      * - REDIS_SENTINEL_HOSTS + REDIS_MASTER_NAME (sentinel)
      * - REDIS_CLUSTER_NODES (cluster)
      */
-    redis?: Redis;
+    redis?: Redis | Cluster;
 
     /** Optional configuration */
     config?: ClientKeyAuthConfig;
@@ -125,8 +125,8 @@ export class ClientKeyAuthProvider<TUser = any> implements AuthProvider<TUser>
         options: ClientKeyAuthProviderOptions<TUser>
     ): Promise<ClientKeyAuthProvider<TUser>>
     {
-        // Priority: provided > global > env > undefined
-        const redis = options.redis ?? getRedis() ?? await createSingleRedisFromEnv();
+        // Priority: provided > global > undefined
+        const redis = options.redis ?? getRedis();
 
         return new ClientKeyAuthProvider({
             ...options,

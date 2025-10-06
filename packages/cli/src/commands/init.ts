@@ -4,10 +4,12 @@ import { join } from 'path';
 import prompts from 'prompts';
 import ora from 'ora';
 import { execa } from 'execa';
-import { copySync, ensureDirSync, writeFileSync } from 'fs-extra';
+import fse from 'fs-extra';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
+
+const { copySync, ensureDirSync, writeFileSync } = fse;
 
 import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
@@ -131,22 +133,14 @@ export const initCommand = new Command('init')
 
         try
         {
-            const templatesDir = join(__dirname, '..', '..', 'templates', 'server');
+            // __dirname points to dist/ directory, templates are copied to dist/templates during build
+            const templatesDir = join(__dirname, '..', 'templates', 'server');
             const targetDir = join(cwd, 'src', 'server');
 
             ensureDirSync(targetDir);
 
-            // Copy only the necessary files for Zero-Config
-            // Skip app.ts and index.ts - framework handles everything
-            copySync(templatesDir, targetDir,
-            {
-                filter: (src) =>
-                {
-                    const basename = src.split('/').pop() || '';
-                    // Exclude boilerplate files
-                    return basename !== 'app.ts' && basename !== 'index.ts';
-                }
-            });
+            // Copy all template files
+            copySync(templatesDir, targetDir);
 
             spinner.succeed('Server structure created');
         }

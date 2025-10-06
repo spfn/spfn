@@ -68,12 +68,9 @@ export class RouteScanner
     {
         const files: RouteFile[] = [];
 
-        this.log('🔍 Scanning routes directory:', this.routesDir);
-
         try
         {
             await this.scanDirectory(this.routesDir, files);
-            this.log(`📁 Found ${files.length} route files`);
         }
         catch (error)
         {
@@ -108,7 +105,6 @@ export class RouteScanner
             // Check exclude patterns
             if (this.shouldExclude(fullPath))
             {
-                this.log(`  ⏭️  Excluded: ${entry}`);
                 continue;
             }
 
@@ -120,7 +116,10 @@ export class RouteScanner
             catch (error)
             {
                 const message = error instanceof Error ? error.message : String(error);
-                console.warn(`⚠️  Cannot access: ${fullPath} (${message})`);
+                if (this.debug)
+                {
+                    console.warn(`⚠️  Cannot access: ${fullPath} (${message})`);
+                }
                 continue;
             }
 
@@ -133,7 +132,6 @@ export class RouteScanner
             {
                 const routeFile = this.createRouteFile(fullPath);
                 files.push(routeFile);
-                this.log(`  ✓ ${routeFile.relativePath}`);
             }
         }
     }
@@ -202,16 +200,5 @@ export class RouteScanner
     private shouldExclude(path: string): boolean
     {
         return this.exclude.some(pattern => pattern.test(path));
-    }
-
-    /**
-     * Debug log
-     */
-    private log(...args: unknown[]): void
-    {
-        if (this.debug)
-        {
-            console.log(...args);
-        }
     }
 }

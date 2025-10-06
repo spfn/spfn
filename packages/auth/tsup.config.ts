@@ -9,5 +9,5 @@ export default defineConfig({
     splitting: false,
     treeshake: true,
     minify: false,
-    external: ['drizzle-orm', 'hono', 'ioredis'],
+    external: ['drizzle-orm', 'hono', 'ioredis', '@spfn/core'],
 });

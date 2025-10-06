@@ -153,10 +153,6 @@ export async function initRedis(): Promise<{ write?: Redis | Cluster; read?: Red
             return { write: undefined, read: undefined };
         }
     }
-    else
-    {
-        console.log('ℹ️  No Redis configuration found, using memory-only caching');
-    }
 
     return { write: writeInstance, read: readInstance };
 }
