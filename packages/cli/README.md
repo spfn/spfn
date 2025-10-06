@@ -242,6 +242,32 @@ After running `spfn init`:
 - Node.js >= 18
 - Next.js project (optional - works standalone too)
 
+## Development Notes
+
+### For Package Maintainers
+
+**Template Path Resolution:**
+- Uses dual path detection (`findTemplatesPath()`)
+- npm package: `dist/templates/` (after build)
+- Monorepo dev: `../templates/` (fallback)
+- Ensures compatibility in both environments
+
+**Publishing:**
+- `workspace:*` dependencies auto-resolved by pnpm publish
+- Templates copied to `dist/` during build
+- Package size: ~9.4 KB
+
+**Testing:**
+```bash
+# Build and test locally
+npm run build
+npm pack --dry-run
+
+# Install in test project
+cd /path/to/nextjs-project
+npm install /path/to/spfn-cli-0.1.0.tgz
+```
+
 ## License
 
 MIT

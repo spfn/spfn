@@ -394,6 +394,19 @@ function example()
 - ✅ monorepo에서 pnpm workspace 프로토콜 지원
 - ✅ CLI dev 명령어 tsx 실행 방식 수정
 
+### npm 배포 준비 완료
+- ✅ Dual Path Resolution 구현
+  - `findTemplatesPath()` 헬퍼 함수 추가
+  - npm 배포: `dist/templates/` 경로 사용
+  - 모노레포 개발: `../templates/` 폴백
+  - 두 환경 모두 완벽 호환
+- ✅ 패키지 최적화
+  - 중복 템플릿 제거 (9.7 KB → 9.4 KB)
+  - `workspace:*` 의존성 유지 (pnpm publish 자동 변환)
+- ✅ npm pack 검증 완료
+  - 실제 tarball 생성 및 테스트
+  - 경로 해석 양쪽 모드 확인
+
 ---
 
 **다음 세션 시작 시**: 이 문서를 읽고 현재 상태 파악 후 작업 계속
