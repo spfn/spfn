@@ -39,16 +39,16 @@ export class FileTransport implements Transport
     public readonly enabled: boolean;
 
     private logDir: string;
-    private maxFileSize: number;
-    private maxFiles: number;
 
     constructor(config: FileTransportConfig)
     {
         this.level = config.level;
         this.enabled = config.enabled;
         this.logDir = config.logDir;
-        this.maxFileSize = config.maxFileSize ?? 10 * 1024 * 1024; // 10MB
-        this.maxFiles = config.maxFiles ?? 10;
+
+        // TODO: 향후 파일 로테이션 구현 시 사용
+        // this.maxFileSize = config.maxFileSize ?? 10 * 1024 * 1024; // 10MB
+        // this.maxFiles = config.maxFiles ?? 10;
 
         // 로그 디렉토리가 없으면 생성
         if (!existsSync(this.logDir))

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createRedisFromEnv, createSingleRedisFromEnv } from './redis-factory.js';
+import { createRedisFromEnv, createSingleRedisFromEnv } from '../redis-factory.js';
 
 describe('redis-factory', () =>
 {

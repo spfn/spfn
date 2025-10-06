@@ -7,7 +7,7 @@ import {
     initRedis,
     closeRedis,
     getRedisInfo,
-} from './redis-manager.js';
+} from '../redis-manager.js';
 
 describe('redis-manager', () =>
 {

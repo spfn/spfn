@@ -4,10 +4,10 @@
  * Test database connection and connection pool functionality
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import postgres from 'postgres';
-import { createDatabaseConnection, checkConnection } from '@core/db/connection';
-import type { PoolConfig, RetryConfig } from '@core/db/config';
+import { createDatabaseConnection, checkConnection } from '../connection.js';
+import type { PoolConfig, RetryConfig } from '../config.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 

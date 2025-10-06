@@ -19,13 +19,8 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "allowSyntheticDefaultImports": true,
-    "paths": {
-      "@core": ["./src"],
-      "@core/*": ["./src/*"],
-      "@/server/entities/*": ["./src/tests/fixtures/entities/*"]
-    }
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "**/drizzle.config.ts"]
 }

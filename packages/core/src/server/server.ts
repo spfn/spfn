@@ -4,10 +4,10 @@ import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { loadRoutes } from '@core/route';
-import { errorHandler } from '@core/middleware';
-import { RequestLogger } from '@core/middleware';
-import { initRedis } from '@core/cache';
+import { loadRoutes } from '../route/index.js';
+import { errorHandler } from '../middleware/index.js';
+import { RequestLogger } from '../middleware/index.js';
+import { initRedis } from '../cache/index.js';
 
 import type { ServerConfig, AppFactory } from './types.js';
 
