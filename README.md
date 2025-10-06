@@ -151,28 +151,26 @@ pnpm build
 
 ## 📚 Documentation
 
+**[📖 Full Documentation](./docs/README.md)**
+
 ### Getting Started
-- [Quick Start Guide](./packages/core/docs/guides/getting-started.md)
-- [Architecture Overview](./ARCHITECTURE.md)
-- [Framework Philosophy](./FRAMEWORK_PHILOSOPHY.md)
+- [Installation Guide](./docs/guides/installation.md)
+- [Quick Start](./docs/guides/getting-started.md)
+- [Architecture Overview](./docs/project/architecture.md)
+- [Framework Philosophy](./docs/project/philosophy.md)
 
 ### Core Concepts
-- [File-based Routing](./packages/core/src/route/README.md)
-- [Database & Transactions](./packages/core/src/db/README.md)
-- [Repository Pattern](./packages/core/docs/guides/repository.md)
-- [Redis Cache](./packages/core/src/cache/README.md)
-- [Error Handling](./packages/core/docs/guides/error-handling.md)
+- [File-based Routing](./docs/guides/routing.md)
+- [Database & Repository](./docs/guides/database.md)
+- [Transaction Management](./docs/guides/transactions.md)
+- [Authentication](./docs/guides/authentication.md)
+- [Redis Cache](./docs/guides/caching.md)
+- [Error Handling](./docs/guides/error-handling.md)
 
-### Advanced
-- [Transaction Management](./packages/core/src/utils/README.md)
-- [Server Configuration](./packages/core/src/server/README.md)
-- [Type Generation](./packages/core/docs/guides/type-generation.md)
-- [Authentication](./packages/auth/README.md)
-
-### Contributing
+### Project Info
 - [Contributing Guide](./CONTRIBUTING.md)
-- [Coding Standards](./CODING_STANDARDS.md)
-- [Roadmap](./ROADMAP.md)
+- [Coding Standards](./docs/project/coding-standards.md)
+- [Roadmap](./docs/project/roadmap.md)
 
 ## 🏗️ Project Structure
 
@@ -200,10 +198,12 @@ spfn/
 │   └── cli/                 # CLI tool (coming soon)
 │
 ├── apps/                    # Example applications
-├── ARCHITECTURE.md          # Architecture documentation
-├── CODING_STANDARDS.md      # Code style guide
-├── FRAMEWORK_PHILOSOPHY.md  # Design philosophy
-└── ROADMAP.md              # Development roadmap
+├── docs/                    # Documentation
+│   ├── guides/              # User guides
+│   ├── api/                 # API reference
+│   ├── project/             # Project info
+│   └── advanced/            # Advanced topics
+└── .dev/                    # Development tracking
 ```
 
 ## 🧪 Testing
@@ -250,7 +250,7 @@ pnpm test:watch
 - [ ] Performance optimization
 - [ ] Horizontal scaling patterns
 
-See [ROADMAP.md](./ROADMAP.md) for details.
+See [ROADMAP](./docs/project/roadmap.md) for details.
 
 ## 🤝 Contributing
 
