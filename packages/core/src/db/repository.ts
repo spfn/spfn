@@ -16,13 +16,13 @@ import type { SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '../query/index.js';
+import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '../query';
 
-import { buildFilters } from '../query/filters.js';
-import { buildSort } from '../query/sort.js';
-import { applyPagination, createPaginationMeta, countTotal } from '../query/pagination.js';
+import { buildFilters } from '../query';
+import { buildSort } from '../query';
+import { applyPagination, createPaginationMeta, countTotal } from '../query';
 import { getRawDb } from './db-instance.js';
-import { QueryError } from '../errors/index.js';
+import { QueryError } from '../errors';
 
 /**
  * Pageable interface (Spring Pageable style)
@@ -86,6 +86,7 @@ export class Repository<
     async findAll(): Promise<TSelect[]>
     {
         const readDb = this.getReadDb();
+        // Type assertion needed: Drizzle's from() expects specific table signature
         return readDb.select().from(this.table as any) as Promise<TSelect[]>;
     }
 
@@ -103,7 +104,7 @@ export class Repository<
     {
         const { filters = {}, sort = [], pagination = { page: 1, limit: 20 } } = pageable;
 
-        // Build filter, sort, and pagination conditions
+        // Type assertions needed: Helper functions expect DrizzleTable type
         const whereCondition = buildFilters(filters, this.table as any);
         const orderBy = buildSort(sort, this.table as any);
         const { offset, limit } = applyPagination(pagination);
@@ -133,7 +134,7 @@ export class Repository<
      */
     async findById(id: number | string): Promise<TSelect | null>
     {
-        const idColumn = (this.table as any).id;
+        const idColumn = (this.table as Record<string, any>).id;
 
         if (!idColumn)
         {
@@ -192,7 +193,7 @@ export class Repository<
      */
     async update(id: number | string, data: any): Promise<TSelect | null>
     {
-        const idColumn = (this.table as any).id;
+        const idColumn = (this.table as Record<string, any>).id;
 
         if (!idColumn)
         {
@@ -218,7 +219,7 @@ export class Repository<
      */
     async delete(id: number | string): Promise<TSelect | null>
     {
-        const idColumn = (this.table as any).id;
+        const idColumn = (this.table as Record<string, any>).id;
 
         if (!idColumn)
         {
