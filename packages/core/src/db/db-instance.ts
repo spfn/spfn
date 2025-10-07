@@ -56,7 +56,7 @@ export const db = new Proxy({} as PostgresJsDatabase, {
                 'Set DATABASE_URL environment variable or call initDatabase() first.'
             );
         }
-        return (instance as any)[prop];
+        return (instance as Record<string | symbol, any>)[prop];
     },
 });
 

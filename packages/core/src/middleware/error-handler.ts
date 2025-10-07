@@ -10,6 +10,7 @@
  * - Stack trace inclusion (development only)
  */
 import type { Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { isDatabaseError, type DatabaseError } from '../errors';
 import { logger } from '../logger';
 
@@ -110,7 +111,7 @@ export function errorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                 response.error.stack = dbError.stack;
             }
 
-            return c.json(response, statusCode as any);
+            return c.json(response, statusCode as ContentfulStatusCode);
         }
 
         // Handle general errors
