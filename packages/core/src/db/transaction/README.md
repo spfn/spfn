@@ -29,13 +29,15 @@ Hono middleware that automatically wraps route handlers in database transactions
 **Basic Usage:**
 
 ```ts
-// In your route file (e.g., routes/users/POST.ts)
-import { Transactional } from '@spfn/core';
+// In your route file (e.g., routes/users/index.ts)
+import { Hono } from 'hono';
+import { Transactional, bind } from '@spfn/core';
 import type { RouteContext } from '@spfn/core/route';
 
-export const middlewares = [Transactional()];
+const app = new Hono();
 
-export async function POST(c: RouteContext) {
+// Apply transaction middleware
+app.post('/', Transactional(), bind(contract, async (c: RouteContext) => {
   const body = await c.req.json();
 
   // All DB operations run in a transaction
@@ -49,7 +51,9 @@ export async function POST(c: RouteContext) {
   return c.json(user, 201);
 
   // Error -> Auto-rollback
-}
+}));
+
+export default app;
 ```
 
 **With Options:**
