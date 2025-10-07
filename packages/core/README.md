@@ -45,8 +45,7 @@ await startServer();
 ```typescript
 // src/server/routes/users/index.ts
 import { Hono } from 'hono';
-import { bind } from '@spfn/core';
-import { Transactional } from '@spfn/core/utils';
+import { bind, Transactional } from '@spfn/core';
 import { db, Repository } from '@spfn/core/db';
 import { users } from '@/server/entities/users';
 import { Type } from '@sinclair/typebox';
@@ -216,19 +215,20 @@ import type {
 
 **Documentation:** [Server Module README](./src/server/README.md)
 
-### Utils Module (`@spfn/core/utils`)
+### Transaction Module (`@spfn/core/db/transaction`)
 
 ```typescript
 import {
   Transactional,         // Transaction middleware
   getTransaction,        // Get current transaction
   runWithTransaction     // Run in transaction context
-} from '@spfn/core/utils';
+} from '@spfn/core';
 
 import type {
   TransactionContext,
-  TransactionalOptions
-} from '@spfn/core/utils';
+  TransactionalOptions,
+  TransactionDB
+} from '@spfn/core';
 ```
 
 **Features:**
@@ -237,7 +237,7 @@ import type {
 - Transaction logging and slow query warnings
 - Auto-commit on success, auto-rollback on error
 
-**Documentation:** [Utils Module README](./src/utils/README.md)
+**Documentation:** [Transaction Module README](./src/db/transaction/README.md)
 
 ### Cache Module (`@spfn/core`)
 
@@ -465,8 +465,7 @@ console.log(stats);
 
 ```typescript
 import { Hono } from 'hono';
-import { bind } from '@spfn/core';
-import { Transactional } from '@spfn/core/utils';
+import { bind, Transactional } from '@spfn/core';
 
 const app = new Hono();
 
@@ -678,7 +677,7 @@ npm run type-check
 
 - [File-based Routing](./src/route/README.md) - Route discovery and registration
 - [Database & Repository](./src/db/README.md) - Data access patterns
-- [Transaction Management](./src/utils/README.md) - Automatic transactions
+- [Transaction Management](./src/db/transaction/README.md) - Automatic transactions
 - [Server Configuration](./src/server/README.md) - Server setup and middleware
 - [Redis Cache](./src/cache/README.md) - Caching strategies
 - [Error Handling](./docs/guides/error-handling.md) - Custom errors
