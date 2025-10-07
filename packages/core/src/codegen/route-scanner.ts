@@ -12,7 +12,7 @@ import {
     filterContractImports,
     resolveImportPath
 } from './ast-parser.js';
-import type { RouteContractMapping, HttpMethod } from './types.js';
+import type { RouteContractMapping } from './types.js';
 
 /**
  * Scan routes directory and extract route-contract mappings
@@ -100,22 +100,30 @@ async function extractRouteContractsFromFile(
  */
 async function scanRouteFiles(dir: string, files: string[] = []): Promise<string[]>
 {
-    const entries = await readdir(dir);
-
-    for (let i = 0; i < entries.length; i++)
+    try
     {
-        const entry = entries[i];
-        const fullPath = join(dir, entry);
-        const fileStat = await stat(fullPath);
+        const entries = await readdir(dir);
 
-        if (fileStat.isDirectory())
+        for (let i = 0; i < entries.length; i++)
         {
-            await scanRouteFiles(fullPath, files);
+            const entry = entries[i];
+            const fullPath = join(dir, entry);
+            const fileStat = await stat(fullPath);
+
+            if (fileStat.isDirectory())
+            {
+                await scanRouteFiles(fullPath, files);
+            }
+            else if (isValidRouteFile(entry))
+            {
+                files.push(fullPath);
+            }
         }
-        else if (isValidRouteFile(entry))
-        {
-            files.push(fullPath);
-        }
+    }
+    catch (error)
+    {
+        // Directory doesn't exist or not readable
+        // Return empty array
     }
 
     return files;
@@ -172,12 +180,12 @@ function fileToUrlPath(filePath: string, routesDir: string, explicitPath?: strin
         const seg = segments[i];
 
         // Catch-all: [...slug] → *
-        if (/^\[\.\.\.[\w-]+\]$/.test(seg))
+        if (/^\[\.\.\.[\w-]+]$/.test(seg))
         {
             transformed.push('*');
         }
         // Dynamic: [id] → :id
-        else if (/^\[[\w-]+\]$/.test(seg))
+        else if (/^\[[\w-]+]$/.test(seg))
         {
             transformed.push(':' + seg.slice(1, -1));
         }

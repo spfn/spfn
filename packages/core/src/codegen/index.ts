@@ -4,8 +4,12 @@
  * Automatic client code generation from route contracts
  */
 
-export { scanRouteContracts, groupByResource } from './route-scanner.js';
+export { scanContracts } from './contract-scanner.js';
+export { groupByResource } from './route-scanner.js';
 export { generateClient } from './client-generator.js';
+
+// Legacy exports (deprecated)
+export { scanRouteContracts } from './route-scanner.js';
 export {
     extractContractImports,
     extractBindCalls,

@@ -67,11 +67,12 @@ export type RouteMeta = {
  *
  * Note: params and query are always Record<string, string> from URL,
  * but can be validated and transformed via TypeBox schemas
- *
- * The HTTP method is determined by the export name (GET, POST, PUT, etc.)
- * so it's not included in the contract.
  */
 export type RouteContract = {
+    /** HTTP method (GET, POST, PUT, etc.) */
+    method: HttpMethod;
+    /** Route path (e.g., /users/:id) */
+    path: string;
     /** Path parameters schema (optional) - input is always Record<string, string> */
     params?: TSchema;
     /** Query parameters schema (optional) - input is always Record<string, string | string[]> */

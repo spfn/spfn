@@ -26,10 +26,6 @@
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js"
     },
-    "./utils": {
-      "types": "./dist/utils/index.d.ts",
-      "import": "./dist/utils/index.js"
-    },
     "./scripts": {
       "types": "./dist/scripts/index.d.ts",
       "import": "./dist/scripts/index.js"
@@ -39,11 +35,14 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest",
+    "test:codegen": "vitest run --config vitest.codegen.config.ts",
     "test:db": "dotenv -e .env.test -- vitest src/tests/db",
     "docker:test:up": "docker compose -f ../../docker-compose.test.yml up -d",
     "docker:test:down": "docker compose -f ../../docker-compose.test.yml down",
     "docker:test:logs": "docker compose -f ../../docker-compose.test.yml logs -f",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "generate:client": "node dist/scripts/generate-client.js",
+    "generate:client:watch": "node dist/scripts/generate-client.js --watch"
   },
   "keywords": [
     "spfn",
@@ -78,14 +77,10 @@
     "@hono/node-server": "^1.0.0",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.9.0",
-    "postgres": "^3.4.0",
-    "typescript": "^5.0.0"
+    "postgres": "^3.4.0"
   },
   "peerDependenciesMeta": {
     "ioredis": {
-      "optional": true
-    },
-    "typescript": {
       "optional": true
     }
   },
@@ -94,13 +89,13 @@
     "chokidar": "^4.0.3",
     "dotenv": "^17.2.3",
     "pino": "^10.0.0",
+    "typescript": "^5.3.3",
     "zod": "^4.1.11"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "ioredis": "^5.4.1",
     "tsup": "^8.0.0",
-    "typescript": "^5.3.3",
     "vitest": "^3.2.4"
   },
   "files": [
