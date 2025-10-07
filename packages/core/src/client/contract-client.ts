@@ -14,7 +14,7 @@
  * ```
  */
 
-import type { RouteContract, InferContract } from '../route/types.js';
+import type { RouteContract, InferContract } from '../route';
 
 /**
  * Client configuration

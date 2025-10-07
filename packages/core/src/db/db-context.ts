@@ -26,7 +26,7 @@
  * - src/db/wrapped-db.ts (WrappedDb implementation)
  * - src/db/repository.ts (Repository implementation)
  */
-import { getTransaction } from '../utils/index.js';
+import { getTransaction } from './transaction/index.js';
 
 import { getDatabase, type DbConnectionType } from './db-manager.js';
 import { WrappedDb } from './wrapped-db.js';
