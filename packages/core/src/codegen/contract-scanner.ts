@@ -8,7 +8,7 @@ import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
 import * as ts from 'typescript';
 import { readFileSync } from 'fs';
-import type { RouteContractMapping } from './types.js';
+import type { RouteContractMapping, HttpMethod } from './types.js';
 
 /**
  * Scan contracts directory and extract contract exports
@@ -83,7 +83,7 @@ async function scanContractFiles(dir: string, files: string[] = []): Promise<str
 interface ContractExport
 {
     name: string;
-    method: string;
+    method: HttpMethod;
     path: string;
 }
 
@@ -161,11 +161,11 @@ function extractContractExports(filePath: string): ContractExport[]
  * Extract method and path from contract object literal
  */
 function extractContractData(objectLiteral: ts.ObjectLiteralExpression): {
-    method?: string;
+    method?: HttpMethod;
     path?: string;
 }
 {
-    const result: { method?: string; path?: string } = {};
+    const result: { method?: HttpMethod; path?: string } = {};
 
     for (let i = 0; i < objectLiteral.properties.length; i++)
     {
@@ -180,7 +180,7 @@ function extractContractData(objectLiteral: ts.ObjectLiteralExpression): {
 
             if (propName === 'method' && ts.isStringLiteral(prop.initializer))
             {
-                result.method = prop.initializer.text;
+                result.method = prop.initializer.text as HttpMethod;
             }
             else if (propName === 'path' && ts.isStringLiteral(prop.initializer))
             {
