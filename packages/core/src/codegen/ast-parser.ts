@@ -152,8 +152,7 @@ export function extractBindCalls(filePath: string): BindCall[]
  */
 export function resolveImportPath(
     importPath: string,
-    fromFile: string,
-    tsConfigPath?: string
+    fromFile: string
 ): string | null
 {
     // Handle relative imports
@@ -174,6 +173,8 @@ export function resolveImportPath(
     }
 
     // Handle path aliases (@/, ~/, etc.)
+    // Note: This is a simplified implementation
+    // For production, should read tsconfig.json paths
     if (importPath.startsWith('@/'))
     {
         const rootDir = process.cwd();
