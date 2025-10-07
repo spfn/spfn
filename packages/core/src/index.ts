@@ -52,10 +52,9 @@ export type { DrizzleConfigOptions } from './db/config-generator.js';
 export { getRedis, getRedisRead, setRedis, initRedis, closeRedis, getRedisInfo, createRedisFromEnv, createSingleRedisFromEnv } from './cache/index.js';
 export type { RedisClients } from './cache/index.js';
 
-// Transaction & Utils
-export { Transactional } from './utils/transaction.js';
-export { getTransaction, runWithTransaction } from './utils/async-context.js';
-export type { TransactionContext } from './utils/async-context.js';
+// Transaction
+export { Transactional, getTransaction, runWithTransaction } from './db/transaction/index.js';
+export type { TransactionContext, TransactionalOptions } from './db/transaction/index.js';
 
 // Logger
 export { logger } from './logger/index.js';

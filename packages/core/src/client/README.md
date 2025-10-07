@@ -1,15 +1,18 @@
-# @spfn/core/client - HTTP Client
+# @spfn/core/client - Contract-based HTTP Client
 
-Minimal type-safe HTTP client for browser and Next.js client components.
+Type-safe HTTP client with end-to-end type safety using RouteContract.
 
 ## Features
 
-- ✅ **Type-Safe**: Full TypeScript support with generics
-- ✅ **Zero Dependencies**: Uses native `fetch` API
+- ✅ **End-to-End Type Safety**: Full TypeScript inference from server contracts
+- ✅ **Contract-based**: Shares types with server routes via RouteContract
+- ✅ **Zero Runtime Validation**: Types only, no schema validation overhead
+- ✅ **Path Parameters**: Automatic `:id` substitution
+- ✅ **Query Parameters**: Support for strings, numbers, arrays
+- ✅ **Timeout Control**: Built-in AbortController with configurable timeout
+- ✅ **Error Handling**: Structured ApiClientError with status codes
 - ✅ **Next.js Safe**: No server dependencies, safe for client components
-- ✅ **URL Parameters**: Automatic path parameter substitution
-- ✅ **REST Methods**: GET, POST, PATCH, DELETE support
-- ✅ **Environment-Aware**: Configurable base URL via env variables
+- ✅ **Minimal**: Uses native `fetch` API, zero dependencies
 
 ---
 
@@ -24,33 +27,90 @@ pnpm install @spfn/core
 ### Basic Usage
 
 ```typescript
-import { get, post, patch, del } from '@spfn/core/client';
+import { createClient } from '@spfn/core/client';
+import { getUserContract, createUserContract } from './contracts';
 
-// GET request
-const users = await get<User[]>('/users');
+// Create client instance
+const client = createClient({
+  baseUrl: 'http://localhost:4000'
+});
 
-// POST request
-const newUser = await post<CreateUserDto, User>('/users', {
+// GET request - fully typed from contract
+const user = await client.call('/users/:id', getUserContract, {
+  params: { id: '123' }
+});
+// ✅ user.name is typed based on contract.response
+
+// POST request - body and response typed
+const newUser = await client.call('/users', createUserContract, {
   body: { name: 'John', email: 'john@example.com' }
 });
-
-// PATCH request
-const updated = await patch<UpdateUserDto, User>('/users/:id', {
-  params: { id: '123' },
-  body: { name: 'Jane' }
-});
-
-// DELETE request
-await del('/users/:id', { params: { id: '123' } });
+// ✅ TypeScript validates body matches contract.body
+// ✅ newUser is typed from contract.response
 ```
 
 ---
 
-## Environment Configuration
+## Core Concepts
 
-### Base URL
+### Contract-based Type Safety
 
-Configure the API base URL using environment variables:
+The client integrates with your server-side `RouteContract` definitions for full type safety:
+
+```typescript
+// contracts/users.ts - Shared between client and server
+import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core';
+
+export const getUserContract = {
+  params: Type.Object({
+    id: Type.String()
+  }),
+  response: Type.Object({
+    id: Type.Number(),
+    name: Type.String(),
+    email: Type.String()
+  })
+} as const satisfies RouteContract;
+
+export const createUserContract = {
+  body: Type.Object({
+    name: Type.String(),
+    email: Type.String()
+  }),
+  response: Type.Object({
+    id: Type.Number(),
+    name: Type.String(),
+    email: Type.String()
+  })
+} as const satisfies RouteContract;
+```
+
+```typescript
+// client code - Full type safety
+import { createClient } from '@spfn/core/client';
+import { getUserContract, createUserContract } from './contracts';
+
+const client = createClient();
+
+// TypeScript knows the exact shape of user
+const user = await client.call('/users/:id', getUserContract, {
+  params: { id: '123' }
+});
+
+console.log(user.name); // ✅ TypeScript knows user.name is string
+console.log(user.unknown); // ❌ TypeScript error - property doesn't exist
+
+// TypeScript validates body structure
+const newUser = await client.call('/users', createUserContract, {
+  body: { name: 'John', email: 'john@example.com' } // ✅ Correct
+  // body: { name: 123 } // ❌ TypeScript error - wrong type
+});
+```
+
+### Environment Configuration
+
+Configure base URL via environment variables:
 
 ```bash
 # .env.local (Next.js)
@@ -66,199 +126,308 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 
 ## API Reference
 
-### `get<T>(url, options?)`
+### `createClient(config?)`
 
-Perform a GET request.
+Creates a new contract-based API client instance.
 
 ```typescript
-import { get } from '@spfn/core/client';
+import { createClient } from '@spfn/core/client';
 
-// Simple GET
-const users = await get<User[]>('/users');
-
-// With path parameters
-const user = await get<User>('/users/:id', {
-  params: { id: '123' }
+const client = createClient({
+  baseUrl: 'http://localhost:4000',
+  headers: {
+    'X-Custom-Header': 'value'
+  },
+  timeout: 30000 // 30 seconds
 });
 ```
 
 **Parameters:**
-- `url: string` - API endpoint (supports `:param` placeholders)
-- `options?: RequestOptions` - Optional request configuration
-  - `params?: Record<string, string>` - Path parameters for substitution
 
-**Returns:** `Promise<T>` - Typed response data
+- `config?: ClientConfig` - Optional configuration
+  - `baseUrl?: string` - API base URL (default: `process.env.NEXT_PUBLIC_API_URL` or `http://localhost:4000`)
+  - `headers?: Record<string, string>` - Default headers for all requests
+  - `timeout?: number` - Request timeout in milliseconds (default: 30000)
+  - `fetch?: typeof fetch` - Custom fetch implementation (for testing)
 
-**Throws:** `Error` if response is not OK (status >= 400)
-
----
-
-### `post<TRequest, TResponse>(url, options?)`
-
-Perform a POST request.
-
-```typescript
-import { post } from '@spfn/core/client';
-
-// Create user
-const newUser = await post<CreateUserDto, User>('/users', {
-  body: {
-    name: 'John Doe',
-    email: 'john@example.com'
-  }
-});
-
-// With path parameters
-const comment = await post<CreateCommentDto, Comment>('/posts/:id/comments', {
-  params: { id: '456' },
-  body: { text: 'Great post!' }
-});
-```
-
-**Parameters:**
-- `url: string` - API endpoint
-- `options?: RequestOptions<TRequest>` - Request configuration
-  - `params?: Record<string, string>` - Path parameters
-  - `body?: TRequest` - Request body (will be JSON stringified)
-
-**Returns:** `Promise<TResponse>` - Typed response data
+**Returns:** `ContractClient` instance
 
 ---
 
-### `patch<TRequest, TResponse>(url, options?)`
+### `client.call(path, contract, options?)`
 
-Perform a PATCH request.
+Makes a type-safe API request using a contract.
 
 ```typescript
-import { patch } from '@spfn/core/client';
-
-// Update user
-const updated = await patch<UpdateUserDto, User>('/users/:id', {
+const user = await client.call('/users/:id', getUserContract, {
   params: { id: '123' },
-  body: { name: 'Jane Doe' }
+  query: { include: 'posts' },
+  headers: { 'Authorization': 'Bearer token' }
 });
 ```
 
 **Parameters:**
-- `url: string` - API endpoint
-- `options?: RequestOptions<TRequest>` - Request configuration
 
-**Returns:** `Promise<TResponse>` - Typed response data
+- `path: string` - API endpoint (supports `:param` placeholders)
+- `contract: RouteContract` - Route contract defining request/response types
+- `options?: CallOptions<TContract>` - Request options
+  - `params?: Record<string, string | number>` - Path parameters for `:id` substitution
+  - `query?: Record<string, string | string[] | number | boolean>` - Query parameters
+  - `body?: InferContract<TContract>['body']` - Request body (typed from contract)
+  - `headers?: Record<string, string>` - Additional headers for this request
+  - `baseUrl?: string` - Override base URL for this request
+
+**Returns:** `Promise<InferContract<TContract>['response']>` - Typed response data
+
+**Throws:** `ApiClientError` if response is not OK (status >= 400)
 
 ---
 
-### `del<T>(url, options?)`
+### `client.withConfig(config)`
 
-Perform a DELETE request.
+Creates a new client with merged configuration. Useful for adding authentication tokens.
 
 ```typescript
-import { del } from '@spfn/core/client';
+const baseClient = createClient({ baseUrl: 'http://localhost:4000' });
 
-// Delete user
-await del('/users/:id', {
-  params: { id: '123' }
+// Create authenticated client
+const authClient = baseClient.withConfig({
+  headers: { 'Authorization': `Bearer ${token}` }
 });
 
-// With response data
-const deleted = await del<User>('/users/:id', {
-  params: { id: '123' }
-});
+// authClient inherits baseUrl and adds Authorization header
+const user = await authClient.call('/users/me', getUserContract);
 ```
 
 **Parameters:**
-- `url: string` - API endpoint
-- `options?: RequestOptions` - Request configuration
 
-**Returns:** `Promise<T>` - Typed response data
+- `config: Partial<ClientConfig>` - Configuration to merge
+
+**Returns:** New `ContractClient` instance with merged config
+
+---
+
+### `ApiClientError`
+
+Error class for failed API requests.
+
+```typescript
+try {
+  const user = await client.call('/users/:id', getUserContract, {
+    params: { id: '999' }
+  });
+} catch (error) {
+  if (error instanceof ApiClientError) {
+    console.log(error.status);      // 404
+    console.log(error.statusText);  // "Not Found"
+    console.log(error.url);         // "http://localhost:4000/users/999"
+    console.log(error.response);    // Error body from server
+    console.log(error.message);     // "GET /users/999 failed: 404 Not Found"
+  }
+}
+```
+
+**Properties:**
+
+- `status: number` - HTTP status code (0 for network errors)
+- `statusText: string` - HTTP status text
+- `url: string` - Full URL that was requested
+- `response?: unknown` - Parsed error response body (if available)
+- `message: string` - Human-readable error message
 
 ---
 
 ## Advanced Usage
 
-### Type Safety with Generics
-
-```typescript
-// Define your types
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
-interface CreateUserDto {
-  name: string;
-  email: string;
-}
-
-interface UpdateUserDto {
-  name?: string;
-  email?: string;
-}
-
-// Use with full type safety
-const user = await get<User>('/users/123');
-const created = await post<CreateUserDto, User>('/users', {
-  body: { name: 'John', email: 'john@example.com' }
-});
-```
-
 ### Path Parameter Substitution
+
+Automatic replacement of `:param` placeholders:
 
 ```typescript
 // Single parameter
-await get('/users/:id', { params: { id: '123' } });
-// → GET /users/123
+await client.call('/users/:id', contract, {
+  params: { id: '123' }
+});
+// → GET http://localhost:4000/users/123
 
 // Multiple parameters
-await get('/users/:userId/posts/:postId', {
+await client.call('/users/:userId/posts/:postId', contract, {
   params: { userId: '123', postId: '456' }
 });
-// → GET /users/123/posts/456
+// → GET http://localhost:4000/users/123/posts/456
 
-// Nested resources
-await post('/orgs/:orgId/teams/:teamId/members', {
-  params: { orgId: '1', teamId: '2' },
-  body: { userId: '3' }
+// Number parameters (auto-converted to string)
+await client.call('/users/:id', contract, {
+  params: { id: 123 }
 });
-// → POST /orgs/1/teams/2/members
+// → GET http://localhost:4000/users/123
 ```
 
-### Error Handling
+---
+
+### Query Parameters
+
+Supports strings, numbers, booleans, and arrays:
 
 ```typescript
-import { get } from '@spfn/core/client';
+// Simple query parameters
+await client.call('/users', listUsersContract, {
+  query: { page: '1', limit: '10' }
+});
+// → GET /users?page=1&limit=10
+
+// Array query parameters
+await client.call('/posts', listPostsContract, {
+  query: { tags: ['javascript', 'typescript'] }
+});
+// → GET /posts?tags=javascript&tags=typescript
+
+// Mixed types
+await client.call('/posts', listPostsContract, {
+  query: {
+    page: 1,              // number
+    featured: true,       // boolean
+    tags: ['js', 'ts']   // array
+  }
+});
+// → GET /posts?page=1&featured=true&tags=js&tags=ts
+```
+
+---
+
+### Request Body
+
+Automatically JSON-stringified and typed:
+
+```typescript
+const createUserContract = {
+  body: Type.Object({
+    name: Type.String(),
+    email: Type.String(),
+    age: Type.Optional(Type.Number())
+  }),
+  response: Type.Object({
+    id: Type.Number(),
+    name: Type.String()
+  })
+} as const satisfies RouteContract;
+
+// TypeScript validates body structure
+const user = await client.call('/users', createUserContract, {
+  body: {
+    name: 'John Doe',
+    email: 'john@example.com',
+    age: 30
+  }
+});
+// ✅ Body is validated by TypeScript
+// ✅ Automatically sets Content-Type: application/json
+// ✅ Automatically JSON.stringify()
+```
+
+---
+
+### Custom Headers
+
+```typescript
+// Default headers for all requests
+const client = createClient({
+  headers: {
+    'X-API-Key': 'secret',
+    'X-Client-Version': '1.0.0'
+  }
+});
+
+// Override or add headers per request
+await client.call('/users', contract, {
+  headers: {
+    'X-Request-ID': 'abc123',
+    'Authorization': 'Bearer token'
+  }
+});
+// Headers are merged: X-API-Key, X-Client-Version, X-Request-ID, Authorization
+```
+
+---
+
+### Timeout Control
+
+```typescript
+// Default timeout: 30 seconds
+const client = createClient({ timeout: 30000 });
+
+// Custom timeout per client
+const fastClient = createClient({ timeout: 5000 }); // 5 seconds
 
 try {
-  const user = await get<User>('/users/123');
+  const data = await fastClient.call('/slow-endpoint', contract);
 } catch (error) {
-  if (error instanceof Error) {
-    console.error('Request failed:', error.message);
-    // Example: "GET /users/123 failed: 404"
+  if (error instanceof ApiClientError && error.statusText === 'Timeout') {
+    console.log('Request timed out after 5 seconds');
   }
 }
 ```
 
-### Next.js Integration
+---
+
+### Error Handling
+
+```typescript
+import { ApiClientError } from '@spfn/core/client';
+
+try {
+  const user = await client.call('/users/:id', getUserContract, {
+    params: { id: '123' }
+  });
+} catch (error) {
+  if (error instanceof ApiClientError) {
+    // HTTP errors (4xx, 5xx)
+    if (error.status === 404) {
+      console.log('User not found');
+    } else if (error.status === 401) {
+      console.log('Unauthorized - redirect to login');
+    } else if (error.status >= 500) {
+      console.log('Server error - try again later');
+    }
+
+    // Network errors
+    if (error.status === 0) {
+      console.log('Network error - check connection');
+    }
+
+    // Access error details
+    console.log(error.response); // Server error body
+  }
+}
+```
+
+---
+
+## Integration Examples
+
+### Next.js App Router
 
 ```typescript
 'use client';
 
-import { get, post } from '@spfn/core/client';
+import { createClient } from '@spfn/core/client';
+import { getUsersContract } from '@/contracts/users';
 import { useState, useEffect } from 'react';
 
+const client = createClient(); // Uses NEXT_PUBLIC_API_URL
+
 export function UserList() {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<InferContract<typeof getUsersContract>['response']>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    get<User[]>('/users').then(setUsers);
+    client.call('/users', getUsersContract)
+      .then(setUsers)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  const handleCreate = async (data: CreateUserDto) => {
-    const newUser = await post<CreateUserDto, User>('/users', {
-      body: data
-    });
-    setUsers([...users, newUser]);
-  };
+  if (loading) return <div>Loading...</div>;
 
   return (
     <div>
@@ -270,116 +439,301 @@ export function UserList() {
 }
 ```
 
+---
+
 ### React Query Integration
 
 ```typescript
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { get, post } from '@spfn/core/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { createClient } from '@spfn/core/client';
+import { getUsersContract, createUserContract } from '@/contracts/users';
 
-// Fetch users
-function useUsers() {
+const client = createClient();
+
+// Query hook
+export function useUsers() {
   return useQuery({
     queryKey: ['users'],
-    queryFn: () => get<User[]>('/users')
+    queryFn: () => client.call('/users', getUsersContract)
   });
 }
 
-// Create user mutation
-function useCreateUser() {
+// Mutation hook
+export function useCreateUser() {
+  const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: (data: CreateUserDto) =>
-      post<CreateUserDto, User>('/users', { body: data })
+    mutationFn: (data: InferContract<typeof createUserContract>['body']) =>
+      client.call('/users', createUserContract, { body: data }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    }
   });
+}
+
+// Component usage
+function UserManager() {
+  const { data: users, isLoading } = useUsers();
+  const createUser = useCreateUser();
+
+  const handleCreate = () => {
+    createUser.mutate({
+      name: 'New User',
+      email: 'new@example.com'
+    });
+  };
+
+  return (
+    <div>
+      {users?.map(user => <div key={user.id}>{user.name}</div>)}
+      <button onClick={handleCreate}>Create User</button>
+    </div>
+  );
 }
 ```
 
 ---
 
-## Use Cases
-
-### RESTful API Client
+### Service Layer Pattern
 
 ```typescript
+import { createClient, type ContractClient } from '@spfn/core/client';
+import type { InferContract } from '@spfn/core';
+import {
+  getUsersContract,
+  getUserContract,
+  createUserContract,
+  updateUserContract,
+  deleteUserContract
+} from '@/contracts/users';
+
 class UserService {
+  constructor(private client: ContractClient) {}
+
   async getAll() {
-    return get<User[]>('/users');
+    return this.client.call('/users', getUsersContract);
   }
 
   async getById(id: string) {
-    return get<User>('/users/:id', { params: { id } });
+    return this.client.call('/users/:id', getUserContract, {
+      params: { id }
+    });
   }
 
-  async create(data: CreateUserDto) {
-    return post<CreateUserDto, User>('/users', { body: data });
+  async create(data: InferContract<typeof createUserContract>['body']) {
+    return this.client.call('/users', createUserContract, {
+      body: data
+    });
   }
 
-  async update(id: string, data: UpdateUserDto) {
-    return patch<UpdateUserDto, User>('/users/:id', {
+  async update(id: string, data: InferContract<typeof updateUserContract>['body']) {
+    return this.client.call('/users/:id', updateUserContract, {
       params: { id },
       body: data
     });
   }
 
   async delete(id: string) {
-    return del('/users/:id', { params: { id } });
+    return this.client.call('/users/:id', deleteUserContract, {
+      params: { id }
+    });
   }
 }
 
-export const userService = new UserService();
+// Export singleton instance
+export const userService = new UserService(createClient());
+
+// Usage
+const users = await userService.getAll();
+const user = await userService.getById('123');
 ```
 
-### Form Submission
+---
+
+### Authentication Pattern
 
 ```typescript
-async function handleSubmit(formData: FormData) {
-  const data = {
-    name: formData.get('name') as string,
-    email: formData.get('email') as string
+import { createClient } from '@spfn/core/client';
+
+// Base client (public endpoints)
+const publicClient = createClient({
+  baseUrl: process.env.NEXT_PUBLIC_API_URL
+});
+
+// Create authenticated client factory
+export function createAuthClient(token: string) {
+  return publicClient.withConfig({
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+}
+
+// Usage in React component
+function ProtectedComponent() {
+  const token = useAuthToken(); // Your auth hook
+  const authClient = createAuthClient(token);
+
+  const fetchPrivateData = async () => {
+    const data = await authClient.call('/private/data', contract);
+    return data;
   };
 
+  // ...
+}
+```
+
+---
+
+## Comparison with Simple HTTP Client
+
+### Before (Manual typing)
+
+```typescript
+// ❌ No type safety, manual typing
+const response = await fetch('http://localhost:4000/users/123');
+const user: User = await response.json(); // Manual typing, no validation
+
+// ❌ Manual parameter substitution
+const userId = '123';
+const url = `http://localhost:4000/users/${userId}`;
+
+// ❌ Manual error handling
+if (!response.ok) {
+  throw new Error('Failed');
+}
+```
+
+### After (Contract-based)
+
+```typescript
+// ✅ Full type safety from contract
+const user = await client.call('/users/:id', getUserContract, {
+  params: { id: '123' }
+});
+// TypeScript knows exact type of user
+
+// ✅ Automatic parameter substitution
+// ✅ Automatic error handling with ApiClientError
+// ✅ Timeout control
+// ✅ Header management
+```
+
+---
+
+## Best Practices
+
+### 1. Share Contracts Between Client and Server
+
+```typescript
+// ✅ Good - Single source of truth
+// contracts/users.ts (shared)
+export const getUserContract = {
+  params: Type.Object({ id: Type.String() }),
+  response: Type.Object({ id: Type.Number(), name: Type.String() })
+} as const satisfies RouteContract;
+
+// server/routes/users/[id].ts
+import { getUserContract } from '@/contracts/users';
+app.get('/', bind(getUserContract, handler));
+
+// client/services/users.ts
+import { getUserContract } from '@/contracts/users';
+const user = await client.call('/users/:id', getUserContract, { params: { id } });
+```
+
+### 2. Use Service Layer
+
+```typescript
+// ✅ Good - Encapsulate API calls
+class UserService {
+  constructor(private client: ContractClient) {}
+  async getById(id: string) { /* ... */ }
+}
+export const userService = new UserService(createClient());
+
+// ❌ Bad - Direct client calls everywhere
+const user = await client.call('/users/:id', contract, { params: { id } });
+```
+
+### 3. Handle Errors Consistently
+
+```typescript
+// ✅ Good - Centralized error handling
+async function safeApiCall<T>(fn: () => Promise<T>): Promise<T | null> {
   try {
-    const user = await post<CreateUserDto, User>('/users', {
-      body: data
-    });
-    console.log('User created:', user);
+    return await fn();
   } catch (error) {
-    console.error('Failed to create user:', error);
+    if (error instanceof ApiClientError) {
+      if (error.status === 401) {
+        redirectToLogin();
+      } else {
+        showErrorToast(error.message);
+      }
+    }
+    return null;
   }
 }
+
+// Usage
+const user = await safeApiCall(() =>
+  client.call('/users/:id', contract, { params: { id } })
+);
+```
+
+### 4. Use withConfig for Auth
+
+```typescript
+// ✅ Good - Reusable authenticated client
+const authClient = baseClient.withConfig({
+  headers: { Authorization: `Bearer ${token}` }
+});
+
+// ❌ Bad - Repeat auth header everywhere
+await client.call('/endpoint', contract, {
+  headers: { Authorization: `Bearer ${token}` }
+});
 ```
 
 ---
 
 ## Limitations
 
-### No Request Interceptors
-
-This is a minimal client. For advanced features like:
-- Request/response interceptors
-- Automatic retries
-- Request cancellation
-- Upload progress
-
-Consider using a full-featured library like `axios` or `ky`.
-
-### No Query Parameters
-
-Currently only supports path parameters. For query strings:
-
-```typescript
-// Manual query string construction
-const params = new URLSearchParams({ page: '1', limit: '10' });
-const users = await get<User[]>(`/users?${params}`);
-```
-
 ### JSON Only
 
-Only supports JSON request/response bodies. For FormData or other content types, use native `fetch` directly.
+Only supports JSON request/response bodies. For other content types (FormData, Blob, etc.), use native `fetch`:
+
+```typescript
+// Use native fetch for file uploads
+const formData = new FormData();
+formData.append('file', file);
+await fetch('/api/upload', { method: 'POST', body: formData });
+```
+
+### No Interceptors
+
+For advanced features like request/response interceptors, consider wrapping the client or using libraries like `axios` or `ky`.
+
+### No Request Cancellation API
+
+Uses AbortController internally for timeout, but doesn't expose cancellation API. For manual cancellation:
+
+```typescript
+const controller = new AbortController();
+const customFetch = (url: RequestInfo, init?: RequestInit) =>
+  fetch(url, { ...init, signal: controller.signal });
+
+const client = createClient({ fetch: customFetch });
+
+// Later: controller.abort();
+```
 
 ---
 
 ## Related
 
-- [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) - Native browser API
-- [Next.js Client Components](https://nextjs.org/docs/app/building-your-application/rendering/client-components) - Safe for client-side use
-- [@spfn/core](../../README.md) - Main package documentation
+- [RouteContract Type Reference](../route/types.ts) - Contract type definitions
+- [Server Route Binding](../route/README.md) - Server-side bind() function
+- [Next.js Client Components](https://nextjs.org/docs/app/building-your-application/rendering/client-components)
+- [TypeBox Schema](https://github.com/sinclairzx81/typebox) - Schema definitions
+- [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)

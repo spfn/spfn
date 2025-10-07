@@ -33,3 +33,7 @@ export { Repository } from './repository.js';
 
 // Schema Helpers
 export { id, timestamps, foreignKey, optionalForeignKey } from './schema-helpers.js';
+
+// Transaction
+export { Transactional, getTransaction, runWithTransaction } from './transaction/index.js';
+export type { TransactionContext, TransactionDB, TransactionalOptions } from './transaction/index.js';

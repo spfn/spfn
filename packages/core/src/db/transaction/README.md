@@ -1,12 +1,15 @@
-# Utils Module
+# Transaction Module
 
-Utility functions for SPFN framework, including transaction management and async context handling.
+Database transaction management with AsyncLocalStorage-based propagation.
 
 ## Import
 
 ```ts
-import { Transactional, getTransaction, runWithTransaction } from '@spfn/core/utils';
-import type { TransactionContext, TransactionalOptions } from '@spfn/core/utils';
+import { Transactional, getTransaction, runWithTransaction } from '@spfn/core/db/transaction';
+import type { TransactionContext, TransactionalOptions } from '@spfn/core/db/transaction';
+
+// or from @spfn/core
+import { Transactional, getTransaction, runWithTransaction } from '@spfn/core';
 ```
 
 ## Transaction Middleware
@@ -27,7 +30,7 @@ Hono middleware that automatically wraps route handlers in database transactions
 
 ```ts
 // In your route file (e.g., routes/users/POST.ts)
-import { Transactional } from '@spfn/core/utils';
+import { Transactional } from '@spfn/core';
 import type { RouteContext } from '@spfn/core/route';
 
 export const middlewares = [Transactional()];
@@ -159,7 +162,7 @@ When `enableLogging: true` (default), the middleware logs:
 Get the current transaction from AsyncLocalStorage.
 
 ```ts
-import { getTransaction } from '@spfn/core/utils';
+import { getTransaction } from '@spfn/core';
 
 export async function POST(c: RouteContext) {
   const tx = getTransaction();
@@ -185,8 +188,8 @@ export async function POST(c: RouteContext) {
 Run a function within a transaction context.
 
 ```ts
-import { runWithTransaction } from '@spfn/core/utils';
-import type { TransactionDB } from '@spfn/core/utils';
+import { runWithTransaction } from '@spfn/core';
+import type { TransactionDB } from '@spfn/core';
 
 async function myFunction(tx: TransactionDB) {
   await runWithTransaction(tx, async () => {
@@ -218,8 +221,7 @@ async function myFunction(tx: TransactionDB) {
 If you need more control than the middleware provides:
 
 ```ts
-import { db } from '@spfn/core/db';
-import { runWithTransaction } from '@spfn/core/utils';
+import { db, runWithTransaction } from '@spfn/core';
 
 export async function POST(c: RouteContext) {
   try {
@@ -267,8 +269,7 @@ Use `runWithTransaction` in tests:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { db } from '@spfn/core/db';
-import { runWithTransaction } from '@spfn/core/utils';
+import { db, runWithTransaction } from '@spfn/core';
 
 describe('User creation', () => {
   it('should create user and profile', async () => {
