@@ -9,7 +9,7 @@
  * @generated {{TIMESTAMP}}
  */
 import { createApp } from '@spfn/core/route';
-import { {{ENTITY_NAME_CAMEL}}Repository } from '../../repositories/{{ENTITY_NAME}}.repository.js';
+import { get{{ENTITY_NAME_PASCAL}}Repository } from '../../repositories/{{ENTITY_NAME}}.repository.js';
 import {
     get{{ENTITY_NAME_PASCAL}}ListContract,
     create{{ENTITY_NAME_PASCAL_SINGULAR}}Contract
@@ -23,7 +23,8 @@ const app = createApp();
 app.bind(get{{ENTITY_NAME_PASCAL}}ListContract, async (c) => {
     const { page = 1, limit = 10 } = c.query;
 
-    const result = await {{ENTITY_NAME_CAMEL}}Repository.findPage({
+    const repo = get{{ENTITY_NAME_PASCAL}}Repository();
+    const result = await repo.findPage({
         pagination: { page, limit }
     });
 
@@ -35,7 +36,8 @@ app.bind(get{{ENTITY_NAME_PASCAL}}ListContract, async (c) => {
  */
 app.bind(create{{ENTITY_NAME_PASCAL_SINGULAR}}Contract, async (c) => {
     const body = await c.data();
-    const new{{ENTITY_NAME_PASCAL_SINGULAR}} = await {{ENTITY_NAME_CAMEL}}Repository.create(body);
+    const repo = get{{ENTITY_NAME_PASCAL}}Repository();
+    const new{{ENTITY_NAME_PASCAL_SINGULAR}} = await repo.save(body);
     return c.json(new{{ENTITY_NAME_PASCAL_SINGULAR}}, 201);
 });
 

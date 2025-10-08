@@ -49,13 +49,12 @@ async function testInit() {
 
     spinner.succeed('Cleaned existing SPFN files');
 
-    // 3. Install peer dependencies first
+    // 3. Install peer dependencies first (excluding drizzle-orm which comes from @spfn/core)
     spinner.start('Installing peer dependencies...');
 
     const peerDependencies = [
         'hono',
         '@hono/node-server',
-        'drizzle-orm',
         'postgres',
         '@sinclair/typebox',
     ];
