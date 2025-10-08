@@ -1,0 +1,56 @@
+/**
+ * {{ENTITY_NAME_PASCAL}} Routes - Item Endpoints
+ *
+ * Generated from entity: {{ENTITY_NAME}}
+ *
+ * Handles item operations: get, update, delete by ID
+ * Uses Repository pattern for database operations
+ *
+ * @generated {{TIMESTAMP}}
+ */
+import { createApp } from '@spfn/core/route';
+import { NotFoundError } from '@spfn/core';
+import { {{ENTITY_NAME_CAMEL}}Repository } from '../../../repositories/{{ENTITY_NAME}}.repository.js';
+import {
+    get{{ENTITY_NAME_PASCAL_SINGULAR}}Contract,
+    update{{ENTITY_NAME_PASCAL_SINGULAR}}Contract,
+    delete{{ENTITY_NAME_PASCAL_SINGULAR}}Contract
+} from './contract.js';
+
+const app = createApp();
+
+/**
+ * GET /{{ENTITY_NAME}}/:id - Get {{ENTITY_NAME_SINGULAR}} by ID
+ */
+app.bind(get{{ENTITY_NAME_PASCAL_SINGULAR}}Contract, async (c) => {
+    const { id } = c.params;
+    const {{ENTITY_NAME_SINGULAR}} = await {{ENTITY_NAME_CAMEL}}Repository.findById(Number(id));
+
+    if (!{{ENTITY_NAME_SINGULAR}}) {
+        throw new NotFoundError('{{ENTITY_NAME_PASCAL_SINGULAR}}', id);
+    }
+
+    return c.json({{ENTITY_NAME_SINGULAR}});
+});
+
+/**
+ * PUT /{{ENTITY_NAME}}/:id - Update {{ENTITY_NAME_SINGULAR}}
+ */
+app.bind(update{{ENTITY_NAME_PASCAL_SINGULAR}}Contract, async (c) => {
+    const { id } = c.params;
+    const body = await c.data();
+
+    const updated = await {{ENTITY_NAME_CAMEL}}Repository.update(Number(id), body);
+    return c.json(updated);
+});
+
+/**
+ * DELETE /{{ENTITY_NAME}}/:id - Delete {{ENTITY_NAME_SINGULAR}}
+ */
+app.bind(delete{{ENTITY_NAME_PASCAL_SINGULAR}}Contract, async (c) => {
+    const { id } = c.params;
+    await {{ENTITY_NAME_CAMEL}}Repository.delete(Number(id));
+    return c.json({ success: true });
+});
+
+export default app;

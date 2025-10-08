@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { devCommand } from './commands/dev.js';
 import { startCommand } from './commands/start.js';
+import { generateCommand } from './commands/generate.js';
 import {
     dbGenerate,
     dbPush,
@@ -22,6 +23,7 @@ program
 program.addCommand(initCommand);
 program.addCommand(devCommand);
 program.addCommand(startCommand);
+program.addCommand(generateCommand);
 
 // Database commands
 const dbCommand = new Command('db')

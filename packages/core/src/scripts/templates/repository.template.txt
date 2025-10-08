@@ -1,0 +1,53 @@
+/**
+ * {{ENTITY_NAME_PASCAL}} Repository
+ *
+ * Generated from entity: {{ENTITY_NAME}}
+ *
+ * This file provides a type-safe repository for {{ENTITY_NAME}} CRUD operations.
+ * Extends BaseRepository for standard operations, add custom methods as needed.
+ *
+ * @generated {{TIMESTAMP}}
+ */
+import { BaseRepository } from '@spfn/core/db';
+import { eq } from 'drizzle-orm';
+import { {{ENTITY_NAME}}, type {{TYPE_SELECT}}, type {{TYPE_INSERT}} } from '../entities/{{ENTITY_NAME}}.js';
+
+/**
+ * Repository for {{ENTITY_NAME}} table operations
+ *
+ * Inherited methods from BaseRepository:
+ * - findById(id: number): Promise<{{TYPE_SELECT}} | undefined>
+ * - findAll(options?): Promise<{{TYPE_SELECT}}[]>
+ * - findPage(options): Promise<{ items: {{TYPE_SELECT}}[], total: number, page: number, limit: number }>
+ * - create(data: {{TYPE_INSERT}}): Promise<{{TYPE_SELECT}}>
+ * - update(id: number, data: Partial<{{TYPE_INSERT}}>): Promise<{{TYPE_SELECT}}>
+ * - delete(id: number): Promise<void>
+ */
+export class {{ENTITY_NAME_PASCAL}}Repository extends BaseRepository<
+    typeof {{ENTITY_NAME}},
+    {{TYPE_SELECT}},
+    {{TYPE_INSERT}}
+> {
+    constructor() {
+        super({{ENTITY_NAME}});
+    }
+
+    /**
+     * Add custom repository methods here
+     *
+     * Example:
+     * async findByEmail(email: string): Promise<{{TYPE_SELECT}} | undefined> {
+     *     const db = await this.getDb();
+     *     const [result] = await db
+     *         .select()
+     *         .from({{ENTITY_NAME}})
+     *         .where(eq({{ENTITY_NAME}}.email, email));
+     *     return result;
+     * }
+     */
+}
+
+/**
+ * Singleton instance - import this in your routes
+ */
+export const {{ENTITY_NAME_CAMEL}}Repository = new {{ENTITY_NAME_PASCAL}}Repository();
