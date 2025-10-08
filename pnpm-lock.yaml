@@ -220,8 +220,11 @@ importers:
         specifier: ^17.2.3
         version: 17.2.3
       drizzle-orm:
-        specifier: ^0.44.0
+        specifier: ^0.44.6
         version: 0.44.6(gel@2.1.1)(postgres@3.4.7)
+      drizzle-typebox:
+        specifier: ^0.1.0
+        version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.44.6(gel@2.1.1)(postgres@3.4.7))
       hono:
         specifier: ^4.9.0
         version: 4.9.9
@@ -1987,6 +1990,12 @@ packages:
         optional: true
       sqlite3:
         optional: true
+
+  drizzle-typebox@0.1.1:
+    resolution: {integrity: sha512-eNIDe+EOCB96/bbRHOPbrC+bsuCXFd2H0/96Fl0cJkY+NKnu2qLTnGI6ILXPbyu82Yr1tsShlzDypw+VeCDqaQ==}
+    peerDependencies:
+      '@sinclair/typebox': '>=0.17.6'
+      drizzle-orm: '>=0.23.13'
 
   drizzle-typebox@0.3.3:
     resolution: {integrity: sha512-iJpW9K+BaP8+s/ImHxOFVjoZk9G5N/KXFTOpWcFdz9SugAOWv2fyGaH7FmqgdPo+bVNYQW0OOI3U9dkFIVY41w==}
@@ -4747,6 +4756,11 @@ snapshots:
     optionalDependencies:
       gel: 2.1.1
       postgres: 3.4.7
+
+  drizzle-typebox@0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.44.6(gel@2.1.1)(postgres@3.4.7)):
+    dependencies:
+      '@sinclair/typebox': 0.34.41
+      drizzle-orm: 0.44.6(gel@2.1.1)(postgres@3.4.7)
 
   drizzle-typebox@0.3.3(@sinclair/typebox@0.34.41)(drizzle-orm@0.44.6(gel@2.1.1)(postgres@3.4.7)):
     dependencies:
