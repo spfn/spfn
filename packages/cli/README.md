@@ -29,10 +29,13 @@ npx @spfn/cli init
 **What it does:**
 
 1. ✅ Installs dependencies (@spfn/core, hono, drizzle-orm, etc.)
-2. ✅ Creates `src/server/` directory structure
-3. ✅ Adds example routes and entities
-4. ✅ Updates package.json scripts
-5. ✅ Creates .env.local.example
+2. ✅ Creates `src/server/` directory structure with:
+   - `routes/` - API routes using createApp() pattern
+   - `contracts/` - TypeBox validation schemas
+   - `entities/` - Drizzle ORM schemas
+3. ✅ Adds SPFN-specific scripts to package.json (preserves your existing scripts)
+4. ✅ Creates .env.local.example with default ports (3790/8790)
+5. ✅ Copies .guide/ directory for Claude Code documentation
 
 **Options:**
 - `-y, --yes` - Skip all prompts
@@ -51,12 +54,12 @@ spfn dev
 
 **Features:**
 - 🔍 Auto-detects Next.js
-- 🚀 Runs both Next.js (3000) + Hono (4000) servers
+- 🚀 Runs both Next.js (3790) + Hono (8790) servers
 - 🔥 Hot reload for backend routes
 - 📊 Colored output with process names
 
 **Options:**
-- `-p, --port <port>` - Server port (default: 4000)
+- `-p, --port <port>` - Server port (default: 8790)
 - `-h, --host <host>` - Server host (default: localhost)
 - `--server-only` - Run only Hono server (skip Next.js)
 
@@ -80,7 +83,7 @@ spfn start
 ```
 
 **Options:**
-- `-p, --port <port>` - Server port (default: 4000)
+- `-p, --port <port>` - Server port (default: 8790)
 - `-h, --host <host>` - Server host (default: 0.0.0.0)
 
 ---
@@ -158,20 +161,20 @@ export default async function configure(app: Hono) {
 
 ## Generated Scripts
 
-After `spfn init`:
+After `spfn init`, these scripts are **added** to your package.json (existing scripts are preserved):
 
 ```json
 {
   "scripts": {
-    "dev": "spfn dev",                    // Next.js + Hono
-    "dev:next": "next dev",               // Next.js only
-    "dev:server": "spfn dev --server-only", // Hono only
-    "build": "next build",
-    "start": "next start",
-    "start:server": "spfn start"
+    "spfn:dev": "spfn dev",                      // Next.js + Hono
+    "spfn:server": "spfn dev --server-only",     // Hono only (8790)
+    "spfn:next": "next dev --turbo --port 3790", // Next.js only (3790)
+    "spfn:start": "spfn start"                   // Production Hono
   }
 }
 ```
+
+**Note:** Your existing scripts like `dev`, `build`, `start` are **not modified**.
 
 ---
 
@@ -222,8 +225,9 @@ After running `spfn init`:
    ```
 
 3. **Visit your API:**
-   - Health check: http://localhost:4000/health
-   - Example route: http://localhost:4000/examples
+   - Next.js app: http://localhost:3790
+   - Health check: http://localhost:8790/health
+   - Example route: http://localhost:8790/examples
 
 4. **Create your first route:**
    ```typescript
@@ -240,7 +244,9 @@ After running `spfn init`:
 ## Requirements
 
 - Node.js >= 18
-- Next.js project (optional - works standalone too)
+- Next.js 15+ with App Router (Opinionated approach)
+- src/ directory structure
+- Turbopack recommended
 
 ## Development Notes
 
