@@ -7,6 +7,7 @@
 export { scanContracts } from './contract-scanner.js';
 export { groupByResource } from './route-scanner.js';
 export { generateClient } from './client-generator.js';
+export { watchAndGenerate } from './watch-generate.js';
 
 // Legacy exports (deprecated)
 export { scanRouteContracts } from './route-scanner.js';

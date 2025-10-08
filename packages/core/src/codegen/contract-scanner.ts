@@ -11,14 +11,14 @@ import { readFileSync } from 'fs';
 import type { RouteContractMapping, HttpMethod } from './types.js';
 
 /**
- * Scan contracts directory and extract contract exports
+ * Scan routes directory for contract.ts files and extract contract exports
  *
- * @param contractsDir - Path to server/contracts directory
+ * @param routesDir - Path to server/routes directory
  * @returns Array of contract-to-route mappings
  */
-export async function scanContracts(contractsDir: string): Promise<RouteContractMapping[]>
+export async function scanContracts(routesDir: string): Promise<RouteContractMapping[]>
 {
-    const contractFiles = await scanContractFiles(contractsDir);
+    const contractFiles = await scanContractFiles(routesDir);
     const mappings: RouteContractMapping[] = [];
 
     for (let i = 0; i < contractFiles.length; i++)
@@ -26,15 +26,21 @@ export async function scanContracts(contractsDir: string): Promise<RouteContract
         const filePath = contractFiles[i];
         const exports = extractContractExports(filePath);
 
+        // Calculate base path from file location: routes/posts/contract.ts → /posts
+        const basePath = getBasePathFromFile(filePath, routesDir);
+
         for (let j = 0; j < exports.length; j++)
         {
             const contractExport = exports[j];
 
+            // Combine base path with contract path: /posts + / → /posts
+            const fullPath = combinePaths(basePath, contractExport.path);
+
             mappings.push({
                 method: contractExport.method,
-                path: contractExport.path,
+                path: fullPath,
                 contractName: contractExport.name,
-                contractImportPath: getImportPath(filePath, contractsDir),
+                contractImportPath: getImportPathFromRoutes(filePath, routesDir),
                 routeFile: '', // Not needed anymore
                 contractFile: filePath
             });
@@ -45,7 +51,7 @@ export async function scanContracts(contractsDir: string): Promise<RouteContract
 }
 
 /**
- * Recursively scan for TypeScript files in contracts directory
+ * Recursively scan for contract.ts files in routes directory
  */
 async function scanContractFiles(dir: string, files: string[] = []): Promise<string[]>
 {
@@ -63,7 +69,7 @@ async function scanContractFiles(dir: string, files: string[] = []): Promise<str
             {
                 await scanContractFiles(fullPath, files);
             }
-            else if (entry.endsWith('.ts') && !entry.endsWith('.test.ts'))
+            else if (entry === 'contract.ts')
             {
                 files.push(fullPath);
             }
@@ -178,13 +184,33 @@ function extractContractData(objectLiteral: ts.ObjectLiteralExpression): {
         {
             const propName = prop.name.text;
 
-            if (propName === 'method' && ts.isStringLiteral(prop.initializer))
+            if (propName === 'method')
             {
-                result.method = prop.initializer.text as HttpMethod;
+                // Handle both 'GET' and 'GET' as const
+                let value: string | undefined;
+                if (ts.isStringLiteral(prop.initializer))
+                {
+                    value = prop.initializer.text;
+                }
+                else if (ts.isAsExpression(prop.initializer) && ts.isStringLiteral(prop.initializer.expression))
+                {
+                    value = prop.initializer.expression.text;
+                }
+                if (value) result.method = value as HttpMethod;
             }
-            else if (propName === 'path' && ts.isStringLiteral(prop.initializer))
+            else if (propName === 'path')
             {
-                result.path = prop.initializer.text;
+                // Handle both '/path' and '/path' as const
+                let value: string | undefined;
+                if (ts.isStringLiteral(prop.initializer))
+                {
+                    value = prop.initializer.text;
+                }
+                else if (ts.isAsExpression(prop.initializer) && ts.isStringLiteral(prop.initializer.expression))
+                {
+                    value = prop.initializer.expression.text;
+                }
+                if (value) result.path = value;
             }
         }
     }
@@ -206,17 +232,121 @@ function isContractName(name: string): boolean
 }
 
 /**
- * Get import path relative to contracts directory
+ * Get base URL path from contract file location
  *
  * @example
- * filePath: /path/to/server/contracts/users/create.ts
- * contractsDir: /path/to/server/contracts
- * returns: @/server/contracts/users/create
+ * routes/posts/contract.ts → /posts
+ * routes/users/[id]/contract.ts → /users/:id
+ * routes/index/contract.ts → /
  */
-function getImportPath(filePath: string, contractsDir: string): string
+function getBasePathFromFile(filePath: string, routesDir: string): string
 {
-    // Get relative path from contracts dir
-    let relativePath = filePath.replace(contractsDir, '');
+    // Get relative path from routes dir
+    let relativePath = filePath.replace(routesDir, '');
+
+    // Remove leading slash
+    if (relativePath.startsWith('/'))
+    {
+        relativePath = relativePath.slice(1);
+    }
+
+    // Remove /contract.ts
+    relativePath = relativePath.replace('/contract.ts', '');
+
+    // Handle index → /
+    if (relativePath === 'index' || relativePath === '')
+    {
+        return '/';
+    }
+
+    // Split into segments
+    const segments = relativePath.split('/');
+    const transformed: string[] = [];
+
+    for (let i = 0; i < segments.length; i++)
+    {
+        const seg = segments[i];
+
+        // Skip 'index' segments (routes/index/contract.ts → /, routes/posts/index/contract.ts → /posts)
+        if (seg === 'index')
+        {
+            continue;
+        }
+
+        // Dynamic parameter: [id] → :id
+        if (seg.startsWith('[') && seg.endsWith(']'))
+        {
+            transformed.push(':' + seg.slice(1, -1));
+        }
+        // Static segment
+        else
+        {
+            transformed.push(seg);
+        }
+    }
+
+    // If no segments remain, return root
+    if (transformed.length === 0)
+    {
+        return '/';
+    }
+
+    return '/' + transformed.join('/');
+}
+
+/**
+ * Combine base path with contract path
+ *
+ * @example
+ * combinePaths('/posts', '/') → /posts
+ * combinePaths('/posts', '/:id') → /posts/:id
+ * combinePaths('/', '/health') → /health
+ */
+function combinePaths(basePath: string, contractPath: string): string
+{
+    // Normalize paths
+    basePath = basePath || '/';
+    contractPath = contractPath || '/';
+
+    // Remove trailing slash from base
+    if (basePath.endsWith('/') && basePath !== '/')
+    {
+        basePath = basePath.slice(0, -1);
+    }
+
+    // If contract path is absolute, use it as is
+    if (contractPath.startsWith('/') && contractPath !== '/')
+    {
+        // If base is /, just use contract path
+        if (basePath === '/')
+        {
+            return contractPath;
+        }
+        // Otherwise combine: /posts + /sub → /posts/sub
+        return basePath + contractPath;
+    }
+
+    // Contract path is / or relative
+    if (contractPath === '/')
+    {
+        return basePath;
+    }
+
+    // Combine: /posts + id → /posts/id
+    return basePath + '/' + contractPath;
+}
+
+/**
+ * Get import path for contract file
+ *
+ * @example
+ * routes/posts/contract.ts → @/server/routes/posts/contract
+ * routes/users/[id]/contract.ts → @/server/routes/users/[id]/contract
+ */
+function getImportPathFromRoutes(filePath: string, routesDir: string): string
+{
+    // Get relative path from routes dir
+    let relativePath = filePath.replace(routesDir, '');
 
     // Remove leading slash
     if (relativePath.startsWith('/'))
@@ -231,5 +361,5 @@ function getImportPath(filePath: string, contractsDir: string): string
     }
 
     // Return as module path
-    return '@/server/contracts/' + relativePath;
+    return '@/server/routes/' + relativePath;
 }

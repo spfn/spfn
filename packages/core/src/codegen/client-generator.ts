@@ -163,7 +163,9 @@ function groupContractsByImportPath(mappings: RouteContractMapping[]): Record<st
  */
 function generateClientInstance(options: ClientGenerationOptions): string
 {
-    const baseUrl = options.baseUrl || 'process.env.NEXT_PUBLIC_API_URL || \'http://localhost:4000\'';
+    const baseUrl = options.baseUrl
+        ? `'${options.baseUrl}'`
+        : 'process.env.NEXT_PUBLIC_API_URL || \'http://localhost:4000\'';
 
     return `/**
  * API client instance

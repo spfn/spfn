@@ -29,21 +29,17 @@ app.bind(getUserContract, async (c) => {
 ```
 
 ### End-to-End Type Safety
-From backend to frontend with auto-generated clients:
+Auto-generated clients from co-located contracts:
 ```typescript
-// Auto-generated client from contracts
-import { api } from './generated/client';
+// Client auto-generated at src/lib/api/client.ts
+import { api } from '@/lib/api/client';
 
 // Frontend: Call APIs with full type inference
 const user = await api.users.getById({ params: { id: '123' } });
 //    ^? { id: number, name: string }
 
-// Or use ContractClient directly
-import { createClient } from '@spfn/core/client';
-const client = createClient();
-const user = await client.call('/users/:id', getUserContract, {
-  params: { id: '123' }
-});
+// Client regenerates automatically when contracts change (watch mode)
+// No manual codegen needed - just edit contracts and go!
 ```
 
 ### Function Call Style, Not HTTP
@@ -147,12 +143,12 @@ Visit:
 
 **4. Create your first route**
 ```typescript
-// src/server/contracts/users.ts
+// src/server/routes/users/contract.ts
 import { Type } from '@sinclair/typebox';
 
 export const getUsersContract = {
   method: 'GET' as const,
-  path: '/users',
+  path: '/',
   response: Type.Object({
     users: Type.Array(Type.Object({
       id: Type.Number(),
@@ -165,7 +161,7 @@ export const getUsersContract = {
 ```typescript
 // src/server/routes/users/index.ts
 import { createApp } from '@spfn/core/route';
-import { getUsersContract } from '../../contracts/users';
+import { getUsersContract } from './contract.js';
 
 const app = createApp();
 
@@ -185,35 +181,44 @@ export default app;
 ## Core Features
 
 ### 🗂️ File-based Routing
-Next.js-style routing for your backend:
+Next.js-style routing for your backend with co-located contracts:
 ```typescript
 src/server/routes/
   users/
+    contract.ts    → Contract definitions
     index.ts       → GET /users
-    [id].ts        → GET /users/:id
+  [id]/
+    contract.ts    → Contract definitions
+    index.ts       → GET /users/:id
   posts/
     [id]/
-      comments.ts  → GET /posts/:id/comments
+      comments/
+        contract.ts → Contract definitions
+        index.ts   → GET /posts/:id/comments
 ```
 
 ### 📝 Contract-first Development
-Define contracts once, use everywhere with full type safety:
+Define contracts co-located with routes, get auto-generated type-safe clients:
 ```typescript
-// 1. Define contract (shared)
+// 1. Define contract (routes/users/[id]/contract.ts)
 export const getUserContract = {
   method: 'GET' as const,
-  path: '/users/:id',
+  path: '/:id',
   params: Type.Object({ id: Type.String() }),
   response: Type.Object({ id: Type.Number(), name: Type.String() })
 };
 
-// 2. Backend: Bind to route
+// 2. Backend: Bind to route (routes/users/[id]/index.ts)
+import { getUserContract } from './contract.js';
+
 app.bind(getUserContract, async (c) => {
   const { id } = c.req.valid('param');
   return c.json({ id: Number(id), name: 'Alice' });
 });
 
-// 3. Frontend: Type-safe API call
+// 3. Frontend: Auto-generated client with full type safety
+import { api } from '@/lib/api/client'; // Auto-generated!
+
 const user = await api.users.getById({ params: { id: '123' } });
 //    ^? { id: number, name: string }
 ```

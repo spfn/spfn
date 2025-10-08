@@ -10,6 +10,7 @@ export default defineConfig({
         'db/index': 'src/db/index.ts',
         'server/index': 'src/server/index.ts',
         'scripts/index': 'src/scripts/index.ts',
+        'codegen/index': 'src/codegen/index.ts',
     },
     format: ['esm'],
     dts: true,

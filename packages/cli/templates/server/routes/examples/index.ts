@@ -2,13 +2,11 @@
  * Example Routes: CRUD Operations
  *
  * File naming patterns:
- * - routes/index.ts -> / (root route)
+ * - routes/index/index.ts -> / (root route)
  * - routes/users/index.ts -> /users
- * - routes/users/[id].ts -> /users/:id (dynamic parameter)
- * - routes/posts/[...slug].ts -> /posts/* (catch-all route)
+ * - routes/users/[id]/index.ts -> /users/:id (dynamic parameter)
  *
- * Example: Using createApp() with separate contracts
- * All contracts are stored in src/server/contracts/ for client/server sharing
+ * Contracts are co-located in the same directory
  */
 
 import { createApp } from '@spfn/core/route';
@@ -18,7 +16,7 @@ import {
     createExampleContract,
     updateExampleContract,
     deleteExampleContract
-} from '../../contracts/examples';
+} from './contract.js';
 
 const app = createApp();
 

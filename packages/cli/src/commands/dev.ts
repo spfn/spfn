@@ -11,6 +11,7 @@ export const devCommand = new Command('dev')
     .option('-h, --host <host>', 'Server host', 'localhost')
     .option('--routes <path>', 'Routes directory path')
     .option('--server-only', 'Run only Hono server (skip Next.js)')
+    .option('--no-watch', 'Disable hot reload (watch mode)')
     .action(async (options) =>
     {
         const cwd = process.cwd();
@@ -34,12 +35,14 @@ export const devCommand = new Command('dev')
             hasNext = !!(packageJson.dependencies?.next || packageJson.devDependencies?.next);
         }
 
-        // Create a temporary server entry file
+        // Create temporary entry files
         const tempDir = join(cwd, 'node_modules', '.spfn');
         const serverEntry = join(tempDir, 'server.mjs');
+        const watcherEntry = join(tempDir, 'watcher.mjs');
 
         mkdirSync(tempDir, { recursive: true });
 
+        // Server entry
         writeFileSync(serverEntry, `
 import { config } from 'dotenv';
 import { startServer } from '@spfn/core/server';
@@ -55,25 +58,49 @@ await startServer({
 });
 `);
 
+        // Contract watcher entry
+        writeFileSync(watcherEntry, `
+import { watchAndGenerate } from '@spfn/core/codegen';
+
+await watchAndGenerate({
+    routesDir: ${options.routes ? `'${options.routes}'` : 'undefined'},
+    debug: true
+});
+`);
+
         const pm = detectPackageManager(cwd);
 
         // Run server only mode
         if (options.serverOnly || !hasNext)
         {
-            logger.info(`Starting SPFN Server on http://${options.host}:${options.port}\n`);
+            const watchMode = options.watch !== false;
+            logger.info(`Starting SPFN Server on http://${options.host}:${options.port}${watchMode ? ' (watch mode)' : ''}\n`);
 
             try
             {
+                const tsxCmd = watchMode ? 'tsx --watch' : 'tsx';
+                const serverCmd = pm === 'npm' ? `npx ${tsxCmd} ${serverEntry}` : `${pm} exec ${tsxCmd} ${serverEntry}`;
+                const watcherCmd = pm === 'npm' ? `npx ${tsxCmd} ${watcherEntry}` : `${pm} exec ${tsxCmd} ${watcherEntry}`;
+
                 await execa(pm === 'npm' ? 'npx' : pm,
-                    pm === 'npm' ? ['tsx', serverEntry] : ['exec', 'tsx', serverEntry],
+                    pm === 'npm'
+                        ? ['concurrently', '--raw', '--kill-others', `"${serverCmd}"`, `"${watcherCmd}"`]
+                        : ['exec', 'concurrently', '--raw', '--kill-others', `"${serverCmd}"`, `"${watcherCmd}"`],
                     {
                         stdio: 'inherit',
                         cwd,
+                        shell: true,
                     }
                 );
             }
             catch (error)
             {
+                // Concurrently was killed by user (Ctrl+C), this is expected
+                if ((error as any).exitCode === 130)
+                {
+                    process.exit(0);
+                }
+
                 logger.error(`Failed to start server: ${error}`);
                 process.exit(1);
             }
@@ -81,18 +108,21 @@ await startServer({
             return;
         }
 
-        // Run both Next.js (via spfn:next script) + Hono server
+        // Run both Next.js (via spfn:next script) + Hono server + Contract watcher
+        const watchMode = options.watch !== false;
         const nextCmd = pm === 'npm' ? 'npm run spfn:next' : `${pm} run spfn:next`;
-        const serverCmd = pm === 'npm' ? `npx tsx ${serverEntry}` : `${pm} exec tsx ${serverEntry}`;
+        const tsxCmd = watchMode ? 'tsx --watch' : 'tsx';
+        const serverCmd = pm === 'npm' ? `npx ${tsxCmd} ${serverEntry}` : `${pm} exec ${tsxCmd} ${serverEntry}`;
+        const watcherCmd = pm === 'npm' ? `npx ${tsxCmd} ${watcherEntry}` : `${pm} exec ${tsxCmd} ${watcherEntry}`;
 
-        logger.info('Starting SPFN server + Next.js (Turbopack)...\n');
+        logger.info(`Starting SPFN server + Next.js (Turbopack)${watchMode ? ' (watch mode)' : ''}...\n`);
 
         try
         {
             await execa(pm === 'npm' ? 'npx' : pm,
                 pm === 'npm'
-                    ? ['concurrently', '--raw', '--kill-others', `"${nextCmd}"`, `"${serverCmd}"`]
-                    : ['exec', 'concurrently', '--raw', '--kill-others', `"${nextCmd}"`, `"${serverCmd}"`],
+                    ? ['concurrently', '--raw', '--kill-others', `"${nextCmd}"`, `"${serverCmd}"`, `"${watcherCmd}"`]
+                    : ['exec', 'concurrently', '--raw', '--kill-others', `"${nextCmd}"`, `"${serverCmd}"`, `"${watcherCmd}"`],
                 {
                     stdio: 'inherit',
                     cwd,

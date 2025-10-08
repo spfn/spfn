@@ -159,7 +159,8 @@ export class AutoRouteLoader {
             fileName.endsWith('.ts') &&
             !fileName.endsWith('.test.ts') &&
             !fileName.endsWith('.spec.ts') &&
-            !fileName.endsWith('.d.ts')
+            !fileName.endsWith('.d.ts') &&
+            fileName !== 'contract.ts'
         );
     }
 
@@ -238,9 +239,13 @@ export class AutoRouteLoader {
             if (/^\[[\w-]+\]$/.test(seg)) {
                 return ':' + seg.slice(1, -1);
             }
+            // Skip 'index' segments (index/index.ts → /, posts/index/index.ts → /posts)
+            if (seg === 'index') {
+                return null;
+            }
             // Static: users → users
             return seg;
-        });
+        }).filter(seg => seg !== null);
 
         // Join and ensure leading slash
         const result = '/' + transformed.join('/');
