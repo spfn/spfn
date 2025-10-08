@@ -183,6 +183,25 @@ const newUser = await api.users.create({
 });
 ```
 
+### Type-Safe Data Layer
+Repository pattern with Drizzle ORM for clean, type-safe database operations:
+```typescript
+import { getDb } from '@spfn/core/db';
+import { users } from './entities/users.js';
+
+// Get repository instance with transaction support
+const db = getDb();
+const repo = db.for(users);
+
+// Type-safe queries with full IDE autocomplete
+const result = await repo.findPage({
+  where: eq(users.status, 'active'),
+  orderBy: desc(users.createdAt),
+  pagination: { page: 1, limit: 10 }
+});
+// ^? { items: User[], total: number, page: number, limit: number }
+```
+
 ## Packages
 
 ### [@spfn/cli](./packages/cli)
