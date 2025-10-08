@@ -25,11 +25,7 @@ export const getExamplesContract = {
         total: Type.Number(),
         limit: Type.Number(),
         offset: Type.Number()
-    }),
-    meta: {
-        tags: ['examples'],
-        description: 'List all examples with pagination'
-    }
+    })
 };
 
 /**
@@ -39,7 +35,7 @@ export const getExampleContract = {
     method: 'GET' as const,
     path: '/:id',
     params: Type.Object({
-        id: Type.String({ minLength: 1 })
+        id: Type.String()
     }),
     response: Type.Object({
         id: Type.String(),
@@ -47,11 +43,7 @@ export const getExampleContract = {
         description: Type.String(),
         createdAt: Type.Number(),
         updatedAt: Type.Number()
-    }),
-    meta: {
-        tags: ['examples'],
-        description: 'Get a single example by ID'
-    }
+    })
 };
 
 /**
@@ -61,19 +53,15 @@ export const createExampleContract = {
     method: 'POST' as const,
     path: '/',
     body: Type.Object({
-        name: Type.String({ minLength: 1, maxLength: 100 }),
-        description: Type.String({ minLength: 1, maxLength: 500 })
+        name: Type.String(),
+        description: Type.String()
     }),
     response: Type.Object({
         id: Type.String(),
         name: Type.String(),
         description: Type.String(),
         createdAt: Type.Number()
-    }),
-    meta: {
-        tags: ['examples'],
-        description: 'Create a new example'
-    }
+    })
 };
 
 /**
@@ -83,22 +71,18 @@ export const updateExampleContract = {
     method: 'PUT' as const,
     path: '/:id',
     params: Type.Object({
-        id: Type.String({ minLength: 1 })
+        id: Type.String()
     }),
     body: Type.Object({
-        name: Type.Optional(Type.String({ minLength: 1, maxLength: 100 })),
-        description: Type.Optional(Type.String({ minLength: 1, maxLength: 500 }))
+        name: Type.Optional(Type.String()),
+        description: Type.Optional(Type.String())
     }),
     response: Type.Object({
         id: Type.String(),
         name: Type.String(),
         description: Type.String(),
         updatedAt: Type.Number()
-    }),
-    meta: {
-        tags: ['examples'],
-        description: 'Update an existing example'
-    }
+    })
 };
 
 /**
@@ -108,14 +92,10 @@ export const deleteExampleContract = {
     method: 'DELETE' as const,
     path: '/:id',
     params: Type.Object({
-        id: Type.String({ minLength: 1 })
+        id: Type.String()
     }),
     response: Type.Object({
         success: Type.Boolean(),
         id: Type.String()
-    }),
-    meta: {
-        tags: ['examples'],
-        description: 'Delete an example'
-    }
+    })
 };
