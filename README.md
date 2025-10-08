@@ -1,298 +1,299 @@
 # Superfunction (SPFN)
 
-> A TypeScript fullstack framework by INFLIKE Inc.
->
-> Combining the best of Next.js and Hono
->
-> The productivity of Rails + The robustness of Spring Boot, but for TypeScript
+> **The Backend Layer for Next.js**
 
+[![npm version](https://badge.fury.io/js/@spfn%2Fcore.svg)](https://www.npmjs.com/package/@spfn/core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue)](https://www.typescriptlang.org/)
-[![Node](https://img.shields.io/badge/Node.js-18.18+-green)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
 
-## 🎯 What is SPFN?
+Superfunction (shortened as **SPFN**) is a backend framework for Next.js that brings full backend capabilities with Next.js developer experience.
 
-SPFN is a modern fullstack TypeScript framework that brings enterprise-grade backend features to the Next.js ecosystem. It combines:
+## Core Philosophy
 
-- **Next.js** for the frontend (App Router)
-- **Hono** for the backend (lightweight, fast)
-- **Drizzle ORM** for type-safe database operations
-- **File-based routing** for API endpoints
-- **Automatic transaction management**
-- **Repository pattern** for data access
-
-## ✨ Key Features
-
-### 🗂️ File-based API Routing
-Next.js-style routing for your backend API:
-```
-src/server/routes/
-├── users/
-│   ├── index.ts          → GET/POST /api/users
-│   ├── [id].ts          → GET/PUT/DELETE /api/users/:id
-│   └── [id]/
-│       └── posts.ts     → GET /api/users/:id/posts
-```
-
-### 🔄 Automatic Transaction Management
+### Contract-based Routing
+Define your API with TypeBox contracts, get validation and type safety automatically:
 ```typescript
-// Just add middleware - transactions work automatically!
-export const middlewares = [Transactional()];
+// Define once
+export const getUserContract = {
+  method: 'GET' as const,
+  path: '/users/:id',
+  params: Type.Object({ id: Type.Number() }),
+  response: Type.Object({ id: Type.Number(), name: Type.String() })
+};
 
-export async function POST(c: RouteContext) {
-  // All DB operations in a transaction
-  const user = await db.insert(users).values(data).returning();
-  await db.insert(profiles).values({ userId: user.id });
-  // Auto-commit on success, auto-rollback on error
-  return c.json(user, 201);
-}
-```
-
-### 📦 Spring Data-inspired Repository Pattern
-```typescript
-const userRepo = new Repository(db, users);
-
-// Pagination, filtering, sorting - all built-in
-const result = await userRepo.findPage({
-  where: { status: 'active' },
-  pagination: { page: 1, limit: 10 },
-  sort: { field: 'createdAt', order: 'desc' }
+// Use in route
+app.bind(getUserContract, async (c) => {
+  const { id } = c.req.valid('param');  // Type-safe!
+  return c.json({ id, name: 'Alice' });
 });
 ```
 
-### 🗄️ Redis Cache with Master-Replica Support
+### End-to-End Type Safety
+From backend to frontend with auto-generated clients:
 ```typescript
-// Auto-detects from environment variables
-import { getRedis, getRedisRead } from '@spfn/core';
+// Auto-generated client from contracts
+import { api } from './generated/client';
 
-await getRedis().set('key', 'value');        // Write to master
-const value = await getRedisRead().get('key'); // Read from replica
+// Frontend: Call APIs with full type inference
+const user = await api.users.getById({ params: { id: '123' } });
+//    ^? { id: number, name: string }
+
+// Or use ContractClient directly
+import { createClient } from '@spfn/core/client';
+const client = createClient();
+const user = await client.call('/users/:id', getUserContract, {
+  params: { id: '123' }
+});
 ```
 
-### 🔐 Client-Key Authentication
+### Function Call Style, Not HTTP
+Write backend logic, call it like a function:
 ```typescript
-// ECDSA-based authentication system
-import { ClientKeyAuth } from '@spfn/auth';
+// Backend
+app.bind(createUserContract, async (c) => {
+  const data = c.req.valid('json');
+  return c.json(await userRepo.create(data));
+});
 
-// 3-tier caching: Memory → Redis → Database
-// Replay attack protection with nonce + timestamp
-// AES-256-GCM encrypted private key storage
+// Frontend - feels like calling a function, not making an HTTP request
+const newUser = await client.users.post({
+  json: { name: 'Bob', email: 'bob@example.com' }
+});
 ```
 
-## 📦 Packages
+## Why Superfunction?
 
-This monorepo contains the following packages:
+Next.js excels at what it does. But when you need **full backend capabilities**, architecture matters:
+
+### Backend Requirements Next.js Wasn't Built For
+- **Long-running processes** — Video encoding, batch jobs, ML inference
+- **Persistent connections** — WebSocket servers, database connection pools
+- **Background workers** — Job queues, scheduled tasks, event processors
+- **Stateful operations** — Session stores, distributed caches
+
+### The Architecture Gap
+Next.js API Routes use a **serverless function model**:
+- Request-response only
+- No state between calls
+- Not designed for persistent processes
+
+This is by design — it's what makes Next.js deployable anywhere.
+
+### Superfunction Fills the Gap
+A **dedicated backend runtime** that runs alongside Next.js:
+- Persistent Node.js process
+- Full backend patterns (WebSocket, workers, queues)
+- File-based routing (Next.js DX)
+- Deploy together in containers
+
+**Next.js for UI. Superfunction for backend. Perfect together.**
+
+## How It Works
+
+Superfunction runs as a **separate backend server** alongside your Next.js app:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Frontend (Next.js App)                                 │
+│  • Server Components                                    │
+│  • Client Components              Port 3790             │
+│  • Static Assets                                        │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 │ HTTP/WebSocket
+                 │
+┌────────────────▼────────────────────────────────────────┐
+│  Backend (Superfunction)                                │
+│  • File-based Routes                                    │
+│  • WebSocket Servers               Port 8790            │
+│  • Background Workers                                   │
+│  • Persistent Connections                               │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 │
+┌────────────────▼────────────────────────────────────────┐
+│  External Services                                      │
+│  • PostgreSQL  • Redis  • S3  • Email  • etc.          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Key Points:**
+- Next.js and Superfunction run as **separate processes**
+- Frontend calls Superfunction APIs directly (no proxy needed)
+- End-to-end type safety (contracts + code generation)
+- Deploy together in Docker/Kubernetes
+
+## Quick Start
+
+**1. Install CLI**
+```bash
+npm install -g @spfn/cli
+```
+
+**2. Initialize in your Next.js project**
+```bash
+cd your-nextjs-project
+spfn init
+```
+
+**3. Start development**
+```bash
+npm run spfn:dev
+```
+
+Visit:
+- **Next.js app**: http://localhost:3790
+- **API health**: http://localhost:8790/health
+
+**4. Create your first route**
+```typescript
+// src/server/contracts/users.ts
+import { Type } from '@sinclair/typebox';
+
+export const getUsersContract = {
+  method: 'GET' as const,
+  path: '/users',
+  response: Type.Object({
+    users: Type.Array(Type.Object({
+      id: Type.Number(),
+      name: Type.String(),
+    })),
+  }),
+};
+```
+
+```typescript
+// src/server/routes/users/index.ts
+import { createApp } from '@spfn/core/route';
+import { getUsersContract } from '../../contracts/users';
+
+const app = createApp();
+
+app.bind(getUsersContract, async (c) => {
+  return c.json({
+    users: [{ id: 1, name: 'Alice' }],
+  });
+});
+
+export default app;
+```
+
+**That's it.** Your backend is running at http://localhost:8790/users
+
+→ [CLI Reference](./packages/cli/README.md) | [Core API](./packages/core/README.md)
+
+## Core Features
+
+### 🗂️ File-based Routing
+Next.js-style routing for your backend:
+```typescript
+src/server/routes/
+  users/
+    index.ts       → GET /users
+    [id].ts        → GET /users/:id
+  posts/
+    [id]/
+      comments.ts  → GET /posts/:id/comments
+```
+
+### 📝 Contract-first Development
+Define contracts once, use everywhere with full type safety:
+```typescript
+// 1. Define contract (shared)
+export const getUserContract = {
+  method: 'GET' as const,
+  path: '/users/:id',
+  params: Type.Object({ id: Type.String() }),
+  response: Type.Object({ id: Type.Number(), name: Type.String() })
+};
+
+// 2. Backend: Bind to route
+app.bind(getUserContract, async (c) => {
+  const { id } = c.req.valid('param');
+  return c.json({ id: Number(id), name: 'Alice' });
+});
+
+// 3. Frontend: Type-safe API call
+const user = await api.users.getById({ params: { id: '123' } });
+//    ^? { id: number, name: string }
+```
+
+### 🗄️ Repository Pattern
+Type-safe database operations with Drizzle ORM:
+```typescript
+const repo = new Repository(db, users);
+const result = await repo.findPage({
+  where: eq(users.status, 'active'),
+  pagination: { page: 1, limit: 10 }
+});
+```
+
+### 💾 Production-ready Patterns
+Built-in support for:
+- **Transactions** — Automatic context propagation with `@Transactional()`
+- **Caching** — Redis with master-replica support
+- **Error handling** — Custom error classes with HTTP responses
+- **Middleware** — Logging, CORS, validation
+
+### 🚀 Deploy Anywhere
+Container-based deployment:
+- Docker / Kubernetes
+- AWS ECS / Fargate
+- Google Cloud Run
+- Any Node.js environment
+
+## Packages
+
+### [@spfn/cli](./packages/cli)
+Command-line tools for project initialization and development:
+```bash
+spfn init      # Initialize SPFN in Next.js project
+spfn dev       # Start development servers
+spfn start     # Start production server
+```
 
 ### [@spfn/core](./packages/core)
-Core framework features:
-- File-based routing
-- Transaction management
-- Repository pattern
-- Redis cache
-- Error handling
-- Type generation
+Core framework with all the building blocks:
+- **Routing** — File-based routes with contract validation
+- **Database** — Repository pattern with Drizzle ORM
+- **Transactions** — AsyncLocalStorage-based context
+- **Cache** — Redis with master-replica support
+- **Client** — Type-safe client generation
+- **Middleware** — Logging, CORS, error handling
 
-### [@spfn/auth](./packages/auth)
-Authentication system:
-- Client-Key authentication (ECDSA P-256)
-- 3-tier caching (Memory/Redis/DB)
-- Replay attack protection
-- Secure key storage (AES-256-GCM)
+[→ Full API Documentation](./packages/core/README.md)
 
-### [@spfn/cli](./packages/cli) *(Coming Soon)*
-Code generation CLI:
-```bash
-npx spfn create my-app          # Create new project
-npx spfn add auth/client-key    # Add authentication
-npx spfn generate crud users    # Generate CRUD routes
-```
+## Documentation
 
-## 🚀 Quick Start
+### Package Documentation
+- [CLI Reference](./packages/cli/README.md)
+- [Core API Reference](./packages/core/README.md)
 
-### Prerequisites
+### Module Guides
+- [Routing Guide](./packages/core/src/route/README.md)
+- [Database & Repository](./packages/core/src/db/README.md)
+- [Transaction Management](./packages/core/src/db/docs/transactions.md)
+- [Caching with Redis](./packages/core/src/cache/README.md)
+- [Error Handling](./packages/core/src/errors/README.md)
+- [Middleware](./packages/core/src/middleware/README.md)
+- [Client API](./packages/core/src/client/README.md)
 
-- Node.js 18.18.0 or higher
-- PostgreSQL 14+
-- Redis 7+ (optional)
-- TypeScript 5.0+ (optional)
+## Requirements
 
-### Installation
+- Node.js >= 18
+- Next.js 15+ with App Router
+- PostgreSQL
+- Redis (optional)
 
-```bash
-# Clone repository
-git clone https://github.com/spfn/spfn.git
-cd spfn
+## Community
 
-# Install dependencies
-pnpm install
+- [GitHub Issues](https://github.com/spfn/spfn/issues)
+- [Discussions](https://github.com/spfn/spfn/discussions)
 
-# Set up environment
-cp packages/core/.env.example packages/core/.env.local
+## License
 
-# Run database migrations
-cd packages/core
-pnpm db:migrate
-```
-
-### Development
-
-```bash
-# Run all packages in watch mode
-pnpm dev
-
-# Run specific package
-pnpm dev --filter=@spfn/core
-
-# Run tests
-pnpm test
-
-# Build all packages
-pnpm build
-```
-
-## 📚 Documentation
-
-**[📖 Full Documentation](./docs/README.md)**
-
-### Getting Started
-- [Installation Guide](./docs/guides/installation.md)
-- [Quick Start](./docs/guides/getting-started.md)
-- [Architecture Overview](./docs/project/architecture.md)
-- [Framework Philosophy](./docs/project/philosophy.md)
-
-### Core Concepts
-- [File-based Routing](./docs/guides/routing.md)
-- [Database & Repository](./docs/guides/database.md)
-- [Transaction Management](./docs/guides/transactions.md)
-- [Authentication](./docs/guides/authentication.md)
-- [Redis Cache](./docs/guides/caching.md)
-- [Error Handling](./docs/guides/error-handling.md)
-
-### Project Info
-- [Contributing Guide](./CONTRIBUTING.md)
-- [Coding Standards](./docs/project/coding-standards.md)
-- [Roadmap](./docs/project/roadmap.md)
-
-## 🏗️ Project Structure
-
-```
-spfn/
-├── packages/
-│   ├── core/                 # Framework core
-│   │   ├── src/
-│   │   │   ├── route/       # File-based routing
-│   │   │   ├── db/          # Database & ORM
-│   │   │   ├── cache/       # Redis cache
-│   │   │   ├── server/      # Server utilities
-│   │   │   ├── utils/       # Transaction utils
-│   │   │   ├── middleware/  # Built-in middleware
-│   │   │   ├── errors/      # Error handling
-│   │   │   └── scripts/     # Code generation
-│   │   └── docs/            # Documentation
-│   │
-│   ├── auth/                # Authentication
-│   │   ├── src/
-│   │   │   ├── server/      # Server implementation
-│   │   │   └── shared/      # Shared types
-│   │   └── docs/            # Auth documentation
-│   │
-│   └── cli/                 # CLI tool (coming soon)
-│
-├── apps/                    # Example applications
-├── docs/                    # Documentation
-│   ├── guides/              # User guides
-│   ├── api/                 # API reference
-│   ├── project/             # Project info
-│   └── advanced/            # Advanced topics
-└── .dev/                    # Development tracking
-```
-
-## 🧪 Testing
-
-The framework includes comprehensive test coverage:
-
-```bash
-# Run all tests
-pnpm test
-
-# Run tests for specific package
-pnpm test --filter=@spfn/core
-
-# Run tests with coverage
-pnpm test:coverage
-
-# Run tests in watch mode
-pnpm test:watch
-```
-
-**Test Coverage:**
-- @spfn/core: 150+ tests
-- @spfn/auth: 45+ tests
-- Total: 195+ tests passing
-
-## 📈 Roadmap
-
-### v0.1.0 (Current)
-- [x] File-based routing
-- [x] Transaction management
-- [x] Repository pattern
-- [x] Redis cache
-- [x] Client-Key authentication
-
-### v0.2.0 (Next)
-- [ ] CLI tool for code generation
-- [ ] Type-safe API client generation
-- [ ] WebSocket support
-- [ ] Real-time subscriptions
-
-### v1.0.0 (Future)
-- [ ] Production-ready deployment guides
-- [ ] Monitoring & observability
-- [ ] Performance optimization
-- [ ] Horizontal scaling patterns
-
-See [ROADMAP](./docs/project/roadmap.md) for details.
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) for details.
-
-### Development Process
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`pnpm test`)
-5. Commit with conventional commits (`git commit -m 'feat: add amazing feature'`)
-6. Push to your fork (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-Built with amazing open source tools:
-
-- [Next.js](https://nextjs.org/) - React framework
-- [Hono](https://hono.dev/) - Ultrafast web framework
-- [Drizzle ORM](https://orm.drizzle.team/) - TypeScript ORM
-- [Turborepo](https://turbo.build/) - Monorepo build system
-- [PostgreSQL](https://www.postgresql.org/) - Database
-- [Redis](https://redis.io/) - Cache & pub/sub
-- [Vitest](https://vitest.dev/) - Testing framework
-
-## 💬 Community & Support
-
-- 📖 [Documentation](./packages/core/README.md)
-- 🐛 [Issue Tracker](https://github.com/spfn/spfn/issues)
-- 💡 [Discussions](https://github.com/spfn/spfn/discussions)
-
-## ⭐ Star History
-
-If you find Superfunction useful, please consider giving it a star! ⭐
+MIT
 
 ---
 
-**Made with ❤️ by [INFLIKE Inc.](https://inflike.com) for TypeScript developers**
+**Built with ❤️ for the Next.js community**
