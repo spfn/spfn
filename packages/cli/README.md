@@ -102,6 +102,74 @@ To customize ports, edit the generated scripts in `package.json`:
 
 ---
 
+### `spfn generate` (alias: `spfn g`)
+
+Generate CRUD routes and repository from a Drizzle entity.
+
+```bash
+# Generate from entity name
+spfn generate users
+
+# Generate from entity file path
+spfn generate src/server/entities/users.ts
+```
+
+**What it generates:**
+
+1. ✅ Repository (`src/server/repositories/users.repository.ts`)
+   - Extends BaseRepository with findById, create, update, delete, findPage
+   - Singleton instance pattern
+   - Includes documentation for inherited methods
+
+2. ✅ Contract definitions (`src/server/routes/users/contract.ts`)
+   - Auto-generated TypeBox schemas from Drizzle entity using drizzle-typebox
+   - 5 contracts: list (GET /), create (POST /), get (GET /:id), update (PUT /:id), delete (DELETE /:id)
+   - Full type safety for params, query, body, and response
+
+3. ✅ Collection routes (`src/server/routes/users/index.ts`)
+   - GET /users - List with pagination
+   - POST /users - Create new item
+
+4. ✅ Item routes (`src/server/routes/users/[id]/index.ts`)
+   - GET /users/:id - Get by ID
+   - PUT /users/:id - Update item
+   - DELETE /users/:id - Delete item
+
+**Options:**
+
+- `-f, --force` - Overwrite existing files without confirmation
+- `-i, --interactive` - Prompt before overwriting each file
+- `--only <files>` - Only generate specific files (comma-separated: `contract`, `repository`, `routes`)
+- `--dry-run` - Show what would be generated without creating files
+
+**Examples:**
+
+```bash
+# Basic usage
+spfn generate users
+
+# Generate from entity file
+spfn generate src/server/entities/products.ts
+
+# Only generate repository and contract
+spfn generate users --only repository,contract
+
+# Preview without creating files
+spfn generate users --dry-run
+
+# Force overwrite existing files
+spfn generate users --force
+
+# Interactive mode - prompt for each file
+spfn generate users --interactive
+```
+
+**Safety:**
+
+By default, `spfn generate` will **refuse to overwrite existing files** to prevent accidental code loss. Use `--force` to overwrite or `--interactive` to review each file.
+
+---
+
 ### `spfn start`
 
 Start production Hono server.
@@ -117,6 +185,68 @@ spfn start
 **Options:**
 - `-p, --port <port>` - Server port (default: 8790)
 - `-h, --host <host>` - Server host (default: 0.0.0.0)
+
+---
+
+### Database Commands
+
+SPFN provides convenient wrappers around Drizzle Kit for database management.
+
+#### `spfn db generate` (alias: `spfn db g`)
+
+Generate database migrations from schema changes.
+
+```bash
+spfn db generate
+```
+
+This analyzes your Drizzle entities and creates migration SQL files in `src/server/migrations/`.
+
+#### `spfn db push`
+
+Push schema changes directly to the database without creating migration files (useful for development).
+
+```bash
+spfn db push
+```
+
+⚠️ **Warning:** This modifies your database schema directly. Use migrations for production.
+
+#### `spfn db migrate` (alias: `spfn db m`)
+
+Run pending migrations against your database.
+
+```bash
+spfn db migrate
+```
+
+#### `spfn db studio`
+
+Open Drizzle Studio - a visual database GUI for browsing and editing data.
+
+```bash
+spfn db studio
+# Or with custom port
+spfn db studio --port 5000
+```
+
+Default port: 4983
+
+#### `spfn db check`
+
+Check database connection and display connection info.
+
+```bash
+spfn db check
+```
+
+#### `spfn db drop`
+
+Drop all database tables. ⚠️ **Dangerous!** This will delete all data.
+
+```bash
+spfn db drop
+```
 
 ---
 
