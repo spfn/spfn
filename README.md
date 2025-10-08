@@ -16,15 +16,15 @@ Define your API with TypeBox contracts, get validation and type safety automatic
 // Define once
 export const getUserContract = {
   method: 'GET' as const,
-  path: '/users/:id',
-  params: Type.Object({ id: Type.Number() }),
+  path: '/:id',
+  params: Type.Object({ id: Type.String() }),
   response: Type.Object({ id: Type.Number(), name: Type.String() })
 };
 
-// Use in route
+// Use in route - params are automatically validated and typed!
 app.bind(getUserContract, async (c) => {
-  const { id } = c.req.valid('param');  // Type-safe!
-  return c.json({ id, name: 'Alice' });
+  const { id } = c.params;  // Type-safe! string from params
+  return c.json({ id: Number(id), name: 'Alice' });
 });
 ```
 
@@ -47,13 +47,13 @@ Write backend logic, call it like a function:
 ```typescript
 // Backend
 app.bind(createUserContract, async (c) => {
-  const data = c.req.valid('json');
+  const data = c.body;  // Automatically validated!
   return c.json(await userRepo.create(data));
 });
 
 // Frontend - feels like calling a function, not making an HTTP request
-const newUser = await client.users.post({
-  json: { name: 'Bob', email: 'bob@example.com' }
+const newUser = await api.users.create({
+  body: { name: 'Bob', email: 'bob@example.com' }
 });
 ```
 
@@ -212,7 +212,7 @@ export const getUserContract = {
 import { getUserContract } from './contract.js';
 
 app.bind(getUserContract, async (c) => {
-  const { id } = c.req.valid('param');
+  const { id } = c.params;  // Automatically validated!
   return c.json({ id: Number(id), name: 'Alice' });
 });
 
