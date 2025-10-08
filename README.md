@@ -226,7 +226,12 @@ const user = await api.users.getById({ params: { id: '123' } });
 ### 🗄️ Repository Pattern
 Type-safe database operations with Drizzle ORM:
 ```typescript
-const repo = new Repository(db, users);
+import { getDb } from '@spfn/core/db';
+import { users } from './entities/users.js';
+
+const db = getDb();
+const repo = db.for(users);
+
 const result = await repo.findPage({
   where: eq(users.status, 'active'),
   pagination: { page: 1, limit: 10 }
