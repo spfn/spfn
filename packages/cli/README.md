@@ -43,9 +43,9 @@ spfn init
 
 1. ✅ Installs dependencies (@spfn/core, hono, drizzle-orm, etc.)
 2. ✅ Creates `src/server/` directory structure with:
-   - `routes/` - API routes using createApp() pattern
-   - `contracts/` - TypeBox validation schemas
+   - `routes/` - API routes with co-located contracts (contract.ts + index.ts)
    - `entities/` - Drizzle ORM schemas
+   - `middlewares/` - Custom middleware functions
 3. ✅ Adds SPFN-specific scripts to package.json (preserves your existing scripts)
 4. ✅ Creates .env.local.example with default ports (3790/8790)
 5. ✅ Copies .guide/ directory for Claude Code documentation

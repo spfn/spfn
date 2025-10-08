@@ -24,12 +24,12 @@ npm install @spfn/core hono drizzle-orm postgres @sinclair/typebox
 ### 1. Define a Contract
 
 ```typescript
-// src/server/contracts/users.ts
+// src/server/routes/users/contract.ts
 import { Type } from '@sinclair/typebox';
 
 export const getUsersContract = {
   method: 'GET' as const,
-  path: '/users',
+  path: '/',
   query: Type.Object({
     page: Type.Optional(Type.Number()),
     limit: Type.Optional(Type.Number()),
@@ -50,9 +50,9 @@ export const getUsersContract = {
 ```typescript
 // src/server/routes/users/index.ts
 import { createApp } from '@spfn/core/route';
-import { getUsersContract } from '../../contracts/users';
+import { getUsersContract } from './contract.js';
 import { Repository } from '@spfn/core/db';
-import { users } from '../../entities/users';
+import { users } from '../../entities/users.js';
 
 const app = createApp();
 

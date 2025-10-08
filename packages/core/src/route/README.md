@@ -7,7 +7,7 @@ Type-safe, contract-based routing with automatic route discovery and runtime mid
 - ✅ **Contract-based Routing**: TypeBox schemas for end-to-end type safety
 - ✅ **Two Routing Patterns**: `createApp()` (recommended) or traditional Hono + `bind()`
 - ✅ **File-based Discovery**: Next.js-style automatic route registration
-- ✅ **Separate Contracts**: Store contracts in `src/server/contracts/` for client/server sharing
+- ✅ **Co-located Contracts**: Contracts live with routes (`contract.ts` + `index.ts`) for better organization
 - ✅ **Runtime Middleware Skip**: Route-level middleware control via contract.meta
 - ✅ **Query Arrays**: Support for `?tags=a&tags=b` → `{ tags: ['a', 'b'] }`
 - ✅ **Unified Error Handling**: All validation errors throw `ValidationError`
@@ -18,12 +18,12 @@ Type-safe, contract-based routing with automatic route discovery and runtime mid
 
 ## Quick Start
 
-### 1. Create Contracts (Recommended Structure)
+### 1. Create a Contract
 
-Store contracts separately for client/server sharing:
+Contracts are co-located with routes:
 
 ```typescript
-// src/server/contracts/users.ts
+// src/server/routes/users/contract.ts
 import { Type } from '@sinclair/typebox';
 
 export const getUsersContract = {
@@ -41,70 +41,43 @@ export const getUsersContract = {
     })
 };
 
-export const getUserContract = {
-    method: 'GET' as const,
-    path: '/:id',
-    params: Type.Object({
-        id: Type.Number()
+export const createUserContract = {
+    method: 'POST' as const,
+    path: '/',
+    body: Type.Object({
+        name: Type.String(),
+        email: Type.String()
     }),
     response: Type.Object({
-        user: Type.Object({
-            id: Type.Number(),
-            name: Type.String()
-        })
+        id: Type.Number(),
+        name: Type.String(),
+        email: Type.String()
     })
 };
 ```
 
-### 2. Create Route Files
-
-#### Option A: Using `createApp()` (Recommended)
+### 2. Create Route Handler
 
 ```typescript
 // src/server/routes/users/index.ts
 import { createApp } from '@spfn/core/route';
-import { getUsersContract, getUserContract } from '../../contracts/users';
+import { getUsersContract, createUserContract } from './contract.js';
 
 const app = createApp();
 
-// Method and path come from contract
+// GET /users
 app.bind(getUsersContract, async (c) => {
     const { limit = 10, offset = 0 } = c.query;
     const users = await fetchUsers(limit, offset);
     return c.json({ users });
 });
 
-app.bind(getUserContract, async (c) => {
-    const { id } = c.params;  // Typed as number
-    const user = await getUserById(id);
-    return c.json({ user });
+// POST /users
+app.bind(createUserContract, async (c) => {
+    const data = await c.data();  // Validated!
+    const user = await createUser(data);
+    return c.json(user);
 });
-
-export default app;
-```
-
-#### Option B: Using Traditional Hono + `bind()`
-
-```typescript
-// src/server/routes/users/index.ts
-import { Hono } from 'hono';
-import { bind } from '@spfn/core/route';
-import { getUsersContract, getUserContract } from '../../contracts/users';
-
-const app = new Hono();
-
-// Method from app.get(), contract can omit method/path
-app.get('/', bind(getUsersContract, async (c) => {
-    const { limit = 10, offset = 0 } = c.query;
-    const users = await fetchUsers(limit, offset);
-    return c.json({ users });
-}));
-
-app.get('/:id', bind(getUserContract, async (c) => {
-    const { id } = c.params;
-    const user = await getUserById(id);
-    return c.json({ user });
-}));
 
 export default app;
 ```
@@ -218,10 +191,10 @@ routes/
 
 **Path Parameters: `[id]`**
 ```typescript
-// contracts/users.ts
+// routes/users/[id]/contract.ts
 export const getUserContract = {
-    method: 'GET',
-    path: '/:id',  // or '/' if using traditional pattern
+    method: 'GET' as const,
+    path: '/:id',
     params: Type.Object({
         id: Type.Number()
     }),
@@ -233,9 +206,9 @@ export const getUserContract = {
     })
 };
 
-// routes/users/[id].ts
+// routes/users/[id]/index.ts
 import { createApp } from '@spfn/core/route';
-import { getUserContract } from '../../contracts/users';
+import { getUserContract } from './contract.js';
 
 const app = createApp();
 
@@ -366,73 +339,6 @@ All validation errors throw `ValidationError` (400):
   }
 }
 ```
-
----
-
-## Separate Contracts Pattern
-
-### Recommended File Structure
-
-```
-src/
-├── server/
-│   ├── contracts/           # ✅ Shared contracts
-│   │   ├── users.ts
-│   │   ├── posts.ts
-│   │   └── health.ts
-│   │
-│   ├── routes/              # Route files (Hono apps)
-│   │   ├── users/
-│   │   │   ├── index.ts     # Imports from contracts/users.ts
-│   │   │   └── [id].ts
-│   │   └── posts/
-│   │       └── index.ts
-│   │
-│   ├── middlewares/         # Custom middlewares
-│   │   ├── auth.ts
-│   │   └── rate-limit.ts
-│   │
-│   ├── server.config.ts     # Server configuration
-│   └── app.ts               # Optional: Full control
-│
-└── client/
-    └── api.ts               # ✅ Imports from contracts/
-```
-
-### Benefits of Separate Contracts
-
-```typescript
-// ✅ Good - contracts in separate file
-// contracts/users.ts
-export const getUsersContract = {
-    method: 'GET',
-    path: '/',
-    query: Type.Object({ limit: Type.Number() }),
-    response: Type.Object({ users: Type.Array(...) })
-};
-
-// routes/users/index.ts
-import { getUsersContract } from '../../contracts/users';
-app.bind(getUsersContract, handler);
-
-// client/api.ts
-import { getUsersContract } from '../server/contracts/users';
-// Use for type-safe client generation
-
-// ❌ Bad - contract inline in route
-app.bind({
-    method: 'GET',
-    path: '/',
-    response: Type.Object({...})
-}, handler);
-```
-
-**Why separate?**
-- ✅ Contracts can be imported in client code
-- ✅ Single source of truth for API types
-- ✅ No server-side code in client bundles
-- ✅ Enables automatic client code generation
-- ✅ Easier to maintain and test
 
 ---
 
@@ -825,12 +731,16 @@ function conditionalMiddleware(
 
 ## Best Practices
 
-### 1. Use Separate Contracts
+### 1. Co-locate Contracts
 
 ```typescript
-// ✅ Good - contracts in separate file
-import { userContracts } from '../../contracts/users';
-app.bind(userContracts.list, handler);
+// ✅ Good - contracts co-located with routes
+// routes/users/contract.ts
+export const getUsersContract = { ... };
+
+// routes/users/index.ts
+import { getUsersContract } from './contract.js';
+app.bind(getUsersContract, handler);
 
 // ❌ Bad - contract inline in route
 app.bind({
@@ -884,31 +794,20 @@ app.bind(contract, async (c: RouteContext<typeof contract>) => {
 ### 5. Group Related Routes
 
 ```typescript
-// ✅ Good - logical grouping
+// ✅ Good - logical grouping with co-located contracts
 routes/
   users/
-    index.ts      # List/create users
-    [id].ts       # Get/update/delete user
-    [id]/
-      posts.ts    # User's posts
+    contract.ts   # All user contracts
+    index.ts      # List/create users handlers
+  [id]/
+    contract.ts   # Single user contracts
+    index.ts      # Get/update/delete user handlers
 
 // ❌ Bad - flat structure
 routes/
   users.ts
   user-detail.ts
   user-posts.ts
-```
-
-### 6. Store Contracts in contracts/
-
-```typescript
-// ✅ Good - separate contracts directory
-src/server/contracts/users.ts
-src/server/routes/users/index.ts (imports from contracts)
-
-// ❌ Bad - contracts mixed with routes
-src/server/routes/users/contracts.ts
-src/server/routes/users/index.ts
 ```
 
 ---
@@ -974,71 +873,6 @@ query: Type.Object({
 - ✅ Need direct Hono API access
 - ✅ Gradual migration
 - ✅ Complex middleware composition
-
----
-
-## Migration Guide
-
-### From Traditional Hono to createApp()
-
-**Before:**
-```typescript
-import { Hono } from 'hono';
-import { bind } from '@spfn/core/route';
-
-const app = new Hono();
-
-const contract = {
-    response: Type.Object({ data: Type.String() })
-};
-
-app.get('/', bind(contract, handler));
-export default app;
-```
-
-**After:**
-```typescript
-import { createApp } from '@spfn/core/route';
-
-const app = createApp();
-
-const contract = {
-    method: 'GET',      // Add method
-    path: '/',          // Add path
-    response: Type.Object({ data: Type.String() })
-};
-
-app.bind(contract, handler);  // No app.get()
-export default app;
-```
-
-### Extract Contracts to Separate Files
-
-**Before:**
-```typescript
-// routes/users/index.ts
-const getUsersContract = {
-    method: 'GET',
-    path: '/',
-    response: Type.Object({...})
-};
-
-app.bind(getUsersContract, handler);
-```
-
-**After:**
-```typescript
-// contracts/users.ts
-export const getUsersContract = {
-    method: 'GET',
-    path: '/',
-    response: Type.Object({...})
-};
-
-// routes/users/index.ts
-import { getUsersContract } from '../../contracts/users';
-app.bind(getUsersContract, handler);
-```
 
 ---
 
