@@ -1,15 +1,16 @@
-# @spfn/core/route - File-based Routing System
+# @spfn/core/route - Contract-based Routing System
 
 Type-safe, contract-based routing with automatic route discovery and runtime middleware management.
 
 ## Features
 
-- ✅ **File-based Routing**: Next.js-style automatic route registration
-- ✅ **Contract-based Validation**: TypeBox schemas for end-to-end type safety
+- ✅ **Contract-based Routing**: TypeBox schemas for end-to-end type safety
+- ✅ **Two Routing Patterns**: `createApp()` (recommended) or traditional Hono + `bind()`
+- ✅ **File-based Discovery**: Next.js-style automatic route registration
+- ✅ **Separate Contracts**: Store contracts in `src/server/contracts/` for client/server sharing
 - ✅ **Runtime Middleware Skip**: Route-level middleware control via contract.meta
 - ✅ **Query Arrays**: Support for `?tags=a&tags=b` → `{ tags: ['a', 'b'] }`
 - ✅ **Unified Error Handling**: All validation errors throw `ValidationError`
-- ✅ **Auto-discovery**: Scan and register routes automatically
 - ✅ **Dynamic Routes**: `[id]` → `:id`, `[...slug]` → `*`
 - ✅ **Zero Config**: Works out of the box
 
@@ -17,18 +18,17 @@ Type-safe, contract-based routing with automatic route discovery and runtime mid
 
 ## Quick Start
 
-### 1. Create a Route File
+### 1. Create Contracts (Recommended Structure)
+
+Store contracts separately for client/server sharing:
 
 ```typescript
-// src/server/routes/users/index.ts
-import { Hono } from 'hono';
-import { bind } from '@spfn/core';
+// src/server/contracts/users.ts
 import { Type } from '@sinclair/typebox';
 
-const app = new Hono();
-
-// Define contract
-const getUsersContract = {
+export const getUsersContract = {
+    method: 'GET' as const,
+    path: '/',
     query: Type.Object({
         limit: Type.Optional(Type.Number()),
         offset: Type.Optional(Type.Number())
@@ -41,19 +41,75 @@ const getUsersContract = {
     })
 };
 
-// Bind contract to handler
+export const getUserContract = {
+    method: 'GET' as const,
+    path: '/:id',
+    params: Type.Object({
+        id: Type.Number()
+    }),
+    response: Type.Object({
+        user: Type.Object({
+            id: Type.Number(),
+            name: Type.String()
+        })
+    })
+};
+```
+
+### 2. Create Route Files
+
+#### Option A: Using `createApp()` (Recommended)
+
+```typescript
+// src/server/routes/users/index.ts
+import { createApp } from '@spfn/core/route';
+import { getUsersContract, getUserContract } from '../../contracts/users';
+
+const app = createApp();
+
+// Method and path come from contract
+app.bind(getUsersContract, async (c) => {
+    const { limit = 10, offset = 0 } = c.query;
+    const users = await fetchUsers(limit, offset);
+    return c.json({ users });
+});
+
+app.bind(getUserContract, async (c) => {
+    const { id } = c.params;  // Typed as number
+    const user = await getUserById(id);
+    return c.json({ user });
+});
+
+export default app;
+```
+
+#### Option B: Using Traditional Hono + `bind()`
+
+```typescript
+// src/server/routes/users/index.ts
+import { Hono } from 'hono';
+import { bind } from '@spfn/core/route';
+import { getUsersContract, getUserContract } from '../../contracts/users';
+
+const app = new Hono();
+
+// Method from app.get(), contract can omit method/path
 app.get('/', bind(getUsersContract, async (c) => {
     const { limit = 10, offset = 0 } = c.query;
-
     const users = await fetchUsers(limit, offset);
-
     return c.json({ users });
+}));
+
+app.get('/:id', bind(getUserContract, async (c) => {
+    const { id } = c.params;
+    const user = await getUserById(id);
+    return c.json({ user });
 }));
 
 export default app;
 ```
 
-### 2. Server Automatically Loads Routes
+### 3. Server Automatically Loads Routes
 
 ```typescript
 // src/server/server.ts or server.config.ts
@@ -67,6 +123,76 @@ await startServer({
 // ✅ Routes automatically discovered and registered
 // 🔹 /users → routes/users/index.ts
 ```
+
+---
+
+## Two Routing Patterns
+
+### Pattern 1: `createApp()` (Recommended)
+
+**When to use**: New projects, cleaner API, method/path in contract
+
+```typescript
+import { createApp } from '@spfn/core/route';
+
+const app = createApp();
+
+// Contract includes method and path
+const contract = {
+    method: 'GET',
+    path: '/',
+    response: Type.Object({ data: Type.String() })
+};
+
+// Method/path come from contract
+app.bind(contract, async (c) => {
+    return c.json({ data: 'hello' });
+});
+
+// With middlewares
+app.bind(contract, [authMiddleware, logMiddleware], async (c) => {
+    return c.json({ data: 'protected' });
+});
+
+export default app;
+```
+
+**Advantages**:
+- ✅ Cleaner API - no need for `app.get()`, `app.post()`
+- ✅ Contract contains full route definition
+- ✅ Middleware array support
+- ✅ Better for client code generation
+
+### Pattern 2: Traditional Hono + `bind()`
+
+**When to use**: Need direct Hono API access, gradual migration
+
+```typescript
+import { Hono } from 'hono';
+import { bind } from '@spfn/core/route';
+
+const app = new Hono();
+
+// Contract can omit method/path
+const contract = {
+    response: Type.Object({ data: Type.String() })
+};
+
+// Method/path specified in app.get()
+app.get('/', bind(contract, async (c) => {
+    return c.json({ data: 'hello' });
+}));
+
+// Route-level middleware
+app.get('/protected', authMiddleware, bind(contract, handler));
+
+export default app;
+```
+
+**Advantages**:
+- ✅ Full Hono API access (app.use, app.onError, etc.)
+- ✅ Familiar pattern for Hono users
+- ✅ More flexible middleware composition
 
 ---
 
@@ -92,8 +218,10 @@ routes/
 
 **Path Parameters: `[id]`**
 ```typescript
-// routes/users/[id].ts
-const contract = {
+// contracts/users.ts
+export const getUserContract = {
+    method: 'GET',
+    path: '/:id',  // or '/' if using traditional pattern
     params: Type.Object({
         id: Type.Number()
     }),
@@ -105,20 +233,37 @@ const contract = {
     })
 };
 
-app.get('/', bind(contract, async (c) => {
+// routes/users/[id].ts
+import { createApp } from '@spfn/core/route';
+import { getUserContract } from '../../contracts/users';
+
+const app = createApp();
+
+app.bind(getUserContract, async (c) => {
     const { id } = c.params;  // Typed as number
     const user = await getUserById(id);
     return c.json({ user });
-}));
+});
+
+export default app;
 ```
 
 **Catch-all Routes: `[...slug]`**
 ```typescript
 // routes/docs/[...slug].ts
-const app = new Hono();
+import { createApp } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
 
-app.get('/', async (c) => {
-    const slug = c.req.param('slug');  // Matches /docs/a/b/c
+const app = createApp();
+
+const contract = {
+    method: 'GET',
+    path: '/*',
+    response: Type.Object({ slug: Type.String() })
+};
+
+app.bind(contract, async (c) => {
+    const slug = c.raw.req.param('slug');  // Matches /docs/a/b/c
     return c.json({ slug });
 });
 
@@ -129,44 +274,49 @@ export default app;
 
 ## Contract-based Validation
 
-### Automatic Validation with bind()
+### Contract Structure
 
 ```typescript
-import { bind } from '@spfn/core';
 import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
 
 const contract = {
-    // Path parameters
+    // HTTP method (required for createApp())
+    method: 'POST',
+
+    // Route path (required for createApp())
+    path: '/',
+
+    // Path parameters (optional)
     params: Type.Object({
         id: Type.Number()
     }),
 
-    // Query parameters (supports arrays!)
+    // Query parameters (optional, supports arrays!)
     query: Type.Object({
         tags: Type.Array(Type.String()),
         limit: Type.Optional(Type.Number())
     }),
 
-    // Request body
+    // Request body (optional)
     body: Type.Object({
         name: Type.String(),
         email: Type.String({ format: 'email' })
     }),
 
-    // Response schema
+    // Response schema (required)
     response: Type.Object({
         success: Type.Boolean()
-    })
-};
+    }),
 
-app.post('/', bind(contract, async (c) => {
-    // All validated - safe to use
-    const { id } = c.params;
-    const { tags, limit } = c.query;
-    const body = await c.data();  // Validated body
-
-    return c.json({ success: true });
-}));
+    // Route metadata (optional)
+    meta: {
+        public: true,  // Shorthand for skipMiddlewares: ['auth']
+        skipMiddlewares: ['rateLimit'],
+        tags: ['users'],
+        description: 'Create a new user'
+    }
+} satisfies RouteContract;
 ```
 
 ### Query Array Support
@@ -174,17 +324,25 @@ app.post('/', bind(contract, async (c) => {
 ```typescript
 // Request: /posts?tags=javascript&tags=typescript
 const contract = {
+    method: 'GET',
+    path: '/',
     query: Type.Object({
         tags: Type.Array(Type.String())
     }),
     response: Type.Object({ posts: Type.Array(Type.Any()) })
 };
 
-app.get('/', bind(contract, async (c) => {
+app.bind(contract, async (c) => {
     const { tags } = c.query;  // ['javascript', 'typescript']
     return c.json({ posts: [] });
-}));
+});
 ```
+
+**How it works**:
+1. URL: `/posts?tags=javascript&tags=typescript`
+2. `bind()` parses to: `{ tags: ['javascript', 'typescript'] }`
+3. TypeBox validates against: `Type.Array(Type.String())`
+4. Handler receives validated array: `c.query.tags`
 
 ### Validation Errors
 
@@ -195,10 +353,86 @@ All validation errors throw `ValidationError` (400):
   "error": {
     "message": "Invalid query parameters",
     "type": "ValidationError",
-    "statusCode": 400
+    "statusCode": 400,
+    "details": {
+      "fields": [
+        {
+          "path": "/limit",
+          "message": "Expected number",
+          "value": "abc"
+        }
+      ]
+    }
   }
 }
 ```
+
+---
+
+## Separate Contracts Pattern
+
+### Recommended File Structure
+
+```
+src/
+├── server/
+│   ├── contracts/           # ✅ Shared contracts
+│   │   ├── users.ts
+│   │   ├── posts.ts
+│   │   └── health.ts
+│   │
+│   ├── routes/              # Route files (Hono apps)
+│   │   ├── users/
+│   │   │   ├── index.ts     # Imports from contracts/users.ts
+│   │   │   └── [id].ts
+│   │   └── posts/
+│   │       └── index.ts
+│   │
+│   ├── middlewares/         # Custom middlewares
+│   │   ├── auth.ts
+│   │   └── rate-limit.ts
+│   │
+│   ├── server.config.ts     # Server configuration
+│   └── app.ts               # Optional: Full control
+│
+└── client/
+    └── api.ts               # ✅ Imports from contracts/
+```
+
+### Benefits of Separate Contracts
+
+```typescript
+// ✅ Good - contracts in separate file
+// contracts/users.ts
+export const getUsersContract = {
+    method: 'GET',
+    path: '/',
+    query: Type.Object({ limit: Type.Number() }),
+    response: Type.Object({ users: Type.Array(...) })
+};
+
+// routes/users/index.ts
+import { getUsersContract } from '../../contracts/users';
+app.bind(getUsersContract, handler);
+
+// client/api.ts
+import { getUsersContract } from '../server/contracts/users';
+// Use for type-safe client generation
+
+// ❌ Bad - contract inline in route
+app.bind({
+    method: 'GET',
+    path: '/',
+    response: Type.Object({...})
+}, handler);
+```
+
+**Why separate?**
+- ✅ Contracts can be imported in client code
+- ✅ Single source of truth for API types
+- ✅ No server-side code in client bundles
+- ✅ Enables automatic client code generation
+- ✅ Easier to maintain and test
 
 ---
 
@@ -225,8 +459,10 @@ export default {
 Use `contract.meta.skipMiddlewares`:
 
 ```typescript
-// routes/public/health.ts
-const healthContract = {
+// contracts/health.ts
+export const healthContract = {
+    method: 'GET',
+    path: '/',
     response: Type.Object({
         status: Type.String()
     }),
@@ -235,14 +471,20 @@ const healthContract = {
     }
 };
 
-app.get('/', bind(healthContract, async (c) => {
-    return c.json({ status: 'ok' });
-}));
+// Or use public shorthand
+export const publicContract = {
+    method: 'GET',
+    path: '/',
+    response: Type.Object({ data: Type.String() }),
+    meta: {
+        public: true  // Same as skipMiddlewares: ['auth']
+    }
+};
 ```
 
 **How it works:**
 1. Global middlewares registered for all routes
-2. `bind()` stores `contract.meta` in context
+2. `bind()` stores `contract.meta` in context (bind.ts:44-47)
 3. `conditionalMiddleware` checks skip list at runtime
 4. Skipped middlewares call `next()` immediately
 
@@ -275,8 +517,8 @@ type RouteContext<TContract> = {
     // JSON response helper (typed)
     json(
         data: InferContract<TContract>['response'],
-        status?: number,
-        headers?: Record<string, string>
+        status?: ContentfulStatusCode,
+        headers?: HeaderRecord  // Record<string, string | string[]>
     ): Response;
 
     // Raw Hono context (for advanced usage)
@@ -287,7 +529,7 @@ type RouteContext<TContract> = {
 ### Example Usage
 
 ```typescript
-app.post('/users', bind(createUserContract, async (c) => {
+app.bind(createUserContract, async (c) => {
     // Validated params
     const { id } = c.params;
 
@@ -305,65 +547,8 @@ app.post('/users', bind(createUserContract, async (c) => {
 
     // Raw context access
     const token = c.raw.req.header('Authorization');
-}));
+});
 ```
-
----
-
-## File Organization
-
-### Recommended Structure
-
-```
-src/server/
-├── routes/              # Route files (Hono apps)
-│   ├── users/
-│   │   ├── index.ts
-│   │   └── [id].ts
-│   └── posts/
-│       └── index.ts
-│
-├── contracts/           # Shared contracts (TypeBox schemas)
-│   ├── users.ts
-│   └── posts.ts
-│
-├── middlewares/         # Custom middlewares
-│   ├── auth.ts
-│   └── rate-limit.ts
-│
-├── server.config.ts     # Server configuration
-└── app.ts              # Optional: Full control
-```
-
-### Separate Contracts (Recommended)
-
-```typescript
-// contracts/users.ts
-import { Type } from '@sinclair/typebox';
-
-export const getUserContract = {
-    params: Type.Object({ id: Type.Number() }),
-    response: Type.Object({
-        user: Type.Object({
-            id: Type.Number(),
-            name: Type.String()
-        })
-    })
-};
-
-// routes/users/[id].ts
-import { getUserContract } from '../../contracts/users';
-
-app.get('/', bind(getUserContract, async (c) => {
-    // ...
-}));
-```
-
-**Why separate?**
-- ✅ Contracts can be imported in client code
-- ✅ Single source of truth for API types
-- ✅ No server-side code in client bundles
-- ✅ Shared between server and client
 
 ---
 
@@ -373,19 +558,22 @@ app.get('/', bind(getUserContract, async (c) => {
 
 ```typescript
 // routes/users/index.ts
-const app = new Hono();
+import { createApp } from '@spfn/core/route';
+import { getUsersContract, createUserContract, getUserContract } from '../../contracts/users';
 
-app.get('/', bind(getUsersContract, async (c) => {
+const app = createApp();
+
+app.bind(getUsersContract, async (c) => {
     // GET /users
-}));
+});
 
-app.post('/', bind(createUserContract, async (c) => {
+app.bind(createUserContract, async (c) => {
     // POST /users
-}));
+});
 
-app.get('/:id', bind(getUserContract, async (c) => {
+app.bind(getUserContract, async (c) => {
     // GET /users/:id
-}));
+});
 
 export default app;
 ```
@@ -393,29 +581,58 @@ export default app;
 ### Conditional Middleware Per Route
 
 ```typescript
+// contracts/api.ts
+
 // Public route - skip auth
-const publicContract = {
+export const publicContract = {
+    method: 'GET',
+    path: '/public',
     response: Type.Object({ data: Type.String() }),
     meta: { skipMiddlewares: ['auth'] }
 };
 
 // Protected route - require auth
-const protectedContract = {
+export const protectedContract = {
+    method: 'GET',
+    path: '/protected',
     response: Type.Object({ data: Type.String() }),
     // No skipMiddlewares - auth will run
 };
-
-app.get('/public', bind(publicContract, handler));
-app.get('/protected', bind(protectedContract, handler));
 ```
 
-### Route-level Middleware
+### Route-level Middleware (Traditional Pattern Only)
 
 ```typescript
-import { authMiddleware } from '@spfn/auth';
+import { Hono } from 'hono';
+import { bind } from '@spfn/core/route';
+import { authMiddleware } from '../../middlewares/auth';
+
+const app = new Hono();
 
 // Apply middleware to specific route only
 app.get('/admin', authMiddleware, bind(contract, handler));
+
+export default app;
+```
+
+### Middleware Array with createApp()
+
+```typescript
+import { createApp } from '@spfn/core/route';
+import { authMiddleware, logMiddleware } from '../../middlewares';
+
+const app = createApp();
+
+// Pass middleware array to bind()
+app.bind(
+    adminContract,
+    [authMiddleware, logMiddleware],
+    async (c) => {
+        return c.json({ data: 'protected' });
+    }
+);
+
+export default app;
 ```
 
 ---
@@ -445,23 +662,47 @@ POST /users { "name": 123 }
 ```typescript
 import { ValidationError } from '@spfn/core';
 
-app.post('/', bind(contract, async (c) => {
+app.bind(createUserContract, async (c) => {
     const data = await c.data();
 
     if (await userExists(data.email)) {
         throw new ValidationError('Email already exists', {
-            field: 'email',
-            value: data.email
+            fields: [{
+                path: '/email',
+                message: 'Email already exists',
+                value: data.email
+            }]
         });
     }
 
     // ...
-}));
+});
 ```
 
 ---
 
 ## API Reference
+
+### `createApp()`
+
+Creates a SPFN app instance with `bind()` method.
+
+```typescript
+function createApp(): SPFNApp
+
+type SPFNApp = Hono & {
+    bind<TContract extends RouteContract>(
+        contract: TContract,
+        handler: RouteHandler
+    ): void;
+
+    bind<TContract extends RouteContract>(
+        contract: TContract,
+        middlewares: MiddlewareHandler[],
+        handler: RouteHandler
+    ): void;
+};
+```
 
 ### `bind(contract, handler)`
 
@@ -495,10 +736,19 @@ Contract definition type.
 
 ```typescript
 type RouteContract = {
+    /** HTTP method (required for createApp()) */
+    method: HttpMethod;
+    /** Route path (required for createApp()) */
+    path: string;
+    /** Path parameters schema (optional) */
     params?: TSchema;
+    /** Query parameters schema (optional) */
     query?: TSchema;
+    /** Request body schema (optional) */
     body?: TSchema;
+    /** Response schema (required) */
     response: TSchema;
+    /** Route metadata (optional) */
     meta?: RouteMeta;
 };
 ```
@@ -509,10 +759,54 @@ Route metadata for middleware control and documentation.
 
 ```typescript
 type RouteMeta = {
+    /** Public route (skip auth) - shorthand for skipMiddlewares: ['auth'] */
+    public?: boolean;
+    /** Skip specific global middlewares by name */
     skipMiddlewares?: string[];
+    /** OpenAPI tags for grouping */
     tags?: string[];
+    /** Route description for documentation */
     description?: string;
+    /** Deprecated flag */
     deprecated?: boolean;
+};
+```
+
+### `HttpMethod`
+
+```typescript
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+```
+
+### `RouteContext<TContract>`
+
+Route handler context with contract-based type inference.
+
+```typescript
+type RouteContext<TContract extends RouteContract> = {
+    params: InferContract<TContract>['params'];
+    query: InferContract<TContract>['query'];
+    pageable: { filters?, sort?, pagination? };
+    data(): Promise<InferContract<TContract>['body']>;
+    json(
+        data: InferContract<TContract>['response'],
+        status?: ContentfulStatusCode,
+        headers?: HeaderRecord
+    ): Response;
+    raw: Context;
+};
+```
+
+### `InferContract<TContract>`
+
+Type inference helper.
+
+```typescript
+type InferContract<TContract extends RouteContract> = {
+    params: Static<TContract['params']> | Record<string, never>;
+    query: Static<TContract['query']> | Record<string, never>;
+    body: Static<TContract['body']> | Record<string, never>;
+    response: Static<TContract['response']> | unknown;
 };
 ```
 
@@ -536,40 +830,58 @@ function conditionalMiddleware(
 ```typescript
 // ✅ Good - contracts in separate file
 import { userContracts } from '../../contracts/users';
-app.get('/', bind(userContracts.list, handler));
+app.bind(userContracts.list, handler);
 
 // ❌ Bad - contract inline in route
-app.get('/', bind({ response: Type.Object({...}) }, handler));
+app.bind({
+    method: 'GET',
+    path: '/',
+    response: Type.Object({...})
+}, handler);
 ```
 
-### 2. Skip Middlewares Explicitly
+### 2. Use createApp() for New Projects
+
+```typescript
+// ✅ Good - cleaner API
+const app = createApp();
+app.bind(contract, handler);
+
+// ⚠️ OK - when you need direct Hono access
+const app = new Hono();
+app.get('/', bind(contract, handler));
+```
+
+### 3. Skip Middlewares Explicitly
 
 ```typescript
 // ✅ Good - explicit skip in contract
 const contract = {
+    method: 'GET',
+    path: '/public',
     response: Type.Object({...}),
     meta: { skipMiddlewares: ['auth'] }
 };
 
 // ❌ Bad - no documentation why public
-app.get('/public', handler);
+app.bind(contract, handler);
 ```
 
-### 3. Use Type Inference
+### 4. Use Type Inference
 
 ```typescript
 // ✅ Good - let TypeScript infer types
-app.get('/', bind(contract, async (c) => {
+app.bind(contract, async (c) => {
     const { id } = c.params;  // Type inferred from contract
-}));
+});
 
 // ❌ Bad - manual typing
-app.get('/', bind(contract, async (c: RouteContext<typeof contract>) => {
+app.bind(contract, async (c: RouteContext<typeof contract>) => {
     // ...
-}));
+});
 ```
 
-### 4. Group Related Routes
+### 5. Group Related Routes
 
 ```typescript
 // ✅ Good - logical grouping
@@ -585,6 +897,18 @@ routes/
   users.ts
   user-detail.ts
   user-posts.ts
+```
+
+### 6. Store Contracts in contracts/
+
+```typescript
+// ✅ Good - separate contracts directory
+src/server/contracts/users.ts
+src/server/routes/users/index.ts (imports from contracts)
+
+// ❌ Bad - contracts mixed with routes
+src/server/routes/users/contracts.ts
+src/server/routes/users/index.ts
 ```
 
 ---
@@ -616,7 +940,7 @@ middlewares: [
     { name: 'auth', handler: authMiddleware() }  // name: 'auth'
 ]
 
-// route contract
+// contract
 meta: {
     skipMiddlewares: ['auth']  // Must match exactly
 }
@@ -637,6 +961,83 @@ params: Type.Object({
 query: Type.Object({
     tags: Type.Array(Type.String())
 })
+```
+
+### createApp() vs bind() confusion
+
+**When to use createApp():**
+- ✅ New projects
+- ✅ Want cleaner API
+- ✅ Contract contains method/path
+
+**When to use Hono + bind():**
+- ✅ Need direct Hono API access
+- ✅ Gradual migration
+- ✅ Complex middleware composition
+
+---
+
+## Migration Guide
+
+### From Traditional Hono to createApp()
+
+**Before:**
+```typescript
+import { Hono } from 'hono';
+import { bind } from '@spfn/core/route';
+
+const app = new Hono();
+
+const contract = {
+    response: Type.Object({ data: Type.String() })
+};
+
+app.get('/', bind(contract, handler));
+export default app;
+```
+
+**After:**
+```typescript
+import { createApp } from '@spfn/core/route';
+
+const app = createApp();
+
+const contract = {
+    method: 'GET',      // Add method
+    path: '/',          // Add path
+    response: Type.Object({ data: Type.String() })
+};
+
+app.bind(contract, handler);  // No app.get()
+export default app;
+```
+
+### Extract Contracts to Separate Files
+
+**Before:**
+```typescript
+// routes/users/index.ts
+const getUsersContract = {
+    method: 'GET',
+    path: '/',
+    response: Type.Object({...})
+};
+
+app.bind(getUsersContract, handler);
+```
+
+**After:**
+```typescript
+// contracts/users.ts
+export const getUsersContract = {
+    method: 'GET',
+    path: '/',
+    response: Type.Object({...})
+};
+
+// routes/users/index.ts
+import { getUsersContract } from '../../contracts/users';
+app.bind(getUsersContract, handler);
 ```
 
 ---

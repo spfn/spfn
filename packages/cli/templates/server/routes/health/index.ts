@@ -3,17 +3,21 @@
  *
  * Minimal endpoint for monitoring systems, load balancers, and orchestrators.
  * Used by Kubernetes probes, uptime monitors, etc.
+ *
+ * Example: Using createApp() with separate contracts
  */
 
-import type { RouteContext } from '@spfn/core';
+import { createApp } from '@spfn/core/route';
+import { healthContract } from '../../contracts/health';
 
-export const meta =
-{
-    description: 'Health check endpoint for monitoring',
-    tags: ['system'],
-};
+const app = createApp();
 
-export async function GET(c: RouteContext)
-{
-    return c.json({ status: 'ok' });
-}
+app.bind(healthContract, async (c) => {
+    return c.json({
+        status: 'ok',
+        timestamp: Date.now(),
+        uptime: process.uptime()
+    });
+});
+
+export default app;

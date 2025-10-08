@@ -8,27 +8,33 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     },
     "./client": {
       "types": "./dist/client/index.d.ts",
-      "import": "./dist/client/index.js"
+      "import": "./dist/client/index.js",
+      "require": "./dist/client/index.js"
     },
     "./route": {
       "types": "./dist/route/index.d.ts",
-      "import": "./dist/route/index.js"
+      "import": "./dist/route/index.js",
+      "require": "./dist/route/index.js"
     },
     "./db": {
       "types": "./dist/db/index.d.ts",
-      "import": "./dist/db/index.js"
+      "import": "./dist/db/index.js",
+      "require": "./dist/db/index.js"
     },
     "./server": {
       "types": "./dist/server/index.d.ts",
-      "import": "./dist/server/index.js"
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.js"
     },
     "./scripts": {
       "types": "./dist/scripts/index.d.ts",
-      "import": "./dist/scripts/index.js"
+      "import": "./dist/scripts/index.js",
+      "require": "./dist/scripts/index.js"
     }
   },
   "scripts": {
@@ -75,6 +81,7 @@
   },
   "peerDependencies": {
     "@hono/node-server": "^1.0.0",
+    "@sinclair/typebox": "^0.34.0",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.9.0",
     "postgres": "^3.4.0"

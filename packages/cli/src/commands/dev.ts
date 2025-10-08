@@ -7,7 +7,7 @@ import { detectPackageManager } from '../utils/package-manager.js';
 
 export const devCommand = new Command('dev')
     .description('Start SPFN development server (detects and runs Next.js + Hono)')
-    .option('-p, --port <port>', 'Server port', '4000')
+    .option('-p, --port <port>', 'Server port', '8790')
     .option('-h, --host <host>', 'Server host', 'localhost')
     .option('--routes <path>', 'Routes directory path')
     .option('--server-only', 'Run only Hono server (skip Next.js)')
@@ -81,9 +81,11 @@ await startServer({
             return;
         }
 
-        // Run both Next.js + Hono
-        const nextCmd = pm === 'npm' ? 'npx next dev' : `${pm} exec next dev`;
+        // Run both Next.js (via spfn:next script) + Hono server
+        const nextCmd = pm === 'npm' ? 'npm run spfn:next' : `${pm} run spfn:next`;
         const serverCmd = pm === 'npm' ? `npx tsx ${serverEntry}` : `${pm} exec tsx ${serverEntry}`;
+
+        logger.info('Starting SPFN server + Next.js (Turbopack)...\n');
 
         try
         {

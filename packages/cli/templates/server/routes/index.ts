@@ -4,15 +4,12 @@
  * Welcome page for SPFN API
  */
 
-import type { RouteContext } from '@spfn/core';
+import { createApp } from '@spfn/core/route';
+import { rootContract } from '../contracts/root.js';
 
-export const meta =
-{
-    description: 'API root endpoint',
-    tags: ['system'],
-};
+const app = createApp();
 
-export async function GET(c: RouteContext)
+app.bind(rootContract, async (c) =>
 {
     return c.json(
     {
@@ -23,8 +20,9 @@ export async function GET(c: RouteContext)
         {
             health: '/health',
             examples: '/examples',
-            docs: '/docs',
         },
         message: 'Welcome to SPFN! Visit /examples for usage examples.',
     });
-}
+});
+
+export default app;

@@ -1,43 +1,114 @@
 /**
- * Example Route: GET /examples
+ * Example Routes: CRUD Operations
  *
  * File naming patterns:
  * - routes/index.ts -> / (root route)
- * - routes/users/index.ts -> /users (all HTTP methods in one file)
+ * - routes/users/index.ts -> /users
  * - routes/users/[id].ts -> /users/:id (dynamic parameter)
  * - routes/posts/[...slug].ts -> /posts/* (catch-all route)
  *
- * Export named functions for each HTTP method: GET, POST, PUT, PATCH, DELETE
+ * Example: Using createApp() with separate contracts
+ * All contracts are stored in src/server/contracts/ for client/server sharing
  */
 
-import type { RouteContext } from '@spfn/core';
+import { createApp } from '@spfn/core/route';
+import {
+    getExamplesContract,
+    getExampleContract,
+    createExampleContract,
+    updateExampleContract,
+    deleteExampleContract
+} from '../../contracts/examples';
 
-export const meta =
-{
-    description: 'Example route showing SPFN framework features',
-    tags: ['examples'],
-};
+const app = createApp();
 
-export async function GET(c: RouteContext)
-{
-    return c.json(
-    {
-        message: 'Welcome to SPFN!',
-        framework: '@spfn/core',
-        features:
+// GET /examples - List examples with pagination
+app.bind(getExamplesContract, async (c) => {
+    const { limit = 10, offset = 0 } = c.query;
+
+    // Mock data - replace with actual database queries
+    const examples = [
         {
-            routing: 'File-based routing (Next.js style)',
-            transactions: 'Automatic transaction management',
-            repository: 'Type-safe Repository pattern',
-            typeGen: 'Auto-generated API types',
+            id: '1',
+            name: 'File-based Routing',
+            description: 'Next.js style automatic route registration'
         },
-        quickStart:
         {
-            step1: 'Define entities in src/server/entities/',
-            step2: 'Create routes in src/server/routes/',
-            step3: 'Run npm run generate to create types',
-            step4: 'Use generated API client in frontend',
+            id: '2',
+            name: 'Contract-based Validation',
+            description: 'TypeBox schemas for end-to-end type safety'
         },
-        learnMore: 'https://spfn.dev/docs',
+        {
+            id: '3',
+            name: 'Auto-generated Types',
+            description: 'Client code generation from contracts'
+        }
+    ];
+
+    return c.json({
+        examples: examples.slice(offset, offset + limit),
+        total: examples.length,
+        limit,
+        offset
     });
-}
+});
+
+// GET /examples/:id - Get single example
+app.bind(getExampleContract, async (c) => {
+    const { id } = c.params;
+
+    // Mock data - replace with actual database query
+    const example = {
+        id,
+        name: 'Example ' + id,
+        description: 'This is an example',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+    };
+
+    return c.json(example);
+});
+
+// POST /examples - Create example
+app.bind(createExampleContract, async (c) => {
+    const body = await c.data();
+
+    // Mock data - replace with actual database insert
+    const example = {
+        id: Math.random().toString(36).substring(7),
+        name: body.name,
+        description: body.description,
+        createdAt: Date.now()
+    };
+
+    return c.json(example);
+});
+
+// PUT /examples/:id - Update example
+app.bind(updateExampleContract, async (c) => {
+    const { id } = c.params;
+    const body = await c.data();
+
+    // Mock data - replace with actual database update
+    const example = {
+        id,
+        name: body.name || 'Updated Example',
+        description: body.description || 'Updated description',
+        updatedAt: Date.now()
+    };
+
+    return c.json(example);
+});
+
+// DELETE /examples/:id - Delete example
+app.bind(deleteExampleContract, async (c) => {
+    const { id } = c.params;
+
+    // Mock data - replace with actual database delete
+    return c.json({
+        success: true,
+        id
+    });
+});
+
+export default app;

@@ -40,15 +40,6 @@ function findTemplatesPath(): string
     throw new Error('Templates directory not found. Please rebuild the package.');
 }
 
-/**
- * Check if running in development (monorepo) environment
- */
-function isDevEnvironment(): boolean
-{
-    // If templates are in ../templates/, we're in dev mode
-    const devPath = join(__dirname, '..', 'templates');
-    return existsSync(devPath);
-}
 
 interface PackageJson
 {
@@ -140,13 +131,26 @@ export const initCommand = new Command('init')
 
         try
         {
-            const packages = ['@spfn/core', 'hono', 'drizzle-orm', 'postgres', '@hono/node-server'];
             const devPackages = ['tsx', 'drizzle-kit', 'concurrently', 'dotenv'];
 
-            await execa(pm, pm === 'npm' ? ['install', ...packages] : ['add', ...packages],
+            // Check if @spfn/core is already installed/linked
+            const corePackagePath = join(cwd, 'node_modules', '@spfn', 'core', 'package.json');
+            const isCoreInstalled = existsSync(corePackagePath);
+
+            if (!isCoreInstalled)
             {
-                cwd,
-            });
+                // Install @spfn/core only - peer dependencies will be auto-installed
+                // For local development: run `npm link @spfn/core` before init
+                spinner.text = 'Installing @spfn/core...';
+                await execa(pm, pm === 'npm' ? ['install', '--legacy-peer-deps', '@spfn/core'] : ['add', '@spfn/core'],
+                {
+                    cwd,
+                });
+            }
+            else
+            {
+                spinner.text = '@spfn/core already installed, skipping...';
+            }
 
             await execa(pm, pm === 'npm' ? ['install', '--save-dev', ...devPackages] : ['add', '-D', ...devPackages],
             {
@@ -207,9 +211,10 @@ export const initCommand = new Command('init')
             }
 
             // Copy module READMEs from packages (for framework documentation)
-            const packagesDir = isDevEnvironment()
-                ? join(__dirname, '..', '..', '..', 'packages')  // monorepo: ../../../packages (from dist/)
-                : join(__dirname, '..', '..', 'packages');        // npm: ../../packages (in node_modules/@spfn/cli)
+            // Try monorepo path first, then npm package path
+            const monorepoPackagesDir = join(__dirname, '..', '..', '..', 'packages');  // monorepo: ../../../packages (from dist/)
+            const npmPackagesDir = join(__dirname, '..', '..', 'packages');              // npm: ../../packages (in node_modules/@spfn/cli)
+            const packagesDir = existsSync(monorepoPackagesDir) ? monorepoPackagesDir : npmPackagesDir;
 
             if (existsSync(packagesDir))
             {
@@ -243,29 +248,11 @@ export const initCommand = new Command('init')
 
         packageJson.scripts = packageJson.scripts || {};
 
-        // Save original dev script if exists
-        const originalDev = packageJson.scripts.dev;
-
-        // Determine CLI command (development vs npm package)
-        const spfnCmd = isDevEnvironment() ? 'node ../../packages/cli/bin/spfn.js' : 'spfn';
-
-        // Update scripts
-        packageJson.scripts['dev'] = `${spfnCmd} dev`;
-        packageJson.scripts['dev:server'] = `${spfnCmd} dev --server-only`;
-
-        // Keep original next dev script if it existed
-        if (originalDev && originalDev !== 'next dev')
-        {
-            packageJson.scripts['dev:next'] = originalDev;
-        }
-        else
-        {
-            packageJson.scripts['dev:next'] = 'next dev';
-        }
-
-        packageJson.scripts['build'] = 'next build';
-        packageJson.scripts['start'] = 'next start';
-        packageJson.scripts['start:server'] = `${spfnCmd} start`;
+        // Add SPFN-specific scripts without overwriting existing ones
+        packageJson.scripts['spfn:dev'] = 'spfn dev';
+        packageJson.scripts['spfn:server'] = 'spfn dev --server-only';
+        packageJson.scripts['spfn:next'] = 'next dev --turbo --port 3790';
+        packageJson.scripts['spfn:start'] = 'spfn start';
 
         writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
@@ -279,7 +266,7 @@ export const initCommand = new Command('init')
 DATABASE_URL=postgresql://user:password@localhost:5432/mydb
 
 # API URL (for frontend)
-NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_API_URL=http://localhost:8790
 `);
             logger.success('Created .env.local.example');
         }
@@ -289,7 +276,12 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 
         console.log('Next steps:');
         console.log('  1. Copy .env.local.example to .env.local and configure your database');
-        console.log('  2. Run: ' + chalk.cyan(pm === 'npm' ? 'npm run dev' : `${pm} dev`));
-        console.log('  3. Visit: ' + chalk.cyan('http://localhost:4000/health'));
-        console.log('\nDocumentation: ' + chalk.cyan('https://spfn.dev/docs\n'));
+        console.log('  2. Run: ' + chalk.cyan(pm === 'npm' ? 'npm run spfn:dev' : `${pm} run spfn:dev`));
+        console.log('  3. Visit:');
+        console.log('     - Next.js: ' + chalk.cyan('http://localhost:3790'));
+        console.log('     - API:     ' + chalk.cyan('http://localhost:8790/health'));
+        console.log('\nAvailable scripts:');
+        console.log('  • ' + chalk.cyan('spfn:dev') + '     - Start SPFN server (8790) + Next.js (3790)');
+        console.log('  • ' + chalk.cyan('spfn:server') + '  - Start SPFN server only (8790)');
+        console.log('  • ' + chalk.cyan('spfn:next') + '    - Start Next.js only (3790)');
     });
