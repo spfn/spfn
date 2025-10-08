@@ -134,29 +134,12 @@ export default app;
 
 → [CLI Reference](./packages/cli/README.md) | [Core API](./packages/core/README.md)
 
-## Core Features
+## Core Philosophy
 
-### 🗂️ File-based Routing
-Next.js-style routing for your backend with co-located contracts:
+### Contract-Based Routing
+Define your API with TypeBox contracts, get validation and type safety automatically:
 ```typescript
-src/server/routes/
-  users/
-    contract.ts    → Contract definitions
-    index.ts       → GET /users
-  [id]/
-    contract.ts    → Contract definitions
-    index.ts       → GET /users/:id
-  posts/
-    [id]/
-      comments/
-        contract.ts → Contract definitions
-        index.ts   → GET /posts/:id/comments
-```
-
-### 📝 Contract-first Development
-Define contracts co-located with routes, get auto-generated type-safe clients:
-```typescript
-// 1. Define contract (routes/users/[id]/contract.ts)
+// Define once
 export const getUserContract = {
   method: 'GET' as const,
   path: '/:id',
@@ -164,50 +147,41 @@ export const getUserContract = {
   response: Type.Object({ id: Type.Number(), name: Type.String() })
 };
 
-// 2. Backend: Bind to route (routes/users/[id]/index.ts)
-import { getUserContract } from './contract.js';
-
+// Use in route - params are automatically validated and typed!
 app.bind(getUserContract, async (c) => {
-  const { id } = c.params;  // Automatically validated!
+  const { id } = c.params;  // Type-safe! string from params
   return c.json({ id: Number(id), name: 'Alice' });
 });
+```
 
-// 3. Frontend: Auto-generated client with full type safety
-import { api } from '@/lib/api/client'; // Auto-generated!
+### End-to-End Type Safety
+Auto-generated clients from co-located contracts:
+```typescript
+// Client auto-generated at src/lib/api/client.ts
+import { api } from '@/lib/api/client';
 
+// Frontend: Call APIs with full type inference
 const user = await api.users.getById({ params: { id: '123' } });
 //    ^? { id: number, name: string }
+
+// Client regenerates automatically when contracts change (watch mode)
+// No manual codegen needed - just edit contracts and go!
 ```
 
-### 🗄️ Repository Pattern
-Type-safe database operations with Drizzle ORM:
+### Function Call Style, Not HTTP
+Write backend logic, call it like a function:
 ```typescript
-import { getDb } from '@spfn/core/db';
-import { users } from './entities/users.js';
+// Backend
+app.bind(createUserContract, async (c) => {
+  const data = await c.data();  // Automatically validated!
+  return c.json(await userRepo.save(data));
+});
 
-const db = getDb();
-const repo = db.for(users);
-
-const result = await repo.findPage({
-  where: eq(users.status, 'active'),
-  pagination: { page: 1, limit: 10 }
+// Frontend - feels like calling a function, not making an HTTP request
+const newUser = await api.users.create({
+  body: { name: 'Bob', email: 'bob@example.com' }
 });
 ```
-
-### 💾 Production-ready Patterns
-Built-in support for:
-- **Transactions** — Automatic context propagation with `@Transactional()`
-- **Caching** — Redis with master-replica support
-- **Error handling** — Custom error classes with HTTP responses
-- **Middleware** — Logging, CORS, validation
-
-### 🚀 Deploy Anywhere
-Flexible deployment options:
-- Single server (VPS, dedicated hosting)
-- Containers (Docker, Podman)
-- Orchestration (Kubernetes, Docker Swarm)
-- Cloud platforms (AWS ECS/Fargate, Google Cloud Run, Azure Container Instances)
-- Any environment that can run Node.js
 
 ## Packages
 
