@@ -16,20 +16,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Find templates directory - works in both npm package and monorepo dev mode
- * - npm package: dist/templates/ (in node_modules/@spfn/cli)
- * - monorepo dev: packages/core/src/scripts/templates/
+ * - npm package: node_modules/@spfn/core/dist/scripts/templates/
+ * - monorepo dev: packages/core/dist/scripts/templates/ (from packages/cli/dist/)
  */
 function findScriptTemplatesPath(): string {
-    // Case 1: npm package - templates are in @spfn/core's templates directory
-    const npmCorePath = join(__dirname, '..', '..', '..', 'core', 'src', 'scripts', 'templates');
-    if (existsSync(npmCorePath)) {
-        return npmCorePath;
-    }
-
-    // Case 2: monorepo dev - templates are in packages/core/src/scripts/templates
-    const devPath = join(__dirname, '..', '..', '..', '..', 'core', 'src', 'scripts', 'templates');
+    // Case 1: monorepo dev - from cli/dist/ to core/dist/scripts/templates/
+    const devPath = join(__dirname, '..', '..', 'core', 'dist', 'scripts', 'templates');
     if (existsSync(devPath)) {
         return devPath;
+    }
+
+    // Case 2: npm package - node_modules/@spfn/core/dist/scripts/templates
+    const npmPath = join(__dirname, '..', '..', '..', 'core', 'dist', 'scripts', 'templates');
+    if (existsSync(npmPath)) {
+        return npmPath;
     }
 
     throw new Error('CRUD templates directory not found. Please rebuild the package.');
