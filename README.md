@@ -8,55 +8,6 @@
 
 Superfunction (shortened as **SPFN**) is a backend framework for Next.js that brings full backend capabilities with Next.js developer experience.
 
-## Core Philosophy
-
-### Contract-based Routing
-Define your API with TypeBox contracts, get validation and type safety automatically:
-```typescript
-// Define once
-export const getUserContract = {
-  method: 'GET' as const,
-  path: '/:id',
-  params: Type.Object({ id: Type.String() }),
-  response: Type.Object({ id: Type.Number(), name: Type.String() })
-};
-
-// Use in route - params are automatically validated and typed!
-app.bind(getUserContract, async (c) => {
-  const { id } = c.params;  // Type-safe! string from params
-  return c.json({ id: Number(id), name: 'Alice' });
-});
-```
-
-### End-to-End Type Safety
-Auto-generated clients from co-located contracts:
-```typescript
-// Client auto-generated at src/lib/api/client.ts
-import { api } from '@/lib/api/client';
-
-// Frontend: Call APIs with full type inference
-const user = await api.users.getById({ params: { id: '123' } });
-//    ^? { id: number, name: string }
-
-// Client regenerates automatically when contracts change (watch mode)
-// No manual codegen needed - just edit contracts and go!
-```
-
-### Function Call Style, Not HTTP
-Write backend logic, call it like a function:
-```typescript
-// Backend
-app.bind(createUserContract, async (c) => {
-  const data = c.body;  // Automatically validated!
-  return c.json(await userRepo.create(data));
-});
-
-// Frontend - feels like calling a function, not making an HTTP request
-const newUser = await api.users.create({
-  body: { name: 'Bob', email: 'bob@example.com' }
-});
-```
-
 ## Why Superfunction?
 
 Next.js excels at what it does. But when you need **full backend capabilities**, architecture matters:
@@ -65,22 +16,24 @@ Next.js excels at what it does. But when you need **full backend capabilities**,
 - **Long-running processes** — Video encoding, batch jobs, ML inference
 - **Persistent connections** — WebSocket servers, database connection pools
 - **Background workers** — Job queues, scheduled tasks, event processors
-- **Stateful operations** — Session stores, distributed caches
+- **Stateful services** — In-memory caches, connection pools, singleton services that maintain state across requests
 
 ### The Architecture Gap
 Next.js API Routes use a **serverless function model**:
 - Request-response only
-- No state between calls
-- Not designed for persistent processes
+- Cold starts on each invocation
+- No persistent state between requests
+- Not designed for long-running processes
 
 This is by design — it's what makes Next.js deployable anywhere.
 
 ### Superfunction Fills the Gap
 A **dedicated backend runtime** that runs alongside Next.js:
-- Persistent Node.js process
+- Always-on Node.js process (no cold starts)
+- Persistent connections and in-memory state
 - Full backend patterns (WebSocket, workers, queues)
 - File-based routing (Next.js DX)
-- Deploy together in containers
+- Flexible deployment (single server, containers, orchestration)
 
 **Next.js for UI. Superfunction for backend. Perfect together.**
 
@@ -90,18 +43,18 @@ Superfunction runs as a **separate backend server** alongside your Next.js app:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Frontend (Next.js App)                                 │
+│  Frontend (Next.js App)                Port 3790        │
 │  • Server Components                                    │
-│  • Client Components              Port 3790             │
-│  • Static Assets                                        │
+│  • Client Components                                    │
+│  • API Routes (BFF Proxy for security)                 │
 └────────────────┬────────────────────────────────────────┘
                  │
-                 │ HTTP/WebSocket
+                 │ Internal HTTP/WebSocket
                  │
 ┌────────────────▼────────────────────────────────────────┐
-│  Backend (Superfunction)                                │
+│  Backend (Superfunction)               Port 8790        │
 │  • File-based Routes                                    │
-│  • WebSocket Servers               Port 8790            │
+│  • WebSocket Servers                                    │
 │  • Background Workers                                   │
 │  • Persistent Connections                               │
 └────────────────┬────────────────────────────────────────┘
@@ -115,24 +68,27 @@ Superfunction runs as a **separate backend server** alongside your Next.js app:
 
 **Key Points:**
 - Next.js and Superfunction run as **separate processes**
-- Frontend calls Superfunction APIs directly (no proxy needed)
+- For secure production, use Next.js API Routes as BFF proxy layer
 - End-to-end type safety (contracts + code generation)
-- Deploy together in Docker/Kubernetes
+- Flexible deployment (single server, VPS, containers, orchestration)
 
 ## Quick Start
 
-**1. Install CLI**
-```bash
-npm install -g @spfn/cli
-```
+**1. Initialize in your Next.js project**
 
-**2. Initialize in your Next.js project**
+You can either use npx or install the CLI globally:
+
 ```bash
+# Option 1: Using npx (no installation required)
 cd your-nextjs-project
+npx spfn@latest init
+
+# Option 2: Install CLI globally
+npm install -g spfn
 spfn init
 ```
 
-**3. Start development**
+**2. Start development**
 ```bash
 npm run spfn:dev
 ```
@@ -141,7 +97,7 @@ Visit:
 - **Next.js app**: http://localhost:3790
 - **API health**: http://localhost:8790/health
 
-**4. Create your first route**
+**3. Create your first route**
 ```typescript
 // src/server/routes/users/contract.ts
 import { Type } from '@sinclair/typebox';
@@ -246,11 +202,12 @@ Built-in support for:
 - **Middleware** — Logging, CORS, validation
 
 ### 🚀 Deploy Anywhere
-Container-based deployment:
-- Docker / Kubernetes
-- AWS ECS / Fargate
-- Google Cloud Run
-- Any Node.js environment
+Flexible deployment options:
+- Single server (VPS, dedicated hosting)
+- Containers (Docker, Podman)
+- Orchestration (Kubernetes, Docker Swarm)
+- Cloud platforms (AWS ECS/Fargate, Google Cloud Run, Azure Container Instances)
+- Any environment that can run Node.js
 
 ## Packages
 
