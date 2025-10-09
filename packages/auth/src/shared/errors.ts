@@ -1,144 +1,93 @@
 /**
- * Authentication Error Classes
+ * Auth Error Classes
  *
- * Type-safe error handling for authentication operations
- * Mapped to HTTP status codes for API responses
+ * Custom error classes for authentication and OTP flows
  */
 
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { DatabaseError } from '@spfn/core';
 
 /**
- * Base Authentication Error
+ * Base OTP Error
+ *
+ * Base class for OTP-related errors
  */
-export class AuthError extends Error
+export class OtpError extends DatabaseError
 {
-    public readonly statusCode: ContentfulStatusCode;
-    public readonly details?: Record<string, any>;
-    public readonly timestamp: Date;
-
-    constructor(
-        message: string,
-        statusCode: ContentfulStatusCode = 500,
-        details?: Record<string, any>
-    )
-    {
-        super(message);
-        this.name = 'AuthError';
-        this.statusCode = statusCode;
-        this.details = details;
-        this.timestamp = new Date();
-        Error.captureStackTrace(this, this.constructor);
-    }
-
-    /**
-     * Serialize error for API response
-     */
-    toJSON()
-    {
-        return {
-            name: this.name,
-            message: this.message,
-            statusCode: this.statusCode,
-            details: this.details,
-            timestamp: this.timestamp.toISOString()
-        };
-    }
+	constructor(message: string, statusCode: number = 400, details?: Record<string, any>)
+	{
+		super(message, statusCode, details);
+		this.name = 'OtpError';
+	}
 }
 
 /**
- * Invalid Credentials Error (401 Unauthorized)
+ * Rate Limit Error (429)
  *
- * Email/password validation failure
+ * OTP 발송 횟수 제한 초과
  */
-export class InvalidCredentialsError extends AuthError
+export class RateLimitError extends OtpError
 {
-    constructor(message: string = 'Invalid email or password')
-    {
-        super(message, 401);
-        this.name = 'InvalidCredentialsError';
-    }
+	constructor(retryAfter: number)
+	{
+		super('Rate limit exceeded. Please try again later.', 429, { retryAfter });
+		this.name = 'RateLimitError';
+	}
 }
 
 /**
- * Invalid Signature Error (401 Unauthorized)
+ * OTP Expired Error (400)
  *
- * Request signature verification failure
+ * OTP 만료
  */
-export class InvalidSignatureError extends AuthError
+export class OtpExpiredError extends OtpError
 {
-    constructor(message: string = 'Invalid request signature')
-    {
-        super(message, 401);
-        this.name = 'InvalidSignatureError';
-    }
+	constructor()
+	{
+		super('OTP has expired.', 400);
+		this.name = 'OtpExpiredError';
+	}
 }
 
 /**
- * Key Not Found Error (401 Unauthorized)
+ * Invalid OTP Error (400)
  *
- * Public key not found in database
+ * OTP 불일치
  */
-export class KeyNotFoundError extends AuthError
+export class InvalidOtpError extends OtpError
 {
-    constructor(keyId: string)
-    {
-        super(`Key ${keyId} not found`, 401, { keyId });
-        this.name = 'KeyNotFoundError';
-    }
+	constructor(attemptsRemaining: number)
+	{
+		super(`Invalid OTP. ${attemptsRemaining} attempts remaining.`, 400, {
+			attemptsRemaining,
+		});
+		this.name = 'InvalidOtpError';
+	}
 }
 
 /**
- * Expired Request Error (401 Unauthorized)
+ * OTP Not Found Error (400)
  *
- * Request timestamp outside valid window
+ * OTP가 존재하지 않거나 이미 사용됨
  */
-export class ExpiredRequestError extends AuthError
+export class OtpNotFoundError extends OtpError
 {
-    constructor(message: string = 'Request has expired')
-    {
-        super(message, 401);
-        this.name = 'ExpiredRequestError';
-    }
+	constructor()
+	{
+		super('OTP not found or already used.', 400);
+		this.name = 'OtpNotFoundError';
+	}
 }
 
 /**
- * Replay Attack Error (401 Unauthorized)
+ * Max Attempts Error (400)
  *
- * Nonce already used (replay attack detected)
+ * 최대 검증 시도 횟수 초과
  */
-export class ReplayAttackError extends AuthError
+export class MaxAttemptsError extends OtpError
 {
-    constructor(message: string = 'Replay attack detected')
-    {
-        super(message, 401);
-        this.name = 'ReplayAttackError';
-    }
-}
-
-/**
- * Missing Public Key Error (400 Bad Request)
- *
- * keyId or publicKey not provided in request
- */
-export class MissingPublicKeyError extends AuthError
-{
-    constructor(message: string = 'keyId and publicKey are required')
-    {
-        super(message, 400);
-        this.name = 'MissingPublicKeyError';
-    }
-}
-
-/**
- * Unauthorized Error (401 Unauthorized)
- *
- * User not authenticated or session expired
- */
-export class UnauthorizedError extends AuthError
-{
-    constructor(message: string = 'Unauthorized')
-    {
-        super(message, 401);
-        this.name = 'UnauthorizedError';
-    }
+	constructor(maxAttempts: number)
+	{
+		super('Maximum verification attempts exceeded.', 400, { maxAttempts });
+		this.name = 'MaxAttemptsError';
+	}
 }

@@ -1,12 +1,20 @@
 /**
- * @spfn/auth - Server exports
+ * @spfn/auth/server
+ *
+ * Server-side authentication module
  */
 
-export * from '../shared/types.js';
-export * from '../shared/constants.js';
+// Entities
+export * from './entities/index.js';
 
-export * from './crypto.js';
-export * from './signer.js';
-export * from './cache.js';
-export * from './middleware.js';
-export * from './providers/client-key.js';
+// Repositories
+export * from './repositories/index.js';
+
+// Services
+export * from './services/index.js';
+
+// Routes
+export * from './routes/otp/index.js';
+
+// Shared (Errors)
+export * from '../shared/errors.js';
