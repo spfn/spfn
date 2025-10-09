@@ -15,7 +15,10 @@
     "clean": "turbo run clean",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "sync:guides": "node scripts/sync-guides.js",
-    "test:init": "node scripts/test-init.mjs"
+    "test:init": "node scripts/test-init.mjs",
+    "publish:packages": "pnpm build --filter=\"!./apps/*\" && pnpm --filter \"./packages/*\" publish --tag alpha --access public",
+    "publish:alpha": "pnpm publish:packages",
+    "version:bump": "pnpm --filter \"./packages/*\" version"
   },
   "devDependencies": {
     "chalk": "^5.3.0",
