@@ -133,22 +133,28 @@ importers:
 
   packages/auth:
     dependencies:
-      drizzle-orm:
-        specifier: ^0.30.0
-        version: 0.30.10(@types/react@19.2.0)(postgres@3.4.7)(react@19.1.0)
-      hono:
-        specifier: ^4.0.0
-        version: 4.9.9
-      ioredis:
-        specifier: ^5.3.0
-        version: 5.8.0
-    devDependencies:
       '@spfn/core':
         specifier: workspace:*
         version: link:../core
+      '@spfn/user':
+        specifier: workspace:*
+        version: link:../user
+    devDependencies:
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.19
+      drizzle-orm:
+        specifier: ^0.44.6
+        version: 0.44.6(gel@2.1.1)(postgres@3.4.7)
+      hono:
+        specifier: ^4.9.0
+        version: 4.9.10
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.8.0
+      next:
+        specifier: ^15.5.4
+        version: 15.5.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       tsup:
         specifier: ^8.0.0
         version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
@@ -240,13 +246,14 @@ importers:
       zod:
         specifier: ^4.1.11
         version: 4.1.11
+    optionalDependencies:
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.8.0
     devDependencies:
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.19
-      ioredis:
-        specifier: ^5.4.1
-        version: 5.8.0
       tsup:
         specifier: ^8.0.0
         version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
@@ -265,6 +272,22 @@ importers:
         version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
       typescript:
         specifier: ^5.3.0
+        version: 5.9.3
+
+  packages/user:
+    dependencies:
+      '@spfn/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      drizzle-orm:
+        specifier: ^0.44.6
+        version: 0.44.6(gel@2.1.1)(postgres@3.4.7)
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
         version: 5.9.3
 
 packages:
@@ -1831,86 +1854,6 @@ packages:
   drizzle-kit@0.31.5:
     resolution: {integrity: sha512-+CHgPFzuoTQTt7cOYCV6MOw2w8vqEn/ap1yv4bpZOWL03u7rlVRQhUY0WYT3rHsgVTXwYQDZaSUJSQrMBUKuWg==}
     hasBin: true
-
-  drizzle-orm@0.30.10:
-    resolution: {integrity: sha512-IRy/QmMWw9lAQHpwbUh1b8fcn27S/a9zMIzqea1WNOxK9/4EB8gIo+FZWLiPXzl2n9ixGSv8BhsLZiOppWEwBw==}
-    peerDependencies:
-      '@aws-sdk/client-rds-data': '>=3'
-      '@cloudflare/workers-types': '>=3'
-      '@electric-sql/pglite': '>=0.1.1'
-      '@libsql/client': '*'
-      '@neondatabase/serverless': '>=0.1'
-      '@op-engineering/op-sqlite': '>=2'
-      '@opentelemetry/api': ^1.4.1
-      '@planetscale/database': '>=1'
-      '@types/better-sqlite3': '*'
-      '@types/pg': '*'
-      '@types/react': '>=18'
-      '@types/sql.js': '*'
-      '@vercel/postgres': '>=0.8.0'
-      '@xata.io/client': '*'
-      better-sqlite3: '>=7'
-      bun-types: '*'
-      expo-sqlite: '>=13.2.0'
-      knex: '*'
-      kysely: '*'
-      mysql2: '>=2'
-      pg: '>=8'
-      postgres: '>=3'
-      react: '>=18'
-      sql.js: '>=1'
-      sqlite3: '>=5'
-    peerDependenciesMeta:
-      '@aws-sdk/client-rds-data':
-        optional: true
-      '@cloudflare/workers-types':
-        optional: true
-      '@electric-sql/pglite':
-        optional: true
-      '@libsql/client':
-        optional: true
-      '@neondatabase/serverless':
-        optional: true
-      '@op-engineering/op-sqlite':
-        optional: true
-      '@opentelemetry/api':
-        optional: true
-      '@planetscale/database':
-        optional: true
-      '@types/better-sqlite3':
-        optional: true
-      '@types/pg':
-        optional: true
-      '@types/react':
-        optional: true
-      '@types/sql.js':
-        optional: true
-      '@vercel/postgres':
-        optional: true
-      '@xata.io/client':
-        optional: true
-      better-sqlite3:
-        optional: true
-      bun-types:
-        optional: true
-      expo-sqlite:
-        optional: true
-      knex:
-        optional: true
-      kysely:
-        optional: true
-      mysql2:
-        optional: true
-      pg:
-        optional: true
-      postgres:
-        optional: true
-      react:
-        optional: true
-      sql.js:
-        optional: true
-      sqlite3:
-        optional: true
 
   drizzle-orm@0.44.6:
     resolution: {integrity: sha512-uy6uarrrEOc9K1u5/uhBFJbdF5VJ5xQ/Yzbecw3eAYOunv5FDeYkR2m8iitocdHBOHbvorviKOW5GVw0U1j4LQ==}
@@ -4758,12 +4701,6 @@ snapshots:
       esbuild-register: 3.6.0(esbuild@0.25.10)
     transitivePeerDependencies:
       - supports-color
-
-  drizzle-orm@0.30.10(@types/react@19.2.0)(postgres@3.4.7)(react@19.1.0):
-    optionalDependencies:
-      '@types/react': 19.2.0
-      postgres: 3.4.7
-      react: 19.1.0
 
   drizzle-orm@0.44.6(gel@2.1.1)(postgres@3.4.7):
     optionalDependencies:
