@@ -55,11 +55,28 @@ export class Repository<
     TSelect = TTable['$inferSelect']
 >
 {
+    protected db: PostgresJsDatabase<any>;
+    protected table: TTable;
+    protected useReplica: boolean;
+
     constructor(
-        private db: PostgresJsDatabase<any>,
-        private table: TTable,
-        private useReplica: boolean = true // Whether to use Replica (default: true)
-    ) {}
+        dbOrTable: PostgresJsDatabase<any> | TTable,
+        tableOrUseReplica?: TTable | boolean,
+        useReplica: boolean = true
+    ) {
+        // Overload 1: new Repository(table) - db auto-resolved
+        if ('name' in dbOrTable && typeof dbOrTable.name === 'string') {
+            this.db = getRawDb('write');
+            this.table = dbOrTable as TTable;
+            this.useReplica = typeof tableOrUseReplica === 'boolean' ? tableOrUseReplica : true;
+        }
+        // Overload 2: new Repository(db, table, useReplica?) - original behavior
+        else {
+            this.db = dbOrTable as PostgresJsDatabase<any>;
+            this.table = tableOrUseReplica as TTable;
+            this.useReplica = useReplica;
+        }
+    }
 
     /**
      * Get read-only DB

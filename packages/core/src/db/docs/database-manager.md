@@ -179,7 +179,7 @@ const db = getDb();
 
 ```typescript
 import { describe, it, beforeEach, afterEach } from 'vitest';
-import { initDatabase, closeDatabase } from '@spfn/core/db';
+import { Repository, initDatabase, closeDatabase } from '@spfn/core/db';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
@@ -200,8 +200,7 @@ describe('User Repository', () => {
     });
 
     it('should create user', async () => {
-        const db = getDb();
-        const repo = db.for(users);
+        const repo = new Repository(users);
         const user = await repo.save({ email: 'test@example.com' });
         expect(user.id).toBeDefined();
     });
