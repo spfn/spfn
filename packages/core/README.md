@@ -51,14 +51,16 @@ export const getUsersContract = {
 // src/server/routes/users/index.ts
 import { createApp } from '@spfn/core/route';
 import { getUsersContract } from './contract.js';
-import { Repository } from '@spfn/core/db';
+import { getRepository } from '@spfn/core/db';
 import { users } from '../../entities/users.js';
 
 const app = createApp();
 
 app.bind(getUsersContract, async (c) => {
   const { page = 1, limit = 10 } = c.query;
-  const repo = new Repository(users);
+
+  // Get repository singleton - automatically cached
+  const repo = getRepository(users);
 
   const result = await repo.findPage({
     pagination: { page, limit }
@@ -164,54 +166,66 @@ export class PostRepository extends Repository<typeof posts>
 }
 ```
 
-**3. Service Layer** - Business logic
+**3. Service Layer** - Business logic (Function-based pattern)
 
 ```typescript
-// src/server/services/posts.service.ts
+// src/server/services/posts.ts
+import { getRepository } from '@spfn/core/db';
 import { posts } from '../entities';
-import { PostRepository } from '../repositories';
+import { PostRepository } from '../repositories/posts.repository';
 import type { NewPost, Post } from '../entities';
 
-export class PostService
-{
-  private repo = new PostRepository(posts);
+/**
+ * Create a new post
+ */
+export async function createPost(data: {
+  title: string;
+  content: string;
+}): Promise<Post> {
+  // Get repository singleton
+  const repo = getRepository(posts, PostRepository);
 
-  async createPost(data: { title: string; content: string }): Promise<Post>
-  {
-    // Business logic: Generate slug from title
-    const slug = this.generateSlug(data.title);
+  // Business logic: Generate slug from title
+  const slug = generateSlug(data.title);
 
-    // Validation: Check if slug already exists
-    const existing = await this.repo.findBySlug(slug);
-    if (existing) {
-      throw new Error('Post with this title already exists');
-    }
-
-    // Create post
-    return this.repo.save({
-      ...data,
-      slug,
-      status: 'draft',
-    });
+  // Validation: Check if slug already exists
+  const existing = await repo.findBySlug(slug);
+  if (existing) {
+    throw new Error('Post with this title already exists');
   }
 
-  async publishPost(id: string): Promise<Post | null>
-  {
-    return this.repo.update(id, { status: 'published' });
-  }
+  // Create post
+  return repo.save({
+    ...data,
+    slug,
+    status: 'draft',
+  });
+}
 
-  async getPublishedPosts(): Promise<Post[]>
-  {
-    return this.repo.findPublished();
-  }
+/**
+ * Publish a post
+ */
+export async function publishPost(id: string): Promise<Post | null> {
+  const repo = getRepository(posts, PostRepository);
+  return repo.update(id, { status: 'published' });
+}
 
-  private generateSlug(title: string): string
-  {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
-  }
+/**
+ * Get all published posts
+ */
+export async function getPublishedPosts(): Promise<Post[]> {
+  const repo = getRepository(posts, PostRepository);
+  return repo.findPublished();
+}
+
+/**
+ * Helper: Generate URL-friendly slug from title
+ */
+function generateSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
 }
 ```
 
@@ -249,22 +263,23 @@ export const listPostsContract = {
 ```typescript
 // src/server/routes/posts/index.ts
 import { createApp } from '@spfn/core/route';
-import { PostService } from '../../services/posts.service';
+import { Transactional } from '@spfn/core/db';
+import { createPost, getPublishedPosts } from '../../services/posts';
 import { createPostContract, listPostsContract } from './contracts';
 
 const app = createApp();
-const postService = new PostService();
 
-// POST /posts - Create new post
-app.bind(createPostContract, async (c) => {
+// POST /posts - Create new post (with transaction)
+app.bind(createPostContract, Transactional(), async (c) => {
   const body = await c.data();
-  const post = await postService.createPost(body);
+  const post = await createPost(body);
+  // ✅ Auto-commit on success, auto-rollback on error
   return c.json(post, 201);
 });
 
-// GET /posts - List published posts
+// GET /posts - List published posts (no transaction needed)
 app.bind(listPostsContract, async (c) => {
-  const posts = await postService.getPublishedPosts();
+  const posts = await getPublishedPosts();
   return c.json(posts);
 });
 
@@ -310,20 +325,22 @@ export default app;
 - ✅ Use TEXT with enum for status fields
 
 **Repository Layer:**
-- ✅ Extend `Repository<typeof table>`
-- ✅ Use simplified constructor: `new Repository(table)`
+- ✅ Extend `Repository<typeof table>` for custom methods
+- ✅ Use `getRepository(table)` or `getRepository(table, CustomRepo)`
 - ✅ Add domain-specific query methods
 - ✅ Return typed results
 
 **Service Layer:**
-- ✅ Initialize repositories in constructor or as properties
+- ✅ Use function-based pattern (export async functions)
+- ✅ Get repositories via `getRepository()` (singleton)
 - ✅ Implement business logic and validation
 - ✅ Throw descriptive errors
-- ✅ Keep methods focused and small
+- ✅ Keep functions focused and small
 
 **Routes Layer:**
 - ✅ Keep handlers thin (delegate to services)
 - ✅ Define contracts with TypeBox
+- ✅ Use `Transactional()` middleware for write operations
 - ✅ Use `c.data()` for validated input
 - ✅ Return `c.json()` responses
 
@@ -394,13 +411,21 @@ import type { RouteContext, RouteContract } from '@spfn/core/route';
 
 ### Database
 ```typescript
-import { db, getDb, Repository } from '@spfn/core/db';
+import {
+  getDb,
+  Repository,
+  getRepository
+} from '@spfn/core/db';
 import type { Pageable, Page } from '@spfn/core/db';
 ```
 
 ### Transactions
 ```typescript
-import { Transactional, getTransaction } from '@spfn/core';
+import {
+  Transactional,
+  getTransaction,
+  runWithTransaction
+} from '@spfn/core/db';
 ```
 
 ### Cache

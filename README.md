@@ -236,20 +236,52 @@ const newUser = await api.users.create({
 ### Type-Safe Data Layer
 Repository pattern with Drizzle ORM for clean, type-safe database operations:
 ```typescript
-import { getDb } from '@spfn/core/db';
+import { getRepository } from '@spfn/core/db';
 import { users } from './entities/users.js';
 
-// Get repository instance with transaction support
-const db = getDb();
-const repo = db.for(users);
+// Get repository singleton - automatically cached
+const repo = getRepository(users);
 
 // Type-safe queries with full IDE autocomplete
 const result = await repo.findPage({
-  where: eq(users.status, 'active'),
-  orderBy: desc(users.createdAt),
+  filters: { status: 'active' },
+  sort: [{ field: 'createdAt', direction: 'desc' }],
   pagination: { page: 1, limit: 10 }
 });
-// ^? { items: User[], total: number, page: number, limit: number }
+// ^? { data: User[], meta: { total, page, limit, ... } }
+```
+
+**Service Layer** — Clean function-based services:
+```typescript
+// services/users.ts
+import { getRepository } from '@spfn/core/db';
+import { users } from '../entities/users.js';
+
+export async function createUser(data: { name: string; email: string }) {
+  const repo = getRepository(users);
+
+  const existing = await repo.findOneWhere({ email: data.email });
+  if (existing) {
+    throw new Error('Email already exists');
+  }
+
+  return repo.save(data);
+}
+```
+
+**Automatic Transactions** — No manual transaction management:
+```typescript
+// routes/users/index.ts
+import { Transactional } from '@spfn/core/db';
+import { createUser } from '../../services/users.js';
+
+app.bind(createUserContract, Transactional(), async (c) => {
+  const data = await c.data();
+  const user = await createUser(data);
+  // ✅ Auto-commit on success
+  // ❌ Auto-rollback on error
+  return c.json(user, 201);
+});
 ```
 
 ### Schema Helpers

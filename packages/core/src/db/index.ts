@@ -38,6 +38,13 @@ export type {
     FindWhereOptions
 } from './repository.js';
 
+// Repository Factory (Singleton Pattern)
+export {
+    getRepository,
+    clearRepositoryCache,
+    getRepositoryCacheSize
+} from './repository-factory.js';
+
 // Query Builder
 export { QueryBuilder } from './query-builder.js';
 

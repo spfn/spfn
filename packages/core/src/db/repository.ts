@@ -23,6 +23,7 @@ import { buildFilters } from '../query';
 import { buildSort } from '../query';
 import { applyPagination, createPaginationMeta, countTotal } from '../query';
 import { getRawDb } from './db-instance.js';
+import { getTransaction } from './transaction';
 import { QueryError } from '../errors';
 import { getTableName } from './relation-registry.js';
 import { QueryBuilder } from './query-builder.js';
@@ -78,11 +79,38 @@ export type FindWhereOptions = WithRelations;
 /**
  * Repository class
  *
- * Provides JPA Repository-style CRUD methods
+ * Provides JPA Repository-style CRUD methods with automatic transaction support
  *
- * ✅ Auto Read Replica routing:
- * - Read methods (findAll, findById, findOne, findPage, count) → Uses Replica
- * - Write methods (save, update, delete) → Uses Primary
+ * ✅ Automatic Transaction Detection:
+ * - Automatically participates in active Transactional() middleware context
+ * - No need to pass transaction explicitly - uses AsyncLocalStorage
+ * - All operations within a transaction use the same transaction DB
+ *
+ * ✅ Auto Read/Write Replica routing (when NOT in transaction):
+ * - Read methods (findAll, findById, findOne, findPage, count) → Uses Read Replica
+ * - Write methods (save, update, delete) → Uses Primary DB
+ *
+ * ✅ DB Priority:
+ * 1. Explicit DB (if provided in constructor)
+ * 2. Transaction context (if inside Transactional middleware)
+ * 3. Read Replica or Primary DB (based on operation type)
+ *
+ * @example
+ * ```typescript
+ * // Simple usage - automatically detects transaction
+ * class UserService {
+ *   private get repo() {
+ *     return new Repository(users);  // Auto-detects transaction
+ *   }
+ * }
+ *
+ * // Route with transaction
+ * app.bind(contract, Transactional(), async (c) => {
+ *   const service = new UserService();
+ *   await service.createUser(data);
+ *   // Automatic rollback on error!
+ * });
+ * ```
  */
 export class Repository<
     TTable extends PgTable,
@@ -117,6 +145,10 @@ export class Repository<
 
     /**
      * Get read-only DB
+     *
+     * Automatically detects and uses transaction context if available.
+     * When in transaction, uses transaction DB to ensure read consistency.
+     * Priority: explicitDb > transaction > replica/primary DB
      */
     private getReadDb(): PostgresJsDatabase<any>
     {
@@ -124,12 +156,23 @@ export class Repository<
         if (this.explicitDb) {
             return this.explicitDb;
         }
+
+        // Check if we're inside a transaction context
+        // Use transaction for reads too to ensure consistency
+        const tx = getTransaction();
+        if (tx) {
+            return tx;
+        }
+
         // Otherwise use getRawDb for replica routing
         return this.useReplica ? getRawDb('read') : this.db;
     }
 
     /**
      * Get write-only DB
+     *
+     * Automatically detects and uses transaction context if available.
+     * Priority: explicitDb > transaction > primary DB
      */
     private getWriteDb(): PostgresJsDatabase<any>
     {
@@ -137,6 +180,13 @@ export class Repository<
         if (this.explicitDb) {
             return this.explicitDb;
         }
+
+        // Check if we're inside a transaction context
+        const tx = getTransaction();
+        if (tx) {
+            return tx;
+        }
+
         // Otherwise use getRawDb for write operations
         return getRawDb('write');
     }
