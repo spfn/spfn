@@ -134,6 +134,148 @@ export default app;
 
 → [CLI Reference](./packages/cli/README.md) | [Core API](./packages/core/README.md)
 
+## Auto-Generate CRUD from Entity
+
+The fastest way to create a complete CRUD API is using the `spfn generate` command:
+
+```bash
+# 1. Create your entity
+# src/server/entities/posts.ts
+import { pgTable, text } from 'drizzle-orm/pg-core';
+import { id, timestamps } from '@spfn/core/db';
+
+export const posts = pgTable('posts', {
+  id: id(),                    // Auto-increment primary key
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  ...timestamps(),             // createdAt, updatedAt
+});
+
+# 2. Generate everything automatically
+spfn generate posts
+
+# Creates:
+# ✅ src/server/routes/posts/contract.ts     (TypeBox contracts)
+# ✅ src/server/routes/posts/index.ts        (GET / + POST /)
+# ✅ src/server/routes/posts/[id]/index.ts   (GET/:id + PUT/:id + DELETE/:id)
+# ✅ src/server/repositories/posts.repository.ts (Repository with findById, create, update, delete)
+```
+
+**What you get:**
+- 5 REST endpoints (list, create, get, update, delete)
+- Type-safe contracts auto-generated from Drizzle schema
+- Repository pattern with pagination support
+- Full CRUD implementation ready to use
+
+**Generated API:**
+```
+GET    /posts          # List with pagination
+POST   /posts          # Create new post
+GET    /posts/:id      # Get by ID
+PUT    /posts/:id      # Update post
+DELETE /posts/:id      # Delete post
+```
+
+→ [Full Generate Command Documentation](./packages/cli/README.md#spfn-generate)
+
+## Complete CRUD Example
+
+Here's what `spfn generate` creates for you (or you can write it manually):
+
+```typescript
+// 1. Define Entity (src/server/entities/posts.ts)
+import { pgTable, text } from 'drizzle-orm/pg-core';
+import { id, timestamps } from '@spfn/core/db';
+
+export const posts = pgTable('posts', {
+  id: id(),                    // bigserial primary key
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  ...timestamps(),             // createdAt, updatedAt
+});
+
+// 2. Define Contract (src/server/routes/posts/contract.ts)
+import { Type } from '@sinclair/typebox';
+
+export const createPostContract = {
+  method: 'POST' as const,
+  path: '/',
+  body: Type.Object({
+    title: Type.String(),
+    content: Type.String(),
+  }),
+  response: Type.Object({
+    id: Type.Number(),
+    title: Type.String(),
+    content: Type.String(),
+    createdAt: Type.String(),
+  }),
+};
+
+export const listPostsContract = {
+  method: 'GET' as const,
+  path: '/',
+  response: Type.Object({
+    items: Type.Array(Type.Object({
+      id: Type.Number(),
+      title: Type.String(),
+    })),
+    total: Type.Number(),
+  }),
+};
+
+// 3. Implement Routes (src/server/routes/posts/index.ts)
+import { createApp } from '@spfn/core/route';
+import { getDb } from '@spfn/core/db';
+import { posts } from '@/server/entities/posts.js';
+import { createPostContract, listPostsContract } from './contract.js';
+
+const app = createApp();
+
+app.bind(createPostContract, async (c) => {
+  const body = await c.data();
+  const db = getDb();
+  const repo = db.for(posts);
+
+  const newPost = await repo.create(body);
+  return c.json(newPost);
+});
+
+app.bind(listPostsContract, async (c) => {
+  const db = getDb();
+  const repo = db.for(posts);
+
+  const result = await repo.findPage({
+    pagination: { page: 1, limit: 10 }
+  });
+
+  return c.json(result);
+});
+
+export default app;
+
+// 4. Use in Frontend (src/app/page.tsx)
+import { api } from '@/lib/api/client';
+
+export default async function Page() {
+  // List posts
+  const { items } = await api.posts.list();
+
+  // Create post
+  const newPost = await api.posts.create({
+    body: { title: 'Hello', content: 'World' }
+  });
+
+  return <div>{items.map(p => <div key={p.id}>{p.title}</div>)}</div>;
+}
+```
+
+**Key benefits:**
+- ✅ Type-safe from database to frontend
+- ✅ Automatic validation on body/params/query
+- ✅ Repository pattern handles pagination, filtering
+- ✅ Auto-generated client keeps frontend in sync
+
 ## Core Philosophy
 
 ### Contract-Based Routing
@@ -201,6 +343,32 @@ const result = await repo.findPage({
 });
 // ^? { items: User[], total: number, page: number, limit: number }
 ```
+
+### Schema Helpers
+Reduce boilerplate with built-in helpers for common patterns:
+```typescript
+import { pgTable, text } from 'drizzle-orm/pg-core';
+import { id, timestamps, foreignKey } from '@spfn/core/db';
+
+export const users = pgTable('users', {
+  id: id(),                    // bigserial primary key
+  email: text('email').notNull().unique(),
+  ...timestamps(),             // createdAt, updatedAt
+});
+
+export const posts = pgTable('posts', {
+  id: id(),
+  title: text('title').notNull(),
+  authorId: foreignKey('author', () => users.id),  // Foreign key with cascade
+  ...timestamps(),
+});
+```
+
+**Available helpers:**
+- `id()` — Auto-increment primary key (bigserial)
+- `timestamps()` — createdAt, updatedAt with timezone
+- `foreignKey(name, ref)` — Foreign key with cascade delete
+- `optionalForeignKey(name, ref)` — Nullable foreign key
 
 ## Packages
 
