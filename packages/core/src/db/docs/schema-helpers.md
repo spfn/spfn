@@ -145,7 +145,7 @@ await db
 
 **Repository handles this automatically:**
 ```typescript
-const userRepo = db.for(users);
+const userRepo = new Repository(users);
 
 // updatedAt is automatically set
 await userRepo.update(123, { name: 'New Name' });
@@ -374,6 +374,109 @@ const usersWithManagers = await db
         aliasedTable(users, 'manager'),
         eq(users.managerId, aliasedTable(users, 'manager').id)
     );
+```
+
+### PostgreSQL Schema Namespaces
+
+Use `pgSchema` to organize tables into separate PostgreSQL schemas (namespaces):
+
+```typescript
+import { pgSchema, text } from 'drizzle-orm/pg-core';
+import { id, timestamps, foreignKey } from '@spfn/core/db';
+
+// Define schema namespace
+export const authSchema = pgSchema('app_auth');
+
+// Tables in app_auth schema
+export const users = authSchema.table('users', {
+    id: id(),
+    email: text('email').notNull().unique(),
+    ...timestamps()
+});
+
+export const sessions = authSchema.table('sessions', {
+    id: id(),
+    userId: foreignKey('user', () => users.id),
+    token: text('token').notNull(),
+    ...timestamps()
+});
+```
+
+**Benefits:**
+- Namespace isolation (e.g., `app_auth.users` vs `public.users`)
+- Avoid table name conflicts
+- Organize related tables together
+- Better permission management
+
+**Cross-Schema References:**
+
+You can reference tables from different schemas:
+
+```typescript
+import { pgSchema } from 'drizzle-orm/pg-core';
+import { id, foreignKey } from '@spfn/core/db';
+
+// Auth schema
+export const authSchema = pgSchema('app_auth');
+export const users = authSchema.table('users', {
+    id: id(),
+    email: text('email').notNull()
+});
+
+// Main schema (public)
+export const posts = pgTable('posts', {
+    id: id(),
+    title: text('title').notNull(),
+    // Reference table from different schema
+    authorId: foreignKey('author', () => users.id),
+    ...timestamps()
+});
+```
+
+**Generated SQL:**
+```sql
+CREATE SCHEMA IF NOT EXISTS "app_auth";
+
+CREATE TABLE "app_auth"."users" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "email" TEXT NOT NULL UNIQUE,
+  "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+  "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE "public"."posts" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "title" TEXT NOT NULL,
+  "author_id" BIGSERIAL NOT NULL REFERENCES "app_auth"."users"("id"),
+  "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+  "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+```
+
+**Real-World Example (@spfn/auth):**
+
+```typescript
+import { pgSchema, text, boolean } from 'drizzle-orm/pg-core';
+import { id, timestamps, foreignKey } from '@spfn/core/db';
+
+// Dedicated schema for auth module
+export const spfnAuth = pgSchema('spfn_auth');
+
+export const users = spfnAuth.table('users', {
+    id: id(),
+    email: text('email').notNull().unique(),
+    password: text('password'),
+    emailVerified: boolean('email_verified').default(false).notNull(),
+    ...timestamps()
+});
+
+export const userKeys = spfnAuth.table('user_keys', {
+    id: id(),
+    userId: foreignKey('user', () => users.id),
+    keyId: text('key_id').notNull().unique(),
+    publicKey: text('public_key').notNull(),
+    ...timestamps()
+});
 ```
 
 ### Composite Foreign Keys

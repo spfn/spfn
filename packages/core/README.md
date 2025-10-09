@@ -58,7 +58,7 @@ const app = createApp();
 
 app.bind(getUsersContract, async (c) => {
   const { page = 1, limit = 10 } = c.query;
-  const repo = new Repository(db, users);
+  const repo = new Repository(users);
 
   const result = await repo.findPage({
     pagination: { page, limit }
@@ -76,6 +76,256 @@ export default app;
 npm run spfn:dev
 # Server starts on http://localhost:8790
 ```
+
+## Architecture Pattern
+
+SPFN follows a **layered architecture** that separates concerns and keeps code maintainable:
+
+```
+┌─────────────────────────────────────────┐
+│            Routes Layer                  │  HTTP handlers, contracts
+│  - Define API contracts (TypeBox)       │
+│  - Handle requests/responses            │
+│  - Thin handlers                        │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│           Service Layer                  │  Business logic
+│  - Orchestrate operations               │
+│  - Implement business rules             │
+│  - Use repositories                     │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│         Repository Layer                 │  Data access
+│  - CRUD operations                      │
+│  - Custom queries                       │
+│  - Extend base Repository               │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│           Entity Layer                   │  Database schema
+│  - Table definitions (Drizzle)          │
+│  - Type inference                       │
+│  - Schema helpers                       │
+└─────────────────────────────────────────┘
+```
+
+### Complete Example: Blog Post System
+
+**1. Entity Layer** - Define database schema
+
+```typescript
+// src/server/entities/posts.ts
+import { pgTable, text } from 'drizzle-orm/pg-core';
+import { id, timestamps } from '@spfn/core/db';
+
+export const posts = pgTable('posts', {
+  id: id(),
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  content: text('content').notNull(),
+  status: text('status', {
+    enum: ['draft', 'published']
+  }).notNull().default('draft'),
+  ...timestamps(),
+});
+
+export type Post = typeof posts.$inferSelect;
+export type NewPost = typeof posts.$inferInsert;
+```
+
+**2. Repository Layer** - Data access with custom methods
+
+```typescript
+// src/server/repositories/posts.repository.ts
+import { eq } from 'drizzle-orm';
+import { Repository } from '@spfn/core/db';
+import { posts } from '../entities';
+import type { Post } from '../entities';
+
+export class PostRepository extends Repository<typeof posts>
+{
+  async findBySlug(slug: string): Promise<Post | null>
+  {
+    return this.findOne(eq(this.table.slug, slug));
+  }
+
+  async findPublished(): Promise<Post[]>
+  {
+    const results = await this.db
+      .select()
+      .from(this.table)
+      .where(eq(this.table.status, 'published'))
+      .orderBy(this.table.createdAt);
+
+    return results;
+  }
+}
+```
+
+**3. Service Layer** - Business logic
+
+```typescript
+// src/server/services/posts.service.ts
+import { posts } from '../entities';
+import { PostRepository } from '../repositories';
+import type { NewPost, Post } from '../entities';
+
+export class PostService
+{
+  private repo = new PostRepository(posts);
+
+  async createPost(data: { title: string; content: string }): Promise<Post>
+  {
+    // Business logic: Generate slug from title
+    const slug = this.generateSlug(data.title);
+
+    // Validation: Check if slug already exists
+    const existing = await this.repo.findBySlug(slug);
+    if (existing) {
+      throw new Error('Post with this title already exists');
+    }
+
+    // Create post
+    return this.repo.save({
+      ...data,
+      slug,
+      status: 'draft',
+    });
+  }
+
+  async publishPost(id: string): Promise<Post | null>
+  {
+    return this.repo.update(id, { status: 'published' });
+  }
+
+  async getPublishedPosts(): Promise<Post[]>
+  {
+    return this.repo.findPublished();
+  }
+
+  private generateSlug(title: string): string
+  {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  }
+}
+```
+
+**4. Routes Layer** - HTTP API
+
+```typescript
+// src/server/routes/posts/contracts.ts
+import { Type } from '@sinclair/typebox';
+
+export const createPostContract = {
+  method: 'POST' as const,
+  path: '/',
+  body: Type.Object({
+    title: Type.String(),
+    content: Type.String(),
+  }),
+  response: Type.Object({
+    id: Type.String(),
+    title: Type.String(),
+    slug: Type.String(),
+  }),
+};
+
+export const listPostsContract = {
+  method: 'GET' as const,
+  path: '/',
+  response: Type.Array(Type.Object({
+    id: Type.String(),
+    title: Type.String(),
+    slug: Type.String(),
+  })),
+};
+```
+
+```typescript
+// src/server/routes/posts/index.ts
+import { createApp } from '@spfn/core/route';
+import { PostService } from '../../services/posts.service';
+import { createPostContract, listPostsContract } from './contracts';
+
+const app = createApp();
+const postService = new PostService();
+
+// POST /posts - Create new post
+app.bind(createPostContract, async (c) => {
+  const body = await c.data();
+  const post = await postService.createPost(body);
+  return c.json(post, 201);
+});
+
+// GET /posts - List published posts
+app.bind(listPostsContract, async (c) => {
+  const posts = await postService.getPublishedPosts();
+  return c.json(posts);
+});
+
+export default app;
+```
+
+### Why This Architecture?
+
+**✅ Separation of Concerns**
+- Each layer has a single responsibility
+- Easy to locate and modify code
+
+**✅ Testability**
+- Test each layer independently
+- Mock dependencies easily
+
+**✅ Reusability**
+- Services can be used by multiple routes
+- Repositories can be shared across services
+
+**✅ Type Safety**
+- Types flow from Entity → Repository → Service → Route
+- Full IDE autocomplete and error checking
+
+**✅ Maintainability**
+- Add features without breaking existing code
+- Clear boundaries prevent coupling
+
+### Layer Responsibilities
+
+| Layer | Responsibility | Examples |
+|-------|---------------|----------|
+| **Entity** | Define data structure | Schema, types, constraints |
+| **Repository** | Data access | CRUD, custom queries, joins |
+| **Service** | Business logic | Validation, orchestration, rules |
+| **Routes** | HTTP interface | Contracts, request handling |
+
+### Best Practices
+
+**Entity Layer:**
+- ✅ Use schema helpers: `id()`, `timestamps()`
+- ✅ Export inferred types: `Post`, `NewPost`
+- ✅ Use TEXT with enum for status fields
+
+**Repository Layer:**
+- ✅ Extend `Repository<typeof table>`
+- ✅ Use simplified constructor: `new Repository(table)`
+- ✅ Add domain-specific query methods
+- ✅ Return typed results
+
+**Service Layer:**
+- ✅ Initialize repositories in constructor or as properties
+- ✅ Implement business logic and validation
+- ✅ Throw descriptive errors
+- ✅ Keep methods focused and small
+
+**Routes Layer:**
+- ✅ Keep handlers thin (delegate to services)
+- ✅ Define contracts with TypeBox
+- ✅ Use `c.data()` for validated input
+- ✅ Return `c.json()` responses
 
 ## Core Modules
 

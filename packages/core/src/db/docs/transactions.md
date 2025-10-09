@@ -106,12 +106,11 @@ No need to pass transaction context explicitly!
 Repository methods automatically participate in transactions:
 
 ```typescript
-import { Transactional, getDb } from '@spfn/core/db';
+import { Transactional, Repository } from '@spfn/core/db';
 
 app.bind(contract, Transactional(), async (c) => {
-    const db = getDb();
-    const userRepo = db.for(users);
-    const profileRepo = db.for(profiles);
+    const userRepo = new Repository(users);
+    const profileRepo = new Repository(profiles);
 
     // Both repositories use same transaction
     const user = await userRepo.save({ email: 'test@example.com' });
@@ -129,8 +128,7 @@ Any thrown error triggers automatic rollback:
 
 ```typescript
 app.bind(contract, Transactional(), async (c) => {
-    const db = getDb();
-    const userRepo = db.for(users);
+    const userRepo = new Repository(users);
 
     const user = await userRepo.save({ email: 'test@example.com' });
 
@@ -145,10 +143,10 @@ app.bind(contract, Transactional(), async (c) => {
 
 ```typescript
 import { ValidationError } from '@spfn/core/errors';
+import { Repository } from '@spfn/core/db';
 
 app.bind(contract, Transactional(), async (c) => {
-    const db = getDb();
-    const userRepo = db.for(users);
+    const userRepo = new Repository(users);
 
     const user = await userRepo.save({ email: 'test@example.com' });
 
@@ -165,10 +163,11 @@ app.bind(contract, Transactional(), async (c) => {
 ### Conditional Rollback
 
 ```typescript
+import { Repository } from '@spfn/core/db';
+
 app.bind(contract, Transactional(), async (c) => {
-    const db = getDb();
-    const userRepo = db.for(users);
-    const paymentRepo = db.for(payments);
+    const userRepo = new Repository(users);
+    const paymentRepo = new Repository(payments);
 
     const user = await userRepo.save({ email: 'test@example.com' });
 
@@ -190,7 +189,7 @@ app.bind(contract, Transactional(), async (c) => {
 Transactions work across nested function calls:
 
 ```typescript
-import { Transactional, getDb } from '@spfn/core/db';
+import { Transactional, Repository } from '@spfn/core/db';
 
 app.bind(contract, Transactional(), async (c) => {
     // Top-level handler has transaction
@@ -201,8 +200,7 @@ app.bind(contract, Transactional(), async (c) => {
 });
 
 async function createUser(email: string) {
-    const db = getDb();
-    const userRepo = db.for(users);
+    const userRepo = new Repository(users);
 
     const user = await userRepo.save({ email });
 
@@ -213,16 +211,14 @@ async function createUser(email: string) {
 }
 
 async function createProfile(userId: number) {
-    const db = getDb();
-    const profileRepo = db.for(profiles);
+    const profileRepo = new Repository(profiles);
 
     // Uses same transaction as createUser and top handler
     return profileRepo.save({ userId, bio: 'Welcome!' });
 }
 
 async function createInitialPosts(userId: number) {
-    const db = getDb();
-    const postRepo = db.for(posts);
+    const postRepo = new Repository(posts);
 
     // Also uses same transaction
     return postRepo.saveMany([
@@ -237,11 +233,12 @@ async function createInitialPosts(userId: number) {
 Create related resources atomically:
 
 ```typescript
+import { Repository } from '@spfn/core/db';
+
 app.bind(createOrderContract, Transactional(), async (c) => {
-    const db = getDb();
-    const orderRepo = db.for(orders);
-    const orderItemRepo = db.for(orderItems);
-    const inventoryRepo = db.for(inventory);
+    const orderRepo = new Repository(orders);
+    const orderItemRepo = new Repository(orderItems);
+    const inventoryRepo = new Repository(inventory);
 
     // Create order
     const order = await orderRepo.save({
@@ -271,9 +268,10 @@ app.bind(createOrderContract, Transactional(), async (c) => {
 ### Idempotent Operations
 
 ```typescript
+import { Repository } from '@spfn/core/db';
+
 app.bind(contract, Transactional(), async (c) => {
-    const db = getDb();
-    const userRepo = db.for(users);
+    const userRepo = new Repository(users);
 
     // Check if user exists
     const existing = await userRepo.findWhere({ email: 'test@example.com' });
@@ -358,10 +356,11 @@ Use savepoints for partial rollback within a transaction:
 
 ```typescript
 import { sql } from 'drizzle-orm';
+import { Repository, getDb } from '@spfn/core/db';
 
 app.bind(contract, Transactional(), async (c) => {
     const db = getDb();
-    const userRepo = db.for(users);
+    const userRepo = new Repository(users);
 
     const user = await userRepo.save({ email: 'test@example.com' });
 
@@ -386,7 +385,7 @@ app.bind(contract, Transactional(), async (c) => {
 
 ```typescript
 import { describe, it, beforeEach, afterEach } from 'vitest';
-import { getDb } from '@spfn/core/db';
+import { Repository, getDb } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
 
 describe('User Tests', () => {
@@ -401,8 +400,7 @@ describe('User Tests', () => {
     });
 
     it('should create user', async () => {
-        const db = getDb();
-        const userRepo = db.for(users);
+        const userRepo = new Repository(users);
 
         const user = await userRepo.save({ email: 'test@example.com' });
 

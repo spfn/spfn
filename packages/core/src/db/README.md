@@ -35,8 +35,7 @@ const getUsersContract = {
 };
 
 app.bind(getUsersContract, async (c) => {
-    const db = getDb();
-    const userRepo = db.for(users);
+    const userRepo = new Repository(users);
 
     const allUsers = await userRepo.findAll();
     return c.json(allUsers);
@@ -56,8 +55,7 @@ const createUserContract = {
 };
 
 app.bind(createUserContract, Transactional(), async (c) => {
-    const db = getDb();
-    const userRepo = db.for(users);
+    const userRepo = new Repository(users);
 
     const data = await c.req.json();
     const user = await userRepo.save(data);
@@ -91,11 +89,10 @@ For advanced configuration, see [Database Manager →](./docs/database-manager.m
 ### Repository Pattern
 
 ```typescript
-import { getDb } from '@spfn/core/db';
+import { Repository } from '@spfn/core/db';
 import { users } from './schema';
 
-const db = getDb();
-const userRepo = db.for(users);
+const userRepo = new Repository(users);
 
 // Create
 const user = await userRepo.save({
@@ -140,12 +137,11 @@ For complete API reference, see [Repository Pattern →](./docs/repository.md)
 ### Transactions
 
 ```typescript
-import { Transactional, getDb } from '@spfn/core/db';
+import { Transactional, Repository } from '@spfn/core/db';
 
 app.bind(contract, Transactional(), async (c) => {
-    const db = getDb();
-    const userRepo = db.for(users);
-    const profileRepo = db.for(profiles);
+    const userRepo = new Repository(users);
+    const profileRepo = new Repository(profiles);
 
     // Both operations in same transaction
     const user = await userRepo.save({ email: 'test@example.com' });
@@ -260,8 +256,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
 ### CRUD Operations
 
 ```typescript
-const db = getDb();
-const userRepo = db.for(users);
+const userRepo = new Repository(users);
 
 // Create single
 const user = await userRepo.save({
@@ -270,7 +265,7 @@ const user = await userRepo.save({
 });
 
 // Create multiple
-const users = await userRepo.saveMany([
+const newUsers = await userRepo.saveMany([
     { email: 'user1@example.com', name: 'User 1' },
     { email: 'user2@example.com', name: 'User 2' }
 ]);
@@ -335,9 +330,8 @@ const postsWithAuthors = await db
 
 ```typescript
 app.bind(contract, Transactional(), async (c) => {
-    const db = getDb();
-    const orderRepo = db.for(orders);
-    const inventoryRepo = db.for(inventory);
+    const orderRepo = new Repository(orders);
+    const inventoryRepo = new Repository(inventory);
 
     // Create order
     const order = await orderRepo.save({
@@ -419,7 +413,7 @@ Reusable column definitions for common patterns.
 | `createDatabaseFromEnv()` | Initialize from `DATABASE_URL` |
 | `getDb()` | Get database instance |
 | `Transactional()` | Transaction middleware |
-| `db.for(table)` | Create Repository |
+| `new Repository(table)` | Create Repository instance |
 
 ### Repository Methods
 
@@ -489,10 +483,10 @@ DATABASE_URL=postgresql://localhost:5432/mydb
 **Solution:**
 ```typescript
 // ✅ Correct
-const userRepo = db.for(users);
+const userRepo = new Repository(users);
 
 // ❌ Wrong
-const userRepo: Repository<any> = db.for(users);
+const userRepo: Repository<any> = new Repository(users);
 ```
 
 ### Transaction not rolling back

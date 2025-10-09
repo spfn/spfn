@@ -16,11 +16,10 @@ The Repository pattern provides a high-level, type-safe interface for database o
 ## Quick Start
 
 ```typescript
-import { getDb } from '@spfn/core/db';
+import { Repository } from '@spfn/core/db';
 import { users } from './schema';
 
-const db = getDb();
-const userRepo = db.for(users);
+const userRepo = new Repository(users);
 
 // Create
 const user = await userRepo.save({ email: 'test@example.com', name: 'John' });
@@ -38,16 +37,15 @@ await userRepo.delete(user.id);
 
 ## API Reference
 
-### db.for(table)
+### new Repository(table)
 
 Create a Repository instance for a table.
 
 ```typescript
-import { getDb } from '@spfn/core/db';
+import { Repository } from '@spfn/core/db';
 import { users } from './schema';
 
-const db = getDb();
-const userRepo = db.for(users);
+const userRepo = new Repository(users);
 ```
 
 **Parameters:**
@@ -466,7 +464,7 @@ Repository methods automatically participate in transactions when used with `Tra
 
 ```typescript
 import { createApp } from '@spfn/core/route';
-import { Transactional, getDb } from '@spfn/core/db';
+import { Transactional, Repository } from '@spfn/core/db';
 import { users, profiles } from './schema';
 
 const app = createApp();
@@ -475,9 +473,8 @@ app.bind(
     createUserContract,
     Transactional(),
     async (c) => {
-        const db = getDb();
-        const userRepo = db.for(users);
-        const profileRepo = db.for(profiles);
+        const userRepo = new Repository(users);
+        const profileRepo = new Repository(profiles);
 
         // Both operations in same transaction
         const user = await userRepo.save({ email: 'test@example.com' });
@@ -613,7 +610,7 @@ Repository is fully type-safe based on your Drizzle schema:
 
 ```typescript
 import { pgTable, text, bigserial } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
+import { Repository, id, timestamps } from '@spfn/core/db';
 
 export const users = pgTable('users', {
     id: id(),
@@ -622,7 +619,7 @@ export const users = pgTable('users', {
     ...timestamps()
 });
 
-const userRepo = db.for(users);
+const userRepo = new Repository(users);
 
 // ✅ Type-safe
 await userRepo.save({
