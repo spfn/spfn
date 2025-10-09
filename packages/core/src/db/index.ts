@@ -30,6 +30,16 @@ export type { PoolConfig, RetryConfig } from './config.js';
 
 // Repository Pattern
 export { Repository } from './repository.js';
+export type {
+    Pageable,
+    Page,
+    WithRelations,
+    FindByIdOptions,
+    FindWhereOptions
+} from './repository.js';
+
+// Query Builder
+export { QueryBuilder } from './query-builder.js';
 
 // Schema Helpers
 export { id, timestamps, foreignKey, optionalForeignKey } from './schema-helpers.js';

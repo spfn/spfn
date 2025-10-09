@@ -27,7 +27,7 @@ describe('Repository Pattern', () =>
     {
         client = postgres(DATABASE_URL, { max: 1 });
         db = drizzle(client);
-        userRepo = new Repository(db, testUsers);
+        userRepo = new Repository<typeof testUsers>(db, testUsers);
 
         // Note: Table is already created in setup.ts (test_users)
     });
@@ -226,6 +226,249 @@ describe('Repository Pattern', () =>
         {
             const count = await userRepo.count();
             expect(count).toBe(0);
+        });
+    });
+
+    // ============================================================
+    // New Methods Tests (Priority 1)
+    // ============================================================
+
+    describe('findWhere()', () =>
+    {
+        beforeEach(async () =>
+        {
+            await userRepo.save({ email: 'admin@example.com', name: 'Admin User' });
+            await userRepo.save({ email: 'user1@example.com', name: 'Regular User 1' });
+            await userRepo.save({ email: 'user2@example.com', name: 'Regular User 2' });
+        });
+
+        it('should find users by email filter', async () =>
+        {
+            const users = await userRepo.findWhere({
+                email: { like: 'user' }
+            });
+
+            expect(users).toHaveLength(2);
+            users.forEach(user =>
+            {
+                expect(user.email).toContain('user');
+            });
+        });
+
+        it('should find users by exact email', async () =>
+        {
+            const users = await userRepo.findWhere({
+                email: { eq: 'admin@example.com' }
+            });
+
+            expect(users).toHaveLength(1);
+            expect(users[0].email).toBe('admin@example.com');
+        });
+
+        it('should return empty array when no match', async () =>
+        {
+            const users = await userRepo.findWhere({
+                email: { like: 'nonexistent' }
+            });
+
+            expect(users).toEqual([]);
+        });
+    });
+
+    describe('findOneWhere()', () =>
+    {
+        beforeEach(async () =>
+        {
+            await userRepo.save({ email: 'unique@example.com', name: 'Unique User' });
+        });
+
+        it('should find one user by filter', async () =>
+        {
+            const user = await userRepo.findOneWhere({
+                email: { eq: 'unique@example.com' }
+            });
+
+            expect(user).toBeDefined();
+            expect(user?.email).toBe('unique@example.com');
+        });
+
+        it('should return null when no match', async () =>
+        {
+            const user = await userRepo.findOneWhere({
+                email: { eq: 'nonexistent@example.com' }
+            });
+
+            expect(user).toBeNull();
+        });
+    });
+
+    describe('exists()', () =>
+    {
+        it('should return true if user exists', async () =>
+        {
+            const user = await userRepo.save({ email: 'exists@example.com' });
+            const exists = await userRepo.exists(user.id);
+
+            expect(exists).toBe(true);
+        });
+
+        it('should return false if user does not exist', async () =>
+        {
+            const exists = await userRepo.exists(999999);
+
+            expect(exists).toBe(false);
+        });
+    });
+
+    describe('existsBy()', () =>
+    {
+        beforeEach(async () =>
+        {
+            await userRepo.save({ email: 'check@example.com' });
+        });
+
+        it('should return true if user exists with filter', async () =>
+        {
+            const exists = await userRepo.existsBy({
+                email: { eq: 'check@example.com' }
+            });
+
+            expect(exists).toBe(true);
+        });
+
+        it('should return false if no user matches filter', async () =>
+        {
+            const exists = await userRepo.existsBy({
+                email: { eq: 'nonexistent@example.com' }
+            });
+
+            expect(exists).toBe(false);
+        });
+    });
+
+    describe('countBy()', () =>
+    {
+        beforeEach(async () =>
+        {
+            await userRepo.save({ email: 'admin1@example.com' });
+            await userRepo.save({ email: 'admin2@example.com' });
+            await userRepo.save({ email: 'user@example.com' });
+        });
+
+        it('should count users matching filter', async () =>
+        {
+            const count = await userRepo.countBy({
+                email: { like: 'admin' }
+            });
+
+            expect(count).toBe(2);
+        });
+
+        it('should return 0 when no match', async () =>
+        {
+            const count = await userRepo.countBy({
+                email: { like: 'nonexistent' }
+            });
+
+            expect(count).toBe(0);
+        });
+    });
+
+    describe('saveMany()', () =>
+    {
+        it('should create multiple users in single query', async () =>
+        {
+            const users = await userRepo.saveMany([
+                { email: 'batch1@example.com', name: 'User 1' },
+                { email: 'batch2@example.com', name: 'User 2' },
+                { email: 'batch3@example.com', name: 'User 3' }
+            ]);
+
+            expect(users).toHaveLength(3);
+            expect(users[0].id).toBeDefined();
+            expect(users[1].id).toBeDefined();
+            expect(users[2].id).toBeDefined();
+        });
+
+        it('should return empty array for empty input', async () =>
+        {
+            const users = await userRepo.saveMany([]);
+
+            expect(users).toEqual([]);
+        });
+    });
+
+    describe('updateWhere()', () =>
+    {
+        beforeEach(async () =>
+        {
+            await userRepo.save({ email: 'pending1@example.com', name: 'Pending 1' });
+            await userRepo.save({ email: 'pending2@example.com', name: 'Pending 2' });
+            await userRepo.save({ email: 'active@example.com', name: 'Active' });
+        });
+
+        it('should update multiple users matching filter', async () =>
+        {
+            const count = await userRepo.updateWhere(
+                { email: { like: 'pending' } },
+                { name: 'Updated Name' }
+            );
+
+            expect(count).toBe(2);
+
+            const updated = await userRepo.findWhere({
+                email: { like: 'pending' }
+            });
+
+            updated.forEach(user =>
+            {
+                expect(user.name).toBe('Updated Name');
+            });
+        });
+
+        it('should return 0 when no match', async () =>
+        {
+            const count = await userRepo.updateWhere(
+                { email: { like: 'nonexistent' } },
+                { name: 'Test' }
+            );
+
+            expect(count).toBe(0);
+        });
+    });
+
+    describe('deleteWhere()', () =>
+    {
+        beforeEach(async () =>
+        {
+            await userRepo.save({ email: 'delete1@example.com' });
+            await userRepo.save({ email: 'delete2@example.com' });
+            await userRepo.save({ email: 'keep@example.com' });
+        });
+
+        it('should delete multiple users matching filter', async () =>
+        {
+            const count = await userRepo.deleteWhere({
+                email: { like: 'delete' }
+            });
+
+            expect(count).toBe(2);
+
+            const remaining = await userRepo.findAll();
+            expect(remaining).toHaveLength(1);
+            expect(remaining[0].email).toBe('keep@example.com');
+        });
+
+        it('should return 0 when no match', async () =>
+        {
+            const count = await userRepo.deleteWhere({
+                email: { like: 'nonexistent' }
+            });
+
+            expect(count).toBe(0);
+
+            const all = await userRepo.findAll();
+            expect(all).toHaveLength(3);
         });
     });
 });
