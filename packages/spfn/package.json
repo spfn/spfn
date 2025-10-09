@@ -1,6 +1,6 @@
 {
   "name": "spfn",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "description": "Superfunction CLI - The Backend Layer for Next.js",
   "type": "module",
   "bin": {
@@ -22,11 +22,11 @@
     "superfunction",
     "spfn"
   ],
-  "author": "Superfunction Team",
+  "author": "Ray Im <rayim@inflike.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/superfunction/spfn.git",
+    "url": "https://github.com/spfn/spfn.git",
     "directory": "packages/spfn"
   },
   "dependencies": {
@@ -37,6 +37,7 @@
     "typescript": "^5.3.0"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "tag": "alpha"
   }
 }

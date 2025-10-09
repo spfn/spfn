@@ -1,6 +1,6 @@
 {
   "name": "@spfn/cli",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "description": "SPFN CLI - Add SPFN to your Next.js project",
   "type": "module",
   "bin": {
@@ -22,7 +22,7 @@
     "cli",
     "backend"
   ],
-  "author": "INFLIKE Inc.",
+  "author": "Ray Im <rayim@inflike.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -60,5 +60,9 @@
     "@types/prompts": "^2.4.9",
     "tsup": "^8.0.0",
     "typescript": "^5.3.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
   }
 }

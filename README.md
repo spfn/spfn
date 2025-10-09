@@ -238,6 +238,10 @@ Core framework with all the building blocks:
 - [Middleware](./packages/core/src/middleware/README.md)
 - [Client API](./packages/core/src/client/README.md)
 
+### Development & Release
+- [Contributing Guide](./CONTRIBUTING.md)
+- [Release Guide](./RELEASE.md)
+
 ## Requirements
 
 - Node.js >= 18

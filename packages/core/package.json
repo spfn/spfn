@@ -1,6 +1,6 @@
 {
   "name": "@spfn/core",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
   "type": "module",
   "main": "./dist/index.js",
@@ -70,7 +70,7 @@
     "postgres",
     "redis"
   ],
-  "author": "INFLIKE Inc.",
+  "author": "Ray Im <rayim@inflike.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -116,5 +116,9 @@
     "docs",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  }
 }

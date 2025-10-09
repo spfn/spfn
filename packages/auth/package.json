@@ -1,6 +1,6 @@
 {
   "name": "@spfn/auth",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "description": "Client-key based authentication system for SPFN Framework",
   "main": "./dist/server.js",
   "types": "./dist/server.d.ts",
@@ -30,7 +30,7 @@
     "nonce",
     "caching"
   ],
-  "author": "INFLIKE Inc.",
+  "author": "Ray Im <rayim@inflike.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -67,5 +67,9 @@
     "dist",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  }
 }
