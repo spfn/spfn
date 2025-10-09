@@ -17,10 +17,9 @@ import type { User, NewUser, UserState } from '../entities';
  *
  * @example
  * ```typescript
- * import { getDb } from '@spfn/core/db';
  * import { UsersRepository, users } from '@spfn/user';
  *
- * const usersRepo = new UsersRepository(getDb(), users);
+ * const usersRepo = new UsersRepository(users);
  * const user = await usersRepo.findByEmail('user@example.com');
  * ```
  */

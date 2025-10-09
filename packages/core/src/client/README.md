@@ -60,7 +60,7 @@ The client integrates with your server-side `RouteContract` definitions for full
 ```typescript
 // contracts/users.ts - Shared between client and server
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core';
+import type { RouteContract } from '@spfn/core/route';
 
 export const getUserContract = {
   params: Type.Object({
@@ -300,6 +300,9 @@ await client.call('/posts', listPostsContract, {
 Automatically JSON-stringified and typed:
 
 ```typescript
+import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
+
 const createUserContract = {
   body: Type.Object({
     name: Type.String(),
@@ -628,6 +631,9 @@ const user = await client.call('/users/:id', getUserContract, {
 ```typescript
 // ✅ Good - Single source of truth
 // contracts/users.ts (shared)
+import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
+
 export const getUserContract = {
   params: Type.Object({ id: Type.String() }),
   response: Type.Object({ id: Type.Number(), name: Type.String() })

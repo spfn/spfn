@@ -28,4 +28,5 @@ export {
 export type {
     ClientConfig,
     CallOptions,
+    RequestInterceptor,
 } from './contract-client.js';

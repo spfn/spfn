@@ -17,9 +17,20 @@
 import type { RouteContract, InferContract } from '../route';
 
 /**
+ * Request interceptor function
+ *
+ * Allows modifying request before it's sent
+ */
+export type RequestInterceptor = (
+    url: string,
+    init: RequestInit
+) => Promise<RequestInit> | RequestInit;
+
+/**
  * Client configuration
  */
-export interface ClientConfig {
+export interface ClientConfig
+{
     /**
      * API base URL (e.g., http://localhost:4000)
      * Can be overridden per request
@@ -45,7 +56,8 @@ export interface ClientConfig {
 /**
  * Request options for API calls
  */
-export interface CallOptions<TContract extends RouteContract> {
+export interface CallOptions<TContract extends RouteContract>
+{
     /**
      * Path parameters (for dynamic routes like /users/:id)
      */
@@ -75,14 +87,15 @@ export interface CallOptions<TContract extends RouteContract> {
 /**
  * API Client Error
  */
-export class ApiClientError extends Error {
+export class ApiClientError extends Error
+{
     constructor(
         message: string,
         public readonly status: number,
-        public readonly statusText: string,
         public readonly url: string,
         public readonly response?: unknown
-    ) {
+    )
+    {
         super(message);
         this.name = 'ApiClientError';
     }
@@ -95,13 +108,16 @@ export class ApiClientError extends Error {
  * buildUrl('/users/:id', { id: '123' }) → '/users/123'
  * buildUrl('/posts/:postId/comments/:id', { postId: '1', id: '2' }) → '/posts/1/comments/2'
  */
-function buildUrl(path: string, params?: Record<string, string | number>): string {
+function buildUrl(path: string, params?: Record<string, string | number>): string
+{
     if (!params) return path;
 
     let url = path;
-    for (const [key, value] of Object.entries(params)) {
+    for (const [key, value] of Object.entries(params))
+    {
         url = url.replace(`:${key}`, String(value));
     }
+
     return url;
 }
 
@@ -111,14 +127,19 @@ function buildUrl(path: string, params?: Record<string, string | number>): strin
  * @example
  * buildQuery({ page: '1', limit: '10' }) → '?page=1&limit=10'
  */
-function buildQuery(query?: Record<string, string | string[] | number | boolean>): string {
+function buildQuery(query?: Record<string, string | string[] | number | boolean>): string
+{
     if (!query || Object.keys(query).length === 0) return '';
 
     const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(query)) {
-        if (Array.isArray(value)) {
+    for (const [key, value] of Object.entries(query))
+    {
+        if (Array.isArray(value))
+        {
             value.forEach((v) => params.append(key, String(v)));
-        } else if (value !== undefined && value !== null) {
+        }
+        else if (value !== undefined && value !== null)
+        {
             params.append(key, String(value));
         }
     }
@@ -133,14 +154,17 @@ function buildQuery(query?: Record<string, string | string[] | number | boolean>
 function getHttpMethod<TContract extends RouteContract>(
     contract: TContract,
     options?: CallOptions<TContract>
-): string {
+): string
+{
     // If contract has explicit method, use it
-    if ('method' in contract && typeof contract.method === 'string') {
+    if ('method' in contract && typeof contract.method === 'string')
+    {
         return contract.method.toUpperCase();
     }
 
     // Infer from presence of body
-    if (options?.body !== undefined) {
+    if (options?.body !== undefined)
+    {
         return 'POST';
     }
 
@@ -151,16 +175,43 @@ function getHttpMethod<TContract extends RouteContract>(
 /**
  * Contract-based API Client
  */
-export class ContractClient {
+export class ContractClient
+{
     private readonly config: Required<ClientConfig>;
+    private readonly interceptors: RequestInterceptor[] = [];
 
-    constructor(config: ClientConfig = {}) {
+    constructor(config: ClientConfig = {})
+    {
         this.config = {
             baseUrl: config.baseUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
             headers: config.headers || {},
             timeout: config.timeout || 30000,
             fetch: config.fetch || globalThis.fetch,
         };
+    }
+
+    /**
+     * Add request interceptor
+     *
+     * Interceptors are executed in the order they are added
+     *
+     * @example
+     * ```ts
+     * client.use(async (url, init) => {
+     *   // Add auth header
+     *   return {
+     *     ...init,
+     *     headers: {
+     *       ...init.headers,
+     *       Authorization: `Bearer ${token}`
+     *     }
+     *   };
+     * });
+     * ```
+     */
+    use(interceptor: RequestInterceptor): void
+    {
+        this.interceptors.push(interceptor);
     }
 
     /**
@@ -183,7 +234,8 @@ export class ContractClient {
         path: string,
         contract: TContract,
         options?: CallOptions<TContract>
-    ): Promise<InferContract<TContract>['response']> {
+    ): Promise<InferContract<TContract>['response']>
+    {
         // Build URL
         const baseUrl = options?.baseUrl || this.config.baseUrl;
         const urlPath = buildUrl(path, options?.params as Record<string, string | number>);
@@ -200,18 +252,20 @@ export class ContractClient {
         };
 
         // Add Content-Type for requests with body
-        if (options?.body !== undefined && !headers['Content-Type']) {
+        if (options?.body !== undefined && !headers['Content-Type'])
+        {
             headers['Content-Type'] = 'application/json';
         }
 
         // Build request init
-        const init: RequestInit = {
+        let init: RequestInit = {
             method,
             headers,
         };
 
         // Add body for POST/PUT/PATCH
-        if (options?.body !== undefined) {
+        if (options?.body !== undefined)
+        {
             init.body = JSON.stringify(options.body);
         }
 
@@ -220,38 +274,20 @@ export class ContractClient {
         const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
         init.signal = controller.signal;
 
-        try {
-            // Make request
-            const response = await this.config.fetch(url, init);
+        // Execute interceptors
+        for (const interceptor of this.interceptors)
+        {
+            init = await interceptor(url, init);
+        }
 
-            // Clear timeout
+        // Make request
+        const response = await this.config.fetch(url, init).catch((error) =>
+        {
             clearTimeout(timeoutId);
-
-            // Handle non-OK responses
-            if (!response.ok) {
-                const errorBody = await response.json().catch(() => null);
-                throw new ApiClientError(
-                    `${method} ${urlPath} failed: ${response.status} ${response.statusText}`,
-                    response.status,
-                    response.statusText,
-                    url,
-                    errorBody
-                );
-            }
-
-            // Parse and return response
-            const data = await response.json();
-            return data as InferContract<TContract>['response'];
-        } catch (error) {
-            clearTimeout(timeoutId);
-
-            // Re-throw ApiClientError as-is
-            if (error instanceof ApiClientError) {
-                throw error;
-            }
 
             // Handle abort (timeout)
-            if (error instanceof Error && error.name === 'AbortError') {
+            if (error instanceof Error && error.name === 'AbortError')
+            {
                 throw new ApiClientError(
                     `${method} ${urlPath} timed out after ${this.config.timeout}ms`,
                     0,
@@ -261,7 +297,8 @@ export class ContractClient {
             }
 
             // Handle network errors
-            if (error instanceof Error) {
+            if (error instanceof Error)
+            {
                 throw new ApiClientError(
                     `${method} ${urlPath} network error: ${error.message}`,
                     0,
@@ -272,7 +309,26 @@ export class ContractClient {
 
             // Unknown error
             throw error;
+        });
+
+        // Clear timeout
+        clearTimeout(timeoutId);
+
+        // Handle non-OK responses
+        if (!response.ok)
+        {
+            const errorBody = await response.json().catch(() => null);
+            throw new ApiClientError(
+                `${method} ${urlPath} failed: ${response.status}`,
+                response.status,
+                url,
+                errorBody
+            );
         }
+
+        // Parse and return response
+        const data = await response.json();
+        return data as InferContract<TContract>['response'];
     }
 
     /**
@@ -287,7 +343,8 @@ export class ContractClient {
      * });
      * ```
      */
-    withConfig(config: Partial<ClientConfig>): ContractClient {
+    withConfig(config: Partial<ClientConfig>): ContractClient
+    {
         return new ContractClient({
             baseUrl: config.baseUrl || this.config.baseUrl,
             headers: { ...this.config.headers, ...config.headers },
@@ -312,7 +369,8 @@ export class ContractClient {
  * });
  * ```
  */
-export function createClient(config?: ClientConfig): ContractClient {
+export function createClient(config?: ClientConfig): ContractClient
+{
     return new ContractClient(config);
 }
 

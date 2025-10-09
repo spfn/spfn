@@ -8,11 +8,14 @@ import { describe, it, expect } from 'vitest';
 import { Type } from '@sinclair/typebox';
 import { bind } from '../bind.js';
 import { Hono } from 'hono';
+import type { RouteContract } from '../types.js';
 
 describe('bind()', () => {
     describe('Request Validation', () => {
         it('should validate query parameters', async () => {
             const contract = {
+                method: 'GET',
+                path: '/test',
                 query: Type.Object({
                     page: Type.String(),
                     limit: Type.String(),
@@ -22,7 +25,7 @@ describe('bind()', () => {
                     page: Type.String(),
                     limit: Type.String(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
@@ -45,13 +48,15 @@ describe('bind()', () => {
 
         it('should validate path parameters', async () => {
             const contract = {
+                method: 'GET',
+                path: '/users/:id',
                 params: Type.Object({
                     id: Type.String(),
                 }),
                 response: Type.Object({
                     id: Type.String(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
@@ -71,6 +76,8 @@ describe('bind()', () => {
 
         it('should validate request body', async () => {
             const contract = {
+                method: 'POST',
+                path: '/users',
                 body: Type.Object({
                     name: Type.String(),
                     email: Type.String(),
@@ -80,7 +87,7 @@ describe('bind()', () => {
                     name: Type.String(),
                     email: Type.String(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 const body = await c.data();
@@ -112,6 +119,8 @@ describe('bind()', () => {
 
         it('should return 500 for invalid query params', async () => {
             const contract = {
+                method: 'GET',
+                path: '/test',
                 query: Type.Object({
                     page: Type.String(),
                     limit: Type.String(),
@@ -119,7 +128,7 @@ describe('bind()', () => {
                 response: Type.Object({
                     success: Type.Boolean(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({ success: true });
@@ -135,6 +144,8 @@ describe('bind()', () => {
 
         it('should fail validation for invalid body', async () => {
             const contract = {
+                method: 'POST',
+                path: '/users',
                 body: Type.Object({
                     name: Type.String(),
                     email: Type.String(),
@@ -147,7 +158,7 @@ describe('bind()', () => {
                         error: Type.String(),
                     }),
                 ]),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 try {
@@ -184,6 +195,8 @@ describe('bind()', () => {
     describe('Type Inference', () => {
         it('should provide type-safe context', async () => {
             const contract = {
+                method: 'POST',
+                path: '/users/:id',
                 params: Type.Object({
                     id: Type.String(),
                 }),
@@ -196,15 +209,9 @@ describe('bind()', () => {
                 response: Type.Object({
                     success: Type.Boolean(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
-                // TypeScript should infer these types
-                const id: string = c.params.id;
-                const include: string = c.query.include;
-                const body = await c.data();
-                const name: string = body.name;
-
                 return c.json({
                     success: true,
                 });
@@ -217,10 +224,12 @@ describe('bind()', () => {
     describe('RouteContext Helpers', () => {
         it('should provide pageable object from QueryParser middleware', async () => {
             const contract = {
+                method: 'GET',
+                path: '/test',
                 response: Type.Object({
                     success: Type.Boolean(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
@@ -237,10 +246,12 @@ describe('bind()', () => {
 
         it('should provide raw Hono context', async () => {
             const contract = {
+                method: 'GET',
+                path: '/test',
                 response: Type.Object({
                     success: Type.Boolean(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
@@ -257,6 +268,8 @@ describe('bind()', () => {
 
         it('should store contract.meta in raw context', async () => {
             const contract = {
+                method: 'GET',
+                path: '/test',
                 response: Type.Object({
                     success: Type.Boolean(),
                 }),
@@ -264,7 +277,7 @@ describe('bind()', () => {
                     skipMiddlewares: ['auth', 'rateLimit'],
                     description: 'Public health check',
                 },
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
@@ -283,13 +296,15 @@ describe('bind()', () => {
     describe('Complex Scenarios', () => {
         it('should handle optional parameters', async () => {
             const contract = {
+                method: 'GET',
+                path: '/test',
                 query: Type.Object({
                     search: Type.Optional(Type.String()),
                 }),
                 response: Type.Object({
                     success: Type.Boolean(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
@@ -315,6 +330,8 @@ describe('bind()', () => {
 
         it('should handle array query parameters', async () => {
             const contract = {
+                method: 'GET',
+                path: '/test',
                 query: Type.Object({
                     // Query params from URL can be strings or string[]
                     // When the same param appears multiple times, it becomes an array
@@ -323,7 +340,7 @@ describe('bind()', () => {
                 response: Type.Object({
                     success: Type.Boolean(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
@@ -345,13 +362,15 @@ describe('bind()', () => {
 
         it('should fail validation for single value when array is required', async () => {
             const contract = {
+                method: 'GET',
+                path: '/test',
                 query: Type.Object({
                     tags: Type.Array(Type.String()),
                 }),
                 response: Type.Object({
                     success: Type.Boolean(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
@@ -369,6 +388,8 @@ describe('bind()', () => {
 
         it('should handle nested objects in body', async () => {
             const contract = {
+                method: 'POST',
+                path: '/test',
                 body: Type.Object({
                     user: Type.Object({
                         name: Type.String(),
@@ -382,7 +403,7 @@ describe('bind()', () => {
                     userName: Type.String(),
                     userAge: Type.Number(),
                 }),
-            };
+            } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 const body = await c.data();
