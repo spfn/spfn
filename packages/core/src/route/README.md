@@ -25,6 +25,7 @@ Contracts are co-located with routes:
 ```typescript
 // src/server/routes/users/contract.ts
 import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
 
 export const getUsersContract = {
     method: 'GET' as const,
@@ -39,7 +40,7 @@ export const getUsersContract = {
             name: Type.String()
         }))
     })
-};
+} as const satisfies RouteContract;
 
 export const createUserContract = {
     method: 'POST' as const,
@@ -53,7 +54,7 @@ export const createUserContract = {
         name: Type.String(),
         email: Type.String()
     })
-};
+} as const satisfies RouteContract;
 ```
 
 ### 2. Create Route Handler
@@ -192,6 +193,9 @@ routes/
 **Path Parameters: `[id]`**
 ```typescript
 // routes/users/[id]/contract.ts
+import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
+
 export const getUserContract = {
     method: 'GET' as const,
     path: '/:id',
@@ -204,7 +208,7 @@ export const getUserContract = {
             name: Type.String()
         })
     })
-};
+} as const satisfies RouteContract;
 
 // routes/users/[id]/index.ts
 import { createApp } from '@spfn/core/route';
@@ -366,6 +370,9 @@ Use `contract.meta.skipMiddlewares`:
 
 ```typescript
 // contracts/health.ts
+import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
+
 export const healthContract = {
     method: 'GET',
     path: '/',
@@ -375,7 +382,7 @@ export const healthContract = {
     meta: {
         skipMiddlewares: ['auth', 'rateLimit']  // Skip both
     }
-};
+} as const satisfies RouteContract;
 
 // Or use public shorthand
 export const publicContract = {
@@ -385,7 +392,7 @@ export const publicContract = {
     meta: {
         public: true  // Same as skipMiddlewares: ['auth']
     }
-};
+} as const satisfies RouteContract;
 ```
 
 **How it works:**
@@ -488,6 +495,8 @@ export default app;
 
 ```typescript
 // contracts/api.ts
+import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
 
 // Public route - skip auth
 export const publicContract = {
@@ -495,7 +504,7 @@ export const publicContract = {
     path: '/public',
     response: Type.Object({ data: Type.String() }),
     meta: { skipMiddlewares: ['auth'] }
-};
+} as const satisfies RouteContract;
 
 // Protected route - require auth
 export const protectedContract = {
@@ -503,7 +512,7 @@ export const protectedContract = {
     path: '/protected',
     response: Type.Object({ data: Type.String() }),
     // No skipMiddlewares - auth will run
-};
+} as const satisfies RouteContract;
 ```
 
 ### Route-level Middleware (Traditional Pattern Only)

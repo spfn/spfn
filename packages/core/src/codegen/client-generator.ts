@@ -62,9 +62,6 @@ function generateClientCode(
     // Imports
     code += generateImports(mappings, options);
 
-    // Client instance
-    code += generateClientInstance(options);
-
     // API object
     code += generateApiObject(grouped, options);
 
@@ -98,8 +95,8 @@ function generateImports(mappings: RouteContractMapping[], options: ClientGenera
 {
     let code = '';
 
-    // Core imports
-    code += `import { createClient } from '@spfn/core/client';\n`;
+    // Core imports - use singleton client
+    code += `import { client } from '@spfn/core/client';\n`;
 
     if (options.includeTypes !== false)
     {
@@ -156,25 +153,6 @@ function groupContractsByImportPath(mappings: RouteContractMapping[]): Record<st
     }
 
     return result;
-}
-
-/**
- * Generate client instance
- */
-function generateClientInstance(options: ClientGenerationOptions): string
-{
-    const baseUrl = options.baseUrl
-        ? `'${options.baseUrl}'`
-        : 'process.env.NEXT_PUBLIC_API_URL || \'http://localhost:4000\'';
-
-    return `/**
- * API client instance
- */
-const client = createClient({
-    baseUrl: ${baseUrl}
-});
-
-`;
 }
 
 /**
@@ -337,18 +315,22 @@ function generateFooter(): string
 {
     return `/**
  * Export client instance for advanced usage
+ *
+ * Use this to add interceptors or customize the client:
+ *
+ * @example
+ * \`\`\`ts
+ * import { client } from './api';
+ * import { createAuthInterceptor } from '@spfn/auth/nextjs';
+ * import { NextJSCookieProvider } from '@spfn/auth/nextjs';
+ *
+ * client.use(createAuthInterceptor({
+ *   cookieProvider: new NextJSCookieProvider(),
+ *   encryptionKey: process.env.ENCRYPTION_KEY!
+ * }));
+ * \`\`\`
  */
 export { client };
-
-/**
- * Create authenticated client
- */
-export function createAuthClient(token: string)
-{
-    return client.withConfig({
-        headers: { Authorization: \`Bearer \${token}\` }
-    });
-}
 `;
 }
 
