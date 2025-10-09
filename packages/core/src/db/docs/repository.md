@@ -405,6 +405,702 @@ const recentAdmins = await userRepo.count({
 
 **Returns:** `Promise<number>` - Count of matching records
 
+---
+
+### findOneWhere(filters)
+
+Find a single record matching filter criteria.
+
+```typescript
+// Find user by email
+const user = await userRepo.findOneWhere({
+    email: 'john@example.com'
+});
+
+// Find with multiple filters
+const activeAdmin = await userRepo.findOneWhere({
+    role: 'admin',
+    status: 'active'
+});
+
+if (user) {
+    console.log('Found:', user);
+} else {
+    console.log('Not found');
+}
+```
+
+**Parameters:**
+- `filters: FilterMap<T>` - Field filters
+
+**Returns:** `Promise<SelectType<T> | null>` - First matching record or null
+
+---
+
+### existsBy(filters)
+
+Check if a record exists by filter criteria.
+
+```typescript
+// Check if email exists
+const emailExists = await userRepo.existsBy({
+    email: 'john@example.com'
+});
+
+// Check with multiple conditions
+const activeAdminExists = await userRepo.existsBy({
+    role: 'admin',
+    status: 'active'
+});
+
+if (emailExists) {
+    console.log('Email is already registered');
+}
+```
+
+**Parameters:**
+- `filters: FilterMap<T>` - Field filters
+
+**Returns:** `Promise<boolean>` - true if exists, false otherwise
+
+---
+
+### countBy(filters)
+
+Count records matching filter criteria.
+
+```typescript
+// Count active users
+const activeCount = await userRepo.countBy({ status: 'active' });
+
+// Count with multiple filters
+const recentActiveUsers = await userRepo.countBy({
+    status: 'active',
+    createdAt: { gte: new Date('2024-01-01') }
+});
+
+console.log(`Found ${activeCount} active users`);
+```
+
+**Parameters:**
+- `filters: FilterMap<T>` - Field filters
+
+**Returns:** `Promise<number>` - Count of matching records
+
+---
+
+## Query Builder (Fluent Interface)
+
+SPFN Repository provides a fluent query builder API for building complex queries with method chaining, similar to JPA's Criteria API or TypeORM's QueryBuilder.
+
+### query()
+
+Start a chainable query builder.
+
+```typescript
+import { Repository } from '@spfn/core/db';
+import { users } from './schema';
+
+const userRepo = new Repository<typeof users>(users);
+
+// Simple chaining
+const activeUsers = await userRepo
+    .query()
+    .where({ status: 'active' })
+    .orderBy('createdAt', 'desc')
+    .limit(10)
+    .findMany();
+
+// Multiple conditions (AND)
+const activeAdmins = await userRepo
+    .query()
+    .where({ role: 'admin' })
+    .where({ status: 'active' })
+    .findMany();
+```
+
+**Returns:** `QueryBuilder<T>` - Chainable query builder instance
+
+---
+
+### where(filters)
+
+Add WHERE conditions to the query. Multiple `where()` calls are combined with AND logic.
+
+```typescript
+// Single condition
+const users = await userRepo
+    .query()
+    .where({ email: { like: 'gmail' } })
+    .findMany();
+
+// Multiple where() calls (AND)
+const results = await userRepo
+    .query()
+    .where({ status: 'active' })
+    .where({ role: 'admin' })
+    .where({ createdAt: { gte: new Date('2024-01-01') } })
+    .findMany();
+```
+
+**Parameters:**
+- `filters: FilterMap<T>` - Field filters (same as `findWhere()`)
+
+**Returns:** `QueryBuilder<T>` - For chaining
+
+**Filter Operators:** Same as `findWhere()` - eq, gt, gte, lt, lte, like, ilike, in, notIn, isNull, isNotNull
+
+---
+
+### orderBy(field, direction)
+
+Add ORDER BY clause. Multiple `orderBy()` calls create multi-column sorting.
+
+```typescript
+// Single sort
+const users = await userRepo
+    .query()
+    .orderBy('createdAt', 'desc')
+    .findMany();
+
+// Multiple columns
+const sortedUsers = await userRepo
+    .query()
+    .orderBy('isPremium', 'desc')  // Premium users first
+    .orderBy('createdAt', 'desc')  // Then by creation date
+    .findMany();
+```
+
+**Parameters:**
+- `field: string` - Column name to sort by
+- `direction: 'asc' | 'desc'` - Sort direction (default: 'asc')
+
+**Returns:** `QueryBuilder<T>` - For chaining
+
+---
+
+### limit(n)
+
+Set maximum number of records to return (LIMIT clause).
+
+```typescript
+// Get first 10 users
+const users = await userRepo
+    .query()
+    .limit(10)
+    .findMany();
+
+// Combine with orderBy for top N
+const topUsers = await userRepo
+    .query()
+    .orderBy('score', 'desc')
+    .limit(5)
+    .findMany();
+```
+
+**Parameters:**
+- `n: number` - Maximum records to return
+
+**Returns:** `QueryBuilder<T>` - For chaining
+
+---
+
+### offset(n)
+
+Skip N records (OFFSET clause). Useful for pagination.
+
+```typescript
+// Skip first 20 records
+const users = await userRepo
+    .query()
+    .offset(20)
+    .findMany();
+
+// Pagination (page 3, 10 per page)
+const page3 = await userRepo
+    .query()
+    .orderBy('id', 'asc')
+    .limit(10)
+    .offset(20)  // Skip first 2 pages
+    .findMany();
+```
+
+**Parameters:**
+- `n: number` - Number of records to skip
+
+**Returns:** `QueryBuilder<T>` - For chaining
+
+---
+
+### findMany()
+
+Execute query and return array of records.
+
+```typescript
+const users = await userRepo
+    .query()
+    .where({ status: 'active' })
+    .orderBy('createdAt', 'desc')
+    .limit(10)
+    .findMany();
+
+console.log(users); // Array of user objects
+```
+
+**Returns:** `Promise<SelectType<T>[]>` - Array of matching records
+
+---
+
+### findOne()
+
+Execute query and return first record only. Automatically applies `limit(1)`.
+
+```typescript
+// Find first matching record
+const user = await userRepo
+    .query()
+    .where({ email: { like: 'john' } })
+    .orderBy('createdAt', 'desc')
+    .findOne();
+
+if (user) {
+    console.log('Found:', user);
+} else {
+    console.log('Not found');
+}
+```
+
+**Returns:** `Promise<SelectType<T> | null>` - First record or null
+
+---
+
+### count()
+
+Execute query and return count of matching records.
+
+```typescript
+// Count active users
+const activeCount = await userRepo
+    .query()
+    .where({ status: 'active' })
+    .count();
+
+// Count with multiple conditions
+const complexCount = await userRepo
+    .query()
+    .where({ role: 'user' })
+    .where({ status: 'active' })
+    .where({ createdAt: { gte: new Date('2024-01-01') } })
+    .count();
+
+console.log(`Found ${activeCount} active users`);
+```
+
+**Returns:** `Promise<number>` - Count of matching records
+
+---
+
+### Complex Query Examples
+
+**Pagination:**
+
+```typescript
+const page = 2;
+const pageSize = 20;
+
+const users = await userRepo
+    .query()
+    .where({ role: 'user' })
+    .orderBy('createdAt', 'desc')
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+    .findMany();
+```
+
+**Multiple Filters with Sorting:**
+
+```typescript
+const premiumUsers = await userRepo
+    .query()
+    .where({ isPremium: true })
+    .where({ status: 'active' })
+    .where({ createdAt: { gte: new Date('2024-01-01') } })
+    .orderBy('lastLoginAt', 'desc')
+    .limit(50)
+    .findMany();
+```
+
+**Search with Pagination:**
+
+```typescript
+const searchResults = await userRepo
+    .query()
+    .where({ email: { like: searchTerm } })
+    .where({ deletedAt: { isNull: true } })
+    .orderBy('email', 'asc')
+    .limit(10)
+    .offset(0)
+    .findMany();
+```
+
+---
+
+### Query Reuse
+
+Query builders can be reused and composed:
+
+```typescript
+// Create base query
+const activeUsersQuery = userRepo
+    .query()
+    .where({ status: 'active' })
+    .orderBy('createdAt', 'desc');
+
+// Reuse for different operations
+const users = await activeUsersQuery.findMany();
+const count = await activeUsersQuery.count();
+const firstUser = await activeUsersQuery.findOne();
+
+// Compose queries
+const adminQuery = userRepo
+    .query()
+    .where({ role: 'admin' });
+
+const activeAdmins = await adminQuery
+    .where({ status: 'active' })
+    .findMany();
+
+const inactiveAdmins = await adminQuery
+    .where({ status: 'inactive' })
+    .findMany();
+```
+
+---
+
+### Query Builder Best Practices
+
+**1. Use query() for complex filtering:**
+
+```typescript
+// ✅ Good: Fluent and readable
+const users = await userRepo
+    .query()
+    .where({ status: 'active' })
+    .where({ role: 'admin' })
+    .orderBy('createdAt', 'desc')
+    .limit(10)
+    .findMany();
+
+// ❌ Less readable: Nested options
+const users = await userRepo.findWhere(
+    { status: 'active', role: 'admin' },
+    { orderBy: { field: 'createdAt', direction: 'desc' }, limit: 10 }
+);
+```
+
+**2. Build queries conditionally:**
+
+```typescript
+// ✅ Good: Build query dynamically
+let query = userRepo.query();
+
+if (filters.status) {
+    query = query.where({ status: filters.status });
+}
+
+if (filters.role) {
+    query = query.where({ role: filters.role });
+}
+
+if (sortBy) {
+    query = query.orderBy(sortBy, sortDirection);
+}
+
+const results = await query.limit(20).findMany();
+```
+
+**3. Reuse common queries:**
+
+```typescript
+// ✅ Good: Define reusable base queries
+class UserRepository extends Repository<typeof users> {
+    private activeUsersQuery() {
+        return this.query().where({ status: 'active' });
+    }
+
+    async findActiveUsers(limit = 10) {
+        return this.activeUsersQuery().limit(limit).findMany();
+    }
+
+    async countActiveUsers() {
+        return this.activeUsersQuery().count();
+    }
+}
+```
+
+**4. Use findOne() instead of findMany()[0]:**
+
+```typescript
+// ✅ Good: Uses LIMIT 1 in SQL
+const user = await userRepo
+    .query()
+    .where({ email: 'john@example.com' })
+    .findOne();
+
+// ❌ Bad: Fetches all, takes first in JS
+const users = await userRepo
+    .query()
+    .where({ email: 'john@example.com' })
+    .findMany();
+const user = users[0];
+```
+
+---
+
+## JPA-Style Relation Loading
+
+SPFN Repository supports JPA-style relation loading using Drizzle's relational query API. This allows you to eagerly load related entities in a single query, similar to Spring JPA's `@EntityGraph`.
+
+### Setup
+
+To use relation loading, you need to:
+
+1. **Define relations** using Drizzle's `relations()` function
+2. **Initialize database with schema** containing your relations
+
+```typescript
+import { pgTable, text } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
+import { id, timestamps } from '@spfn/core/db';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+
+// Define tables
+export const users = pgTable('users', {
+    id: id(),
+    email: text('email').notNull(),
+    name: text('name'),
+    ...timestamps()
+});
+
+export const posts = pgTable('posts', {
+    id: id(),
+    title: text('title').notNull(),
+    content: text('content'),
+    authorId: foreignKey('author', () => users.id),
+    ...timestamps()
+});
+
+// Define relations
+export const usersRelations = relations(users, ({ many }) => ({
+    posts: many(posts)
+}));
+
+export const postsRelations = relations(posts, ({ one }) => ({
+    author: one(users, {
+        fields: [posts.authorId],
+        references: [users.id]
+    })
+}));
+
+// Initialize database WITH schema
+const client = postgres(process.env.DATABASE_URL!);
+const db = drizzle(client, {
+    schema: {
+        users,
+        posts,
+        usersRelations,
+        postsRelations
+    }
+});
+```
+
+### findByIdWith(id, options)
+
+Find record by ID with related entities.
+
+```typescript
+import { Repository } from '@spfn/core/db';
+import { users } from './schema';
+
+const userRepo = new Repository(users);
+
+// Load user with posts
+const user = await userRepo.findByIdWith(1, {
+    with: { posts: true }
+});
+
+console.log(user.posts); // Array of post objects
+
+// Load nested relations
+const userWithPostComments = await userRepo.findByIdWith(1, {
+    with: {
+        posts: {
+            with: { comments: true }
+        }
+    }
+});
+
+// Load multiple relations
+const userWithAll = await userRepo.findByIdWith(1, {
+    with: {
+        posts: true,
+        profile: true,
+        followers: true
+    }
+});
+```
+
+**Parameters:**
+- `id: number | string` - Primary key value
+- `options: FindByIdOptions` - Relation loading options
+  - `with?: Record<string, boolean | WithOptions>` - Relations to load
+
+**Returns:** `Promise<T & Relations>` - Record with loaded relations
+
+**Throws:** `QueryError` if db.query API is not configured
+
+---
+
+### findManyWith(options)
+
+Find multiple records with related entities.
+
+```typescript
+// Load all users with their posts
+const users = await userRepo.findManyWith({
+    with: { posts: true }
+});
+
+// With where clause
+import { eq } from 'drizzle-orm';
+const activeUsers = await userRepo.findManyWith({
+    where: eq(users.status, 'active'),
+    with: { posts: true, profile: true }
+});
+
+// Nested relations
+const usersWithData = await userRepo.findManyWith({
+    with: {
+        posts: {
+            with: { comments: true }
+        },
+        profile: true
+    }
+});
+```
+
+**Parameters:**
+- `options: FindManyWithOptions`
+  - `where?: SQL<unknown>` - Optional WHERE condition
+  - `with?: Record<string, boolean | WithOptions>` - Relations to load
+
+**Returns:** `Promise<Array<T & Relations>>` - Array of records with relations
+
+**Throws:** `QueryError` if db.query API is not configured
+
+---
+
+### findOneWith(options)
+
+Find single record with related entities.
+
+```typescript
+import { eq } from 'drizzle-orm';
+
+// Find user by email with posts
+const user = await userRepo.findOneWith({
+    where: eq(users.email, 'john@example.com'),
+    with: { posts: true }
+});
+
+// With nested relations
+const userWithData = await userRepo.findOneWith({
+    where: eq(users.id, 1),
+    with: {
+        posts: {
+            with: { comments: { with: { author: true } } }
+        },
+        profile: true
+    }
+});
+```
+
+**Parameters:**
+- `options: FindOneWithOptions`
+  - `where: SQL<unknown>` - WHERE condition (required)
+  - `with?: Record<string, boolean | WithOptions>` - Relations to load
+
+**Returns:** `Promise<(T & Relations) | undefined>` - Record with relations or undefined
+
+**Throws:** `QueryError` if db.query API is not configured
+
+---
+
+### Relation Loading Best Practices
+
+**1. Configure schema during initialization**
+
+```typescript
+// ✅ Good: Include schema with relations
+const db = drizzle(client, {
+    schema: { users, posts, usersRelations, postsRelations }
+});
+
+// ❌ Bad: No schema
+const db = drizzle(client); // Relation methods will throw errors
+```
+
+**2. Define bidirectional relations**
+
+```typescript
+// ✅ Good: Define both sides
+export const usersRelations = relations(users, ({ many }) => ({
+    posts: many(posts)
+}));
+
+export const postsRelations = relations(posts, ({ one }) => ({
+    author: one(users, { fields: [posts.authorId], references: [users.id] })
+}));
+```
+
+**3. Use selective loading**
+
+```typescript
+// ✅ Good: Load only what you need
+const user = await userRepo.findByIdWith(1, {
+    with: { posts: true }
+});
+
+// ❌ Bad: Loading everything
+const user = await userRepo.findByIdWith(1, {
+    with: {
+        posts: true,
+        followers: true,
+        following: true,
+        comments: true,
+        likes: true
+    }
+});
+```
+
+**4. Avoid N+1 queries**
+
+```typescript
+// ❌ Bad: N+1 queries
+const users = await userRepo.findAll();
+for (const user of users) {
+    const posts = await postRepo.findWhere({ authorId: user.id });
+}
+
+// ✅ Good: Single query with relations
+const users = await userRepo.findManyWith({
+    with: { posts: true }
+});
+```
+
+---
+
 ## Advanced Patterns
 
 ### Complex Filtering

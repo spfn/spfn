@@ -5,3 +5,4 @@
  */
 export * from './test-users';
 export * from './test-posts';
+export * from './test-relations';
