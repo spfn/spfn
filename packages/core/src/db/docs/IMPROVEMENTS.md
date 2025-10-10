@@ -463,50 +463,196 @@ export default {
 
 ---
 
-### 7. Connection Health Check 누락
+### 7. ✅ Connection Health Check 누락 (완료)
 
-**파일**: `manager/manager.ts:91-146`
+**파일**: `manager/manager.ts`, `manager/factory.ts`, `server/types.ts`
 
-**문제점**:
+**구현 완료** (2025-10-10):
+
+**문제점 (해결됨)**:
+- 초기화 시 한 번만 연결 체크
+- 주기적인 health check 없음
+- 연결 끊김 감지 지연, 복구 시간 증가
+
+**해결 방법**:
+자동 시작되는 헬스체크 시스템 구축
+1. **자동 시작**: `initDatabase()` 완료 후 자동으로 health check 시작
+2. **설정 가능한 빈도**: ServerConfig 또는 환경변수로 간격 조정
+3. **재연결 로직**: 실패 시 자동 재연결 시도 (재시도 횟수, 간격 설정 가능)
+4. **Graceful shutdown 연동**: `closeDatabase()` 호출 시 자동으로 health check 중지
+
+**구현된 코드**:
+
 ```typescript
-// 초기화 시 한 번만 체크
-await write.execute('SELECT 1');
+// 1. ServerConfig 타입 확장 (server/types.ts)
+export interface ServerConfig {
+    database?: {
+        healthCheck?: {
+            enabled?: boolean;          // @env DB_HEALTH_CHECK_ENABLED
+            interval?: number;          // @env DB_HEALTH_CHECK_INTERVAL
+            reconnect?: boolean;        // @env DB_HEALTH_CHECK_RECONNECT
+            maxRetries?: number;        // @env DB_HEALTH_CHECK_MAX_RETRIES
+            retryInterval?: number;     // @env DB_HEALTH_CHECK_RETRY_INTERVAL
+        };
+    };
+}
 
-// 이후 주기적 health check 없음
-```
+// 2. Health check 인터페이스 (manager/factory.ts)
+export interface HealthCheckConfig {
+    enabled: boolean;
+    interval: number;
+    reconnect: boolean;
+    maxRetries: number;
+    retryInterval: number;
+}
 
-**개선안**:
-```typescript
-let healthCheckInterval: NodeJS.Timeout | undefined;
+// 3. startHealthCheck() 구현 (manager/manager.ts)
+export function startHealthCheck(config: HealthCheckConfig): void {
+    if (healthCheckInterval) {
+        dbLogger.debug('Health check already running');
+        return;
+    }
 
-export async function startHealthCheck(intervalMs: number = 60000): Promise<void> {
-    if (healthCheckInterval) return;
+    dbLogger.info('Starting database health check', {
+        interval: `${config.interval}ms`,
+        reconnect: config.reconnect,
+    });
 
     healthCheckInterval = setInterval(async () => {
         try {
             const write = getDatabase('write');
             const read = getDatabase('read');
 
-            if (write) await write.execute('SELECT 1');
-            if (read && read !== write) await read.execute('SELECT 1');
+            // Check write connection
+            if (write) {
+                await write.execute('SELECT 1');
+            }
+
+            // Check read connection (if different)
+            if (read && read !== write) {
+                await write.execute('SELECT 1');
+            }
 
             dbLogger.debug('Database health check passed');
         } catch (error) {
-            dbLogger.error('Database health check failed', error);
-            // Optionally: 재연결 시도
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            dbLogger.error('Database health check failed', { error: message });
+
+            // Attempt reconnection if enabled
+            if (config.reconnect) {
+                await attemptReconnection(config);
+            }
         }
-    }, intervalMs);
+    }, config.interval);
 }
 
-export function stopHealthCheck(): void {
-    if (healthCheckInterval) {
-        clearInterval(healthCheckInterval);
-        healthCheckInterval = undefined;
+// 4. 재연결 로직 (manager/manager.ts)
+async function attemptReconnection(config: HealthCheckConfig): Promise<void> {
+    dbLogger.warn('Attempting database reconnection', {
+        maxRetries: config.maxRetries,
+        retryInterval: `${config.retryInterval}ms`,
+    });
+
+    for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
+        try {
+            dbLogger.debug(`Reconnection attempt ${attempt}/${config.maxRetries}`);
+
+            // Close existing connections
+            await closeDatabase();
+
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, config.retryInterval));
+
+            // Reinitialize database
+            const result = await createDatabaseFromEnv();
+
+            if (result.write) {
+                // Test connection
+                await result.write.execute('SELECT 1');
+
+                // Store instances
+                writeInstance = result.write;
+                readInstance = result.read;
+                writeClient = result.writeClient;
+                readClient = result.readClient;
+
+                dbLogger.info('Database reconnection successful', { attempt });
+                return;
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            dbLogger.error(`Reconnection attempt ${attempt} failed`, {
+                error: message,
+                attempt,
+                maxRetries: config.maxRetries,
+            });
+
+            if (attempt === config.maxRetries) {
+                dbLogger.error('Max reconnection attempts reached, giving up');
+            }
+        }
     }
+}
+
+// 5. initDatabase()에서 자동 시작
+export async function initDatabase(options?: DatabaseOptions): Promise<...> {
+    // ... connection logic ...
+
+    // Start health check (automatic)
+    const healthCheckConfig = getHealthCheckConfig(options?.healthCheck);
+    if (healthCheckConfig.enabled) {
+        startHealthCheck(healthCheckConfig);
+    }
+
+    return { write: writeInstance, read: readInstance };
+}
+
+// 6. closeDatabase()에서 자동 중지
+export async function closeDatabase(): Promise<void> {
+    // Stop health check
+    stopHealthCheck();
+
+    // ... cleanup logic ...
 }
 ```
 
-**영향**: 연결 끊김 감지 지연, 복구 시간 증가
+**사용 예시**:
+
+```typescript
+// 방법 1: server.config.ts (권장)
+export default {
+    database: {
+        healthCheck: {
+            enabled: true,
+            interval: 30000,      // 30 seconds
+            reconnect: true,
+            maxRetries: 5,
+            retryInterval: 10000, // 10 seconds
+        },
+    },
+} satisfies ServerConfig;
+
+// 방법 2: 환경변수
+// DB_HEALTH_CHECK_ENABLED=true
+// DB_HEALTH_CHECK_INTERVAL=30000
+// DB_HEALTH_CHECK_RECONNECT=true
+// DB_HEALTH_CHECK_MAX_RETRIES=5
+// DB_HEALTH_CHECK_RETRY_INTERVAL=10000
+
+// 방법 3: 기본값 (자동)
+// enabled: true
+// interval: 60000 (60초)
+// reconnect: true
+// maxRetries: 3
+// retryInterval: 5000 (5초)
+```
+
+**해결된 문제**:
+- ✅ 주기적 연결 체크로 조기 감지
+- ✅ 자동 재연결로 빠른 복구
+- ✅ 설정 가능한 빈도 및 재시도 로직
+- ✅ Graceful shutdown과 자동 연동
+- ✅ 구조화된 로깅으로 모니터링 가능
 
 ---
 

@@ -10,7 +10,7 @@ import type { Sql } from 'postgres';
 
 import { createDatabaseConnection } from './connection.js';
 import { getPoolConfig, getRetryConfig, type PoolConfig } from './config.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../logger';
 
 const dbLogger = logger.child('database');
 
@@ -39,6 +39,18 @@ function hasDatabaseConfig(): boolean
 }
 
 /**
+ * Health check configuration
+ */
+export interface HealthCheckConfig
+{
+    enabled: boolean;
+    interval: number;
+    reconnect: boolean;
+    maxRetries: number;
+    retryInterval: number;
+}
+
+/**
  * Database initialization options
  */
 export interface DatabaseOptions
@@ -48,6 +60,12 @@ export interface DatabaseOptions
      * Overrides environment variables and defaults
      */
     pool?: Partial<PoolConfig>;
+
+    /**
+     * Health check configuration
+     * Periodic checks to ensure database connection is alive
+     */
+    healthCheck?: Partial<HealthCheckConfig>;
 }
 
 /**

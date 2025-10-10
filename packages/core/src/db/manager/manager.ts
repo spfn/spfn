@@ -7,8 +7,8 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 
-import { createDatabaseFromEnv, type DatabaseOptions } from './factory.js';
-import { logger } from '../../logger/index.js';
+import { createDatabaseFromEnv, type DatabaseOptions, type HealthCheckConfig } from './factory.js';
+import { logger } from '../../logger';
 
 const dbLogger = logger.child('database');
 
@@ -16,6 +16,7 @@ let writeInstance: PostgresJsDatabase | undefined;
 let readInstance: PostgresJsDatabase | undefined;
 let writeClient: Sql | undefined;
 let readClient: Sql | undefined;
+let healthCheckInterval: NodeJS.Timeout | undefined;
 
 /**
  * DB connection type
@@ -73,6 +74,33 @@ export function setDatabase(
 }
 
 /**
+ * Get health check configuration with priority resolution
+ *
+ * Priority: options > env > defaults
+ */
+function getHealthCheckConfig(options?: Partial<HealthCheckConfig>): HealthCheckConfig
+{
+    const parseBoolean = (value: string | undefined, defaultValue: boolean): boolean =>
+    {
+        if (value === undefined) return defaultValue;
+        return value.toLowerCase() === 'true';
+    };
+
+    return {
+        enabled: options?.enabled
+            ?? parseBoolean(process.env.DB_HEALTH_CHECK_ENABLED, true),
+        interval: options?.interval
+            ?? (parseInt(process.env.DB_HEALTH_CHECK_INTERVAL || '', 10) || 60000),
+        reconnect: options?.reconnect
+            ?? parseBoolean(process.env.DB_HEALTH_CHECK_RECONNECT, true),
+        maxRetries: options?.maxRetries
+            ?? (parseInt(process.env.DB_HEALTH_CHECK_MAX_RETRIES || '', 10) || 3),
+        retryInterval: options?.retryInterval
+            ?? (parseInt(process.env.DB_HEALTH_CHECK_RETRY_INTERVAL || '', 10) || 5000),
+    };
+}
+
+/**
  * Initialize database from environment variables
  * Automatically called by server startup
  *
@@ -82,6 +110,11 @@ export function setDatabase(
  * - DATABASE_URL + DATABASE_REPLICA_URL (legacy replica)
  * - DB_POOL_MAX (connection pool max size)
  * - DB_POOL_IDLE_TIMEOUT (connection idle timeout in seconds)
+ * - DB_HEALTH_CHECK_ENABLED (enable health checks, default: true)
+ * - DB_HEALTH_CHECK_INTERVAL (health check interval in ms, default: 60000)
+ * - DB_HEALTH_CHECK_RECONNECT (enable auto-reconnect, default: true)
+ * - DB_HEALTH_CHECK_MAX_RETRIES (max reconnection attempts, default: 3)
+ * - DB_HEALTH_CHECK_RETRY_INTERVAL (retry interval in ms, default: 5000)
  *
  * Configuration priority:
  * 1. options parameter (ServerConfig)
@@ -150,6 +183,13 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
                     ? 'Database connected (Primary + Replica)'
                     : 'Database connected'
             );
+
+            // Start health check (automatic)
+            const healthCheckConfig = getHealthCheckConfig(options?.healthCheck);
+            if (healthCheckConfig.enabled)
+            {
+                startHealthCheck(healthCheckConfig);
+            }
         }
         catch (error)
         {
@@ -200,6 +240,9 @@ export async function closeDatabase(): Promise<void>
         dbLogger.debug('No database connections to close');
         return;
     }
+
+    // Stop health check
+    stopHealthCheck();
 
     try
     {
@@ -261,4 +304,155 @@ export function getDatabaseInfo(): {
         hasRead: !!readInstance,
         isReplica: !!(readInstance && readInstance !== writeInstance),
     };
+}
+
+/**
+ * Start database health check
+ *
+ * Periodically checks database connection health and attempts reconnection if enabled.
+ * Automatically started by initDatabase() when health check is enabled.
+ *
+ * @param config - Health check configuration
+ *
+ * @example
+ * ```typescript
+ * import { startHealthCheck } from '@spfn/core/db';
+ *
+ * startHealthCheck({
+ *   enabled: true,
+ *   interval: 30000,      // 30 seconds
+ *   reconnect: true,
+ *   maxRetries: 5,
+ *   retryInterval: 10000, // 10 seconds
+ * });
+ * ```
+ */
+export function startHealthCheck(config: HealthCheckConfig): void
+{
+    if (healthCheckInterval)
+    {
+        dbLogger.debug('Health check already running');
+        return;
+    }
+
+    dbLogger.info('Starting database health check', {
+        interval: `${config.interval}ms`,
+        reconnect: config.reconnect,
+    });
+
+    healthCheckInterval = setInterval(async () =>
+    {
+        try
+        {
+            const write = getDatabase('write');
+            const read = getDatabase('read');
+
+            // Check write connection
+            if (write)
+            {
+                await write.execute('SELECT 1');
+            }
+
+            // Check read connection (if different)
+            if (read && read !== write)
+            {
+                await read.execute('SELECT 1');
+            }
+
+            dbLogger.debug('Database health check passed');
+        }
+        catch (error)
+        {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            dbLogger.error('Database health check failed', { error: message });
+
+            // Attempt reconnection if enabled
+            if (config.reconnect)
+            {
+                await attemptReconnection(config);
+            }
+        }
+    }, config.interval);
+}
+
+/**
+ * Attempt database reconnection with retry logic
+ *
+ * @param config - Health check configuration
+ */
+async function attemptReconnection(config: HealthCheckConfig): Promise<void>
+{
+    dbLogger.warn('Attempting database reconnection', {
+        maxRetries: config.maxRetries,
+        retryInterval: `${config.retryInterval}ms`,
+    });
+
+    for (let attempt = 1; attempt <= config.maxRetries; attempt++)
+    {
+        try
+        {
+            dbLogger.debug(`Reconnection attempt ${attempt}/${config.maxRetries}`);
+
+            // Close existing connections
+            await closeDatabase();
+
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, config.retryInterval));
+
+            // Reinitialize database
+            const result = await createDatabaseFromEnv();
+
+            if (result.write)
+            {
+                // Test connection
+                await result.write.execute('SELECT 1');
+
+                // Store instances
+                writeInstance = result.write;
+                readInstance = result.read;
+                writeClient = result.writeClient;
+                readClient = result.readClient;
+
+                dbLogger.info('Database reconnection successful', { attempt });
+                return;
+            }
+        }
+        catch (error)
+        {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            dbLogger.error(`Reconnection attempt ${attempt} failed`, {
+                error: message,
+                attempt,
+                maxRetries: config.maxRetries,
+            });
+
+            if (attempt === config.maxRetries)
+            {
+                dbLogger.error('Max reconnection attempts reached, giving up');
+            }
+        }
+    }
+}
+
+/**
+ * Stop database health check
+ *
+ * Automatically called by closeDatabase().
+ * Can also be called manually to stop health checks.
+ *
+ * @example
+ * ```typescript
+ * import { stopHealthCheck } from '@spfn/core/db';
+ *
+ * stopHealthCheck();
+ * ```
+ */
+export function stopHealthCheck(): void
+{
+    if (healthCheckInterval)
+    {
+        clearInterval(healthCheckInterval);
+        healthCheckInterval = undefined;
+        dbLogger.info('Database health check stopped');
+    }
 }
