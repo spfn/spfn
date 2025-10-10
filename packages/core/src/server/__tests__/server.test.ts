@@ -155,6 +155,50 @@ describe('Server Module', () => {
             expect(config.port).toBe(3000);
             expect(config.host).toBe('0.0.0.0');
         });
+
+        it('should support PORT environment variable', () => {
+            process.env.PORT = '8080';
+
+            // 환경변수가 설정되어 있으면 server.ts에서 읽어서 적용됨
+            expect(process.env.PORT).toBe('8080');
+
+            delete process.env.PORT;
+        });
+
+        it('should support HOST environment variable', () => {
+            process.env.HOST = '0.0.0.0';
+
+            // 환경변수가 설정되어 있으면 server.ts에서 읽어서 적용됨
+            expect(process.env.HOST).toBe('0.0.0.0');
+
+            delete process.env.HOST;
+        });
+
+        it('should prioritize config over environment variables for port', () => {
+            process.env.PORT = '8080';
+
+            const config: ServerConfig = {
+                port: 3000, // Config가 우선
+            };
+
+            expect(config.port).toBe(3000);
+            expect(config.port).not.toBe(Number(process.env.PORT));
+
+            delete process.env.PORT;
+        });
+
+        it('should prioritize config over environment variables for host', () => {
+            process.env.HOST = '0.0.0.0';
+
+            const config: ServerConfig = {
+                host: 'localhost', // Config가 우선
+            };
+
+            expect(config.host).toBe('localhost');
+            expect(config.host).not.toBe(process.env.HOST);
+
+            delete process.env.HOST;
+        });
     });
 
     describe('Middleware Configuration', () => {

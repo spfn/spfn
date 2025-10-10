@@ -116,13 +116,13 @@ export async function startServer(config?: ServerConfig): Promise<void>
         fileConfig = configModule.default ?? {};
     }
 
-    // Merge config (runtime > file > defaults)
+    // Merge config (runtime > file > env > defaults)
     const finalConfig: ServerConfig =
     {
         ...fileConfig,
         ...config,
-        port: config?.port ?? fileConfig?.port ?? 4000,
-        host: config?.host ?? fileConfig?.host ?? 'localhost',
+        port: config?.port ?? fileConfig?.port ?? (parseInt(process.env.PORT || '', 10) || 4000),
+        host: config?.host ?? fileConfig?.host ?? process.env.HOST || 'localhost',
     };
 
     // Initialize infrastructure (Database and Redis) with config
