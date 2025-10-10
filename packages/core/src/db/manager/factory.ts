@@ -9,7 +9,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 
 import { createDatabaseConnection } from './connection.js';
-import { getPoolConfig, getRetryConfig } from './config.js';
+import { getPoolConfig, getRetryConfig, type PoolConfig } from './config.js';
 import { logger } from '../../logger/index.js';
 
 const dbLogger = logger.child('database');
@@ -39,6 +39,18 @@ function hasDatabaseConfig(): boolean
 }
 
 /**
+ * Database initialization options
+ */
+export interface DatabaseOptions
+{
+    /**
+     * Connection pool configuration
+     * Overrides environment variables and defaults
+     */
+    pool?: Partial<PoolConfig>;
+}
+
+/**
  * Create database client(s) from environment variables
  *
  * Supported patterns (priority order):
@@ -46,6 +58,7 @@ function hasDatabaseConfig(): boolean
  * 2. Primary + Replica: DATABASE_WRITE_URL + DATABASE_READ_URL
  * 3. Legacy replica: DATABASE_URL + DATABASE_REPLICA_URL
  *
+ * @param options - Optional database configuration (pool settings, etc.)
  * @returns Database client(s) or undefined if no configuration found
  *
  * @example
@@ -61,8 +74,16 @@ function hasDatabaseConfig(): boolean
  * DATABASE_URL=postgresql://primary:5432/mydb
  * DATABASE_REPLICA_URL=postgresql://replica:5432/mydb
  * ```
+ *
+ * @example
+ * ```typescript
+ * // Custom pool configuration
+ * const db = await createDatabaseFromEnv({
+ *   pool: { max: 50, idleTimeout: 60 }
+ * });
+ * ```
  */
-export async function createDatabaseFromEnv(): Promise<DatabaseClients>
+export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<DatabaseClients>
 {
     // Load .env.local if needed
     if (!hasDatabaseConfig())
@@ -78,7 +99,7 @@ export async function createDatabaseFromEnv(): Promise<DatabaseClients>
 
     try
     {
-        const poolConfig = getPoolConfig();
+        const poolConfig = getPoolConfig(options?.pool);
         const retryConfig = getRetryConfig();
 
         // 1. Primary + Replica pattern (explicit separation)

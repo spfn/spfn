@@ -35,15 +35,43 @@ export interface RetryConfig
 
 /**
  * 환경별 Connection Pool 설정
+ *
+ * 우선순위:
+ * 1. options 파라미터 (ServerConfig에서 전달)
+ * 2. 환경변수 (DB_POOL_MAX, DB_POOL_IDLE_TIMEOUT)
+ * 3. 기본값 (NODE_ENV에 따라)
+ *
+ * @param options - Optional pool configuration from ServerConfig
+ * @returns Pool configuration
+ *
+ * @example
+ * ```typescript
+ * // 1. ServerConfig priority (highest)
+ * const config = getPoolConfig({ max: 50, idleTimeout: 60 });
+ *
+ * // 2. Environment variable priority
+ * // DB_POOL_MAX=30 DB_POOL_IDLE_TIMEOUT=45
+ * const config = getPoolConfig();
+ *
+ * // 3. Default (lowest)
+ * // Production: max=20, idleTimeout=30
+ * // Development: max=10, idleTimeout=20
+ * ```
  */
-export function getPoolConfig(): PoolConfig
+export function getPoolConfig(options?: Partial<PoolConfig>): PoolConfig
 {
     const isProduction = process.env.NODE_ENV === 'production';
 
-    return {
-        max: isProduction ? 20 : 10,           // 프로덕션: 20, 개발: 10
-        idleTimeout: isProduction ? 30 : 20,   // 프로덕션: 30초, 개발: 20초
-    };
+    // Priority: options > env > default
+    const max = options?.max
+        ?? parseInt(process.env.DB_POOL_MAX || '', 10)
+        || (isProduction ? 20 : 10);
+
+    const idleTimeout = options?.idleTimeout
+        ?? parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '', 10)
+        || (isProduction ? 30 : 20);
+
+    return { max, idleTimeout };
 }
 
 /**

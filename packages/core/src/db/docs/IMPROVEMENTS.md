@@ -360,38 +360,106 @@ export function getRepository<...>(...) { ... }
 
 ## 🟡 중요도 중간 (Medium Priority)
 
-### 6. Pool Config 환경변수 오버라이드 불가
+### 6. ✅ Pool Config 환경변수 오버라이드 불가 (완료)
 
-**파일**: `manager/config.ts:39-47`
+**파일**: `manager/config.ts`, `manager/factory.ts`, `manager/manager.ts`, `server/types.ts`, `server/server.ts`
 
-**문제점**:
+**구현 완료** (2025-10-10):
+
+**문제점 (해결됨)**:
+- Connection pool 설정이 하드코딩되어 프로덕션 튜닝 불가
+- 환경별 최적화 어려움 (staging, load testing 등)
+- 실시간 조정 불가능
+
+**해결 방법**:
+우선순위 기반 설정 시스템 구축
+1. **ServerConfig** (최우선) - `server.config.ts`에서 설정
+2. **환경변수** (중간) - `DB_POOL_MAX`, `DB_POOL_IDLE_TIMEOUT`
+3. **기본값** (최하위) - NODE_ENV 기반 자동 설정
+
+**구현된 코드**:
+
 ```typescript
-// 환경변수로 오버라이드 불가
-export function getPoolConfig(): PoolConfig {
+// 1. ServerConfig 타입 확장 (server/types.ts)
+export interface ServerConfig {
+    database?: {
+        pool?: {
+            max?: number;          // @env DB_POOL_MAX
+            idleTimeout?: number;  // @env DB_POOL_IDLE_TIMEOUT
+        };
+    };
+}
+
+// 2. getPoolConfig() 업데이트 (manager/config.ts)
+export function getPoolConfig(options?: Partial<PoolConfig>): PoolConfig {
     const isProduction = process.env.NODE_ENV === 'production';
 
-    return {
-        max: isProduction ? 20 : 10,
-        idleTimeout: isProduction ? 30 : 20,
-    };
+    // Priority: options > env > default
+    const max = options?.max
+        ?? parseInt(process.env.DB_POOL_MAX || '', 10)
+        || (isProduction ? 20 : 10);
+
+    const idleTimeout = options?.idleTimeout
+        ?? parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '', 10)
+        || (isProduction ? 30 : 20);
+
+    return { max, idleTimeout };
+}
+
+// 3. createDatabaseFromEnv() 시그니처 확장 (manager/factory.ts)
+export interface DatabaseOptions {
+    pool?: Partial<PoolConfig>;
+}
+
+export async function createDatabaseFromEnv(
+    options?: DatabaseOptions
+): Promise<DatabaseClients> {
+    const poolConfig = getPoolConfig(options?.pool);
+    // ...
+}
+
+// 4. initDatabase() 시그니처 확장 (manager/manager.ts)
+export async function initDatabase(
+    options?: DatabaseOptions
+): Promise<{ write?, read? }> {
+    const result = await createDatabaseFromEnv(options);
+    // ...
+}
+
+// 5. server.ts에서 config 전달
+export async function startServer(config?: ServerConfig): Promise<void> {
+    const finalConfig = { ...fileConfig, ...config };
+    await initDatabase(finalConfig.database);
+    // ...
 }
 ```
 
-**개선안**:
-```typescript
-export function getPoolConfig(): PoolConfig {
-    const isProduction = process.env.NODE_ENV === 'production';
+**사용 예시**:
 
-    return {
-        max: parseInt(process.env.DB_POOL_MAX || '')
-            || (isProduction ? 20 : 10),
-        idleTimeout: parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '')
-            || (isProduction ? 30 : 20),
-    };
-}
+```typescript
+// 방법 1: server.config.ts (권장)
+export default {
+    database: {
+        pool: {
+            max: 50,
+            idleTimeout: 60,
+        },
+    },
+} satisfies ServerConfig;
+
+// 방법 2: 환경변수
+// DB_POOL_MAX=30 DB_POOL_IDLE_TIMEOUT=45
+
+// 방법 3: 기본값 (자동)
+// Production: max=20, idleTimeout=30
+// Development: max=10, idleTimeout=20
 ```
 
-**영향**: 프로덕션 튜닝 불가, 환경별 최적화 어려움
+**해결된 문제**:
+- ✅ 프로덕션 실시간 튜닝 가능 (재배포 불필요)
+- ✅ 환경별 최적화 가능 (staging, load test, small deployment)
+- ✅ 우선순위 기반 유연한 설정
+- ✅ 기존 코드 호환성 유지 (optional parameter)
 
 ---
 

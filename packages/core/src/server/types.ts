@@ -87,6 +87,31 @@ export interface ServerConfig
     debug?: boolean;
 
     /**
+     * Database configuration
+     */
+    database?: {
+        /**
+         * Connection pool configuration
+         * Overrides environment variables and defaults
+         */
+        pool?: {
+            /**
+             * Maximum number of connections in pool
+             * @default Production: 20, Development: 10
+             * @env DB_POOL_MAX
+             */
+            max?: number;
+
+            /**
+             * Idle connection timeout in seconds
+             * @default Production: 30, Development: 20
+             * @env DB_POOL_IDLE_TIMEOUT
+             */
+            idleTimeout?: number;
+        };
+    };
+
+    /**
      * Hook: Run before routes are loaded
      */
     beforeRoutes?: (app: Hono) => void | Promise<void>;
