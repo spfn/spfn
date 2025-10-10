@@ -51,6 +51,16 @@ export interface HealthCheckConfig
 }
 
 /**
+ * Query performance monitoring configuration
+ */
+export interface MonitoringConfig
+{
+    enabled: boolean;
+    slowThreshold: number;
+    logQueries: boolean;
+}
+
+/**
  * Database initialization options
  */
 export interface DatabaseOptions
@@ -66,6 +76,12 @@ export interface DatabaseOptions
      * Periodic checks to ensure database connection is alive
      */
     healthCheck?: Partial<HealthCheckConfig>;
+
+    /**
+     * Query performance monitoring configuration
+     * Tracks slow queries and logs performance metrics
+     */
+    monitoring?: Partial<MonitoringConfig>;
 }
 
 /**

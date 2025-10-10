@@ -7,7 +7,7 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 
-import { createDatabaseFromEnv, type DatabaseOptions, type HealthCheckConfig } from './factory.js';
+import { createDatabaseFromEnv, type DatabaseOptions, type HealthCheckConfig, type MonitoringConfig } from './factory.js';
 import { logger } from '../../logger';
 
 const dbLogger = logger.child('database');
@@ -17,6 +17,7 @@ let readInstance: PostgresJsDatabase | undefined;
 let writeClient: Sql | undefined;
 let readClient: Sql | undefined;
 let healthCheckInterval: NodeJS.Timeout | undefined;
+let monitoringConfig: MonitoringConfig | undefined;
 
 /**
  * DB connection type
@@ -101,6 +102,30 @@ function getHealthCheckConfig(options?: Partial<HealthCheckConfig>): HealthCheck
 }
 
 /**
+ * Get monitoring configuration with priority resolution
+ *
+ * Priority: options > env > defaults
+ */
+function getMonitoringConfig(options?: Partial<MonitoringConfig>): MonitoringConfig
+{
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const parseBoolean = (value: string | undefined, defaultValue: boolean): boolean =>
+    {
+        if (value === undefined) return defaultValue;
+        return value.toLowerCase() === 'true';
+    };
+
+    return {
+        enabled: options?.enabled
+            ?? parseBoolean(process.env.DB_MONITORING_ENABLED, isDevelopment),
+        slowThreshold: options?.slowThreshold
+            ?? (parseInt(process.env.DB_MONITORING_SLOW_THRESHOLD || '', 10) || 1000),
+        logQueries: options?.logQueries
+            ?? parseBoolean(process.env.DB_MONITORING_LOG_QUERIES, false),
+    };
+}
+
+/**
  * Initialize database from environment variables
  * Automatically called by server startup
  *
@@ -115,6 +140,9 @@ function getHealthCheckConfig(options?: Partial<HealthCheckConfig>): HealthCheck
  * - DB_HEALTH_CHECK_RECONNECT (enable auto-reconnect, default: true)
  * - DB_HEALTH_CHECK_MAX_RETRIES (max reconnection attempts, default: 3)
  * - DB_HEALTH_CHECK_RETRY_INTERVAL (retry interval in ms, default: 5000)
+ * - DB_MONITORING_ENABLED (enable query monitoring, default: true in dev, false in prod)
+ * - DB_MONITORING_SLOW_THRESHOLD (slow query threshold in ms, default: 1000)
+ * - DB_MONITORING_LOG_QUERIES (log actual SQL queries, default: false)
  *
  * Configuration priority:
  * 1. options parameter (ServerConfig)
@@ -189,6 +217,16 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
             if (healthCheckConfig.enabled)
             {
                 startHealthCheck(healthCheckConfig);
+            }
+
+            // Initialize monitoring configuration
+            monitoringConfig = getMonitoringConfig(options?.monitoring);
+            if (monitoringConfig.enabled)
+            {
+                dbLogger.info('Database query monitoring enabled', {
+                    slowThreshold: `${monitoringConfig.slowThreshold}ms`,
+                    logQueries: monitoringConfig.logQueries,
+                });
             }
         }
         catch (error)
@@ -287,6 +325,7 @@ export async function closeDatabase(): Promise<void>
         readInstance = undefined;
         writeClient = undefined;
         readClient = undefined;
+        monitoringConfig = undefined;
     }
 }
 
@@ -455,4 +494,27 @@ export function stopHealthCheck(): void
         healthCheckInterval = undefined;
         dbLogger.info('Database health check stopped');
     }
+}
+
+/**
+ * Get current monitoring configuration
+ *
+ * Returns the monitoring configuration that was set during database initialization.
+ * Used by Repository to determine if and how to monitor query performance.
+ *
+ * @returns Current monitoring configuration or undefined if database not initialized
+ *
+ * @example
+ * ```typescript
+ * import { getDatabaseMonitoringConfig } from '@spfn/core/db';
+ *
+ * const config = getDatabaseMonitoringConfig();
+ * if (config?.enabled) {
+ *   console.log(`Slow query threshold: ${config.slowThreshold}ms`);
+ * }
+ * ```
+ */
+export function getDatabaseMonitoringConfig(): MonitoringConfig | undefined
+{
+    return monitoringConfig;
 }
