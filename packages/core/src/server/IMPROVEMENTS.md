@@ -13,11 +13,13 @@
 
 ## 🔴 중요도 높음 (High Priority)
 
-### 1. 서버 타임아웃 설정 부재
+### 1. ✅ 서버 타임아웃 설정 (완료)
 
-**파일**: `server/server.ts:137-142`
+**파일**: `server/server.ts`, `server/types.ts`
 
-**현재 상태**:
+**구현 완료** (2025-10-11):
+
+**원래 문제점**:
 ```typescript
 const server = serve({
     fetch: app.fetch,
@@ -114,11 +116,13 @@ export async function startServer(config?: ServerConfig): Promise<void> {
 
 ---
 
-### 2. 환경변수 PORT 지원 부재
+### 2. ✅ 환경변수 PORT/HOST 지원 (완료)
 
-**파일**: `server/server.ts:123`
+**파일**: `server/server.ts`
 
-**현재 상태**:
+**구현 완료** (2025-10-11):
+
+**원래 문제점**:
 ```typescript
 const finalConfig: ServerConfig = {
     ...fileConfig,
@@ -137,19 +141,14 @@ const finalConfig: ServerConfig = {
 - 배포 편의성 저하
 - 표준 관례 미준수
 
-**개선안**:
+**구현 내용**:
 ```typescript
+// Merge config (runtime > file > env > defaults)
 const finalConfig: ServerConfig = {
     ...fileConfig,
     ...config,
-    port: config?.port
-        ?? fileConfig?.port
-        ?? parseInt(process.env.PORT || '', 10)
-        || 4000,
-    host: config?.host
-        ?? fileConfig?.host
-        ?? process.env.HOST
-        || 'localhost',
+    port: config?.port ?? fileConfig?.port ?? (parseInt(process.env.PORT || '', 10) || 4000),
+    host: config?.host ?? fileConfig?.host ?? process.env.HOST || 'localhost',
 };
 ```
 
@@ -687,8 +686,8 @@ middlewareOrder.forEach(name => {
 
 ### 즉시 수정 필요 (🔴 Critical)
 
-1. **서버 타임아웃 설정** - 보안 및 리소스 관리 필수
-2. **환경변수 PORT 지원** - 배포 환경 표준
+1. ✅ **서버 타임아웃 설정** (완료) - 보안 및 리소스 관리 필수
+2. ✅ **환경변수 PORT/HOST 지원** (완료) - 배포 환경 표준
 
 ### 다음 릴리스 (🟡 Important)
 

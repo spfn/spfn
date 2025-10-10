@@ -155,6 +155,13 @@ interface ServerConfig {
   port?: number;              // default: 4000
   host?: string;              // default: 'localhost'
 
+  // HTTP Server Timeouts
+  timeout?: {
+    request?: number;         // default: 120000ms (2min), env: SERVER_TIMEOUT
+    keepAlive?: number;       // default: 65000ms (65s), env: SERVER_KEEPALIVE_TIMEOUT
+    headers?: number;         // default: 60000ms (60s), env: SERVER_HEADERS_TIMEOUT
+  };
+
   // CORS
   cors?: CorsConfig | false;  // Hono CORS config or disable
 
@@ -319,11 +326,143 @@ process.on('unhandledRejection', (reason, promise) => {
 [server] Graceful shutdown completed
 ```
 
+## HTTP Server Timeouts
+
+The server provides configurable timeout settings to protect against resource exhaustion and slow client attacks (e.g., Slowloris).
+
+### Default Values
+
+```ts
+{
+  timeout: {
+    request: 120000,    // 2 minutes - Maximum time for entire request
+    keepAlive: 65000,   // 65 seconds - Keep-alive timeout (longer than typical LB timeout)
+    headers: 60000,     // 60 seconds - Maximum time to receive complete headers
+  }
+}
+```
+
+### Configuration Priority
+
+1. **ServerConfig** (highest priority)
+2. **Environment variables**
+3. **Default values** (lowest priority)
+
+### Usage Examples
+
+#### Via Configuration File
+
+```ts
+// server.config.ts
+import type { ServerConfig } from '@spfn/core/server';
+
+export default {
+  timeout: {
+    request: 30000,     // 30 seconds
+    keepAlive: 45000,   // 45 seconds
+    headers: 20000,     // 20 seconds
+  },
+} satisfies ServerConfig;
+```
+
+#### Via Runtime Config
+
+```ts
+import { startServer } from '@spfn/core/server';
+
+await startServer({
+  timeout: {
+    request: 60000,     // 1 minute
+    keepAlive: 70000,   // 70 seconds
+    headers: 30000,     // 30 seconds
+  },
+});
+```
+
+#### Via Environment Variables
+
+```bash
+SERVER_TIMEOUT=30000              # Request timeout in milliseconds
+SERVER_KEEPALIVE_TIMEOUT=45000    # Keep-alive timeout in milliseconds
+SERVER_HEADERS_TIMEOUT=20000      # Headers timeout in milliseconds
+```
+
+```ts
+import { startServer } from '@spfn/core/server';
+
+// Uses environment variables
+await startServer();
+```
+
+#### Partial Configuration
+
+You can configure only specific timeouts:
+
+```ts
+await startServer({
+  timeout: {
+    request: 60000,  // Override only request timeout
+    // keepAlive and headers use defaults or env vars
+  },
+});
+```
+
+### Timeout Explanations
+
+**`request` timeout (default: 120000ms = 2 minutes)**
+- Maximum time allowed for the entire HTTP request to complete
+- Protects against slow clients that keep connections open indefinitely
+- Prevents resource exhaustion from incomplete requests
+
+**`keepAlive` timeout (default: 65000ms = 65 seconds)**
+- Time the server waits for additional requests on the same connection
+- Set to 65 seconds (longer than typical load balancer timeout of 60s)
+- Prevents connection reuse issues with load balancers
+
+**`headers` timeout (default: 60000ms = 60 seconds)**
+- Maximum time allowed to receive complete HTTP headers
+- Protects against Slowloris-style attacks
+- Must be less than or equal to `request` timeout
+
+### Security Considerations
+
+**Protection Against Slowloris Attacks:**
+
+Slowloris attacks work by sending partial HTTP requests slowly to exhaust server resources. The timeout configuration defends against this by:
+
+1. **Headers Timeout**: Closes connections if headers aren't received within 60s
+2. **Request Timeout**: Terminates requests that exceed 2 minutes total
+3. **Keep-Alive Timeout**: Releases idle connections after 65s
+
+**Best Practices:**
+
+- Use shorter timeouts for public-facing APIs
+- Use longer timeouts for file upload endpoints
+- Configure `keepAlive` slightly longer than your load balancer timeout
+- Monitor timeout-related disconnections in production
+
+### Logs
+
+When server starts, you'll see timeout configuration in logs:
+
+```
+[server] Server timeouts configured {
+  request: '120000ms',
+  keepAlive: '65000ms',
+  headers: '60000ms'
+}
+```
+
 ## Environment Variables
 
 The server automatically initializes infrastructure from environment variables:
 
 ```bash
+# Server Configuration
+SERVER_TIMEOUT=120000              # Request timeout (default: 120000)
+SERVER_KEEPALIVE_TIMEOUT=65000     # Keep-alive timeout (default: 65000)
+SERVER_HEADERS_TIMEOUT=60000       # Headers timeout (default: 60000)
+
 # Redis (optional)
 REDIS_URL=redis://localhost:6379
 # Or separate instances
