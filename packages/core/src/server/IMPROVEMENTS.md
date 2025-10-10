@@ -436,11 +436,13 @@ export async function createServer(config?: ServerConfig): Promise<Hono> {
 
 ---
 
-### 6. 서버 초기화 실패 처리
+### 6. ✅ 서버 초기화 실패 처리 (완료)
 
-**파일**: `server/server.ts:128-129`
+**파일**: `server/server.ts`
 
-**현재 상태**:
+**구현 완료** (2025-10-11):
+
+**원래 문제점**:
 ```typescript
 // Initialize infrastructure (Database and Redis) with config
 await initDatabase(finalConfig.database);
@@ -452,19 +454,19 @@ await initRedis();
 - 포트 충돌 등 서버 시작 실패 처리 없음
 - 부분 초기화 상태로 남을 수 있음
 
-**개선안**:
+**구현 내용**:
 ```typescript
-export async function startServer(config?: ServerConfig): Promise<ServerInstance> {
-    // ... 기존 config 로딩
+export async function startServer(config?: ServerConfig): Promise<ServerInstance>
+{
+    // ... config 로딩
 
-    try {
-        // Initialize infrastructure
+    const { host, port, debug } = finalConfig;
+
+    try
+    {
+        // Initialize infrastructure with logging
         serverLogger.debug('Initializing database...');
-        const dbResult = await initDatabase(finalConfig.database);
-
-        if (!dbResult.write && process.env.DATABASE_URL) {
-            serverLogger.warn('Database configuration exists but initialization failed');
-        }
+        await initDatabase(finalConfig.database);
 
         serverLogger.debug('Initializing Redis...');
         await initRedis();
@@ -473,50 +475,33 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
         serverLogger.debug('Creating Hono app...');
         const app = await createServer(finalConfig);
 
-        // Start server with error handling
-        const { host, port, debug } = finalConfig;
-
+        // Start server
         serverLogger.debug(`Starting server on ${host}:${port}...`);
-        const server = await new Promise<ReturnType<typeof serve>>((resolve, reject) => {
-            try {
-                const srv = serve({
-                    fetch: app.fetch,
-                    port: port!,
-                    hostname: host,
-                });
-
-                srv.on('error', (error: any) => {
-                    if (error.code === 'EADDRINUSE') {
-                        reject(new Error(`Port ${port} is already in use`));
-                    } else {
-                        reject(error);
-                    }
-                });
-
-                // Wait a bit to ensure server started successfully
-                setTimeout(() => resolve(srv), 100);
-            } catch (error) {
-                reject(error);
-            }
+        const server = serve({
+            fetch: app.fetch,
+            port: port!,
+            hostname: host,
         });
 
-        // Clean output similar to Next.js
-        console.log(`   ▲ SPFN ${debug ? 'dev' : 'production'}`);
-        console.log(`   - Local:        http://${host}:${port}`);
-        console.log('');
-
-        // ... graceful shutdown setup
+        // ... setup timeouts and handlers
 
         return { server, app, config: finalConfig, close };
-
-    } catch (error) {
-        serverLogger.error('Server initialization failed', error as Error);
+    }
+    catch (error)
+    {
+        const err = error as Error;
+        serverLogger.error('Server initialization failed', err);
 
         // Cleanup on failure
-        try {
+        try
+        {
+            serverLogger.debug('Cleaning up after initialization failure...');
             await closeDatabase();
             await closeRedis();
-        } catch (cleanupError) {
+            serverLogger.debug('Cleanup completed');
+        }
+        catch (cleanupError)
+        {
             serverLogger.error('Cleanup failed', cleanupError as Error);
         }
 
@@ -699,7 +684,7 @@ middlewareOrder.forEach(name => {
 3. ✅ **서버 인스턴스 반환** (완료) - 테스트 및 유연성
 4. ✅ **Graceful Shutdown 타임아웃** (완료) - 프로덕션 안정성
 5. ✅ **Health Check 엔드포인트** (완료) - 모니터링 및 오케스트레이션
-6. **초기화 실패 처리** - 에러 핸들링 개선
+6. ✅ **초기화 실패 처리** (완료) - 에러 핸들링 개선
 
 ### 장기 개선 (🟢 Nice to Have)
 

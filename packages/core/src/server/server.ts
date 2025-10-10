@@ -192,149 +192,186 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
         host: config?.host ?? fileConfig?.host ?? (process.env.HOST || 'localhost'),
     };
 
-    // Initialize infrastructure (Database and Redis) with config
-    await initDatabase(finalConfig.database);
-    await initRedis();
-
-    // Create app
-    const app = await createServer(finalConfig);
-
-    // Start server
     const { host, port, debug } = finalConfig;
 
-    const server = serve(
+    try
     {
-        fetch: app.fetch,
-        port: port!,
-        hostname: host,
-    });
+        // Initialize infrastructure (Database and Redis) with config
+        serverLogger.debug('Initializing database...');
+        await initDatabase(finalConfig.database);
 
-    // Configure server timeouts
-    const timeoutConfig = finalConfig.timeout ?? {};
+        serverLogger.debug('Initializing Redis...');
+        await initRedis();
 
-    const requestTimeout = timeoutConfig.request
-        ?? (parseInt(process.env.SERVER_TIMEOUT || '', 10) || 120000); // 2 minutes default
+        // Create app
+        serverLogger.debug('Creating Hono app...');
+        const app = await createServer(finalConfig);
 
-    const keepAliveTimeout = timeoutConfig.keepAlive
-        ?? (parseInt(process.env.SERVER_KEEPALIVE_TIMEOUT || '', 10) || 65000); // 65 seconds (longer than typical LB timeout)
+        // Start server
+        serverLogger.debug(`Starting server on ${host}:${port}...`);
 
-    const headersTimeout = timeoutConfig.headers
-        ?? (parseInt(process.env.SERVER_HEADERS_TIMEOUT || '', 10) || 60000); // 60 seconds
-
-    // Apply timeouts to Node.js HTTP server
-    // The serve() function returns ServerType (Server | Http2Server | Http2SecureServer)
-    // All these types support timeout properties
-    if ('timeout' in server) {
-        (server as Server).timeout = requestTimeout;
-        (server as Server).keepAliveTimeout = keepAliveTimeout;
-        (server as Server).headersTimeout = headersTimeout;
-    }
-
-    serverLogger.info('Server timeouts configured', {
-        request: `${requestTimeout}ms`,
-        keepAlive: `${keepAliveTimeout}ms`,
-        headers: `${headersTimeout}ms`,
-    });
-
-    // Clean output similar to Next.js
-    console.log(`   ▲ SPFN ${debug ? 'dev' : 'production'}`);
-    console.log(`   - Local:        http://${host}:${port}`);
-    console.log('');
-
-    // Core shutdown logic (without process.exit)
-    const shutdownServer = async () => {
-        serverLogger.debug('Closing HTTP server...');
-        await new Promise<void>((resolve) => {
-            server.close(() => {
-                serverLogger.info('HTTP server closed');
-                resolve();
-            });
-        });
-
-        serverLogger.debug('Closing database connections...');
-        await closeDatabase();
-
-        serverLogger.debug('Closing Redis connections...');
-        await closeRedis();
-
-        serverLogger.info('Server shutdown completed');
-    };
-
-    // Graceful shutdown handler (with process.exit and timeout)
-    const shutdown = async (signal: string) => {
-        serverLogger.info(`${signal} received, starting graceful shutdown...`);
-
-        // Get shutdown timeout from config
-        const shutdownTimeout = finalConfig.shutdown?.timeout
-            ?? (parseInt(process.env.SHUTDOWN_TIMEOUT || '', 10) || 30000);
-
-        // Create timeout promise
-        const timeoutPromise = new Promise<never>((_, reject) =>
+        const server = serve(
         {
-            setTimeout(() =>
-            {
-                reject(new Error(`Graceful shutdown timeout after ${shutdownTimeout}ms`));
-            }, shutdownTimeout);
+            fetch: app.fetch,
+            port: port!,
+            hostname: host,
         });
 
+        // Configure server timeouts
+        const timeoutConfig = finalConfig.timeout ?? {};
+
+        const requestTimeout = timeoutConfig.request
+            ?? (parseInt(process.env.SERVER_TIMEOUT || '', 10) || 120000); // 2 minutes default
+
+        const keepAliveTimeout = timeoutConfig.keepAlive
+            ?? (parseInt(process.env.SERVER_KEEPALIVE_TIMEOUT || '', 10) || 65000); // 65 seconds (longer than typical LB timeout)
+
+        const headersTimeout = timeoutConfig.headers
+            ?? (parseInt(process.env.SERVER_HEADERS_TIMEOUT || '', 10) || 60000); // 60 seconds
+
+        // Apply timeouts to Node.js HTTP server
+        // The serve() function returns ServerType (Server | Http2Server | Http2SecureServer)
+        // All these types support timeout properties
+        if ('timeout' in server)
+        {
+            (server as Server).timeout = requestTimeout;
+            (server as Server).keepAliveTimeout = keepAliveTimeout;
+            (server as Server).headersTimeout = headersTimeout;
+        }
+
+        serverLogger.info('Server timeouts configured', {
+            request: `${requestTimeout}ms`,
+            keepAlive: `${keepAliveTimeout}ms`,
+            headers: `${headersTimeout}ms`,
+        });
+
+        // Clean output similar to Next.js
+        console.log(`   ▲ SPFN ${debug ? 'dev' : 'production'}`);
+        console.log(`   - Local:        http://${host}:${port}`);
+        console.log('');
+
+        // Core shutdown logic (without process.exit)
+        const shutdownServer = async () =>
+        {
+            serverLogger.debug('Closing HTTP server...');
+            await new Promise<void>((resolve) =>
+            {
+                server.close(() =>
+                {
+                    serverLogger.info('HTTP server closed');
+                    resolve();
+                });
+            });
+
+            serverLogger.debug('Closing database connections...');
+            await closeDatabase();
+
+            serverLogger.debug('Closing Redis connections...');
+            await closeRedis();
+
+            serverLogger.info('Server shutdown completed');
+        };
+
+        // Graceful shutdown handler (with process.exit and timeout)
+        const shutdown = async (signal: string) =>
+        {
+            serverLogger.info(`${signal} received, starting graceful shutdown...`);
+
+            // Get shutdown timeout from config
+            const shutdownTimeout = finalConfig.shutdown?.timeout
+                ?? (parseInt(process.env.SHUTDOWN_TIMEOUT || '', 10) || 30000);
+
+            // Create timeout promise
+            const timeoutPromise = new Promise<never>((_, reject) =>
+            {
+                setTimeout(() =>
+                {
+                    reject(new Error(`Graceful shutdown timeout after ${shutdownTimeout}ms`));
+                }, shutdownTimeout);
+            });
+
+            try
+            {
+                // Race between graceful shutdown and timeout
+                await Promise.race([
+                    shutdownServer(),
+                    timeoutPromise,
+                ]);
+
+                serverLogger.info('Graceful shutdown completed successfully');
+                process.exit(0);
+            }
+            catch (error)
+            {
+                const err = error as Error;
+
+                if (err.message && err.message.includes('timeout'))
+                {
+                    serverLogger.error('Graceful shutdown timeout, forcing exit', err);
+                }
+                else
+                {
+                    serverLogger.error('Error during graceful shutdown', err);
+                }
+
+                process.exit(1);
+            }
+        };
+
+        // Manual close method (without process.exit, for tests)
+        const close = async () =>
+        {
+            serverLogger.info('Manual server shutdown requested');
+            await shutdownServer();
+        };
+
+        // Register shutdown handlers
+        process.on('SIGTERM', () => shutdown('SIGTERM'));
+        process.on('SIGINT', () => shutdown('SIGINT'));
+
+        // Handle uncaught exceptions
+        process.on('uncaughtException', (error) =>
+        {
+            serverLogger.error('Uncaught exception', error);
+            shutdown('UNCAUGHT_EXCEPTION');
+        });
+
+        // Handle unhandled promise rejections
+        process.on('unhandledRejection', (reason, promise) =>
+        {
+            serverLogger.error('Unhandled promise rejection', {
+                reason,
+                promise,
+            });
+            shutdown('UNHANDLED_REJECTION');
+        });
+
+        // Return server instance
+        return {
+            server,
+            app,
+            config: finalConfig,
+            close,
+        };
+    }
+    catch (error)
+    {
+        const err = error as Error;
+        serverLogger.error('Server initialization failed', err);
+
+        // Cleanup on failure
         try
         {
-            // Race between graceful shutdown and timeout
-            await Promise.race([
-                shutdownServer(),
-                timeoutPromise,
-            ]);
-
-            serverLogger.info('Graceful shutdown completed successfully');
-            process.exit(0);
+            serverLogger.debug('Cleaning up after initialization failure...');
+            await closeDatabase();
+            await closeRedis();
+            serverLogger.debug('Cleanup completed');
         }
-        catch (error)
+        catch (cleanupError)
         {
-            const err = error as Error;
-
-            if (err.message && err.message.includes('timeout'))
-            {
-                serverLogger.error('Graceful shutdown timeout, forcing exit', err);
-            }
-            else
-            {
-                serverLogger.error('Error during graceful shutdown', err);
-            }
-
-            process.exit(1);
+            serverLogger.error('Cleanup failed', cleanupError as Error);
         }
-    };
 
-    // Manual close method (without process.exit, for tests)
-    const close = async () => {
-        serverLogger.info('Manual server shutdown requested');
-        await shutdownServer();
-    };
-
-    // Register shutdown handlers
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
-
-    // Handle uncaught exceptions
-    process.on('uncaughtException', (error) => {
-        serverLogger.error('Uncaught exception', error);
-        shutdown('UNCAUGHT_EXCEPTION');
-    });
-
-    // Handle unhandled promise rejections
-    process.on('unhandledRejection', (reason, promise) => {
-        serverLogger.error('Unhandled promise rejection', {
-            reason,
-            promise,
-        });
-        shutdown('UNHANDLED_REJECTION');
-    });
-
-    // Return server instance
-    return {
-        server,
-        app,
-        config: finalConfig,
-        close,
-    };
+        throw error;
+    }
 }
