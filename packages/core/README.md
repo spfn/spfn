@@ -355,6 +355,7 @@ File-based routing with contract validation and type safety.
 - Automatic route discovery (`index.ts`, `[id].ts`, `[...slug].ts`)
 - Contract-based validation with TypeBox
 - Type-safe request/response handling
+- Method-level middleware control (skip auth per HTTP method)
 
 ### 🗄️ Database & Repository
 Drizzle ORM integration with repository pattern and pagination.
