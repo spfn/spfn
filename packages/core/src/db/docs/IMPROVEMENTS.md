@@ -128,11 +128,11 @@ export async function startServer(config?: ServerConfig): Promise<void> {
 
 ---
 
-### 2. Drizzle Schema 미전달로 Relational Query API 사용 불가
+### 2. Drizzle Relational Query API (선택적 기능)
 
 **파일**: `manager/factory.ts:92-94`, `manager/factory.ts:113-115`
 
-**문제점**:
+**현재 상태**:
 ```typescript
 // Schema 없이 drizzle 초기화
 return {
@@ -141,17 +141,27 @@ return {
 };
 ```
 
-**개선안**:
+**영향**:
+- ✅ **현재 방식으로도 모든 핵심 기능 작동** - Repository 패턴, 수동 join 가능
+- ❌ Drizzle Relational Query API (`db.query.users.findMany({ with: { posts: true } })`) 사용 불가
+
+**현재 해결책 (수동 join)**:
 ```typescript
-// Option 1: Schema를 자동 탐지 (entities 폴더에서)
-import * as schema from '../entities/index.js';
+// Repository에서 relation 로드 (schema 불필요)
+class PostRepository extends Repository<typeof posts> {
+  async findWithAuthor(id: number) {
+    return this.db
+      .select({ post: posts, author: users })
+      .from(posts)
+      .leftJoin(users, eq(posts.authorId, users.id))
+      .where(eq(posts.id, id));
+  }
+}
+```
 
-return {
-    write: drizzle(writeClient, { schema }),
-    read: drizzle(readClient, { schema }),
-};
-
-// Option 2: 설정으로 받기
+**선택적 개선안** (Relational Query API 원하는 경우):
+```typescript
+// Option 1: 설정으로 schema 받기
 export interface DatabaseOptions {
     schema?: Record<string, unknown>;
 }
@@ -160,96 +170,129 @@ export async function createDatabaseFromEnv(
     options?: DatabaseOptions
 ): Promise<DatabaseClients> {
     const { schema } = options ?? {};
-
     return {
         write: drizzle(writeClient, schema ? { schema } : undefined),
         read: drizzle(readClient, schema ? { schema } : undefined),
     };
 }
+
+// 사용자 코드
+import * as schema from './entities/index.js';
+await createDatabaseFromEnv({ schema });
+
+// Option 2: 컨벤션 기반 자동 로드
+// src/server/entities/index.ts에서 자동으로 import
 ```
 
-**영향**:
-- Repository의 `findByIdWith()`, `findManyWith()` 등 relational query 메서드 사용 불가
-- 테스트에서 명시적으로 schema를 전달해야 하는 번거로움
+**우선순위**: Low (필수 아님, 현재 방식으로 충분)
 
 ---
 
-### 3. Error 처리 불일치 (console.error vs logger)
+### 3. ✅ Error 처리 불일치 (완료)
 
-**파일**: `manager/factory.ts:149-151`, `manager/manager.ts:130-131`
+**파일**: `manager/factory.ts`
 
-**문제점**:
+**구현 완료** (2025-10-10):
+
 ```typescript
-// console.error 사용
-console.error('❌ Failed to create database connection:', message);
+import { logger } from '../../logger/index.js';
 
-// logger 사용
-logger.error('Database connection failed:', message);
-```
-
-**개선안**:
-```typescript
-// 모든 곳에서 logger 사용 + 구조화된 로깅
 const dbLogger = logger.child('database');
 
-dbLogger.error('Failed to create database connection', {
-    error: message,
-    stage: 'initialization',
-    hasWriteUrl: !!process.env.DATABASE_WRITE_URL,
-    hasReadUrl: !!process.env.DATABASE_READ_URL,
-});
+export async function createDatabaseFromEnv(): Promise<DatabaseClients> {
+    // ...
+    try {
+        // ... database connection logic
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        dbLogger.error('Failed to create database connection', {
+            error: message,
+            stage: 'initialization',
+            hasWriteUrl: !!process.env.DATABASE_WRITE_URL,
+            hasReadUrl: !!process.env.DATABASE_READ_URL,
+            hasUrl: !!process.env.DATABASE_URL,
+            hasReplicaUrl: !!process.env.DATABASE_REPLICA_URL,
+        });
+        return { write: undefined, read: undefined };
+    }
+}
 ```
 
-**영향**: 로그 추적 어려움, 프로덕션 모니터링 불가
+**해결된 문제**:
+- ✅ 일관된 로깅 방식 (모든 DB 에러에 logger 사용)
+- ✅ 구조화된 로그로 프로덕션 모니터링 가능
+- ✅ 환경변수 설정 상태 추적으로 디버깅 용이
+- ✅ 로그 추적 및 분석 개선
 
 ---
 
-### 4. Transaction 타임아웃 미구현
+### 4. ✅ Transaction 타임아웃 (완료)
 
-**파일**: `transaction/middleware.ts:102-195`
+**파일**: `transaction/middleware.ts`
 
-**문제점**:
-```typescript
-// 트랜잭션 타임아웃 없음 - 무한 대기 가능
-await db.transaction(async (tx) => {
-    await runWithTransaction(tx, async () => {
-        await next(); // 무한 대기 가능
-    });
-});
-```
+**구현 완료** (2025-10-10):
 
-**개선안**:
 ```typescript
 export interface TransactionalOptions {
     slowThreshold?: number;
     enableLogging?: boolean;
-    timeout?: number; // 추가: 기본 30초
+    /**
+     * Transaction timeout in milliseconds
+     * @default 30000 (30 seconds) or TRANSACTION_TIMEOUT environment variable
+     */
+    timeout?: number;
 }
 
 export function Transactional(options: TransactionalOptions = {}) {
-    const { timeout = 30000 } = options;
+    // Get default timeout from environment variable (default: 30 seconds)
+    const defaultTimeout = parseInt(process.env.TRANSACTION_TIMEOUT || '30000', 10);
+
+    const {
+        slowThreshold = 1000,
+        enableLogging = true,
+        timeout = defaultTimeout,
+    } = options;
 
     return createMiddleware(async (c, next) => {
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => {
-                reject(new TransactionError(
-                    `Transaction timeout after ${timeout}ms`
-                ));
-            }, timeout);
-        });
-
-        const txPromise = db.transaction(async (tx) => {
-            await runWithTransaction(tx, async () => {
+        // Create transaction promise
+        const transactionPromise = db.transaction(async (tx) => {
+            await runWithTransaction(tx as TransactionDB, async () => {
                 await next();
+                // Auto-commit on success (handled by Drizzle)
             });
         });
 
-        await Promise.race([txPromise, timeoutPromise]);
+        // Apply timeout if enabled (timeout > 0)
+        if (timeout > 0) {
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                setTimeout(() => {
+                    reject(
+                        new TransactionError(
+                            `Transaction timeout after ${timeout}ms`,
+                            500,
+                            { txId, route, timeout: `${timeout}ms` }
+                        )
+                    );
+                }, timeout);
+            });
+
+            // Race between transaction and timeout
+            await Promise.race([transactionPromise, timeoutPromise]);
+        } else {
+            // No timeout - just await transaction
+            await transactionPromise;
+        }
     });
 }
 ```
 
-**영향**: 긴 트랜잭션으로 인한 DB lock, 성능 저하
+**해결된 문제**:
+- ✅ 기본 30초 타임아웃으로 무한 대기 방지
+- ✅ `TRANSACTION_TIMEOUT` 환경변수로 전역 기본값 설정 가능
+- ✅ 라우트별 커스텀 타임아웃 설정: `Transactional({ timeout: 60000 })`
+- ✅ `timeout: 0`으로 타임아웃 비활성화 가능
+- ✅ TransactionError throw → 자동 롤백
+- ✅ 구조화된 에러 로깅 (txId, route, timeout 포함)
 
 ---
 
@@ -810,10 +853,9 @@ docs/
 
 ### 즉시 수정 필요 (🔴 Critical)
 
-1. ✅ **Connection Pool 정리** - 메모리 누수 방지
-2. ✅ **Schema 전달** - Relational Query 활성화
-3. ✅ **Logger 통일** - 프로덕션 모니터링
-4. ✅ **Transaction Timeout** - 무한 대기 방지
+1. ✅ **Connection Pool 정리 + Graceful Shutdown** - 메모리 누수 방지, 안전한 종료
+2. **Logger 통일** - 프로덕션 모니터링 (#3)
+3. **Transaction Timeout** - 무한 대기 방지 (#4)
 
 ### 다음 릴리스 (🟡 Important)
 

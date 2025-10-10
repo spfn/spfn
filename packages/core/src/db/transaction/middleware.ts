@@ -13,9 +13,9 @@
  * - Transaction logging (start/commit/rollback)
  * - Execution time measurement and slow transaction warnings
  * - Transaction ID tracking (for debugging)
+ * - Transaction timeout configuration (with TRANSACTION_TIMEOUT env var support)
  *
  * ⚠️ Needs improvement:
- * - Add transaction timeout configuration
  * - Detect and warn about nested transactions
  *
  * 💡 Future considerations:
@@ -32,13 +32,12 @@
  * 📝 Future improvements:
  * - Transaction isolation level setting (withTransaction({ isolationLevel: 'SERIALIZABLE' }))
  * - Nested transaction savepoint support
- * - Transaction timeout configuration
  */
 import { createMiddleware } from 'hono/factory';
 import { db } from '../index.js';
 import { runWithTransaction, type TransactionDB } from './context.js';
 import { logger } from '../../logger';
-import { fromPostgresError } from '../../errors';
+import { fromPostgresError, TransactionError } from '../../errors';
 
 /**
  * Transaction middleware options
@@ -56,6 +55,27 @@ export interface TransactionalOptions
      * @default true
      */
     enableLogging?: boolean;
+
+    /**
+     * Transaction timeout in milliseconds
+     *
+     * If transaction exceeds this duration, it will be aborted with TransactionError.
+     *
+     * @default 30000 (30 seconds) or TRANSACTION_TIMEOUT environment variable
+     *
+     * @example
+     * ```typescript
+     * // Default timeout (30s or TRANSACTION_TIMEOUT env var)
+     * Transactional()
+     *
+     * // Custom timeout for specific route (60s)
+     * Transactional({ timeout: 60000 })
+     *
+     * // Disable timeout
+     * Transactional({ timeout: 0 })
+     * ```
+     */
+    timeout?: number;
 }
 
 /**
@@ -85,6 +105,7 @@ export interface TransactionalOptions
  *   Transactional({
  *     slowThreshold: 2000,    // Warn if transaction takes > 2s
  *     enableLogging: false,   // Disable logging
+ *     timeout: 60000,         // 60 second timeout for long operations
  *   })
  * ];
  * ```
@@ -101,9 +122,13 @@ export interface TransactionalOptions
  */
 export function Transactional(options: TransactionalOptions = {})
 {
+    // Get default timeout from environment variable (default: 30 seconds)
+    const defaultTimeout = parseInt(process.env.TRANSACTION_TIMEOUT || '30000', 10);
+
     const {
         slowThreshold = 1000,
         enableLogging = true,
+        timeout = defaultTimeout,
     } = options;
 
     const txLogger = logger.child('transaction');
@@ -122,8 +147,8 @@ export function Transactional(options: TransactionalOptions = {})
 
         try
         {
-            // Start transaction
-            await db.transaction(async (tx) =>
+            // Create transaction promise
+            const transactionPromise = db.transaction(async (tx) =>
             {
                 // Store transaction in AsyncLocalStorage
                 await runWithTransaction(tx as TransactionDB, async () =>
@@ -144,6 +169,36 @@ export function Transactional(options: TransactionalOptions = {})
                     // Auto-commit on success (handled by Drizzle)
                 });
             });
+
+            // Apply timeout if enabled (timeout > 0)
+            if (timeout > 0)
+            {
+                const timeoutPromise = new Promise<never>((_, reject) =>
+                {
+                    setTimeout(() =>
+                    {
+                        reject(
+                            new TransactionError(
+                                `Transaction timeout after ${timeout}ms`,
+                                500,
+                                {
+                                    txId,
+                                    route,
+                                    timeout: `${timeout}ms`,
+                                }
+                            )
+                        );
+                    }, timeout);
+                });
+
+                // Race between transaction and timeout
+                await Promise.race([transactionPromise, timeoutPromise]);
+            }
+            else
+            {
+                // No timeout - just await transaction
+                await transactionPromise;
+            }
 
             // Transaction successful (committed)
             const duration = Date.now() - startTime;
@@ -174,8 +229,10 @@ export function Transactional(options: TransactionalOptions = {})
             // Transaction failed (rolled back)
             const duration = Date.now() - startTime;
 
-            // Convert PostgreSQL error to custom error
-            const customError = fromPostgresError(error);
+            // Convert PostgreSQL error to custom error (unless it's already TransactionError)
+            const customError = error instanceof TransactionError
+                ? error
+                : fromPostgresError(error);
 
             if (enableLogging)
             {

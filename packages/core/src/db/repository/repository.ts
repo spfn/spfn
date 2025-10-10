@@ -9,7 +9,6 @@
  * - Advanced filtering with operators (eq, gt, like, in, etc.)
  * - Pagination with metadata (findPage)
  * - Batch operations (saveMany, updateWhere, deleteWhere)
- * - JPA-style relation loading (findByIdWith, findManyWith)
  * - Transaction-aware (automatic participation in Transactional middleware)
  */
 
@@ -22,10 +21,9 @@ import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '.
 import { buildFilters } from '../../query';
 import { buildSort } from '../../query';
 import { applyPagination, createPaginationMeta, countTotal } from '../../query';
-import { getRawDb } from '../manager/instance.js';
+import { getRawDb } from '../manager';
 import { getTransaction } from '../transaction';
 import { QueryError } from '../../errors';
-import { getTableName } from './relation-registry.js';
 import { QueryBuilder } from './query-builder.js';
 
 /**
@@ -44,37 +42,6 @@ export type Page<T> = {
     data: T[];
     meta: PaginationMeta;
 };
-
-/**
- * Relation loading options (JPA-style)
- *
- * Supports nested relations similar to Spring JPA's EntityGraph
- *
- * @example
- * ```typescript
- * // Load single relation
- * { with: { posts: true } }
- *
- * // Load nested relations
- * { with: { posts: { with: { comments: true } } } }
- *
- * // Load multiple relations
- * { with: { posts: true, profile: true } }
- * ```
- */
-export type WithRelations = {
-    with?: Record<string, boolean | { with?: Record<string, any> }>;
-};
-
-/**
- * Options for findById with relations
- */
-export type FindByIdOptions = WithRelations;
-
-/**
- * Options for findWhere with relations
- */
-export type FindWhereOptions = WithRelations;
 
 /**
  * Repository class
@@ -547,179 +514,5 @@ export class Repository<
     {
         const readDb = this.getReadDb();
         return new QueryBuilder<TTable, TSelect>(readDb, this.table);
-    }
-
-    // ============================================================
-    // JPA-Style Relation Loading
-    // ============================================================
-
-    /**
-     * Check if db.query API is available
-     *
-     * Drizzle's relational query API requires schema to be passed during db initialization.
-     *
-     * @returns true if db.query is available
-     */
-    private hasQueryApi(): boolean
-    {
-        const readDb = this.getReadDb();
-        return !!readDb.query && typeof readDb.query === 'object';
-    }
-
-    /**
-     * Get table query interface from db.query
-     *
-     * @returns Table query interface or undefined
-     */
-    private getTableQuery(): any
-    {
-        if (!this.hasQueryApi()) {
-            return undefined;
-        }
-
-        const readDb = this.getReadDb();
-        const tableName = getTableName(this.table);
-
-        // Try to get table query from db.query
-        // Type assertion needed: Drizzle's query API uses dynamic table names
-        return (readDb.query as any)?.[tableName];
-    }
-
-    /**
-     * Find record by ID with relations (uses Replica)
-     *
-     * JPA-style relation loading using Drizzle's relational query API.
-     *
-     * @param id - Primary key value
-     * @param options - Relation loading options
-     * @returns Record with loaded relations, or null if not found
-     *
-     * @throws {QueryError} If db.query API is not available
-     *
-     * @example
-     * ```typescript
-     * // Load user with posts
-     * const user = await userRepo.findByIdWith(1, {
-     *     with: { posts: true }
-     * });
-     *
-     * // Load nested relations
-     * const user = await userRepo.findByIdWith(1, {
-     *     with: {
-     *         posts: {
-     *             with: { comments: true }
-     *         }
-     *     }
-     * });
-     * ```
-     */
-    async findByIdWith(id: number | string, options: FindByIdOptions): Promise<any>
-    {
-        const tableQuery = this.getTableQuery();
-
-        if (!tableQuery || !tableQuery.findFirst) {
-            throw new QueryError(
-                'Relational queries require db.query API. ' +
-                'Initialize your database with schema: ' +
-                'drizzle(client, { schema: { users, posts, ... } })'
-            );
-        }
-
-        // Use Drizzle's relational query API
-        const { eq } = await import('drizzle-orm');
-        const idColumn = (this.table as Record<string, any>).id;
-
-        if (!idColumn) {
-            throw new QueryError('Table does not have an id column');
-        }
-
-        const result = await tableQuery.findFirst({
-            where: eq(idColumn, id),
-            ...(options.with && { with: options.with })
-        });
-
-        // Return null for consistency (findFirst returns undefined when not found)
-        return result ?? null;
-    }
-
-    /**
-     * Find multiple records with relations (uses Replica)
-     *
-     * JPA-style relation loading for multiple records.
-     *
-     * @param options - Query options with relation loading
-     * @returns Array of records with loaded relations
-     *
-     * @throws {QueryError} If db.query API is not available
-     *
-     * @example
-     * ```typescript
-     * // Load all users with their posts
-     * const users = await userRepo.findManyWith({
-     *     with: { posts: true }
-     * });
-     *
-     * // Load with filters
-     * const activeUsers = await userRepo.findManyWith({
-     *     where: eq(users.status, 'active'),
-     *     with: { posts: true, profile: true }
-     * });
-     * ```
-     */
-    async findManyWith(options: { where?: SQL<unknown> } & WithRelations): Promise<any[]>
-    {
-        const tableQuery = this.getTableQuery();
-
-        if (!tableQuery || !tableQuery.findMany) {
-            throw new QueryError(
-                'Relational queries require db.query API. ' +
-                'Initialize your database with schema: ' +
-                'drizzle(client, { schema: { users, posts, ... } })'
-            );
-        }
-
-        // Use Drizzle's relational query API
-        return await tableQuery.findMany({
-            ...(options.where && { where: options.where }),
-            ...(options.with && { with: options.with })
-        });
-    }
-
-    /**
-     * Find one record with relations (uses Replica)
-     *
-     * JPA-style relation loading for a single record.
-     *
-     * @param options - Query options with relation loading
-     * @returns Record with loaded relations, or undefined if not found
-     *
-     * @throws {QueryError} If db.query API is not available
-     *
-     * @example
-     * ```typescript
-     * // Find user by email with posts
-     * const user = await userRepo.findOneWith({
-     *     where: eq(users.email, 'john@example.com'),
-     *     with: { posts: true }
-     * });
-     * ```
-     */
-    async findOneWith(options: { where: SQL<unknown> } & WithRelations): Promise<any>
-    {
-        const tableQuery = this.getTableQuery();
-
-        if (!tableQuery || !tableQuery.findFirst) {
-            throw new QueryError(
-                'Relational queries require db.query API. ' +
-                'Initialize your database with schema: ' +
-                'drizzle(client, { schema: { users, posts, ... } })'
-            );
-        }
-
-        // Use Drizzle's relational query API
-        return await tableQuery.findFirst({
-            where: options.where,
-            ...(options.with && { with: options.with })
-        });
     }
 }

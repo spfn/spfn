@@ -8,10 +8,12 @@ SPFN provides automatic transaction management through the `Transactional()` mid
 
 **Key Features:**
 - Automatic BEGIN/COMMIT/ROLLBACK
+- Configurable timeout protection (default 30s)
 - No need to pass transaction context
 - Works with Repository pattern
 - AsyncLocalStorage-based (no explicit passing)
 - Nested transaction support
+- Slow transaction warnings
 
 ## Quick Start
 
@@ -41,6 +43,103 @@ app.bind(
         // Success → automatic COMMIT
         // Error → automatic ROLLBACK
         return c.json({ user, profile });
+    }
+);
+```
+
+## Configuration
+
+The `Transactional()` middleware accepts configuration options:
+
+### Basic Configuration
+
+```typescript
+import { Transactional } from '@spfn/core/db';
+
+app.bind(
+    contract,
+    Transactional({
+        timeout: 60000,          // Transaction timeout in ms (default: 30000)
+        slowThreshold: 2000,     // Slow transaction warning threshold (default: 1000)
+        enableLogging: true,     // Enable transaction logging (default: true)
+    }),
+    async (c) => {
+        // Your handler code
+    }
+);
+```
+
+### Options
+
+#### `timeout`
+- **Type:** `number`
+- **Default:** `30000` (30 seconds) or `TRANSACTION_TIMEOUT` environment variable
+- **Description:** Maximum transaction duration in milliseconds. Transaction will be aborted with `TransactionError` if it exceeds this limit.
+
+```typescript
+// Default timeout (30 seconds or TRANSACTION_TIMEOUT env var)
+Transactional()
+
+// Custom timeout for long-running operations (60 seconds)
+Transactional({ timeout: 60000 })
+
+// Disable timeout (not recommended for production)
+Transactional({ timeout: 0 })
+```
+
+**Environment Variable:**
+```bash
+# Set global default timeout
+TRANSACTION_TIMEOUT=45000  # 45 seconds
+```
+
+#### `slowThreshold`
+- **Type:** `number`
+- **Default:** `1000` (1 second)
+- **Description:** Warning threshold for slow transactions. Transactions exceeding this duration will trigger a warning log.
+
+```typescript
+// Warn if transaction takes more than 2 seconds
+Transactional({ slowThreshold: 2000 })
+```
+
+#### `enableLogging`
+- **Type:** `boolean`
+- **Default:** `true`
+- **Description:** Enable or disable transaction logging (start, commit, rollback).
+
+```typescript
+// Disable logging for specific routes
+Transactional({ enableLogging: false })
+```
+
+### Examples
+
+**Long-running batch operation:**
+```typescript
+app.bind(
+    batchImportContract,
+    Transactional({
+        timeout: 120000,        // 2 minutes for large batch
+        slowThreshold: 5000     // Warn if > 5 seconds
+    }),
+    async (c) => {
+        // Import large dataset
+    }
+);
+```
+
+**High-performance endpoint:**
+```typescript
+app.bind(
+    quickUpdateContract,
+    Transactional({
+        timeout: 5000,          // Fast timeout for simple updates
+        slowThreshold: 100,     // Warn if > 100ms
+        enableLogging: false    // Reduce overhead
+    }),
+    async (c) => {
+        // Quick update operation
     }
 );
 ```
@@ -600,21 +699,71 @@ app.bind(contract, Transactional(), async (c) => {
 
 ### Transaction timeout
 
-**Symptom:** Transaction times out or database locks
+**Symptom:** `TransactionError: Transaction timeout after Xms` or database locks
 
-**Cause:** Long-running transaction holding locks
+**Cause:** Transaction exceeds configured timeout duration (default 30s)
 
-**Solution:**
+**Solutions:**
+
+**1. Configure timeout for specific routes:**
 ```typescript
-// Move slow operations outside transaction
+// Increase timeout for long-running operations
+app.bind(
+    batchProcessContract,
+    Transactional({ timeout: 120000 }), // 2 minutes
+    async (c) => {
+        // Long-running batch operation
+        await processBatchData(data);
+        return c.json({ success: true });
+    }
+);
+```
+
+**2. Set global timeout via environment variable:**
+```bash
+# .env
+TRANSACTION_TIMEOUT=60000  # 60 seconds
+```
+
+**3. Optimize transaction to be shorter:**
+```typescript
+// ❌ Bad: Slow operations in transaction
 app.bind(contract, Transactional(), async (c) => {
     const user = await userRepo.save({ email: 'test@example.com' });
-    // Keep transaction short
+
+    // These block the transaction
+    await sendWelcomeEmail(user.email);
+    await updateExternalService(user.id);
+
     return c.json(user);
 });
 
-// Do slow work after response
-await sendWelcomeEmail(user.email);
+// ✅ Good: Move slow operations outside transaction
+app.bind(contract, Transactional(), async (c) => {
+    const user = await userRepo.save({ email: 'test@example.com' });
+    // Transaction commits here
+    return c.json(user);
+});
+
+// Do slow work in background after response
+app.onAfterResponse(() => {
+    await sendWelcomeEmail(user.email);
+    await updateExternalService(user.id);
+});
+```
+
+**4. Disable timeout for specific operations** (use with caution):
+```typescript
+// Only for trusted, critical operations
+app.bind(
+    criticalMigrationContract,
+    Transactional({ timeout: 0 }), // No timeout
+    async (c) => {
+        // Critical operation that must complete
+        await runDataMigration();
+        return c.json({ success: true });
+    }
+);
 ```
 
 ### Deadlock
