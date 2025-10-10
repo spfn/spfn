@@ -72,7 +72,72 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
     // 2. Custom middleware from config
     config?.use?.forEach(mw => app.use('*', mw));
 
-    // 3. beforeRoutes hook
+    // 3. Health check endpoint (before routes)
+    const healthCheckConfig = config?.healthCheck ?? {};
+    const healthCheckEnabled = healthCheckConfig.enabled !== false;
+    const healthCheckPath = healthCheckConfig.path ?? '/health';
+    const healthCheckDetailed = healthCheckConfig.detailed
+        ?? process.env.NODE_ENV === 'development';
+
+    if (healthCheckEnabled)
+    {
+        app.get(healthCheckPath, async (c) =>
+        {
+            const response: any = {
+                status: 'ok',
+                timestamp: new Date().toISOString(),
+            };
+
+            if (healthCheckDetailed)
+            {
+                const { getDatabase } = await import('../db/index.js');
+                const { getRedis } = await import('../cache/index.js');
+
+                // Check database
+                const db = getDatabase();
+                let dbStatus = 'disconnected';
+                if (db)
+                {
+                    try
+                    {
+                        await db.execute('SELECT 1');
+                        dbStatus = 'connected';
+                    }
+                    catch
+                    {
+                        dbStatus = 'error';
+                    }
+                }
+
+                // Check Redis
+                const redis = getRedis();
+                let redisStatus = 'disconnected';
+                if (redis)
+                {
+                    try
+                    {
+                        await redis.ping();
+                        redisStatus = 'connected';
+                    }
+                    catch
+                    {
+                        redisStatus = 'error';
+                    }
+                }
+
+                response.services = {
+                    database: dbStatus,
+                    redis: redisStatus,
+                };
+            }
+
+            return c.json(response);
+        });
+
+        serverLogger.debug(`Health check endpoint enabled at ${healthCheckPath}`);
+    }
+
+    // 4. beforeRoutes hook
     await config?.beforeRoutes?.(app);
 
     // 4. Load routes
