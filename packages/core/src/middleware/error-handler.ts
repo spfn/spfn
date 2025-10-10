@@ -1,17 +1,22 @@
 /**
  * Error Handler Middleware
  *
- * Middleware that converts custom errors to HTTP responses
+ * Generic middleware that converts errors with statusCode to HTTP responses
  *
  * ✅ Features:
- * - Convert DatabaseError family to appropriate HTTP status codes
+ * - Convert any error with statusCode property to appropriate HTTP status codes
  * - Error logging (log level by status code)
  * - Environment-specific error response format (Production/Development)
  * - Stack trace inclusion (development only)
+ * - Support for additional error details
+ *
+ * 💡 Design:
+ * - Domain-independent (doesn't depend on specific error types)
+ * - Works with any error that has a statusCode property
+ * - Follows dependency inversion principle
  */
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { isDatabaseError, type DatabaseError } from '../errors';
 import { logger } from '../logger';
 
 const errorLogger = logger.child('error-handler');
@@ -67,59 +72,19 @@ export function errorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
 
     return (err: Error, c: Context) =>
     {
-        // Handle DatabaseError
-        if (isDatabaseError(err))
-        {
-            const dbError = err as DatabaseError;
-            const statusCode = dbError.statusCode;
+        // Generic error handling: check for statusCode property
+        const statusCode = (err as any).statusCode || 500;
+        const errorType = err.name || 'Error';
 
-            if (enableLogging)
-            {
-                // 4xx: warn, 5xx: error
-                if (statusCode >= 500)
-                {
-                    errorLogger.error('Database error occurred', {
-                        type: dbError.name,
-                        message: dbError.message,
-                        statusCode,
-                        path: c.req.path,
-                        method: c.req.method,
-                    });
-                }
-                else
-                {
-                    errorLogger.warn('Client error occurred', {
-                        type: dbError.name,
-                        message: dbError.message,
-                        statusCode,
-                        path: c.req.path,
-                        method: c.req.method,
-                    });
-                }
-            }
-
-            const response: ErrorResponse = {
-                error: {
-                    message: dbError.message,
-                    type: dbError.name,
-                    statusCode,
-                },
-            };
-
-            if (includeStack)
-            {
-                response.error.stack = dbError.stack;
-            }
-
-            return c.json(response, statusCode as ContentfulStatusCode);
-        }
-
-        // Handle general errors
         if (enableLogging)
         {
-            errorLogger.error('Unhandled error occurred', {
+            // 4xx: warn, 5xx: error
+            const logLevel = statusCode >= 500 ? 'error' : 'warn';
+
+            errorLogger[logLevel]('Error occurred', {
+                type: errorType,
                 message: err.message,
-                stack: err.stack,
+                statusCode,
                 path: c.req.path,
                 method: c.req.method,
             });
@@ -128,16 +93,22 @@ export function errorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
         const response: ErrorResponse = {
             error: {
                 message: err.message || 'Internal Server Error',
-                type: err.name || 'Error',
-                statusCode: 500,
+                type: errorType,
+                statusCode,
             },
         };
+
+        // Include additional error details if available
+        if ((err as any).details)
+        {
+            (response.error as any).details = (err as any).details;
+        }
 
         if (includeStack)
         {
             response.error.stack = err.stack;
         }
 
-        return c.json(response, 500);
+        return c.json(response, statusCode as ContentfulStatusCode);
     };
 }

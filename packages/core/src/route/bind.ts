@@ -39,14 +39,6 @@ export function bind<TContract extends RouteContract>(
     return async (rawContext: Context) =>
     {
         // ============================================================
-        // 0. Store contract.meta for middleware access
-        // ============================================================
-        if (contract.meta)
-        {
-            rawContext.set('routeMeta', contract.meta);
-        }
-
-        // ============================================================
         // 1. Validate params
         // ============================================================
         const params = rawContext.req.param();
