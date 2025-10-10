@@ -56,6 +56,7 @@ export type RouteStats = {
 
 export class AutoRouteLoader {
     private routes: RouteInfo[] = [];
+    private registeredRoutes = new Map<string, string>(); // normalized path → file
     private debug: boolean;
     private readonly middlewares: Array<{ name: string; handler: any }>;
 
@@ -231,6 +232,23 @@ export class AutoRouteLoader {
             const urlPath = this.fileToPath(relativePath);
             const priority = this.calculatePriority(relativePath);
 
+            // Check for route conflicts
+            const normalizedPath = this.normalizePath(urlPath);
+            const existingFile = this.registeredRoutes.get(normalizedPath);
+
+            if (existingFile)
+            {
+                console.warn(`⚠️  Route conflict detected:`);
+                console.warn(`   Path: ${urlPath} (normalized: ${normalizedPath})`);
+                console.warn(`   Already registered by: ${existingFile}`);
+                console.warn(`   Attempted by: ${relativePath}`);
+                console.warn(`   → Skipping duplicate registration`);
+                return false;
+            }
+
+            // Track registration
+            this.registeredRoutes.set(normalizedPath, relativePath);
+
             // Apply global middlewares with conditional wrapper
             // (skip logic handled at runtime via contract.meta)
             // Note: Using urlPath without '/*' to match both base path and sub-paths
@@ -264,12 +282,40 @@ export class AutoRouteLoader {
         catch (error)
         {
             const err = error as Error;
-            console.error(`❌ ${relativePath}: ${err.message}`);
 
-            // Show detailed error in debug mode
-            if (this.debug)
+            // Categorize error types and provide helpful messages
+            if (err.message.includes('Cannot find module') || err.message.includes('MODULE_NOT_FOUND'))
             {
-                console.error(`   Stack: ${err.stack}`);
+                console.error(`❌ ${relativePath}: Missing dependency`);
+                console.error(`   ${err.message}`);
+                console.error(`   → Run: npm install`);
+            }
+            else if (err.message.includes('SyntaxError') || err.stack?.includes('SyntaxError'))
+            {
+                console.error(`❌ ${relativePath}: Syntax error`);
+                console.error(`   ${err.message}`);
+
+                if (this.debug && err.stack)
+                {
+                    console.error(`   Stack trace (first 5 lines):`);
+                    const stackLines = err.stack.split('\n').slice(0, 5);
+                    stackLines.forEach(line => console.error(`   ${line}`));
+                }
+            }
+            else if (err.message.includes('Unexpected token'))
+            {
+                console.error(`❌ ${relativePath}: Parse error`);
+                console.error(`   ${err.message}`);
+                console.error(`   → Check for syntax errors or invalid TypeScript`);
+            }
+            else
+            {
+                console.error(`❌ ${relativePath}: ${err.message}`);
+
+                if (this.debug && err.stack)
+                {
+                    console.error(`   Stack: ${err.stack}`);
+                }
             }
 
             return false;
@@ -327,6 +373,24 @@ export class AutoRouteLoader {
         if (/\[\.\.\.[\w-]+\]/.test(path)) return 3; // Catch-all
         if (/\[[\w-]+\]/.test(path)) return 2; // Dynamic
         return 1; // Static
+    }
+
+    /**
+     * Normalize path for conflict detection
+     *
+     * Converts dynamic parameter names to generic placeholders:
+     * - /users/:id → /users/:param
+     * - /users/:userId → /users/:param (conflict!)
+     * - /posts/* → /posts/* (unchanged)
+     *
+     * This allows detection of routes with different param names
+     * that would match the same URL patterns.
+     */
+    private normalizePath(path: string): string
+    {
+        // Replace all dynamic params (:xxx) with :param
+        // This allows us to detect conflicts like /users/:id and /users/:userId
+        return path.replace(/:\w+/g, ':param');
     }
 
     /**
