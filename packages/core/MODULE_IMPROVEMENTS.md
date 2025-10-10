@@ -22,16 +22,19 @@
 ### 3. **route** 모듈
 - 상태: 완료 ✅
 - 일자: 2025-10-11
-- 개선사항: 5개 항목
+- 개선사항: 5개 항목 + 1개 추가 기능
   1. Route loading error handling
   2. Route priority sorting
   3. Route conflict detection
   4. Code duplication removal
   5. Detailed import error messages
+  6. Contract-based skipMiddlewares (method-level middleware control) ✅
 - 커밋:
   - `11cab6b`: feat(route): error handling + priority sorting (#1-#2)
   - `2940172`: feat(route): remaining improvements (#3-#5)
   - `8020dbb`: docs(route): remove IMPROVEMENTS.md
+- 관련 문서:
+  - `SKIP_MIDDLEWARES_GUIDE.md`: Contract 기반 메서드별 미들웨어 스킵 가이드
 
 ### 4. **middleware** 모듈
 - 상태: 완료 ✅
