@@ -40,6 +40,13 @@ export type SPFNApp = Hono & {
         middlewares: MiddlewareHandler[],
         handler: RouteHandler
     ): void;
+
+    /**
+     * Contract metadata storage
+     * Map<"METHOD /path", RouteMeta>
+     * @internal
+     */
+    _contractMetas?: Map<string, RouteContract['meta']>;
 };
 
 /**
@@ -74,6 +81,9 @@ export function createApp(): SPFNApp
     // Add bind method
     const app = hono as SPFNApp;
 
+    // Initialize contract metadata storage
+    app._contractMetas = new Map();
+
     app.bind = function <TContract extends RouteContract>(
         contract: TContract,
         ...args: [RouteHandler] | [MiddlewareHandler[], RouteHandler]
@@ -86,6 +96,13 @@ export function createApp(): SPFNApp
         const [middlewares, handler] = args.length === 1
             ? [[], args[0]]
             : [args[0], args[1]];
+
+        // Store contract metadata for auto-loader
+        if (contract.meta)
+        {
+            const key = `${contract.method} ${path}`;
+            app._contractMetas!.set(key, contract.meta);
+        }
 
         // Register with Hono using bind() for validation
         const boundHandler = bind(contract, handler);

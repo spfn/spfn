@@ -303,12 +303,14 @@ describe('bind()', () => {
                 }),
                 response: Type.Object({
                     success: Type.Boolean(),
+                    search: Type.Optional(Type.String()),
                 }),
             } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
                     success: true,
+                    search: c.query.search,
                 });
             });
 
@@ -339,12 +341,14 @@ describe('bind()', () => {
                 }),
                 response: Type.Object({
                     success: Type.Boolean(),
+                    tags: Type.Array(Type.String()),
                 }),
             } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
                     success: true,
+                    tags: c.query.tags,
                 });
             });
 

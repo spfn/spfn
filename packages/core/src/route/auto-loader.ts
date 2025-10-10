@@ -260,16 +260,50 @@ export class AutoRouteLoader
             // Track registration
             this.registeredRoutes.set(normalizedPath, relativePath);
 
-            // Get skip list from module.meta
-            const skipList = module.meta?.skipMiddlewares || [];
+            // Check if module uses contract-based routing (createApp)
+            const hasContractMetas = module.default._contractMetas && module.default._contractMetas.size > 0;
 
-            // Apply filtered global middlewares
-            const activeMiddlewares = this.middlewares
-                .filter(m => !skipList.includes(m.name));
-
-            for (const middleware of activeMiddlewares)
+            if (hasContractMetas)
             {
-                app.use(urlPath, middleware.handler);
+                // Contract-based routing: method-level skipMiddlewares
+                // 1. Register meta-setting middleware first
+                app.use(urlPath, (c, next) =>
+                {
+                    const method = c.req.method;
+                    const key = `${method} ${urlPath}`;
+                    const meta = module.default._contractMetas?.get(key);
+                    if (meta?.skipMiddlewares)
+                    {
+                        c.set('_skipMiddlewares', meta.skipMiddlewares);
+                    }
+                    return next();
+                });
+
+                // 2. Wrap global middlewares to check skipMiddlewares
+                for (const middleware of this.middlewares)
+                {
+                    app.use(urlPath, async (c, next) =>
+                    {
+                        const skipList = c.get('_skipMiddlewares') || [];
+                        if (skipList.includes(middleware.name))
+                        {
+                            return next(); // Skip this middleware
+                        }
+                        return middleware.handler(c, next); // Execute middleware
+                    });
+                }
+            }
+            else
+            {
+                // File-based routing: file-level skipMiddlewares (fallback)
+                const skipList = module.meta?.skipMiddlewares || [];
+                const activeMiddlewares = this.middlewares
+                    .filter(m => !skipList.includes(m.name));
+
+                for (const middleware of activeMiddlewares)
+                {
+                    app.use(urlPath, middleware.handler);
+                }
             }
 
             // Register route
