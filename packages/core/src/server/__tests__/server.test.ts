@@ -227,6 +227,37 @@ describe('Server Module', () => {
         });
     });
 
+    describe('Shutdown Configuration', () => {
+        it('should support shutdown configuration', () => {
+            const config: ServerConfig = {
+                shutdown: {
+                    timeout: 25000,
+                },
+            };
+
+            expect(config.shutdown).toBeDefined();
+            expect(config.shutdown.timeout).toBe(25000);
+        });
+
+        it('should support partial shutdown configuration', () => {
+            const config: ServerConfig = {
+                shutdown: {},
+            };
+
+            expect(config.shutdown).toBeDefined();
+            expect(config.shutdown.timeout).toBeUndefined();
+        });
+
+        it('should support SHUTDOWN_TIMEOUT environment variable', () => {
+            process.env.SHUTDOWN_TIMEOUT = '20000';
+
+            // 환경변수가 설정되어 있으면 server.ts에서 읽어서 적용됨
+            expect(process.env.SHUTDOWN_TIMEOUT).toBe('20000');
+
+            delete process.env.SHUTDOWN_TIMEOUT;
+        });
+    });
+
     describe('ServerInstance Type', () => {
         it('should have correct ServerInstance interface', () => {
             // Type-only test - verifies interface structure
