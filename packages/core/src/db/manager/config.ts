@@ -64,12 +64,10 @@ export function getPoolConfig(options?: Partial<PoolConfig>): PoolConfig
 
     // Priority: options > env > default
     const max = options?.max
-        ?? parseInt(process.env.DB_POOL_MAX || '', 10)
-        || (isProduction ? 20 : 10);
+        ?? (parseInt(process.env.DB_POOL_MAX || '', 10) || (isProduction ? 20 : 10));
 
     const idleTimeout = options?.idleTimeout
-        ?? parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '', 10)
-        || (isProduction ? 30 : 20);
+        ?? (parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '', 10) || (isProduction ? 30 : 20));
 
     return { max, idleTimeout };
 }

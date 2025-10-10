@@ -97,6 +97,7 @@ await closeDatabase();
 **Returns:** `Promise<void>`
 
 **Behavior:**
+- Stops database health check (if running)
 - Closes the underlying PostgreSQL connection
 - Clears the global database instance
 - Safe to call multiple times
@@ -172,6 +173,70 @@ createDatabaseFromEnv();
 // Use getDb() everywhere else
 const db = getDb();
 ```
+
+---
+
+### startHealthCheck(config)
+
+Start periodic database health checks with automatic reconnection.
+
+```typescript
+import { startHealthCheck } from '@spfn/core/db';
+
+startHealthCheck({
+    enabled: true,
+    interval: 30000,      // 30 seconds
+    reconnect: true,
+    maxRetries: 5,
+    retryInterval: 10000, // 10 seconds
+});
+```
+
+**Parameters:**
+- `config: HealthCheckConfig` - Health check configuration
+
+```typescript
+interface HealthCheckConfig {
+    enabled: boolean;        // Enable health checks
+    interval: number;        // Check interval (ms)
+    reconnect: boolean;      // Enable auto-reconnect
+    maxRetries: number;      // Max reconnection attempts
+    retryInterval: number;   // Retry interval (ms)
+}
+```
+
+**Returns:** `void`
+
+**Behavior:**
+- Periodically runs `SELECT 1` to verify database connection
+- Logs health check status
+- Attempts reconnection on failure (if enabled)
+- Safe to call multiple times (no-op if already running)
+
+**Note:** Health checks are automatically started by `initDatabase()` when enabled. Manual use is typically not needed.
+
+---
+
+### stopHealthCheck()
+
+Stop database health checks.
+
+```typescript
+import { stopHealthCheck } from '@spfn/core/db';
+
+stopHealthCheck();
+```
+
+**Returns:** `void`
+
+**Behavior:**
+- Stops periodic health checks
+- Safe to call multiple times
+- No-op if health check is not running
+
+**Note:** Health checks are automatically stopped by `closeDatabase()`. Manual use is typically not needed.
+
+---
 
 ## Testing Patterns
 
@@ -353,6 +418,132 @@ setDatabase(db);
 ```
 
 **Note:** Using low-level configuration bypasses the framework's pool management. Prefer ServerConfig or environment variables.
+
+### Health Check Configuration
+
+The framework provides automatic database health checks with reconnection support. Health checks are **enabled by default** and start automatically when `initDatabase()` is called.
+
+**Priority (highest to lowest):**
+1. **ServerConfig** (`server.config.ts`) - Application-level configuration
+2. **Environment Variables** - Runtime configuration
+3. **Defaults** - Automatic configuration
+
+#### Method 1: ServerConfig (Recommended)
+
+Configure health check settings in `server.config.ts`:
+
+```typescript
+// src/server/server.config.ts
+import type { ServerConfig } from '@spfn/core';
+
+export default {
+    database: {
+        healthCheck: {
+            enabled: true,           // Enable health checks (default: true)
+            interval: 30000,         // Check every 30 seconds (default: 60000)
+            reconnect: true,         // Auto-reconnect on failure (default: true)
+            maxRetries: 5,           // Max reconnection attempts (default: 3)
+            retryInterval: 10000,    // Wait 10s between retries (default: 5000)
+        },
+    },
+} satisfies ServerConfig;
+```
+
+#### Method 2: Environment Variables
+
+Set health check configuration via environment variables:
+
+```bash
+# .env
+DB_HEALTH_CHECK_ENABLED=true
+DB_HEALTH_CHECK_INTERVAL=30000
+DB_HEALTH_CHECK_RECONNECT=true
+DB_HEALTH_CHECK_MAX_RETRIES=5
+DB_HEALTH_CHECK_RETRY_INTERVAL=10000
+```
+
+These override defaults but are overridden by ServerConfig.
+
+#### Method 3: Automatic Defaults
+
+If neither ServerConfig nor environment variables are set, defaults are used:
+
+```typescript
+enabled: true        // Health checks enabled by default
+interval: 60000      // Check every 60 seconds
+reconnect: true      // Auto-reconnect enabled
+maxRetries: 3        // Try reconnecting 3 times
+retryInterval: 5000  // Wait 5 seconds between retries
+```
+
+#### Method 4: Manual Configuration (Advanced)
+
+For full control, pass options directly to `initDatabase()`:
+
+```typescript
+import { initDatabase } from '@spfn/core/db';
+
+await initDatabase({
+    healthCheck: {
+        enabled: true,
+        interval: 30000,
+        reconnect: true,
+        maxRetries: 5,
+        retryInterval: 10000,
+    },
+});
+```
+
+#### Disabling Health Checks
+
+To disable automatic health checks:
+
+```typescript
+// src/server/server.config.ts
+export default {
+    database: {
+        healthCheck: {
+            enabled: false,
+        },
+    },
+} satisfies ServerConfig;
+```
+
+Or via environment variable:
+
+```bash
+# .env
+DB_HEALTH_CHECK_ENABLED=false
+```
+
+#### How Health Checks Work
+
+1. **Periodic Checks**: Runs `SELECT 1` query at configured interval
+2. **Failure Detection**: Logs error if query fails
+3. **Auto-Reconnection**: Attempts to reconnect if enabled
+4. **Retry Logic**: Waits `retryInterval` between attempts (up to `maxRetries`)
+5. **Graceful Shutdown**: Automatically stopped by `closeDatabase()`
+
+#### Health Check Logs
+
+Health checks produce structured logs:
+
+```typescript
+// Success
+dbLogger.debug('Database health check passed');
+
+// Failure
+dbLogger.error('Database health check failed', { error: message });
+
+// Reconnection
+dbLogger.warn('Attempting database reconnection', {
+    maxRetries: 3,
+    retryInterval: '5000ms',
+});
+
+// Success after reconnection
+dbLogger.info('Database reconnection successful', { attempt: 2 });
+```
 
 ### Connection String Format
 
@@ -542,3 +733,104 @@ await initDatabase({
 ```
 
 **Option 4: Use transactions properly** to release connections faster
+
+### Health check failing repeatedly
+
+**Cause:** Database connection lost or network issues
+
+**Solutions:**
+
+**Option 1: Check database logs**
+```bash
+# Check if database is running
+docker ps | grep postgres
+
+# Check database logs
+docker logs <container-name>
+```
+
+**Option 2: Verify connection string**
+```bash
+# .env
+DATABASE_URL=postgresql://localhost:5432/mydb
+```
+
+**Option 3: Adjust health check configuration**
+```typescript
+// src/server/server.config.ts
+export default {
+    database: {
+        healthCheck: {
+            interval: 120000,        // Check less frequently
+            maxRetries: 10,          // More retry attempts
+            retryInterval: 15000,    // Longer wait between retries
+        },
+    },
+} satisfies ServerConfig;
+```
+
+**Option 4: Disable health check temporarily (not recommended)**
+```bash
+# .env
+DB_HEALTH_CHECK_ENABLED=false
+```
+
+### Health check reconnection not working
+
+**Cause:** Max retries exhausted or reconnection disabled
+
+**Solutions:**
+
+**Option 1: Enable reconnection**
+```typescript
+// src/server/server.config.ts
+export default {
+    database: {
+        healthCheck: {
+            reconnect: true,      // Enable auto-reconnect
+            maxRetries: 5,        // Increase retry attempts
+        },
+    },
+} satisfies ServerConfig;
+```
+
+**Option 2: Via environment variables**
+```bash
+# .env
+DB_HEALTH_CHECK_RECONNECT=true
+DB_HEALTH_CHECK_MAX_RETRIES=10
+```
+
+**Option 3: Check logs for specific errors**
+```typescript
+// Look for these log messages:
+// - "Database health check failed"
+// - "Attempting database reconnection"
+// - "Reconnection attempt X failed"
+// - "Max reconnection attempts reached"
+```
+
+### Too many health check logs
+
+**Cause:** Health check interval too short or debug logging enabled
+
+**Solutions:**
+
+**Option 1: Increase check interval**
+```typescript
+// src/server/server.config.ts
+export default {
+    database: {
+        healthCheck: {
+            interval: 300000,  // Check every 5 minutes
+        },
+    },
+} satisfies ServerConfig;
+```
+
+**Option 2: Configure logger level**
+```typescript
+// Health check success messages use dbLogger.debug()
+// Only errors use dbLogger.error()
+// Configure your logger to filter debug messages in production
+```

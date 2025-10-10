@@ -109,6 +109,47 @@ export interface ServerConfig
              */
             idleTimeout?: number;
         };
+
+        /**
+         * Health check configuration
+         * Periodic checks to ensure database connection is alive
+         */
+        healthCheck?: {
+            /**
+             * Enable/disable health checks
+             * @default true
+             * @env DB_HEALTH_CHECK_ENABLED
+             */
+            enabled?: boolean;
+
+            /**
+             * Health check interval in milliseconds
+             * @default 60000 (60 seconds)
+             * @env DB_HEALTH_CHECK_INTERVAL
+             */
+            interval?: number;
+
+            /**
+             * Enable automatic reconnection on failure
+             * @default true
+             * @env DB_HEALTH_CHECK_RECONNECT
+             */
+            reconnect?: boolean;
+
+            /**
+             * Maximum reconnection attempts
+             * @default 3
+             * @env DB_HEALTH_CHECK_MAX_RETRIES
+             */
+            maxRetries?: number;
+
+            /**
+             * Delay between reconnection attempts in milliseconds
+             * @default 5000 (5 seconds)
+             * @env DB_HEALTH_CHECK_RETRY_INTERVAL
+             */
+            retryInterval?: number;
+        };
     };
 
     /**
