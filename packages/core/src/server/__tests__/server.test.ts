@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ServerConfig } from '../types.js';
+import type { ServerConfig, ServerInstance } from '../types.js';
 
 describe('Server Module', () => {
 
@@ -224,6 +224,75 @@ describe('Server Module', () => {
             expect(config.middlewares?.length).toBe(2);
             expect(config.middlewares?.[0].name).toBe('auth');
             expect(config.middlewares?.[1].name).toBe('rateLimit');
+        });
+    });
+
+    describe('ServerInstance Type', () => {
+        it('should have correct ServerInstance interface', () => {
+            // Type-only test - verifies interface structure
+            const mockInstance: ServerInstance = {
+                server: {} as any,
+                app: {} as any,
+                config: {
+                    port: 3000,
+                    host: 'localhost',
+                },
+                close: async () => {},
+            };
+
+            expect(mockInstance.server).toBeDefined();
+            expect(mockInstance.app).toBeDefined();
+            expect(mockInstance.config).toBeDefined();
+            expect(mockInstance.close).toBeDefined();
+            expect(typeof mockInstance.close).toBe('function');
+        });
+
+        it('should have config property with ServerConfig type', () => {
+            const mockInstance: ServerInstance = {
+                server: {} as any,
+                app: {} as any,
+                config: {
+                    port: 4000,
+                    host: '0.0.0.0',
+                    timeout: {
+                        request: 120000,
+                        keepAlive: 65000,
+                        headers: 60000,
+                    },
+                    cors: false,
+                    middleware: {
+                        logger: true,
+                        cors: false,
+                        errorHandler: true,
+                    },
+                },
+                close: async () => {},
+            };
+
+            expect(mockInstance.config.port).toBe(4000);
+            expect(mockInstance.config.host).toBe('0.0.0.0');
+            expect(mockInstance.config.timeout?.request).toBe(120000);
+            expect(mockInstance.config.cors).toBe(false);
+            expect(mockInstance.config.middleware?.logger).toBe(true);
+        });
+
+        it('should have close method that returns Promise<void>', async () => {
+            let closeCalled = false;
+
+            const mockInstance: ServerInstance = {
+                server: {} as any,
+                app: {} as any,
+                config: {},
+                close: async () => {
+                    closeCalled = true;
+                },
+            };
+
+            const result = mockInstance.close();
+            expect(result).toBeInstanceOf(Promise);
+
+            await result;
+            expect(closeCalled).toBe(true);
         });
     });
 });

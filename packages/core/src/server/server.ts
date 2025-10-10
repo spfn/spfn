@@ -12,7 +12,7 @@ import { initRedis, closeRedis } from '../cache';
 import { initDatabase, closeDatabase } from '../db';
 import { logger } from '../logger';
 
-import type { ServerConfig, AppFactory } from './types.js';
+import type { ServerConfig, AppFactory, ServerInstance } from './types.js';
 
 const serverLogger = logger.child('server');
 
@@ -101,8 +101,10 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
  * Automatically loads server.config.ts if exists
  * Automatically initializes Database and Redis from environment
  * Sets up graceful shutdown handlers for SIGTERM and SIGINT
+ *
+ * @returns ServerInstance with server, app, config, and close() method
  */
-export async function startServer(config?: ServerConfig): Promise<void>
+export async function startServer(config?: ServerConfig): Promise<ServerInstance>
 {
     const cwd = process.cwd();
     const configPath = join(cwd, 'src', 'server', 'server.config.ts');
@@ -122,7 +124,7 @@ export async function startServer(config?: ServerConfig): Promise<void>
         ...fileConfig,
         ...config,
         port: config?.port ?? fileConfig?.port ?? (parseInt(process.env.PORT || '', 10) || 4000),
-        host: config?.host ?? fileConfig?.host ?? process.env.HOST || 'localhost',
+        host: config?.host ?? fileConfig?.host ?? (process.env.HOST || 'localhost'),
     };
 
     // Initialize infrastructure (Database and Redis) with config
@@ -174,31 +176,42 @@ export async function startServer(config?: ServerConfig): Promise<void>
     console.log(`   - Local:        http://${host}:${port}`);
     console.log('');
 
-    // Graceful shutdown handler
+    // Core shutdown logic (without process.exit)
+    const shutdownServer = async () => {
+        serverLogger.debug('Closing HTTP server...');
+        await new Promise<void>((resolve) => {
+            server.close(() => {
+                serverLogger.info('HTTP server closed');
+                resolve();
+            });
+        });
+
+        serverLogger.debug('Closing database connections...');
+        await closeDatabase();
+
+        serverLogger.debug('Closing Redis connections...');
+        await closeRedis();
+
+        serverLogger.info('Server shutdown completed');
+    };
+
+    // Graceful shutdown handler (with process.exit)
     const shutdown = async (signal: string) => {
         serverLogger.info(`${signal} received, starting graceful shutdown...`);
 
         try {
-            // 1. Stop accepting new connections
-            serverLogger.debug('Closing HTTP server...');
-            server.close(() => {
-                serverLogger.info('HTTP server closed');
-            });
-
-            // 2. Close database connections
-            serverLogger.debug('Closing database connections...');
-            await closeDatabase();
-
-            // 3. Close Redis connections
-            serverLogger.debug('Closing Redis connections...');
-            await closeRedis();
-
-            serverLogger.info('Graceful shutdown completed');
+            await shutdownServer();
             process.exit(0);
         } catch (error) {
             serverLogger.error('Error during graceful shutdown', error as Error);
             process.exit(1);
         }
+    };
+
+    // Manual close method (without process.exit, for tests)
+    const close = async () => {
+        serverLogger.info('Manual server shutdown requested');
+        await shutdownServer();
     };
 
     // Register shutdown handlers
@@ -219,4 +232,12 @@ export async function startServer(config?: ServerConfig): Promise<void>
         });
         shutdown('UNHANDLED_REJECTION');
     });
+
+    // Return server instance
+    return {
+        server,
+        app,
+        config: finalConfig,
+        close,
+    };
 }
