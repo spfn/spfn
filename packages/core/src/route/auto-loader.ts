@@ -71,28 +71,65 @@ export class AutoRouteLoader {
     /**
      * Load all routes from directory
      */
-    async load(app: Hono): Promise<RouteStats> {
+    async load(app: Hono): Promise<RouteStats>
+    {
         const startTime = Date.now();
 
         // 1. Scan files
         const files = await this.scanFiles(this.routesDir);
 
-        if (files.length === 0) {
+        if (files.length === 0)
+        {
             console.warn('⚠️  No route files found');
             return this.getStats();
         }
 
-        // 2. Load and register each route
-        for (const file of files) {
-            await this.loadRoute(app, file);
+        // 2. Calculate priorities for all files
+        const filesWithPriority = files.map(file => ({
+            path: file,
+            priority: this.calculatePriority(relative(this.routesDir, file)),
+        }));
+
+        // 3. Sort by priority (static=1, dynamic=2, catch-all=3)
+        filesWithPriority.sort((a, b) => a.priority - b.priority);
+
+        if (this.debug)
+        {
+            console.log(`\n📋 Route Registration Order:`);
+            console.log(`   Priority 1 (Static):    ${filesWithPriority.filter(f => f.priority === 1).length} routes`);
+            console.log(`   Priority 2 (Dynamic):   ${filesWithPriority.filter(f => f.priority === 2).length} routes`);
+            console.log(`   Priority 3 (Catch-all): ${filesWithPriority.filter(f => f.priority === 3).length} routes\n`);
         }
 
-        // 3. Log stats
+        // 4. Load and register routes in priority order
+        let successCount = 0;
+        let failureCount = 0;
+
+        for (const { path } of filesWithPriority)
+        {
+            const success = await this.loadRoute(app, path);
+            if (success)
+            {
+                successCount++;
+            }
+            else
+            {
+                failureCount++;
+            }
+        }
+
+        // 5. Log stats
         const elapsed = Date.now() - startTime;
         const stats = this.getStats();
 
-        if (this.debug) {
+        if (this.debug)
+        {
             this.logStats(stats, elapsed);
+        }
+
+        if (failureCount > 0)
+        {
+            console.warn(`⚠️  ${failureCount} route(s) failed to load`);
         }
 
         return stats;
@@ -166,46 +203,76 @@ export class AutoRouteLoader {
 
     /**
      * Load and register a single route
+     * Returns true if successful, false if failed
      */
-    private async loadRoute(app: Hono, absolutePath: string): Promise<void> {
-        // Import module
-        const module = await import(absolutePath);
-
-        if (!module.default) {
-            throw new Error(
-                `Route file must export Hono instance as default: ${absolutePath}`
-            );
-        }
-
-        // Convert file path to URL path
+    private async loadRoute(app: Hono, absolutePath: string): Promise<boolean>
+    {
         const relativePath = relative(this.routesDir, absolutePath);
-        const urlPath = this.fileToPath(relativePath);
-        const priority = this.calculatePriority(relativePath);
 
-        // Apply global middlewares with conditional wrapper
-        // (skip logic handled at runtime via contract.meta)
-        // Note: Using urlPath without '/*' to match both base path and sub-paths
-        for (const middleware of this.middlewares) {
-            app.use(
-                urlPath,
-                conditionalMiddleware(middleware.name, middleware.handler)
-            );
+        try
+        {
+            // Import module
+            const module = await import(absolutePath);
+
+            if (!module.default)
+            {
+                console.error(`❌ ${relativePath}: Must export Hono instance as default`);
+                return false;
+            }
+
+            // Validate that it's actually a Hono instance
+            if (typeof module.default.route !== 'function')
+            {
+                console.error(`❌ ${relativePath}: Default export is not a Hono instance`);
+                return false;
+            }
+
+            // Convert file path to URL path
+            const urlPath = this.fileToPath(relativePath);
+            const priority = this.calculatePriority(relativePath);
+
+            // Apply global middlewares with conditional wrapper
+            // (skip logic handled at runtime via contract.meta)
+            // Note: Using urlPath without '/*' to match both base path and sub-paths
+            for (const middleware of this.middlewares)
+            {
+                app.use(
+                    urlPath,
+                    conditionalMiddleware(middleware.name, middleware.handler)
+                );
+            }
+
+            // Register route
+            app.route(urlPath, module.default);
+
+            // Store route info
+            this.routes.push({
+                path: urlPath,
+                file: relativePath,
+                meta: undefined, // No longer using module.meta
+                priority,
+            });
+
+            if (this.debug)
+            {
+                const icon = priority === 1 ? '🔹' : priority === 2 ? '🔸' : '⭐';
+                console.log(`   ${icon} ${urlPath.padEnd(40)} → ${relativePath}`);
+            }
+
+            return true;
         }
+        catch (error)
+        {
+            const err = error as Error;
+            console.error(`❌ ${relativePath}: ${err.message}`);
 
-        // Register route
-        app.route(urlPath, module.default);
+            // Show detailed error in debug mode
+            if (this.debug)
+            {
+                console.error(`   Stack: ${err.stack}`);
+            }
 
-        // Store route info
-        this.routes.push({
-            path: urlPath,
-            file: relativePath,
-            meta: undefined, // No longer using module.meta
-            priority,
-        });
-
-        if (this.debug) {
-            const icon = priority === 1 ? '🔹' : priority === 2 ? '🔸' : '⭐';
-            console.log(`   ${icon} ${urlPath.padEnd(40)} → ${relativePath}`);
+            return false;
         }
     }
 

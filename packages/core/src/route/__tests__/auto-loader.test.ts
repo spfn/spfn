@@ -201,9 +201,9 @@ export default app;
             const app = new Hono();
             const loader = new AutoRouteLoader(testDir, false);
 
-            await expect(loader.load(app)).rejects.toThrow(
-                'Route file must export Hono instance as default'
-            );
+            // Should not throw, but should skip the invalid route
+            const stats = await loader.load(app);
+            expect(stats.total).toBe(0); // No routes loaded
 
             rmSync(testDir, { recursive: true, force: true });
         });
