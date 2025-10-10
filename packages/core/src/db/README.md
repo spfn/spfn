@@ -360,10 +360,13 @@ Manual database lifecycle management for testing and advanced scenarios.
 **Topics:**
 - `initDatabase(config)` - Manual initialization
 - `setDatabase(db)` - Replace connection
-- `closeDatabase()` - Cleanup
+- `closeDatabase()` - Cleanup (automatically called during graceful shutdown)
 - `getDatabaseInfo()` - Connection metadata
 - Testing patterns
 - Multiple connections
+
+**Graceful Shutdown:**
+When using `startServer()` from `@spfn/core/server`, database connections are automatically closed during graceful shutdown (SIGTERM, SIGINT). No manual cleanup needed in production.
 
 ### Repository Pattern
 Complete API reference for all repository methods.

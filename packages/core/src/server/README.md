@@ -277,6 +277,48 @@ When using Level 1 or 2, middleware is applied in this order:
 6. **afterRoutes hook**
 7. **Error handler** (if enabled)
 
+## Graceful Shutdown
+
+The server automatically handles graceful shutdown when receiving termination signals:
+
+**Supported Signals:**
+- `SIGTERM` - Standard termination signal (Docker, Kubernetes)
+- `SIGINT` - Interrupt signal (Ctrl+C)
+- `uncaughtException` - Uncaught exceptions
+- `unhandledRejection` - Unhandled promise rejections
+
+**Shutdown Sequence:**
+1. Stop accepting new HTTP connections
+2. Close database connections (with 5s timeout)
+3. Close Redis connections
+4. Exit process
+
+```typescript
+// Automatic in startServer()
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('uncaughtException', (error) => {
+    serverLogger.error('Uncaught exception', error);
+    shutdown('UNCAUGHT_EXCEPTION');
+});
+process.on('unhandledRejection', (reason, promise) => {
+    serverLogger.error('Unhandled promise rejection', { reason, promise });
+    shutdown('UNHANDLED_REJECTION');
+});
+```
+
+**Logs During Shutdown:**
+```
+[server] SIGTERM received, starting graceful shutdown...
+[server] Closing HTTP server...
+[database] Closing write connection...
+[database] Write connection closed
+[database] All database connections closed
+[server] HTTP server closed
+[cache] Redis connections closed
+[server] Graceful shutdown completed
+```
+
 ## Environment Variables
 
 The server automatically initializes infrastructure from environment variables:

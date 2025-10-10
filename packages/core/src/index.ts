@@ -42,11 +42,26 @@ export type {
 export { isHttpMethod } from './route/types.js';
 
 // Database
-export { db, getRawDb, id, timestamps, foreignKey, optionalForeignKey } from './db/index.js';
-export type { DbConnectionType } from './db/index.js';
-export { getDb } from './db/db-context.js';
-export { getDrizzleConfig, detectDialect, generateDrizzleConfigFile } from './db/config-generator.js';
-export type { DrizzleConfigOptions } from './db/config-generator.js';
+export {
+    db,
+    getRawDb,
+    getDb,
+    id,
+    timestamps,
+    foreignKey,
+    optionalForeignKey,
+    getDrizzleConfig,
+    detectDialect,
+    generateDrizzleConfigFile,
+    WrappedDb,
+    Repository,
+} from './db/index.js';
+export type {
+    DbConnectionType,
+    DrizzleConfigOptions,
+    Pageable,
+    Page,
+} from './db/index.js';
 
 // Cache (Redis)
 export { getRedis, getRedisRead, setRedis, initRedis, closeRedis, getRedisInfo, createRedisFromEnv, createSingleRedisFromEnv } from './cache/index.js';
@@ -84,10 +99,7 @@ export type {
     SortResult,
 } from './query/index.js';
 
-// Repository Pattern (JPA Style)
-export { Repository } from './db/repository.js';
-export { WrappedDb } from './db/wrapped-db.js';
-export type { Pageable, Page } from './db/repository.js';
+// Repository Pattern exports are now handled in the Database section above
 
 // Custom Errors
 export {

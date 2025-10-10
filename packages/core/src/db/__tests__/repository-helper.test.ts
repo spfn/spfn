@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import postgres from 'postgres';
 import { testUsers } from './fixtures/entities';
 import { Repository, getDb } from '../index.js';
-import { initDatabase, closeDatabase } from '../db-manager.js';
+import { initDatabase, closeDatabase } from '../manager/manager.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 

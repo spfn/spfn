@@ -6,6 +6,7 @@
 import { config } from 'dotenv';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { Sql } from 'postgres';
 
 import { createDatabaseConnection } from './connection.js';
 import { getPoolConfig, getRetryConfig } from './config.js';
@@ -16,6 +17,10 @@ export interface DatabaseClients
     write?: PostgresJsDatabase;
     /** Replica database for reads (optional, falls back to write) */
     read?: PostgresJsDatabase;
+    /** Raw postgres client for write operations (for cleanup) */
+    writeClient?: Sql;
+    /** Raw postgres client for read operations (for cleanup) */
+    readClient?: Sql;
 }
 
 /**
@@ -91,6 +96,8 @@ export async function createDatabaseFromEnv(): Promise<DatabaseClients>
             return {
                 write: drizzle(writeClient),
                 read: drizzle(readClient),
+                writeClient,
+                readClient,
             };
         }
 
@@ -112,6 +119,8 @@ export async function createDatabaseFromEnv(): Promise<DatabaseClients>
             return {
                 write: drizzle(writeClient),
                 read: drizzle(readClient),
+                writeClient,
+                readClient,
             };
         }
 
@@ -125,7 +134,12 @@ export async function createDatabaseFromEnv(): Promise<DatabaseClients>
             );
 
             const db = drizzle(client);
-            return { write: db, read: db };
+            return {
+                write: db,
+                read: db,
+                writeClient: client,
+                readClient: client,
+            };
         }
 
         // 4. DATABASE_WRITE_URL only (no read replica)
@@ -138,7 +152,12 @@ export async function createDatabaseFromEnv(): Promise<DatabaseClients>
             );
 
             const db = drizzle(client);
-            return { write: db, read: db };
+            return {
+                write: db,
+                read: db,
+                writeClient: client,
+                readClient: client,
+            };
         }
 
         // No valid configuration
