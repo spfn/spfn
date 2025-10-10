@@ -158,11 +158,13 @@ const finalConfig: ServerConfig = {
 
 ## 🟡 중요도 중간 (Medium Priority)
 
-### 3. 서버 인스턴스 반환 없음
+### 3. ✅ 서버 인스턴스 반환 (완료)
 
-**파일**: `server/server.ts:104`
+**파일**: `server/server.ts`, `server/types.ts`
 
-**현재 상태**:
+**구현 완료** (2025-10-11):
+
+**원래 문제점**:
 ```typescript
 export async function startServer(config?: ServerConfig): Promise<void>
 ```
@@ -172,7 +174,7 @@ export async function startServer(config?: ServerConfig): Promise<void>
 - 테스트에서 서버 제어 불가능
 - 수동 종료 불가능 (graceful shutdown만 가능)
 
-**개선안**:
+**구현 내용**:
 ```typescript
 export interface ServerInstance {
     /**
@@ -691,7 +693,7 @@ middlewareOrder.forEach(name => {
 
 ### 다음 릴리스 (🟡 Important)
 
-3. **서버 인스턴스 반환** - 테스트 및 유연성
+3. ✅ **서버 인스턴스 반환** (완료) - 테스트 및 유연성
 4. **Graceful Shutdown 타임아웃** - 프로덕션 안정성
 5. **Health Check 엔드포인트** - 모니터링 및 오케스트레이션
 6. **초기화 실패 처리** - 에러 핸들링 개선

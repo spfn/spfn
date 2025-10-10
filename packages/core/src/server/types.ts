@@ -1,5 +1,6 @@
 import type { Hono, MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
+import type { serve } from '@hono/node-server';
 
 /**
  * CORS configuration options - inferred from hono/cors
@@ -231,3 +232,44 @@ export interface ServerConfig
  * Level 3: Full control with app.ts
  */
 export type AppFactory = () => Promise<Hono> | Hono;
+
+/**
+ * Server Instance
+ *
+ * Returned by startServer() to provide access to server internals
+ * Allows programmatic control over the server lifecycle
+ */
+export interface ServerInstance
+{
+    /**
+     * Underlying Node.js HTTP server
+     * Provides low-level access to the HTTP server instance
+     */
+    server: ReturnType<typeof serve>;
+
+    /**
+     * Hono app instance
+     * Allows runtime route registration and middleware management
+     */
+    app: Hono;
+
+    /**
+     * Final server configuration used
+     * Contains resolved values from all sources (runtime > file > env > defaults)
+     */
+    config: ServerConfig;
+
+    /**
+     * Manually close the server
+     * Performs graceful shutdown: stops accepting connections, closes DB/Redis, exits process
+     *
+     * @example
+     * ```typescript
+     * const instance = await startServer({ port: 3000 });
+     *
+     * // Later...
+     * await instance.close(); // Clean shutdown
+     * ```
+     */
+    close: () => Promise<void>;
+}

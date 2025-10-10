@@ -24,4 +24,4 @@
 export { createServer, startServer } from './server.js';
 
 // Server types
-export type { ServerConfig, AppFactory } from './types.js';
+export type { ServerConfig, AppFactory, ServerInstance } from './types.js';
