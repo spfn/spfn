@@ -83,68 +83,44 @@ export function createApp(): SPFNApp
         const path = contract.path;
 
         // Extract middlewares and handler
-        let middlewares: MiddlewareHandler[] = [];
-        let handler: RouteHandler;
-
-        if (args.length === 1)
-        {
-            handler = args[0];
-        }
-        else
-        {
-            middlewares = args[0];
-            handler = args[1];
-        }
+        const [middlewares, handler] = args.length === 1
+            ? [[], args[0]]
+            : [args[0], args[1]];
 
         // Register with Hono using bind() for validation
         const boundHandler = bind(contract, handler);
 
+        // Build handler array
+        const handlers = middlewares.length > 0
+            ? [...middlewares, boundHandler]
+            : [boundHandler];
+
         // Register based on HTTP method
-        if (middlewares.length > 0)
+        switch (method)
         {
-            switch (method)
-            {
-                case 'get':
-                    hono.get(path, ...middlewares, boundHandler);
-                    break;
-                case 'post':
-                    hono.post(path, ...middlewares, boundHandler);
-                    break;
-                case 'put':
-                    hono.put(path, ...middlewares, boundHandler);
-                    break;
-                case 'patch':
-                    hono.patch(path, ...middlewares, boundHandler);
-                    break;
-                case 'delete':
-                    hono.delete(path, ...middlewares, boundHandler);
-                    break;
-                default:
-                    throw new Error(`Unsupported HTTP method: ${contract.method}`);
-            }
-        }
-        else
-        {
-            switch (method)
-            {
-                case 'get':
-                    hono.get(path, boundHandler);
-                    break;
-                case 'post':
-                    hono.post(path, boundHandler);
-                    break;
-                case 'put':
-                    hono.put(path, boundHandler);
-                    break;
-                case 'patch':
-                    hono.patch(path, boundHandler);
-                    break;
-                case 'delete':
-                    hono.delete(path, boundHandler);
-                    break;
-                default:
-                    throw new Error(`Unsupported HTTP method: ${contract.method}`);
-            }
+            case 'get':
+                hono.get(path, ...handlers);
+                break;
+            case 'post':
+                hono.post(path, ...handlers);
+                break;
+            case 'put':
+                hono.put(path, ...handlers);
+                break;
+            case 'patch':
+                hono.patch(path, ...handlers);
+                break;
+            case 'delete':
+                hono.delete(path, ...handlers);
+                break;
+            case 'head':
+                hono.head(path, ...handlers);
+                break;
+            case 'options':
+                hono.options(path, ...handlers);
+                break;
+            default:
+                throw new Error(`Unsupported HTTP method: ${contract.method}`);
         }
     };
 
