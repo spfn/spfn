@@ -7,9 +7,6 @@ export { Repository } from './repository.js';
 export type {
     Pageable,
     Page,
-    WithRelations,
-    FindByIdOptions,
-    FindWhereOptions
 } from './repository.js';
 
 // Repository Factory (Singleton Pattern)

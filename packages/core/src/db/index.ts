@@ -44,9 +44,6 @@ export {
 export type {
     Pageable,
     Page,
-    WithRelations,
-    FindByIdOptions,
-    FindWhereOptions
 } from './repository/index.js';
 
 // Schema Helpers
