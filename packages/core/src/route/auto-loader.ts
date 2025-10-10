@@ -1,7 +1,6 @@
 import { readdir, stat } from 'fs/promises';
 import { join, relative } from 'path';
 import type { Hono } from 'hono';
-import { conditionalMiddleware } from '../middleware/conditional.js';
 
 /**
  * AutoRouteLoader: Simplified File-based Routing System
@@ -54,7 +53,8 @@ export type RouteStats = {
 // Main Loader Class
 // ============================================================================
 
-export class AutoRouteLoader {
+export class AutoRouteLoader
+{
     private routes: RouteInfo[] = [];
     private registeredRoutes = new Map<string, string>(); // normalized path → file
     private debug: boolean;
@@ -64,7 +64,8 @@ export class AutoRouteLoader {
         private routesDir: string,
         debug = false,
         middlewares: Array<{ name: string; handler: any }> = []
-    ) {
+    )
+    {
         this.debug = debug;
         this.middlewares = middlewares;
     }
@@ -139,7 +140,8 @@ export class AutoRouteLoader {
     /**
      * Get route statistics
      */
-    getStats(): RouteStats {
+    getStats(): RouteStats
+    {
         const stats: RouteStats = {
             total: this.routes.length,
             byPriority: { static: 0, dynamic: 0, catchAll: 0 },
@@ -147,15 +149,18 @@ export class AutoRouteLoader {
             routes: this.routes,
         };
 
-        for (const route of this.routes) {
+        for (const route of this.routes)
+        {
             // Count by priority
             if (route.priority === 1) stats.byPriority.static++;
             else if (route.priority === 2) stats.byPriority.dynamic++;
             else if (route.priority === 3) stats.byPriority.catchAll++;
 
             // Count by tag
-            if (route.meta?.tags) {
-                for (const tag of route.meta.tags) {
+            if (route.meta?.tags)
+            {
+                for (const tag of route.meta.tags)
+                {
                     stats.byTag[tag] = (stats.byTag[tag] || 0) + 1;
                 }
             }
@@ -171,17 +176,22 @@ export class AutoRouteLoader {
     /**
      * Recursively scan directory for .ts files
      */
-    private async scanFiles(dir: string, files: string[] = []): Promise<string[]> {
+    private async scanFiles(dir: string, files: string[] = []): Promise<string[]>
+    {
         const entries = await readdir(dir);
 
-        for (const entry of entries) {
+        for (const entry of entries)
+        {
             const fullPath = join(dir, entry);
             const fileStat = await stat(fullPath);
 
-            if (fileStat.isDirectory()) {
+            if (fileStat.isDirectory())
+            {
                 // Recurse into subdirectories
                 await this.scanFiles(fullPath, files);
-            } else if (this.isValidRouteFile(entry)) {
+            }
+            else if (this.isValidRouteFile(entry))
+            {
                 files.push(fullPath);
             }
         }
@@ -192,7 +202,8 @@ export class AutoRouteLoader {
     /**
      * Check if file is a valid route file
      */
-    private isValidRouteFile(fileName: string): boolean {
+    private isValidRouteFile(fileName: string): boolean
+    {
         return (
             fileName.endsWith('.ts') &&
             !fileName.endsWith('.test.ts') &&
@@ -249,15 +260,16 @@ export class AutoRouteLoader {
             // Track registration
             this.registeredRoutes.set(normalizedPath, relativePath);
 
-            // Apply global middlewares with conditional wrapper
-            // (skip logic handled at runtime via contract.meta)
-            // Note: Using urlPath without '/*' to match both base path and sub-paths
-            for (const middleware of this.middlewares)
+            // Get skip list from module.meta
+            const skipList = module.meta?.skipMiddlewares || [];
+
+            // Apply filtered global middlewares
+            const activeMiddlewares = this.middlewares
+                .filter(m => !skipList.includes(m.name));
+
+            for (const middleware of activeMiddlewares)
             {
-                app.use(
-                    urlPath,
-                    conditionalMiddleware(middleware.name, middleware.handler)
-                );
+                app.use(urlPath, middleware.handler);
             }
 
             // Register route
@@ -267,7 +279,7 @@ export class AutoRouteLoader {
             this.routes.push({
                 path: urlPath,
                 file: relativePath,
-                meta: undefined, // No longer using module.meta
+                meta: module.meta,
                 priority,
             });
 
@@ -330,7 +342,8 @@ export class AutoRouteLoader {
      * - users/[id].ts → /users/:id
      * - posts/[...slug].ts → /posts/*
      */
-    private fileToPath(filePath: string): string {
+    private fileToPath(filePath: string): string
+    {
         // Remove .ts extension
         let path = filePath.replace(/\.ts$/, '');
 
@@ -338,22 +351,27 @@ export class AutoRouteLoader {
         const segments = path.split('/');
 
         // Remove 'index' if it's the last segment
-        if (segments[segments.length - 1] === 'index') {
+        if (segments[segments.length - 1] === 'index')
+        {
             segments.pop();
         }
 
         // Transform segments: [id] → :id, [...slug] → *
-        const transformed = segments.map(seg => {
+        const transformed = segments.map(seg =>
+        {
             // Catch-all: [...slug] → *
-            if (/^\[\.\.\.[\w-]+\]$/.test(seg)) {
+            if (/^\[\.\.\.[\w-]+]$/.test(seg))
+            {
                 return '*';
             }
             // Dynamic: [id] → :id
-            if (/^\[[\w-]+\]$/.test(seg)) {
+            if (/^\[[\w-]+]$/.test(seg))
+            {
                 return ':' + seg.slice(1, -1);
             }
             // Skip 'index' segments (index/index.ts → /, posts/index/index.ts → /posts)
-            if (seg === 'index') {
+            if (seg === 'index')
+            {
                 return null;
             }
             // Static: users → users
@@ -369,9 +387,10 @@ export class AutoRouteLoader {
      * Calculate route priority
      * 1 = static, 2 = dynamic, 3 = catch-all
      */
-    private calculatePriority(path: string): number {
-        if (/\[\.\.\.[\w-]+\]/.test(path)) return 3; // Catch-all
-        if (/\[[\w-]+\]/.test(path)) return 2; // Dynamic
+    private calculatePriority(path: string): number
+    {
+        if (/\[\.\.\.[\w-]+]/.test(path)) return 3; // Catch-all
+        if (/\[[\w-]+]/.test(path)) return 2; // Dynamic
         return 1; // Static
     }
 
@@ -396,7 +415,8 @@ export class AutoRouteLoader {
     /**
      * Log statistics
      */
-    private logStats(stats: RouteStats, elapsed: number): void {
+    private logStats(stats: RouteStats, elapsed: number): void
+    {
         console.log(`\n📊 Route Statistics:`);
         console.log(`   Total: ${stats.total} routes`);
         console.log(
@@ -405,7 +425,8 @@ export class AutoRouteLoader {
             `${stats.byPriority.catchAll} catch-all`
         );
 
-        if (Object.keys(stats.byTag).length > 0) {
+        if (Object.keys(stats.byTag).length > 0)
+        {
             const tagCounts = Object.entries(stats.byTag)
                 .map(([tag, count]) => `${tag}(${count})`)
                 .join(', ');
@@ -430,7 +451,8 @@ export async function loadRoutes(
         debug?: boolean;
         middlewares?: Array<{ name: string; handler: any }>;
     }
-): Promise<RouteStats> {
+): Promise<RouteStats>
+{
     const routesDir = options?.routesDir ?? join(process.cwd(), 'src', 'server', 'routes');
     const debug = options?.debug ?? false;
     const middlewares = options?.middlewares ?? [];

@@ -29,6 +29,7 @@
  */
 
 import type { Context, Next } from 'hono';
+import { randomBytes } from 'crypto';
 import { logger } from '../logger';
 
 /**
@@ -62,19 +63,41 @@ const DEFAULT_CONFIG: Required<RequestLoggerConfig> = {
 };
 
 /**
- * Generate Request ID
+ * Generate cryptographically secure request ID
+ *
+ * Format: req_<timestamp>_<random-hex>
+ * Example: req_1759541628730_a3f9c2d8e1b4
+ *
+ * Collision probability: ~2^-48 (extremely low)
  */
 function generateRequestId(): string
 {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const timestamp = Date.now();
+    const randomPart = randomBytes(6).toString('hex'); // 12 hex chars
+    return `req_${timestamp}_${randomPart}`;
 }
 
 /**
- * Mask sensitive data
+ * Mask sensitive data with circular reference handling
+ *
+ * Optimizations:
+ * - Pre-computes lowercase fields to avoid repeated toLowerCase() calls
+ * - Handles circular references with WeakSet
  */
-export function maskSensitiveData(obj: any, sensitiveFields: string[]): any
+export function maskSensitiveData(
+    obj: any,
+    sensitiveFields: string[],
+    seen = new WeakSet()
+): any
 {
     if (!obj || typeof obj !== 'object') return obj;
+
+    // Prevent circular references
+    if (seen.has(obj)) return '[Circular]';
+    seen.add(obj);
+
+    // Pre-compute lowercase fields (optimization)
+    const lowerFields = sensitiveFields.map(f => f.toLowerCase());
 
     const masked = Array.isArray(obj) ? [...obj] : { ...obj };
 
@@ -82,15 +105,15 @@ export function maskSensitiveData(obj: any, sensitiveFields: string[]): any
     {
         const lowerKey = key.toLowerCase();
 
-        // Mask if sensitive field
-        if (sensitiveFields.some(field => lowerKey.includes(field.toLowerCase())))
+        // Check if sensitive (optimized)
+        if (lowerFields.some(field => lowerKey.includes(field)))
         {
             masked[key] = '***MASKED***';
         }
         // Recursively mask nested objects
         else if (typeof masked[key] === 'object' && masked[key] !== null)
         {
-            masked[key] = maskSensitiveData(masked[key], sensitiveFields);
+            masked[key] = maskSensitiveData(masked[key], sensitiveFields, seen);
         }
     }
 
@@ -148,14 +171,21 @@ export function RequestLogger(config?: RequestLoggerConfig)
             const logLevel = status >= 400 ? 'warn' : 'info';
             const isSlowRequest = duration >= cfg.slowRequestThreshold;
 
-            apiLogger[logLevel]('Request completed', {
+            // Build log data (only include 'slow' when true)
+            const logData: Record<string, any> = {
                 requestId,
                 method,
                 path,
                 status,
                 duration,
-                slow: isSlowRequest || undefined, // Show only for slow requests
-            });
+            };
+
+            if (isSlowRequest)
+            {
+                logData.slow = true;
+            }
+
+            apiLogger[logLevel]('Request completed', logData);
 
             // Warn for slow requests
             if (isSlowRequest)
