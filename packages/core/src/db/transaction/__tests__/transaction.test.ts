@@ -7,11 +7,11 @@
  * - 트랜잭션 없이 동작하는 테스트
  * - getDb() 헬퍼 테스트
  * - beforeEach/afterEach 데이터 정리
+ * - 트랜잭션 타임아웃 테스트 (timeout 발생, 정상 완료, 비활성화, 환경변수)
  *
  * ⚠️ 개선 필요:
  * - 중첩 트랜잭션 테스트 추가
  * - 동시성 테스트 추가 (여러 요청 동시 처리)
- * - 트랜잭션 타임아웃 테스트
  *
  * 💡 향후 고려사항:
  * - Deadlock 시나리오 테스트
@@ -219,6 +219,174 @@ describe('Transaction System', () => {
 
       const res = await app.request('/test', { method: 'POST' });
       expect(res.status).toBe(200);
+    });
+  });
+
+  describe('Transaction Timeout', () => {
+    it('should timeout long-running transaction', async () => {
+      const app = new Hono();
+
+      // 100ms timeout 설정
+      app.use(Transactional({ timeout: 100 }));
+
+      app.post('/test', async (c) => {
+        const db = getDb();
+
+        // 레코드 생성
+        await db
+          .insert(testPosts)
+          .values({
+            title: 'Test Post',
+            content: 'Content',
+            authorId: testUserId,
+          })
+          .returning();
+
+        // 200ms 대기 (timeout보다 길게)
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        return c.json({ success: true });
+      });
+
+      // Timeout으로 에러 발생 예상
+      const res = await app.request('/test', { method: 'POST' });
+      expect(res.status).toBe(500);
+
+      // 롤백되었으므로 DB에 레코드가 없어야 함
+      const allPosts = await db
+        .select()
+        .from(testPosts)
+        .where(eq(testPosts.authorId, testUserId));
+
+      expect(allPosts).toHaveLength(0);
+    });
+
+    it('should complete transaction within timeout', async () => {
+      const app = new Hono();
+
+      // 1000ms timeout 설정 (충분히 긴 시간)
+      app.use(Transactional({ timeout: 1000 }));
+
+      app.post('/test', async (c) => {
+        const db = getDb();
+
+        // 레코드 생성
+        const [post] = await db
+          .insert(testPosts)
+          .values({
+            title: 'Fast Post',
+            content: 'Content',
+            authorId: testUserId,
+          })
+          .returning();
+
+        // 짧은 대기 (timeout 내에 완료)
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        return c.json({ post });
+      });
+
+      // 정상 완료 예상
+      const res = await app.request('/test', { method: 'POST' });
+      expect(res.status).toBe(200);
+
+      // 커밋되었으므로 DB에 레코드가 있어야 함
+      const allPosts = await db
+        .select()
+        .from(testPosts)
+        .where(eq(testPosts.authorId, testUserId));
+
+      expect(allPosts).toHaveLength(1);
+      expect(allPosts[0].title).toBe('Fast Post');
+    });
+
+    it('should disable timeout when set to 0', async () => {
+      const app = new Hono();
+
+      // timeout: 0으로 비활성화
+      app.use(Transactional({ timeout: 0 }));
+
+      app.post('/test', async (c) => {
+        const db = getDb();
+
+        // 레코드 생성
+        const [post] = await db
+          .insert(testPosts)
+          .values({
+            title: 'No Timeout Post',
+            content: 'Content',
+            authorId: testUserId,
+          })
+          .returning();
+
+        // 긴 대기도 timeout 없이 완료
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        return c.json({ post });
+      });
+
+      // 정상 완료 예상
+      const res = await app.request('/test', { method: 'POST' });
+      expect(res.status).toBe(200);
+
+      // 커밋되었으므로 DB에 레코드가 있어야 함
+      const allPosts = await db
+        .select()
+        .from(testPosts)
+        .where(eq(testPosts.authorId, testUserId));
+
+      expect(allPosts).toHaveLength(1);
+      expect(allPosts[0].title).toBe('No Timeout Post');
+    });
+
+    it('should use TRANSACTION_TIMEOUT environment variable', async () => {
+      // 환경변수 설정
+      const originalTimeout = process.env.TRANSACTION_TIMEOUT;
+      process.env.TRANSACTION_TIMEOUT = '100';
+
+      try {
+        const app = new Hono();
+
+        // 환경변수의 timeout 사용 (100ms)
+        app.use(Transactional());
+
+        app.post('/test', async (c) => {
+          const db = getDb();
+
+          await db
+            .insert(testPosts)
+            .values({
+              title: 'Env Timeout Post',
+              content: 'Content',
+              authorId: testUserId,
+            })
+            .returning();
+
+          // 200ms 대기 (환경변수 timeout보다 길게)
+          await new Promise(resolve => setTimeout(resolve, 200));
+
+          return c.json({ success: true });
+        });
+
+        // Timeout으로 에러 발생 예상
+        const res = await app.request('/test', { method: 'POST' });
+        expect(res.status).toBe(500);
+
+        // 롤백되었으므로 DB에 레코드가 없어야 함
+        const allPosts = await db
+          .select()
+          .from(testPosts)
+          .where(eq(testPosts.authorId, testUserId));
+
+        expect(allPosts).toHaveLength(0);
+      } finally {
+        // 환경변수 복원
+        if (originalTimeout !== undefined) {
+          process.env.TRANSACTION_TIMEOUT = originalTimeout;
+        } else {
+          delete process.env.TRANSACTION_TIMEOUT;
+        }
+      }
     });
   });
 });

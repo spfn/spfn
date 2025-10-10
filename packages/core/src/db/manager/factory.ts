@@ -10,6 +10,9 @@ import type { Sql } from 'postgres';
 
 import { createDatabaseConnection } from './connection.js';
 import { getPoolConfig, getRetryConfig } from './config.js';
+import { logger } from '../../logger/index.js';
+
+const dbLogger = logger.child('database');
 
 export interface DatabaseClients
 {
@@ -166,7 +169,14 @@ export async function createDatabaseFromEnv(): Promise<DatabaseClients>
     catch (error)
     {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error('❌ Failed to create database connection:', message);
+        dbLogger.error('Failed to create database connection', {
+            error: message,
+            stage: 'initialization',
+            hasWriteUrl: !!process.env.DATABASE_WRITE_URL,
+            hasReadUrl: !!process.env.DATABASE_READ_URL,
+            hasUrl: !!process.env.DATABASE_URL,
+            hasReplicaUrl: !!process.env.DATABASE_REPLICA_URL,
+        });
         return { write: undefined, read: undefined };
     }
 }

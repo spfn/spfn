@@ -857,234 +857,172 @@ const user = users[0];
 
 ---
 
-## JPA-Style Relation Loading
+## Loading Relations (Manual Joins)
 
-SPFN Repository supports JPA-style relation loading using Drizzle's relational query API. This allows you to eagerly load related entities in a single query, similar to Spring JPA's `@EntityGraph`.
+SPFN Repository uses manual joins for loading related data. This provides full control and works without additional configuration.
 
-### Setup
+### Basic Join Pattern
 
-To use relation loading, you need to:
-
-1. **Define relations** using Drizzle's `relations()` function
-2. **Initialize database with schema** containing your relations
+Use Drizzle's query builder for join operations:
 
 ```typescript
-import { pgTable, text } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
-import { id, timestamps } from '@spfn/core/db';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { getDb } from '@spfn/core/db';
+import { users, posts } from './schema';
+import { eq } from 'drizzle-orm';
 
-// Define tables
-export const users = pgTable('users', {
-    id: id(),
-    email: text('email').notNull(),
-    name: text('name'),
-    ...timestamps()
-});
+const db = getDb();
 
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title').notNull(),
-    content: text('content'),
-    authorId: foreignKey('author', () => users.id),
-    ...timestamps()
-});
-
-// Define relations
-export const usersRelations = relations(users, ({ many }) => ({
-    posts: many(posts)
-}));
-
-export const postsRelations = relations(posts, ({ one }) => ({
-    author: one(users, {
-        fields: [posts.authorId],
-        references: [users.id]
+// Load user with posts
+const userWithPosts = await db
+    .select({
+        user: users,
+        posts: posts
     })
-}));
-
-// Initialize database WITH schema
-const client = postgres(process.env.DATABASE_URL!);
-const db = drizzle(client, {
-    schema: {
-        users,
-        posts,
-        usersRelations,
-        postsRelations
-    }
-});
+    .from(users)
+    .leftJoin(posts, eq(posts.authorId, users.id))
+    .where(eq(users.id, 1));
 ```
 
-### findByIdWith(id, options)
+### Custom Repository Methods
 
-Find record by ID with related entities.
+Create dedicated methods in custom repositories:
 
 ```typescript
 import { Repository } from '@spfn/core/db';
-import { users } from './schema';
-
-const userRepo = new Repository(users);
-
-// Load user with posts
-const user = await userRepo.findByIdWith(1, {
-    with: { posts: true }
-});
-
-console.log(user.posts); // Array of post objects
-
-// Load nested relations
-const userWithPostComments = await userRepo.findByIdWith(1, {
-    with: {
-        posts: {
-            with: { comments: true }
-        }
-    }
-});
-
-// Load multiple relations
-const userWithAll = await userRepo.findByIdWith(1, {
-    with: {
-        posts: true,
-        profile: true,
-        followers: true
-    }
-});
-```
-
-**Parameters:**
-- `id: number | string` - Primary key value
-- `options: FindByIdOptions` - Relation loading options
-  - `with?: Record<string, boolean | WithOptions>` - Relations to load
-
-**Returns:** `Promise<T & Relations>` - Record with loaded relations
-
-**Throws:** `QueryError` if db.query API is not configured
-
----
-
-### findManyWith(options)
-
-Find multiple records with related entities.
-
-```typescript
-// Load all users with their posts
-const users = await userRepo.findManyWith({
-    with: { posts: true }
-});
-
-// With where clause
-import { eq } from 'drizzle-orm';
-const activeUsers = await userRepo.findManyWith({
-    where: eq(users.status, 'active'),
-    with: { posts: true, profile: true }
-});
-
-// Nested relations
-const usersWithData = await userRepo.findManyWith({
-    with: {
-        posts: {
-            with: { comments: true }
-        },
-        profile: true
-    }
-});
-```
-
-**Parameters:**
-- `options: FindManyWithOptions`
-  - `where?: SQL<unknown>` - Optional WHERE condition
-  - `with?: Record<string, boolean | WithOptions>` - Relations to load
-
-**Returns:** `Promise<Array<T & Relations>>` - Array of records with relations
-
-**Throws:** `QueryError` if db.query API is not configured
-
----
-
-### findOneWith(options)
-
-Find single record with related entities.
-
-```typescript
+import { users, posts } from './schema';
 import { eq } from 'drizzle-orm';
 
-// Find user by email with posts
-const user = await userRepo.findOneWith({
-    where: eq(users.email, 'john@example.com'),
-    with: { posts: true }
-});
+class UserRepository extends Repository<typeof users> {
+    async findWithPosts(userId: number) {
+        const db = this.getReadDb();
 
-// With nested relations
-const userWithData = await userRepo.findOneWith({
-    where: eq(users.id, 1),
-    with: {
-        posts: {
-            with: { comments: { with: { author: true } } }
-        },
-        profile: true
+        // Get user and their posts separately
+        const user = await this.findById(userId);
+        if (!user) return null;
+
+        const userPosts = await db
+            .select()
+            .from(posts)
+            .where(eq(posts.authorId, userId));
+
+        return {
+            ...user,
+            posts: userPosts
+        };
     }
-});
-```
 
-**Parameters:**
-- `options: FindOneWithOptions`
-  - `where: SQL<unknown>` - WHERE condition (required)
-  - `with?: Record<string, boolean | WithOptions>` - Relations to load
+    async findAllWithPostCount() {
+        const db = this.getReadDb();
+        const { sql } = await import('drizzle-orm');
 
-**Returns:** `Promise<(T & Relations) | undefined>` - Record with relations or undefined
-
-**Throws:** `QueryError` if db.query API is not configured
-
----
-
-### Relation Loading Best Practices
-
-**1. Configure schema during initialization**
-
-```typescript
-// ✅ Good: Include schema with relations
-const db = drizzle(client, {
-    schema: { users, posts, usersRelations, postsRelations }
-});
-
-// ❌ Bad: No schema
-const db = drizzle(client); // Relation methods will throw errors
-```
-
-**2. Define bidirectional relations**
-
-```typescript
-// ✅ Good: Define both sides
-export const usersRelations = relations(users, ({ many }) => ({
-    posts: many(posts)
-}));
-
-export const postsRelations = relations(posts, ({ one }) => ({
-    author: one(users, { fields: [posts.authorId], references: [users.id] })
-}));
-```
-
-**3. Use selective loading**
-
-```typescript
-// ✅ Good: Load only what you need
-const user = await userRepo.findByIdWith(1, {
-    with: { posts: true }
-});
-
-// ❌ Bad: Loading everything
-const user = await userRepo.findByIdWith(1, {
-    with: {
-        posts: true,
-        followers: true,
-        following: true,
-        comments: true,
-        likes: true
+        return db
+            .select({
+                id: users.id,
+                email: users.email,
+                name: users.name,
+                postCount: sql<number>`count(${posts.id})`.as('post_count')
+            })
+            .from(users)
+            .leftJoin(posts, eq(users.id, posts.authorId))
+            .groupBy(users.id);
     }
-});
+}
 ```
 
-**4. Avoid N+1 queries**
+### Common Join Patterns
+
+**One-to-Many (User has many Posts):**
+
+```typescript
+import { getDb } from '@spfn/core/db';
+import { users, posts } from './schema';
+import { eq, sql } from 'drizzle-orm';
+
+const db = getDb();
+
+// Get users with post count
+const usersWithCounts = await db
+    .select({
+        user: users,
+        postCount: sql<number>`count(${posts.id})`.as('post_count')
+    })
+    .from(users)
+    .leftJoin(posts, eq(users.id, posts.authorId))
+    .groupBy(users.id);
+
+// Get user's posts separately (cleaner)
+const user = await userRepo.findById(1);
+const userPosts = await postRepo.findWhere({ authorId: user.id });
+```
+
+**Many-to-One (Post belongs to User):**
+
+```typescript
+// Load post with author
+const postWithAuthor = await db
+    .select({
+        post: posts,
+        author: users
+    })
+    .from(posts)
+    .leftJoin(users, eq(posts.authorId, users.id))
+    .where(eq(posts.id, 1))
+    .then(results => results[0]);
+```
+
+**Many-to-Many (via junction table):**
+
+```typescript
+// Example: Users and Tags through user_tags table
+import { userTags, tags } from './schema';
+
+const userWithTags = await db
+    .select({
+        user: users,
+        tag: tags
+    })
+    .from(users)
+    .leftJoin(userTags, eq(users.id, userTags.userId))
+    .leftJoin(tags, eq(userTags.tagId, tags.id))
+    .where(eq(users.id, 1));
+```
+
+### Advanced Queries
+
+**Subqueries:**
+
+```typescript
+// Get users who have published posts
+const activeAuthors = await db
+    .select()
+    .from(users)
+    .where(
+        sql`EXISTS (
+            SELECT 1 FROM ${posts}
+            WHERE ${posts.authorId} = ${users.id}
+            AND ${posts.status} = 'published'
+        )`
+    );
+```
+
+**Multiple Joins:**
+
+```typescript
+// Load posts with authors and categories
+const enrichedPosts = await db
+    .select({
+        post: posts,
+        author: users,
+        category: categories
+    })
+    .from(posts)
+    .leftJoin(users, eq(posts.authorId, users.id))
+    .leftJoin(categories, eq(posts.categoryId, categories.id));
+```
+
+### Best Practices
+
+**1. Avoid N+1 Queries:**
 
 ```typescript
 // ❌ Bad: N+1 queries
@@ -1093,10 +1031,64 @@ for (const user of users) {
     const posts = await postRepo.findWhere({ authorId: user.id });
 }
 
-// ✅ Good: Single query with relations
-const users = await userRepo.findManyWith({
-    with: { posts: true }
-});
+// ✅ Good: Single aggregation query
+const usersWithPostCount = await db
+    .select({
+        user: users,
+        postCount: sql<number>`count(${posts.id})`
+    })
+    .from(users)
+    .leftJoin(posts, eq(users.id, posts.authorId))
+    .groupBy(users.id);
+
+// ✅ Good: Batch load with IN query
+const userIds = users.map(u => u.id);
+const allPosts = await postRepo.findWhere({ authorId: { in: userIds } });
+const postsGrouped = allPosts.reduce((acc, post) => {
+    if (!acc[post.authorId]) acc[post.authorId] = [];
+    acc[post.authorId].push(post);
+    return acc;
+}, {});
+```
+
+**2. Use Repository for Simple Queries, Raw Drizzle for Complex:**
+
+```typescript
+// ✅ Good: Simple = Repository
+const user = await userRepo.findById(1);
+const posts = await postRepo.findWhere({ authorId: 1 });
+
+// ✅ Good: Complex = Raw Drizzle
+const stats = await db
+    .select({
+        authorName: users.name,
+        totalPosts: sql<number>`count(${posts.id})`,
+        avgPostLength: sql<number>`avg(length(${posts.content}))`
+    })
+    .from(users)
+    .leftJoin(posts, eq(users.id, posts.authorId))
+    .groupBy(users.id)
+    .having(sql`count(${posts.id}) > 5`);
+```
+
+**3. Extract to Custom Repository Methods:**
+
+```typescript
+// ✅ Good: Reusable methods
+class PostRepository extends Repository<typeof posts> {
+    async findByAuthor(authorId: number) {
+        return this.findWhere({ authorId });
+    }
+
+    async findPublishedWithAuthor() {
+        const db = this.getReadDb();
+        return db
+            .select({ post: posts, author: users })
+            .from(posts)
+            .leftJoin(users, eq(posts.authorId, users.id))
+            .where(eq(posts.status, 'published'));
+    }
+}
 ```
 
 ---
