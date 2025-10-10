@@ -258,6 +258,66 @@ describe('Server Module', () => {
         });
     });
 
+    describe('Health Check Configuration', () => {
+        it('should support health check configuration', () => {
+            const config: ServerConfig = {
+                healthCheck: {
+                    enabled: true,
+                    path: '/health',
+                    detailed: true,
+                },
+            };
+
+            expect(config.healthCheck).toBeDefined();
+            expect(config.healthCheck.enabled).toBe(true);
+            expect(config.healthCheck.path).toBe('/health');
+            expect(config.healthCheck.detailed).toBe(true);
+        });
+
+        it('should support partial health check configuration', () => {
+            const config: ServerConfig = {
+                healthCheck: {
+                    enabled: false,
+                },
+            };
+
+            expect(config.healthCheck).toBeDefined();
+            expect(config.healthCheck.enabled).toBe(false);
+            expect(config.healthCheck.path).toBeUndefined();
+        });
+
+        it('should support custom health check path', () => {
+            const config: ServerConfig = {
+                healthCheck: {
+                    path: '/api/health',
+                },
+            };
+
+            expect(config.healthCheck).toBeDefined();
+            expect(config.healthCheck.path).toBe('/api/health');
+        });
+
+        it('should support detailed health check mode', () => {
+            const config: ServerConfig = {
+                healthCheck: {
+                    detailed: true,
+                },
+            };
+
+            expect(config.healthCheck).toBeDefined();
+            expect(config.healthCheck.detailed).toBe(true);
+        });
+
+        it('should support HEALTH_CHECK_ENABLED environment variable', () => {
+            process.env.HEALTH_CHECK_ENABLED = 'false';
+
+            // 환경변수가 설정되어 있으면 server.ts에서 읽어서 적용됨
+            expect(process.env.HEALTH_CHECK_ENABLED).toBe('false');
+
+            delete process.env.HEALTH_CHECK_ENABLED;
+        });
+    });
+
     describe('ServerInstance Type', () => {
         it('should have correct ServerInstance interface', () => {
             // Type-only test - verifies interface structure

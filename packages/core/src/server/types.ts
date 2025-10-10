@@ -231,6 +231,34 @@ export interface ServerConfig
     };
 
     /**
+     * Health check endpoint configuration
+     * Provides monitoring endpoints for Kubernetes probes and load balancers
+     */
+    healthCheck?: {
+        /**
+         * Enable health check endpoint
+         * @default true
+         * @env HEALTH_CHECK_ENABLED
+         */
+        enabled?: boolean;
+
+        /**
+         * Health check endpoint path
+         * @default '/health'
+         * @env HEALTH_CHECK_PATH
+         */
+        path?: string;
+
+        /**
+         * Include detailed status (DB, Redis, etc.)
+         * Detailed mode checks connectivity to external services
+         * @default false in production, true in development
+         * @env HEALTH_CHECK_DETAILED
+         */
+        detailed?: boolean;
+    };
+
+    /**
      * Hook: Run before routes are loaded
      */
     beforeRoutes?: (app: Hono) => void | Promise<void>;
