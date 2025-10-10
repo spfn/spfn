@@ -150,6 +150,35 @@ export interface ServerConfig
              */
             retryInterval?: number;
         };
+
+        /**
+         * Query performance monitoring configuration
+         * Tracks slow queries and logs performance metrics
+         */
+        monitoring?: {
+            /**
+             * Enable/disable query performance monitoring
+             * @default true in development, false in production
+             * @env DB_MONITORING_ENABLED
+             */
+            enabled?: boolean;
+
+            /**
+             * Slow query threshold in milliseconds
+             * Queries exceeding this duration will be logged as warnings
+             * @default 1000 (1 second)
+             * @env DB_MONITORING_SLOW_THRESHOLD
+             */
+            slowThreshold?: number;
+
+            /**
+             * Log actual SQL queries in performance logs
+             * ⚠️ Warning: May expose sensitive data in logs
+             * @default false
+             * @env DB_MONITORING_LOG_QUERIES
+             */
+            logQueries?: boolean;
+        };
     };
 
     /**

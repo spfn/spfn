@@ -21,10 +21,11 @@ import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '.
 import { buildFilters } from '../../query';
 import { buildSort } from '../../query';
 import { applyPagination, createPaginationMeta, countTotal } from '../../query';
-import { getRawDb } from '../manager';
+import { getRawDb, getDatabaseMonitoringConfig } from '../manager';
 import { getTransaction } from '../transaction';
 import { QueryError } from '../../errors';
 import { QueryBuilder } from './query-builder.js';
+import { logger } from '../../logger';
 
 /**
  * Pageable interface (Spring Pageable style)
@@ -88,6 +89,7 @@ export class Repository<
     protected table: TTable;
     protected useReplica: boolean;
     protected explicitDb?: PostgresJsDatabase<any>; // Track if db was explicitly provided
+    protected autoUpdateField?: string; // Field name to auto-update (e.g., 'updatedAt', 'modifiedAt')
 
     constructor(
         dbOrTable: PostgresJsDatabase<any> | TTable,
@@ -108,6 +110,90 @@ export class Repository<
             this.useReplica = useReplica;
             this.explicitDb = this.db; // Save explicit db
         }
+
+        // Detect auto-update timestamp field from schema
+        this.autoUpdateField = this.detectAutoUpdateField();
+    }
+
+    /**
+     * Detect which field (if any) should be auto-updated
+     *
+     * Checks all table columns for __autoUpdate metadata flag.
+     * Set by autoUpdateTimestamp() or timestamps({ autoUpdate: true }) helpers.
+     *
+     * @returns Field name to auto-update, or undefined if none found
+     */
+    private detectAutoUpdateField(): string | undefined
+    {
+        const tableColumns = this.table as Record<string, any>;
+
+        for (const [fieldName, column] of Object.entries(tableColumns))
+        {
+            // Skip non-column properties (like '_', '$inferSelect', etc.)
+            if (fieldName.startsWith('_') || fieldName.startsWith('$'))
+            {
+                continue;
+            }
+
+            // Check if column has __autoUpdate flag
+            if (column && typeof column === 'object' && column.__autoUpdate === true)
+            {
+                return fieldName;
+            }
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Inject auto-update timestamp if configured
+     *
+     * Only injects if:
+     * 1. Table has an auto-update field configured (via autoUpdateTimestamp() or timestamps({ autoUpdate: true }))
+     * 2. The field is not already explicitly provided in the data
+     *
+     * @param data - Update data object
+     * @returns Data with auto-update timestamp injected (if applicable)
+     */
+    private injectAutoUpdateTimestamp(data: any): any
+    {
+        // No auto-update field configured
+        if (!this.autoUpdateField)
+        {
+            return data;
+        }
+
+        // Field already explicitly provided, don't override
+        if (data && this.autoUpdateField in data)
+        {
+            return data;
+        }
+
+        // Inject current timestamp
+        return {
+            ...data,
+            [this.autoUpdateField]: new Date(),
+        };
+    }
+
+    /**
+     * Get id column from table
+     *
+     * Helper method to reduce code duplication across methods that need id column.
+     *
+     * @returns The id column object
+     * @throws {QueryError} If table does not have an id column
+     */
+    private getIdColumn()
+    {
+        const idColumn = (this.table as Record<string, any>).id;
+
+        if (!idColumn)
+        {
+            throw new QueryError('Table does not have an id column');
+        }
+
+        return idColumn;
     }
 
     /**
@@ -159,6 +245,69 @@ export class Repository<
     }
 
     /**
+     * Execute operation with performance monitoring
+     *
+     * Wraps database operations with timing and logging for slow queries.
+     * Only logs if monitoring is enabled and query exceeds threshold.
+     *
+     * @param operation - Name of the operation (for logging)
+     * @param fn - Async function to execute
+     * @returns Result of the operation
+     */
+    private async executeWithMonitoring<T>(
+        operation: string,
+        fn: () => Promise<T>
+    ): Promise<T>
+    {
+        const config = getDatabaseMonitoringConfig();
+
+        // If monitoring is disabled, just execute the operation
+        if (!config?.enabled)
+        {
+            return fn();
+        }
+
+        const startTime = performance.now();
+
+        try
+        {
+            const result = await fn();
+            const duration = performance.now() - startTime;
+
+            // Log slow queries
+            if (duration >= config.slowThreshold)
+            {
+                const dbLogger = logger.child('database');
+                const logData: any = {
+                    operation,
+                    table: this.table._.name,
+                    duration: `${duration.toFixed(2)}ms`,
+                    threshold: `${config.slowThreshold}ms`,
+                };
+
+                dbLogger.warn('Slow query detected', logData);
+            }
+
+            return result;
+        }
+        catch (error)
+        {
+            const duration = performance.now() - startTime;
+            const dbLogger = logger.child('database');
+            const message = error instanceof Error ? error.message : 'Unknown error';
+
+            dbLogger.error('Query failed', {
+                operation,
+                table: this.table._.name,
+                duration: `${duration.toFixed(2)}ms`,
+                error: message,
+            });
+
+            throw error;
+        }
+    }
+
+    /**
      * Find all records (uses Replica)
      *
      * @example
@@ -166,9 +315,12 @@ export class Repository<
      */
     async findAll(): Promise<TSelect[]>
     {
-        const readDb = this.getReadDb();
-        // Type assertion needed: Drizzle's from() expects specific table signature
-        return readDb.select().from(this.table as any) as Promise<TSelect[]>;
+        return this.executeWithMonitoring('findAll', async () =>
+        {
+            const readDb = this.getReadDb();
+            // Type assertion needed: Drizzle's from() expects specific table signature
+            return readDb.select().from(this.table as any) as Promise<TSelect[]>;
+        });
     }
 
     /**
@@ -183,28 +335,31 @@ export class Repository<
      */
     async findPage(pageable: Pageable): Promise<Page<TSelect>>
     {
-        const { filters = {}, sort = [], pagination = { page: 1, limit: 20 } } = pageable;
+        return this.executeWithMonitoring('findPage', async () =>
+        {
+            const { filters = {}, sort = [], pagination = { page: 1, limit: 20 } } = pageable;
 
-        // Type assertions needed: Helper functions expect DrizzleTable type
-        const whereCondition = buildFilters(filters, this.table as any);
-        const orderBy = buildSort(sort, this.table as any);
-        const { offset, limit } = applyPagination(pagination);
+            // Type assertions needed: Helper functions expect DrizzleTable type
+            const whereCondition = buildFilters(filters, this.table as any);
+            const orderBy = buildSort(sort, this.table as any);
+            const { offset, limit } = applyPagination(pagination);
 
-        // Fetch data from Replica
-        const readDb = this.getReadDb();
-        const data = await readDb
-            .select()
-            .from(this.table as any)
-            .where(whereCondition)
-            .orderBy(...orderBy)
-            .limit(limit)
-            .offset(offset) as TSelect[];
+            // Fetch data from Replica
+            const readDb = this.getReadDb();
+            const data = await readDb
+                .select()
+                .from(this.table as any)
+                .where(whereCondition)
+                .orderBy(...orderBy)
+                .limit(limit)
+                .offset(offset) as TSelect[];
 
-        // Count total (uses Replica)
-        const total = await countTotal(readDb, this.table as any, whereCondition);
-        const meta = createPaginationMeta(pagination, total);
+            // Count total (uses Replica)
+            const total = await countTotal(readDb, this.table as any, whereCondition);
+            const meta = createPaginationMeta(pagination, total);
 
-        return { data, meta };
+            return { data, meta };
+        });
     }
 
     /**
@@ -215,21 +370,19 @@ export class Repository<
      */
     async findById(id: number | string): Promise<TSelect | null>
     {
-        const idColumn = (this.table as Record<string, any>).id;
-
-        if (!idColumn)
+        return this.executeWithMonitoring('findById', async () =>
         {
-            throw new QueryError('Table does not have an id column');
-        }
+            const idColumn = this.getIdColumn();
 
-        const { eq } = await import('drizzle-orm');
-        const readDb = this.getReadDb();
-        const [result] = await readDb
-            .select()
-            .from(this.table as any)
-            .where(eq(idColumn, id)) as TSelect[];
+            const { eq } = await import('drizzle-orm');
+            const readDb = this.getReadDb();
+            const [result] = await readDb
+                .select()
+                .from(this.table as any)
+                .where(eq(idColumn, id)) as TSelect[];
 
-        return result ?? null;
+            return result ?? null;
+        });
     }
 
     /**
@@ -240,13 +393,16 @@ export class Repository<
      */
     async findOne(where: SQL<unknown>): Promise<TSelect | null>
     {
-        const readDb = this.getReadDb();
-        const [result] = await readDb
-            .select()
-            .from(this.table as any)
-            .where(where) as TSelect[];
+        return this.executeWithMonitoring('findOne', async () =>
+        {
+            const readDb = this.getReadDb();
+            const [result] = await readDb
+                .select()
+                .from(this.table as any)
+                .where(where) as TSelect[];
 
-        return result ?? null;
+            return result ?? null;
+        });
     }
 
     /**
@@ -257,39 +413,45 @@ export class Repository<
      */
     async save(data: any): Promise<TSelect>
     {
-        const writeDb = this.getWriteDb();
-        const [result] = await writeDb
-            .insert(this.table)
-            .values(data)
-            .returning() as TSelect[];
+        return this.executeWithMonitoring('save', async () =>
+        {
+            const writeDb = this.getWriteDb();
+            const [result] = await writeDb
+                .insert(this.table)
+                .values(data)
+                .returning() as TSelect[];
 
-        return result;
+            return result;
+        });
     }
 
     /**
      * Update a record (uses Primary)
+     *
+     * Automatically injects current timestamp if table has auto-update field configured.
      *
      * @example
      * const user = await userRepo.update(1, { name: 'Jane' });
      */
     async update(id: number | string, data: any): Promise<TSelect | null>
     {
-        const idColumn = (this.table as Record<string, any>).id;
-
-        if (!idColumn)
+        return this.executeWithMonitoring('update', async () =>
         {
-            throw new QueryError('Table does not have an id column');
-        }
+            const idColumn = this.getIdColumn();
 
-        const { eq } = await import('drizzle-orm');
-        const writeDb = this.getWriteDb();
-        const [result] = await writeDb
-            .update(this.table)
-            .set(data)
-            .where(eq(idColumn, id))
-            .returning() as TSelect[];
+            // Auto-inject timestamp if configured and not explicitly provided
+            const updateData = this.injectAutoUpdateTimestamp(data);
 
-        return result ?? null;
+            const { eq } = await import('drizzle-orm');
+            const writeDb = this.getWriteDb();
+            const [result] = await writeDb
+                .update(this.table)
+                .set(updateData)
+                .where(eq(idColumn, id))
+                .returning() as TSelect[];
+
+            return result ?? null;
+        });
     }
 
     /**
@@ -300,21 +462,19 @@ export class Repository<
      */
     async delete(id: number | string): Promise<TSelect | null>
     {
-        const idColumn = (this.table as Record<string, any>).id;
-
-        if (!idColumn)
+        return this.executeWithMonitoring('delete', async () =>
         {
-            throw new QueryError('Table does not have an id column');
-        }
+            const idColumn = this.getIdColumn();
 
-        const { eq } = await import('drizzle-orm');
-        const writeDb = this.getWriteDb();
-        const [result] = await writeDb
-            .delete(this.table)
-            .where(eq(idColumn, id))
-            .returning() as TSelect[];
+            const { eq } = await import('drizzle-orm');
+            const writeDb = this.getWriteDb();
+            const [result] = await writeDb
+                .delete(this.table)
+                .where(eq(idColumn, id))
+                .returning() as TSelect[];
 
-        return result ?? null;
+            return result ?? null;
+        });
     }
 
     /**
@@ -325,8 +485,11 @@ export class Repository<
      */
     async count(where?: SQL<unknown>): Promise<number>
     {
-        const readDb = this.getReadDb();
-        return countTotal(readDb, this.table as any, where);
+        return this.executeWithMonitoring('count', async () =>
+        {
+            const readDb = this.getReadDb();
+            return countTotal(readDb, this.table as any, where);
+        });
     }
 
     /**
@@ -337,12 +500,15 @@ export class Repository<
      */
     async findWhere(filters: Filters): Promise<TSelect[]>
     {
-        const whereCondition = buildFilters(filters, this.table as any);
-        const readDb = this.getReadDb();
-        return readDb
-            .select()
-            .from(this.table as any)
-            .where(whereCondition) as Promise<TSelect[]>;
+        return this.executeWithMonitoring('findWhere', async () =>
+        {
+            const whereCondition = buildFilters(filters, this.table as any);
+            const readDb = this.getReadDb();
+            return readDb
+                .select()
+                .from(this.table as any)
+                .where(whereCondition) as Promise<TSelect[]>;
+        });
     }
 
     /**
@@ -353,14 +519,17 @@ export class Repository<
      */
     async findOneWhere(filters: Filters): Promise<TSelect | null>
     {
-        const whereCondition = buildFilters(filters, this.table as any);
-        const readDb = this.getReadDb();
-        const [result] = await readDb
-            .select()
-            .from(this.table as any)
-            .where(whereCondition) as TSelect[];
+        return this.executeWithMonitoring('findOneWhere', async () =>
+        {
+            const whereCondition = buildFilters(filters, this.table as any);
+            const readDb = this.getReadDb();
+            const [result] = await readDb
+                .select()
+                .from(this.table as any)
+                .where(whereCondition) as TSelect[];
 
-        return result ?? null;
+            return result ?? null;
+        });
     }
 
     /**
@@ -371,22 +540,20 @@ export class Repository<
      */
     async exists(id: number | string): Promise<boolean>
     {
-        const idColumn = (this.table as Record<string, any>).id;
-
-        if (!idColumn)
+        return this.executeWithMonitoring('exists', async () =>
         {
-            throw new QueryError('Table does not have an id column');
-        }
+            const idColumn = this.getIdColumn();
 
-        const { eq } = await import('drizzle-orm');
-        const readDb = this.getReadDb();
-        const [result] = await readDb
-            .select()
-            .from(this.table as any)
-            .where(eq(idColumn, id))
-            .limit(1) as TSelect[];
+            const { eq } = await import('drizzle-orm');
+            const readDb = this.getReadDb();
+            const [result] = await readDb
+                .select()
+                .from(this.table as any)
+                .where(eq(idColumn, id))
+                .limit(1) as TSelect[];
 
-        return !!result;
+            return !!result;
+        });
     }
 
     /**
@@ -397,15 +564,18 @@ export class Repository<
      */
     async existsBy(filters: Filters): Promise<boolean>
     {
-        const whereCondition = buildFilters(filters, this.table as any);
-        const readDb = this.getReadDb();
-        const [result] = await readDb
-            .select()
-            .from(this.table as any)
-            .where(whereCondition)
-            .limit(1) as TSelect[];
+        return this.executeWithMonitoring('existsBy', async () =>
+        {
+            const whereCondition = buildFilters(filters, this.table as any);
+            const readDb = this.getReadDb();
+            const [result] = await readDb
+                .select()
+                .from(this.table as any)
+                .where(whereCondition)
+                .limit(1) as TSelect[];
 
-        return !!result;
+            return !!result;
+        });
     }
 
     /**
@@ -416,9 +586,12 @@ export class Repository<
      */
     async countBy(filters: Filters): Promise<number>
     {
-        const whereCondition = buildFilters(filters, this.table as any);
-        const readDb = this.getReadDb();
-        return countTotal(readDb, this.table as any, whereCondition);
+        return this.executeWithMonitoring('countBy', async () =>
+        {
+            const whereCondition = buildFilters(filters, this.table as any);
+            const readDb = this.getReadDb();
+            return countTotal(readDb, this.table as any, whereCondition);
+        });
     }
 
     /**
@@ -432,30 +605,41 @@ export class Repository<
      */
     async saveMany(data: any[]): Promise<TSelect[]>
     {
-        const writeDb = this.getWriteDb();
-        return writeDb
-            .insert(this.table)
-            .values(data)
-            .returning() as Promise<TSelect[]>;
+        return this.executeWithMonitoring('saveMany', async () =>
+        {
+            const writeDb = this.getWriteDb();
+            return writeDb
+                .insert(this.table)
+                .values(data)
+                .returning() as Promise<TSelect[]>;
+        });
     }
 
     /**
      * Update multiple records by filters (uses Primary)
+     *
+     * Automatically injects current timestamp if table has auto-update field configured.
      *
      * @example
      * const count = await userRepo.updateWhere({ status: 'inactive' }, { status: 'archived' });
      */
     async updateWhere(filters: Filters, data: any): Promise<number>
     {
-        const whereCondition = buildFilters(filters, this.table as any);
-        const writeDb = this.getWriteDb();
-        const results = await writeDb
-            .update(this.table)
-            .set(data)
-            .where(whereCondition)
-            .returning() as TSelect[];
+        return this.executeWithMonitoring('updateWhere', async () =>
+        {
+            // Auto-inject timestamp if configured and not explicitly provided
+            const updateData = this.injectAutoUpdateTimestamp(data);
 
-        return results.length;
+            const whereCondition = buildFilters(filters, this.table as any);
+            const writeDb = this.getWriteDb();
+            const results = await writeDb
+                .update(this.table)
+                .set(updateData)
+                .where(whereCondition)
+                .returning() as TSelect[];
+
+            return results.length;
+        });
     }
 
     /**
@@ -466,14 +650,17 @@ export class Repository<
      */
     async deleteWhere(filters: Filters): Promise<number>
     {
-        const whereCondition = buildFilters(filters, this.table as any);
-        const writeDb = this.getWriteDb();
-        const results = await writeDb
-            .delete(this.table)
-            .where(whereCondition)
-            .returning() as TSelect[];
+        return this.executeWithMonitoring('deleteWhere', async () =>
+        {
+            const whereCondition = buildFilters(filters, this.table as any);
+            const writeDb = this.getWriteDb();
+            const results = await writeDb
+                .delete(this.table)
+                .where(whereCondition)
+                .returning() as TSelect[];
 
-        return results.length;
+            return results.length;
+        });
     }
 
     // ============================================================
