@@ -7,9 +7,13 @@ import { join } from 'path';
 import { loadRoutes } from '../route/index.js';
 import { errorHandler } from '../middleware/index.js';
 import { RequestLogger } from '../middleware/index.js';
-import { initRedis } from '../cache/index.js';
+import { initRedis, closeRedis } from '../cache/index.js';
+import { initDatabase, closeDatabase } from '../db/index.js';
+import { logger } from '../logger/index.js';
 
 import type { ServerConfig, AppFactory } from './types.js';
+
+const serverLogger = logger.child('server');
 
 /**
  * Create Hono app with automatic configuration
@@ -94,11 +98,13 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
  * Start SPFN server
  *
  * Automatically loads server.config.ts if exists
- * Automatically initializes Redis from environment
+ * Automatically initializes Database and Redis from environment
+ * Sets up graceful shutdown handlers for SIGTERM and SIGINT
  */
 export async function startServer(config?: ServerConfig): Promise<void>
 {
-    // Initialize infrastructure (Redis)
+    // Initialize infrastructure (Database and Redis)
+    await initDatabase();
     await initRedis();
 
     const cwd = process.cwd();
@@ -128,7 +134,7 @@ export async function startServer(config?: ServerConfig): Promise<void>
     // Start server
     const { host, port, debug } = finalConfig;
 
-    serve(
+    const server = serve(
     {
         fetch: app.fetch,
         port: port!,
@@ -139,4 +145,50 @@ export async function startServer(config?: ServerConfig): Promise<void>
     console.log(`   ▲ SPFN ${debug ? 'dev' : 'production'}`);
     console.log(`   - Local:        http://${host}:${port}`);
     console.log('');
+
+    // Graceful shutdown handler
+    const shutdown = async (signal: string) => {
+        serverLogger.info(`${signal} received, starting graceful shutdown...`);
+
+        try {
+            // 1. Stop accepting new connections
+            serverLogger.debug('Closing HTTP server...');
+            server.close(() => {
+                serverLogger.info('HTTP server closed');
+            });
+
+            // 2. Close database connections
+            serverLogger.debug('Closing database connections...');
+            await closeDatabase();
+
+            // 3. Close Redis connections
+            serverLogger.debug('Closing Redis connections...');
+            await closeRedis();
+
+            serverLogger.info('Graceful shutdown completed');
+            process.exit(0);
+        } catch (error) {
+            serverLogger.error('Error during graceful shutdown', error as Error);
+            process.exit(1);
+        }
+    };
+
+    // Register shutdown handlers
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+        serverLogger.error('Uncaught exception', error);
+        shutdown('UNCAUGHT_EXCEPTION');
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+        serverLogger.error('Unhandled promise rejection', {
+            reason,
+            promise,
+        });
+        shutdown('UNHANDLED_REJECTION');
+    });
 }

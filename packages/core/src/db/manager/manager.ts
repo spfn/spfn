@@ -5,11 +5,17 @@
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { Sql } from 'postgres';
 
-import { createDatabaseFromEnv } from './db-factory.js';
+import { createDatabaseFromEnv } from './factory.js';
+import { logger } from '../../logger/index.js';
+
+const dbLogger = logger.child('database');
 
 let writeInstance: PostgresJsDatabase | undefined;
 let readInstance: PostgresJsDatabase | undefined;
+let writeClient: Sql | undefined;
+let readClient: Sql | undefined;
 
 /**
  * DB connection type
@@ -96,50 +102,54 @@ export async function initDatabase(): Promise<{
     // Already initialized
     if (writeInstance)
     {
+        dbLogger.debug('Database already initialized');
         return { write: writeInstance, read: readInstance };
     }
 
     // Auto-detect from environment
-    const { write, read } = await createDatabaseFromEnv();
+    const result = await createDatabaseFromEnv();
 
-    if (write)
+    if (result.write)
     {
         try
         {
             // Test connection with a simple query
-            await write.execute('SELECT 1');
+            await result.write.execute('SELECT 1');
 
             // Test read instance if different
-            if (read && read !== write)
+            if (result.read && result.read !== result.write)
             {
-                await read.execute('SELECT 1');
+                await result.read.execute('SELECT 1');
             }
 
-            writeInstance = write;
-            readInstance = read;
+            // Store instances
+            writeInstance = result.write;
+            readInstance = result.read;
+            writeClient = result.writeClient;
+            readClient = result.readClient;
 
-            const hasReplica = read && read !== write;
-            console.log(
+            const hasReplica = result.read && result.read !== result.write;
+            dbLogger.info(
                 hasReplica
-                    ? '✅ Database connected (Primary + Replica)'
-                    : '✅ Database connected'
+                    ? 'Database connected (Primary + Replica)'
+                    : 'Database connected'
             );
         }
         catch (error)
         {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            console.error('❌ Database connection failed:', message);
+            dbLogger.error('Database connection failed', { error: message });
 
-            // Note: postgres-js doesn't need explicit cleanup like Redis
-            // Connection pool will be cleaned up when process exits
+            // Cleanup on failure
+            await closeDatabase();
 
             return { write: undefined, read: undefined };
         }
     }
     else
     {
-        console.warn('⚠️  No database configuration found');
-        console.warn('⚠️  Set DATABASE_URL environment variable to enable database');
+        dbLogger.warn('No database configuration found');
+        dbLogger.warn('Set DATABASE_URL environment variable to enable database');
     }
 
     return { write: writeInstance, read: readInstance };
@@ -147,26 +157,78 @@ export async function initDatabase(): Promise<{
 
 /**
  * Close all database connections and cleanup
- * Note: postgres-js doesn't require explicit connection closing in most cases
+ *
+ * Properly closes postgres connection pools with timeout.
+ * Should be called during graceful shutdown or after tests.
  *
  * @example
  * ```typescript
  * import { closeDatabase } from '@spfn/core/db';
  *
  * // During graceful shutdown
- * await closeDatabase();
+ * process.on('SIGTERM', async () => {
+ *     await closeDatabase();
+ *     process.exit(0);
+ * });
+ *
+ * // In tests
+ * afterAll(async () => {
+ *     await closeDatabase();
+ * });
  * ```
  */
 export async function closeDatabase(): Promise<void>
 {
-    // Note: postgres-js connections are managed automatically
-    // This function is mainly for consistency with Redis pattern
-    // and to allow future cleanup logic if needed
+    if (!writeInstance && !readInstance)
+    {
+        dbLogger.debug('No database connections to close');
+        return;
+    }
 
-    writeInstance = undefined;
-    readInstance = undefined;
+    try
+    {
+        const closePromises: Promise<void>[] = [];
 
-    console.log('✅ Database instances cleared');
+        // Close write client
+        if (writeClient)
+        {
+            dbLogger.debug('Closing write connection...');
+            closePromises.push(
+                writeClient.end({ timeout: 5 })
+                    .then(() => dbLogger.debug('Write connection closed'))
+                    .catch(err => dbLogger.error('Error closing write connection', err))
+            );
+        }
+
+        // Close read client (if different from write)
+        if (readClient && readClient !== writeClient)
+        {
+            dbLogger.debug('Closing read connection...');
+            closePromises.push(
+                readClient.end({ timeout: 5 })
+                    .then(() => dbLogger.debug('Read connection closed'))
+                    .catch(err => dbLogger.error('Error closing read connection', err))
+            );
+        }
+
+        // Wait for all connections to close
+        await Promise.all(closePromises);
+
+        dbLogger.info('All database connections closed');
+    }
+    catch (error)
+    {
+        dbLogger.error('Error during database cleanup', error as Error);
+        throw error;
+    }
+    finally
+    {
+        // Always clear instances
+        writeInstance = undefined;
+        readInstance = undefined;
+        writeClient = undefined;
+        readClient = undefined;
+    }
 }
 
 /**

@@ -16,14 +16,13 @@
  * ```
  */
 
-import type { SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import type { Filters, SortCondition } from '../query';
+import type { Filters, SortCondition } from '../../query';
 
-import { buildFilters } from '../query';
-import { buildSort } from '../query';
+import { buildFilters } from '../../query';
+import { buildSort } from '../../query';
 
 /**
  * Query Builder class for chainable queries

@@ -17,14 +17,14 @@ import type { SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '../query';
+import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '../../query';
 
-import { buildFilters } from '../query';
-import { buildSort } from '../query';
-import { applyPagination, createPaginationMeta, countTotal } from '../query';
-import { getRawDb } from './db-instance.js';
-import { getTransaction } from './transaction';
-import { QueryError } from '../errors';
+import { buildFilters } from '../../query';
+import { buildSort } from '../../query';
+import { applyPagination, createPaginationMeta, countTotal } from '../../query';
+import { getRawDb } from '../manager/instance.js';
+import { getTransaction } from '../transaction';
+import { QueryError } from '../../errors';
 import { getTableName } from './relation-registry.js';
 import { QueryBuilder } from './query-builder.js';
 

@@ -4,52 +4,53 @@
  * Entry point for DB module (Pure re-export only)
  */
 
-// DB Instance & Connection (Backward Compatibility)
-export { db, getRawDb } from './db-instance.js';
-export type { DbConnectionType } from './db-instance.js';
-export { getDb } from './db-context.js';
-
-// Database Factory (Environment Detection)
-export { createDatabaseFromEnv } from './db-factory.js';
-export type { DatabaseClients } from './db-factory.js';
-
-// Database Manager (Singleton Pattern)
+// Manager (DB Instance, Factory, Connection)
 export {
+    db,
+    getRawDb,
+    getDb,
+    createDatabaseFromEnv,
     initDatabase,
     getDatabase,
     setDatabase,
     closeDatabase,
     getDatabaseInfo,
-} from './db-manager.js';
+    createDatabaseConnection,
+    checkConnection,
+    WrappedDb,
+} from './manager/index.js';
 
-// Connection Functions
-export { createDatabaseConnection, checkConnection } from './connection.js';
+export type {
+    DbConnectionType,
+    DatabaseClients,
+    PoolConfig,
+    RetryConfig,
+} from './manager/index.js';
 
-// Configuration Types
-export type { PoolConfig, RetryConfig } from './config.js';
+// Drizzle Config Generator
+export { getDrizzleConfig, detectDialect, generateDrizzleConfigFile } from './manager/config-generator.js';
+export type { DrizzleConfigOptions } from './manager/config-generator.js';
 
 // Repository Pattern
-export { Repository } from './repository.js';
+export {
+    Repository,
+    getRepository,
+    clearRepositoryCache,
+    getRepositoryCacheSize,
+    QueryBuilder,
+    getTableName,
+} from './repository/index.js';
+
 export type {
     Pageable,
     Page,
     WithRelations,
     FindByIdOptions,
     FindWhereOptions
-} from './repository.js';
-
-// Repository Factory (Singleton Pattern)
-export {
-    getRepository,
-    clearRepositoryCache,
-    getRepositoryCacheSize
-} from './repository-factory.js';
-
-// Query Builder
-export { QueryBuilder } from './query-builder.js';
+} from './repository/index.js';
 
 // Schema Helpers
-export { id, timestamps, foreignKey, optionalForeignKey } from './schema-helpers.js';
+export { id, timestamps, foreignKey, optionalForeignKey } from './schema/index.js';
 
 // Transaction
 export { Transactional, getTransaction, runWithTransaction } from './transaction/index.js';

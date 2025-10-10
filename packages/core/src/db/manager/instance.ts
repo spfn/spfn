@@ -23,7 +23,7 @@
  */
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import { getDatabase, type DbConnectionType } from './db-manager.js';
+import { getDatabase, type DbConnectionType } from './manager.js';
 
 /**
  * Default DB instance (Primary - for writes)

@@ -7,7 +7,7 @@
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import { Repository } from './repository';
+import { Repository } from '../repository/repository.js';
 
 /**
  * WrappedDb 클래스

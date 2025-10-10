@@ -14,7 +14,7 @@ import {
     testUsersRelations,
     testPostsRelations
 } from './fixtures/entities';
-import { Repository } from '../repository.js';
+import { Repository } from '../repository/repository.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 

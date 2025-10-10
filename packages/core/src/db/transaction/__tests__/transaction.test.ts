@@ -29,9 +29,9 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
-import { db, initDatabase, closeDatabase } from '../../db';
+import { db, initDatabase, closeDatabase } from '../../index.js';
 import { getDb, Transactional } from '../../index.js';
-import { testUsers, testPosts } from '../../db/__tests__/fixtures/entities';
+import { testUsers, testPosts } from '../../__tests__/fixtures/entities';
 import { eq } from 'drizzle-orm';
 
 describe('Transaction System', () => {

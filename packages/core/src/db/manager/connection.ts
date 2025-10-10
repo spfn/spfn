@@ -32,8 +32,8 @@
  */
 import postgres from 'postgres';
 
-import { logger } from '../logger';
-import { ConnectionError, fromPostgresError } from '../errors';
+import { logger } from '../../logger';
+import { ConnectionError, fromPostgresError } from '../../errors';
 import type { PoolConfig, RetryConfig } from './config';
 
 const dbLogger = logger.child('database');
