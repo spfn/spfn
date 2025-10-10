@@ -3,6 +3,15 @@ import { join, relative } from 'path';
 import type { Hono } from 'hono';
 
 /**
+ * Extend Hono Context to support skipMiddlewares metadata
+ */
+declare module 'hono' {
+    interface ContextVariableMap {
+        _skipMiddlewares?: string[];
+    }
+}
+
+/**
  * AutoRouteLoader: Simplified File-based Routing System
  *
  * ## Features
@@ -266,29 +275,44 @@ export class AutoRouteLoader
             if (hasContractMetas)
             {
                 // Contract-based routing: method-level skipMiddlewares
+                // Use wildcard pattern to match all sub-paths (e.g., /test/* matches /test/public, /test/private)
+                const middlewarePath = urlPath === '/' ? '/*' : `${urlPath}/*`;
+
                 // 1. Register meta-setting middleware first
-                app.use(urlPath, (c, next) =>
+                app.use(middlewarePath, (c, next) =>
                 {
                     const method = c.req.method;
-                    const key = `${method} ${urlPath}`;
+                    const requestPath = new URL(c.req.url).pathname;
+
+                    // Calculate relative path by removing the route base path
+                    // E.g., if urlPath = '/test' and requestPath = '/test/public', then relativePath = '/public'
+                    const relativePath = requestPath.startsWith(urlPath)
+                        ? requestPath.slice(urlPath.length) || '/'
+                        : requestPath;
+
+                    const key = `${method} ${relativePath}`;
                     const meta = module.default._contractMetas?.get(key);
+
                     if (meta?.skipMiddlewares)
                     {
                         c.set('_skipMiddlewares', meta.skipMiddlewares);
                     }
+
                     return next();
                 });
 
                 // 2. Wrap global middlewares to check skipMiddlewares
                 for (const middleware of this.middlewares)
                 {
-                    app.use(urlPath, async (c, next) =>
+                    app.use(middlewarePath, async (c, next) =>
                     {
                         const skipList = c.get('_skipMiddlewares') || [];
+
                         if (skipList.includes(middleware.name))
                         {
                             return next(); // Skip this middleware
                         }
+
                         return middleware.handler(c, next); // Execute middleware
                     });
                 }

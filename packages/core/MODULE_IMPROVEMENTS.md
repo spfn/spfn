@@ -22,17 +22,24 @@
 ### 3. **route** 모듈
 - 상태: 완료 ✅
 - 일자: 2025-10-11
-- 개선사항: 5개 항목 + 1개 추가 기능
+- 개선사항: 5개 항목 + 1개 추가 기능 + 1개 버그 수정
   1. Route loading error handling
   2. Route priority sorting
   3. Route conflict detection
   4. Code duplication removal
   5. Detailed import error messages
   6. Contract-based skipMiddlewares (method-level middleware control) ✅
+  7. **skipMiddlewares 버그 수정** ✅
+     - 문제 1: 미들웨어 경로 매칭 오류 (정확한 경로만 매칭)
+       - 수정: 와일드카드 패턴 사용 (`/test/*`)
+     - 문제 2: 메타데이터 키 불일치 (절대 경로 vs 상대 경로)
+       - 수정: 상대 경로로 키 생성
+     - 검증: 통합 테스트 추가 (auto-loader.test.ts)
 - 커밋:
   - `11cab6b`: feat(route): error handling + priority sorting (#1-#2)
   - `2940172`: feat(route): remaining improvements (#3-#5)
   - `8020dbb`: docs(route): remove IMPROVEMENTS.md
+  - (Pending): fix(route): skipMiddlewares implementation bugs (#7)
 - 관련 문서:
   - `SKIP_MIDDLEWARES_GUIDE.md`: Contract 기반 메서드별 미들웨어 스킵 가이드
 

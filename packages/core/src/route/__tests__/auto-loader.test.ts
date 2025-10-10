@@ -250,4 +250,78 @@ export default app;
             expect(stats.total).toBe(4);
         });
     });
+
+    describe('Skip Middlewares (Integration)', () => {
+        it('should actually skip middlewares when using createApp with skipMiddlewares', async () => {
+            const testDir = join(process.cwd(), '__test_routes_skip__');
+            mkdirSync(testDir, { recursive: true });
+
+            // Create route file using createApp with skipMiddlewares
+            writeFileSync(
+                join(testDir, 'test.ts'),
+                `
+import { createApp } from '${join(__dirname, '..', 'create-app.js')}';
+
+const app = createApp();
+
+// Contract with skipMiddlewares
+const publicContract = {
+    method: 'GET',
+    path: '/public',
+    response: null,
+    meta: {
+        skipMiddlewares: ['auth']
+    }
+};
+
+// Contract without skipMiddlewares
+const privateContract = {
+    method: 'GET',
+    path: '/private',
+    response: null
+};
+
+app.bind(publicContract, async (c) => {
+    return c.json({ message: 'public' });
+});
+
+app.bind(privateContract, async (c) => {
+    return c.json({ message: 'private' });
+});
+
+export default app;
+                `
+            );
+
+            // Track middleware executions
+            const executions = [];
+            const authMiddleware = async (c, next) => {
+                executions.push('auth');
+                return next();
+            };
+
+            const app = new Hono();
+            const loader = new AutoRouteLoader(
+                testDir,
+                false,
+                [{ name: 'auth', handler: authMiddleware }]
+            );
+
+            await loader.load(app);
+
+            // Test public endpoint (should skip auth)
+            executions.length = 0;
+            const res1 = await app.request('/test/public');
+            expect(res1.status).toBe(200);
+            expect(executions).not.toContain('auth');
+
+            // Test private endpoint (should execute auth)
+            executions.length = 0;
+            const res2 = await app.request('/test/private');
+            expect(res2.status).toBe(200);
+            expect(executions).toContain('auth');
+
+            rmSync(testDir, { recursive: true, force: true });
+        });
+    });
 });
