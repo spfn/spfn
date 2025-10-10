@@ -195,15 +195,47 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
         serverLogger.info('Server shutdown completed');
     };
 
-    // Graceful shutdown handler (with process.exit)
+    // Graceful shutdown handler (with process.exit and timeout)
     const shutdown = async (signal: string) => {
         serverLogger.info(`${signal} received, starting graceful shutdown...`);
 
-        try {
-            await shutdownServer();
+        // Get shutdown timeout from config
+        const shutdownTimeout = finalConfig.shutdown?.timeout
+            ?? (parseInt(process.env.SHUTDOWN_TIMEOUT || '', 10) || 30000);
+
+        // Create timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) =>
+        {
+            setTimeout(() =>
+            {
+                reject(new Error(`Graceful shutdown timeout after ${shutdownTimeout}ms`));
+            }, shutdownTimeout);
+        });
+
+        try
+        {
+            // Race between graceful shutdown and timeout
+            await Promise.race([
+                shutdownServer(),
+                timeoutPromise,
+            ]);
+
+            serverLogger.info('Graceful shutdown completed successfully');
             process.exit(0);
-        } catch (error) {
-            serverLogger.error('Error during graceful shutdown', error as Error);
+        }
+        catch (error)
+        {
+            const err = error as Error;
+
+            if (err.message && err.message.includes('timeout'))
+            {
+                serverLogger.error('Graceful shutdown timeout, forcing exit', err);
+            }
+            else
+            {
+                serverLogger.error('Error during graceful shutdown', err);
+            }
+
             process.exit(1);
         }
     };

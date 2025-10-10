@@ -216,6 +216,21 @@ export interface ServerConfig
     };
 
     /**
+     * Graceful shutdown configuration
+     * Controls server shutdown behavior during SIGTERM/SIGINT signals
+     */
+    shutdown?: {
+        /**
+         * Graceful shutdown timeout in milliseconds
+         * Maximum time to wait for ongoing requests and resource cleanup
+         * After timeout, forces process termination
+         * @default 30000 (30 seconds)
+         * @env SHUTDOWN_TIMEOUT
+         */
+        timeout?: number;
+    };
+
+    /**
      * Hook: Run before routes are loaded
      */
     beforeRoutes?: (app: Hono) => void | Promise<void>;
