@@ -223,3 +223,266 @@ Before considering a feature complete:
 2. **Old version cached**: npm unlink && npm link
 3. **Changes not reflected**: Rebuild package (npm run build)
 4. **Permission errors**: Check global npm directory permissions
+
+---
+
+## Code Style Guide
+
+### Brace Placement (Allman-style Variant)
+
+**CRITICAL: This project uses Allman-style brace placement with specific rules.**
+
+#### Rules
+
+1. **Function declarations**: Brace on next line
+   ```typescript
+   ✅ CORRECT:
+   export async function startServer(config?: ServerConfig): Promise<ServerInstance>
+   {
+       // implementation
+   }
+
+   ❌ WRONG:
+   export async function startServer(config?: ServerConfig): Promise<ServerInstance> {
+       // implementation
+   }
+   ```
+
+2. **Arrow functions**: Brace on next line
+   ```typescript
+   ✅ CORRECT:
+   const shutdown = async (signal: string) =>
+   {
+       // implementation
+   };
+
+   const handler = (data: Data) =>
+   {
+       return process(data);
+   };
+
+   ❌ WRONG:
+   const shutdown = async (signal: string) => {
+       // implementation
+   };
+   ```
+
+3. **If/else statements**: Brace on next line
+   ```typescript
+   ✅ CORRECT:
+   if (condition)
+   {
+       doSomething();
+   }
+   else
+   {
+       doOtherthing();
+   }
+
+   ❌ WRONG:
+   if (condition) {
+       doSomething();
+   } else {
+       doOtherthing();
+   }
+   ```
+
+4. **Try/catch blocks**: Brace on next line
+   ```typescript
+   ✅ CORRECT:
+   try
+   {
+       await operation();
+   }
+   catch (error)
+   {
+       handle(error);
+   }
+
+   ❌ WRONG:
+   try {
+       await operation();
+   } catch (error) {
+       handle(error);
+   }
+   ```
+
+5. **Object literals**: Brace on same line
+   ```typescript
+   ✅ CORRECT:
+   const config = {
+       port: 4000,
+       host: 'localhost',
+   };
+
+   const response = {
+       status: 'ok',
+       data: result,
+   };
+
+   ❌ WRONG:
+   const config =
+   {
+       port: 4000,
+       host: 'localhost',
+   };
+   ```
+
+6. **Class declarations**: Brace on next line
+   ```typescript
+   ✅ CORRECT:
+   class DatabaseManager
+   {
+       private connection: Connection;
+
+       constructor()
+       {
+           this.connection = createConnection();
+       }
+   }
+
+   ❌ WRONG:
+   class DatabaseManager {
+       private connection: Connection;
+
+       constructor() {
+           this.connection = createConnection();
+       }
+   }
+   ```
+
+### Indentation
+
+- **4 spaces** (no tabs)
+- Continuation lines: align with opening brace or +4 spaces
+
+```typescript
+✅ CORRECT:
+const result = someFunction(
+    parameter1,
+    parameter2,
+    parameter3
+);
+
+const config: ServerConfig =
+{
+    port: 4000,
+    timeout:
+    {
+        request: 120000,
+        keepAlive: 65000,
+    },
+};
+
+❌ WRONG (2 spaces):
+const result = someFunction(
+  parameter1,
+  parameter2
+);
+```
+
+### Semicolons
+
+- **Always use semicolons**
+
+```typescript
+✅ CORRECT:
+const value = getValue();
+await initDatabase();
+
+❌ WRONG:
+const value = getValue()
+await initDatabase()
+```
+
+### Type Assertions
+
+- Use `as` keyword, not angle brackets
+
+```typescript
+✅ CORRECT:
+const error = err as Error;
+const server = srv as Server;
+
+❌ WRONG:
+const error = <Error>err;
+const server = <Server>srv;
+```
+
+### Error Handling Pattern
+
+```typescript
+✅ CORRECT:
+try
+{
+    await operation();
+}
+catch (error)
+{
+    const err = error as Error;
+    logger.error('Operation failed', err);
+}
+
+❌ WRONG:
+try {
+    await operation();
+} catch (error) {
+    logger.error('Operation failed', error);
+}
+```
+
+### Logging Pattern
+
+```typescript
+✅ CORRECT:
+serverLogger.info('Server started', {
+    port: 4000,
+    host: 'localhost',
+});
+
+serverLogger.error('Failed to start', err);
+
+❌ WRONG:
+serverLogger.info('Server started: ' + port);
+serverLogger.error('Failed:', error.message);
+```
+
+### Comments
+
+- Use `//` for single-line comments
+- Use `/** */` for JSDoc
+- Add space after `//`
+
+```typescript
+✅ CORRECT:
+// Initialize database connection
+const db = await initDatabase();
+
+/**
+ * Start SPFN server
+ *
+ * @param config - Server configuration
+ * @returns Server instance
+ */
+export async function startServer(config?: ServerConfig): Promise<ServerInstance>
+
+❌ WRONG:
+//Initialize database connection
+const db = await initDatabase();
+```
+
+### Checking Before Coding
+
+**Before writing any code, verify you understand the style:**
+
+1. Check existing code in the same file
+2. Look for brace placement patterns
+3. Verify indentation (4 spaces)
+4. When in doubt, ask first
+
+### Why This Style?
+
+- **Consistency**: All files follow same pattern
+- **Readability**: Clear block boundaries
+- **Maintainability**: Easy to spot missing braces
+- **Team convention**: Established project standard
