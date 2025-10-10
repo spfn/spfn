@@ -71,6 +71,18 @@ function getCacheKey<TTable extends PgTable>(
  * ✅ Type-safe with full IDE autocomplete
  * ✅ Automatically detects transaction context (via Repository internals)
  *
+ * ## 🔄 Transaction Handling
+ *
+ * Repository instances are cached globally, but they automatically detect
+ * and use transaction context via AsyncLocalStorage in each method call.
+ * This means:
+ * - **Same repository instance** can be used both inside and outside transactions
+ * - **No need to create separate repository instances** per transaction
+ * - **Transaction safety is guaranteed** by AsyncLocalStorage context
+ *
+ * The Repository internally calls `getTransaction()` on every database operation,
+ * ensuring the correct DB instance (transaction or default) is always used.
+ *
  * @param table - Drizzle table definition
  * @param RepositoryClass - Optional custom Repository class extending Repository
  * @returns Repository instance (cached singleton)
@@ -117,6 +129,26 @@ function getCacheKey<TTable extends PgTable>(
  *
  * // services/auth.ts
  * const repo = getRepository(users, UserRepository);  // Same Instance A
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // Transaction handling - same instance works everywhere
+ * import { getRepository, Transactional } from '@spfn/core/db';
+ * import { users } from './entities';
+ *
+ * const userRepo = getRepository(users);
+ *
+ * // Outside transaction - uses default DB
+ * await userRepo.findById(1);
+ *
+ * // Inside Transactional() middleware - uses transaction automatically
+ * app.use(Transactional());
+ * app.post('/', async (c) => {
+ *   // Same instance, but now uses transaction DB
+ *   await userRepo.save({ email: 'test@example.com' });
+ *   return c.json({ success: true });
+ * });
  * ```
  */
 export function getRepository<

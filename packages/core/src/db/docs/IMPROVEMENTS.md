@@ -296,65 +296,65 @@ export function Transactional(options: TransactionalOptions = {}) {
 
 ---
 
-### 5. Repository Factory의 Transaction 컨텍스트 무시
+### 5. ✅ Repository Factory의 Transaction 컨텍스트 (완료)
 
-**파일**: `repository/factory.ts:122-152`
+**파일**: `repository/factory.ts`
 
-**문제점**:
-```typescript
-// Repository 인스턴스를 캐싱하는데, 트랜잭션 컨텍스트는 Repository 내부에서만 처리
-// 이로 인해 잠재적 혼동 가능
-export function getRepository<TTable extends PgTable>(
-    table: TTable,
-    RepositoryClass?: new (table: TTable) => Repository<TTable>
-): Repository<TTable> {
-    const cacheKey = getCacheKey(table, RepositoryClass);
-    let repo = repositoryCache.get(cacheKey);
+**구현 완료** (2025-10-10):
 
-    if (!repo) {
-        repo = RepositoryClass ? new RepositoryClass(table) : new Repository(table);
-        repositoryCache.set(cacheKey, repo);
-    }
+**문제점 (해결됨)**:
+- Repository 인스턴스가 싱글톤으로 캐싱되는데, 트랜잭션 처리 방식이 문서화되지 않아 혼동 가능
 
-    return repo;
-}
-```
+**해결 방법**:
+- JSDoc에 Transaction Handling 섹션 추가
+- AsyncLocalStorage를 통한 자동 트랜잭션 감지 방식 명확히 설명
+- 실전 예제 추가 (트랜잭션 내/외부에서 동일 인스턴스 사용)
 
-**현재 동작**:
-- Repository 인스턴스는 싱글톤으로 캐싱됨
-- Repository 내부의 `getReadDb()`, `getWriteDb()`에서 매번 `getTransaction()` 호출
-- 트랜잭션 컨텍스트는 정상 작동하지만, 캐싱의 이점이 불명확
-
-**개선안**: 문서화 보강
+**업데이트된 문서**:
 ```typescript
 /**
  * Get or create a Repository singleton instance
  *
- * 🔄 Transaction Handling:
+ * ## 🔄 Transaction Handling
+ *
  * Repository instances are cached globally, but they automatically detect
  * and use transaction context via AsyncLocalStorage in each method call.
  * This means:
- * - Same repository instance can be used both inside and outside transactions
- * - No need to create separate repository instances per transaction
- * - Transaction safety is guaranteed by AsyncLocalStorage context
+ * - **Same repository instance** can be used both inside and outside transactions
+ * - **No need to create separate repository instances** per transaction
+ * - **Transaction safety is guaranteed** by AsyncLocalStorage context
+ *
+ * The Repository internally calls `getTransaction()` on every database operation,
+ * ensuring the correct DB instance (transaction or default) is always used.
  *
  * @example
  * ```typescript
- * // Both inside and outside transaction - same instance
- * const repo = getRepository(users);
+ * // Transaction handling - same instance works everywhere
+ * import { getRepository, Transactional } from '@spfn/core/db';
+ * import { users } from './entities';
+ *
+ * const userRepo = getRepository(users);
  *
  * // Outside transaction - uses default DB
- * await repo.findById(1);
+ * await userRepo.findById(1);
  *
- * // Inside Transactional() middleware - uses transaction
+ * // Inside Transactional() middleware - uses transaction automatically
  * app.use(Transactional());
  * app.post('/', async (c) => {
- *   await repo.save(data); // Uses transaction automatically
+ *   // Same instance, but now uses transaction DB
+ *   await userRepo.save({ email: 'test@example.com' });
+ *   return c.json({ success: true });
  * });
  * ```
  */
 export function getRepository<...>(...) { ... }
 ```
+
+**해결된 문제**:
+- ✅ 트랜잭션 처리 방식 명확히 문서화
+- ✅ AsyncLocalStorage 기반 자동 감지 설명
+- ✅ 싱글톤 캐싱과 트랜잭션 안전성 양립 설명
+- ✅ 실전 예제로 사용 방법 명확화
 
 ---
 
