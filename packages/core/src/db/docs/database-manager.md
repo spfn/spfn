@@ -263,12 +263,82 @@ const allUsers = await readDb.select().from(users);
 
 ## Advanced Configuration
 
-### Custom Connection Pool
+### Connection Pool Configuration
+
+The framework provides flexible connection pool configuration with three priority levels:
+
+**Priority (highest to lowest):**
+1. **ServerConfig** (`server.config.ts`) - Application-level configuration
+2. **Environment Variables** - Runtime configuration
+3. **Defaults** - NODE_ENV-based automatic configuration
+
+#### Method 1: ServerConfig (Recommended)
+
+Configure pool settings in `server.config.ts`:
+
+```typescript
+// src/server/server.config.ts
+import type { ServerConfig } from '@spfn/core';
+
+export default {
+    database: {
+        pool: {
+            max: 50,            // Maximum pool size
+            idleTimeout: 60,    // Idle connection timeout (seconds)
+        },
+    },
+} satisfies ServerConfig;
+```
+
+#### Method 2: Environment Variables
+
+Set pool configuration via environment variables:
+
+```bash
+# .env
+DB_POOL_MAX=30
+DB_POOL_IDLE_TIMEOUT=45
+```
+
+These override defaults but are overridden by ServerConfig.
+
+#### Method 3: Automatic Defaults
+
+If neither ServerConfig nor environment variables are set, defaults are used:
+
+```typescript
+// Production (NODE_ENV=production)
+max: 20
+idleTimeout: 30
+
+// Development (NODE_ENV=development)
+max: 10
+idleTimeout: 20
+```
+
+#### Method 4: Manual Pool Configuration (Advanced)
+
+For full control, pass options directly to `initDatabase()`:
+
+```typescript
+import { initDatabase } from '@spfn/core/db';
+
+await initDatabase({
+    pool: {
+        max: 100,
+        idleTimeout: 120,
+    },
+});
+```
+
+#### Low-Level Configuration (Not Recommended)
+
+For advanced use cases requiring full postgres.js control:
 
 ```typescript
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { initDatabase } from '@spfn/core/db';
+import { setDatabase } from '@spfn/core/db';
 
 const client = postgres(process.env.DATABASE_URL!, {
     max: 20,                    // Maximum pool size
@@ -279,8 +349,10 @@ const client = postgres(process.env.DATABASE_URL!, {
 });
 
 const db = drizzle(client);
-initDatabase(db);
+setDatabase(db);
 ```
+
+**Note:** Using low-level configuration bypasses the framework's pool management. Prefer ServerConfig or environment variables.
 
 ### Connection String Format
 
@@ -442,12 +514,31 @@ beforeEach(async () => {
 
 **Cause:** Too many concurrent queries or connections not being released
 
-**Solution:**
-```typescript
-// Increase pool size
-const client = postgres(process.env.DATABASE_URL!, {
-    max: 50  // Increase from default 10
-});
+**Solutions:**
 
-// OR use transactions properly to release connections faster
+**Option 1: ServerConfig (Recommended)**
+```typescript
+// src/server/server.config.ts
+export default {
+    database: {
+        pool: {
+            max: 50,  // Increase from default
+        },
+    },
+} satisfies ServerConfig;
 ```
+
+**Option 2: Environment Variables**
+```bash
+# .env
+DB_POOL_MAX=50
+```
+
+**Option 3: Direct Configuration**
+```typescript
+await initDatabase({
+    pool: { max: 50 }
+});
+```
+
+**Option 4: Use transactions properly** to release connections faster

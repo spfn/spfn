@@ -103,10 +103,6 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
  */
 export async function startServer(config?: ServerConfig): Promise<void>
 {
-    // Initialize infrastructure (Database and Redis)
-    await initDatabase();
-    await initRedis();
-
     const cwd = process.cwd();
     const configPath = join(cwd, 'src', 'server', 'server.config.ts');
     const configJsPath = join(cwd, 'src', 'server', 'server.config.js');
@@ -127,6 +123,10 @@ export async function startServer(config?: ServerConfig): Promise<void>
         port: config?.port ?? fileConfig?.port ?? 4000,
         host: config?.host ?? fileConfig?.host ?? 'localhost',
     };
+
+    // Initialize infrastructure (Database and Redis) with config
+    await initDatabase(finalConfig.database);
+    await initRedis();
 
     // Create app
     const app = await createServer(finalConfig);

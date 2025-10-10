@@ -7,7 +7,7 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 
-import { createDatabaseFromEnv } from './factory.js';
+import { createDatabaseFromEnv, type DatabaseOptions } from './factory.js';
 import { logger } from '../../logger/index.js';
 
 const dbLogger = logger.child('database');
@@ -80,7 +80,15 @@ export function setDatabase(
  * - DATABASE_URL (single primary)
  * - DATABASE_WRITE_URL + DATABASE_READ_URL (primary + replica)
  * - DATABASE_URL + DATABASE_REPLICA_URL (legacy replica)
+ * - DB_POOL_MAX (connection pool max size)
+ * - DB_POOL_IDLE_TIMEOUT (connection idle timeout in seconds)
  *
+ * Configuration priority:
+ * 1. options parameter (ServerConfig)
+ * 2. Environment variables
+ * 3. Defaults (based on NODE_ENV)
+ *
+ * @param options - Optional database configuration (pool settings, etc.)
  * @returns Object with write and read instances
  *
  * @example
@@ -93,8 +101,16 @@ export function setDatabase(
  *   console.log('Database connected');
  * }
  * ```
+ *
+ * @example
+ * ```typescript
+ * // Custom pool configuration
+ * const { write, read } = await initDatabase({
+ *   pool: { max: 50, idleTimeout: 60 }
+ * });
+ * ```
  */
-export async function initDatabase(): Promise<{
+export async function initDatabase(options?: DatabaseOptions): Promise<{
     write?: PostgresJsDatabase;
     read?: PostgresJsDatabase;
 }>
@@ -107,7 +123,7 @@ export async function initDatabase(): Promise<{
     }
 
     // Auto-detect from environment
-    const result = await createDatabaseFromEnv();
+    const result = await createDatabaseFromEnv(options);
 
     if (result.write)
     {
