@@ -346,7 +346,7 @@ All validation errors throw `ValidationError` (400):
 
 ---
 
-## Global Middleware Management
+## Method-Level Middleware Control
 
 ### Configure Global Middlewares
 
@@ -364,44 +364,85 @@ export default {
 } satisfies ServerConfig;
 ```
 
-### Skip Middlewares Per Route
+### Skip Middlewares Per Method
 
-Use `contract.meta.skipMiddlewares`:
+Use `contract.meta.skipMiddlewares` for **method-level** control:
 
 ```typescript
-// contracts/health.ts
+// contracts/users.ts
 import { Type } from '@sinclair/typebox';
 import type { RouteContract } from '@spfn/core/route';
 
-export const healthContract = {
+// GET - Public (skip auth)
+export const getUserContract = {
     method: 'GET',
-    path: '/',
-    response: Type.Object({
-        status: Type.String()
-    }),
+    path: '/users/:id',
+    params: Type.Object({ id: Type.String() }),
+    response: Type.Object({ user: Type.Object({}) }),
     meta: {
-        skipMiddlewares: ['auth', 'rateLimit']  // Skip both
+        skipMiddlewares: ['auth']  // Skip auth for this method
     }
 } as const satisfies RouteContract;
 
-// Or use public shorthand
-export const publicContract = {
-    method: 'GET',
-    path: '/',
-    response: Type.Object({ data: Type.String() }),
-    meta: {
-        public: true  // Same as skipMiddlewares: ['auth']
-    }
+// PATCH - Protected (auth required)
+export const updateUserContract = {
+    method: 'PATCH',
+    path: '/users/:id',
+    params: Type.Object({ id: Type.String() }),
+    body: Type.Object({ name: Type.String() }),
+    response: Type.Object({ user: Type.Object({}) }),
+    // No skipMiddlewares → auth will run
 } as const satisfies RouteContract;
+```
+
+```typescript
+// routes/users/[id].ts
+import { createApp } from '@spfn/core/route';
+import { getUserContract, updateUserContract } from './contracts';
+
+const app = createApp();
+
+// GET /users/:id - Public (no auth)
+app.bind(getUserContract, async (c) => {
+    return c.json({ user: {} });
+});
+
+// PATCH /users/:id - Protected (auth required)
+app.bind(updateUserContract, async (c) => {
+    const data = await c.data();
+    return c.json({ user: {} });
+});
+
+export default app;
 ```
 
 **How it works:**
 1. Global middlewares registered for all routes
-2. `bind()` stores `contract.meta` in context (bind.ts:44-47)
-3. `conditionalMiddleware` checks skip list at runtime
-4. Skipped middlewares call `next()` immediately
+2. `createApp()` stores contract metadata in `_contractMetas` Map
+3. auto-loader detects contract-based routing and enables method-level filtering
+4. Each middleware checks if it should be skipped for the current method
+5. Skipped middlewares call `next()` immediately
 
-**Performance:** `< 0.1ms` overhead per request (negligible)
+**Key Features:**
+- ✅ **Method-level control**: Same path, different policies per HTTP method
+- ✅ **Contract-based**: Middleware policy is part of the contract definition
+- ✅ **Type-safe**: Full TypeScript support with `RouteContract`
+- ✅ **Zero overhead**: Only minimal runtime checks
+
+**Example Use Cases:**
+```typescript
+// Same path, different access levels
+GET    /posts/:id    → Public (skip auth)
+PATCH  /posts/:id    → Auth required
+DELETE /posts/:id    → Auth required
+
+// Health checks
+GET    /health       → Skip all middlewares
+
+// Mixed policies
+GET    /api/data     → Skip rate limit (public data)
+POST   /api/data     → Auth + rate limit required
+```
 
 ---
 
@@ -723,17 +764,6 @@ type InferContract<TContract extends RouteContract> = {
     body: Static<TContract['body']> | Record<string, never>;
     response: Static<TContract['response']> | unknown;
 };
-```
-
-### `conditionalMiddleware(name, handler)`
-
-Wraps a middleware to support runtime skip control.
-
-```typescript
-function conditionalMiddleware(
-    name: string,
-    handler: MiddlewareHandler
-): MiddlewareHandler
 ```
 
 ---
