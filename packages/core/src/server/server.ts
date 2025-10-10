@@ -3,13 +3,14 @@ import { serve } from '@hono/node-server';
 import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import type { Server } from 'http';
 
-import { loadRoutes } from '../route/index.js';
-import { errorHandler } from '../middleware/index.js';
-import { RequestLogger } from '../middleware/index.js';
-import { initRedis, closeRedis } from '../cache/index.js';
-import { initDatabase, closeDatabase } from '../db/index.js';
-import { logger } from '../logger/index.js';
+import { loadRoutes } from '../route';
+import { errorHandler } from '../middleware';
+import { RequestLogger } from '../middleware';
+import { initRedis, closeRedis } from '../cache';
+import { initDatabase, closeDatabase } from '../db';
+import { logger } from '../logger';
 
 import type { ServerConfig, AppFactory } from './types.js';
 
@@ -139,6 +140,33 @@ export async function startServer(config?: ServerConfig): Promise<void>
         fetch: app.fetch,
         port: port!,
         hostname: host,
+    });
+
+    // Configure server timeouts
+    const timeoutConfig = finalConfig.timeout ?? {};
+
+    const requestTimeout = timeoutConfig.request
+        ?? (parseInt(process.env.SERVER_TIMEOUT || '', 10) || 120000); // 2 minutes default
+
+    const keepAliveTimeout = timeoutConfig.keepAlive
+        ?? (parseInt(process.env.SERVER_KEEPALIVE_TIMEOUT || '', 10) || 65000); // 65 seconds (longer than typical LB timeout)
+
+    const headersTimeout = timeoutConfig.headers
+        ?? (parseInt(process.env.SERVER_HEADERS_TIMEOUT || '', 10) || 60000); // 60 seconds
+
+    // Apply timeouts to Node.js HTTP server
+    // The serve() function returns ServerType (Server | Http2Server | Http2SecureServer)
+    // All these types support timeout properties
+    if ('timeout' in server) {
+        (server as Server).timeout = requestTimeout;
+        (server as Server).keepAliveTimeout = keepAliveTimeout;
+        (server as Server).headersTimeout = headersTimeout;
+    }
+
+    serverLogger.info('Server timeouts configured', {
+        request: `${requestTimeout}ms`,
+        keepAlive: `${keepAliveTimeout}ms`,
+        headers: `${headersTimeout}ms`,
     });
 
     // Clean output similar to Next.js

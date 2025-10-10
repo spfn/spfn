@@ -6,7 +6,8 @@ export default defineConfig({
         globals: true,
         environment: 'node',
         include: ['src/**/*.{test,spec}.{js,ts}'],
-        setupFiles: ['src/db/__tests__/setup.ts'],
+        // DB setup은 DB 모듈 테스트에서만 개별적으로 import
+        // setupFiles: ['src/db/__tests__/setup.ts'],
     },
     resolve: {
         alias: {

@@ -20,6 +20,7 @@ export {
     setDatabase,
     closeDatabase,
     getDatabaseInfo,
+    getDatabaseMonitoringConfig,
 } from './manager.js';
 
 // Connection Functions

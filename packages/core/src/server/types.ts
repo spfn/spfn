@@ -182,6 +182,39 @@ export interface ServerConfig
     };
 
     /**
+     * Server timeout configuration
+     * Controls HTTP server timeout behavior for security and resource management
+     */
+    timeout?: {
+        /**
+         * Request timeout in milliseconds
+         * Time limit for entire request/response cycle
+         * Set to 0 to disable (not recommended in production)
+         * @default 120000 (2 minutes)
+         * @env SERVER_TIMEOUT
+         */
+        request?: number;
+
+        /**
+         * Keep-alive timeout in milliseconds
+         * How long to keep idle HTTP connections open for reuse
+         * Should be slightly longer than load balancer timeout (typically 60s)
+         * @default 65000 (65 seconds)
+         * @env SERVER_KEEPALIVE_TIMEOUT
+         */
+        keepAlive?: number;
+
+        /**
+         * Headers timeout in milliseconds
+         * Time limit for receiving complete HTTP request headers
+         * Protects against Slowloris attacks
+         * @default 60000 (60 seconds)
+         * @env SERVER_HEADERS_TIMEOUT
+         */
+        headers?: number;
+    };
+
+    /**
      * Hook: Run before routes are loaded
      */
     beforeRoutes?: (app: Hono) => void | Promise<void>;

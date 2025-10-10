@@ -4,6 +4,7 @@
  * Test Repository CRUD methods
  */
 
+import './setup.js'; // DB setup (테이블 생성)
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
