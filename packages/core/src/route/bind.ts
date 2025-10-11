@@ -104,9 +104,6 @@ export function bind<TContract extends RouteContract>(
             params: params as InferContract<TContract>['params'],
             query: query as InferContract<TContract>['query'],
 
-            // pageable from middleware (optional)
-            pageable: rawContext.get('pageable') || {},
-
             // data() - validates and returns body
             data: async () =>
             {

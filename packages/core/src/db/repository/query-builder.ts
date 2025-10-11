@@ -19,10 +19,9 @@
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import type { Filters, SortCondition } from '../../query';
+import type { Filters, SortCondition } from './filters.js';
 
-import { buildFilters } from '../../query';
-import { buildSort } from '../../query';
+import { buildFilters, buildSort } from './filters.js';
 
 /**
  * Query Builder class for chainable queries
