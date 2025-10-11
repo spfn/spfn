@@ -4,12 +4,15 @@
  * Types for contract detection and client code generation
  */
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+import type { HttpMethod } from '../route/types.js';
+
+export type { HttpMethod };
 
 /**
- * Route-Contract mapping extracted from route files
+ * Route-Contract mapping extracted from contract files
  */
-export interface RouteContractMapping {
+export interface RouteContractMapping
+{
     /** HTTP method (GET, POST, etc.) */
     method: HttpMethod;
 
@@ -30,44 +33,18 @@ export interface RouteContractMapping {
 }
 
 /**
- * Contract import found in a route file
- */
-export interface ContractImport {
-    /** Imported name (e.g., getUserContract) */
-    name: string;
-
-    /** Import path (e.g., @/contracts/users) */
-    importPath: string;
-
-    /** Is it a default import? */
-    isDefault: boolean;
-}
-
-/**
- * bind() call information
- */
-export interface BindCall {
-    /** HTTP method from app.get(), app.post(), etc. */
-    method: HttpMethod;
-
-    /** Contract variable name used in bind() */
-    contractName: string;
-
-    /** Path argument (if explicitly provided) */
-    path?: string;
-}
-
-/**
  * Grouped routes by resource
  */
-export interface ResourceRoutes {
+export interface ResourceRoutes
+{
     [resource: string]: RouteContractMapping[];
 }
 
 /**
  * Client generation options
  */
-export interface ClientGenerationOptions {
+export interface ClientGenerationOptions
+{
     /** Routes directory to scan */
     routesDir: string;
 
@@ -87,7 +64,8 @@ export interface ClientGenerationOptions {
 /**
  * Generation statistics
  */
-export interface GenerationStats {
+export interface GenerationStats
+{
     /** Total routes scanned */
     routesScanned: number;
 
