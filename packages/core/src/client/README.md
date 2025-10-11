@@ -703,6 +703,41 @@ await client.call('/endpoint', contract, {
 
 ---
 
+## Request Interceptors
+
+Add request interceptors to modify requests before they're sent:
+
+```typescript
+const client = createClient({
+  baseUrl: 'http://localhost:4000'
+});
+
+// Add authentication header
+client.use(async (url, init) => {
+  const token = await getAuthToken();
+  return {
+    ...init,
+    headers: {
+      ...init.headers,
+      Authorization: `Bearer ${token}`
+    }
+  };
+});
+
+// Add request logging
+client.use(async (url, init) => {
+  console.log(`[${init.method}] ${url}`);
+  return init;
+});
+
+// All requests will now include auth and logging
+const user = await client.call('/users/:id', contract, { params: { id: '123' } });
+```
+
+Interceptors are executed in the order they are added.
+
+---
+
 ## Limitations
 
 ### JSON Only
@@ -715,10 +750,6 @@ const formData = new FormData();
 formData.append('file', file);
 await fetch('/api/upload', { method: 'POST', body: formData });
 ```
-
-### No Interceptors
-
-For advanced features like request/response interceptors, consider wrapping the client or using libraries like `axios` or `ky`.
 
 ### No Request Cancellation API
 
