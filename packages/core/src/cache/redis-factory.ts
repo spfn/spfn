@@ -4,6 +4,9 @@
  */
 
 import type { Redis, Cluster, RedisOptions, ClusterOptions } from 'ioredis';
+import { logger } from '../logger/index.js';
+
+const cacheLogger = logger.child('cache');
 
 export interface RedisClients {
     /** Primary Redis for writes (or both read/write if no replica) */
@@ -29,7 +32,10 @@ function hasRedisConfig(): boolean
 /**
  * Create Redis client with TLS support
  */
-function createClient(RedisClient: any, url: string): Redis
+function createClient(
+    RedisClient: new (url: string, options?: RedisOptions) => Redis,
+    url: string
+): Redis
 {
     const options: RedisOptions = {};
 
@@ -159,9 +165,11 @@ export async function createRedisFromEnv(): Promise<RedisClients>
     }
     catch (error)
     {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        console.warn('⚠️  Failed to create Redis client:', message);
-        console.warn('⚠️  Using memory-only cache. Install ioredis: npm install ioredis');
+        cacheLogger.warn(
+            'Failed to create Redis client',
+            error instanceof Error ? error : undefined,
+            { suggestion: 'Using memory-only cache. Install ioredis: npm install ioredis' }
+        );
         return { write: undefined, read: undefined };
     }
 }

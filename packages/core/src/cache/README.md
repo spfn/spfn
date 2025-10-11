@@ -347,6 +347,32 @@ pnpm install @spfn/core ioredis
 
 ## Troubleshooting
 
+### Logging
+
+All cache operations use structured logging via `@spfn/core/logger`:
+
+```typescript
+// Info level - successful connections
+[cache] Redis connected
+[cache] Redis connected (Master-Replica)
+[cache] Redis connections closed
+
+// Warn level - degraded functionality
+[cache] Failed to create Redis client: <error>
+        suggestion: Using memory-only cache. Install ioredis: npm install ioredis
+
+// Error level - connection failures
+[cache] Redis connection failed: <error details>
+[cache] Error closing Redis write instance: <error>
+```
+
+Configure log levels via environment variables:
+```bash
+LOG_LEVEL=debug  # Show all cache operations
+LOG_LEVEL=info   # Default - shows connections
+LOG_LEVEL=warn   # Only warnings and errors
+```
+
 ### ⚠️ Warning: "Using memory-only cache"
 
 **Cause:** No Redis configuration found or ioredis not installed.

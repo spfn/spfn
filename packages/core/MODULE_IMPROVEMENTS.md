@@ -96,6 +96,32 @@
   - 순환 로깅 방지 (process.stderr 직접 사용)
   - 완전한 테스트 커버리지 (118 tests)
 
+### 8. **cache** 모듈
+- 상태: 완료 ✅
+- 일자: 2025-10-11
+- 개선사항: 3개 항목 (완료)
+  1. Logger 통합 - console.* → structured logging ✅
+     - redis-manager.ts: 5개 console 호출 → logger 변환
+     - redis-factory.ts: 2개 console.warn → logger.warn 변환
+     - child logger 패턴 적용: `logger.child('cache')`
+  2. 타입 안정성 개선 - any 타입 제거 ✅
+     - createClient 함수: `any` → constructor signature type
+     - 타입: `new (url: string, options?: RedisOptions) => Redis`
+  3. README 문서화 - 구조화된 로깅 가이드 추가 ✅
+     - Troubleshooting 섹션에 Logging 하위 섹션 추가
+     - 로그 레벨별 출력 예시 (info, warn, error)
+     - LOG_LEVEL 환경 변수 설정 방법
+- 커밋:
+  - (Pending): feat(cache): integrate logger and improve type safety
+- 주요 변경사항:
+  - 일관된 로깅: 모든 캐시 작업이 구조화된 logger 사용
+  - 타입 안전성: any 타입 제거, 명시적 constructor type
+  - 기존 강점 유지: 높은 테스트 커버리지 (70 tests), 완전한 문서화
+- 참고:
+  - 코드 스타일은 이미 Allman brace 통일되어 있음
+  - 테스트 커버리지 우수 (1,243 lines, 70 tests)
+  - 단위 테스트 전체 통과 (50/50), 통합 테스트는 Redis 서버 필요
+
 ---
 
 ## 🔄 진행 중인 모듈
@@ -106,7 +132,6 @@ _(없음)_
 
 ## 📋 대기 중인 모듈
 
-- **cache** - Redis 캐시 시스템
 - **codegen** - 코드 생성기
 - **client** - 클라이언트 라이브러리
 
