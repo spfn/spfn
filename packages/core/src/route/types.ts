@@ -152,9 +152,9 @@ export type RouteContext<TContract extends RouteContract = any> = {
 };
 
 /**
- * HTTP method type
+ * HTTP method type (common REST API methods)
  */
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /**
  * Next.js App Router Style Route Handler
@@ -170,6 +170,6 @@ export function isHttpMethod(value: unknown): value is HttpMethod
 {
     return (
         typeof value === 'string' &&
-        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(value)
+        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(value)
     );
 }

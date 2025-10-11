@@ -55,6 +55,9 @@ export {
     generateDrizzleConfigFile,
     WrappedDb,
     Repository,
+    getRepository,
+    clearRepositoryCache,
+    getRepositoryCacheSize,
     fromPostgresError,
 } from './db/index.js';
 export type {
