@@ -19,7 +19,10 @@
  * - src/logger/index.ts (Adapter 선택)
  */
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+import type { LogLevel } from '../types.js';
+
+// Re-export LogLevel for convenience
+export type { LogLevel };
 
 /**
  * Logger Adapter 인터페이스

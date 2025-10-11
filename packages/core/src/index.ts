@@ -55,6 +55,7 @@ export {
     generateDrizzleConfigFile,
     WrappedDb,
     Repository,
+    fromPostgresError,
 } from './db/index.js';
 export type {
     DbConnectionType,
@@ -112,5 +113,4 @@ export {
     DeadlockError,
     DuplicateEntryError,
     isDatabaseError,
-    fromPostgresError,
 } from './errors/index.js';

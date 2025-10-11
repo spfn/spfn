@@ -38,6 +38,12 @@ export class ConsoleTransport implements Transport
 
     async log(metadata: LogMetadata): Promise<void>
     {
+        // Enabled 상태 체크
+        if (!this.enabled)
+        {
+            return;
+        }
+
         // 로그 레벨 체크
         if (LOG_LEVEL_PRIORITY[metadata.level] < LOG_LEVEL_PRIORITY[this.level])
         {
