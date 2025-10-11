@@ -18,14 +18,14 @@ export {
     createDatabaseConnection,
     checkConnection,
     WrappedDb,
-} from './manager/index.js';
+} from './manager';
 
 export type {
     DbConnectionType,
     DatabaseClients,
     PoolConfig,
     RetryConfig,
-} from './manager/index.js';
+} from './manager';
 
 // Drizzle Config Generator
 export { getDrizzleConfig, detectDialect, generateDrizzleConfigFile } from './manager/config-generator.js';
@@ -44,19 +44,19 @@ export {
     isInRepositoryScope,
     QueryBuilder,
     getTableName,
-} from './repository/index.js';
+} from './repository';
 
 export type {
     Pageable,
     Page,
-} from './repository/index.js';
+} from './repository';
 
 // Schema Helpers
-export { id, timestamps, foreignKey, optionalForeignKey } from './schema/index.js';
+export { id, timestamps, foreignKey, optionalForeignKey } from './schema';
 
 // Transaction
-export { Transactional, getTransaction, runWithTransaction } from './transaction/index.js';
-export type { TransactionContext, TransactionDB, TransactionalOptions } from './transaction/index.js';
+export { Transactional, getTransaction, runWithTransaction } from './transaction';
+export type { TransactionContext, TransactionDB, TransactionalOptions } from './transaction';
 
 // PostgreSQL Error Utilities
 export { fromPostgresError } from './postgres-errors.js';

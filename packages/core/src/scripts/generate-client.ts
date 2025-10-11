@@ -9,8 +9,8 @@
  */
 
 import { resolve } from 'path';
-import { scanContracts, generateClient } from '../codegen/index.js';
-import type { ClientGenerationOptions } from '../codegen/index.js';
+import { scanContracts, generateClient } from '../codegen';
+import type { ClientGenerationOptions } from '../codegen';
 import chalk from 'chalk';
 import { watch } from 'chokidar';
 

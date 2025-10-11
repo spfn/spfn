@@ -64,7 +64,8 @@ import { watchAndGenerate } from '@spfn/core/codegen';
 
 await watchAndGenerate({
     routesDir: ${options.routes ? `'${options.routes}'` : 'undefined'},
-    debug: true
+    debug: true,
+    watch: ${options.watch !== false}
 });
 `);
 
@@ -80,7 +81,8 @@ await watchAndGenerate({
             {
                 const tsxCmd = watchMode ? 'tsx --watch' : 'tsx';
                 const serverCmd = pm === 'npm' ? `npx ${tsxCmd} ${serverEntry}` : `${pm} exec ${tsxCmd} ${serverEntry}`;
-                const watcherCmd = pm === 'npm' ? `npx ${tsxCmd} ${watcherEntry}` : `${pm} exec ${tsxCmd} ${watcherEntry}`;
+                // Watcher handles its own watch mode internally
+                const watcherCmd = pm === 'npm' ? `npx tsx ${watcherEntry}` : `${pm} exec tsx ${watcherEntry}`;
 
                 await execa(pm === 'npm' ? 'npx' : pm,
                     pm === 'npm'
@@ -113,7 +115,8 @@ await watchAndGenerate({
         const nextCmd = pm === 'npm' ? 'npm run spfn:next' : `${pm} run spfn:next`;
         const tsxCmd = watchMode ? 'tsx --watch' : 'tsx';
         const serverCmd = pm === 'npm' ? `npx ${tsxCmd} ${serverEntry}` : `${pm} exec ${tsxCmd} ${serverEntry}`;
-        const watcherCmd = pm === 'npm' ? `npx ${tsxCmd} ${watcherEntry}` : `${pm} exec ${tsxCmd} ${watcherEntry}`;
+        // Watcher handles its own watch mode internally
+        const watcherCmd = pm === 'npm' ? `npx tsx ${watcherEntry}` : `${pm} exec tsx ${watcherEntry}`;
 
         logger.info(`Starting SPFN server + Next.js (Turbopack)${watchMode ? ' (watch mode)' : ''}...\n`);
 

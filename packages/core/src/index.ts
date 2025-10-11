@@ -22,7 +22,7 @@
  */
 
 // Server (High-level API)
-export { createServer, startServer } from './server/index.js';
+export { createServer, startServer } from './server';
 export type { ServerConfig, AppFactory } from './server/types.js';
 
 // Route System
@@ -64,25 +64,25 @@ export {
     getScopedCacheSize,
     isInRepositoryScope,
     fromPostgresError,
-} from './db/index.js';
+} from './db';
 export type {
     DbConnectionType,
     DrizzleConfigOptions,
     Pageable,
     Page,
-} from './db/index.js';
+} from './db';
 
 // Cache (Redis)
-export { getRedis, getRedisRead, setRedis, initRedis, closeRedis, getRedisInfo, createRedisFromEnv, createSingleRedisFromEnv } from './cache/index.js';
-export type { RedisClients } from './cache/index.js';
+export { getRedis, getRedisRead, setRedis, initRedis, closeRedis, getRedisInfo, createRedisFromEnv, createSingleRedisFromEnv } from './cache';
+export type { RedisClients } from './cache';
 
 // Transaction
-export { Transactional, getTransaction, runWithTransaction } from './db/transaction/index.js';
-export type { TransactionContext, TransactionalOptions } from './db/transaction/index.js';
+export { Transactional, getTransaction, runWithTransaction } from './db/transaction';
+export type { TransactionContext, TransactionalOptions } from './db/transaction';
 
 // Logger
-export { logger } from './logger/index.js';
-export type { LogLevel, LoggerAdapter } from './logger/index.js';
+export { logger } from './logger';
+export type { LogLevel, LoggerAdapter } from './logger';
 
 // Middleware
 export { RequestLogger, maskSensitiveData } from './middleware/request-logger.js';
@@ -91,7 +91,7 @@ export { ErrorHandler } from './middleware/error-handler.js';
 export type { ErrorHandlerOptions } from './middleware/error-handler.js';
 
 // Filter Utilities (moved from deprecated query module to db/repository)
-export { buildFilters, buildSort, orFilters, applyPagination, createPaginationMeta, countTotal } from './db/repository/index.js';
+export { buildFilters, buildSort, orFilters, applyPagination, createPaginationMeta, countTotal } from './db/repository';
 export type {
     FilterOperator,
     FilterValue,
@@ -104,7 +104,7 @@ export type {
     PaginationParams,
     PaginationMeta,
     DrizzleTable,
-} from './db/repository/index.js';
+} from './db/repository';
 
 // Custom Errors
 export {
@@ -117,4 +117,4 @@ export {
     DeadlockError,
     DuplicateEntryError,
     isDatabaseError,
-} from './errors/index.js';
+} from './errors';

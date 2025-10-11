@@ -92,7 +92,7 @@ export class FileTransport implements Transport
         {
             return new Promise((resolve, reject) =>
             {
-                this.currentStream!.write(message + '\n', 'utf-8', (error) =>
+                this.currentStream!.write(message + '\n', 'utf-8', (error?: Error) =>
                 {
                     if (error)
                     {
@@ -152,7 +152,7 @@ export class FileTransport implements Transport
 
         return new Promise((resolve, reject) =>
         {
-            this.currentStream!.end((error) =>
+            this.currentStream!.end((error?: Error) =>
             {
                 if (error)
                 {
