@@ -7,7 +7,10 @@
 import { join } from 'path';
 import { scanContracts } from './contract-scanner.js';
 import { generateClient } from './client-generator.js';
+import { logger } from '../logger/index.js';
 import type { GenerationStats } from './types.js';
+
+const codegenLogger = logger.child('codegen');
 
 export interface WatchGenerateOptions {
     /** Routes directory (default: src/server/routes) */
@@ -34,19 +37,20 @@ export async function watchAndGenerate(options: WatchGenerateOptions = {}): Prom
     const outputPath = options.outputPath ?? join(cwd, 'src', 'lib', 'api', 'client.ts');
     const debug = options.debug ?? false;
 
-    if (debug) {
-        console.log('📦 Contract Watcher Started');
-        console.log(`   Watching: ${routesDir}`);
-        console.log(`   Output: ${outputPath}\n`);
+    if (debug)
+    {
+        codegenLogger.info('Contract Watcher Started', { routesDir, outputPath });
     }
 
     try {
         // Scan contracts
         const contracts = await scanContracts(routesDir);
 
-        if (contracts.length === 0) {
-            if (debug) {
-                console.warn('⚠️  No contracts found\n');
+        if (contracts.length === 0)
+        {
+            if (debug)
+            {
+                codegenLogger.warn('No contracts found');
             }
             return;
         }
@@ -61,14 +65,21 @@ export async function watchAndGenerate(options: WatchGenerateOptions = {}): Prom
         });
 
         // Log stats
-        if (debug) {
-            console.log('✅ Client generated');
-            console.log(`   Endpoints: ${stats.methodsGenerated}`);
-            console.log(`   Resources: ${stats.resourcesGenerated}`);
-            console.log(`   Duration: ${stats.duration}ms\n`);
+        if (debug)
+        {
+            codegenLogger.info('Client generated', {
+                endpoints: stats.methodsGenerated,
+                resources: stats.resourcesGenerated,
+                duration: stats.duration
+            });
         }
-    } catch (error) {
-        console.error('❌ Generation failed:', error);
+    }
+    catch (error)
+    {
+        codegenLogger.error(
+            'Generation failed',
+            error instanceof Error ? error : new Error(String(error))
+        );
         throw error;
     }
 }
