@@ -92,6 +92,7 @@ export class ApiClientError extends Error
     constructor(
         message: string,
         public readonly status: number,
+        public readonly statusText: string,
         public readonly url: string,
         public readonly response?: unknown
     )
@@ -319,8 +320,9 @@ export class ContractClient
         {
             const errorBody = await response.json().catch(() => null);
             throw new ApiClientError(
-                `${method} ${urlPath} failed: ${response.status}`,
+                `${method} ${urlPath} failed: ${response.status} ${response.statusText}`,
                 response.status,
+                response.statusText,
                 url,
                 errorBody
             );
