@@ -65,7 +65,7 @@ export class CustomAdapter implements LoggerAdapter
 
     child(module: string): LoggerAdapter
     {
-        const adapter = new CustomAdapter({ level: this.logger['config'].level, module });
+        const adapter = new CustomAdapter({ level: this.logger.level, module });
         adapter.logger = this.logger.child(module);
         return adapter;
     }
