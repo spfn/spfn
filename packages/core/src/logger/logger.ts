@@ -38,6 +38,14 @@ export class Logger
     }
 
     /**
+     * Get current log level
+     */
+    get level(): LogLevel
+    {
+        return this.config.level;
+    }
+
+    /**
      * Create child logger (per module)
      */
     child(module: string): Logger
@@ -145,7 +153,9 @@ export class Logger
         // Async processing to prevent Transport errors from blocking logs
         Promise.all(promises).catch(error =>
         {
-            console.error('Transport error:', error);
+            // Use stderr directly to avoid circular logging
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            process.stderr.write(`[Logger] Transport error: ${errorMessage}\n`);
         });
     }
 
@@ -160,7 +170,9 @@ export class Logger
         }
         catch (error)
         {
-            console.error(`Transport "${transport.name}" failed:`, error);
+            // Use stderr directly to avoid circular logging
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            process.stderr.write(`[Logger] Transport "${transport.name}" failed: ${errorMessage}\n`);
         }
     }
 
