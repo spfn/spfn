@@ -60,10 +60,10 @@ interface ErrorResponse
  * @example
  * ```typescript
  * const app = new Hono();
- * app.onError(errorHandler());
+ * app.onError(ErrorHandler());
  * ```
  */
-export function errorHandler(options: ErrorHandlerOptions = {}): (err: Error, c: Context) => Response | Promise<Response>
+export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c: Context) => Response | Promise<Response>
 {
     const {
         includeStack = process.env.NODE_ENV !== 'production',

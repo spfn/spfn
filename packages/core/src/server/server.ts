@@ -6,7 +6,7 @@ import { join } from 'path';
 import type { Server } from 'http';
 
 import { loadRoutes } from '../route';
-import { errorHandler } from '../middleware';
+import { ErrorHandler } from '../middleware';
 import { RequestLogger } from '../middleware';
 import { initRedis, closeRedis } from '../cache';
 import { initDatabase, closeDatabase } from '../db';
@@ -154,7 +154,7 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
     // 6. Error handler (last)
     if (enableErrorHandler)
     {
-        app.onError(errorHandler());
+        app.onError(ErrorHandler());
     }
 
     return app;

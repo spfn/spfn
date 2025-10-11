@@ -123,6 +123,12 @@ export class Repository<
      */
     private detectAutoUpdateField(): string | undefined
     {
+        // Guard against undefined/null table
+        if (!this.table || typeof this.table !== 'object')
+        {
+            return undefined;
+        }
+
         const tableColumns = this.table as Record<string, any>;
 
         for (const [fieldName, column] of Object.entries(tableColumns))
