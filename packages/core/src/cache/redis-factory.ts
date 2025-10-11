@@ -165,11 +165,21 @@ export async function createRedisFromEnv(): Promise<RedisClients>
     }
     catch (error)
     {
-        cacheLogger.warn(
-            'Failed to create Redis client',
-            error instanceof Error ? error : undefined,
-            { suggestion: 'Using memory-only cache. Install ioredis: npm install ioredis' }
-        );
+        if (error instanceof Error)
+        {
+            cacheLogger.warn(
+                'Failed to create Redis client',
+                error,
+                { suggestion: 'Using memory-only cache. Install ioredis: npm install ioredis' }
+            );
+        }
+        else
+        {
+            cacheLogger.warn(
+                'Failed to create Redis client',
+                { error: String(error), suggestion: 'Using memory-only cache. Install ioredis: npm install ioredis' }
+            );
+        }
         return { write: undefined, read: undefined };
     }
 }

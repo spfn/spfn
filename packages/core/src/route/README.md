@@ -731,7 +731,7 @@ type RouteMeta = {
 ### `HttpMethod`
 
 ```typescript
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 ```
 
 ### `RouteContext<TContract>`

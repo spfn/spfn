@@ -130,12 +130,6 @@ export function createApp(): SPFNApp
             case 'delete':
                 hono.delete(path, ...handlers);
                 break;
-            case 'head':
-                hono.head(path, ...handlers);
-                break;
-            case 'options':
-                hono.options(path, ...handlers);
-                break;
             default:
                 throw new Error(`Unsupported HTTP method: ${contract.method}`);
         }
