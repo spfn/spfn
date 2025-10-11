@@ -16,6 +16,15 @@ export {
     getRepositoryCacheSize
 } from './factory.js';
 
+// Request-Scoped Repository (Recommended for testability)
+export {
+    getScopedRepository,
+    withRepositoryScope,
+    RepositoryScope,
+    getScopedCacheSize,
+    isInRepositoryScope
+} from './request-scope.js';
+
 // Query Builder
 export { QueryBuilder } from './query-builder.js';
 

@@ -195,54 +195,6 @@ export const initCommand = new Command('init')
             process.exit(1);
         }
 
-        // 4.5. Copy .guide directory (API development guides + module READMEs for Claude Code)
-        try
-        {
-            const templatesDir = findTemplatesPath();
-            const guideTemplateDir = join(templatesDir, '.guide');
-            const guideTargetDir = join(cwd, '.guide');
-
-            ensureDirSync(guideTargetDir);
-
-            // Copy API routes guide from templates
-            if (existsSync(guideTemplateDir))
-            {
-                copySync(guideTemplateDir, guideTargetDir);
-            }
-
-            // Copy module READMEs from packages (for framework documentation)
-            // Try monorepo path first, then npm package path
-            const monorepoPackagesDir = join(__dirname, '..', '..', '..', 'packages');  // monorepo: ../../../packages (from dist/)
-            const npmPackagesDir = join(__dirname, '..', '..', 'packages');              // npm: ../../packages (in node_modules/@spfn/cli)
-            const packagesDir = existsSync(monorepoPackagesDir) ? monorepoPackagesDir : npmPackagesDir;
-
-            if (existsSync(packagesDir))
-            {
-                const moduleMapping = {
-                    'core': 'spfn-core.md',
-                    'auth': 'spfn-auth.md',
-                    'cli': 'spfn-cli.md',
-                };
-
-                for (const [moduleName, guideName] of Object.entries(moduleMapping))
-                {
-                    const readmePath = join(packagesDir, moduleName, 'README.md');
-                    if (existsSync(readmePath))
-                    {
-                        const targetPath = join(guideTargetDir, guideName);
-                        copySync(readmePath, targetPath);
-                    }
-                }
-            }
-
-            logger.success('Created .guide/ directory with framework documentation (Claude Code will reference this)');
-        }
-        catch (error)
-        {
-            // .guide is optional, don't fail if it doesn't exist
-            logger.warn('Could not copy .guide directory (optional)');
-        }
-
         // 5. Update package.json scripts
         spinner.start('Updating package.json scripts...');
 

@@ -167,6 +167,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@spfn/core':
+        specifier: workspace:*
+        version: link:../core
       chalk:
         specifier: ^5.3.0
         version: 5.6.2

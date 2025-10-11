@@ -45,6 +45,7 @@
     }
   },
   "dependencies": {
+    "@spfn/core": "workspace:*",
     "chalk": "^5.3.0",
     "commander": "^11.1.0",
     "concurrently": "^9.0.0",

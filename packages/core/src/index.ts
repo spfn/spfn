@@ -58,6 +58,11 @@ export {
     getRepository,
     clearRepositoryCache,
     getRepositoryCacheSize,
+    getScopedRepository,
+    withRepositoryScope,
+    RepositoryScope,
+    getScopedCacheSize,
+    isInRepositoryScope,
     fromPostgresError,
 } from './db/index.js';
 export type {
@@ -80,9 +85,9 @@ export { logger } from './logger/index.js';
 export type { LogLevel, LoggerAdapter } from './logger/index.js';
 
 // Middleware
-export { RequestLogger } from './middleware/request-logger.js';
+export { RequestLogger, maskSensitiveData } from './middleware/request-logger.js';
 export type { RequestLoggerConfig } from './middleware/request-logger.js';
-export { errorHandler } from './middleware/error-handler.js';
+export { ErrorHandler } from './middleware/error-handler.js';
 export type { ErrorHandlerOptions } from './middleware/error-handler.js';
 
 // Filter Utilities (moved from deprecated query module to db/repository)

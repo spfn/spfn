@@ -17,8 +17,21 @@ export default defineConfig({
     sourcemap: true,
     clean: true,
     splitting: false,
-    treeshake: true,
-    external: ['drizzle-orm', 'hono', '@hono/node-server', 'postgres', 'pino', 'chalk', 'chokidar', 'dotenv'],
+    treeshake: {
+        preset: 'smallest',
+        propertyReadSideEffects: false,
+    },
+    external: [
+        'drizzle-orm',
+        'hono',
+        '@hono/node-server',
+        'postgres',
+        'pino',
+        'chalk',
+        'chokidar',
+        'dotenv',
+        '@sinclair/typebox',
+    ],
     onSuccess: async () => {
         // Copy templates to dist
         cpSync(

@@ -171,6 +171,7 @@ export class PostRepository extends Repository<typeof posts>
 ```typescript
 // src/server/services/posts.ts
 import { getRepository } from '@spfn/core/db';
+import { ValidationError, DatabaseError, NotFoundError } from '@spfn/core';
 import { posts } from '../entities';
 import { PostRepository } from '../repositories/posts.repository';
 import type { NewPost, Post } from '../entities';
@@ -182,32 +183,66 @@ export async function createPost(data: {
   title: string;
   content: string;
 }): Promise<Post> {
-  // Get repository singleton
-  const repo = getRepository(posts, PostRepository);
+  try {
+    // Get repository singleton
+    const repo = getRepository(posts, PostRepository);
 
-  // Business logic: Generate slug from title
-  const slug = generateSlug(data.title);
+    // Business logic: Generate slug from title
+    const slug = generateSlug(data.title);
 
-  // Validation: Check if slug already exists
-  const existing = await repo.findBySlug(slug);
-  if (existing) {
-    throw new Error('Post with this title already exists');
+    // Validation: Check if slug already exists
+    const existing = await repo.findBySlug(slug);
+    if (existing) {
+      throw new ValidationError('Post with this title already exists', {
+        fields: [{
+          path: '/title',
+          message: 'A post with this title already exists',
+          value: data.title
+        }]
+      });
+    }
+
+    // Create post
+    return await repo.save({
+      ...data,
+      slug,
+      status: 'draft',
+    });
+  } catch (error) {
+    // Re-throw ValidationError as-is
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+
+    // Wrap unexpected errors
+    throw new DatabaseError('Failed to create post', 500, {
+      originalError: error instanceof Error ? error.message : String(error)
+    });
   }
-
-  // Create post
-  return repo.save({
-    ...data,
-    slug,
-    status: 'draft',
-  });
 }
 
 /**
  * Publish a post
  */
-export async function publishPost(id: string): Promise<Post | null> {
-  const repo = getRepository(posts, PostRepository);
-  return repo.update(id, { status: 'published' });
+export async function publishPost(id: string): Promise<Post> {
+  try {
+    const repo = getRepository(posts, PostRepository);
+    const post = await repo.update(id, { status: 'published' });
+
+    if (!post) {
+      throw new NotFoundError('Post not found');
+    }
+
+    return post;
+  } catch (error) {
+    if (error instanceof NotFoundError) {
+      throw error;
+    }
+
+    throw new DatabaseError('Failed to publish post', 500, {
+      originalError: error instanceof Error ? error.message : String(error)
+    });
+  }
 }
 
 /**
@@ -366,6 +401,52 @@ Drizzle ORM integration with repository pattern and pagination.
 - [Repository Pattern](./src/db/docs/repository.md)
 - [Schema Helpers](./src/db/docs/schema-helpers.md)
 - [Database Manager](./src/db/docs/database-manager.md)
+
+#### Choosing a Repository Pattern
+
+SPFN offers two repository patterns. Choose based on your needs:
+
+**Global Singleton (`getRepository`)**
+```typescript
+import { getRepository } from '@spfn/core/db';
+
+const repo = getRepository(users);
+```
+
+- ✅ Simple API, minimal setup
+- ✅ Maximum memory efficiency
+- ⚠️ Requires manual `clearRepositoryCache()` in tests
+- ⚠️ Global state across all requests
+- 📝 **Use for:** Simple projects, prototypes, single-instance services
+
+**Request-Scoped (`getScopedRepository` + `RepositoryScope()`)** ⭐ Recommended
+```typescript
+import { getScopedRepository, RepositoryScope } from '@spfn/core/db';
+
+// Add middleware once (in server setup)
+app.use(RepositoryScope());
+
+// Use in routes/services
+const repo = getScopedRepository(users);
+```
+
+- ✅ Automatic per-request isolation
+- ✅ No manual cache clearing needed
+- ✅ Test-friendly (each test gets fresh instances)
+- ✅ Production-ready with graceful degradation
+- 📝 **Use for:** Production apps, complex testing, team projects
+
+**Comparison:**
+
+| Feature | `getRepository` | `getScopedRepository` |
+|---------|----------------|----------------------|
+| Setup | Zero config | Add middleware |
+| Test isolation | Manual | Automatic |
+| Memory | Shared cache | Per-request cache |
+| State | Global | Request-scoped |
+| Best for | Prototypes | Production |
+
+[→ See full request-scoped documentation](./src/db/repository/request-scope.ts)
 
 ### 🔄 Transactions
 Automatic transaction management with async context propagation.

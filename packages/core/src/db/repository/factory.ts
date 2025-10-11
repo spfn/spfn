@@ -61,7 +61,7 @@ function getCacheKey<TTable extends PgTable>(
 }
 
 /**
- * Get or create a Repository singleton instance
+ * Get or create a Repository singleton instance (Global Singleton Pattern)
  *
  * This function ensures that only one instance of each Repository is created,
  * preventing memory waste and ensuring consistency across the application.
@@ -70,6 +70,29 @@ function getCacheKey<TTable extends PgTable>(
  * ✅ Returns the same instance on subsequent calls
  * ✅ Type-safe with full IDE autocomplete
  * ✅ Automatically detects transaction context (via Repository internals)
+ *
+ * ## ⚠️ Note: Global Singleton Pattern
+ *
+ * This uses a **global singleton cache** that persists throughout application lifecycle.
+ *
+ * **Tradeoffs:**
+ * - ✅ Simple API, no middleware required
+ * - ✅ Maximum memory efficiency
+ * - ⚠️ Requires manual `clearRepositoryCache()` in tests
+ * - ⚠️ Global state (harder to isolate in testing)
+ *
+ * **For better test isolation**, consider using **request-scoped repositories**:
+ * ```typescript
+ * import { getScopedRepository, RepositoryScope } from '@spfn/core/db';
+ *
+ * // Add middleware (once)
+ * app.use(RepositoryScope());
+ *
+ * // Use getScopedRepository() instead - automatic per-request caching
+ * const repo = getScopedRepository(users);
+ * ```
+ *
+ * See: `request-scope.ts` for request-scoped alternative
  *
  * ## 🔄 Transaction Handling
  *

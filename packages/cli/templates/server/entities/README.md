@@ -2,7 +2,7 @@
 
 Define your Drizzle ORM entities here. These are your database table schemas.
 
-See `users.ts` for an example entity.
+Use `spfn generate <entity-name>` to scaffold a new entity with CRUD routes.
 
 ## Entity Helper Functions
 

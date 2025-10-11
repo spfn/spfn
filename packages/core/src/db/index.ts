@@ -37,6 +37,11 @@ export {
     getRepository,
     clearRepositoryCache,
     getRepositoryCacheSize,
+    getScopedRepository,
+    withRepositoryScope,
+    RepositoryScope,
+    getScopedCacheSize,
+    isInRepositoryScope,
     QueryBuilder,
     getTableName,
 } from './repository/index.js';

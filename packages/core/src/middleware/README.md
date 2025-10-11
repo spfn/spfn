@@ -19,12 +19,12 @@ HTTP middleware collection for API request/response handling and error managemen
 
 ```typescript
 import { Hono } from 'hono';
-import { errorHandler } from '@spfn/core';
+import { ErrorHandler } from '@spfn/core';
 
 const app = new Hono();
 
 // Apply error handler
-app.onError(errorHandler());
+app.onError(ErrorHandler());
 ```
 
 ### Request Logger
@@ -58,15 +58,15 @@ Converts custom errors to appropriate HTTP responses with automatic logging.
 ### Basic Usage
 
 ```typescript
-import { errorHandler } from '@spfn/core';
+import { ErrorHandler } from '@spfn/core';
 
-app.onError(errorHandler());
+app.onError(ErrorHandler());
 ```
 
 ### Configuration Options
 
 ```typescript
-app.onError(errorHandler({
+app.onError(ErrorHandler({
   includeStack: true,        // Include stack trace (default: dev only)
   enableLogging: true        // Enable error logging (default: true)
 }));
@@ -306,7 +306,7 @@ const masked = maskSensitiveData(data, ['password', 'apiKey']);
 
 ```typescript
 import { Hono } from 'hono';
-import { errorHandler, RequestLogger } from '@spfn/core';
+import { ErrorHandler, RequestLogger } from '@spfn/core';
 import { NotFoundError } from '@spfn/core';
 
 const app = new Hono();
@@ -317,7 +317,7 @@ app.use('/*', RequestLogger({
   slowRequestThreshold: 500
 }));
 
-app.onError(errorHandler({
+app.onError(ErrorHandler({
   includeStack: process.env.NODE_ENV !== 'production'
 }));
 
@@ -403,7 +403,7 @@ Every request logs its duration:
 // ✅ Correct order
 app.use('/*', RequestLogger());           // 1. Log first
 app.use('/*', otherMiddleware());         // 2. Other middleware
-app.onError(errorHandler());              // 3. Error handler last
+app.onError(ErrorHandler());              // 3. Error handler last
 ```
 
 ### 2. Exclude Health Check Endpoints
@@ -443,7 +443,7 @@ app.use('/*', RequestLogger({
 
 ```typescript
 // ✅ Environment-aware configuration
-app.onError(errorHandler({
+app.onError(ErrorHandler({
   includeStack: process.env.NODE_ENV !== 'production'
 }));
 ```
@@ -458,7 +458,7 @@ No environment variables required. Configuration is code-based.
 
 ## API Reference
 
-### `errorHandler(options?)`
+### `ErrorHandler(options?)`
 
 **Options:**
 - `includeStack?: boolean` - Include stack trace (default: dev only)
@@ -489,8 +489,48 @@ No environment variables required. Configuration is code-based.
 
 ---
 
+## Transaction Middleware
+
+**Note:** Transaction middleware is part of the database module but is included here for completeness.
+
+### `Transactional(options?)`
+
+Wraps route handlers in a database transaction with automatic commit/rollback.
+
+```typescript
+import { Transactional } from '@spfn/core';
+
+app.bind(createUserContract, Transactional(), async (c) => {
+  const data = await c.data();
+  const user = await createUser(data);
+  // ✅ Auto-commit on success
+  // ❌ Auto-rollback on error
+  return c.json(user, 201);
+});
+```
+
+**Features:**
+- Auto-commit when handler completes successfully
+- Auto-rollback on any error
+- AsyncLocalStorage-based context propagation
+- Automatic transaction logging
+- Nested transaction support
+
+**Options:**
+```typescript
+interface TransactionalOptions {
+  logSuccess?: boolean;  // Log successful commits (default: false)
+  logErrors?: boolean;   // Log rollbacks (default: true)
+}
+```
+
+**[→ Read Transaction Documentation](../db/docs/transactions.md)**
+
+---
+
 ## Related
 
 - [Error Module](../errors/README.md) - Custom error classes
 - [Logger Module](../logger/README.md) - Logging infrastructure
+- [Transaction Module](../db/docs/transactions.md) - Transaction management
 - [@spfn/core](../../README.md) - Main package documentation
