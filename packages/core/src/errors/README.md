@@ -19,19 +19,30 @@ Type-safe custom error classes with HTTP status codes and metadata for API respo
 ### Basic Usage
 
 ```typescript
-import { NotFoundError, ValidationError, DuplicateEntryError } from '@spfn/core';
+import {
+  NotFoundError,
+  ValidationError,
+  DuplicateEntryError,
+  UnauthorizedError,
+  ForbiddenError
+} from '@spfn/core';
 
-// Not found
+// Database errors
 throw new NotFoundError('User', 123);
 // NotFoundError: User with id 123 not found (404)
 
-// Validation error
 throw new ValidationError('Email is required');
 // ValidationError: Email is required (400)
 
-// Duplicate entry
 throw new DuplicateEntryError('email', 'john@example.com');
 // DuplicateEntryError: email 'john@example.com' already exists (409)
+
+// HTTP errors
+throw new UnauthorizedError('Invalid token');
+// UnauthorizedError: Invalid token (401)
+
+throw new ForbiddenError('Insufficient permissions');
+// ForbiddenError: Insufficient permissions (403)
 ```
 
 ### With Error Handler Middleware
@@ -250,6 +261,171 @@ throw new DuplicateEntryError('email', 'john@example.com');
 - Duplicate email/username
 - Unique key violations
 - Already exists errors
+
+---
+
+## HTTP Error Classes
+
+### Base: `HttpError`
+
+Base class for all HTTP-related errors.
+
+```typescript
+import { HttpError } from '@spfn/core';
+
+throw new HttpError('Custom error', 418, {
+  reason: 'I am a teapot'
+});
+```
+
+---
+
+### `BadRequestError` (400)
+
+Generic bad request error.
+
+```typescript
+import { BadRequestError } from '@spfn/core';
+
+throw new BadRequestError('Invalid request format', {
+  expected: 'application/json',
+  received: 'text/plain'
+});
+```
+
+**Use Cases:**
+- Malformed request syntax
+- Invalid request parameters
+- Missing required headers
+
+---
+
+### `UnauthorizedError` (401)
+
+Authentication required or failed.
+
+```typescript
+import { UnauthorizedError } from '@spfn/core';
+
+throw new UnauthorizedError('Invalid token', {
+  reason: 'expired'
+});
+```
+
+**Use Cases:**
+- Missing authentication token
+- Invalid credentials
+- Expired token
+- Token verification failed
+
+---
+
+### `ForbiddenError` (403)
+
+Authenticated but lacks permission.
+
+```typescript
+import { ForbiddenError } from '@spfn/core';
+
+throw new ForbiddenError('Insufficient permissions', {
+  required: 'admin',
+  current: 'user'
+});
+```
+
+**Use Cases:**
+- Insufficient role/permissions
+- Access to restricted resource
+- Operation not allowed for user
+
+---
+
+### `ConflictError` (409)
+
+Generic resource conflict.
+
+```typescript
+import { ConflictError } from '@spfn/core';
+
+throw new ConflictError('Order already processed', {
+  orderId: '123',
+  status: 'completed'
+});
+```
+
+**Use Cases:**
+- Resource state conflict
+- Concurrent modification
+- Business logic conflict
+- More general than `DuplicateEntryError`
+
+---
+
+### `TooManyRequestsError` (429)
+
+Rate limit exceeded.
+
+```typescript
+import { TooManyRequestsError } from '@spfn/core';
+
+throw new TooManyRequestsError('Rate limit exceeded', 60, {
+  limit: 100,
+  window: '1 minute'
+});
+```
+
+**Parameters:**
+- `message` - Error message
+- `retryAfter?` - Seconds to wait before retry
+- `details?` - Additional context
+
+**Use Cases:**
+- API rate limiting
+- Request throttling
+- Abuse prevention
+
+---
+
+### `InternalServerError` (500)
+
+Generic server error.
+
+```typescript
+import { InternalServerError } from '@spfn/core';
+
+throw new InternalServerError('Unexpected error occurred', {
+  component: 'payment-processor'
+});
+```
+
+**Use Cases:**
+- Unexpected server errors
+- Unhandled exceptions
+- Generic 500 errors
+
+---
+
+### `ServiceUnavailableError` (503)
+
+Service temporarily unavailable.
+
+```typescript
+import { ServiceUnavailableError } from '@spfn/core';
+
+throw new ServiceUnavailableError('Service under maintenance', 3600, {
+  reason: 'scheduled_maintenance'
+});
+```
+
+**Parameters:**
+- `message` - Error message
+- `retryAfter?` - Seconds to wait before retry
+- `details?` - Additional context
+
+**Use Cases:**
+- Scheduled maintenance
+- Service overload
+- Temporary outage
 
 ---
 

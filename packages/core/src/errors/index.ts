@@ -4,7 +4,7 @@
  * Entry point for error handling module (Pure re-export only)
  */
 
-// Error Classes
+// Database Error Classes
 export {
     DatabaseError,
     ConnectionError,
@@ -16,5 +16,21 @@ export {
     DuplicateEntryError,
 } from './database-errors.js';
 
+// HTTP Error Classes
+export {
+    HttpError,
+    BadRequestError,
+    UnauthorizedError,
+    ForbiddenError,
+    ConflictError,
+    TooManyRequestsError,
+    InternalServerError,
+    ServiceUnavailableError,
+} from './http-errors.js';
+
 // Error Utilities
-export { isDatabaseError, fromPostgresError } from './error-utils.js';
+export {
+    isDatabaseError,
+    isHttpError,
+    hasStatusCode,
+} from './error-utils.js';

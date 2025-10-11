@@ -52,3 +52,6 @@ export { id, timestamps, foreignKey, optionalForeignKey } from './schema/index.j
 // Transaction
 export { Transactional, getTransaction, runWithTransaction } from './transaction/index.js';
 export type { TransactionContext, TransactionDB, TransactionalOptions } from './transaction/index.js';
+
+// PostgreSQL Error Utilities
+export { fromPostgresError } from './postgres-errors.js';
