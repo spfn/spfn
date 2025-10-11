@@ -12,6 +12,10 @@ const { ensureDirSync, writeFileSync } = fse;
 
 import { logger } from '../utils/logger.js';
 
+// Import client generation from @spfn/core
+import { scanContracts, generateClient } from '@spfn/core/codegen';
+import type { ClientGenerationOptions } from '@spfn/core/codegen';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
@@ -329,6 +333,39 @@ export const generateCommand = new Command('generate')
         // Execute operations
         await executeOperations(operations, options);
 
+        // Generate client code (only if not dry-run)
+        if (!options.dryRun) {
+            try {
+                const clientSpinner = ora('Generating type-safe API client...').start();
+
+                const routesDir = join(cwd, 'src', 'server', 'routes');
+                const outputPath = join(cwd, 'src', 'lib', 'api.ts');
+
+                // Scan all contracts
+                const contracts = await scanContracts(routesDir);
+
+                if (contracts.length > 0) {
+                    const clientOptions: ClientGenerationOptions = {
+                        routesDir,
+                        outputPath,
+                        includeTypes: true,
+                        includeJsDoc: true
+                    };
+
+                    await generateClient(contracts, clientOptions);
+                    clientSpinner.succeed(`Generated API client with ${contracts.length} endpoint(s)`);
+                } else {
+                    clientSpinner.info('No contracts found - skipping client generation');
+                }
+            } catch (error) {
+                // Don't fail the whole command if client generation fails
+                logger.warn('Client generation failed (server code generated successfully)');
+                if (error instanceof Error) {
+                    logger.warn(error.message);
+                }
+            }
+        }
+
         // Success message
         if (!options.dryRun) {
             console.log('\n' + chalk.green.bold('✓ CRUD boilerplate generated successfully!\n'));
@@ -336,6 +373,7 @@ export const generateCommand = new Command('generate')
             operations.forEach(op => {
                 console.log('  • ' + chalk.cyan(relative(cwd, op.path)));
             });
+            console.log('  • ' + chalk.cyan('src/lib/api.ts') + chalk.gray(' (API client)'));
 
             if (!entityExists) {
                 console.log('\n' + chalk.yellow('📝 Next steps:'));

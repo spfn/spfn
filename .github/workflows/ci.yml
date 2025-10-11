@@ -34,5 +34,22 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Start test infrastructure
+        run: docker compose -f docker-compose.test.yml up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for PostgreSQL..."
+          timeout 30 bash -c 'until docker exec spfn-test-postgres pg_isready -U testuser -d spfn_test; do sleep 1; done'
+          echo "Waiting for Redis..."
+          timeout 30 bash -c 'until docker exec spfn-redis-single redis-cli ping; do sleep 1; done'
+
       - name: Test
         run: pnpm test
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5433/spfn_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Stop test infrastructure
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v
