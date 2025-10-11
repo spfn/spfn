@@ -10,16 +10,16 @@
  *
  * Base class for all database-related errors
  */
-export class DatabaseError extends Error
+export class DatabaseError<TDetails extends Record<string, unknown> = Record<string, unknown>> extends Error
 {
     public readonly statusCode: number;
-    public readonly details?: Record<string, any>;
+    public readonly details?: TDetails;
     public readonly timestamp: Date;
 
     constructor(
         message: string,
         statusCode: number = 500,
-        details?: Record<string, any>
+        details?: TDetails
     )
     {
         super(message);
