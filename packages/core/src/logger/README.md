@@ -9,7 +9,7 @@ Universal logging module with Adapter pattern for swappable implementations.
 - ✅ **High Performance** (Pino adapter): 5-10x faster than Winston
 - ✅ **Multiple Transports**: Console, File, Slack, Email support
 - ✅ **Child Loggers**: Module-specific loggers with context
-- ✅ **File Rotation**: Automatic log rotation by size and date
+- ✅ **Date-based Rotation**: Automatic daily log file rotation
 - ✅ **Environment-Aware**: Different configs per environment
 - ✅ **Type-Safe**: Full TypeScript support
 
@@ -129,11 +129,9 @@ NODE_ENV=production
 LOGGER_ADAPTER=pino
 LOGGER_FILE_ENABLED=true
 LOG_DIR=/var/log/myapp
-LOG_MAX_FILE_SIZE=50M
-LOG_MAX_FILES=30
 ```
 
-**Output:** JSON to both stdout and files with rotation
+**Output:** JSON to both stdout and files with daily rotation
 
 ---
 
@@ -178,12 +176,12 @@ LOG_DIR=/var/log/myapp
 
 **Flow:**
 ```
-App → Stdout + File (with rotation)
+App → Stdout + File (date-based rotation)
       ↓           ↓
    Console    /var/log/myapp/
-              ├── app.log (current)
-              ├── app.log.1 (yesterday)
-              └── ...
+              ├── 2025-10-11.log (today)
+              ├── 2025-10-10.log (yesterday)
+              └── 2025-10-09.log
 ```
 
 **Benefits:**
@@ -341,9 +339,9 @@ LOG_LEVEL=info             # debug | info | warn | error | fatal
 ```bash
 LOGGER_FILE_ENABLED=true   # Enable file logging (default: false)
 LOG_DIR=/var/log/myapp     # Log directory (default: ./logs)
-LOG_MAX_FILE_SIZE=50M      # Max file size (default: 10M)
-LOG_MAX_FILES=30           # Max files to keep (default: 10)
 ```
+
+> **Note:** Size-based rotation and automatic cleanup are planned for future releases. Currently supports date-based rotation (YYYY-MM-DD.log).
 
 ### External Services (Future)
 
@@ -372,9 +370,10 @@ EMAIL_TO=admin@example.com
 ### File Transport
 
 - Enabled in production with `LOGGER_FILE_ENABLED=true`
-- JSON format
-- Daily rotation
-- Size-based rotation
+- JSON format, one log entry per line
+- Date-based rotation (YYYY-MM-DD.log)
+- Async stream-based I/O for better performance
+- Automatic stream rotation when date changes
 
 ### Slack Transport (Planned)
 
@@ -469,20 +468,43 @@ dbLogger.info('Connected');
 ## Testing
 
 ```bash
-# Logger tests
-npm test -- src/tests/logger/
+# Run all logger tests (118 tests)
+npm test -- src/logger/__tests__/
 
-# Request Logger Middleware tests
-npm test -- src/tests/middleware/request-logger.test.ts
+# Run specific test files
+npm test -- src/logger/__tests__/logger.test.ts
+npm test -- src/logger/__tests__/console-transport.test.ts
+npm test -- src/logger/__tests__/file-transport.test.ts
+npm test -- src/logger/__tests__/formatters.test.ts
+npm test -- src/logger/__tests__/config.test.ts
 ```
 
-**Test Coverage:**
-- ✅ Basic logging (all levels)
-- ✅ Context logging
-- ✅ Error logging
-- ✅ Child logger creation
-- ✅ Request middleware integration
-- ✅ Transaction logging
+**Test Coverage (118 tests):**
+- ✅ Logger core (17 tests)
+  - Basic logging (all levels)
+  - Context logging
+  - Error logging with stack traces
+  - Child logger creation
+- ✅ Console Transport (16 tests)
+  - Enabled state handling
+  - Log level filtering
+  - Stream separation (stdout/stderr)
+  - Colorization
+- ✅ File Transport (16 tests)
+  - Directory creation
+  - Async file writing
+  - Date-based rotation
+  - JSON format validation
+- ✅ Formatters (33 tests)
+  - Console formatting
+  - JSON formatting
+  - Slack formatting
+  - Email formatting
+  - Timestamp formatting
+- ✅ Configuration (36 tests)
+  - Environment detection
+  - Transport configuration
+  - External services setup
 
 ---
 
