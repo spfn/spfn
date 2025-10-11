@@ -37,7 +37,8 @@ import { createMiddleware } from 'hono/factory';
 import { db } from '../index.js';
 import { runWithTransaction, type TransactionDB } from './context.js';
 import { logger } from '../../logger';
-import { fromPostgresError, TransactionError } from '../../errors';
+import { TransactionError } from '../../errors';
+import { fromPostgresError } from '../postgres-errors';
 
 /**
  * Transaction middleware options
