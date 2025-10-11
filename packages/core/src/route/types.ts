@@ -113,7 +113,6 @@ export type InferContract<TContract extends RouteContract> = {
  * Convenience methods provided:
  * - params: Path parameters (typed via contract)
  * - query: Query parameters (typed via contract)
- * - pageable: QueryParser middleware result (Spring Pageable style)
  * - data(): Request Body parsing helper (typed via contract)
  * - json(): JSON response helper (typed via contract)
  * - raw: Original Hono Context (advanced features: raw.req, raw.get(), raw.set(), etc.)
@@ -128,16 +127,6 @@ export type RouteContext<TContract extends RouteContract = any> = {
      * Query parameters (typed via contract)
      */
     query: InferContract<TContract>['query'];
-
-    /**
-     * Pageable object (QueryParser middleware result)
-     * Spring Boot Pageable style (filters, sort, pagination)
-     */
-    pageable: {
-        filters?: Record<string, any>;
-        sort?: Array<{ field: string; direction: 'asc' | 'desc' }>;
-        pagination?: { page: number; limit: number };
-    };
 
     /**
      * Request Body parsing helper (typed via contract)

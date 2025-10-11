@@ -16,11 +16,9 @@ import type { SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import type { Filters, SortCondition, PaginationParams, PaginationMeta } from '../../query';
+import type { Filters, SortCondition, PaginationParams, PaginationMeta } from './filters.js';
 
-import { buildFilters } from '../../query';
-import { buildSort } from '../../query';
-import { applyPagination, createPaginationMeta, countTotal } from '../../query';
+import { buildFilters, buildSort, applyPagination, createPaginationMeta, countTotal } from './filters.js';
 import { getRawDb, getDatabaseMonitoringConfig } from '../manager';
 import { getTransaction } from '../transaction';
 import { QueryError } from '../../errors';

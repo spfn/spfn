@@ -82,25 +82,21 @@ export type { RequestLoggerConfig } from './middleware/request-logger.js';
 export { errorHandler } from './middleware/error-handler.js';
 export type { ErrorHandlerOptions } from './middleware/error-handler.js';
 
-// Query Module
-export { QueryParser, buildFilters, buildSort, orFilters, parsePagination, createPaginationMeta, applyPagination, countTotal } from './query/index.js';
+// Filter Utilities (moved from deprecated query module to db/repository)
+export { buildFilters, buildSort, orFilters, applyPagination, createPaginationMeta, countTotal } from './db/repository/index.js';
 export type {
     FilterOperator,
     FilterValue,
     FilterCondition,
     Filters,
+    FilterResult,
     SortDirection,
     SortCondition,
+    SortResult,
     PaginationParams,
     PaginationMeta,
-    QueryParams,
-    QueryParserOptions,
     DrizzleTable,
-    FilterResult,
-    SortResult,
-} from './query/index.js';
-
-// Repository Pattern exports are now handled in the Database section above
+} from './db/repository/index.js';
 
 // Custom Errors
 export {
