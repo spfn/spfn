@@ -7,6 +7,9 @@
 import type { Redis, Cluster } from 'ioredis';
 
 import { createRedisFromEnv } from './redis-factory.js';
+import { logger } from '../logger/index.js';
+
+const cacheLogger = logger.child('cache');
 
 let writeInstance: Redis | Cluster | undefined;
 let readInstance: Redis | Cluster | undefined;
@@ -125,16 +128,18 @@ export async function initRedis(): Promise<{ write?: Redis | Cluster; read?: Red
             readInstance = read;
 
             const hasReplica = read && read !== write;
-            console.log(
+            cacheLogger.info(
                 hasReplica
-                    ? '✅ Redis connected (Master-Replica)'
-                    : '✅ Redis connected'
+                    ? 'Redis connected (Master-Replica)'
+                    : 'Redis connected'
             );
         }
         catch (error)
         {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            console.error('❌ Redis connection failed:', message);
+            cacheLogger.error(
+                'Redis connection failed',
+                error instanceof Error ? error : new Error(String(error))
+            );
 
             // Clean up failed connections
             try
@@ -177,7 +182,7 @@ export async function closeRedis(): Promise<void>
         closePromises.push(
             writeInstance.quit().catch((err: Error) =>
             {
-                console.error('Error closing Redis write instance:', err);
+                cacheLogger.error('Error closing Redis write instance', err);
             })
         );
     }
@@ -187,7 +192,7 @@ export async function closeRedis(): Promise<void>
         closePromises.push(
             readInstance.quit().catch((err: Error) =>
             {
-                console.error('Error closing Redis read instance:', err);
+                cacheLogger.error('Error closing Redis read instance', err);
             })
         );
     }
@@ -197,7 +202,7 @@ export async function closeRedis(): Promise<void>
     writeInstance = undefined;
     readInstance = undefined;
 
-    console.log('✅ Redis connections closed');
+    cacheLogger.info('Redis connections closed');
 }
 
 /**
