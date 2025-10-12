@@ -15,12 +15,19 @@
     "clean": "rm -rf dist"
   },
   "keywords": [
+    "spfn",
     "nextjs",
     "backend",
     "framework",
     "cli",
-    "superfunction",
-    "spfn"
+    "typescript",
+    "type-safe",
+    "api",
+    "crud",
+    "generator",
+    "scaffolding",
+    "fullstack",
+    "scalable"
   ],
   "author": "Ray Im <rayim@inflike.com>",
   "license": "MIT",
@@ -29,6 +36,10 @@
     "url": "https://github.com/spfn/spfn.git",
     "directory": "packages/spfn"
   },
+  "bugs": {
+    "url": "https://github.com/spfn/spfn/issues"
+  },
+  "homepage": "https://github.com/spfn/spfn#readme",
   "dependencies": {
     "@spfn/cli": "workspace:*"
   },

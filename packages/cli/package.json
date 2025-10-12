@@ -17,10 +17,19 @@
   },
   "keywords": [
     "spfn",
-    "nextjs",
-    "hono",
     "cli",
-    "backend"
+    "nextjs",
+    "backend",
+    "framework",
+    "generator",
+    "crud-generator",
+    "scaffolding",
+    "boilerplate",
+    "dev-tools",
+    "development",
+    "init",
+    "typescript",
+    "type-safe"
   ],
   "author": "Ray Im <rayim@inflike.com>",
   "license": "MIT",
