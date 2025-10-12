@@ -7,6 +7,8 @@ Next.js handles your frontend. SPFN handles your backend.
 [![npm](https://img.shields.io/npm/v/@spfn/core)](https://npmjs.com/package/@spfn/core)
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
+> ⚠️ **Alpha Release**: SPFN is currently in alpha. APIs may change. Install with `@alpha` tag: `npx spfn@alpha init`
+
 ---
 
 ## When You Need SPFN
@@ -33,7 +35,7 @@ Next.js handles your frontend. SPFN handles your backend.
 **1. Install**
 ```bash
 cd your-nextjs-project
-npx spfn init
+npx spfn@alpha init
 ```
 
 **2. Start dev server**
@@ -45,7 +47,7 @@ npm run spfn:dev
 
 **3. Generate boilerplate** (The magic ✨)
 ```bash
-spfn generate users
+npx spfn@alpha generate users
 ```
 
 **Done!** You just created:
@@ -72,8 +74,8 @@ export default async function Page() {
 ```bash
 # Edit entities/users.ts - Add fields (email, name, etc.)
 # Then migrate:
-spfn db generate
-spfn db migrate
+npx spfn@alpha db generate
+npx spfn@alpha db migrate
 ```
 
 ---
@@ -178,8 +180,8 @@ const user = await api.users.getById({ params: { id: '123' } });
 
 | Package | Status | Description |
 |---------|--------|-------------|
-| [@spfn/core](./packages/core) | ✅ Stable | Routing, DB, Transactions |
-| [@spfn/cli](./packages/cli) | ✅ Stable | Dev tools & generators |
+| [@spfn/core](./packages/core) | 🚧 Alpha | Routing, DB, Transactions |
+| [@spfn/cli](./packages/cli) | 🚧 Alpha | Dev tools & generators |
 | [@spfn/auth](./packages/auth) | 🚧 Alpha | Client-key authentication |
 | @spfn/storage | 📋 Planned | File upload (S3, Cloudinary) |
 | @spfn/email | 📋 Planned | Email (Resend, SendGrid) |
