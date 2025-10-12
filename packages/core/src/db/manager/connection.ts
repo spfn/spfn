@@ -31,7 +31,7 @@
  * - #11: Read Replica 지원 (읽기/쓰기 분리)
  */
 import type { Sql } from 'postgres';
-import * as postgres from 'postgres';
+import postgres from 'postgres';
 
 import { logger } from '../../logger';
 import { ConnectionError } from '../../errors';
@@ -130,7 +130,7 @@ export async function createDatabaseConnection(
  * @param client - PostgreSQL 클라이언트
  * @returns 연결 가능 여부
  */
-export async function checkConnection(client: ReturnType<typeof postgres>): Promise<boolean>
+export async function checkConnection(client: Sql): Promise<boolean>
 {
     try
     {
