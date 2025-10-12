@@ -6,8 +6,9 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import { getDb, type DbConnectionType } from '../index.js';
+import type { Sql } from 'postgres';
+import * as postgres from 'postgres';
+import { getDb, getRawDb, type DbConnectionType } from '../index.js';
 import { testUsers } from './fixtures/entities';
 import { Repository } from '../repository';
 
@@ -20,7 +21,7 @@ if (!DATABASE_URL)
 
 describe('Read Replica Support', () =>
 {
-    let client: ReturnType<typeof postgres>;
+    let client: Sql;
     let testDb: ReturnType<typeof drizzle>;
 
     beforeAll(async () =>
@@ -73,11 +74,11 @@ describe('Read Replica Support', () =>
 
     describe('Repository Routing', () =>
     {
-        let userRepo: Repository<typeof testUsers>;
+        let userRepo!: Repository<typeof testUsers>;
 
         beforeAll(() =>
         {
-            userRepo = new Repository(getDb('write'), testUsers);
+            userRepo = new Repository<typeof testUsers>(getRawDb('write'), testUsers);
         });
 
         it('should use replica for read operations (findAll)', async () =>

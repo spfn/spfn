@@ -6,9 +6,36 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import { testUsers as users } from './fixtures/entities';
-import { testPosts as posts } from './fixtures/entities';
+import { pgTable, bigserial, text, bigint, timestamp } from 'drizzle-orm/pg-core';
+import type { Sql } from 'postgres';
+import * as postgres from 'postgres';
+
+// Transaction 테스트용 전용 스키마 (setup.ts의 test_users와 독립)
+const users = pgTable('users', {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    email: text('email').unique(),
+    mobileNumber: text('mobile_number').unique(),
+    password: text('password'),
+    state: text('state').notNull().default('ACTIVE'),
+    username: text('username').unique(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+        .defaultNow()
+        .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+        .defaultNow(),
+});
+
+const posts = pgTable('posts', {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    title: text('title').notNull(),
+    content: text('content'),
+    authorId: bigint('author_id', { mode: 'number' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+        .defaultNow()
+        .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+        .defaultNow(),
+});
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -19,7 +46,7 @@ if (!DATABASE_URL)
 
 describe('Transaction', () =>
 {
-    let client: ReturnType<typeof postgres>;
+    let client: Sql;
     let db: ReturnType<typeof drizzle>;
 
     beforeAll(async () =>

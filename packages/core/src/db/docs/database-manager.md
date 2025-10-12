@@ -21,7 +21,7 @@ Initialize the global database instance.
 ```typescript
 import { initDatabase } from '@spfn/core/db';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import * as postgres from 'postgres';
 
 const client = postgres(process.env.DATABASE_URL!);
 const db = drizzle(client);
@@ -64,7 +64,7 @@ Replace the current database instance.
 ```typescript
 import { setDatabase } from '@spfn/core/db';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import * as postgres from 'postgres';
 
 const newClient = postgres('postgresql://localhost:5432/test');
 const newDb = drizzle(newClient);
@@ -246,7 +246,7 @@ stopHealthCheck();
 import { describe, it, beforeEach, afterEach } from 'vitest';
 import { Repository, initDatabase, closeDatabase } from '@spfn/core/db';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import * as postgres from 'postgres';
 
 describe('User Repository', () => {
     beforeEach(async () => {
@@ -401,7 +401,7 @@ await initDatabase({
 For advanced use cases requiring full postgres.js control:
 
 ```typescript
-import postgres from 'postgres';
+import * as postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { setDatabase } from '@spfn/core/db';
 

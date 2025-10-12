@@ -30,7 +30,8 @@
  * - #10: Graceful Shutdown (SIGTERM 처리, 진행 중인 쿼리 완료 대기)
  * - #11: Read Replica 지원 (읽기/쓰기 분리)
  */
-import postgres from 'postgres';
+import type { Sql } from 'postgres';
+import * as postgres from 'postgres';
 
 import { logger } from '../../logger';
 import { ConnectionError } from '../../errors';

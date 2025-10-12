@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import postgres from 'postgres';
+import type { Sql } from 'postgres';
+import * as postgres from 'postgres';
 import { testUsers } from './fixtures/entities';
 import { Repository, getDb } from '../index.js';
 import { initDatabase, closeDatabase } from '../manager';
@@ -30,7 +31,7 @@ function getTestUsersRepository()
 
 describe('Repository Helper Pattern (Generated Code Simulation)', () =>
 {
-    let client: ReturnType<typeof postgres>;
+    let client: Sql;
 
     beforeAll(async () =>
     {
