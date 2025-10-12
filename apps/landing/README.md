@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SPFN Landing Page
 
-## Getting Started
+Official landing page for [SPFN](https://superfunction.xyz) - A type-safe backend framework for Next.js.
 
-First, run the development server:
+## Features
+
+- 🎨 Modern, responsive design with Tailwind CSS v4
+- ⚡ Built with Next.js 15 and React 19
+- 🎯 Type-safe with TypeScript 5.3+
+- 🔤 Custom fonts: Geist Sans, JetBrains Mono, Sansation
+- 📱 Mobile-friendly navigation
+- 🌙 Dark mode support
+
+## Tech Stack
+
+- **Framework**: Next.js 15.5.4
+- **Styling**: Tailwind CSS 4
+- **Language**: TypeScript 5
+- **Fonts**: Next.js Font Optimization
+- **Code Highlighting**: react-syntax-highlighter
+
+## Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the landing page.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a production build:
 
-## Learn More
+```bash
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+Start the production server:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
 
-## Deploy on Vercel
+```
+src/
+├── app/              # Next.js App Router pages
+├── assets/
+│   ├── fonts/        # Custom fonts (Sansation)
+│   └── styles/       # Global styles
+├── components/       # React components
+│   ├── Header.tsx
+│   ├── Hero.tsx
+│   ├── Features.tsx
+│   └── ...
+└── public/           # Static assets
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Key Components
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Header**: Sticky navigation with mobile menu
+- **Hero**: Main landing section with CTA
+- **Features**: Feature showcase grid
+- **QuickStart**: Getting started guide
+- **Architecture**: System architecture diagram
+- **Footer**: Links and branding
+
+## Environment
+
+- Node.js 18+
+- Next.js 15+
+
+## License
+
+MIT - See [LICENSE](../../LICENSE) for details.
