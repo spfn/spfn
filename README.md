@@ -20,10 +20,10 @@ Next.js handles your frontend. SPFN handles your backend.
 → Next.js (marketing + dashboard) + SPFN (backend) = Full-stack
 
 **🎯 Need these features?**
-✅ Complex business logic with transactions
-✅ Connection pools (PostgreSQL, Redis)
-✅ Background jobs & scheduled tasks
-✅ End-to-end type safety (Contract → Client)
+- ✅ Complex business logic with transactions
+- ✅ Connection pools (PostgreSQL, Redis)
+- ✅ Background jobs & scheduled tasks
+- ✅ End-to-end type safety (Contract → Client)
 
 **If you just need simple API routes, Next.js is enough.**
 **If you need a real backend, Next.js + SPFN.**
@@ -205,6 +205,6 @@ const user = await api.users.getById({ params: { id: '123' } });
 
 ## License
 
-MIT © [SPFN Team](https://github.com/spfn/spfn)
+MIT © [INFLIKE Inc.](https://inflike.com)
 
 **Built with ❤️ for the Next.js community**
