@@ -5,9 +5,9 @@
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
-import postgres from 'postgres';
-import { createDatabaseConnection, checkConnection } from '../manager/connection.js';
-import type { PoolConfig, RetryConfig } from '../manager/config.js';
+import * as postgres from 'postgres';
+import { createDatabaseConnection, checkConnection } from '../manager';
+import type { PoolConfig, RetryConfig } from '../manager';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 

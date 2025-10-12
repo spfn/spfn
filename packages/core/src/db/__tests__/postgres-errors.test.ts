@@ -5,14 +5,13 @@
 import { describe, it, expect } from 'vitest';
 import { fromPostgresError } from '../postgres-errors.js';
 import {
-    DatabaseError,
     ConnectionError,
     DuplicateEntryError,
     DeadlockError,
     ValidationError,
     QueryError,
     TransactionError,
-} from '../../errors/database-errors.js';
+} from '../../errors';
 
 describe('fromPostgresError', () =>
 {

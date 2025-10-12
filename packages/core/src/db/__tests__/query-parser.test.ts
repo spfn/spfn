@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { applyPagination, createPaginationMeta, buildSort, buildFilters, orFilters } from '../repository/filters.js';
+import { applyPagination, createPaginationMeta, buildSort, buildFilters, orFilters } from '../repository';
 import { testUsers as users } from './fixtures/entities';
 
 describe('QueryParser', () =>

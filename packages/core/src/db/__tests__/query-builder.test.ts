@@ -6,9 +6,10 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import type { Sql } from 'postgres';
+import * as postgres from 'postgres';
 import { testUsers } from './fixtures/entities';
-import { Repository } from '../repository/repository.js';
+import { Repository } from '../repository';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -19,15 +20,15 @@ if (!DATABASE_URL)
 
 describe('QueryBuilder', () =>
 {
-    let client: ReturnType<typeof postgres>;
+    let client: Sql;
     let db: ReturnType<typeof drizzle>;
-    let userRepo: Repository<typeof testUsers>;
+    let userRepo!: Repository<typeof testUsers>;
 
     beforeAll(async () =>
     {
         client = postgres(DATABASE_URL, { max: 1 });
         db = drizzle(client);
-        userRepo = new Repository(db, testUsers);
+        userRepo = new Repository<typeof testUsers>(db, testUsers);
     });
 
     afterAll(async () =>

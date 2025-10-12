@@ -7,9 +7,9 @@
 import './setup.js'; // DB setup (테이블 생성)
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import * as postgres from 'postgres';
 import { testUsers } from './fixtures/entities';
-import { Repository } from '../repository/repository.js';
+import { Repository } from '../repository';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
