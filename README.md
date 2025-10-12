@@ -177,13 +177,13 @@ const user = await api.users.getById({ params: { id: '123' } });
 
 ## Ecosystem
 
-| Package | Status | Description |
-|---------|--------|-------------|
+| Package                       | Status | Description          |
+|-------------------------------|--------|----------------------|
 | [@spfn/core](./packages/core) | 🚧 Alpha | Routing, DB, Transactions |
-| [@spfn/cli](./packages/cli) | 🚧 Alpha | Dev tools & generators |
-| @spfn/user | 📋 Planned | User management & authentication |
-| @spfn/storage | 📋 Planned | File upload (S3, Cloudinary) |
-| @spfn/email | 📋 Planned | Email (Resend, SendGrid) |
+| [@spfn/cli](./packages/cli)   | 🚧 Alpha | Dev tools & generators |
+| @spfn/user                    | 📋 Planned | User management & authentication |
+| @spfn/storage                 | 📋 Planned | File upload          |
+| @spfn/notification            | 📋 Planned |                      |
 
 ---
 
@@ -199,7 +199,6 @@ const user = await api.users.getById({ params: { id: '123' } });
 
 💬 **[GitHub Discussions](https://github.com/spfn/spfn/discussions)** - Ask questions
 🐛 **[Issues](https://github.com/spfn/spfn/issues)** - Report bugs
-🌟 **[Changelog](./CHANGELOG.md)** - What's new
 
 ---
 
