@@ -53,7 +53,7 @@ const sansation = localFont({
 
 export const metadata: Metadata = {
     metadataBase: new URL('https://superfunction.xyz'),
-    title: "SPFN - Type-safe backend for Next.js",
+    title: "Superfunction - Type-safe backend for Next.js",
     description: "Type-safe backend framework for Next.js. Build scalable APIs with contract-based routing, automatic client generation, Drizzle ORM, transactions, connection pooling, and end-to-end type safety.",
     keywords: [
         "Next.js",

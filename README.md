@@ -4,6 +4,8 @@
 
 Next.js handles your frontend. SPFN handles your backend.
 
+🌐 **[superfunction.xyz](https://superfunction.xyz)**
+
 [![npm](https://img.shields.io/npm/v/@spfn/core)](https://npmjs.com/package/@spfn/core)
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue?logo=typescript)](https://www.typescriptlang.org/)
