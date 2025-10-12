@@ -38,6 +38,11 @@
     "url": "https://github.com/spfn/spfn.git",
     "directory": "packages/cli"
   },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha",
+    "registry": "https://registry.npmjs.org"
+  },
   "bugs": {
     "url": "https://github.com/spfn/spfn/issues"
   },
@@ -70,9 +75,5 @@
     "@types/prompts": "^2.4.9",
     "tsup": "^8.0.0",
     "typescript": "^5.3.3"
-  },
-  "publishConfig": {
-    "access": "public",
-    "tag": "alpha"
   }
 }
