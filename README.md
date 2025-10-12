@@ -54,6 +54,20 @@ spfn generate users
 - ✅ Repository with pagination
 - ✅ Auto-generated client for Next.js
 
+**4. Use in Next.js** (즉시 사용 가능!)
+```typescript
+// app/page.tsx
+import { api } from '@/lib/api'
+
+export default async function Page() {
+  const users = await api.users.list()
+  const user = await api.users.getById({ params: { id: '123' } })
+
+  return <div>{user.name}</div>
+  //           ^ Fully typed!
+}
+```
+
 **Next: Customize your entity**
 ```bash
 # Edit entities/users.ts - Add fields (email, name, etc.)
@@ -67,25 +81,30 @@ spfn db migrate
 ## How It Works
 
 ```typescript
-// 1. Define contract (backend)
+// 1. Define contract (src/server/routes/users/contract.ts)
 export const getUserContract = {
   method: 'GET',
   path: '/:id',
+  params: Type.Object({ id: Type.String() }),
   response: Type.Object({
     id: Type.Number(),
     name: Type.String()
   })
 };
 
-// 2. Implement route (auto-validated!)
-app.bind(getUserContract, async (c) => {
+// 2. Implement route (src/server/routes/users/[id]/index.ts)
+import { bind } from '@spfn/core';
+
+export const GET = bind(getUserContract, async (c) => {
   const user = await repo.findById(c.params.id);
   return c.json(user);
 });
 
-// 3. Use in Next.js (auto-generated client)
+// 3. Use in Next.js (auto-generated src/lib/api.ts)
+import { api } from '@/lib/api'
+
 const user = await api.users.getById({ params: { id: '123' } });
-//    ^ Fully typed! No manual sync
+//    ^ Fully typed! No manual sync needed
 ```
 
 ---
@@ -111,6 +130,11 @@ const user = await api.users.getById({ params: { id: '123' } });
 - `users/index.ts` → GET /users
 - `users/[id].ts` → GET /users/:id
 - Auto-discovery & registration
+
+**🔄 Watch Mode** (Dev only)
+- Contract changes → Auto-regenerate client
+- No manual sync needed
+- Hot reload for both frontend & backend
 
 ---
 
