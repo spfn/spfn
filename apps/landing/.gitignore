@@ -39,7 +39,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# woodpecker CI/CD (only for Gitea, not GitHub)
-.woodpecker.yml
-.woodpecker.main.yml

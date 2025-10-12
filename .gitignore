@@ -47,3 +47,7 @@ drizzle
 
 # Auto-generated guides (synced from README.md)
 packages/*/.guide/
+
+# Woodpecker CI/CD (only for Gitea, not GitHub)
+.woodpecker.yml
+.woodpecker.main.yml
