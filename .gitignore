@@ -6,7 +6,6 @@ node_modules
 
 # Testing
 coverage
-*.log
 
 # Next.js
 .next
@@ -21,6 +20,10 @@ build
 # Misc
 .DS_Store
 *.pem
+*.log
+
+# Claude Code
+.claude/
 
 # Debug
 npm-debug.log*
@@ -41,14 +44,6 @@ yarn-error.log*
 
 # Drizzle
 drizzle
-/apps/testbed/test-results.log
-/.idea/
 
 # Auto-generated guides (synced from README.md)
 packages/*/.guide/
-
-# Test apps (local development only)
-/apps/test-*
-/apps/playground
-/apps/sandbox
-/apps/project-k/
