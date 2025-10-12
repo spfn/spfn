@@ -183,7 +183,6 @@ const user = await api.users.getById({ params: { id: '123' } });
 | [@spfn/cli](./packages/cli)   | 🚧 Alpha | Dev tools & generators |
 | @spfn/user                    | 📋 Planned | User management & authentication |
 | @spfn/storage                 | 📋 Planned | File upload          |
-| @spfn/notification            | 📋 Planned |                      |
 
 ---
 
