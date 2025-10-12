@@ -172,7 +172,6 @@ const user = await api.users.getById({ params: { id: '123' } });
 
 📚 **[Core API](./packages/core/README.md)** - Full documentation
 🛠️ **[CLI Guide](./packages/cli/README.md)** - Commands & tools
-🔐 **[Auth (Alpha)](./packages/auth/README.md)** - Authentication
 
 ---
 
@@ -182,7 +181,7 @@ const user = await api.users.getById({ params: { id: '123' } });
 |---------|--------|-------------|
 | [@spfn/core](./packages/core) | 🚧 Alpha | Routing, DB, Transactions |
 | [@spfn/cli](./packages/cli) | 🚧 Alpha | Dev tools & generators |
-| [@spfn/auth](./packages/auth) | 🚧 Alpha | Client-key authentication |
+| @spfn/user | 📋 Planned | User management & authentication |
 | @spfn/storage | 📋 Planned | File upload (S3, Cloudinary) |
 | @spfn/email | 📋 Planned | Email (Resend, SendGrid) |
 
