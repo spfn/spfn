@@ -207,4 +207,4 @@ const user = await api.users.getById({ params: { id: '123' } });
 
 MIT © [INFLIKE Inc.](https://inflike.com)
 
-**Built with ❤️ for the Next.js community**
+**Built with ❤️ in Seoul for the Next.js community**
