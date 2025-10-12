@@ -2,6 +2,10 @@
 
 Official landing page for [SPFN](https://superfunction.xyz) - A type-safe backend framework for Next.js.
 
+## Live Site
+
+🚀 **[superfunction.xyz](https://superfunction.xyz)**
+
 ## Features
 
 - 🎨 Modern, responsive design with Tailwind CSS v4
