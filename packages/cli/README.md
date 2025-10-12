@@ -1,13 +1,21 @@
 # @spfn/cli
 
+> ⚠️ **Alpha Release**: SPFN is currently in alpha. APIs may change. Use `@alpha` tag for installation.
+
 ## Installation
 
+**Recommended: Use npx (no installation required)**
 ```bash
-npm install -g @spfn/cli
+npx spfn@alpha init
+```
+
+**Optional: Global installation**
+```bash
+npm install -g spfn@alpha
 # or
-pnpm add -g @spfn/cli
+pnpm add -g spfn@alpha
 # or
-yarn global add @spfn/cli
+yarn global add spfn@alpha
 ```
 
 ## Quick Start

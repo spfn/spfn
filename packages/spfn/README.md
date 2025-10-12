@@ -6,12 +6,14 @@ This is a thin wrapper package that provides a shorter name for the `@spfn/cli` 
 
 ## Usage
 
-```bash
-# Using npx (no installation required)
-npx spfn@latest init
+> ⚠️ **Alpha Release**: SPFN is currently in alpha. Use `@alpha` tag for installation.
 
-# Or install globally
-npm install -g spfn
+```bash
+# Using npx (no installation required) - Recommended
+npx spfn@alpha init
+
+# Or install globally (alpha version)
+npm install -g spfn@alpha
 spfn init
 ```
 

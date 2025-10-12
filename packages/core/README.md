@@ -6,12 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
 
+> ⚠️ **Alpha Release**: SPFN is currently in alpha. APIs may change. Use `@alpha` tag for installation.
+
 ## Installation
 
-**Recommended: Use CLI**
+**Recommended: Use CLI with npx**
 ```bash
-npm install -g @spfn/cli
-spfn init
+npx spfn@alpha init
 ```
 
 **Manual Installation**
