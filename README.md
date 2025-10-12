@@ -16,9 +16,11 @@ Next.js handles your frontend. SPFN handles your backend.
 ## When You Need SPFN
 
 **🚀 Building a mobile app?**
+
 → Next.js (landing page) + SPFN (API) = Complete solution
 
 **💼 Building a SaaS product?**
+
 → Next.js (marketing + dashboard) + SPFN (backend) = Full-stack
 
 **🎯 Need these features?**
@@ -28,6 +30,7 @@ Next.js handles your frontend. SPFN handles your backend.
 - ✅ End-to-end type safety (Contract → Client)
 
 **If you just need simple API routes, Next.js is enough.**
+
 **If you need a real backend, Next.js + SPFN.**
 
 ---
@@ -44,7 +47,9 @@ npx spfn@alpha init
 ```bash
 npm run spfn:dev
 ```
+
 ✅ Backend: http://localhost:8790
+
 ✅ Frontend: http://localhost:3790
 
 **3. Generate boilerplate** (The magic ✨)
@@ -53,6 +58,7 @@ npx spfn@alpha generate users
 ```
 
 **Done!** You just created:
+
 - ✅ Entity template (entities/users.ts)
 - ✅ Type-safe REST API (5 CRUD endpoints)
 - ✅ Repository with pagination
