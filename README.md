@@ -84,7 +84,9 @@ npx spfn@alpha db migrate
 
 ## Local Development Setup
 
-Don't have PostgreSQL or Redis installed? Use Docker Compose:
+**Don't have PostgreSQL or Redis installed?**
+
+After running `spfn init`, you'll have a `docker-compose.yml` in your project root:
 
 ```bash
 # Start PostgreSQL and Redis
@@ -97,13 +99,13 @@ docker compose down
 docker compose down -v
 ```
 
-**Connection strings:**
+**Connection strings** (already in `.env.local.example`):
 ```bash
 DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
 REDIS_URL=redis://localhost:6379
 ```
 
-Add these to your `.env.local` file and you're ready to go!
+Copy `.env.local.example` to `.env.local` and you're ready to go!
 
 ---
 
