@@ -15,27 +15,24 @@ Next.js handles your frontend. SPFN handles your backend.
 
 ## When You Need SPFN
 
-**🚀 Building a mobile app?**
-
+**🚀 Building a mobile app?**  
 → Next.js (landing page) + SPFN (API) = Complete solution
 
-**💼 Building a SaaS product?**
-
+**💼 Building a SaaS product?**  
 → Next.js (marketing + dashboard) + SPFN (backend) = Full-stack
 
-**🎯 Need these features?**
-- ✅ Complex business logic with transactions
-- ✅ Connection pools (PostgreSQL, Redis)
-- ✅ Background jobs & scheduled tasks
-- ✅ End-to-end type safety (Contract → Client)
+**🎯 Need these features?**  
+✅ Complex business logic with transactions  
+✅ Connection pools (PostgreSQL, Redis)  
+✅ Background jobs & scheduled tasks  
+✅ End-to-end type safety (Contract → Client)
 
-**If you just need simple API routes, Next.js is enough.**
-
+**If you just need simple API routes, Next.js is enough.**  
 **If you need a real backend, Next.js + SPFN.**
 
 ---
 
-## Quick Start (3 min)
+## Quick Start (5 min)
 
 **1. Install**
 ```bash
@@ -47,9 +44,7 @@ npx spfn@alpha init
 ```bash
 npm run spfn:dev
 ```
-
-✅ Backend: http://localhost:8790
-
+✅ Backend: http://localhost:8790  
 ✅ Frontend: http://localhost:3790
 
 **3. Generate boilerplate** (The magic ✨)
@@ -59,12 +54,12 @@ npx spfn@alpha generate users
 
 **Done!** You just created:
 
-- ✅ Entity template (entities/users.ts)
-- ✅ Type-safe REST API (5 CRUD endpoints)
-- ✅ Repository with pagination
-- ✅ Auto-generated client for Next.js
+✅ Entity template (entities/users.ts)  
+✅ Type-safe REST API (5 CRUD endpoints)  
+✅ Repository with pagination  
+✅ Auto-generated client for Next.js
 
-**4. Use in Next.js** (즉시 사용 가능!)
+**4. Use in Next.js** (Ready to use!)
 ```typescript
 // app/page.tsx
 import { api } from '@/lib/api'
@@ -205,7 +200,7 @@ const user = await api.users.getById({ params: { id: '123' } });
 
 ## Documentation
 
-📚 **[Core API](./packages/core/README.md)** - Full documentation
+📚 **[Core API](./packages/core/README.md)** - Full documentation  
 🛠️ **[CLI Guide](./packages/cli/README.md)** - Commands & tools
 
 ---
@@ -227,17 +222,22 @@ const user = await api.users.getById({ params: { id: '123' } });
 - Next.js 15+ (App Router)
 - PostgreSQL (optional: Redis)
 
+**Recommended:**
+- Use App Router (required, not Pages Router)
+- Use `src/` directory for better organization
+- TypeScript for full type safety
+
 ---
 
 ## Community
 
-💬 **[GitHub Discussions](https://github.com/spfn/spfn/discussions)** - Ask questions
+💬 **[GitHub Discussions](https://github.com/spfn/spfn/discussions)** - Ask questions  
 🐛 **[Issues](https://github.com/spfn/spfn/issues)** - Report bugs
 
 ---
 
 ## License
 
-MIT © [INFLIKE Inc.](https://inflike.com)
+MIT © INFLIKE Inc.
 
 **Built with ❤️ in Seoul for the Next.js community**

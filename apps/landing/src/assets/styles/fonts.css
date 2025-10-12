@@ -1,0 +1,4 @@
+/* Sansation Font */
+.font-sansation {
+    font-family: var(--font-sansation), system-ui, -apple-system, sans-serif;
+}
