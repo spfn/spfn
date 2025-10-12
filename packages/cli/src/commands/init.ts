@@ -195,6 +195,28 @@ export const initCommand = new Command('init')
             process.exit(1);
         }
 
+        // 4.5. Copy docker-compose.yml to project root
+        const dockerComposePath = join(cwd, 'docker-compose.yml');
+        if (!existsSync(dockerComposePath))
+        {
+            try
+            {
+                const templatesDir = findTemplatesPath();
+                const dockerComposeTemplate = join(templatesDir, 'docker-compose.yml');
+
+                if (existsSync(dockerComposeTemplate))
+                {
+                    copySync(dockerComposeTemplate, dockerComposePath);
+                    logger.success('Created docker-compose.yml (PostgreSQL + Redis)');
+                }
+            }
+            catch (error)
+            {
+                // Not critical, continue without docker-compose.yml
+                logger.warn('Could not copy docker-compose.yml');
+            }
+        }
+
         // 5. Update package.json scripts
         spinner.start('Updating package.json scripts...');
 
@@ -214,8 +236,11 @@ export const initCommand = new Command('init')
         const envExamplePath = join(cwd, '.env.local.example');
         if (!existsSync(envExamplePath))
         {
-            writeFileSync(envExamplePath, `# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/mydb
+            writeFileSync(envExamplePath, `# Database (matches docker-compose.yml)
+DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
+
+# Redis (optional)
+REDIS_URL=redis://localhost:6379
 
 # API URL (for frontend)
 NEXT_PUBLIC_API_URL=http://localhost:8790
@@ -227,9 +252,12 @@ NEXT_PUBLIC_API_URL=http://localhost:8790
         console.log('\n' + chalk.green.bold('✓ SPFN initialized successfully!\n'));
 
         console.log('Next steps:');
-        console.log('  1. Copy .env.local.example to .env.local and configure your database');
-        console.log('  2. Run: ' + chalk.cyan(pm === 'npm' ? 'npm run spfn:dev' : `${pm} run spfn:dev`));
-        console.log('  3. Visit:');
+        console.log('  1. Start PostgreSQL & Redis (if not installed locally):');
+        console.log('     ' + chalk.cyan('docker compose up -d'));
+        console.log('  2. Copy .env.local.example to .env.local');
+        console.log('     ' + chalk.cyan('cp .env.local.example .env.local'));
+        console.log('  3. Run: ' + chalk.cyan(pm === 'npm' ? 'npm run spfn:dev' : `${pm} run spfn:dev`));
+        console.log('  4. Visit:');
         console.log('     - Next.js: ' + chalk.cyan('http://localhost:3790'));
         console.log('     - API:     ' + chalk.cyan('http://localhost:8790/health'));
         console.log('\nAvailable scripts:');
