@@ -5,6 +5,10 @@ when:
     branch:
       - dev
       - develop
+    path:
+      include: ['apps/landing/**']
+      exclude: ['**/*.md', 'apps/landing/.gitignore']
+      on_empty: false
 
 skip_clone: true
 
@@ -127,31 +131,35 @@ steps:
 
         # 빌드 정보를 다음 스텝에서 사용할 수 있도록 저장
         mkdir -p /woodpecker/shared
-        echo "$REGISTRY_HOST/$GIT_ORG/$GIT_REPO:$CI_COMMIT_BRANCH-$CI_COMMIT_SHA" > /woodpecker/shared/image_tag
+        echo "$REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME:$CI_COMMIT_BRANCH-$CI_COMMIT_SHA" > /woodpecker/shared/image_tag
         echo "$CI_COMMIT_SHA" > /woodpecker/shared/commit_sha
 
         # 클론된 Dockerfile 사용
         DOCKERFILE_PATH=$(cat /woodpecker/shared/dockerfile_path)
         WORK_DIR=$(cat /woodpecker/shared/work_dir)
 
+        # Build context는 apps/landing만
+        BUILD_CONTEXT="$WORK_DIR/apps/landing"
+
         echo "📋 Build Info:"
         echo "  Dockerfile: $DOCKERFILE_PATH"
-        echo "  Context: $WORK_DIR"
+        echo "  Context: $BUILD_CONTEXT"
+        echo "  Image: $REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME:${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA}"
 
         # Dockerfile 내용 확인
         echo "📄 Using Dockerfile:"
         head -10 $DOCKERFILE_PATH
 
-        # Kaniko 빌드 실행 (클론된 Dockerfile 사용)
+        # Kaniko 빌드 실행 (apps/landing만 빌드)
         /kaniko/executor \
           --dockerfile=$DOCKERFILE_PATH \
-          --context=$WORK_DIR \
-          --destination=$REGISTRY_HOST/$GIT_ORG/$GIT_REPO:${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA} \
+          --context=$BUILD_CONTEXT \
+          --destination=$REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME:${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA} \
           --build-arg CI_BOT_USER="$CI_BOT_USER" \
           --build-arg CI_BOT_TOKEN="$CI_BOT_TOKEN" \
           --cache=true \
           --cache-copy-layers \
-          --cache-repo=$REGISTRY_HOST/$GIT_ORG/$GIT_REPO-cache
+          --cache-repo=$REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME-cache
 
         echo "✅ Build completed successfully!"
 
