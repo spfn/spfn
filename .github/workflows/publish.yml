@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # GitHub Packages 배포 권한
       id-token: write # npm provenance를 위한 OIDC 토큰 권한
 
     steps:
@@ -46,10 +45,3 @@ jobs:
       - name: Publish spfn to npm
         working-directory: packages/spfn
         run: npm publish --access public --provenance
-
-      # GitHub Packages 배포 (@spfn/core만 - spfn은 스코프 없어서 불가)
-      - name: Publish @spfn/core to GitHub Packages
-        working-directory: packages/core
-        run: npm publish --access public --registry=https://npm.pkg.github.com
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
