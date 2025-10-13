@@ -38,24 +38,28 @@ jobs:
       # npm 배포 (OIDC Trusted Publisher 사용)
       - name: Publish @spfn/core to npm
         working-directory: packages/core
-        run: pnpm publish --access public --no-git-checks --provenance
+        run: npm publish --access public --provenance
 
       - name: Publish spfn to npm
         working-directory: packages/spfn
-        run: pnpm publish --access public --no-git-checks --provenance
+        run: npm publish --access public --provenance
 
       # GitHub Packages 배포
-      - name: Create .npmrc for GitHub Packages
-        run: |
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
-          echo "registry=https://npm.pkg.github.com" >> ~/.npmrc
-          echo "@spfn:registry=https://npm.pkg.github.com" >> ~/.npmrc
-          cat ~/.npmrc
+      - name: Setup Node.js for GitHub Packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@spfn'
 
       - name: Publish @spfn/core to GitHub Packages
         working-directory: packages/core
-        run: pnpm publish --access public --no-git-checks
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish spfn to GitHub Packages
         working-directory: packages/spfn
-        run: pnpm publish --access public --no-git-checks
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
