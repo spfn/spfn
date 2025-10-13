@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# SEO automation credentials (never commit!)
+scripts/seo/credentials.json
+scripts/seo/token.json
