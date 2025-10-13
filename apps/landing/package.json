@@ -6,13 +6,9 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "start": "next start",
-    "seo:google": "tsx scripts/seo/google-search-console.ts",
-    "seo:register": "tsx scripts/seo/google-search-console.ts"
+    "start": "next start"
   },
   "dependencies": {
-    "google-auth-library": "^10.4.0",
-    "googleapis": "^162.0.0",
     "next": "15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -26,6 +22,7 @@
     "@types/react-dom": "^19",
     "@types/react-syntax-highlighter": "^15.5.13",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }
