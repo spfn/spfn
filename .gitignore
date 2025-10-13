@@ -50,4 +50,5 @@ packages/*/.guide/
 
 # Woodpecker CI/CD (only for Gitea, not GitHub)
 .woodpecker.yml
+.woodpecker.dev.yml
 .woodpecker.main.yml
