@@ -20,7 +20,7 @@ interface PackageJson {
 /**
  * Setup SVGR for SVG icon management
  */
-async function setupIcons(): Promise<void>
+export async function setupIcons(): Promise<void>
 {
     const cwd = process.cwd();
 
@@ -249,7 +249,7 @@ turbopack: {
                         {
                             configContent = configContent.replace(
                                 configObjectPattern,
-                                (match, opening, content, closing) =>
+                                (_match, opening, content, closing) =>
                                 {
                                     const trimmedContent = content.trim();
                                     if (trimmedContent)

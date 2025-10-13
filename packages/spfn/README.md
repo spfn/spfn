@@ -8,6 +8,16 @@ The official CLI tool for SPFN framework. Initialize projects, generate boilerpl
 
 > ⚠️ **Alpha Release**: SPFN is currently in alpha. Use `@alpha` tag for installation.
 
+### Quick Start (New Project)
+```bash
+# Create new project with all SPFN features pre-configured
+npx spfn@alpha create my-app
+cd my-app
+docker compose up -d
+npm run spfn:dev
+```
+
+### Add to Existing Next.js Project
 ```bash
 # Using npx (no installation required) - Recommended
 npx spfn@alpha init
@@ -19,9 +29,16 @@ spfn init
 
 ## Commands
 
+### Create New Project
+```bash
+spfn create <name>           # Create new Next.js project with SPFN (all-in-one)
+spfn create my-app           # Example: Create project with TypeScript, App Router, SVGR, and SPFN
+spfn create my-app --shadcn  # Include shadcn/ui component library
+```
+
 ### Project Initialization
 ```bash
-spfn init              # Initialize SPFN in Next.js project
+spfn init              # Initialize SPFN in existing Next.js project
 ```
 
 ### Code Generation

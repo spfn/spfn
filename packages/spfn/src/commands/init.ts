@@ -55,12 +55,12 @@ interface InitOptions
     yes?: boolean;
 }
 
-export const initCommand = new Command('init')
-    .description('Initialize SPFN in your Next.js project')
-    .option('-y, --yes', 'Skip prompts and use defaults')
-    .action(async (options: InitOptions) =>
-    {
-        const cwd = process.cwd();
+/**
+ * Initialize SPFN in a Next.js project
+ */
+export async function initializeSpfn(options: InitOptions = {}): Promise<void>
+{
+    const cwd = process.cwd();
 
         // 1. Check if it's a Next.js project
         const packageJsonPath = join(cwd, 'package.json');
@@ -266,4 +266,9 @@ NEXT_PUBLIC_API_URL=http://localhost:8790
         console.log('  • ' + chalk.cyan('spfn:dev') + '     - Start SPFN server (8790) + Next.js (3790)');
         console.log('  • ' + chalk.cyan('spfn:server') + '  - Start SPFN server only (8790)');
         console.log('  • ' + chalk.cyan('spfn:next') + '    - Start Next.js only (3790)');
-    });
+}
+
+export const initCommand = new Command('init')
+    .description('Initialize SPFN in your Next.js project')
+    .option('-y, --yes', 'Skip prompts and use defaults')
+    .action(initializeSpfn);
