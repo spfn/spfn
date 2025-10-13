@@ -1,0 +1,472 @@
+when:
+  - event:
+      - push
+      - manual
+    branch:
+      - dev
+      - develop
+    path:
+      include: ['apps/landing/**']
+      exclude: ['**/*.md', 'apps/landing/.gitignore']
+      on_empty: false
+
+skip_clone: true
+
+steps:
+  - name: clone-source-repo
+    image: alpine/git:latest
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: "128Mi"
+          limits:
+            memory: "256Mi"
+        nodeSelector:
+          role: build
+    environment:
+      CI_BOT_USER: { from_secret: CI_BOT_USER }
+      CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
+      CI_REPO_CLONE_URL: ${CI_REPO_CLONE_URL}
+      CI_COMMIT_SHA: ${CI_COMMIT_SHA}
+      CI_COMMIT_BRANCH: ${CI_COMMIT_BRANCH}
+    commands:
+      - |
+        echo "🔄 Cloning source repository"
+        apk add --no-cache git
+
+        # 고유한 작업 디렉토리 생성
+        WORK_DIR="/woodpecker/src-$CI_COMMIT_SHA"
+
+        # 디버깅: URL 정보 출력
+        echo "📋 Debug Info:"
+        echo "  CI_REPO_CLONE_URL: $CI_REPO_CLONE_URL"
+        echo "  CI_COMMIT_BRANCH: $CI_COMMIT_BRANCH"
+        echo "  CI_COMMIT_SHA: $CI_COMMIT_SHA"
+        echo "  CI_BOT_USER: $CI_BOT_USER"
+        echo "  Constructed URL: https://$CI_BOT_USER:*****@$(echo $CI_REPO_CLONE_URL | sed 's|https://||')"
+
+        # 소스 저장소 클론
+        git clone -b $CI_COMMIT_BRANCH --depth=1 \
+          https://$CI_BOT_USER:$CI_BOT_TOKEN@$(echo $CI_REPO_CLONE_URL | sed 's|https://||') \
+          $WORK_DIR/
+
+        cd $WORK_DIR
+        git checkout $CI_COMMIT_SHA || echo "Already on target commit"
+
+        # 다음 스텝에서 사용할 수 있도록 경로 저장
+        mkdir -p /woodpecker/shared
+        echo "$WORK_DIR" > /woodpecker/shared/work_dir
+
+        echo "✅ Source repository cloned successfully"
+        ls -la $WORK_DIR/
+
+  - name: clone-dockerfile-repo
+    image: alpine/git:latest
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: "128Mi"
+          limits:
+            memory: "256Mi"
+        nodeSelector:
+          role: build
+    environment:
+      CI_BOT_USER: { from_secret: CI_BOT_USER }
+      CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
+      DOCKERFILE_NAME: "nextjs.Dockerfile"
+    commands:
+      - |
+        echo "📄 Cloning Dockerfile repository"
+        apk add --no-cache git
+
+        # Dockerfile 저장소 클론
+        git clone --depth=1 \
+          https://$CI_BOT_USER:$CI_BOT_TOKEN@git.superfunction.xyz/spfn-apps/dockerfiles \
+          /woodpecker/dockerfiles/
+
+        # 공유 디렉토리에 Dockerfile 경로 저장 (환경변수 사용)
+        mkdir -p /woodpecker/shared
+        echo "/woodpecker/dockerfiles/$DOCKERFILE_NAME" > /woodpecker/shared/dockerfile_path
+
+        echo "✅ Dockerfile repository cloned successfully"
+        ls -la /woodpecker/dockerfiles/
+
+  - name: build-with-central-dockerfile
+    image: gcr.io/kaniko-project/executor:debug
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: "4Gi"
+          limits:
+            memory: "6Gi"
+        nodeSelector:
+          role: build
+    environment:
+      REGISTRY_HOST: git.superfunction.xyz
+      GIT_ORG: spfn
+      GIT_REPO: spfn
+      APP_NAME: superfunction
+      CI_BOT_USER: { from_secret: CI_BOT_USER }
+      CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
+      CI_COMMIT_SHA: ${CI_COMMIT_SHA}
+      CI_COMMIT_BRANCH: ${CI_COMMIT_BRANCH}
+    commands:
+      - |
+        echo "🚀 Starting Kaniko build for Container Registry: $REGISTRY_HOST"
+        echo "📦 Building image: $REGISTRY_HOST/$GIT_ORG/$GIT_REPO:$CI_COMMIT_BRANCH-$CI_COMMIT_SHA"
+
+        mkdir -p /kaniko/.docker
+
+        # Registry 인증 설정
+        echo '{
+          "auths": {
+            "'$REGISTRY_HOST'": {
+              "auth": "'$(echo -n $CI_BOT_USER:$CI_BOT_TOKEN | base64 | tr -d '\n')'"
+            }
+          }
+        }' > /kaniko/.docker/config.json
+
+        # 빌드 정보를 다음 스텝에서 사용할 수 있도록 저장
+        mkdir -p /woodpecker/shared
+        echo "$REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME:$CI_COMMIT_BRANCH-$CI_COMMIT_SHA" > /woodpecker/shared/image_tag
+        echo "$CI_COMMIT_SHA" > /woodpecker/shared/commit_sha
+
+        # 클론된 Dockerfile 사용
+        DOCKERFILE_PATH=$(cat /woodpecker/shared/dockerfile_path)
+        WORK_DIR=$(cat /woodpecker/shared/work_dir)
+
+        # Build context는 apps/landing만
+        BUILD_CONTEXT="$WORK_DIR/apps/landing"
+
+        echo "📋 Build Info:"
+        echo "  Dockerfile: $DOCKERFILE_PATH"
+        echo "  Context: $BUILD_CONTEXT"
+        echo "  Image: $REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME:${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA}"
+
+        # Dockerfile 내용 확인
+        echo "📄 Using Dockerfile:"
+        head -10 $DOCKERFILE_PATH
+
+        # Kaniko 빌드 실행 (apps/landing만 빌드)
+        /kaniko/executor \
+          --dockerfile=$DOCKERFILE_PATH \
+          --context=$BUILD_CONTEXT \
+          --destination=$REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME:${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA} \
+          --build-arg CI_BOT_USER="$CI_BOT_USER" \
+          --build-arg CI_BOT_TOKEN="$CI_BOT_TOKEN" \
+          --cache=true \
+          --cache-copy-layers \
+          --cache-repo=$REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME-cache
+
+        echo "✅ Build completed successfully!"
+
+  - name: clone-gitops-repo
+    image: alpine/git:latest
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: "128Mi"
+          limits:
+            memory: "256Mi"
+        nodeSelector:
+          role: build
+    environment:
+      CI_BOT_USER: { from_secret: CI_BOT_USER }
+      CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
+      GIT_ORG: spfn
+      GIT_REPO: spfn
+      APP_NAME: superfunction
+      CI_COMMIT_BRANCH: ${CI_COMMIT_BRANCH}
+    commands:
+      - |
+        echo "📦 Cloning GitOps repository"
+        apk add --no-cache git
+
+        # GitOps 저장소 클론 (해당 브랜치가 미리 생성되어 있어야 함)
+        GITOPS_PATH="/woodpecker/gitops-$GIT_ORG-$GIT_REPO"
+        GITOPS_URL="https://$CI_BOT_USER:$CI_BOT_TOKEN@git.superfunction.xyz/spfn-apps/$GIT_ORG-$GIT_REPO.git"
+
+        # 해당 브랜치로 클론 시도
+        if git clone -b $CI_COMMIT_BRANCH --depth=1 $GITOPS_URL $GITOPS_PATH 2>/dev/null; then
+          echo "✅ GitOps repository cloned from branch: $CI_COMMIT_BRANCH"
+        else
+          echo "⚠️ GitOps repository branch not found: $CI_COMMIT_BRANCH"
+          echo "🔧 Creating branch from main..."
+
+          # main 브랜치로 클론
+          git clone -b main --depth=1 $GITOPS_URL $GITOPS_PATH
+          cd $GITOPS_PATH
+
+          # Git 안전 디렉토리 설정 (소유권 문제 해결)
+          git config --global --add safe.directory $(pwd)
+
+          # Git 사용자 설정
+          git config user.name "Woodpecker CI"
+          git config user.email "ci@superfunction.xyz"
+
+          # 새 브랜치 생성 및 푸시
+          git checkout -b $CI_COMMIT_BRANCH
+          git push -u origin $CI_COMMIT_BRANCH
+
+          echo "✅ GitOps repository branch created: $CI_COMMIT_BRANCH"
+        fi
+
+        # 항상 GitOps 디렉토리로 이동
+        cd $GITOPS_PATH
+        # Git 설정은 이미 글로벌로 완료됨
+
+        # 다음 스텝에서 사용할 수 있도록 경로 저장
+        echo "$GITOPS_PATH" > /woodpecker/shared/gitops_path
+
+        echo "✅ GitOps repository cloned successfully"
+        ls -la $GITOPS_PATH
+
+  - name: update-app-config
+    image: alpine:latest
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "128Mi"
+        nodeSelector:
+          role: build
+    environment:
+      GIT_ORG: spfn
+      GIT_REPO: spfn
+      APP_NAME: superfunction
+      REGISTRY_HOST: git.superfunction.xyz
+      CI_COMMIT_BRANCH: ${CI_COMMIT_BRANCH}
+      CI_BOT_USER: { from_secret: CI_BOT_USER }
+      CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
+    commands:
+      - |
+        echo "⚙️ Updating app configuration"
+        apk add --no-cache yq
+
+        # GitOps 경로 읽기
+        GITOPS_PATH=$(cat /woodpecker/shared/gitops_path)
+        cd $GITOPS_PATH
+
+        # 빌드 정보 읽기
+        IMAGE_TAG=$(cat /woodpecker/shared/image_tag)
+        COMMIT_SHA=$(cat /woodpecker/shared/commit_sha)
+
+        # values.yaml 생성 또는 업데이트 (ApplicationSet 호환 구조)
+        touch values.yaml
+
+        # App metadata
+        yq e '.app.name = strenv(APP_NAME)' -i values.yaml
+        yq e '.app.version = "'$COMMIT_SHA'"' -i values.yaml
+
+        # Namespace (브랜치명의 /를 -로 변환)
+        BRANCH_SAFE=$(echo "$CI_COMMIT_BRANCH" | sed 's|/|-|g')
+        yq e '.namespace = strenv(GIT_ORG) + "-" + "'$BRANCH_SAFE'"' -i values.yaml
+
+        # Image configuration
+        yq e '.image.repository = "'$(echo $IMAGE_TAG | cut -d: -f1)'"' -i values.yaml
+        yq e '.image.tag = "'$CI_COMMIT_BRANCH'-'$COMMIT_SHA'"' -i values.yaml
+        yq e '.image.pullPolicy = "IfNotPresent"' -i values.yaml
+        # Gitea Registry 설정
+        yq e '.giteaRegistry.enabled = true' -i values.yaml
+        yq e '.giteaRegistry.server = "git.superfunction.xyz"' -i values.yaml
+        yq e '.giteaRegistry.username = strenv(CI_BOT_USER)' -i values.yaml
+        yq e '.giteaRegistry.password = strenv(CI_BOT_TOKEN)' -i values.yaml
+        yq e '.giteaRegistry.secretName = "gitea-repo-secret"' -i values.yaml
+
+        # 디버깅: values.yaml 내용 확인
+        echo "📋 Generated values.yaml content:"
+        cat values.yaml
+
+        echo "✅ App configuration updated"
+
+  - name: update-service-config
+    image: alpine:latest
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "128Mi"
+        nodeSelector:
+          role: build
+    environment:
+      BASE_HOST: "superfunction.xyz"
+      HOST_POSTFIX: ""  # landing page는 postfix 없음
+      CUSTOM_HOSTS: "dev.superfunction.xyz"  # 개발 환경 전용 도메인
+      GIT_ORG: spfn
+      GIT_REPO: spfn
+      APP_NAME: superfunction
+      CI_COMMIT_BRANCH: ${CI_COMMIT_BRANCH}
+      PORT: 3790
+      REPLICAS: 1
+      REQUEST_CPU: "10m"
+      REQUEST_MEMORY: "128Mi"
+      LIMIT_CPU: "200m"
+      LIMIT_MEMORY: "256Mi"
+    commands:
+      - |
+        echo "🔧 Updating service configuration"
+        apk add --no-cache yq
+
+        # GitOps 경로 읽기
+        GITOPS_PATH=$(cat /woodpecker/shared/gitops_path)
+        cd $GITOPS_PATH
+
+        # Service configuration
+        yq e '.service.type = "ClusterIP"' -i values.yaml
+        yq e '.service.port = env(PORT)' -i values.yaml
+        yq e '.service.targetPort = env(PORT)' -i values.yaml
+
+        # Resources and replicas (DEV 환경)
+        yq e '.replicaCount = env(REPLICAS)' -i values.yaml
+        yq e '.resources.requests.cpu = strenv(REQUEST_CPU)' -i values.yaml
+        yq e '.resources.requests.memory = strenv(REQUEST_MEMORY)' -i values.yaml
+        yq e '.resources.limits.cpu = strenv(LIMIT_CPU)' -i values.yaml
+        yq e '.resources.limits.memory = strenv(LIMIT_MEMORY)' -i values.yaml
+
+        # Health checks (Next.js 정적 사이트)
+        yq e '.healthCheck.enabled = true' -i values.yaml
+        yq e '.healthCheck.readinessProbe.httpGet.path = "/"' -i values.yaml
+        yq e '.healthCheck.readinessProbe.httpGet.port = env(PORT)' -i values.yaml
+        yq e '.healthCheck.readinessProbe.initialDelaySeconds = 5' -i values.yaml
+        yq e '.healthCheck.readinessProbe.periodSeconds = 10' -i values.yaml
+        yq e '.healthCheck.readinessProbe.timeoutSeconds = 3' -i values.yaml
+        yq e '.healthCheck.readinessProbe.successThreshold = 1' -i values.yaml
+        yq e '.healthCheck.readinessProbe.failureThreshold = 3' -i values.yaml
+
+        yq e '.healthCheck.livenessProbe.httpGet.path = "/"' -i values.yaml
+        yq e '.healthCheck.livenessProbe.httpGet.port = env(PORT)' -i values.yaml
+        yq e '.healthCheck.livenessProbe.initialDelaySeconds = 10' -i values.yaml
+        yq e '.healthCheck.livenessProbe.periodSeconds = 30' -i values.yaml
+        yq e '.healthCheck.livenessProbe.timeoutSeconds = 3' -i values.yaml
+        yq e '.healthCheck.livenessProbe.successThreshold = 1' -i values.yaml
+        yq e '.healthCheck.livenessProbe.failureThreshold = 3' -i values.yaml
+
+        # Ingress (Dynamic host generation with multiple hosts support)
+        yq e '.ingress.enabled = true' -i values.yaml
+        yq e '.ingress.className = "traefik"' -i values.yaml
+
+        # Traefik annotations
+        yq e '.ingress.annotations."traefik.ingress.kubernetes.io/router.entrypoints" = "web,websecure"' -i values.yaml
+        yq e '.ingress.annotations."traefik.ingress.kubernetes.io/router.tls.certresolver" = "letsencrypt"' -i values.yaml
+        yq e '.ingress.annotations."traefik.ingress.kubernetes.io/router.middlewares" = "traefik-https-redirect@kubernetescrd"' -i values.yaml
+        # 브랜치명 안전 처리 (/를 -로 변환)
+        BRANCH_SAFE=$(echo "$CI_COMMIT_BRANCH" | sed 's|/|-|g')
+
+        # Host 생성 (branch-gitorg-gitrepo-postfix.basehost)
+        if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+          if [ -n "$HOST_POSTFIX" ] && [ "$HOST_POSTFIX" != "" ]; then
+            HOST_PREFIX="$GIT_ORG-$GIT_REPO-$HOST_POSTFIX"
+          else
+            HOST_PREFIX="$GIT_ORG-$GIT_REPO"
+          fi
+        else
+          if [ -n "$HOST_POSTFIX" ] && [ "$HOST_POSTFIX" != "" ]; then
+            HOST_PREFIX="$BRANCH_SAFE-$GIT_ORG-$GIT_REPO-$HOST_POSTFIX"
+          else
+            HOST_PREFIX="$BRANCH_SAFE-$GIT_ORG-$GIT_REPO"
+          fi
+        fi
+
+        # 기본 호스트 설정
+        DEFAULT_HOST="$HOST_PREFIX.$BASE_HOST"
+        yq e '.ingress.hosts[0].host = "'$DEFAULT_HOST'"' -i values.yaml
+        yq e '.ingress.hosts[0].paths[0].path = "/"' -i values.yaml
+        yq e '.ingress.hosts[0].paths[0].pathType = "Prefix"' -i values.yaml
+
+        # 커스텀 호스트들 추가
+        if [ -n "$CUSTOM_HOSTS" ] && [ "$CUSTOM_HOSTS" != "" ]; then
+          HOST_INDEX=1
+          for custom_host in $CUSTOM_HOSTS; do
+            yq e '.ingress.hosts['$HOST_INDEX'].host = "'$custom_host'"' -i values.yaml
+            yq e '.ingress.hosts['$HOST_INDEX'].paths[0].path = "/"' -i values.yaml
+            yq e '.ingress.hosts['$HOST_INDEX'].paths[0].pathType = "Prefix"' -i values.yaml
+            HOST_INDEX=$((HOST_INDEX + 1))
+          done
+        fi
+
+        echo "✅ Service configuration updated"
+
+  - name: commit-and-push
+    image: alpine/git:latest
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "128Mi"
+        nodeSelector:
+          role: build
+    environment:
+      CI_BOT_USER: { from_secret: CI_BOT_USER }
+      CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
+      APP_NAME: superfunction
+    commands:
+      - |
+        echo "📤 Committing and pushing changes"
+        apk add --no-cache git
+
+        # GitOps 경로 읽기
+        GITOPS_PATH=$(cat /woodpecker/shared/gitops_path)
+        cd $GITOPS_PATH
+
+        # Git 안전 디렉토리 설정 (새로운 컨테이너이므로 다시 설정 필요)
+        git config --global --add safe.directory $GITOPS_PATH
+        git config --global user.email "ci-bot@superfunctions.ai"
+        git config --global user.name "CI Bot"
+
+        # 커밋 SHA 읽기
+        COMMIT_SHA=$(cat /woodpecker/shared/commit_sha)
+
+        echo "🔍 Updated files in $APP_NAME:"
+        ls -l ./
+
+        # 디버깅: 최종 values.yaml 내용 확인 (커밋 전)
+        echo "📋 Final values.yaml content before commit:"
+        cat values.yaml
+
+        # ArgoCD 브랜치별 배포를 위한 마커 파일 생성
+        if [ "$CI_COMMIT_BRANCH" != "main" ]; then
+          mkdir -p .argocd
+          echo "# ArgoCD ApplicationSet 배포 활성화 마커" > .argocd/enabled
+          echo "branch: $CI_COMMIT_BRANCH" >> .argocd/enabled
+          echo "created: $(date -Iseconds)" >> .argocd/enabled
+          git add .argocd/enabled
+        fi
+
+        git add values.yaml
+        git commit -m "Deploy $APP_NAME ${COMMIT_SHA} to DEVELOPMENT" || echo "No changes"
+
+        # 현재 브랜치에 맞는 브랜치로 push (브랜치가 없으면 생성)
+        TARGET_BRANCH="$CI_COMMIT_BRANCH"
+
+        # 현재 브랜치가 원격에 존재하는지 확인
+        if git ls-remote --heads origin $TARGET_BRANCH | grep -q $TARGET_BRANCH; then
+          echo "📥 Pulling latest from origin/$TARGET_BRANCH to rebase before push"
+          git pull --rebase origin $TARGET_BRANCH || {
+            echo "❌ git pull --rebase failed. You may need to resolve conflicts manually."
+            exit 1
+          }
+        else
+          echo "⚠️ Branch $TARGET_BRANCH does not exist on remote. Creating new branch."
+          if [ "$TARGET_BRANCH" != "main" ]; then
+            # main이 아닌 브랜치는 새로 생성
+            git checkout -b $TARGET_BRANCH 2>/dev/null || git checkout $TARGET_BRANCH
+          fi
+        fi
+
+        # 원격으로 푸시
+        if [ "$TARGET_BRANCH" != "main" ] && ! git ls-remote --heads origin $TARGET_BRANCH | grep -q $TARGET_BRANCH; then
+          git push -u origin $TARGET_BRANCH
+        else
+          git push origin $TARGET_BRANCH
+        fi
+        echo "✅ Changes committed and pushed successfully!"
