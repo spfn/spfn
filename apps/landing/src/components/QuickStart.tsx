@@ -2,26 +2,39 @@ import CodeBlock from '@/components/CodeBlock';
 
 export default function QuickStart()
 {
+    const setupOptions = [
+        {
+            badge: 'Recommended',
+            title: 'Option 1: Create New Project',
+            code: `# Create new project with SPFN + Next.js + TypeScript + Tailwind + SVGR
+npx spfn@alpha create my-app
+cd my-app
+
+# Start databases (Docker recommended, or use your own PostgreSQL)
+docker compose up -d
+
+# Copy environment variables
+cp .env.local.example .env.local
+
+# Start dev server
+npm run spfn:dev`,
+            language: 'bash',
+            description: 'Everything configured out of the box',
+        },
+        {
+            badge: null,
+            title: 'Option 2: Add to Existing Next.js Project',
+            code: `cd your-nextjs-project
+npx spfn@alpha init
+npm run spfn:dev`,
+            language: 'bash',
+            description: 'Add SPFN backend to existing Next.js app',
+        },
+    ];
+
     const steps = [
         {
             number: '1',
-            title: 'Install',
-            code: `cd your-nextjs-project
-npx spfn@alpha init`,
-            language: 'bash',
-            description: 'Initialize SPFN in your existing Next.js project',
-        },
-        {
-            number: '2',
-            title: 'Start dev server',
-            code: `npm run spfn:dev`,
-            language: 'bash',
-            result: `✅ Backend: http://localhost:8790
-✅ Frontend: http://localhost:3790`,
-            description: 'Run both backend and frontend servers',
-        },
-        {
-            number: '3',
             title: 'Generate boilerplate',
             code: `npx spfn@alpha generate users`,
             language: 'bash',
@@ -34,7 +47,7 @@ npx spfn@alpha init`,
             description: 'The magic ✨',
         },
         {
-            number: '4',
+            number: '2',
             title: 'Use in Next.js',
             code: `// app/page.tsx
 import { api } from '@/lib/api'
@@ -69,6 +82,38 @@ export default async function Page() {
                 </div>
 
                 <div className="mx-auto mt-16 max-w-4xl">
+                    {/* Setup Options */}
+                    <div className="mb-12 grid gap-6 lg:grid-cols-2">
+                        {setupOptions.map((option, index) => (
+                            <div
+                                key={index}
+                                className="relative rounded-2xl bg-white dark:bg-gray-950 p-6 shadow-sm ring-1 ring-gray-200 dark:ring-gray-800"
+                            >
+                                {option.badge && (
+                                    <div className="absolute -top-3 left-6">
+                                        <span className="inline-flex items-center rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">
+                                            {option.badge}
+                                        </span>
+                                    </div>
+                                )}
+                                <h3 className="text-lg font-semibold leading-7 text-gray-900 dark:text-white">
+                                    {option.title}
+                                </h3>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                    {option.description}
+                                </p>
+                                <CodeBlock code={option.code} language={option.language} className="mt-4" />
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Development Workflow Steps */}
+                    <div className="mb-8">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white text-center">
+                            Then follow these steps:
+                        </h3>
+                    </div>
+
                     <div className="space-y-8">
                         {steps.map((step) => (
                             <div
