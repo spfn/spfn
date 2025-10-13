@@ -19,9 +19,14 @@ export default function Header()
                     {/* Logo + Brand */}
                     <div className="flex items-center gap-x-2">
                         <img
+                            src="/logo-black.png"
+                            alt="SPFN"
+                            className="size-8 dark:hidden"
+                        />
+                        <img
                             src="/logo.png"
                             alt="SPFN"
-                            className="size-8"
+                            className="size-8 hidden dark:block"
                         />
                         <span className="text-xl font-bold text-gray-900 dark:text-white font-sansation">
                             Superfunction
@@ -29,7 +34,7 @@ export default function Header()
                     </div>
 
                     {/* Desktop Navigation */}
-                    <div className="hiㅣㄱdden md:flex items-center gap-x-8">
+                    <div className="hidden md:flex items-center gap-x-8">
                         {navigation.map((item) => (
                             <a
                                 key={item.name}

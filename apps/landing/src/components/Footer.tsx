@@ -25,9 +25,14 @@ export default function Footer()
                     <div className="lg:col-span-1">
                         <div className="flex items-center gap-x-2">
                             <img
+                                src="/logo-black.png"
+                                alt="SPFN"
+                                className="size-10 dark:hidden"
+                            />
+                            <img
                                 src="/logo.png"
                                 alt="SPFN"
-                                className="size-10"
+                                className="size-10 hidden dark:block"
                             />
                             <h3 className="text-2xl font-bold text-gray-900 dark:text-white font-sansation">
                                 Superfunction
