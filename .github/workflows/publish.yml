@@ -35,12 +35,15 @@ jobs:
         run: pnpm run build
 
       # npm 배포
-      - name: Publish to npm
-        run: |
-          cd packages/core
-          npm publish --access public
-          cd ../spfn
-          npm publish --access public
+      - name: Publish @spfn/core to npm
+        working-directory: packages/core
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish spfn to npm
+        working-directory: packages/spfn
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -52,11 +55,14 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@spfn'
 
-      - name: Publish to GitHub Packages
-        run: |
-          cd packages/core
-          npm publish --access public
-          cd ../spfn
-          npm publish --access public
+      - name: Publish @spfn/core to GitHub Packages
+        working-directory: packages/core
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish spfn to GitHub Packages
+        working-directory: packages/spfn
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
