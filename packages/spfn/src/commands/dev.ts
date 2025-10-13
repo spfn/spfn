@@ -98,7 +98,8 @@ await watchAndGenerate({
             catch (error)
             {
                 // Concurrently was killed by user (Ctrl+C), this is expected
-                if ((error as any).exitCode === 130)
+                const execError = error as { exitCode?: number };
+                if (execError.exitCode === 130)
                 {
                     process.exit(0);
                 }
@@ -136,7 +137,8 @@ await watchAndGenerate({
         catch (error)
         {
             // Concurrently was killed by user (Ctrl+C), this is expected
-            if ((error as any).exitCode === 130)
+            const execError = error as { exitCode?: number };
+            if (execError.exitCode === 130)
             {
                 process.exit(0);
             }

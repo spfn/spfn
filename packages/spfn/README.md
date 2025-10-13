@@ -46,6 +46,11 @@ spfn db check         # Check database connection
 spfn db drop          # Drop all tables (⚠️ dangerous!)
 ```
 
+### Setup Features
+```bash
+spfn setup icons      # Setup SVGR for SVG icon management
+```
+
 ### Utilities
 ```bash
 spfn key              # Generate encryption key for .env
