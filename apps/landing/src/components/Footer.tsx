@@ -4,7 +4,7 @@ export default function Footer()
         documentation: [
             { name: 'Getting Started', href: '#quick-start' },
             { name: 'Core API', href: 'https://github.com/spfn/spfn/blob/main/packages/core/README.md' },
-            { name: 'CLI Guide', href: 'https://github.com/spfn/spfn/blob/main/packages/cli/README.md' },
+            { name: 'CLI Guide', href: 'https://github.com/spfn/spfn/blob/main/packages/spfn/README.md' },
         ],
         community: [
             { name: 'GitHub', href: 'https://github.com/spfn/spfn' },
@@ -13,7 +13,7 @@ export default function Footer()
         ],
         ecosystem: [
             { name: '@spfn/core', href: 'https://npmjs.com/package/@spfn/core', status: '🚧 Alpha' },
-            { name: '@spfn/cli', href: 'https://npmjs.com/package/@spfn/cli', status: '🚧 Alpha' },
+            { name: 'spfn', href: 'https://npmjs.com/package/spfn', status: '🚧 Alpha' },
         ],
     };
 

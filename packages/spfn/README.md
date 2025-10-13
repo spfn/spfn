@@ -2,7 +2,7 @@
 
 > Superfunction CLI - The Backend Layer for Next.js
 
-This is a thin wrapper package that provides a shorter name for the `@spfn/cli` package.
+The official CLI tool for SPFN framework. Initialize projects, generate boilerplate code, and manage your database.
 
 ## Usage
 
@@ -17,13 +17,54 @@ npm install -g spfn@alpha
 spfn init
 ```
 
-This package simply forwards all commands to `@spfn/cli`. See the [@spfn/cli documentation](../cli/README.md) for full details.
+## Commands
 
-## Why this package exists
+### Project Initialization
+```bash
+spfn init              # Initialize SPFN in Next.js project
+```
 
-To provide a better developer experience with a shorter package name:
+### Code Generation
+```bash
+spfn generate <name>   # Generate entity, routes, repository, and client
+spfn generate users    # Example: Generate users CRUD
+```
 
-- ✅ `npx spfn@latest init`
-- ❌ `npx @spfn/cli@latest init`
+### Development
+```bash
+spfn dev              # Start dev server with watch mode
+spfn start            # Start production server
+```
 
-Similar to how other popular tools work (e.g., `npx shadcn@latest init`).
+### Database Management
+```bash
+spfn db generate      # Generate database migrations
+spfn db push          # Push schema to database (no migrations)
+spfn db migrate       # Run pending migrations
+spfn db studio        # Open Drizzle Studio (database GUI)
+spfn db check         # Check database connection
+spfn db drop          # Drop all tables (⚠️ dangerous!)
+```
+
+### Utilities
+```bash
+spfn key              # Generate encryption key for .env
+```
+
+## Documentation
+
+For complete documentation and guides, see:
+- **[SPFN Framework](../../README.md)** - Getting started
+- **[@spfn/core](../core/README.md)** - API reference and core concepts
+
+## Requirements
+
+- Node.js 18+
+- Next.js 15+ (App Router)
+- PostgreSQL (optional: Redis)
+
+## Links
+
+- 🌐 Website: [superfunction.xyz](https://superfunction.xyz)
+- 📦 npm: [@spfn/core](https://npmjs.com/package/@spfn/core)
+- 💬 GitHub: [spfn/spfn](https://github.com/spfn/spfn)
