@@ -37,13 +37,13 @@ jobs:
       # npm 배포
       - name: Publish @spfn/core to npm
         working-directory: packages/core
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish spfn to npm
         working-directory: packages/spfn
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -57,12 +57,12 @@ jobs:
 
       - name: Publish @spfn/core to GitHub Packages
         working-directory: packages/core
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish spfn to GitHub Packages
         working-directory: packages/spfn
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
