@@ -178,7 +178,9 @@ export const initCommand = new Command('init')
 
             if (!existsSync(serverTemplateDir))
             {
-                throw new Error(`Server templates not found at: ${serverTemplateDir}`);
+                spinner.fail('Failed to create server structure');
+                logger.error(`Server templates not found at: ${serverTemplateDir}`);
+                process.exit(1);
             }
 
             ensureDirSync(targetDir);
