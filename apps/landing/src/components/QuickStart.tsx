@@ -138,14 +138,6 @@ export default async function Page() {
 
                                         <CodeBlock code={step.code} language={step.language} className="mt-4" />
 
-                                        {step.result && (
-                                            <div className="mt-3 rounded-lg bg-green-50 dark:bg-green-950/20 p-3 font-mono text-sm">
-                                                <pre className="text-green-700 dark:text-green-400 whitespace-pre">
-                                                    { step.result }
-                                                </pre>
-                                            </div>
-                                        )}
-
                                         {step.created && (
                                             <div className="mt-4 space-y-2">
                                                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
