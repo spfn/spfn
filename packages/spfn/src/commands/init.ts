@@ -219,6 +219,26 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             }
         }
 
+        // 4.6. Generate deployment config (spfn.json)
+        const deploymentConfigPath = join(cwd, 'spfn.json');
+        if (!existsSync(deploymentConfigPath))
+        {
+            try
+            {
+                const deploymentConfig = {
+                    packageManager: pm
+                };
+
+                writeFileSync(deploymentConfigPath, JSON.stringify(deploymentConfig, null, 2));
+                logger.success(`Created spfn.json (package manager: ${pm})`);
+            }
+            catch (error)
+            {
+                // Not critical, continue
+                logger.warn('Could not create spfn.json');
+            }
+        }
+
         // 5. Update package.json scripts
         spinner.start('Updating package.json scripts...');
 
