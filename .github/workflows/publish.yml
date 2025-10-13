@@ -37,11 +37,11 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
-      # npm 배포 (OIDC Trusted Publisher 사용)
+      # pnpm 배포 (workspace:* 자동 변환 + OIDC Trusted Publisher 사용)
       - name: Publish @spfn/core to npm
         working-directory: packages/core
-        run: npm publish --access public --provenance
+        run: pnpm publish --access public --provenance --no-git-checks
 
       - name: Publish spfn to npm
         working-directory: packages/spfn
-        run: npm publish --access public --provenance
+        run: pnpm publish --access public --provenance --no-git-checks
