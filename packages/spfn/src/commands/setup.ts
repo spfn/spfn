@@ -159,11 +159,18 @@ export default nextConfig;
             }
             else
             {
-                spinner.info('Manual update required for next.config');
-                logger.warn('\nYou need to manually add SVGR configuration to your next.config file.');
-                logger.info('See: https://react-svgr.com/docs/next/');
-                logger.info('\nAdd this to your next.config:\n');
-                console.log(chalk.gray(`
+                // Try to automatically add SVGR configuration
+                const hasWebpack = configContent.includes('webpack(');
+                const hasTurbopack = configContent.includes('turbopack:');
+
+                if (hasWebpack || hasTurbopack)
+                {
+                    // Config already has webpack/turbopack - manual update required
+                    spinner.info('Manual update required for next.config');
+                    logger.warn('\nYou need to manually add SVGR configuration to your next.config file.');
+                    logger.info('See: https://react-svgr.com/docs/next/');
+                    logger.info('\nAdd this to your next.config:\n');
+                    console.log(chalk.gray(`
 webpack(config) {
   const fileLoaderRule = config.module.rules
     .find(rule => rule.oneOf)
@@ -189,6 +196,80 @@ turbopack: {
   },
 },
                 `));
+                }
+                else
+                {
+                    // Auto-inject SVGR configuration
+                    const webpackConfig = `  webpack(config) {
+    // SVGR: Import SVG as React components
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fileLoaderRule = (config.module.rules as any[])
+      .find((rule: any) => Array.isArray(rule.oneOf))
+      ?.oneOf.find((rule: any) => rule.test?.test?.('.svg'));
+
+    if (fileLoaderRule) {
+      fileLoaderRule.exclude = /\\.svg$/i;
+    }
+
+    config.module.rules.unshift({
+      test: /\\.svg$/i,
+      use: ['@svgr/webpack'],
+    });
+
+    return config;
+  },`;
+
+                    const turbopackConfig = `  turbopack: {
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
+      },
+    },
+  },`;
+
+                    // Check if config object is empty: NextConfig = {};
+                    const emptyConfigPattern = /const\s+\w+:\s*NextConfig\s*=\s*\{\s*\};/;
+
+                    if (emptyConfigPattern.test(configContent))
+                    {
+                        // Replace empty config with SVGR config
+                        configContent = configContent.replace(
+                            emptyConfigPattern,
+                            `const nextConfig: NextConfig = {\n${webpackConfig}\n${turbopackConfig}\n};`
+                        );
+                    }
+                    else
+                    {
+                        // Insert webpack and turbopack before the closing brace of NextConfig object
+                        // Find the NextConfig object and add properties
+                        const configObjectPattern = /(const\s+\w+:\s*NextConfig\s*=\s*\{)([^}]*?)(\};)/s;
+
+                        if (configObjectPattern.test(configContent))
+                        {
+                            configContent = configContent.replace(
+                                configObjectPattern,
+                                (match, opening, content, closing) =>
+                                {
+                                    const trimmedContent = content.trim();
+                                    if (trimmedContent)
+                                    {
+                                        // Has existing properties
+                                        return `${opening}${content}\n${webpackConfig}\n${turbopackConfig}\n${closing}`;
+                                    }
+                                    else
+                                    {
+                                        // Empty object
+                                        return `${opening}\n${webpackConfig}\n${turbopackConfig}\n${closing}`;
+                                    }
+                                }
+                            );
+                        }
+                    }
+
+                    writeFileSync(configPath, configContent);
+                    spinner.succeed('Added SVGR configuration to next.config');
+                }
             }
         }
     }

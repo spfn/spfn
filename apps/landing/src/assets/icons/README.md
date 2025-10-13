@@ -1,10 +1,10 @@
 # Icons
 
-이 디렉토리는 프로젝트에서 사용하는 SVG 아이콘들을 관리합니다.
+This directory manages SVG icons for the project.
 
-## 사용 방법
+## Usage
 
-SVGR을 통해 SVG 파일을 React 컴포넌트로 import하여 사용합니다.
+Import SVG files as React components using SVGR:
 
 ```tsx
 import Logo from '@/assets/icons/logo.svg';
@@ -16,33 +16,40 @@ function MyComponent() {
 }
 ```
 
-## 색상 제어
+## Color Control
 
-SVG 파일의 `fill="currentColor"` 속성을 사용하면 Tailwind CSS의 `text-color` 유틸리티로 색상을 제어할 수 있습니다.
+Use `fill="currentColor"` in your SVG files to control colors via Tailwind CSS:
 
 ```tsx
 // Light mode: gray-900, Dark mode: white
 <Logo className="size-8 text-gray-900 dark:text-white" />
 
-// 다른 색상 사용
-<Logo className="size-6 text-blue-600" />
+// Custom colors
+<Icon className="size-6 text-blue-600" />
 ```
 
-## 새 아이콘 추가하기
+## Adding New Icons
 
-1. SVG 파일을 이 디렉토리에 추가
-2. SVG의 `fill` 속성을 `currentColor`로 설정 (색상 제어가 필요한 경우)
-3. 컴포넌트에서 import하여 사용
+1. Add SVG file to this directory
+2. Set `fill="currentColor"` for color control (optional)
+3. Remove `width` and `height` attributes for flexible sizing
+4. Import and use as React component
 
 ```tsx
 import NewIcon from '@/assets/icons/new-icon.svg';
 ```
 
-## 설정
+## Configuration
 
-- **next.config.ts**: SVGR 웹팩 로더 설정
-- **src/svg.d.ts**: TypeScript 타입 정의
+- **next.config.ts**: SVGR webpack loader configuration
+- **Turbopack**: SVG loader rules for fast refresh
 
-## 아이콘 목록
+## Example SVG Structure
 
-- `logo.svg` - SPFN 로고 (1.7KB)
+```xml
+<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="..." fill="currentColor"/>
+</svg>
+```
+
+Note: Remove `width` and `height` for flexible sizing with Tailwind utilities.
