@@ -77,52 +77,6 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  packages/cli:
-    dependencies:
-      '@spfn/core':
-        specifier: workspace:*
-        version: link:../core
-      chalk:
-        specifier: ^5.3.0
-        version: 5.6.2
-      commander:
-        specifier: ^11.1.0
-        version: 11.1.0
-      concurrently:
-        specifier: ^9.0.0
-        version: 9.2.1
-      execa:
-        specifier: ^8.0.1
-        version: 8.0.1
-      fs-extra:
-        specifier: ^11.2.0
-        version: 11.3.2
-      ora:
-        specifier: ^7.0.1
-        version: 7.0.1
-      prompts:
-        specifier: ^2.4.2
-        version: 2.4.2
-      tsx:
-        specifier: ^4.20.6
-        version: 4.20.6
-    devDependencies:
-      '@types/fs-extra':
-        specifier: ^11.0.4
-        version: 11.0.4
-      '@types/node':
-        specifier: ^20.11.0
-        version: 20.19.19
-      '@types/prompts':
-        specifier: ^2.4.9
-        version: 2.4.9
-      tsup:
-        specifier: ^8.0.0
-        version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
-
   packages/core:
     dependencies:
       '@hono/node-server':
@@ -178,15 +132,48 @@ importers:
 
   packages/spfn:
     dependencies:
-      '@spfn/cli':
+      '@spfn/core':
         specifier: workspace:*
-        version: link:../cli
+        version: link:../core
+      chalk:
+        specifier: ^5.3.0
+        version: 5.6.2
+      commander:
+        specifier: ^11.1.0
+        version: 11.1.0
+      concurrently:
+        specifier: ^9.0.0
+        version: 9.2.1
+      execa:
+        specifier: ^8.0.1
+        version: 8.0.1
+      fs-extra:
+        specifier: ^11.2.0
+        version: 11.3.2
+      ora:
+        specifier: ^7.0.1
+        version: 7.0.1
+      prompts:
+        specifier: ^2.4.2
+        version: 2.4.2
+      tsx:
+        specifier: ^4.20.6
+        version: 4.20.6
     devDependencies:
+      '@types/fs-extra':
+        specifier: ^11.0.4
+        version: 11.0.4
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.19
+      '@types/prompts':
+        specifier: ^2.4.9
+        version: 2.4.9
       tsup:
         specifier: ^8.0.0
         version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
       typescript:
-        specifier: ^5.3.0
+        specifier: ^5.3.3
         version: 5.9.3
 
 packages:
