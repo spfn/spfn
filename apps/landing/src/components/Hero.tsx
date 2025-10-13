@@ -2,14 +2,12 @@ import CodeBlock from '@/components/CodeBlock';
 
 export default function Hero()
 {
-    const terminalCode = `# Create Next.js project (App Router + src/ recommended)
-$ npx create-next-app@latest --typescript --app --src-dir
+    const terminalCode = `# Create new project with SPFN + Next.js
+$ npx spfn@alpha create my-app
+$ cd my-app
 
-# Initialize SPFN
-$ npx spfn@alpha init
-
-# Generate boilerplate
-$ npx spfn@alpha generate users
+# Start databases (Docker recommended, or use your own PostgreSQL)
+$ docker compose up -d
 
 # Start dev server
 $ npm run spfn:dev

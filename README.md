@@ -36,18 +36,33 @@ Next.js handles your frontend. SPFN handles your backend.
 
 ## Quick Start (5 min)
 
-**1. Install**
+### Option 1: Create New Project (Recommended)
+
+```bash
+# Create new project with SPFN + Next.js + TypeScript + Tailwind + SVGR
+npx spfn@alpha create my-app
+cd my-app
+
+# Start databases (Docker recommended, or use your own PostgreSQL)
+docker compose up -d
+
+# Copy environment variables
+cp .env.local.example .env.local
+
+# Start dev server
+npm run spfn:dev
+```
+
+✅ Backend: http://localhost:8790
+✅ Frontend: http://localhost:3790
+
+### Option 2: Add to Existing Next.js Project
+
 ```bash
 cd your-nextjs-project
 npx spfn@alpha init
-```
-
-**2. Start dev server**
-```bash
 npm run spfn:dev
 ```
-✅ Backend: http://localhost:8790  
-✅ Frontend: http://localhost:3790
 
 **3. Generate boilerplate** (The magic ✨)
 ```bash

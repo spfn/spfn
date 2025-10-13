@@ -1,3 +1,5 @@
+import Logo from '@/assets/icons/logo.svg';
+
 export default function Footer()
 {
     const navigation = {
@@ -24,18 +26,9 @@ export default function Footer()
                     {/* Brand */}
                     <div className="lg:col-span-1">
                         <div className="flex items-center gap-x-2">
-                            <img
-                                src="/logo-black.png"
-                                alt="SPFN"
-                                className="size-10 dark:hidden"
-                            />
-                            <img
-                                src="/logo.png"
-                                alt="SPFN"
-                                className="size-10 hidden dark:block"
-                            />
+                            <Logo className="size-10 text-gray-900 dark:text-white" />
                             <h3 className="text-2xl font-bold text-gray-900 dark:text-white font-sansation">
-                                Superfunction
+                                SPFN
                             </h3>
                         </div>
                         <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">

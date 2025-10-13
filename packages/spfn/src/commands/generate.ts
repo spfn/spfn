@@ -23,16 +23,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * - npm package: node_modules/@spfn/core/dist/scripts/templates/
  * - monorepo dev: packages/core/dist/scripts/templates/ (from packages/cli/dist/)
  */
-function findScriptTemplatesPath(): string {
+function findScriptTemplatesPath(): string
+{
     // Case 1: monorepo dev - from cli/dist/ to core/dist/scripts/templates/
     const devPath = join(__dirname, '..', '..', 'core', 'dist', 'scripts', 'templates');
-    if (existsSync(devPath)) {
+    if (existsSync(devPath))
+    {
         return devPath;
     }
 
     // Case 2: npm package - node_modules/@spfn/core/dist/scripts/templates
     const npmPath = join(__dirname, '..', '..', '..', 'core', 'dist', 'scripts', 'templates');
-    if (existsSync(npmPath)) {
+    if (existsSync(npmPath))
+    {
         return npmPath;
     }
 
@@ -55,18 +58,23 @@ interface FileOperation {
 /**
  * Extract entity name from Drizzle entity file
  */
-function extractEntityName(entityPath: string): string | null {
-    try {
+function extractEntityName(entityPath: string): string | null
+{
+    try
+    {
         const content = readFileSync(entityPath, 'utf-8');
 
         // Match: export const entityName = pgTable('table_name', ...)
         const match = content.match(/export\s+const\s+(\w+)\s*=\s*pgTable\(/);
-        if (match) {
+        if (match)
+        {
             return match[1];
         }
 
         return null;
-    } catch (error) {
+    }
+    catch (error)
+    {
         return null;
     }
 }
@@ -75,7 +83,8 @@ function extractEntityName(entityPath: string): string | null {
  * Generate variable transformations from entity name
  * Example: 'users' -> { pascal: 'Users', camel: 'users', singular: 'user', ... }
  */
-function generateVariables(entityName: string): Record<string, string> {
+function generateVariables(entityName: string): Record<string, string>
+{
     // Normalize entity name (lowercase)
     const normalized = entityName.toLowerCase();
 
@@ -113,10 +122,12 @@ function generateVariables(entityName: string): Record<string, string> {
 /**
  * Render template with variable substitution
  */
-function renderTemplate(template: string, variables: Record<string, string>): string {
+function renderTemplate(template: string, variables: Record<string, string>): string
+{
     let result = template;
 
-    for (const [key, value] of Object.entries(variables)) {
+    for (const [key, value] of Object.entries(variables))
+    {
         const regex = new RegExp(`{{${key}}}`, 'g');
         result = result.replace(regex, value);
     }
@@ -134,7 +145,8 @@ function planFileOperations(
     variables: Record<string, string>,
     options: GenerateOptions,
     entityExists: boolean
-): FileOperation[] {
+): FileOperation[]
+{
     const operations: FileOperation[] = [];
 
     const entityNameNormalized = entityName.toLowerCase();
@@ -157,23 +169,28 @@ function planFileOperations(
     // Apply --only filter if specified
     const onlyFilter = options.only?.split(',').map(f => f.trim()) || null;
 
-    for (const [templateName, targetPath] of fileMap) {
+    for (const [templateName, targetPath] of fileMap)
+    {
         // Skip entity generation if entity already exists
-        if (templateName === 'entity.template.txt' && entityExists) {
+        if (templateName === 'entity.template.txt' && entityExists)
+        {
             continue;
         }
 
         // Check if this file should be generated based on --only option
-        if (onlyFilter) {
+        if (onlyFilter)
+        {
             const fileType = templateName.replace('.template.txt', '').replace('routes-', '');
-            if (!onlyFilter.includes(fileType) && !onlyFilter.includes('routes') && !onlyFilter.includes(fileType.replace('index', 'routes'))) {
+            if (!onlyFilter.includes(fileType) && !onlyFilter.includes('routes') && !onlyFilter.includes(fileType.replace('index', 'routes')))
+            {
                 continue;
             }
         }
 
         const templatePath = join(templatesDir, templateName);
 
-        if (!existsSync(templatePath)) {
+        if (!existsSync(templatePath))
+        {
             logger.warn(`Template not found: ${templateName}`);
             continue;
         }
@@ -197,19 +214,23 @@ function planFileOperations(
 async function executeOperations(
     operations: FileOperation[],
     options: GenerateOptions
-): Promise<void> {
+): Promise<void>
+{
     const { force, interactive, dryRun } = options;
 
     // Check for existing files
     const existingFiles = operations.filter(op => op.exists);
 
-    if (existingFiles.length > 0 && !force) {
+    if (existingFiles.length > 0 && !force)
+    {
         logger.warn(`${existingFiles.length} file(s) already exist:`);
-        existingFiles.forEach(op => {
+        existingFiles.forEach(op =>
+        {
             logger.warn(`  - ${op.path}`);
         });
 
-        if (interactive) {
+        if (interactive)
+        {
             const { proceed } = await prompts({
                 type: 'confirm',
                 name: 'proceed',
@@ -217,20 +238,25 @@ async function executeOperations(
                 initial: false,
             });
 
-            if (!proceed) {
+            if (!proceed)
+            {
                 logger.info('Cancelled.');
                 return;
             }
-        } else {
+        }
+        else
+        {
             logger.error('\nFiles already exist. Use --force to overwrite or --interactive for prompts.');
             process.exit(1);
         }
     }
 
     // Dry run mode
-    if (dryRun) {
+    if (dryRun)
+    {
         logger.info('\n[DRY RUN] The following files would be created:');
-        operations.forEach(op => {
+        operations.forEach(op =>
+        {
             const status = op.exists ? chalk.yellow('[OVERWRITE]') : chalk.green('[CREATE]');
             logger.info(`  ${status} ${relative(process.cwd(), op.path)}`);
         });
@@ -241,8 +267,10 @@ async function executeOperations(
     // Execute operations
     const spinner = ora('Generating CRUD files...').start();
 
-    try {
-        for (const op of operations) {
+    try
+    {
+        for (const op of operations)
+        {
             // Ensure directory exists
             ensureDirSync(dirname(op.path));
 
@@ -254,7 +282,9 @@ async function executeOperations(
         }
 
         spinner.succeed(`Generated ${operations.length} file(s)`);
-    } catch (error) {
+    }
+    catch (error)
+    {
         spinner.fail('Failed to generate files');
         throw error;
     }
@@ -268,11 +298,13 @@ export const generateCommand = new Command('generate')
     .option('-i, --interactive', 'Prompt before overwriting each file')
     .option('--only <files>', 'Only generate specific files (comma-separated: contract,repository,routes)')
     .option('--dry-run', 'Show what would be generated without creating files')
-    .action(async (entityArg: string, options: GenerateOptions) => {
+    .action(async (entityArg: string, options: GenerateOptions) =>
+    {
         const cwd = process.cwd();
 
         // Check if SPFN is initialized
-        if (!existsSync(join(cwd, 'src', 'server'))) {
+        if (!existsSync(join(cwd, 'src', 'server')))
+        {
             logger.error('SPFN not initialized. Run `spfn init` first.');
             process.exit(1);
         }
@@ -283,17 +315,20 @@ export const generateCommand = new Command('generate')
         let entityExists = false;
 
         // Check if entityArg is a file path
-        if (entityArg.includes('/') || entityArg.endsWith('.ts')) {
+        if (entityArg.includes('/') || entityArg.endsWith('.ts'))
+        {
             entityPath = entityArg.startsWith('/') ? entityArg : join(cwd, entityArg);
 
-            if (!existsSync(entityPath)) {
+            if (!existsSync(entityPath))
+            {
                 logger.error(`Entity file not found: ${entityPath}`);
                 process.exit(1);
             }
 
             // Extract entity name from file
             const extractedName = extractEntityName(entityPath);
-            if (!extractedName) {
+            if (!extractedName)
+            {
                 logger.error('Could not extract entity name from file. Make sure it exports a pgTable.');
                 process.exit(1);
             }
@@ -301,17 +336,22 @@ export const generateCommand = new Command('generate')
             entityName = extractedName;
             entityExists = true;
             logger.info(`Detected entity: ${chalk.cyan(entityName)}`);
-        } else {
+        }
+        else
+        {
             // Entity name provided directly
             entityName = entityArg;
 
             // Try to find entity file
             const possiblePath = join(cwd, 'src', 'server', 'entities', `${entityName}.ts`);
-            if (existsSync(possiblePath)) {
+            if (existsSync(possiblePath))
+            {
                 entityPath = possiblePath;
                 entityExists = true;
                 logger.info(`Found entity file: ${chalk.cyan(relative(cwd, entityPath))}`);
-            } else {
+            }
+            else
+            {
                 logger.info(`Creating new entity: ${chalk.cyan(entityName)}`);
             }
         }
@@ -325,7 +365,8 @@ export const generateCommand = new Command('generate')
         // Plan operations
         const operations = planFileOperations(cwd, entityName, templatesDir, variables, options, entityExists);
 
-        if (operations.length === 0) {
+        if (operations.length === 0)
+        {
             logger.warn('No files to generate. Check your --only filter or templates directory.');
             process.exit(0);
         }
@@ -334,8 +375,10 @@ export const generateCommand = new Command('generate')
         await executeOperations(operations, options);
 
         // Generate client code (only if not dry-run)
-        if (!options.dryRun) {
-            try {
+        if (!options.dryRun)
+        {
+            try
+            {
                 const clientSpinner = ora('Generating type-safe API client...').start();
 
                 const routesDir = join(cwd, 'src', 'server', 'routes');
@@ -344,7 +387,8 @@ export const generateCommand = new Command('generate')
                 // Scan all contracts
                 const contracts = await scanContracts(routesDir);
 
-                if (contracts.length > 0) {
+                if (contracts.length > 0)
+                {
                     const clientOptions: ClientGenerationOptions = {
                         routesDir,
                         outputPath,
@@ -354,34 +398,44 @@ export const generateCommand = new Command('generate')
 
                     await generateClient(contracts, clientOptions);
                     clientSpinner.succeed(`Generated API client with ${contracts.length} endpoint(s)`);
-                } else {
+                }
+                else
+                {
                     clientSpinner.info('No contracts found - skipping client generation');
                 }
-            } catch (error) {
+            }
+            catch (error)
+            {
                 // Don't fail the whole command if client generation fails
                 logger.warn('Client generation failed (server code generated successfully)');
-                if (error instanceof Error) {
+                if (error instanceof Error)
+                {
                     logger.warn(error.message);
                 }
             }
         }
 
         // Success message
-        if (!options.dryRun) {
+        if (!options.dryRun)
+        {
             console.log('\n' + chalk.green.bold('✓ CRUD boilerplate generated successfully!\n'));
             console.log('Generated files:');
-            operations.forEach(op => {
+            operations.forEach(op =>
+            {
                 console.log('  • ' + chalk.cyan(relative(cwd, op.path)));
             });
             console.log('  • ' + chalk.cyan('src/lib/api.ts') + chalk.gray(' (API client)'));
 
-            if (!entityExists) {
+            if (!entityExists)
+            {
                 console.log('\n' + chalk.yellow('📝 Next steps:'));
                 console.log('  1. ' + chalk.cyan(`Edit entities/${entityName}.ts`) + ' - Add your custom fields');
                 console.log('  2. ' + chalk.cyan('spfn db generate') + ' - Generate database migration');
                 console.log('  3. ' + chalk.cyan('spfn db migrate') + ' - Run migration');
                 console.log('  4. Customize routes and test your API');
-            } else {
+            }
+            else
+            {
                 console.log('\n' + chalk.yellow('📝 Next steps:'));
                 console.log('  1. Review and customize the generated routes');
                 console.log('  2. Update repository with custom query methods if needed');

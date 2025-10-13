@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Logo from '@/assets/icons/logo.svg';
 
 export default function Header()
 {
@@ -18,16 +19,7 @@ export default function Header()
                 <div className="flex h-16 items-center justify-between">
                     {/* Logo + Brand */}
                     <div className="flex items-center gap-x-2">
-                        <img
-                            src="/logo-black.png"
-                            alt="SPFN"
-                            className="size-8 dark:hidden"
-                        />
-                        <img
-                            src="/logo.png"
-                            alt="SPFN"
-                            className="size-8 hidden dark:block"
-                        />
+                        <Logo className="size-8 text-gray-900 dark:text-white" />
                         <span className="text-xl font-bold text-gray-900 dark:text-white font-sansation">
                             Superfunction
                         </span>

@@ -4,6 +4,7 @@
 
 import { Command } from 'commander';
 import { randomBytes } from 'crypto';
+import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { logger } from '../utils/logger.js';
 
@@ -52,8 +53,6 @@ function copyToClipboard(text: string): boolean
 {
     try
     {
-        const { execSync } = require('child_process');
-
         if (process.platform === 'darwin')
         {
             execSync('pbcopy', { input: text });

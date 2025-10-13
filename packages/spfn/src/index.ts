@@ -1,9 +1,11 @@
 import { Command } from 'commander';
+import { createCommand } from './commands/create.js';
 import { initCommand } from './commands/init.js';
 import { devCommand } from './commands/dev.js';
 import { startCommand } from './commands/start.js';
 import { generateCommand } from './commands/generate.js';
 import { keyCommand } from './commands/key.js';
+import { setupCommand } from './commands/setup.js';
 import {
     dbGenerate,
     dbPush,
@@ -21,11 +23,13 @@ program
     .version('0.1.0');
 
 // Add commands
+program.addCommand(createCommand);
 program.addCommand(initCommand);
 program.addCommand(devCommand);
 program.addCommand(startCommand);
 program.addCommand(generateCommand);
 program.addCommand(keyCommand);
+program.addCommand(setupCommand);
 
 // Database commands
 const dbCommand = new Command('db')

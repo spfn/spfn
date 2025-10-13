@@ -10,8 +10,14 @@
 
 ## Installation
 
-**Recommended: Use CLI with npx**
+**Recommended: Create New Project**
 ```bash
+npx spfn@alpha create my-app
+```
+
+**Add to Existing Next.js Project**
+```bash
+cd your-nextjs-project
 npx spfn@alpha init
 ```
 
