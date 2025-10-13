@@ -33,7 +33,7 @@ jobs:
         run: |
           cd packages/core
           npm publish --access public
-          cd ../cli
+          cd ../spfn
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -50,7 +50,7 @@ jobs:
         run: |
           cd packages/core
           npm publish --access public
-          cd ../cli
+          cd ../spfn
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
