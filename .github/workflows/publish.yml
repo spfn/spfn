@@ -47,22 +47,9 @@ jobs:
         working-directory: packages/spfn
         run: npm publish --access public --provenance
 
-      # GitHub Packages 배포
-      - name: Setup Node.js for GitHub Packages
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@spfn'
-
+      # GitHub Packages 배포 (@spfn/core만 - spfn은 스코프 없어서 불가)
       - name: Publish @spfn/core to GitHub Packages
         working-directory: packages/core
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish spfn to GitHub Packages
-        working-directory: packages/spfn
-        run: npm publish --access public
+        run: npm publish --access public --registry=https://npm.pkg.github.com
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
