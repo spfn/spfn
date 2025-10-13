@@ -8,7 +8,7 @@ export default function Header()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const navigation = [
-        { name: 'Documentation', href: '#quick-start' },
+        { name: 'Documentation', href: '/docs' },
         { name: 'Features', href: '#features' },
         { name: 'GitHub', href: 'https://github.com/spfn/spfn' },
     ];

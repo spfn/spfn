@@ -4,9 +4,10 @@ export default function Footer()
 {
     const navigation = {
         documentation: [
-            { name: 'Getting Started', href: '#quick-start' },
-            { name: 'Core API', href: 'https://github.com/spfn/spfn/blob/main/packages/core/README.md' },
-            { name: 'CLI Guide', href: 'https://github.com/spfn/spfn/blob/main/packages/spfn/README.md' },
+            { name: 'Documentation', href: '/docs' },
+            { name: 'Installation', href: '/docs/installation' },
+            { name: 'Core Concepts', href: '/docs/concepts' },
+            { name: 'Examples', href: '/docs/examples' },
         ],
         community: [
             { name: 'GitHub', href: 'https://github.com/spfn/spfn' },
