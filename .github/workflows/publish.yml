@@ -34,35 +34,33 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
-      # npm 배포
+      # npm 배포 - .npmrc 설정
+      - name: Create .npmrc for npm registry
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          echo "registry=https://registry.npmjs.org/" >> ~/.npmrc
+          cat ~/.npmrc
+
       - name: Publish @spfn/core to npm
         working-directory: packages/core
         run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish spfn to npm
         working-directory: packages/spfn
         run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # GitHub Packages 배포
-      - name: Setup Node.js for GitHub Packages
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@spfn'
+      - name: Create .npmrc for GitHub Packages
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
+          echo "registry=https://npm.pkg.github.com" >> ~/.npmrc
+          echo "@spfn:registry=https://npm.pkg.github.com" >> ~/.npmrc
+          cat ~/.npmrc
 
       - name: Publish @spfn/core to GitHub Packages
         working-directory: packages/core
         run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish spfn to GitHub Packages
         working-directory: packages/spfn
         run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
