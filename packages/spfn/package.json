@@ -1,33 +1,35 @@
 {
   "name": "spfn",
   "version": "0.1.0-alpha.2",
-  "description": "Superfunction CLI - The Backend Layer for Next.js",
+  "description": "Superfunction CLI - Add SPFN to your Next.js project",
   "type": "module",
   "bin": {
-    "spfn": "./dist/index.js"
+    "spfn": "./bin/spfn.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "bin"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/copy-templates.js",
     "dev": "tsup --watch",
-    "clean": "rm -rf dist"
+    "type-check": "tsc --noEmit"
   },
   "keywords": [
     "spfn",
+    "cli",
     "nextjs",
     "backend",
     "framework",
-    "cli",
-    "typescript",
-    "type-safe",
-    "api",
-    "crud",
     "generator",
+    "crud-generator",
     "scaffolding",
-    "fullstack",
-    "scalable"
+    "boilerplate",
+    "dev-tools",
+    "development",
+    "init",
+    "typescript",
+    "type-safe"
   ],
   "author": "Ray Im <rayim@inflike.com>",
   "license": "MIT",
@@ -36,19 +38,42 @@
     "url": "https://github.com/spfn/spfn.git",
     "directory": "packages/spfn"
   },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha",
+    "registry": "https://registry.npmjs.org"
+  },
   "bugs": {
     "url": "https://github.com/spfn/spfn/issues"
   },
-  "homepage": "https://github.com/spfn/spfn#readme",
-  "dependencies": {
-    "@spfn/cli": "workspace:*"
+  "homepage": "https://github.com/spfn/spfn/tree/main/packages/spfn#readme",
+  "engines": {
+    "node": ">=18.18.0"
   },
-  "devDependencies": {
-    "tsup": "^8.0.0",
+  "peerDependencies": {
     "typescript": "^5.3.0"
   },
-  "publishConfig": {
-    "access": "public",
-    "tag": "alpha"
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@spfn/core": "workspace:*",
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "concurrently": "^9.0.0",
+    "execa": "^8.0.1",
+    "fs-extra": "^11.2.0",
+    "ora": "^7.0.1",
+    "prompts": "^2.4.2",
+    "tsx": "^4.20.6"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.11.0",
+    "@types/prompts": "^2.4.9",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.3"
   }
 }
