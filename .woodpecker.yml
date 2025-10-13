@@ -62,7 +62,7 @@ steps:
     environment:
       CI_BOT_USER: { from_secret: CI_BOT_USER }
       CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
-      DOCKERFILE_NAME: "nextjs.Dockerfile"
+      DOCKERFILE_NAME: "nextjs-pnpm.Dockerfile"
     commands:
       - |
         echo "📄 Cloning Dockerfile repository"
