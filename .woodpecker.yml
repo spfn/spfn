@@ -80,6 +80,34 @@ steps:
         echo "✅ Dockerfile repository cloned successfully"
         ls -la /woodpecker/dockerfiles/
 
+  - name: prepare-monorepo-files
+    image: alpine:latest
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "128Mi"
+        nodeSelector:
+          role: build
+    commands:
+      - |
+        echo "📦 Preparing monorepo files for build"
+
+        WORK_DIR=$(cat /woodpecker/shared/work_dir)
+
+        # pnpm-lock.yaml을 apps/landing로 복사
+        cp $WORK_DIR/pnpm-lock.yaml $WORK_DIR/apps/landing/
+
+        # pnpm-workspace.yaml도 필요하면 복사 (선택적)
+        if [ -f "$WORK_DIR/pnpm-workspace.yaml" ]; then
+          cp $WORK_DIR/pnpm-workspace.yaml $WORK_DIR/apps/landing/
+        fi
+
+        echo "✅ Monorepo files prepared"
+        ls -la $WORK_DIR/apps/landing/ | grep -E "pnpm-lock|pnpm-workspace"
+
   - name: build-with-central-dockerfile
     image: gcr.io/kaniko-project/executor:debug
     backend_options:
