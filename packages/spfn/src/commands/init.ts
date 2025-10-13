@@ -131,7 +131,8 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
 
         try
         {
-            const devPackages = ['tsx', 'drizzle-kit', 'concurrently', 'dotenv'];
+            // Add spfn CLI to devDependencies (fixes Issue #2)
+            const devPackages = ['tsx', 'drizzle-kit', 'concurrently', 'dotenv', 'spfn'];
 
             // Check if @spfn/core is already installed/linked
             const corePackagePath = join(cwd, 'node_modules', '@spfn', 'core', 'package.json');
@@ -139,10 +140,12 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
 
             if (!isCoreInstalled)
             {
-                // Install @spfn/core only - peer dependencies will be auto-installed
-                // For local development: run `npm link @spfn/core` before init
+                // Install @spfn/core and transitive dependencies that user code directly imports (fixes Issue #3)
+                // - @sinclair/typebox: contract files import Type
+                // - drizzle-typebox: contract files import createInsertSchema, createSelectSchema
+                // Even though they're in @spfn/core deps, pnpm's strict isolation requires explicit installation
                 spinner.text = 'Installing @spfn/core...';
-                await execa(pm, pm === 'npm' ? ['install', '--legacy-peer-deps', '@spfn/core'] : ['add', '@spfn/core'],
+                await execa(pm, pm === 'npm' ? ['install', '--legacy-peer-deps', '@spfn/core', '@sinclair/typebox', 'drizzle-typebox'] : ['add', '@spfn/core', '@sinclair/typebox', 'drizzle-typebox'],
                 {
                     cwd,
                 });
@@ -216,6 +219,26 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             {
                 // Not critical, continue without docker-compose.yml
                 logger.warn('Could not copy docker-compose.yml');
+            }
+        }
+
+        // 4.6. Generate deployment config (spfn.json)
+        const deploymentConfigPath = join(cwd, 'spfn.json');
+        if (!existsSync(deploymentConfigPath))
+        {
+            try
+            {
+                const deploymentConfig = {
+                    packageManager: pm
+                };
+
+                writeFileSync(deploymentConfigPath, JSON.stringify(deploymentConfig, null, 2));
+                logger.success(`Created spfn.json (package manager: ${pm})`);
+            }
+            catch (error)
+            {
+                // Not critical, continue
+                logger.warn('Could not create spfn.json');
             }
         }
 
