@@ -197,7 +197,7 @@ npx spfn@alpha db migrate`}
                             </h4>
                         </div>
                         <p className="text-sm text-gray-700 dark:text-gray-300 mb-6">
-                            SPFN includes production-ready Docker setup and comprehensive deployment guides in the <code className="text-purple-600 dark:text-purple-400">.guide/</code> directory.
+                            <span className="font-sansation font-semibold italic">SPFN</span> includes production-ready Docker setup and comprehensive deployment guides in the <code className="text-purple-600 dark:text-purple-400">.guide/</code> directory.
                         </p>
                         <div className="space-y-4">
                             <div>

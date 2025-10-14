@@ -35,7 +35,7 @@ export default function WhenYouNeed()
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
                 <div className="mx-auto max-w-2xl lg:text-center">
                     <h2 className="text-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
-                        When You Need SPFN
+                        When You Need <span className="font-sansation font-semibold italic">SPFN</span>
                     </h2>
                     <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
                         Perfect for ambitious projects
@@ -99,7 +99,7 @@ export default function WhenYouNeed()
                             If you just need simple API routes, Next.js is enough.
                         </p>
                         <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">
-                            If you need a real backend, Next.js + SPFN.
+                            If you need a real backend, Next.js + <span className="font-sansation font-semibold italic">SPFN</span>.
                         </p>
                     </div>
                 </div>

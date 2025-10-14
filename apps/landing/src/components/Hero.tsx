@@ -39,7 +39,7 @@ $ npm run spfn:dev
                     </h1>
 
                     <p className="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
-                        Next.js handles your frontend. <strong>SPFN</strong> (Superfunction) handles your backend.
+                        Next.js handles your frontend. <span className="font-sansation font-semibold italic">SPFN (Superfunction)</span> handles your backend.
                     </p>
 
                     <p className="mt-4 text-base leading-7 text-gray-500 dark:text-gray-400">

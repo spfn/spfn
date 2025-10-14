@@ -50,7 +50,7 @@ export default function Architecture()
                             <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 p-6 ring-1 ring-blue-200 dark:ring-blue-900">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <h3 className="text-lg font-bold text-blue-900 dark:text-blue-300">
+                                        <h3 className="text-lg font-sansation font-bold italic text-blue-900 dark:text-blue-300">
                                             SPFN Backend
                                         </h3>
                                         <ul className="mt-2 space-y-1 text-xs text-blue-700 dark:text-blue-400">
@@ -110,7 +110,7 @@ export default function Architecture()
                             Ready to build?
                         </h3>
                         <p className="text-base text-gray-600 dark:text-gray-400 mb-6">
-                            Get started with SPFN in your Next.js project
+                            Get started with <span className="font-sansation font-semibold italic">SPFN</span> in your Next.js project
                         </p>
                         <a
                             href="#quick-start"
