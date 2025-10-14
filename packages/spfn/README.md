@@ -183,5 +183,6 @@ Now help me create a blog post API with title, content, and author fields.
 ## Links
 
 - 🌐 Website: [superfunction.xyz](https://superfunction.xyz)
-- 📦 npm: [@spfn/core](https://npmjs.com/package/@spfn/core)
+- 📦 npm: [spfn](https://npmjs.com/package/spfn) (CLI)
+- 📦 npm: [@spfn/core](https://npmjs.com/package/@spfn/core) (Core)
 - 💬 GitHub: [spfn/spfn](https://github.com/spfn/spfn)
