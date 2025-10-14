@@ -20,6 +20,7 @@ import {
 export type {
     SpfnConfig,
     PackageManager,
+    Region,
     DeploymentConfig,
     CustomDomains,
     EnvironmentVariables,

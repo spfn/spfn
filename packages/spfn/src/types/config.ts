@@ -8,6 +8,11 @@
 export type PackageManager = 'npm' | 'yarn' | 'pnpm' | 'bun';
 
 /**
+ * Region options for deployment
+ */
+export type Region = 'kr' | 'us' | 'jp' | 'sg' | 'eu';
+
+/**
  * Custom domain configuration
  */
 export interface CustomDomains {
@@ -55,15 +60,29 @@ export interface DeploymentConfig {
     /**
      * Your app's subdomain on spfn.app
      *
-     * This will automatically create two domains:
-     * - {subdomain}.spfn.app → Next.js frontend (port 3790)
-     * - api-{subdomain}.spfn.app → SPFN backend (port 8790)
+     * This will automatically create region-specific domains:
+     * - {subdomain}.{region}.spfn.app → Next.js frontend (port 3790)
+     * - api-{subdomain}.{region}.spfn.app → SPFN backend (port 8790)
      *
-     * Example: subdomain: 'dncbio' creates:
-     * - dncbio.spfn.app
-     * - api-dncbio.spfn.app
+     * Example: subdomain: 'dncbio', region: 'us' creates:
+     * - dncbio.us.spfn.app
+     * - api-dncbio.us.spfn.app
      */
     subdomain: string;
+
+    /**
+     * Deployment region
+     *
+     * Available regions:
+     * - 'us': Virginia, USA (North America East) (default)
+     * - 'kr': Seoul, South Korea (Asia Pacific)
+     * - 'jp': Tokyo, Japan (Asia Pacific) [Coming soon]
+     * - 'sg': Singapore (Asia Pacific) [Coming soon]
+     * - 'eu': Frankfurt, Germany (Europe) [Coming soon]
+     *
+     * Default: 'us'
+     */
+    region?: Region;
 
     /**
      * Custom domains (optional)

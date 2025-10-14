@@ -50,16 +50,16 @@ jobs:
         working-directory: packages/spfn
         run: pnpm publish --access public --tag alpha --provenance --no-git-checks
 
-      # Add latest tag for version releases (v*)
+      # Add latest tag (always update latest for published packages)
       - name: Add latest tag to @spfn/core
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/@spfn/core@') || startsWith(github.ref, 'refs/tags/v')
         working-directory: packages/core
         run: npm dist-tag add @spfn/core@$(node -p "require('./package.json').version") latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Add latest tag to spfn
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/spfn@') || startsWith(github.ref, 'refs/tags/v')
         working-directory: packages/spfn
         run: npm dist-tag add spfn@$(node -p "require('./package.json').version") latest
         env:
