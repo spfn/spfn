@@ -45,3 +45,12 @@ jobs:
       - name: Publish spfn to npm
         working-directory: packages/spfn
         run: pnpm publish --access public --provenance --no-git-checks
+
+      # latest 태그도 추가
+      - name: Add latest tag to @spfn/core
+        working-directory: packages/core
+        run: npm dist-tag add @spfn/core@$(node -p "require('./package.json').version") latest
+
+      - name: Add latest tag to spfn
+        working-directory: packages/spfn
+        run: npm dist-tag add spfn@$(node -p "require('./package.json').version") latest
