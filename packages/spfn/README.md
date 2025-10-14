@@ -48,7 +48,7 @@ spfn init -y           # Skip prompts, use defaults
 - `Dockerfile`, `.dockerignore`, `docker-compose.production.yml` - Production deployment
 - `.guide/` - **Quick-start and deployment guides** (⭐ Use with AI tools!)
 - `.env.local.example` - Environment variable template
-- `spfn.json` - Project configuration
+- `spfn.config.js` - Deployment configuration with JSDoc type hints
 
 ### Code Generation
 ```bash
@@ -88,6 +88,53 @@ spfn setup icons      # Setup SVGR for SVG icon management
 ```bash
 spfn key              # Generate encryption key for .env
 ```
+
+## Configuration
+
+### spfn.config.js
+
+SPFN uses `spfn.config.js` for deployment configuration with full JSDoc type support for IDE autocomplete.
+
+**Basic Configuration:**
+```javascript
+/**
+ * @type {import('spfn').SpfnConfig}
+ */
+export default {
+  packageManager: 'pnpm',
+  deployment: {
+    // Your app's subdomain on spfn.app
+    // Creates: myapp.spfn.app (Next.js) and api-myapp.spfn.app (API)
+    subdomain: 'myapp',
+
+    // Optional: Add custom domains
+    customDomains: {
+      nextjs: ['www.example.com', 'example.com'],
+      spfn: ['api.example.com']
+    },
+
+    // Optional: Environment variables for both Next.js and SPFN backend
+    // ⚠️ WARNING: These values are committed to Git
+    // Do NOT put sensitive credentials here!
+    env: {
+      NEXT_PUBLIC_API_URL: 'https://api-myapp.spfn.app',
+      NODE_ENV: 'production'
+    }
+  }
+}
+```
+
+**Features:**
+- **JSDoc Type Hints** - IDE autocomplete via `@type {import('spfn').SpfnConfig}`
+- **Dual Domain Setup** - Automatic `{subdomain}.spfn.app` and `api-{subdomain}.spfn.app`
+- **Custom Domains** - Support for multiple custom domains
+- **Environment Variables** - Shared between Next.js and SPFN backend
+- **ESM/CJS Support** - Works with both module systems
+
+**Security Note:**
+- `spfn.config.js` is committed to Git
+- Only use for non-sensitive configuration
+- For secrets (DB passwords, API keys), use CI/CD secrets management
 
 ## Documentation
 

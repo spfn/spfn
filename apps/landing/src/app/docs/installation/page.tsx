@@ -58,7 +58,7 @@ npx spfn@alpha init`}</code>
             <li><code>.guide/</code> - Quick-start and deployment guides (⭐ Use with AI!)</li>
             <li><code>Dockerfile</code>, <code>.dockerignore</code>, <code>docker-compose.production.yml</code> - Production deployment</li>
             <li><code>.env.local.example</code> - Environment variable template</li>
-            <li><code>spfn.json</code> - Project configuration</li>
+            <li><code>spfn.config.js</code> - Deployment configuration with JSDoc type hints</li>
             <li>Updates <code>tsconfig.json</code> to exclude <code>src/server</code> (for Vercel)</li>
           </ul>
 

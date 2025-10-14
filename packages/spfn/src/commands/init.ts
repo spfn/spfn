@@ -246,23 +246,108 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             logger.warn('Could not copy .guide directory');
         }
 
-        // 4.6. Generate deployment config (spfn.json)
-        const deploymentConfigPath = join(cwd, 'spfn.json');
+        // 4.6. Generate deployment config (spfn.config.js)
+        const deploymentConfigPath = join(cwd, 'spfn.config.js');
         if (!existsSync(deploymentConfigPath))
         {
             try
             {
-                const deploymentConfig = {
-                    packageManager: pm
-                };
+                // Extract project name from package.json or directory name
+                const projectName = packageJson.name?.replace(/[@\/]/g, '-').toLowerCase()
+                    || cwd.split('/').pop()?.toLowerCase()
+                    || 'my-app';
 
-                writeFileSync(deploymentConfigPath, JSON.stringify(deploymentConfig, null, 2));
-                logger.success(`Created spfn.json (package manager: ${pm})`);
+                const configContent = `/**
+ * SPFN Configuration
+ *
+ * This file configures your SPFN application deployment settings.
+ *
+ * @type {import('spfn').SpfnConfig}
+ */
+export default {
+  /**
+   * Package manager to use for dependency installation
+   * Options: 'npm' | 'yarn' | 'pnpm' | 'bun'
+   */
+  packageManager: '${pm}',
+
+  /**
+   * Deployment configuration for SPFN cloud platform
+   */
+  deployment: {
+    /**
+     * Your app's subdomain on spfn.app
+     *
+     * This will automatically create two domains:
+     * - {subdomain}.spfn.app → Next.js frontend (port 3790)
+     * - api-{subdomain}.spfn.app → SPFN backend (port 8790)
+     *
+     * Example: subdomain: 'dncbio' creates:
+     * - dncbio.spfn.app
+     * - api-dncbio.spfn.app
+     */
+    subdomain: '${projectName}',
+
+    /**
+     * Custom domains (optional)
+     *
+     * Add your own custom domains here. Make sure to configure DNS:
+     * - CNAME record pointing to spfn.app
+     *
+     * Example:
+     * customDomains: {
+     *   nextjs: ['www.example.com', 'example.com'],
+     *   spfn: ['api.example.com']
+     * }
+     */
+    customDomains: {
+      /**
+       * Custom domains for Next.js frontend
+       */
+      nextjs: [],
+
+      /**
+       * Custom domains for SPFN backend API
+       */
+      spfn: []
+    },
+
+    /**
+     * Environment variables (optional)
+     *
+     * Define environment variables for both Next.js and SPFN backend.
+     * These will be injected into the container during deployment.
+     *
+     * ⚠️  SECURITY WARNING:
+     * - These values are committed to Git
+     * - Do NOT put sensitive credentials here (DB passwords, API keys, etc.)
+     * - For production secrets, use your CI/CD secrets management
+     *
+     * Good use cases:
+     * - Public API URLs (NEXT_PUBLIC_*)
+     * - Non-sensitive configuration
+     * - Development/staging endpoints
+     *
+     * Example:
+     * env: {
+     *   NEXT_PUBLIC_API_URL: 'https://api-${projectName}.spfn.app',
+     *   NODE_ENV: 'production'
+     * }
+     */
+    env: {
+      NEXT_PUBLIC_API_URL: 'https://api-${projectName}.spfn.app'
+    }
+  }
+}
+`;
+
+                writeFileSync(deploymentConfigPath, configContent);
+                logger.success(`Created spfn.config.js (subdomain: ${projectName}.spfn.app)`);
             }
             catch (error)
             {
                 // Not critical, continue
-                logger.warn('Could not create spfn.json');
+                logger.warn('Could not create spfn.config.js');
             }
         }
 
