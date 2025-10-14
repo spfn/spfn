@@ -245,9 +245,31 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
             headers: `${headersTimeout}ms`,
         });
 
-        // Clean output similar to Next.js
-        console.log(`   ▲ SPFN ${debug ? 'dev' : 'production'}`);
-        console.log(`   - Local:        http://${host}:${port}`);
+        // Clean output with ASCII art
+        console.log('');
+        console.log('   ╭─────────────────────────────────────╮');
+        console.log('   │    _____ ____  ______ _   _        │');
+        console.log('   │   / ____|  _ \\|  ____| \\ | |       │');
+        console.log('   │  | (___ | |_) | |__  |  \\| |       │');
+        console.log('   │   \\___ \\|  __/|  __| | . ` |       │');
+        console.log('   │   ____) | |   | |    | |\\  |       │');
+        console.log('   │  |_____/|_|   |_|    |_| \\_|       │');
+        console.log('   │                                     │');
+        console.log(`   │  Mode: ${(debug ? 'Development' : 'Production').padEnd(26)}│`);
+        console.log('   ╰─────────────────────────────────────╯');
+        console.log('');
+
+        // Show Local and Network addresses like Next.js
+        if (host === '0.0.0.0')
+        {
+            console.log(`   ▲ Local:        http://localhost:${port}`);
+            console.log(`   ▲ Network:      http://${host}:${port}`);
+        }
+        else
+        {
+            console.log(`   ▲ Local:        http://${host}:${port}`);
+        }
+
         console.log('');
 
         // Core shutdown logic (without process.exit)
