@@ -124,10 +124,14 @@ async function buildProject(options: BuildOptions): Promise<void>
 
     console.log('\n' + chalk.green.bold('✓ Build completed successfully!\n'));
 
-    console.log('Next steps:');
-    console.log('  • Run in production: ' + chalk.cyan(pm === 'npm' ? 'npm start' : `${pm} start`));
-    console.log('  • Preview build: ' + chalk.cyan(pm === 'npm' ? 'npm run start' : `${pm} run start`));
-    console.log('  • Deploy to your hosting platform\n');
+    console.log(chalk.bold('Next steps:\n'));
+    console.log('  ' + chalk.cyan('Start production server:'));
+    console.log(`    ${chalk.cyan(pm === 'npm' ? 'npm run' : pm + ' run')} spfn:start  ${chalk.gray('# Start SPFN + Next.js')}\n`);
+
+    console.log('  ' + chalk.cyan('Or deploy with Docker:'));
+    console.log(`    ${chalk.cyan('docker compose -f docker-compose.production.yml up --build -d')}\n`);
+
+    console.log(chalk.dim('  📖 See .guide/deployment.md for complete deployment guide\n'));
 }
 
 export const buildCommand = new Command('build')

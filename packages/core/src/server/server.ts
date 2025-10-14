@@ -247,17 +247,14 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
 
         // Clean output with ASCII art
         console.log('');
-        console.log('   ╭─────────────────────────────────────╮');
-        console.log('   │    _____ ____  ______ _   _        │');
-        console.log('   │   / ____|  _ \\|  ____| \\ | |       │');
-        console.log('   │  | (___ | |_) | |__  |  \\| |       │');
-        console.log('   │   \\___ \\|  __/|  __| | . ` |       │');
-        console.log('   │   ____) | |   | |    | |\\  |       │');
-        console.log('   │  |_____/|_|   |_|    |_| \\_|       │');
-        console.log('   │                                     │');
-        console.log(`   │  Mode: ${(debug ? 'Development' : 'Production').padEnd(26)}│`);
-        console.log('   ╰─────────────────────────────────────╯');
+        console.log('      _____ ____  ______ _   _');
+        console.log('     / ____|  _ \\|  ____| \\ | |');
+        console.log('    | (___ | |_) | |__  |  \\| |');
+        console.log('     \\___ \\|  __/|  __| | . ` |');
+        console.log('     ____) | |   | |    | |\\  |');
+        console.log('    |_____/|_|   |_|    |_| \\_|');
         console.log('');
+        console.log(`    Mode: ${debug ? 'Development' : 'Production'}`);
 
         // Show Local and Network addresses like Next.js
         if (host === '0.0.0.0')

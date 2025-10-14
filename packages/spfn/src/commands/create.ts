@@ -197,7 +197,17 @@ async function createProject(projectName: string, options: CreateOptions): Promi
     console.log(`  ${chalk.cyan('http://localhost:3790')}  ${chalk.gray('(Next.js)')}`);
     console.log(`  ${chalk.cyan('http://localhost:8790')}  ${chalk.gray('(SPFN API)')}\n`);
 
-    console.log(chalk.dim('Documentation: https://github.com/spfn/spfn\n'));
+    // Production deployment guidance
+    console.log(chalk.bold('🚀 Ready for production?\n'));
+    console.log('  ' + chalk.cyan('Build for production:'));
+    console.log(`    ${chalk.cyan(pm === 'npm' ? 'npm run' : pm + ' run')} spfn:build`);
+    console.log(`    ${chalk.cyan(pm === 'npm' ? 'npm run' : pm + ' run')} spfn:start\n`);
+
+    console.log('  ' + chalk.cyan('Or deploy with Docker:'));
+    console.log(`    ${chalk.cyan('docker compose -f docker-compose.production.yml up --build -d')}\n`);
+
+    console.log(chalk.dim('  📖 See .guide/deployment.md for complete deployment guide'));
+    console.log(chalk.dim('  🌐 Documentation: https://github.com/spfn/spfn\n'));
 }
 
 export const createCommand = new Command('create')
