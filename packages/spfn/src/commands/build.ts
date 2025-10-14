@@ -106,6 +106,31 @@ async function buildProject(options: BuildOptions): Promise<void>
                 stdio: 'inherit',
             });
 
+            // Generate production server entry point
+            const prodServerPath = join(cwd, '.spfn', 'prod-server.mjs');
+            const prodServerContent = `import { config } from 'dotenv';
+import { startServer } from '@spfn/core/server';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Load .env.local for production
+config({ path: '.env.local' });
+
+const port = process.env.SPFN_PORT || '8790';
+const host = process.env.SPFN_HOST || '0.0.0.0';
+
+await startServer({
+    port: Number(port),
+    host,
+    routesPath: join(__dirname, 'server', 'routes'),
+    debug: false
+});
+`;
+            writeFileSync(prodServerPath, prodServerContent);
+
             spinner.succeed(`SPFN server build completed → .spfn/server`);
         }
         catch (error)
