@@ -283,6 +283,7 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
         packageJson.dependencies['drizzle-typebox'] = '^0.1.0';
 
         // Add SPFN dev dependencies (fixes Issue #2)
+        packageJson.devDependencies['@types/node'] = '^20.11.0';
         packageJson.devDependencies['tsx'] = '^4.20.6';
         packageJson.devDependencies['drizzle-kit'] = '^0.31.5';
         packageJson.devDependencies['concurrently'] = '^9.2.1';
