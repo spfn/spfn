@@ -185,6 +185,47 @@ npx spfn@alpha db migrate`}
                             className="mt-4"
                         />
                     </div>
+
+                    {/* Production Deployment */}
+                    <div className="mt-10 rounded-2xl bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 p-8 ring-1 ring-purple-100 dark:ring-purple-900">
+                        <div className="flex items-center gap-x-3 mb-4">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-600 text-white font-bold text-xl">
+                                🚀
+                            </div>
+                            <h4 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                Ready for Production?
+                            </h4>
+                        </div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 mb-6">
+                            SPFN includes production-ready Docker setup and comprehensive deployment guides in the <code className="text-purple-600 dark:text-purple-400">.guide/</code> directory.
+                        </p>
+                        <div className="space-y-4">
+                            <div>
+                                <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                                    Build for production:
+                                </h5>
+                                <CodeBlock
+                                    code={`npm run spfn:build
+npm run spfn:start`}
+                                    language="bash"
+                                    className="mt-2"
+                                />
+                            </div>
+                            <div>
+                                <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                                    Or deploy with Docker:
+                                </h5>
+                                <CodeBlock
+                                    code={`docker compose -f docker-compose.production.yml up --build -d`}
+                                    language="bash"
+                                    className="mt-2"
+                                />
+                            </div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 pt-2">
+                                📖 See <code className="text-purple-600 dark:text-purple-400">.guide/deployment.md</code> for complete deployment guide (VPS, Railway, Render, Vercel hybrid, and more)
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>

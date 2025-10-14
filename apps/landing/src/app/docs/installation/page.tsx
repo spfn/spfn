@@ -41,6 +41,8 @@ cd my-app`}</code>
             <li>TypeScript configuration</li>
             <li>Tailwind CSS</li>
             <li>Docker Compose (PostgreSQL + Redis)</li>
+            <li><strong>.guide/</strong> directory with quick-start and deployment guides</li>
+            <li>Production Docker files (Dockerfile, .dockerignore, docker-compose.production.yml)</li>
           </ul>
 
           <h2 className="text-2xl font-semibold mb-4">Option 2: Add to Existing Next.js Project</h2>
@@ -49,7 +51,16 @@ cd my-app`}</code>
 npx spfn@alpha init`}</code>
           </pre>
 
-          <p className="mb-8">This adds SPFN to your existing Next.js application.</p>
+          <p className="mb-4">This adds SPFN to your existing Next.js application and creates:</p>
+          <ul className="list-disc pl-6 mb-8">
+            <li><code>src/server/</code> - Backend structure (routes, entities, repositories)</li>
+            <li><code>docker-compose.yml</code> - PostgreSQL + Redis for development</li>
+            <li><code>.guide/</code> - Quick-start and deployment guides (⭐ Use with AI!)</li>
+            <li><code>Dockerfile</code>, <code>.dockerignore</code>, <code>docker-compose.production.yml</code> - Production deployment</li>
+            <li><code>.env.local.example</code> - Environment variable template</li>
+            <li><code>spfn.json</code> - Project configuration</li>
+            <li>Updates <code>tsconfig.json</code> to exclude <code>src/server</code> (for Vercel)</li>
+          </ul>
 
           <h2 className="text-2xl font-semibold mb-4">Start Development</h2>
           <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto mb-6">
