@@ -119,10 +119,10 @@ export default function Footer()
                         </p>
                         <div className="flex items-center gap-x-6">
                             <a
-                                href="https://github.com/spfn/spfn/blob/main/LICENSE"
+                                href="https://github.com/spfn/spfn"
                                 className="text-xs text-gray-500 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400 transition-colors"
                             >
-                                MIT License
+                                View Source
                             </a>
                         </div>
                     </div>
