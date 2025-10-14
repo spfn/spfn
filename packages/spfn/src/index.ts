@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { createCommand } from './commands/create.js';
 import { initCommand } from './commands/init.js';
 import { devCommand } from './commands/dev.js';
+import { buildCommand } from './commands/build.js';
 import { startCommand } from './commands/start.js';
 import { generateCommand } from './commands/generate.js';
 import { keyCommand } from './commands/key.js';
@@ -26,6 +27,7 @@ program
 program.addCommand(createCommand);
 program.addCommand(initCommand);
 program.addCommand(devCommand);
+program.addCommand(buildCommand);
 program.addCommand(startCommand);
 program.addCommand(generateCommand);
 program.addCommand(keyCommand);

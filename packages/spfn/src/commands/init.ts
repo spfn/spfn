@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import prompts from 'prompts';
 import ora from 'ora';
@@ -224,10 +224,21 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
         packageJson.devDependencies['spfn'] = 'alpha';
 
         // Add SPFN-specific scripts
+        // Preserve existing build script if it exists, otherwise use default Next.js build
+        if (!packageJson.scripts['build'])
+        {
+            packageJson.scripts['build'] = 'next build --turbopack';
+        }
+        // Preserve existing start script if it exists
+        if (!packageJson.scripts['start'])
+        {
+            packageJson.scripts['start'] = 'next start';
+        }
         packageJson.scripts['spfn:dev'] = 'spfn dev';
         packageJson.scripts['spfn:server'] = 'spfn dev --server-only';
         packageJson.scripts['spfn:next'] = 'next dev --turbo --port 3790';
         packageJson.scripts['spfn:start'] = 'spfn start';
+        packageJson.scripts['spfn:build'] = 'spfn build';
 
         // Write updated package.json
         writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
@@ -268,6 +279,34 @@ REDIS_URL=redis://localhost:6379
 NEXT_PUBLIC_API_URL=http://localhost:8790
 `);
             logger.success('Created .env.local.example');
+        }
+
+        // 7. Update .gitignore to include .spfn directory
+        const gitignorePath = join(cwd, '.gitignore');
+        if (existsSync(gitignorePath))
+        {
+            try
+            {
+                const gitignoreContent = readFileSync(gitignorePath, 'utf-8');
+
+                // Check if .spfn is already in .gitignore
+                if (!gitignoreContent.includes('.spfn'))
+                {
+                    // Add .spfn to .gitignore after production build section
+                    const updatedContent = gitignoreContent.replace(
+                        /# production\n\/build/,
+                        '# production\n/build\n\n# spfn\n/.spfn/'
+                    );
+
+                    writeFileSync(gitignorePath, updatedContent);
+                    logger.success('Updated .gitignore with .spfn directory');
+                }
+            }
+            catch (error)
+            {
+                // Not critical, continue
+                logger.warn('Could not update .gitignore (you can add .spfn manually)');
+            }
         }
 
         // Done

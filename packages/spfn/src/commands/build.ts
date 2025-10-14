@@ -1,0 +1,143 @@
+import { Command } from 'commander';
+import { existsSync, writeFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { execa } from 'execa';
+import ora from 'ora';
+import chalk from 'chalk';
+
+import { logger } from '../utils/logger.js';
+import { detectPackageManager } from '../utils/package-manager.js';
+
+interface BuildOptions
+{
+    serverOnly?: boolean;
+    nextOnly?: boolean;
+    turbo?: boolean;
+}
+
+/**
+ * Build SPFN project for production
+ */
+async function buildProject(options: BuildOptions): Promise<void>
+{
+    const cwd = process.cwd();
+    const pm = detectPackageManager(cwd);
+
+    // Check if Next.js project
+    const packageJsonPath = join(cwd, 'package.json');
+    let hasNext = false;
+
+    if (existsSync(packageJsonPath))
+    {
+        const packageJson = JSON.parse(await import('fs').then(fs =>
+            fs.promises.readFile(packageJsonPath, 'utf-8')
+        ));
+        hasNext = !!(packageJson.dependencies?.next || packageJson.devDependencies?.next);
+    }
+
+    // Check if SPFN server exists
+    const serverDir = join(cwd, 'src', 'server');
+    const hasServer = existsSync(serverDir);
+
+    console.log(chalk.blue.bold('\n🏗️  Building SPFN project for production...\n'));
+
+    // Build Next.js using package.json's build script
+    if (hasNext && !options.serverOnly)
+    {
+        const spinner = ora('Building Next.js...').start();
+
+        try
+        {
+            // Use the existing "build" script from package.json (usually "next build --turbopack")
+            const buildCmd = pm === 'npm' ? 'npm run build' : `${pm} run build`;
+
+            await execa(pm, pm === 'npm' ? ['run', 'build'] : ['run', 'build'], {
+                cwd,
+                stdio: 'inherit',
+            });
+
+            spinner.succeed('Next.js build completed');
+        }
+        catch (error)
+        {
+            spinner.fail('Next.js build failed');
+            logger.error(String(error));
+            process.exit(1);
+        }
+    }
+
+    // Build SPFN server (TypeScript → JavaScript)
+    if (hasServer && !options.nextOnly)
+    {
+        const spinner = ora('Building SPFN server...').start();
+
+        try
+        {
+            // Compile TypeScript to JavaScript
+            const outputDir = join(cwd, '.spfn', 'server');
+            mkdirSync(outputDir, { recursive: true });
+
+            // Create temporary tsconfig.json for server build
+            const tempTsConfig = join(cwd, '.spfn', 'tsconfig.server.json');
+            const tsConfig = {
+                compilerOptions: {
+                    target: 'ES2022',
+                    module: 'ESNext',
+                    lib: ['ES2022'],
+                    moduleResolution: 'bundler',
+                    esModuleInterop: true,
+                    skipLibCheck: true,
+                    resolveJsonModule: true,
+                    declaration: true,
+                    sourceMap: true,
+                    outDir: outputDir,
+                    rootDir: join(cwd, 'src', 'server')
+                },
+                include: [join(cwd, 'src', 'server', '**', '*.ts')],
+                exclude: ['node_modules']
+            };
+
+            writeFileSync(tempTsConfig, JSON.stringify(tsConfig, null, 2));
+
+            // Use local tsc from node_modules
+            const tscBin = join(cwd, 'node_modules', '.bin', 'tsc');
+            const tscCmd = existsSync(tscBin) ? tscBin : 'tsc';
+
+            await execa(tscCmd, ['--project', tempTsConfig], {
+                cwd,
+                stdio: 'inherit',
+            });
+
+            spinner.succeed(`SPFN server build completed → .spfn/server`);
+        }
+        catch (error)
+        {
+            spinner.fail('SPFN server build failed');
+            logger.error(String(error));
+            process.exit(1);
+        }
+    }
+
+    if (!hasNext && !hasServer)
+    {
+        logger.error('No Next.js or SPFN server found in this project.');
+        process.exit(1);
+    }
+
+    console.log('\n' + chalk.green.bold('✓ Build completed successfully!\n'));
+
+    console.log('Next steps:');
+    console.log('  • Run in production: ' + chalk.cyan(pm === 'npm' ? 'npm start' : `${pm} start`));
+    console.log('  • Preview build: ' + chalk.cyan(pm === 'npm' ? 'npm run start' : `${pm} run start`));
+    console.log('  • Deploy to your hosting platform\n');
+}
+
+export const buildCommand = new Command('build')
+    .description('Build SPFN project for production (Next.js + Server)')
+    .option('--server-only', 'Build only SPFN server (skip Next.js)')
+    .option('--next-only', 'Build only Next.js (skip SPFN server)')
+    .option('--turbo', 'Use Turbopack for Next.js build')
+    .action(async (options: BuildOptions) =>
+    {
+        await buildProject(options);
+    });
