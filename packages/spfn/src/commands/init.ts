@@ -379,9 +379,11 @@ export default {
         // - @spfn/core@alpha: Always use latest alpha version
         // - @sinclair/typebox: contract files import Type
         // - drizzle-typebox: contract files import createInsertSchema, createSelectSchema
+        // - spfn@alpha: CLI needed for both build and runtime (spfn build, spfn start)
         packageJson.dependencies['@spfn/core'] = 'alpha';
         packageJson.dependencies['@sinclair/typebox'] = '^0.34.0';
         packageJson.dependencies['drizzle-typebox'] = '^0.1.0';
+        packageJson.dependencies['spfn'] = 'alpha';
 
         // Add SPFN dev dependencies (fixes Issue #2)
         packageJson.devDependencies['@types/node'] = '^20.11.0';
@@ -389,7 +391,6 @@ export default {
         packageJson.devDependencies['drizzle-kit'] = '^0.31.5';
         packageJson.devDependencies['concurrently'] = '^9.2.1';
         packageJson.devDependencies['dotenv'] = '^17.2.3';
-        packageJson.devDependencies['spfn'] = 'alpha';
 
         // Add SPFN-specific scripts
         // Preserve existing build script if it exists, otherwise use default Next.js build
