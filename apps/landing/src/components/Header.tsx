@@ -20,8 +20,8 @@ export default function Header()
                     {/* Logo + Brand */}
                     <div className="flex items-center gap-x-2">
                         <Logo className="size-8 text-gray-900 dark:text-white" />
-                        <span className="text-xl font-bold text-gray-900 dark:text-white font-sansation">
-                            Superfunction
+                        <span className="text-xl font-sansation font-bold italic text-gray-900 dark:text-white">
+                            SPFN
                         </span>
                     </div>
 

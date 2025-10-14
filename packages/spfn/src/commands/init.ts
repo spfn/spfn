@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import prompts from 'prompts';
 import ora from 'ora';
@@ -123,54 +123,12 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             }
         }
 
-        // 3. Install dependencies
+        // 3. Prepare dependencies (will be installed later)
         const pm = detectPackageManager(cwd);
         logger.step(`Detected package manager: ${pm}`);
 
-        const spinner = ora('Installing @spfn/core...').start();
-
-        try
-        {
-            // Add spfn CLI to devDependencies (fixes Issue #2)
-            const devPackages = ['tsx', 'drizzle-kit', 'concurrently', 'dotenv', 'spfn'];
-
-            // Check if @spfn/core is already installed/linked
-            const corePackagePath = join(cwd, 'node_modules', '@spfn', 'core', 'package.json');
-            const isCoreInstalled = existsSync(corePackagePath);
-
-            if (!isCoreInstalled)
-            {
-                // Install @spfn/core and transitive dependencies that user code directly imports (fixes Issue #3)
-                // - @sinclair/typebox: contract files import Type
-                // - drizzle-typebox: contract files import createInsertSchema, createSelectSchema
-                // Even though they're in @spfn/core deps, pnpm's strict isolation requires explicit installation
-                spinner.text = 'Installing @spfn/core...';
-                await execa(pm, pm === 'npm' ? ['install', '--legacy-peer-deps', '@spfn/core', '@sinclair/typebox', 'drizzle-typebox'] : ['add', '@spfn/core', '@sinclair/typebox', 'drizzle-typebox'],
-                {
-                    cwd,
-                });
-            }
-            else
-            {
-                spinner.text = '@spfn/core already installed, skipping...';
-            }
-
-            await execa(pm, pm === 'npm' ? ['install', '--save-dev', ...devPackages] : ['add', '-D', ...devPackages],
-            {
-                cwd,
-            });
-
-            spinner.succeed('Dependencies installed');
-        }
-        catch (error)
-        {
-            spinner.fail('Failed to install dependencies');
-            logger.error(String(error));
-            process.exit(1);
-        }
-
         // 4. Copy server template (Zero-Config: only routes, entities, examples)
-        spinner.start('Setting up server structure...');
+        const spinner = ora('Setting up server structure...').start();
 
         try
         {
@@ -222,6 +180,72 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             }
         }
 
+        // 4.5.1. Copy Docker production files
+        try
+        {
+            const templatesDir = findTemplatesPath();
+
+            // Copy Dockerfile
+            const dockerfilePath = join(cwd, 'Dockerfile');
+            if (!existsSync(dockerfilePath))
+            {
+                const dockerfileTemplate = join(templatesDir, 'Dockerfile');
+                if (existsSync(dockerfileTemplate))
+                {
+                    copySync(dockerfileTemplate, dockerfilePath);
+                    logger.success('Created Dockerfile');
+                }
+            }
+
+            // Copy .dockerignore
+            const dockerignorePath = join(cwd, '.dockerignore');
+            if (!existsSync(dockerignorePath))
+            {
+                const dockerignoreTemplate = join(templatesDir, '.dockerignore');
+                if (existsSync(dockerignoreTemplate))
+                {
+                    copySync(dockerignoreTemplate, dockerignorePath);
+                    logger.success('Created .dockerignore');
+                }
+            }
+
+            // Copy docker-compose.production.yml
+            const dockerComposeProdPath = join(cwd, 'docker-compose.production.yml');
+            if (!existsSync(dockerComposeProdPath))
+            {
+                const dockerComposeProdTemplate = join(templatesDir, 'docker-compose.production.yml');
+                if (existsSync(dockerComposeProdTemplate))
+                {
+                    copySync(dockerComposeProdTemplate, dockerComposeProdPath);
+                    logger.success('Created docker-compose.production.yml');
+                }
+            }
+        }
+        catch (error)
+        {
+            // Not critical, continue
+            logger.warn('Could not copy Docker files (you can create them manually)');
+        }
+
+        // 4.5.2. Copy .guide directory (documentation)
+        try
+        {
+            const templatesDir = findTemplatesPath();
+            const guideTemplateDir = join(templatesDir, '.guide');
+            const guideTargetDir = join(cwd, '.guide');
+
+            if (existsSync(guideTemplateDir) && !existsSync(guideTargetDir))
+            {
+                copySync(guideTemplateDir, guideTargetDir);
+                logger.success('Created .guide directory (quick start & deployment guides)');
+            }
+        }
+        catch (error)
+        {
+            // Not critical, continue
+            logger.warn('Could not copy .guide directory');
+        }
+
         // 4.6. Generate deployment config (spfn.json)
         const deploymentConfigPath = join(cwd, 'spfn.json');
         if (!existsSync(deploymentConfigPath))
@@ -242,20 +266,71 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             }
         }
 
-        // 5. Update package.json scripts
-        spinner.start('Updating package.json scripts...');
+        // 5. Update package.json with dependencies and scripts
+        spinner.start('Updating package.json...');
 
+        // Initialize dependencies
+        packageJson.dependencies = packageJson.dependencies || {};
+        packageJson.devDependencies = packageJson.devDependencies || {};
         packageJson.scripts = packageJson.scripts || {};
 
-        // Add SPFN-specific scripts without overwriting existing ones
+        // Add SPFN dependencies (fixes Issue #3: explicit installation for pnpm)
+        // - @spfn/core@alpha: Always use latest alpha version
+        // - @sinclair/typebox: contract files import Type
+        // - drizzle-typebox: contract files import createInsertSchema, createSelectSchema
+        packageJson.dependencies['@spfn/core'] = 'alpha';
+        packageJson.dependencies['@sinclair/typebox'] = '^0.34.0';
+        packageJson.dependencies['drizzle-typebox'] = '^0.1.0';
+
+        // Add SPFN dev dependencies (fixes Issue #2)
+        packageJson.devDependencies['@types/node'] = '^20.11.0';
+        packageJson.devDependencies['tsx'] = '^4.20.6';
+        packageJson.devDependencies['drizzle-kit'] = '^0.31.5';
+        packageJson.devDependencies['concurrently'] = '^9.2.1';
+        packageJson.devDependencies['dotenv'] = '^17.2.3';
+        packageJson.devDependencies['spfn'] = 'alpha';
+
+        // Add SPFN-specific scripts
+        // Preserve existing build script if it exists, otherwise use default Next.js build
+        if (!packageJson.scripts['build'])
+        {
+            packageJson.scripts['build'] = 'next build --turbopack';
+        }
+        // Preserve existing start script if it exists
+        if (!packageJson.scripts['start'])
+        {
+            packageJson.scripts['start'] = 'next start';
+        }
         packageJson.scripts['spfn:dev'] = 'spfn dev';
         packageJson.scripts['spfn:server'] = 'spfn dev --server-only';
         packageJson.scripts['spfn:next'] = 'next dev --turbo --port 3790';
         packageJson.scripts['spfn:start'] = 'spfn start';
+        packageJson.scripts['spfn:build'] = 'spfn build';
 
+        // Write updated package.json
         writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
         spinner.succeed('package.json updated');
+
+        // 5.5. Install all dependencies at once
+        spinner.start('Installing dependencies...');
+
+        try
+        {
+            const installArgs = pm === 'npm'
+                ? ['install', '--legacy-peer-deps']
+                : ['install'];
+
+            await execa(pm, installArgs, { cwd });
+
+            spinner.succeed('Dependencies installed');
+        }
+        catch (error)
+        {
+            spinner.fail('Failed to install dependencies');
+            logger.error(String(error));
+            process.exit(1);
+        }
 
         // 6. Create .env.local.example if not exists
         const envExamplePath = join(cwd, '.env.local.example');
@@ -271,6 +346,64 @@ REDIS_URL=redis://localhost:6379
 NEXT_PUBLIC_API_URL=http://localhost:8790
 `);
             logger.success('Created .env.local.example');
+        }
+
+        // 7. Update .gitignore to include .spfn directory
+        const gitignorePath = join(cwd, '.gitignore');
+        if (existsSync(gitignorePath))
+        {
+            try
+            {
+                const gitignoreContent = readFileSync(gitignorePath, 'utf-8');
+
+                // Check if .spfn is already in .gitignore
+                if (!gitignoreContent.includes('.spfn'))
+                {
+                    // Add .spfn to .gitignore after production build section
+                    const updatedContent = gitignoreContent.replace(
+                        /# production\n\/build/,
+                        '# production\n/build\n\n# spfn\n/.spfn/'
+                    );
+
+                    writeFileSync(gitignorePath, updatedContent);
+                    logger.success('Updated .gitignore with .spfn directory');
+                }
+            }
+            catch (error)
+            {
+                // Not critical, continue
+                logger.warn('Could not update .gitignore (you can add .spfn manually)');
+            }
+        }
+
+        // 8. Update tsconfig.json to exclude src/server
+        const tsconfigPath = join(cwd, 'tsconfig.json');
+        if (existsSync(tsconfigPath))
+        {
+            try
+            {
+                const tsconfigContent = readFileSync(tsconfigPath, 'utf-8');
+                const tsconfig = JSON.parse(tsconfigContent);
+
+                // Initialize exclude array if not exists
+                if (!tsconfig.exclude)
+                {
+                    tsconfig.exclude = [];
+                }
+
+                // Add src/server to exclude if not already present
+                if (!tsconfig.exclude.includes('src/server'))
+                {
+                    tsconfig.exclude.push('src/server');
+                    writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2) + '\n');
+                    logger.success('Updated tsconfig.json (excluded src/server for Vercel compatibility)');
+                }
+            }
+            catch (error)
+            {
+                // Not critical, continue
+                logger.warn('Could not update tsconfig.json (you can add "src/server" to exclude manually)');
+            }
         }
 
         // Done

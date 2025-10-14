@@ -28,7 +28,7 @@ export default function Footer()
                     <div className="lg:col-span-1">
                         <div className="flex items-center gap-x-2">
                             <Logo className="size-10 text-gray-900 dark:text-white" />
-                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white font-sansation">
+                            <h3 className="text-2xl font-sansation font-bold italic text-gray-900 dark:text-white">
                                 SPFN
                             </h3>
                         </div>
@@ -119,10 +119,10 @@ export default function Footer()
                         </p>
                         <div className="flex items-center gap-x-6">
                             <a
-                                href="https://github.com/spfn/spfn/blob/main/LICENSE"
+                                href="https://github.com/spfn/spfn"
                                 className="text-xs text-gray-500 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400 transition-colors"
                             >
-                                MIT License
+                                View Source
                             </a>
                         </div>
                     </div>

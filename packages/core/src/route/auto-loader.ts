@@ -213,13 +213,25 @@ export class AutoRouteLoader
      */
     private isValidRouteFile(fileName: string): boolean
     {
-        return (
+        // Support both .ts (dev) and .js (production)
+        const isTypeScriptFile = (
             fileName.endsWith('.ts') &&
             !fileName.endsWith('.test.ts') &&
             !fileName.endsWith('.spec.ts') &&
             !fileName.endsWith('.d.ts') &&
             fileName !== 'contract.ts'
         );
+
+        const isJavaScriptFile = (
+            fileName.endsWith('.js') &&
+            !fileName.endsWith('.test.js') &&
+            !fileName.endsWith('.spec.js') &&
+            !fileName.endsWith('.d.js') &&
+            fileName !== 'contract.js' &&
+            !fileName.endsWith('.map') // Exclude source maps
+        );
+
+        return isTypeScriptFile || isJavaScriptFile;
     }
 
     /**
@@ -399,11 +411,13 @@ export class AutoRouteLoader
      * - users/index.ts → /users
      * - users/[id].ts → /users/:id
      * - posts/[...slug].ts → /posts/*
+     * - users/index.js → /users (production)
+     * - users/[id].js → /users/:id (production)
      */
     private fileToPath(filePath: string): string
     {
-        // Remove .ts extension
-        let path = filePath.replace(/\.ts$/, '');
+        // Remove .ts or .js extension
+        let path = filePath.replace(/\.(ts|js)$/, '');
 
         // Split into segments
         const segments = path.split('/');

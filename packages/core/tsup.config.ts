@@ -26,6 +26,7 @@ export default defineConfig({
         'hono',
         '@hono/node-server',
         'postgres',
+        'ioredis',
         'pino',
         'chalk',
         'chokidar',
