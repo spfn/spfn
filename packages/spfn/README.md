@@ -104,8 +104,14 @@ export default {
   packageManager: 'pnpm',
   deployment: {
     // Your app's subdomain on spfn.app
-    // Creates: myapp.spfn.app (Next.js) and api-myapp.spfn.app (API)
+    // Creates region-specific domains:
+    // - myapp.us.spfn.app (Next.js)
+    // - api-myapp.us.spfn.app (API)
     subdomain: 'myapp',
+
+    // Optional: Deployment region (defaults to 'us')
+    // Available: 'us' (Virginia, default), 'kr' (Seoul), 'jp', 'sg', 'eu' (coming soon)
+    region: 'us',
 
     // Optional: Add custom domains
     customDomains: {
@@ -117,7 +123,7 @@ export default {
     // ⚠️ WARNING: These values are committed to Git
     // Do NOT put sensitive credentials here!
     env: {
-      NEXT_PUBLIC_API_URL: 'https://api-myapp.spfn.app',
+      NEXT_PUBLIC_API_URL: 'https://api-myapp.us.spfn.app',
       NODE_ENV: 'production'
     }
   }
@@ -126,7 +132,8 @@ export default {
 
 **Features:**
 - **JSDoc Type Hints** - IDE autocomplete via `@type {import('spfn').SpfnConfig}`
-- **Dual Domain Setup** - Automatic `{subdomain}.spfn.app` and `api-{subdomain}.spfn.app`
+- **Multi-Region Deployment** - Deploy to Seoul (kr), Virginia (us), and more
+- **Dual Domain Setup** - Automatic `{subdomain}.{region}.spfn.app` and `api-{subdomain}.{region}.spfn.app`
 - **Custom Domains** - Support for multiple custom domains
 - **Environment Variables** - Shared between Next.js and SPFN backend
 - **ESM/CJS Support** - Works with both module systems

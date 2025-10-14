@@ -278,15 +278,27 @@ export default {
     /**
      * Your app's subdomain on spfn.app
      *
-     * This will automatically create two domains:
-     * - {subdomain}.spfn.app → Next.js frontend (port 3790)
-     * - api-{subdomain}.spfn.app → SPFN backend (port 8790)
+     * This will automatically create region-specific domains:
+     * - {subdomain}.{region}.spfn.app → Next.js frontend (port 3790)
+     * - api-{subdomain}.{region}.spfn.app → SPFN backend (port 8790)
      *
-     * Example: subdomain: 'dncbio' creates:
-     * - dncbio.spfn.app
-     * - api-dncbio.spfn.app
+     * Example: subdomain: '${projectName}', region: 'us' creates:
+     * - ${projectName}.us.spfn.app
+     * - api-${projectName}.us.spfn.app
      */
     subdomain: '${projectName}',
+
+    /**
+     * Deployment region (optional, defaults to 'us')
+     *
+     * Available regions:
+     * - 'us': Virginia, USA (default)
+     * - 'kr': Seoul, South Korea
+     * - 'jp': Tokyo, Japan [Coming soon]
+     * - 'sg': Singapore [Coming soon]
+     * - 'eu': Frankfurt, Germany [Coming soon]
+     */
+    region: 'us',
 
     /**
      * Custom domains (optional)
@@ -330,12 +342,12 @@ export default {
      *
      * Example:
      * env: {
-     *   NEXT_PUBLIC_API_URL: 'https://api-${projectName}.spfn.app',
+     *   NEXT_PUBLIC_API_URL: 'https://api-${projectName}.us.spfn.app',
      *   NODE_ENV: 'production'
      * }
      */
     env: {
-      NEXT_PUBLIC_API_URL: 'https://api-${projectName}.spfn.app'
+      NEXT_PUBLIC_API_URL: 'https://api-${projectName}.us.spfn.app'
     }
   }
 }

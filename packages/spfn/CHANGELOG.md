@@ -2,6 +2,46 @@
 
 All notable changes to the SPFN CLI will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **Multi-Region Deployment Support**
+  - Added `region` field to deployment configuration (optional, defaults to 'us')
+  - Region-specific domain generation: `{subdomain}.{region}.spfn.app`
+  - Available regions:
+    - `'us'`: Virginia, USA (default)
+    - `'kr'`: Seoul, South Korea
+    - `'jp'`: Tokyo, Japan (coming soon)
+    - `'sg'`: Singapore (coming soon)
+    - `'eu'`: Frankfurt, Germany (coming soon)
+  - CI/CD pipeline automatically reads region from `spfn.config.js` and generates region-specific domains
+  - TypeScript type definition: `Region` type exported for autocomplete
+
+### Changed
+
+- Domain generation now includes region: `{subdomain}.{region}.spfn.app` instead of `{subdomain}.spfn.app`
+- Updated spfn.config.js template to include region field with 'kr' as default
+- Updated Woodpecker CI/CD pipeline to handle region-based domain routing
+
+### Example Configuration
+
+```javascript
+/**
+ * @type {import('spfn').SpfnConfig}
+ */
+export default {
+  packageManager: 'pnpm',
+  deployment: {
+    subdomain: 'myapp',
+    region: 'us',  // Virginia, USA
+    env: {
+      NEXT_PUBLIC_API_URL: 'https://api-myapp.us.spfn.app'
+    }
+  }
+}
+```
+
 ## [0.1.0-alpha.16] - 2025-01-14
 
 ### Added
