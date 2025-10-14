@@ -3,7 +3,9 @@ name: Publish Packages
 on:
   push:
     tags:
-      - 'v*' # v로 시작하는 모든 태그 (v0.1.0-alpha.3 등)
+      - '@spfn/core@*'  # @spfn/core 패키지만 배포
+      - 'spfn@*'        # spfn 패키지만 배포
+      - 'v*'            # 모든 패키지 배포 (버전 릴리스)
 
 jobs:
   publish:
@@ -37,11 +39,13 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
-      # pnpm 배포 (workspace:* 자동 변환 + OIDC Trusted Publisher 사용)
+      # Determine which packages to publish based on tag
       - name: Publish @spfn/core to npm
+        if: startsWith(github.ref, 'refs/tags/@spfn/core@') || startsWith(github.ref, 'refs/tags/v')
         working-directory: packages/core
         run: pnpm publish --access public --provenance --no-git-checks
 
       - name: Publish spfn to npm
+        if: startsWith(github.ref, 'refs/tags/spfn@') || startsWith(github.ref, 'refs/tags/v')
         working-directory: packages/spfn
         run: pnpm publish --access public --provenance --no-git-checks
