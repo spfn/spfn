@@ -123,54 +123,12 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             }
         }
 
-        // 3. Install dependencies
+        // 3. Prepare dependencies (will be installed later)
         const pm = detectPackageManager(cwd);
         logger.step(`Detected package manager: ${pm}`);
 
-        const spinner = ora('Installing @spfn/core...').start();
-
-        try
-        {
-            // Add spfn CLI to devDependencies (fixes Issue #2)
-            const devPackages = ['tsx', 'drizzle-kit', 'concurrently', 'dotenv', 'spfn'];
-
-            // Check if @spfn/core is already installed/linked
-            const corePackagePath = join(cwd, 'node_modules', '@spfn', 'core', 'package.json');
-            const isCoreInstalled = existsSync(corePackagePath);
-
-            if (!isCoreInstalled)
-            {
-                // Install @spfn/core and transitive dependencies that user code directly imports (fixes Issue #3)
-                // - @sinclair/typebox: contract files import Type
-                // - drizzle-typebox: contract files import createInsertSchema, createSelectSchema
-                // Even though they're in @spfn/core deps, pnpm's strict isolation requires explicit installation
-                spinner.text = 'Installing @spfn/core...';
-                await execa(pm, pm === 'npm' ? ['install', '--legacy-peer-deps', '@spfn/core', '@sinclair/typebox', 'drizzle-typebox'] : ['add', '@spfn/core', '@sinclair/typebox', 'drizzle-typebox'],
-                {
-                    cwd,
-                });
-            }
-            else
-            {
-                spinner.text = '@spfn/core already installed, skipping...';
-            }
-
-            await execa(pm, pm === 'npm' ? ['install', '--save-dev', ...devPackages] : ['add', '-D', ...devPackages],
-            {
-                cwd,
-            });
-
-            spinner.succeed('Dependencies installed');
-        }
-        catch (error)
-        {
-            spinner.fail('Failed to install dependencies');
-            logger.error(String(error));
-            process.exit(1);
-        }
-
         // 4. Copy server template (Zero-Config: only routes, entities, examples)
-        spinner.start('Setting up server structure...');
+        const spinner = ora('Setting up server structure...').start();
 
         try
         {
@@ -242,20 +200,59 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             }
         }
 
-        // 5. Update package.json scripts
-        spinner.start('Updating package.json scripts...');
+        // 5. Update package.json with dependencies and scripts
+        spinner.start('Updating package.json...');
 
+        // Initialize dependencies
+        packageJson.dependencies = packageJson.dependencies || {};
+        packageJson.devDependencies = packageJson.devDependencies || {};
         packageJson.scripts = packageJson.scripts || {};
 
-        // Add SPFN-specific scripts without overwriting existing ones
+        // Add SPFN dependencies (fixes Issue #3: explicit installation for pnpm)
+        // - @spfn/core@alpha: Always use latest alpha version
+        // - @sinclair/typebox: contract files import Type
+        // - drizzle-typebox: contract files import createInsertSchema, createSelectSchema
+        packageJson.dependencies['@spfn/core'] = 'alpha';
+        packageJson.dependencies['@sinclair/typebox'] = '^0.34.0';
+        packageJson.dependencies['drizzle-typebox'] = '^0.1.0';
+
+        // Add SPFN dev dependencies (fixes Issue #2)
+        packageJson.devDependencies['tsx'] = '^4.20.6';
+        packageJson.devDependencies['drizzle-kit'] = '^0.31.5';
+        packageJson.devDependencies['concurrently'] = '^9.2.1';
+        packageJson.devDependencies['dotenv'] = '^17.2.3';
+        packageJson.devDependencies['spfn'] = 'alpha';
+
+        // Add SPFN-specific scripts
         packageJson.scripts['spfn:dev'] = 'spfn dev';
         packageJson.scripts['spfn:server'] = 'spfn dev --server-only';
         packageJson.scripts['spfn:next'] = 'next dev --turbo --port 3790';
         packageJson.scripts['spfn:start'] = 'spfn start';
 
+        // Write updated package.json
         writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
         spinner.succeed('package.json updated');
+
+        // 5.5. Install all dependencies at once
+        spinner.start('Installing dependencies...');
+
+        try
+        {
+            const installArgs = pm === 'npm'
+                ? ['install', '--legacy-peer-deps']
+                : ['install'];
+
+            await execa(pm, installArgs, { cwd });
+
+            spinner.succeed('Dependencies installed');
+        }
+        catch (error)
+        {
+            spinner.fail('Failed to install dependencies');
+            logger.error(String(error));
+            process.exit(1);
+        }
 
         // 6. Create .env.local.example if not exists
         const envExamplePath = join(cwd, '.env.local.example');
