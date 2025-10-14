@@ -1,11 +1,12 @@
 {
   "name": "spfn",
-  "version": "0.1.0-alpha.15",
+  "version": "0.1.0-alpha.16",
   "description": "Superfunction CLI - Add SPFN to your Next.js project",
   "type": "module",
   "bin": {
     "spfn": "./bin/spfn.js"
   },
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "bin"

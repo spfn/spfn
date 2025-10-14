@@ -16,6 +16,15 @@ import {
     dbCheck,
 } from './commands/db.js';
 
+// Export types
+export type {
+    SpfnConfig,
+    PackageManager,
+    DeploymentConfig,
+    CustomDomains,
+    EnvironmentVariables,
+} from './types/config.js';
+
 const program = new Command();
 
 program

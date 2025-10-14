@@ -23,7 +23,8 @@ build
 *.log
 
 # Claude Code
-.claude/
+.claude/*
+!.claude/commands/
 
 # Debug
 npm-debug.log*
