@@ -64,6 +64,7 @@ export const startCommand = new Command('start')
         mkdirSync(tempDir, { recursive: true });
 
         // Production server entry (runs from .spfn/server/)
+        const routesPath = join(cwd, '.spfn', 'server', 'routes');
         writeFileSync(serverEntry, `
 import { config } from 'dotenv';
 import { startServer } from '@spfn/core/server';
@@ -74,7 +75,7 @@ config({ path: '.env.local' });
 await startServer({
     port: ${options.port},
     host: '${options.host}',
-    routesPath: '.spfn/server/routes',
+    routesPath: '${routesPath.replace(/\\/g, '/')}',
     debug: false
 });
 `);
