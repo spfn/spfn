@@ -81,7 +81,6 @@ await watchAndGenerate({
             {
                 const tsxCmd = watchMode ? 'tsx --watch' : 'tsx';
                 const serverCmd = pm === 'npm' ? `npx ${tsxCmd} ${serverEntry}` : `${pm} exec ${tsxCmd} ${serverEntry}`;
-                // Watcher handles its own watch mode internally
                 const watcherCmd = pm === 'npm' ? `npx tsx ${watcherEntry}` : `${pm} exec tsx ${watcherEntry}`;
 
                 await execa(pm === 'npm' ? 'npx' : pm,
@@ -116,7 +115,6 @@ await watchAndGenerate({
         const nextCmd = pm === 'npm' ? 'npm run spfn:next' : `${pm} run spfn:next`;
         const tsxCmd = watchMode ? 'tsx --watch' : 'tsx';
         const serverCmd = pm === 'npm' ? `npx ${tsxCmd} ${serverEntry}` : `${pm} exec ${tsxCmd} ${serverEntry}`;
-        // Watcher handles its own watch mode internally
         const watcherCmd = pm === 'npm' ? `npx tsx ${watcherEntry}` : `${pm} exec tsx ${watcherEntry}`;
 
         logger.info(`Starting SPFN server + Next.js (Turbopack)${watchMode ? ' (watch mode)' : ''}...\n`);

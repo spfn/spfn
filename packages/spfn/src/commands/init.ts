@@ -180,6 +180,72 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             }
         }
 
+        // 4.5.1. Copy Docker production files
+        try
+        {
+            const templatesDir = findTemplatesPath();
+
+            // Copy Dockerfile
+            const dockerfilePath = join(cwd, 'Dockerfile');
+            if (!existsSync(dockerfilePath))
+            {
+                const dockerfileTemplate = join(templatesDir, 'Dockerfile');
+                if (existsSync(dockerfileTemplate))
+                {
+                    copySync(dockerfileTemplate, dockerfilePath);
+                    logger.success('Created Dockerfile');
+                }
+            }
+
+            // Copy .dockerignore
+            const dockerignorePath = join(cwd, '.dockerignore');
+            if (!existsSync(dockerignorePath))
+            {
+                const dockerignoreTemplate = join(templatesDir, '.dockerignore');
+                if (existsSync(dockerignoreTemplate))
+                {
+                    copySync(dockerignoreTemplate, dockerignorePath);
+                    logger.success('Created .dockerignore');
+                }
+            }
+
+            // Copy docker-compose.production.yml
+            const dockerComposeProdPath = join(cwd, 'docker-compose.production.yml');
+            if (!existsSync(dockerComposeProdPath))
+            {
+                const dockerComposeProdTemplate = join(templatesDir, 'docker-compose.production.yml');
+                if (existsSync(dockerComposeProdTemplate))
+                {
+                    copySync(dockerComposeProdTemplate, dockerComposeProdPath);
+                    logger.success('Created docker-compose.production.yml');
+                }
+            }
+        }
+        catch (error)
+        {
+            // Not critical, continue
+            logger.warn('Could not copy Docker files (you can create them manually)');
+        }
+
+        // 4.5.2. Copy .guide directory (documentation)
+        try
+        {
+            const templatesDir = findTemplatesPath();
+            const guideTemplateDir = join(templatesDir, '.guide');
+            const guideTargetDir = join(cwd, '.guide');
+
+            if (existsSync(guideTemplateDir) && !existsSync(guideTargetDir))
+            {
+                copySync(guideTemplateDir, guideTargetDir);
+                logger.success('Created .guide directory (quick start & deployment guides)');
+            }
+        }
+        catch (error)
+        {
+            // Not critical, continue
+            logger.warn('Could not copy .guide directory');
+        }
+
         // 4.6. Generate deployment config (spfn.json)
         const deploymentConfigPath = join(cwd, 'spfn.json');
         if (!existsSync(deploymentConfigPath))
@@ -306,6 +372,36 @@ NEXT_PUBLIC_API_URL=http://localhost:8790
             {
                 // Not critical, continue
                 logger.warn('Could not update .gitignore (you can add .spfn manually)');
+            }
+        }
+
+        // 8. Update tsconfig.json to exclude src/server
+        const tsconfigPath = join(cwd, 'tsconfig.json');
+        if (existsSync(tsconfigPath))
+        {
+            try
+            {
+                const tsconfigContent = readFileSync(tsconfigPath, 'utf-8');
+                const tsconfig = JSON.parse(tsconfigContent);
+
+                // Initialize exclude array if not exists
+                if (!tsconfig.exclude)
+                {
+                    tsconfig.exclude = [];
+                }
+
+                // Add src/server to exclude if not already present
+                if (!tsconfig.exclude.includes('src/server'))
+                {
+                    tsconfig.exclude.push('src/server');
+                    writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2) + '\n');
+                    logger.success('Updated tsconfig.json (excluded src/server for Vercel compatibility)');
+                }
+            }
+            catch (error)
+            {
+                // Not critical, continue
+                logger.warn('Could not update tsconfig.json (you can add "src/server" to exclude manually)');
             }
         }
 

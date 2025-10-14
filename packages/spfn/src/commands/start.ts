@@ -87,8 +87,6 @@ await startServer({
 
             try
             {
-                const serverCmd = pm === 'npm' ? `npx tsx ${serverEntry}` : `${pm} exec tsx ${serverEntry}`;
-
                 await execa(pm === 'npm' ? 'npx' : pm,
                     pm === 'npm'
                         ? ['tsx', serverEntry]

@@ -49,9 +49,7 @@ async function buildProject(options: BuildOptions): Promise<void>
         try
         {
             // Use the existing "build" script from package.json (usually "next build --turbopack")
-            const buildCmd = pm === 'npm' ? 'npm run build' : `${pm} run build`;
-
-            await execa(pm, pm === 'npm' ? ['run', 'build'] : ['run', 'build'], {
+            await execa(pm, ['run', 'build'], {
                 cwd,
                 stdio: 'inherit',
             });
