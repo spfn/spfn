@@ -39,7 +39,16 @@ spfn create my-app --shadcn  # Include shadcn/ui component library
 ### Project Initialization
 ```bash
 spfn init              # Initialize SPFN in existing Next.js project
+spfn init -y           # Skip prompts, use defaults
 ```
+
+**What `spfn init` creates:**
+- `src/server/` - Backend structure (routes, entities, repositories)
+- `docker-compose.yml` - PostgreSQL + Redis for local development
+- `Dockerfile`, `.dockerignore`, `docker-compose.production.yml` - Production deployment
+- `.guide/` - **Quick-start and deployment guides** (⭐ Use with AI tools!)
+- `.env.local.example` - Environment variable template
+- `spfn.json` - Project configuration
 
 ### Code Generation
 ```bash
@@ -47,10 +56,17 @@ spfn generate <name>   # Generate entity, routes, repository, and client
 spfn generate users    # Example: Generate users CRUD
 ```
 
-### Development
+### Development & Production
 ```bash
-spfn dev              # Start dev server with watch mode
-spfn start            # Start production server
+# Development
+spfn dev                    # Start both Next.js (3790) + API server (8790)
+spfn dev --server-only      # Start API server only (8790)
+spfn dev --no-watch         # Disable hot reload
+
+# Production
+spfn build                  # Build Next.js + compile server
+spfn start                  # Start production server
+spfn start --server-only    # Start API server only (no Next.js)
 ```
 
 ### Database Management
@@ -78,6 +94,31 @@ spfn key              # Generate encryption key for .env
 For complete documentation and guides, see:
 - **[SPFN Framework](../../README.md)** - Getting started
 - **[@spfn/core](../core/README.md)** - API reference and core concepts
+- **`.guide/` directory in your project** - Quick-start and deployment guides
+
+### Working with AI Tools
+
+When using AI assistants (Claude, ChatGPT, etc.) to build your SPFN project:
+
+**⭐ Share the `.guide/` documentation with your AI assistant!**
+
+After running `spfn init`, you'll have a `.guide/` directory with practical guides:
+- **`quick-start.md`** - Build your first API endpoint (5 minutes)
+- **`deployment.md`** - Complete deployment guide
+
+These guides help AI understand SPFN's architecture and generate correct code for:
+- Creating entities and routes
+- Database migrations
+- Type-safe API clients
+- Production deployment
+
+**Example prompt:**
+```
+I'm using SPFN framework. Here's the quick-start guide:
+[paste .guide/quick-start.md]
+
+Now help me create a blog post API with title, content, and author fields.
+```
 
 ## Requirements
 
