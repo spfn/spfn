@@ -1,6 +1,6 @@
 {
   "name": "@spfn/core",
-  "version": "0.1.0-alpha.20",
+  "version": "0.1.0-alpha.21",
   "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
   "type": "module",
   "main": "./dist/index.js",
@@ -102,6 +102,7 @@
     "drizzle-orm": "^0.44.6",
     "drizzle-typebox": "^0.1.0",
     "hono": "^4.9.0",
+    "jiti": "^2.6.1",
     "micromatch": "^4.0.8",
     "pino": "^10.0.0",
     "postgres": "^3.4.0",

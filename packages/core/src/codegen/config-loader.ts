@@ -6,6 +6,7 @@
 
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { createJiti } from 'jiti';
 import type { Generator } from './generator.js';
 import { createContractGenerator, type ContractGeneratorConfig } from './generators/contract-generator.js';
 import { logger } from '../logger';
@@ -14,9 +15,10 @@ const configLogger = logger.child('config');
 
 export interface CodegenConfig
 {
-    generators?: {
-        contract?: ContractGeneratorConfig & { enabled?: boolean };
-    };
+    generators?: Array<
+        | { path: string }  // Custom generator via file path
+        | ({ name: 'contract' } & ContractGeneratorConfig & { enabled?: boolean })  // Built-in contract generator
+    >;
 }
 
 /**
@@ -69,30 +71,86 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
     // 3. Default configuration
     configLogger.info('Using default config');
     return {
-        generators: {
-            contract: { enabled: true }
-        }
+        generators: [
+            { name: 'contract', enabled: true }
+        ]
     };
 }
 
 /**
  * Create generator instances from configuration
  */
-export function createGeneratorsFromConfig(config: CodegenConfig): Generator[]
+export async function createGeneratorsFromConfig(config: CodegenConfig, cwd: string): Promise<Generator[]>
 {
     const generators: Generator[] = [];
 
-    // Contract generator
-    if (config.generators?.contract?.enabled !== false)
+    if (!config.generators || config.generators.length === 0)
     {
-        const contractConfig: ContractGeneratorConfig = {
-            routesDir: config.generators?.contract?.routesDir,
-            outputPath: config.generators?.contract?.outputPath,
-            baseUrl: config.generators?.contract?.baseUrl
-        };
+        return generators;
+    }
 
-        generators.push(createContractGenerator(contractConfig));
-        configLogger.info('Contract generator enabled');
+    for (const generatorConfig of config.generators)
+    {
+        try
+        {
+            // Custom generator (via file path)
+            if ('path' in generatorConfig)
+            {
+                const generatorPath = generatorConfig.path.startsWith('.')
+                    ? join(cwd, generatorConfig.path)
+                    : generatorConfig.path;
+
+                configLogger.info(`Loading custom generator: ${generatorPath}`);
+
+                let module: any;
+
+                // Use jiti for .ts files, regular import for .js
+                if (generatorPath.endsWith('.ts'))
+                {
+                    const jiti = createJiti(cwd, {
+                        interopDefault: true
+                    });
+                    module = jiti(generatorPath);
+                }
+                else
+                {
+                    module = await import(generatorPath);
+                }
+
+                const createGenerator = module.default || module.createGenerator || module;
+
+                if (typeof createGenerator === 'function')
+                {
+                    const generator = createGenerator();
+                    generators.push(generator);
+                    configLogger.info(`Custom generator loaded: ${generator.name}`);
+                }
+                else
+                {
+                    configLogger.warn(`Invalid generator at ${generatorPath}: expected function`);
+                }
+            }
+            // Built-in contract generator
+            else if ('name' in generatorConfig && generatorConfig.name === 'contract')
+            {
+                if (generatorConfig.enabled !== false)
+                {
+                    const contractConfig: ContractGeneratorConfig = {
+                        routesDir: generatorConfig.routesDir,
+                        outputPath: generatorConfig.outputPath,
+                        baseUrl: generatorConfig.baseUrl
+                    };
+
+                    generators.push(createContractGenerator(contractConfig));
+                    configLogger.info('Contract generator enabled');
+                }
+            }
+        }
+        catch (error)
+        {
+            const err = error instanceof Error ? error : new Error(String(error));
+            configLogger.error('Failed to load generator', err);
+        }
     }
 
     return generators;

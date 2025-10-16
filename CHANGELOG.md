@@ -5,6 +5,96 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.21] - 2025-10-16
+
+### Added
+
+#### @spfn/core
+- **Custom Generator Support**: Load TypeScript generators at runtime via jiti
+  - Dynamic import of `.ts` files for custom generators
+  - Support for both relative and absolute paths
+  - `jiti` dependency added for TypeScript runtime execution
+- **Array-based Generator Configuration**: More flexible configuration format
+  - `generators` field now accepts array of generator configs
+  - Support for both built-in (`{ name: 'contract' }`) and custom (`{ path: '...' }`) generators
+  - Backward compatible with existing configurations
+
+#### spfn CLI
+- **`spfn codegen` command group**: New CLI commands for code generation management
+  - `spfn codegen init`: Initialize `.spfnrc.json` with default configuration
+  - `spfn codegen list` (alias: `ls`): List all registered generators with patterns
+  - `spfn codegen run`: Execute generators once without watch mode
+- **Enhanced CLI Help**: Consistent command structure following `db` pattern
+
+### Changed
+
+#### @spfn/core
+- **Config Loader Improvements**:
+  - `createGeneratorsFromConfig()` is now async and requires `cwd` parameter
+  - Supports loading custom TypeScript generators via jiti
+  - Better error handling for generator loading failures
+  - Updated default configuration to use array format
+
+#### spfn CLI
+- Updated `dev` command to await `createGeneratorsFromConfig()`
+- Improved orchestrator entry point generation
+
+### Fixed
+- Custom generators can now be loaded from TypeScript files (not just compiled JS)
+- Generator path resolution works correctly with relative paths
+
+### Configuration Example
+
+**New array-based format** (`.spfnrc.json`):
+```json
+{
+  "codegen": {
+    "generators": [
+      { "name": "contract", "enabled": true },
+      { "path": "./src/generators/my-generator.ts" }
+    ]
+  }
+}
+```
+
+### Technical Details
+
+**New Dependencies**:
+- `jiti@^2.6.1` - TypeScript runtime loader for custom generators
+
+**Updated API**:
+```typescript
+// Config loader is now async and requires cwd
+export async function createGeneratorsFromConfig(
+  config: CodegenConfig,
+  cwd: string
+): Promise<Generator[]>
+```
+
+**Custom Generator Example**:
+```typescript
+// src/generators/my-generator.ts
+import type { Generator, GeneratorOptions } from '@spfn/core/codegen';
+
+export default function createMyGenerator(): Generator {
+  return {
+    name: 'my-generator',
+    watchPatterns: ['src/data/**/*.ts'],
+
+    async generate(options: GeneratorOptions): Promise<void> {
+      // Your generation logic
+    },
+
+    async onFileChange(filePath: string, event: 'add' | 'change' | 'unlink'): Promise<void> {
+      // Optional: Custom file change handler
+      await this.generate({ cwd: process.cwd(), debug: false });
+    }
+  };
+}
+```
+
+---
+
 ## [0.1.0-alpha.20] - 2025-10-16
 
 ### Added

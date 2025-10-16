@@ -64,7 +64,7 @@ import { CodegenOrchestrator, loadCodegenConfig, createGeneratorsFromConfig } fr
 
 const cwd = process.cwd();
 const config = loadCodegenConfig(cwd);
-const generators = createGeneratorsFromConfig(config);
+const generators = await createGeneratorsFromConfig(config, cwd);
 
 const orchestrator = new CodegenOrchestrator({
     generators,

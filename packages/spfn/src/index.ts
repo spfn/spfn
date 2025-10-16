@@ -5,6 +5,7 @@ import { devCommand } from './commands/dev.js';
 import { buildCommand } from './commands/build.js';
 import { startCommand } from './commands/start.js';
 import { generateCommand } from './commands/generate.js';
+import { codegenCommand } from './commands/codegen.js';
 import { keyCommand } from './commands/key.js';
 import { setupCommand } from './commands/setup.js';
 import {
@@ -40,6 +41,7 @@ program.addCommand(devCommand);
 program.addCommand(buildCommand);
 program.addCommand(startCommand);
 program.addCommand(generateCommand);
+program.addCommand(codegenCommand);
 program.addCommand(keyCommand);
 program.addCommand(setupCommand);
 
