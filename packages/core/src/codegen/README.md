@@ -1,525 +1,409 @@
-# @spfn/core/codegen - API Client Generator
+# Code Generation
 
-Automatic type-safe API client generation from route contracts.
+Automatic code generation system with pluggable generators and centralized file watching.
 
-## Features
+## Overview
 
-- ✅ **Automatic Generation**: Scans route contracts and generates typed client code
-- ✅ **Type Safety**: Full TypeScript type inference from contracts
-- ✅ **Watch Mode**: Automatically regenerates on contract changes
-- ✅ **Resource Grouping**: Organizes client methods by resource
-- ✅ **JSDoc Comments**: Includes documentation in generated code
-- ✅ **Zero Config**: Works out of the box with sensible defaults
+SPFN's codegen system uses an **orchestrator pattern** that manages multiple code generators from a single watch process. This provides:
 
----
+- ✅ **Unified file watching** - Single chokidar instance for all generators
+- ✅ **Pluggable architecture** - Easy to add custom generators
+- ✅ **Configuration-based** - Configure via `.spfnrc.json` or `package.json`
+- ✅ **Build-time + watch mode** - Generate once or continuously during development
+- ✅ **Error resilience** - One generator failure doesn't stop others
 
-## Quick Start
+## Built-in Generators
 
-### 1. Add Script to package.json
+### Contract Generator
 
-```json
-{
-  "scripts": {
-    "generate:client": "node dist/scripts/generate-client.js",
-    "generate:client:watch": "node dist/scripts/generate-client.js --watch"
-  }
-}
-```
+Automatically generates type-safe API clients from your route contracts.
 
-### 2. Run Generator
-
-```bash
-# Generate once
-npm run generate:client
-
-# Watch mode (regenerate on changes)
-npm run generate:client:watch
-```
-
-### 3. Use Generated Client
-
-```typescript
-import { apiClient } from './generated/api-client';
-
-// Fully typed API calls
-const users = await apiClient.users.getAll();
-const user = await apiClient.users.getById({ id: '123' });
-const newUser = await apiClient.users.create({
-  body: { name: 'John', email: 'john@example.com' }
-});
-```
-
----
-
-## How It Works
-
-### Contract-Based Generation
-
-The generator scans your route contracts and automatically creates a type-safe client:
-
-```typescript
-// src/server/routes/users/contract.ts
-import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route';
-
-export const getUsersContract = {
-  method: 'GET' as const,
-  path: '/',
-  response: Type.Array(Type.Object({
-    id: Type.String(),
-    name: Type.String()
-  }))
-} as const satisfies RouteContract;
-
-export const getUserContract = {
-  method: 'GET' as const,
-  path: '/:id',
-  params: Type.Object({
-    id: Type.String()
-  }),
-  response: Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    email: Type.String()
-  })
-} as const satisfies RouteContract;
-```
-
-### Generated Client
-
-```typescript
-// src/generated/api-client.ts (auto-generated)
-import { createClient } from '@spfn/core/client';
-
-const client = createClient();
-
-export const apiClient = {
-  users: {
-    getAll: () => client.call('/users', getUsersContract),
-    getById: (options) => client.call('/users/:id', getUserContract, options),
-  }
-};
-```
-
----
-
-## CLI Usage
-
-### Basic Commands
-
-```bash
-# Generate once
-node dist/scripts/generate-client.js
-
-# Watch mode
-node dist/scripts/generate-client.js --watch
-
-# Custom contracts directory
-node dist/scripts/generate-client.js --contracts ./src/contracts
-
-# Custom output file
-node dist/scripts/generate-client.js --output ./src/api/client.ts
-
-# Custom base URL
-node dist/scripts/generate-client.js --base-url https://api.example.com
-```
-
-### CLI Options
-
-| Option | Alias | Description | Default |
-|--------|-------|-------------|---------|
-| `--contracts` | `-c` | Contracts directory | `src/server/contracts` |
-| `--output` | `-o` | Output file path | `src/generated/api-client.ts` |
-| `--base-url` | `-b` | Base URL for API client | (uses client default) |
-| `--watch` | `-w` | Watch for changes | `false` |
-| `--help` | `-h` | Show help message | - |
-
-### Examples
-
-```bash
-# Basic usage (default paths)
-npm run generate:client
-
-# Custom output location
-node dist/scripts/generate-client.js \
-  --contracts ./contracts \
-  --output ./src/api/generated-client.ts
-
-# Production API URL
-node dist/scripts/generate-client.js \
-  --base-url https://api.production.com
-
-# Development with watch mode
-node dist/scripts/generate-client.js --watch
-```
-
----
-
-## Programmatic API
-
-You can also use the codegen API programmatically:
-
-```typescript
-import { scanContracts, generateClient } from '@spfn/core/codegen';
-import { resolve } from 'path';
-
-// Scan contracts
-const contractsDir = resolve(process.cwd(), 'src/server/contracts');
-const mappings = await scanContracts(contractsDir);
-
-console.log(`Found ${mappings.length} contracts`);
-
-// Generate client
-const stats = await generateClient(mappings, {
-  routesDir: contractsDir,
-  outputPath: resolve(process.cwd(), 'src/generated/api-client.ts'),
-  baseUrl: 'http://localhost:4000',
-  includeTypes: true,
-  includeJsDoc: true
-});
-
-console.log(`Generated ${stats.methodsGenerated} methods`);
-console.log(`Grouped into ${stats.resourcesGenerated} resources`);
-```
-
----
-
-## Contract Requirements
-
-For contracts to be detected and included in the generated client, they must:
-
-1. **Export named constants** ending with `Contract`
-2. **Include `method` and `path`** properties
-3. **Satisfy `RouteContract` type**
-
-### Valid Contract Examples
-
-```typescript
-// ✅ Named export with Contract suffix
-export const getUserContract = {
-  method: 'GET',
-  path: '/:id',
-  params: Type.Object({ id: Type.String() }),
-  response: Type.Object({ /* ... */ })
-} as const satisfies RouteContract;
-
-// ✅ Multiple contracts in one file
-export const createUserContract = { /* ... */ };
-export const updateUserContract = { /* ... */ };
-export const deleteUserContract = { /* ... */ };
-```
-
-### Invalid Examples
-
-```typescript
-// ❌ Default export (not detected)
-export default { method: 'GET', path: '/' };
-
-// ❌ Missing 'Contract' suffix
-export const getUser = { method: 'GET', path: '/:id' };
-
-// ❌ Missing method or path
-export const getUserContract = {
-  response: Type.Object({ /* ... */ })
-};
-```
-
----
-
-## Resource Grouping
-
-The generator automatically groups related endpoints into resources based on the file path:
-
-### Directory Structure → Resource Names
-
-```
-contracts/
-├── users/
-│   ├── list.ts      → apiClient.users.list()
-│   ├── get.ts       → apiClient.users.get()
-│   └── create.ts    → apiClient.users.create()
-└── posts/
-    ├── list.ts      → apiClient.posts.list()
-    └── create.ts    → apiClient.posts.create()
-```
-
-### Naming Conventions
-
-- **Directory name** becomes the resource name (e.g., `users`, `posts`)
-- **File name** becomes the method name (e.g., `list`, `get`, `create`)
-- **Contract name** is used if it differs from file name
-
----
-
-## Generated Client Structure
-
-### Basic Structure
-
-```typescript
-import { createClient, type ContractClient } from '@spfn/core/client';
-
-const client = createClient({
-  baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
-});
-
-export const apiClient = {
-  users: {
-    list: (options?) => client.call('/users', listUsersContract, options),
-    get: (options) => client.call('/users/:id', getUserContract, options),
-    create: (options) => client.call('/users', createUserContract, options),
-  },
-  posts: {
-    list: (options?) => client.call('/posts', listPostsContract, options),
-    create: (options) => client.call('/posts', createPostContract, options),
-  }
-};
-
-// Export underlying client for advanced usage
-export { client };
-```
-
-### Type Inference
-
-The generated client includes full type inference:
-
-```typescript
-// TypeScript knows the exact return type
-const users = await apiClient.users.list();
-// users: Array<{ id: string, name: string, email: string }>
-
-// TypeScript validates parameters
-const user = await apiClient.users.get({ params: { id: '123' } });
-// ✅ Typed params from contract.params
-
-const newUser = await apiClient.users.create({
-  body: { name: 'John', email: 'john@example.com' }
-});
-// ✅ Typed body from contract.body
-```
-
----
-
-## Watch Mode
-
-Watch mode automatically regenerates the client when contracts change:
-
-```bash
-npm run generate:client:watch
-```
+**Input:** Route files with contracts (e.g., `src/server/routes/**/*.ts`)
+**Output:** Type-safe client library (e.g., `src/lib/api.ts`)
 
 **Features:**
-- Watches for file additions, changes, and deletions
-- Debounces multiple changes
-- Shows generation stats after each regeneration
-- Press `Ctrl+C` to stop
+- Scans all route contracts from your routes directory
+- Groups routes by resource
+- Generates typed client methods
+- Includes JSDoc comments with usage examples
 
-**Output:**
-```
-🔍 Scanning contracts...
-   Contracts directory: /project/src/server/contracts
-✅ Found 12 contracts
-   Contracts: 12
-   Contract files: 6
+**Configuration:**
 
-📝 Generating client...
-
-✨ Client generated successfully!
-   Output: /project/src/generated/api-client.ts
-   Resources: 4
-   Methods: 12
-   Time: 145ms
-
-👀 Watching for changes...
-```
-
----
-
-## Integration with Development Workflow
-
-### Next.js Project Setup
-
-```json
+\`\`\`json
 {
-  "scripts": {
-    "dev": "concurrently \"npm run generate:client:watch\" \"next dev\"",
-    "build": "npm run generate:client && next build",
-    "generate:client": "node dist/scripts/generate-client.js",
-    "generate:client:watch": "node dist/scripts/generate-client.js --watch"
+  "codegen": {
+    "generators": {
+      "contract": {
+        "enabled": true,
+        "routesDir": "src/server/routes",
+        "outputPath": "src/lib/api.ts",
+        "baseUrl": "http://localhost:8790"
+      }
+    }
   }
 }
-```
+\`\`\`
 
-### Pre-commit Hook
+## Configuration
 
-```bash
-# .husky/pre-commit
-#!/bin/sh
-npm run generate:client
-git add src/generated/api-client.ts
-```
+Configure codegen in `.spfnrc.json` or `package.json`:
 
-### CI/CD Pipeline
+### .spfnrc.json
 
-```yaml
-# .github/workflows/ci.yml
-- name: Generate API Client
-  run: npm run generate:client
+\`\`\`json
+{
+  "codegen": {
+    "generators": {
+      "contract": {
+        "enabled": true,
+        "routesDir": "src/server/routes",
+        "outputPath": "src/lib/api.ts"
+      }
+    }
+  }
+}
+\`\`\`
 
-- name: Check for changes
-  run: |
-    if [ -n "$(git status --porcelain)" ]; then
-      echo "Generated client is out of date!"
-      exit 1
-    fi
-```
+### package.json
 
----
+\`\`\`json
+{
+  "spfn": {
+    "codegen": {
+      "generators": {
+        "contract": {
+          "enabled": true
+        }
+      }
+    }
+  }
+}
+\`\`\`
 
-## Troubleshooting
+## Usage
 
-### No Contracts Found
+### CLI Commands
 
-**Problem:** Generator reports 0 contracts found
+The codegen system is integrated into `spfn dev`:
 
-**Solutions:**
-- Ensure contracts export named constants ending with `Contract`
-- Verify contracts directory path is correct
-- Check that contracts include `method` and `path` properties
-- Make sure contracts satisfy `RouteContract` type
+\`\`\`bash
+# Start dev server with automatic code generation
+spfn dev
 
-### Type Errors in Generated Client
+# The watcher will:
+# 1. Generate all code once on startup
+# 2. Watch for file changes
+# 3. Regenerate automatically when files change
+\`\`\`
 
-**Problem:** TypeScript errors in generated client code
+### Programmatic Usage
 
-**Solutions:**
-- Regenerate client: `npm run generate:client`
-- Ensure all contracts have valid TypeBox schemas
-- Check that contract types are exported from server
+#### One-time Generation
 
-### Client Not Updating
+\`\`\`typescript
+import { CodegenOrchestrator, loadCodegenConfig, createGeneratorsFromConfig } from '@spfn/core/codegen';
 
-**Problem:** Changes to contracts not reflected in generated client
+const cwd = process.cwd();
+const config = loadCodegenConfig(cwd);
+const generators = createGeneratorsFromConfig(config);
 
-**Solutions:**
-- Run generator manually: `npm run generate:client`
-- Check watch mode is running
-- Verify output path matches import path
-- Restart watch mode if needed
+const orchestrator = new CodegenOrchestrator({
+  generators,
+  cwd,
+  debug: true
+});
 
----
+// Generate once
+await orchestrator.generateAll();
+\`\`\`
+
+#### Watch Mode
+
+\`\`\`typescript
+// Generate once, then watch for changes
+await orchestrator.watch();
+\`\`\`
+
+## Creating Custom Generators
+
+You can create custom generators by implementing the `Generator` interface:
+
+\`\`\`typescript
+import type { Generator, GeneratorOptions } from '@spfn/core/codegen';
+
+export function createMyGenerator(config?: MyGeneratorConfig): Generator
+{
+  return {
+    name: 'my-generator',
+
+    // File patterns to watch (glob patterns)
+    watchPatterns: ['src/app/**/*.tsx'],
+
+    // Generate code
+    async generate(options: GeneratorOptions): Promise<void>
+    {
+      const { cwd, debug } = options;
+
+      // Your generation logic here
+      // - Scan files
+      // - Process data
+      // - Write output files
+    },
+
+    // Optional: Handle individual file changes
+    async onFileChange(filePath: string, event: 'add' | 'change' | 'unlink')
+    {
+      // Custom logic for individual file changes
+      // If not provided, orchestrator will call generate() on any change
+    }
+  };
+}
+\`\`\`
+
+### Example: Admin Navigation Generator
+
+\`\`\`typescript
+import { writeFileSync, mkdirSync } from 'fs';
+import { dirname, join } from 'path';
+import type { Generator, GeneratorOptions } from '@spfn/core/codegen';
+
+export interface AdminNavGeneratorConfig
+{
+  adminDir?: string;
+  outputPath?: string;
+}
+
+export function createAdminNavGenerator(config: AdminNavGeneratorConfig = {}): Generator
+{
+  return {
+    name: 'admin-nav',
+    watchPatterns: [config.adminDir ?? 'src/app/admin/**/*'],
+
+    async generate(options: GeneratorOptions): Promise<void>
+    {
+      const cwd = options.cwd;
+      const adminDir = config.adminDir ?? join(cwd, 'src', 'app', 'admin');
+      const outputPath = config.outputPath ?? join(cwd, 'src', 'lib', 'admin', 'nav-data.generated.tsx');
+
+      // 1. Scan admin directory for pages
+      const pages = await scanAdminPages(adminDir);
+
+      // 2. Generate navigation data
+      const navData = generateNavData(pages);
+
+      // 3. Write output file
+      mkdirSync(dirname(outputPath), { recursive: true });
+      writeFileSync(outputPath, navData, 'utf-8');
+    }
+  };
+}
+
+// Register with orchestrator
+const orchestrator = new CodegenOrchestrator({
+  generators: [
+    createContractGenerator(),
+    createAdminNavGenerator({
+      adminDir: 'src/app/admin',
+      outputPath: 'src/lib/admin/nav-data.generated.tsx'
+    })
+  ],
+  cwd: process.cwd(),
+  debug: true
+});
+\`\`\`
 
 ## API Reference
 
-### `scanContracts(dir: string): Promise<RouteContractMapping[]>`
+### \`CodegenOrchestrator\`
 
-Scans directory for route contracts.
+Central orchestrator that manages multiple code generators.
 
-**Parameters:**
-- `dir` - Directory to scan for contracts
+\`\`\`typescript
+class CodegenOrchestrator
+{
+  constructor(options: OrchestratorOptions);
 
-**Returns:** Array of contract mappings with file paths and metadata
+  // Generate all code once
+  async generateAll(): Promise<void>;
 
----
-
-### `generateClient(mappings, options): Promise<GenerationStats>`
-
-Generates type-safe API client from contract mappings.
-
-**Parameters:**
-- `mappings` - Array of contract mappings from `scanContracts()`
-- `options` - Generation options
-
-**Options:**
-```typescript
-interface ClientGenerationOptions {
-  routesDir: string;        // Contracts directory (for relative imports)
-  outputPath: string;       // Output file path
-  baseUrl?: string;         // Default base URL for client
-  includeTypes?: boolean;   // Include type exports (default: true)
-  includeJsDoc?: boolean;   // Include JSDoc comments (default: true)
+  // Generate once, then watch for changes
+  async watch(): Promise<void>;
 }
-```
 
-**Returns:**
-```typescript
-interface GenerationStats {
-  resourcesGenerated: number;  // Number of resource groups
-  methodsGenerated: number;    // Total number of methods
+interface OrchestratorOptions
+{
+  generators: Generator[];
+  cwd?: string;
+  debug?: boolean;
 }
-```
+\`\`\`
 
----
+### \`Generator\` Interface
 
-### `watchAndGenerate(options): Promise<void>`
+Interface for code generators.
 
-Watches contracts directory and regenerates on changes.
+\`\`\`typescript
+interface Generator
+{
+  /** Unique generator name */
+  name: string;
 
-**Parameters:**
-- `options` - Same as `generateClient()` options
+  /** File patterns to watch (glob patterns) */
+  watchPatterns: string[];
 
----
+  /**
+   * Generate code once
+   */
+  generate(options: GeneratorOptions): Promise<void>;
+
+  /**
+   * Handle individual file changes (optional)
+   * If not provided, orchestrator will call generate() on any file change
+   */
+  onFileChange?(filePath: string, event: 'add' | 'change' | 'unlink'): Promise<void>;
+}
+
+interface GeneratorOptions
+{
+  /** Project root directory */
+  cwd: string;
+
+  /** Enable debug logging */
+  debug?: boolean;
+
+  /** Custom configuration options */
+  [key: string]: any;
+}
+\`\`\`
+
+### Configuration Loaders
+
+\`\`\`typescript
+// Load configuration from .spfnrc.json or package.json
+function loadCodegenConfig(cwd: string): CodegenConfig;
+
+// Create generator instances from configuration
+function createGeneratorsFromConfig(config: CodegenConfig): Generator[];
+\`\`\`
+
+### Built-in Generators
+
+\`\`\`typescript
+// Contract generator (API client generation)
+function createContractGenerator(config?: ContractGeneratorConfig): Generator;
+
+interface ContractGeneratorConfig
+{
+  routesDir?: string;    // Default: 'src/server/routes'
+  outputPath?: string;   // Default: 'src/lib/api.ts'
+  baseUrl?: string;      // Default: 'http://localhost:8790'
+}
+\`\`\`
+
+## Error Handling
+
+The orchestrator gracefully handles generator errors:
+
+\`\`\`typescript
+// If one generator fails, others continue
+await orchestrator.generateAll();
+// ✅ Generator A: Success
+// ❌ Generator B: Failed (logged)
+// ✅ Generator C: Success
+\`\`\`
+
+Failed generators log errors but don't stop the orchestration process.
+
+## Performance
+
+The orchestrator implements several optimizations:
+
+1. **Debouncing**: Rapid file changes are debounced using \`awaitWriteFinish\`
+2. **Concurrent prevention**: Uses \`isGenerating\` flag to prevent overlapping generation
+3. **Pending queue**: Queues changes during generation for processing after completion
+4. **Single watcher**: One chokidar instance watches all patterns
 
 ## Best Practices
 
-### 1. Organize Contracts by Resource
+### Generator Implementation
 
-```
-✅ Good - grouped by resource
-contracts/
-├── users/
-│   ├── list.ts
-│   ├── get.ts
-│   └── create.ts
-└── posts/
-    ├── list.ts
-    └── create.ts
+✅ **Do:**
+- Make generation idempotent (same input = same output)
+- Add proper error handling with try/catch
+- Use descriptive generator names
+- Log progress with debug flag
+- Create output directories before writing files
 
-❌ Bad - flat structure
-contracts/
-├── listUsers.ts
-├── getUser.ts
-├── createUser.ts
-├── listPosts.ts
-└── createPost.ts
-```
+❌ **Don't:**
+- Modify source files (only read)
+- Throw errors without catching (breaks orchestrator)
+- Watch overlapping patterns across generators
+- Perform expensive operations synchronously
 
-### 2. Use Descriptive Contract Names
+### Configuration
 
-```typescript
-// ✅ Good - clear, descriptive names
-export const getUserByIdContract = { /* ... */ };
-export const updateUserProfileContract = { /* ... */ };
+✅ **Do:**
+- Use \`.spfnrc.json\` for project-specific config
+- Provide sensible defaults
+- Document all configuration options
+- Use relative paths from project root
 
-// ❌ Bad - vague names
-export const userContract = { /* ... */ };
-export const contract1 = { /* ... */ };
-```
+❌ **Don't:**
+- Hardcode absolute paths
+- Assume directory structure
+- Use production database in generators
 
-### 3. Keep Generated Client in Source Control
+## Integration with spfn dev
 
-```gitignore
-# ❌ Don't ignore generated client
-# /src/generated/
+The \`spfn dev\` command automatically:
 
-# ✅ Commit generated client for:
-# - Faster builds (no generation needed)
-# - Review changes in PRs
-# - Ensure consistency across team
-```
+1. Loads configuration from \`.spfnrc.json\` or \`package.json\`
+2. Creates generator instances based on config
+3. Starts orchestrator in watch mode
+4. Runs alongside Next.js dev server
 
-### 4. Run Generator in CI/CD
+\`\`\`typescript
+// Generated watcher entry (node_modules/.spfn/watcher.mjs)
+import { CodegenOrchestrator, loadCodegenConfig, createGeneratorsFromConfig } from '@spfn/core/codegen';
 
-Ensure generated client is up-to-date in CI:
+const cwd = process.cwd();
+const config = loadCodegenConfig(cwd);
+const generators = createGeneratorsFromConfig(config);
 
-```bash
-npm run generate:client
-git diff --exit-code src/generated/
-```
+const orchestrator = new CodegenOrchestrator({
+  generators,
+  cwd,
+  debug: true
+});
 
----
+await orchestrator.watch();
+\`\`\`
 
-## Related
+## Troubleshooting
 
-- [@spfn/core/client](../client/README.md) - HTTP client used by generated code
-- [@spfn/core/route](../route/README.md) - Route contracts and types
-- [TypeBox](https://github.com/sinclairzx81/typebox) - Schema validation
+### Generator not running
+
+Check that:
+1. Generator is enabled in config
+2. Watch patterns match your files
+3. No syntax errors in generator code
+
+### Files not regenerating
+
+Ensure:
+1. Watch patterns include the changed files
+2. No infinite loops (generator watching its own output)
+3. \`awaitWriteFinish\` settings are appropriate
+
+### Performance issues
+
+Consider:
+1. Making generators incremental (process only changed files)
+2. Adjusting \`awaitWriteFinish\` thresholds
+3. Using more specific watch patterns
+
+## See Also
+
+- [Contract Generator](./contract-scanner.ts)
+- [Route Scanner](./route-scanner.ts)
+- [Client Generator](./client-generator.ts)

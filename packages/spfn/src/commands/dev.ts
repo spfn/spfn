@@ -58,15 +58,21 @@ await startServer({
 });
 `);
 
-        // Contract watcher entry
+        // Codegen orchestrator entry
         writeFileSync(watcherEntry, `
-import { watchAndGenerate } from '@spfn/core/codegen';
+import { CodegenOrchestrator, loadCodegenConfig, createGeneratorsFromConfig } from '@spfn/core/codegen';
 
-await watchAndGenerate({
-    routesDir: ${options.routes ? `'${options.routes}'` : 'undefined'},
-    debug: true,
-    watch: ${options.watch !== false}
+const cwd = process.cwd();
+const config = loadCodegenConfig(cwd);
+const generators = createGeneratorsFromConfig(config);
+
+const orchestrator = new CodegenOrchestrator({
+    generators,
+    cwd,
+    debug: true
 });
+
+await orchestrator.watch();
 `);
 
         const pm = detectPackageManager(cwd);

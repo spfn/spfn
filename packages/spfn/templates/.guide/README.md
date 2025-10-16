@@ -5,6 +5,7 @@ Welcome to your SPFN project! This directory contains practical guides to help y
 ## Quick Links
 
 - **[Quick Start](./quick-start.md)** - Build your first API endpoint (5 minutes)
+- **[Code Generation](./codegen.md)** - Automatic type-safe client generation
 - **[Deployment](./deployment.md)** - Deploy to production
 
 ## Documentation Structure
@@ -19,6 +20,7 @@ Welcome to your SPFN project! This directory contains practical guides to help y
 - Routing system: `node_modules/@spfn/core/src/route/README.md`
 - Database guide: `node_modules/@spfn/core/src/db/README.md`
 - Transactions: `node_modules/@spfn/core/src/db/docs/transactions.md`
+- Code generation: `node_modules/@spfn/core/src/codegen/README.md`
 
 ## Project Structure
 

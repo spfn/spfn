@@ -485,6 +485,18 @@ Server configuration and lifecycle management.
 
 **[→ Read Server Documentation](./src/server/README.md)**
 
+### ⚙️ Code Generation
+Automatic code generation with pluggable generators and centralized file watching.
+
+**[→ Read Codegen Documentation](./src/codegen/README.md)**
+
+**Key Features:**
+- Orchestrator pattern for managing multiple generators
+- Built-in contract generator for type-safe API clients
+- Configuration-based setup (`.spfnrc.json` or `package.json`)
+- Watch mode integrated into `spfn dev`
+- Extensible with custom generators
+
 ## Module Exports
 
 ### Main Export
@@ -574,6 +586,7 @@ npm test -- --coverage      # With coverage
 - [Error Handling](./src/errors/README.md)
 - [Middleware](./src/middleware/README.md)
 - [Server Configuration](./src/server/README.md)
+- [Code Generation](./src/codegen/README.md)
 
 ### API Reference
 - See module-specific README files linked above
