@@ -11,7 +11,7 @@ export interface DrizzleConfigOptions
     /** Schema files glob pattern (defaults to './src/server/entities/*.ts') */
     schema?: string;
 
-    /** Migration output directory (defaults to './drizzle/migrations') */
+    /** Migration output directory (defaults to './src/server/drizzle') */
     out?: string;
 
     /** Database dialect (auto-detected from URL if not provided) */
@@ -75,7 +75,7 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
 
     const dialect = options.dialect ?? detectDialect(databaseUrl);
     const schema = options.schema ?? './src/server/entities/*.ts';
-    const out = options.out ?? './drizzle/migrations';
+    const out = options.out ?? './src/server/drizzle';
 
     return {
         schema,
