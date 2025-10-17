@@ -44,11 +44,13 @@ export const devCommand = new Command('dev')
 
         // Server entry
         writeFileSync(serverEntry, `
-import { config } from 'dotenv';
-import { startServer } from '@spfn/core/server';
+// Load environment variables FIRST (before any imports that depend on them)
+// Use centralized environment loader for standard dotenv priority
+const { loadEnvironment } = await import('@spfn/core/env');
+loadEnvironment({ debug: true });
 
-// Load .env.local
-config({ path: '.env.local' });
+// Now import server (logger singleton will be created with correct NODE_ENV)
+const { startServer } = await import('@spfn/core/server');
 
 await startServer({
     port: ${options.port},

@@ -108,16 +108,22 @@ async function buildProject(options: BuildOptions): Promise<void>
 
             // Generate production server entry point
             const prodServerPath = join(cwd, '.spfn', 'prod-server.mjs');
-            const prodServerContent = `import { startServer } from '@spfn/core/server';
+            const prodServerContent = `// Load environment variables FIRST (before any imports that depend on them)
+// Use centralized environment loader for standard dotenv priority
+const { loadEnvironment } = await import('@spfn/core/env');
+loadEnvironment({ debug: false });
+
+// Now import server (logger singleton will be created with correct NODE_ENV)
+const { startServer } = await import('@spfn/core/server');
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Environment variables are injected by container/kubernetes
-const port = process.env.SPFN_PORT || '8790';
-const host = process.env.SPFN_HOST || '0.0.0.0';
+// Environment variables: from .env files OR injected by container/kubernetes
+const port = process.env.SPFN_PORT || process.env.PORT || '8790';
+const host = process.env.SPFN_HOST || process.env.HOST || '0.0.0.0';
 
 await startServer({
     port: Number(port),

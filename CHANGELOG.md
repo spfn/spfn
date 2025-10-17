@@ -5,6 +5,57 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.24] - 2025-10-17
+
+### Added
+
+#### @spfn/core
+- **Environment Module Export**: Added `./env` submodule to package.json exports for external access
+  - Enables CLI and external tools to use centralized environment loader
+  - Full TypeScript support with proper type definitions
+
+### Changed
+
+#### spfn CLI
+- **Centralized Environment Loader Integration**: All CLI commands now use `@spfn/core/env` module
+  - `dev.ts`: Generated server.mjs loads environment variables BEFORE importing server module
+    - Fixes logger singleton initialization with correct NODE_ENV
+    - Ensures standard dotenv priority: `.env` → `.env.{NODE_ENV}` → `.env.local` → `.env.{NODE_ENV}.local`
+  - `db.ts`: Loads environment variables before checking DATABASE_URL
+  - `build.ts`: Generated prod-server.mjs uses centralized loader
+    - Supports both .env files AND container/kubernetes env vars
+
+### Fixed
+
+#### @spfn/core
+- **TypeScript Compilation**: Added `drizzle-kit` to devDependencies
+  - Fixes `TS2307: Cannot find module 'drizzle-kit'` error in `drizzle.config.ts`
+
+### Technical Details
+
+**Problem**: Logger singleton was created at module import time, BEFORE environment variables were loaded:
+```javascript
+// OLD (incorrect order)
+import { startServer } from '@spfn/core/server';  // Logger created here (NODE_ENV undefined)
+config({ path: '.env.local' });                   // NODE_ENV loaded here (too late!)
+```
+
+**Solution**: Load environment variables first using dynamic import:
+```javascript
+// NEW (correct order)
+const { loadEnvironment } = await import('@spfn/core/env');
+loadEnvironment({ debug: true });                 // NODE_ENV loaded first
+const { startServer } = await import('@spfn/core/server');  // Logger created with correct NODE_ENV
+```
+
+**Benefits**:
+- Logger debug logs now appear correctly in development mode
+- Database initialization logs visible at server startup
+- Consistent environment loading across all SPFN tools
+- Standard dotenv priority applied everywhere
+
+---
+
 ## [0.1.0-alpha.23] - 2025-10-17
 
 ### Fixed

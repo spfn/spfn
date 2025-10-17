@@ -11,6 +11,7 @@ export default defineConfig({
         'server/index': 'src/server/index.ts',
         'scripts/index': 'src/scripts/index.ts',
         'codegen/index': 'src/codegen/index.ts',
+        'env/index': 'src/env/index.ts',
     },
     format: ['esm'],
     dts: true,

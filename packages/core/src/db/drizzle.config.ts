@@ -30,7 +30,7 @@
  * - drizzle/ (생성된 마이그레이션 파일)
  */
 import { defineConfig } from 'drizzle-kit';
-import { loadEnvironment } from '../env/index.js';
+import { loadEnvironment } from '../env';
 
 // Load environment variables
 loadEnvironment();

@@ -1,6 +1,6 @@
 {
   "name": "@spfn/core",
-  "version": "0.1.0-alpha.23",
+  "version": "0.1.0-alpha.24",
   "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
   "type": "module",
   "main": "./dist/index.js",
@@ -40,6 +40,11 @@
       "types": "./dist/codegen/index.d.ts",
       "import": "./dist/codegen/index.js",
       "require": "./dist/codegen/index.js"
+    },
+    "./env": {
+      "types": "./dist/env/index.d.ts",
+      "import": "./dist/env/index.js",
+      "require": "./dist/env/index.js"
     }
   },
   "scripts": {
@@ -115,6 +120,7 @@
   "devDependencies": {
     "@types/micromatch": "^4.0.9",
     "@types/node": "^20.11.0",
+    "drizzle-kit": "^0.31.5",
     "tsup": "^8.0.0",
     "vitest": "^3.2.4"
   },

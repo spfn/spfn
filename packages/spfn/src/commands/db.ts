@@ -16,6 +16,10 @@ const execAsync = promisify(exec);
  */
 async function runDrizzleCommand(command: string): Promise<void>
 {
+    // Load environment variables first (before checking DATABASE_URL)
+    const { loadEnvironment } = await import('@spfn/core/env');
+    loadEnvironment({ debug: false });
+
     const hasUserConfig = existsSync('./drizzle.config.ts');
     const tempConfigPath = `./drizzle.config.${process.pid}.${Date.now()}.temp.ts`;
 

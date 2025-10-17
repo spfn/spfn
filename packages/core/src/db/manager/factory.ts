@@ -10,7 +10,7 @@ import type { Sql } from 'postgres';
 import { createDatabaseConnection } from './connection.js';
 import { getPoolConfig, getRetryConfig, type PoolConfig } from './config.js';
 import { logger } from '../../logger';
-import { loadEnvironment } from '../../env/index.js';
+import { loadEnvironment } from '../../env';
 
 const dbLogger = logger.child('database');
 
