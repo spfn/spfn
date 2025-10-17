@@ -100,11 +100,11 @@ export function setDatabase(
 }
 
 /**
- * Build health check configuration with priority resolution
+ * Get health check configuration with priority resolution
  *
  * Priority: options > env > defaults
  */
-function buildHealthCheckConfig(options?: Partial<HealthCheckConfig>): HealthCheckConfig
+function getHealthCheckConfig(options?: Partial<HealthCheckConfig>): HealthCheckConfig
 {
     const parseBoolean = (value: string | undefined, defaultValue: boolean): boolean =>
     {
@@ -127,11 +127,11 @@ function buildHealthCheckConfig(options?: Partial<HealthCheckConfig>): HealthChe
 }
 
 /**
- * Build monitoring configuration with priority resolution
+ * Get monitoring configuration with priority resolution
  *
  * Priority: options > env > defaults
  */
-function buildMonitoringConfig(options?: Partial<MonitoringConfig>): MonitoringConfig
+function getMonitoringConfig(options?: Partial<MonitoringConfig>): MonitoringConfig
 {
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const parseBoolean = (value: string | undefined, defaultValue: boolean): boolean =>
@@ -239,14 +239,14 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
             );
 
             // Start health check (automatic)
-            const healthCheckConfig = buildHealthCheckConfig(options?.healthCheck);
+            const healthCheckConfig = getHealthCheckConfig(options?.healthCheck);
             if (healthCheckConfig.enabled)
             {
                 startHealthCheck(healthCheckConfig);
             }
 
             // Initialize monitoring configuration
-            const monConfig = buildMonitoringConfig(options?.monitoring);
+            const monConfig = getMonitoringConfig(options?.monitoring);
             setMonitoringConfig(monConfig);
             if (monConfig.enabled)
             {
@@ -301,9 +301,7 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
  */
 export async function closeDatabase(): Promise<void>
 {
-    const writeInst = getWriteInstance();
-    const readInst = getReadInstance();
-    if (!writeInst && !readInst)
+    if (!writeInstance && !readInstance)
     {
         dbLogger.debug('No database connections to close');
         return;
@@ -317,24 +315,22 @@ export async function closeDatabase(): Promise<void>
         const closePromises: Promise<void>[] = [];
 
         // Close write client
-        const writeC = getWriteClient();
-        if (writeC)
+        if (writeClient)
         {
             dbLogger.debug('Closing write connection...');
             closePromises.push(
-                writeC.end({ timeout: 5 })
+                writeClient.end({ timeout: 5 })
                     .then(() => dbLogger.debug('Write connection closed'))
                     .catch(err => dbLogger.error('Error closing write connection', err))
             );
         }
 
         // Close read client (if different from write)
-        const readC = getReadClient();
-        if (readC && readC !== writeC)
+        if (readClient && readClient !== writeClient)
         {
             dbLogger.debug('Closing read connection...');
             closePromises.push(
-                readC.end({ timeout: 5 })
+                readClient.end({ timeout: 5 })
                     .then(() => dbLogger.debug('Read connection closed'))
                     .catch(err => dbLogger.error('Error closing read connection', err))
             );
@@ -353,11 +349,11 @@ export async function closeDatabase(): Promise<void>
     finally
     {
         // Always clear instances
-        setWriteInstance(undefined);
-        setReadInstance(undefined);
-        setWriteClient(undefined);
-        setReadClient(undefined);
-        setMonitoringConfig(undefined);
+        writeInstance = undefined;
+        readInstance = undefined;
+        writeClient = undefined;
+        readClient = undefined;
+        monitoringConfig = undefined;
     }
 }
 
@@ -370,13 +366,10 @@ export function getDatabaseInfo(): {
     isReplica: boolean;
 }
 {
-    const writeInst = getWriteInstance();
-    const readInst = getReadInstance();
-
     return {
-        hasWrite: !!writeInst,
-        hasRead: !!readInst,
-        isReplica: !!(readInst && readInst !== writeInst),
+        hasWrite: !!writeInstance,
+        hasRead: !!readInstance,
+        isReplica: !!(readInstance && readInstance !== writeInstance),
     };
 }
 
@@ -403,8 +396,7 @@ export function getDatabaseInfo(): {
  */
 export function startHealthCheck(config: HealthCheckConfig): void
 {
-    const healthCheck = getHealthCheckInterval();
-    if (healthCheck)
+    if (healthCheckInterval)
     {
         dbLogger.debug('Health check already running');
         return;
@@ -415,7 +407,7 @@ export function startHealthCheck(config: HealthCheckConfig): void
         reconnect: config.reconnect,
     });
 
-    const interval = setInterval(async () =>
+    healthCheckInterval = setInterval(async () =>
     {
         try
         {
@@ -448,7 +440,6 @@ export function startHealthCheck(config: HealthCheckConfig): void
             }
         }
     }, config.interval);
-    setHealthCheckInterval(interval);
 }
 
 /**
@@ -484,10 +475,10 @@ async function attemptReconnection(config: HealthCheckConfig): Promise<void>
                 await result.write.execute('SELECT 1');
 
                 // Store instances
-                setWriteInstance(result.write);
-                setReadInstance(result.read);
-                setWriteClient(result.writeClient);
-                setReadClient(result.readClient);
+                writeInstance = result.write;
+                readInstance = result.read;
+                writeClient = result.writeClient;
+                readClient = result.readClient;
 
                 dbLogger.info('Database reconnection successful', { attempt });
                 return;
@@ -525,11 +516,10 @@ async function attemptReconnection(config: HealthCheckConfig): Promise<void>
  */
 export function stopHealthCheck(): void
 {
-    const healthCheck = getHealthCheckInterval();
-    if (healthCheck)
+    if (healthCheckInterval)
     {
-        clearInterval(healthCheck);
-        setHealthCheckInterval(undefined);
+        clearInterval(healthCheckInterval);
+        healthCheckInterval = undefined;
         dbLogger.info('Database health check stopped');
     }
 }
@@ -554,5 +544,5 @@ export function stopHealthCheck(): void
  */
 export function getDatabaseMonitoringConfig(): MonitoringConfig | undefined
 {
-    return getMonitoringConfig();
+    return monitoringConfig;
 }

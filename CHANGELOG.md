@@ -5,6 +5,111 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.25] - 2025-10-17
+
+### Fixed
+
+#### @spfn/core
+
+- **Repository Constructor**: Fixed table detection mechanism that was causing `TypeError: writeDb.insert is not a function`
+  - Changed from string-based `'name' in dbOrTable` check to Symbol-based detection using `Symbol.for('drizzle:Name')`
+  - Drizzle ORM uses internal Symbols for table identification, not string properties
+  - Implemented lazy database initialization to avoid constructor side effects
+  - Updated `getReadDb()` to call `getRawDb()` instead of using `this.db`
+
+- **Database Manager (tsx --watch compatibility)**: Fixed "Database not initialized" errors in development mode
+  - Root cause: `tsx --watch` creates isolated module contexts on reload
+  - Module-level singleton variables were not shared across contexts
+  - Migrated all database singletons from module-level to `globalThis` properties
+  - Added accessor functions for encapsulated access to global state
+  - Fixed naming conflict: renamed `getHealthCheckConfig` → `buildHealthCheckConfig` and `getMonitoringConfig` → `buildMonitoringConfig`
+
+### Added
+
+#### @spfn/core
+
+- **Documentation**: Comprehensive documentation for globalThis pattern and Repository fixes
+  - `database-manager.md`: New section "Module Context Isolation (tsx --watch Compatibility)"
+    - Explains why tsx --watch creates module context isolation
+    - Documents globalThis singleton pattern implementation
+    - Architecture decision rationale (tsx --watch + globalThis vs alternatives)
+    - Debugging guide for module context issues
+    - Best practices for custom singleton patterns
+  - `repository.md`: Enhanced constructor documentation
+    - "Table Detection Mechanism" section explaining Symbol-based detection
+    - "Lazy Database Resolution" section explaining deferred initialization
+    - Internal implementation details and benefits
+
+### Technical Details
+
+**Problem 1 - Repository Constructor Bug**:
+
+Drizzle ORM table objects use `Symbol.for('drizzle:Name')` for identification, not a string `name` property:
+
+```typescript
+// ❌ BROKEN: Doesn't work (table.name is a Symbol)
+const isTable = 'name' in dbOrTable && typeof dbOrTable.name === 'string';
+
+// ✅ CORRECT: Uses Drizzle's internal Symbol
+const isTable = Symbol.for('drizzle:Name') in dbOrTable;
+```
+
+**Problem 2 - Module Context Isolation**:
+
+When `tsx --watch` reloads files, it creates new module contexts with fresh module-level variables:
+
+```typescript
+// ❌ BROKEN: Module-level singleton
+let writeInstance: PostgresJsDatabase | undefined;
+
+export function getDatabase() {
+    return writeInstance; // undefined in reloaded modules!
+}
+
+// ✅ CORRECT: globalThis singleton
+declare global {
+    var __SPFN_DB_WRITE__: PostgresJsDatabase | undefined;
+}
+
+const getWriteInstance = () => globalThis.__SPFN_DB_WRITE__;
+
+export function getDatabase() {
+    return getWriteInstance(); // Works across all module contexts!
+}
+```
+
+**Debug Evidence**:
+
+```
+[DEBUG]: getDatabase() called with type=write, writeInstance=false  // Route context
+[DEBUG]: getDatabase() called with type=write, writeInstance=true   // Server context
+```
+
+Database instances existed in server initialization context but were undefined in dynamically loaded route handlers.
+
+**Solution**:
+
+All stateful singletons migrated to globalThis:
+- `__SPFN_DB_WRITE__` - Primary database instance
+- `__SPFN_DB_READ__` - Read replica instance
+- `__SPFN_DB_WRITE_CLIENT__` - Primary client connection
+- `__SPFN_DB_READ_CLIENT__` - Replica client connection
+- `__SPFN_DB_HEALTH_CHECK__` - Health check interval timer
+- `__SPFN_DB_MONITORING__` - Monitoring configuration
+
+All public functions (`getDatabase`, `initDatabase`, `closeDatabase`, `startHealthCheck`, `stopHealthCheck`, `getDatabaseInfo`, `getDatabaseMonitoringConfig`) now use accessor functions instead of direct variable access.
+
+**Why tsx --watch + globalThis?**
+
+Alternatives considered:
+1. **chokidar + process restart**: Slower reload, loses all state, more resource intensive
+2. **chokidar + cache invalidation**: Complex implementation, loses tsx optimization
+3. **tsx --watch + globalThis**: ✅ Best balance of speed, simplicity, and developer experience
+
+This is a standard pattern - Next.js uses similar module context isolation for hot reload.
+
+---
+
 ## [0.1.0-alpha.24] - 2025-10-17
 
 ### Added

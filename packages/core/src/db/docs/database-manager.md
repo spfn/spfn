@@ -564,6 +564,189 @@ DATABASE_URL=postgresql://localhost:5432/myapp_dev
 DATABASE_URL=postgresql://user:pass@containers-us-west-xxx.railway.app:5432/railway
 ```
 
+## Module Context Isolation (tsx --watch Compatibility)
+
+SPFN uses `tsx --watch` for development hot reload. Unlike simple file watching with process restart, `tsx --watch` reloads modules in **isolated contexts** without restarting the Node.js process. This provides faster reload times and preserves server state, but creates a unique challenge for singleton patterns.
+
+### The Problem
+
+When using module-level variables for singletons, each module reload creates a **new module context** with fresh variables:
+
+```typescript
+// ❌ BROKEN: Module-level singleton (doesn't work with tsx --watch)
+let writeInstance: PostgresJsDatabase | undefined;
+let readInstance: PostgresJsDatabase | undefined;
+
+export function getDatabase() {
+    return writeInstance; // undefined in reloaded routes!
+}
+
+export function initDatabase(db: PostgresJsDatabase) {
+    writeInstance = db;
+}
+```
+
+**What happens:**
+1. Server initialization calls `initDatabase()` → sets `writeInstance` in context A
+2. Route file is dynamically loaded → executes in context B
+3. Route calls `getDatabase()` → returns `undefined` (context B has its own `writeInstance`)
+
+This causes "Database not initialized" errors even though the database was properly initialized during server startup.
+
+### The Solution: globalThis Pattern
+
+SPFN uses `globalThis` properties to share state across module contexts:
+
+```typescript
+// ✅ CORRECT: globalThis singleton (works with tsx --watch)
+declare global {
+    var __SPFN_DB_WRITE__: PostgresJsDatabase | undefined;
+    var __SPFN_DB_READ__: PostgresJsDatabase | undefined;
+}
+
+// Accessor functions
+const getWriteInstance = () => globalThis.__SPFN_DB_WRITE__;
+const setWriteInstance = (db: PostgresJsDatabase | undefined) => {
+    globalThis.__SPFN_DB_WRITE__ = db;
+};
+
+export function getDatabase() {
+    return getWriteInstance(); // Works in all contexts!
+}
+
+export function initDatabase(db: PostgresJsDatabase) {
+    setWriteInstance(db);
+}
+```
+
+**How it works:**
+1. Server initialization sets database in `globalThis.__SPFN_DB_WRITE__`
+2. Route file loads in new context → accesses same `globalThis` object
+3. Route successfully retrieves database instance from `globalThis`
+
+### Implementation Details
+
+The Database Manager uses globalThis for all stateful singletons:
+
+```typescript
+declare global {
+    var __SPFN_DB_WRITE__: PostgresJsDatabase | undefined;
+    var __SPFN_DB_READ__: PostgresJsDatabase | undefined;
+    var __SPFN_DB_WRITE_CLIENT__: Sql | undefined;
+    var __SPFN_DB_READ_CLIENT__: Sql | undefined;
+    var __SPFN_DB_HEALTH_CHECK__: NodeJS.Timeout | undefined;
+    var __SPFN_DB_MONITORING__: MonitoringConfig | undefined;
+}
+
+// Accessor functions for encapsulation
+const getWriteInstance = () => globalThis.__SPFN_DB_WRITE__;
+const setWriteInstance = (instance: PostgresJsDatabase | undefined) => {
+    globalThis.__SPFN_DB_WRITE__ = instance;
+};
+// ... similar for other instances
+```
+
+All public functions (`getDatabase`, `initDatabase`, `closeDatabase`, etc.) use these accessors instead of direct variable access.
+
+### Why tsx --watch? (vs chokidar + restart)
+
+SPFN uses two file watching strategies for different purposes:
+
+**tsx --watch** (Server Hot Reload):
+- Fast module reload without process restart
+- Preserves database connections and server state
+- Optimized for development experience
+- Requires globalThis pattern for singletons
+
+**chokidar** (Code Generation):
+- Watches schema files for database codegen
+- Different use case from server reload
+- Used in `orchestrator.ts` for type generation
+
+**Alternatives Considered:**
+
+1. **chokidar + process restart**: Slower reload, loses all state, more resource intensive
+2. **chokidar + cache invalidation**: Complex implementation, loses tsx optimization
+3. **tsx --watch + globalThis**: ✅ Best balance of speed, simplicity, and developer experience
+
+This is a standard pattern - Next.js uses similar module context isolation for hot reload.
+
+### Debugging Module Context Issues
+
+If you encounter "Database not initialized" errors in development:
+
+**Symptom:**
+```typescript
+[DEBUG]: getDatabase() called with type=write, writeInstance=false, readInstance=false  // Route context
+[DEBUG]: getDatabase() called with type=write, writeInstance=true, readInstance=true   // Server context
+```
+
+**Diagnosis:**
+- Database instances exist in server initialization context
+- Route handlers execute in different module context
+- Module-level variables are not shared
+
+**Solution:**
+- Verify database manager uses globalThis pattern (already implemented)
+- Check custom singleton code uses globalThis, not module variables
+- Review logs to confirm database initialization succeeded
+
+**Example Fix:**
+```typescript
+// ❌ Bad: Module-level singleton in custom code
+let myCache: Map<string, any>;
+
+export function getCache() {
+    if (!myCache) myCache = new Map();
+    return myCache;
+}
+
+// ✅ Good: globalThis singleton
+declare global {
+    var __MY_CACHE__: Map<string, any> | undefined;
+}
+
+export function getCache() {
+    if (!globalThis.__MY_CACHE__) {
+        globalThis.__MY_CACHE__ = new Map();
+    }
+    return globalThis.__MY_CACHE__;
+}
+```
+
+### Best Practices
+
+**1. Use globalThis for all singletons:**
+```typescript
+// ✅ Good: Shared across module contexts
+declare global {
+    var __MY_SINGLETON__: YourType | undefined;
+}
+```
+
+**2. Use accessor functions for encapsulation:**
+```typescript
+// ✅ Good: Encapsulated access
+const getInstance = () => globalThis.__MY_SINGLETON__;
+const setInstance = (val: YourType) => { globalThis.__MY_SINGLETON__ = val; };
+```
+
+**3. Prefix global variables to avoid conflicts:**
+```typescript
+// ✅ Good: Clear namespace
+var __SPFN_DB_WRITE__
+var __SPFN_CACHE__
+var __SPFN_REDIS__
+```
+
+**4. Test with tsx --watch:**
+```bash
+# Verify singletons work across module reloads
+npx spfn dev --server-only
+# Make a route change and save
+# Test that database still works
+```
+
 ## Error Handling
 
 ### DatabaseNotInitializedError

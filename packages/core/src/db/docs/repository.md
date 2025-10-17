@@ -53,6 +53,67 @@ const userRepo = new Repository(users);
 
 **Returns:** `Repository<T>` where `T` is inferred from the table schema
 
+#### Table Detection Mechanism
+
+The Repository constructor uses Drizzle's internal symbol to detect table objects:
+
+```typescript
+// Uses Symbol.for('drizzle:Name') to identify PgTable objects
+const isTable = Symbol.for('drizzle:Name') in dbOrTable;
+```
+
+This approach is more reliable than checking for a `name` property, since Drizzle tables use Symbols for internal identification.
+
+**Why not string-based detection:**
+
+```typescript
+// ❌ BROKEN: Doesn't work because table.name is a Symbol, not a string
+const isTable = 'name' in dbOrTable && typeof dbOrTable.name === 'string';
+
+// ✅ CORRECT: Uses Drizzle's internal Symbol
+const isTable = Symbol.for('drizzle:Name') in dbOrTable;
+```
+
+#### Lazy Database Resolution
+
+The Repository uses lazy initialization to avoid database access during construction:
+
+```typescript
+const userRepo = new Repository(users);
+// No database call yet - database is resolved when first operation is called
+
+await userRepo.findAll();
+// Now database instance is resolved via getDatabase()
+```
+
+This pattern enables:
+- Constructing repositories before database initialization
+- Automatic transaction participation via `getTransaction()`
+- Read replica support via `useReplica` flag
+
+**Internal Implementation:**
+
+```typescript
+// Constructor sets table and defers database resolution
+if (isTable) {
+    this.db = undefined as any; // Resolved lazily
+    this.table = dbOrTable as TTable;
+    this.useReplica = typeof tableOrUseReplica === 'boolean'
+        ? tableOrUseReplica
+        : true;
+}
+
+// Operations resolve database on-demand
+private getReadDb(): PostgresJsDatabase<any> {
+    const tx = getTransaction();
+    if (tx) return tx; // Use transaction if active
+
+    return this.useReplica
+        ? getRawDb('read')  // Read replica for queries
+        : getRawDb('write'); // Primary for writes
+}
+```
+
 ---
 
 ### save(data)

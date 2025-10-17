@@ -94,9 +94,12 @@ export class Repository<
         tableOrUseReplica?: TTable | boolean,
         useReplica: boolean = true
     ) {
+        // Detect if first argument is a table by checking for Drizzle's internal symbol
+        const isTable = Symbol.for('drizzle:Name') in dbOrTable;
+
         // Overload 1: new Repository(table) - db auto-resolved
-        if ('name' in dbOrTable && typeof dbOrTable.name === 'string') {
-            this.db = getRawDb('write');
+        if (isTable) {
+            this.db = undefined as any; // DB will be resolved lazily in getWriteDb/getReadDb
             this.table = dbOrTable as TTable;
             this.useReplica = typeof tableOrUseReplica === 'boolean' ? tableOrUseReplica : true;
             this.explicitDb = undefined; // No explicit db provided
@@ -222,7 +225,7 @@ export class Repository<
         }
 
         // Otherwise use getRawDb for replica routing
-        return this.useReplica ? getRawDb('read') : this.db;
+        return this.useReplica ? getRawDb('read') : getRawDb('write');
     }
 
     /**
