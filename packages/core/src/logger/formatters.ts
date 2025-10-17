@@ -109,52 +109,72 @@ export function formatConsole(metadata: LogMetadata, colorize = true): string
 {
     const parts: string[] = [];
 
-    // 타임스탬프
+    // [타임스탬프]
     const timestamp = formatTimestampHuman(metadata.timestamp);
     if (colorize)
     {
-        parts.push(`${COLORS.gray}${timestamp}${COLORS.reset}`);
+        parts.push(`${COLORS.gray}[${timestamp}]${COLORS.reset}`);
     }
     else
     {
-        parts.push(timestamp);
+        parts.push(`[${timestamp}]`);
     }
 
-    // 로그 레벨
-    if (colorize)
-    {
-        parts.push(colorizeLevel(metadata.level));
-    }
-    else
-    {
-        parts.push(metadata.level.toUpperCase().padEnd(5));
-    }
-
-    // 모듈명
+    // [module=value]
     if (metadata.module)
     {
         if (colorize)
         {
-            parts.push(`${COLORS.dim}[${metadata.module}]${COLORS.reset}`);
+            parts.push(`${COLORS.dim}[module=${metadata.module}]${COLORS.reset}`);
         }
         else
         {
-            parts.push(`[${metadata.module}]`);
+            parts.push(`[module=${metadata.module}]`);
         }
     }
 
+    // Context를 각각 [key=value] 형태로 추가
+    if (metadata.context && Object.keys(metadata.context).length > 0)
+    {
+        Object.entries(metadata.context).forEach(([key, value]) =>
+        {
+            const valueStr = typeof value === 'string' ? value : String(value);
+            if (colorize)
+            {
+                parts.push(`${COLORS.dim}[${key}=${valueStr}]${COLORS.reset}`);
+            }
+            else
+            {
+                parts.push(`[${key}=${valueStr}]`);
+            }
+        });
+    }
+
+    // (LEVEL):
+    const levelStr = metadata.level.toUpperCase();
+    if (colorize)
+    {
+        const color = COLORS[metadata.level];
+        parts.push(`${color}(${levelStr})${COLORS.reset}:`);
+    }
+    else
+    {
+        parts.push(`(${levelStr}):`);
+    }
+
     // 메시지
-    parts.push(metadata.message);
+    if (colorize)
+    {
+        parts.push(`${COLORS.bright}${metadata.message}${COLORS.reset}`);
+    }
+    else
+    {
+        parts.push(metadata.message);
+    }
 
     let output = parts.join(' ');
 
-    // Context 추가
-    if (metadata.context && Object.keys(metadata.context).length > 0)
-    {
-        output += '\n' + formatContext(metadata.context);
-    }
-
-    // 에러 추가
+    // 에러는 별도 줄로 추가
     if (metadata.error)
     {
         output += '\n' + formatError(metadata.error);
