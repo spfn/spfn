@@ -23,12 +23,12 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
-import { config } from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { loadEnvironment } from '../env/index.js';
 
-// .env.local 로드
-config({ path: '.env.local' });
+// Load environment variables
+loadEnvironment({ debug: true });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

@@ -5,6 +5,86 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.22] - 2025-10-17
+
+### Added
+
+#### @spfn/core
+- **Centralized Environment Variable Management**: New `@spfn/core/env` module for standardized environment loading
+  - Singleton pattern to prevent duplicate loading
+  - Standard dotenv file priority: `.env` → `.env.{NODE_ENV}` → `.env.local` → `.env.{NODE_ENV}.local`
+  - Support for custom paths and required variable validation
+  - Comprehensive validation utilities (URL, number, boolean, enum, pattern, etc.)
+  - Full TypeScript support with proper types
+  - 63 tests with 100% pass rate
+
+### Changed
+
+#### @spfn/core
+- **Database Module**: Updated to use centralized environment loader
+  - `factory.ts`: Replaced direct `dotenv` usage with `loadEnvironment()` from `@spfn/core/env`
+  - Better error handling and debug logging
+  - Consistent environment variable loading across all modules
+- **Migration Script**: Updated `migrate.ts` to use centralized loader
+- **Drizzle Config**: Updated `drizzle.config.ts` to use centralized loader
+
+### Technical Details
+
+**New Module** (`@spfn/core/env`):
+```typescript
+// Core functions
+export {
+  loadEnvironment,      // Load environment files with standard priority
+  getEnvVar,           // Get variable with optional validation
+  requireEnvVar,       // Get required variable (throws if missing)
+  hasEnvVar,           // Check if variable exists
+  getEnvVars,          // Get multiple variables at once
+  isEnvironmentLoaded, // Check if environment is loaded
+  resetEnvironment,    // Reset for testing
+} from '@spfn/core/env';
+
+// Validation utilities
+export {
+  validateUrl, validatePostgresUrl, validateRedisUrl,
+  validateNumber, validateBoolean, validateEnum,
+  validatePattern, validateNotEmpty, validateMinLength,
+  parseBoolean, combineValidators,
+  // ... and factory functions
+} from '@spfn/core/env';
+```
+
+**Usage Example**:
+```typescript
+import { loadEnvironment, requireEnvVar } from '@spfn/core/env';
+
+// Load with standard priority
+loadEnvironment({ debug: true });
+
+// Get required variables
+const dbUrl = requireEnvVar('DATABASE_URL');
+
+// With validation
+const port = getEnvVar('PORT', {
+  validator: createNumberValidator({ min: 1, max: 65535, integer: true }),
+  default: '3000',
+});
+```
+
+**Environment File Priority**:
+1. `.env` - Base configuration (committed)
+2. `.env.{NODE_ENV}` - Environment-specific
+3. `.env.local` - Local overrides (gitignored, highest priority)
+4. `.env.{NODE_ENV}.local` - Local environment-specific
+
+**Benefits**:
+- Single source of truth for environment configuration
+- Prevents duplicate loading with singleton pattern
+- Better debugging with consistent logging
+- Type-safe variable access with validation
+- Standard dotenv priority across all modules
+
+---
+
 ## [0.1.0-alpha.21] - 2025-10-16
 
 ### Added

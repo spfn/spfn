@@ -3,7 +3,6 @@
  * Supports: Single primary, Primary + Replica
  */
 
-import { config } from 'dotenv';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
@@ -11,6 +10,7 @@ import type { Sql } from 'postgres';
 import { createDatabaseConnection } from './connection.js';
 import { getPoolConfig, getRetryConfig, type PoolConfig } from './config.js';
 import { logger } from '../../logger';
+import { loadEnvironment } from '../../env/index.js';
 
 const dbLogger = logger.child('database');
 
@@ -119,15 +119,32 @@ export interface DatabaseOptions
  */
 export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<DatabaseClients>
 {
-    // Load .env.local if needed
+    // Load environment variables using centralized loader
     if (!hasDatabaseConfig())
     {
-        config({ path: '.env.local' });
+        dbLogger.debug('No DATABASE_URL found, loading environment variables');
+
+        const result = loadEnvironment({
+            debug: true,
+        });
+
+        dbLogger.debug('Environment variables loaded', {
+            success: result.success,
+            loaded: result.loaded.length,
+            hasDatabaseUrl: !!process.env.DATABASE_URL,
+            hasWriteUrl: !!process.env.DATABASE_WRITE_URL,
+            hasReadUrl: !!process.env.DATABASE_READ_URL,
+        });
     }
 
     // Quick exit if no database config
     if (!hasDatabaseConfig())
     {
+        dbLogger.warn('No database configuration found', {
+            cwd: process.cwd(),
+            nodeEnv: process.env.NODE_ENV,
+            checkedVars: ['DATABASE_URL', 'DATABASE_WRITE_URL', 'DATABASE_READ_URL'],
+        });
         return { write: undefined, read: undefined };
     }
 

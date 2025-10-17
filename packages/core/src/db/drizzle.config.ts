@@ -30,10 +30,10 @@
  * - drizzle/ (생성된 마이그레이션 파일)
  */
 import { defineConfig } from 'drizzle-kit';
-import { config } from 'dotenv';
+import { loadEnvironment } from '../env/index.js';
 
-// .env.local 로드
-config({ path: '.env.local' });
+// Load environment variables
+loadEnvironment();
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const SCHEMA_PATH = process.env.DRIZZLE_SCHEMA_PATH || './src/server/entities/index.ts';
