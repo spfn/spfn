@@ -237,7 +237,8 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
             // Cleanup on failure
             await closeDatabase();
 
-            return { write: undefined, read: undefined };
+            // If DATABASE_URL is configured, connection failure should be fatal
+            throw new Error(`Database connection test failed: ${message}`, { cause: error });
         }
     }
     else

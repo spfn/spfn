@@ -249,6 +249,9 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
             hasUrl: !!process.env.DATABASE_URL,
             hasReplicaUrl: !!process.env.DATABASE_REPLICA_URL,
         });
-        return { write: undefined, read: undefined };
+
+        // If DATABASE_URL is configured, connection failure should be fatal
+        // This prevents the server from starting without a database connection
+        throw new Error(`Database connection failed: ${message}`, { cause: error });
     }
 }

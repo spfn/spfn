@@ -5,6 +5,49 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.23] - 2025-10-17
+
+### Fixed
+
+#### @spfn/core
+- **Database Initialization**: Server now fails to start if DATABASE_URL is configured but connection fails
+  - `factory.ts`: Throws error on connection failure instead of returning undefined
+  - `manager.ts`: Throws error on connection test failure
+  - Prevents server from starting with misconfigured database
+  - Ensures database is properly initialized at server startup, not on first request
+  - Related: [Issue #9](https://github.com/spfn/spfn/issues/9) - Server lifecycle hooks for infrastructure initialization
+
+### Technical Details
+
+**Before (v0.1.0-alpha.22)**:
+- Database initialization was lazy (on first `getRepository()` call)
+- Connection failures were silent (returned `undefined`)
+- Server would start even with invalid DATABASE_URL
+- Database errors only appeared on first API request
+
+**After (v0.1.0-alpha.23)**:
+```typescript
+// factory.ts - Connection failure is now fatal
+catch (error) {
+  // ... logging ...
+  throw new Error(`Database connection failed: ${message}`, { cause: error });
+}
+
+// manager.ts - Connection test failure is now fatal
+catch (error) {
+  await closeDatabase();
+  throw new Error(`Database connection test failed: ${message}`, { cause: error });
+}
+```
+
+**Behavior**:
+- If DATABASE_URL is **not set**: Server starts normally (warning logged)
+- If DATABASE_URL is **set but invalid**: Server fails to start with clear error message
+- Database connection is **tested at startup** (`SELECT 1` query)
+- Prevents "database not initialized" errors during request handling
+
+---
+
 ## [0.1.0-alpha.22] - 2025-10-17
 
 ### Added
