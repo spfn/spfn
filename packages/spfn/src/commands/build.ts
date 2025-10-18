@@ -75,61 +75,22 @@ async function buildProject(options: BuildOptions): Promise<void>
             const outputDir = join(cwd, '.spfn', 'server');
             mkdirSync(outputDir, { recursive: true });
 
-            // Check if src/server/tsconfig.json exists
+            // Use src/server/tsconfig.json directly
             const serverTsConfigPath = join(cwd, 'src', 'server', 'tsconfig.json');
-            const tempTsConfig = join(cwd, '.spfn', 'tsconfig.server.json');
 
-            let tsConfig: any;
-
-            if (existsSync(serverTsConfigPath))
+            if (!existsSync(serverTsConfigPath))
             {
-                // Use existing src/server/tsconfig.json as base
-                const baseConfig = JSON.parse(await import('fs').then(fs =>
-                    fs.promises.readFile(serverTsConfigPath, 'utf-8')
-                ));
-
-                tsConfig = {
-                    ...baseConfig,
-                    compilerOptions: {
-                        ...baseConfig.compilerOptions,
-                        // Override for build-specific settings
-                        noEmit: false,
-                        declaration: true,
-                        sourceMap: true,
-                        outDir: outputDir,
-                        rootDir: join(cwd, 'src', 'server')
-                    }
-                };
+                spinner.fail('SPFN server build failed');
+                logger.error('tsconfig.json not found in src/server/');
+                logger.error('Please run "spfn init" to initialize the project.');
+                process.exit(1);
             }
-            else
-            {
-                // Fallback: generate default tsconfig if src/server/tsconfig.json doesn't exist
-                tsConfig = {
-                    compilerOptions: {
-                        target: 'ES2022',
-                        module: 'ESNext',
-                        lib: ['ES2022'],
-                        moduleResolution: 'bundler',
-                        esModuleInterop: true,
-                        skipLibCheck: true,
-                        resolveJsonModule: true,
-                        declaration: true,
-                        sourceMap: true,
-                        outDir: outputDir,
-                        rootDir: join(cwd, 'src', 'server')
-                    },
-                    include: [join(cwd, 'src', 'server', '**', '*.ts')],
-                    exclude: ['node_modules']
-                };
-            }
-
-            writeFileSync(tempTsConfig, JSON.stringify(tsConfig, null, 2));
 
             // Use local tsc from node_modules
             const tscBin = join(cwd, 'node_modules', '.bin', 'tsc');
             const tscCmd = existsSync(tscBin) ? tscBin : 'tsc';
 
-            await execa(tscCmd, ['--project', tempTsConfig], {
+            await execa(tscCmd, ['--project', serverTsConfigPath], {
                 cwd,
                 stdio: 'inherit',
             });

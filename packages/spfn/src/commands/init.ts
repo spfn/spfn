@@ -157,7 +157,6 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
                     lib: ['ES2020', 'WebWorker'],
                     module: 'ESNext',
                     moduleResolution: 'bundler',
-                    noEmit: true,
                     esModuleInterop: true,
                     skipLibCheck: true,
                     allowSyntheticDefaultImports: true,
@@ -168,6 +167,10 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
                     allowJs: true,
                     resolvePackageJsonExports: true,
                     resolvePackageJsonImports: true,
+                    declaration: true,
+                    sourceMap: true,
+                    outDir: '../../.spfn/server',
+                    rootDir: '.',
                     baseUrl: '.',
                     paths: {
                         '@/*': ['../../src/*']

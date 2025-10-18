@@ -5,6 +5,61 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.30] - 2025-10-18
+
+### Changed
+
+#### spfn CLI
+
+- **Simplified TypeScript Build Configuration**: Use `src/server/tsconfig.json` directly for builds
+  - `init.ts`: Generate tsconfig.json with build settings included (outDir, rootDir, declaration, sourceMap)
+  - `build.ts`: Simplified to use `src/server/tsconfig.json` directly instead of generating temporary config
+  - Removed `.spfn/tsconfig.server.json` generation
+  - Single source of truth for TypeScript configuration
+  - Better developer experience with consistent configuration across dev and build
+
+### Technical Details
+
+**Previous Approach (v0.1.0-alpha.29)**:
+- Generated tsconfig.json with `noEmit: true` during init
+- Build process created temporary `.spfn/tsconfig.server.json` with overrides
+- Path resolution issues when copying relative paths to different directory
+
+**New Approach (v0.1.0-alpha.30)**:
+- Generate tsconfig.json with build settings during init
+- Build process uses `src/server/tsconfig.json` directly
+- No temporary files needed
+- All paths remain relative to `src/server/`
+
+**Generated Configuration** (`src/server/tsconfig.json`):
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "../../.spfn/server",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../../src/*"]
+    },
+    // ... other settings
+  }
+}
+```
+
+**Benefits**:
+- Simpler build process
+- No path resolution issues
+- IDE and build use same configuration
+- Easier to customize for developers
+
+---
+
 ## [0.1.0-alpha.29] - 2025-10-18
 
 ### Changed
