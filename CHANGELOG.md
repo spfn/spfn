@@ -5,6 +5,60 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.29] - 2025-10-18
+
+### Changed
+
+#### spfn CLI
+
+- **Server TypeScript Configuration**: Create `src/server/tsconfig.json` during project initialization
+  - `init.ts`: Generate tsconfig.json in `src/server/` directory on `spfn init` or `spfn create`
+  - Configuration optimized for SPFN server development with IDE support
+  - Includes path mapping for `@/*` imports and proper module resolution
+  - `build.ts`: Build process now uses existing `src/server/tsconfig.json` as base
+    - Falls back to default configuration if tsconfig.json doesn't exist (backward compatibility)
+    - Overrides build-specific settings (noEmit, outDir, rootDir, declaration, sourceMap)
+    - Removed automatic generation of tsconfig on every build
+
+### Technical Details
+
+**Generated Configuration** (`src/server/tsconfig.json`):
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowJs": true,
+    "resolvePackageJsonExports": true,
+    "resolvePackageJsonImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../../src/*"]
+    }
+  },
+  "include": ["./**/*"],
+  "exclude": ["../../node_modules"]
+}
+```
+
+**Benefits**:
+- Better IDE support for server code (autocomplete, type checking, imports)
+- Developers can customize TypeScript settings for server code
+- Build process respects user customizations while applying necessary overrides
+- One-time generation during init instead of regenerating on every build
+
+---
+
 ## [0.1.0-alpha.28] - 2025-10-18
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "@spfn/core",
-  "version": "0.1.0-alpha.28",
+  "version": "0.1.0-alpha.29",
   "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
   "type": "module",
   "main": "./dist/index.js",

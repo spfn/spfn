@@ -75,25 +75,53 @@ async function buildProject(options: BuildOptions): Promise<void>
             const outputDir = join(cwd, '.spfn', 'server');
             mkdirSync(outputDir, { recursive: true });
 
-            // Create temporary tsconfig.json for server build
+            // Check if src/server/tsconfig.json exists
+            const serverTsConfigPath = join(cwd, 'src', 'server', 'tsconfig.json');
             const tempTsConfig = join(cwd, '.spfn', 'tsconfig.server.json');
-            const tsConfig = {
-                compilerOptions: {
-                    target: 'ES2022',
-                    module: 'ESNext',
-                    lib: ['ES2022'],
-                    moduleResolution: 'bundler',
-                    esModuleInterop: true,
-                    skipLibCheck: true,
-                    resolveJsonModule: true,
-                    declaration: true,
-                    sourceMap: true,
-                    outDir: outputDir,
-                    rootDir: join(cwd, 'src', 'server')
-                },
-                include: [join(cwd, 'src', 'server', '**', '*.ts')],
-                exclude: ['node_modules']
-            };
+
+            let tsConfig: any;
+
+            if (existsSync(serverTsConfigPath))
+            {
+                // Use existing src/server/tsconfig.json as base
+                const baseConfig = JSON.parse(await import('fs').then(fs =>
+                    fs.promises.readFile(serverTsConfigPath, 'utf-8')
+                ));
+
+                tsConfig = {
+                    ...baseConfig,
+                    compilerOptions: {
+                        ...baseConfig.compilerOptions,
+                        // Override for build-specific settings
+                        noEmit: false,
+                        declaration: true,
+                        sourceMap: true,
+                        outDir: outputDir,
+                        rootDir: join(cwd, 'src', 'server')
+                    }
+                };
+            }
+            else
+            {
+                // Fallback: generate default tsconfig if src/server/tsconfig.json doesn't exist
+                tsConfig = {
+                    compilerOptions: {
+                        target: 'ES2022',
+                        module: 'ESNext',
+                        lib: ['ES2022'],
+                        moduleResolution: 'bundler',
+                        esModuleInterop: true,
+                        skipLibCheck: true,
+                        resolveJsonModule: true,
+                        declaration: true,
+                        sourceMap: true,
+                        outDir: outputDir,
+                        rootDir: join(cwd, 'src', 'server')
+                    },
+                    include: [join(cwd, 'src', 'server', '**', '*.ts')],
+                    exclude: ['node_modules']
+                };
+            }
 
             writeFileSync(tempTsConfig, JSON.stringify(tsConfig, null, 2));
 

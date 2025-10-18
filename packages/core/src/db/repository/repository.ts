@@ -210,7 +210,7 @@ export class Repository<
      * When in transaction, uses transaction DB to ensure read consistency.
      * Priority: explicitDb > transaction > replica/primary DB
      */
-    private getReadDb(): PostgresJsDatabase<any>
+    protected getReadDb(): PostgresJsDatabase<any>
     {
         // If db was explicitly provided, always use it
         if (this.explicitDb) {
@@ -234,7 +234,7 @@ export class Repository<
      * Automatically detects and uses transaction context if available.
      * Priority: explicitDb > transaction > primary DB
      */
-    private getWriteDb(): PostgresJsDatabase<any>
+    protected getWriteDb(): PostgresJsDatabase<any>
     {
         // If db was explicitly provided, always use it
         if (this.explicitDb) {

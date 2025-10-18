@@ -149,6 +149,39 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             // Copy all template files
             copySync(serverTemplateDir, targetDir);
 
+            // Create tsconfig.json for server
+            const serverTsconfigPath = join(targetDir, 'tsconfig.json');
+            const serverTsconfig = {
+                compilerOptions: {
+                    target: 'ES2020',
+                    lib: ['ES2020', 'WebWorker'],
+                    module: 'ESNext',
+                    moduleResolution: 'bundler',
+                    noEmit: true,
+                    esModuleInterop: true,
+                    skipLibCheck: true,
+                    allowSyntheticDefaultImports: true,
+                    strict: true,
+                    forceConsistentCasingInFileNames: true,
+                    resolveJsonModule: true,
+                    isolatedModules: true,
+                    allowJs: true,
+                    resolvePackageJsonExports: true,
+                    resolvePackageJsonImports: true,
+                    baseUrl: '.',
+                    paths: {
+                        '@/*': ['../../src/*']
+                    }
+                },
+                include: [
+                    './**/*'
+                ],
+                exclude: [
+                    '../../node_modules'
+                ]
+            };
+            writeFileSync(serverTsconfigPath, JSON.stringify(serverTsconfig, null, 2));
+
             spinner.succeed('Server structure created');
         }
         catch (error)
