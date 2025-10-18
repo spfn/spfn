@@ -5,6 +5,17 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.28] - 2025-10-18
+
+### Fixed
+
+#### @spfn/core
+
+- **Route Scanner**: Fixed hyphenated route paths not being converted to camelCase in generated API client
+  - Routes like `/videos/upload-and-analyze` now correctly generate `videosUploadAndAnalyze` instead of invalid `videosUpload-and-analyze`
+  - Added `toCamelCase()` function to handle hyphen and underscore conversion
+  - Applies to both route path segments and file names
+
 ## [0.1.0-alpha.25] - 2025-10-17
 
 ### Fixed
