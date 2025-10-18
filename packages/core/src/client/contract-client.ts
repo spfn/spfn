@@ -186,7 +186,8 @@ export class ContractClient
             baseUrl: config.baseUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
             headers: config.headers || {},
             timeout: config.timeout || 30000,
-            fetch: config.fetch || globalThis.fetch,
+            // Bind fetch to globalThis to avoid "Illegal invocation" error
+            fetch: config.fetch || globalThis.fetch.bind(globalThis),
         };
     }
 
@@ -251,8 +252,12 @@ export class ContractClient
             ...options?.headers,
         };
 
-        // Add Content-Type for requests with body
-        if (options?.body !== undefined && !headers['Content-Type'])
+        // Check if body is FormData
+        const isFormData = options?.body instanceof FormData;
+
+        // Add Content-Type for requests with body (except FormData)
+        // FormData will set Content-Type automatically with boundary
+        if (options?.body !== undefined && !isFormData && !headers['Content-Type'])
         {
             headers['Content-Type'] = 'application/json';
         }
@@ -266,7 +271,8 @@ export class ContractClient
         // Add body for POST/PUT/PATCH
         if (options?.body !== undefined)
         {
-            init.body = JSON.stringify(options.body);
+            // FormData should be passed as-is, JSON should be stringified
+            init.body = isFormData ? (options.body as FormData) : JSON.stringify(options.body);
         }
 
         // Create abort controller for timeout
