@@ -5,6 +5,44 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.31] - 2025-10-19
+
+### Fixed
+
+#### @spfn/core
+
+- **Drizzle ORM v0.44.6 Compatibility**: Fixed compatibility with Drizzle ORM v0.44.6
+  - Updated `Repository.executeWithMonitoring()` to use `Symbol.for('drizzle:Name')` instead of deprecated `table._.name`
+  - Added proper type casting `(this.table as any)[Symbol.for('drizzle:Name')]` to avoid TypeScript errors
+  - Fixed in both slow query logging and error logging paths
+
+- **Repository Logging Stability**: Improved error handling in repository monitoring
+  - Wrapped logging code in try-catch blocks to prevent logging failures from breaking database operations
+  - Logging errors now fallback to `console.error()` without affecting actual queries
+  - Ensures that slow query detection or logging issues never cause query failures
+
+- **Drizzle Table Schema**: Fixed deprecated `pgTable` signature
+  - Updated table definitions to return arrays instead of objects for indexes/constraints
+  - Changed from `(table) => ({ index: ... })` to `(table) => [index(...)]`
+  - Fixes TS6387 deprecation warnings in Drizzle ORM v0.44+
+
+### Technical Details
+
+**Drizzle ORM Breaking Change**:
+- Drizzle v0.44.6 removed the `_` metadata property from table objects
+- Now uses Symbol-based metadata: `Symbol.for('drizzle:Name')`
+- This change affected all table name access in repository logging
+
+**Before**:
+```typescript
+table: this.table._.name  // ❌ undefined in v0.44.6
+```
+
+**After**:
+```typescript
+table: (this.table as any)[Symbol.for('drizzle:Name')] as string  // ✅ Works
+```
+
 ## [0.1.0-alpha.30] - 2025-10-18
 
 ### Changed

@@ -284,15 +284,23 @@ export class Repository<
             // Log slow queries
             if (duration >= config.slowThreshold)
             {
-                const dbLogger = logger.child('database');
-                const logData: any = {
-                    operation,
-                    table: this.table._.name,
-                    duration: `${duration.toFixed(2)}ms`,
-                    threshold: `${config.slowThreshold}ms`,
-                };
+                try
+                {
+                    const dbLogger = logger.child('database');
+                    const logData: any = {
+                        operation,
+                        table: (this.table as any)[Symbol.for('drizzle:Name')] as string,
+                        duration: `${duration.toFixed(2)}ms`,
+                        threshold: `${config.slowThreshold}ms`,
+                    };
 
-                dbLogger.warn('Slow query detected', logData);
+                    dbLogger.warn('Slow query detected', logData);
+                }
+                catch (logError)
+                {
+                    // Ignore logging errors - don't fail the actual operation
+                    console.error('Failed to log slow query:', logError);
+                }
             }
 
             return result;
@@ -300,15 +308,24 @@ export class Repository<
         catch (error)
         {
             const duration = performance.now() - startTime;
-            const dbLogger = logger.child('database');
-            const message = error instanceof Error ? error.message : 'Unknown error';
 
-            dbLogger.error('Query failed', {
-                operation,
-                table: this.table._.name,
-                duration: `${duration.toFixed(2)}ms`,
-                error: message,
-            });
+            try
+            {
+                const dbLogger = logger.child('database');
+                const message = error instanceof Error ? error.message : 'Unknown error';
+
+                dbLogger.error('Query failed', {
+                    operation,
+                    table: (this.table as any)[Symbol.for('drizzle:Name')] as string,
+                    duration: `${duration.toFixed(2)}ms`,
+                    error: message,
+                });
+            }
+            catch (logError)
+            {
+                // Ignore logging errors - don't suppress the actual error
+                console.error('Failed to log query error:', logError);
+            }
 
             throw error;
         }
