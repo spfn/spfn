@@ -5,6 +5,17 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.32] - 2025-10-19
+
+### Changed
+
+#### @spfn/core
+
+- **Development Mode**: Disabled auto-restart on file changes in dev script
+  - Removed `--watch` flag from `dev` script in package.json
+  - Build now requires manual restart after code changes
+  - Provides more control during development and testing
+
 ## [0.1.0-alpha.31] - 2025-10-19
 
 ### Fixed
