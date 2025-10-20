@@ -13,7 +13,7 @@ import {
     ValidationError,
     QueryError,
     TransactionError,
-} from '../errors/database-errors.js';
+} from '../errors';
 
 /**
  * Extract field and value from PostgreSQL unique violation message
