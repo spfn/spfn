@@ -297,35 +297,6 @@ describe('Database Manager', () => {
 });
 ```
 
-## 📝 Migration Guide
-
-### From Old Version
-
-**Before**:
-```typescript
-// Old import
-import { db } from '@spfn/core/db/factory';
-
-// Database was auto-initialized
-const users = await db.select().from(usersTable);
-```
-
-**After**:
-```typescript
-// New import
-import { initDatabase, db } from '@spfn/core/db';
-
-// Explicit initialization
-await initDatabase();
-
-// Same usage
-const users = await db.select().from(usersTable);
-```
-
-### Removed Files
-- ❌ `context.ts` - Functionality moved to global-state.ts
-- ❌ `wrapped-db.ts` - Simplified transaction handling
-
 ## 🔗 Related Modules
 
 - `../repository/` - Repository pattern implementation
