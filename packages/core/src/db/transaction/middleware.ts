@@ -17,7 +17,7 @@
 import { randomUUID } from 'crypto';
 import { logger } from '../../logger';
 import { createMiddleware } from 'hono/factory';
-import { db } from "../manager";
+import { getDatabase } from "../manager";
 import { runWithTransaction, type TransactionDB } from './context.js';
 import { TransactionError } from '../../errors';
 import { fromPostgresError } from '../postgres-errors.js';
@@ -130,8 +130,19 @@ export function Transactional(options: TransactionalOptions = {})
 
         try
         {
+            // Get write database instance
+            const writeDb = getDatabase('write');
+            if (!writeDb)
+            {
+                throw new TransactionError(
+                    'Database not initialized. Cannot start transaction.',
+                    500,
+                    { txId, route }
+                );
+            }
+
             // Create transaction promise
-            const transactionPromise = db.transaction(async (tx: TransactionDB) =>
+            const transactionPromise = writeDb.transaction(async (tx: TransactionDB) =>
             {
                 // Store transaction in AsyncLocalStorage
                 await runWithTransaction(tx, txId, async () =>

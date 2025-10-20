@@ -3,13 +3,12 @@
  * Supports: Single primary, Primary + Replica
  */
 
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { drizzle } from 'drizzle-orm/postgres-js';
 
 import { logger } from '../../logger';
 import { loadEnvironment } from '../../env';
 import { createDatabaseConnection } from './connection.js';
 import { getPoolConfig, getRetryConfig, type DatabaseOptions, type DatabaseClients, type PoolConfig, type RetryConfig } from './config.js';
-import { getDatabase } from "./manager";
 
 const dbLogger = logger.child('database');
 
@@ -286,19 +285,3 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
         throw new Error(`Database connection failed: ${message}`, { cause: error });
     }
 }
-
-export const db = new Proxy({} as PostgresJsDatabase, {
-    get(_target, prop)
-    {
-        const instance = getDatabase('write');
-        if (!instance)
-        {
-            throw new Error(
-                'Database not initialized. ' +
-                'Set DATABASE_URL environment variable or call initDatabase() first.'
-            );
-        }
-
-        return (instance as Record<string | symbol, any>)[prop];
-    },
-});

@@ -3,7 +3,7 @@
  */
 
 // Database Factory (Environment Detection)
-export { createDatabaseFromEnv, db } from './factory.js';
+export { createDatabaseFromEnv } from './factory.js';
 export type { DatabaseClients } from './config.js';
 
 // Database Manager (Singleton Pattern)

@@ -7,7 +7,7 @@
  * - Type-safe query builders
  */
 import { PgTable } from "drizzle-orm/pg-core";
-import { db as writeDb, getDatabase } from "../manager";
+import { getDatabase } from "../manager";
 import { getTransactionContext, type TransactionDB } from "../transaction";
 
 /**
@@ -46,18 +46,6 @@ export interface DrizzleTableWithUtils extends PgTable
  * const userRepo = new UserRepository(users);
  * const user = await userRepo.findById('123');
  * ```
- *
- * @example
- * ```typescript
- * // Inside a transaction
- * export const middlewares = [Transactional()];
- *
- * export async function POST(c: RouteContext) {
- *   const userRepo = new UserRepository(users);
- *   // Automatically uses transaction context
- *   await userRepo.create({ name: 'John' });
- * }
- * ```
  */
 export class Repository<TTable extends DrizzleTableWithUtils>
 {
@@ -88,6 +76,7 @@ export class Repository<TTable extends DrizzleTableWithUtils>
         }
 
         // Fallback to write database
+        const writeDb = getDatabase('write');
         if (!writeDb)
         {
             throw new Error(
@@ -115,6 +104,7 @@ export class Repository<TTable extends DrizzleTableWithUtils>
         }
 
         // Use primary database
+        const writeDb = getDatabase('write');
         if (!writeDb)
         {
             throw new Error(
