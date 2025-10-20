@@ -33,12 +33,13 @@
  * - Transaction isolation level setting (withTransaction({ isolationLevel: 'SERIALIZABLE' }))
  * - Nested transaction savepoint support
  */
-import { createMiddleware } from 'hono/factory';
-import { db } from '../index.js';
-import { runWithTransaction, type TransactionDB } from './context.js';
+import { randomUUID } from 'crypto';
 import { logger } from '../../logger';
+import { createMiddleware } from 'hono/factory';
+import { db } from "../manager";
+import { runWithTransaction, type TransactionDB } from './context.js';
 import { TransactionError } from '../../errors';
-import { fromPostgresError } from '../postgres-errors';
+import { fromPostgresError } from '../postgres-errors.js';
 
 /**
  * Transaction middleware options
@@ -136,8 +137,8 @@ export function Transactional(options: TransactionalOptions = {})
 
     return createMiddleware(async (c, next) =>
     {
-        // Generate transaction ID for debugging
-        const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Generate transaction ID for debugging (using crypto.randomUUID for better uniqueness)
+        const txId = `tx_${randomUUID()}`;
         const startTime = Date.now();
         const route = `${c.req.method} ${c.req.path}`;
 
@@ -149,10 +150,10 @@ export function Transactional(options: TransactionalOptions = {})
         try
         {
             // Create transaction promise
-            const transactionPromise = db.transaction(async (tx) =>
+            const transactionPromise = db.transaction(async (tx: TransactionDB) =>
             {
                 // Store transaction in AsyncLocalStorage
-                await runWithTransaction(tx as TransactionDB, async () =>
+                await runWithTransaction(tx, txId, async () =>
                 {
                     // Execute handler
                     await next();
