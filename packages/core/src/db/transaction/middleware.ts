@@ -4,34 +4,15 @@
  * Wraps route handlers in a database transaction.
  * Auto-commits on success, auto-rolls back on error.
  *
- * ✅ Implemented:
- * - Automatic transaction start/commit/rollback
+ * Features:
+ * - Automatic transaction management (start/commit/rollback)
  * - Transaction propagation via AsyncLocalStorage
+ * - Nested transaction detection and logging
  * - Hono Context error detection
- * - Integration with getDb() helper
- * - Type safety improvements (TransactionDB type, no @ts-ignore)
- * - Transaction logging (start/commit/rollback)
- * - Execution time measurement and slow transaction warnings
- * - Transaction ID tracking (for debugging)
- * - Transaction timeout configuration (with TRANSACTION_TIMEOUT env var support)
- *
- * ⚠️ Needs improvement:
- * - Detect and warn about nested transactions
- *
- * 💡 Future considerations:
- * - Transaction isolation level configuration option
- * - Read-only transaction mode
- * - Transaction retry logic (on deadlock)
- * - Transaction event hooks (beforeCommit, afterCommit, onRollback)
- *
- * 🔗 Related files:
- * - src/utils/async-context.ts (AsyncLocalStorage)
- * - src/db/db-context.ts (getDb helper)
- * - src/utils/__tests__/transaction.test.ts (tests)
- *
- * 📝 Future improvements:
- * - Transaction isolation level setting (withTransaction({ isolationLevel: 'SERIALIZABLE' }))
- * - Nested transaction savepoint support
+ * - Transaction timeout with configurable threshold
+ * - Execution time tracking and slow transaction warnings
+ * - UUID-based transaction IDs for debugging
+ * - PostgreSQL error conversion to custom errors
  */
 import { randomUUID } from 'crypto';
 import { logger } from '../../logger';

@@ -5,7 +5,7 @@
  */
 
 // AsyncLocalStorage utilities
-export { getTransaction, runWithTransaction } from './context.js';
+export { getTransaction, runWithTransaction, getTransactionContext } from './context.js';
 export type { TransactionContext, TransactionDB } from './context.js';
 
 // Transaction middleware
