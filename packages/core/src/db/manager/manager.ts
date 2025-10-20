@@ -5,38 +5,26 @@
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import type { Sql } from 'postgres';
 
-import { createDatabaseFromEnv, type DatabaseOptions, type HealthCheckConfig, type MonitoringConfig } from './factory.js';
 import { logger } from '../../logger';
+import { createDatabaseFromEnv } from './factory.js';
+import type { DatabaseOptions, MonitoringConfig } from "./config.js";
+import { buildHealthCheckConfig, buildMonitoringConfig } from "./config.js";
+import {
+    getWriteInstance,
+    setWriteInstance,
+    getReadInstance,
+    setReadInstance,
+    getWriteClient,
+    setWriteClient,
+    getReadClient,
+    setReadClient,
+    getMonitoringConfig,
+    setMonitoringConfig,
+} from './global-state.js';
+import { startHealthCheck, stopHealthCheck } from './health-check.js';
 
 const dbLogger = logger.child('database');
-
-// Use globalThis to share database instances across module contexts (tsx watch mode)
-// This ensures database initialization persists even when modules are reloaded
-declare global
-{
-    var __SPFN_DB_WRITE__: PostgresJsDatabase | undefined;
-    var __SPFN_DB_READ__: PostgresJsDatabase | undefined;
-    var __SPFN_DB_WRITE_CLIENT__: Sql | undefined;
-    var __SPFN_DB_READ_CLIENT__: Sql | undefined;
-    var __SPFN_DB_HEALTH_CHECK__: NodeJS.Timeout | undefined;
-    var __SPFN_DB_MONITORING__: MonitoringConfig | undefined;
-}
-
-// Accessors for global singleton instances
-const getWriteInstance = () => globalThis.__SPFN_DB_WRITE__;
-const setWriteInstance = (instance: PostgresJsDatabase | undefined) => { globalThis.__SPFN_DB_WRITE__ = instance; };
-const getReadInstance = () => globalThis.__SPFN_DB_READ__;
-const setReadInstance = (instance: PostgresJsDatabase | undefined) => { globalThis.__SPFN_DB_READ__ = instance; };
-const getWriteClient = () => globalThis.__SPFN_DB_WRITE_CLIENT__;
-const setWriteClient = (client: Sql | undefined) => { globalThis.__SPFN_DB_WRITE_CLIENT__ = client; };
-const getReadClient = () => globalThis.__SPFN_DB_READ_CLIENT__;
-const setReadClient = (client: Sql | undefined) => { globalThis.__SPFN_DB_READ_CLIENT__ = client; };
-const getHealthCheckInterval = () => globalThis.__SPFN_DB_HEALTH_CHECK__;
-const setHealthCheckInterval = (interval: NodeJS.Timeout | undefined) => { globalThis.__SPFN_DB_HEALTH_CHECK__ = interval; };
-const getMonitoringConfig = () => globalThis.__SPFN_DB_MONITORING__;
-const setMonitoringConfig = (config: MonitoringConfig | undefined) => { globalThis.__SPFN_DB_MONITORING__ = config; };
 
 /**
  * DB connection type
@@ -70,6 +58,7 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase | undef
     {
         return readInst ?? writeInst;
     }
+
     return writeInst;
 }
 
@@ -97,57 +86,6 @@ export function setDatabase(
 {
     setWriteInstance(write);
     setReadInstance(read ?? write);
-}
-
-/**
- * Build health check configuration with priority resolution
- *
- * Priority: options > env > defaults
- */
-function buildHealthCheckConfig(options?: Partial<HealthCheckConfig>): HealthCheckConfig
-{
-    const parseBoolean = (value: string | undefined, defaultValue: boolean): boolean =>
-    {
-        if (value === undefined) return defaultValue;
-        return value.toLowerCase() === 'true';
-    };
-
-    return {
-        enabled: options?.enabled
-            ?? parseBoolean(process.env.DB_HEALTH_CHECK_ENABLED, true),
-        interval: options?.interval
-            ?? (parseInt(process.env.DB_HEALTH_CHECK_INTERVAL || '', 10) || 60000),
-        reconnect: options?.reconnect
-            ?? parseBoolean(process.env.DB_HEALTH_CHECK_RECONNECT, true),
-        maxRetries: options?.maxRetries
-            ?? (parseInt(process.env.DB_HEALTH_CHECK_MAX_RETRIES || '', 10) || 3),
-        retryInterval: options?.retryInterval
-            ?? (parseInt(process.env.DB_HEALTH_CHECK_RETRY_INTERVAL || '', 10) || 5000),
-    };
-}
-
-/**
- * Build monitoring configuration with priority resolution
- *
- * Priority: options > env > defaults
- */
-function buildMonitoringConfig(options?: Partial<MonitoringConfig>): MonitoringConfig
-{
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    const parseBoolean = (value: string | undefined, defaultValue: boolean): boolean =>
-    {
-        if (value === undefined) return defaultValue;
-        return value.toLowerCase() === 'true';
-    };
-
-    return {
-        enabled: options?.enabled
-            ?? parseBoolean(process.env.DB_MONITORING_ENABLED, isDevelopment),
-        slowThreshold: options?.slowThreshold
-            ?? (parseInt(process.env.DB_MONITORING_SLOW_THRESHOLD || '', 10) || 1000),
-        logQueries: options?.logQueries
-            ?? parseBoolean(process.env.DB_MONITORING_LOG_QUERIES, false),
-    };
 }
 
 /**
@@ -242,7 +180,7 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
             const healthCheckConfig = buildHealthCheckConfig(options?.healthCheck);
             if (healthCheckConfig.enabled)
             {
-                startHealthCheck(healthCheckConfig);
+                startHealthCheck(healthCheckConfig, options, getDatabase, closeDatabase);
             }
 
             // Initialize monitoring configuration
@@ -378,160 +316,6 @@ export function getDatabaseInfo(): {
         hasRead: !!readInst,
         isReplica: !!(readInst && readInst !== writeInst),
     };
-}
-
-/**
- * Start database health check
- *
- * Periodically checks database connection health and attempts reconnection if enabled.
- * Automatically started by initDatabase() when health check is enabled.
- *
- * @param config - Health check configuration
- *
- * @example
- * ```typescript
- * import { startHealthCheck } from '@spfn/core/db';
- *
- * startHealthCheck({
- *   enabled: true,
- *   interval: 30000,      // 30 seconds
- *   reconnect: true,
- *   maxRetries: 5,
- *   retryInterval: 10000, // 10 seconds
- * });
- * ```
- */
-export function startHealthCheck(config: HealthCheckConfig): void
-{
-    const healthCheck = getHealthCheckInterval();
-    if (healthCheck)
-    {
-        dbLogger.debug('Health check already running');
-        return;
-    }
-
-    dbLogger.info('Starting database health check', {
-        interval: `${config.interval}ms`,
-        reconnect: config.reconnect,
-    });
-
-    const interval = setInterval(async () =>
-    {
-        try
-        {
-            const write = getDatabase('write');
-            const read = getDatabase('read');
-
-            // Check write connection
-            if (write)
-            {
-                await write.execute('SELECT 1');
-            }
-
-            // Check read connection (if different)
-            if (read && read !== write)
-            {
-                await read.execute('SELECT 1');
-            }
-
-            dbLogger.debug('Database health check passed');
-        }
-        catch (error)
-        {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            dbLogger.error('Database health check failed', { error: message });
-
-            // Attempt reconnection if enabled
-            if (config.reconnect)
-            {
-                await attemptReconnection(config);
-            }
-        }
-    }, config.interval);
-    setHealthCheckInterval(interval);
-}
-
-/**
- * Attempt database reconnection with retry logic
- *
- * @param config - Health check configuration
- */
-async function attemptReconnection(config: HealthCheckConfig): Promise<void>
-{
-    dbLogger.warn('Attempting database reconnection', {
-        maxRetries: config.maxRetries,
-        retryInterval: `${config.retryInterval}ms`,
-    });
-
-    for (let attempt = 1; attempt <= config.maxRetries; attempt++)
-    {
-        try
-        {
-            dbLogger.debug(`Reconnection attempt ${attempt}/${config.maxRetries}`);
-
-            // Close existing connections
-            await closeDatabase();
-
-            // Wait before retry
-            await new Promise(resolve => setTimeout(resolve, config.retryInterval));
-
-            // Reinitialize database
-            const result = await createDatabaseFromEnv();
-
-            if (result.write)
-            {
-                // Test connection
-                await result.write.execute('SELECT 1');
-
-                // Store instances
-                setWriteInstance(result.write);
-                setReadInstance(result.read);
-                setWriteClient(result.writeClient);
-                setReadClient(result.readClient);
-
-                dbLogger.info('Database reconnection successful', { attempt });
-                return;
-            }
-        }
-        catch (error)
-        {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            dbLogger.error(`Reconnection attempt ${attempt} failed`, {
-                error: message,
-                attempt,
-                maxRetries: config.maxRetries,
-            });
-
-            if (attempt === config.maxRetries)
-            {
-                dbLogger.error('Max reconnection attempts reached, giving up');
-            }
-        }
-    }
-}
-
-/**
- * Stop database health check
- *
- * Automatically called by closeDatabase().
- * Can also be called manually to stop health checks.
- *
- * @example
- * ```typescript
- * import { stopHealthCheck } from '@spfn/core/db';
- *
- * stopHealthCheck();
- * ```
- */
-export function stopHealthCheck(): void
-{
-    const healthCheck = getHealthCheckInterval();
-    if (healthCheck)
-    {
-        clearInterval(healthCheck);
-        setHealthCheckInterval(undefined);
-        dbLogger.info('Database health check stopped');
-    }
 }
 
 /**
