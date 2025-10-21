@@ -95,8 +95,13 @@ export class ContractClient
     ): Promise<InferContract<TContract>['response']>
     {
         const baseUrl = options?.baseUrl || this.config.baseUrl;
-        const urlPath = ContractClient.buildUrl(contract.path, options?.params);
-        const queryString = ContractClient.buildQuery(options?.query);
+        const urlPath = ContractClient.buildUrl(
+            contract.path,
+            options?.params as Record<string, string | number> | undefined
+        );
+        const queryString = ContractClient.buildQuery(
+            options?.query as Record<string, string | string[] | number | boolean> | undefined
+        );
         const url = `${baseUrl}${urlPath}${queryString}`;
 
         const method = ContractClient.getHttpMethod(contract, options);
@@ -308,7 +313,7 @@ export function configureClient(config: ClientConfig): void
  * Used by auto-generated API client code.
  */
 export const client = new Proxy({} as ContractClient, {
-    get(target, prop)
+    get(_target, prop)
     {
         return _clientInstance[prop as keyof ContractClient];
     }
