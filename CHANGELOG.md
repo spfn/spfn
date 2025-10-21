@@ -5,6 +5,62 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.40] - 2025-10-21
+
+### Added
+
+#### @spfn/core
+
+- **DB Integration Tests (40 tests)**: Comprehensive test coverage for database module
+  - Transaction context tests: AsyncLocalStorage-based transaction propagation, nested transactions, concurrent isolation
+  - Transaction middleware tests: Hono auto-commit/rollback, timeout enforcement, error handling
+  - Repository tests: CRUD operations, transaction integration, multi-repository transactions, read/write separation
+  - Test fixtures: Shared test schema for PostgreSQL integration tests
+
+- **Middleware Tests (17 tests)**: Error handler middleware test coverage
+  - Basic error handling with statusCode
+  - Error details inclusion
+  - Stack trace handling (environment-based, includeStack option)
+  - HTTP status code handling (400-level, 500-level)
+  - Logging options
+  - Edge cases (no message, no name, complex details)
+  - Response format validation
+
+### Changed
+
+#### @spfn/core
+
+- **Test Coverage**: Increased from 35% to 40%+ with 518+ total tests
+  - Cache module: 70 tests (previously 15+)
+  - DB module: 40 tests (previously 0)
+  - Middleware module: 30+ tests (previously 13+)
+
+- **Test Infrastructure**: Improved test isolation and configuration
+  - Fixed docker-compose.test.yml path in package.json
+  - Added fileParallelism and isolate options to vitest.integration.config.ts
+  - Updated test scripts to use integration config for cache, db, and server tests
+
+- **Documentation**: Updated TESTING.md with current test counts and coverage
+
+### Fixed
+
+#### @spfn/core
+
+- **DB Repository Type Issues**: Fixed TypeScript compatibility
+  - Removed unused `DrizzleTableWithUtils` interface
+  - Changed Repository to use `PgTable` directly for better type compatibility
+  - Removed unnecessary `getTableName()` method requirement
+
+- **Cache Tests**: Updated redis-manager tests to match actual logger usage pattern
+
+- **Client Tests**: Updated for new contract API
+  - Contracts now include `path` and `method` properties
+  - Updated test expectations to match new API structure
+
+- **Codegen Tests**: Updated for architectural changes
+  - contract-scanner: Updated for co-located contracts pattern (routes/**/contract.ts)
+  - client-generator: Updated for singleton client pattern
+
 ## [0.1.0-alpha.32] - 2025-10-19
 
 ### Changed
