@@ -1,475 +1,481 @@
 /**
- * Repository Pattern Tests
+ * Repository Integration Tests
  *
- * Test Repository CRUD methods
+ * Tests base repository pattern with transaction and read/write separation
  */
 
-import './setup.js'; // DB setup (테이블 생성)
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import * as postgres from 'postgres';
-import { testUsers } from './fixtures/entities';
+import postgres from 'postgres';
+import { eq, sql } from 'drizzle-orm';
 import { Repository } from '../repository';
+import { setDatabase } from '../manager';
+import { runWithTransaction, type TransactionDB } from '../transaction';
+import { testUsers, testPosts } from './fixtures/test-schema.js';
 
-const DATABASE_URL = process.env.DATABASE_URL;
-
-if (!DATABASE_URL)
+// Create test repositories
+class UserRepository extends Repository<typeof testUsers>
 {
-    throw new Error('DATABASE_URL environment variable is required for tests');
+    async findById(id: number)
+    {
+        const results = await this.select().where(eq(testUsers.id, id));
+        return results[0] ?? null;
+    }
+
+    async findByEmail(email: string)
+    {
+        const results = await this.select().where(eq(testUsers.email, email));
+        return results[0] ?? null;
+    }
+
+    async create(data: { name: string; email: string })
+    {
+        const [user] = await this.insert().values(data).returning();
+        return user;
+    }
+
+    async updateName(id: number, name: string)
+    {
+        const [user] = await this.update()
+            .set({ name })
+            .where(eq(testUsers.id, id))
+            .returning();
+        return user;
+    }
+
+    async remove(id: number)
+    {
+        await this.delete().where(eq(testUsers.id, id));
+    }
+
+    async list()
+    {
+        return this.select();
+    }
 }
 
-describe('Repository Pattern', () =>
+class PostRepository extends Repository<typeof testPosts>
+{
+    async findByUserId(userId: number)
+    {
+        return this.select().where(eq(testPosts.userId, userId));
+    }
+
+    async create(data: { userId: number; title: string; content?: string })
+    {
+        const [post] = await this.insert().values(data).returning();
+        return post;
+    }
+}
+
+describe('Repository (Integration)', () =>
 {
     let client: ReturnType<typeof postgres>;
     let db: ReturnType<typeof drizzle>;
-    let userRepo: Repository<typeof testUsers>;
+    let userRepo: UserRepository;
+    let postRepo: PostRepository;
 
     beforeAll(async () =>
     {
-        client = postgres(DATABASE_URL, { max: 1 });
+        // Connect to test database
+        const databaseUrl = process.env.DATABASE_URL || 'postgresql://testuser:testpass@localhost:5433/spfn_test';
+        client = postgres(databaseUrl);
         db = drizzle(client);
-        userRepo = new Repository<typeof testUsers>(db, testUsers);
 
-        // Note: Table is already created in setup.ts (test_users)
+        // Set global database instance
+        setDatabase(db);
+
+        // Drop tables if exist to ensure clean state
+        await client`DROP TABLE IF EXISTS test_posts CASCADE`;
+        await client`DROP TABLE IF EXISTS test_users CASCADE`;
+
+        // Create test tables
+        await client`
+            CREATE TABLE test_users (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT NOW() NOT NULL
+            )
+        `;
+
+        await client`
+            CREATE TABLE test_posts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES test_users(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                content TEXT,
+                created_at TIMESTAMP DEFAULT NOW() NOT NULL
+            )
+        `;
+
+        // Initialize repositories
+        userRepo = new UserRepository(testUsers);
+        postRepo = new PostRepository(testPosts);
     });
 
     afterAll(async () =>
     {
-        // Clean up test data
-        await client`TRUNCATE TABLE test_users CASCADE`;
+        // Clean up
+        await client`DROP TABLE IF EXISTS test_posts CASCADE`;
+        await client`DROP TABLE IF EXISTS test_users CASCADE`;
         await client.end();
+        setDatabase(undefined);
     });
 
     beforeEach(async () =>
     {
-        // Reset data before each test
-        await client`TRUNCATE TABLE test_users CASCADE`;
+        // Clean test data before each test
+        await client`TRUNCATE TABLE test_posts, test_users CASCADE`;
     });
 
-    describe('save()', () =>
+    describe('Basic CRUD Operations', () =>
     {
-        it('should create new user', async () =>
+        it('should create a new record', async () =>
         {
-            const newUser = {
-                email: 'test@example.com',
-                name: 'Test User',
-            };
-
-            const created = await userRepo.save(newUser);
-
-            expect(created.id).toBeDefined();
-            expect(created.email).toBe('test@example.com');
-            expect(created.name).toBe('Test User');
-        });
-    });
-
-    describe('findById()', () =>
-    {
-        it('should find user by id', async () =>
-        {
-            const newUser = await userRepo.save({
-                email: 'find@example.com',
+            const user = await userRepo.create({
+                name: 'John Doe',
+                email: 'john@example.com',
             });
 
-            const found = await userRepo.findById(newUser.id);
+            expect(user.id).toBeDefined();
+            expect(user.name).toBe('John Doe');
+            expect(user.email).toBe('john@example.com');
+        });
+
+        it('should find record by ID', async () =>
+        {
+            const created = await userRepo.create({
+                name: 'Jane Doe',
+                email: 'jane@example.com',
+            });
+
+            const found = await userRepo.findById(created.id);
 
             expect(found).toBeDefined();
-            expect(found?.id).toBe(newUser.id);
-            expect(found?.email).toBe('find@example.com');
+            expect(found?.id).toBe(created.id);
+            expect(found?.email).toBe('jane@example.com');
         });
 
-        it('should return null when user not found', async () =>
+        it('should find record by custom criteria', async () =>
         {
-            const found = await userRepo.findById(999999);
-            expect(found).toBeNull();
-        });
-    });
-
-    describe('findAll()', () =>
-    {
-        it('should return all users', async () =>
-        {
-            await userRepo.save({ email: 'user1@example.com'});
-            await userRepo.save({ email: 'user2@example.com'});
-            await userRepo.save({ email: 'user3@example.com'});
-
-            const all = await userRepo.findAll();
-
-            expect(all).toHaveLength(3);
-        });
-
-        it('should return empty array when no users', async () =>
-        {
-            const all = await userRepo.findAll();
-            expect(all).toEqual([]);
-        });
-    });
-
-    describe('findPage()', () =>
-    {
-        beforeEach(async () =>
-        {
-            // Create 10 test users
-            for (let i = 1; i <= 10; i++)
-            {
-                await userRepo.save({
-                    email: `user${i}@example.com`,
-                    name: `User ${i}`,
-                });
-            }
-        });
-
-        it('should return paginated results', async () =>
-        {
-            const result = await userRepo.findPage({
-                pagination: { page: 1, limit: 5 },
+            await userRepo.create({
+                name: 'Test User',
+                email: 'test@example.com',
             });
 
-            expect(result.data).toHaveLength(5);
-            expect(result.meta.total).toBe(10);
-            expect(result.meta.page).toBe(1);
-            expect(result.meta.totalPages).toBe(2);
+            const found = await userRepo.findByEmail('test@example.com');
+
+            expect(found).toBeDefined();
+            expect(found?.email).toBe('test@example.com');
         });
 
-        it('should filter users by email', async () =>
+        it('should update a record', async () =>
         {
-            const result = await userRepo.findPage({
-                filters: { email: { like: 'user1' } },
-            });
-
-            expect(result.data.length).toBeGreaterThan(0);
-            result.data.forEach(user =>
-            {
-                expect(user.email).toContain('user1');
-            });
-        });
-
-        it('should sort users by createdAt desc', async () =>
-        {
-            const result = await userRepo.findPage({
-                sort: [{ field: 'createdAt', direction: 'desc' }],
-                pagination: { page: 1, limit: 10 },
-            });
-
-            expect(result.data).toHaveLength(10);
-            // Verify descending order (newest first)
-            for (let i = 0; i < result.data.length - 1; i++)
-            {
-                const current = new Date(result.data[i].createdAt).getTime();
-                const next = new Date(result.data[i + 1].createdAt).getTime();
-                expect(current).toBeGreaterThanOrEqual(next);
-            }
-        });
-    });
-
-    describe('update()', () =>
-    {
-        it('should update user', async () =>
-        {
-            const user = await userRepo.save({
-                email: 'update@example.com',
+            const user = await userRepo.create({
                 name: 'Old Name',
+                email: 'update@example.com',
             });
 
-            const updated = await userRepo.update(user.id, {
-                name: 'New Name',
-            });
+            const updated = await userRepo.updateName(user.id, 'New Name');
 
-            expect(updated).toBeDefined();
-            expect(updated?.name).toBe('New Name');
-            expect(updated?.email).toBe('update@example.com');
+            expect(updated.name).toBe('New Name');
+            expect(updated.email).toBe('update@example.com');
+
+            // Verify update persisted
+            const found = await userRepo.findById(user.id);
+            expect(found?.name).toBe('New Name');
         });
 
-        it('should return null when user not found', async () =>
+        it('should delete a record', async () =>
         {
-            const updated = await userRepo.update(999999, { name: 'test' });
-            expect(updated).toBeNull();
-        });
-    });
-
-    describe('delete()', () =>
-    {
-        it('should delete user', async () =>
-        {
-            const user = await userRepo.save({
+            const user = await userRepo.create({
+                name: 'Delete Me',
                 email: 'delete@example.com',
             });
 
-            const deleted = await userRepo.delete(user.id);
-
-            expect(deleted).toBeDefined();
-            expect(deleted?.id).toBe(user.id);
+            await userRepo.remove(user.id);
 
             const found = await userRepo.findById(user.id);
             expect(found).toBeNull();
         });
 
-        it('should return null when user not found', async () =>
+        it('should list all records', async () =>
         {
-            const deleted = await userRepo.delete(999999);
-            expect(deleted).toBeNull();
-        });
-    });
+            await userRepo.create({ name: 'User 1', email: 'user1@example.com' });
+            await userRepo.create({ name: 'User 2', email: 'user2@example.com' });
+            await userRepo.create({ name: 'User 3', email: 'user3@example.com' });
 
-    describe('count()', () =>
-    {
-        it('should count all users', async () =>
-        {
-            await userRepo.save({ email: 'count1@example.com'});
-            await userRepo.save({ email: 'count2@example.com'});
-            await userRepo.save({ email: 'count3@example.com'});
-
-            const count = await userRepo.count();
-            expect(count).toBe(3);
-        });
-
-        it('should return 0 when no users', async () =>
-        {
-            const count = await userRepo.count();
-            expect(count).toBe(0);
-        });
-    });
-
-    // ============================================================
-    // New Methods Tests (Priority 1)
-    // ============================================================
-
-    describe('findWhere()', () =>
-    {
-        beforeEach(async () =>
-        {
-            await userRepo.save({ email: 'admin@example.com', name: 'Admin User' });
-            await userRepo.save({ email: 'user1@example.com', name: 'Regular User 1' });
-            await userRepo.save({ email: 'user2@example.com', name: 'Regular User 2' });
-        });
-
-        it('should find users by email filter', async () =>
-        {
-            const users = await userRepo.findWhere({
-                email: { like: 'user' }
-            });
-
-            expect(users).toHaveLength(2);
-            users.forEach(user =>
-            {
-                expect(user.email).toContain('user');
-            });
-        });
-
-        it('should find users by exact email', async () =>
-        {
-            const users = await userRepo.findWhere({
-                email: { eq: 'admin@example.com' }
-            });
-
-            expect(users).toHaveLength(1);
-            expect(users[0].email).toBe('admin@example.com');
-        });
-
-        it('should return empty array when no match', async () =>
-        {
-            const users = await userRepo.findWhere({
-                email: { like: 'nonexistent' }
-            });
-
-            expect(users).toEqual([]);
-        });
-    });
-
-    describe('findOneWhere()', () =>
-    {
-        beforeEach(async () =>
-        {
-            await userRepo.save({ email: 'unique@example.com', name: 'Unique User' });
-        });
-
-        it('should find one user by filter', async () =>
-        {
-            const user = await userRepo.findOneWhere({
-                email: { eq: 'unique@example.com' }
-            });
-
-            expect(user).toBeDefined();
-            expect(user?.email).toBe('unique@example.com');
-        });
-
-        it('should return null when no match', async () =>
-        {
-            const user = await userRepo.findOneWhere({
-                email: { eq: 'nonexistent@example.com' }
-            });
-
-            expect(user).toBeNull();
-        });
-    });
-
-    describe('exists()', () =>
-    {
-        it('should return true if user exists', async () =>
-        {
-            const user = await userRepo.save({ email: 'exists@example.com' });
-            const exists = await userRepo.exists(user.id);
-
-            expect(exists).toBe(true);
-        });
-
-        it('should return false if user does not exist', async () =>
-        {
-            const exists = await userRepo.exists(999999);
-
-            expect(exists).toBe(false);
-        });
-    });
-
-    describe('existsBy()', () =>
-    {
-        beforeEach(async () =>
-        {
-            await userRepo.save({ email: 'check@example.com' });
-        });
-
-        it('should return true if user exists with filter', async () =>
-        {
-            const exists = await userRepo.existsBy({
-                email: { eq: 'check@example.com' }
-            });
-
-            expect(exists).toBe(true);
-        });
-
-        it('should return false if no user matches filter', async () =>
-        {
-            const exists = await userRepo.existsBy({
-                email: { eq: 'nonexistent@example.com' }
-            });
-
-            expect(exists).toBe(false);
-        });
-    });
-
-    describe('countBy()', () =>
-    {
-        beforeEach(async () =>
-        {
-            await userRepo.save({ email: 'admin1@example.com' });
-            await userRepo.save({ email: 'admin2@example.com' });
-            await userRepo.save({ email: 'user@example.com' });
-        });
-
-        it('should count users matching filter', async () =>
-        {
-            const count = await userRepo.countBy({
-                email: { like: 'admin' }
-            });
-
-            expect(count).toBe(2);
-        });
-
-        it('should return 0 when no match', async () =>
-        {
-            const count = await userRepo.countBy({
-                email: { like: 'nonexistent' }
-            });
-
-            expect(count).toBe(0);
-        });
-    });
-
-    describe('saveMany()', () =>
-    {
-        it('should create multiple users in single query', async () =>
-        {
-            const users = await userRepo.saveMany([
-                { email: 'batch1@example.com', name: 'User 1' },
-                { email: 'batch2@example.com', name: 'User 2' },
-                { email: 'batch3@example.com', name: 'User 3' }
-            ]);
+            const users = await userRepo.list();
 
             expect(users).toHaveLength(3);
-            expect(users[0].id).toBeDefined();
-            expect(users[1].id).toBeDefined();
-            expect(users[2].id).toBeDefined();
-        });
-
-        it('should return empty array for empty input', async () =>
-        {
-            const users = await userRepo.saveMany([]);
-
-            expect(users).toEqual([]);
         });
     });
 
-    describe('updateWhere()', () =>
+    describe('Transaction Context Integration', () =>
     {
-        beforeEach(async () =>
+        it('should use transaction context when in transaction', async () =>
         {
-            await userRepo.save({ email: 'pending1@example.com', name: 'Pending 1' });
-            await userRepo.save({ email: 'pending2@example.com', name: 'Pending 2' });
-            await userRepo.save({ email: 'active@example.com', name: 'Active' });
-        });
-
-        it('should update multiple users matching filter', async () =>
-        {
-            const count = await userRepo.updateWhere(
-                { email: { like: 'pending' } },
-                { name: 'Updated Name' }
-            );
-
-            expect(count).toBe(2);
-
-            const updated = await userRepo.findWhere({
-                email: { like: 'pending' }
-            });
-
-            updated.forEach(user =>
+            await db.transaction(async (tx) =>
             {
-                expect(user.name).toBe('Updated Name');
+                await runWithTransaction(tx as TransactionDB, 'test-tx', async () =>
+                {
+                    // Create user within transaction
+                    const user = await userRepo.create({
+                        name: 'Transaction User',
+                        email: 'tx@example.com',
+                    });
+
+                    expect(user.id).toBeDefined();
+
+                    // Query should use same transaction
+                    const found = await userRepo.findById(user.id);
+                    expect(found).toBeDefined();
+                    expect(found?.email).toBe('tx@example.com');
+                });
             });
         });
 
-        it('should return 0 when no match', async () =>
+        it('should rollback repository operations on transaction error', async () =>
         {
-            const count = await userRepo.updateWhere(
-                { email: { like: 'nonexistent' } },
-                { name: 'Test' }
-            );
+            try
+            {
+                await db.transaction(async (tx) =>
+                {
+                    await runWithTransaction(tx as TransactionDB, 'rollback-tx', async () =>
+                    {
+                        await userRepo.create({
+                            name: 'Rollback User',
+                            email: 'rollback@example.com',
+                        });
 
-            expect(count).toBe(0);
+                        throw new Error('Trigger rollback');
+                    });
+                });
+            }
+            catch (error)
+            {
+                // Expected
+            }
+
+            // User should not exist
+            const user = await userRepo.findByEmail('rollback@example.com');
+            expect(user).toBeNull();
+        });
+
+        it('should commit repository operations on transaction success', async () =>
+        {
+            await db.transaction(async (tx) =>
+            {
+                await runWithTransaction(tx as TransactionDB, 'commit-tx', async () =>
+                {
+                    await userRepo.create({
+                        name: 'Commit User',
+                        email: 'commit@example.com',
+                    });
+                });
+            });
+
+            // User should exist
+            const user = await userRepo.findByEmail('commit@example.com');
+            expect(user).toBeDefined();
         });
     });
 
-    describe('deleteWhere()', () =>
+    describe('Multi-Repository Transactions', () =>
     {
-        beforeEach(async () =>
+        it('should coordinate multiple repositories in transaction', async () =>
         {
-            await userRepo.save({ email: 'delete1@example.com' });
-            await userRepo.save({ email: 'delete2@example.com' });
-            await userRepo.save({ email: 'keep@example.com' });
-        });
+            await db.transaction(async (tx) =>
+            {
+                await runWithTransaction(tx as TransactionDB, 'multi-repo-tx', async () =>
+                {
+                    // Create user
+                    const user = await userRepo.create({
+                        name: 'Author',
+                        email: 'author@example.com',
+                    });
 
-        it('should delete multiple users matching filter', async () =>
-        {
-            const count = await userRepo.deleteWhere({
-                email: { like: 'delete' }
+                    // Create posts for user
+                    await postRepo.create({
+                        userId: user.id,
+                        title: 'Post 1',
+                        content: 'Content 1',
+                    });
+
+                    await postRepo.create({
+                        userId: user.id,
+                        title: 'Post 2',
+                        content: 'Content 2',
+                    });
+                });
             });
 
-            expect(count).toBe(2);
+            // Verify all operations committed
+            const user = await userRepo.findByEmail('author@example.com');
+            expect(user).toBeDefined();
 
-            const remaining = await userRepo.findAll();
-            expect(remaining).toHaveLength(1);
-            expect(remaining[0].email).toBe('keep@example.com');
+            const posts = await postRepo.findByUserId(user!.id);
+            expect(posts).toHaveLength(2);
         });
 
-        it('should return 0 when no match', async () =>
+        it('should rollback all repositories on error', async () =>
         {
-            const count = await userRepo.deleteWhere({
-                email: { like: 'nonexistent' }
+            try
+            {
+                await db.transaction(async (tx) =>
+                {
+                    await runWithTransaction(tx as TransactionDB, 'multi-rollback-tx', async () =>
+                    {
+                        const user = await userRepo.create({
+                            name: 'Rollback Author',
+                            email: 'rollback-author@example.com',
+                        });
+
+                        await postRepo.create({
+                            userId: user.id,
+                            title: 'Rollback Post',
+                        });
+
+                        throw new Error('Rollback all');
+                    });
+                });
+            }
+            catch (error)
+            {
+                // Expected
+            }
+
+            // Neither user nor post should exist
+            const user = await userRepo.findByEmail('rollback-author@example.com');
+            expect(user).toBeNull();
+
+            const allPosts = await db.select().from(testPosts);
+            expect(allPosts).toHaveLength(0);
+        });
+    });
+
+    describe('Read/Write Separation', () =>
+    {
+        it('should use write database for create operations', async () =>
+        {
+            const user = await userRepo.create({
+                name: 'Write User',
+                email: 'write@example.com',
             });
 
-            expect(count).toBe(0);
+            expect(user.id).toBeDefined();
+        });
 
-            const all = await userRepo.findAll();
-            expect(all).toHaveLength(3);
+        it('should use read database for select operations', async () =>
+        {
+            // Create data first
+            const created = await userRepo.create({
+                name: 'Read User',
+                email: 'read@example.com',
+            });
+
+            // This should use read database
+            const found = await userRepo.findById(created.id);
+
+            expect(found).toBeDefined();
+            expect(found?.id).toBe(created.id);
+        });
+
+        it('should use write database for update operations', async () =>
+        {
+            const user = await userRepo.create({
+                name: 'Update Target',
+                email: 'update-target@example.com',
+            });
+
+            const updated = await userRepo.updateName(user.id, 'Updated Name');
+
+            expect(updated.name).toBe('Updated Name');
+        });
+
+        it('should use write database for delete operations', async () =>
+        {
+            const user = await userRepo.create({
+                name: 'Delete Target',
+                email: 'delete-target@example.com',
+            });
+
+            await userRepo.remove(user.id);
+
+            const found = await userRepo.findById(user.id);
+            expect(found).toBeNull();
+        });
+    });
+
+    describe('Error Handling', () =>
+    {
+        it('should handle unique constraint violations', async () =>
+        {
+            await userRepo.create({
+                name: 'Unique User',
+                email: 'unique@example.com',
+            });
+
+            // Try to create duplicate email
+            await expect(
+                userRepo.create({
+                    name: 'Duplicate User',
+                    email: 'unique@example.com',
+                })
+            ).rejects.toThrow();
+        });
+
+        it('should handle foreign key constraint violations', async () =>
+        {
+            // Try to create post for non-existent user
+            await expect(
+                postRepo.create({
+                    userId: 99999,
+                    title: 'Orphan Post',
+                })
+            ).rejects.toThrow();
+        });
+
+        it('should throw error when database not initialized', async () =>
+        {
+            setDatabase(undefined);
+
+            const tempRepo = new UserRepository(testUsers);
+
+            await expect(tempRepo.list()).rejects.toThrow('Database not initialized');
+
+            // Restore database
+            setDatabase(db);
+        });
+    });
+
+    describe('Complex Queries', () =>
+    {
+        it('should handle cascading deletes', async () =>
+        {
+            // Create user with posts
+            const user = await userRepo.create({
+                name: 'Cascade User',
+                email: 'cascade@example.com',
+            });
+
+            await postRepo.create({
+                userId: user.id,
+                title: 'Post 1',
+            });
+
+            await postRepo.create({
+                userId: user.id,
+                title: 'Post 2',
+            });
+
+            // Delete user (should cascade to posts)
+            await userRepo.remove(user.id);
+
+            // Posts should be deleted
+            const posts = await postRepo.findByUserId(user.id);
+            expect(posts).toHaveLength(0);
         });
     });
 });

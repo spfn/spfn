@@ -43,9 +43,6 @@ export { isHttpMethod } from './route/types.js';
 
 // Database
 export {
-    db,
-    getRawDb,
-    getDb,
     id,
     timestamps,
     foreignKey,
@@ -53,23 +50,10 @@ export {
     getDrizzleConfig,
     detectDialect,
     generateDrizzleConfigFile,
-    WrappedDb,
-    Repository,
-    getRepository,
-    clearRepositoryCache,
-    getRepositoryCacheSize,
-    getScopedRepository,
-    withRepositoryScope,
-    RepositoryScope,
-    getScopedCacheSize,
-    isInRepositoryScope,
     fromPostgresError,
 } from './db';
 export type {
-    DbConnectionType,
     DrizzleConfigOptions,
-    Pageable,
-    Page,
 } from './db';
 
 // Cache (Redis)
@@ -91,19 +75,8 @@ export { ErrorHandler } from './middleware/error-handler.js';
 export type { ErrorHandlerOptions } from './middleware/error-handler.js';
 
 // Filter Utilities (moved from deprecated query module to db/repository)
-export { buildFilters, buildSort, orFilters, applyPagination, createPaginationMeta, countTotal } from './db/repository';
 export type {
-    FilterOperator,
-    FilterValue,
-    FilterCondition,
-    Filters,
-    FilterResult,
-    SortDirection,
-    SortCondition,
-    SortResult,
-    PaginationParams,
-    PaginationMeta,
-    DrizzleTable,
+    Repository,
 } from './db/repository';
 
 // Custom Errors

@@ -9,7 +9,9 @@ Universal logging module with Adapter pattern for swappable implementations.
 - ✅ **High Performance** (Pino adapter): 5-10x faster than Winston
 - ✅ **Multiple Transports**: Console, File, Slack, Email support
 - ✅ **Child Loggers**: Module-specific loggers with context
-- ✅ **Date-based Rotation**: Automatic daily log file rotation
+- ✅ **File Rotation**: Date and size-based rotation with automatic cleanup
+- ✅ **Sensitive Data Masking**: Automatic masking of passwords, tokens, API keys
+- ✅ **Configuration Validation**: Startup validation with clear error messages
 - ✅ **Environment-Aware**: Different configs per environment
 - ✅ **Type-Safe**: Full TypeScript support
 
@@ -97,15 +99,12 @@ Five log levels with priority order:
 ```bash
 NODE_ENV=development
 LOGGER_ADAPTER=pino
-# File logging disabled by default
 ```
 
-**Output:** Pretty-printed, colored console output
+**Output:** Pretty-printed, colored console output (single line)
 
 ```
-[2025-10-04 10:15:23.456] INFO  (module: api): Request received
-    method: "POST"
-    path: "/users"
+[2025-10-21 15:39:06] [module=database] INFO: Request received userId=123
 ```
 
 ### Production (Kubernetes)
@@ -113,7 +112,6 @@ LOGGER_ADAPTER=pino
 ```bash
 NODE_ENV=production
 LOGGER_ADAPTER=pino
-# File logging disabled (use stdout → log collector)
 ```
 
 **Output:** JSON to stdout
@@ -131,63 +129,170 @@ LOGGER_FILE_ENABLED=true
 LOG_DIR=/var/log/myapp
 ```
 
-**Output:** JSON to both stdout and files with daily rotation
+**Output:** JSON to both stdout and files with rotation
 
 ---
 
-## Deployment Scenarios
+## Security Features
 
-### Scenario 1: Kubernetes (Recommended)
+### Sensitive Data Masking
 
-```yaml
-# deployment.yaml
-env:
-  - name: NODE_ENV
-    value: "production"
-  - name: LOGGER_ADAPTER
-    value: "pino"
+Automatically masks sensitive information in logs:
+
+```typescript
+logger.info('User login', {
+  username: 'john',
+  password: 'secret123',  // Automatically masked
+  token: 'abc123'          // Automatically masked
+});
+
+// Output
+{"level":30,"msg":"User login","username":"john","password":"***MASKED***","token":"***MASKED***"}
 ```
 
-**Flow:**
-```
-App → Stdout (JSON)
-      ↓
-  Pod Logs
-      ↓
-  Fluentd/Promtail
-      ↓
-  Loki/Elasticsearch
-      ↓
-  Grafana/Kibana
-```
+**Automatically masked fields:**
+- password, passwd, pwd
+- token, accessToken, refreshToken
+- apiKey, api_key
+- secret, privateKey
+- authorization, auth
+- cookie, session, sessionId
+- creditCard, cardNumber, cvv
+- And 10+ more patterns
 
-**Benefits:**
-- No disk management needed
-- Auto centralized logging
-- Logs preserved on container restart
-- Unified view across pods
+---
 
-### Scenario 2: Self-Hosted (VM/Bare Metal)
+## Configuration Validation
+
+Logger validates configuration at startup and provides clear error messages:
 
 ```bash
-LOGGER_FILE_ENABLED=true
-LOG_DIR=/var/log/myapp
+# Missing LOG_DIR when file logging is enabled
+Error: [Logger] Configuration validation failed: LOG_DIR environment variable is required when LOGGER_FILE_ENABLED=true
+
+# Invalid Slack webhook URL
+Error: [Logger] Configuration validation failed: Invalid SLACK_WEBHOOK_URL
+
+# Incomplete email configuration
+Error: [Logger] Configuration validation failed: Email transport configuration incomplete. Missing: SMTP_PORT, EMAIL_FROM
 ```
 
-**Flow:**
-```
-App → Stdout + File (date-based rotation)
-      ↓           ↓
-   Console    /var/log/myapp/
-              ├── 2025-10-11.log (today)
-              ├── 2025-10-10.log (yesterday)
-              └── 2025-10-09.log
+---
+
+## Environment Variables
+
+### Basic
+
+```bash
+NODE_ENV=production        # development | production | test
+LOGGER_ADAPTER=pino        # pino | custom (default: pino)
+LOG_LEVEL=info             # debug | info | warn | error | fatal
 ```
 
-**Benefits:**
-- Local file storage
-- Automatic rotation
-- Compliance requirements (local retention)
+### File Logging
+
+```bash
+LOGGER_FILE_ENABLED=true   # Enable file logging (default: false)
+LOG_DIR=/var/log/myapp     # Log directory (required when file logging enabled)
+LOG_MAX_FILE_SIZE=10M      # Max file size before rotation (default: 10MB)
+LOG_MAX_FILES=10           # Max number of log files to keep (default: 10)
+```
+
+### External Services (Available)
+
+```bash
+# Slack (requires valid webhook URL)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+SLACK_CHANNEL=#errors
+SLACK_USERNAME=Logger Bot
+
+# Email (requires all fields)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+EMAIL_FROM=noreply@example.com
+EMAIL_TO=admin@example.com,admin2@example.com  # Comma-separated
+SMTP_USER=username  # Optional
+SMTP_PASSWORD=password  # Optional
+```
+
+---
+
+## Transports
+
+### Console Transport
+
+- Always enabled
+- stdout (debug, info) / stderr (warn, error, fatal)
+- Colored in development, plain in production
+- Single-line format with pino-pretty
+
+### File Transport
+
+- Enabled in production with `LOGGER_FILE_ENABLED=true`
+- JSON format, one log entry per line
+- **Date-based rotation**: New file each day (YYYY-MM-DD.log)
+- **Size-based rotation**: Rotates when file exceeds maxFileSize
+- **Automatic cleanup**: Keeps only maxFiles most recent files
+- Async stream-based I/O for performance
+
+**Example file structure:**
+```
+/var/log/myapp/
+├── 2025-10-21.log         # Today (current)
+├── 2025-10-21.1.log       # Rotated (size limit)
+├── 2025-10-20.log         # Yesterday
+├── 2025-10-19.log
+...
+└── 2025-10-12.log         # Oldest (will be deleted when new day arrives)
+```
+
+### Slack Transport
+
+- Error level and above
+- Production only
+- Requires `SLACK_WEBHOOK_URL`
+- **Status**: Configuration available, implementation in progress
+
+### Email Transport
+
+- Fatal level only
+- Production only
+- Requires SMTP configuration
+- **Status**: Configuration available, implementation in progress
+
+---
+
+## Log Formats
+
+### Console (Development)
+
+```
+[2025-10-21 15:39:06] [module=database] INFO: Connection established
+[2025-10-21 15:39:06] [module=api] ERROR: Request failed userId=123
+```
+
+### JSON (Production)
+
+```json
+{
+  "level": 30,
+  "time": 1729512546000,
+  "module": "database",
+  "msg": "Connection established"
+}
+{
+  "level": 50,
+  "time": 1729512546001,
+  "module": "api",
+  "msg": "Request failed",
+  "userId": 123,
+  "err": {
+    "type": "Error",
+    "message": "Connection timeout",
+    "stack": "..."
+  }
+}
+```
 
 ---
 
@@ -257,202 +362,21 @@ logger.fatal('Database unavailable', error);
 
 ---
 
-## Advanced Usage
-
-### Request Logger Middleware
-
-Automatically logs all HTTP requests.
-
-```typescript
-import { RequestLogger } from '@spfn/core';
-
-app.use('/*', RequestLogger({
-  excludePaths: ['/health', '/ping'],
-  slowRequestThreshold: 500  // Warn if > 500ms
-}));
-```
-
-**Features:**
-- Auto Request ID generation
-- Response time tracking
-- Slow request detection
-- Auto error logging
-
-**Output:**
-```json
-{"level":30,"module":"api","requestId":"req_123","method":"POST","path":"/users","msg":"Request received"}
-{"level":30,"module":"api","requestId":"req_123","status":201,"duration":45,"msg":"Request completed"}
-```
-
-### Transaction Logger
-
-Automatically logs transaction lifecycle.
-
-```typescript
-import { Transactional } from '@spfn/core';
-
-export const middlewares = [Transactional()];
-```
-
-**Output:**
-```json
-{"level":20,"module":"transaction","txId":"tx_123","msg":"Transaction started"}
-{"level":20,"module":"transaction","txId":"tx_123","duration":"45ms","msg":"Transaction committed"}
-```
-
-### Database Connection
-
-```typescript
-import { logger } from '@spfn/core';
-
-const dbLogger = logger.child('database');
-
-export async function connect() {
-  try {
-    dbLogger.info('Connecting to database...');
-    const client = await createConnection();
-    dbLogger.info('Database connected');
-    return client;
-  } catch (error) {
-    dbLogger.error('Connection failed', error as Error, {
-      host: process.env.DB_HOST
-    });
-    throw error;
-  }
-}
-```
-
----
-
-## Environment Variables
-
-### Basic
-
-```bash
-NODE_ENV=production        # development | production | test
-LOGGER_ADAPTER=pino        # pino | custom (default: pino)
-LOG_LEVEL=info             # debug | info | warn | error | fatal
-```
-
-### File Logging (Self-Hosted)
-
-```bash
-LOGGER_FILE_ENABLED=true   # Enable file logging (default: false)
-LOG_DIR=/var/log/myapp     # Log directory (default: ./logs)
-```
-
-> **Note:** Size-based rotation and automatic cleanup are planned for future releases. Currently supports date-based rotation (YYYY-MM-DD.log).
-
-### External Services (Future)
-
-```bash
-# Slack
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
-SLACK_CHANNEL=#errors
-
-# Email
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-EMAIL_FROM=noreply@example.com
-EMAIL_TO=admin@example.com
-```
-
----
-
-## Transports
-
-### Console Transport
-
-- Always enabled
-- stdout (debug, info) / stderr (warn, error, fatal)
-- Colored in development, plain in production
-
-### File Transport
-
-- Enabled in production with `LOGGER_FILE_ENABLED=true`
-- JSON format, one log entry per line
-- Date-based rotation (YYYY-MM-DD.log)
-- Async stream-based I/O for better performance
-- Automatic stream rotation when date changes
-
-### Slack Transport (Planned)
-
-- Error level and above
-- Production only
-
-### Email Transport (Planned)
-
-- Fatal level only
-- Production only
-
----
-
-## Log Formats
-
-### Console (Development)
-
-```
-2025-10-04 09:42:03.658 INFO  [database] Connection established
-2025-10-04 09:42:03.660 ERROR [api] Request failed
-{
-  "userId": 123,
-  "path": "/users"
-}
-Error: Connection timeout
-    at /path/to/file.ts:123:45
-```
-
-### JSON (Production)
-
-```json
-{
-  "timestamp": "2025-10-04T09:42:03.658Z",
-  "level": "info",
-  "module": "database",
-  "message": "Connection established"
-}
-{
-  "timestamp": "2025-10-04T09:42:03.660Z",
-  "level": "error",
-  "module": "api",
-  "message": "Request failed",
-  "context": {
-    "userId": 123,
-    "path": "/users"
-  },
-  "error": {
-    "name": "Error",
-    "message": "Connection timeout",
-    "stack": "..."
-  }
-}
-```
-
----
-
 ## Performance Tips
 
-### 1. Use Appropriate Log Levels
+### 1. Log Level Filtering
+
+Logs are filtered at the source before metadata creation for optimal performance:
 
 ```typescript
-// ❌ Don't log everything in production
-logger.debug('Query: SELECT * FROM users WHERE id = ?', { id: 123 });
+// ❌ Don't worry - if level is 'info', this won't create metadata
+logger.debug('Expensive operation', { data: hugeObject });
 
-// ✅ Use info/warn/error in production
+// ✅ But still, use appropriate levels
 logger.info('User query completed', { count: 100, duration: 45 });
 ```
 
-### 2. Avoid Expensive Operations
-
-```typescript
-// ❌ Don't serialize large objects
-logger.debug('Data', { data: hugeObject });
-
-// ✅ Log only necessary fields
-logger.debug('Processing', { id: data.id, type: data.type });
-```
-
-### 3. Use Child Loggers
+### 2. Use Child Loggers
 
 ```typescript
 // ❌ Module name in every log
@@ -463,13 +387,22 @@ const dbLogger = logger.child('database');
 dbLogger.info('Connected');
 ```
 
+### 3. Sensitive Data
+
+Don't worry about accidentally logging sensitive data - it's automatically masked:
+
+```typescript
+// ✅ Safe - password will be masked
+logger.info('Login attempt', { username: 'john', password: userInput });
+```
+
 ---
 
 ## Testing
 
 ```bash
-# Run all logger tests (118 tests)
-npm test -- src/logger/__tests__/
+# Run all logger tests (153 tests)
+npm test -- src/logger
 
 # Run specific test files
 npm test -- src/logger/__tests__/logger.test.ts
@@ -479,12 +412,14 @@ npm test -- src/logger/__tests__/formatters.test.ts
 npm test -- src/logger/__tests__/config.test.ts
 ```
 
-**Test Coverage (118 tests):**
-- ✅ Logger core (17 tests)
+**Test Coverage (153 tests):**
+- ✅ Logger core (26 tests)
   - Basic logging (all levels)
   - Context logging
   - Error logging with stack traces
   - Child logger creation
+  - Log level filtering
+  - Sensitive data masking
 - ✅ Console Transport (16 tests)
   - Enabled state handling
   - Log level filtering
@@ -494,16 +429,19 @@ npm test -- src/logger/__tests__/config.test.ts
   - Directory creation
   - Async file writing
   - Date-based rotation
+  - Size-based rotation
   - JSON format validation
-- ✅ Formatters (33 tests)
+- ✅ Formatters (45 tests)
   - Console formatting
   - JSON formatting
   - Slack formatting
   - Email formatting
   - Timestamp formatting
-- ✅ Configuration (36 tests)
+  - Sensitive data masking (14 tests)
+- ✅ Configuration (50 tests)
   - Environment detection
   - Transport configuration
+  - Configuration validation (16 tests)
   - External services setup
 
 ---
@@ -521,21 +459,23 @@ LOG_LEVEL=debug  # Show all logs
 
 ### File logging not working
 
-**Cause:** Not enabled or permission issues
+**Cause:** Configuration validation failed
 
-**Solution:**
+**Solution:** Check error message at startup
 ```bash
 LOGGER_FILE_ENABLED=true
 LOG_DIR=/var/log/myapp  # Ensure write permission
 ```
 
-### Performance issues
+### Configuration validation errors
 
-**Cause:** Too many debug logs in production
+**Cause:** Missing or invalid environment variables
 
-**Solution:**
+**Solution:** Read the error message - it tells you exactly what's wrong
 ```bash
-NODE_ENV=production  # Auto sets level to 'info'
+# Error will show: "LOG_DIR environment variable is required when LOGGER_FILE_ENABLED=true"
+# Solution: Set LOG_DIR
+LOG_DIR=/var/log/myapp
 ```
 
 ---
@@ -543,5 +483,4 @@ NODE_ENV=production  # Auto sets level to 'info'
 ## Related
 
 - [Pino Documentation](https://getpino.io/) - High-performance logger
-- [Request Logger Middleware](../middleware/README.md) - Auto HTTP logging
 - [@spfn/core](../../README.md) - Main package documentation

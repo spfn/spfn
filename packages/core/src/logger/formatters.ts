@@ -1,20 +1,109 @@
 /**
  * Logger Formatters
  *
- * 로그 포맷팅 유틸리티
- *
- * ✅ 구현 완료:
- * - 컬러 포맷터 (콘솔 출력용)
- * - JSON 포맷터 (파일/전송용)
- * - 타임스탬프 포맷터
- * - 에러 스택 트레이스 포맷팅
- *
- * 🔗 관련 파일:
- * - src/logger/types.ts (타입 정의)
- * - src/logger/transports/ (Transport 구현체)
+ * Log formatting utilities for console, JSON, Slack, and Email outputs with sensitive data masking.
  */
 
 import type { LogLevel, LogMetadata } from './types';
+
+/**
+ * 민감 정보로 간주되는 키 목록
+ * 이 키들을 포함하는 필드는 자동으로 마스킹됨
+ */
+const SENSITIVE_KEYS = [
+    'password',
+    'passwd',
+    'pwd',
+    'secret',
+    'token',
+    'apikey',
+    'api_key',
+    'accesstoken',
+    'access_token',
+    'refreshtoken',
+    'refresh_token',
+    'authorization',
+    'auth',
+    'cookie',
+    'session',
+    'sessionid',
+    'session_id',
+    'privatekey',
+    'private_key',
+    'creditcard',
+    'credit_card',
+    'cardnumber',
+    'card_number',
+    'cvv',
+    'ssn',
+    'pin',
+];
+
+/**
+ * 마스킹된 값
+ */
+const MASKED_VALUE = '***MASKED***';
+
+/**
+ * 키가 민감 정보를 포함하는지 확인
+ */
+function isSensitiveKey(key: string): boolean
+{
+    const lowerKey = key.toLowerCase();
+    return SENSITIVE_KEYS.some(sensitive => lowerKey.includes(sensitive));
+}
+
+/**
+ * 민감 정보 마스킹
+ * Context 객체에서 민감한 정보(비밀번호, 토큰 등)를 마스킹
+ *
+ * @param data - 원본 데이터
+ * @returns 마스킹된 데이터
+ */
+export function maskSensitiveData(data: unknown): unknown
+{
+    // null, undefined 처리
+    if (data === null || data === undefined)
+    {
+        return data;
+    }
+
+    // 배열 처리
+    if (Array.isArray(data))
+    {
+        return data.map(item => maskSensitiveData(item));
+    }
+
+    // 객체 처리
+    if (typeof data === 'object')
+    {
+        const masked: Record<string, unknown> = {};
+
+        for (const [key, value] of Object.entries(data))
+        {
+            if (isSensitiveKey(key))
+            {
+                // 민감 정보 키는 마스킹
+                masked[key] = MASKED_VALUE;
+            }
+            else if (typeof value === 'object' && value !== null)
+            {
+                // 중첩된 객체는 재귀 처리
+                masked[key] = maskSensitiveData(value);
+            }
+            else
+            {
+                // 일반 값은 그대로 유지
+                masked[key] = value;
+            }
+        }
+
+        return masked;
+    }
+
+    // 기본 타입은 그대로 반환
+    return data;
+}
 
 /**
  * ANSI 컬러 코드
@@ -109,52 +198,72 @@ export function formatConsole(metadata: LogMetadata, colorize = true): string
 {
     const parts: string[] = [];
 
-    // 타임스탬프
+    // [타임스탬프]
     const timestamp = formatTimestampHuman(metadata.timestamp);
     if (colorize)
     {
-        parts.push(`${COLORS.gray}${timestamp}${COLORS.reset}`);
+        parts.push(`${COLORS.gray}[${timestamp}]${COLORS.reset}`);
     }
     else
     {
-        parts.push(timestamp);
+        parts.push(`[${timestamp}]`);
     }
 
-    // 로그 레벨
-    if (colorize)
-    {
-        parts.push(colorizeLevel(metadata.level));
-    }
-    else
-    {
-        parts.push(metadata.level.toUpperCase().padEnd(5));
-    }
-
-    // 모듈명
+    // [module=value]
     if (metadata.module)
     {
         if (colorize)
         {
-            parts.push(`${COLORS.dim}[${metadata.module}]${COLORS.reset}`);
+            parts.push(`${COLORS.dim}[module=${metadata.module}]${COLORS.reset}`);
         }
         else
         {
-            parts.push(`[${metadata.module}]`);
+            parts.push(`[module=${metadata.module}]`);
         }
     }
 
+    // Context를 각각 [key=value] 형태로 추가
+    if (metadata.context && Object.keys(metadata.context).length > 0)
+    {
+        Object.entries(metadata.context).forEach(([key, value]) =>
+        {
+            const valueStr = typeof value === 'string' ? value : String(value);
+            if (colorize)
+            {
+                parts.push(`${COLORS.dim}[${key}=${valueStr}]${COLORS.reset}`);
+            }
+            else
+            {
+                parts.push(`[${key}=${valueStr}]`);
+            }
+        });
+    }
+
+    // (LEVEL):
+    const levelStr = metadata.level.toUpperCase();
+    if (colorize)
+    {
+        const color = COLORS[metadata.level];
+        parts.push(`${color}(${levelStr})${COLORS.reset}:`);
+    }
+    else
+    {
+        parts.push(`(${levelStr}):`);
+    }
+
     // 메시지
-    parts.push(metadata.message);
+    if (colorize)
+    {
+        parts.push(`${COLORS.bright}${metadata.message}${COLORS.reset}`);
+    }
+    else
+    {
+        parts.push(metadata.message);
+    }
 
     let output = parts.join(' ');
 
-    // Context 추가
-    if (metadata.context && Object.keys(metadata.context).length > 0)
-    {
-        output += '\n' + formatContext(metadata.context);
-    }
-
-    // 에러 추가
+    // 에러는 별도 줄로 추가
     if (metadata.error)
     {
         output += '\n' + formatError(metadata.error);

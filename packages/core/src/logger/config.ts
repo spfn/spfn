@@ -1,26 +1,11 @@
 /**
  * Logger Configuration
  *
- * Logger configuration by environment
- *
- * ✅ Implemented:
- * - Environment-specific log level configuration
- * - Console Transport configuration
- * - File Transport configuration (for self-hosted)
- * - File rotation configuration
- * - Slack Transport configuration (environment variable based)
- * - Email Transport configuration (environment variable based)
- *
- * 💡 Deployment scenarios:
- * - K8s: Disable file logging (Stdout only)
- * - Self-hosted: LOGGER_FILE_ENABLED=true
- *
- * 🔗 Related files:
- * - src/logger/types.ts (Type definitions)
- * - src/logger/index.ts (Main export)
- * - .env.local (Environment variables)
+ * Environment-based logger configuration with validation for console, file, Slack, and Email transports.
  */
 
+import { existsSync, accessSync, constants, mkdirSync, writeFileSync, unlinkSync } from 'fs';
+import { join } from 'path';
 import type {
     LogLevel,
     ConsoleTransportConfig,
@@ -140,4 +125,198 @@ export function getEmailConfig(): EmailTransportConfig | null
         smtpUser: process.env.SMTP_USER,
         smtpPassword: process.env.SMTP_PASSWORD,
     };
+}
+
+/**
+ * Validate directory path and write permissions
+ */
+function validateDirectoryWritable(dirPath: string): void
+{
+    // Check if directory exists
+    if (!existsSync(dirPath))
+    {
+        // Try to create directory
+        try
+        {
+            mkdirSync(dirPath, { recursive: true });
+        }
+        catch (error)
+        {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to create log directory "${dirPath}": ${errorMessage}`);
+        }
+    }
+
+    // Check write permission
+    try
+    {
+        accessSync(dirPath, constants.W_OK);
+    }
+    catch
+    {
+        throw new Error(`Log directory "${dirPath}" is not writable. Please check permissions.`);
+    }
+
+    // Try to write a test file
+    const testFile = join(dirPath, '.logger-write-test');
+    try
+    {
+        writeFileSync(testFile, 'test', 'utf-8');
+        unlinkSync(testFile);
+    }
+    catch (error)
+    {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Cannot write to log directory "${dirPath}": ${errorMessage}`);
+    }
+}
+
+/**
+ * Validate file transport configuration
+ */
+function validateFileConfig(): void
+{
+    if (!isFileLoggingEnabled())
+    {
+        return; // File logging disabled, skip validation
+    }
+
+    const logDir = process.env.LOG_DIR;
+
+    // Check if LOG_DIR is set
+    if (!logDir)
+    {
+        throw new Error(
+            'LOG_DIR environment variable is required when LOGGER_FILE_ENABLED=true. ' +
+            'Example: LOG_DIR=/var/log/myapp'
+        );
+    }
+
+    // Validate directory
+    validateDirectoryWritable(logDir);
+}
+
+/**
+ * Validate Slack transport configuration
+ */
+function validateSlackConfig(): void
+{
+    const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+
+    if (!webhookUrl)
+    {
+        return; // Slack disabled, skip validation
+    }
+
+    // Validate webhook URL format
+    if (!webhookUrl.startsWith('https://hooks.slack.com/'))
+    {
+        throw new Error(
+            `Invalid SLACK_WEBHOOK_URL: "${webhookUrl}". ` +
+            'Slack webhook URLs must start with "https://hooks.slack.com/"'
+        );
+    }
+}
+
+/**
+ * Validate Email transport configuration
+ */
+function validateEmailConfig(): void
+{
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT;
+    const emailFrom = process.env.EMAIL_FROM;
+    const emailTo = process.env.EMAIL_TO;
+
+    // If any email config is set, all required fields must be present
+    const hasAnyEmailConfig = smtpHost || smtpPort || emailFrom || emailTo;
+    if (!hasAnyEmailConfig)
+    {
+        return; // Email disabled, skip validation
+    }
+
+    // Validate all required fields
+    const missingFields: string[] = [];
+    if (!smtpHost) missingFields.push('SMTP_HOST');
+    if (!smtpPort) missingFields.push('SMTP_PORT');
+    if (!emailFrom) missingFields.push('EMAIL_FROM');
+    if (!emailTo) missingFields.push('EMAIL_TO');
+
+    if (missingFields.length > 0)
+    {
+        throw new Error(
+            `Email transport configuration incomplete. Missing: ${missingFields.join(', ')}. ` +
+            'Either set all required fields or remove all email configuration.'
+        );
+    }
+
+    // Validate SMTP port is a number
+    const port = parseInt(smtpPort!, 10);
+    if (isNaN(port) || port < 1 || port > 65535)
+    {
+        throw new Error(
+            `Invalid SMTP_PORT: "${smtpPort}". Must be a number between 1 and 65535.`
+        );
+    }
+
+    // Validate email format (basic check)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailFrom!))
+    {
+        throw new Error(`Invalid EMAIL_FROM format: "${emailFrom}"`);
+    }
+
+    // Validate email recipients
+    const recipients = emailTo!.split(',').map(e => e.trim());
+    for (const email of recipients)
+    {
+        if (!emailRegex.test(email))
+        {
+            throw new Error(`Invalid email address in EMAIL_TO: "${email}"`);
+        }
+    }
+}
+
+/**
+ * Validate environment variables
+ */
+function validateEnvironment(): void
+{
+    const nodeEnv = process.env.NODE_ENV;
+
+    if (!nodeEnv)
+    {
+        process.stderr.write(
+            '[Logger] Warning: NODE_ENV is not set. Defaulting to test environment.\n'
+        );
+    }
+    else if (!['development', 'production', 'test'].includes(nodeEnv))
+    {
+        process.stderr.write(
+            `[Logger] Warning: Unknown NODE_ENV="${nodeEnv}". Expected: development, production, or test.\n`
+        );
+    }
+}
+
+/**
+ * Validate all logger configuration
+ * Throws an error if configuration is invalid
+ */
+export function validateConfig(): void
+{
+    try
+    {
+        validateEnvironment();
+        validateFileConfig();
+        validateSlackConfig();
+        validateEmailConfig();
+    }
+    catch (error)
+    {
+        if (error instanceof Error)
+        {
+            throw new Error(`[Logger] Configuration validation failed: ${error.message}`);
+        }
+        throw error;
+    }
 }

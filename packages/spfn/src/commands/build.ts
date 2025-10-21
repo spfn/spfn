@@ -75,36 +75,53 @@ async function buildProject(options: BuildOptions): Promise<void>
             const outputDir = join(cwd, '.spfn', 'server');
             mkdirSync(outputDir, { recursive: true });
 
-            // Create temporary tsconfig.json for server build
-            const tempTsConfig = join(cwd, '.spfn', 'tsconfig.server.json');
-            const tsConfig = {
-                compilerOptions: {
-                    target: 'ES2022',
-                    module: 'ESNext',
-                    lib: ['ES2022'],
-                    moduleResolution: 'bundler',
-                    esModuleInterop: true,
-                    skipLibCheck: true,
-                    resolveJsonModule: true,
-                    declaration: true,
-                    sourceMap: true,
-                    outDir: outputDir,
-                    rootDir: join(cwd, 'src', 'server')
-                },
-                include: [join(cwd, 'src', 'server', '**', '*.ts')],
-                exclude: ['node_modules']
-            };
+            // Use src/server/tsconfig.json directly
+            const serverTsConfigPath = join(cwd, 'src', 'server', 'tsconfig.json');
 
-            writeFileSync(tempTsConfig, JSON.stringify(tsConfig, null, 2));
+            if (!existsSync(serverTsConfigPath))
+            {
+                spinner.fail('SPFN server build failed');
+                logger.error('tsconfig.json not found in src/server/');
+                logger.error('Please run "spfn init" to initialize the project.');
+                process.exit(1);
+            }
 
             // Use local tsc from node_modules
             const tscBin = join(cwd, 'node_modules', '.bin', 'tsc');
             const tscCmd = existsSync(tscBin) ? tscBin : 'tsc';
 
-            await execa(tscCmd, ['--project', tempTsConfig], {
+            await execa(tscCmd, ['--project', serverTsConfigPath], {
                 cwd,
                 stdio: 'inherit',
             });
+
+            // Generate production server entry point
+            const prodServerPath = join(cwd, '.spfn', 'prod-server.mjs');
+            const prodServerContent = `// Load environment variables FIRST (before any imports that depend on them)
+// Use centralized environment loader for standard dotenv priority
+const { loadEnvironment } = await import('@spfn/core/env');
+loadEnvironment({ debug: false });
+
+// Now import server (logger singleton will be created with correct NODE_ENV)
+const { startServer } = await import('@spfn/core/server');
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Environment variables: from .env files OR injected by container/kubernetes
+const port = process.env.SPFN_PORT || process.env.PORT || '8790';
+const host = process.env.SPFN_HOST || process.env.HOST || '0.0.0.0';
+
+await startServer({
+    port: Number(port),
+    host,
+    routesPath: join(__dirname, 'server', 'routes'),
+    debug: false
+});
+`;
+            writeFileSync(prodServerPath, prodServerContent);
 
             spinner.succeed(`SPFN server build completed → .spfn/server`);
         }

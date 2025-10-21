@@ -485,6 +485,30 @@ Server configuration and lifecycle management.
 
 **[→ Read Server Documentation](./src/server/README.md)**
 
+### 📝 Logger
+High-performance logging with multiple transports, sensitive data masking, and automatic validation.
+
+**[→ Read Logger Documentation](./src/logger/README.md)**
+
+**Key Features:**
+- Adapter pattern (Pino for production, custom for full control)
+- Sensitive data masking (passwords, tokens, API keys)
+- File rotation (date and size-based) with automatic cleanup
+- Configuration validation with clear error messages
+- Multiple transports (Console, File, Slack, Email)
+
+### ⚙️ Code Generation
+Automatic code generation with pluggable generators and centralized file watching.
+
+**[→ Read Codegen Documentation](./src/codegen/README.md)**
+
+**Key Features:**
+- Orchestrator pattern for managing multiple generators
+- Built-in contract generator for type-safe API clients
+- Configuration-based setup (`.spfnrc.json` or `package.json`)
+- Watch mode integrated into `spfn dev`
+- Extensible with custom generators
+
 ## Module Exports
 
 ### Main Export
@@ -522,6 +546,11 @@ import {
 import { initRedis, getRedis, getRedisRead } from '@spfn/core';
 ```
 
+### Logger
+```typescript
+import { logger } from '@spfn/core';
+```
+
 ### Client (for frontend)
 ```typescript
 import { ContractClient, createClient } from '@spfn/core/client';
@@ -545,6 +574,17 @@ REDIS_READ_URL=redis://replica:6379
 PORT=8790
 HOST=localhost
 NODE_ENV=development
+
+# Server Timeouts (optional, in milliseconds)
+SERVER_TIMEOUT=120000              # Request timeout (default: 120000)
+SERVER_KEEPALIVE_TIMEOUT=65000     # Keep-alive timeout (default: 65000)
+SERVER_HEADERS_TIMEOUT=60000       # Headers timeout (default: 60000)
+SHUTDOWN_TIMEOUT=30000             # Graceful shutdown timeout (default: 30000)
+
+# Logger (optional)
+LOGGER_ADAPTER=pino               # pino | custom (default: pino)
+LOGGER_FILE_ENABLED=true          # Enable file logging (production only)
+LOG_DIR=/var/log/myapp           # Log directory (required when file logging enabled)
 ```
 
 ## Requirements
@@ -574,6 +614,8 @@ npm test -- --coverage      # With coverage
 - [Error Handling](./src/errors/README.md)
 - [Middleware](./src/middleware/README.md)
 - [Server Configuration](./src/server/README.md)
+- [Logger](./src/logger/README.md)
+- [Code Generation](./src/codegen/README.md)
 
 ### API Reference
 - See module-specific README files linked above

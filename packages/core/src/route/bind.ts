@@ -9,27 +9,10 @@ import { ValidationError } from '../errors/database-errors.js';
  * Binds a contract to a route handler, providing automatic validation
  * and type-safe context creation.
  *
- * ## Features
- * - ✅ Automatic params/query/body validation using TypeBox
- * - ✅ Type-safe RouteContext with contract-based inference
- * - ✅ Clean separation: bind() for validation, Hono for middleware
- *
- * ## Usage
- *
- * ```typescript
- * // Basic usage
- * export const GET = bind(contract, async (c) => {
- *     return c.json({ data: 'public' });
- * });
- *
- * // For middleware, use Hono's app-level or route-level middleware:
- * // app.use('/api/*', authMiddleware);
- * // app.get('/users/:id', authMiddleware, bind(contract, handler));
- * ```
- *
- * @param contract - Route contract defining params, query, body, response schemas
- * @param handler - Route handler function
- * @returns Hono-compatible handler function
+ * Features:
+ * - Automatic params/query/body validation using TypeBox
+ * - Type-safe RouteContext with contract-based inference
+ * - Clean separation: bind() for validation, Hono for middleware
  */
 export function bind<TContract extends RouteContract>(
     contract: TContract,
@@ -38,9 +21,6 @@ export function bind<TContract extends RouteContract>(
 {
     return async (rawContext: Context) =>
     {
-        // ============================================================
-        // 1. Validate params
-        // ============================================================
         const params = rawContext.req.param();
         if (contract.params)
         {
@@ -60,9 +40,6 @@ export function bind<TContract extends RouteContract>(
             }
         }
 
-        // ============================================================
-        // 2. Validate query
-        // ============================================================
         const url = new URL(rawContext.req.url);
         const query: Record<string, string | string[]> = {};
         url.searchParams.forEach((v, k) =>
@@ -70,7 +47,6 @@ export function bind<TContract extends RouteContract>(
             const existing = query[k];
             if (existing)
             {
-                // Convert to array or append to existing array
                 query[k] = Array.isArray(existing) ? [...existing, v] : [existing, v];
             }
             else
@@ -97,14 +73,10 @@ export function bind<TContract extends RouteContract>(
             }
         }
 
-        // ============================================================
-        // 3. Create RouteContext
-        // ============================================================
         const routeContext: RouteContext<TContract> = {
             params: params as InferContract<TContract>['params'],
             query: query as InferContract<TContract>['query'],
 
-            // data() - validates and returns body
             data: async () =>
             {
                 const body = await rawContext.req.json();
@@ -128,19 +100,14 @@ export function bind<TContract extends RouteContract>(
                 return body as InferContract<TContract>['body'];
             },
 
-            // json() - returns typed response
             json: (data, status, headers) =>
             {
                 return rawContext.json(data, status, headers);
             },
 
-            // raw Hono context for advanced usage
             raw: rawContext,
         };
 
-        // ============================================================
-        // 4. Execute handler
-        // ============================================================
         return handler(routeContext);
     };
 }

@@ -1,37 +1,5 @@
-/**
- * Database Connection Logic
- *
- * DB 연결 생성 및 재시도 로직
- *
- * ✅ 구현 완료:
- * - Exponential Backoff 재시도 로직
- * - 연결 테스트 쿼리
- * - 상세한 에러 로깅
- * - 연결 성공/실패 로깅
- * - Logger 적용 (console.log 대체)
- *
- * ⚠️ 개선 필요:
- * - 에러 타입별 처리 (네트워크 vs 인증)
- * - Graceful Shutdown 로직
- *
- * 💡 향후 고려사항:
- * - 연결 풀 이벤트 리스너
- * - 연결 상태 메트릭 수집
- * - 연결 풀 동적 조정
- *
- * 🔗 관련 파일:
- * - src/server/core/db/config.ts (설정)
- * - src/server/core/db/index.ts (메인 export)
- * - src/server/core/logger/ (Logger)
- *
- * 📝 TODO: improvements.md 참고
- * - #7: Connection Pool 모니터링 (Pool 이벤트 리스너, 활성/유휴 연결 추적)
- * - #9: Slow Query 로깅 (쿼리 실행 시간 측정 및 임계값 로깅)
- * - #10: Graceful Shutdown (SIGTERM 처리, 진행 중인 쿼리 완료 대기)
- * - #11: Read Replica 지원 (읽기/쓰기 분리)
- */
-import type { Sql } from 'postgres';
 import postgres from 'postgres';
+import type { Sql } from 'postgres';
 
 import { logger } from '../../logger';
 import { ConnectionError } from '../../errors';
@@ -60,8 +28,7 @@ export async function createDatabaseConnection(
     connectionString: string,
     poolConfig: PoolConfig,
     retryConfig: RetryConfig
-)
-{
+) {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++)

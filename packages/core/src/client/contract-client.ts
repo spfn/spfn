@@ -2,38 +2,18 @@
  * Contract-Based API Client
  *
  * Type-safe HTTP client that works with RouteContract for full end-to-end type safety
- *
- * @example
- * ```ts
- * import { createClient } from '@spfn/core/client';
- * import { getUserContract } from './contracts';
- *
- * const client = createClient({ baseUrl: 'http://localhost:4000' });
- * const user = await client.call(getUserContract, { params: { id: '123' } });
- * // ✅ user is fully typed based on contract.response
- * ```
  */
-
 import type { RouteContract, InferContract } from '../route';
 
-/**
- * Request interceptor function
- *
- * Allows modifying request before it's sent
- */
 export type RequestInterceptor = (
     url: string,
     init: RequestInit
 ) => Promise<RequestInit> | RequestInit;
 
-/**
- * Client configuration
- */
 export interface ClientConfig
 {
     /**
      * API base URL (e.g., http://localhost:4000)
-     * Can be overridden per request
      */
     baseUrl?: string;
 
@@ -48,39 +28,17 @@ export interface ClientConfig
     timeout?: number;
 
     /**
-     * Custom fetch implementation (for testing or custom behavior)
+     * Custom fetch implementation
      */
     fetch?: typeof fetch;
 }
 
-/**
- * Request options for API calls
- */
 export interface CallOptions<TContract extends RouteContract>
 {
-    /**
-     * Path parameters (for dynamic routes like /users/:id)
-     */
     params?: InferContract<TContract>['params'];
-
-    /**
-     * Query parameters (for URL query strings)
-     */
     query?: InferContract<TContract>['query'];
-
-    /**
-     * Request body (for POST, PUT, PATCH)
-     */
     body?: InferContract<TContract>['body'];
-
-    /**
-     * Additional headers for this specific request
-     */
     headers?: Record<string, string>;
-
-    /**
-     * Override base URL for this request
-     */
     baseUrl?: string;
 }
 
@@ -93,83 +51,13 @@ export class ApiClientError extends Error
         message: string,
         public readonly status: number,
         public readonly url: string,
-        public readonly response?: unknown
+        public readonly response?: unknown,
+        public readonly errorType?: 'timeout' | 'network' | 'http'
     )
     {
         super(message);
         this.name = 'ApiClientError';
     }
-}
-
-/**
- * Build URL with path parameters replaced
- *
- * @example
- * buildUrl('/users/:id', { id: '123' }) → '/users/123'
- * buildUrl('/posts/:postId/comments/:id', { postId: '1', id: '2' }) → '/posts/1/comments/2'
- */
-function buildUrl(path: string, params?: Record<string, string | number>): string
-{
-    if (!params) return path;
-
-    let url = path;
-    for (const [key, value] of Object.entries(params))
-    {
-        url = url.replace(`:${key}`, String(value));
-    }
-
-    return url;
-}
-
-/**
- * Build query string from object
- *
- * @example
- * buildQuery({ page: '1', limit: '10' }) → '?page=1&limit=10'
- */
-function buildQuery(query?: Record<string, string | string[] | number | boolean>): string
-{
-    if (!query || Object.keys(query).length === 0) return '';
-
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(query))
-    {
-        if (Array.isArray(value))
-        {
-            value.forEach((v) => params.append(key, String(v)));
-        }
-        else if (value !== undefined && value !== null)
-        {
-            params.append(key, String(value));
-        }
-    }
-
-    const queryString = params.toString();
-    return queryString ? `?${queryString}` : '';
-}
-
-/**
- * Extract HTTP method from contract or infer from request type
- */
-function getHttpMethod<TContract extends RouteContract>(
-    contract: TContract,
-    options?: CallOptions<TContract>
-): string
-{
-    // If contract has explicit method, use it
-    if ('method' in contract && typeof contract.method === 'string')
-    {
-        return contract.method.toUpperCase();
-    }
-
-    // Infer from presence of body
-    if (options?.body !== undefined)
-    {
-        return 'POST';
-    }
-
-    // Default to GET
-    return 'GET';
 }
 
 /**
@@ -186,28 +74,12 @@ export class ContractClient
             baseUrl: config.baseUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
             headers: config.headers || {},
             timeout: config.timeout || 30000,
-            fetch: config.fetch || globalThis.fetch,
+            fetch: config.fetch || globalThis.fetch.bind(globalThis),
         };
     }
 
     /**
      * Add request interceptor
-     *
-     * Interceptors are executed in the order they are added
-     *
-     * @example
-     * ```ts
-     * client.use(async (url, init) => {
-     *   // Add auth header
-     *   return {
-     *     ...init,
-     *     headers: {
-     *       ...init.headers,
-     *       Authorization: `Bearer ${token}`
-     *     }
-     *   };
-     * });
-     * ```
      */
     use(interceptor: RequestInterceptor): void
     {
@@ -216,105 +88,86 @@ export class ContractClient
 
     /**
      * Make a type-safe API call using a contract
-     *
-     * @example
-     * ```ts
-     * const getUserContract = {
-     *   params: Type.Object({ id: Type.String() }),
-     *   response: Type.Object({ id: Type.Number(), name: Type.String() })
-     * } as const satisfies RouteContract;
-     *
-     * const user = await client.call('/users/:id', getUserContract, {
-     *   params: { id: '123' }
-     * });
-     * // ✅ user.name is typed as string
-     * ```
      */
     async call<TContract extends RouteContract>(
-        path: string,
         contract: TContract,
         options?: CallOptions<TContract>
     ): Promise<InferContract<TContract>['response']>
     {
-        // Build URL
         const baseUrl = options?.baseUrl || this.config.baseUrl;
-        const urlPath = buildUrl(path, options?.params as Record<string, string | number>);
-        const queryString = buildQuery(options?.query as Record<string, string | string[] | number | boolean>);
+        const urlPath = ContractClient.buildUrl(
+            contract.path,
+            options?.params as Record<string, string | number> | undefined
+        );
+        const queryString = ContractClient.buildQuery(
+            options?.query as Record<string, string | string[] | number | boolean> | undefined
+        );
         const url = `${baseUrl}${urlPath}${queryString}`;
 
-        // Determine HTTP method
-        const method = getHttpMethod(contract, options);
+        const method = ContractClient.getHttpMethod(contract, options);
 
-        // Build headers
         const headers: Record<string, string> = {
             ...this.config.headers,
             ...options?.headers,
         };
 
-        // Add Content-Type for requests with body
-        if (options?.body !== undefined && !headers['Content-Type'])
+        const isFormData = ContractClient.isFormData(options?.body);
+
+        if (options?.body !== undefined && !isFormData && !headers['Content-Type'])
         {
             headers['Content-Type'] = 'application/json';
         }
 
-        // Build request init
         let init: RequestInit = {
             method,
             headers,
         };
 
-        // Add body for POST/PUT/PATCH
         if (options?.body !== undefined)
         {
-            init.body = JSON.stringify(options.body);
+            init.body = isFormData ? (options.body as FormData) : JSON.stringify(options.body);
         }
 
-        // Create abort controller for timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
         init.signal = controller.signal;
 
-        // Execute interceptors
         for (const interceptor of this.interceptors)
         {
             init = await interceptor(url, init);
         }
 
-        // Make request
         const response = await this.config.fetch(url, init).catch((error) =>
         {
             clearTimeout(timeoutId);
 
-            // Handle abort (timeout)
             if (error instanceof Error && error.name === 'AbortError')
             {
                 throw new ApiClientError(
-                    `${method} ${urlPath} timed out after ${this.config.timeout}ms`,
+                    `Request timed out after ${this.config.timeout}ms`,
                     0,
-                    'Timeout',
-                    url
+                    url,
+                    undefined,
+                    'timeout'
                 );
             }
 
-            // Handle network errors
             if (error instanceof Error)
             {
                 throw new ApiClientError(
-                    `${method} ${urlPath} network error: ${error.message}`,
+                    `Network error: ${error.message}`,
                     0,
-                    'Network Error',
-                    url
+                    url,
+                    undefined,
+                    'network'
                 );
             }
 
-            // Unknown error
             throw error;
         });
 
-        // Clear timeout
         clearTimeout(timeoutId);
 
-        // Handle non-OK responses
         if (!response.ok)
         {
             const errorBody = await response.json().catch(() => null);
@@ -322,26 +175,17 @@ export class ContractClient
                 `${method} ${urlPath} failed: ${response.status} ${response.statusText}`,
                 response.status,
                 url,
-                errorBody
+                errorBody,
+                'http'
             );
         }
 
-        // Parse and return response
         const data = await response.json();
         return data as InferContract<TContract>['response'];
     }
 
     /**
      * Create a new client with merged configuration
-     *
-     * Useful for creating clients with specific auth tokens or custom headers
-     *
-     * @example
-     * ```ts
-     * const authClient = client.withConfig({
-     *   headers: { Authorization: `Bearer ${token}` }
-     * });
-     * ```
      */
     withConfig(config: Partial<ClientConfig>): ContractClient
     {
@@ -352,22 +196,67 @@ export class ContractClient
             fetch: config.fetch || this.config.fetch,
         });
     }
+
+    private static buildUrl(path: string, params?: Record<string, string | number>): string
+    {
+        if (!params) return path;
+
+        let url = path;
+        for (const [key, value] of Object.entries(params))
+        {
+            url = url.replace(`:${key}`, String(value));
+        }
+
+        return url;
+    }
+
+    private static buildQuery(query?: Record<string, string | string[] | number | boolean>): string
+    {
+        if (!query || Object.keys(query).length === 0) return '';
+
+        const params = new URLSearchParams();
+        for (const [key, value] of Object.entries(query))
+        {
+            if (Array.isArray(value))
+            {
+                value.forEach((v) => params.append(key, String(v)));
+            }
+            else if (value !== undefined && value !== null)
+            {
+                params.append(key, String(value));
+            }
+        }
+
+        const queryString = params.toString();
+        return queryString ? `?${queryString}` : '';
+    }
+
+    private static getHttpMethod<TContract extends RouteContract>(
+        contract: TContract,
+        options?: CallOptions<TContract>
+    ): string
+    {
+        if ('method' in contract && typeof contract.method === 'string')
+        {
+            return contract.method.toUpperCase();
+        }
+
+        if (options?.body !== undefined)
+        {
+            return 'POST';
+        }
+
+        return 'GET';
+    }
+
+    private static isFormData(body: unknown): body is FormData
+    {
+        return body instanceof FormData;
+    }
 }
 
 /**
  * Create a new contract-based API client
- *
- * @example
- * ```ts
- * const client = createClient({
- *   baseUrl: 'http://localhost:4000',
- *   headers: { 'X-Custom': 'header' }
- * });
- *
- * const user = await client.call('/users/:id', getUserContract, {
- *   params: { id: '123' }
- * });
- * ```
  */
 export function createClient(config?: ClientConfig): ContractClient
 {
@@ -375,15 +264,119 @@ export function createClient(config?: ClientConfig): ContractClient
 }
 
 /**
- * Default client instance
+ * Global client singleton instance
+ */
+let _clientInstance: ContractClient = new ContractClient();
+
+/**
+ * Configure the global client instance
+ *
+ * Call this in your app initialization to set default configuration
+ * for all auto-generated API calls.
  *
  * @example
  * ```ts
- * import { client } from '@spfn/core/client';
+ * // In app initialization (layout.tsx, _app.tsx, etc)
+ * import { configureClient } from '@spfn/core/client';
  *
- * const user = await client.call('/users/:id', getUserContract, {
- *   params: { id: '123' }
+ * configureClient({
+ *   baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
+ *   timeout: 60000,
+ *   headers: {
+ *     'X-App-Version': '1.0.0'
+ *   }
+ * });
+ *
+ * // Add interceptors
+ * import { client } from '@spfn/core/client';
+ * client.use(async (url, init) => {
+ *   // Add auth header
+ *   return {
+ *     ...init,
+ *     headers: {
+ *       ...init.headers,
+ *       Authorization: `Bearer ${getToken()}`
+ *     }
+ *   };
  * });
  * ```
  */
-export const client = createClient();
+export function configureClient(config: ClientConfig): void
+{
+    _clientInstance = new ContractClient(config);
+}
+
+/**
+ * Global client singleton with Proxy
+ *
+ * This client can be configured using configureClient() before use.
+ * Used by auto-generated API client code.
+ */
+export const client = new Proxy({} as ContractClient, {
+    get(_target, prop)
+    {
+        return _clientInstance[prop as keyof ContractClient];
+    }
+});
+
+/**
+ * Type guard for timeout errors
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await api.users.getById({ params: { id: '123' } });
+ * } catch (error) {
+ *   if (isTimeoutError(error)) {
+ *     console.error('Request timed out, retrying...');
+ *     // Implement retry logic
+ *   }
+ * }
+ * ```
+ */
+export function isTimeoutError(error: unknown): error is ApiClientError
+{
+    return error instanceof ApiClientError && error.errorType === 'timeout';
+}
+
+/**
+ * Type guard for network errors
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await api.users.list();
+ * } catch (error) {
+ *   if (isNetworkError(error)) {
+ *     showOfflineMessage();
+ *   }
+ * }
+ * ```
+ */
+export function isNetworkError(error: unknown): error is ApiClientError
+{
+    return error instanceof ApiClientError && error.errorType === 'network';
+}
+
+/**
+ * Type guard for HTTP errors (4xx, 5xx)
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await api.users.create({ body: userData });
+ * } catch (error) {
+ *   if (isHttpError(error)) {
+ *     if (error.status === 401) {
+ *       redirectToLogin();
+ *     } else if (error.status === 404) {
+ *       showNotFoundMessage();
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export function isHttpError(error: unknown): error is ApiClientError
+{
+    return error instanceof ApiClientError && error.errorType === 'http';
+}

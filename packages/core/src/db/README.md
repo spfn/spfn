@@ -1,299 +1,306 @@
-# Database Module (@spfn/core/db)
+# Database Module
 
-Type-safe PostgreSQL database layer with automatic transactions, repository pattern, and schema helpers.
+Type-safe PostgreSQL database layer built on Drizzle ORM with automatic transaction management and read/write separation.
+
+## Features
+
+- 🔄 **Automatic Transaction Management** - AsyncLocalStorage-based transactions with middleware
+- 📊 **Read/Write Separation** - Automatic routing to read replicas when available
+- 🏗️ **Repository Pattern** - Base class for structured database access
+- 🛠️ **Schema Helpers** - Reusable column definitions (id, timestamps, foreign keys)
+- 🔌 **Connection Pooling** - Built-in connection pool with health checks
+- ⚡ **Type Safety** - Full TypeScript support with Drizzle ORM
 
 ## Quick Start
 
 ```typescript
-import { createApp } from '@spfn/core/route';
-import { createDatabaseFromEnv, getDb, Transactional } from '@spfn/core/db';
+import { initDatabase, getDatabase, Transactional } from '@spfn/core/db';
+import { Repository } from '@spfn/core/db/repository';
 import { pgTable, text } from 'drizzle-orm/pg-core';
 import { id, timestamps } from '@spfn/core/db';
-import { Type } from '@sinclair/typebox';
+import { eq } from 'drizzle-orm';
 
 // 1. Define schema
 export const users = pgTable('users', {
-    id: id(),
-    email: text('email').notNull().unique(),
-    name: text('name'),
-    ...timestamps()
+  id: id(),
+  email: text('email').notNull().unique(),
+  name: text('name'),
+  ...timestamps()
 });
 
 // 2. Initialize database (once at app startup)
-createDatabaseFromEnv();  // Reads DATABASE_URL from env
+await initDatabase();  // Reads DATABASE_URL from env
 
-// 3. Use in routes
-const app = createApp();
+// 3. Create a repository
+class UserRepository extends Repository<typeof users> {
+  async findByEmail(email: string) {
+    return this.select()
+      .where(eq(this.table.email, email))
+      .limit(1);
+  }
 
-const getUsersContract = {
-    method: 'GET' as const,
-    path: '/',
-    response: Type.Array(Type.Object({
-        id: Type.Number(),
-        email: Type.String()
-    }))
-};
+  async create(data: typeof users.$inferInsert) {
+    return this.insert()
+      .values(data)
+      .returning();
+  }
+}
 
-app.bind(getUsersContract, async (c) => {
-    const userRepo = new Repository(users);
+// 4. Use in routes with transactions
+export const middlewares = [Transactional()];
 
-    const allUsers = await userRepo.findAll();
-    return c.json(allUsers);
-});
+export async function POST(c: RouteContext) {
+  const userRepo = new UserRepository(users);
 
-const createUserContract = {
-    method: 'POST' as const,
-    path: '/',
-    body: Type.Object({
-        email: Type.String(),
-        name: Type.String()
-    }),
-    response: Type.Object({
-        id: Type.Number(),
-        email: Type.String()
-    })
-};
+  const data = await c.req.json();
+  const [user] = await userRepo.create(data);
 
-app.bind(createUserContract, Transactional(), async (c) => {
-    const userRepo = new Repository(users);
-
-    const data = await c.req.json();
-    const user = await userRepo.save(data);
-
-    return c.json(user, 201);
-});
-
-export default app;
+  // Auto-commits on success, auto-rolls back on error
+  return c.json(user, 201);
+}
 ```
 
-## Core API
+## Module Structure
 
-### Database Access
+The database module is organized into focused sub-modules:
+
+### [Manager](./manager/README.md)
+
+Database connection and lifecycle management.
+
+**Key APIs:**
+- `initDatabase()` - Initialize database connection from environment
+- `getDatabase()` - Get database instance (with read/write selection)
+- `closeDatabase()` - Clean up connections
+- `createDatabaseFromEnv()` - Factory function for manual setup
+
+**Topics:**
+- Environment variable configuration
+- Single database vs Primary + Replica setup
+- Connection pooling and health checks
+- Automatic reconnection
+- Monitoring and diagnostics
+
+[Read Manager Documentation →](./manager/README.md)
+
+### [Transaction](./transaction/README.md)
+
+Automatic transaction management with AsyncLocalStorage propagation.
+
+**Key APIs:**
+- `Transactional()` - Middleware for automatic transactions
+- `getTransaction()` - Get current transaction context
+- `runWithTransaction()` - Manual transaction control
+
+**Features:**
+- Auto-commit on success, auto-rollback on error
+- Transaction ID tracking for debugging
+- Configurable timeouts and slow transaction warnings
+- Nested transaction detection
+- PostgreSQL error conversion
+
+[Read Transaction Documentation →](./transaction/README.md)
+
+### [Repository](./repository/README.md)
+
+Base repository pattern for structured database access.
+
+**Key APIs:**
+- `Repository<T>` - Base class with query builders
+- `select()` - Read operations (uses read replica if available)
+- `insert()` - Create operations
+- `update()` - Update operations
+- `delete()` - Delete operations
+
+**Features:**
+- Automatic transaction context detection
+- Read/write database separation
+- Type-safe query builders
+- Custom repository methods via inheritance
+
+[Read Repository Documentation →](./repository/README.md)
+
+### Schema Helpers
+
+Reusable column definitions for common patterns.
+
+**Available Helpers:**
 
 ```typescript
-import { createDatabaseFromEnv, getDb } from '@spfn/core/db';
+import { id, timestamps, foreignKey, optionalForeignKey } from '@spfn/core/db';
 
-// Initialize once at app startup
-createDatabaseFromEnv();
+export const users = pgTable('users', {
+  id: id(),                    // bigserial primary key
+  email: text('email').unique(),
+  ...timestamps()              // createdAt + updatedAt
+});
 
-// Access anywhere in your app
-const db = getDb();
+export const posts = pgTable('posts', {
+  id: id(),
+  authorId: foreignKey('author', () => users.id),  // Required FK with cascade
+  categoryId: optionalForeignKey('category', () => categories.id),  // Nullable FK
+  ...timestamps()
+});
 ```
 
-**Key Functions:**
-- `createDatabaseFromEnv()` - Initialize from `DATABASE_URL` env var
-- `getDb()` - Get database instance (alias: `getDatabase()`)
+**Helpers:**
+- `id()` - Auto-incrementing bigserial primary key
+- `timestamps()` - Adds createdAt and updatedAt timestamp fields
+- `foreignKey(name, ref)` - Required foreign key with cascade delete
+- `optionalForeignKey(name, ref)` - Nullable foreign key
 
-For advanced configuration, see [Database Manager →](./docs/database-manager.md)
+## Environment Variables
 
-### Repository Pattern
+### Single Database
+
+```bash
+DATABASE_URL=postgresql://localhost:5432/mydb
+```
+
+### Primary + Replica (Read/Write Separation)
+
+```bash
+# Write operations
+DATABASE_WRITE_URL=postgresql://primary:5432/mydb
+
+# Read operations (automatically used for SELECT queries)
+DATABASE_READ_URL=postgresql://replica:5432/mydb
+```
+
+### Legacy Replica Pattern
+
+```bash
+DATABASE_URL=postgresql://primary:5432/mydb
+DATABASE_REPLICA_URL=postgresql://replica:5432/mydb
+```
+
+See [Manager Documentation](./manager/README.md#environment-variables) for complete configuration options.
+
+## Common Patterns
+
+### Basic CRUD with Repository
 
 ```typescript
-import { Repository } from '@spfn/core/db';
-import { users } from './schema';
+import { Repository } from '@spfn/core/db/repository';
+import { eq } from 'drizzle-orm';
 
-const userRepo = new Repository(users);
+class UserRepository extends Repository<typeof users> {
+  async findById(id: number) {
+    return this.select()
+      .where(eq(this.table.id, id))
+      .limit(1);
+  }
 
-// Create
-const user = await userRepo.save({
-    email: 'test@example.com',
-    name: 'John Doe'
-});
+  async findAll() {
+    return this.select()
+      .orderBy(this.table.createdAt);
+  }
 
-// Read
-const found = await userRepo.findById(user.id);
-const all = await userRepo.findAll();
+  async create(data: typeof users.$inferInsert) {
+    return this.insert()
+      .values(data)
+      .returning();
+  }
 
-// Update
-await userRepo.update(user.id, { name: 'Jane Doe' });
+  async update(id: number, data: Partial<typeof users.$inferInsert>) {
+    return this.update()
+      .set(data)
+      .where(eq(this.table.id, id))
+      .returning();
+  }
 
-// Delete
-await userRepo.delete(user.id);
-
-// Pagination & Filtering
-const page = await userRepo.findPage({
-    filters: { email: { like: '@example.com' } },
-    pagination: { page: 1, limit: 10 },
-    sort: [{ field: 'createdAt', direction: 'desc' }]
-});
+  async deleteById(id: number) {
+    return this.delete()
+      .where(eq(this.table.id, id));
+  }
+}
 ```
-
-**Core Methods:**
-- `save(data)` - Create record
-- `saveMany(data[])` - Batch create
-- `findById(id)` - Find by primary key
-- `findAll(options?)` - List all with pagination
-- `findWhere(filters, options?)` - Filter records
-- `findPage(options)` - Paginate with metadata
-- `update(id, data)` - Update by primary key
-- `updateWhere(filters, data)` - Batch update
-- `delete(id)` - Delete by primary key
-- `deleteWhere(filters)` - Batch delete
-- `exists(id)` - Check existence
-- `count(filters?)` - Count records
-
-For complete API reference, see [Repository Pattern →](./docs/repository.md)
 
 ### Transactions
 
 ```typescript
-import { Transactional, Repository } from '@spfn/core/db';
+import { Transactional } from '@spfn/core/db/transaction';
 
-app.bind(contract, Transactional(), async (c) => {
-    const userRepo = new Repository(users);
-    const profileRepo = new Repository(profiles);
+// Apply middleware to route
+export const middlewares = [Transactional()];
 
-    // Both operations in same transaction
-    const user = await userRepo.save({ email: 'test@example.com' });
-    const profile = await profileRepo.save({ userId: user.id });
+export async function POST(c: RouteContext) {
+  const userRepo = new UserRepository(users);
+  const profileRepo = new ProfileRepository(profiles);
 
-    // Success → automatic COMMIT
-    // Error → automatic ROLLBACK
-    return c.json({ user, profile });
-});
-```
+  // Both operations run in same transaction
+  const [user] = await userRepo.create({ email: 'test@example.com' });
+  const [profile] = await profileRepo.create({ userId: user.id });
 
-**Key Features:**
-- Automatic BEGIN/COMMIT/ROLLBACK
-- AsyncLocalStorage-based (no explicit passing)
-- Works across nested function calls
-- Repository methods auto-participate
-
-For transaction patterns and best practices, see [Transactions →](./docs/transactions.md)
-
-### Schema Helpers
-
-```typescript
-import { pgTable, text } from 'drizzle-orm/pg-core';
-import { id, timestamps, foreignKey, optionalForeignKey } from '@spfn/core/db';
-
-export const users = pgTable('users', {
-    id: id(),                    // bigserial primary key
-    email: text('email').notNull().unique(),
-    ...timestamps()              // createdAt + updatedAt
-});
-
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title').notNull(),
-    authorId: foreignKey('author', () => users.id),           // Required FK
-    categoryId: optionalForeignKey('category', () => categories.id),  // Optional FK
-    ...timestamps()
-});
-```
-
-**Available Helpers:**
-- `id()` - Standard primary key (bigserial, auto-increment)
-- `timestamps()` - createdAt + updatedAt with timezone
-- `foreignKey(name, reference)` - Required foreign key
-- `optionalForeignKey(name, reference)` - Nullable foreign key
-
-For complete schema helper documentation, see [Schema Helpers →](./docs/schema-helpers.md)
-
-## Filter Operators
-
-Repository `findWhere()` and `findPage()` support rich filtering:
-
-```typescript
-// Equality
-{ role: 'admin' }
-
-// Comparison
-{ age: { gt: 18 } }           // greater than
-{ age: { gte: 18 } }          // greater than or equal
-{ age: { lt: 65 } }           // less than
-{ age: { lte: 65 } }          // less than or equal
-
-// Pattern matching
-{ email: { like: '@gmail.com' } }     // LIKE '%@gmail.com%'
-{ email: { ilike: '@GMAIL.COM' } }    // Case-insensitive LIKE
-
-// Array operations
-{ id: { in: [1, 2, 3] } }              // IN (1, 2, 3)
-{ status: { notIn: ['deleted'] } }     // NOT IN (...)
-
-// Null checks
-{ deletedAt: { isNull: true } }        // IS NULL
-{ deletedAt: { isNotNull: true } }     // IS NOT NULL
-
-// Multiple filters (AND)
-{
-    role: 'user',
-    status: 'active',
-    createdAt: { gte: new Date('2024-01-01') }
+  // Success → Commit
+  // Error → Rollback
+  return c.json({ user, profile });
 }
 ```
 
-## Environment Variables
+### Direct Database Access
 
-```bash
-# .env
-DATABASE_URL=postgresql://user:pass@localhost:5432/mydb
-```
-
-**Connection String Format:**
-```
-postgresql://[user[:password]@][host][:port][/database][?param1=value1&...]
-```
-
-**Examples:**
-```bash
-# Local development
-DATABASE_URL=postgresql://localhost:5432/myapp_dev
-
-# With authentication
-DATABASE_URL=postgresql://user:password@localhost:5432/myapp
-
-# Production (Railway, Render, etc.)
-DATABASE_URL=postgresql://user:pass@containers-us-west-123.railway.app:5432/railway
-
-# With SSL
-DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
-```
-
-## Common Patterns
-
-### CRUD Operations
+For complex queries not suitable for repositories:
 
 ```typescript
-const userRepo = new Repository(users);
+import { getDatabase } from '@spfn/core/db';
+import { eq } from 'drizzle-orm';
 
-// Create single
-const user = await userRepo.save({
-    email: 'john@example.com',
-    name: 'John Doe'
+export async function GET(c: RouteContext) {
+  const db = getDatabase('read'); // Use read replica
+
+  // Complex join query
+  const results = await db
+    .select({
+      post: posts,
+      author: users,
+      commentCount: sql<number>`count(${comments.id})`
+    })
+    .from(posts)
+    .leftJoin(users, eq(posts.authorId, users.id))
+    .leftJoin(comments, eq(comments.postId, posts.id))
+    .groupBy(posts.id, users.id);
+
+  return c.json(results);
+}
+```
+
+### Read/Write Separation
+
+```typescript
+// Read operations automatically use read replica
+const db = getDatabase('read');
+const users = await db.select().from(users);
+
+// Write operations use primary database
+const db = getDatabase('write');
+await db.insert(users).values({ email: 'test@example.com' });
+
+// Repositories handle this automatically
+const userRepo = new UserRepository(users);
+await userRepo.findAll();  // Uses read replica
+await userRepo.create({}); // Uses primary database
+```
+
+## Schema Definition
+
+### Basic Schema
+
+```typescript
+import { pgTable, text, integer } from 'drizzle-orm/pg-core';
+import { id, timestamps } from '@spfn/core/db';
+
+export const users = pgTable('users', {
+  id: id(),
+  email: text('email').notNull().unique(),
+  name: text('name'),
+  age: integer('age'),
+  ...timestamps()
 });
 
-// Create multiple
-const newUsers = await userRepo.saveMany([
-    { email: 'user1@example.com', name: 'User 1' },
-    { email: 'user2@example.com', name: 'User 2' }
-]);
-
-// Read with filters
-const admins = await userRepo.findWhere({ role: 'admin' });
-
-// Paginate
-const page = await userRepo.findPage({
-    pagination: { page: 1, limit: 20 },
-    filters: { status: 'active' },
-    sort: [{ field: 'createdAt', direction: 'desc' }]
-});
-
-// Update
-await userRepo.update(user.id, { name: 'Updated Name' });
-
-// Batch update
-await userRepo.updateWhere(
-    { status: 'inactive' },
-    { status: 'archived' }
-);
-
-// Delete
-await userRepo.delete(user.id);
-
-// Batch delete
-await userRepo.deleteWhere({ status: 'banned' });
+// Type inference
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
 ```
 
 ### Relationships
@@ -301,177 +308,125 @@ await userRepo.deleteWhere({ status: 'banned' });
 ```typescript
 import { foreignKey, optionalForeignKey } from '@spfn/core/db';
 
-// One-to-Many
-export const users = pgTable('users', {
-    id: id(),
-    email: text('email').notNull(),
-    ...timestamps()
-});
-
 export const posts = pgTable('posts', {
-    id: id(),
-    authorId: foreignKey('author', () => users.id),  // Many posts per user
-    title: text('title').notNull(),
-    ...timestamps()
-});
+  id: id(),
+  title: text('title').notNull(),
+  content: text('content'),
 
-// Query with join
-const db = getDb();
-const postsWithAuthors = await db
-    .select({
-        post: posts,
-        author: users
-    })
-    .from(posts)
-    .leftJoin(users, eq(posts.authorId, users.id));
+  // Required relationship - cascade delete
+  authorId: foreignKey('author', () => users.id),
+
+  // Optional relationship
+  categoryId: optionalForeignKey('category', () => categories.id),
+
+  ...timestamps()
+});
 ```
 
-### Atomic Operations
+## Database Migrations
+
+Configure Drizzle Kit for migrations:
 
 ```typescript
-app.bind(contract, Transactional(), async (c) => {
-    const orderRepo = new Repository(orders);
-    const inventoryRepo = new Repository(inventory);
+// drizzle.config.ts
+import { defineConfig } from 'drizzle-kit';
 
-    // Create order
-    const order = await orderRepo.save({
-        userId: c.user.id,
-        total: 100
-    });
-
-    // Update inventory
-    await inventoryRepo.updateWhere(
-        { productId: 1 },
-        { quantity: sql`quantity - 1` }
-    );
-
-    // Both succeed or both rollback
-    return c.json(order);
+export default defineConfig({
+  schema: './src/server/entities/index.ts',  // Export all tables here
+  out: './drizzle',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
 });
 ```
 
-## Advanced Topics
+**Generate and apply migrations:**
 
-### Database Manager
-Manual database lifecycle management for testing and advanced scenarios.
+```bash
+# Generate migration from schema changes
+npx drizzle-kit generate
 
-[Read more →](./docs/database-manager.md)
+# Apply migrations to database
+npx drizzle-kit migrate
+```
 
-**Topics:**
-- `initDatabase(config)` - Manual initialization
-- `setDatabase(db)` - Replace connection
-- `closeDatabase()` - Cleanup (automatically called during graceful shutdown)
-- `getDatabaseInfo()` - Connection metadata
-- Testing patterns
-- Multiple connections
+See [Drizzle Kit Documentation](https://orm.drizzle.team/kit-docs/overview) for advanced migration workflows.
 
-**Graceful Shutdown:**
-When using `startServer()` from `@spfn/core/server`, database connections are automatically closed during graceful shutdown (SIGTERM, SIGINT). No manual cleanup needed in production.
+## Best Practices
 
-### Repository Pattern
-Complete API reference for all repository methods.
+### ✅ Do
 
-[Read more →](./docs/repository.md)
+```typescript
+// 1. Initialize once at startup
+await initDatabase();
 
-**Topics:**
-- Full method documentation
-- Advanced filtering
-- Pagination with metadata
-- Batch operations
-- Type safety
-- Performance tips
+// 2. Use transactions for write operations
+export const middlewares = [Transactional()];
 
-### Transactions
-Automatic transaction management with AsyncLocalStorage.
+// 3. Leverage read replicas via Repository
+class UserRepository extends Repository<typeof users> {
+  async findActive() {
+    return this.select()  // Automatically uses read replica
+      .where(eq(this.table.active, true));
+  }
+}
 
-[Read more →](./docs/transactions.md)
+// 4. Use schema helpers for consistency
+export const users = pgTable('users', {
+  id: id(),
+  ...timestamps()
+});
 
-**Topics:**
-- How transactions work
-- Nested service calls
-- Error handling and rollback
-- Manual transaction control
-- Isolation levels
-- Best practices
+// 5. Let TypeScript infer types
+export type User = typeof users.$inferSelect;
+```
 
-### Schema Helpers
-Reusable column definitions for common patterns.
+### ❌ Don't
 
-[Read more →](./docs/schema-helpers.md)
+```typescript
+// 1. Don't create multiple database instances
+const db1 = drizzle(connection1);  // ❌ Bad
+const db2 = drizzle(connection2);  // ❌ Bad
 
-**Topics:**
-- `id()` - Primary key helper
-- `timestamps()` - Audit columns
-- `foreignKey()` - Required relationships
-- `optionalForeignKey()` - Optional relationships
-- Custom foreign key options
-- Type inference
+// Use getDatabase() instead
+const db = getDatabase('write');   // ✅ Good
 
-## API Reference
+// 2. Don't bypass transaction middleware
+export async function POST(c: RouteContext) {
+  // Missing Transactional() - no automatic rollback
+}
 
-### Core Functions
+// 3. Don't use write db for reads
+const db = getDatabase('write');
+await db.select().from(users);  // ❌ Wastes primary db connection
 
-| Function | Description |
-|----------|-------------|
-| `createDatabaseFromEnv()` | Initialize from `DATABASE_URL` |
-| `getDb()` | Get database instance |
-| `Transactional()` | Transaction middleware |
-| `new Repository(table)` | Create Repository instance |
+// Use read db or Repository
+const userRepo = new UserRepository(users);
+await userRepo.findAll();  // ✅ Uses read replica
 
-### Repository Methods
-
-| Method | Description |
-|--------|-------------|
-| `save(data)` | Create record |
-| `saveMany(data[])` | Batch create |
-| `findById(id)` | Find by primary key |
-| `findAll(options?)` | List all |
-| `findWhere(filters, options?)` | Filter records |
-| `findPage(options)` | Paginate |
-| `update(id, data)` | Update by primary key |
-| `updateWhere(filters, data)` | Batch update |
-| `delete(id)` | Delete by primary key |
-| `deleteWhere(filters)` | Batch delete |
-| `exists(id)` | Check existence |
-| `count(filters?)` | Count records |
-
-### Schema Helpers
-
-| Helper | Description |
-|--------|-------------|
-| `id()` | Primary key (bigserial) |
-| `timestamps()` | createdAt + updatedAt |
-| `foreignKey(name, ref)` | Required foreign key |
-| `optionalForeignKey(name, ref)` | Optional foreign key |
-
-### Database Manager
-
-| Function | Description |
-|----------|-------------|
-| `initDatabase(config)` | Manual init |
-| `getDatabase()` | Get instance |
-| `setDatabase(db)` | Replace connection |
-| `closeDatabase()` | Cleanup |
-| `getDatabaseInfo()` | Connection info |
-
-See [Database Manager docs](./docs/database-manager.md) for details.
+// 4. Don't forget to close in tests
+afterAll(async () => {
+  await closeDatabase();  // ✅ Cleanup
+});
+```
 
 ## Troubleshooting
 
-### "Database not initialized" error
+### Database not initialized
 
-**Cause:** Trying to use `getDb()` before calling `createDatabaseFromEnv()`
+**Error:** `Database not initialized. Call initDatabase() first.`
 
 **Solution:**
 ```typescript
-// Add to app startup (src/server/app.ts)
-import { createDatabaseFromEnv } from '@spfn/core/db';
-createDatabaseFromEnv();
+// Add to app startup
+import { initDatabase } from '@spfn/core/db';
+await initDatabase();
 ```
 
-### "DATABASE_URL not found" error
+### DATABASE_URL not found
 
-**Cause:** Missing environment variable
+**Error:** `No database configuration found`
 
 **Solution:**
 ```bash
@@ -479,54 +434,50 @@ createDatabaseFromEnv();
 DATABASE_URL=postgresql://localhost:5432/mydb
 ```
 
-### Type errors with Repository
-
-**Cause:** TypeScript can't infer table type
-
-**Solution:**
-```typescript
-// ✅ Correct
-const userRepo = new Repository(users);
-
-// ❌ Wrong
-const userRepo: Repository<any> = new Repository(users);
-```
-
 ### Transaction not rolling back
 
-**Cause:** Missing `Transactional()` middleware or swallowed error
+**Cause:** Error caught and not re-thrown
 
 **Solution:**
 ```typescript
-// Ensure middleware is applied
-app.bind(contract, Transactional(), async (c) => {
-    // Don't catch and swallow errors
-    throw error;  // Let it propagate
-});
+export const middlewares = [Transactional()];
+
+export async function POST(c: RouteContext) {
+  try {
+    await userRepo.create(data);
+  } catch (error) {
+    // Log but re-throw to trigger rollback
+    console.error(error);
+    throw error;  // ✅ Must re-throw
+  }
+}
 ```
 
-## Performance Tips
+## API Reference
 
-1. **Use batch operations** - `saveMany()` instead of multiple `save()`
-2. **Paginate large datasets** - Always use `findPage()` for listings
-3. **Filter in database** - Use `findWhere()` instead of filtering in memory
-4. **Use `exists()`** - Don't `findById()` just to check existence
-5. **Use `count()`** - Don't fetch all records to count them
+### Core Functions
 
-## Best Practices
+| Function | Module | Description |
+|----------|--------|-------------|
+| `initDatabase()` | manager | Initialize database from environment |
+| `getDatabase()` | manager | Get database instance |
+| `closeDatabase()` | manager | Close all connections |
+| `Transactional()` | transaction | Transaction middleware |
+| `Repository<T>` | repository | Base repository class |
 
-1. **Initialize once** - Call `createDatabaseFromEnv()` only at app startup
-2. **Use `getDb()` everywhere** - Don't create new connections
-3. **Apply `Transactional()`** - Wrap all write operations in transactions
-4. **Use schema helpers** - `id()`, `timestamps()`, `foreignKey()` for consistency
-5. **Type safety** - Let TypeScript infer types from schema
-6. **Close in tests** - Call `closeDatabase()` in test cleanup
+### Schema Helpers
 
-## Additional Resources
+| Helper | Return Type | Description |
+|--------|-------------|-------------|
+| `id()` | `bigserial` | Auto-incrementing primary key |
+| `timestamps()` | `{ createdAt, updatedAt }` | Timestamp columns |
+| `foreignKey()` | `bigint` | Required foreign key |
+| `optionalForeignKey()` | `bigint \| null` | Nullable foreign key |
 
-- [Database Manager →](./docs/database-manager.md) - Advanced configuration and testing
-- [Repository Pattern →](./docs/repository.md) - Complete API reference
-- [Transactions →](./docs/transactions.md) - Transaction management guide
-- [Schema Helpers →](./docs/schema-helpers.md) - Reusable schema patterns
-- [Drizzle ORM Docs](https://orm.drizzle.team) - Underlying ORM documentation
-- [PostgreSQL Docs](https://www.postgresql.org/docs/) - Database reference
+## Further Reading
+
+- [Manager Documentation](./manager/README.md) - Connection management and configuration
+- [Transaction Documentation](./transaction/README.md) - Transaction patterns and best practices
+- [Repository Documentation](./repository/README.md) - Repository pattern guide
+- [Drizzle ORM Documentation](https://orm.drizzle.team/) - Complete ORM reference
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/) - Database reference

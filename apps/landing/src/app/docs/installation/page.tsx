@@ -95,17 +95,39 @@ NEXT_PUBLIC_API_URL=http://localhost:8790`}</code>
           </pre>
 
           <h2 className="text-2xl font-semibold mb-4">Verify Installation</h2>
-          <p className="mb-4">Create a test endpoint:</p>
+          <p className="mb-4">After running <code>spfn init</code> or <code>spfn create</code>, you'll have:</p>
+
           <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto mb-6">
-            <code>{`npx spfn@alpha generate users`}</code>
+            <code>{`src/server/
+  routes/
+    examples/       # Example routes
+      contract.ts   # API contracts
+      index.ts      # GET /examples
+  entities/         # Database schemas
+    examples.ts
+  drizzle.config.ts
+
+src/lib/
+  api.ts           # Auto-generated type-safe client`}</code>
           </pre>
 
-          <p className="mb-6">This generates:</p>
+          <p className="mb-4">Test the example endpoint:</p>
+          <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto mb-6">
+            <code>{`// app/page.tsx
+import { api } from '@/lib/api'
+
+export default async function Page() {
+  const examples = await api.examples.list()
+  return <div>{examples.length} examples</div>
+}`}</code>
+          </pre>
+
+          <p className="mb-6">You get out of the box:</p>
           <ul className="list-disc pl-6 mb-8">
-            <li>Entity template (<code>entities/users.ts</code>)</li>
-            <li>REST API (5 CRUD endpoints)</li>
-            <li>Repository with pagination</li>
-            <li>Auto-generated client for Next.js</li>
+            <li>File-based routing with auto-discovery</li>
+            <li>Example routes with contracts</li>
+            <li>Database entities and migrations</li>
+            <li>Auto-generated type-safe client for Next.js</li>
           </ul>
 
           <h2 className="text-2xl font-semibold mb-4">Next Steps</h2>

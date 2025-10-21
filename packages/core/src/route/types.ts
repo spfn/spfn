@@ -3,60 +3,16 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { TSchema, Static } from '@sinclair/typebox';
 
 /**
- * Header record type compatible with Hono's c.json headers parameter
+ * File-based Routing System Type Definitions
  */
+
 export type HeaderRecord = Record<string, string | string[]>;
 
-/**
- * File-based Routing System Type Definitions
- *
- * ## Type Flow
- * ```
- * RouteFile (scan)
- *   ↓
- * RouteModule (dynamic import + contracts)
- *   ↓
- * RouteDefinition (transformation + validation)
- *   ↓
- * Hono App (registration)
- * ```
- *
- * ## Core Types
- * 1. **RouteContract**: TypeBox-based contract definition for type safety and validation
- * 2. **RouteContext**: Extended Context for route handlers (params, query, data)
- * 3. **RouteHandler**: Next.js App Router style handler function type
- * 4. **RouteFile**: File system scan result (Scanner output)
- * 5. **RouteModule**: Dynamic import result (Mapper input)
- * 6. **RouteDefinition**: Transformed route definition (Mapper output, Registry storage)
- * 7. **RouteMeta**: Route metadata (auth, tags, description, etc.)
- * 8. **RoutePriority**: Priority enum (STATIC, DYNAMIC, CATCH_ALL)
- * 9. **ScanOptions**: Scanner configuration options
- *
- * ## Applied Improvements
- * ✅ **HTTP Method Types**: Added HttpMethod union type
- * ✅ **Route Grouping**: Added RouteGroup, RouteStats types
- * ✅ **Type Guards**: isRouteFile, isRouteDefinition, isHttpMethod, hasHttpMethodHandlers
- * ✅ **Contract-based Types**: RouteContract, InferContract for end-to-end type safety
- * ✅ **Generic RouteContext**: RouteContext<TContract> for typed params, query, body, response
- */
-
-// ============================================================================
-// Contract Types
-// ============================================================================
-
-/**
- * Route metadata for additional configuration
- */
 export type RouteMeta = {
-    /** Public route (skip authentication) - default: false */
     public?: boolean;
-    /** Skip specific global middlewares by name */
     skipMiddlewares?: string[];
-    /** OpenAPI tags for grouping */
     tags?: string[];
-    /** Route description for documentation */
     description?: string;
-    /** Deprecated flag */
     deprecated?: boolean;
 };
 
@@ -64,24 +20,14 @@ export type RouteMeta = {
  * Route Contract: TypeBox-based type-safe route definition
  *
  * Defines the shape of request/response for a route endpoint
- *
- * Note: params and query are always Record<string, string> from URL,
- * but can be validated and transformed via TypeBox schemas
  */
 export type RouteContract = {
-    /** HTTP method (GET, POST, PUT, etc.) */
     method: HttpMethod;
-    /** Route path (e.g., /users/:id) */
     path: string;
-    /** Path parameters schema (optional) - input is always Record<string, string> */
     params?: TSchema;
-    /** Query parameters schema (optional) - input is always Record<string, string | string[]> */
     query?: TSchema;
-    /** Request body schema (optional) */
     body?: TSchema;
-    /** Response schema (required) */
     response: TSchema;
-    /** Route metadata (optional) */
     meta?: RouteMeta;
 };
 
@@ -109,63 +55,23 @@ export type InferContract<TContract extends RouteContract> = {
  * RouteContext: Route Handler Dedicated Context
  *
  * Generic version with contract-based type inference
- *
- * Convenience methods provided:
- * - params: Path parameters (typed via contract)
- * - query: Query parameters (typed via contract)
- * - data(): Request Body parsing helper (typed via contract)
- * - json(): JSON response helper (typed via contract)
- * - raw: Original Hono Context (advanced features: raw.req, raw.get(), raw.set(), etc.)
  */
 export type RouteContext<TContract extends RouteContract = any> = {
-    /**
-     * Path parameters (typed via contract)
-     */
     params: InferContract<TContract>['params'];
-
-    /**
-     * Query parameters (typed via contract)
-     */
     query: InferContract<TContract>['query'];
-
-    /**
-     * Request Body parsing helper (typed via contract)
-     */
     data(): Promise<InferContract<TContract>['body']>;
-
-    /**
-     * JSON response helper (typed via contract)
-     */
     json(
         data: InferContract<TContract>['response'],
         status?: ContentfulStatusCode,
         headers?: HeaderRecord
     ): Response;
-
-    /**
-     * Original Hono Context (for advanced features when needed)
-     * - raw.req: Request object (headers, cookies, etc.)
-     * - raw.get(): Read context variables (middleware data)
-     * - raw.set(): Set context variables
-     */
     raw: Context;
 };
 
-/**
- * HTTP method type (common REST API methods)
- */
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-/**
- * Next.js App Router Style Route Handler
- *
- * Function that receives RouteContext and returns Response
- */
 export type RouteHandler = (c: RouteContext) => Response | Promise<Response>;
 
-/**
- * HttpMethod type guard
- */
 export function isHttpMethod(value: unknown): value is HttpMethod
 {
     return (

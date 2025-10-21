@@ -246,17 +246,18 @@ export async function POST(c: Context) {
 }
 ```
 
-**Slow Request Detected:**
+**Slow Request (> threshold):**
 ```json
 {
-  "level": "warn",
+  "level": "info",
   "module": "api",
-  "msg": "Slow request detected",
+  "msg": "Request completed",
   "requestId": "req_1759541628739_63j84fp2j",
   "method": "GET",
   "path": "/slow-endpoint",
+  "status": 200,
   "duration": 1250,
-  "threshold": 1000
+  "slow": true
 }
 ```
 
@@ -361,22 +362,26 @@ export default app;
 
 ### Slow Request Detection
 
-Automatically warns when requests exceed threshold:
+Automatically marks slow requests in the completion log:
 
 ```typescript
 app.use('/*', RequestLogger({
-  slowRequestThreshold: 500  // Warn if request takes > 500ms
+  slowRequestThreshold: 500  // Mark if request takes > 500ms
 }));
 ```
 
 **Output:**
 ```json
 {
-  "level": "warn",
-  "msg": "Slow request detected",
+  "level": "info",
+  "module": "api",
+  "msg": "Request completed",
+  "requestId": "req_1759541628739_abc123xyz",
+  "method": "GET",
   "path": "/api/heavy-computation",
+  "status": 200,
   "duration": 1250,
-  "threshold": 500
+  "slow": true
 }
 ```
 

@@ -25,6 +25,7 @@ Hono middleware that automatically wraps route handlers in database transactions
 - ✅ Execution time tracking
 - ✅ Slow transaction warnings
 - ✅ Transaction ID for debugging
+- ✅ Nested Transaction Detection and Logging
 
 **Basic Usage:**
 
@@ -63,6 +64,7 @@ export const middlewares = [
   Transactional({
     slowThreshold: 2000,    // Warn if transaction takes > 2s
     enableLogging: false,   // Disable transaction logs
+    timeout: 60000,         // 60 second timeout for long operations
   })
 ];
 ```
@@ -106,6 +108,12 @@ interface TransactionalOptions {
    * @default true
    */
   enableLogging?: boolean;
+
+  /**
+   * Transaction timeout in milliseconds
+   * @default 30000 (30 seconds) or TRANSACTION_TIMEOUT env var
+   */
+  timeout?: number;
 }
 ```
 
@@ -118,7 +126,7 @@ When `enableLogging: true` (default), the middleware logs:
 {
   "level": "debug",
   "msg": "Transaction started",
-  "txId": "tx_1234567890_abc123",
+  "txId": "tx_a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "route": "POST /api/users"
 }
 ```
@@ -128,7 +136,7 @@ When `enableLogging: true` (default), the middleware logs:
 {
   "level": "debug",
   "msg": "Transaction committed",
-  "txId": "tx_1234567890_abc123",
+  "txId": "tx_a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "route": "POST /api/users",
   "duration": "45ms"
 }
@@ -139,7 +147,7 @@ When `enableLogging: true` (default), the middleware logs:
 {
   "level": "warn",
   "msg": "Slow transaction committed",
-  "txId": "tx_1234567890_abc123",
+  "txId": "tx_a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "route": "POST /api/users",
   "duration": "1250ms",
   "threshold": "1000ms"
@@ -151,7 +159,7 @@ When `enableLogging: true` (default), the middleware logs:
 {
   "level": "error",
   "msg": "Transaction rolled back",
-  "txId": "tx_1234567890_abc123",
+  "txId": "tx_a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "route": "POST /api/users",
   "duration": "120ms",
   "error": "Unique constraint violation",
@@ -344,13 +352,14 @@ export const middlewares = [
 ];
 ```
 
-### Transaction Scope
+### Anti-Pattern (Long Transaction)
 
-Keep transactions as short as possible:
+You should keep transactions as short as possible. Placing network I/O or time-consuming operations within the transaction block can cause the database connection to be held for too long, which may lead to latency for other requests or exhaust the connection pool.
 
 **❌ Bad - Long transaction:**
 ```ts
-export async function POST(c: RouteContext) {
+export async function POST(c: RouteContext)
+{
   // External API call in transaction
   const apiData = await fetch('https://api.example.com').then(r => r.json());
 
@@ -365,7 +374,8 @@ export async function POST(c: RouteContext) {
 
 **✅ Good - Short transaction:**
 ```ts
-export async function POST(c: RouteContext) {
+export async function POST(c: RouteContext)
+{
   // Do external work first
   const apiData = await fetch('https://api.example.com').then(r => r.json());
   await uploadFile(file);
@@ -381,23 +391,29 @@ export async function POST(c: RouteContext) {
 
 ```ts
 /**
- * Transaction database type
+ * Transaction database type (Drizzle PostgresJsDatabase)
  */
 export type TransactionDB = PostgresJsDatabase;
 
 /**
  * Transaction context stored in AsyncLocalStorage
+ * @property tx - Drizzle 트랜잭션 인스턴스
+ * @property txId - 트랜잭션 고유 ID (추적용)
+ * @property level - 중첩 트랜잭션 깊이 (1부터 시작)
  */
 export type TransactionContext = {
-  tx: TransactionDB;
+    tx: TransactionDB;
+    txId: string;
+    level: number;
 };
 
 /**
  * Transaction middleware options
  */
 export interface TransactionalOptions {
-  slowThreshold?: number;
-  enableLogging?: boolean;
+    slowThreshold?: number;
+    enableLogging?: boolean;
+    timeout?: number;
 }
 ```
 
@@ -410,7 +426,7 @@ Planned features:
 - 🔄 **Retry logic** - Auto-retry on deadlock
 - 🔄 **Savepoints** - Nested transaction support
 - 🔄 **Event hooks** - beforeCommit, afterCommit, onRollback
-- 🔄 **Timeout configuration** - Prevent runaway transactions
+- 🔄 **Enhanced Savepoint Support** - Add direct APIs for savepoint management and explicit rollback to savepoint.
 
 ## See Also
 

@@ -4,41 +4,23 @@
  * Wraps route handlers in a database transaction.
  * Auto-commits on success, auto-rolls back on error.
  *
- * ✅ Implemented:
- * - Automatic transaction start/commit/rollback
+ * Features:
+ * - Automatic transaction management (start/commit/rollback)
  * - Transaction propagation via AsyncLocalStorage
+ * - Nested transaction detection and logging
  * - Hono Context error detection
- * - Integration with getDb() helper
- * - Type safety improvements (TransactionDB type, no @ts-ignore)
- * - Transaction logging (start/commit/rollback)
- * - Execution time measurement and slow transaction warnings
- * - Transaction ID tracking (for debugging)
- * - Transaction timeout configuration (with TRANSACTION_TIMEOUT env var support)
- *
- * ⚠️ Needs improvement:
- * - Detect and warn about nested transactions
- *
- * 💡 Future considerations:
- * - Transaction isolation level configuration option
- * - Read-only transaction mode
- * - Transaction retry logic (on deadlock)
- * - Transaction event hooks (beforeCommit, afterCommit, onRollback)
- *
- * 🔗 Related files:
- * - src/utils/async-context.ts (AsyncLocalStorage)
- * - src/db/db-context.ts (getDb helper)
- * - src/utils/__tests__/transaction.test.ts (tests)
- *
- * 📝 Future improvements:
- * - Transaction isolation level setting (withTransaction({ isolationLevel: 'SERIALIZABLE' }))
- * - Nested transaction savepoint support
+ * - Transaction timeout with configurable threshold
+ * - Execution time tracking and slow transaction warnings
+ * - UUID-based transaction IDs for debugging
+ * - PostgreSQL error conversion to custom errors
  */
-import { createMiddleware } from 'hono/factory';
-import { db } from '../index.js';
-import { runWithTransaction, type TransactionDB } from './context.js';
+import { randomUUID } from 'crypto';
 import { logger } from '../../logger';
+import { createMiddleware } from 'hono/factory';
+import { getDatabase } from "../manager";
+import { runWithTransaction, type TransactionDB } from './context.js';
 import { TransactionError } from '../../errors';
-import { fromPostgresError } from '../postgres-errors';
+import { fromPostgresError } from '../postgres-errors.js';
 
 /**
  * Transaction middleware options
@@ -136,8 +118,8 @@ export function Transactional(options: TransactionalOptions = {})
 
     return createMiddleware(async (c, next) =>
     {
-        // Generate transaction ID for debugging
-        const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Generate transaction ID for debugging (using crypto.randomUUID for better uniqueness)
+        const txId = `tx_${randomUUID()}`;
         const startTime = Date.now();
         const route = `${c.req.method} ${c.req.path}`;
 
@@ -148,11 +130,22 @@ export function Transactional(options: TransactionalOptions = {})
 
         try
         {
+            // Get write database instance
+            const writeDb = getDatabase('write');
+            if (!writeDb)
+            {
+                throw new TransactionError(
+                    'Database not initialized. Cannot start transaction.',
+                    500,
+                    { txId, route }
+                );
+            }
+
             // Create transaction promise
-            const transactionPromise = db.transaction(async (tx) =>
+            const transactionPromise = writeDb.transaction(async (tx: TransactionDB) =>
             {
                 // Store transaction in AsyncLocalStorage
-                await runWithTransaction(tx as TransactionDB, async () =>
+                await runWithTransaction(tx, txId, async () =>
                 {
                     // Execute handler
                     await next();

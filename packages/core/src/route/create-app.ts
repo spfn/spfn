@@ -9,27 +9,7 @@ import type { MiddlewareHandler } from 'hono';
 import { bind } from './bind.js';
 import type { RouteContract, RouteHandler } from './types.js';
 
-/**
- * Extended Hono app with bind() method
- */
 export type SPFNApp = Hono & {
-    /**
-     * Bind a contract to a handler with optional middlewares
-     *
-     * @example
-     * ```ts
-     * // Handler only
-     * app.bind(getUserContract, async (c) => {
-     *     return c.json({ id: c.params.id });
-     * });
-     *
-     * // With middlewares
-     * app.bind(createUserContract, [authMiddleware, logMiddleware], async (c) => {
-     *     const body = await c.data();
-     *     return c.json({ id: '123' });
-     * });
-     * ```
-     */
     bind<TContract extends RouteContract>(
         contract: TContract,
         handler: RouteHandler
@@ -41,11 +21,6 @@ export type SPFNApp = Hono & {
         handler: RouteHandler
     ): void;
 
-    /**
-     * Contract metadata storage
-     * Map<"METHOD /path", RouteMeta>
-     * @internal
-     */
     _contractMetas?: Map<string, RouteContract['meta']>;
 };
 
@@ -53,36 +28,21 @@ export type SPFNApp = Hono & {
  * Create SPFN app instance
  *
  * Wraps Hono with contract-based routing support
- *
- * @example
- * ```ts
- * import { createApp } from '@spfn/core/route';
- * import { getUserContract, createUserContract } from '@/server/contracts/users';
- *
- * const app = createApp();
- *
- * // Register routes using contracts
- * app.bind(getUserContract, async (c) => {
- *     return c.json({ id: c.params.id });
- * });
- *
- * app.bind(createUserContract, [authMiddleware], async (c) => {
- *     const body = await c.data();
- *     return c.json({ id: '123' });
- * });
- *
- * export default app;
- * ```
  */
 export function createApp(): SPFNApp
 {
     const hono = new Hono();
-
-    // Add bind method
     const app = hono as SPFNApp;
 
-    // Initialize contract metadata storage
     app._contractMetas = new Map();
+
+    const methodMap = new Map<string, (path: string, handlers: any[]) => void>([
+        ['get', (path, handlers) => hono.get(path, ...handlers)],
+        ['post', (path, handlers) => hono.post(path, ...handlers)],
+        ['put', (path, handlers) => hono.put(path, ...handlers)],
+        ['patch', (path, handlers) => hono.patch(path, ...handlers)],
+        ['delete', (path, handlers) => hono.delete(path, ...handlers)],
+    ]);
 
     app.bind = function <TContract extends RouteContract>(
         contract: TContract,
@@ -92,47 +52,28 @@ export function createApp(): SPFNApp
         const method = contract.method.toLowerCase();
         const path = contract.path;
 
-        // Extract middlewares and handler
         const [middlewares, handler] = args.length === 1
             ? [[], args[0]]
             : [args[0], args[1]];
 
-        // Store contract metadata for auto-loader
         if (contract.meta)
         {
             const key = `${contract.method} ${path}`;
             app._contractMetas!.set(key, contract.meta);
         }
 
-        // Register with Hono using bind() for validation
         const boundHandler = bind(contract, handler);
-
-        // Build handler array
         const handlers = middlewares.length > 0
             ? [...middlewares, boundHandler]
             : [boundHandler];
 
-        // Register based on HTTP method
-        switch (method)
+        const registerMethod = methodMap.get(method);
+        if (!registerMethod)
         {
-            case 'get':
-                hono.get(path, ...handlers);
-                break;
-            case 'post':
-                hono.post(path, ...handlers);
-                break;
-            case 'put':
-                hono.put(path, ...handlers);
-                break;
-            case 'patch':
-                hono.patch(path, ...handlers);
-                break;
-            case 'delete':
-                hono.delete(path, ...handlers);
-                break;
-            default:
-                throw new Error(`Unsupported HTTP method: ${contract.method}`);
+            throw new Error(`Unsupported HTTP method: ${contract.method}`);
         }
+
+        registerMethod(path, handlers);
     };
 
     return app;

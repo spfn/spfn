@@ -20,6 +20,8 @@ describe('ContractClient', () => {
     describe('Basic Requests', () => {
         it('should make a GET request with type-safe response', async () => {
             const contract = {
+                path: '/users',
+                method: 'GET',
                 response: Type.Object({
                     id: Type.Number(),
                     name: Type.String(),
@@ -36,7 +38,7 @@ describe('ContractClient', () => {
                 fetch: mockFetch,
             });
 
-            const result = await client.call('/users', contract);
+            const result = await client.call(contract);
 
             expect(mockFetch).toHaveBeenCalledWith(
                 'http://localhost:4000/users',
@@ -47,6 +49,8 @@ describe('ContractClient', () => {
 
         it('should make a POST request with body', async () => {
             const contract = {
+                path: '/users',
+                method: 'POST',
                 body: Type.Object({
                     name: Type.String(),
                     email: Type.String(),
@@ -68,7 +72,7 @@ describe('ContractClient', () => {
                 fetch: mockFetch,
             });
 
-            const result = await client.call('/users', contract, {
+            const result = await client.call(contract, {
                 body: { name: 'John', email: 'john@example.com' },
             });
 
@@ -87,6 +91,8 @@ describe('ContractClient', () => {
     describe('Path Parameters', () => {
         it('should replace path parameters correctly', async () => {
             const contract = {
+                path: '/users/:id',
+                method: 'GET',
                 params: Type.Object({
                     id: Type.String(),
                 }),
@@ -106,7 +112,7 @@ describe('ContractClient', () => {
                 fetch: mockFetch,
             });
 
-            await client.call('/users/:id', contract, {
+            await client.call(contract, {
                 params: { id: '123' },
             });
 
@@ -118,6 +124,8 @@ describe('ContractClient', () => {
 
         it('should handle multiple path parameters', async () => {
             const contract = {
+                path: '/users/:userId/posts/:postId',
+                method: 'GET',
                 params: Type.Object({
                     userId: Type.String(),
                     postId: Type.String(),
@@ -137,7 +145,7 @@ describe('ContractClient', () => {
                 fetch: mockFetch,
             });
 
-            await client.call('/users/:userId/posts/:postId', contract, {
+            await client.call(contract, {
                 params: { userId: '123', postId: '456' },
             });
 
@@ -151,6 +159,8 @@ describe('ContractClient', () => {
     describe('Query Parameters', () => {
         it('should append query parameters to URL', async () => {
             const contract = {
+                path: '/users',
+                method: 'GET',
                 query: Type.Object({
                     page: Type.String(),
                     limit: Type.String(),
@@ -170,7 +180,7 @@ describe('ContractClient', () => {
                 fetch: mockFetch,
             });
 
-            await client.call('/users', contract, {
+            await client.call(contract, {
                 query: { page: '1', limit: '10' },
             });
 
@@ -182,6 +192,8 @@ describe('ContractClient', () => {
 
         it('should handle array query parameters', async () => {
             const contract = {
+                path: '/posts',
+                method: 'GET',
                 query: Type.Object({
                     tags: Type.Array(Type.String()),
                 }),
@@ -200,7 +212,7 @@ describe('ContractClient', () => {
                 fetch: mockFetch,
             });
 
-            await client.call('/posts', contract, {
+            await client.call(contract, {
                 query: { tags: ['javascript', 'typescript'] } as any,
             });
 
@@ -213,6 +225,8 @@ describe('ContractClient', () => {
     describe('Error Handling', () => {
         it('should throw ApiClientError on non-OK response', async () => {
             const contract = {
+                path: '/users/999',
+                method: 'GET',
                 response: Type.Object({ id: Type.Number() }),
             } as const satisfies RouteContract;
 
@@ -228,12 +242,14 @@ describe('ContractClient', () => {
                 fetch: mockFetch,
             });
 
-            await expect(client.call('/users/999', contract)).rejects.toThrow(ApiClientError);
-            await expect(client.call('/users/999', contract)).rejects.toThrow('GET /users/999 failed: 404 Not Found');
+            await expect(client.call(contract)).rejects.toThrow(ApiClientError);
+            await expect(client.call(contract)).rejects.toThrow('GET /users/999 failed: 404 Not Found');
         });
 
         it('should handle network errors', async () => {
             const contract = {
+                path: '/users',
+                method: 'GET',
                 response: Type.Object({ id: Type.Number() }),
             } as const satisfies RouteContract;
 
@@ -244,8 +260,8 @@ describe('ContractClient', () => {
                 fetch: mockFetch,
             });
 
-            await expect(client.call('/users', contract)).rejects.toThrow(ApiClientError);
-            await expect(client.call('/users', contract)).rejects.toThrow('network error');
+            await expect(client.call(contract)).rejects.toThrow(ApiClientError);
+            await expect(client.call(contract)).rejects.toThrow('Network error: Network error');
         });
 
         // Timeout test removed - difficult to test reliably with mocks
@@ -254,6 +270,8 @@ describe('ContractClient', () => {
     describe('Configuration', () => {
         it('should use default headers', async () => {
             const contract = {
+                path: '/users',
+                method: 'GET',
                 response: Type.Object({ id: Type.Number() }),
             } as const satisfies RouteContract;
 
@@ -270,7 +288,7 @@ describe('ContractClient', () => {
                 },
             });
 
-            await client.call('/users', contract);
+            await client.call(contract);
 
             expect(mockFetch).toHaveBeenCalledWith(
                 'http://localhost:4000/users',
@@ -284,6 +302,8 @@ describe('ContractClient', () => {
 
         it('should merge request-specific headers', async () => {
             const contract = {
+                path: '/users',
+                method: 'GET',
                 response: Type.Object({ id: Type.Number() }),
             } as const satisfies RouteContract;
 
@@ -300,7 +320,7 @@ describe('ContractClient', () => {
                 },
             });
 
-            await client.call('/users', contract, {
+            await client.call(contract, {
                 headers: {
                     'X-Request': 'request',
                 },
@@ -319,6 +339,8 @@ describe('ContractClient', () => {
 
         it('should create new client with withConfig', async () => {
             const contract = {
+                path: '/users',
+                method: 'GET',
                 response: Type.Object({ id: Type.Number() }),
             } as const satisfies RouteContract;
 
@@ -338,7 +360,7 @@ describe('ContractClient', () => {
                 },
             });
 
-            await authClient.call('/users', contract);
+            await authClient.call(contract);
 
             expect(mockFetch).toHaveBeenCalledWith(
                 'http://localhost:4000/users',
@@ -354,6 +376,8 @@ describe('ContractClient', () => {
     describe('Complex Scenarios', () => {
         it('should handle request with params, query, and body', async () => {
             const contract = {
+                path: '/users/:id',
+                method: 'POST',
                 params: Type.Object({
                     id: Type.String(),
                 }),
@@ -378,7 +402,7 @@ describe('ContractClient', () => {
                 fetch: mockFetch,
             });
 
-            await client.call('/users/:id', contract, {
+            await client.call(contract, {
                 params: { id: '123' },
                 query: { notify: 'true' },
                 body: { name: 'Updated Name' },
@@ -395,6 +419,8 @@ describe('ContractClient', () => {
 
         it('should handle empty query gracefully', async () => {
             const contract = {
+                path: '/users',
+                method: 'GET',
                 response: Type.Object({ id: Type.Number() }),
             } as const satisfies RouteContract;
 
@@ -408,7 +434,7 @@ describe('ContractClient', () => {
                 fetch: mockFetch,
             });
 
-            await client.call('/users', contract, {
+            await client.call(contract, {
                 query: {},
             });
 

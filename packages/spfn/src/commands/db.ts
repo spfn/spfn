@@ -1,32 +1,37 @@
 /**
- * Database management commands
- * Wraps Drizzle Kit with auto-generated config
+ * Database Management Commands
+ *
+ * Wraps Drizzle Kit commands with auto-generated config
  */
 
+import { Command } from 'commander';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import chalk from 'chalk';
 import ora from 'ora';
+import prompts from 'prompts';
 
 const execAsync = promisify(exec);
 
 /**
- * Generate temporary drizzle.config.ts and run command
+ * Generate temporary drizzle.config.ts and run drizzle-kit command
  */
 async function runDrizzleCommand(command: string): Promise<void>
 {
+    // Load environment variables first
+    const { loadEnvironment } = await import('@spfn/core/env');
+    loadEnvironment({ debug: false });
+
     const hasUserConfig = existsSync('./drizzle.config.ts');
     const tempConfigPath = `./drizzle.config.${process.pid}.${Date.now()}.temp.ts`;
 
     try
     {
-        // Use user's config if exists, otherwise generate temp config
         const configPath = hasUserConfig ? './drizzle.config.ts' : tempConfigPath;
 
         if (!hasUserConfig)
         {
-            // Check if DATABASE_URL exists
             if (!process.env.DATABASE_URL)
             {
                 console.error(chalk.red('❌ DATABASE_URL not found in environment'));
@@ -66,72 +71,77 @@ async function runDrizzleCommand(command: string): Promise<void>
 }
 
 /**
- * Generate database migrations
+ * Helper: Run drizzle command with spinner
  */
-export async function dbGenerate(): Promise<void>
+async function runWithSpinner(
+    spinnerText: string,
+    command: string,
+    successMessage: string,
+    failMessage: string
+): Promise<void>
 {
-    const spinner = ora('Generating database migrations...').start();
+    const spinner = ora(spinnerText).start();
 
     try
     {
         spinner.stop();
-        await runDrizzleCommand('generate');
-        console.log(chalk.green('✅ Migrations generated successfully'));
+        await runDrizzleCommand(command);
+        console.log(chalk.green(`✅ ${successMessage}`));
     }
     catch (error)
     {
-        spinner.fail('Failed to generate migrations');
+        spinner.fail(failMessage);
         console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
         process.exit(1);
     }
 }
 
 /**
- * Push database schema changes
+ * Generate database migrations from schema changes
  */
-export async function dbPush(): Promise<void>
+async function dbGenerate(): Promise<void>
 {
-    const spinner = ora('Pushing schema changes to database...').start();
-
-    try
-    {
-        spinner.stop();
-        await runDrizzleCommand('push');
-        console.log(chalk.green('✅ Schema pushed successfully'));
-    }
-    catch (error)
-    {
-        spinner.fail('Failed to push schema');
-        console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
-        process.exit(1);
-    }
+    await runWithSpinner(
+        'Generating database migrations...',
+        'generate',
+        'Migrations generated successfully',
+        'Failed to generate migrations'
+    );
 }
 
 /**
- * Run database migrations
+ * Push schema changes directly to database (no migrations)
  */
-export async function dbMigrate(): Promise<void>
+async function dbPush(): Promise<void>
 {
-    const spinner = ora('Running database migrations...').start();
-
-    try
-    {
-        spinner.stop();
-        await runDrizzleCommand('migrate');
-        console.log(chalk.green('✅ Migrations applied successfully'));
-    }
-    catch (error)
-    {
-        spinner.fail('Failed to run migrations');
-        console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
-        process.exit(1);
-    }
+    await runWithSpinner(
+        'Pushing schema changes to database...',
+        'push',
+        'Schema pushed successfully',
+        'Failed to push schema'
+    );
 }
 
 /**
- * Open Drizzle Studio
+ * Run pending migrations
+ *
+ * This command applies migrations created by `spfn db generate`.
+ * Use this in both development and production environments.
  */
-export async function dbStudio(port: number = 4983): Promise<void>
+async function dbMigrate(): Promise<void>
+{
+    await runWithSpinner(
+        'Running database migrations...',
+        'migrate',
+        'Migrations applied successfully',
+        'Failed to run migrations'
+    );
+}
+
+/**
+ * Open Drizzle Studio (database GUI)
+ */
+async function dbStudio(port: number = 4983): Promise<void>
 {
     console.log(chalk.blue('🎨 Opening Drizzle Studio...\n'));
 
@@ -150,31 +160,36 @@ export async function dbStudio(port: number = 4983): Promise<void>
 /**
  * Drop all database tables (dangerous!)
  */
-export async function dbDrop(): Promise<void>
+async function dbDrop(): Promise<void>
 {
     console.log(chalk.yellow('⚠️  WARNING: This will drop all tables in your database!'));
 
-    // TODO: Add confirmation prompt
-    const spinner = ora('Dropping all tables...').start();
+    // Confirmation prompt
+    const { confirm } = await prompts({
+        type: 'confirm',
+        name: 'confirm',
+        message: 'Are you sure you want to drop all tables?',
+        initial: false,
+    });
 
-    try
+    if (!confirm)
     {
-        spinner.stop();
-        await runDrizzleCommand('drop');
-        console.log(chalk.green('✅ All tables dropped'));
+        console.log(chalk.gray('Cancelled.'));
+        process.exit(0);
     }
-    catch (error)
-    {
-        spinner.fail('Failed to drop tables');
-        console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
-        process.exit(1);
-    }
+
+    await runWithSpinner(
+        'Dropping all tables...',
+        'drop',
+        'All tables dropped',
+        'Failed to drop tables'
+    );
 }
 
 /**
  * Check database connection
  */
-export async function dbCheck(): Promise<void>
+async function dbCheck(): Promise<void>
 {
     const spinner = ora('Checking database connection...').start();
 
@@ -190,3 +205,42 @@ export async function dbCheck(): Promise<void>
         process.exit(1);
     }
 }
+
+/**
+ * Database command group
+ */
+export const dbCommand = new Command('db')
+    .description('Database management commands (wraps Drizzle Kit)');
+
+dbCommand
+    .command('generate')
+    .alias('g')
+    .description('Generate database migrations from schema changes')
+    .action(dbGenerate);
+
+dbCommand
+    .command('push')
+    .description('Push schema changes directly to database (no migrations)')
+    .action(dbPush);
+
+dbCommand
+    .command('migrate')
+    .alias('m')
+    .description('Run pending migrations')
+    .action(dbMigrate);
+
+dbCommand
+    .command('studio')
+    .description('Open Drizzle Studio (database GUI)')
+    .option('-p, --port <port>', 'Studio port', '4983')
+    .action((options) => dbStudio(Number(options.port)));
+
+dbCommand
+    .command('drop')
+    .description('Drop all database tables (⚠️  dangerous!)')
+    .action(dbDrop);
+
+dbCommand
+    .command('check')
+    .description('Check database connection')
+    .action(dbCheck);

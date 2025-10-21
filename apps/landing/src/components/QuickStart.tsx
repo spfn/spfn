@@ -5,8 +5,7 @@ export default function QuickStart()
     const setupOptions = [
         {
             badge: 'Recommended',
-            title: 'Option 1: Create New Project',
-            code: `# Create new project with SPFN + Next.js + TypeScript + Tailwind + SVGR
+            title: 'Option 1: Create New Project', code: `# Create new project with SPFN + Next.js + TypeScript + Tailwind
 npx spfn@alpha create my-app
 cd my-app
 
@@ -26,6 +25,14 @@ npm run spfn:dev`,
             title: 'Option 2: Add to Existing Next.js Project',
             code: `cd your-nextjs-project
 npx spfn@alpha init
+
+# Start databases
+docker compose up -d
+
+# Copy environment variables
+cp .env.local.example .env.local
+
+# Start dev server
 npm run spfn:dev`,
             language: 'bash',
             description: 'Add SPFN backend to existing Next.js app',
@@ -35,30 +42,64 @@ npm run spfn:dev`,
     const steps = [
         {
             number: '1',
-            title: 'Generate boilerplate',
-            code: `npx spfn@alpha generate users`,
+            title: 'What You Get',
+            code: `src/server/
+  routes/
+    examples/       # Example routes
+      contract.ts   # API contracts
+      index.ts      # GET /examples
+  entities/         # Database schemas
+    examples.ts
+  drizzle.config.ts
+
+src/lib/
+  api.ts           # Auto-generated type-safe client`,
             language: 'bash',
             created: [
-                'Entity template (entities/users.ts)',
-                'Type-safe REST API (5 CRUD endpoints)',
-                'Repository with pagination',
+                'File-based routing with auto-discovery',
+                'Example routes with contracts',
+                'Database entities and migrations',
                 'Auto-generated client for Next.js',
             ],
-            description: 'The magic ✨',
+            description: 'Out of the box',
         },
         {
             number: '2',
+            title: 'Create Your First Route',
+            code: `# Example route structure
+src/server/routes/
+  users/
+    contract.ts    # Define API contract
+    index.ts       # GET /users
+    [id]/
+      index.ts     # GET /users/:id`,
+            language: 'bash',
+            description: 'File-based routing',
+        },
+        {
+            number: '3',
+            title: 'Define Database Schema',
+            code: `# Create/edit entity
+src/server/entities/users.ts
+
+# Generate migration
+npx spfn@alpha db generate
+
+# Apply migration
+npx spfn@alpha db migrate`,
+            language: 'bash',
+            description: 'Type-safe database',
+        },
+        {
+            number: '4',
             title: 'Use in Next.js',
             code: `// app/page.tsx
 import { api } from '@/lib/api'
 
 export default async function Page() {
-  const users = await api.users.list()
-  const user = await api.users.getById({
-    params: { id: '123' }
-  })
+  const examples = await api.examples.list()
 
-  return <div>{user.name}</div>
+  return <div>{examples.length} examples</div>
   //           ^ Fully typed!
 }`,
             language: 'typescript',
@@ -70,7 +111,7 @@ export default async function Page() {
         <section id="quick-start" className="py-24 sm:py-32 bg-gray-50 dark:bg-gray-900">
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
                 <div className="mx-auto max-w-2xl lg:text-center">
-                    <h2 className="text-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
+                    <h2 className="typo-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
                         Quick Start
                     </h2>
                     <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
@@ -173,7 +214,7 @@ export default async function Page() {
                     </div>
 
                     <div className="mt-10 rounded-2xl bg-blue-50 dark:bg-blue-950/20 p-6 ring-1 ring-blue-100 dark:ring-blue-900">
-                        <h4 className="text-base font-semibold text-gray-900 dark:text-white">
+                        <h4 className="typo-base font-semibold text-gray-900 dark:text-white">
                             Next: Customize your entity
                         </h4>
                         <CodeBlock

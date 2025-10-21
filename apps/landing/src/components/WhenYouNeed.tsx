@@ -34,7 +34,7 @@ export default function WhenYouNeed()
         <section className="py-24 sm:py-32 bg-white dark:bg-gray-950">
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
                 <div className="mx-auto max-w-2xl lg:text-center">
-                    <h2 className="text-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
+                    <h2 className="typo-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
                         When You Need <span className="font-sansation font-semibold italic">SPFN</span>
                     </h2>
                     <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
@@ -57,7 +57,7 @@ export default function WhenYouNeed()
                                         <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
                                             { useCase.title }
                                         </h3>
-                                        <p className="text-base leading-7 text-gray-700 dark:text-gray-300">
+                                        <p className="typo-base leading-7 text-gray-700 dark:text-gray-300">
                                             { useCase.description }
                                         </p>
                                     </div>
@@ -98,7 +98,7 @@ export default function WhenYouNeed()
                         <p className="text-sm text-gray-600 dark:text-gray-400">
                             If you just need simple API routes, Next.js is enough.
                         </p>
-                        <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">
+                        <p className="mt-2 typo-base font-semibold text-gray-900 dark:text-white">
                             If you need a real backend, Next.js + <span className="font-sansation font-semibold italic">SPFN</span>.
                         </p>
                     </div>

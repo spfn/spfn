@@ -458,13 +458,6 @@ type RouteContext<TContract> = {
     // Query parameters (typed, supports arrays)
     query: InferContract<TContract>['query'];
 
-    // Pageable object (from QueryParser middleware)
-    pageable: {
-        filters?: Record<string, any>;
-        sort?: Array<{ field: string; direction: 'asc' | 'desc' }>;
-        pagination?: { page: number; limit: number };
-    };
-
     // Request body parser (validated)
     data(): Promise<InferContract<TContract>['body']>;
 
@@ -492,9 +485,6 @@ app.bind(createUserContract, async (c) => {
 
     // Validated body
     const userData = await c.data();
-
-    // Pageable from middleware
-    const { filters, sort, pagination } = c.pageable;
 
     // Typed response
     return c.json({ user: newUser });
@@ -742,7 +732,6 @@ Route handler context with contract-based type inference.
 type RouteContext<TContract extends RouteContract> = {
     params: InferContract<TContract>['params'];
     query: InferContract<TContract>['query'];
-    pageable: { filters?, sort?, pagination? };
     data(): Promise<InferContract<TContract>['body']>;
     json(
         data: InferContract<TContract>['response'],

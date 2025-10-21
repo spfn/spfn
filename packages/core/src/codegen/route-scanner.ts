@@ -36,6 +36,7 @@ export function groupByResource(mappings: RouteContractMapping[]): Record<string
  * - /users → users
  * - /users/:id → users
  * - /users/:id/posts → usersPosts
+ * - /videos/upload-and-analyze → videosUploadAndAnalyze
  */
 function extractResourceName(path: string): string
 {
@@ -58,17 +59,64 @@ function extractResourceName(path: string): string
     {
         return 'root';
     }
+
+    // Convert first segment (handle hyphens)
+    const first = toCamelCase(staticSegments[0], false);
+
     if (staticSegments.length === 1)
     {
-        return staticSegments[0];
+        return first;
     }
 
-    // Convert to camelCase: users/posts → usersPosts
-    const result: string[] = [staticSegments[0]];
+    // Convert to camelCase: users/posts → usersPosts, videos/upload-and-analyze → videosUploadAndAnalyze
+    const result: string[] = [first];
     for (let i = 1; i < staticSegments.length; i++)
     {
         const seg = staticSegments[i];
-        result.push(seg.charAt(0).toUpperCase() + seg.slice(1));
+        result.push(toCamelCase(seg, true));
+    }
+
+    return result.join('');
+}
+
+/**
+ * Convert string to camelCase, handling hyphens
+ *
+ * @param str - Input string
+ * @param capitalize - Capitalize first letter
+ * @returns camelCase string
+ *
+ * Examples:
+ * - toCamelCase('upload-and-analyze', true) → 'UploadAndAnalyze'
+ * - toCamelCase('upload-and-analyze', false) → 'uploadAndAnalyze'
+ * - toCamelCase('users', false) → 'users'
+ */
+function toCamelCase(str: string, capitalize: boolean): string
+{
+    // Split by hyphen or underscore
+    const parts = str.split(/[-_]/);
+
+    if (parts.length === 1)
+    {
+        // No hyphens/underscores
+        return capitalize
+            ? str.charAt(0).toUpperCase() + str.slice(1)
+            : str;
+    }
+
+    // Convert to camelCase
+    const result: string[] = [];
+    for (let i = 0; i < parts.length; i++)
+    {
+        const part = parts[i];
+        if (i === 0 && !capitalize)
+        {
+            result.push(part);
+        }
+        else
+        {
+            result.push(part.charAt(0).toUpperCase() + part.slice(1));
+        }
     }
 
     return result.join('');

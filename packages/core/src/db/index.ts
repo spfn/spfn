@@ -6,9 +6,6 @@
 
 // Manager (DB Instance, Factory, Connection)
 export {
-    db,
-    getRawDb,
-    getDb,
     createDatabaseFromEnv,
     initDatabase,
     getDatabase,
@@ -17,11 +14,9 @@ export {
     getDatabaseInfo,
     createDatabaseConnection,
     checkConnection,
-    WrappedDb,
 } from './manager';
 
 export type {
-    DbConnectionType,
     DatabaseClients,
     PoolConfig,
     RetryConfig,
@@ -30,26 +25,6 @@ export type {
 // Drizzle Config Generator
 export { getDrizzleConfig, detectDialect, generateDrizzleConfigFile } from './manager/config-generator.js';
 export type { DrizzleConfigOptions } from './manager/config-generator.js';
-
-// Repository Pattern
-export {
-    Repository,
-    getRepository,
-    clearRepositoryCache,
-    getRepositoryCacheSize,
-    getScopedRepository,
-    withRepositoryScope,
-    RepositoryScope,
-    getScopedCacheSize,
-    isInRepositoryScope,
-    QueryBuilder,
-    getTableName,
-} from './repository';
-
-export type {
-    Pageable,
-    Page,
-} from './repository';
 
 // Schema Helpers
 export { id, timestamps, foreignKey, optionalForeignKey } from './schema';

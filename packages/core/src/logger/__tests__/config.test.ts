@@ -2,7 +2,9 @@
  * Logger Configuration Tests
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdirSync, rmSync, existsSync } from 'fs';
+import { join } from 'path';
 import {
     isFileLoggingEnabled,
     getDefaultLogLevel,
@@ -10,6 +12,7 @@ import {
     getFileConfig,
     getSlackConfig,
     getEmailConfig,
+    validateConfig,
 } from '../config';
 
 describe('Logger Configuration', () =>
@@ -393,6 +396,155 @@ describe('Logger Configuration', () =>
 
             expect(config?.smtpUser).toBe('smtp-user');
             expect(config?.smtpPassword).toBe('smtp-password');
+        });
+    });
+
+    describe('validateConfig', () =>
+    {
+        const testLogDir = join(process.cwd(), 'test-logs');
+
+        afterEach(() =>
+        {
+            // Cleanup test directory
+            if (existsSync(testLogDir))
+            {
+                rmSync(testLogDir, { recursive: true, force: true });
+            }
+        });
+
+        it('should pass validation with default config', () =>
+        {
+            process.env.NODE_ENV = 'development';
+            delete process.env.LOGGER_FILE_ENABLED;
+
+            expect(() => validateConfig()).not.toThrow();
+        });
+
+        it('should fail when file logging is enabled but LOG_DIR is not set', () =>
+        {
+            process.env.LOGGER_FILE_ENABLED = 'true';
+            delete process.env.LOG_DIR;
+
+            expect(() => validateConfig()).toThrow(/LOG_DIR environment variable is required/);
+        });
+
+        it('should create log directory if it does not exist', () =>
+        {
+            process.env.LOGGER_FILE_ENABLED = 'true';
+            process.env.LOG_DIR = testLogDir;
+
+            expect(() => validateConfig()).not.toThrow();
+            expect(existsSync(testLogDir)).toBe(true);
+        });
+
+        it('should fail when log directory is not writable', () =>
+        {
+            process.env.LOGGER_FILE_ENABLED = 'true';
+            process.env.LOG_DIR = '/root/test-logs'; // Typically not writable
+
+            expect(() => validateConfig()).toThrow();
+        });
+
+        it('should fail when Slack webhook URL is invalid', () =>
+        {
+            process.env.SLACK_WEBHOOK_URL = 'http://invalid.com/webhook';
+
+            expect(() => validateConfig()).toThrow(/Invalid SLACK_WEBHOOK_URL/);
+        });
+
+        it('should pass when Slack webhook URL is valid', () =>
+        {
+            process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX';
+
+            expect(() => validateConfig()).not.toThrow();
+        });
+
+        it('should fail when email config is incomplete (only SMTP_HOST set)', () =>
+        {
+            process.env.SMTP_HOST = 'smtp.example.com';
+            delete process.env.SMTP_PORT;
+            delete process.env.EMAIL_FROM;
+            delete process.env.EMAIL_TO;
+
+            expect(() => validateConfig()).toThrow(/Email transport configuration incomplete/);
+        });
+
+        it('should fail when SMTP_PORT is invalid', () =>
+        {
+            process.env.SMTP_HOST = 'smtp.example.com';
+            process.env.SMTP_PORT = 'invalid';
+            process.env.EMAIL_FROM = 'noreply@example.com';
+            process.env.EMAIL_TO = 'admin@example.com';
+
+            expect(() => validateConfig()).toThrow(/Invalid SMTP_PORT/);
+        });
+
+        it('should fail when EMAIL_FROM format is invalid', () =>
+        {
+            process.env.SMTP_HOST = 'smtp.example.com';
+            process.env.SMTP_PORT = '587';
+            process.env.EMAIL_FROM = 'invalid-email';
+            process.env.EMAIL_TO = 'admin@example.com';
+
+            expect(() => validateConfig()).toThrow(/Invalid EMAIL_FROM format/);
+        });
+
+        it('should fail when EMAIL_TO contains invalid email', () =>
+        {
+            process.env.SMTP_HOST = 'smtp.example.com';
+            process.env.SMTP_PORT = '587';
+            process.env.EMAIL_FROM = 'noreply@example.com';
+            process.env.EMAIL_TO = 'admin@example.com, invalid-email';
+
+            expect(() => validateConfig()).toThrow(/Invalid email address in EMAIL_TO/);
+        });
+
+        it('should pass when all email config is valid', () =>
+        {
+            process.env.SMTP_HOST = 'smtp.example.com';
+            process.env.SMTP_PORT = '587';
+            process.env.EMAIL_FROM = 'noreply@example.com';
+            process.env.EMAIL_TO = 'admin1@example.com, admin2@example.com';
+
+            expect(() => validateConfig()).not.toThrow();
+        });
+
+        it('should warn when NODE_ENV is not set', () =>
+        {
+            delete process.env.NODE_ENV;
+
+            const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+            validateConfig();
+
+            expect(stderrSpy).toHaveBeenCalledWith(
+                expect.stringContaining('NODE_ENV is not set')
+            );
+
+            stderrSpy.mockRestore();
+        });
+
+        it('should warn when NODE_ENV is unknown', () =>
+        {
+            process.env.NODE_ENV = 'staging';
+
+            const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+            validateConfig();
+
+            expect(stderrSpy).toHaveBeenCalledWith(
+                expect.stringContaining('Unknown NODE_ENV')
+            );
+
+            stderrSpy.mockRestore();
+        });
+
+        it('should wrap errors with logger prefix', () =>
+        {
+            process.env.LOGGER_FILE_ENABLED = 'true';
+            delete process.env.LOG_DIR;
+
+            expect(() => validateConfig()).toThrow(/\[Logger\] Configuration validation failed/);
         });
     });
 });

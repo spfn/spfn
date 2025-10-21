@@ -3,28 +3,33 @@
  * Supports: Single primary, Primary + Replica
  */
 
-import { config } from 'dotenv';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import type { Sql } from 'postgres';
 
-import { createDatabaseConnection } from './connection.js';
-import { getPoolConfig, getRetryConfig, type PoolConfig } from './config.js';
 import { logger } from '../../logger';
+import { loadEnvironment } from '../../env';
+import { createDatabaseConnection } from './connection.js';
+import { getPoolConfig, getRetryConfig, type DatabaseOptions, type DatabaseClients, type PoolConfig, type RetryConfig } from './config.js';
 
 const dbLogger = logger.child('database');
 
-export interface DatabaseClients
-{
-    /** Primary database for writes (or both read/write if no replica) */
-    write?: PostgresJsDatabase;
-    /** Replica database for reads (optional, falls back to write) */
-    read?: PostgresJsDatabase;
-    /** Raw postgres client for write operations (for cleanup) */
-    writeClient?: Sql;
-    /** Raw postgres client for read operations (for cleanup) */
-    readClient?: Sql;
-}
+// ============================================================================
+// Types
+// ============================================================================
+
+/**
+ * Database configuration pattern types
+ *
+ * Represents different ways to configure database connections via environment variables.
+ */
+type DatabasePattern =
+    | { type: 'write-read'; write: string; read: string }     // Explicit write/read separation
+    | { type: 'legacy'; primary: string; replica: string }    // Legacy replica pattern
+    | { type: 'single'; url: string }                         // Single database
+    | { type: 'none' };                                        // No configuration
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
 
 /**
  * Check if any database configuration exists in environment
@@ -39,49 +44,120 @@ function hasDatabaseConfig(): boolean
 }
 
 /**
- * Health check configuration
+ * Detect database configuration pattern from environment variables
+ *
+ * Priority order (highest to lowest):
+ * 1. write-read: DATABASE_WRITE_URL + DATABASE_READ_URL (explicit separation)
+ * 2. legacy: DATABASE_URL + DATABASE_REPLICA_URL (backward compatibility)
+ * 3. single: DATABASE_URL (most common)
+ * 4. single: DATABASE_WRITE_URL (write-only, no replica)
+ * 5. none: No configuration found
+ *
+ * @returns Detected database configuration pattern
+ *
+ * @example
+ * ```typescript
+ * const pattern = detectDatabasePattern();
+ *
+ * if (pattern.type === 'write-read') {
+ *   console.log(`Write: ${pattern.write}, Read: ${pattern.read}`);
+ * }
+ * ```
  */
-export interface HealthCheckConfig
+function detectDatabasePattern(): DatabasePattern
 {
-    enabled: boolean;
-    interval: number;
-    reconnect: boolean;
-    maxRetries: number;
-    retryInterval: number;
+    // Priority 1: Explicit write/read separation (recommended)
+    if (process.env.DATABASE_WRITE_URL && process.env.DATABASE_READ_URL)
+    {
+        return {
+            type: 'write-read',
+            write: process.env.DATABASE_WRITE_URL,
+            read: process.env.DATABASE_READ_URL,
+        };
+    }
+
+    // Priority 2: Legacy replica pattern (backward compatibility)
+    if (process.env.DATABASE_URL && process.env.DATABASE_REPLICA_URL)
+    {
+        return {
+            type: 'legacy',
+            primary: process.env.DATABASE_URL,
+            replica: process.env.DATABASE_REPLICA_URL,
+        };
+    }
+
+    // Priority 3: Single primary (most common)
+    if (process.env.DATABASE_URL)
+    {
+        return {
+            type: 'single',
+            url: process.env.DATABASE_URL,
+        };
+    }
+
+    // Priority 4: Write-only (no replica)
+    if (process.env.DATABASE_WRITE_URL)
+    {
+        return {
+            type: 'single',
+            url: process.env.DATABASE_WRITE_URL,
+        };
+    }
+
+    // No configuration found
+    return { type: 'none' };
 }
 
 /**
- * Query performance monitoring configuration
+ * Create write and read database clients
+ *
+ * @param writeUrl - Write database connection string
+ * @param readUrl - Read database connection string
+ * @param poolConfig - Connection pool configuration
+ * @param retryConfig - Retry configuration
+ * @returns Database clients
  */
-export interface MonitoringConfig
+async function createWriteReadClients(
+    writeUrl: string,
+    readUrl: string,
+    poolConfig: PoolConfig,
+    retryConfig: RetryConfig
+): Promise<DatabaseClients>
 {
-    enabled: boolean;
-    slowThreshold: number;
-    logQueries: boolean;
+    const writeClient = await createDatabaseConnection(writeUrl, poolConfig, retryConfig);
+    const readClient = await createDatabaseConnection(readUrl, poolConfig, retryConfig);
+
+    return {
+        write: drizzle(writeClient),
+        read: drizzle(readClient),
+        writeClient,
+        readClient,
+    };
 }
 
 /**
- * Database initialization options
+ * Create single database client (used for both read and write)
+ *
+ * @param url - Database connection string
+ * @param poolConfig - Connection pool configuration
+ * @param retryConfig - Retry configuration
+ * @returns Database clients
  */
-export interface DatabaseOptions
+async function createSingleClient(
+    url: string,
+    poolConfig: PoolConfig,
+    retryConfig: RetryConfig
+): Promise<DatabaseClients>
 {
-    /**
-     * Connection pool configuration
-     * Overrides environment variables and defaults
-     */
-    pool?: Partial<PoolConfig>;
+    const client = await createDatabaseConnection(url, poolConfig, retryConfig);
+    const db = drizzle(client);
 
-    /**
-     * Health check configuration
-     * Periodic checks to ensure database connection is alive
-     */
-    healthCheck?: Partial<HealthCheckConfig>;
-
-    /**
-     * Query performance monitoring configuration
-     * Tracks slow queries and logs performance metrics
-     */
-    monitoring?: Partial<MonitoringConfig>;
+    return {
+        write: db,
+        read: db,
+        writeClient: client,
+        readClient: client,
+    };
 }
 
 /**
@@ -119,15 +195,32 @@ export interface DatabaseOptions
  */
 export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<DatabaseClients>
 {
-    // Load .env.local if needed
+    // Load environment variables using centralized loader
     if (!hasDatabaseConfig())
     {
-        config({ path: '.env.local' });
+        dbLogger.debug('No DATABASE_URL found, loading environment variables');
+
+        const result = loadEnvironment({
+            debug: true,
+        });
+
+        dbLogger.debug('Environment variables loaded', {
+            success: result.success,
+            loaded: result.loaded.length,
+            hasDatabaseUrl: !!process.env.DATABASE_URL,
+            hasWriteUrl: !!process.env.DATABASE_WRITE_URL,
+            hasReadUrl: !!process.env.DATABASE_READ_URL,
+        });
     }
 
     // Quick exit if no database config
     if (!hasDatabaseConfig())
     {
+        dbLogger.warn('No database configuration found', {
+            cwd: process.cwd(),
+            nodeEnv: process.env.NODE_ENV,
+            checkedVars: ['DATABASE_URL', 'DATABASE_WRITE_URL', 'DATABASE_READ_URL'],
+        });
         return { write: undefined, read: undefined };
     }
 
@@ -135,91 +228,45 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
     {
         const poolConfig = getPoolConfig(options?.pool);
         const retryConfig = getRetryConfig();
+        const pattern = detectDatabasePattern();
 
-        // 1. Primary + Replica pattern (explicit separation)
-        if (process.env.DATABASE_WRITE_URL && process.env.DATABASE_READ_URL)
+        // Create database clients based on detected pattern
+        switch (pattern.type)
         {
-            const writeClient = await createDatabaseConnection(
-                process.env.DATABASE_WRITE_URL,
-                poolConfig,
-                retryConfig
-            );
+            case 'write-read':
+                dbLogger.debug('Using write-read pattern', {
+                    write: pattern.write.replace(/:[^:@]+@/, ':***@'),
+                    read: pattern.read.replace(/:[^:@]+@/, ':***@'),
+                });
+                return await createWriteReadClients(
+                    pattern.write,
+                    pattern.read,
+                    poolConfig,
+                    retryConfig
+                );
 
-            const readClient = await createDatabaseConnection(
-                process.env.DATABASE_READ_URL,
-                poolConfig,
-                retryConfig
-            );
+            case 'legacy':
+                dbLogger.debug('Using legacy replica pattern', {
+                    primary: pattern.primary.replace(/:[^:@]+@/, ':***@'),
+                    replica: pattern.replica.replace(/:[^:@]+@/, ':***@'),
+                });
+                return await createWriteReadClients(
+                    pattern.primary,
+                    pattern.replica,
+                    poolConfig,
+                    retryConfig
+                );
 
-            return {
-                write: drizzle(writeClient),
-                read: drizzle(readClient),
-                writeClient,
-                readClient,
-            };
+            case 'single':
+                dbLogger.debug('Using single database pattern', {
+                    url: pattern.url.replace(/:[^:@]+@/, ':***@'),
+                });
+                return await createSingleClient(pattern.url, poolConfig, retryConfig);
+
+            case 'none':
+                dbLogger.warn('No database pattern detected');
+                return { write: undefined, read: undefined };
         }
-
-        // 2. Legacy replica pattern (backward compatibility)
-        if (process.env.DATABASE_URL && process.env.DATABASE_REPLICA_URL)
-        {
-            const writeClient = await createDatabaseConnection(
-                process.env.DATABASE_URL,
-                poolConfig,
-                retryConfig
-            );
-
-            const readClient = await createDatabaseConnection(
-                process.env.DATABASE_REPLICA_URL,
-                poolConfig,
-                retryConfig
-            );
-
-            return {
-                write: drizzle(writeClient),
-                read: drizzle(readClient),
-                writeClient,
-                readClient,
-            };
-        }
-
-        // 3. Single primary (most common)
-        if (process.env.DATABASE_URL)
-        {
-            const client = await createDatabaseConnection(
-                process.env.DATABASE_URL,
-                poolConfig,
-                retryConfig
-            );
-
-            const db = drizzle(client);
-            return {
-                write: db,
-                read: db,
-                writeClient: client,
-                readClient: client,
-            };
-        }
-
-        // 4. DATABASE_WRITE_URL only (no read replica)
-        if (process.env.DATABASE_WRITE_URL)
-        {
-            const client = await createDatabaseConnection(
-                process.env.DATABASE_WRITE_URL,
-                poolConfig,
-                retryConfig
-            );
-
-            const db = drizzle(client);
-            return {
-                write: db,
-                read: db,
-                writeClient: client,
-                readClient: client,
-            };
-        }
-
-        // No valid configuration
-        return { write: undefined, read: undefined };
     }
     catch (error)
     {
@@ -232,6 +279,9 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
             hasUrl: !!process.env.DATABASE_URL,
             hasReplicaUrl: !!process.env.DATABASE_REPLICA_URL,
         });
-        return { write: undefined, read: undefined };
+
+        // If DATABASE_URL is configured, connection failure should be fatal
+        // This prevents the server from starting without a database connection
+        throw new Error(`Database connection failed: ${message}`, { cause: error });
     }
 }

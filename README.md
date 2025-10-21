@@ -6,7 +6,8 @@ Next.js handles your frontend. SPFN handles your backend.
 
 🌐 **[superfunction.xyz](https://superfunction.xyz)**
 
-[![npm](https://img.shields.io/npm/v/@spfn/core)](https://npmjs.com/package/@spfn/core)
+[![npm core](https://img.shields.io/npm/v/@spfn/core?label=%40spfn%2Fcore)](https://npmjs.com/package/@spfn/core)
+[![npm cli](https://img.shields.io/npm/v/spfn?label=spfn)](https://npmjs.com/package/spfn)
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Node](https://img.shields.io/badge/Node-%3E%3D18-green?logo=node.js)](https://nodejs.org/)
@@ -39,7 +40,7 @@ Next.js handles your frontend. SPFN handles your backend.
 ### Option 1: Create New Project (Recommended)
 
 ```bash
-# Create new project with SPFN + Next.js + TypeScript + Tailwind + SVGR
+# Create new project with SPFN + Next.js + TypeScript + Tailwind
 npx spfn@alpha create my-app
 cd my-app
 
@@ -61,41 +62,73 @@ npm run spfn:dev
 ```bash
 cd your-nextjs-project
 npx spfn@alpha init
+
+# Start databases
+docker compose up -d
+
+# Copy environment variables
+cp .env.local.example .env.local
+
+# Start dev server
 npm run spfn:dev
 ```
 
-**3. Generate boilerplate** (The magic ✨)
+### What You Get
+
+After initialization, you'll have:
+
+✅ **Server Structure** (`src/server/`)
+- File-based routing with auto-discovery
+- Example routes with contracts
+- Database entities and migrations
+- Development and production configs
+
+✅ **Auto-Generated Client** (`src/lib/api.ts`)
+- Type-safe API client for Next.js
+- Auto-updated on contract changes (dev mode)
+- Full TypeScript autocomplete
+
+✅ **Infrastructure** (via Docker)
+- PostgreSQL database
+- Redis cache
+- Docker configs for dev & production
+
+### Next Steps
+
+**1. Create your first route:**
 ```bash
-npx spfn@alpha generate users
+# Example route structure
+src/server/routes/
+  users/
+    contract.ts    # Define API contract
+    index.ts       # GET /users
+    [id]/
+      index.ts     # GET /users/:id
 ```
 
-**Done!** You just created:
+**2. Define database schema:**
+```bash
+# Create/edit entity
+src/server/entities/users.ts
 
-✅ Entity template (entities/users.ts)  
-✅ Type-safe REST API (5 CRUD endpoints)  
-✅ Repository with pagination  
-✅ Auto-generated client for Next.js
+# Generate migration
+npx spfn@alpha db generate
 
-**4. Use in Next.js** (Ready to use!)
+# Apply migration
+npx spfn@alpha db migrate
+```
+
+**3. Use in Next.js:**
 ```typescript
 // app/page.tsx
 import { api } from '@/lib/api'
 
 export default async function Page() {
-  const users = await api.users.list()
-  const user = await api.users.getById({ params: { id: '123' } })
+  const examples = await api.examples.list()
 
-  return <div>{user.name}</div>
+  return <div>{examples.length} examples</div>
   //           ^ Fully typed!
 }
-```
-
-**Next: Customize your entity**
-```bash
-# Edit entities/users.ts - Add fields (email, name, etc.)
-# Then migrate:
-npx spfn@alpha db generate
-npx spfn@alpha db migrate
 ```
 
 ---
@@ -163,27 +196,38 @@ const user = await api.users.getById({ params: { id: '123' } });
 **🎯 Contract-based API**
 - Define once, validated everywhere
 - Auto-generated TypeScript client
+- Full type safety from server to client
 - OpenAPI compatible (coming soon)
 
 **🗄️ Type-safe Database**
 - Drizzle ORM with Repository pattern
 - Automatic pagination & filtering
 - Transaction support (AsyncLocalStorage)
+- Read/Write separation for scalability
 
-**⚡ Always-on Runtime**
+**⚡ Production-Ready**
 - Connection pooling (PostgreSQL, Redis)
-- Background workers
-- WebSocket support
+- Comprehensive test coverage (518+ tests, 40%+ coverage)
+- Integration tests for DB, cache, and server
+- Docker support for dev & production
 
 **📁 File-based Routing**
 - `users/index.ts` → GET /users
 - `users/[id].ts` → GET /users/:id
 - Auto-discovery & registration
+- Co-located contracts and handlers
 
-**🔄 Watch Mode** (Dev only)
-- Contract changes → Auto-regenerate client
-- No manual sync needed
+**🔄 Developer Experience**
+- Watch mode with auto-regeneration
 - Hot reload for both frontend & backend
+- Built-in error handling middleware
+- Comprehensive logging with pino
+
+**🧪 Testing Infrastructure**
+- Unit tests for core modules (logger, errors, codegen, route, client, middleware, env)
+- Integration tests for infrastructure (DB, cache, server)
+- Vitest with optimized configs
+- Docker Compose for test infrastructure
 
 ---
 
@@ -215,10 +259,39 @@ const user = await api.users.getById({ params: { id: '123' } });
 
 ---
 
+## Recent Updates
+
+### v0.1.0-alpha.40 (Latest)
+
+**🧪 Testing & Quality**
+- Added 57 new tests (DB integration, middleware error handling)
+- Test coverage increased to 40%+ (518+ total tests)
+- Fixed DB repository type issues
+- Improved test isolation and configuration
+
+**📦 What's Included**
+- Comprehensive DB integration tests (40 tests)
+  - Transaction context with AsyncLocalStorage
+  - Auto-commit/rollback middleware
+  - Repository CRUD operations
+- Error handler middleware tests (17 tests)
+- Enhanced cache module tests (70 tests)
+
+**🔧 Improvements**
+- Fixed TypeScript compatibility with Drizzle ORM
+- Updated test infrastructure with better isolation
+- Co-located contract pattern support
+- Singleton client pattern
+
+See [CHANGELOG.md](./CHANGELOG.md) for full history.
+
+---
+
 ## Documentation
 
 📚 **[Core API](./packages/core/README.md)** - Full documentation
 🛠️ **[CLI Guide](./packages/spfn/README.md)** - Commands & tools
+📝 **[Testing Guide](./packages/core/TESTING.md)** - Test strategy & coverage
 
 ---
 

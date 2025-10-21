@@ -44,11 +44,13 @@ export const devCommand = new Command('dev')
 
         // Server entry
         writeFileSync(serverEntry, `
-import { config } from 'dotenv';
-import { startServer } from '@spfn/core/server';
+// Load environment variables FIRST (before any imports that depend on them)
+// Use centralized environment loader for standard dotenv priority
+const { loadEnvironment } = await import('@spfn/core/env');
+loadEnvironment({ debug: true });
 
-// Load .env.local
-config({ path: '.env.local' });
+// Now import server (logger singleton will be created with correct NODE_ENV)
+const { startServer } = await import('@spfn/core/server');
 
 await startServer({
     port: ${options.port},
@@ -58,15 +60,21 @@ await startServer({
 });
 `);
 
-        // Contract watcher entry
+        // Codegen orchestrator entry
         writeFileSync(watcherEntry, `
-import { watchAndGenerate } from '@spfn/core/codegen';
+import { CodegenOrchestrator, loadCodegenConfig, createGeneratorsFromConfig } from '@spfn/core/codegen';
 
-await watchAndGenerate({
-    routesDir: ${options.routes ? `'${options.routes}'` : 'undefined'},
-    debug: true,
-    watch: ${options.watch !== false}
+const cwd = process.cwd();
+const config = loadCodegenConfig(cwd);
+const generators = await createGeneratorsFromConfig(config, cwd);
+
+const orchestrator = new CodegenOrchestrator({
+    generators,
+    cwd,
+    debug: true
 });
+
+await orchestrator.watch();
 `);
 
         const pm = detectPackageManager(cwd);
