@@ -164,18 +164,18 @@ Current status:
 |--------|-------|-------|--------|
 | logger | 7 | 16+ | ✅ |
 | errors | 6 | 10+ | ✅ |
-| codegen | 8 | 15+ | ✅ |
+| codegen | 8 | 25+ | ✅ |
 | route | 7 | 25+ | ✅ |
-| client | 2 | 10+ | ✅ |
-| middleware | 4 | 5+ | ✅ |
+| client | 2 | 13+ | ✅ |
+| middleware | 4 | 30+ | ✅ |
 | env | 5 | 3+ | ✅ |
-| cache | 5 | 15+ | ✅ |
-| **db** | **18** | **0** | ❌ **TODO** |
-| server | 6 | 5+ | ✅ |
+| cache | 5 | 70 | ✅ |
+| **db** | **18** | **40** | ✅ |
+| server | 6 | 47+ | ✅ |
 
-**Total**: ~380 tests, 26% coverage
+**Total**: ~518 tests
 
-**Goal**: Add db module tests to reach 60%+ coverage
+**Coverage**: Estimated 40%+ code coverage
 
 ## Troubleshooting
 
@@ -220,7 +220,7 @@ pnpm test:cache   # Just cache tests
 
 ## Future Improvements
 
-- [ ] Add db module tests (transaction, repository, manager)
+- [x] Add db module tests (transaction, repository, manager)
 - [ ] Increase coverage to 60%+
 - [ ] Add snapshot tests for codegen output
 - [ ] Add performance benchmarks

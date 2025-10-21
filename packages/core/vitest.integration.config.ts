@@ -32,6 +32,10 @@ export default defineConfig({
         },
         // Longer timeout for infrastructure operations
         testTimeout: 30000,
+        // Run test files sequentially
+        fileParallelism: false,
+        // Isolate tests in separate processes
+        isolate: true,
     },
     resolve: {
         alias: {

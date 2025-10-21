@@ -1,8 +1,7 @@
 /**
  * Client Generator Tests
  *
- * TODO: Update tests for singleton client pattern
- * Current tests expect createClient() pattern, but implementation uses singleton
+ * Tests for singleton client pattern
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -14,7 +13,7 @@ import type { RouteContractMapping, ClientGenerationOptions } from '../types.js'
 const TEST_DIR = resolve(process.cwd(), '.test-tmp-generator');
 const OUTPUT_FILE = join(TEST_DIR, 'generated-client.ts');
 
-describe.skip('Client Generator', () =>
+describe('Client Generator', () =>
 {
     beforeEach(() =>
     {
@@ -57,11 +56,8 @@ describe.skip('Client Generator', () =>
             // Should include contract import
             expect(generated).toContain("import { listUsersContract } from '@/contracts/users'");
 
-            // Should include client import
-            expect(generated).toContain("import { createClient } from '@spfn/core/client'");
-
-            // Should create client instance
-            expect(generated).toContain('const client = createClient');
+            // Should include singleton client import
+            expect(generated).toContain("import { client } from '@spfn/core/client'");
 
             // Should generate API object
             expect(generated).toContain('export const api =');
@@ -71,6 +67,9 @@ describe.skip('Client Generator', () =>
 
             // Should generate method
             expect(generated).toContain('list:');
+
+            // Should export client
+            expect(generated).toContain('export { client }');
         });
 
         it('should generate client with multiple routes', async () =>
@@ -158,31 +157,6 @@ describe.skip('Client Generator', () =>
             expect(generated).toContain('posts:');
         });
 
-        it('should include base URL if provided', async () =>
-        {
-            const mappings: RouteContractMapping[] = [
-                {
-                    method: 'GET',
-                    path: '/users',
-                    contractName: 'listUsersContract',
-                    contractImportPath: '@/contracts/users',
-                    routeFile: 'routes/users/index.ts'
-                }
-            ];
-
-            const options: ClientGenerationOptions = {
-                routesDir: join(TEST_DIR, 'routes'),
-                outputPath: OUTPUT_FILE,
-                baseUrl: 'https://api.example.com'
-            };
-
-            await generateClient(mappings, options);
-
-            const generated = readFileSync(OUTPUT_FILE, 'utf-8');
-
-            // Should include base URL in client creation
-            expect(generated).toContain('https://api.example.com');
-        });
 
         it('should include JSDoc comments when enabled', async () =>
         {
@@ -336,30 +310,6 @@ describe.skip('Client Generator', () =>
             expect(generated).toContain('apiV1UsersPostsComments:');
         });
 
-        it('should include auth helper', async () =>
-        {
-            const mappings: RouteContractMapping[] = [
-                {
-                    method: 'GET',
-                    path: '/users',
-                    contractName: 'listUsersContract',
-                    contractImportPath: '@/contracts/users',
-                    routeFile: 'routes/users/index.ts'
-                }
-            ];
-
-            const options: ClientGenerationOptions = {
-                routesDir: join(TEST_DIR, 'routes'),
-                outputPath: OUTPUT_FILE
-            };
-
-            await generateClient(mappings, options);
-
-            const generated = readFileSync(OUTPUT_FILE, 'utf-8');
-
-            // Should include createAuthClient helper
-            expect(generated).toContain('export function createAuthClient');
-        });
 
         it('should generate valid TypeScript', async () =>
         {
@@ -396,7 +346,7 @@ describe.skip('Client Generator', () =>
             // Should have proper structure
             expect(generated).toContain('import');
             expect(generated).toContain('export');
-            expect(generated).toContain('const client');
+            expect(generated).toContain('client');
         });
     });
 });

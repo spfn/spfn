@@ -4,10 +4,10 @@
  * Generates type-safe API client code from route-contract mappings
  */
 
-import { writeFile, mkdir } from 'fs/promises';
+import { mkdir, writeFile } from 'fs/promises';
 import { dirname } from 'path';
 import { groupByResource } from './route-scanner.js';
-import type { RouteContractMapping, GenerationStats, ClientGenerationOptions } from './types.js';
+import type { ClientGenerationOptions, GenerationStats, RouteContractMapping } from './types.js';
 
 /**
  * Generate API client code
@@ -33,7 +33,7 @@ export async function generateClient(
     await writeFile(options.outputPath, code, 'utf-8');
 
     // Calculate stats
-    const stats: GenerationStats = {
+    return {
         routesScanned: mappings.length,
         contractsFound: mappings.length,
         contractFiles: countUniqueContractFiles(mappings),
@@ -41,8 +41,6 @@ export async function generateClient(
         methodsGenerated: mappings.length,
         duration: Date.now() - startTime
     };
-
-    return stats;
 }
 
 /**

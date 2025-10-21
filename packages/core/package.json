@@ -55,12 +55,12 @@
     "test:client": "vitest src/client",
     "test:middleware": "vitest src/middleware",
     "test:env": "vitest src/env",
-    "test:cache": "vitest src/cache",
-    "test:db": "vitest src/db",
-    "test:server": "vitest src/server",
-    "docker:test:up": "docker compose -f ../../docker-compose.test.yml up -d",
-    "docker:test:down": "docker compose -f ../../docker-compose.test.yml down",
-    "docker:test:logs": "docker compose -f ../../docker-compose.test.yml logs -f",
+    "test:cache": "vitest src/cache --config vitest.integration.config.ts",
+    "test:db": "vitest src/db --config vitest.integration.config.ts",
+    "test:server": "vitest src/server --config vitest.integration.config.ts",
+    "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
+    "docker:test:down": "docker compose -f docker-compose.test.yml down",
+    "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f",
     "type-check": "tsc --noEmit"
   },
   "keywords": [

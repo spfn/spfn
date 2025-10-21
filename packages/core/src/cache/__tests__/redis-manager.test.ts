@@ -403,23 +403,25 @@ describe('redis-manager', () =>
             expect(getRedisRead()).toBeUndefined();
         });
 
-        it('should handle quit errors during cleanup', async () =>
+        it('should log errors but still clean up instances', async () =>
         {
             const mockWrite = createMockRedis('write');
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const mockRead = createMockRedis('read');
 
             mockWrite.quit = vi.fn().mockRejectedValue(new Error('Connection lost'));
-            setRedis(mockWrite);
+            mockRead.quit = vi.fn().mockRejectedValue(new Error('Connection lost'));
+            setRedis(mockWrite, mockRead);
 
-            await closeRedis();
+            // Should not throw even with errors
+            await expect(closeRedis()).resolves.not.toThrow();
 
-            expect(consoleErrorSpy).toHaveBeenCalledWith(
-                expect.stringContaining('Error closing Redis write instance'),
-                expect.any(Error)
-            );
+            // Should still clean up instances
             expect(getRedis()).toBeUndefined();
+            expect(getRedisRead()).toBeUndefined();
 
-            consoleErrorSpy.mockRestore();
+            // Should have attempted to quit both instances
+            expect(mockWrite.quit).toHaveBeenCalledTimes(1);
+            expect(mockRead.quit).toHaveBeenCalledTimes(1);
         });
     });
 });

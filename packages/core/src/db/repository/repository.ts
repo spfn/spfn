@@ -11,14 +11,6 @@ import { getDatabase } from "../manager";
 import { getTransactionContext, type TransactionDB } from "../transaction";
 
 /**
- * Drizzle table type with utility methods
- */
-export interface DrizzleTableWithUtils extends PgTable
-{
-    getTableName: () => string;
-}
-
-/**
  * Base Repository class for database operations
  *
  * Provides base query builders that automatically use the correct database instance:
@@ -47,7 +39,7 @@ export interface DrizzleTableWithUtils extends PgTable
  * const user = await userRepo.findById('123');
  * ```
  */
-export class Repository<TTable extends DrizzleTableWithUtils>
+export class Repository<TTable extends PgTable>
 {
     constructor(protected table: TTable) {}
 
