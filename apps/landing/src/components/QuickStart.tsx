@@ -70,7 +70,7 @@ export default async function Page() {
         <section id="quick-start" className="py-24 sm:py-32 bg-gray-50 dark:bg-gray-900">
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
                 <div className="mx-auto max-w-2xl lg:text-center">
-                    <h2 className="text-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
+                    <h2 className="typo-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
                         Quick Start
                     </h2>
                     <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
@@ -173,7 +173,7 @@ export default async function Page() {
                     </div>
 
                     <div className="mt-10 rounded-2xl bg-blue-50 dark:bg-blue-950/20 p-6 ring-1 ring-blue-100 dark:ring-blue-900">
-                        <h4 className="text-base font-semibold text-gray-900 dark:text-white">
+                        <h4 className="typo-base font-semibold text-gray-900 dark:text-white">
                             Next: Customize your entity
                         </h4>
                         <CodeBlock

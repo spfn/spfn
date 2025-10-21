@@ -42,7 +42,7 @@ $ npm run spfn:dev
                         Next.js handles your frontend. <span className="font-sansation font-semibold italic">SPFN (Superfunction)</span> handles your backend.
                     </p>
 
-                    <p className="mt-4 text-base leading-7 text-gray-500 dark:text-gray-400">
+                    <p className="mt-4 typo-base leading-7 text-gray-500 dark:text-gray-400">
                         Build scalable applications with type-safe APIs, connection pooling, background jobs, and end-to-end type safety.
                     </p>
 

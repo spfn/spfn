@@ -1,6 +1,4 @@
 import { defineConfig } from 'tsup';
-import { cpSync } from 'fs';
-import { join } from 'path';
 
 export default defineConfig({
     entry: {
@@ -9,7 +7,6 @@ export default defineConfig({
         'route/index': 'src/route/index.ts',
         'db/index': 'src/db/index.ts',
         'server/index': 'src/server/index.ts',
-        'scripts/index': 'src/scripts/index.ts',
         'codegen/index': 'src/codegen/index.ts',
         'env/index': 'src/env/index.ts',
     },
@@ -34,13 +31,4 @@ export default defineConfig({
         'dotenv',
         '@sinclair/typebox',
     ],
-    onSuccess: async () => {
-        // Copy templates to dist
-        cpSync(
-            join(process.cwd(), 'src/scripts/templates'),
-            join(process.cwd(), 'dist/scripts/templates'),
-            { recursive: true }
-        );
-        console.log('✅ Copied templates to dist/scripts/templates');
-    },
 });

@@ -55,7 +55,7 @@ const user = await api.users.getById({
         <section className="py-24 sm:py-32 bg-gradient-to-b from-white to-blue-50 dark:from-gray-950 dark:to-gray-900">
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
                 <div className="mx-auto max-w-2xl lg:text-center">
-                    <h2 className="text-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
+                    <h2 className="typo-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
                         How It Works
                     </h2>
                     <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
@@ -84,7 +84,7 @@ const user = await api.users.getById({
                                             <p className="mt-1 text-sm font-mono text-blue-600 dark:text-blue-400">
                                                 { step.subtitle }
                                             </p>
-                                            <p className="mt-3 text-base text-gray-600 dark:text-gray-400">
+                                            <p className="mt-3 typo-base text-gray-600 dark:text-gray-400">
                                                 { step.description }
                                             </p>
 
@@ -112,7 +112,7 @@ const user = await api.users.getById({
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                             Magic: Compile-time Type Safety
                         </h3>
-                        <p className="mt-3 text-base text-gray-700 dark:text-gray-300">
+                        <p className="mt-3 typo-base text-gray-700 dark:text-gray-300">
                             Change the contract? TypeScript immediately shows errors in your frontend code.
                         </p>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">

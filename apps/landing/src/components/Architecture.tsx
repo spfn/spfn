@@ -4,7 +4,7 @@ export default function Architecture()
         <section className="py-24 sm:py-32 bg-gray-50 dark:bg-gray-900">
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
                 <div className="mx-auto max-w-2xl lg:text-center">
-                    <h2 className="text-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
+                    <h2 className="typo-base font-semibold leading-7 text-blue-600 dark:text-blue-400">
                         Architecture
                     </h2>
                     <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
@@ -109,12 +109,12 @@ export default function Architecture()
                         <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
                             Ready to build?
                         </h3>
-                        <p className="text-base text-gray-600 dark:text-gray-400 mb-6">
+                        <p className="typo-base text-gray-600 dark:text-gray-400 mb-6">
                             Get started with <span className="font-sansation font-semibold italic">SPFN</span> in your Next.js project
                         </p>
                         <a
                             href="#quick-start"
-                            className="inline-flex items-center rounded-md bg-blue-600 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
+                            className="inline-flex items-center rounded-md bg-blue-600 px-6 py-3 typo-base font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors"
                         >
                             Get Started
                         </a>
