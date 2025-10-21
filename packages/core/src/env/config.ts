@@ -116,16 +116,23 @@ export interface GetEnvOptions
 
 /**
  * Standard environment file names in priority order
+ *
+ * Next.js-style loading behavior:
+ * - development: .env → .env.development → .env.local → .env.development.local
+ * - production:  .env → .env.production → .env.local → .env.production.local
+ * - test:        .env → .env.test → (skip .env.local) → .env.test.local
+ *
+ * Note: .env.local is excluded in test environment for proper test isolation
  */
 export const ENV_FILE_PRIORITY = [
     '.env',                     // Base configuration (lowest priority)
     '.env.{NODE_ENV}',         // Environment-specific
-    '.env.local',              // Local overrides
+    '.env.local',              // Local overrides (excluded in test)
     '.env.{NODE_ENV}.local',   // Local environment-specific (highest priority)
 ] as const;
 
 /**
- * Environment files that should never be loaded in production
+ * Environment files that should only be loaded in test environment
  */
 export const TEST_ONLY_FILES = [
     '.env.test',

@@ -26,6 +26,10 @@ let cachedLoadResult: LoadResult | undefined;
 /**
  * Build list of environment files to load based on NODE_ENV
  *
+ * Next.js-style behavior:
+ * - .env.local is excluded in test environment for test isolation
+ * - Test files (.env.test*) are excluded in non-test environments
+ *
  * @param basePath - Base directory for .env files
  * @param nodeEnv - Current NODE_ENV value
  * @returns Array of absolute file paths to load in priority order
@@ -37,6 +41,12 @@ function buildFileList(basePath: string, nodeEnv: string): string[]
     for (const pattern of ENV_FILE_PRIORITY)
     {
         const fileName = pattern.replace('{NODE_ENV}', nodeEnv);
+
+        // Skip .env.local in test environment (Next.js-style)
+        if (nodeEnv === 'test' && fileName === '.env.local')
+        {
+            continue;
+        }
 
         // Skip test files in non-test environments
         if (nodeEnv !== 'test' && TEST_ONLY_FILES.includes(fileName as any))
@@ -153,13 +163,14 @@ function validateRequiredVars(required: string[], debug: boolean): void
 }
 
 /**
- * Load environment variables from .env files with standard priority
+ * Load environment variables from .env files with Next.js-style priority
  *
- * Priority (lowest to highest):
- * 1. .env
- * 2. .env.{NODE_ENV}
- * 3. .env.local
- * 4. .env.{NODE_ENV}.local
+ * Loading behavior by environment:
+ * - development: .env → .env.development → .env.local → .env.development.local
+ * - production:  .env → .env.production → .env.local → .env.production.local
+ * - test:        .env → .env.test → (skip .env.local) → .env.test.local
+ *
+ * Note: .env.local is excluded in test environment for proper test isolation
  *
  * @param options - Loading options
  * @returns Load result with success status and loaded variables
