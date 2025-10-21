@@ -2,18 +2,6 @@
  * Error Handler Middleware
  *
  * Generic middleware that converts errors with statusCode to HTTP responses
- *
- * ✅ Features:
- * - Convert any error with statusCode property to appropriate HTTP status codes
- * - Error logging (log level by status code)
- * - Environment-specific error response format (Production/Development)
- * - Stack trace inclusion (development only)
- * - Support for additional error details
- *
- * 💡 Design:
- * - Domain-independent (doesn't depend on specific error types)
- * - Works with any error that has a statusCode property
- * - Follows dependency inversion principle
  */
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -21,9 +9,6 @@ import { logger } from '../logger';
 
 const errorLogger = logger.child('error-handler');
 
-/**
- * Error handler options
- */
 export interface ErrorHandlerOptions
 {
     /**
@@ -39,9 +24,12 @@ export interface ErrorHandlerOptions
     enableLogging?: boolean;
 }
 
-/**
- * Error response format
- */
+interface ErrorWithStatusCode extends Error
+{
+    statusCode?: number;
+    details?: any;
+}
+
 interface ErrorResponse
 {
     error: {
@@ -49,6 +37,7 @@ interface ErrorResponse
         type: string;
         statusCode: number;
         stack?: string;
+        details?: any;
     };
 }
 
@@ -56,12 +45,6 @@ interface ErrorResponse
  * Error handler middleware
  *
  * Used in Hono's onError hook
- *
- * @example
- * ```typescript
- * const app = new Hono();
- * app.onError(ErrorHandler());
- * ```
  */
 export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c: Context) => Response | Promise<Response>
 {
@@ -72,13 +55,12 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
 
     return (err: Error, c: Context) =>
     {
-        // Generic error handling: check for statusCode property
-        const statusCode = (err as any).statusCode || 500;
+        const errorWithCode = err as ErrorWithStatusCode;
+        const statusCode = errorWithCode.statusCode || 500;
         const errorType = err.name || 'Error';
 
         if (enableLogging)
         {
-            // 4xx: warn, 5xx: error
             const logLevel = statusCode >= 500 ? 'error' : 'warn';
 
             errorLogger[logLevel]('Error occurred', {
@@ -98,10 +80,9 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
             },
         };
 
-        // Include additional error details if available
-        if ((err as any).details)
+        if (errorWithCode.details)
         {
-            (response.error as any).details = (err as any).details;
+            response.error.details = errorWithCode.details;
         }
 
         if (includeStack)
