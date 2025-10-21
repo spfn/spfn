@@ -40,6 +40,11 @@ export interface CallOptions<TContract extends RouteContract>
     body?: InferContract<TContract>['body'];
     headers?: Record<string, string>;
     baseUrl?: string;
+    /**
+     * Base path for file-based routing
+     * @internal Used by codegen for route resolution
+     */
+    _basePath?: string;
 }
 
 /**
