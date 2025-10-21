@@ -115,8 +115,8 @@ export function buildMiddlewareOrder(config: {
         errorHandler?: boolean;
     };
     use?: any[];
-    beforeRoutes?: (app: Hono) => Promise<void>;
-    afterRoutes?: (app: Hono) => Promise<void>;
+    beforeRoutes?: (app: Hono) => void | Promise<void>;
+    afterRoutes?: (app: Hono) => void | Promise<void>;
 }): string[]
 {
     const order: string[] = [];
@@ -149,8 +149,8 @@ export function buildStartupConfig(
             path?: string;
             detailed?: boolean;
         };
-        beforeRoutes?: (app: Hono) => Promise<void>;
-        afterRoutes?: (app: Hono) => Promise<void>;
+        beforeRoutes?: (app: Hono) => void | Promise<void>;
+        afterRoutes?: (app: Hono) => void | Promise<void>;
         shutdown?: {
             timeout?: number;
         };
