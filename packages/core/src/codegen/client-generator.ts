@@ -95,7 +95,6 @@ function generateImports(mappings: RouteContractMapping[], options: ClientGenera
 {
     let code = '';
 
-    // Core imports - use singleton client
     code += `import { client } from '@spfn/core/client';\n`;
 
     if (options.includeTypes !== false)
@@ -250,15 +249,11 @@ function generateMethodCode(mapping: RouteContractMapping, options: ClientGenera
     code += `) => `;
 
     // Return type
-    code += `client.call('${mapping.path}', ${mapping.contractName}, `;
+    code += `client.call(${mapping.contractName}`;
 
     if (params.length > 0)
     {
-        code += `options`;
-    }
-    else
-    {
-        code += `{}`;
+        code += `, options`;
     }
 
     code += `),\n`;

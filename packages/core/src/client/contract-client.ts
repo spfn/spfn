@@ -259,6 +259,57 @@ export function createClient(config?: ClientConfig): ContractClient
 }
 
 /**
- * Default client instance
+ * Global client singleton instance
  */
-export const client = createClient();
+let _clientInstance: ContractClient = new ContractClient();
+
+/**
+ * Configure the global client instance
+ *
+ * Call this in your app initialization to set default configuration
+ * for all auto-generated API calls.
+ *
+ * @example
+ * ```ts
+ * // In app initialization (layout.tsx, _app.tsx, etc)
+ * import { configureClient } from '@spfn/core/client';
+ *
+ * configureClient({
+ *   baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
+ *   timeout: 60000,
+ *   headers: {
+ *     'X-App-Version': '1.0.0'
+ *   }
+ * });
+ *
+ * // Add interceptors
+ * import { client } from '@spfn/core/client';
+ * client.use(async (url, init) => {
+ *   // Add auth header
+ *   return {
+ *     ...init,
+ *     headers: {
+ *       ...init.headers,
+ *       Authorization: `Bearer ${getToken()}`
+ *     }
+ *   };
+ * });
+ * ```
+ */
+export function configureClient(config: ClientConfig): void
+{
+    _clientInstance = new ContractClient(config);
+}
+
+/**
+ * Global client singleton with Proxy
+ *
+ * This client can be configured using configureClient() before use.
+ * Used by auto-generated API client code.
+ */
+export const client = new Proxy({} as ContractClient, {
+    get(target, prop)
+    {
+        return _clientInstance[prop as keyof ContractClient];
+    }
+});

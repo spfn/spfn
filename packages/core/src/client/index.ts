@@ -7,6 +7,7 @@
 export {
     ContractClient,
     createClient,
+    configureClient,
     client,
     ApiClientError,
 } from './contract-client.js';
