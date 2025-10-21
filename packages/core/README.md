@@ -575,6 +575,12 @@ PORT=8790
 HOST=localhost
 NODE_ENV=development
 
+# Server Timeouts (optional, in milliseconds)
+SERVER_TIMEOUT=120000              # Request timeout (default: 120000)
+SERVER_KEEPALIVE_TIMEOUT=65000     # Keep-alive timeout (default: 65000)
+SERVER_HEADERS_TIMEOUT=60000       # Headers timeout (default: 60000)
+SHUTDOWN_TIMEOUT=30000             # Graceful shutdown timeout (default: 30000)
+
 # Logger (optional)
 LOGGER_ADAPTER=pino               # pino | custom (default: pino)
 LOGGER_FILE_ENABLED=true          # Enable file logging (production only)

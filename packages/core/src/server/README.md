@@ -1,12 +1,24 @@
 # Server Module
 
-High-level server utilities for SPFN framework with three levels of control.
+SPFN HTTP server with automatic configuration, graceful shutdown, and comprehensive monitoring.
+
+## Features
+
+- **3-Level Configuration System** - Zero config, partial customization, or full control
+- **Auto Route Loading** - Automatic file-based routing
+- **Health Check Endpoint** - Built-in monitoring with database/Redis status (503 on errors)
+- **Graceful Shutdown** - Proper cleanup on SIGTERM/SIGINT with configurable timeout
+- **Request Timeouts** - Configurable timeouts for requests, keep-alive, and headers
+- **Middleware Support** - Built-in logger, CORS, error handler + custom middleware
+- **Configuration Validation** - Early error detection with descriptive messages
+- **Configuration Hooks** - beforeRoutes/afterRoutes lifecycle hooks
+- **Network Detection** - Automatic local/network IP display (Next.js style)
 
 ## Import
 
 ```ts
 import { startServer, createServer } from '@spfn/core/server';
-import type { ServerConfig, AppFactory } from '@spfn/core/server';
+import type { ServerConfig, AppFactory, ServerInstance } from '@spfn/core/server';
 ```
 
 ## Three Levels of Control
@@ -111,20 +123,47 @@ await startServer();
 
 ## API Reference
 
-### `startServer(config?: ServerConfig): Promise<void>`
+### `startServer(config?: ServerConfig): Promise<ServerInstance>`
 
 Start SPFN server with automatic configuration.
 
 **Features:**
 - Loads `server.config.ts` if exists
-- Initializes Redis from environment variables
+- Initializes Database and Redis from environment variables
+- Validates configuration with descriptive errors
 - Creates and starts Hono server
 - Auto-loads routes from `src/server/routes`
+- Sets up graceful shutdown handlers
+- Displays startup banner with network IP detection
 
 **Config Priority:**
 1. Runtime `config` parameter (highest)
 2. `server.config.ts` file
-3. Framework defaults (lowest)
+3. Environment variables
+4. Framework defaults (lowest)
+
+**Returns:** `ServerInstance` with:
+```ts
+interface ServerInstance {
+  server: Server;      // Node.js HTTP server
+  app: Hono;          // Hono application
+  config: ServerConfig; // Final merged config
+  close: () => Promise<void>; // Manual shutdown (for tests)
+}
+```
+
+**Example:**
+```ts
+const instance = await startServer({ port: 3000 });
+
+// Access components
+instance.server;  // HTTP server
+instance.app;     // Hono app
+instance.config;  // Final config
+
+// Graceful shutdown (without process.exit)
+await instance.close();
+```
 
 ### `createServer(config?: ServerConfig): Promise<Hono>`
 
@@ -451,6 +490,217 @@ When server starts, you'll see timeout configuration in logs:
   keepAlive: '65000ms',
   headers: '60000ms'
 }
+```
+
+## Health Check
+
+Built-in health check endpoint for monitoring service status.
+
+### Basic Health Check
+
+```bash
+$ curl http://localhost:4000/health
+{
+  "status": "ok",
+  "timestamp": "2025-01-21T10:00:00.000Z"
+}
+```
+
+### Detailed Health Check (Development)
+
+In development mode or when explicitly enabled:
+
+```bash
+$ curl http://localhost:4000/health
+{
+  "status": "ok",
+  "timestamp": "2025-01-21T10:00:00.000Z",
+  "services": {
+    "database": {
+      "status": "connected"
+    },
+    "redis": {
+      "status": "connected"
+    }
+  }
+}
+```
+
+### Degraded Status
+
+When services have errors, returns 503:
+
+```json
+{
+  "status": "degraded",
+  "timestamp": "2025-01-21T10:00:00.000Z",
+  "services": {
+    "database": {
+      "status": "error",
+      "error": "Connection refused"
+    },
+    "redis": {
+      "status": "connected"
+    }
+  }
+}
+```
+
+- **200 OK** - All services healthy
+- **503 Service Unavailable** - One or more services degraded
+
+### Configuration
+
+```ts
+export default {
+  healthCheck: {
+    enabled: true,           // default: true
+    path: '/api/health',     // default: '/health'
+    detailed: true,          // default: development mode
+  },
+} satisfies ServerConfig;
+```
+
+## Configuration Validation
+
+Server validates configuration at startup with descriptive error messages:
+
+### Port Validation
+
+```
+❌ Invalid port: -1. Port must be an integer between 0 and 65535.
+❌ Invalid port: 70000. Port must be an integer between 0 and 65535.
+```
+
+### Timeout Validation
+
+```
+❌ Invalid timeout.request: -1000. Must be a positive number.
+❌ Invalid timeout configuration: headers timeout (70000ms) cannot exceed request timeout (60000ms).
+```
+
+### Path Validation
+
+```
+❌ Invalid healthCheck.path: "health". Must start with "/".
+```
+
+### Shutdown Validation
+
+```
+❌ Invalid shutdown.timeout: -5000. Must be a positive number.
+```
+
+### Hook Error Handling
+
+If hooks fail, server initialization stops:
+
+```
+❌ Server initialization failed in beforeRoutes hook
+❌ Server initialization failed in afterRoutes hook
+```
+
+## File Structure
+
+The server module is organized for maintainability:
+
+```
+src/server/
+├── server.ts           # Main entry point (exports)
+├── create-server.ts    # App creation logic
+├── start-server.ts     # Server startup logic
+├── helpers.ts          # Utility functions
+├── validation.ts       # Configuration validation
+├── banner.ts           # Startup banner
+├── types.ts            # TypeScript types
+├── server.config.ts    # Optional config file (user)
+├── app.ts              # Optional custom app (user)
+└── routes/             # Auto-loaded routes (user)
+```
+
+## Debug Mode
+
+In debug mode (`NODE_ENV=development` or `debug: true`), server logs additional information:
+
+### Middleware Execution Order
+
+```json
+{
+  "level": "debug",
+  "module": "server",
+  "msg": "Middleware execution order",
+  "order": [
+    "RequestLogger",
+    "CORS",
+    "Custom[0]",
+    "beforeRoutes hook",
+    "Routes",
+    "afterRoutes hook",
+    "ErrorHandler"
+  ]
+}
+```
+
+### Server Configuration
+
+```json
+{
+  "level": "info",
+  "module": "server",
+  "msg": "Server started successfully",
+  "mode": "development",
+  "host": "localhost",
+  "port": 4000,
+  "config": {
+    "middleware": {
+      "logger": true,
+      "cors": true,
+      "errorHandler": true,
+      "custom": 0
+    },
+    "healthCheck": {
+      "enabled": true,
+      "path": "/health",
+      "detailed": true
+    },
+    "hooks": {
+      "beforeRoutes": false,
+      "afterRoutes": false
+    },
+    "timeout": {
+      "request": "120000ms",
+      "keepAlive": "65000ms",
+      "headers": "60000ms"
+    },
+    "shutdown": {
+      "timeout": "30000ms"
+    }
+  }
+}
+```
+
+### Startup Banner
+
+When server starts, displays SPFN logo and connection details:
+
+```
+      _____ ____  ______ _   _
+     / ____|  _ \|  ____| \ | |
+    | (___ | |_) | |__  |  \| |
+     \___ \|  __/|  __| | . ` |
+     ____) | |   | |    | |\  |
+    |_____/|_|   |_|    |_| \_|
+
+    Mode: Development
+   ▲ Local:        http://localhost:4000
+```
+
+When binding to `0.0.0.0`, shows network IP:
+
+```
+    Mode: Production
+   ▲ Local:        http://localhost:8080
+   ▲ Network:      http://192.168.1.100:8080
 ```
 
 ## Environment Variables
