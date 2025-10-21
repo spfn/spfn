@@ -21,14 +21,11 @@ export default function ExamplesPage() {
 
         <div className="prose dark:prose-invert max-w-none">
           <h2 className="text-2xl font-semibold mb-4">Complete CRUD API</h2>
-          <p className="mb-4">Generate a full CRUD API in one command:</p>
+          <p className="mb-4"><strong>Step 1:</strong> Create entity schema:</p>
           <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto mb-6">
-            <code>{`npx spfn@alpha generate posts`}</code>
-          </pre>
-
-          <p className="mb-4">This creates entity, API routes, and repository:</p>
-          <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto mb-8">
             <code>{`// src/server/entities/posts.ts
+import { pgTable, serial, text, integer, timestamp } from 'drizzle-orm/pg-core';
+
 export const posts = pgTable('posts', {
   id: serial('id').primaryKey(),
   title: text('title').notNull(),
@@ -36,9 +33,44 @@ export const posts = pgTable('posts', {
   authorId: integer('author_id').notNull(),
   status: text('status').default('draft'),
   createdAt: timestamp('created_at').defaultNow(),
-});
+});`}</code>
+          </pre>
 
-// Use in Next.js
+          <p className="mb-4"><strong>Step 2:</strong> Define API contract and create route:</p>
+          <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto mb-6">
+            <code>{`// src/server/routes/posts/contract.ts
+import { Type } from '@sinclair/typebox';
+
+export const getPostsContract = {
+  method: 'GET',
+  path: '/',
+  response: Type.Array(Type.Object({
+    id: Type.Number(),
+    title: Type.String(),
+    content: Type.String(),
+    status: Type.String(),
+  }))
+};
+
+// src/server/routes/posts/index.ts
+import { bind } from '@spfn/core';
+import { getPostsContract } from './contract';
+
+export const GET = bind(getPostsContract, async (c) => {
+  const posts = await postRepo.findMany();
+  return c.json(posts);
+});`}</code>
+          </pre>
+
+          <p className="mb-4"><strong>Step 3:</strong> Generate and apply migration:</p>
+          <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto mb-6">
+            <code>{`npx spfn@alpha db generate
+npx spfn@alpha db migrate`}</code>
+          </pre>
+
+          <p className="mb-4"><strong>Step 4:</strong> Use in Next.js (auto-generated client):</p>
+          <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto mb-8">
+            <code>{`// app/posts/page.tsx
 import { api } from '@/lib/api';
 
 export default async function PostsPage() {
