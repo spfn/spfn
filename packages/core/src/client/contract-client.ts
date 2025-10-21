@@ -318,3 +318,65 @@ export const client = new Proxy({} as ContractClient, {
         return _clientInstance[prop as keyof ContractClient];
     }
 });
+
+/**
+ * Type guard for timeout errors
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await api.users.getById({ params: { id: '123' } });
+ * } catch (error) {
+ *   if (isTimeoutError(error)) {
+ *     console.error('Request timed out, retrying...');
+ *     // Implement retry logic
+ *   }
+ * }
+ * ```
+ */
+export function isTimeoutError(error: unknown): error is ApiClientError
+{
+    return error instanceof ApiClientError && error.errorType === 'timeout';
+}
+
+/**
+ * Type guard for network errors
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await api.users.list();
+ * } catch (error) {
+ *   if (isNetworkError(error)) {
+ *     showOfflineMessage();
+ *   }
+ * }
+ * ```
+ */
+export function isNetworkError(error: unknown): error is ApiClientError
+{
+    return error instanceof ApiClientError && error.errorType === 'network';
+}
+
+/**
+ * Type guard for HTTP errors (4xx, 5xx)
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await api.users.create({ body: userData });
+ * } catch (error) {
+ *   if (isHttpError(error)) {
+ *     if (error.status === 401) {
+ *       redirectToLogin();
+ *     } else if (error.status === 404) {
+ *       showNotFoundMessage();
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export function isHttpError(error: unknown): error is ApiClientError
+{
+    return error instanceof ApiClientError && error.errorType === 'http';
+}

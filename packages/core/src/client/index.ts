@@ -10,6 +10,9 @@ export {
     configureClient,
     client,
     ApiClientError,
+    isTimeoutError,
+    isNetworkError,
+    isHttpError,
 } from './contract-client.js';
 
 export type {
