@@ -36,7 +36,8 @@ steps:
         # 소스 저장소 클론
         git clone -b $CI_COMMIT_BRANCH --depth=1 \
           https://$CI_BOT_USER:$CI_BOT_TOKEN@$(echo $CI_REPO_CLONE_URL | sed 's|https://||') \
-          $WORK_DIR/
+          $WORK_DIR
+
 
         cd $WORK_DIR
         git checkout $CI_COMMIT_SHA || echo "Already on target commit"
@@ -48,73 +49,13 @@ steps:
         echo "✅ Source repository cloned successfully"
         ls -la $WORK_DIR/
 
-  - name: clone-dockerfile-repo
-    image: alpine/git:latest
-    backend_options:
-      kubernetes:
-        resources:
-          requests:
-            memory: "128Mi"
-          limits:
-            memory: "256Mi"
-        nodeSelector:
-          role: build
-    environment:
-      CI_BOT_USER: { from_secret: CI_BOT_USER }
-      CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
-      DOCKERFILE_NAME: "nextjs-pnpm.Dockerfile"
-    commands:
-      - |
-        echo "📄 Cloning Dockerfile repository"
-        apk add --no-cache git
-
-        # Dockerfile 저장소 클론
-        git clone --depth=1 \
-          https://$CI_BOT_USER:$CI_BOT_TOKEN@git.superfunction.xyz/spfn-apps/dockerfiles \
-          /woodpecker/dockerfiles/
-
-        # 공유 디렉토리에 Dockerfile 경로 저장 (환경변수 사용)
-        mkdir -p /woodpecker/shared
-        echo "/woodpecker/dockerfiles/$DOCKERFILE_NAME" > /woodpecker/shared/dockerfile_path
-
-        echo "✅ Dockerfile repository cloned successfully"
-        ls -la /woodpecker/dockerfiles/
-
-  - name: prepare-monorepo-files
-    image: alpine:latest
-    backend_options:
-      kubernetes:
-        resources:
-          requests:
-            memory: "64Mi"
-          limits:
-            memory: "128Mi"
-        nodeSelector:
-          role: build
-    commands:
-      - |
-        echo "📦 Preparing monorepo files for build"
-
-        WORK_DIR=$(cat /woodpecker/shared/work_dir)
-
-        # pnpm-lock.yaml을 apps/landing로 복사
-        cp $WORK_DIR/pnpm-lock.yaml $WORK_DIR/apps/landing/
-
-        # pnpm-workspace.yaml도 필요하면 복사 (선택적)
-        if [ -f "$WORK_DIR/pnpm-workspace.yaml" ]; then
-          cp $WORK_DIR/pnpm-workspace.yaml $WORK_DIR/apps/landing/
-        fi
-
-        echo "✅ Monorepo files prepared"
-        ls -la $WORK_DIR/apps/landing/ | grep -E "pnpm-lock|pnpm-workspace"
-
-  - name: build-with-central-dockerfile
+  - name: build-with-dockerfile
     image: gcr.io/kaniko-project/executor:debug
     backend_options:
       kubernetes:
         resources:
           requests:
-            memory: "4Gi"
+            memory: "3Gi"
           limits:
             memory: "6Gi"
         nodeSelector:
@@ -123,7 +64,7 @@ steps:
       REGISTRY_HOST: git.superfunction.xyz
       GIT_ORG: spfn
       GIT_REPO: spfn
-      APP_NAME: superfunction
+      APP_NAME: spfn-spfn
       CI_BOT_USER: { from_secret: CI_BOT_USER }
       CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
       CI_COMMIT_SHA: ${CI_COMMIT_SHA}
@@ -149,23 +90,27 @@ steps:
         echo "$REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME:$CI_COMMIT_BRANCH-$CI_COMMIT_SHA" > /woodpecker/shared/image_tag
         echo "$CI_COMMIT_SHA" > /woodpecker/shared/commit_sha
 
-        # 클론된 Dockerfile 사용
-        DOCKERFILE_PATH=$(cat /woodpecker/shared/dockerfile_path)
+        # 프로젝트 내 Dockerfile 사용
         WORK_DIR=$(cat /woodpecker/shared/work_dir)
-
-        # Build context는 apps/landing만
-        BUILD_CONTEXT="$WORK_DIR/apps/landing"
+        DOCKERFILE_PATH="$WORK_DIR/Dockerfile"
+        BUILD_CONTEXT="$WORK_DIR"
 
         echo "📋 Build Info:"
         echo "  Dockerfile: $DOCKERFILE_PATH"
         echo "  Context: $BUILD_CONTEXT"
         echo "  Image: $REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME:${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA}"
 
+        # Dockerfile 존재 확인
+        if [ ! -f "$DOCKERFILE_PATH" ]; then
+          echo "❌ Dockerfile not found at $DOCKERFILE_PATH"
+          exit 1
+        fi
+
         # Dockerfile 내용 확인
         echo "📄 Using Dockerfile:"
         head -10 $DOCKERFILE_PATH
 
-        # Kaniko 빌드 실행 (apps/landing만 빌드)
+        # Kaniko 빌드 실행 (SPFN 앱 빌드)
         /kaniko/executor \
           --dockerfile=$DOCKERFILE_PATH \
           --context=$BUILD_CONTEXT \
@@ -194,14 +139,14 @@ steps:
       CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
       GIT_ORG: spfn
       GIT_REPO: spfn
-      APP_NAME: superfunction
+      APP_NAME: spfn-spfn
       CI_COMMIT_BRANCH: ${CI_COMMIT_BRANCH}
     commands:
       - |
         echo "📦 Cloning GitOps repository"
         apk add --no-cache git
 
-        # GitOps 저장소 클론 (main 브랜치가 반드시 있어야 함)
+        # GitOps 저장소 클론
         GITOPS_PATH="/woodpecker/gitops-$GIT_ORG-$GIT_REPO"
         GITOPS_URL="https://$CI_BOT_USER:$CI_BOT_TOKEN@git.superfunction.xyz/spfn-apps/$GIT_ORG-$GIT_REPO.git"
 
@@ -216,9 +161,7 @@ steps:
           exit 1
         fi
 
-        # 항상 GitOps 디렉토리로 이동
         cd $GITOPS_PATH
-        # Git 설정은 이미 글로벌로 완료됨
 
         # 다음 스텝에서 사용할 수 있도록 경로 저장
         echo "$GITOPS_PATH" > /woodpecker/shared/gitops_path
@@ -240,7 +183,7 @@ steps:
     environment:
       GIT_ORG: spfn
       GIT_REPO: spfn
-      APP_NAME: superfunction
+      APP_NAME: spfn-spfn
       REGISTRY_HOST: git.superfunction.xyz
       CI_COMMIT_BRANCH: ${CI_COMMIT_BRANCH}
       CI_BOT_USER: { from_secret: CI_BOT_USER }
@@ -258,7 +201,7 @@ steps:
         IMAGE_TAG=$(cat /woodpecker/shared/image_tag)
         COMMIT_SHA=$(cat /woodpecker/shared/commit_sha)
 
-        # values.yaml 생성 또는 업데이트 (ApplicationSet 호환 구조)
+        # values.yaml 생성 또는 업데이트
         touch values.yaml
 
         # App metadata
@@ -273,6 +216,7 @@ steps:
         yq e '.image.repository = "'$(echo $IMAGE_TAG | cut -d: -f1)'"' -i values.yaml
         yq e '.image.tag = "'$CI_COMMIT_BRANCH'-'$COMMIT_SHA'"' -i values.yaml
         yq e '.image.pullPolicy = "IfNotPresent"' -i values.yaml
+
         # Gitea Registry 설정
         yq e '.giteaRegistry.enabled = true' -i values.yaml
         yq e '.giteaRegistry.server = "git.superfunction.xyz"' -i values.yaml
@@ -294,92 +238,237 @@ steps:
         nodeSelector:
           role: build
     environment:
-      BASE_HOST: "superfunction.xyz"
-      HOST_POSTFIX: ""  # landing page는 postfix 없음
-      CUSTOM_HOSTS: "superfunction.xyz www.superfunction.xyz"  # 운영 환경 도메인
+      BASE_HOST: "spfn.app"
       GIT_ORG: spfn
       GIT_REPO: spfn
-      APP_NAME: superfunction
+      APP_NAME: spfn-spfn
       CI_COMMIT_BRANCH: ${CI_COMMIT_BRANCH}
-      PORT: 3790
-      REPLICAS: 1
-      REQUEST_CPU: "10m"
-      REQUEST_MEMORY: "128Mi"
-      LIMIT_CPU: "200m"
-      LIMIT_MEMORY: "256Mi"
+      MAIN_PORT: 3790
+      API_PORT: 8790
     commands:
       - |
         echo "🔧 Updating service configuration"
-        apk add --no-cache yq
+        apk add --no-cache yq jq
 
         # GitOps 경로 읽기
         GITOPS_PATH=$(cat /woodpecker/shared/gitops_path)
         cd $GITOPS_PATH
 
-        # Service configuration
-        yq e '.service.type = "ClusterIP"' -i values.yaml
-        yq e '.service.port = env(PORT)' -i values.yaml
-        yq e '.service.targetPort = env(PORT)' -i values.yaml
+        # 소스 경로 읽기 (spfn.config.js 접근용)
+        WORK_DIR=$(cat /woodpecker/shared/work_dir)
+        SPFN_CONFIG="$WORK_DIR/spfn.config.js"
 
-        # Resources and replicas (MAIN 환경)
+        # spfn.config.js에서 설정 읽기
+        if [ -f "$SPFN_CONFIG" ]; then
+          echo "📋 Reading configuration from spfn.config.js"
+
+          # Node.js 설치 (ESM import 용)
+          apk add --no-cache nodejs
+
+          # spfn.config.js를 JSON으로 변환
+          CONFIG_JSON=$(node -e "
+            import('$SPFN_CONFIG').then(m => {
+              console.log(JSON.stringify(m.default || m));
+            }).catch(e => {
+              console.error('Error:', e);
+              process.exit(1);
+            });
+          ")
+
+          # Subdomain 읽기
+          SUBDOMAIN=$(echo "$CONFIG_JSON" | jq -r '.deployment.subdomain // empty')
+
+          # Region 읽기 (기본값: us)
+          REGION=$(echo "$CONFIG_JSON" | jq -r '.deployment.region // "us"')
+
+          # Custom domains 읽기
+          CUSTOM_NEXTJS_DOMAINS=$(echo "$CONFIG_JSON" | jq -r '.deployment.customDomains.nextjs[]?' 2>/dev/null | tr '\n' ' ')
+          CUSTOM_SPFN_DOMAINS=$(echo "$CONFIG_JSON" | jq -r '.deployment.customDomains.spfn[]?' 2>/dev/null | tr '\n' ' ')
+
+          # Environment variables 읽기
+          ENV_VARS=$(echo "$CONFIG_JSON" | jq -r '.deployment.env // {}')
+
+          echo "  Subdomain: $SUBDOMAIN"
+          echo "  Region: $REGION"
+          echo "  Custom Next.js domains: $CUSTOM_NEXTJS_DOMAINS"
+          echo "  Custom SPFN domains: $CUSTOM_SPFN_DOMAINS"
+          echo "  Environment variables: $(echo "$ENV_VARS" | jq -r 'keys | length') variables found"
+        else
+          echo "⚠️  spfn.config.js not found, using defaults"
+          SUBDOMAIN=""
+          REGION="us"
+          ENV_VARS="{}"
+        fi
+
+        # Resources (SPFN 플랫폼 기본값, 사용자 설정 불가)
+        export REPLICAS=1
+        export REQUEST_CPU="50m"
+        export REQUEST_MEMORY="256Mi"
+        export LIMIT_CPU="500m"
+        export LIMIT_MEMORY="512Mi"
+
+        # Service configuration (SPFN 앱은 2개 포트 사용)
+        yq e '.service.type = "ClusterIP"' -i values.yaml
+
+        # Main port (Next.js)
+        yq e '.service.ports[0].name = "nextjs"' -i values.yaml
+        yq e '.service.ports[0].port = env(MAIN_PORT)' -i values.yaml
+        yq e '.service.ports[0].targetPort = env(MAIN_PORT)' -i values.yaml
+        yq e '.service.ports[0].protocol = "TCP"' -i values.yaml
+
+        # API port (Hono)
+        yq e '.service.ports[1].name = "api"' -i values.yaml
+        yq e '.service.ports[1].port = env(API_PORT)' -i values.yaml
+        yq e '.service.ports[1].targetPort = env(API_PORT)' -i values.yaml
+        yq e '.service.ports[1].protocol = "TCP"' -i values.yaml
+
+        # Resources and replicas
         yq e '.replicaCount = env(REPLICAS)' -i values.yaml
         yq e '.resources.requests.cpu = strenv(REQUEST_CPU)' -i values.yaml
         yq e '.resources.requests.memory = strenv(REQUEST_MEMORY)' -i values.yaml
         yq e '.resources.limits.cpu = strenv(LIMIT_CPU)' -i values.yaml
         yq e '.resources.limits.memory = strenv(LIMIT_MEMORY)' -i values.yaml
 
-        # Health checks (Next.js 정적 사이트)
+        # Health checks (SPFN API health endpoint)
         yq e '.healthCheck.enabled = true' -i values.yaml
-        yq e '.healthCheck.readinessProbe.httpGet.path = "/"' -i values.yaml
-        yq e '.healthCheck.readinessProbe.httpGet.port = env(PORT)' -i values.yaml
-        yq e '.healthCheck.readinessProbe.initialDelaySeconds = 5' -i values.yaml
+        yq e '.healthCheck.readinessProbe.httpGet.path = "/health"' -i values.yaml
+        yq e '.healthCheck.readinessProbe.httpGet.port = env(API_PORT)' -i values.yaml
+        yq e '.healthCheck.readinessProbe.initialDelaySeconds = 10' -i values.yaml
         yq e '.healthCheck.readinessProbe.periodSeconds = 10' -i values.yaml
         yq e '.healthCheck.readinessProbe.timeoutSeconds = 3' -i values.yaml
         yq e '.healthCheck.readinessProbe.successThreshold = 1' -i values.yaml
         yq e '.healthCheck.readinessProbe.failureThreshold = 3' -i values.yaml
 
-        yq e '.healthCheck.livenessProbe.httpGet.path = "/"' -i values.yaml
-        yq e '.healthCheck.livenessProbe.httpGet.port = env(PORT)' -i values.yaml
-        yq e '.healthCheck.livenessProbe.initialDelaySeconds = 10' -i values.yaml
+        yq e '.healthCheck.livenessProbe.httpGet.path = "/health"' -i values.yaml
+        yq e '.healthCheck.livenessProbe.httpGet.port = env(API_PORT)' -i values.yaml
+        yq e '.healthCheck.livenessProbe.initialDelaySeconds = 30' -i values.yaml
         yq e '.healthCheck.livenessProbe.periodSeconds = 30' -i values.yaml
         yq e '.healthCheck.livenessProbe.timeoutSeconds = 3' -i values.yaml
         yq e '.healthCheck.livenessProbe.successThreshold = 1' -i values.yaml
         yq e '.healthCheck.livenessProbe.failureThreshold = 3' -i values.yaml
 
+        # Environment variables (from spfn.config.js + auto-generated)
+        echo "🔧 Processing environment variables"
+
+        # Auto-generate NEXT_PUBLIC_API_URL if not provided (for browser/client-side)
+        CUSTOM_PUBLIC_API_URL=$(echo "$ENV_VARS" | jq -r '.NEXT_PUBLIC_API_URL // empty')
+        if [ -z "$CUSTOM_PUBLIC_API_URL" ] && [ -n "$SUBDOMAIN" ]; then
+          AUTO_PUBLIC_API_URL="https://api-$SUBDOMAIN.$REGION.$BASE_HOST"
+          ENV_VARS=$(echo "$ENV_VARS" | jq --arg url "$AUTO_PUBLIC_API_URL" '. + {"NEXT_PUBLIC_API_URL": $url}')
+          echo "  ✅ Auto-generated NEXT_PUBLIC_API_URL: $AUTO_PUBLIC_API_URL"
+        fi
+
+        # Auto-generate API_URL if not provided (for Next.js SSR/API routes, internal)
+        CUSTOM_INTERNAL_API_URL=$(echo "$ENV_VARS" | jq -r '.API_URL // empty')
+        if [ -z "$CUSTOM_INTERNAL_API_URL" ]; then
+          AUTO_INTERNAL_API_URL="http://localhost:$API_PORT"
+          ENV_VARS=$(echo "$ENV_VARS" | jq --arg url "$AUTO_INTERNAL_API_URL" '. + {"API_URL": $url}')
+          echo "  ✅ Auto-generated API_URL: $AUTO_INTERNAL_API_URL (same container)"
+        fi
+
+        # Inject all environment variables to values.yaml
+        ENV_COUNT=$(echo "$ENV_VARS" | jq -r 'keys | length')
+        if [ "$ENV_COUNT" -gt 0 ]; then
+          echo "  📋 Injecting $ENV_COUNT environment variable(s) to deployment:"
+
+          # Iterate over env vars and add to values.yaml
+          echo "$ENV_VARS" | jq -r 'to_entries | .[] | "\(.key)=\(.value)"' | while IFS='=' read -r key value; do
+            echo "    - $key=$value"
+            # Escape special characters in value for yq
+            ESCAPED_VALUE=$(echo "$value" | sed 's/"/\\"/g')
+            yq e '.env["'"$key"'"] = "'"$ESCAPED_VALUE"'"' -i values.yaml
+          done
+
+          echo "  ✅ Environment variables injected"
+        fi
+
         # Ingress (Dynamic host generation with multiple hosts support)
         yq e '.ingress.enabled = true' -i values.yaml
-        # 브랜치명 안전 처리 (/를 -로 변환)
+
+        # 브랜치명 안전 처리
         BRANCH_SAFE=$(echo "$CI_COMMIT_BRANCH" | sed 's|/|-|g')
 
-        # Host 생성 (branch-gitorg-gitrepo-postfix.basehost)
-        if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-          if [ -n "$HOST_POSTFIX" ] && [ "$HOST_POSTFIX" != "" ]; then
-            HOST_PREFIX="$GIT_ORG-$GIT_REPO-$HOST_POSTFIX"
-          else
-            HOST_PREFIX="$GIT_ORG-$GIT_REPO"
-          fi
+        # Dual Domain 설정 (spfn.config.js 기반)
+        HOST_INDEX=0
+
+        # 1. spfn.config.js의 subdomain 사용 (기본 도메인)
+        if [ -n "$SUBDOMAIN" ]; then
+          # Next.js 기본 도메인 (region-specific)
+          NEXTJS_HOST="$SUBDOMAIN.$REGION.$BASE_HOST"
+          yq e '.ingress.hosts['$HOST_INDEX'].host = "'$NEXTJS_HOST'"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].path = "/"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].pathType = "Prefix"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].backend.service.port.number = env(MAIN_PORT)' -i values.yaml
+
+          HOST_INDEX=$((HOST_INDEX + 1))
+
+          # API 기본 도메인 (자동 api- prefix, region-specific)
+          API_HOST="api-$SUBDOMAIN.$REGION.$BASE_HOST"
+          yq e '.ingress.hosts['$HOST_INDEX'].host = "'$API_HOST'"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].path = "/"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].pathType = "Prefix"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].backend.service.port.number = env(API_PORT)' -i values.yaml
+
+          HOST_INDEX=$((HOST_INDEX + 1))
+
+          echo "📋 Generated default domains (region: $REGION):"
+          echo "  Next.js: https://$NEXTJS_HOST"
+          echo "  API:     https://$API_HOST"
         else
-          if [ -n "$HOST_POSTFIX" ] && [ "$HOST_POSTFIX" != "" ]; then
-            HOST_PREFIX="$BRANCH_SAFE-$GIT_ORG-$GIT_REPO-$HOST_POSTFIX"
+          # Fallback: GIT_ORG-GIT_REPO 기반 (기존 방식)
+          if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+            HOST_PREFIX="$GIT_ORG-$GIT_REPO"
           else
             HOST_PREFIX="$BRANCH_SAFE-$GIT_ORG-$GIT_REPO"
           fi
+
+          NEXTJS_HOST="$HOST_PREFIX.$BASE_HOST"
+          API_HOST="api-$HOST_PREFIX.$BASE_HOST"
+
+          yq e '.ingress.hosts['$HOST_INDEX'].host = "'$NEXTJS_HOST'"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].path = "/"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].pathType = "Prefix"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].backend.service.port.number = env(MAIN_PORT)' -i values.yaml
+
+          HOST_INDEX=$((HOST_INDEX + 1))
+
+          yq e '.ingress.hosts['$HOST_INDEX'].host = "'$API_HOST'"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].path = "/"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].pathType = "Prefix"' -i values.yaml
+          yq e '.ingress.hosts['$HOST_INDEX'].paths[0].backend.service.port.number = env(API_PORT)' -i values.yaml
+
+          HOST_INDEX=$((HOST_INDEX + 1))
+
+          echo "📋 Generated fallback domains:"
+          echo "  Next.js: https://$NEXTJS_HOST"
+          echo "  API:     https://$API_HOST"
         fi
 
-        # 기본 호스트 설정
-        DEFAULT_HOST="$HOST_PREFIX.$BASE_HOST"
-        yq e '.ingress.hosts[0].host = "'$DEFAULT_HOST'"' -i values.yaml
-        yq e '.ingress.hosts[0].paths[0].path = "/"' -i values.yaml
-        yq e '.ingress.hosts[0].paths[0].pathType = "Prefix"' -i values.yaml
-
-        # 커스텀 호스트들 추가
-        if [ -n "$CUSTOM_HOSTS" ] && [ "$CUSTOM_HOSTS" != "" ]; then
-          HOST_INDEX=1
-          for custom_host in $CUSTOM_HOSTS; do
-            yq e '.ingress.hosts['$HOST_INDEX'].host = "'$custom_host'"' -i values.yaml
+        # 2. 커스텀 Next.js 도메인들 추가
+        if [ -n "$CUSTOM_NEXTJS_DOMAINS" ]; then
+          echo "📋 Adding custom Next.js domains:"
+          for domain in $CUSTOM_NEXTJS_DOMAINS; do
+            yq e '.ingress.hosts['$HOST_INDEX'].host = "'$domain'"' -i values.yaml
             yq e '.ingress.hosts['$HOST_INDEX'].paths[0].path = "/"' -i values.yaml
             yq e '.ingress.hosts['$HOST_INDEX'].paths[0].pathType = "Prefix"' -i values.yaml
+            yq e '.ingress.hosts['$HOST_INDEX'].paths[0].backend.service.port.number = env(MAIN_PORT)' -i values.yaml
+
             HOST_INDEX=$((HOST_INDEX + 1))
+            echo "  Next.js: https://$domain"
+          done
+        fi
+
+        # 3. 커스텀 SPFN API 도메인들 추가
+        if [ -n "$CUSTOM_SPFN_DOMAINS" ]; then
+          echo "📋 Adding custom SPFN API domains:"
+          for domain in $CUSTOM_SPFN_DOMAINS; do
+            yq e '.ingress.hosts['$HOST_INDEX'].host = "'$domain'"' -i values.yaml
+            yq e '.ingress.hosts['$HOST_INDEX'].paths[0].path = "/"' -i values.yaml
+            yq e '.ingress.hosts['$HOST_INDEX'].paths[0].pathType = "Prefix"' -i values.yaml
+            yq e '.ingress.hosts['$HOST_INDEX'].paths[0].backend.service.port.number = env(API_PORT)' -i values.yaml
+
+            HOST_INDEX=$((HOST_INDEX + 1))
+            echo "  API:     https://$domain"
           done
         fi
 
@@ -399,7 +488,7 @@ steps:
     environment:
       CI_BOT_USER: { from_secret: CI_BOT_USER }
       CI_BOT_TOKEN: { from_secret: CI_BOT_TOKEN }
-      APP_NAME: superfunction
+      APP_NAME: spfn-spfn
     commands:
       - |
         echo "📤 Committing and pushing changes"
@@ -409,7 +498,7 @@ steps:
         GITOPS_PATH=$(cat /woodpecker/shared/gitops_path)
         cd $GITOPS_PATH
 
-        # Git 안전 디렉토리 설정 (새로운 컨테이너이므로 다시 설정 필요)
+        # Git 설정
         git config --global --add safe.directory $GITOPS_PATH
         git config --global user.email "ci-bot@superfunctions.ai"
         git config --global user.name "CI Bot"
@@ -420,7 +509,7 @@ steps:
         echo "🔍 Updated files in $APP_NAME:"
         ls -l ./
 
-        # ArgoCD 브랜치별 배포를 위한 마커 파일 생성 (main은 불필요하지만 다른 브랜치는 필요)
+        # ArgoCD 브랜치별 배포를 위한 마커 파일 생성
         if [ "$CI_COMMIT_BRANCH" != "main" ]; then
           mkdir -p .argocd
           echo "# ArgoCD ApplicationSet 배포 활성화 마커" > .argocd/enabled
@@ -432,7 +521,7 @@ steps:
         git add values.yaml
         git commit -m "Deploy $APP_NAME ${COMMIT_SHA} to PRODUCTION" || echo "No changes"
 
-        # 현재 브랜치에 맞는 브랜치로 push (스마트 브랜치 처리)
+        # 현재 브랜치에 맞는 브랜치로 push
         TARGET_BRANCH="$CI_COMMIT_BRANCH"
 
         # 현재 브랜치가 원격에 존재하는지 확인
@@ -444,7 +533,6 @@ steps:
           }
         else
           echo "⚠️ Branch $TARGET_BRANCH does not exist on remote. Creating new branch."
-          # main이 아닌 브랜치의 경우 새 브랜치 생성
           if [ "$TARGET_BRANCH" != "main" ]; then
             git checkout -b $TARGET_BRANCH 2>/dev/null || git checkout $TARGET_BRANCH
           fi
