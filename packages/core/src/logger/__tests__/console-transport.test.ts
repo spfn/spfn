@@ -230,7 +230,7 @@ describe('ConsoleTransport', () =>
             });
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[database]')
+                expect.stringContaining('[module=database]')
             );
         });
 

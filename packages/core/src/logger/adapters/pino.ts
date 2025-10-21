@@ -1,29 +1,7 @@
 /**
  * Pino Logger Adapter
  *
- * Pino를 사용하는 Logger Adapter 구현
- *
- * ✅ 구현 완료:
- * - Pino 기반 로깅
- * - Child logger 지원
- * - Error 객체 처리 (err 필드)
- * - Context 병합
- * - 환경별 설정 (pretty print)
- * - 파일 로깅 with Rotation (자체 구축용)
- *
- * 💡 배포 시나리오:
- * - K8s: Stdout만 (로그 수집기가 처리)
- * - 자체 구축: Stdout + File with Rotation
- *
- * 💡 특징:
- * - 고성능 (Winston보다 5-10배 빠름)
- * - JSON 기본 포맷
- * - 프로덕션 검증됨 (Netflix, Elastic 사용)
- *
- * 🔗 관련 파일:
- * - src/logger/adapters/types.ts (인터페이스)
- * - src/logger/index.ts (Adapter 선택)
- * - src/logger/config.ts (설정)
+ * High-performance logger adapter using Pino with pretty-print for development and JSON for production.
  */
 
 import pino from 'pino';
@@ -56,6 +34,10 @@ export class PinoAdapter implements LoggerAdapter
                     colorize: true,
                     translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l',
                     ignore: 'pid,hostname',
+                    // 메시지와 필드를 한 줄로 표시
+                    messageFormat: '{if module}[module={module}] {end}{msg}',
+                    // context 필드들도 한 줄로 표시
+                    singleLine: true,
                 },
             });
         }

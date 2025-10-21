@@ -14,6 +14,7 @@ import {
     formatSlack,
     formatEmailSubject,
     formatEmailBody,
+    maskSensitiveData,
 } from '../formatters';
 import type { LogMetadata } from '../types';
 
@@ -185,7 +186,7 @@ describe('Formatters', () =>
 
             const result = formatConsole(metadata, false);
 
-            expect(result).toContain('[database]');
+            expect(result).toContain('[module=database]');
         });
 
         it('should include context', () =>
@@ -469,6 +470,179 @@ describe('Formatters', () =>
 
             expect(result).toContain('Error Stack Trace');
             expect(result).toContain('Stack trace error');
+        });
+    });
+
+    describe('maskSensitiveData', () =>
+    {
+        it('should mask password field', () =>
+        {
+            const data = { username: 'john', password: 'secret123' };
+            const result = maskSensitiveData(data);
+
+            expect(result).toEqual({
+                username: 'john',
+                password: '***MASKED***',
+            });
+        });
+
+        it('should mask various sensitive keys', () =>
+        {
+            const data = {
+                username: 'john',
+                password: 'secret123',
+                token: 'abc123',
+                apiKey: 'xyz789',
+                secret: 'hidden',
+                authorization: 'Bearer token',
+            };
+            const result = maskSensitiveData(data) as Record<string, unknown>;
+
+            expect(result.username).toBe('john');
+            expect(result.password).toBe('***MASKED***');
+            expect(result.token).toBe('***MASKED***');
+            expect(result.apiKey).toBe('***MASKED***');
+            expect(result.secret).toBe('***MASKED***');
+            expect(result.authorization).toBe('***MASKED***');
+        });
+
+        it('should handle nested objects', () =>
+        {
+            const data = {
+                user: {
+                    id: 123,
+                    name: 'John',
+                    credentials: {
+                        password: 'secret',
+                        apiKey: 'key123',
+                    },
+                },
+            };
+            const result = maskSensitiveData(data) as any;
+
+            expect(result.user.id).toBe(123);
+            expect(result.user.name).toBe('John');
+            expect(result.user.credentials.password).toBe('***MASKED***');
+            expect(result.user.credentials.apiKey).toBe('***MASKED***');
+        });
+
+        it('should handle arrays', () =>
+        {
+            const data = [
+                { name: 'user1', password: 'pass1' },
+                { name: 'user2', token: 'token2' },
+            ];
+            const result = maskSensitiveData(data) as any[];
+
+            expect(result[0].name).toBe('user1');
+            expect(result[0].password).toBe('***MASKED***');
+            expect(result[1].name).toBe('user2');
+            expect(result[1].token).toBe('***MASKED***');
+        });
+
+        it('should preserve null and undefined values', () =>
+        {
+            expect(maskSensitiveData(null)).toBe(null);
+            expect(maskSensitiveData(undefined)).toBe(undefined);
+        });
+
+        it('should preserve primitive types', () =>
+        {
+            expect(maskSensitiveData('string')).toBe('string');
+            expect(maskSensitiveData(123)).toBe(123);
+            expect(maskSensitiveData(true)).toBe(true);
+        });
+
+        it('should be case-insensitive', () =>
+        {
+            const data = {
+                PASSWORD: 'secret',
+                Token: 'abc',
+                API_KEY: 'xyz',
+            };
+            const result = maskSensitiveData(data) as Record<string, unknown>;
+
+            expect(result.PASSWORD).toBe('***MASKED***');
+            expect(result.Token).toBe('***MASKED***');
+            expect(result.API_KEY).toBe('***MASKED***');
+        });
+
+        it('should handle partial key matches', () =>
+        {
+            const data = {
+                userPassword: 'secret',
+                accessToken: 'token123',
+                myApiKey: 'key789',
+            };
+            const result = maskSensitiveData(data) as Record<string, unknown>;
+
+            expect(result.userPassword).toBe('***MASKED***');
+            expect(result.accessToken).toBe('***MASKED***');
+            expect(result.myApiKey).toBe('***MASKED***');
+        });
+
+        it('should not mask non-sensitive fields', () =>
+        {
+            const data = {
+                userId: 123,
+                email: 'user@example.com',
+                status: 'active',
+                metadata: {
+                    created: '2024-01-01',
+                    updated: '2024-01-15',
+                },
+            };
+            const result = maskSensitiveData(data);
+
+            expect(result).toEqual(data);
+        });
+
+        it('should handle credit card related fields', () =>
+        {
+            const data = {
+                creditCard: '4111-1111-1111-1111',
+                cardNumber: '1234567890123456',
+                cvv: '123',
+            };
+            const result = maskSensitiveData(data) as Record<string, unknown>;
+
+            expect(result.creditCard).toBe('***MASKED***');
+            expect(result.cardNumber).toBe('***MASKED***');
+            expect(result.cvv).toBe('***MASKED***');
+        });
+
+        it('should handle session and auth fields', () =>
+        {
+            const data = {
+                sessionId: 'sess_123',
+                session: { id: 'sess_123', data: 'data' },
+                cookie: 'session=abc',
+                auth: 'Bearer token',
+            };
+            const result = maskSensitiveData(data) as Record<string, unknown>;
+
+            expect(result.sessionId).toBe('***MASKED***');
+            expect(result.session).toBe('***MASKED***');
+            expect(result.cookie).toBe('***MASKED***');
+            expect(result.auth).toBe('***MASKED***');
+        });
+
+        it('should handle deeply nested structures', () =>
+        {
+            const data = {
+                level1: {
+                    level2: {
+                        level3: {
+                            password: 'deep-secret',
+                            normalField: 'normal-value',
+                        },
+                    },
+                },
+            };
+            const result = maskSensitiveData(data) as any;
+
+            expect(result.level1.level2.level3.password).toBe('***MASKED***');
+            expect(result.level1.level2.level3.normalField).toBe('normal-value');
         });
     });
 });

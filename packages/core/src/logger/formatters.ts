@@ -1,20 +1,109 @@
 /**
  * Logger Formatters
  *
- * 로그 포맷팅 유틸리티
- *
- * ✅ 구현 완료:
- * - 컬러 포맷터 (콘솔 출력용)
- * - JSON 포맷터 (파일/전송용)
- * - 타임스탬프 포맷터
- * - 에러 스택 트레이스 포맷팅
- *
- * 🔗 관련 파일:
- * - src/logger/types.ts (타입 정의)
- * - src/logger/transports/ (Transport 구현체)
+ * Log formatting utilities for console, JSON, Slack, and Email outputs with sensitive data masking.
  */
 
 import type { LogLevel, LogMetadata } from './types';
+
+/**
+ * 민감 정보로 간주되는 키 목록
+ * 이 키들을 포함하는 필드는 자동으로 마스킹됨
+ */
+const SENSITIVE_KEYS = [
+    'password',
+    'passwd',
+    'pwd',
+    'secret',
+    'token',
+    'apikey',
+    'api_key',
+    'accesstoken',
+    'access_token',
+    'refreshtoken',
+    'refresh_token',
+    'authorization',
+    'auth',
+    'cookie',
+    'session',
+    'sessionid',
+    'session_id',
+    'privatekey',
+    'private_key',
+    'creditcard',
+    'credit_card',
+    'cardnumber',
+    'card_number',
+    'cvv',
+    'ssn',
+    'pin',
+];
+
+/**
+ * 마스킹된 값
+ */
+const MASKED_VALUE = '***MASKED***';
+
+/**
+ * 키가 민감 정보를 포함하는지 확인
+ */
+function isSensitiveKey(key: string): boolean
+{
+    const lowerKey = key.toLowerCase();
+    return SENSITIVE_KEYS.some(sensitive => lowerKey.includes(sensitive));
+}
+
+/**
+ * 민감 정보 마스킹
+ * Context 객체에서 민감한 정보(비밀번호, 토큰 등)를 마스킹
+ *
+ * @param data - 원본 데이터
+ * @returns 마스킹된 데이터
+ */
+export function maskSensitiveData(data: unknown): unknown
+{
+    // null, undefined 처리
+    if (data === null || data === undefined)
+    {
+        return data;
+    }
+
+    // 배열 처리
+    if (Array.isArray(data))
+    {
+        return data.map(item => maskSensitiveData(item));
+    }
+
+    // 객체 처리
+    if (typeof data === 'object')
+    {
+        const masked: Record<string, unknown> = {};
+
+        for (const [key, value] of Object.entries(data))
+        {
+            if (isSensitiveKey(key))
+            {
+                // 민감 정보 키는 마스킹
+                masked[key] = MASKED_VALUE;
+            }
+            else if (typeof value === 'object' && value !== null)
+            {
+                // 중첩된 객체는 재귀 처리
+                masked[key] = maskSensitiveData(value);
+            }
+            else
+            {
+                // 일반 값은 그대로 유지
+                masked[key] = value;
+            }
+        }
+
+        return masked;
+    }
+
+    // 기본 타입은 그대로 반환
+    return data;
+}
 
 /**
  * ANSI 컬러 코드

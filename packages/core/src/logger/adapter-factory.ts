@@ -6,7 +6,7 @@
 
 import { PinoAdapter } from './adapters/pino.js';
 import { CustomAdapter } from './adapters/custom.js';
-import { getDefaultLogLevel } from './config.js';
+import { getDefaultLogLevel, validateConfig } from './config.js';
 import type { LoggerAdapter } from './adapters/types.js';
 
 /**
@@ -51,6 +51,18 @@ function getAdapterType(): AdapterType
 }
 
 /**
+ * Initialize logger with configuration validation
+ */
+function initializeLogger(): LoggerAdapter
+{
+    // Validate configuration before creating logger
+    validateConfig();
+
+    // Create and return logger instance
+    return createAdapter(getAdapterType());
+}
+
+/**
  * Singleton Logger instance
  */
-export const logger: LoggerAdapter = createAdapter(getAdapterType());
+export const logger: LoggerAdapter = initializeLogger();

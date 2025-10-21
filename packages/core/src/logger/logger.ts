@@ -1,35 +1,20 @@
 /**
  * Logger Class
  *
- * Main logger class
- *
- * ✅ Implemented:
- * - 5 log level methods (debug, info, warn, error, fatal)
- * - Child logger creation (per module)
- * - Multiple Transport support
- * - Context object support
- * - Automatic Error object handling
- *
- * 💡 Future considerations:
- * - Log sampling (limit high-frequency logs)
- * - Async batch processing
- * - Memory usage monitoring
- *
- * 🔗 Related files:
- * - src/logger/types.ts (Type definitions)
- * - src/logger/transports/ (Transport implementations)
- * - src/logger/adapter-factory.ts (Singleton instance)
+ * Central logging class with multiple transports, child loggers, and sensitive data masking.
  */
 
 import type { LogLevel, LogMetadata, LoggerConfig, Transport } from './types';
+import { LOG_LEVEL_PRIORITY } from './types';
+import { maskSensitiveData } from './formatters';
 
 /**
  * Logger class
  */
 export class Logger
 {
-    private config: LoggerConfig;
-    private module?: string;
+    private readonly config: LoggerConfig;
+    private readonly module?: string;
 
     constructor(config: LoggerConfig)
     {
@@ -128,13 +113,21 @@ export class Logger
      */
     private log(level: LogLevel, message: string, error?: Error, context?: Record<string, unknown>): void
     {
+        // Early return if log level is below configured level
+        // This prevents unnecessary metadata creation and processing
+        if (LOG_LEVEL_PRIORITY[level] < LOG_LEVEL_PRIORITY[this.config.level])
+        {
+            return;
+        }
+
         const metadata: LogMetadata = {
             timestamp: new Date(),
             level,
             message,
             module: this.module,
             error,
-            context,
+            // Mask sensitive information in context to prevent credential leaks
+            context: context ? maskSensitiveData(context) as Record<string, unknown> : undefined,
         };
 
         // Pass to all enabled Transports

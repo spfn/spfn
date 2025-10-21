@@ -485,6 +485,18 @@ Server configuration and lifecycle management.
 
 **[→ Read Server Documentation](./src/server/README.md)**
 
+### 📝 Logger
+High-performance logging with multiple transports, sensitive data masking, and automatic validation.
+
+**[→ Read Logger Documentation](./src/logger/README.md)**
+
+**Key Features:**
+- Adapter pattern (Pino for production, custom for full control)
+- Sensitive data masking (passwords, tokens, API keys)
+- File rotation (date and size-based) with automatic cleanup
+- Configuration validation with clear error messages
+- Multiple transports (Console, File, Slack, Email)
+
 ### ⚙️ Code Generation
 Automatic code generation with pluggable generators and centralized file watching.
 
@@ -534,6 +546,11 @@ import {
 import { initRedis, getRedis, getRedisRead } from '@spfn/core';
 ```
 
+### Logger
+```typescript
+import { logger } from '@spfn/core';
+```
+
 ### Client (for frontend)
 ```typescript
 import { ContractClient, createClient } from '@spfn/core/client';
@@ -557,6 +574,11 @@ REDIS_READ_URL=redis://replica:6379
 PORT=8790
 HOST=localhost
 NODE_ENV=development
+
+# Logger (optional)
+LOGGER_ADAPTER=pino               # pino | custom (default: pino)
+LOGGER_FILE_ENABLED=true          # Enable file logging (production only)
+LOG_DIR=/var/log/myapp           # Log directory (required when file logging enabled)
 ```
 
 ## Requirements
@@ -586,6 +608,7 @@ npm test -- --coverage      # With coverage
 - [Error Handling](./src/errors/README.md)
 - [Middleware](./src/middleware/README.md)
 - [Server Configuration](./src/server/README.md)
+- [Logger](./src/logger/README.md)
 - [Code Generation](./src/codegen/README.md)
 
 ### API Reference
