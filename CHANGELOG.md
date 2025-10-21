@@ -5,6 +5,21 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.43] - 2025-10-21
+
+### Fixed
+
+#### @spfn/core
+
+- **Client Path Combination**: Fixed trailing slash issue in API requests
+  - Added `combinePaths()` method to properly combine basePath and contract.path
+  - Prevents duplicate slashes: `/organizations` + `/` now correctly becomes `/organizations` instead of `/organizations/`
+  - Examples:
+    - `combinePaths('/organizations', '/')` → `/organizations` (was `/organizations/` causing 404)
+    - `combinePaths('/organizations', '/:id')` → `/organizations/:id`
+    - `combinePaths('/', '/health')` → `/health`
+  - Fixes 404 errors when calling routes with basePath and contract.path both ending/starting with `/`
+
 ## [0.1.0-alpha.42] - 2025-10-21
 
 ### Fixed
