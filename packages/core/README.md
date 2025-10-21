@@ -58,7 +58,7 @@ export const getUsersContract = {
 // src/server/routes/users/index.ts
 import { createApp } from '@spfn/core/route';
 import { getUsersContract } from './contract.js';
-import { getRepository } from '@spfn/core/db';
+import { Repository } from '@spfn/core/db';
 import { users } from '../../entities/users.js';
 
 const app = createApp();
@@ -66,14 +66,15 @@ const app = createApp();
 app.bind(getUsersContract, async (c) => {
   const { page = 1, limit = 10 } = c.query;
 
-  // Get repository singleton - automatically cached
-  const repo = getRepository(users);
+  // Create repository instance
+  const repo = new Repository(users);
 
-  const result = await repo.findPage({
-    pagination: { page, limit }
-  });
+  const offset = (page - 1) * limit;
+  const result = await repo.select()
+    .limit(limit)
+    .offset(offset);
 
-  return c.json(result);
+  return c.json({ users: result, total: result.length });
 });
 
 export default app;
@@ -147,131 +148,37 @@ export type NewPost = typeof posts.$inferInsert;
 **2. Repository Layer** - Data access with custom methods
 
 ```typescript
-// src/server/repositories/posts.repository.ts
+// src/server/entities/posts.ts (continued)
 import { eq } from 'drizzle-orm';
 import { Repository } from '@spfn/core/db';
-import { posts } from '../entities';
-import type { Post } from '../entities';
 
-export class PostRepository extends Repository<typeof posts>
-{
-  async findBySlug(slug: string): Promise<Post | null>
-  {
-    return this.findOne(eq(this.table.slug, slug));
+export class PostRepository extends Repository<typeof posts> {
+  async findBySlug(slug: string) {
+    const results = await this.select()
+      .where(eq(this.table.slug, slug))
+      .limit(1);
+    return results[0] ?? null;
   }
 
-  async findPublished(): Promise<Post[]>
-  {
-    const results = await this.db
-      .select()
-      .from(this.table)
+  async findPublished() {
+    return this.select()
       .where(eq(this.table.status, 'published'))
       .orderBy(this.table.createdAt);
-
-    return results;
   }
-}
-```
 
-**3. Service Layer** - Business logic (Function-based pattern)
-
-```typescript
-// src/server/services/posts.ts
-import { getRepository } from '@spfn/core/db';
-import { ValidationError, DatabaseError, NotFoundError } from '@spfn/core';
-import { posts } from '../entities';
-import { PostRepository } from '../repositories/posts.repository';
-import type { NewPost, Post } from '../entities';
-
-/**
- * Create a new post
- */
-export async function createPost(data: {
-  title: string;
-  content: string;
-}): Promise<Post> {
-  try {
-    // Get repository singleton
-    const repo = getRepository(posts, PostRepository);
-
-    // Business logic: Generate slug from title
-    const slug = generateSlug(data.title);
-
-    // Validation: Check if slug already exists
-    const existing = await repo.findBySlug(slug);
-    if (existing) {
-      throw new ValidationError('Post with this title already exists', {
-        fields: [{
-          path: '/title',
-          message: 'A post with this title already exists',
-          value: data.title
-        }]
-      });
-    }
-
-    // Create post
-    return await repo.save({
-      ...data,
-      slug,
-      status: 'draft',
-    });
-  } catch (error) {
-    // Re-throw ValidationError as-is
-    if (error instanceof ValidationError) {
-      throw error;
-    }
-
-    // Wrap unexpected errors
-    throw new DatabaseError('Failed to create post', 500, {
-      originalError: error instanceof Error ? error.message : String(error)
-    });
-  }
-}
-
-/**
- * Publish a post
- */
-export async function publishPost(id: string): Promise<Post> {
-  try {
-    const repo = getRepository(posts, PostRepository);
-    const post = await repo.update(id, { status: 'published' });
-
-    if (!post) {
-      throw new NotFoundError('Post not found');
-    }
-
+  async create(data: NewPost) {
+    const [post] = await this.insert()
+      .values(data)
+      .returning();
     return post;
-  } catch (error) {
-    if (error instanceof NotFoundError) {
-      throw error;
-    }
-
-    throw new DatabaseError('Failed to publish post', 500, {
-      originalError: error instanceof Error ? error.message : String(error)
-    });
   }
 }
 
-/**
- * Get all published posts
- */
-export async function getPublishedPosts(): Promise<Post[]> {
-  const repo = getRepository(posts, PostRepository);
-  return repo.findPublished();
-}
-
-/**
- * Helper: Generate URL-friendly slug from title
- */
-function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
+// Export repository instance for reuse
+export const postRepository = new PostRepository(posts);
 ```
 
-**4. Routes Layer** - HTTP API
+**3. Routes Layer** - HTTP API
 
 ```typescript
 // src/server/routes/posts/contracts.ts
@@ -306,7 +213,7 @@ export const listPostsContract = {
 // src/server/routes/posts/index.ts
 import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
-import { createPost, getPublishedPosts } from '../../services/posts';
+import { postRepository } from '../../entities/posts';
 import { createPostContract, listPostsContract } from './contracts';
 
 const app = createApp();
@@ -314,14 +221,32 @@ const app = createApp();
 // POST /posts - Create new post (with transaction)
 app.bind(createPostContract, Transactional(), async (c) => {
   const body = await c.data();
-  const post = await createPost(body);
+
+  // Generate slug from title
+  const slug = body.title.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
+  // Check if slug exists
+  const existing = await postRepository.findBySlug(slug);
+  if (existing) {
+    return c.json({ error: 'Post with this title already exists' }, 409);
+  }
+
+  // Create post
+  const post = await postRepository.create({
+    ...body,
+    slug,
+    status: 'draft'
+  });
+
   // ✅ Auto-commit on success, auto-rollback on error
   return c.json(post, 201);
 });
 
 // GET /posts - List published posts (no transaction needed)
 app.bind(listPostsContract, async (c) => {
-  const posts = await getPublishedPosts();
+  const posts = await postRepository.findPublished();
   return c.json(posts);
 });
 
@@ -368,16 +293,9 @@ export default app;
 
 **Repository Layer:**
 - ✅ Extend `Repository<typeof table>` for custom methods
-- ✅ Use `getRepository(table)` or `getRepository(table, CustomRepo)`
+- ✅ Export repository instance from entity file: `export const repo = new MyRepository(table)`
 - ✅ Add domain-specific query methods
 - ✅ Return typed results
-
-**Service Layer:**
-- ✅ Use function-based pattern (export async functions)
-- ✅ Get repositories via `getRepository()` (singleton)
-- ✅ Implement business logic and validation
-- ✅ Throw descriptive errors
-- ✅ Keep functions focused and small
 
 **Routes Layer:**
 - ✅ Keep handlers thin (delegate to services)
@@ -404,56 +322,10 @@ Drizzle ORM integration with repository pattern and pagination.
 
 **[→ Read Database Documentation](./src/db/README.md)**
 
-**Guides:**
-- [Repository Pattern](./src/db/docs/repository.md)
-- [Schema Helpers](./src/db/docs/schema-helpers.md)
-- [Database Manager](./src/db/docs/database-manager.md)
-
-#### Choosing a Repository Pattern
-
-SPFN offers two repository patterns. Choose based on your needs:
-
-**Global Singleton (`getRepository`)**
-```typescript
-import { getRepository } from '@spfn/core/db';
-
-const repo = getRepository(users);
-```
-
-- ✅ Simple API, minimal setup
-- ✅ Maximum memory efficiency
-- ⚠️ Requires manual `clearRepositoryCache()` in tests
-- ⚠️ Global state across all requests
-- 📝 **Use for:** Simple projects, prototypes, single-instance services
-
-**Request-Scoped (`getScopedRepository` + `RepositoryScope()`)** ⭐ Recommended
-```typescript
-import { getScopedRepository, RepositoryScope } from '@spfn/core/db';
-
-// Add middleware once (in server setup)
-app.use(RepositoryScope());
-
-// Use in routes/services
-const repo = getScopedRepository(users);
-```
-
-- ✅ Automatic per-request isolation
-- ✅ No manual cache clearing needed
-- ✅ Test-friendly (each test gets fresh instances)
-- ✅ Production-ready with graceful degradation
-- 📝 **Use for:** Production apps, complex testing, team projects
-
-**Comparison:**
-
-| Feature | `getRepository` | `getScopedRepository` |
-|---------|----------------|----------------------|
-| Setup | Zero config | Add middleware |
-| Test isolation | Manual | Automatic |
-| Memory | Shared cache | Per-request cache |
-| State | Global | Request-scoped |
-| Best for | Prototypes | Production |
-
-[→ See full request-scoped documentation](./src/db/repository/request-scope.ts)
+**Key Features:**
+- Repository pattern with automatic transaction handling
+- Read/Write database separation
+- Schema helpers: `id()`, `timestamps()`, `foreignKey()`
 
 ### 🔄 Transactions
 Automatic transaction management with async context propagation.
@@ -525,11 +397,9 @@ import type { RouteContext, RouteContract } from '@spfn/core/route';
 ### Database
 ```typescript
 import {
-  getDb,
-  Repository,
-  getRepository
+  getDatabase,
+  Repository
 } from '@spfn/core/db';
-import type { Pageable, Page } from '@spfn/core/db';
 ```
 
 ### Transactions

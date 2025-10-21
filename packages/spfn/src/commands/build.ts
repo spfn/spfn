@@ -20,6 +20,11 @@ interface BuildOptions
  */
 async function buildProject(options: BuildOptions): Promise<void>
 {
+    // Set NODE_ENV to production (Next.js style)
+    if (!process.env.NODE_ENV) {
+        process.env.NODE_ENV = 'production';
+    }
+
     const cwd = process.cwd();
     const pm = detectPackageManager(cwd);
 

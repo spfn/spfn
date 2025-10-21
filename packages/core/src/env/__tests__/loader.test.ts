@@ -323,6 +323,73 @@ describe('Environment Loader', () =>
         });
     });
 
+    describe('NODE_ENV Handling', () =>
+    {
+        it('should load .env and .env.local when NODE_ENV is not set', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env'), 'BASE_VAR=base\n');
+            writeFileSync(join(TEST_DIR, '.env.local'), 'LOCAL_VAR=local\n');
+            writeFileSync(join(TEST_DIR, '.env.development'), 'DEV_VAR=dev\n');
+
+            const result = loadEnvironment({
+                basePath: TEST_DIR,
+                nodeEnv: '', // No NODE_ENV
+            });
+
+            expect(process.env.BASE_VAR).toBe('base');
+            expect(process.env.LOCAL_VAR).toBe('local');
+            expect(process.env.DEV_VAR).toBeUndefined(); // Should not load .env.development
+            expect(result.loaded).toHaveLength(2); // Only .env and .env.local
+        });
+
+        it('should warn when NODE_ENV is set in .env files', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env'), 'NODE_ENV=production\nVAR1=value1\n');
+
+            const result = loadEnvironment({ basePath: TEST_DIR });
+
+            expect(result.warnings).toHaveLength(1);
+            expect(result.warnings[0]).toContain('NODE_ENV found in .env');
+            expect(result.warnings[0]).toContain('set NODE_ENV via CLI');
+        });
+
+        it('should warn when NODE_ENV is set in .env.local', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env.local'), 'NODE_ENV=development\nVAR1=value1\n');
+
+            const result = loadEnvironment({ basePath: TEST_DIR });
+
+            expect(result.warnings).toHaveLength(1);
+            expect(result.warnings[0]).toContain('NODE_ENV found in .env.local');
+        });
+
+        it('should not warn if NODE_ENV is not in .env files', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env'), 'VAR1=value1\n');
+            writeFileSync(join(TEST_DIR, '.env.local'), 'VAR2=value2\n');
+
+            const result = loadEnvironment({ basePath: TEST_DIR });
+
+            expect(result.warnings).toHaveLength(0);
+        });
+
+        it('should skip .env.local when NODE_ENV=local to avoid duplicates', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env'), 'VAR1=base\n');
+            writeFileSync(join(TEST_DIR, '.env.local'), 'VAR2=local\n');
+
+            const result = loadEnvironment({
+                basePath: TEST_DIR,
+                nodeEnv: 'local',
+            });
+
+            // Should load: .env, .env.local (from pattern), .env.local.local
+            // But .env.local pattern is skipped to avoid duplicate
+            expect(process.env.VAR1).toBe('base');
+            expect(process.env.VAR2).toBe('local');
+        });
+    });
+
     describe('Helper Functions', () =>
     {
         beforeEach(() =>

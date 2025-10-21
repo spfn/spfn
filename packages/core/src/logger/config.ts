@@ -290,12 +290,8 @@ function validateEnvironment(): void
             '[Logger] Warning: NODE_ENV is not set. Defaulting to test environment.\n'
         );
     }
-    else if (!['development', 'production', 'test'].includes(nodeEnv))
-    {
-        process.stderr.write(
-            `[Logger] Warning: Unknown NODE_ENV="${nodeEnv}". Expected: development, production, or test.\n`
-        );
-    }
+    // Allow any NODE_ENV value (development, production, test, staging, local, etc.)
+    // No validation needed - users can use custom environments
 }
 
 /**

@@ -82,7 +82,7 @@ export interface LoadResult
     /**
      * Warning messages for non-critical issues
      */
-    warnings?: string[];
+    warnings: string[];
 }
 
 /**

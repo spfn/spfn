@@ -7,7 +7,7 @@
 import { config as dotenvConfig } from 'dotenv';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { logger } from '../logger/index.js';
+import { logger } from '../logger';
 import type {
     LoadEnvironmentOptions,
     LoadResult,
@@ -29,14 +29,23 @@ let cachedLoadResult: LoadResult | undefined;
  * Next.js-style behavior:
  * - .env.local is excluded in test environment for test isolation
  * - Test files (.env.test*) are excluded in non-test environments
+ * - If NODE_ENV is not set, .env and .env.local are loaded
  *
  * @param basePath - Base directory for .env files
- * @param nodeEnv - Current NODE_ENV value
+ * @param nodeEnv - Current NODE_ENV value (empty string if not set)
  * @returns Array of absolute file paths to load in priority order
  */
 function buildFileList(basePath: string, nodeEnv: string): string[]
 {
     const files: string[] = [];
+
+    // If NODE_ENV is not set, load .env and .env.local (Next.js style)
+    if (!nodeEnv)
+    {
+        files.push(join(basePath, '.env'));
+        files.push(join(basePath, '.env.local'));
+        return files;
+    }
 
     for (const pattern of ENV_FILE_PRIORITY)
     {
@@ -44,6 +53,13 @@ function buildFileList(basePath: string, nodeEnv: string): string[]
 
         // Skip .env.local in test environment (Next.js-style)
         if (nodeEnv === 'test' && fileName === '.env.local')
+        {
+            continue;
+        }
+
+        // Skip duplicate .env.local when NODE_ENV=local
+        // (.env.{NODE_ENV} becomes .env.local, same as .env.local pattern)
+        if (nodeEnv === 'local' && pattern === '.env.local')
         {
             continue;
         }
@@ -166,25 +182,36 @@ function validateRequiredVars(required: string[], debug: boolean): void
  * Load environment variables from .env files with Next.js-style priority
  *
  * Loading behavior by environment:
+ * - (no NODE_ENV): .env → .env.local
  * - development: .env → .env.development → .env.local → .env.development.local
  * - production:  .env → .env.production → .env.local → .env.production.local
  * - test:        .env → .env.test → (skip .env.local) → .env.test.local
+ * - local:       .env → .env.local → .env.local.local (duplicate .env.local prevented)
+ * - staging/qa/etc: .env → .env.{NODE_ENV} → .env.local → .env.{NODE_ENV}.local
  *
- * Note: .env.local is excluded in test environment for proper test isolation
+ * Notes:
+ * - .env.local is excluded in test environment for proper test isolation
+ * - Any custom NODE_ENV value is supported (staging, qa, uat, preview, etc.)
+ * - If NODE_ENV is not set, .env and .env.local are loaded
  *
  * @param options - Loading options
  * @returns Load result with success status and loaded variables
  *
  * @example
  * ```typescript
- * // Simple usage
+ * // Simple usage (no NODE_ENV set)
  * const result = loadEnvironment();
  *
- * // With options
+ * // With NODE_ENV=local
+ * process.env.NODE_ENV = 'local';
  * const result = loadEnvironment({
  *   debug: true,
  *   required: ['DATABASE_URL'],
  * });
+ *
+ * // With custom environment
+ * process.env.NODE_ENV = 'staging';
+ * const result = loadEnvironment();
  * ```
  */
 export function loadEnvironment(options: LoadEnvironmentOptions = {}): LoadResult
@@ -193,7 +220,7 @@ export function loadEnvironment(options: LoadEnvironmentOptions = {}): LoadResul
         basePath = process.cwd(),
         customPaths = [],
         debug = false,
-        nodeEnv = process.env.NODE_ENV || 'development',
+        nodeEnv = process.env.NODE_ENV || '',
         required = [],
         useCache = true,
     } = options;
@@ -256,6 +283,17 @@ export function loadEnvironment(options: LoadEnvironmentOptions = {}): LoadResul
         {
             result.loaded.push(filePath);
             Object.assign(result.parsed, fileResult.parsed);
+
+            // Warn if NODE_ENV is set in .env files (Next.js style)
+            if (fileResult.parsed['NODE_ENV'])
+            {
+                const fileName = filePath.split('/').pop() || filePath;
+                result.warnings.push(
+                    `NODE_ENV found in ${fileName}. ` +
+                    `It's recommended to set NODE_ENV via CLI (e.g., 'spfn dev', 'spfn build') ` +
+                    `instead of .env files for consistent environment behavior.`
+                );
+            }
         }
         else if (fileResult.error)
         {
@@ -291,6 +329,15 @@ export function loadEnvironment(options: LoadEnvironmentOptions = {}): LoadResul
                 error instanceof Error ? error.message : 'Validation failed',
             ];
             throw error;
+        }
+    }
+
+    // Log warnings after validation
+    if (result.warnings.length > 0)
+    {
+        for (const warning of result.warnings)
+        {
+            envLogger.warn(warning);
         }
     }
 

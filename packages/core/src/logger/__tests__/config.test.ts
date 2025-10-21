@@ -509,32 +509,40 @@ describe('Logger Configuration', () =>
             expect(() => validateConfig()).not.toThrow();
         });
 
-        it('should warn when NODE_ENV is not set', () =>
+        it('should accept any NODE_ENV value without warnings', () =>
         {
-            delete process.env.NODE_ENV;
-
-            const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-
-            validateConfig();
-
-            expect(stderrSpy).toHaveBeenCalledWith(
-                expect.stringContaining('NODE_ENV is not set')
-            );
-
-            stderrSpy.mockRestore();
-        });
-
-        it('should warn when NODE_ENV is unknown', () =>
-        {
+            // SPFN CLI sets NODE_ENV automatically, and custom values are allowed
             process.env.NODE_ENV = 'staging';
 
             const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
-            validateConfig();
+            expect(() => validateConfig()).not.toThrow();
 
-            expect(stderrSpy).toHaveBeenCalledWith(
-                expect.stringContaining('Unknown NODE_ENV')
+            // Should not write any warnings about NODE_ENV
+            const calls = stderrSpy.mock.calls.map(call => call[0]);
+            const nodeEnvWarnings = calls.filter(call =>
+                typeof call === 'string' && call.includes('NODE_ENV')
             );
+            expect(nodeEnvWarnings).toHaveLength(0);
+
+            stderrSpy.mockRestore();
+        });
+
+        it('should accept missing NODE_ENV without warnings', () =>
+        {
+            // SPFN CLI sets NODE_ENV, but if not set, it's okay
+            delete process.env.NODE_ENV;
+
+            const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+            expect(() => validateConfig()).not.toThrow();
+
+            // Should not write any warnings about NODE_ENV
+            const calls = stderrSpy.mock.calls.map(call => call[0]);
+            const nodeEnvWarnings = calls.filter(call =>
+                typeof call === 'string' && call.includes('NODE_ENV')
+            );
+            expect(nodeEnvWarnings).toHaveLength(0);
 
             stderrSpy.mockRestore();
         });
