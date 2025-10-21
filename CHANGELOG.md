@@ -5,6 +5,57 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.41] - 2025-10-21
+
+### Added
+
+#### @spfn/core
+
+- **Environment Loading**: Next.js-style environment variable management
+  - Load `.env` and `.env.local` when NODE_ENV is not set
+  - Support custom NODE_ENV values (staging, qa, uat, local, etc.)
+  - Warn when NODE_ENV is defined in .env files (recommend CLI-based setting)
+  - Prevent duplicate `.env.local` loading when `NODE_ENV=local`
+  - Updated test coverage with 5 new tests for NODE_ENV handling
+
+#### spfn
+
+- **Auto NODE_ENV Setting**: CLI commands automatically set NODE_ENV (Next.js style)
+  - `spfn dev` → `NODE_ENV=development`
+  - `spfn build` → `NODE_ENV=production`
+  - `spfn start` → `NODE_ENV=production`
+
+### Changed
+
+#### @spfn/core
+
+- **Logger Configuration**: Removed NODE_ENV validation warnings
+  - Accept any NODE_ENV value without warnings
+  - Removed restrictive validation (development/production/test only)
+  - Updated test coverage to verify no warnings on custom NODE_ENV
+
+- **Pino Adapter**: Simplified transport configuration
+  - Removed `pino-pretty` transport to avoid worker thread errors
+  - Use default JSON output for all environments
+  - Fixed "unable to determine transport target" error
+
+- **Environment Loader**: Enhanced flexibility and Next.js compatibility
+  - Default `nodeEnv` from `'development'` to `''` (empty string)
+  - Load `.env.local` by default when NODE_ENV is not set
+  - Support `.env.{NODE_ENV}` pattern for any custom environment name
+
+### Fixed
+
+#### @spfn/core
+
+- **TypeScript Errors**: Fixed `warnings` field type in `LoadResult`
+  - Changed from `warnings?: string[]` to `warnings: string[]`
+  - Fixed TS18048 errors in loader.ts
+
+- **Logger Transport Error**: Resolved pino-pretty module resolution issue
+  - Error: "unable to determine transport target for pino-pretty"
+  - Solution: Removed transport configuration, use native pino output
+
 ## [0.1.0-alpha.40] - 2025-10-21
 
 ### Added

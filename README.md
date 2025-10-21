@@ -175,12 +175,17 @@ export const getUserContract = {
 };
 
 // 2. Implement route (src/server/routes/users/[id]/index.ts)
-import { bind } from '@spfn/core';
+import { createApp } from '@spfn/core/route';
+import { getUserContract } from '../contract';
 
-export const GET = bind(getUserContract, async (c) => {
+const app = createApp();
+
+app.bind(getUserContract, async (c) => {
   const user = await repo.findById(c.params.id);
   return c.json(user);
 });
+
+export default app;
 
 // 3. Use in Next.js (auto-generated src/lib/api.ts)
 import { api } from '@/lib/api'

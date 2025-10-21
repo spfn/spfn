@@ -18,60 +18,11 @@ export class PinoAdapter implements LoggerAdapter
     {
         const isProduction = process.env.NODE_ENV === 'production';
         const isDevelopment = process.env.NODE_ENV === 'development';
-        const fileLoggingEnabled = process.env.LOGGER_FILE_ENABLED === 'true';
 
-        // Transport 설정
-        const targets: pino.TransportTargetOptions[] = [];
-
-        // 1. Stdout Transport (항상)
-        if (!isProduction && isDevelopment)
-        {
-            // 개발: Pretty Print
-            targets.push({
-                target: 'pino-pretty',
-                level: 'debug',
-                options: {
-                    colorize: true,
-                    translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l',
-                    ignore: 'pid,hostname',
-                    // 메시지와 필드를 한 줄로 표시
-                    messageFormat: '{if module}[module={module}] {end}{msg}',
-                    // context 필드들도 한 줄로 표시
-                    singleLine: true,
-                },
-            });
-        }
-        else
-        {
-            // 프로덕션: JSON (기본 stdout)
-            // targets가 비어있으면 자동으로 stdout JSON 사용
-        }
-
-        // 2. File Transport (자체 구축 시)
-        if (fileLoggingEnabled && isProduction)
-        {
-            const logDir = process.env.LOG_DIR || './logs';
-            const maxFileSize = process.env.LOG_MAX_FILE_SIZE || '10M';
-            const maxFiles = parseInt(process.env.LOG_MAX_FILES || '10', 10);
-
-            targets.push({
-                target: 'pino-roll',
-                level: 'info',
-                options: {
-                    file: `${logDir}/app.log`,
-                    frequency: 'daily',
-                    size: maxFileSize,
-                    limit: { count: maxFiles },
-                    mkdir: true,
-                },
-            });
-        }
-
+        // Development: use simple console output without transport
+        // Production: use JSON output
         this.logger = pino({
             level: config.level,
-
-            // Transport 설정 (targets가 있으면 사용, 없으면 기본 stdout)
-            transport: targets.length > 0 ? { targets } : undefined,
 
             // 기본 필드
             base: config.module ? { module: config.module } : undefined,

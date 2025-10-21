@@ -14,6 +14,11 @@ export const devCommand = new Command('dev')
     .option('--no-watch', 'Disable hot reload (watch mode)')
     .action(async (options) =>
     {
+        // Set NODE_ENV to development (Next.js style)
+        if (!process.env.NODE_ENV) {
+            process.env.NODE_ENV = 'development';
+        }
+
         const cwd = process.cwd();
         const serverDir = join(cwd, 'src', 'server');
 

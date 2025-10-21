@@ -325,7 +325,7 @@ import { Transactional } from '@spfn/core/db';
 
 app.bind(
   createTaskContract,
-  Transactional(),  // Add transaction middleware
+  [Transactional()],  // Add transaction middleware
   async (c) => {
     const repo = getRepository(tasks);
     const activityRepo = getRepository(activities);

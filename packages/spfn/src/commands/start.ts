@@ -22,6 +22,11 @@ export const startCommand = new Command('start')
     .option('-h, --host <host>', 'Server host', '0.0.0.0')
     .action(async (options: StartOptions) =>
     {
+        // Set NODE_ENV to production (Next.js style)
+        if (!process.env.NODE_ENV) {
+            process.env.NODE_ENV = 'production';
+        }
+
         const cwd = process.cwd();
 
         // Check if package.json exists
