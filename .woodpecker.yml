@@ -90,10 +90,10 @@ steps:
         echo "$REGISTRY_HOST/$GIT_ORG/$GIT_REPO-$APP_NAME:$CI_COMMIT_BRANCH-$CI_COMMIT_SHA" > /woodpecker/shared/image_tag
         echo "$CI_COMMIT_SHA" > /woodpecker/shared/commit_sha
 
-        # 프로젝트 내 Dockerfile 사용
+        # apps/landing Dockerfile 사용
         WORK_DIR=$(cat /woodpecker/shared/work_dir)
-        DOCKERFILE_PATH="$WORK_DIR/Dockerfile"
-        BUILD_CONTEXT="$WORK_DIR"
+        DOCKERFILE_PATH="$WORK_DIR/apps/landing/Dockerfile"
+        BUILD_CONTEXT="$WORK_DIR/apps/landing"
 
         echo "📋 Build Info:"
         echo "  Dockerfile: $DOCKERFILE_PATH"
