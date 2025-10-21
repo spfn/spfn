@@ -246,8 +246,8 @@ function generateMethodCode(mapping: RouteContractMapping, options: ClientGenera
 
     code += `) => `;
 
-    // Return type
-    code += `client.call(${mapping.contractName}`;
+    // Return type - pass basePath as first parameter
+    code += `client.call('${mapping.path}', ${mapping.contractName}`;
 
     if (params.length > 0)
     {

@@ -5,6 +5,34 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.42] - 2025-10-21
+
+### Fixed
+
+#### @spfn/core
+
+- **Client File-Based Routing**: Fixed critical bug where API client was calling wrong paths
+  - Changed `client.call(contract, options)` to `client.call(basePath, contract, options)`
+  - Contract client now accepts basePath as first parameter (e.g., `/organizations`)
+  - Codegen now passes full path from file-based routing to client.call()
+  - Example: `api.organizations.list()` now correctly calls `/organizations/` instead of `/`
+  - Fixed issue where all routes were being called with contract's relative path only
+
+- **Client Code Generator**: Updated to pass basePath in generated API client
+  - Generated code now: `client.call('/organizations', getOrganizationsContract)`
+  - Previously: `client.call(getOrganizationsContract)` (incorrect, used `/` only)
+  - Properly combines file-based route path with contract path
+
+### Breaking Changes
+
+#### @spfn/core
+
+- **ContractClient.call() signature changed**:
+  - Old: `call(contract, options?)`
+  - New: `call(basePath, contract, options?)`
+  - This change is only breaking for manual client.call() usage
+  - Auto-generated API clients will work after regeneration
+
 ## [0.1.0-alpha.41] - 2025-10-21
 
 ### Added

@@ -88,15 +88,20 @@ export class ContractClient
 
     /**
      * Make a type-safe API call using a contract
+     *
+     * @param basePath - Base path from file-based routing (e.g., '/organizations')
+     * @param contract - Route contract
+     * @param options - Call options (params, query, body, headers)
      */
     async call<TContract extends RouteContract>(
+        basePath: string,
         contract: TContract,
         options?: CallOptions<TContract>
     ): Promise<InferContract<TContract>['response']>
     {
         const baseUrl = options?.baseUrl || this.config.baseUrl;
         const urlPath = ContractClient.buildUrl(
-            contract.path,
+            basePath + contract.path,
             options?.params as Record<string, string | number> | undefined
         );
         const queryString = ContractClient.buildQuery(
