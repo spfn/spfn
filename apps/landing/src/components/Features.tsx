@@ -42,20 +42,19 @@ const list = await userRepo.findMany({
         },
         {
             icon: '⚡',
-            title: 'Always-on Runtime',
+            title: 'Production-Ready',
             items: [
                 'Connection pooling (PostgreSQL, Redis)',
-                'Background workers',
-                'WebSocket support',
+                '518+ tests with 40%+ coverage',
+                'Integration tests for DB, cache, server',
             ],
             code: `// Long-running process
 const db = getDb('write');
 const redis = getRedis();
 
-// Runs independently
-setInterval(async () => {
-  await processJobs();
-}, 1000);`,
+// Comprehensive testing
+// Unit + Integration tests
+// Docker Compose for testing`,
         },
         {
             icon: '📁',
