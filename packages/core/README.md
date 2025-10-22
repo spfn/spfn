@@ -256,10 +256,10 @@ export default app;
 
 **✅ Reusability**
 - Services can be used by multiple routes
-- Repositories can be shared across services
+- Data access functions can be shared across services
 
 **✅ Type Safety**
-- Types flow from Entity → Repository → Service → Route
+- Types flow from Entity → Data Access → Service → Route
 - Full IDE autocomplete and error checking
 
 **✅ Maintainability**
@@ -480,7 +480,7 @@ npm test -- --coverage      # With coverage
 
 ### Guides
 - [File-based Routing](./src/route/README.md)
-- [Database & Repository](./src/db/README.md)
+- [Database & Helper Functions](./src/db/README.md)
 - [Transaction Management](./src/db/docs/transactions.md)
 - [Redis Cache](./src/cache/README.md)
 - [Error Handling](./src/errors/README.md)
