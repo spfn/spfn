@@ -171,10 +171,7 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
                     sourceMap: true,
                     outDir: '../../.spfn/server',
                     rootDir: '.',
-                    baseUrl: '.',
-                    paths: {
-                        '@/*': ['../../src/*']
-                    }
+                    baseUrl: '.'
                 },
                 include: [
                     './**/*'

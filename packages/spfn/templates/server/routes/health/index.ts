@@ -12,7 +12,8 @@ import { healthContract } from './contract.js';
 
 const app = createApp();
 
-app.bind(healthContract, async (c) => {
+app.bind(healthContract, async (c) =>
+{
     return c.json({
         status: 'ok',
         timestamp: Date.now(),

@@ -505,7 +505,7 @@ Wraps route handlers in a database transaction with automatic commit/rollback.
 ```typescript
 import { Transactional } from '@spfn/core';
 
-app.bind(createUserContract, Transactional(), async (c) => {
+app.bind(createUserContract, [Transactional()], async (c) => {
   const data = await c.data();
   const user = await createUser(data);
   // ✅ Auto-commit on success

@@ -148,25 +148,26 @@ export type NewPost = typeof posts.$inferInsert;
 **2. Repository Layer** - Data access with custom methods
 
 ```typescript
-// src/server/entities/posts.ts (continued)
+// src/server/repositories/posts.repository.ts
 import { eq } from 'drizzle-orm';
 import { Repository } from '@spfn/core/db';
+import { posts, type Post, type NewPost } from '../entities/posts';
 
 export class PostRepository extends Repository<typeof posts> {
-  async findBySlug(slug: string) {
+  async findBySlug(slug: string): Promise<Post | null> {
     const results = await this.select()
       .where(eq(this.table.slug, slug))
       .limit(1);
     return results[0] ?? null;
   }
 
-  async findPublished() {
+  async findPublished(): Promise<Post[]> {
     return this.select()
       .where(eq(this.table.status, 'published'))
       .orderBy(this.table.createdAt);
   }
 
-  async create(data: NewPost) {
+  async create(data: NewPost): Promise<Post> {
     const [post] = await this.insert()
       .values(data)
       .returning();
@@ -213,13 +214,13 @@ export const listPostsContract = {
 // src/server/routes/posts/index.ts
 import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
-import { postRepository } from '../../entities/posts';
+import { postRepository } from '../../repositories/posts.repository';
 import { createPostContract, listPostsContract } from './contracts';
 
 const app = createApp();
 
 // POST /posts - Create new post (with transaction)
-app.bind(createPostContract, Transactional(), async (c) => {
+app.bind(createPostContract, [Transactional()], async (c) => {
   const body = await c.data();
 
   // Generate slug from title
@@ -293,9 +294,10 @@ export default app;
 
 **Repository Layer:**
 - ✅ Extend `Repository<typeof table>` for custom methods
-- ✅ Export repository instance from entity file: `export const repo = new MyRepository(table)`
-- ✅ Add domain-specific query methods
-- ✅ Return typed results
+- ✅ Create repository in separate file: `src/server/repositories/*.repository.ts`
+- ✅ Export repository instance: `export const repo = new MyRepository(table)`
+- ✅ Add domain-specific query methods with explicit return types
+- ✅ Import entity types from entity files
 
 **Routes Layer:**
 - ✅ Keep handlers thin (delegate to services)

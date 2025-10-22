@@ -5,6 +5,39 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.44] - 2025-10-22
+
+### Changed
+
+#### @spfn/core
+
+- **Repository Pattern Separation**: Repository classes must now be in separate files from entities
+  - Entity files (`src/server/entities/*.ts`) now only contain table schemas and type definitions
+  - Repository classes moved to `src/server/repositories/*.repository.ts`
+  - Updated README.md with new pattern: separate entity definition, repository creation, and route usage
+  - Example structure:
+    ```
+    src/server/
+    ├── entities/users.ts          # Schema + types only
+    ├── repositories/users.repository.ts  # Repository class
+    └── routes/users/index.ts      # Import from repositories/
+    ```
+
+- **Drizzle ORM Constraint Syntax**: Updated to latest array-based syntax
+  - Old: `(table) => ({ indexName: index().on(...) })`
+  - New: `(table) => [ index().on(...), unique().on(...) ]`
+  - Removed property names from constraints (no longer needed)
+
+- **Transactional Middleware**: Fixed incorrect usage examples
+  - Correct: `app.bind(contract, [Transactional()], handler)`
+  - Fixed in core README.md and middleware documentation
+
+#### spfn
+
+- **Templates**: Updated all templates to follow new Repository separation pattern
+  - `templates/server/entities/README.md` now shows 3-step pattern
+  - All example code updated with correct import paths
+
 ## [0.1.0-alpha.43] - 2025-10-21
 
 ### Fixed

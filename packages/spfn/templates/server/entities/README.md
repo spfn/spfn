@@ -37,72 +37,110 @@ export type Post = typeof posts.$inferSelect;
 - `foreignKey(name, ref)` - Foreign key with cascade delete
 - `optionalForeignKey(name, ref)` - Nullable foreign key
 
-## Pattern 1: Simple Route (No Repository)
+## Pattern 1: Direct Database Access (Simple Queries)
 
-Use `getDb()` directly in routes for simple queries:
+Use `Repository` directly for simple CRUD operations:
 
 ```typescript
 // src/server/routes/users/index.ts
-import type { RouteContext } from '@spfn/core';
-import { getDb } from '@spfn/core';
+import { createApp } from '@spfn/core/route';
+import { Repository } from '@spfn/core/db';
 import { users } from '../../entities/users.js';
+import { getUsersContract } from './contract.js';
 
-export async function GET(c: RouteContext)
+const app = createApp();
+
+app.bind(getUsersContract, async (c) =>
 {
-    const db = getDb();
-    const allUsers = await db.select().from(users);
+    const repo = new Repository(users);
+    const allUsers = await repo.select();
     return c.json(allUsers);
-}
+});
+
+export default app;
 ```
 
-## Pattern 2: Repository Pattern (Recommended)
+## Pattern 2: Repository Pattern (Recommended for Complex Logic)
 
-For complex business logic, use the Repository pattern:
+For complex business logic, extend Repository with custom methods:
 
-**1. Create a repository:**
+**1. Define entity schema:**
 
 ```typescript
-// src/server/repositories/user.repository.ts
+// src/server/entities/users.ts
+import { pgTable, text } from 'drizzle-orm/pg-core';
+import { id, timestamps } from '@spfn/core/db';
+
+export const users = pgTable('users', {
+    id: id(),
+    email: text('email').notNull().unique(),
+    name: text('name').notNull(),
+    ...timestamps(),
+});
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+```
+
+**2. Create repository with custom methods:**
+
+```typescript
+// src/server/repositories/users.repository.ts
 import { eq } from 'drizzle-orm';
-import { BaseRepository } from '@spfn/core';
-import { users, type User, type NewUser } from '../entities/users.js';
+import { Repository } from '@spfn/core/db';
+import { users, type User, type NewUser } from '../entities/users';
 
-export class UserRepository extends BaseRepository<typeof users, User, NewUser>
+export class UserRepository extends Repository<typeof users>
 {
-    constructor()
+    async findByEmail(email: string): Promise<User | null>
     {
-        super(users);
+        const results = await this.select()
+            .where(eq(this.table.email, email))
+            .limit(1);
+        return results[0] ?? null;
     }
 
-    async findByEmail(email: string): Promise<User | undefined>
+    async create(data: NewUser): Promise<User>
     {
-        const db = await this.getDb();
-        const result = await db.select().from(users).where(eq(users.email, email));
-        return result[0];
+        const [user] = await this.insert()
+            .values(data)
+            .returning();
+        return user;
     }
 }
+
+// Export repository instance for reuse
+export const userRepository = new UserRepository(users);
 ```
 
-**2. Use in routes with automatic transactions:**
+**3. Use in routes with automatic transactions:**
 
 ```typescript
-// src/server/routes/users/POST.ts
-import type { RouteContext } from '@spfn/core';
-import { Transactional } from '@spfn/core';
-import { UserRepository } from '../../repositories/user.repository.js';
+// src/server/routes/users/index.ts
+import { createApp } from '@spfn/core/route';
+import { Transactional } from '@spfn/core/db';
+import { userRepository } from '../../repositories/users.repository';
+import { createUserContract } from './contract';
 
-const userRepo = new UserRepository();
+const app = createApp();
 
 // POST /users - Transaction automatically managed by Transactional() middleware
-export const POST = [
-    Transactional(),
-    async (c: RouteContext) =>
+app.bind(createUserContract, [Transactional()], async (c) =>
+{
+    const data = await c.data();
+
+    // Check if email exists
+    const existing = await userRepository.findByEmail(data.email);
+    if (existing)
     {
-        const data = await c.req.json();
-        const user = await userRepo.create(data);
-        return c.json(user, 201);
+        return c.json({ error: 'Email already exists' }, 409);
     }
-];
+
+    const user = await userRepository.create(data);
+    return c.json(user, 201);
+});
+
+export default app;
 ```
 
 ## @spfn/core Features

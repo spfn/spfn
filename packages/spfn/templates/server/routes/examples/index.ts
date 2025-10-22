@@ -21,7 +21,8 @@ import {
 const app = createApp();
 
 // GET /examples - List examples with pagination
-app.bind(getExamplesContract, async (c) => {
+app.bind(getExamplesContract, async (c) =>
+{
     const { limit = 10, offset = 0 } = c.query;
 
     // Mock data - replace with actual database queries
@@ -52,7 +53,8 @@ app.bind(getExamplesContract, async (c) => {
 });
 
 // GET /examples/:id - Get single example
-app.bind(getExampleContract, async (c) => {
+app.bind(getExampleContract, async (c) =>
+{
     const { id } = c.params;
 
     // Mock data - replace with actual database query
@@ -68,7 +70,8 @@ app.bind(getExampleContract, async (c) => {
 });
 
 // POST /examples - Create example
-app.bind(createExampleContract, async (c) => {
+app.bind(createExampleContract, async (c) =>
+{
     const body = await c.data();
 
     // Mock data - replace with actual database insert
@@ -83,7 +86,8 @@ app.bind(createExampleContract, async (c) => {
 });
 
 // PUT /examples/:id - Update example
-app.bind(updateExampleContract, async (c) => {
+app.bind(updateExampleContract, async (c) =>
+{
     const { id } = c.params;
     const body = await c.data();
 
@@ -99,7 +103,8 @@ app.bind(updateExampleContract, async (c) => {
 });
 
 // DELETE /examples/:id - Delete example
-app.bind(deleteExampleContract, async (c) => {
+app.bind(deleteExampleContract, async (c) =>
+{
     const { id } = c.params;
 
     // Mock data - replace with actual database delete
