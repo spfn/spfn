@@ -12,13 +12,13 @@ import type { RouteContract, RouteHandler } from './types.js';
 export type SPFNApp = Hono & {
     bind<TContract extends RouteContract>(
         contract: TContract,
-        handler: RouteHandler
+        handler: RouteHandler<TContract>
     ): void;
 
     bind<TContract extends RouteContract>(
         contract: TContract,
         middlewares: MiddlewareHandler[],
-        handler: RouteHandler
+        handler: RouteHandler<TContract>
     ): void;
 
     _contractMetas?: Map<string, RouteContract['meta']>;
@@ -46,7 +46,7 @@ export function createApp(): SPFNApp
 
     app.bind = function <TContract extends RouteContract>(
         contract: TContract,
-        ...args: [RouteHandler] | [MiddlewareHandler[], RouteHandler]
+        ...args: [RouteHandler<TContract>] | [MiddlewareHandler[], RouteHandler<TContract>]
     )
     {
         const method = contract.method.toLowerCase();

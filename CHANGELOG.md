@@ -5,6 +5,33 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.45] - 2025-10-22
+
+### Fixed
+
+#### @spfn/core
+
+- **Route Type Inference**: Fixed contract-based type inference in route handlers
+  - `RouteHandler` is now generic: `RouteHandler<TContract>`
+  - `app.bind()` correctly passes contract types to handler
+  - `c.params`, `c.query`, `c.data()`, `c.json()` now properly typed from contract
+  - No more `any` types in route handlers - full end-to-end type safety
+  - Example:
+    ```typescript
+    const contract = {
+      method: 'POST' as const,
+      params: Type.Object({ id: Type.String() }),
+      body: Type.Object({ name: Type.String() }),
+      response: Type.Object({ success: Type.Boolean() })
+    };
+
+    app.bind(contract, async (c) => {
+      const { id } = c.params;        // ✅ { id: string }
+      const body = await c.data();    // ✅ { name: string }
+      return c.json({ success: true }); // ✅ Type-checked
+    });
+    ```
+
 ## [0.1.0-alpha.44] - 2025-10-22
 
 ### Changed

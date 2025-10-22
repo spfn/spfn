@@ -70,7 +70,8 @@ export type RouteContext<TContract extends RouteContract = any> = {
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-export type RouteHandler = (c: RouteContext) => Response | Promise<Response>;
+export type RouteHandler<TContract extends RouteContract = any> =
+    (c: RouteContext<TContract>) => Response | Promise<Response>;
 
 export function isHttpMethod(value: unknown): value is HttpMethod
 {

@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import { Value } from '@sinclair/typebox/value';
 import type { RouteContract, RouteContext, InferContract } from './types.js';
-import { ValidationError } from '../errors/database-errors.js';
+import { ValidationError } from '../errors';
 
 /**
  * Contract-based Route Handler Wrapper
