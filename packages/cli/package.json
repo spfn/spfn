@@ -37,7 +37,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/spfn/spfn.git",
-    "directory": "packages/spfn"
+    "directory": "packages/cli"
   },
   "publishConfig": {
     "access": "public",
@@ -47,7 +47,7 @@
   "bugs": {
     "url": "https://github.com/spfn/spfn/issues"
   },
-  "homepage": "https://github.com/spfn/spfn/tree/main/packages/spfn#readme",
+  "homepage": "https://github.com/spfn/spfn/tree/main/packages/cli#readme",
   "engines": {
     "node": ">=18.18.0"
   },

@@ -211,10 +211,10 @@ const results = await db
 
 ```bash
 # Generate migration from your entities
-npx drizzle-kit generate
+npx spfn db generate
 
 # Run migrations
-npx drizzle-kit migrate
+npx spfn db migrate
 ```
 
 ## Learn More

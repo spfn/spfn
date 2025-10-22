@@ -47,7 +47,7 @@ jobs:
 
       - name: Publish spfn to npm
         if: startsWith(github.ref, 'refs/tags/spfn@') || startsWith(github.ref, 'refs/tags/v')
-        working-directory: packages/spfn
+        working-directory: packages/cli
         run: pnpm publish --access public --tag alpha --provenance --no-git-checks
 
       # Add latest tag (always update latest for published packages)
@@ -60,7 +60,7 @@ jobs:
 
       - name: Add latest tag to spfn
         if: startsWith(github.ref, 'refs/tags/spfn@') || startsWith(github.ref, 'refs/tags/v')
-        working-directory: packages/spfn
+        working-directory: packages/cli
         run: npm dist-tag add spfn@$(node -p "require('./package.json').version") latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

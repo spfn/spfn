@@ -295,7 +295,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full history.
 ## Documentation
 
 📚 **[Core API](./packages/core/README.md)** - Full documentation
-🛠️ **[CLI Guide](./packages/spfn/README.md)** - Commands & tools
+🛠️ **[CLI Guide](./packages/cli/README.md)** - Commands & tools
 📝 **[Testing Guide](./packages/core/TESTING.md)** - Test strategy & coverage
 
 ---
@@ -305,7 +305,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full history.
 | Package                       | Status | Description          |
 |-------------------------------|--------|----------------------|
 | [@spfn/core](./packages/core) | 🚧 Alpha | Routing, DB, Transactions |
-| [spfn](./packages/spfn)       | 🚧 Alpha | CLI & Dev tools |
+| [spfn](./packages/cli)       | 🚧 Alpha | CLI & Dev tools |
 | @spfn/user                    | 📋 Planned | User management & authentication |
 | @spfn/storage                 | 📋 Planned | File upload          |
 
