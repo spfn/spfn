@@ -5,6 +5,68 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.47] - 2025-10-23
+
+### Breaking Changes
+
+#### @spfn/core
+
+- **Removed Repository Pattern**: The Repository class has been completely removed from @spfn/core
+  - Users must migrate to using helper functions (findOne, findMany, create, updateOne, updateMany, deleteOne, deleteMany, count)
+  - See migration guide in 0.1.0-alpha.46 changelog entry below
+
+### Added
+
+#### @spfn/core
+
+- **Database Helper Functions** (packages/core/src/db/helpers.ts):
+  - `findOne(table, where)` - Find single record with object or SQL where clause
+  - `findMany(table, options)` - Find multiple records with filtering/ordering/pagination
+  - `create(table, data)` - Create single record
+  - `createMany(table, data[])` - Create multiple records
+  - `updateOne(table, where, data)` - Update single record
+  - `updateMany(table, where, data)` - Update multiple records
+  - `deleteOne(table, where)` - Delete single record
+  - `deleteMany(table, where)` - Delete multiple records
+  - `count(table, where?)` - Count records
+
+- **Unit Tests** (packages/core/src/db/__tests__/helpers.test.ts):
+  - 29 comprehensive tests covering all helper functions
+  - Mock-based testing with Drizzle ORM chainable API
+  - Tests for both object-based and SQL-based where clauses
+  - All tests passing ✓
+
+### Changed
+
+#### @spfn/core
+
+- **Documentation Updates**:
+  - Updated core README.md to showcase helper functions instead of Repository
+  - Completely rewrote db/README.md with comprehensive helper function examples
+  - Updated all examples to use helper functions
+
+#### spfn (CLI)
+
+- **Project Structure**: Renamed `packages/spfn` → `packages/cli` for clarity
+  - Package name remains 'spfn' (CLI command unchanged)
+  - Updated repository/homepage paths in package.json
+  - Updated GitHub workflow publish paths
+
+- **Template Updates** (packages/cli/templates/server/entities/README.md):
+  - Removed all Repository pattern examples
+  - Added comprehensive CRUD examples using helper functions
+  - Updated migration commands to use `npx spfn db generate/migrate`
+  - Added helper functions reference table
+
+### Removed
+
+#### @spfn/core
+
+- **Repository Class Files**:
+  - packages/core/src/db/repository/index.ts
+  - packages/core/src/db/repository/repository.ts
+- Removed Repository exports from db/index.ts and src/index.ts
+
 ## [0.1.0-alpha.46] - 2025-10-22
 
 ### Added
