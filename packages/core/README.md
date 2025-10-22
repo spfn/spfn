@@ -58,7 +58,7 @@ export const getUsersContract = {
 // src/server/routes/users/index.ts
 import { createApp } from '@spfn/core/route';
 import { getUsersContract } from './contract.js';
-import { Repository } from '@spfn/core/db';
+import { findMany } from '@spfn/core/db';
 import { users } from '../../entities/users.js';
 
 const app = createApp();
@@ -66,13 +66,9 @@ const app = createApp();
 app.bind(getUsersContract, async (c) => {
   const { page = 1, limit = 10 } = c.query;
 
-  // Create repository instance
-  const repo = new Repository(users);
-
+  // Use helper function directly - no Repository needed
   const offset = (page - 1) * limit;
-  const result = await repo.select()
-    .limit(limit)
-    .offset(offset);
+  const result = await findMany(users, { limit, offset });
 
   return c.json({ users: result, total: result.length });
 });
@@ -103,14 +99,14 @@ SPFN follows a **layered architecture** that separates concerns and keeps code m
 │           Service Layer                  │  Business logic
 │  - Orchestrate operations               │
 │  - Implement business rules             │
-│  - Use repositories                     │
+│  - Use helper functions or custom logic │
 └──────────────┬──────────────────────────┘
                │
 ┌──────────────▼──────────────────────────┐
-│         Repository Layer                 │  Data access
-│  - CRUD operations                      │
-│  - Custom queries                       │
-│  - Extend base Repository               │
+│         Data Access Layer                │  Database operations
+│  - Use helper functions (findOne, etc)  │
+│  - Custom queries with Drizzle          │
+│  - Domain-specific wrappers             │
 └──────────────┬──────────────────────────┘
                │
 ┌──────────────▼──────────────────────────┐
@@ -145,38 +141,32 @@ export type Post = typeof posts.$inferSelect;
 export type NewPost = typeof posts.$inferInsert;
 ```
 
-**2. Repository Layer** - Data access with custom methods
+**2. Data Access Layer** - Helper functions with domain-specific wrappers
 
 ```typescript
 // src/server/repositories/posts.repository.ts
-import { eq } from 'drizzle-orm';
-import { Repository } from '@spfn/core/db';
+import { findOne, findMany, create as createHelper } from '@spfn/core/db';
+import { eq, desc } from 'drizzle-orm';
 import { posts, type Post, type NewPost } from '../entities/posts';
 
-export class PostRepository extends Repository<typeof posts> {
-  async findBySlug(slug: string): Promise<Post | null> {
-    const results = await this.select()
-      .where(eq(this.table.slug, slug))
-      .limit(1);
-    return results[0] ?? null;
-  }
-
-  async findPublished(): Promise<Post[]> {
-    return this.select()
-      .where(eq(this.table.status, 'published'))
-      .orderBy(this.table.createdAt);
-  }
-
-  async create(data: NewPost): Promise<Post> {
-    const [post] = await this.insert()
-      .values(data)
-      .returning();
-    return post;
-  }
+// Domain-specific wrappers using helper functions
+export async function findPostBySlug(slug: string): Promise<Post | null> {
+  return findOne(posts, { slug });
 }
 
-// Export repository instance for reuse
-export const postRepository = new PostRepository(posts);
+export async function findPublishedPosts(): Promise<Post[]> {
+  return findMany(posts, {
+    where: { status: 'published' },
+    orderBy: desc(posts.createdAt)
+  });
+}
+
+export async function createPost(data: NewPost): Promise<Post> {
+  return createHelper(posts, data);
+}
+
+// Or use helper functions directly in routes for simple cases
+// const post = await findOne(posts, { id: 1 });
 ```
 
 **3. Routes Layer** - HTTP API
@@ -214,7 +204,7 @@ export const listPostsContract = {
 // src/server/routes/posts/index.ts
 import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
-import { postRepository } from '../../repositories/posts.repository';
+import { findPostBySlug, createPost, findPublishedPosts } from '../../repositories/posts.repository';
 import { createPostContract, listPostsContract } from './contracts';
 
 const app = createApp();
@@ -229,13 +219,13 @@ app.bind(createPostContract, [Transactional()], async (c) => {
     .replace(/(^-|-$)/g, '');
 
   // Check if slug exists
-  const existing = await postRepository.findBySlug(slug);
+  const existing = await findPostBySlug(slug);
   if (existing) {
     return c.json({ error: 'Post with this title already exists' }, 409);
   }
 
   // Create post
-  const post = await postRepository.create({
+  const post = await createPost({
     ...body,
     slug,
     status: 'draft'
@@ -247,7 +237,7 @@ app.bind(createPostContract, [Transactional()], async (c) => {
 
 // GET /posts - List published posts (no transaction needed)
 app.bind(listPostsContract, async (c) => {
-  const posts = await postRepository.findPublished();
+  const posts = await findPublishedPosts();
   return c.json(posts);
 });
 
@@ -281,7 +271,7 @@ export default app;
 | Layer | Responsibility | Examples |
 |-------|---------------|----------|
 | **Entity** | Define data structure | Schema, types, constraints |
-| **Repository** | Data access | CRUD, custom queries, joins |
+| **Data Access** | Database operations | Helper functions, custom queries, joins |
 | **Service** | Business logic | Validation, orchestration, rules |
 | **Routes** | HTTP interface | Contracts, request handling |
 
@@ -292,15 +282,16 @@ export default app;
 - ✅ Export inferred types: `Post`, `NewPost`
 - ✅ Use TEXT with enum for status fields
 
-**Repository Layer:**
-- ✅ Extend `Repository<typeof table>` for custom methods
-- ✅ Create repository in separate file: `src/server/repositories/*.repository.ts`
-- ✅ Export repository instance: `export const repo = new MyRepository(table)`
-- ✅ Add domain-specific query methods with explicit return types
-- ✅ Import entity types from entity files
+**Data Access Layer:**
+- ✅ Use helper functions for simple CRUD: `findOne()`, `create()`, etc.
+- ✅ Create domain-specific wrappers in `src/server/repositories/*.repository.ts`
+- ✅ Export functions (not classes): `export async function findPostBySlug()`
+- ✅ Use object-based where for simple queries: `{ id: 1 }`
+- ✅ Use SQL-based where for complex queries: `and(eq(...), gt(...))`
+- ✅ Full TypeScript type inference from table schemas
 
 **Routes Layer:**
-- ✅ Keep handlers thin (delegate to services)
+- ✅ Keep handlers thin (delegate to services/data access)
 - ✅ Define contracts with TypeBox
 - ✅ Use `Transactional()` middleware for write operations
 - ✅ Use `c.data()` for validated input
@@ -319,15 +310,16 @@ File-based routing with contract validation and type safety.
 - Type-safe request/response handling
 - Method-level middleware control (skip auth per HTTP method)
 
-### 🗄️ Database & Repository
-Drizzle ORM integration with repository pattern and pagination.
+### 🗄️ Database
+Drizzle ORM integration with type-safe helper functions and automatic transaction handling.
 
 **[→ Read Database Documentation](./src/db/README.md)**
 
 **Key Features:**
-- Repository pattern with automatic transaction handling
-- Read/Write database separation
+- Helper functions for type-safe CRUD operations
+- Automatic transaction handling and read/write separation
 - Schema helpers: `id()`, `timestamps()`, `foreignKey()`
+- Hybrid where clause support (objects or SQL)
 
 ### 🔄 Transactions
 Automatic transaction management with async context propagation.
@@ -400,7 +392,15 @@ import type { RouteContext, RouteContract } from '@spfn/core/route';
 ```typescript
 import {
   getDatabase,
-  Repository
+  findOne,
+  findMany,
+  create,
+  createMany,
+  updateOne,
+  updateMany,
+  deleteOne,
+  deleteMany,
+  count
 } from '@spfn/core/db';
 ```
 

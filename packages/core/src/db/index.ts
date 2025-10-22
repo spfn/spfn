@@ -35,4 +35,16 @@ export type { TransactionContext, TransactionDB, TransactionalOptions } from './
 
 // PostgreSQL Error Utilities
 export { fromPostgresError } from './postgres-errors.js';
-export { Repository } from './repository';
+
+// Helper Functions
+export {
+    findOne,
+    findMany,
+    create,
+    createMany,
+    updateOne,
+    updateMany,
+    deleteOne,
+    deleteMany,
+    count,
+} from './helpers.js';

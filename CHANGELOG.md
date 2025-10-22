@@ -5,6 +5,68 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.46] - 2025-10-22
+
+### Added
+
+#### @spfn/core
+
+- **Database Helper Functions**: New type-safe CRUD helper functions replace Repository pattern
+  - Added helper functions: `findOne()`, `findMany()`, `create()`, `createMany()`, `updateOne()`, `updateMany()`, `deleteOne()`, `deleteMany()`, `count()`
+  - Full TypeScript type inference from table schemas
+  - Hybrid where clause support: object-based (`{ id: 1 }`) or SQL-based (`eq(table.id, 1)`)
+  - Automatic transaction context detection and read/write database separation
+  - No Repository class needed - functions work directly with table schemas
+  - Example:
+    ```typescript
+    import { findOne, findMany, create } from '@spfn/core/db';
+
+    // Simple object-based queries
+    const user = await findOne(users, { id: 1 });
+    const activeUsers = await findMany(users, {
+      where: { active: true },
+      limit: 10
+    });
+
+    // Complex SQL-based queries
+    const adult = await findOne(users, and(gt(users.age, 18), eq(users.verified, true)));
+
+    // Create records
+    const newUser = await create(users, { email: 'test@example.com' });
+    ```
+
+### Removed
+
+#### @spfn/core
+
+- **Repository Pattern**: Repository class has been completely removed in favor of helper functions
+  - Helper functions provide better TypeScript type inference with less boilerplate
+  - All repository code and documentation have been removed
+  - Migration guide:
+    ```typescript
+    // Before (Repository)
+    class UserRepository extends Repository<typeof users> {
+      async findById(id: number) {
+        return this.select().where(eq(this.table.id, id)).limit(1);
+      }
+    }
+
+    // After (Helper Functions)
+    async function findById(id: number) {
+      return findOne(users, { id });
+    }
+    ```
+
+### Changed
+
+#### @spfn/core
+
+- **Documentation**: Updated all database documentation to feature helper functions
+  - README.md updated with helper function examples
+  - db/README.md restructured to prioritize helper functions
+  - Architecture diagrams updated: "Repository Layer" → "Data Access Layer"
+  - All code examples updated to use helper functions
+
 ## [0.1.0-alpha.45] - 2025-10-22
 
 ### Fixed

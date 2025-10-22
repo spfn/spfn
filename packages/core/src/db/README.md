@@ -6,7 +6,7 @@ Type-safe PostgreSQL database layer built on Drizzle ORM with automatic transact
 
 - 🔄 **Automatic Transaction Management** - AsyncLocalStorage-based transactions with middleware
 - 📊 **Read/Write Separation** - Automatic routing to read replicas when available
-- 🏗️ **Repository Pattern** - Base class for structured database access
+- 🚀 **Helper Functions** - Type-safe CRUD operations with minimal boilerplate
 - 🛠️ **Schema Helpers** - Reusable column definitions (id, timestamps, foreign keys)
 - 🔌 **Connection Pooling** - Built-in connection pool with health checks
 - ⚡ **Type Safety** - Full TypeScript support with Drizzle ORM
@@ -14,11 +14,9 @@ Type-safe PostgreSQL database layer built on Drizzle ORM with automatic transact
 ## Quick Start
 
 ```typescript
-import { initDatabase, getDatabase, Transactional } from '@spfn/core/db';
-import { Repository } from '@spfn/core/db/repository';
+import { initDatabase, findOne, create, Transactional } from '@spfn/core/db';
 import { pgTable, text } from 'drizzle-orm/pg-core';
 import { id, timestamps } from '@spfn/core/db';
-import { eq } from 'drizzle-orm';
 
 // 1. Define schema
 export const users = pgTable('users', {
@@ -31,29 +29,24 @@ export const users = pgTable('users', {
 // 2. Initialize database (once at app startup)
 await initDatabase();  // Reads DATABASE_URL from env
 
-// 3. Create a repository
-class UserRepository extends Repository<typeof users> {
-  async findByEmail(email: string) {
-    return this.select()
-      .where(eq(this.table.email, email))
-      .limit(1);
-  }
+// 3. Use helper functions directly - no Repository needed!
+// Simple object-based queries
+const user = await findOne(users, { email: 'test@example.com' });
 
-  async create(data: typeof users.$inferInsert) {
-    return this.insert()
-      .values(data)
-      .returning();
-  }
-}
+// Create records
+const newUser = await create(users, {
+  email: 'new@example.com',
+  name: 'New User'
+});
 
 // 4. Use in routes with transactions
 export const middlewares = [Transactional()];
 
 export async function POST(c: RouteContext) {
-  const userRepo = new UserRepository(users);
-
   const data = await c.req.json();
-  const [user] = await userRepo.create(data);
+
+  // No Repository class needed - just use helper functions
+  const user = await create(users, data);
 
   // Auto-commits on success, auto-rolls back on error
   return c.json(user, 201);
@@ -63,6 +56,28 @@ export async function POST(c: RouteContext) {
 ## Module Structure
 
 The database module is organized into focused sub-modules:
+
+### Helper Functions
+
+Type-safe CRUD operations with minimal boilerplate - the recommended way to interact with your database.
+
+**Key APIs:**
+- `findOne(table, where)` - Find single record
+- `findMany(table, options)` - Find multiple records with filtering, ordering, pagination
+- `create(table, data)` - Insert single record
+- `createMany(table, data[])` - Insert multiple records
+- `updateOne(table, where, data)` - Update single record
+- `updateMany(table, where, data)` - Update multiple records
+- `deleteOne(table, where)` - Delete single record
+- `deleteMany(table, where)` - Delete multiple records
+- `count(table, where)` - Count records
+
+**Features:**
+- Automatic transaction context detection
+- Read/write database separation
+- Full TypeScript type inference from table schema
+- Hybrid where clause support: objects (`{ id: 1 }`) or SQL (`eq(table.id, 1)`)
+- No Repository class needed - functions work directly with table schemas
 
 ### [Manager](./manager/README.md)
 
@@ -100,25 +115,6 @@ Automatic transaction management with AsyncLocalStorage propagation.
 - PostgreSQL error conversion
 
 [Read Transaction Documentation →](./transaction/README.md)
-
-### [Repository](./repository/README.md)
-
-Base repository pattern for structured database access.
-
-**Key APIs:**
-- `Repository<T>` - Base class with query builders
-- `select()` - Read operations (uses read replica if available)
-- `insert()` - Create operations
-- `update()` - Update operations
-- `delete()` - Delete operations
-
-**Features:**
-- Automatic transaction context detection
-- Read/write database separation
-- Type-safe query builders
-- Custom repository methods via inheritance
-
-[Read Repository Documentation →](./repository/README.md)
 
 ### Schema Helpers
 
@@ -178,59 +174,63 @@ See [Manager Documentation](./manager/README.md#environment-variables) for compl
 
 ## Common Patterns
 
-### Basic CRUD with Repository
+### Basic CRUD with Helper Functions
 
 ```typescript
-import { Repository } from '@spfn/core/db/repository';
-import { eq } from 'drizzle-orm';
+import { findOne, findMany, create, updateOne, deleteOne, count } from '@spfn/core/db';
+import { desc, gt } from 'drizzle-orm';
 
-class UserRepository extends Repository<typeof users> {
-  async findById(id: number) {
-    return this.select()
-      .where(eq(this.table.id, id))
-      .limit(1);
-  }
+// Find single record (object-based where)
+const user = await findOne(users, { id: 1 });
+const userByEmail = await findOne(users, { email: 'test@example.com' });
 
-  async findAll() {
-    return this.select()
-      .orderBy(this.table.createdAt);
-  }
+// Find single record (SQL-based where for complex queries)
+const adult = await findOne(users, gt(users.age, 18));
 
-  async create(data: typeof users.$inferInsert) {
-    return this.insert()
-      .values(data)
-      .returning();
-  }
+// Find multiple records with options
+const allUsers = await findMany(users, {
+  orderBy: desc(users.createdAt)
+});
 
-  async update(id: number, data: Partial<typeof users.$inferInsert>) {
-    return this.update()
-      .set(data)
-      .where(eq(this.table.id, id))
-      .returning();
-  }
+const activeUsers = await findMany(users, {
+  where: { active: true },
+  orderBy: desc(users.createdAt),
+  limit: 10,
+  offset: 0
+});
 
-  async deleteById(id: number) {
-    return this.delete()
-      .where(eq(this.table.id, id));
-  }
-}
+// Create record
+const newUser = await create(users, {
+  email: 'new@example.com',
+  name: 'New User'
+});
+
+// Update record
+const updated = await updateOne(users, { id: 1 }, {
+  name: 'Updated Name'
+});
+
+// Delete record
+const deleted = await deleteOne(users, { id: 1 });
+
+// Count records
+const total = await count(users);
+const activeCount = await count(users, { active: true });
 ```
 
 ### Transactions
 
 ```typescript
-import { Transactional } from '@spfn/core/db/transaction';
+import { Transactional } from '@spfn/core/db';
+import { create } from '@spfn/core/db';
 
 // Apply middleware to route
 export const middlewares = [Transactional()];
 
 export async function POST(c: RouteContext) {
-  const userRepo = new UserRepository(users);
-  const profileRepo = new ProfileRepository(profiles);
-
   // Both operations run in same transaction
-  const [user] = await userRepo.create({ email: 'test@example.com' });
-  const [profile] = await profileRepo.create({ userId: user.id });
+  const user = await create(users, { email: 'test@example.com' });
+  const profile = await create(profiles, { userId: user.id });
 
   // Success → Commit
   // Error → Rollback
@@ -268,18 +268,18 @@ export async function GET(c: RouteContext) {
 ### Read/Write Separation
 
 ```typescript
-// Read operations automatically use read replica
+import { findMany, create } from '@spfn/core/db';
+
+// Helper functions handle read/write separation automatically
+await findMany(users);  // Automatically uses read replica
+await create(users, { email: 'test@example.com' });  // Uses primary database
+
+// For custom queries, you can manually specify
 const db = getDatabase('read');
-const users = await db.select().from(users);
+const result = await db.select().from(users);
 
-// Write operations use primary database
-const db = getDatabase('write');
-await db.insert(users).values({ email: 'test@example.com' });
-
-// Repositories handle this automatically
-const userRepo = new UserRepository(users);
-await userRepo.findAll();  // Uses read replica
-await userRepo.create({}); // Uses primary database
+const writeDb = getDatabase('write');
+await writeDb.insert(users).values({ email: 'test@example.com' });
 ```
 
 ## Schema Definition
@@ -364,21 +364,26 @@ await initDatabase();
 // 2. Use transactions for write operations
 export const middlewares = [Transactional()];
 
-// 3. Leverage read replicas via Repository
-class UserRepository extends Repository<typeof users> {
-  async findActive() {
-    return this.select()  // Automatically uses read replica
-      .where(eq(this.table.active, true));
-  }
-}
+// 3. Use helper functions for common operations
+import { findMany, create } from '@spfn/core/db';
 
-// 4. Use schema helpers for consistency
+const activeUsers = await findMany(users, {
+  where: { active: true }
+});  // Automatically uses read replica
+
+// 4. Use object-based where for simple queries
+const user = await findOne(users, { id: 1 });
+
+// 5. Use SQL-based where for complex queries
+const adult = await findOne(users, and(gt(users.age, 18), eq(users.verified, true)));
+
+// 6. Use schema helpers for consistency
 export const users = pgTable('users', {
   id: id(),
   ...timestamps()
 });
 
-// 5. Let TypeScript infer types
+// 7. Let TypeScript infer types
 export type User = typeof users.$inferSelect;
 ```
 
@@ -389,8 +394,9 @@ export type User = typeof users.$inferSelect;
 const db1 = drizzle(connection1);  // ❌ Bad
 const db2 = drizzle(connection2);  // ❌ Bad
 
-// Use getDatabase() instead
+// Use getDatabase() or helper functions instead
 const db = getDatabase('write');   // ✅ Good
+await create(users, data);          // ✅ Better
 
 // 2. Don't bypass transaction middleware
 export async function POST(c: RouteContext) {
@@ -401,9 +407,8 @@ export async function POST(c: RouteContext) {
 const db = getDatabase('write');
 await db.select().from(users);  // ❌ Wastes primary db connection
 
-// Use read db or Repository
-const userRepo = new UserRepository(users);
-await userRepo.findAll();  // ✅ Uses read replica
+// Use helper functions instead
+await findMany(users);  // ✅ Automatically uses read replica
 
 // 4. Don't forget to close in tests
 afterAll(async () => {
@@ -444,7 +449,7 @@ export const middlewares = [Transactional()];
 
 export async function POST(c: RouteContext) {
   try {
-    await userRepo.create(data);
+    await create(users, data);
   } catch (error) {
     // Log but re-throw to trigger rollback
     console.error(error);
@@ -463,7 +468,20 @@ export async function POST(c: RouteContext) {
 | `getDatabase()` | manager | Get database instance |
 | `closeDatabase()` | manager | Close all connections |
 | `Transactional()` | transaction | Transaction middleware |
-| `Repository<T>` | repository | Base repository class |
+
+### Helper Functions
+
+| Function | Description |
+|----------|-------------|
+| `findOne(table, where)` | Find single record by object or SQL where |
+| `findMany(table, options)` | Find multiple records with filtering/ordering/pagination |
+| `create(table, data)` | Create single record |
+| `createMany(table, data[])` | Create multiple records |
+| `updateOne(table, where, data)` | Update single record |
+| `updateMany(table, where, data)` | Update multiple records |
+| `deleteOne(table, where)` | Delete single record |
+| `deleteMany(table, where)` | Delete multiple records |
+| `count(table, where?)` | Count records |
 
 ### Schema Helpers
 
@@ -478,6 +496,5 @@ export async function POST(c: RouteContext) {
 
 - [Manager Documentation](./manager/README.md) - Connection management and configuration
 - [Transaction Documentation](./transaction/README.md) - Transaction patterns and best practices
-- [Repository Documentation](./repository/README.md) - Repository pattern guide
 - [Drizzle ORM Documentation](https://orm.drizzle.team/) - Complete ORM reference
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/) - Database reference

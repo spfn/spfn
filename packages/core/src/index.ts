@@ -74,11 +74,6 @@ export type { RequestLoggerConfig } from './middleware/request-logger.js';
 export { ErrorHandler } from './middleware/error-handler.js';
 export type { ErrorHandlerOptions } from './middleware/error-handler.js';
 
-// Filter Utilities (moved from deprecated query module to db/repository)
-export type {
-    Repository,
-} from './db/repository';
-
 // Custom Errors
 export {
     DatabaseError,
