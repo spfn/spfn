@@ -42,7 +42,7 @@ jobs:
       # Publish spfn
       - name: Publish spfn to npm
         if: startsWith(github.ref, 'refs/tags/spfn@') || startsWith(github.ref, 'refs/tags/v')
-        working-directory: packages/spfn
+        working-directory: packages/cli
         run: pnpm publish --access public --tag alpha --provenance --no-git-checks
 ```
 
@@ -61,14 +61,14 @@ jobs:
 git diff --name-only HEAD~1 HEAD | grep "packages/core/"
 
 # Check if spfn package changed
-git diff --name-only HEAD~1 HEAD | grep "packages/spfn/"
+git diff --name-only HEAD~1 HEAD | grep "packages/cli/"
 ```
 
 ### Step 2: Update version(s) in package.json
 
 ```bash
 # If only spfn changed
-# Edit packages/spfn/package.json version
+# Edit packages/cli/package.json version
 
 # If only core changed
 # Edit packages/core/package.json version
@@ -107,7 +107,7 @@ git push
 #### Option A: Deploy spfn only (CLI changes)
 
 ```bash
-SPFN_VERSION=$(node -p "require('./packages/spfn/package.json').version")
+SPFN_VERSION=$(node -p "require('./packages/cli/package.json').version")
 echo "📦 Deploying spfn@$SPFN_VERSION"
 git tag "spfn@$SPFN_VERSION"
 git push origin "spfn@$SPFN_VERSION"
