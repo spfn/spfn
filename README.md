@@ -176,12 +176,15 @@ export const getUserContract = {
 
 // 2. Implement route (src/server/routes/users/[id]/index.ts)
 import { createApp } from '@spfn/core/route';
+import { findOne } from '@spfn/core/db';
 import { getUserContract } from '../contract';
+import { users } from '../../entities/users';
 
 const app = createApp();
 
 app.bind(getUserContract, async (c) => {
-  const user = await repo.findById(c.params.id);
+  const user = await findOne(users, { id: c.params.id });
+  if (!user) return c.json({ error: 'User not found' }, 404);
   return c.json(user);
 });
 
@@ -205,8 +208,8 @@ const user = await api.users.getById({ params: { id: '123' } });
 - OpenAPI compatible (coming soon)
 
 **🗄️ Type-safe Database**
-- Drizzle ORM with Repository pattern
-- Automatic pagination & filtering
+- Drizzle ORM with helper functions
+- Type-safe CRUD operations (findOne, findMany, create, etc.)
 - Transaction support (AsyncLocalStorage)
 - Read/Write separation for scalability
 
@@ -271,14 +274,14 @@ const user = await api.users.getById({ params: { id: '123' } });
 **🧪 Testing & Quality**
 - Added 57 new tests (DB integration, middleware error handling)
 - Test coverage increased to 40%+ (518+ total tests)
-- Fixed DB repository type issues
+- Fixed DB type compatibility with Drizzle ORM
 - Improved test isolation and configuration
 
 **📦 What's Included**
 - Comprehensive DB integration tests (40 tests)
   - Transaction context with AsyncLocalStorage
   - Auto-commit/rollback middleware
-  - Repository CRUD operations
+  - Helper functions CRUD operations
 - Error handler middleware tests (17 tests)
 - Enhanced cache module tests (70 tests)
 
