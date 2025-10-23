@@ -71,7 +71,7 @@ export class ContractClient
     constructor(config: ClientConfig = {})
     {
         this.config = {
-            baseUrl: config.baseUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
+            baseUrl: config.baseUrl || process.env.SERVER_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
             headers: config.headers || {},
             timeout: config.timeout || 30000,
             fetch: config.fetch || globalThis.fetch.bind(globalThis),
