@@ -11,9 +11,13 @@
  * - 캐시 테이블: 5ms (17배 빠름!)
  */
 
-import { pgTable, serial, text, jsonb, integer, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { serial, text, jsonb, integer, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { createFunctionSchema } from '@spfn/core/db';
 
-export const cmsPublishedCache = pgTable('cms_published_cache', {
+// Create isolated schema for @spfn/cms
+const schema = createFunctionSchema('@spfn/cms');
+
+export const cmsPublishedCache = schema.table('published_cache', {
     // Primary Key
     id: serial('id').primaryKey(),
 

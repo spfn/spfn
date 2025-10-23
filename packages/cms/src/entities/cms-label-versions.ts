@@ -7,10 +7,14 @@
  * - 버전 노트
  */
 
-import { pgTable, serial, integer, text, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { serial, integer, text, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { createFunctionSchema } from '@spfn/core/db';
 import { cmsLabels } from './cms-labels';
 
-export const cmsLabelVersions = pgTable('cms_label_versions', {
+// Create isolated schema for @spfn/cms
+const schema = createFunctionSchema('@spfn/cms');
+
+export const cmsLabelVersions = schema.table('label_versions', {
     // Primary Key
     id: serial('id').primaryKey(),
 

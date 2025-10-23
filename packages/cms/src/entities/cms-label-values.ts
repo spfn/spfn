@@ -8,10 +8,14 @@
  * - JSONB로 유연한 값 저장
  */
 
-import { pgTable, serial, integer, text, jsonb, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { serial, integer, text, jsonb, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { createFunctionSchema } from '@spfn/core/db';
 import { cmsLabels } from './cms-labels';
 
-export const cmsLabelValues = pgTable('cms_label_values', {
+// Create isolated schema for @spfn/cms
+const schema = createFunctionSchema('@spfn/cms');
+
+export const cmsLabelValues = schema.table('label_values', {
     // Primary Key
     id: serial('id').primaryKey(),
 

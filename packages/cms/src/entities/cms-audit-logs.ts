@@ -8,10 +8,14 @@
  * - 왜 (metadata)
  */
 
-import { pgTable, serial, integer, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
+import { serial, integer, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
+import { createFunctionSchema } from '@spfn/core/db';
 import { cmsLabels } from './cms-labels';
 
-export const cmsAuditLogs = pgTable('cms_audit_logs', {
+// Create isolated schema for @spfn/cms
+const schema = createFunctionSchema('@spfn/cms');
+
+export const cmsAuditLogs = schema.table('audit_logs', {
     // Primary Key
     id: serial('id').primaryKey(),
 

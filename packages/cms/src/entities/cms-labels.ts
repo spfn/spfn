@@ -8,9 +8,13 @@
  * - 발행 상태 (publishedVersion)
  */
 
-import { index, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, integer, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { createFunctionSchema } from '@spfn/core/db';
 
-export const cmsLabels = pgTable('cms_labels', {
+// Create isolated schema for @spfn/cms
+const schema = createFunctionSchema('@spfn/cms');
+
+export const cmsLabels = schema.table('labels', {
     // Primary Key
     id: serial('id').primaryKey(),
 

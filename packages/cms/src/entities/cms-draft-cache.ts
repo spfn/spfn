@@ -12,9 +12,13 @@
  * - 충돌 없이 안전하게 작업
  */
 
-import { pgTable, serial, text, jsonb, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { serial, text, jsonb, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { createFunctionSchema } from '@spfn/core/db';
 
-export const cmsDraftCache = pgTable('cms_draft_cache', {
+// Create isolated schema for @spfn/cms
+const schema = createFunctionSchema('@spfn/cms');
+
+export const cmsDraftCache = schema.table('draft_cache', {
     // Primary Key
     id: serial('id').primaryKey(),
 
