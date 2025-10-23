@@ -1,68 +1,10 @@
 /**
- * CMS Label Definition Helpers
+ * CMS Label Helpers
  *
- * 라이브러리 코드 - 향후 @spfn/cms로 분리 예정
+ * Utilities for processing label definitions from JSON files
  */
 
 import type { SectionDefinition, NestedLabels, FlatLabel, LabelDefinition } from '../types';
-
-/**
- * 등록된 섹션 저장소
- */
-const registeredSections = new Map<string, SectionDefinition>();
-
-/**
- * 섹션 라벨 정의 헬퍼
- * 정의된 섹션을 자동으로 등록하여 sync 시 사용
- *
- * @param section - 섹션 이름
- * @param labels - 중첩된 라벨 정의
- * @returns SectionDefinition
- *
- * @example
- * ```ts
- * export const layoutLabels = defineLabelSection('layout', {
- *     nav: {
- *         home: { key: 'layout.nav.home', defaultValue: 'Home' },
- *     },
- * });
- * ```
- */
-export function defineLabelSection(
-    section: string,
-    labels: NestedLabels
-): SectionDefinition
-{
-    const definition: SectionDefinition = {
-        section,
-        labels,
-    };
-
-    // 자동 등록
-    registeredSections.set(section, definition);
-
-    console.log(`[defineLabelSection] Registered section: ${section}, total sections: ${registeredSections.size}`);
-
-    return definition;
-}
-
-/**
- * 등록된 모든 섹션 가져오기
- */
-export function getRegisteredSections(): SectionDefinition[]
-{
-    console.log(`[getRegisteredSections] Total registered sections: ${registeredSections.size}`);
-    return Array.from(registeredSections.values());
-}
-
-/**
- * 등록된 섹션 초기화
- * Generator가 파일을 새로 로드하기 전에 호출
- */
-export function clearRegisteredSections(): void
-{
-    registeredSections.clear();
-}
 
 /**
  * 중첩된 라벨을 플랫화

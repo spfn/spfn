@@ -1,7 +1,7 @@
 /**
  * Label Sync Generator Example
  *
- * 개발 중 라벨 파일 변경 감지 및 자동 동기화
+ * 개발 중 JSON 라벨 파일 변경 감지 및 자동 동기화
  *
  * 사용법:
  * 1. 이 파일을 `src/generators/label-sync.ts`로 복사
@@ -14,23 +14,24 @@
  *      }
  *    }
  * 3. `pnpm dev` 실행
+ *
+ * 또는 패키지에서 제공하는 제너레이터 사용:
+ *    {
+ *      "codegen": {
+ *        "generators": [
+ *          { "name": "@spfn/cms:label-sync", "enabled": true }
+ *        ]
+ *      }
+ *    }
  */
 
 import { createLabelSyncGenerator } from '@spfn/cms';
 
 // 기본 설정으로 제너레이터 생성
+// 기본 디렉토리: src/cms/labels/**/*.json
 export default createLabelSyncGenerator();
 
-// 또는 커스터마이징:
-// import { LabelSyncGenerator } from '@spfn/cms';
-//
-// class CustomLabelSyncGenerator extends LabelSyncGenerator
-// {
-//     // 감시할 파일 패턴 커스터마이징
-//     watchPatterns = [
-//         'src/app/**/labels.ts',
-//         'src/labels/**/*.ts',
-//     ];
-// }
-//
-// export default new CustomLabelSyncGenerator();
+// 커스텀 라벨 디렉토리 사용:
+// export default createLabelSyncGenerator({
+//     labelsDir: 'src/app/labels'  // 다른 디렉토리 지정
+// });

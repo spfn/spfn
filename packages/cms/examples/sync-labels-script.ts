@@ -1,14 +1,14 @@
 /**
  * Manual Label Sync Script
  *
- * 수동으로 라벨을 동기화하는 스크립트
+ * JSON 파일에서 라벨을 로드하여 수동으로 동기화하는 스크립트
  *
  * 사용법:
  * 1. 이 파일을 `scripts/sync-labels.ts`로 복사
  * 2. 실행: `tsx scripts/sync-labels.ts`
  */
 
-import { syncAll } from '@spfn/cms';
+import { syncAll, loadLabelsFromJson } from '@spfn/cms';
 
 async function main()
 {
@@ -16,7 +16,21 @@ async function main()
 
     try
     {
-        const results = await syncAll({
+        // JSON 파일에서 라벨 로드
+        const labelsDir = 'src/cms/labels';  // 라벨 디렉토리 경로
+        const sections = loadLabelsFromJson(labelsDir);
+
+        if (sections.length === 0)
+        {
+            console.log(`⚠️  No labels found in ${labelsDir}`);
+            console.log('');
+            return;
+        }
+
+        console.log(`📁 Found ${sections.length} sections in ${labelsDir}\n`);
+
+        // 모든 섹션 동기화
+        const results = await syncAll(sections, {
             verbose: true,
             updateExisting: false,  // 기존 라벨 업데이트 안함
             removeUnused: false,    // 사용되지 않는 라벨 삭제 안함

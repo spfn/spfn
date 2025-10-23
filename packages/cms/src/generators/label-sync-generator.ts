@@ -14,11 +14,9 @@
 
 import { logger } from '@spfn/core';
 import type { Generator, GeneratorOptions } from '@spfn/core/codegen';
-import { readdirSync, readFileSync, statSync, existsSync } from 'fs';
-import { join, extname, basename } from 'path';
+import { join } from 'path';
 
-import { syncSection } from '../helpers/sync';
-import type { NestedLabels } from '../types';
+import { syncAll, loadLabelsFromJson } from '../helpers/sync';
 
 const syncLogger = logger.child('label-sync');
 
@@ -60,38 +58,26 @@ export class LabelSyncGenerator implements Generator
         {
             const labelsPath = join(options.cwd, this.labelsDir);
 
-            if (!existsSync(labelsPath))
+            // Load labels from JSON files
+            const sections = loadLabelsFromJson(labelsPath);
+
+            if (sections.length === 0)
             {
-                syncLogger.warn(`Labels directory not found: ${labelsPath}`);
+                syncLogger.warn(`No labels found in ${labelsPath}`);
                 return;
             }
 
-            // Scan section directories
-            const sections = this.scanSections(labelsPath);
-
             syncLogger.info(`Found ${sections.length} sections`);
 
-            const results = [];
-            let totalCreated = 0;
-            let totalUpdated = 0;
-            let totalErrors = 0;
+            // Sync all sections
+            const results = await syncAll(sections, {
+                verbose: options.debug ?? false,
+                updateExisting: isDevelopment,
+            });
 
-            // Process each section
-            for (const section of sections)
-            {
-                const result = await syncSection(
-                    { section: section.name, labels: section.labels },
-                    {
-                        verbose: options.debug ?? false,
-                        updateExisting: isDevelopment,
-                    }
-                );
-
-                results.push(result);
-                totalCreated += result.created;
-                totalUpdated += result.updated;
-                totalErrors += result.errors.length;
-            }
+            const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
+            const totalUpdated = results.reduce((sum, r) => sum + r.updated, 0);
+            const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0);
 
             if (options.debug || totalCreated > 0 || totalUpdated > 0)
             {
@@ -122,89 +108,6 @@ export class LabelSyncGenerator implements Generator
                 error instanceof Error ? error : new Error(String(error))
             );
         }
-    }
-
-    /**
-     * Scan section directories and load JSON files
-     */
-    private scanSections(labelsPath: string): Array<{ name: string; labels: NestedLabels }>
-    {
-        const sections: Array<{ name: string; labels: NestedLabels }> = [];
-
-        try
-        {
-            const entries = readdirSync(labelsPath);
-
-            for (const entry of entries)
-            {
-                const sectionPath = join(labelsPath, entry);
-                const stat = statSync(sectionPath);
-
-                if (stat.isDirectory())
-                {
-                    // Directory name = section name
-                    const sectionName = entry;
-                    const labels = this.loadSectionLabels(sectionPath);
-
-                    if (Object.keys(labels).length > 0)
-                    {
-                        sections.push({ name: sectionName, labels });
-                        syncLogger.info(`Loaded section: ${sectionName}`);
-                    }
-                }
-            }
-        }
-        catch (error)
-        {
-            syncLogger.warn(`Could not scan labels directory: ${labelsPath}`);
-        }
-
-        return sections;
-    }
-
-    /**
-     * Load all JSON files in a section directory
-     */
-    private loadSectionLabels(sectionPath: string): NestedLabels
-    {
-        const labels: NestedLabels = {};
-
-        try
-        {
-            const files = readdirSync(sectionPath);
-
-            for (const file of files)
-            {
-                if (extname(file) === '.json')
-                {
-                    const filePath = join(sectionPath, file);
-                    const categoryName = basename(file, '.json');
-
-                    try
-                    {
-                        const content = readFileSync(filePath, 'utf-8');
-                        const parsed = JSON.parse(content);
-
-                        // Merge into labels
-                        labels[categoryName] = parsed;
-
-                        syncLogger.info(`  Loaded ${file}: ${Object.keys(parsed).length} labels`);
-                    }
-                    catch (error)
-                    {
-                        syncLogger.warn(`Failed to parse ${filePath}:`, {
-                            error: error instanceof Error ? error.message : String(error),
-                        });
-                    }
-                }
-            }
-        }
-        catch (error)
-        {
-            syncLogger.warn(`Could not read section directory: ${sectionPath}`);
-        }
-
-        return labels;
     }
 
     async onFileChange(filePath: string, event: 'add' | 'change' | 'unlink'): Promise<void>

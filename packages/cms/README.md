@@ -1,13 +1,13 @@
 # @spfn/cms
 
-Content Management System for Next.js with type-safe labels and automatic database synchronization.
+Content Management System for Next.js with JSON-based labels and automatic database synchronization.
 
 ## Features
 
-- 🎯 **Type-safe labels** with TypeScript
+- 📁 **JSON file-based labels** - Simple file structure for label management
 - 🔄 **Auto-sync to database** on server startup and during development
 - 🌐 **Multi-language support** (i18n)
-- 📦 **Nested label structure** for better organization
+- 📦 **Folder-based structure** for better organization
 - 🔥 **Hot reload** during development
 - 💾 **Published cache** for optimal performance
 - 🛠️ **Built on Drizzle ORM**
@@ -52,26 +52,71 @@ pnpm spfn db migrate   # Apply migrations
 
 ## Quick Start
 
-### 1. Define Labels
+### 1. Create Label Files
 
-Create label definitions using `defineLabelSection`:
+Create JSON files organized by sections and categories:
 
-```typescript
-// src/labels/layout.ts
-import { defineLabelSection } from '@spfn/cms';
+```
+src/cms/labels/
+  layout/              ← Section name
+    nav.json           ← Category
+    footer.json
+  home/
+    hero.json
+    features.json
+```
 
-export const layoutLabels = defineLabelSection('layout', {
-  nav: {
-    home: {
-      key: 'layout.nav.home',
-      defaultValue: { ko: '홈', en: 'Home' },
-    },
-    about: {
-      key: 'layout.nav.about',
-      defaultValue: { ko: '소개', en: 'About' },
-    },
+**Example:** `src/cms/labels/layout/nav.json`
+
+```json
+{
+  "whyFutureplay": {
+    "key": "layout.nav.why-futureplay",
+    "defaultValue": "Why FuturePlay",
+    "description": "Navigation link for Why FuturePlay page"
   },
-});
+  "ourCompanies": {
+    "key": "layout.nav.our-companies",
+    "defaultValue": "Our Companies",
+    "description": "Navigation link for Our Companies page"
+  },
+  "team": {
+    "key": "layout.nav.team",
+    "defaultValue": "Team"
+  }
+}
+```
+
+**Multi-language example:** `src/cms/labels/home/hero.json`
+
+```json
+{
+  "title": {
+    "key": "home.hero.title",
+    "defaultValue": {
+      "ko": "미래를 만드는 플랫폼",
+      "en": "Platform for the Future"
+    }
+  },
+  "subtitle": {
+    "key": "home.hero.subtitle",
+    "defaultValue": {
+      "ko": "혁신적인 게임과 서비스로 세상을 바꿉니다",
+      "en": "Changing the world with innovative games and services"
+    }
+  }
+}
+```
+
+**Variable substitution:** `src/cms/labels/layout/footer.json`
+
+```json
+{
+  "copyright": {
+    "key": "layout.footer.copyright",
+    "defaultValue": "© {year} FuturePlay. All rights reserved."
+  }
+}
 ```
 
 ### 2. Enable Auto-Sync on Server Startup
@@ -84,56 +129,150 @@ import { initLabelSync } from '@spfn/cms';
 
 export default {
   beforeRoutes: async (app) => {
-    await initLabelSync({ verbose: true });
+    await initLabelSync({
+      verbose: true,
+      labelsDir: 'src/cms/labels'  // Optional, this is the default
+    });
   },
 } satisfies ServerConfig;
 ```
 
 ### 3. Enable Auto-Sync During Development
 
-Create `src/generators/label-sync.ts`:
-
-```typescript
-import { createLabelSyncGenerator } from '@spfn/cms';
-
-export default createLabelSyncGenerator();
-```
-
-Add to `.spfnrc.json`:
+Your `.spfnrc.json` should include:
 
 ```json
 {
   "codegen": {
     "generators": [
-      { "path": "./src/generators/label-sync.ts" }
+      {
+        "name": "@spfn/cms:label-sync",
+        "enabled": true
+      }
     ]
   }
 }
 ```
 
+This is automatically configured when you run `pnpm spfn add @spfn/cms`.
+
 ### 4. Use Labels in Your App
 
+**Server Component:**
+
 ```typescript
-// Server Component
-import { getSection } from '@spfn/cms';
+import { getSection } from '@spfn/cms/server';
 
 export default async function HomePage() {
-  const labels = await getSection('layout', 'ko');
+  const { t } = await getSection('layout', 'ko');
 
-  return <h1>{labels.t('nav.home')}</h1>;
+  return <h1>{t('nav.team')}</h1>;
 }
 ```
 
+**With variable substitution:**
+
 ```typescript
-// Client Component
+const { t } = await getSection('layout');
+const copyright = t('footer.copyright', undefined, {
+  year: new Date().getFullYear()
+});
+// → "© 2025 FuturePlay. All rights reserved."
+```
+
+**Client Component:**
+
+```typescript
 'use client';
 import { useSection } from '@spfn/cms/client';
 
 export default function Nav() {
-  const { t } = useSection('layout');
+  const { t, loading } = useSection('layout', { autoLoad: true });
 
-  return <nav>{t('nav.home')}</nav>;
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <nav>
+      <a>{t('nav.whyFutureplay')}</a>
+      <a>{t('nav.ourCompanies')}</a>
+    </nav>
+  );
 }
+```
+
+## File Structure
+
+```
+src/cms/labels/
+  layout/                  # Section: layout
+    nav.json               # Category: nav
+    footer.json            # Category: footer
+  home/                    # Section: home
+    hero.json              # Category: hero
+    features.json          # Category: features
+```
+
+**How it maps:**
+- Folder name = Section name
+- JSON file name = Category name (for organization only)
+- Inside JSON: `key` field defines the actual label key
+
+Example:
+```
+src/cms/labels/layout/nav.json:
+  key: "layout.nav.team" → t('nav.team') in code
+```
+
+## JSON Label Format
+
+```typescript
+{
+  "labelName": {
+    "key": "section.category.name",       // Required: Unique identifier
+    "defaultValue": "Text" | {...},       // Required: String or i18n object
+    "description": "Optional description" // Optional: For documentation
+  }
+}
+```
+
+**Single language:**
+```json
+{
+  "welcome": {
+    "key": "home.welcome",
+    "defaultValue": "Welcome"
+  }
+}
+```
+
+**Multi-language:**
+```json
+{
+  "welcome": {
+    "key": "home.welcome",
+    "defaultValue": {
+      "ko": "환영합니다",
+      "en": "Welcome",
+      "ja": "ようこそ"
+    }
+  }
+}
+```
+
+**Variable placeholders:**
+```json
+{
+  "greeting": {
+    "key": "home.greeting",
+    "defaultValue": "Hello, {name}!"
+  }
+}
+```
+
+Usage:
+```typescript
+t('greeting', undefined, { name: 'John' })
+// → "Hello, John!"
 ```
 
 ## Documentation
@@ -141,66 +280,79 @@ export default function Nav() {
 - **[Label Auto-Sync Guide](./LABEL_SYNC_GUIDE.md)** - 자세한 설정 가이드
 - **[Examples](./examples/)** - 실제 사용 예제들
 
-## Examples
-
-프로젝트의 `examples/` 디렉토리에서 다음 예제들을 확인할 수 있습니다:
-
-- `server.config.ts` - 서버 설정 예제
-- `label-sync-generator.ts` - 제너레이터 설정 예제
-- `labels-example.ts` - 라벨 정의 예제
-- `sync-labels-script.ts` - 수동 동기화 스크립트
-- `.spfnrc.json` - Codegen 설정 예제
-
 ## Architecture
 
 ```
-defineLabelSection() → registeredSections
-                            ↓
-                    ┌───────┴────────┐
-                    ↓                ↓
-            initLabelSync()   LabelSyncGenerator
-            (server startup)   (file watcher)
-                    ↓                ↓
-                    └───────┬────────┘
-                            ↓
-                       syncAll()
-                            ↓
-                    ┌───────┴────────┐
-                    ↓                ↓
-              cms_labels    cms_published_cache
+JSON Files (src/cms/labels/**/*.json)
+              ↓
+      loadLabelsFromJson()
+              ↓
+    ┌─────────────────────┐
+    │ LabelSyncGenerator  │ ← File watcher (development)
+    │ initLabelSync()     │ ← Server startup
+    └─────────────────────┘
+              ↓
+          syncAll()
+              ↓
+    ┌─────────────────────┐
+    │   PostgreSQL DB     │
+    │   - cms_labels      │
+    │   - published_cache │ ⭐ Used by API
+    └─────────────────────┘
+              ↓ HTTP API
+    ┌─────────────────────┐
+    │  Application        │
+    │  - getSection()     │
+    │  - useSection()     │
+    └─────────────────────┘
 ```
 
 ## API Reference
-
-### Label Definition
-
-- `defineLabelSection(section, labels)` - 라벨 섹션 정의
-- `getRegisteredSections()` - 등록된 섹션 조회
-- `flattenLabels(labels)` - 중첩 구조 평탄화
-
-### Sync API
-
-- `initLabelSync(options?)` - 서버 시작 시 sync
-- `syncAll(options?)` - 모든 섹션 동기화
-- `syncSection(definition, options?)` - 특정 섹션 동기화
 
 ### Server-side API
 
 - `getSection(section, locale)` - 섹션 라벨 조회
 - `getSections(sections, locale)` - 다중 섹션 조회
+- `initLabelSync(options?)` - 서버 시작 시 sync
 
 ### Client-side API (`@spfn/cms/client`)
 
-- `useSection(section)` - 섹션 라벨 훅
+- `useSection(section, options?)` - 섹션 라벨 훅
 - `useSections(sections)` - 다중 섹션 훅
 - `useCmsStore()` - CMS 스토어 훅
 - `cmsApi` - CMS API 클라이언트
 - `InitCms` - 클라이언트 초기화 컴포넌트
 
+### Sync API
+
+- `loadLabelsFromJson(labelsDir)` - JSON 파일에서 라벨 로드
+- `syncAll(sections, options?)` - 모든 섹션 동기화
+- `syncSection(definition, options?)` - 특정 섹션 동기화
+
 ### Codegen Integration
 
-- `createLabelSyncGenerator()` - 제너레이터 팩토리
+- `createLabelSyncGenerator(config?)` - 제너레이터 팩토리
 - `LabelSyncGenerator` - 제너레이터 클래스
+
+## Development Workflow
+
+1. **Create/Edit JSON files** in `src/cms/labels/`
+2. **Auto-sync happens** (if dev server is running)
+3. **Labels immediately available** via `getSection()` or `useSection()`
+
+**Example:**
+
+```bash
+# Terminal 1: Start dev server
+pnpm dev
+
+# Terminal 2: Edit label file
+echo '{"test": {"key": "layout.test", "defaultValue": "Test"}}' > src/cms/labels/layout/test.json
+
+# Auto-sync triggers
+# ✅ Label sync completed
+#    Created: 1
+```
 
 ## License
 

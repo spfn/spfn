@@ -20,9 +20,9 @@ export * from './repositories';
 export * from './entities';
 
 // Backend: Sync utilities (server startup, CLI scripts)
-export { syncSection, syncAll, initLabelSync } from './helpers/sync';
+export { syncSection, syncAll, initLabelSync, loadLabelsFromJson } from './helpers/sync';
 
-// Backend: Label definition helpers
+// Backend: Label helpers (for processing JSON labels)
 export * from './labels';
 
 // Backend: Codegen generators (for development)

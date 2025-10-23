@@ -1,24 +1,23 @@
 /**
  * CMS Sync Utilities
  *
- * 라벨 동기화를 위한 헬퍼 함수들
+ * JSON 파일 기반 라벨 동기화
  */
 
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
+import { basename, extname, join } from 'path';
+import { extractLabels } from '../labels';
 import { cmsLabelsRepository, cmsPublishedCacheRepository } from '../repositories';
-import type { SectionDefinition, SyncOptions, SyncResult } from '../types';
-import { extractLabels, getRegisteredSections, clearRegisteredSections } from '../labels';
+import type { NestedLabels, SectionDefinition, SyncOptions, SyncResult } from '../types';
 
 /**
- * Re-export for generator use
+ * 여러 섹션 동기화
  */
-export { clearRegisteredSections };
-
-/**
- * 등록된 모든 섹션 동기화
- */
-export async function syncAll(options: SyncOptions = {}): Promise<SyncResult[]>
+export async function syncAll(
+    sections: SectionDefinition[],
+    options: SyncOptions = {}
+): Promise<SyncResult[]>
 {
-    const sections = getRegisteredSections();
     const results: SyncResult[] = [];
 
     for (const definition of sections)
@@ -28,6 +27,83 @@ export async function syncAll(options: SyncOptions = {}): Promise<SyncResult[]>
     }
 
     return results;
+}
+
+/**
+ * JSON 파일에서 라벨 로드
+ */
+export function loadLabelsFromJson(labelsDir: string): SectionDefinition[]
+{
+    const sections: SectionDefinition[] = [];
+
+    if (!existsSync(labelsDir))
+    {
+        console.warn(`[CMS] Labels directory not found: ${labelsDir}`);
+        return sections;
+    }
+
+    try
+    {
+        const entries = readdirSync(labelsDir);
+
+        for (const entry of entries)
+        {
+            const sectionPath = join(labelsDir, entry);
+            const stat = statSync(sectionPath);
+
+            if (stat.isDirectory())
+            {
+                const sectionName = entry;
+                const labels = loadSectionLabels(sectionPath);
+
+                if (Object.keys(labels).length > 0)
+                {
+                    sections.push({ section: sectionName, labels });
+                }
+            }
+        }
+    }
+    catch (error)
+    {
+        console.warn(`[CMS] Could not scan labels directory: ${labelsDir}`);
+    }
+
+    return sections;
+}
+
+function loadSectionLabels(sectionPath: string): NestedLabels
+{
+    const labels: NestedLabels = {};
+
+    try
+    {
+        const files = readdirSync(sectionPath);
+
+        for (const file of files)
+        {
+            if (extname(file) === '.json')
+            {
+                const filePath = join(sectionPath, file);
+                const categoryName = basename(file, '.json');
+
+                try
+                {
+                    const content = readFileSync(filePath, 'utf-8');
+                    labels[categoryName] = JSON.parse(content);
+                }
+                catch (error)
+                {
+                    console.warn(`[CMS] Failed to parse ${filePath}`);
+                }
+            }
+        }
+    }
+    catch (error)
+    {
+        console.warn(`[CMS] Could not read section directory: ${sectionPath}`);
+    }
+
+    return labels;
 }
 
 /**
@@ -262,6 +338,9 @@ async function updatePublishedCache(section: string): Promise<void>
  *
  * Call this in your server.config.ts beforeRoutes hook
  *
+ * @param options - Sync options
+ * @param options.labelsDir - Path to labels directory (default: 'src/cms/labels')
+ *
  * @example
  * ```typescript
  * import { initLabelSync } from '@spfn/cms';
@@ -273,17 +352,31 @@ async function updatePublishedCache(section: string): Promise<void>
  * } satisfies ServerConfig;
  * ```
  */
-export async function initLabelSync(options: SyncOptions = {}): Promise<void>
+export async function initLabelSync(options: SyncOptions & { labelsDir?: string } = {}): Promise<void>
 {
     const isDevelopment = process.env.NODE_ENV === 'development';
     const verbose = options.verbose ?? isDevelopment;
+    const labelsDir = options.labelsDir ?? 'src/cms/labels';
 
     if (verbose)
     {
         console.log('\n🔄 Initializing label sync...\n');
     }
 
-    const results = await syncAll({
+    // Load labels from JSON files
+    const sections = loadLabelsFromJson(labelsDir);
+
+    if (sections.length === 0)
+    {
+        if (verbose)
+        {
+            console.log('⚠️  No labels found in', labelsDir);
+            console.log('');
+        }
+        return;
+    }
+
+    const results = await syncAll(sections, {
         updateExisting: isDevelopment, // 🔄 개발 환경에서는 자동으로 업데이트
         ...options,
         verbose,
