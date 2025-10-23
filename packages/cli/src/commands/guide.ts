@@ -34,14 +34,33 @@ function displayContractGuide(): void
     console.log(chalk.bold('TypeBox Types:\n'));
     console.log(`   ${chalk.cyan('Type.String()')}        String
    ${chalk.cyan('Type.Number()')}        Number
+   ${chalk.cyan('Type.Integer()')}       Integer (auto-converts from string params)
    ${chalk.cyan('Type.Boolean()')}       Boolean
    ${chalk.cyan('Type.Array(T)')}        Array of T
    ${chalk.cyan('Type.Object({...})')}   Object with properties
-   ${chalk.cyan('Type.Optional(T)')}     Optional field\n`);
+   ${chalk.cyan('Type.Optional(T)')}     Optional field
+   ${chalk.cyan('Type.Union([A, B])')}   Union type (A or B)\n`);
+
+    console.log(chalk.bold('Error Responses with Union:\n'));
+    console.log(chalk.gray('   // Handle multiple response types'));
+    console.log(`   response: Type.Union([
+       ${chalk.gray('// Success (200)')}
+       Type.Object({
+           id: Type.Number(),
+           name: Type.String()
+       }),
+       ${chalk.gray('// Error (4xx, 5xx)')}
+       Type.Object({
+           error: Type.String(),
+           code: Type.String()
+       })
+   ])\n`);
 
     console.log(chalk.bold('Key Rules:\n'));
     console.log(`   ${chalk.green('✓')} Use ${chalk.cyan('as const satisfies RouteContract')}
    ${chalk.green('✓')} Response schema is ${chalk.cyan('required')}
+   ${chalk.green('✓')} Use ${chalk.cyan('Type.Union()')} for multiple response types
+   ${chalk.green('✓')} Use ${chalk.cyan('Type.Integer()')} for path params (auto-converts)
    ${chalk.green('✓')} Co-locate contract.ts with index.ts
    ${chalk.green('✓')} Use ${chalk.cyan('.js')} extension in imports\n`);
 

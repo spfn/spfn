@@ -116,7 +116,7 @@ const contract = {
     method: 'GET',
     path: '/',
     response: Type.Object({ data: Type.String() })
-};
+} as const satisfies RouteContract;
 
 // Method/path come from contract
 app.bind(contract, async (c) => {
@@ -343,6 +343,57 @@ All validation errors throw `ValidationError` (400):
   }
 }
 ```
+
+### Multiple Response Types with Union
+
+Use `Type.Union()` to define contracts that can return different response shapes (success vs error):
+
+```typescript
+import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
+
+export const getUserContract = {
+    method: 'GET' as const,
+    path: '/:id',
+    params: Type.Object({
+        id: Type.Integer({ minimum: 1 })  // Auto-converts string to number
+    }),
+    response: Type.Union([
+        // Success response (200)
+        Type.Object({
+            id: Type.Number(),
+            name: Type.String(),
+            email: Type.String()
+        }),
+        // Error response (404, 400, etc)
+        Type.Object({
+            error: Type.String(),
+            code: Type.String()
+        })
+    ])
+} as const satisfies RouteContract;
+
+// Handler implementation
+app.bind(getUserContract, async (c) => {
+    const { id } = c.params;  // Typed as number
+
+    const user = await findUserById(id);
+
+    if (!user) {
+        return c.json({ error: 'User not found', code: 'NOT_FOUND' }, 404);
+    }
+
+    return c.json({ id: user.id, name: user.name, email: user.email }, 200);
+});
+```
+
+**Benefits**:
+- ✅ Type-safe error responses
+- ✅ Self-documenting API contracts
+- ✅ Auto-generated client handles both cases
+- ✅ IDE autocomplete for all response shapes
+
+**Note**: Use `Type.Integer()` for path/query params that should be numbers - it automatically converts and validates string inputs from URLs.
 
 ---
 

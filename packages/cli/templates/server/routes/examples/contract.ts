@@ -1,4 +1,5 @@
 import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
 
 /**
  * Example Contracts
@@ -26,25 +27,35 @@ export const getExamplesContract = {
         limit: Type.Number(),
         offset: Type.Number()
     })
-};
+} as const satisfies RouteContract;
 
 /**
  * GET /examples/:id - Get single example
+ *
+ * Demonstrates Union response pattern for error handling
  */
 export const getExampleContract = {
     method: 'GET' as const,
     path: '/:id',
     params: Type.Object({
-        id: Type.String()
+        id: Type.Integer({ minimum: 1 })  // Auto-converts string to number
     }),
-    response: Type.Object({
-        id: Type.String(),
-        name: Type.String(),
-        description: Type.String(),
-        createdAt: Type.Number(),
-        updatedAt: Type.Number()
-    })
-};
+    response: Type.Union([
+        // Success response (200)
+        Type.Object({
+            id: Type.Number(),
+            name: Type.String(),
+            description: Type.String(),
+            createdAt: Type.Number(),
+            updatedAt: Type.Number()
+        }),
+        // Error response (404, 400, etc)
+        Type.Object({
+            error: Type.String(),
+            code: Type.String()
+        })
+    ])
+} as const satisfies RouteContract;
 
 /**
  * POST /examples - Create example
@@ -62,7 +73,7 @@ export const createExampleContract = {
         description: Type.String(),
         createdAt: Type.Number()
     })
-};
+} as const satisfies RouteContract;
 
 /**
  * PUT /examples/:id - Update example
@@ -71,7 +82,7 @@ export const updateExampleContract = {
     method: 'PUT' as const,
     path: '/:id',
     params: Type.Object({
-        id: Type.String()
+        id: Type.Integer({ minimum: 1 })
     }),
     body: Type.Object({
         name: Type.Optional(Type.String()),
@@ -83,7 +94,7 @@ export const updateExampleContract = {
         description: Type.String(),
         updatedAt: Type.Number()
     })
-};
+} as const satisfies RouteContract;
 
 /**
  * DELETE /examples/:id - Delete example
@@ -92,10 +103,10 @@ export const deleteExampleContract = {
     method: 'DELETE' as const,
     path: '/:id',
     params: Type.Object({
-        id: Type.String()
+        id: Type.Integer({ minimum: 1 })
     }),
     response: Type.Object({
         success: Type.Boolean(),
         id: Type.String()
     })
-};
+} as const satisfies RouteContract;

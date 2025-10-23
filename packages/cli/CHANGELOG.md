@@ -2,6 +2,30 @@
 
 All notable changes to the SPFN CLI will be documented in this file.
 
+## [0.1.0-alpha.49] - 2025-10-23
+
+### Added
+
+- **Enhanced Contract Guide**: Updated `spfn guide contract` with Union response patterns
+  - Added `Type.Union()` for handling multiple response types (success vs error)
+  - Added `Type.Integer()` for auto-converting URL params from string to number
+  - Example code showing error response handling with Union types
+
+### Changed
+
+- **Template Improvements**: Updated example contract template
+  - All contracts now use `as const satisfies RouteContract` for type safety
+  - `getExampleContract` demonstrates Union response pattern with error handling
+  - Path parameters use `Type.Integer()` for automatic conversion
+  - Added inline comments explaining best practices
+
+### Documentation
+
+- **route/README.md**: Added "Multiple Response Types with Union" section
+  - Complete example of Union response pattern
+  - Benefits explanation (type-safe errors, self-documenting, auto-generated client)
+  - Note about `Type.Integer()` for path/query params
+
 ## [0.1.0-alpha.48] - 2025-10-23
 
 ### Added
