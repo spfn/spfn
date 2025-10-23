@@ -35,7 +35,7 @@ Automatically generates type-safe API clients from your route contracts.
   "codegen": {
     "generators": [
       {
-        "name": "contract",
+        "name": "@spfn/core:contract",
         "enabled": true,
         "routesDir": "src/server/routes",
         "outputPath": "src/lib/api.ts",
@@ -43,6 +43,14 @@ Automatically generates type-safe API clients from your route contracts.
       }
     ]
   }
+}
+```
+
+**Legacy naming** (still supported for backward compatibility):
+```json
+{
+  "name": "contract",
+  "enabled": true
 }
 ```
 
@@ -57,11 +65,15 @@ Configure codegen in `.spfnrc.json` or `package.json`:
   "codegen": {
     "generators": [
       {
-        "name": "contract",
+        "name": "@spfn/core:contract",
         "enabled": true,
         "routesDir": "src/server/routes",
         "outputPath": "src/lib/api.ts",
         "baseUrl": "http://localhost:8790"
+      },
+      {
+        "name": "@spfn/cms:label-sync",
+        "enabled": true
       },
       {
         "path": "./src/generators/my-generator.ts"
@@ -71,7 +83,12 @@ Configure codegen in `.spfnrc.json` or `package.json`:
 }
 ```
 
-**Built-in generators** use `name` field:
+**Package-based generators** use `package:name` format (v0.1.0-alpha.52+):
+- `{ "name": "@spfn/core:contract", "enabled": true, ...config }`
+- `{ "name": "@spfn/cms:label-sync", "enabled": true }`
+- Automatically discovers generators from installed packages
+
+**Built-in generators** (legacy format, still supported):
 - `{ "name": "contract", "enabled": true, ...config }`
 
 **Custom generators** use `path` field:
@@ -86,7 +103,8 @@ Configure codegen in `.spfnrc.json` or `package.json`:
   "spfn": {
     "codegen": {
       "generators": [
-        { "name": "contract", "enabled": true },
+        { "name": "@spfn/core:contract", "enabled": true },
+        { "name": "@spfn/cms:label-sync", "enabled": true },
         { "path": "./src/generators/my-generator.ts" }
       ]
     }
@@ -234,7 +252,91 @@ spfn codegen run
 spfn dev
 ```
 
-### Option 2: Programmatic Registration
+### Option 2: Package-based Generators (v0.1.0-alpha.52+)
+
+Create generators in npm packages that can be discovered automatically using the `package:name` format.
+
+**Use case:** SPFN packages (like `@spfn/cms`) or third-party packages can provide generators that users can enable via configuration without needing file paths.
+
+**Step 1:** Create generators registry in your package
+
+```typescript
+// packages/my-package/src/generators/index.ts
+import { createMyGenerator } from './my-generator.js';
+import { createAnotherGenerator } from './another-generator.js';
+
+/**
+ * Generators registry
+ * Maps generator names to their factory functions
+ */
+export const generators = {
+    'my-generator': createMyGenerator,
+    'another': createAnotherGenerator,
+};
+
+// Re-export individual generators
+export { createMyGenerator } from './my-generator.js';
+export { createAnotherGenerator } from './another-generator.js';
+```
+
+**Step 2:** Export generators in package.json
+
+```json
+{
+  "name": "my-package",
+  "exports": {
+    "./generators": {
+      "types": "./dist/generators/index.d.ts",
+      "import": "./dist/generators/index.js"
+    }
+  }
+}
+```
+
+**Step 3:** Users can now reference your generators by package name
+
+```json
+{
+  "codegen": {
+    "generators": [
+      {
+        "name": "my-package:my-generator",
+        "enabled": true
+      },
+      {
+        "name": "@spfn/cms:label-sync",
+        "enabled": true
+      }
+    ]
+  }
+}
+```
+
+**Discovery mechanism:**
+
+The config loader tries to load generators in this order:
+1. `import('my-package/generators')` → looks for `generators['my-generator']` registry
+2. Fallback: `import('my-package/generators')` → looks for `createMyGeneratorGenerator()` function (conventional naming)
+3. If not found, logs a warning with helpful error message
+
+**Example:** SPFN CMS Label Sync Generator
+
+```json
+{
+  "codegen": {
+    "generators": [
+      {
+        "name": "@spfn/cms:label-sync",
+        "enabled": true
+      }
+    ]
+  }
+}
+```
+
+This automatically loads the `label-sync` generator from `@spfn/cms/generators`.
+
+### Option 3: Programmatic Registration
 
 You can also register generators programmatically:
 
