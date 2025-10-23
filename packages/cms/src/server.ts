@@ -1,14 +1,17 @@
+import "server-only";
+
 /**
  * CMS Server Module
  *
  * Next.js 서버 컴포넌트용 CMS 유틸리티
  * - React cache를 사용한 데이터 중복 제거
- * - 서버에서 직접 repository 호출
+ * - SPFN API를 통한 contract-based 호출
  * - 변수 치환 지원
  */
 
 import { cache } from 'react';
-import { cmsPublishedCacheRepository } from './repositories';
+import { client } from '@spfn/core/client';
+import { getPublishedCacheContract } from './routes/published-cache/contract.js';
 
 /**
  * Section Data Type
@@ -69,7 +72,7 @@ function replaceVariables(text: string, replace: Record<string, string | number>
 /**
  * 섹션 데이터 로드 (React cache 적용)
  *
- * 동일한 요청 내에서 같은 섹션을 여러 번 요청해도 한 번만 DB 조회
+ * 동일한 요청 내에서 같은 섹션을 여러 번 요청해도 한 번만 API 호출
  *
  * @param section - 섹션 이름 (예: 'home', 'why-futureplay')
  * @param locale - 언어 코드 (기본값: 'ko')
@@ -78,7 +81,7 @@ function replaceVariables(text: string, replace: Record<string, string | number>
  * @example
  * ```tsx
  * // Server Component
- * import { getSection } from '@/lib/cms/server';
+ * import { getSection } from '@spfn/cms/server';
  *
  * export default async function HomePage()
  * {
@@ -99,17 +102,92 @@ export const getSection = cache(async (
     locale: string = 'ko'
 ): Promise<SectionAPI> =>
 {
-    const data = await cmsPublishedCacheRepository.findBySection(section, locale);
+    try
+    {
+        // Call SPFN API via contract (uses singleton client)
+        const response = await client.call(
+            '/cms/published-cache',
+            getPublishedCacheContract,
+            {
+                query: { sections: section, locale },
+            }
+        );
 
-    const sectionData: SectionData = data
-        ? {
-            section: data.section,
-            locale: data.locale,
-            content: (data.content as Record<string, any>) || {},
-            version: data.version,
-            publishedAt: data.publishedAt?.toISOString() ?? null,
+        // Check if response has error
+        if ('error' in response)
+        {
+            console.warn(`[CMS] ${response.error}`);
+            // Return empty section data
+            const sectionData: SectionData = {
+                section,
+                locale,
+                content: {} as Record<string, any>,
+                version: 0,
+                publishedAt: null,
+            };
+
+            const t: ServerTranslationFunction = (_key, defaultValue) => defaultValue;
+            return { t, data: sectionData };
         }
-        : {
+
+        // Response is an array, get first element
+        const found = response[0];
+
+        if (!found)
+        {
+            // Section not found, return empty
+            const sectionData: SectionData = {
+                section,
+                locale,
+                content: {} as Record<string, any>,
+                version: 0,
+                publishedAt: null,
+            };
+
+            const t: ServerTranslationFunction = (_key, defaultValue) => defaultValue;
+            return { t, data: sectionData };
+        }
+
+        // Success response
+        const sectionData: SectionData = {
+            section: found.section,
+            locale: found.locale,
+            content: found.content || {},
+            version: found.version,
+            publishedAt: found.publishedAt,
+        };
+
+        // Translation function
+        const t: ServerTranslationFunction = (key, defaultValue, replace) =>
+        {
+            const fullKey = `${section}.${key}`;
+            let value = sectionData.content[fullKey];
+
+            if (value === undefined)
+            {
+                value = defaultValue;
+            }
+
+            // 문자열이고 치환 맵이 있으면 변수 치환
+            if (typeof value === 'string' && replace)
+            {
+                value = replaceVariables(value, replace);
+            }
+
+            return value;
+        };
+
+        return {
+            t,
+            data: sectionData,
+        };
+    }
+    catch (error)
+    {
+        console.error(`[CMS] Failed to fetch section "${section}":`, error);
+
+        // Return empty section data on error
+        const sectionData: SectionData = {
             section,
             locale,
             content: {} as Record<string, any>,
@@ -117,34 +195,14 @@ export const getSection = cache(async (
             publishedAt: null,
         };
 
-    // Translation function
-    const t: ServerTranslationFunction = (key, defaultValue, replace) =>
-    {
-        const fullKey = `${section}.${key}`;
-        let value = sectionData.content[fullKey];
-
-        if (value === undefined)
-        {
-            value = defaultValue;
-        }
-
-        // 문자열이고 치환 맵이 있으면 변수 치환
-        if (typeof value === 'string' && replace)
-        {
-            value = replaceVariables(value, replace);
-        }
-
-        return value;
-    };
-
-    return {
-        t,
-        data: sectionData,
-    };
+        const t: ServerTranslationFunction = (key, defaultValue) => defaultValue;
+        return { t, data: sectionData };
+    }
 });
 
 /**
  * 여러 섹션 한번에 로드 (React cache 적용)
+ * 단일 API 호출로 여러 섹션을 효율적으로 가져옵니다
  *
  * @param sections - 섹션 이름 배열
  * @param locale - 언어 코드 (기본값: 'ko')
@@ -153,7 +211,7 @@ export const getSection = cache(async (
  * @example
  * ```tsx
  * // Server Component
- * import { getSections } from '@/lib/cms/server';
+ * import { getSections } from '@spfn/cms/server';
  *
  * export default async function Page()
  * {
@@ -173,14 +231,115 @@ export const getSections = cache(async (
     locale: string = 'ko'
 ): Promise<Record<string, SectionAPI>> =>
 {
-    const promises = sections.map((section) => getSection(section, locale));
-    const results = await Promise.all(promises);
-
-    const sectionsMap: Record<string, SectionAPI> = {};
-    sections.forEach((section, index) =>
+    try
     {
-        sectionsMap[section] = results[index];
-    });
+        // Call SPFN API with array of sections (single HTTP request)
+        const response = await client.call(
+            '/cms/published-cache',
+            getPublishedCacheContract,
+            {
+                query: { sections, locale },
+            }
+        );
 
-    return sectionsMap;
+        // Check if response has error
+        if ('error' in response)
+        {
+            console.warn(`[CMS] ${response.error}`);
+            // Return empty sections
+            const sectionsMap: Record<string, SectionAPI> = {};
+            sections.forEach(section =>
+            {
+                sectionsMap[section] = {
+                    t: (_key, defaultValue) => defaultValue,
+                    data: {
+                        section,
+                        locale,
+                        content: {},
+                        version: 0,
+                        publishedAt: null,
+                    }
+                };
+            });
+            return sectionsMap;
+        }
+
+        // Build sections map from response
+        const sectionsMap: Record<string, SectionAPI> = {};
+
+        // First, create empty entries for all requested sections
+        sections.forEach(section =>
+        {
+            sectionsMap[section] = {
+                t: (_key, defaultValue) => defaultValue,
+                data: {
+                    section,
+                    locale,
+                    content: {},
+                    version: 0,
+                    publishedAt: null,
+                }
+            };
+        });
+
+        // Then, fill in data for found sections
+        response.forEach(sectionData =>
+        {
+            const createTranslationFn = (section: string, content: Record<string, any>): ServerTranslationFunction =>
+            {
+                return (key, defaultValue, replace) =>
+                {
+                    const fullKey = `${section}.${key}`;
+                    let value = content[fullKey];
+
+                    if (value === undefined)
+                    {
+                        value = defaultValue;
+                    }
+
+                    // 문자열이고 치환 맵이 있으면 변수 치환
+                    if (typeof value === 'string' && replace)
+                    {
+                        value = replaceVariables(value, replace);
+                    }
+
+                    return value;
+                };
+            };
+
+            sectionsMap[sectionData.section] = {
+                t: createTranslationFn(sectionData.section, sectionData.content),
+                data: {
+                    section: sectionData.section,
+                    locale: sectionData.locale,
+                    content: sectionData.content,
+                    version: sectionData.version,
+                    publishedAt: sectionData.publishedAt,
+                }
+            };
+        });
+
+        return sectionsMap;
+    }
+    catch (error)
+    {
+        console.error(`[CMS] Failed to fetch sections:`, error);
+
+        // Return empty sections on error
+        const sectionsMap: Record<string, SectionAPI> = {};
+        sections.forEach(section =>
+        {
+            sectionsMap[section] = {
+                t: (_key, defaultValue) => defaultValue,
+                data: {
+                    section,
+                    locale,
+                    content: {},
+                    version: 0,
+                    publishedAt: null,
+                }
+            };
+        });
+        return sectionsMap;
+    }
 });
