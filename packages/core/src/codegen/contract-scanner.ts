@@ -132,8 +132,7 @@ function extractContractExports(filePath: string): ContractExport[]
                 if (
                     ts.isVariableDeclaration(declaration) &&
                     ts.isIdentifier(declaration.name) &&
-                    declaration.initializer &&
-                    ts.isObjectLiteralExpression(declaration.initializer)
+                    declaration.initializer
                 )
                 {
                     const name = declaration.name.text;
@@ -141,15 +140,39 @@ function extractContractExports(filePath: string): ContractExport[]
                     // Check if name looks like a contract
                     if (isContractName(name))
                     {
-                        const contractData = extractContractData(declaration.initializer);
+                        // Handle both direct object literal and satisfies expression
+                        let objectLiteral: ts.ObjectLiteralExpression | undefined;
 
-                        if (contractData.method && contractData.path)
+                        if (ts.isObjectLiteralExpression(declaration.initializer))
                         {
-                            exports.push({
-                                name,
-                                method: contractData.method,
-                                path: contractData.path
-                            });
+                            objectLiteral = declaration.initializer;
+                        }
+                        else if (ts.isSatisfiesExpression(declaration.initializer) &&
+                                 ts.isAsExpression(declaration.initializer.expression) &&
+                                 ts.isObjectLiteralExpression(declaration.initializer.expression.expression))
+                        {
+                            // Handle: { ... } as const satisfies RouteContract
+                            objectLiteral = declaration.initializer.expression.expression;
+                        }
+                        else if (ts.isAsExpression(declaration.initializer) &&
+                                 ts.isObjectLiteralExpression(declaration.initializer.expression))
+                        {
+                            // Handle: { ... } as const
+                            objectLiteral = declaration.initializer.expression;
+                        }
+
+                        if (objectLiteral)
+                        {
+                            const contractData = extractContractData(objectLiteral);
+
+                            if (contractData.method && contractData.path)
+                            {
+                                exports.push({
+                                    name,
+                                    method: contractData.method,
+                                    path: contractData.path
+                                });
+                            }
                         }
                     }
                 }
