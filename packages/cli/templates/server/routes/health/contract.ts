@@ -8,6 +8,7 @@ export const healthContract = {
     path: '/',
     response: Type.Object({
         status: Type.String(),
-        timestamp: Type.Number()
+        timestamp: Type.Number(),
+        uptime: Type.Number()
     })
 };
