@@ -125,6 +125,30 @@ async function addPackage(packageName: string): Promise<void>
                         throw error
                     }
 
+                    // Create schema before running migration
+                    const { packageNameToSchema } = await import('@spfn/core/db')
+                    const schemaName = packageNameToSchema(packageName)
+
+                    const schemaSpinner = ora(`Creating schema "${schemaName}"...`).start()
+                    try
+                    {
+                        const { drizzle } = await import('drizzle-orm/postgres-js')
+                        const postgres = (await import('postgres')).default
+                        const sql = postgres(process.env.DATABASE_URL!)
+                        const db = drizzle(sql)
+
+                        // Create schema if not exists
+                        await sql`CREATE SCHEMA IF NOT EXISTS ${sql(schemaName)}`
+                        await sql.end()
+
+                        schemaSpinner.succeed(`Schema "${schemaName}" ready`)
+                    }
+                    catch (error)
+                    {
+                        schemaSpinner.fail('Failed to create schema')
+                        throw error
+                    }
+
                     // Run migration
                     const migrateSpinner = ora('Running migration...').start()
                     try

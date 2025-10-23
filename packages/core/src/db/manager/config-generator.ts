@@ -3,8 +3,8 @@
  * Automatically generates drizzle.config.ts from environment variables
  */
 
-import { existsSync, readdirSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
+import { join, dirname, basename } from 'path';
 
 export interface DrizzleConfigOptions
 {
@@ -28,6 +28,119 @@ export interface DrizzleConfigOptions
 
     /** Only include schemas from specific package (e.g., '@spfn/cms') */
     packageFilter?: string;
+}
+
+/**
+ * Expand glob patterns to actual file paths
+ * Handles patterns like:
+ * - ./dist/entities/*.js → [./dist/entities/foo.js, ./dist/entities/bar.js]
+ * - ./dist/entities/**\/*.js → recursively finds all .js files
+ *
+ * @param pattern - Glob pattern or file path
+ * @returns Array of expanded file paths
+ */
+function expandGlobPattern(pattern: string): string[]
+{
+    // If pattern doesn't contain wildcards, return as-is
+    if (!pattern.includes('*'))
+    {
+        return existsSync(pattern) ? [pattern] : [];
+    }
+
+    const files: string[] = [];
+
+    // Handle /**/* pattern (recursive)
+    if (pattern.includes('**'))
+    {
+        const [baseDir, ...rest] = pattern.split('**');
+        const extension = rest.join('').replace(/[\/\\]\*\./g, '').trim();
+
+        const scanRecursive = (dir: string) =>
+        {
+            if (!existsSync(dir)) return;
+
+            try
+            {
+                const entries = readdirSync(dir);
+
+                for (const entry of entries)
+                {
+                    const fullPath = join(dir, entry);
+
+                    try
+                    {
+                        const stat = statSync(fullPath);
+
+                        if (stat.isDirectory())
+                        {
+                            scanRecursive(fullPath);
+                        }
+                        else if (stat.isFile())
+                        {
+                            // Check if file matches extension
+                            if (!extension || fullPath.endsWith(extension))
+                            {
+                                files.push(fullPath);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Skip files we can't stat
+                    }
+                }
+            }
+            catch
+            {
+                // Skip directories we can't read
+            }
+        };
+
+        scanRecursive(baseDir.trim() || '.');
+    }
+    // Handle /* pattern (single level)
+    else if (pattern.includes('*'))
+    {
+        const dir = dirname(pattern);
+        const filePattern = basename(pattern);
+
+        if (!existsSync(dir)) return [];
+
+        try
+        {
+            const entries = readdirSync(dir);
+
+            for (const entry of entries)
+            {
+                const fullPath = join(dir, entry);
+
+                try
+                {
+                    const stat = statSync(fullPath);
+
+                    if (stat.isFile())
+                    {
+                        // Simple pattern matching (*.js matches foo.js)
+                        if (filePattern === '*' ||
+                            (filePattern.startsWith('*.') && entry.endsWith(filePattern.slice(1))))
+                        {
+                            files.push(fullPath);
+                        }
+                    }
+                }
+                catch
+                {
+                    // Skip files we can't stat
+                }
+            }
+        }
+        catch
+        {
+            // Skip directories we can't read
+        }
+    }
+
+    return files;
 }
 
 /**
@@ -83,11 +196,24 @@ function discoverPackageSchemas(cwd: string): string[]
                     ? pkgJson.spfn.schemas
                     : [pkgJson.spfn.schemas];
 
-                // Convert to absolute paths from package root
+                // Convert to absolute paths from package root and expand globs
                 for (const schema of packageSchemas)
                 {
                     const absolutePath = join(pkgPath, schema);
-                    schemas.push(absolutePath);
+
+                    // Expand glob patterns to actual file lists
+                    // This prevents drizzle-kit from hanging on glob patterns
+                    const expandedFiles = expandGlobPattern(absolutePath);
+
+                    // Filter out index files (they are re-exports, not schema definitions)
+                    const schemaFiles = expandedFiles.filter(file =>
+                        !file.endsWith('/index.js') &&
+                        !file.endsWith('/index.ts') &&
+                        !file.endsWith('\\index.js') &&
+                        !file.endsWith('\\index.ts')
+                    );
+
+                    schemas.push(...schemaFiles);
                 }
             }
         }
