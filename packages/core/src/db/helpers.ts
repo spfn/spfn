@@ -94,12 +94,12 @@ export async function findOne<T extends PgTable>(
 
 export async function findOne<T extends PgTable>(
     table: T,
-    where: SQL
+    where: SQL | undefined
 ): Promise<InferSelectModel<T> | null>;
 
 export async function findOne<T extends PgTable>(
     table: T,
-    where: WhereObject<InferSelectModel<T>> | SQL
+    where: WhereObject<InferSelectModel<T>> | SQL | undefined
 ): Promise<InferSelectModel<T> | null>
 {
     const db = getDatabase('read');
@@ -110,7 +110,7 @@ export async function findOne<T extends PgTable>(
 
     const whereClause = isSQLWrapper(where)
         ? where
-        : buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>);
+        : where ? buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>) : undefined;
 
     if (!whereClause)
     {
@@ -154,7 +154,7 @@ export async function findOne<T extends PgTable>(
 export async function findMany<T extends PgTable>(
     table: T,
     options?: {
-        where?: WhereObject<InferSelectModel<T>> | SQL;
+        where?: WhereObject<InferSelectModel<T>> | SQL | undefined;
         orderBy?: SQL | SQL[];
         limit?: number;
         offset?: number;
@@ -174,7 +174,7 @@ export async function findMany<T extends PgTable>(
     {
         const whereClause = isSQLWrapper(options.where)
             ? options.where
-            : buildWhereFromObject(table, options.where as WhereObject<InferSelectModel<T>>);
+            : options.where ? buildWhereFromObject(table, options.where as WhereObject<InferSelectModel<T>>) : undefined;
 
         if (whereClause)
         {
@@ -283,7 +283,7 @@ export async function createMany<T extends PgTable>(
  */
 export async function updateOne<T extends PgTable>(
     table: T,
-    where: WhereObject<InferSelectModel<T>> | SQL,
+    where: WhereObject<InferSelectModel<T>> | SQL | undefined,
     data: Partial<InferInsertModel<T>>
 ): Promise<InferSelectModel<T> | null>
 {
@@ -295,7 +295,7 @@ export async function updateOne<T extends PgTable>(
 
     const whereClause = isSQLWrapper(where)
         ? where
-        : buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>);
+        : where ? buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>) : undefined;
 
     if (!whereClause)
     {
@@ -324,7 +324,7 @@ export async function updateOne<T extends PgTable>(
  */
 export async function updateMany<T extends PgTable>(
     table: T,
-    where: WhereObject<InferSelectModel<T>> | SQL,
+    where: WhereObject<InferSelectModel<T>> | SQL | undefined,
     data: Partial<InferInsertModel<T>>
 ): Promise<InferSelectModel<T>[]>
 {
@@ -336,7 +336,7 @@ export async function updateMany<T extends PgTable>(
 
     const whereClause = isSQLWrapper(where)
         ? where
-        : buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>);
+        : where ? buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>) : undefined;
 
     if (!whereClause)
     {
@@ -365,7 +365,7 @@ export async function updateMany<T extends PgTable>(
  */
 export async function deleteOne<T extends PgTable>(
     table: T,
-    where: WhereObject<InferSelectModel<T>> | SQL
+    where: WhereObject<InferSelectModel<T>> | SQL | undefined
 ): Promise<InferSelectModel<T> | null>
 {
     const db = getDatabase('write');
@@ -376,7 +376,7 @@ export async function deleteOne<T extends PgTable>(
 
     const whereClause = isSQLWrapper(where)
         ? where
-        : buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>);
+        : where ? buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>) : undefined;
 
     if (!whereClause)
     {
@@ -401,7 +401,7 @@ export async function deleteOne<T extends PgTable>(
  */
 export async function deleteMany<T extends PgTable>(
     table: T,
-    where: WhereObject<InferSelectModel<T>> | SQL
+    where: WhereObject<InferSelectModel<T>> | SQL | undefined
 ): Promise<InferSelectModel<T>[]>
 {
     const db = getDatabase('write');
@@ -412,7 +412,7 @@ export async function deleteMany<T extends PgTable>(
 
     const whereClause = isSQLWrapper(where)
         ? where
-        : buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>);
+        : where ? buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>) : undefined;
 
     if (!whereClause)
     {
@@ -439,7 +439,7 @@ export async function deleteMany<T extends PgTable>(
  */
 export async function count<T extends PgTable>(
     table: T,
-    where?: WhereObject<InferSelectModel<T>> | SQL
+    where?: WhereObject<InferSelectModel<T>> | SQL | undefined
 ): Promise<number>
 {
     const db = getDatabase('read');
@@ -454,7 +454,7 @@ export async function count<T extends PgTable>(
     {
         const whereClause = isSQLWrapper(where)
             ? where
-            : buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>);
+            : where ? buildWhereFromObject(table, where as WhereObject<InferSelectModel<T>>) : undefined;
 
         if (whereClause)
         {

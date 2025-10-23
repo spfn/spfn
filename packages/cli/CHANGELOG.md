@@ -2,6 +2,16 @@
 
 All notable changes to the SPFN CLI will be documented in this file.
 
+## [0.1.0-alpha.50] - 2025-10-23
+
+### Fixed
+
+- **Database Helper Type Safety**: Updated helper functions to accept `SQL | undefined`
+  - `findOne`, `findMany`, `updateOne`, `updateMany`, `deleteOne`, `deleteMany`, and `count` now properly handle Drizzle's `and()` return type
+  - Removed need for non-null assertions (`!`) when using `and()` with helper functions
+  - Improved type safety by gracefully handling undefined SQL conditions
+  - Function overloads ensure proper type inference for both object-based and SQL-based where clauses
+
 ## [0.1.0-alpha.49] - 2025-10-23
 
 ### Added
