@@ -7,7 +7,13 @@
 import type { SectionDefinition, NestedLabels, FlatLabel, LabelDefinition } from '../types';
 
 /**
+ * 등록된 섹션 저장소
+ */
+const registeredSections = new Map<string, SectionDefinition>();
+
+/**
  * 섹션 라벨 정의 헬퍼
+ * 정의된 섹션을 자동으로 등록하여 sync 시 사용
  *
  * @param section - 섹션 이름
  * @param labels - 중첩된 라벨 정의
@@ -27,10 +33,23 @@ export function defineLabelSection(
     labels: NestedLabels
 ): SectionDefinition
 {
-    return {
+    const definition: SectionDefinition = {
         section,
         labels,
     };
+
+    // 자동 등록
+    registeredSections.set(section, definition);
+
+    return definition;
+}
+
+/**
+ * 등록된 모든 섹션 가져오기
+ */
+export function getRegisteredSections(): SectionDefinition[]
+{
+    return Array.from(registeredSections.values());
 }
 
 /**
@@ -55,7 +74,12 @@ export function flattenLabels(labels: NestedLabels): FlatLabel[]
 
     function isLabelDefinition(obj: NestedLabels | LabelDefinition): obj is LabelDefinition
     {
-        return 'key' in obj && 'defaultValue' in obj && typeof obj.key === 'string' && typeof obj.defaultValue === 'string';
+        return (
+            'key' in obj &&
+            'defaultValue' in obj &&
+            typeof obj.key === 'string' &&
+            (typeof obj.defaultValue === 'string' || typeof obj.defaultValue === 'object')
+        );
     }
 
     function traverse(obj: NestedLabels | LabelDefinition)

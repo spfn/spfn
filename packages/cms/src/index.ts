@@ -1,24 +1,30 @@
 /**
  * @spfn/cms
  *
- * Content Management System for Next.js with type-safe labels
+ * Backend + Server Components
+ * 백엔드 및 서버 컴포넌트 전용 (서버에서만 실행)
+ *
+ * For client components, use: import { ... } from '@spfn/cms/client'
  */
 
-// Server-side (React Server Components)
+// Server Components API (React Server Components)
 export * from './server';
+export type { SectionData, SectionAPI } from './server';
 
-// Client-side API
-export { cmsApi } from './client';
-export type { CmsApi } from './client';
+// Backend: Repositories (DB access)
+export * from './repositories';
 
-// Client-side Store & Hooks
-export { useCmsStore, useSection, useSections } from './store';
+// Backend: Entities (DB schemas)
+export * from './entities';
 
-// Client-side Initializer
-export { InitCms } from './init';
+// Backend: Sync utilities (server startup, CLI scripts)
+export { syncSection, syncAll, initLabelSync } from './helpers/sync';
 
-// Label Helpers
+// Backend: Label definition helpers
 export * from './labels';
+
+// Backend: Codegen generators (for development)
+export { createLabelSyncGenerator, LabelSyncGenerator } from './generators/label-sync-generator';
 
 // Types
 export type * from './types';

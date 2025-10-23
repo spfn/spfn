@@ -10,15 +10,19 @@
 export interface LabelDefinition
 {
     key: string;
-    defaultValue: string;
+    defaultValue: string | Record<string, string>; // 다국어 지원: 문자열 또는 { ko: '...', en: '...' }
     description?: string;
 }
 
 /**
  * 중첩된 라벨 구조
+ * LabelDefinition과 구분하기 위해 key, defaultValue 속성을 명시적으로 제외
  */
 export type NestedLabels = {
     [key: string]: LabelDefinition | NestedLabels;
+} & {
+    key?: never;
+    defaultValue?: never;
 };
 
 /**
@@ -75,6 +79,6 @@ export interface SyncResult
 export interface FlatLabel
 {
     key: string;
-    defaultValue: string;
+    defaultValue: string | Record<string, string>; // 다국어 지원
     description?: string;
 }

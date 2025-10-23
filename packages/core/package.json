@@ -40,6 +40,11 @@
       "types": "./dist/env/index.d.ts",
       "import": "./dist/env/index.js",
       "require": "./dist/env/index.js"
+    },
+    "./logger": {
+      "types": "./dist/logger/index.d.ts",
+      "import": "./dist/logger/index.js",
+      "require": "./dist/logger/index.js"
     }
   },
   "scripts": {

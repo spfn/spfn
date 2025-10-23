@@ -1,0 +1,13 @@
+{
+  "codegen": {
+    "generators": [
+      {
+        "name": "contract",
+        "enabled": true
+      },
+      {
+        "path": "./src/generators/label-sync.ts"
+      }
+    ]
+  }
+}

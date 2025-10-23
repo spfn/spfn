@@ -1,7 +1,8 @@
 /**
- * CMS API Client
+ * @spfn/cms/client
  *
- * CMS 전용 API 클라이언트
+ * Client Components Only
+ * 클라이언트 컴포넌트 전용 (브라우저에서 실행)
  */
 
 import { client } from '@spfn/core/client';
@@ -85,3 +86,9 @@ export const cmsApi = {
  * Type exports
  */
 export type CmsApi = typeof cmsApi;
+
+// Client-side Store & Hooks
+export { useCmsStore, useSection, useSections } from './store';
+
+// Client-side Initializer
+export { InitCms } from './init';

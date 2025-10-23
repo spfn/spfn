@@ -22,9 +22,9 @@ export type SectionData = {
 };
 
 /**
- * Translation Function Type
+ * Translation Function Type (runtime version)
  */
-export type TranslationFunction = (
+type ServerTranslationFunction = (
     key: string,
     defaultValue?: any,
     replace?: Record<string, string | number>
@@ -42,7 +42,7 @@ export type SectionAPI = {
      * @param replace - 변수 치환 맵 (예: { name: 'John' })
      * @returns 라벨 값 (문자열인 경우 변수 치환됨)
      */
-    t: TranslationFunction;
+    t: ServerTranslationFunction;
 
     /**
      * 섹션 데이터
@@ -118,7 +118,7 @@ export const getSection = cache(async (
         };
 
     // Translation function
-    const t: TranslationFunction = (key, defaultValue, replace) =>
+    const t: ServerTranslationFunction = (key, defaultValue, replace) =>
     {
         const fullKey = `${section}.${key}`;
         let value = sectionData.content[fullKey];
