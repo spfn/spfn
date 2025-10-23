@@ -41,6 +41,8 @@ export function defineLabelSection(
     // 자동 등록
     registeredSections.set(section, definition);
 
+    console.log(`[defineLabelSection] Registered section: ${section}, total sections: ${registeredSections.size}`);
+
     return definition;
 }
 
@@ -49,7 +51,17 @@ export function defineLabelSection(
  */
 export function getRegisteredSections(): SectionDefinition[]
 {
+    console.log(`[getRegisteredSections] Total registered sections: ${registeredSections.size}`);
     return Array.from(registeredSections.values());
+}
+
+/**
+ * 등록된 섹션 초기화
+ * Generator가 파일을 새로 로드하기 전에 호출
+ */
+export function clearRegisteredSections(): void
+{
+    registeredSections.clear();
 }
 
 /**

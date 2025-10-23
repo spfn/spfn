@@ -6,7 +6,12 @@
 
 import { cmsLabelsRepository, cmsPublishedCacheRepository } from '../repositories';
 import type { SectionDefinition, SyncOptions, SyncResult } from '../types';
-import { extractLabels, getRegisteredSections } from '../labels';
+import { extractLabels, getRegisteredSections, clearRegisteredSections } from '../labels';
+
+/**
+ * Re-export for generator use
+ */
+export { clearRegisteredSections };
 
 /**
  * 등록된 모든 섹션 동기화

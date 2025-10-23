@@ -33,6 +33,14 @@
     "./labels": {
       "types": "./dist/labels/index.d.ts",
       "import": "./dist/labels/index.js"
+    },
+    "./generators": {
+      "types": "./dist/generators/index.d.ts",
+      "import": "./dist/generators/index.js"
+    },
+    "./codegen/generators": {
+      "types": "./dist/generators/index.d.ts",
+      "import": "./dist/generators/index.js"
     }
   },
   "files": [
@@ -54,19 +62,26 @@
   ],
   "author": "SPFN Team",
   "license": "MIT",
+  "spfn": {
+    "schemas": [
+      "./dist/entities/*.js"
+    ],
+    "setupMessage": "  📚 Next steps:\n    1. Import CMS components: import { useLabels } from '@spfn/cms'\n    2. View labels in Drizzle Studio: pnpm spfn db studio\n    3. Learn more: https://github.com/spfnio/spfn"
+  },
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0",
-    "next": "^15.0.0",
     "@spfn/core": "^0.1.0-alpha",
-    "drizzle-orm": "^0.44.0"
+    "drizzle-orm": "^0.44.0",
+    "next": "^15.0.0",
+    "react": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
-    "zustand": "^5.0.8",
-    "@sinclair/typebox": "^0.34.0"
+    "@sinclair/typebox": "^0.34.0",
+    "jiti": "^2.6.1",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@types/react": "^19",
-    "typescript": "^5",
-    "drizzle-typebox": "^0.1.0"
+    "drizzle-typebox": "^0.1.0",
+    "typescript": "^5"
   }
 }

@@ -2,11 +2,12 @@
   "codegen": {
     "generators": [
       {
-        "name": "contract",
+        "name": "@spfn/core:contract",
         "enabled": true
       },
       {
-        "path": "./src/generators/label-sync.ts"
+        "name": "@spfn/cms:label-sync",
+        "enabled": true
       }
     ]
   }
