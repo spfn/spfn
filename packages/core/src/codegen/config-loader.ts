@@ -90,8 +90,8 @@ async function loadGeneratorFromPackage(
 {
     try
     {
-        // Try to load package/generators export
-        const generatorsModule = await import(`${packageName}/generators`);
+        // Try to load package/codegen/generators export
+        const generatorsModule = await import(`${packageName}/codegen/generators`);
 
         // Look for generator by name in registry
         if (generatorsModule.generators?.[generatorName])
