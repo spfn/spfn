@@ -17,7 +17,7 @@ export interface CodegenConfig
 {
     generators?: Array<
         | { path: string }  // Custom generator via file path
-        | ({ name: 'contract' } & ContractGeneratorConfig & { enabled?: boolean })  // Built-in contract generator
+        | ({ name: string; enabled?: boolean } & Record<string, any>)  // Package-based generator: "package:name" or built-in "name"
     >;
 }
 
@@ -78,6 +78,66 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
 }
 
 /**
+ * Load generator from package
+ *
+ * Supports format: "package:generator-name" or "@scope/package:generator-name"
+ */
+async function loadGeneratorFromPackage(
+    packageName: string,
+    generatorName: string,
+    config: Record<string, any>
+): Promise<Generator | null>
+{
+    try
+    {
+        // Try to load package/generators export
+        const generatorsModule = await import(`${packageName}/generators`);
+
+        // Look for generator by name in registry
+        if (generatorsModule.generators?.[generatorName])
+        {
+            const createFn = generatorsModule.generators[generatorName];
+            const generator = createFn(config);
+            configLogger.info(`Loaded ${packageName}:${generatorName}`);
+            return generator;
+        }
+
+        // Fallback: try conventional name (createXxxGenerator)
+        const conventionalName = `create${capitalize(generatorName)}Generator`;
+        if (generatorsModule[conventionalName])
+        {
+            const createFn = generatorsModule[conventionalName];
+            const generator = createFn(config);
+            configLogger.info(`Loaded ${packageName}:${generatorName} (via ${conventionalName})`);
+            return generator;
+        }
+
+        configLogger.warn(
+            `Generator "${generatorName}" not found in ${packageName}/generators. ` +
+            `Expected: generators.${generatorName} or ${conventionalName}`
+        );
+        return null;
+    }
+    catch (error)
+    {
+        const err = error instanceof Error ? error : new Error(String(error));
+        configLogger.warn(
+            `Failed to load ${packageName}:${generatorName}. ` +
+            `Make sure ${packageName} is installed. Error: ${err.message}`
+        );
+        return null;
+    }
+}
+
+/**
+ * Capitalize first letter
+ */
+function capitalize(str: string): string
+{
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
  * Create generator instances from configuration
  */
 export async function createGeneratorsFromConfig(config: CodegenConfig, cwd: string): Promise<Generator[]>
@@ -130,19 +190,51 @@ export async function createGeneratorsFromConfig(config: CodegenConfig, cwd: str
                     configLogger.warn(`Invalid generator at ${generatorPath}: expected function`);
                 }
             }
-            // Built-in contract generator
-            else if ('name' in generatorConfig && generatorConfig.name === 'contract')
+            // Package-based generator: "package:name" or "@scope/package:name"
+            else if ('name' in generatorConfig && generatorConfig.name.includes(':'))
             {
                 if (generatorConfig.enabled !== false)
                 {
-                    const contractConfig: ContractGeneratorConfig = {
-                        routesDir: generatorConfig.routesDir,
-                        outputPath: generatorConfig.outputPath,
-                        baseUrl: generatorConfig.baseUrl
-                    };
+                    const [packageName, generatorName] = generatorConfig.name.split(':');
+                    const { enabled, name, ...generatorOptions } = generatorConfig;
 
-                    generators.push(createContractGenerator(contractConfig));
-                    configLogger.info('Contract generator enabled');
+                    const generator = await loadGeneratorFromPackage(
+                        packageName,
+                        generatorName,
+                        generatorOptions
+                    );
+
+                    if (generator)
+                    {
+                        generators.push(generator);
+                    }
+                }
+            }
+            // Built-in generators (backward compatibility)
+            else if ('name' in generatorConfig)
+            {
+                // Map old names to new format
+                if (generatorConfig.name === 'contract')
+                {
+                    // Redirect to @spfn/core:contract
+                    if (generatorConfig.enabled !== false)
+                    {
+                        const contractConfig: ContractGeneratorConfig = {
+                            routesDir: generatorConfig.routesDir,
+                            outputPath: generatorConfig.outputPath,
+                            baseUrl: generatorConfig.baseUrl
+                        };
+
+                        generators.push(createContractGenerator(contractConfig));
+                        configLogger.info('Contract generator enabled (legacy name)');
+                    }
+                }
+                else
+                {
+                    configLogger.warn(
+                        `Unknown generator "${generatorConfig.name}". ` +
+                        `Use package:name format (e.g., "@spfn/core:contract")`
+                    );
                 }
             }
         }

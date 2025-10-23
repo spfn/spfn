@@ -8,6 +8,7 @@ export default defineConfig({
         'db/index': 'src/db/index.ts',
         'server/index': 'src/server/index.ts',
         'codegen/index': 'src/codegen/index.ts',
+        'codegen/generators/index': 'src/codegen/generators/index.ts',
         'env/index': 'src/env/index.ts',
         'logger/index': 'src/logger/index.ts',
     },

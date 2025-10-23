@@ -45,6 +45,11 @@
       "types": "./dist/logger/index.d.ts",
       "import": "./dist/logger/index.js",
       "require": "./dist/logger/index.js"
+    },
+    "./codegen/generators": {
+      "types": "./dist/codegen/generators/index.d.ts",
+      "import": "./dist/codegen/generators/index.js",
+      "require": "./dist/codegen/generators/index.js"
     }
   },
   "scripts": {
