@@ -2,6 +2,17 @@
 
 All notable changes to the SPFN CLI will be documented in this file.
 
+## [0.1.0-alpha.51] - 2025-10-23
+
+### Added
+
+- **Upsert Helper Function**: Added `upsert` helper to database utilities
+  - Supports INSERT or UPDATE on conflict (PostgreSQL UPSERT)
+  - `target` parameter specifies UNIQUE constraint columns for conflict detection
+  - `set` parameter allows custom update values including SQL expressions
+  - Automatically handles transaction context and database selection
+  - Example: `upsert(table, data, { target: [col1, col2], set: { field: sql\`expr\` } })`
+
 ## [0.1.0-alpha.50] - 2025-10-23
 
 ### Fixed

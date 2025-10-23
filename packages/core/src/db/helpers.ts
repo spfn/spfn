@@ -24,7 +24,7 @@
 
 import type { SQL } from 'drizzle-orm';
 import { eq, and } from 'drizzle-orm';
-import type { PgTable } from 'drizzle-orm/pg-core';
+import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 import { getDatabase } from './manager';
 
 /**
@@ -262,6 +262,66 @@ export async function createMany<T extends PgTable>(
 
     const results = await db.insert(table).values(data).returning();
     return results as InferSelectModel<T>[];
+}
+
+/**
+ * Upsert a record (INSERT or UPDATE on conflict)
+ *
+ * @param table - Drizzle table schema
+ * @param data - Insert data
+ * @param options - Conflict resolution options
+ * @returns Upserted record
+ *
+ * @example
+ * ```typescript
+ * // Basic upsert
+ * const cache = await upsert(cmsPublishedCache, {
+ *     section: 'home',
+ *     locale: 'ko',
+ *     content: {...}
+ * }, {
+ *     target: [cmsPublishedCache.section, cmsPublishedCache.locale],
+ *     set: {
+ *         content: data.content,
+ *         updatedAt: new Date()
+ *     }
+ * });
+ *
+ * // With SQL expression
+ * const cache = await upsert(cmsPublishedCache, data, {
+ *     target: [cmsPublishedCache.section, cmsPublishedCache.locale],
+ *     set: {
+ *         content: data.content,
+ *         version: sql`${cmsPublishedCache.version} + 1`
+ *     }
+ * });
+ * ```
+ */
+export async function upsert<T extends PgTable>(
+    table: T,
+    data: InferInsertModel<T>,
+    options: {
+        target: PgColumn[];
+        set?: Partial<InferInsertModel<T>> | Record<string, SQL | any>;
+    }
+): Promise<InferSelectModel<T>>
+{
+    const db = getDatabase('write');
+    if (!db)
+    {
+        throw new Error('Database not initialized. Call initDatabase() first.');
+    }
+
+    const [result] = await db
+        .insert(table)
+        .values(data)
+        .onConflictDoUpdate({
+            target: options.target,
+            set: options.set || data,
+        })
+        .returning();
+
+    return result as InferSelectModel<T>;
 }
 
 /**

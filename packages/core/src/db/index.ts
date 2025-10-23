@@ -42,6 +42,7 @@ export {
     findMany,
     create,
     createMany,
+    upsert,
     updateOne,
     updateMany,
     deleteOne,
