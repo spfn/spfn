@@ -12,6 +12,44 @@ Content Management System for Next.js with type-safe labels and automatic databa
 - 💾 **Published cache** for optimal performance
 - 🛠️ **Built on Drizzle ORM**
 
+## Installation
+
+### Recommended: Using SPFN CLI (Automatic Database Setup)
+
+```bash
+pnpm spfn add @spfn/cms
+```
+
+This command will:
+1. ✅ Install the package
+2. ✅ Discover CMS database schemas automatically
+3. ✅ Generate migrations for 6 CMS tables
+4. ✅ Apply migrations to your database
+5. ✅ Show setup guide
+
+**Tables created:**
+- `cms_labels` - Label definitions (10 columns, 2 indexes)
+- `cms_label_values` - Label values per locale (7 columns, 2 indexes, 1 FK)
+- `cms_label_versions` - Version history (9 columns, 2 indexes, 1 FK)
+- `cms_draft_cache` - Draft content cache (6 columns, 2 indexes)
+- `cms_published_cache` - Published content cache (7 columns, 1 index)
+- `cms_audit_logs` - Change audit trail (8 columns, 4 indexes, 1 FK)
+
+### Manual Installation
+
+```bash
+pnpm add @spfn/cms
+```
+
+Then run database migrations:
+
+```bash
+pnpm spfn db generate  # Generate migrations
+pnpm spfn db migrate   # Apply migrations
+```
+
+**Note:** Manual installation requires that you have `DATABASE_URL` configured in your `.env.local` file.
+
 ## Quick Start
 
 ### 1. Define Labels

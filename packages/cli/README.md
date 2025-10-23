@@ -50,6 +50,61 @@ spfn init -y           # Skip prompts, use defaults
 - `.env.local.example` - Environment variable template
 - `spfn.config.js` - Deployment configuration with JSDoc type hints
 
+### Install Ecosystem Packages
+```bash
+spfn add <package>         # Install SPFN ecosystem package with automatic DB setup
+spfn add @spfn/cms         # Install CMS package
+spfn add @company/plugin   # Install third-party SPFN package
+```
+
+**What `spfn add` does:**
+1. ✅ Installs the package via pnpm/npm
+2. ✅ Discovers package's database schemas automatically
+3. ✅ Generates migrations for package tables
+4. ✅ Applies migrations to your database
+5. ✅ Shows package-specific setup guide
+
+**Example: Installing @spfn/cms**
+```bash
+$ pnpm spfn add @spfn/cms
+
+📦 Setting up @spfn/cms...
+
+🗄️  Setting up database for @spfn/cms...
+
+6 tables
+cms_labels           10 columns 2 indexes
+cms_label_values      7 columns 2 indexes 1 fks
+cms_label_versions    9 columns 2 indexes 1 fks
+cms_draft_cache       6 columns 2 indexes
+cms_published_cache   7 columns 1 indexes
+cms_audit_logs        8 columns 4 indexes 1 fks
+
+✔ Migration generated
+✔ Migration applied
+
+✅ @spfn/cms installed successfully!
+
+📚 Setup Guide:
+  1. Import CMS components: import { useLabels } from '@spfn/cms'
+  2. View labels in Drizzle Studio: pnpm spfn db studio
+  3. Learn more: https://github.com/spfnio/spfn
+```
+
+**How it works:**
+- SPFN automatically discovers schemas from packages via `package.json`:
+  ```json
+  {
+    "name": "@spfn/cms",
+    "spfn": {
+      "schemas": ["./dist/entities/*.js"],
+      "setupMessage": "📚 Next steps: ..."
+    }
+  }
+  ```
+- Packages can provide their own database tables without creating dependencies
+- Works with both published npm packages and local development (workspace packages)
+
 ### Code Generation
 ```bash
 spfn generate <name>   # Generate entity, routes, repository, and client

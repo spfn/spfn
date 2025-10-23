@@ -320,6 +320,65 @@ Drizzle ORM integration with type-safe helper functions and automatic transactio
 - Automatic transaction handling and read/write separation
 - Schema helpers: `id()`, `timestamps()`, `foreignKey()`
 - Hybrid where clause support (objects or SQL)
+- **Function schema auto-discovery** (see below)
+
+### 📦 Function Schema Discovery
+Automatic discovery of database schemas from SPFN ecosystem functions.
+
+**[→ Read Database Manager Documentation](./src/db/manager/README.md)**
+
+**Key Features:**
+- Zero-config schema discovery from `@spfn/*` functions
+- Functions declare schemas via `package.json`
+- No hard dependencies between functions
+- Efficient scanning (direct dependencies only)
+- Function-specific migration support
+
+**How it works:**
+
+Functions declare their schemas in `package.json`:
+```json
+{
+  "name": "@spfn/cms",
+  "spfn": {
+    "schemas": ["./dist/entities/*.js"],
+    "setupMessage": "📚 Setup guide..."
+  }
+}
+```
+
+SPFN automatically discovers and merges these schemas during migration generation:
+```typescript
+import { getDrizzleConfig } from '@spfn/core'
+
+// Auto-discovers all function schemas
+const config = getDrizzleConfig()
+```
+
+**Install functions with automatic DB setup:**
+```bash
+pnpm spfn add @spfn/cms
+# ✅ Installs function
+# ✅ Generates migrations
+# ✅ Applies migrations
+# ✅ Shows setup guide
+```
+
+**Create your own SPFN packages:**
+```typescript
+// 1. Define entities
+export const myTable = pgTable('my_table', { ... })
+
+// 2. Add to package.json
+{
+  "spfn": {
+    "schemas": ["./dist/entities/*.js"]
+  }
+}
+
+// 3. Users install with one command
+// pnpm spfn add @yourcompany/spfn-plugin
+```
 
 ### 🔄 Transactions
 Automatic transaction management with async context propagation.

@@ -18,19 +18,23 @@ Next.js handles your frontend. SPFN handles your backend.
 
 ## When You Need SPFN
 
-**🚀 Building a mobile app?**  
+**🚀 Building a mobile app?**
 → Next.js (landing page) + SPFN (API) = Complete solution
 
-**💼 Building a SaaS product?**  
+**💼 Building a SaaS product?**
 → Next.js (marketing + dashboard) + SPFN (backend) = Full-stack
 
-**🎯 Need these features?**  
-✅ Complex business logic with transactions  
-✅ Connection pools (PostgreSQL, Redis)  
-✅ Background jobs & scheduled tasks  
-✅ End-to-end type safety (Contract → Client)
+**⚡ Building with functions?**
+→ SPFN functions = Plug & play features with automatic DB setup
 
-**If you just need simple API routes, Next.js is enough.**  
+**🎯 Need these features?**
+✅ Complex business logic with transactions
+✅ Connection pools (PostgreSQL, Redis)
+✅ Background jobs & scheduled tasks
+✅ End-to-end type safety (Contract → Client)
+✅ Function ecosystem with auto-discovery
+
+**If you just need simple API routes, Next.js is enough.**
 **If you need a real backend, Next.js + SPFN.**
 
 ---
@@ -131,6 +135,17 @@ export default async function Page() {
 }
 ```
 
+**4. Install functions (optional):**
+```bash
+# Add CMS function for content management
+pnpm spfn add @spfn/cms
+
+# View your database
+pnpm spfn db studio
+```
+
+Or create your own SPFN function. See [Database Manager Documentation](./packages/core/src/db/manager/README.md#package-schema-discovery)
+
 ---
 
 ## Local Development Setup
@@ -212,6 +227,13 @@ const user = await api.users.getById({ params: { id: '123' } });
 - Type-safe CRUD operations (findOne, findMany, create, etc.)
 - Transaction support (AsyncLocalStorage)
 - Read/Write separation for scalability
+
+**⚡ Function Ecosystem**
+- Install functions with automatic DB setup (`spfn add`)
+- Functions self-declare schemas (no hard dependencies)
+- Auto-discovery from node_modules
+- Works with both npm packages and local development
+- Create your own SPFN-compatible functions
 
 **⚡ Production-Ready**
 - Connection pooling (PostgreSQL, Redis)
@@ -305,12 +327,77 @@ See [CHANGELOG.md](./CHANGELOG.md) for full history.
 
 ## Ecosystem
 
-| Package                       | Status | Description          |
-|-------------------------------|--------|----------------------|
-| [@spfn/core](./packages/core) | 🚧 Alpha | Routing, DB, Transactions |
-| [spfn](./packages/cli)       | 🚧 Alpha | CLI & Dev tools |
-| @spfn/user                    | 📋 Planned | User management & authentication |
-| @spfn/storage                 | 📋 Planned | File upload          |
+### Official Functions
+
+| Function | Version | Description |
+|----------|---------|-------------|
+| [@spfn/core](./packages/core) | 🟢 Alpha | Routing, DB, Transactions, Schema Discovery |
+| [spfn](./packages/cli) | 🟢 Alpha | CLI & Dev tools, Function installer |
+| [@spfn/cms](./packages/cms) | 🟢 Alpha | Content Management with type-safe labels |
+| @spfn/user | 📋 Planned | User management & authentication |
+| @spfn/storage | 📋 Planned | File upload & management |
+
+### Installing Functions
+
+SPFN functions can be installed with automatic database setup:
+
+```bash
+# Install CMS with automatic DB setup
+pnpm spfn add @spfn/cms
+```
+
+**What happens automatically:**
+- ✅ Function installation via pnpm/npm
+- ✅ Database schema discovery from function
+- ✅ Migration generation for function tables
+- ✅ Migration application to your database
+- ✅ Setup guide display with next steps
+
+**Example output:**
+```bash
+📦 Setting up @spfn/cms...
+🗄️  Setting up database for @spfn/cms...
+
+6 tables
+cms_labels           10 columns 2 indexes
+cms_label_values      7 columns 2 indexes 1 fks
+cms_label_versions    9 columns 2 indexes 1 fks
+cms_draft_cache       6 columns 2 indexes
+cms_published_cache   7 columns 1 indexes
+cms_audit_logs        8 columns 4 indexes 1 fks
+
+✔ Migration generated
+✔ Migration applied
+
+✅ @spfn/cms installed successfully!
+```
+
+### Create Your Own Functions
+
+Third-party functions can integrate with SPFN's schema discovery system:
+
+```json
+{
+  "name": "@mycompany/spfn-analytics",
+  "spfn": {
+    "schemas": ["./dist/entities/*.js"],
+    "setupMessage": "📚 Next steps:\n  1. Import analytics: import { trackEvent } from '@mycompany/spfn-analytics'\n  2. Learn more: https://docs.example.com"
+  }
+}
+```
+
+Users install with:
+```bash
+pnpm spfn add @mycompany/spfn-analytics
+```
+
+**How it works:**
+- Functions self-declare their database schemas in `package.json`
+- No hard dependencies between functions
+- SPFN auto-discovers schemas from installed functions
+- Supports both npm packages and local development
+
+Learn more: [Database Manager Documentation](./packages/core/src/db/manager/README.md#package-schema-discovery)
 
 ---
 

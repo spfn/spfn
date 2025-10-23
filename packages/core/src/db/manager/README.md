@@ -63,11 +63,15 @@ Low-level connection management:
 - Detailed error logging
 - postgres.js client creation
 
-### config-generator.ts (Drizzle Kit)
-Drizzle Kit configuration generator:
+### config-generator.ts (Drizzle Kit & Schema Discovery)
+Drizzle Kit configuration generator with package schema auto-discovery:
 - Auto-detect dialect from connection string
 - Generate `drizzle.config.ts`
 - Support for migrations and schema
+- **Package schema auto-discovery**
+- Scan `@spfn/*` packages and direct dependencies
+- Support for package-specific migrations
+- Nested entity folder support (`**/*.ts`)
 
 ## 🚀 Quick Start
 
@@ -137,6 +141,205 @@ await initDatabase({
   },
 });
 ```
+
+## 📦 Package Schema Discovery
+
+SPFN automatically discovers database schemas from installed packages, enabling a plugin-like architecture where packages can provide their own database schemas without creating hard dependencies.
+
+### How It Works
+
+**1. Package Declaration**
+
+Packages declare their schemas in `package.json`:
+
+```json
+{
+  "name": "@spfn/cms",
+  "spfn": {
+    "schemas": ["./dist/entities/*.js"],
+    "setupMessage": "📚 Next steps:\n  1. Import components..."
+  }
+}
+```
+
+**2. Automatic Discovery**
+
+During migration generation, SPFN scans for schemas in:
+- All `@spfn/*` packages (official ecosystem)
+- Direct dependencies with `spfn.schemas` field in `package.json`
+- **Note**: Transitive dependencies are NOT scanned (performance optimization)
+
+**3. Schema Merging**
+
+All discovered schemas are merged with your app's schemas:
+
+```typescript
+import { getDrizzleConfig } from '@spfn/core'
+
+const config = getDrizzleConfig({
+  cwd: process.cwd()
+})
+// Returns merged schemas from:
+// - ./src/server/entities/**/*.ts (your app)
+// - node_modules/@spfn/cms/dist/entities/*.js
+// - node_modules/@spfn/auth/dist/entities/*.js
+// - etc.
+```
+
+### Usage
+
+**Zero-Config** (auto-discovers all packages):
+
+```typescript
+import { getDrizzleConfig } from '@spfn/core'
+
+const config = getDrizzleConfig()
+```
+
+**Package-Specific Migrations** (for `spfn add` command):
+
+```typescript
+import { generateDrizzleConfigFile } from '@spfn/core'
+
+const configContent = generateDrizzleConfigFile({
+  cwd: process.cwd(),
+  packageFilter: '@spfn/cms'  // Only include CMS schemas
+})
+```
+
+**Disable Package Discovery**:
+
+```typescript
+const config = getDrizzleConfig({
+  disablePackageDiscovery: true
+})
+```
+
+### Scanning Strategy
+
+For optimal performance, SPFN uses a targeted scanning approach:
+
+1. **Read project's `package.json`**
+   - Extract direct dependencies and devDependencies
+
+2. **Scan `@spfn/*` packages**
+   - All packages in `node_modules/@spfn/` are checked
+
+3. **Check direct dependencies**
+   - Only packages listed in your `package.json`
+   - Skip if already scanned (e.g., `@spfn/*` packages)
+
+4. **Look for `spfn.schemas` field**
+   - Read each package's `package.json`
+   - Extract schema paths if `spfn.schemas` exists
+
+5. **Convert to absolute paths**
+   - Schema paths are resolved relative to package root
+
+**Example**:
+```
+your-app/
+├── package.json
+│   └── dependencies: { "@spfn/cms": "*", "lodash": "*" }
+└── node_modules/
+    ├── @spfn/
+    │   ├── cms/           ✅ Scanned (official package)
+    │   └── auth/          ✅ Scanned (official package)
+    ├── lodash/            ❌ No `spfn` field
+    └── @mycompany/
+        └── spfn-plugin/   ✅ Scanned (direct dep with `spfn` field)
+```
+
+### Creating SPFN Packages
+
+**1. Define Entities**:
+
+```typescript
+// src/entities/my-table.ts
+import { pgTable, serial, text } from 'drizzle-orm/pg-core'
+
+export const myTable = pgTable('my_table', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull()
+})
+```
+
+**2. Configure package.json**:
+
+```json
+{
+  "name": "@mycompany/spfn-analytics",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "spfn": {
+    "schemas": ["./dist/entities/**/*.js"],
+    "setupMessage": "📚 Next steps:\n  1. Import analytics: import { trackEvent } from '@mycompany/spfn-analytics'\n  2. Configure: See https://docs.example.com"
+  }
+}
+```
+
+**3. Build and Publish**:
+
+```bash
+pnpm build
+pnpm publish
+```
+
+**4. Users Install**:
+
+```bash
+pnpm spfn add @mycompany/spfn-analytics
+# ✅ Installs package
+# ✅ Discovers schemas automatically
+# ✅ Generates migrations
+# ✅ Applies migrations
+# ✅ Shows setup message
+```
+
+### Configuration Options
+
+```typescript
+interface DrizzleConfigOptions {
+  /** Database connection URL */
+  databaseUrl?: string
+
+  /** Schema paths (supports globs like **/*.ts) */
+  schema?: string | string[]
+
+  /** Migration output directory */
+  out?: string
+
+  /** Database dialect (auto-detected if not provided) */
+  dialect?: 'postgresql' | 'mysql' | 'sqlite'
+
+  /** Working directory for package discovery */
+  cwd?: string
+
+  /** Disable automatic package schema discovery */
+  disablePackageDiscovery?: boolean
+
+  /** Only include schemas from specific package */
+  packageFilter?: string
+}
+```
+
+### API Reference
+
+**`discoverPackageSchemas(cwd: string): string[]`**
+
+Discovers schema paths from installed packages.
+
+**`getDrizzleConfig(options?: DrizzleConfigOptions)`**
+
+Generate Drizzle Kit configuration object.
+
+**`generateDrizzleConfigFile(options?: DrizzleConfigOptions): string`**
+
+Generate `drizzle.config.ts` file content.
+
+**`detectDialect(url: string): 'postgresql' | 'mysql' | 'sqlite'`**
+
+Auto-detect database dialect from connection URL.
 
 ## 🔧 Configuration Priority
 
