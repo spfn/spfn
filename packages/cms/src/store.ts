@@ -111,14 +111,23 @@ export const useCmsStore = create<CmsState>((set, get) => ({
 
         try
         {
-            const data = await cmsApi.publishedCache.get({
-                query: { section, locale },
+            const response = await cmsApi.publishedCache.get({
+                query: { sections: section, locale },
             });
 
             // Check for error response
-            if ('error' in data)
+            if ('error' in response)
             {
-                console.error(`Failed to load section ${section}:`, data.error);
+                console.error(`Failed to load section ${section}:`, response.error);
+                return;
+            }
+
+            // Response is array, get first element
+            const data = response[0];
+
+            if (!data)
+            {
+                console.warn(`Section ${section} not found`);
                 return;
             }
 
