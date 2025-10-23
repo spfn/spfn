@@ -2,6 +2,17 @@
 
 All notable changes to the SPFN CLI will be documented in this file.
 
+## [0.1.0-alpha.48] - 2025-10-23
+
+### Added
+
+- **Guide Command**: New `spfn guide` command for quick development references
+  - `spfn guide entity` - Entity & Repository patterns with Drizzle ORM
+  - `spfn guide contract` - Contract writing quick reference with TypeBox
+  - `spfn guide route` - Route patterns and file-based routing
+  - `spfn guide api` - Auto-generated API client usage guide
+  - Beautiful terminal output with syntax highlighting
+
 ## [Unreleased]
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "spfn",
-  "version": "0.1.0-alpha.47",
+  "version": "0.1.0-alpha.48",
   "description": "Superfunction CLI - Add SPFN to your Next.js project",
   "type": "module",
   "bin": {
