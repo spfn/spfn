@@ -485,6 +485,24 @@ NEXT_PUBLIC_API_URL=http://localhost:8790
             logger.success('Created .env.local.example');
         }
 
+        // 6.5. Create .spfnrc.json for codegen configuration
+        const spfnrcPath = join(cwd, '.spfnrc.json');
+        if (!existsSync(spfnrcPath))
+        {
+            const spfnrcConfig = {
+                codegen: {
+                    generators: [
+                        {
+                            name: 'contract',
+                            enabled: true
+                        }
+                    ]
+                }
+            };
+            writeFileSync(spfnrcPath, JSON.stringify(spfnrcConfig, null, 2) + '\n');
+            logger.success('Created .spfnrc.json (codegen configuration)');
+        }
+
         // 7. Update .gitignore to include .spfn directory
         const gitignorePath = join(cwd, '.gitignore');
         if (existsSync(gitignorePath))
