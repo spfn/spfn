@@ -479,8 +479,9 @@ DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
 # Redis (optional)
 REDIS_URL=redis://localhost:6379
 
-# API URL (for frontend)
-NEXT_PUBLIC_API_URL=http://localhost:8790
+# SPFN API URLs
+SERVER_API_URL=http://localhost:8790           # Internal (Server-side only)
+NEXT_PUBLIC_API_URL=http://localhost:8790      # Public (Client-side & fallback)
 `);
             logger.success('Created .env.local.example');
         }
