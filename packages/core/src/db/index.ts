@@ -28,6 +28,7 @@ export type { DrizzleConfigOptions } from './manager/config-generator.js';
 
 // Schema Helpers
 export { id, timestamps, foreignKey, optionalForeignKey } from './schema';
+export { createFunctionSchema, packageNameToSchema, getSchemaInfo } from './schema-helper.js';
 
 // Transaction
 export { Transactional, getTransaction, runWithTransaction } from './transaction';

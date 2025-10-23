@@ -144,7 +144,7 @@ pnpm spfn add @spfn/cms
 pnpm spfn db studio
 ```
 
-Or create your own SPFN function. See [Database Manager Documentation](./packages/core/src/db/manager/README.md#package-schema-discovery)
+**Want to create your own SPFN function?** See [Creating Functions Guide](./CREATING_FUNCTIONS.md)
 
 ---
 
@@ -322,6 +322,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full history.
 📚 **[Core API](./packages/core/README.md)** - Full documentation
 🛠️ **[CLI Guide](./packages/cli/README.md)** - Commands & tools
 📝 **[Testing Guide](./packages/core/TESTING.md)** - Test strategy & coverage
+🔧 **[Creating Functions](./CREATING_FUNCTIONS.md)** - Build your own SPFN functions
 
 ---
 
@@ -392,12 +393,14 @@ pnpm spfn add @mycompany/spfn-analytics
 ```
 
 **How it works:**
-- Functions self-declare their database schemas in `package.json`
+- Functions self-declare their database schemas and routes in `package.json`
 - No hard dependencies between functions
-- SPFN auto-discovers schemas from installed functions
+- SPFN auto-discovers schemas and routes from installed functions
 - Supports both npm packages and local development
 
-Learn more: [Database Manager Documentation](./packages/core/src/db/manager/README.md#package-schema-discovery)
+**Learn more:**
+- 📖 [Creating Functions Guide](./CREATING_FUNCTIONS.md) - Complete guide with examples
+- 🔧 [Database Manager Documentation](./packages/core/src/db/manager/README.md#package-schema-discovery) - Schema discovery internals
 
 ---
 
