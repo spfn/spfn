@@ -72,15 +72,15 @@ src/cms/labels/
 
 ```json
 {
-  "whyFutureplay": {
-    "key": "layout.nav.why-futureplay",
-    "defaultValue": "Why FuturePlay",
-    "description": "Navigation link for Why FuturePlay page"
+  "about": {
+    "key": "layout.nav.about",
+    "defaultValue": "About",
+    "description": "Navigation link for About page"
   },
-  "ourCompanies": {
-    "key": "layout.nav.our-companies",
-    "defaultValue": "Our Companies",
-    "description": "Navigation link for Our Companies page"
+  "services": {
+    "key": "layout.nav.services",
+    "defaultValue": "Services",
+    "description": "Navigation link for Services page"
   },
   "team": {
     "key": "layout.nav.team",
@@ -96,15 +96,15 @@ src/cms/labels/
   "title": {
     "key": "home.hero.title",
     "defaultValue": {
-      "ko": "미래를 만드는 플랫폼",
-      "en": "Platform for the Future"
+      "ko": "혁신적인 솔루션",
+      "en": "Innovative Solutions"
     }
   },
   "subtitle": {
     "key": "home.hero.subtitle",
     "defaultValue": {
-      "ko": "혁신적인 게임과 서비스로 세상을 바꿉니다",
-      "en": "Changing the world with innovative games and services"
+      "ko": "비즈니스 성장을 위한 최고의 파트너",
+      "en": "Your Best Partner for Business Growth"
     }
   }
 }
@@ -116,7 +116,7 @@ src/cms/labels/
 {
   "copyright": {
     "key": "layout.footer.copyright",
-    "defaultValue": "© {year} FuturePlay. All rights reserved."
+    "defaultValue": "© {year} Company. All rights reserved."
   }
 }
 ```
@@ -179,7 +179,7 @@ const { t } = await getSection('layout');
 const copyright = t('footer.copyright', undefined, {
   year: new Date().getFullYear()
 });
-// → "© 2025 FuturePlay. All rights reserved."
+// → "© 2025 Company. All rights reserved."
 ```
 
 **Client Component:**
@@ -195,8 +195,8 @@ export default function Nav() {
 
   return (
     <nav>
-      <a>{t('nav.whyFutureplay')}</a>
-      <a>{t('nav.ourCompanies')}</a>
+      <a>{t('nav.about')}</a>
+      <a>{t('nav.services')}</a>
     </nav>
   );
 }

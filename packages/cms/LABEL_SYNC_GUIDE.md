@@ -1,21 +1,21 @@
-# Label Auto-Sync 가이드
+# Label Auto-Sync Guide
 
-`@spfn/cms`의 JSON 파일 기반 라벨 자동 동기화 기능을 사용하는 방법을 설명합니다.
+This guide explains how to use the JSON file-based label auto-synchronization feature in `@spfn/cms`.
 
-## 개요
+## Overview
 
-JSON 파일로 라벨을 정의하면 자동으로 DB와 동기화됩니다:
+When you define labels in JSON files, they are automatically synchronized with the database:
 
-1. **서버 시작 시 자동 sync**: `initLabelSync()` - 서버가 시작될 때 한 번 실행
-2. **개발 시 파일 감시**: `LabelSyncGenerator` - 라벨 파일 변경 시 자동으로 재동기화
+1. **Auto-sync on server startup**: `initLabelSync()` - Runs once when the server starts
+2. **File watching during development**: `LabelSyncGenerator` - Automatically re-syncs when label files change
 
 ---
 
-## 1. 서버 시작 시 자동 Sync
+## 1. Auto-Sync on Server Startup
 
-### 설정 방법
+### Configuration
 
-`src/server/server.config.ts` 파일에서 `beforeRoutes` 훅을 사용합니다:
+Use the `beforeRoutes` hook in your `src/server/server.config.ts` file:
 
 ```typescript
 import type { ServerConfig } from '@spfn/core/server';
@@ -23,38 +23,38 @@ import { initLabelSync } from '@spfn/cms';
 
 export default {
   beforeRoutes: async (app) => {
-    // 서버 시작 시 라벨 자동 동기화
+    // Auto-sync labels on server startup
     await initLabelSync({
-      verbose: true,          // 진행 상황 로그 출력
-      updateExisting: false,  // 기존 라벨 업데이트 안함 (기본값)
-      labelsDir: 'src/cms/labels',  // JSON 파일 디렉토리 (기본값)
+      verbose: true,          // Output progress logs
+      updateExisting: false,  // Don't update existing labels (default)
+      labelsDir: 'src/cms/labels',  // JSON file directory (default)
     });
   },
 } satisfies ServerConfig;
 ```
 
-### 옵션
+### Options
 
 ```typescript
 interface SyncOptions {
-  // Dry run - 실제로 적용하지 않고 변경사항만 출력
+  // Dry run - Output changes without applying them
   dryRun?: boolean;
 
-  // 기존 라벨의 defaultValue 업데이트 여부
+  // Whether to update defaultValue of existing labels
   updateExisting?: boolean;
 
-  // 사용되지 않는 라벨 삭제 여부
+  // Whether to remove unused labels
   removeUnused?: boolean;
 
-  // Verbose 출력 (개발 환경에서 자동 활성화)
+  // Verbose output (automatically enabled in development)
   verbose?: boolean;
 
-  // 라벨 디렉토리 경로
+  // Label directory path
   labelsDir?: string;
 }
 ```
 
-### 출력 예시
+### Output Example
 
 ```
 🔄 Initializing label sync...
@@ -77,11 +77,11 @@ interface SyncOptions {
 
 ---
 
-## 2. 개발 시 파일 감시 + 자동 Sync
+## 2. File Watching + Auto-Sync During Development
 
-### .spfnrc.json 설정 (자동 구성됨)
+### .spfnrc.json Configuration (Auto-configured)
 
-프로젝트의 `.spfnrc.json` 파일에 label-sync 제너레이터가 자동으로 추가됩니다:
+The label-sync generator is automatically added to your project's `.spfnrc.json` file:
 
 ```json
 {
@@ -96,50 +96,50 @@ interface SyncOptions {
 }
 ```
 
-이 설정은 `pnpm spfn add @spfn/cms` 실행 시 자동으로 생성됩니다.
+This configuration is automatically created when you run `pnpm spfn add @spfn/cms`.
 
-### 개발 서버 실행
+### Running the Development Server
 
 ```bash
-# codegen watch 모드와 함께 개발 서버 실행
+# Run dev server with codegen watch mode
 spfn dev
 
-# 또는
+# Or
 pnpm dev
 ```
 
-라벨 파일(`src/cms/labels/**/*.json`)을 수정하면 자동으로 DB에 동기화됩니다.
+When you modify label files (`src/cms/labels/**/*.json`), they are automatically synchronized to the database.
 
 ---
 
-## 3. 라벨 정의 예시
+## 3. Label Definition Examples
 
-### 파일 구조
+### File Structure
 
 ```
 src/cms/labels/
-  layout/              # 섹션 이름
-    nav.json           # 카테고리
+  layout/              # Section name
+    nav.json           # Category
     footer.json
   home/
     hero.json
     features.json
 ```
 
-### 기본 라벨
+### Basic Labels
 
 `src/cms/labels/layout/nav.json`:
 
 ```json
 {
-  "whyFutureplay": {
-    "key": "layout.nav.why-futureplay",
-    "defaultValue": "Why FuturePlay",
-    "description": "Navigation link for Why FuturePlay page"
+  "about": {
+    "key": "layout.nav.about",
+    "defaultValue": "About",
+    "description": "Navigation link for About page"
   },
-  "ourCompanies": {
-    "key": "layout.nav.our-companies",
-    "defaultValue": "Our Companies"
+  "services": {
+    "key": "layout.nav.services",
+    "defaultValue": "Services"
   },
   "team": {
     "key": "layout.nav.team",
@@ -148,7 +148,7 @@ src/cms/labels/
 }
 ```
 
-### 다국어 라벨
+### Multi-language Labels
 
 `src/cms/labels/home/hero.json`:
 
@@ -157,22 +157,22 @@ src/cms/labels/
   "title": {
     "key": "home.hero.title",
     "defaultValue": {
-      "ko": "미래를 만드는 플랫폼",
-      "en": "Platform for the Future"
+      "ko": "혁신적인 솔루션",
+      "en": "Innovative Solutions"
     },
     "description": "Main hero title"
   },
   "subtitle": {
     "key": "home.hero.subtitle",
     "defaultValue": {
-      "ko": "혁신적인 게임과 서비스로 세상을 바꿉니다",
-      "en": "Changing the world with innovative games and services"
+      "ko": "비즈니스 성장을 위한 최고의 파트너",
+      "en": "Your Best Partner for Business Growth"
     }
   }
 }
 ```
 
-### 변수 치환
+### Variable Substitution
 
 `src/cms/labels/layout/footer.json`:
 
@@ -180,7 +180,7 @@ src/cms/labels/
 {
   "copyright": {
     "key": "layout.footer.copyright",
-    "defaultValue": "© {year} FuturePlay. All rights reserved.",
+    "defaultValue": "© {year} Company. All rights reserved.",
     "description": "Copyright text with year variable"
   },
   "greeting": {
@@ -190,27 +190,27 @@ src/cms/labels/
 }
 ```
 
-**동작:**
+**How it works:**
 
-이 파일을 저장하면:
-1. **서버 시작 시**: `initLabelSync()`가 자동으로 DB에 등록
-2. **개발 중**: 파일 수정 시 `LabelSyncGenerator`가 자동으로 재동기화
+When you save this file:
+1. **On server startup**: `initLabelSync()` automatically registers it in the DB
+2. **During development**: File changes trigger `LabelSyncGenerator` to auto-sync
 
 ---
 
-## 4. 워크플로우 예시
+## 4. Workflow Examples
 
-### 개발 워크플로우
+### Development Workflow
 
-1. **서버 시작**
+1. **Start server**
    ```bash
    pnpm dev
    ```
-   → `initLabelSync()` 실행 → 모든 라벨 동기화
+   → `initLabelSync()` runs → All labels synchronized
 
-2. **라벨 파일 추가/수정**
+2. **Add/modify label files**
    ```bash
-   # 새 라벨 파일 생성
+   # Create new label file
    cat > src/cms/labels/layout/test.json <<EOF
    {
      "newLabel": {
@@ -220,9 +220,9 @@ src/cms/labels/
    }
    EOF
    ```
-   → `LabelSyncGenerator` 감지 → 자동 재동기화
+   → `LabelSyncGenerator` detects → Auto re-sync
 
-3. **결과 확인**
+3. **Check results**
    ```
    [label-sync] Label file change { file: 'src/cms/labels/layout/test.json' }
    [label-sync] Found 1 sections
@@ -233,56 +233,56 @@ src/cms/labels/
    [label-sync] Label sync completed { sections: 1, created: 1, updated: 0, errors: 0 }
    ```
 
-### 프로덕션 배포
+### Production Deployment
 
 ```bash
-# 1. 빌드
+# 1. Build
 pnpm build
 
-# 2. 배포
-# 서버 시작 시 initLabelSync()가 자동 실행됨
-# (개발 모드가 아니므로 updateExisting: false)
+# 2. Deploy
+# initLabelSync() runs automatically on server startup
+# (updateExisting: false since not in development mode)
 ```
 
 ---
 
-## 5. 트러블슈팅
+## 5. Troubleshooting
 
-### Q. 라벨이 동기화되지 않아요
+### Q. Labels aren't syncing
 
-**A.** 다음을 확인하세요:
+**A.** Check the following:
 
-1. JSON 파일이 `src/cms/labels/` 디렉토리에 있는지 확인
-2. 파일 구조가 올바른지 확인 (section/category.json)
-3. 서버가 개발 모드(`NODE_ENV=development`)로 실행 중인지 확인
-4. `.spfnrc.json`에 label-sync 제너레이터가 활성화되어 있는지 확인
+1. Verify JSON files are in the `src/cms/labels/` directory
+2. Verify file structure is correct (section/category.json)
+3. Verify server is running in development mode (`NODE_ENV=development`)
+4. Verify label-sync generator is enabled in `.spfnrc.json`
 
-### Q. 파일 변경이 감지되지 않아요
+### Q. File changes aren't being detected
 
-**A.** Codegen watch 모드가 활성화되어 있는지 확인:
+**A.** Verify codegen watch mode is enabled:
 
 ```bash
-# dev 명령어가 codegen watch를 포함하는지 확인
+# Verify dev command includes codegen watch
 spfn dev
 
-# 또는 별도로 실행
+# Or run separately
 spfn codegen run --watch
 ```
 
-### Q. 특정 디렉토리만 감시하고 싶어요
+### Q. I want to watch only a specific directory
 
-**A.** 커스텀 제너레이터 생성:
+**A.** Create a custom generator:
 
 ```typescript
 // src/generators/label-sync.ts
 import { createLabelSyncGenerator } from '@spfn/cms';
 
 export default createLabelSyncGenerator({
-  labelsDir: 'src/app/labels'  // 커스텀 경로
+  labelsDir: 'src/app/labels'  // Custom path
 });
 ```
 
-그리고 `.spfnrc.json` 수정:
+And modify `.spfnrc.json`:
 
 ```json
 {
@@ -296,9 +296,9 @@ export default createLabelSyncGenerator({
 }
 ```
 
-### Q. JSON 구조가 틀렸나요?
+### Q. Is my JSON structure wrong?
 
-**A.** 올바른 JSON 형식:
+**A.** Correct JSON format:
 
 ```json
 {
@@ -310,57 +310,57 @@ export default createLabelSyncGenerator({
 }
 ```
 
-필수 필드:
-- `key`: 고유 식별자
-- `defaultValue`: 문자열 또는 다국어 객체
+Required fields:
+- `key`: Unique identifier
+- `defaultValue`: String or multi-language object
 
 ---
 
-## 6. 모범 사례
+## 6. Best Practices
 
 ### ✅ DO
 
-- **서버 시작 시 sync**: 항상 `initLabelSync()`를 `beforeRoutes`에서 호출
-- **개발 중 watch**: `.spfnrc.json`에 label-sync 제너레이터 추가
-- **라벨 파일 구조화**: 섹션별로 폴더 분리, 카테고리별로 JSON 파일 분리
-- **JSON 검증**: JSON 파일 작성 시 구문 오류 주의
-- **명확한 key**: 라벨 키는 `section.category.name` 형식 사용
+- **Sync on server startup**: Always call `initLabelSync()` in `beforeRoutes`
+- **Watch during development**: Add label-sync generator to `.spfnrc.json`
+- **Organize label files**: Separate folders by section, separate JSON files by category
+- **Validate JSON**: Watch for syntax errors when writing JSON files
+- **Clear keys**: Use `section.category.name` format for label keys
 
 ### ❌ DON'T
 
-- `updateExisting: true`를 프로덕션에서 사용 (의도치 않은 덮어쓰기 방지)
-- 수동으로 DB를 직접 수정 (항상 JSON 파일을 통해 관리)
-- 동일한 `key`를 여러 섹션에서 사용
-- JSON 구조 무시 (key, defaultValue 필수)
+- Use `updateExisting: true` in production (prevents unintended overwrites)
+- Manually modify the DB directly (always manage through JSON files)
+- Use the same `key` in multiple sections
+- Ignore JSON structure (key, defaultValue are required)
 
 ---
 
-## 7. Import 구조
+## 7. Import Structure
 
 ### Backend + Server Components (`@spfn/cms`)
 
-서버에서만 실행되는 코드:
+Code that only runs on the server:
 
 ```typescript
-// 서버 컴포넌트
+// Server components
 import { getSection, getSections } from '@spfn/cms/server';
 
-// 백엔드: Sync
+// Backend: Sync
 import { initLabelSync, syncAll, syncSection } from '@spfn/cms';
 
-// 백엔드: JSON 로드
+// Backend: JSON loading
 import { loadLabelsFromJson } from '@spfn/cms';
 
-// 백엔드: Repositories
+// Backend: Repositories
 import { cmsLabelsRepository } from '@spfn/cms';
 
-// 백엔드: Codegen
+// Backend: Codegen
 import { createLabelSyncGenerator } from '@spfn/cms';
 ```
 
 ### Client Components (`@spfn/cms/client`)
 
-브라우저에서 실행되는 코드:
+Code that runs in the browser:
 
 ```typescript
 'use client';
@@ -377,7 +377,7 @@ import { InitCms } from '@spfn/cms/client';
 
 ---
 
-## 8. 아키텍처
+## 8. Architecture
 
 ```
 ┌────────────────────────────────────────────────────┐
@@ -426,9 +426,9 @@ import { InitCms } from '@spfn/cms/client';
 
 ---
 
-## 참고
+## References
 
-- [CMS 패키지 README](./README.md)
+- [CMS Package README](./README.md)
 - [Sync API](./src/helpers/sync.ts)
 - [Label Sync Generator](./src/generators/label-sync-generator.ts)
-- [Codegen 시스템](../core/src/codegen/README.md)
+- [Codegen System](../core/src/codegen/README.md)
