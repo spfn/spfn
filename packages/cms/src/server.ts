@@ -7,11 +7,13 @@ import "server-only";
  * - React cache를 사용한 데이터 중복 제거
  * - SPFN API를 통한 contract-based 호출
  * - 변수 치환 지원
+ * - 쿠키 기반 locale 자동 관리
  */
 
 import { cache } from 'react';
 import { client } from '@spfn/core/client';
 import { getPublishedCacheContract } from './routes/published-cache/contract.js';
+import { getLocale } from './helpers/locale.actions.js';
 
 /**
  * Section Data Type
@@ -75,7 +77,7 @@ function replaceVariables(text: string, replace: Record<string, string | number>
  * 동일한 요청 내에서 같은 섹션을 여러 번 요청해도 한 번만 API 호출
  *
  * @param section - 섹션 이름 (예: 'home', 'why-futureplay')
- * @param locale - 언어 코드 (기본값: 'ko')
+ * @param locale - 언어 코드 (선택, 미지정시 쿠키에서 자동 조회)
  * @returns Section API ({ t, data })
  *
  * @example
@@ -85,7 +87,11 @@ function replaceVariables(text: string, replace: Record<string, string | number>
  *
  * export default async function HomePage()
  * {
- *     const { t } = await getSection('home', 'ko');
+ *     // locale을 지정하지 않으면 쿠키에서 자동으로 가져옴
+ *     const { t } = await getSection('home');
+ *
+ *     // 또는 명시적으로 locale 지정
+ *     const { t: tEn } = await getSection('home', 'en');
  *
  *     return (
  *         <div>
@@ -99,9 +105,12 @@ function replaceVariables(text: string, replace: Record<string, string | number>
  */
 export const getSection = cache(async (
     section: string,
-    locale: string = 'ko'
+    locale?: string
 ): Promise<SectionAPI> =>
 {
+    // locale이 지정되지 않으면 쿠키에서 가져옴
+    const actualLocale: string = locale ?? await getLocale();
+
     try
     {
         // Call SPFN API via contract (uses singleton client)
@@ -109,7 +118,7 @@ export const getSection = cache(async (
             '/cms/published-cache',
             getPublishedCacheContract,
             {
-                query: { sections: section, locale },
+                query: { sections: section, locale: actualLocale },
             }
         );
 
@@ -120,7 +129,7 @@ export const getSection = cache(async (
             // Return empty section data
             const sectionData: SectionData = {
                 section,
-                locale,
+                locale: actualLocale,
                 content: {} as Record<string, any>,
                 version: 0,
                 publishedAt: null,
@@ -138,7 +147,7 @@ export const getSection = cache(async (
             // Section not found, return empty
             const sectionData: SectionData = {
                 section,
-                locale,
+                locale: actualLocale,
                 content: {} as Record<string, any>,
                 version: 0,
                 publishedAt: null,
@@ -189,7 +198,7 @@ export const getSection = cache(async (
         // Return empty section data on error
         const sectionData: SectionData = {
             section,
-            locale,
+            locale: actualLocale,
             content: {} as Record<string, any>,
             version: 0,
             publishedAt: null,
@@ -205,7 +214,7 @@ export const getSection = cache(async (
  * 단일 API 호출로 여러 섹션을 효율적으로 가져옵니다
  *
  * @param sections - 섹션 이름 배열
- * @param locale - 언어 코드 (기본값: 'ko')
+ * @param locale - 언어 코드 (선택, 미지정시 쿠키에서 자동 조회)
  * @returns Section API 맵 ({ home: { t, data }, ... })
  *
  * @example
@@ -215,7 +224,11 @@ export const getSection = cache(async (
  *
  * export default async function Page()
  * {
- *     const sections = await getSections(['home', 'why-futureplay'], 'ko');
+ *     // locale을 지정하지 않으면 쿠키에서 자동으로 가져옴
+ *     const sections = await getSections(['home', 'why-futureplay']);
+ *
+ *     // 또는 명시적으로 locale 지정
+ *     const sectionsEn = await getSections(['home', 'why-futureplay'], 'en');
  *
  *     return (
  *         <div>
@@ -228,9 +241,12 @@ export const getSection = cache(async (
  */
 export const getSections = cache(async (
     sections: string[],
-    locale: string = 'ko'
+    locale?: string
 ): Promise<Record<string, SectionAPI>> =>
 {
+    // locale이 지정되지 않으면 쿠키에서 가져옴
+    const actualLocale: string = locale ?? await getLocale();
+
     try
     {
         // Call SPFN API with array of sections (single HTTP request)
@@ -238,7 +254,7 @@ export const getSections = cache(async (
             '/cms/published-cache',
             getPublishedCacheContract,
             {
-                query: { sections, locale },
+                query: { sections, locale: actualLocale },
             }
         );
 
@@ -254,7 +270,7 @@ export const getSections = cache(async (
                     t: (_key, defaultValue) => defaultValue,
                     data: {
                         section,
-                        locale,
+                        locale: actualLocale,
                         content: {},
                         version: 0,
                         publishedAt: null,
@@ -274,7 +290,7 @@ export const getSections = cache(async (
                 t: (_key, defaultValue) => defaultValue,
                 data: {
                     section,
-                    locale,
+                    locale: actualLocale,
                     content: {},
                     version: 0,
                     publishedAt: null,
@@ -333,7 +349,7 @@ export const getSections = cache(async (
                 t: (_key, defaultValue) => defaultValue,
                 data: {
                     section,
-                    locale,
+                    locale: actualLocale,
                     content: {},
                     version: 0,
                     publishedAt: null,

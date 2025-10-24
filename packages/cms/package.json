@@ -18,6 +18,10 @@
       "types": "./dist/client.d.ts",
       "import": "./dist/client.js"
     },
+    "./actions": {
+      "types": "./dist/actions.d.ts",
+      "import": "./dist/actions.js"
+    },
     "./store": {
       "types": "./dist/store.d.ts",
       "import": "./dist/store.js"

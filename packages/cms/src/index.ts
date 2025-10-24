@@ -9,6 +9,10 @@ import "server-only";
  * For client components, use: import { ... } from '@spfn/cms/client'
  */
 
+// Configuration API
+export { getCmsConfig, configureCms, resetCmsConfig } from './cms.config.js';
+export type { CmsConfig } from './cms.config.js';
+
 // Server Components API (React Server Components)
 export * from './server';
 export type { SectionData, SectionAPI } from './server';

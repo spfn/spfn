@@ -7,9 +7,11 @@ Content Management System for Next.js with JSON-based labels and automatic datab
 - 📁 **JSON file-based labels** - Simple file structure for label management
 - 🔄 **Auto-sync to database** on server startup and during development
 - 🌐 **Multi-language support** (i18n)
+- 🍪 **Cookie-based locale management** - Automatic locale detection and persistence
 - 📦 **Folder-based structure** for better organization
 - 🔥 **Hot reload** during development
 - 💾 **Published cache** for optimal performance
+- ⚡ **Server Actions** for client-side locale management
 - 🛠️ **Built on Drizzle ORM**
 
 ## Installation
@@ -275,10 +277,124 @@ t('greeting', undefined, { name: 'John' })
 // → "Hello, John!"
 ```
 
+## Configuration
+
+### Environment Variables
+
+Configure CMS behavior via environment variables in `.env.local`:
+
+```bash
+# Default locale (default: 'en')
+SPFN_CMS_DEFAULT_LOCALE=ko
+
+# Supported locales, comma-separated (default: 'en,ko')
+SPFN_CMS_SUPPORTED_LOCALES=en,ko,ja
+
+# Auto-detect browser language (default: true)
+SPFN_CMS_DETECT_BROWSER_LANGUAGE=true
+```
+
+### Runtime Configuration
+
+Override configuration at runtime (mainly for testing):
+
+```typescript
+import { configureCms, getCmsConfig } from '@spfn/cms';
+
+// Get current configuration
+const config = getCmsConfig();
+console.log(config.defaultLocale);      // 'ko'
+console.log(config.supportedLocales);   // ['ko', 'en']
+
+// Update configuration
+configureCms({
+  defaultLocale: 'en',
+  supportedLocales: ['en', 'ko', 'ja'],
+  detectBrowserLanguage: false
+});
+```
+
+## Locale Management
+
+### Automatic Locale Detection
+
+The CMS automatically manages user locale with the following priority:
+
+1. **Cookie** - User's explicitly selected locale (persisted)
+2. **Browser Language** - Auto-detected from `Accept-Language` header (if enabled)
+3. **Default Locale** - System default from environment variables
+
+### Server Actions (`@spfn/cms/actions`)
+
+Use Server Actions for locale management in both server and client components:
+
+**Get current locale:**
+
+```typescript
+// Server Component
+import { getLocale } from '@spfn/cms/actions';
+
+export default async function RootLayout({ children }) {
+  const locale = await getLocale();
+
+  return <html lang={locale}>{children}</html>;
+}
+```
+
+```typescript
+// Client Component
+'use client';
+import { getLocale } from '@spfn/cms/actions';
+import { useEffect, useState } from 'react';
+
+export default function LanguageSwitcher() {
+  const [locale, setLocale] = useState('');
+
+  useEffect(() => {
+    getLocale().then(setLocale);
+  }, []);
+
+  return <div>Current: {locale}</div>;
+}
+```
+
+**Change locale:**
+
+```typescript
+import { setLocale } from '@spfn/cms/actions';
+
+async function changeLanguage(newLocale: string) {
+  await setLocale(newLocale);
+  window.location.reload(); // Reload to apply changes
+}
+```
+
+**Get supported locales:**
+
+```typescript
+import { getLocales } from '@spfn/cms/actions';
+
+const locales = await getLocales(); // ['ko', 'en', 'ja']
+```
+
+### Auto-detect Locale in Server Components
+
+When `locale` is not specified, `getSection()` automatically uses the detected locale:
+
+```typescript
+import { getSection } from '@spfn/cms/server';
+
+// Auto-detects locale from cookie → browser → default
+const { t } = await getSection('home');
+
+// Or explicitly specify locale
+const { t: tEn } = await getSection('home', 'en');
+```
+
 ## Documentation
 
-- **[Label Auto-Sync Guide](./LABEL_SYNC_GUIDE.md)** - 자세한 설정 가이드
-- **[Examples](./examples/)** - 실제 사용 예제들
+- **[Label Auto-Sync Guide](./LABEL_SYNC_GUIDE.md)** - Detailed configuration guide
+- **[Examples](./examples/)** - Usage examples
 
 ## Architecture
 
@@ -311,28 +427,43 @@ JSON Files (src/cms/labels/**/*.json)
 
 ### Server-side API
 
-- `getSection(section, locale)` - 섹션 라벨 조회
-- `getSections(sections, locale)` - 다중 섹션 조회
-- `initLabelSync(options?)` - 서버 시작 시 sync
+- `getSection(section, locale?)` - Get section labels (auto-detects locale if not specified)
+- `getSections(sections, locale?)` - Get multiple sections (auto-detects locale if not specified)
+- `initLabelSync(options?)` - Sync labels on server startup
+
+### Server Actions API (`@spfn/cms/actions`)
+
+Available for both server and client components:
+
+- `getLocale()` - Get current locale (cookie → browser → default)
+- `setLocale(locale)` - Set locale (saves to cookie)
+- `getLocales()` - Get supported locale list
+- `LOCALE_COOKIE_KEY` - Locale cookie key constant
+
+### Configuration API
+
+- `getCmsConfig()` - Get current CMS configuration
+- `configureCms(config)` - Update configuration (runtime)
+- `resetCmsConfig()` - Reset configuration to defaults
 
 ### Client-side API (`@spfn/cms/client`)
 
-- `useSection(section, options?)` - 섹션 라벨 훅
-- `useSections(sections)` - 다중 섹션 훅
-- `useCmsStore()` - CMS 스토어 훅
-- `cmsApi` - CMS API 클라이언트
-- `InitCms` - 클라이언트 초기화 컴포넌트
+- `useSection(section, options?)` - Section labels hook
+- `useSections(sections)` - Multiple sections hook
+- `useCmsStore()` - CMS store hook
+- `cmsApi` - CMS API client
+- `InitCms` - Client initialization component
 
 ### Sync API
 
-- `loadLabelsFromJson(labelsDir)` - JSON 파일에서 라벨 로드
-- `syncAll(sections, options?)` - 모든 섹션 동기화
-- `syncSection(definition, options?)` - 특정 섹션 동기화
+- `loadLabelsFromJson(labelsDir)` - Load labels from JSON files
+- `syncAll(sections, options?)` - Sync all sections
+- `syncSection(definition, options?)` - Sync specific section
 
 ### Codegen Integration
 
-- `createLabelSyncGenerator(config?)` - 제너레이터 팩토리
-- `LabelSyncGenerator` - 제너레이터 클래스
+- `createLabelSyncGenerator(config?)` - Generator factory
+- `LabelSyncGenerator` - Generator class
 
 ## Development Workflow
 
