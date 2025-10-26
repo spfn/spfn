@@ -1,7 +1,8 @@
 import { readdir, stat } from 'fs/promises';
 import { join, relative } from 'path';
-import type { Hono, MiddlewareHandler } from 'hono';
-import { logger } from '../logger/index.js';
+import { Hono } from 'hono';
+import type { MiddlewareHandler } from 'hono';
+import { logger } from '../logger';
 
 const routeLogger = logger.child('route');
 
@@ -129,6 +130,70 @@ export class AutoRouteLoader
         }
 
         return stats;
+    }
+
+    /**
+     * Load routes from a directory and mount with basePath prefix
+     * Used for loading function routes
+     */
+    async loadWithBasePath(app: Hono, routesDir: string, basePath: string): Promise<RouteStats>
+    {
+        const startTime = Date.now();
+        const tempRoutesDir = this.routesDir;
+        this.routesDir = routesDir;
+
+        const files = await this.scanFiles(routesDir);
+
+        if (files.length === 0)
+        {
+            routeLogger.warn('No route files found', { dir: routesDir });
+            this.routesDir = tempRoutesDir;
+            return this.getStats();
+        }
+
+        const filesWithPriority = files.map(file => ({
+            path: file,
+            priority: this.calculatePriority(relative(routesDir, file)),
+        }));
+
+        filesWithPriority.sort((a, b) => a.priority - b.priority);
+
+        // Create sub-app for this basePath
+        const subApp = new Hono();
+
+        let successCount = 0;
+        let failureCount = 0;
+
+        for (const { path } of filesWithPriority)
+        {
+            const success = await this.loadRoute(subApp, path);
+            if (success)
+            {
+                successCount++;
+            }
+            else
+            {
+                failureCount++;
+            }
+        }
+
+        // Mount sub-app to main app
+        app.route(basePath, subApp);
+
+        const elapsed = Date.now() - startTime;
+
+        if (this.debug)
+        {
+            routeLogger.info('Function routes loaded', {
+                basePath,
+                total: successCount,
+                failed: failureCount,
+                elapsed: `${elapsed}ms`,
+            });
+        }
+
+        this.routesDir = tempRoutesDir;
+        return this.getStats();
     }
 
     getStats(): RouteStats
@@ -467,13 +532,48 @@ export async function loadRoutes(
         routesDir?: string;
         debug?: boolean;
         middlewares?: Array<{ name: string; handler: MiddlewareHandler }>;
+        includeFunctionRoutes?: boolean;
     }
 ): Promise<RouteStats>
 {
     const routesDir = options?.routesDir ?? join(process.cwd(), 'src', 'server', 'routes');
     const debug = options?.debug ?? false;
     const middlewares = options?.middlewares ?? [];
+    const includeFunctionRoutes = options?.includeFunctionRoutes ?? true; // Default: true
 
     const loader = new AutoRouteLoader(routesDir, debug, middlewares);
-    return loader.load(app);
+    const stats = await loader.load(app);
+
+    // Load function routes if enabled
+    if (includeFunctionRoutes)
+    {
+        const { discoverFunctionRoutes } = await import('./function-routes.js');
+        const functionRoutes = discoverFunctionRoutes();
+
+        if (functionRoutes.length > 0)
+        {
+            routeLogger.info('Loading function routes', { count: functionRoutes.length });
+
+            for (const func of functionRoutes)
+            {
+                try
+                {
+                    await loader.loadWithBasePath(app, func.routesDir, func.basePath);
+                    routeLogger.info('Function routes loaded', {
+                        package: func.packageName,
+                        basePath: func.basePath,
+                    });
+                }
+                catch (error)
+                {
+                    routeLogger.error('Failed to load function routes', {
+                        package: func.packageName,
+                        error: error instanceof Error ? error.message : 'Unknown error',
+                    });
+                }
+            }
+        }
+    }
+
+    return stats;
 }

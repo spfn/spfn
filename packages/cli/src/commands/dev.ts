@@ -67,6 +67,26 @@ await startServer({
 
         // Codegen orchestrator entry
         writeFileSync(watcherEntry, `
+// Load environment variables
+const { loadEnvironment } = await import('@spfn/core/env');
+loadEnvironment({ debug: false });
+
+// Initialize database for generators that need it
+const { initDatabase, closeDatabase } = await import('@spfn/core/db');
+await initDatabase({
+    pool: { max: 3 }  // Watcher needs fewer connections than server
+});
+
+// Setup graceful shutdown
+process.on('SIGTERM', async () => {
+    await closeDatabase();
+    process.exit(0);
+});
+process.on('SIGINT', async () => {
+    await closeDatabase();
+    process.exit(0);
+});
+
 import { CodegenOrchestrator, loadCodegenConfig, createGeneratorsFromConfig } from '@spfn/core/codegen';
 
 const cwd = process.cwd();

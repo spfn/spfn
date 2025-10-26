@@ -41,7 +41,9 @@ async function runDrizzleCommand(command: string): Promise<void>
 
             // Generate temporary config
             const { generateDrizzleConfigFile } = await import('@spfn/core');
-            const configContent = generateDrizzleConfigFile();
+            const configContent = generateDrizzleConfigFile({
+                cwd: process.cwd()
+            });
 
             writeFileSync(tempConfigPath, configContent);
             console.log(chalk.dim('Using auto-generated Drizzle config\n'));

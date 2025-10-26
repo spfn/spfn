@@ -1,0 +1,14 @@
+{
+  "codegen": {
+    "generators": [
+      {
+        "name": "@spfn/core:contract",
+        "enabled": true
+      },
+      {
+        "name": "@spfn/cms:label-sync",
+        "enabled": true
+      }
+    ]
+  }
+}

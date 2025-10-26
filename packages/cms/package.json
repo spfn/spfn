@@ -1,0 +1,95 @@
+{
+  "name": "@spfn/cms",
+  "version": "0.1.0-alpha.0",
+  "description": "SPFN CMS - Content Management System with type-safe labels and Next.js integration",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./actions": {
+      "types": "./dist/actions.d.ts",
+      "import": "./dist/actions.js"
+    },
+    "./store": {
+      "types": "./dist/store.d.ts",
+      "import": "./dist/store.js"
+    },
+    "./init": {
+      "types": "./dist/init.d.ts",
+      "import": "./dist/init.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./labels": {
+      "types": "./dist/labels/index.d.ts",
+      "import": "./dist/labels/index.js"
+    },
+    "./generators": {
+      "types": "./dist/generators/index.d.ts",
+      "import": "./dist/generators/index.js"
+    },
+    "./codegen/generators": {
+      "types": "./dist/generators/index.d.ts",
+      "import": "./dist/generators/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "spfn",
+    "cms",
+    "content-management",
+    "nextjs",
+    "react",
+    "typescript"
+  ],
+  "author": "SPFN Team",
+  "license": "MIT",
+  "spfn": {
+    "schemas": [
+      "./dist/entities/*.js"
+    ],
+    "routes": {
+      "basePath": "/cms",
+      "dir": "./dist/routes"
+    },
+    "setupMessage": "  📚 Next steps:\n    1. Import CMS components: import { useLabels } from '@spfn/cms'\n    2. View labels in Drizzle Studio: pnpm spfn db studio\n    3. CMS API available at: http://localhost:8790/cms\n    4. Learn more: https://github.com/spfnio/spfn"
+  },
+  "peerDependencies": {
+    "@spfn/core": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "next": "^15.0.0",
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.0",
+    "jiti": "^2.6.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "drizzle-typebox": "^0.1.0",
+    "typescript": "^5"
+  }
+}
