@@ -77,7 +77,7 @@
     "setupMessage": "  📚 Next steps:\n    1. Import CMS components: import { useLabels } from '@spfn/cms'\n    2. View labels in Drizzle Studio: pnpm spfn db studio\n    3. CMS API available at: http://localhost:8790/cms\n    4. Learn more: https://github.com/spfnio/spfn"
   },
   "peerDependencies": {
-    "@spfn/core": "^0.1.0-alpha",
+    "@spfn/core": "workspace:*",
     "drizzle-orm": "^0.44.0",
     "next": "^15.0.0",
     "react": "^18.0.0 || ^19.0.0"

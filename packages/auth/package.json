@@ -1,0 +1,65 @@
+{
+  "name": "@spfn/auth",
+  "version": "0.1.0-alpha.0",
+  "type": "module",
+  "description": "Authentication, authorization, and RBAC module for SPFN",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware/index.d.ts",
+      "import": "./dist/middleware/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "spfn",
+    "auth",
+    "authentication",
+    "authorization",
+    "rbac",
+    "access-control"
+  ],
+  "license": "MIT",
+  "spfn": {
+    "schemas": [
+      "./dist/entities/*.js"
+    ],
+    "routes": {
+      "basePath": "/auth",
+      "dir": "./dist/routes"
+    },
+    "setupMessage": "Run migrations to create auth tables: npx spfn db migrate"
+  },
+  "peerDependencies": {
+    "@spfn/core": "workspace:*"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.3"
+  }
+}
