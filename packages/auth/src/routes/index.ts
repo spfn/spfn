@@ -9,3 +9,4 @@
  */
 
 // Export all route apps here when created
+export {};

@@ -8,3 +8,4 @@
  */
 
 // Export all middleware here when created
+export {};
