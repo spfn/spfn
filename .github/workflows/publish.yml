@@ -38,8 +38,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm run build
+      # Build only the packages being published
+      - name: Build @spfn/core
+        if: startsWith(github.ref, 'refs/tags/@spfn/core@') || startsWith(github.ref, 'refs/tags/v')
+        run: pnpm --filter @spfn/core build
+
+      - name: Build spfn CLI
+        if: startsWith(github.ref, 'refs/tags/spfn@') || startsWith(github.ref, 'refs/tags/v')
+        run: pnpm --filter spfn build
+
+      - name: Build @spfn/cms (with core dependency)
+        if: startsWith(github.ref, 'refs/tags/@spfn/cms@') || startsWith(github.ref, 'refs/tags/v')
+        run: pnpm --filter @spfn/core --filter @spfn/cms build
+
+      - name: Build @spfn/auth (with core dependency)
+        if: startsWith(github.ref, 'refs/tags/@spfn/auth@') || startsWith(github.ref, 'refs/tags/v')
+        run: pnpm --filter @spfn/core --filter @spfn/auth build
 
       # Determine which packages to publish based on tag
       - name: Publish @spfn/core to npm
