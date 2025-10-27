@@ -1,6 +1,7 @@
 {
   "name": "basic-app",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -21,7 +22,6 @@
     "@sinclair/typebox": "^0.34.0",
     "drizzle-orm": "^0.44.6",
     "drizzle-typebox": "^0.1.0",
-    "server-only": "^0.0.1",
     "spfn": "workspace:*",
     "concurrently": "^9.2.1"
   },

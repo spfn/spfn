@@ -1,5 +1,3 @@
-import "server-only";
-
 /**
  * CMS Server Module
  *
@@ -8,6 +6,8 @@ import "server-only";
  * - SPFN API를 통한 contract-based 호출
  * - 변수 치환 지원
  * - 쿠키 기반 locale 자동 관리
+ *
+ * @note This module should only be imported in server-side code
  */
 
 import { cache } from 'react';
