@@ -132,10 +132,13 @@ async function addPackage(packageName: string): Promise<void>
                     const schemaSpinner = ora(`Creating schema "${schemaName}"...`).start()
                     try
                     {
+                        // @ts-expect-error - Dynamic import, types not available at build time
                         const { drizzle } = await import('drizzle-orm/postgres-js')
+                        // @ts-expect-error - Dynamic import, types not available at build time
                         const postgres = (await import('postgres')).default
                         const sql = postgres(process.env.DATABASE_URL!)
-                        const db = drizzle(sql)
+                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                        drizzle(sql)
 
                         // Create schema if not exists
                         await sql`CREATE SCHEMA IF NOT EXISTS ${sql(schemaName)}`
