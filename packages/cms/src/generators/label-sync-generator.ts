@@ -47,8 +47,6 @@ export class LabelSyncGenerator implements Generator
 
     async generate(options: GeneratorOptions): Promise<void>
     {
-        const isDevelopment = process.env.NODE_ENV !== 'production';
-
         if (options.debug)
         {
             syncLogger.info('Starting label sync...');
@@ -72,7 +70,7 @@ export class LabelSyncGenerator implements Generator
             // Sync all sections
             const results = await syncAll(sections, {
                 verbose: options.debug ?? false,
-                updateExisting: isDevelopment,
+                updateExisting: true, // 항상 업데이트 (프로덕션 포함)
             });
 
             const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
