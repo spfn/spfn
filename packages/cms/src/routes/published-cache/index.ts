@@ -5,7 +5,7 @@
  */
 
 import { createApp } from '@spfn/core/route';
-import { cmsPublishedCacheRepository } from '../../repositories';
+import { cmsPublishedCacheRepository } from '../../repositories/index.js';
 import { getPublishedCacheContract } from './contract.js';
 
 const app = createApp();

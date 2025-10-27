@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # PostgreSQL for auth testing
+  postgres:
+    image: postgres:16-alpine
+    container_name: spfn-auth-test-postgres
+    environment:
+      POSTGRES_USER: authtest
+      POSTGRES_PASSWORD: authtest123
+      POSTGRES_DB: spfn_auth_test
+    ports:
+      - '5435:5432'
+    volumes:
+      - auth_postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U authtest -d spfn_auth_test']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  auth_postgres_test_data:
+
+networks:
+  default:
+    name: spfn-auth-test-network

@@ -1,6 +1,6 @@
 {
   "name": "@spfn/cms",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "description": "SPFN CMS - Content Management System with type-safe labels and Next.js integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -25,10 +25,6 @@
     "./store": {
       "types": "./dist/store.d.ts",
       "import": "./dist/store.js"
-    },
-    "./init": {
-      "types": "./dist/init.d.ts",
-      "import": "./dist/init.js"
     },
     "./types": {
       "types": "./dist/types.d.ts",
@@ -99,6 +95,7 @@
   "devDependencies": {
     "@types/react": "^19",
     "drizzle-typebox": "^0.1.0",
+    "tsup": "^8.3.5",
     "typescript": "^5"
   }
 }

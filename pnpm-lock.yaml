@@ -48,9 +48,15 @@ importers:
       bcrypt:
         specifier: ^5.1.1
         version: 5.1.1
+      drizzle-orm:
+        specifier: ^0.44.6
+        version: 0.44.6(gel@2.1.1)(postgres@3.4.7)
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.2
+      postgres:
+        specifier: ^3.4.0
+        version: 3.4.7
     devDependencies:
       '@types/bcrypt':
         specifier: ^5.0.2
@@ -67,6 +73,9 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@20.19.19)(@vitest/ui@3.2.4)(jiti@2.6.1)(lightningcss@1.30.1)(tsx@4.20.6)
 
   packages/cli:
     dependencies:
@@ -150,6 +159,9 @@ importers:
       drizzle-typebox:
         specifier: ^0.1.0
         version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.44.6(gel@2.1.1)(postgres@3.4.7))
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
       typescript:
         specifier: ^5
         version: 5.9.3

@@ -5,6 +5,17 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.3] - 2025-10-27
+
+### Fixed
+
+#### @spfn/cms
+
+- **Fix ESM directory imports**: Add explicit `/index.js` to repository imports in route files
+  - TypeScript compiler doesn't automatically resolve directory imports in bundler mode
+  - Changed `from '../../repositories'` to `from '../../repositories/index.js'` in all route files
+  - Fixes "Directory import is not supported" error in Node.js ESM runtime
+
 ## [0.1.0-alpha.2] - 2025-10-27
 
 ### Fixed

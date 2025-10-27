@@ -1,4 +1,4 @@
-{
+지?{
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",

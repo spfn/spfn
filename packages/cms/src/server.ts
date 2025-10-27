@@ -204,7 +204,7 @@ export const getSection = cache(async (
             publishedAt: null,
         };
 
-        const t: ServerTranslationFunction = (key, defaultValue) => defaultValue;
+        const t: ServerTranslationFunction = (_key, defaultValue) => defaultValue;
         return { t, data: sectionData };
     }
 });

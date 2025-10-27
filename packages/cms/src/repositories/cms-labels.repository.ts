@@ -5,7 +5,7 @@
  */
 
 import { findOne, findMany as findManyHelper, create as createHelper, updateOne, deleteOne, count as countHelper } from '@spfn/core/db';
-import { desc, eq, and } from 'drizzle-orm';
+import { desc } from 'drizzle-orm';
 import { cmsLabels, type CmsLabel, type NewCmsLabel } from '../entities';
 
 /**

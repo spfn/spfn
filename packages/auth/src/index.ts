@@ -5,9 +5,9 @@
  */
 
 // Export types
-export type * from './types.js';
+export * from './types/index.js';
 
-// Export entities (when created)
+// Export entities
 export * from './entities/index.js';
 
 // Client-side exports will be added here
