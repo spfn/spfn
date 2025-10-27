@@ -16,7 +16,7 @@ import { logger } from '@spfn/core';
 import type { Generator, GeneratorOptions } from '@spfn/core/codegen';
 import { join } from 'path';
 
-import { syncAll, loadLabelsFromJson } from '../helpers/sync';
+import { syncAll, loadLabelsFromJson } from '../helpers/sync.js';
 
 const syncLogger = logger.child('label-sync');
 

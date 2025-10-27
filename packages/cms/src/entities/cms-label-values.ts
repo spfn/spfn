@@ -10,7 +10,7 @@
 
 import { serial, integer, text, jsonb, timestamp, index, unique } from 'drizzle-orm/pg-core';
 import { createFunctionSchema } from '@spfn/core/db';
-import { cmsLabels } from './cms-labels';
+import { cmsLabels } from './cms-labels.js';
 
 // Create isolated schema for @spfn/cms
 const schema = createFunctionSchema('@spfn/cms');

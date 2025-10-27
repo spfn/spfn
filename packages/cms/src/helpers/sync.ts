@@ -6,9 +6,9 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, extname, join } from 'path';
-import { extractLabels } from '../labels';
-import { cmsLabelsRepository, cmsPublishedCacheRepository } from '../repositories';
-import type { NestedLabels, SectionDefinition, SyncOptions, SyncResult } from '../types';
+import { extractLabels } from '../labels/index.js';
+import { cmsLabelsRepository, cmsPublishedCacheRepository } from '../repositories/index.js';
+import type { NestedLabels, SectionDefinition, SyncOptions, SyncResult } from '../types.js';
 
 /**
  * 여러 섹션 동기화

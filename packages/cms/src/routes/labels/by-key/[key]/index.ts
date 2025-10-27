@@ -5,7 +5,7 @@
  */
 
 import { createApp } from '@spfn/core/route';
-import { cmsLabelsRepository } from '../../../../repositories';
+import { cmsLabelsRepository } from '../../../../repositories/index.js';
 import { getLabelByKeyContract } from './contract.js';
 
 const app = createApp();

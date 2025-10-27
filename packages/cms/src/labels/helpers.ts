@@ -4,7 +4,7 @@
  * Utilities for processing label definitions from JSON files
  */
 
-import type { SectionDefinition, NestedLabels, FlatLabel, LabelDefinition } from '../types';
+import type { SectionDefinition, NestedLabels, FlatLabel, LabelDefinition } from '../types.js';
 
 /**
  * 중첩된 라벨을 플랫화

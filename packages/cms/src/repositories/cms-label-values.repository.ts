@@ -6,7 +6,7 @@
 
 import { findOne, findMany, create, updateOne, deleteMany } from '@spfn/core/db';
 import { eq, and, SQL, isNull } from 'drizzle-orm';
-import { cmsLabelValues, type CmsLabelValue, type NewCmsLabelValue } from '../entities';
+import { cmsLabelValues, type CmsLabelValue, type NewCmsLabelValue } from '../entities/index.js';
 
 /**
  * 특정 라벨의 특정 버전 값들 조회
