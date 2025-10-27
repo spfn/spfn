@@ -5,11 +5,17 @@
  */
 
 /**
+ * 라벨 타입
+ */
+export type LabelType = 'text' | 'image' | 'video' | 'file' | 'object';
+
+/**
  * 개별 라벨 정의
  */
 export interface LabelDefinition
 {
     key: string;
+    type?: LabelType; // 라벨 타입 (기본값: 'text')
     defaultValue: string | Record<string, string>; // 다국어 지원: 문자열 또는 { ko: '...', en: '...' }
     description?: string;
 }
@@ -79,6 +85,7 @@ export interface SyncResult
 export interface FlatLabel
 {
     key: string;
+    type?: LabelType; // 라벨 타입 (기본값: 'text')
     defaultValue: string | Record<string, string>; // 다국어 지원
     description?: string;
 }

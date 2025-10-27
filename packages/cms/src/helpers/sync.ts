@@ -197,7 +197,7 @@ export async function syncSection(
                         await cmsLabelsRepository.create({
                             section,
                             key: label.key,
-                            type: 'text',
+                            type: label.type || 'text', // 라벨 타입 (기본값: 'text')
                             defaultValue,
                             description: label.description,
                         });
