@@ -28,7 +28,7 @@ export interface LabelSyncGeneratorConfig
 export class LabelSyncGenerator implements Generator
 {
     name = 'label-sync';
-    private labelsDir: string;
+    private readonly labelsDir: string;
 
     constructor(config: LabelSyncGeneratorConfig = {})
     {

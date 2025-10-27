@@ -377,7 +377,7 @@ export async function initLabelSync(options: SyncOptions & { labelsDir?: string 
     }
 
     const results = await syncAll(sections, {
-        updateExisting: isDevelopment, // 🔄 개발 환경에서는 자동으로 업데이트
+        updateExisting: true, // 🔄 항상 업데이트 (프로덕션 포함)
         ...options,
         verbose,
     });
