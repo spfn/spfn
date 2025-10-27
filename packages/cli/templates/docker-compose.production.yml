@@ -1,6 +1,22 @@
 version: '3.8'
 
 services:
+  # Database migration service (runs before app starts)
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NODE_ENV=production
+    command: pnpm spfn db migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - spfn-network
+    restart: "no"  # Only run once
+
   app:
     build:
       context: .
@@ -21,6 +37,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
     networks:
       - spfn-network
 
