@@ -19,7 +19,7 @@ export const getExamplesContract = {
     }),
     response: Type.Object({
         examples: Type.Array(Type.Object({
-            id: Type.Integer(),
+            id: Type.String(),
             name: Type.String(),
             description: Type.String()
         })),
@@ -43,7 +43,7 @@ export const getExampleContract = {
     response: Type.Union([
         // Success response (200)
         Type.Object({
-            id: Type.Integer(),
+            id: Type.Number(),
             name: Type.String(),
             description: Type.String(),
             createdAt: Type.Number(),
@@ -68,7 +68,7 @@ export const createExampleContract = {
         description: Type.String()
     }),
     response: Type.Object({
-        id: Type.Integer(),
+        id: Type.String(),
         name: Type.String(),
         description: Type.String(),
         createdAt: Type.Number()
@@ -82,14 +82,14 @@ export const updateExampleContract = {
     method: 'PUT' as const,
     path: '/:id',
     params: Type.Object({
-        id: Type.Integer({ minimum: 1 })
+        id: Type.String()
     }),
     body: Type.Object({
         name: Type.Optional(Type.String()),
         description: Type.Optional(Type.String())
     }),
     response: Type.Object({
-        id: Type.Integer(),
+        id: Type.String(),
         name: Type.String(),
         description: Type.String(),
         updatedAt: Type.Number()
@@ -103,10 +103,10 @@ export const deleteExampleContract = {
     method: 'DELETE' as const,
     path: '/:id',
     params: Type.Object({
-        id: Type.Integer({ minimum: 1 })
+        id: Type.String()
     }),
     response: Type.Object({
         success: Type.Boolean(),
-        id: Type.Integer()
+        id: Type.String()
     })
 } as const satisfies RouteContract;

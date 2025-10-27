@@ -1,0 +1,44 @@
+{
+  "common": {
+    "welcome": {
+      "en": "Welcome to SPFN",
+      "ko": "SPFN에 오신 것을 환영합니다"
+    },
+    "hello": {
+      "en": "Hello, {name}!",
+      "ko": "안녕하세요, {name}님!"
+    },
+    "buttons": {
+      "save": {
+        "en": "Save",
+        "ko": "저장"
+      },
+      "cancel": {
+        "en": "Cancel",
+        "ko": "취소"
+      },
+      "delete": {
+        "en": "Delete",
+        "ko": "삭제"
+      },
+      "edit": {
+        "en": "Edit",
+        "ko": "수정"
+      }
+    },
+    "messages": {
+      "success": {
+        "en": "Operation completed successfully",
+        "ko": "작업이 성공적으로 완료되었습니다"
+      },
+      "error": {
+        "en": "An error occurred",
+        "ko": "오류가 발생했습니다"
+      },
+      "loading": {
+        "en": "Loading...",
+        "ko": "로딩 중..."
+      }
+    }
+  }
+}

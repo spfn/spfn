@@ -1,0 +1,40 @@
+{
+  "name": "basic-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "spfn:dev": "spfn dev",
+    "spfn:server": "spfn dev --server-only",
+    "spfn:next": "next dev --turbo --port 3790",
+    "spfn:start": "spfn start",
+    "spfn:build": "spfn build"
+  },
+  "dependencies": {
+    "next": "16.0.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "@spfn/core": "workspace:*",
+    "@spfn/cms": "workspace:*",
+    "@sinclair/typebox": "^0.34.0",
+    "drizzle-orm": "^0.44.6",
+    "drizzle-typebox": "^0.1.0",
+    "spfn": "workspace:*",
+    "concurrently": "^9.2.1"
+  },
+  "devDependencies": {
+    "@svgr/webpack": "^8.1.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20.11.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "1.0.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "tsx": "^4.20.6",
+    "drizzle-kit": "^0.31.5",
+    "dotenv": "^17.2.3"
+  }
+}

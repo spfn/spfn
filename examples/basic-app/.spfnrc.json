@@ -1,0 +1,10 @@
+{
+  "codegen": {
+    "generators": [
+      {
+        "name": "contract",
+        "enabled": true
+      }
+    ]
+  }
+}

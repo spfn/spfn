@@ -1,3 +1,4 @@
 packages:
   - 'packages/*'
+  - 'examples/*'
   # apps/landing is managed independently with its own pnpm-lock.yaml

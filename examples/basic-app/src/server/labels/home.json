@@ -1,0 +1,48 @@
+{
+  "home": {
+    "title": {
+      "en": "Home",
+      "ko": "홈"
+    },
+    "description": {
+      "en": "Welcome to the SPFN example application",
+      "ko": "SPFN 예제 애플리케이션에 오신 것을 환영합니다"
+    },
+    "features": {
+      "title": {
+        "en": "Features",
+        "ko": "기능"
+      },
+      "cms": {
+        "title": {
+          "en": "Content Management System",
+          "ko": "콘텐츠 관리 시스템"
+        },
+        "description": {
+          "en": "Manage multilingual content with ease",
+          "ko": "다국어 콘텐츠를 쉽게 관리하세요"
+        }
+      },
+      "routing": {
+        "title": {
+          "en": "File-based Routing",
+          "ko": "파일 기반 라우팅"
+        },
+        "description": {
+          "en": "Next.js style automatic route registration",
+          "ko": "Next.js 스타일의 자동 라우트 등록"
+        }
+      },
+      "typesafe": {
+        "title": {
+          "en": "Type-safe API",
+          "ko": "타입 안전 API"
+        },
+        "description": {
+          "en": "End-to-end type safety with TypeBox",
+          "ko": "TypeBox를 통한 엔드-투-엔드 타입 안전성"
+        }
+      }
+    }
+  }
+}
