@@ -39,12 +39,35 @@ export function loadLabelsFromJson(labelsDir: string): SectionDefinition[]
     if (!existsSync(labelsDir))
     {
         console.warn(`[CMS] Labels directory not found: ${labelsDir}`);
+        console.warn(`[CMS] Expected directory structure:`);
+        console.warn(`[CMS]   ${labelsDir}/`);
+        console.warn(`[CMS]     ├── common/          # Section directory`);
+        console.warn(`[CMS]     │   ├── messages.json`);
+        console.warn(`[CMS]     │   └── errors.json`);
+        console.warn(`[CMS]     └── home/            # Section directory`);
+        console.warn(`[CMS]         └── hero.json`);
         return sections;
     }
 
     try
     {
         const entries = readdirSync(labelsDir);
+
+        if (entries.length === 0)
+        {
+            console.warn(`[CMS] Labels directory is empty: ${labelsDir}`);
+            console.warn(`[CMS] Create section directories with JSON files inside`);
+            return sections;
+        }
+
+        const jsonFiles = entries.filter(e => extname(e) === '.json');
+        if (jsonFiles.length > 0)
+        {
+            console.warn(`[CMS] Found JSON files directly in ${labelsDir}:`);
+            jsonFiles.forEach(f => console.warn(`[CMS]   - ${f} (will be ignored)`));
+            console.warn(`[CMS] JSON files should be inside section directories`);
+            console.warn(`[CMS] Example: Move ${jsonFiles[0]} to ${labelsDir}/${basename(jsonFiles[0], '.json')}/${jsonFiles[0]}`);
+        }
 
         for (const entry of entries)
         {
@@ -60,12 +83,22 @@ export function loadLabelsFromJson(labelsDir: string): SectionDefinition[]
                 {
                     sections.push({ section: sectionName, labels });
                 }
+                else
+                {
+                    console.warn(`[CMS] Section directory "${sectionName}" has no valid JSON files`);
+                }
             }
+        }
+
+        if (sections.length === 0)
+        {
+            console.warn(`[CMS] No valid section directories found in ${labelsDir}`);
         }
     }
     catch (error)
     {
         console.warn(`[CMS] Could not scan labels directory: ${labelsDir}`);
+        console.error(`[CMS] Error:`, error);
     }
 
     return sections;
