@@ -25,7 +25,7 @@ async function initCodegen(options: { withExample?: boolean }): Promise<void>
         codegen: {
             generators: [
                 {
-                    name: 'contract',
+                    name: '@spfn/core:contract',
                     enabled: true
                 }
             ]
@@ -48,7 +48,7 @@ async function initCodegen(options: { withExample?: boolean }): Promise<void>
 {
   "codegen": {
     "generators": [
-      { "name": "contract", "enabled": true },
+      { "name": "@spfn/core:contract", "enabled": true },
       { "path": "./src/generators/my-generator.ts" }
     ]
   }

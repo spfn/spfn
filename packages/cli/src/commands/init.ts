@@ -494,7 +494,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8790      # Public (Client-side & fallback)
                 codegen: {
                     generators: [
                         {
-                            name: 'contract',
+                            name: '@spfn/core:contract',
                             enabled: true
                         }
                     ]

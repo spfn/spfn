@@ -1,6 +1,6 @@
 {
   "name": "@spfn/core",
-  "version": "0.1.0-alpha.53",
+  "version": "0.1.0-alpha.54",
   "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
   "type": "module",
   "main": "./dist/index.js",
@@ -45,6 +45,11 @@
       "types": "./dist/logger/index.d.ts",
       "import": "./dist/logger/index.js",
       "require": "./dist/logger/index.js"
+    },
+    "./generators": {
+      "types": "./dist/codegen/generators/index.d.ts",
+      "import": "./dist/codegen/generators/index.js",
+      "require": "./dist/codegen/generators/index.js"
     },
     "./codegen/generators": {
       "types": "./dist/codegen/generators/index.d.ts",
