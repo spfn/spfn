@@ -74,6 +74,11 @@
   ],
   "author": "SPFN Team",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spfn/spfn.git",
+    "directory": "packages/cms"
+  },
   "spfn": {
     "schemas": [
       "./dist/entities/*.js"
