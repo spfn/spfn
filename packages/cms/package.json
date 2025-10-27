@@ -1,6 +1,6 @@
 {
   "name": "@spfn/cms",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "SPFN CMS - Content Management System with type-safe labels and Next.js integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -45,6 +45,14 @@
     "./codegen/generators": {
       "types": "./dist/generators/index.d.ts",
       "import": "./dist/generators/index.js"
+    },
+    "./repositories": {
+      "types": "./dist/repositories/index.d.ts",
+      "import": "./dist/repositories/index.js"
+    },
+    "./repositories/*": {
+      "types": "./dist/repositories/*.d.ts",
+      "import": "./dist/repositories/*.js"
     }
   },
   "files": [
