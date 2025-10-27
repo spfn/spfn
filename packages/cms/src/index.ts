@@ -14,23 +14,23 @@ export { getCmsConfig, configureCms, resetCmsConfig } from './cms.config.js';
 export type { CmsConfig } from './cms.config.js';
 
 // Server Components API (React Server Components)
-export * from './server';
-export type { SectionData, SectionAPI } from './server';
+export * from './server.js';
+export type { SectionData, SectionAPI } from './server.js';
 
 // Backend: Repositories (DB access)
-export * from './repositories';
+export * from './repositories/index.js';
 
 // Backend: Entities (DB schemas)
-export * from './entities';
+export * from './entities/index.js';
 
 // Backend: Sync utilities (server startup, CLI scripts)
-export { syncSection, syncAll, initLabelSync, loadLabelsFromJson } from './helpers/sync';
+export { syncSection, syncAll, initLabelSync, loadLabelsFromJson } from './helpers/sync.js';
 
 // Backend: Label helpers (for processing JSON labels)
-export * from './labels';
+export * from './labels/index.js';
 
 // Backend: Codegen generators (for development)
-export { createLabelSyncGenerator, LabelSyncGenerator } from './generators/label-sync-generator';
+export { createLabelSyncGenerator, LabelSyncGenerator } from './generators/label-sync-generator.js';
 
 // Types
-export type * from './types';
+export type * from './types.js';
