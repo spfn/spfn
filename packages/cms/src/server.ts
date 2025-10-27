@@ -135,7 +135,7 @@ export const getSection = cache(async (
                 publishedAt: null,
             };
 
-            const t: ServerTranslationFunction = (_key, defaultValue) => defaultValue;
+            const t: ServerTranslationFunction = (_key, defaultValue) => defaultValue ?? '';
             return { t, data: sectionData };
         }
 
@@ -153,7 +153,7 @@ export const getSection = cache(async (
                 publishedAt: null,
             };
 
-            const t: ServerTranslationFunction = (_key, defaultValue) => defaultValue;
+            const t: ServerTranslationFunction = (_key, defaultValue) => defaultValue ?? '';
             return { t, data: sectionData };
         }
 
@@ -172,13 +172,19 @@ export const getSection = cache(async (
             const fullKey = `${section}.${key}`;
             let value = sectionData.content[fullKey];
 
-            if (value === undefined)
+            if (value === undefined || value === null)
             {
-                value = defaultValue;
+                value = defaultValue ?? '';
+            }
+
+            // 문자열이 아니면 빈 문자열 반환
+            if (typeof value !== 'string')
+            {
+                return '';
             }
 
             // 문자열이고 치환 맵이 있으면 변수 치환
-            if (typeof value === 'string' && replace)
+            if (replace)
             {
                 value = replaceVariables(value, replace);
             }
@@ -204,7 +210,7 @@ export const getSection = cache(async (
             publishedAt: null,
         };
 
-        const t: ServerTranslationFunction = (_key, defaultValue) => defaultValue;
+        const t: ServerTranslationFunction = (_key, defaultValue) => defaultValue ?? '';
         return { t, data: sectionData };
     }
 });
@@ -267,7 +273,7 @@ export const getSections = cache(async (
             sections.forEach(section =>
             {
                 sectionsMap[section] = {
-                    t: (_key, defaultValue) => defaultValue,
+                    t: (_key, defaultValue) => defaultValue ?? '',
                     data: {
                         section,
                         locale: actualLocale,
@@ -287,7 +293,7 @@ export const getSections = cache(async (
         sections.forEach(section =>
         {
             sectionsMap[section] = {
-                t: (_key, defaultValue) => defaultValue,
+                t: (_key, defaultValue) => defaultValue ?? '',
                 data: {
                     section,
                     locale: actualLocale,
@@ -308,13 +314,19 @@ export const getSections = cache(async (
                     const fullKey = `${section}.${key}`;
                     let value = content[fullKey];
 
-                    if (value === undefined)
+                    if (value === undefined || value === null)
                     {
-                        value = defaultValue;
+                        value = defaultValue ?? '';
+                    }
+
+                    // 문자열이 아니면 빈 문자열 반환
+                    if (typeof value !== 'string')
+                    {
+                        return '';
                     }
 
                     // 문자열이고 치환 맵이 있으면 변수 치환
-                    if (typeof value === 'string' && replace)
+                    if (replace)
                     {
                         value = replaceVariables(value, replace);
                     }
@@ -346,7 +358,7 @@ export const getSections = cache(async (
         sections.forEach(section =>
         {
             sectionsMap[section] = {
-                t: (_key, defaultValue) => defaultValue,
+                t: (_key, defaultValue) => defaultValue ?? '',
                 data: {
                     section,
                     locale: actualLocale,
