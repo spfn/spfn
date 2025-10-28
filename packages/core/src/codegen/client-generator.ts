@@ -247,7 +247,10 @@ function generateMethodCode(mapping: RouteContractMapping, options: ClientGenera
     code += `) => `;
 
     // Return type - pass basePath as first parameter
-    code += `client.call('${mapping.path}', ${mapping.contractName}`;
+    // Extract base path by removing dynamic segments that are in contract.path
+    // For example: /teams/:id -> /teams (because contract.path already has /:id)
+    const basePath = mapping.path.replace(/\/:[^/]+$/, '') || '/';
+    code += `client.call('${basePath}', ${mapping.contractName}`;
 
     if (params.length > 0)
     {

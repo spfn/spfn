@@ -5,6 +5,18 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.56] - 2025-10-28
+
+### Fixed
+
+#### @spfn/core
+
+- **Fix API client generation for dynamic routes**: Corrected basePath in generated API client code
+  - Fixed duplicate dynamic segments in URL paths (e.g., `/teams/1/:id` → `/teams/1`)
+  - Updated `client-generator.ts` to extract base path by removing dynamic segments
+  - Example: `client.call('/teams', updateTeamContract, options)` instead of `client.call('/teams/:id', ...)`
+  - Fixes 404 errors when calling UPDATE/DELETE endpoints with dynamic parameters
+
 ## [0.1.0-alpha.55] - 2025-10-28
 
 ### Fixed
