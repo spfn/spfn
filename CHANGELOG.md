@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Example: `client.call('/teams', updateTeamContract, options)` instead of `client.call('/teams/:id', ...)`
   - Fixes 404 errors when calling UPDATE/DELETE endpoints with dynamic parameters
 
+#### spfn (CLI)
+
+- **Auto-generate API client before build**: Added automatic codegen execution in `spfn build` command
+  - Ensures API client is always up-to-date before production builds
+  - Non-critical failure (build continues even if codegen fails)
+  - Prevents deployment with outdated API client code
+
 ## [0.1.0-alpha.55] - 2025-10-28
 
 ### Fixed

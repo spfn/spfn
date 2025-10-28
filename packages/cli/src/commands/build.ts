@@ -46,6 +46,24 @@ async function buildProject(options: BuildOptions): Promise<void>
 
     console.log(chalk.blue.bold('\n🏗️  Building SPFN project for production...\n'));
 
+    // Run codegen before building to ensure API client is up-to-date
+    if (hasServer)
+    {
+        const spinner = ora('Generating API client...').start();
+
+        try
+        {
+            const { runCodegen } = await import('@spfn/core/codegen');
+            await runCodegen({ cwd });
+            spinner.succeed('API client generated');
+        }
+        catch (error)
+        {
+            spinner.warn('API client generation failed (non-critical)');
+            logger.warn(String(error));
+        }
+    }
+
     // Build Next.js using package.json's build script
     if (hasNext && !options.serverOnly)
     {
