@@ -42,7 +42,10 @@ export async function scanContracts(routesDir: string): Promise<RouteContractMap
                 contractName: contractExport.name,
                 contractImportPath: getImportPathFromRoutes(filePath, routesDir),
                 routeFile: '', // Not needed anymore
-                contractFile: filePath
+                contractFile: filePath,
+                hasQuery: contractExport.hasQuery,
+                hasBody: contractExport.hasBody,
+                hasParams: contractExport.hasParams
             });
         }
     }
@@ -91,6 +94,9 @@ interface ContractExport
     name: string;
     method: HttpMethod;
     path: string;
+    hasQuery?: boolean;
+    hasBody?: boolean;
+    hasParams?: boolean;
 }
 
 /**
@@ -170,7 +176,10 @@ function extractContractExports(filePath: string): ContractExport[]
                                 exports.push({
                                     name,
                                     method: contractData.method,
-                                    path: contractData.path
+                                    path: contractData.path,
+                                    hasQuery: contractData.hasQuery,
+                                    hasBody: contractData.hasBody,
+                                    hasParams: contractData.hasParams
                                 });
                             }
                         }
@@ -187,14 +196,23 @@ function extractContractExports(filePath: string): ContractExport[]
 }
 
 /**
- * Extract method and path from contract object literal
+ * Extract method, path, and parameter info from contract object literal
  */
 function extractContractData(objectLiteral: ts.ObjectLiteralExpression): {
     method?: HttpMethod;
     path?: string;
+    hasQuery?: boolean;
+    hasBody?: boolean;
+    hasParams?: boolean;
 }
 {
-    const result: { method?: HttpMethod; path?: string } = {};
+    const result: {
+        method?: HttpMethod;
+        path?: string;
+        hasQuery?: boolean;
+        hasBody?: boolean;
+        hasParams?: boolean;
+    } = {};
 
     for (let i = 0; i < objectLiteral.properties.length; i++)
     {
@@ -234,6 +252,21 @@ function extractContractData(objectLiteral: ts.ObjectLiteralExpression): {
                     value = prop.initializer.expression.text;
                 }
                 if (value) result.path = value;
+            }
+            else if (propName === 'query')
+            {
+                // Has query property
+                result.hasQuery = true;
+            }
+            else if (propName === 'body')
+            {
+                // Has body property
+                result.hasBody = true;
+            }
+            else if (propName === 'params')
+            {
+                // Has params property
+                result.hasParams = true;
             }
         }
     }

@@ -21,9 +21,13 @@ export function bind<TContract extends RouteContract>(
 {
     return async (rawContext: Context) =>
     {
-        const params = rawContext.req.param();
+        let params = rawContext.req.param();
         if (contract.params)
         {
+            // Convert types (e.g., string "123" -> number 123)
+            params = Value.Convert(contract.params, params) as typeof params;
+
+            // Then validate
             const errors = [...Value.Errors(contract.params, params)];
             if (errors.length > 0)
             {
@@ -41,7 +45,7 @@ export function bind<TContract extends RouteContract>(
         }
 
         const url = new URL(rawContext.req.url);
-        const query: Record<string, string | string[]> = {};
+        let query: Record<string, string | string[]> = {};
         url.searchParams.forEach((v, k) =>
         {
             const existing = query[k];
@@ -57,6 +61,10 @@ export function bind<TContract extends RouteContract>(
 
         if (contract.query)
         {
+            // Convert types (e.g., string "123" -> number 123, "true" -> boolean true)
+            query = Value.Convert(contract.query, query) as typeof query;
+
+            // Then validate
             const errors = [...Value.Errors(contract.query, query)];
             if (errors.length > 0)
             {
@@ -79,9 +87,13 @@ export function bind<TContract extends RouteContract>(
 
             data: async () =>
             {
-                const body = await rawContext.req.json();
+                let body = await rawContext.req.json();
                 if (contract.body)
                 {
+                    // Convert types (e.g., handle nested objects, arrays, etc.)
+                    body = Value.Convert(contract.body, body) as any;
+
+                    // Then validate
                     const errors = [...Value.Errors(contract.body, body)];
                     if (errors.length > 0)
                     {

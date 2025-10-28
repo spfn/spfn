@@ -30,6 +30,15 @@ export interface RouteContractMapping
 
     /** Contract source file path (resolved) */
     contractFile?: string;
+
+    /** Has query parameters */
+    hasQuery?: boolean;
+
+    /** Has body parameters */
+    hasBody?: boolean;
+
+    /** Has path parameters */
+    hasParams?: boolean;
 }
 
 /**

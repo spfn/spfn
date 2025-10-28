@@ -204,9 +204,9 @@ function generateMethodCode(mapping: RouteContractMapping, options: ClientGenera
 {
     const methodName = generateMethodName(mapping);
     const contractType = `typeof ${mapping.contractName}`;
-    const hasParams = mapping.path.includes(':');
-    const hasQuery = false; // TODO: detect from contract
-    const hasBody = ['POST', 'PUT', 'PATCH'].indexOf(mapping.method) !== -1;
+    const hasParams = mapping.hasParams || mapping.path.includes(':');
+    const hasQuery = mapping.hasQuery || false;
+    const hasBody = mapping.hasBody || false;
 
     let code = '';
 

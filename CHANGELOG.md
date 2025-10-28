@@ -5,6 +5,26 @@ All notable changes to SPFN will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.55] - 2025-10-28
+
+### Fixed
+
+#### @spfn/core
+
+- **Fix TypeBox type conversion in bind()**: Add `Value.Convert()` calls for automatic type conversion (Issue #11)
+  - `params`: Convert string values to proper types (e.g., `"123"` → `123` for `Type.Integer()`)
+  - `query`: Convert query string values to numbers, booleans, etc.
+  - `body`: Convert request body values according to schema
+  - Removes need for manual type casting in route handlers
+  - Example: `const { id } = c.params` now works without `as { id: number }`
+
+- **Fix codegen query parameter detection**: API client now properly generates query parameter support
+  - Added `hasQuery`, `hasBody`, `hasParams` fields to `RouteContractMapping` type
+  - Updated `contract-scanner.ts` to detect `query`, `body`, `params` properties in contracts
+  - Updated `client-generator.ts` to use detected fields instead of hardcoded `hasQuery = false`
+  - Generated API clients now include proper query parameter types
+  - Example: `api.news.list({ query: { limit: 5, published: true } })` now works correctly
+
 ## [0.1.0-alpha.4] - 2025-10-27
 
 ### Fixed
