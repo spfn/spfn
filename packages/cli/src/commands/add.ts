@@ -66,8 +66,8 @@ async function addPackage(packageName: string): Promise<void>
 
         const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'))
 
-        // Step 3: Set up database if package has schemas
-        if (pkgJson.spfn?.schemas)
+        // Step 3: Set up database if package has migrations
+        if (pkgJson.spfn?.migrations)
         {
             console.log(chalk.blue(`\n🗄️  Setting up database for ${packageName}...\n`))
 
@@ -79,114 +79,40 @@ async function addPackage(packageName: string): Promise<void>
             {
                 console.log(chalk.yellow('⚠️  DATABASE_URL not found'))
                 console.log(chalk.gray('Skipping database setup. Run migrations manually when ready:\n'))
-                console.log(chalk.gray(`  pnpm spfn db generate`))
-                console.log(chalk.gray(`  pnpm spfn db migrate\n`))
+                console.log(chalk.gray(`  pnpm spfn db push\n`))
             }
             else
             {
-                const tempConfigPath = `./drizzle.config.${Date.now()}.temp.ts`
+                // Apply pre-generated function migrations
+                const { discoverFunctionMigrations, executeFunctionMigrations } =
+                    await import('../utils/function-migrations.js')
 
-                try
+                const functions = discoverFunctionMigrations(process.cwd())
+                const targetFunction = functions.find(f => f.packageName === packageName)
+
+                if (targetFunction)
                 {
-                    // Generate temporary config for this package only
-                    const { generateDrizzleConfigFile } = await import('@spfn/core')
-                    const configContent = generateDrizzleConfigFile({
-                        cwd: process.cwd(),
-                        packageFilter: packageName
-                    })
-
-                    writeFileSync(tempConfigPath, configContent)
-
-                    // Generate migration
-                    const generateSpinner = ora('Generating migration...').start()
+                    const spinner = ora('Applying migrations...').start()
                     try
                     {
-                        const { stdout: generateOutput } = await execAsync(
-                            `drizzle-kit generate --config=${tempConfigPath}`
-                        )
-                        generateSpinner.succeed('Migration generated')
-
-                        // Show table info from output
-                        if (generateOutput.includes('tables'))
-                        {
-                            const lines = generateOutput.split('\n')
-                            const tableLines = lines.filter(line =>
-                                line.trim() && !line.includes('Reading') && !line.includes('Your SQL')
-                            )
-                            if (tableLines.length > 0)
-                            {
-                                console.log(chalk.dim('\n' + tableLines.slice(0, -1).join('\n') + '\n'))
-                            }
-                        }
+                        await executeFunctionMigrations([targetFunction])
+                        spinner.succeed('Migrations applied')
                     }
                     catch (error)
                     {
-                        generateSpinner.fail('Failed to generate migration')
+                        spinner.fail('Failed to apply migrations')
                         throw error
-                    }
-
-                    // Create schema before running migration
-                    const { packageNameToSchema } = await import('@spfn/core/db')
-                    const schemaName = packageNameToSchema(packageName)
-
-                    const schemaSpinner = ora(`Creating schema "${schemaName}"...`).start()
-                    try
-                    {
-                        // @ts-expect-error - Dynamic import, types not available at build time
-                        const { drizzle } = await import('drizzle-orm/postgres-js')
-                        // @ts-expect-error - Dynamic import, types not available at build time
-                        const postgres = (await import('postgres')).default
-                        const sql = postgres(process.env.DATABASE_URL!)
-                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                        drizzle(sql)
-
-                        // Create schema if not exists
-                        await sql`CREATE SCHEMA IF NOT EXISTS ${sql(schemaName)}`
-                        await sql.end()
-
-                        schemaSpinner.succeed(`Schema "${schemaName}" ready`)
-                    }
-                    catch (error)
-                    {
-                        schemaSpinner.fail('Failed to create schema')
-                        throw error
-                    }
-
-                    // Run migration
-                    const migrateSpinner = ora('Running migration...').start()
-                    try
-                    {
-                        await execAsync(`drizzle-kit migrate --config=${tempConfigPath}`)
-                        migrateSpinner.succeed('Migration applied')
-                    }
-                    catch (error)
-                    {
-                        // Check if it's just "table already exists" error
-                        const errorMessage = error instanceof Error ? error.message : String(error)
-                        if (errorMessage.includes('already exists'))
-                        {
-                            migrateSpinner.warn('Tables already exist (skipped)')
-                        }
-                        else
-                        {
-                            migrateSpinner.fail('Failed to run migration')
-                            throw error
-                        }
                     }
                 }
-                finally
+                else
                 {
-                    // Clean up temp config
-                    if (existsSync(tempConfigPath))
-                    {
-                        unlinkSync(tempConfigPath)
-                    }
+                    console.log(chalk.gray('ℹ️  No migrations found for this package'))
                 }
             }
         }
         else
         {
-            console.log(chalk.gray('\nℹ️  No database schemas to set up'))
+            console.log(chalk.gray('\nℹ️  No database migrations to apply'))
         }
 
         // Step 4: Show success message and setup guide

@@ -11,16 +11,14 @@ import type { InferContract } from '@spfn/core';
 // Labels
 import {
     getLabelsContract,
-    createLabelContract
-} from './routes/labels/contract';
-import {
+    createLabelContract,
     getLabelContract,
     updateLabelContract,
     deleteLabelContract
-} from './routes/labels/[id]/contract';
+} from './contracts/labels';
 
 // Published Cache
-import { getPublishedCacheContract } from './routes/published-cache/contract';
+import { getPublishedCacheContract } from './contracts/published-cache';
 
 /**
  * CMS API Client
@@ -35,21 +33,21 @@ export const cmsApi = {
          * 라벨 목록 조회 (섹션 필터, 페이지네이션)
          */
         list: (options?: { query?: InferContract<typeof getLabelsContract>['query'] }) =>
-            client.call('/cms/labels', getLabelsContract, options),
+            client.call(getLabelsContract, options),
 
         /**
          * GET /cms/labels/:id
          * 특정 라벨 조회
          */
         getById: (options: { params: InferContract<typeof getLabelContract>['params'] }) =>
-            client.call('/cms/labels/:id', getLabelContract, options),
+            client.call(getLabelContract, options),
 
         /**
          * POST /cms/labels
          * 새 라벨 생성
          */
         create: (options: { body: InferContract<typeof createLabelContract>['body'] }) =>
-            client.call('/cms/labels', createLabelContract, options),
+            client.call(createLabelContract, options),
 
         /**
          * PATCH /cms/labels/:id
@@ -59,14 +57,14 @@ export const cmsApi = {
             params: InferContract<typeof updateLabelContract>['params'];
             body: InferContract<typeof updateLabelContract>['body'];
         }) =>
-            client.call('/cms/labels/:id', updateLabelContract, options),
+            client.call(updateLabelContract, options),
 
         /**
          * DELETE /cms/labels/:id
          * 라벨 삭제
          */
         delete: (options: { params: InferContract<typeof deleteLabelContract>['params'] }) =>
-            client.call('/cms/labels/:id', deleteLabelContract, options),
+            client.call(deleteLabelContract, options),
     },
 
     /**
@@ -78,7 +76,7 @@ export const cmsApi = {
          * 발행된 콘텐츠 캐시 조회
          */
         get: (options: { query: InferContract<typeof getPublishedCacheContract>['query'] }) =>
-            client.call('/cms/published-cache', getPublishedCacheContract, options),
+            client.call(getPublishedCacheContract, options),
     },
 } as const;
 

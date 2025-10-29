@@ -89,23 +89,19 @@ export class ContractClient
     /**
      * Make a type-safe API call using a contract
      *
-     * @param basePath - Base path from file-based routing (e.g., '/organizations')
-     * @param contract - Route contract
+     * @param contract - Route contract with absolute path
      * @param options - Call options (params, query, body, headers)
      */
     async call<TContract extends RouteContract>(
-        basePath: string,
         contract: TContract,
         options?: CallOptions<TContract>
     ): Promise<InferContract<TContract>['response']>
     {
         const baseUrl = options?.baseUrl || this.config.baseUrl;
 
-        // Combine basePath and contract.path, handling trailing/leading slashes
-        const combinedPath = ContractClient.combinePaths(basePath, contract.path);
-
+        // Use contract.path directly (contracts use absolute paths)
         const urlPath = ContractClient.buildUrl(
-            combinedPath,
+            contract.path,
             options?.params as Record<string, string | number> | undefined
         );
         const queryString = ContractClient.buildQuery(
@@ -204,32 +200,6 @@ export class ContractClient
             timeout: config.timeout || this.config.timeout,
             fetch: config.fetch || this.config.fetch,
         });
-    }
-
-    /**
-     * Combine basePath and contract.path, handling trailing/leading slashes
-     *
-     * @example
-     * combinePaths('/organizations', '/') → '/organizations'
-     * combinePaths('/organizations', '/:id') → '/organizations/:id'
-     * combinePaths('/', '/health') → '/health'
-     */
-    private static combinePaths(basePath: string, contractPath: string): string
-    {
-        // Remove trailing slash from basePath (unless it's root '/')
-        const normalizedBase = basePath === '/' ? '' : basePath.replace(/\/$/, '');
-
-        // Remove leading slash from contractPath
-        const normalizedContract = contractPath.replace(/^\//, '');
-
-        // If contractPath is empty or just '/', return basePath
-        if (!normalizedContract || normalizedContract === '')
-        {
-            return basePath;
-        }
-
-        // Combine with single slash
-        return `${normalizedBase}/${normalizedContract}`;
     }
 
     private static buildUrl(path: string, params?: Record<string, string | number>): string

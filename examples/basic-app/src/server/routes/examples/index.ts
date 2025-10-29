@@ -1,12 +1,11 @@
 /**
  * Example Routes: CRUD Operations
  *
- * File naming patterns:
- * - routes/index/index.ts -> / (root route)
- * - routes/users/index.ts -> /users
- * - routes/users/[id]/index.ts -> /users/:id (dynamic parameter)
- *
- * Contracts are co-located in the same directory
+ * SPFN uses contract-based routing with absolute paths:
+ * - Contracts are defined in src/lib/contracts/ (shared with frontend)
+ * - Handlers import contracts and implement business logic
+ * - URL paths are defined by contract.path (e.g., '/examples/:id')
+ * - File structure is flexible - organize routes however you want
  */
 
 import { createApp } from '@spfn/core/route';
@@ -16,7 +15,7 @@ import {
     createExampleContract,
     updateExampleContract,
     deleteExampleContract
-} from './contract.js';
+} from '@/lib/contracts/examples';
 
 const app = createApp();
 

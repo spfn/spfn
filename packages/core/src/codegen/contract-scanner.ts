@@ -11,9 +11,13 @@ import { readFileSync } from 'fs';
 import type { RouteContractMapping, HttpMethod } from './types.js';
 
 /**
- * Scan routes directory for contract.ts files and extract contract exports
+ * Scan for contract files and extract contract exports
  *
- * @param routesDir - Path to server/routes directory
+ * Supports two modes:
+ * 1. New: Absolute paths in contracts (e.g., path: '/teams/:id')
+ * 2. Legacy: Relative paths with file-based basePath (e.g., path: '/:id' in routes/teams/contract.ts)
+ *
+ * @param routesDir - Path to scan for contracts (can be routes/ or lib/contracts/)
  * @returns Array of contract-to-route mappings
  */
 export async function scanContracts(routesDir: string): Promise<RouteContractMapping[]>
@@ -26,21 +30,35 @@ export async function scanContracts(routesDir: string): Promise<RouteContractMap
         const filePath = contractFiles[i];
         const exports = extractContractExports(filePath);
 
-        // Calculate base path from file location: routes/posts/contract.ts → /posts
-        const basePath = getBasePathFromFile(filePath, routesDir);
-
         for (let j = 0; j < exports.length; j++)
         {
             const contractExport = exports[j];
 
-            // Combine base path with contract path: /posts + / → /posts
-            const fullPath = combinePaths(basePath, contractExport.path);
+            // Check if contract uses absolute path (starts with /)
+            const isAbsolutePath = contractExport.path.startsWith('/') && contractExport.path.length > 1;
+
+            let fullPath: string;
+            let importPath: string;
+
+            if (isAbsolutePath)
+            {
+                // New mode: Use absolute path from contract directly
+                fullPath = contractExport.path;
+                importPath = getImportPath(filePath, routesDir);
+            }
+            else
+            {
+                // Legacy mode: Calculate base path from file location
+                const basePath = getBasePathFromFile(filePath, routesDir);
+                fullPath = combinePaths(basePath, contractExport.path);
+                importPath = getImportPathFromRoutes(filePath, routesDir);
+            }
 
             mappings.push({
                 method: contractExport.method,
                 path: fullPath,
                 contractName: contractExport.name,
-                contractImportPath: getImportPathFromRoutes(filePath, routesDir),
+                contractImportPath: importPath,
                 routeFile: '', // Not needed anymore
                 contractFile: filePath,
                 hasQuery: contractExport.hasQuery,
@@ -54,13 +72,18 @@ export async function scanContracts(routesDir: string): Promise<RouteContractMap
 }
 
 /**
- * Recursively scan for contract.ts files in routes directory
+ * Recursively scan for contract files
+ *
+ * Scans for:
+ * - contract.ts files (legacy mode - routes/teams/contract.ts)
+ * - All .ts files in lib/contracts/ (new mode - lib/contracts/teams.ts)
  */
 async function scanContractFiles(dir: string, files: string[] = []): Promise<string[]>
 {
     try
     {
         const entries = await readdir(dir);
+        const isLibContracts = dir.includes('/lib/contracts');
 
         for (let i = 0; i < entries.length; i++)
         {
@@ -72,9 +95,21 @@ async function scanContractFiles(dir: string, files: string[] = []): Promise<str
             {
                 await scanContractFiles(fullPath, files);
             }
-            else if (entry === 'contract.ts')
+            else if (isLibContracts)
             {
-                files.push(fullPath);
+                // In lib/contracts, scan all .ts files
+                if (entry.endsWith('.ts') && !entry.endsWith('.d.ts') && !entry.endsWith('.test.ts'))
+                {
+                    files.push(fullPath);
+                }
+            }
+            else
+            {
+                // In routes/, only scan contract.ts files (legacy)
+                if (entry === 'contract.ts')
+                {
+                    files.push(fullPath);
+                }
             }
         }
     }
@@ -102,12 +137,16 @@ interface ContractExport
 /**
  * Extract contract exports from a TypeScript file
  *
- * Looks for exports with structure:
- * export const xxxContract = {
- *     method: 'GET',
- *     path: '/users',
- *     ...
- * }
+ * Multi-layer detection:
+ * 1. satisfies RouteContract (most explicit)
+ * 2. Contract name pattern + method/path properties (fallback)
+ *
+ * @example
+ * // Layer 1: satisfies RouteContract
+ * export const myContract = { ... } satisfies RouteContract;
+ *
+ * // Layer 2: Name pattern + validation
+ * export const myContract = { method: 'GET', path: '/api' };
  */
 function extractContractExports(filePath: string): ContractExport[]
 {
@@ -143,34 +182,42 @@ function extractContractExports(filePath: string): ContractExport[]
                 {
                     const name = declaration.name.text;
 
-                    // Check if name looks like a contract
-                    if (isContractName(name))
-                    {
-                        // Handle both direct object literal and satisfies expression
-                        let objectLiteral: ts.ObjectLiteralExpression | undefined;
+                    // Layer 1: Check for satisfies RouteContract
+                    const hasSatisfiesRouteContract = checkSatisfiesRouteContract(declaration.initializer);
 
-                        if (ts.isObjectLiteralExpression(declaration.initializer))
-                        {
-                            objectLiteral = declaration.initializer;
-                        }
-                        else if (ts.isSatisfiesExpression(declaration.initializer) &&
-                                 ts.isAsExpression(declaration.initializer.expression) &&
-                                 ts.isObjectLiteralExpression(declaration.initializer.expression.expression))
-                        {
-                            // Handle: { ... } as const satisfies RouteContract
-                            objectLiteral = declaration.initializer.expression.expression;
-                        }
-                        else if (ts.isAsExpression(declaration.initializer) &&
-                                 ts.isObjectLiteralExpression(declaration.initializer.expression))
-                        {
-                            // Handle: { ... } as const
-                            objectLiteral = declaration.initializer.expression;
-                        }
+                    if (hasSatisfiesRouteContract)
+                    {
+                        const objectLiteral = extractObjectLiteral(declaration.initializer);
 
                         if (objectLiteral)
                         {
                             const contractData = extractContractData(objectLiteral);
 
+                            if (contractData.method && contractData.path)
+                            {
+                                exports.push({
+                                    name,
+                                    method: contractData.method,
+                                    path: contractData.path,
+                                    hasQuery: contractData.hasQuery,
+                                    hasBody: contractData.hasBody,
+                                    hasParams: contractData.hasParams
+                                });
+                            }
+                        }
+                        return; // Found via satisfies, skip fallback
+                    }
+
+                    // Layer 2: Fallback to name pattern check
+                    if (isContractName(name))
+                    {
+                        const objectLiteral = extractObjectLiteral(declaration.initializer);
+
+                        if (objectLiteral)
+                        {
+                            const contractData = extractContractData(objectLiteral);
+
+                            // Require both method and path for fallback detection
                             if (contractData.method && contractData.path)
                             {
                                 exports.push({
@@ -193,6 +240,54 @@ function extractContractExports(filePath: string): ContractExport[]
 
     visit(sourceFile);
     return exports;
+}
+
+/**
+ * Check if declaration uses 'satisfies RouteContract'
+ */
+function checkSatisfiesRouteContract(initializer: ts.Expression): boolean
+{
+    if (!ts.isSatisfiesExpression(initializer))
+    {
+        return false;
+    }
+
+    const typeNode = initializer.type;
+
+    // Check for RouteContract type reference
+    if (ts.isTypeReferenceNode(typeNode) &&
+        ts.isIdentifier(typeNode.typeName))
+    {
+        return typeNode.typeName.text === 'RouteContract';
+    }
+
+    return false;
+}
+
+/**
+ * Extract object literal from various expression forms
+ */
+function extractObjectLiteral(initializer: ts.Expression): ts.ObjectLiteralExpression | undefined
+{
+    // Direct object literal: { ... }
+    if (ts.isObjectLiteralExpression(initializer))
+    {
+        return initializer;
+    }
+
+    // satisfies expression: { ... } satisfies RouteContract
+    if (ts.isSatisfiesExpression(initializer))
+    {
+        return extractObjectLiteral(initializer.expression);
+    }
+
+    // as expression: { ... } as const
+    if (ts.isAsExpression(initializer))
+    {
+        return extractObjectLiteral(initializer.expression);
+    }
+
+    return undefined;
 }
 
 /**
@@ -393,7 +488,7 @@ function combinePaths(basePath: string, contractPath: string): string
 }
 
 /**
- * Get import path for contract file
+ * Get import path for contract file (legacy mode)
  *
  * @example
  * routes/posts/contract.ts → @/server/routes/posts/contract
@@ -418,4 +513,38 @@ function getImportPathFromRoutes(filePath: string, routesDir: string): string
 
     // Return as module path
     return '@/server/routes/' + relativePath;
+}
+
+/**
+ * Get import path for contract file (new mode - absolute paths)
+ *
+ * Detects if contract is in lib/contracts/ or server/routes/
+ *
+ * @example
+ * /path/to/src/lib/contracts/teams.ts → @/lib/contracts/teams
+ * /path/to/src/server/routes/teams/contract.ts → @/server/routes/teams/contract
+ */
+function getImportPath(filePath: string, scanDir: string): string
+{
+    // Try to find src/ directory
+    const srcIndex = filePath.indexOf('/src/');
+
+    if (srcIndex === -1)
+    {
+        // Fallback: use scanDir-based logic
+        return getImportPathFromRoutes(filePath, scanDir);
+    }
+
+    // Get path from src/ onwards
+    const fromSrc = filePath.substring(srcIndex + 5); // +5 to skip '/src/'
+
+    // Remove .ts extension
+    let cleanPath = fromSrc;
+    if (cleanPath.endsWith('.ts'))
+    {
+        cleanPath = cleanPath.slice(0, -3);
+    }
+
+    // Return as module path with @ prefix
+    return '@/' + cleanPath;
 }

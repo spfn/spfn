@@ -12,7 +12,7 @@ import type { RouteContract } from '@spfn/core/route';
  */
 export const getExamplesContract = {
     method: 'GET' as const,
-    path: '/',
+    path: '/examples',
     query: Type.Object({
         limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
         offset: Type.Optional(Type.Number({ minimum: 0 }))
@@ -36,7 +36,7 @@ export const getExamplesContract = {
  */
 export const getExampleContract = {
     method: 'GET' as const,
-    path: '/:id',
+    path: '/examples/:id',
     params: Type.Object({
         id: Type.Integer({ minimum: 1 })  // Auto-converts string to number
     }),
@@ -62,7 +62,7 @@ export const getExampleContract = {
  */
 export const createExampleContract = {
     method: 'POST' as const,
-    path: '/',
+    path: '/examples',
     body: Type.Object({
         name: Type.String(),
         description: Type.String()
@@ -80,7 +80,7 @@ export const createExampleContract = {
  */
 export const updateExampleContract = {
     method: 'PUT' as const,
-    path: '/:id',
+    path: '/examples/:id',
     params: Type.Object({
         id: Type.String()
     }),
@@ -101,7 +101,7 @@ export const updateExampleContract = {
  */
 export const deleteExampleContract = {
     method: 'DELETE' as const,
-    path: '/:id',
+    path: '/examples/:id',
     params: Type.Object({
         id: Type.String()
     }),

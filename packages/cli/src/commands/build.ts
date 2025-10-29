@@ -4,6 +4,7 @@ import { join } from 'path';
 import { execa } from 'execa';
 import ora from 'ora';
 import chalk from 'chalk';
+import { build } from 'tsup';
 
 import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
@@ -53,8 +54,18 @@ async function buildProject(options: BuildOptions): Promise<void>
 
         try
         {
-            const { runCodegen } = await import('@spfn/core/codegen');
-            await runCodegen({ cwd });
+            const { CodegenOrchestrator, loadCodegenConfig, createGeneratorsFromConfig } = await import('@spfn/core/codegen');
+
+            const config = loadCodegenConfig(cwd);
+            const generators = await createGeneratorsFromConfig(config, cwd);
+
+            const orchestrator = new CodegenOrchestrator({
+                generators,
+                cwd,
+                debug: false
+            });
+
+            await orchestrator.generateAll();
             spinner.succeed('API client generated');
         }
         catch (error)
@@ -94,28 +105,43 @@ async function buildProject(options: BuildOptions): Promise<void>
 
         try
         {
-            // Compile TypeScript to JavaScript
+            // Compile TypeScript to JavaScript using tsup
             const outputDir = join(cwd, '.spfn', 'server');
             mkdirSync(outputDir, { recursive: true });
 
-            // Use src/server/tsconfig.json directly
-            const serverTsConfigPath = join(cwd, 'src', 'server', 'tsconfig.json');
+            const serverDir = join(cwd, 'src', 'server');
 
-            if (!existsSync(serverTsConfigPath))
+            if (!existsSync(serverDir))
             {
                 spinner.fail('SPFN server build failed');
-                logger.error('tsconfig.json not found in src/server/');
+                logger.error('src/server/ directory not found');
                 logger.error('Please run "spfn init" to initialize the project.');
                 process.exit(1);
             }
 
-            // Use local tsc from node_modules
-            const tscBin = join(cwd, 'node_modules', '.bin', 'tsc');
-            const tscCmd = existsSync(tscBin) ? tscBin : 'tsc';
-
-            await execa(tscCmd, ['--project', serverTsConfigPath], {
-                cwd,
-                stdio: 'inherit',
+            // Build with tsup API (handles @/* aliases and .js extensions automatically)
+            await build({
+                entry: ['src/server/**/*.ts'],
+                format: ['esm'],
+                outDir: '.spfn/server',
+                clean: true,
+                splitting: false,
+                tsconfig: 'src/server/tsconfig.json',
+                external: [
+                    'drizzle-orm',
+                    'hono',
+                    '@hono/node-server',
+                    'postgres',
+                    'ioredis',
+                    'pino',
+                    'chalk',
+                    '@sinclair/typebox',
+                    '@spfn/core',
+                ],
+                silent: false,
+                onSuccess: async () => {
+                    // Silently succeed
+                },
             });
 
             // Generate production server entry point

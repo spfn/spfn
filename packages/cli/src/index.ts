@@ -8,7 +8,6 @@ import { codegenCommand } from './commands/codegen.js';
 import { keyCommand } from './commands/key.js';
 import { setupCommand } from './commands/setup.js';
 import { dbCommand } from './commands/db.js';
-import { guideCommand } from './commands/guide.js';
 import { addCommand } from './commands/add.js';
 
 // Export types
@@ -39,7 +38,6 @@ program.addCommand(codegenCommand);
 program.addCommand(keyCommand);
 program.addCommand(setupCommand);
 program.addCommand(dbCommand);
-program.addCommand(guideCommand);
 
 export async function run(): Promise<void>
 {

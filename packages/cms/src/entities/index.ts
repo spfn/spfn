@@ -2,9 +2,9 @@
  * CMS Database Entities
  */
 
-export * from './cms-labels.js';
-export * from './cms-label-values.js';
-export * from './cms-label-versions.js';
-export * from './cms-draft-cache.js';
-export * from './cms-published-cache.js';
-export * from './cms-audit-logs.js';
+export * from './cms-labels';
+export * from './cms-label-values';
+export * from './cms-label-versions';
+export * from './cms-draft-cache';
+export * from './cms-published-cache';
+export * from './cms-audit-logs';

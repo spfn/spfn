@@ -10,4 +10,6 @@ export default defineConfig({
     sourcemap: false,
     target: 'es2022',
     outDir: 'dist',
+    external: ['tsup', 'drizzle-orm', 'postgres'],
+    noExternal: [],
 });

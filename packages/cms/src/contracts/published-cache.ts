@@ -1,7 +1,3 @@
-/**
- * CMS Published Cache API Contract
- */
-
 import { Type } from '@sinclair/typebox';
 import type { RouteContract } from '@spfn/core/route';
 
@@ -19,7 +15,7 @@ const SectionData = Type.Object({
  */
 export const getPublishedCacheContract = {
     method: 'GET' as const,
-    path: '/',
+    path: '/cms/published-cache',
     query: Type.Object({
         sections: Type.Union([
             Type.String({ description: '단일 섹션 이름 (예: home)' }),

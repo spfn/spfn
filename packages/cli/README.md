@@ -43,12 +43,20 @@ spfn init -y           # Skip prompts, use defaults
 ```
 
 **What `spfn init` creates:**
-- `src/server/` - Backend structure (routes, entities, repositories)
+- `src/lib/contracts/` - API contracts (shared between frontend and backend)
+- `src/server/routes/` - Backend route handlers
+- `src/server/entities/` - Database entities (Drizzle ORM)
 - `docker-compose.yml` - PostgreSQL + Redis for local development
 - `Dockerfile`, `.dockerignore`, `docker-compose.production.yml` - Production deployment
 - `.guide/` - **Quick-start and deployment guides** (⭐ Use with AI tools!)
 - `.env.local.example` - Environment variable template
 - `spfn.config.js` - Deployment configuration with JSDoc type hints
+
+**SPFN's Contract-Based Architecture:**
+- **Contracts** (`src/lib/contracts/`): Define API endpoints with absolute paths (e.g., `/users/:id`)
+- **Handlers** (`src/server/routes/`): Import contracts and implement business logic
+- **Frontend**: Import contracts for type-safe API calls
+- **Auto-generated Client**: `src/lib/api.ts` is generated from contracts
 
 ### Install Ecosystem Packages
 ```bash
@@ -104,12 +112,6 @@ cms_audit_logs        8 columns 4 indexes 1 fks
   ```
 - Packages can provide their own database tables without creating dependencies
 - Works with both published npm packages and local development (workspace packages)
-
-### Code Generation
-```bash
-spfn generate <name>   # Generate entity, routes, repository, and client
-spfn generate users    # Example: Generate users CRUD
-```
 
 ### Development & Production
 ```bash

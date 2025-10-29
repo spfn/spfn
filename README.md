@@ -82,10 +82,15 @@ npm run spfn:dev
 After initialization, you'll have:
 
 ✅ **Server Structure** (`src/server/`)
-- File-based routing with auto-discovery
+- Contract-based routing with type safety
 - Example routes with contracts
 - Database entities and migrations
 - Development and production configs
+
+✅ **Contracts** (`src/lib/contracts/`)
+- Centralized API contract definitions
+- Shared between server and client
+- Full type safety and validation
 
 ✅ **Auto-Generated Client** (`src/lib/api.ts`)
 - Type-safe API client for Next.js
@@ -101,13 +106,16 @@ After initialization, you'll have:
 
 **1. Create your first route:**
 ```bash
-# Example route structure
+# 1. Define contract (centralized)
+src/lib/contracts/
+  users.ts       # API contracts for users
+
+# 2. Implement routes
 src/server/routes/
   users/
-    contract.ts    # Define API contract
-    index.ts       # GET /users
+    index.ts     # GET /users (implements getUsersContract)
     [id]/
-      index.ts     # GET /users/:id
+      index.ts   # GET /users/:id (implements getUserContract)
 ```
 
 **2. Define database schema:**
@@ -137,8 +145,12 @@ export default async function Page() {
 
 **4. Install functions (optional):**
 ```bash
-# Add CMS function for content management
+# Install CMS with automatic migration setup (recommended)
 pnpm spfn add @spfn/cms
+
+# Or install manually
+pnpm add @spfn/cms
+pnpm spfn db push
 
 # View your database
 pnpm spfn db studio
@@ -178,22 +190,25 @@ Copy `.env.local.example` to `.env.local` and you're ready to go!
 ## How It Works
 
 ```typescript
-// 1. Define contract (src/server/routes/users/contract.ts)
+// 1. Define contract (src/lib/contracts/users.ts)
+import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
+
 export const getUserContract = {
-  method: 'GET',
-  path: '/:id',
+  method: 'GET' as const,
+  path: '/users/:id',  // Absolute path
   params: Type.Object({ id: Type.String() }),
   response: Type.Object({
     id: Type.Number(),
     name: Type.String()
   })
-};
+} as const satisfies RouteContract;
 
 // 2. Implement route (src/server/routes/users/[id]/index.ts)
 import { createApp } from '@spfn/core/route';
 import { findOne } from '@spfn/core/db';
-import { getUserContract } from '../contract';
-import { users } from '../../entities/users';
+import { getUserContract } from '@/lib/contracts/users';
+import { users } from '@/server/entities';
 
 const app = createApp();
 
@@ -241,11 +256,11 @@ const user = await api.users.getById({ params: { id: '123' } });
 - Integration tests for DB, cache, and server
 - Docker support for dev & production
 
-**📁 File-based Routing**
-- `users/index.ts` → GET /users
-- `users/[id].ts` → GET /users/:id
-- Auto-discovery & registration
-- Co-located contracts and handlers
+**📁 Contract-based Routing**
+- Contracts define absolute paths (e.g., `/users/:id`)
+- Centralized in `src/lib/contracts/`
+- Routes implement contracts with `app.bind()`
+- Auto-discovery & type-safe validation
 
 **🔄 Developer Experience**
 - Watch mode with auto-regeneration
@@ -340,62 +355,85 @@ See [CHANGELOG.md](./CHANGELOG.md) for full history.
 
 ### Installing Functions
 
-SPFN functions can be installed with automatic database setup:
+SPFN functions come with pre-generated migrations that are automatically applied:
 
 ```bash
-# Install CMS with automatic DB setup
+# Recommended: One-command install with automatic setup
 pnpm spfn add @spfn/cms
+
+# Alternative: Manual control
+pnpm add @spfn/cms        # Install package
+pnpm spfn db push         # Apply migrations (dev)
+# Or in production:
+pnpm spfn db migrate      # Apply migrations (production)
 ```
 
-**What happens automatically:**
+**What happens with `spfn add`:**
 - ✅ Function installation via pnpm/npm
-- ✅ Database schema discovery from function
-- ✅ Migration generation for function tables
-- ✅ Migration application to your database
-- ✅ Setup guide display with next steps
+- ✅ Pre-generated migrations applied automatically
+- ✅ Automatic schema creation (e.g., `spfn_cms`)
+- ✅ Routes auto-discovered from function
+- ✅ Setup guide displayed
 
 **Example output:**
 ```bash
 📦 Setting up @spfn/cms...
+
+✓ Package installed
+
 🗄️  Setting up database for @spfn/cms...
 
-6 tables
-cms_labels           10 columns 2 indexes
-cms_label_values      7 columns 2 indexes 1 fks
-cms_label_versions    9 columns 2 indexes 1 fks
-cms_draft_cache       6 columns 2 indexes
-cms_published_cache   7 columns 1 indexes
-cms_audit_logs        8 columns 4 indexes 1 fks
-
-✔ Migration generated
-✔ Migration applied
+  📦 Running @spfn/cms migrations...
+  ✓ @spfn/cms migrations applied
 
 ✅ @spfn/cms installed successfully!
+
+# 6 tables created:
+# - spfn_cms.labels
+# - spfn_cms.label_values
+# - spfn_cms.label_versions
+# - spfn_cms.draft_cache
+# - spfn_cms.published_cache
+# - spfn_cms.audit_logs
 ```
 
 ### Create Your Own Functions
 
-Third-party functions can integrate with SPFN's schema discovery system:
+Third-party functions can include pre-generated migrations:
 
 ```json
 {
   "name": "@mycompany/spfn-analytics",
   "spfn": {
     "schemas": ["./dist/entities/*.js"],
+    "routes": {
+      "dir": "./dist/routes"
+    },
+    "migrations": {
+      "dir": "./migrations"
+    },
     "setupMessage": "📚 Next steps:\n  1. Import analytics: import { trackEvent } from '@mycompany/spfn-analytics'\n  2. Learn more: https://docs.example.com"
-  }
+  },
+  "files": ["dist", "migrations"]
 }
 ```
 
 Users install with:
 ```bash
+# Recommended
 pnpm spfn add @mycompany/spfn-analytics
+
+# Or manually
+pnpm add @mycompany/spfn-analytics
+pnpm spfn db push
 ```
 
 **How it works:**
-- Functions self-declare their database schemas and routes in `package.json`
-- No hard dependencies between functions
-- SPFN auto-discovers schemas and routes from installed functions
+- Functions self-declare schemas, routes, and migrations in `package.json`
+- Pre-generated migrations bundled with package
+- No file copying - migrations executed directly from `node_modules`
+- Automatic schema creation (e.g., `CREATE SCHEMA IF NOT EXISTS`)
+- SPFN auto-discovers and applies function migrations
 - Supports both npm packages and local development
 
 **Learn more:**

@@ -9,7 +9,7 @@
 
 import { serial, integer, text, timestamp, index, unique } from 'drizzle-orm/pg-core';
 import { createFunctionSchema } from '@spfn/core/db';
-import { cmsLabels } from './cms-labels.js';
+import { cmsLabels } from '@/entities/cms-labels';
 
 // Create isolated schema for @spfn/cms
 const schema = createFunctionSchema('@spfn/cms');

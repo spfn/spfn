@@ -6,8 +6,8 @@
 
 import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
-import { cmsLabelsRepository, cmsLabelValuesRepository } from '../../../repositories/index.js';
-import { saveValuesContract } from './contract.js';
+import { cmsLabelsRepository, cmsLabelValuesRepository } from '@/repositories';
+import { saveValuesContract } from '@/contracts/values';
 
 const app = createApp();
 

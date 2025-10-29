@@ -4,7 +4,7 @@ import type { RouteContract } from '@spfn/core/route';
 /**
  * Teams Contracts
  *
- * Test contracts for dynamic parameter bug fix
+ * Example contracts with absolute paths for new contract system
  */
 
 const TeamSchema = Type.Object({
@@ -18,7 +18,7 @@ const TeamSchema = Type.Object({
  */
 export const getTeamsContract = {
     method: 'GET' as const,
-    path: '/',
+    path: '/teams',  // ← Absolute path!
     response: Type.Object({
         teams: Type.Array(TeamSchema),
         total: Type.Number(),
@@ -30,7 +30,7 @@ export const getTeamsContract = {
  */
 export const getTeamContract = {
     method: 'GET' as const,
-    path: '/:id',
+    path: '/teams/:id',  // ← Absolute path!
     params: Type.Object({
         id: Type.Integer()
     }),
@@ -42,7 +42,7 @@ export const getTeamContract = {
  */
 export const createTeamContract = {
     method: 'POST' as const,
-    path: '/',
+    path: '/teams',  // ← Absolute path!
     body: Type.Object({
         name: Type.String(),
         slug: Type.String(),
@@ -55,7 +55,7 @@ export const createTeamContract = {
  */
 export const updateTeamContract = {
     method: 'PUT' as const,
-    path: '/:id',
+    path: '/teams/:id',  // ← Absolute path!
     params: Type.Object({
         id: Type.Integer()
     }),
@@ -71,7 +71,7 @@ export const updateTeamContract = {
  */
 export const deleteTeamContract = {
     method: 'DELETE' as const,
-    path: '/:id',
+    path: '/teams/:id',  // ← Absolute path!
     params: Type.Object({
         id: Type.Integer()
     }),

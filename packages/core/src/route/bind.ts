@@ -81,7 +81,8 @@ export function bind<TContract extends RouteContract>(
             }
         }
 
-        const routeContext: RouteContext<TContract> = {
+        const routeContext: RouteContext<TContract> =
+        {
             params: params as InferContract<TContract>['params'],
             query: query as InferContract<TContract>['query'],
 

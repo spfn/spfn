@@ -1,6 +1,6 @@
 {
   "name": "@spfn/cms",
-  "version": "0.1.0-alpha.12",
+  "version": "0.1.0-alpha.60",
   "description": "SPFN CMS - Content Management System with type-safe labels and Next.js integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -59,12 +59,14 @@
   },
   "files": [
     "dist",
+    "migrations",
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
-    "clean": "rm -rf dist"
+    "build": "npm run db:generate && tsup",
+    "watch": "tsup --watch",
+    "clean": "rm -rf dist migrations",
+    "db:generate": "drizzle-kit generate && tsx scripts/post-generate.ts"
   },
   "keywords": [
     "spfn",
@@ -86,8 +88,10 @@
       "./dist/entities/*.js"
     ],
     "routes": {
-      "basePath": "/cms",
       "dir": "./dist/routes"
+    },
+    "migrations": {
+      "dir": "./migrations"
     },
     "setupMessage": "  📚 Next steps:\n    1. Import CMS components: import { useLabels } from '@spfn/cms'\n    2. View labels in Drizzle Studio: pnpm spfn db studio\n    3. CMS API available at: http://localhost:8790/cms\n    4. Learn more: https://github.com/spfnio/spfn"
   },
@@ -104,8 +108,11 @@
   },
   "devDependencies": {
     "@types/react": "^19",
+    "drizzle-kit": "^0.31.6",
     "drizzle-typebox": "^0.1.0",
+    "glob": "^11.0.3",
     "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
     "typescript": "^5"
   }
 }

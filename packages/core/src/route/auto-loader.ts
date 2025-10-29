@@ -62,16 +62,14 @@ type RouteModule = {
 export class AutoRouteLoader
 {
     private routes: RouteInfo[] = [];
-    private registeredRoutes = new Map<string, string>();
-    private debug: boolean;
+    private readonly debug: boolean;
     private readonly middlewares: Array<{ name: string; handler: MiddlewareHandler }>;
 
     constructor(
         private routesDir: string,
         debug = false,
         middlewares: Array<{ name: string; handler: MiddlewareHandler }> = []
-    )
-    {
+    ) {
         this.debug = debug;
         this.middlewares = middlewares;
     }
@@ -88,24 +86,12 @@ export class AutoRouteLoader
             return this.getStats();
         }
 
-        const filesWithPriority = files.map(file => ({
-            path: file,
-            priority: this.calculatePriority(relative(this.routesDir, file)),
-        }));
-
-        filesWithPriority.sort((a, b) => a.priority - b.priority);
-
-        if (this.debug)
-        {
-            this.logRegistrationOrder(filesWithPriority);
-        }
-
         let successCount = 0;
         let failureCount = 0;
 
-        for (const { path } of filesWithPriority)
+        for (const file of files)
         {
-            const success = await this.loadRoute(app, path);
+            const success = await this.loadRoute(app, file);
             if (success)
             {
                 successCount++;
@@ -133,10 +119,15 @@ export class AutoRouteLoader
     }
 
     /**
-     * Load routes from a directory and mount with basePath prefix
-     * Used for loading function routes
+     * Load routes from an external directory (e.g., from SPFN function packages)
+     * Routes use contract-based absolute paths, so no basePath prefix needed
+     *
+     * @param app - Hono app instance
+     * @param routesDir - Directory containing route handlers
+     * @param packageName - Name of the package (for logging)
+     * @returns Route statistics
      */
-    async loadWithBasePath(app: Hono, routesDir: string, basePath: string): Promise<RouteStats>
+    async loadExternalRoutes(app: Hono, routesDir: string, packageName: string): Promise<RouteStats>
     {
         const startTime = Date.now();
         const tempRoutesDir = this.routesDir;
@@ -146,27 +137,19 @@ export class AutoRouteLoader
 
         if (files.length === 0)
         {
-            routeLogger.warn('No route files found', { dir: routesDir });
+            routeLogger.warn('No route files found', { dir: routesDir, package: packageName });
             this.routesDir = tempRoutesDir;
             return this.getStats();
         }
 
-        const filesWithPriority = files.map(file => ({
-            path: file,
-            priority: this.calculatePriority(relative(routesDir, file)),
-        }));
-
-        filesWithPriority.sort((a, b) => a.priority - b.priority);
-
-        // Create sub-app for this basePath
-        const subApp = new Hono();
-
         let successCount = 0;
         let failureCount = 0;
 
-        for (const { path } of filesWithPriority)
+        // Load routes directly to main app (no basePath prefix)
+        // Routes use absolute paths from contracts
+        for (const file of files)
         {
-            const success = await this.loadRoute(subApp, path);
+            const success = await this.loadRoute(app, file);
             if (success)
             {
                 successCount++;
@@ -177,15 +160,12 @@ export class AutoRouteLoader
             }
         }
 
-        // Mount sub-app to main app
-        app.route(basePath, subApp);
-
         const elapsed = Date.now() - startTime;
 
         if (this.debug)
         {
-            routeLogger.info('Function routes loaded', {
-                basePath,
+            routeLogger.info('External routes loaded', {
+                package: packageName,
                 total: successCount,
                 failed: failureCount,
                 elapsed: `${elapsed}ms`,
@@ -247,24 +227,9 @@ export class AutoRouteLoader
 
     private isValidRouteFile(fileName: string): boolean
     {
-        const isTypeScriptFile = (
-            fileName.endsWith('.ts') &&
-            !fileName.endsWith('.test.ts') &&
-            !fileName.endsWith('.spec.ts') &&
-            !fileName.endsWith('.d.ts') &&
-            fileName !== 'contract.ts'
-        );
-
-        const isJavaScriptFile = (
-            fileName.endsWith('.js') &&
-            !fileName.endsWith('.test.js') &&
-            !fileName.endsWith('.spec.js') &&
-            !fileName.endsWith('.d.js') &&
-            fileName !== 'contract.js' &&
-            !fileName.endsWith('.map')
-        );
-
-        return isTypeScriptFile || isJavaScriptFile;
+        // Strict convention: Only index.ts or index.js files are route handlers
+        // This prevents accidental loading of utility files, helpers, types, etc.
+        return fileName === 'index.ts' || fileName === 'index.js';
     }
 
     private async loadRoute(app: Hono, absolutePath: string): Promise<boolean>
@@ -280,41 +245,42 @@ export class AutoRouteLoader
                 return false;
             }
 
-            const urlPath = this.fileToPath(relativePath);
-            const priority = this.calculatePriority(relativePath);
+            // Contract-based routing: Use contract paths directly
+            const hasContractMetas = module.default._contractMetas && module.default._contractMetas.size > 0;
 
-            if (!this.checkRouteConflict(urlPath, relativePath))
+            if (!hasContractMetas)
             {
+                routeLogger.error('Route must use contract-based routing', {
+                    file: relativePath,
+                    hint: 'Export contracts using satisfies RouteContract and use app.bind()'
+                });
                 return false;
             }
 
-            this.registeredRoutes.set(this.normalizePath(urlPath), relativePath);
+            // Extract paths from contract metas for logging and stats
+            const contractPaths = this.extractContractPaths(module);
 
-            const hasContractMetas = module.default._contractMetas && module.default._contractMetas.size > 0;
+            // Register contract-based middlewares
+            this.registerContractBasedMiddlewares(app, contractPaths, module);
 
-            if (hasContractMetas)
-            {
-                this.registerContractBasedMiddlewares(app, urlPath, module);
-            }
-            else
-            {
-                this.registerFileBasedMiddlewares(app, urlPath, module);
-            }
+            // Mount without basePath - contracts use absolute paths
+            app.route('/', module.default);
 
-            app.route(urlPath, module.default);
+            // Track routes for stats
+            contractPaths.forEach(path => {
+                this.routes.push({
+                    path,
+                    file: relativePath,
+                    meta: module.meta,
+                    priority: this.calculateContractPriority(path),
+                });
 
-            this.routes.push({
-                path: urlPath,
-                file: relativePath,
-                meta: module.meta,
-                priority,
+                if (this.debug)
+                {
+                    const icon = path.includes('*') ? '⭐' : path.includes(':') ? '🔸' : '🔹';
+                    routeLogger.debug(`Registered route: ${path}`, { icon, file: relativePath });
+                }
             });
-
-            if (this.debug)
-            {
-                const icon = priority === 1 ? '🔹' : priority === 2 ? '🔸' : '⭐';
-                routeLogger.debug(`Registered route: ${urlPath}`, { icon, file: relativePath });
-            }
 
             return true;
         }
@@ -323,6 +289,33 @@ export class AutoRouteLoader
             this.categorizeAndLogError(error as Error, relativePath);
             return false;
         }
+    }
+
+    private extractContractPaths(module: RouteModule): string[]
+    {
+        const paths = new Set<string>();
+
+        if (module.default._contractMetas)
+        {
+            for (const key of module.default._contractMetas.keys())
+            {
+                // key format: "GET /teams/:id"
+                const path = key.split(' ')[1];
+                if (path)
+                {
+                    paths.add(path);
+                }
+            }
+        }
+
+        return Array.from(paths);
+    }
+
+    private calculateContractPriority(path: string): number
+    {
+        if (path.includes('*')) return 3;  // Catch-all
+        if (path.includes(':')) return 2;  // Dynamic
+        return 1;  // Static
     }
 
     private validateModule(module: RouteModule, relativePath: string): boolean
@@ -342,39 +335,15 @@ export class AutoRouteLoader
         return true;
     }
 
-    private checkRouteConflict(urlPath: string, relativePath: string): boolean
+    private registerContractBasedMiddlewares(app: Hono, contractPaths: string[], module: RouteModule): void
     {
-        const normalizedPath = this.normalizePath(urlPath);
-        const existingFile = this.registeredRoutes.get(normalizedPath);
-
-        if (existingFile)
-        {
-            routeLogger.warn('Route conflict detected', {
-                path: urlPath,
-                normalizedPath,
-                existingFile,
-                attemptedBy: relativePath,
-            });
-            return false;
-        }
-
-        return true;
-    }
-
-    private registerContractBasedMiddlewares(app: Hono, urlPath: string, module: RouteModule): void
-    {
-        const middlewarePath = urlPath === '/' ? '/*' : `${urlPath}/*`;
-
-        app.use(middlewarePath, (c, next) =>
+        // Register middleware checker for all contract paths
+        app.use('*', (c, next) =>
         {
             const method = c.req.method;
             const requestPath = new URL(c.req.url).pathname;
 
-            const relativePath = requestPath.startsWith(urlPath)
-                ? requestPath.slice(urlPath.length) || '/'
-                : requestPath;
-
-            const key = `${method} ${relativePath}`;
+            const key = `${method} ${requestPath}`;
             const meta = module.default._contractMetas?.get(key);
 
             if (meta?.skipMiddlewares)
@@ -385,31 +354,25 @@ export class AutoRouteLoader
             return next();
         });
 
-        for (const middleware of this.middlewares)
+        // Register middlewares for each contract path
+        for (const contractPath of contractPaths)
         {
-            app.use(middlewarePath, async (c, next) =>
+            const middlewarePath = contractPath === '/' ? '/*' : `${contractPath}/*`;
+
+            for (const middleware of this.middlewares)
             {
-                const skipList = c.get('_skipMiddlewares') || [];
-
-                if (skipList.includes(middleware.name))
+                app.use(middlewarePath, async (c, next) =>
                 {
-                    return next();
-                }
+                    const skipList = c.get('_skipMiddlewares') || [];
 
-                return middleware.handler(c, next);
-            });
-        }
-    }
+                    if (skipList.includes(middleware.name))
+                    {
+                        return next();
+                    }
 
-    private registerFileBasedMiddlewares(app: Hono, urlPath: string, module: RouteModule): void
-    {
-        const skipList = module.meta?.skipMiddlewares || [];
-        const activeMiddlewares = this.middlewares
-            .filter(m => !skipList.includes(m.name));
-
-        for (const middleware of activeMiddlewares)
-        {
-            app.use(urlPath, middleware.handler);
+                    return middleware.handler(c, next);
+                });
+            }
         }
     }
 
@@ -452,59 +415,6 @@ export class AutoRouteLoader
                 ...(this.debug && stack && { stack }),
             });
         }
-    }
-
-    private fileToPath(filePath: string): string
-    {
-        let path = filePath.replace(/\.(ts|js)$/, '');
-
-        const segments = path.split('/');
-
-        if (segments[segments.length - 1] === 'index')
-        {
-            segments.pop();
-        }
-
-        const transformed = segments.map(seg =>
-        {
-            if (/^\[\.\.\.[\w-]+]$/.test(seg))
-            {
-                return '*';
-            }
-            if (/^\[[\w-]+]$/.test(seg))
-            {
-                return ':' + seg.slice(1, -1);
-            }
-            if (seg === 'index')
-            {
-                return null;
-            }
-            return seg;
-        }).filter(seg => seg !== null);
-
-        const result = '/' + transformed.join('/');
-        return result.replace(/\/+/g, '/').replace(/\/$/, '') || '/';
-    }
-
-    private calculatePriority(path: string): number
-    {
-        if (/\[\.\.\.[\w-]+]/.test(path)) return 3;
-        if (/\[[\w-]+]/.test(path)) return 2;
-        return 1;
-    }
-
-    private normalizePath(path: string): string
-    {
-        return path.replace(/:\w+/g, ':param');
-    }
-
-    private logRegistrationOrder(filesWithPriority: Array<{ path: string; priority: number }>): void
-    {
-        routeLogger.debug('Route Registration Order', {
-            static: filesWithPriority.filter(f => f.priority === 1).length,
-            dynamic: filesWithPriority.filter(f => f.priority === 2).length,
-            catchAll: filesWithPriority.filter(f => f.priority === 3).length,
-        });
     }
 
     private logStats(stats: RouteStats, elapsed: number): void
@@ -558,10 +468,10 @@ export async function loadRoutes(
             {
                 try
                 {
-                    await loader.loadWithBasePath(app, func.routesDir, func.basePath);
+                    await loader.loadExternalRoutes(app, func.routesDir, func.packageName);
                     routeLogger.info('Function routes loaded', {
                         package: func.packageName,
-                        basePath: func.basePath,
+                        routesDir: func.routesDir,
                     });
                 }
                 catch (error)

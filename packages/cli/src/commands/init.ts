@@ -146,41 +146,8 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
 
             ensureDirSync(targetDir);
 
-            // Copy all template files
+            // Copy all template files (includes tsconfig.json and tsup.config.ts)
             copySync(serverTemplateDir, targetDir);
-
-            // Create tsconfig.json for server
-            const serverTsconfigPath = join(targetDir, 'tsconfig.json');
-            const serverTsconfig = {
-                compilerOptions: {
-                    target: 'ES2020',
-                    lib: ['ES2020', 'WebWorker'],
-                    module: 'ESNext',
-                    moduleResolution: 'bundler',
-                    esModuleInterop: true,
-                    skipLibCheck: true,
-                    allowSyntheticDefaultImports: true,
-                    strict: true,
-                    forceConsistentCasingInFileNames: true,
-                    resolveJsonModule: true,
-                    isolatedModules: true,
-                    allowJs: true,
-                    resolvePackageJsonExports: true,
-                    resolvePackageJsonImports: true,
-                    declaration: true,
-                    sourceMap: true,
-                    outDir: '../../.spfn/server',
-                    rootDir: '.',
-                    baseUrl: '.'
-                },
-                include: [
-                    './**/*'
-                ],
-                exclude: [
-                    '../../node_modules'
-                ]
-            };
-            writeFileSync(serverTsconfigPath, JSON.stringify(serverTsconfig, null, 2));
 
             spinner.succeed('Server structure created');
         }
@@ -422,8 +389,10 @@ export default {
 
         // Add SPFN dev dependencies (fixes Issue #2)
         // - tsx: TypeScript executor for development (spfn dev)
+        // - tsup: TypeScript bundler for server build with @/ alias support
         packageJson.devDependencies['@types/node'] = '^20.11.0';
         packageJson.devDependencies['tsx'] = '^4.20.6';
+        packageJson.devDependencies['tsup'] = '^8.5.0';
         packageJson.devDependencies['drizzle-kit'] = '^0.31.5';
         packageJson.devDependencies['dotenv'] = '^17.2.3';
 

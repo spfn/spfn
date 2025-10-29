@@ -1,16 +1,14 @@
-version: '3.8'
-
 services:
   # PostgreSQL
   postgres:
     image: postgres:16-alpine
-    container_name: spfn-postgres
+    container_name: basic-app-postgres
     environment:
       POSTGRES_USER: spfn
       POSTGRES_PASSWORD: spfn
       POSTGRES_DB: spfn_dev
     ports:
-      - '5432:5432'
+      - '5434:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,9 +20,9 @@ services:
   # Redis
   redis:
     image: redis:7-alpine
-    container_name: spfn-redis
+    container_name: basic-app-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -40,4 +38,4 @@ volumes:
 
 networks:
   default:
-    name: spfn-network
+    name: basic-app-network

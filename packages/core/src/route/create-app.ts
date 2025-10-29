@@ -56,11 +56,9 @@ export function createApp(): SPFNApp
             ? [[], args[0]]
             : [args[0], args[1]];
 
-        if (contract.meta)
-        {
-            const key = `${contract.method} ${path}`;
-            app._contractMetas!.set(key, contract.meta);
-        }
+        // Always register contract (even without meta) so auto-loader can detect contract-based routing
+        const key = `${contract.method} ${path}`;
+        app._contractMetas!.set(key, contract.meta || {});
 
         const boundHandler = bind(contract, handler);
         const handlers = middlewares.length > 0

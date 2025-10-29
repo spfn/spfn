@@ -5,7 +5,7 @@
  */
 
 import { createApp } from '@spfn/core/route';
-import { rootContract } from './contract.js';
+import { rootContract } from '@/lib/contracts/index';
 
 const app = createApp();
 

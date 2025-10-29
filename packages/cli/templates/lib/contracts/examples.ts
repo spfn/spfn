@@ -4,7 +4,7 @@ import type { RouteContract } from '@spfn/core/route';
 /**
  * Example Contracts
  *
- * Demonstrates various contract patterns
+ * Demonstrates SPFN's contract-based routing with absolute paths
  */
 
 /**
@@ -12,14 +12,14 @@ import type { RouteContract } from '@spfn/core/route';
  */
 export const getExamplesContract = {
     method: 'GET' as const,
-    path: '/',
+    path: '/examples',  // ← Absolute path
     query: Type.Object({
         limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
         offset: Type.Optional(Type.Number({ minimum: 0 }))
     }),
     response: Type.Object({
         examples: Type.Array(Type.Object({
-            id: Type.Integer(),
+            id: Type.String(),
             name: Type.String(),
             description: Type.String()
         })),
@@ -36,14 +36,14 @@ export const getExamplesContract = {
  */
 export const getExampleContract = {
     method: 'GET' as const,
-    path: '/:id',
+    path: '/examples/:id',  // ← Absolute path with parameter
     params: Type.Object({
         id: Type.Integer({ minimum: 1 })  // Auto-converts string to number
     }),
     response: Type.Union([
         // Success response (200)
         Type.Object({
-            id: Type.Integer(),
+            id: Type.Number(),
             name: Type.String(),
             description: Type.String(),
             createdAt: Type.Number(),
@@ -62,13 +62,13 @@ export const getExampleContract = {
  */
 export const createExampleContract = {
     method: 'POST' as const,
-    path: '/',
+    path: '/examples',  // ← Absolute path
     body: Type.Object({
         name: Type.String(),
         description: Type.String()
     }),
     response: Type.Object({
-        id: Type.Integer(),
+        id: Type.String(),
         name: Type.String(),
         description: Type.String(),
         createdAt: Type.Number()
@@ -80,16 +80,16 @@ export const createExampleContract = {
  */
 export const updateExampleContract = {
     method: 'PUT' as const,
-    path: '/:id',
+    path: '/examples/:id',  // ← Absolute path with parameter
     params: Type.Object({
-        id: Type.Integer({ minimum: 1 })
+        id: Type.String()
     }),
     body: Type.Object({
         name: Type.Optional(Type.String()),
         description: Type.Optional(Type.String())
     }),
     response: Type.Object({
-        id: Type.Integer(),
+        id: Type.String(),
         name: Type.String(),
         description: Type.String(),
         updatedAt: Type.Number()
@@ -101,12 +101,12 @@ export const updateExampleContract = {
  */
 export const deleteExampleContract = {
     method: 'DELETE' as const,
-    path: '/:id',
+    path: '/examples/:id',  // ← Absolute path with parameter
     params: Type.Object({
-        id: Type.Integer({ minimum: 1 })
+        id: Type.String()
     }),
     response: Type.Object({
         success: Type.Boolean(),
-        id: Type.Integer()
+        id: Type.String()
     })
 } as const satisfies RouteContract;

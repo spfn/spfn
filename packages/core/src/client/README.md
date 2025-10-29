@@ -7,10 +7,12 @@ Type-safe HTTP client with end-to-end type safety using RouteContract.
 - ✅ **End-to-End Type Safety**: Full TypeScript inference from server contracts
 - ✅ **Contract-based**: Shares types with server routes via RouteContract
 - ✅ **Zero Runtime Validation**: Types only, no schema validation overhead
-- ✅ **Path Parameters**: Automatic `:id` substitution
+- ✅ **Absolute Paths**: Contracts define their own URL paths
+- ✅ **Path Parameters**: Automatic `:id` substitution from contract.path
 - ✅ **Query Parameters**: Support for strings, numbers, arrays
 - ✅ **Timeout Control**: Built-in AbortController with configurable timeout
 - ✅ **Error Handling**: Structured ApiClientError with status codes
+- ✅ **Request Interceptors**: Add authentication, logging, etc.
 - ✅ **Next.js Safe**: No server dependencies, safe for client components
 - ✅ **Minimal**: Uses native `fetch` API, zero dependencies
 
@@ -28,7 +30,7 @@ pnpm install @spfn/core
 
 ```typescript
 import { createClient } from '@spfn/core/client';
-import { getUserContract, createUserContract } from './contracts';
+import { getUserContract, createUserContract } from '@/lib/contracts/users';
 
 // Create client instance
 const client = createClient({
@@ -36,17 +38,19 @@ const client = createClient({
 });
 
 // GET request - fully typed from contract
-const user = await client.call('/users/:id', getUserContract, {
+const user = await client.call(getUserContract, {
   params: { id: '123' }
 });
 // ✅ user.name is typed based on contract.response
+// ✅ URL is /users/123 from contract.path: '/users/:id'
 
 // POST request - body and response typed
-const newUser = await client.call('/users', createUserContract, {
+const newUser = await client.call(createUserContract, {
   body: { name: 'John', email: 'john@example.com' }
 });
 // ✅ TypeScript validates body matches contract.body
 // ✅ newUser is typed from contract.response
+// ✅ URL is /users from contract.path: '/users'
 ```
 
 ---
@@ -55,14 +59,16 @@ const newUser = await client.call('/users', createUserContract, {
 
 ### Contract-based Type Safety
 
-The client integrates with your server-side `RouteContract` definitions for full type safety:
+The client integrates with your server-side `RouteContract` definitions for full type safety. Contracts **must** be in `src/lib/contracts/` with absolute paths:
 
 ```typescript
-// contracts/users.ts - Shared between client and server
+// src/lib/contracts/users.ts - Shared between client and server
 import { Type } from '@sinclair/typebox';
 import type { RouteContract } from '@spfn/core/route';
 
 export const getUserContract = {
+  method: 'GET' as const,
+  path: '/users/:id',  // ← Absolute path with parameter
   params: Type.Object({
     id: Type.String()
   }),
@@ -74,6 +80,8 @@ export const getUserContract = {
 } as const satisfies RouteContract;
 
 export const createUserContract = {
+  method: 'POST' as const,
+  path: '/users',  // ← Absolute path
   body: Type.Object({
     name: Type.String(),
     email: Type.String()
@@ -87,25 +95,27 @@ export const createUserContract = {
 ```
 
 ```typescript
-// client code - Full type safety
+// Client code - Full type safety
 import { createClient } from '@spfn/core/client';
-import { getUserContract, createUserContract } from './contracts';
+import { getUserContract, createUserContract } from '@/lib/contracts/users';
 
 const client = createClient();
 
 // TypeScript knows the exact shape of user
-const user = await client.call('/users/:id', getUserContract, {
+const user = await client.call(getUserContract, {
   params: { id: '123' }
 });
+// URL: GET /users/123 (from contract.path: '/users/:id')
 
 console.log(user.name); // ✅ TypeScript knows user.name is string
 console.log(user.unknown); // ❌ TypeScript error - property doesn't exist
 
 // TypeScript validates body structure
-const newUser = await client.call('/users', createUserContract, {
+const newUser = await client.call(createUserContract, {
   body: { name: 'John', email: 'john@example.com' } // ✅ Correct
   // body: { name: 123 } // ❌ TypeScript error - wrong type
 });
+// URL: POST /users (from contract.path: '/users')
 ```
 
 ### Environment Configuration
@@ -154,25 +164,25 @@ const client = createClient({
 
 ---
 
-### `client.call(path, contract, options?)`
+### `client.call(contract, options?)`
 
-Makes a type-safe API request using a contract.
+Makes a type-safe API request using a contract. The URL is determined by `contract.path`.
 
 ```typescript
-const user = await client.call('/users/:id', getUserContract, {
+const user = await client.call(getUserContract, {
   params: { id: '123' },
   query: { include: 'posts' },
   headers: { 'Authorization': 'Bearer token' }
 });
+// URL: GET /users/123?include=posts (from contract.path: '/users/:id')
 ```
 
 **Parameters:**
 
-- `path: string` - API endpoint (supports `:param` placeholders)
-- `contract: RouteContract` - Route contract defining request/response types
+- `contract: RouteContract` - Route contract defining path, method, and types
 - `options?: CallOptions<TContract>` - Request options
-  - `params?: Record<string, string | number>` - Path parameters for `:id` substitution
-  - `query?: Record<string, string | string[] | number | boolean>` - Query parameters
+  - `params?: InferContract<TContract>['params']` - Path parameters for `:id` substitution
+  - `query?: InferContract<TContract>['query']` - Query parameters
   - `body?: InferContract<TContract>['body']` - Request body (typed from contract)
   - `headers?: Record<string, string>` - Additional headers for this request
   - `baseUrl?: string` - Override base URL for this request
@@ -180,6 +190,39 @@ const user = await client.call('/users/:id', getUserContract, {
 **Returns:** `Promise<InferContract<TContract>['response']>` - Typed response data
 
 **Throws:** `ApiClientError` if response is not OK (status >= 400)
+
+**Key Changes:**
+- ✅ No more `path` parameter - URL comes from `contract.path`
+- ✅ Contracts must use absolute paths (e.g., `/users/:id`)
+- ✅ Cleaner API: `client.call(contract, options)` instead of `client.call(path, contract, options)`
+
+---
+
+### `client.use(interceptor)`
+
+Adds a request interceptor. Interceptors can modify requests before they're sent.
+
+```typescript
+client.use(async (url, init) => {
+  const token = await getAuthToken();
+  return {
+    ...init,
+    headers: {
+      ...init.headers,
+      Authorization: `Bearer ${token}`
+    }
+  };
+});
+```
+
+**Parameters:**
+
+- `interceptor: RequestInterceptor` - Function that receives and can modify request
+  - `url: string` - Full request URL
+  - `init: RequestInit` - Fetch init object
+  - Returns: `RequestInit` or `Promise<RequestInit>`
+
+Interceptors are executed in the order they are added.
 
 ---
 
@@ -196,7 +239,9 @@ const authClient = baseClient.withConfig({
 });
 
 // authClient inherits baseUrl and adds Authorization header
-const user = await authClient.call('/users/me', getUserContract);
+const user = await authClient.call(getUserContract, {
+  params: { id: 'me' }
+});
 ```
 
 **Parameters:**
@@ -213,27 +258,48 @@ Error class for failed API requests.
 
 ```typescript
 try {
-  const user = await client.call('/users/:id', getUserContract, {
+  const user = await client.call(getUserContract, {
     params: { id: '999' }
   });
 } catch (error) {
   if (error instanceof ApiClientError) {
     console.log(error.status);      // 404
-    console.log(error.statusText);  // "Not Found"
     console.log(error.url);         // "http://localhost:4000/users/999"
     console.log(error.response);    // Error body from server
-    console.log(error.message);     // "GET /users/999 failed: 404 Not Found"
+    console.log(error.errorType);   // 'http' | 'network' | 'timeout'
+    console.log(error.message);     // "GET /users/:id failed: 404 Not Found"
   }
 }
 ```
 
 **Properties:**
 
-- `status: number` - HTTP status code (0 for network errors)
-- `statusText: string` - HTTP status text
+- `status: number` - HTTP status code (0 for network/timeout errors)
 - `url: string` - Full URL that was requested
 - `response?: unknown` - Parsed error response body (if available)
+- `errorType?: 'http' | 'network' | 'timeout'` - Error classification
 - `message: string` - Human-readable error message
+
+**Type Guards:**
+
+```typescript
+import { isHttpError, isNetworkError, isTimeoutError } from '@spfn/core/client';
+
+try {
+  const data = await client.call(contract, options);
+} catch (error) {
+  if (isHttpError(error)) {
+    // HTTP error (4xx, 5xx)
+    console.log('Status:', error.status);
+  } else if (isNetworkError(error)) {
+    // Network connectivity issue
+    console.log('Network error');
+  } else if (isTimeoutError(error)) {
+    // Request timed out
+    console.log('Timeout');
+  }
+}
+```
 
 ---
 
@@ -241,23 +307,40 @@ try {
 
 ### Path Parameter Substitution
 
-Automatic replacement of `:param` placeholders:
+Automatic replacement of `:param` placeholders from `contract.path`:
 
 ```typescript
 // Single parameter
-await client.call('/users/:id', contract, {
+const getUserContract = {
+  method: 'GET' as const,
+  path: '/users/:id',  // ← Path defined in contract
+  params: Type.Object({ id: Type.String() }),
+  response: UserSchema
+} as const satisfies RouteContract;
+
+await client.call(getUserContract, {
   params: { id: '123' }
 });
 // → GET http://localhost:4000/users/123
 
 // Multiple parameters
-await client.call('/users/:userId/posts/:postId', contract, {
+const getPostContract = {
+  method: 'GET' as const,
+  path: '/users/:userId/posts/:postId',  // ← Multiple params in path
+  params: Type.Object({
+    userId: Type.String(),
+    postId: Type.String()
+  }),
+  response: PostSchema
+} as const satisfies RouteContract;
+
+await client.call(getPostContract, {
   params: { userId: '123', postId: '456' }
 });
 // → GET http://localhost:4000/users/123/posts/456
 
 // Number parameters (auto-converted to string)
-await client.call('/users/:id', contract, {
+await client.call(getUserContract, {
   params: { id: 123 }
 });
 // → GET http://localhost:4000/users/123
@@ -271,19 +354,38 @@ Supports strings, numbers, booleans, and arrays:
 
 ```typescript
 // Simple query parameters
-await client.call('/users', listUsersContract, {
+const listUsersContract = {
+  method: 'GET' as const,
+  path: '/users',
+  query: Type.Object({
+    page: Type.String(),
+    limit: Type.String()
+  }),
+  response: UsersListSchema
+} as const satisfies RouteContract;
+
+await client.call(listUsersContract, {
   query: { page: '1', limit: '10' }
 });
 // → GET /users?page=1&limit=10
 
 // Array query parameters
-await client.call('/posts', listPostsContract, {
+const listPostsContract = {
+  method: 'GET' as const,
+  path: '/posts',
+  query: Type.Object({
+    tags: Type.Array(Type.String())
+  }),
+  response: PostsListSchema
+} as const satisfies RouteContract;
+
+await client.call(listPostsContract, {
   query: { tags: ['javascript', 'typescript'] }
 });
 // → GET /posts?tags=javascript&tags=typescript
 
 // Mixed types
-await client.call('/posts', listPostsContract, {
+await client.call(listPostsContract, {
   query: {
     page: 1,              // number
     featured: true,       // boolean
@@ -304,6 +406,8 @@ import { Type } from '@sinclair/typebox';
 import type { RouteContract } from '@spfn/core/route';
 
 const createUserContract = {
+  method: 'POST' as const,
+  path: '/users',
   body: Type.Object({
     name: Type.String(),
     email: Type.String(),
@@ -316,7 +420,7 @@ const createUserContract = {
 } as const satisfies RouteContract;
 
 // TypeScript validates body structure
-const user = await client.call('/users', createUserContract, {
+const user = await client.call(createUserContract, {
   body: {
     name: 'John Doe',
     email: 'john@example.com',
@@ -326,6 +430,7 @@ const user = await client.call('/users', createUserContract, {
 // ✅ Body is validated by TypeScript
 // ✅ Automatically sets Content-Type: application/json
 // ✅ Automatically JSON.stringify()
+// URL: POST /users (from contract.path)
 ```
 
 ---
@@ -342,7 +447,8 @@ const client = createClient({
 });
 
 // Override or add headers per request
-await client.call('/users', contract, {
+await client.call(getUserContract, {
+  params: { id: '123' },
   headers: {
     'X-Request-ID': 'abc123',
     'Authorization': 'Bearer token'
@@ -363,9 +469,9 @@ const client = createClient({ timeout: 30000 });
 const fastClient = createClient({ timeout: 5000 }); // 5 seconds
 
 try {
-  const data = await fastClient.call('/slow-endpoint', contract);
+  const data = await fastClient.call(slowEndpointContract);
 } catch (error) {
-  if (error instanceof ApiClientError && error.statusText === 'Timeout') {
+  if (isTimeoutError(error)) {
     console.log('Request timed out after 5 seconds');
   }
 }
@@ -376,14 +482,14 @@ try {
 ### Error Handling
 
 ```typescript
-import { ApiClientError } from '@spfn/core/client';
+import { ApiClientError, isHttpError, isNetworkError, isTimeoutError } from '@spfn/core/client';
 
 try {
-  const user = await client.call('/users/:id', getUserContract, {
+  const user = await client.call(getUserContract, {
     params: { id: '123' }
   });
 } catch (error) {
-  if (error instanceof ApiClientError) {
+  if (isHttpError(error)) {
     // HTTP errors (4xx, 5xx)
     if (error.status === 404) {
       console.log('User not found');
@@ -393,13 +499,14 @@ try {
       console.log('Server error - try again later');
     }
 
-    // Network errors
-    if (error.status === 0) {
-      console.log('Network error - check connection');
-    }
-
     // Access error details
     console.log(error.response); // Server error body
+  } else if (isNetworkError(error)) {
+    // Network connectivity issues
+    console.log('Network error - check connection');
+  } else if (isTimeoutError(error)) {
+    // Request timeout
+    console.log('Request timed out');
   }
 }
 ```
@@ -408,23 +515,54 @@ try {
 
 ## Integration Examples
 
+### Auto-generated API Client
+
+SPFN automatically generates a type-safe API client from your contracts:
+
+```typescript
+// src/lib/api.ts (auto-generated)
+import { client } from '@spfn/core/client';
+import { getUsersContract, getUserContract, createUserContract } from '@/lib/contracts/users';
+
+export const api = {
+  users: {
+    list: () => client.call(getUsersContract),
+    getById: (options: { params: { id: string } }) => client.call(getUserContract, options),
+    create: (options: { body: CreateUserBody }) => client.call(createUserContract, options),
+  }
+} as const;
+
+export { client };
+```
+
+```typescript
+// Usage in your app - fully type-safe!
+import { api } from '@/lib/api';
+
+// ✅ No need to import contracts directly
+const users = await api.users.list();
+const user = await api.users.getById({ params: { id: '123' } });
+const newUser = await api.users.create({
+  body: { name: 'John', email: 'john@example.com' }
+});
+```
+
+---
+
 ### Next.js App Router
 
 ```typescript
 'use client';
 
-import { createClient } from '@spfn/core/client';
-import { getUsersContract } from '@/contracts/users';
+import { api } from '@/lib/api';
 import { useState, useEffect } from 'react';
 
-const client = createClient(); // Uses NEXT_PUBLIC_API_URL
-
 export function UserList() {
-  const [users, setUsers] = useState<InferContract<typeof getUsersContract>['response']>([]);
+  const [users, setUsers] = useState<Awaited<ReturnType<typeof api.users.list>>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    client.call('/users', getUsersContract)
+    api.users.list()
       .then(setUsers)
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -448,16 +586,15 @@ export function UserList() {
 
 ```typescript
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createClient } from '@spfn/core/client';
-import { getUsersContract, createUserContract } from '@/contracts/users';
-
-const client = createClient();
+import { api } from '@/lib/api';
+import type { InferContract } from '@spfn/core';
+import { createUserContract } from '@/lib/contracts/users';
 
 // Query hook
 export function useUsers() {
   return useQuery({
     queryKey: ['users'],
-    queryFn: () => client.call('/users', getUsersContract)
+    queryFn: () => api.users.list()
   });
 }
 
@@ -467,7 +604,7 @@ export function useCreateUser() {
 
   return useMutation({
     mutationFn: (data: InferContract<typeof createUserContract>['body']) =>
-      client.call('/users', createUserContract, { body: data }),
+      api.users.create({ body: data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     }
@@ -497,220 +634,12 @@ function UserManager() {
 
 ---
 
-### Service Layer Pattern
+### Request Interceptors
+
+Add authentication, logging, or other cross-cutting concerns:
 
 ```typescript
-import { createClient, type ContractClient } from '@spfn/core/client';
-import type { InferContract } from '@spfn/core';
-import {
-  getUsersContract,
-  getUserContract,
-  createUserContract,
-  updateUserContract,
-  deleteUserContract
-} from '@/contracts/users';
-
-class UserService {
-  constructor(private client: ContractClient) {}
-
-  async getAll() {
-    return this.client.call('/users', getUsersContract);
-  }
-
-  async getById(id: string) {
-    return this.client.call('/users/:id', getUserContract, {
-      params: { id }
-    });
-  }
-
-  async create(data: InferContract<typeof createUserContract>['body']) {
-    return this.client.call('/users', createUserContract, {
-      body: data
-    });
-  }
-
-  async update(id: string, data: InferContract<typeof updateUserContract>['body']) {
-    return this.client.call('/users/:id', updateUserContract, {
-      params: { id },
-      body: data
-    });
-  }
-
-  async delete(id: string) {
-    return this.client.call('/users/:id', deleteUserContract, {
-      params: { id }
-    });
-  }
-}
-
-// Export singleton instance
-export const userService = new UserService(createClient());
-
-// Usage
-const users = await userService.getAll();
-const user = await userService.getById('123');
-```
-
----
-
-### Authentication Pattern
-
-```typescript
-import { createClient } from '@spfn/core/client';
-
-// Base client (public endpoints)
-const publicClient = createClient({
-  baseUrl: process.env.NEXT_PUBLIC_API_URL
-});
-
-// Create authenticated client factory
-export function createAuthClient(token: string) {
-  return publicClient.withConfig({
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-}
-
-// Usage in React component
-function ProtectedComponent() {
-  const token = useAuthToken(); // Your auth hook
-  const authClient = createAuthClient(token);
-
-  const fetchPrivateData = async () => {
-    const data = await authClient.call('/private/data', contract);
-    return data;
-  };
-
-  // ...
-}
-```
-
----
-
-## Comparison with Simple HTTP Client
-
-### Before (Manual typing)
-
-```typescript
-// ❌ No type safety, manual typing
-const response = await fetch('http://localhost:4000/users/123');
-const user: User = await response.json(); // Manual typing, no validation
-
-// ❌ Manual parameter substitution
-const userId = '123';
-const url = `http://localhost:4000/users/${userId}`;
-
-// ❌ Manual error handling
-if (!response.ok) {
-  throw new Error('Failed');
-}
-```
-
-### After (Contract-based)
-
-```typescript
-// ✅ Full type safety from contract
-const user = await client.call('/users/:id', getUserContract, {
-  params: { id: '123' }
-});
-// TypeScript knows exact type of user
-
-// ✅ Automatic parameter substitution
-// ✅ Automatic error handling with ApiClientError
-// ✅ Timeout control
-// ✅ Header management
-```
-
----
-
-## Best Practices
-
-### 1. Share Contracts Between Client and Server
-
-```typescript
-// ✅ Good - Single source of truth
-// contracts/users.ts (shared)
-import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route';
-
-export const getUserContract = {
-  params: Type.Object({ id: Type.String() }),
-  response: Type.Object({ id: Type.Number(), name: Type.String() })
-} as const satisfies RouteContract;
-
-// server/routes/users/[id].ts
-import { getUserContract } from '@/contracts/users';
-app.get('/', bind(getUserContract, handler));
-
-// client/services/users.ts
-import { getUserContract } from '@/contracts/users';
-const user = await client.call('/users/:id', getUserContract, { params: { id } });
-```
-
-### 2. Use Service Layer
-
-```typescript
-// ✅ Good - Encapsulate API calls
-class UserService {
-  constructor(private client: ContractClient) {}
-  async getById(id: string) { /* ... */ }
-}
-export const userService = new UserService(createClient());
-
-// ❌ Bad - Direct client calls everywhere
-const user = await client.call('/users/:id', contract, { params: { id } });
-```
-
-### 3. Handle Errors Consistently
-
-```typescript
-// ✅ Good - Centralized error handling
-async function safeApiCall<T>(fn: () => Promise<T>): Promise<T | null> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (error instanceof ApiClientError) {
-      if (error.status === 401) {
-        redirectToLogin();
-      } else {
-        showErrorToast(error.message);
-      }
-    }
-    return null;
-  }
-}
-
-// Usage
-const user = await safeApiCall(() =>
-  client.call('/users/:id', contract, { params: { id } })
-);
-```
-
-### 4. Use withConfig for Auth
-
-```typescript
-// ✅ Good - Reusable authenticated client
-const authClient = baseClient.withConfig({
-  headers: { Authorization: `Bearer ${token}` }
-});
-
-// ❌ Bad - Repeat auth header everywhere
-await client.call('/endpoint', contract, {
-  headers: { Authorization: `Bearer ${token}` }
-});
-```
-
----
-
-## Request Interceptors
-
-Add request interceptors to modify requests before they're sent:
-
-```typescript
-const client = createClient({
-  baseUrl: 'http://localhost:4000'
-});
+import { client } from '@/lib/api';
 
 // Add authentication header
 client.use(async (url, init) => {
@@ -730,11 +659,212 @@ client.use(async (url, init) => {
   return init;
 });
 
-// All requests will now include auth and logging
-const user = await client.call('/users/:id', contract, { params: { id: '123' } });
+// Add request ID
+client.use(async (url, init) => {
+  return {
+    ...init,
+    headers: {
+      ...init.headers,
+      'X-Request-ID': crypto.randomUUID()
+    }
+  };
+});
+
+// All api.* calls will now include auth, logging, and request ID
+const user = await api.users.getById({ params: { id: '123' } });
 ```
 
-Interceptors are executed in the order they are added.
+---
+
+### Authentication Pattern
+
+```typescript
+import { client } from '@/lib/api';
+
+// Configure client with auth token
+export function configureAuth(token: string) {
+  client.use(async (url, init) => {
+    return {
+      ...init,
+      headers: {
+        ...init.headers,
+        Authorization: `Bearer ${token}`
+      }
+    };
+  });
+}
+
+// Usage in React component
+function App() {
+  const { token } = useAuth();
+
+  useEffect(() => {
+    if (token) {
+      configureAuth(token);
+    }
+  }, [token]);
+
+  // All API calls now authenticated
+  return <UserList />;
+}
+```
+
+---
+
+## Comparison with Manual fetch
+
+### Before (Manual typing)
+
+```typescript
+// ❌ No type safety, manual typing
+const response = await fetch('http://localhost:4000/users/123');
+const user: User = await response.json(); // Manual typing, no validation
+
+// ❌ Manual URL construction
+const userId = '123';
+const url = `http://localhost:4000/users/${userId}`;
+
+// ❌ Manual error handling
+if (!response.ok) {
+  throw new Error('Failed');
+}
+
+// ❌ No query param handling
+const tags = ['js', 'ts'];
+const queryString = tags.map(t => `tags=${t}`).join('&');
+```
+
+### After (Contract-based)
+
+```typescript
+// ✅ Full type safety from contract
+const user = await api.users.getById({ params: { id: '123' } });
+// TypeScript knows exact type of user
+// URL automatically constructed from contract.path: '/users/:id'
+
+// ✅ Automatic parameter substitution
+// ✅ Automatic error handling with ApiClientError
+// ✅ Timeout control
+// ✅ Header management
+// ✅ Query param handling
+const posts = await api.posts.list({
+  query: { tags: ['javascript', 'typescript'] }
+});
+```
+
+---
+
+## Best Practices
+
+### 1. Use Auto-generated API Client
+
+```typescript
+// ✅ Good - Use auto-generated api object
+import { api } from '@/lib/api';
+const users = await api.users.list();
+
+// ❌ Bad - Import contracts and call client manually
+import { client } from '@spfn/core/client';
+import { getUsersContract } from '@/lib/contracts/users';
+const users = await client.call(getUsersContract);
+```
+
+### 2. Contracts Must Use Absolute Paths
+
+```typescript
+// ✅ Good - Absolute path
+export const getUserContract = {
+  method: 'GET' as const,
+  path: '/users/:id',  // Absolute
+  // ...
+} as const satisfies RouteContract;
+
+// ❌ Bad - Relative path
+export const getUserContract = {
+  method: 'GET' as const,
+  path: '/:id',  // Relative - DON'T USE
+  // ...
+};
+```
+
+### 3. Handle Errors Consistently
+
+```typescript
+// ✅ Good - Use type guards
+import { isHttpError, isNetworkError, isTimeoutError } from '@spfn/core/client';
+
+try {
+  const data = await api.users.getById({ params: { id } });
+} catch (error) {
+  if (isHttpError(error)) {
+    if (error.status === 404) {
+      showNotFoundError();
+    } else if (error.status === 401) {
+      redirectToLogin();
+    }
+  } else if (isNetworkError(error)) {
+    showOfflineMessage();
+  } else if (isTimeoutError(error)) {
+    showTimeoutError();
+  }
+}
+```
+
+### 4. Use Interceptors for Cross-cutting Concerns
+
+```typescript
+// ✅ Good - Centralized auth via interceptor
+import { client } from '@/lib/api';
+
+client.use(async (url, init) => {
+  const token = await getAuthToken();
+  return {
+    ...init,
+    headers: { ...init.headers, Authorization: `Bearer ${token}` }
+  };
+});
+
+// ❌ Bad - Repeat auth header everywhere
+await client.call(contract, {
+  headers: { Authorization: `Bearer ${token}` }
+});
+```
+
+---
+
+## Migration from Old API
+
+If you have existing code using the old `client.call(path, contract, options)` signature:
+
+### Before
+
+```typescript
+// ❌ Old API - path as first parameter
+const user = await client.call('/users/:id', getUserContract, {
+  params: { id: '123' }
+});
+
+const users = await client.call('/users', getUsersContract);
+```
+
+### After
+
+```typescript
+// ✅ New API - contract only (path comes from contract.path)
+const user = await client.call(getUserContract, {
+  params: { id: '123' }
+});
+// URL: GET /users/123 (from contract.path: '/users/:id')
+
+const users = await client.call(getUsersContract);
+// URL: GET /users (from contract.path: '/users')
+```
+
+**Migration Steps:**
+1. Ensure all contracts use absolute paths (e.g., `/users/:id` not `/:id`)
+2. Move contracts to `src/lib/contracts/` if not already there
+3. Remove the first `path` parameter from all `client.call()` calls
+4. Use auto-generated `api` object instead of calling `client.call()` directly
 
 ---
 
@@ -742,35 +872,17 @@ Interceptors are executed in the order they are added.
 
 ### JSON Only
 
-Only supports JSON request/response bodies. For other content types (FormData, Blob, etc.), use native `fetch`:
+Only supports JSON request/response bodies. For other content types (FormData, Blob, etc.), use native `fetch` or FormData-specific endpoints.
 
-```typescript
-// Use native fetch for file uploads
-const formData = new FormData();
-formData.append('file', file);
-await fetch('/api/upload', { method: 'POST', body: formData });
-```
+### No Streaming Support
 
-### No Request Cancellation API
-
-Uses AbortController internally for timeout, but doesn't expose cancellation API. For manual cancellation:
-
-```typescript
-const controller = new AbortController();
-const customFetch = (url: RequestInfo, init?: RequestInit) =>
-  fetch(url, { ...init, signal: controller.signal });
-
-const client = createClient({ fetch: customFetch });
-
-// Later: controller.abort();
-```
+Does not support streaming responses. For streaming, use native `fetch` with ReadableStream.
 
 ---
 
 ## Related
 
-- [RouteContract Type Reference](../route/types.ts) - Contract type definitions
-- [Server Route Binding](../route/README.md) - Server-side bind() function
-- [Next.js Client Components](https://nextjs.org/docs/app/building-your-application/rendering/client-components)
-- [TypeBox Schema](https://github.com/sinclairzx81/typebox) - Schema definitions
+- [@spfn/core/route](../route/README.md) - Server-side routing with contracts
+- [@spfn/core/codegen](../codegen/README.md) - Auto-generate API client
+- [TypeBox](https://github.com/sinclairzx81/typebox) - Schema definitions
 - [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)

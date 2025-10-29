@@ -1,11 +1,12 @@
 import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
 
 /**
- * Root Contract
+ * Root API Contract
  */
 export const rootContract = {
     method: 'GET' as const,
-    path: '/',
+    path: '/',  // ← Root path
     response: Type.Object({
         name: Type.String(),
         version: Type.String(),
@@ -16,4 +17,4 @@ export const rootContract = {
         }),
         message: Type.String(),
     })
-};
+} as const satisfies RouteContract;

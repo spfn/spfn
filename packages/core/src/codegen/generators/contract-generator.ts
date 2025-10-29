@@ -5,6 +5,7 @@
  */
 
 import { join } from 'path';
+import { existsSync } from 'fs';
 import type { Generator, GeneratorOptions } from '../generator.js';
 import { scanContracts } from '../contract-scanner.js';
 import { generateClient } from '../client-generator.js';
@@ -28,20 +29,38 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
 {
     return {
         name: 'contract',
-        watchPatterns: [config.routesDir ?? 'src/server/routes/**/*.ts'],
+        watchPatterns: [
+            config.routesDir ?? 'src/server/routes/**/*.ts',
+            'src/lib/contracts/**/*.ts',
+        ],
 
         async generate(options: GeneratorOptions): Promise<void>
         {
             const cwd = options.cwd;
             const routesDir = config.routesDir ?? join(cwd, 'src', 'server', 'routes');
+            const libContractsDir = join(cwd, 'src', 'lib', 'contracts');
             const outputPath = config.outputPath ?? join(cwd, 'src', 'lib', 'api.ts');
 
             try
             {
-                // Scan contracts
-                const contracts = await scanContracts(routesDir);
+                // Scan contracts from multiple directories
+                const contractDirs = [routesDir];
 
-                if (contracts.length === 0)
+                // Add lib/contracts if it exists
+                if (existsSync(libContractsDir))
+                {
+                    contractDirs.push(libContractsDir);
+                }
+
+                let allContracts: any[] = [];
+
+                for (const dir of contractDirs)
+                {
+                    const contracts = await scanContracts(dir);
+                    allContracts = allContracts.concat(contracts);
+                }
+
+                if (allContracts.length === 0)
                 {
                     if (options.debug)
                     {
@@ -51,7 +70,7 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
                 }
 
                 // Generate client
-                const stats = await generateClient(contracts, {
+                const stats = await generateClient(allContracts, {
                     routesDir,
                     outputPath,
                     baseUrl: config.baseUrl,

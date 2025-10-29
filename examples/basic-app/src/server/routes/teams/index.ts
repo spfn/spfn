@@ -1,5 +1,10 @@
 /**
- * Teams Routes: Testing dynamic parameter fix
+ * Teams Routes
+ *
+ * Demonstrates new contract system with absolute paths
+ * - Contracts in lib/contracts/ (shared with frontend)
+ * - Handlers can be anywhere in routes/
+ * - File structure is flexible!
  */
 
 import { createApp } from '@spfn/core/route';
@@ -9,7 +14,7 @@ import {
     createTeamContract,
     updateTeamContract,
     deleteTeamContract
-} from './contract.js';
+} from '@/lib/contracts/teams';
 
 const app = createApp();
 

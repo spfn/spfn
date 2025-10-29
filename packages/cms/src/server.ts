@@ -12,8 +12,8 @@
 
 import { cache } from 'react';
 import { client } from '@spfn/core/client';
-import { getPublishedCacheContract } from './routes/published-cache/contract.js';
-import { getLocale } from './helpers/locale.actions.js';
+import { getPublishedCacheContract } from './contracts/published-cache';
+import { getLocale } from './helpers/locale.actions';
 
 /**
  * Section Data Type
@@ -115,7 +115,6 @@ export const getSection = cache(async (
     {
         // Call SPFN API via contract (uses singleton client)
         const response = await client.call(
-            '/cms/published-cache',
             getPublishedCacheContract,
             {
                 query: { sections: section, locale: actualLocale },
@@ -257,7 +256,6 @@ export const getSections = cache(async (
     {
         // Call SPFN API with array of sections (single HTTP request)
         const response = await client.call(
-            '/cms/published-cache',
             getPublishedCacheContract,
             {
                 query: { sections, locale: actualLocale },

@@ -8,12 +8,12 @@
 
 import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
-import { cmsLabelsRepository } from '../../../repositories/index.js';
+import { cmsLabelsRepository } from '@/repositories';
 import {
     getLabelContract,
     updateLabelContract,
     deleteLabelContract,
-} from './contract.js';
+} from '@/contracts/labels';
 
 const app = createApp();
 

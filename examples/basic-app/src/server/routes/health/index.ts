@@ -8,7 +8,7 @@
  */
 
 import { createApp } from '@spfn/core/route';
-import { healthContract } from './contract.js';
+import { healthContract } from '@/lib/contracts/health';
 
 const app = createApp();
 
