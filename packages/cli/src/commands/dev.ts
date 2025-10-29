@@ -150,14 +150,17 @@ await orchestrator.watch();
         const serverCmd = pm === 'npm' ? `npx ${tsxCmd} ${serverEntry}` : `${pm} exec ${tsxCmd} ${serverEntry}`;
         const watcherCmd = pm === 'npm' ? `npx tsx ${watcherEntry}` : `${pm} exec tsx ${watcherEntry}`;
 
+        // Delay Next.js start to let server start first
+        const delayedNextCmd = `sleep 2 && ${nextCmd}`;
+
         logger.info(`Starting SPFN server + Next.js (Turbopack)${watchMode ? ' (watch mode)' : ''}...\n`);
 
         try
         {
             await execa(pm === 'npm' ? 'npx' : pm,
                 pm === 'npm'
-                    ? ['concurrently', '--raw', '--kill-others', `"${nextCmd}"`, `"${serverCmd}"`, `"${watcherCmd}"`]
-                    : ['exec', 'concurrently', '--raw', '--kill-others', `"${nextCmd}"`, `"${serverCmd}"`, `"${watcherCmd}"`],
+                    ? ['concurrently', '--raw', '--kill-others', `"${serverCmd}"`, `"${watcherCmd}"`, `"${delayedNextCmd}"`]
+                    : ['exec', 'concurrently', '--raw', '--kill-others', `"${serverCmd}"`, `"${watcherCmd}"`, `"${delayedNextCmd}"`],
                 {
                     stdio: 'inherit',
                     cwd,

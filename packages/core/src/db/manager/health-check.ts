@@ -88,7 +88,7 @@ export function startHealthCheck(
                 await read.execute('SELECT 1');
             }
 
-            dbLogger.debug('Database health check passed');
+            // Health check passed - no need to log (only log failures)
         }
         catch (error)
         {
