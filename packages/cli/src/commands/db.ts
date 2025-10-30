@@ -117,6 +117,10 @@ async function dbGenerate(): Promise<void>
  */
 async function dbPush(): Promise<void>
 {
+    // Load environment variables first (required for DATABASE_URL)
+    const { loadEnvironment } = await import('@spfn/core/env');
+    loadEnvironment({ debug: false });
+
     // First, push schema changes
     await runWithSpinner(
         'Pushing schema changes to database...',
@@ -161,6 +165,10 @@ async function dbPush(): Promise<void>
  */
 async function dbMigrate(): Promise<void>
 {
+    // Load environment variables first (required for DATABASE_URL)
+    const { loadEnvironment } = await import('@spfn/core/env');
+    loadEnvironment({ debug: false });
+
     // First, execute function package migrations
     const { discoverFunctionMigrations, executeFunctionMigrations } = await import('../utils/function-migrations.js');
 
