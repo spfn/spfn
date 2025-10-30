@@ -227,9 +227,9 @@ export class AutoRouteLoader
 
     private isValidRouteFile(fileName: string): boolean
     {
-        // Strict convention: Only index.ts or index.js files are route handlers
+        // Strict convention: Only index.ts, index.js, or index.mjs files are route handlers
         // This prevents accidental loading of utility files, helpers, types, etc.
-        return fileName === 'index.ts' || fileName === 'index.js';
+        return fileName === 'index.ts' || fileName === 'index.js' || fileName === 'index.mjs';
     }
 
     private async loadRoute(app: Hono, absolutePath: string): Promise<boolean>

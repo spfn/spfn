@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.62] - 2025-10-30
+
+### Fixed
+
+#### @spfn/core
+
+- **ESM File Extension Support**: Fixed comprehensive .mjs extension support across all file scanners
+  - `contract-scanner.ts` now scans `.js` and `.mjs` files in lib/contracts/ directory (line 88-97)
+  - `contract-scanner.ts` now removes all extensions (.ts, .js, .mjs) when generating import paths (line 401-412)
+  - `config-generator.ts` now filters out `index.mjs` files from schema discovery (line 209-215)
+  - Resolves codegen failures in production mode where built contract files (.mjs) were not being scanned
+  - Ensures consistent file extension handling across all auto-discovery systems
+
 ## [0.1.0-alpha.61] - 2025-10-30
 
 ### Fixed

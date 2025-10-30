@@ -84,8 +84,14 @@ async function scanContractFiles(dir: string, files: string[] = []): Promise<str
             }
             else if (isLibContracts)
             {
-                // In lib/contracts, scan all .ts files
-                if (entry.endsWith('.ts') && !entry.endsWith('.d.ts') && !entry.endsWith('.test.ts'))
+                // In lib/contracts, scan all .ts, .js, .mjs files
+                if (
+                    (entry.endsWith('.ts') || entry.endsWith('.js') || entry.endsWith('.mjs')) &&
+                    !entry.endsWith('.d.ts') &&
+                    !entry.endsWith('.test.ts') &&
+                    !entry.endsWith('.test.js') &&
+                    !entry.endsWith('.test.mjs')
+                )
                 {
                     files.push(fullPath);
                 }
@@ -390,11 +396,19 @@ function getImportPath(filePath: string, _scanDir: string): string
 
     // Get path from src/ onwards
      // +5 to skip '/src/'
-    // Remove .ts extension
+    // Remove file extension (.ts, .js, .mjs)
     let cleanPath = filePath.substring(srcIndex + 5);
     if (cleanPath.endsWith('.ts'))
     {
         cleanPath = cleanPath.slice(0, -3);
+    }
+    else if (cleanPath.endsWith('.js'))
+    {
+        cleanPath = cleanPath.slice(0, -3);
+    }
+    else if (cleanPath.endsWith('.mjs'))
+    {
+        cleanPath = cleanPath.slice(0, -4);
     }
 
     // Return as module path with @ prefix
