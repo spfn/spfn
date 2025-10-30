@@ -23,6 +23,9 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["./**/*"],
+  "include": [
+    "./**/*",
+    "../lib/contracts/**/*"
+  ],
   "exclude": ["../../node_modules"]
 }
