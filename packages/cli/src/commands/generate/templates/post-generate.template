@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Post-generate script for @spfn/cms migrations
+ * Post-generate script for @spfn/{{FN_NAME}} migrations
  *
- * Automatically adds "CREATE SCHEMA IF NOT EXISTS spfn_cms"
+ * Automatically adds "CREATE SCHEMA IF NOT EXISTS spfn_{{FN_NAME}}"
  * to the generated migration SQL files
  */
 
@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 const MIGRATIONS_DIR = join(process.cwd(), 'migrations');
-const SCHEMA_NAME = 'spfn_cms';
+const SCHEMA_NAME = 'spfn_{{FN_NAME}}';
 
 function addSchemaCreation()
 {
@@ -39,7 +39,7 @@ function addSchemaCreation()
                 continue;
             }
 
-            // Check if this file uses the spfn_cms schema
+            // Check if this file uses the spfn_{{FN_NAME}} schema
             if (!content.includes(`"${SCHEMA_NAME}".`))
             {
                 console.log(`⊘ ${file} doesn't use ${SCHEMA_NAME} schema, skipping`);
@@ -47,7 +47,7 @@ function addSchemaCreation()
             }
 
             // Add schema creation at the beginning
-            const schemaCreation = `-- Create schema for CMS package\nCREATE SCHEMA IF NOT EXISTS ${SCHEMA_NAME};\n--> statement-breakpoint\n`;
+            const schemaCreation = `-- Create schema for {{PASCAL_NAME}} package\nCREATE SCHEMA IF NOT EXISTS ${SCHEMA_NAME};\n--> statement-breakpoint\n`;
             const newContent = schemaCreation + content;
 
             writeFileSync(filePath, newContent, 'utf-8');
