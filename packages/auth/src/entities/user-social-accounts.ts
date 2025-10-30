@@ -6,7 +6,7 @@
 
 import { text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { id, timestamps, foreignKey, createFunctionSchema } from '@spfn/core/db';
-import { users } from './users.js';
+import { users } from './users';
 
 const schema = createFunctionSchema('@spfn/auth');
 
