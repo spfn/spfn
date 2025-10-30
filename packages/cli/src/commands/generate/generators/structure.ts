@@ -54,7 +54,7 @@ export async function generateFunctionStructure(options: GenerateFunctionStructu
     generateTsConfig(fnDir);
     generateTsupConfig(fnDir);
     generateDrizzleConfig(fnDir, fnName);
-    generatePostGenerateScript(fnDir);
+    generatePostGenerateScript(fnDir, fnName);
     generateReadme(fnDir, fnName, description);
 
     // Generate entity-related files

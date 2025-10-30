@@ -218,16 +218,15 @@ export default defineConfig({
 /**
  * Generate post-generate script
  */
-export function generatePostGenerateScript(fnDir: string): void
+export function generatePostGenerateScript(fnDir: string, fnName: string): void
 {
-    const content = `/**
- * Post-migration generation script
- *
- * Runs after drizzle-kit generate to perform any additional processing
- */
+    const { loadTemplate } = require('../template-loader.js');
+    const { toPascalCase } = require('../string-utils.js');
 
-console.log('✓ Migrations generated successfully');
-`;
+    const content = loadTemplate('post-generate', {
+        FN_NAME: fnName,
+        PASCAL_NAME: toPascalCase(fnName),
+    });
 
     writeFileSync(join(fnDir, 'scripts/post-generate.ts'), content);
 }
