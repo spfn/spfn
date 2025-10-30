@@ -1,6 +1,3 @@
--- Create schema for Auth package
-CREATE SCHEMA IF NOT EXISTS spfn_auth;
---> statement-breakpoint
 CREATE TABLE "spfn_auth"."users" (
 	"id" bigserial PRIMARY KEY NOT NULL,
 	"email" text,

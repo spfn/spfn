@@ -66,7 +66,7 @@
     "build": "npm run db:generate && tsup",
     "watch": "tsup --watch",
     "clean": "rm -rf dist migrations",
-    "db:generate": "drizzle-kit generate && tsx scripts/post-generate.ts"
+    "db:generate": "drizzle-kit generate"
   },
   "keywords": [
     "spfn",

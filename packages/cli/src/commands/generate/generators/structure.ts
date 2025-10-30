@@ -9,7 +9,7 @@ import {
     generateTsConfig,
     generateTsupConfig,
     generateDrizzleConfig,
-    generatePostGenerateScript,
+    generateInitMigration,
     generateReadme,
 } from './config.js';
 import { generateEntity, generateEntitiesIndex } from './entity.js';
@@ -43,8 +43,6 @@ export async function generateFunctionStructure(options: GenerateFunctionStructu
         'src/repositories',
         'src/generators',
         'src/helpers',
-        'scripts',
-        'migrations',
     ];
 
     dirs.forEach((dir) => mkdirSync(join(fnDir, dir), { recursive: true }));
@@ -54,7 +52,7 @@ export async function generateFunctionStructure(options: GenerateFunctionStructu
     generateTsConfig(fnDir);
     generateTsupConfig(fnDir);
     generateDrizzleConfig(fnDir, fnName);
-    generatePostGenerateScript(fnDir, fnName);
+    generateInitMigration(fnDir, fnName);
     generateReadme(fnDir, fnName, description);
 
     // Generate entity-related files

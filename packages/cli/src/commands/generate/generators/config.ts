@@ -45,7 +45,7 @@ export function generatePackageJson(fnDir: string, fnName: string, description: 
             build: 'npm run db:generate && tsup',
             watch: 'tsup --watch',
             clean: 'rm -rf dist migrations',
-            'db:generate': 'drizzle-kit generate && tsx scripts/post-generate.ts',
+            'db:generate': 'drizzle-kit generate',
         },
         keywords: ['spfn', fnName, 'nextjs', 'typescript'],
         author: 'SPFN Team',
@@ -216,19 +216,62 @@ export default defineConfig({
 }
 
 /**
- * Generate post-generate script
+ * Generate initial migration with schema creation
  */
-export function generatePostGenerateScript(fnDir: string, fnName: string): void
+export function generateInitMigration(fnDir: string, fnName: string): void
 {
     const { loadTemplate } = require('../template-loader.js');
     const { toPascalCase } = require('../string-utils.js');
 
-    const content = loadTemplate('post-generate', {
+    const content = loadTemplate('init-migration', {
         FN_NAME: fnName,
         PASCAL_NAME: toPascalCase(fnName),
     });
 
-    writeFileSync(join(fnDir, 'scripts/post-generate.ts'), content);
+    // Create migrations directory and meta directory
+    const migrationsDir = join(fnDir, 'migrations');
+    const metaDir = join(migrationsDir, 'meta');
+
+    const { mkdirSync } = require('fs');
+    mkdirSync(migrationsDir, { recursive: true });
+    mkdirSync(metaDir, { recursive: true });
+
+    // Write initial migration
+    writeFileSync(join(migrationsDir, '0000_init.sql'), content);
+
+    // Create meta journal
+    const journal = {
+        version: '7',
+        dialect: 'postgresql',
+        entries: [
+            {
+                idx: 0,
+                version: '7',
+                when: Date.now(),
+                tag: '0000_init',
+                breakpoints: true,
+            },
+        ],
+    };
+    writeFileSync(join(metaDir, '_journal.json'), JSON.stringify(journal, null, 2));
+
+    // Create snapshot
+    const snapshot = {
+        id: '00000000-0000-0000-0000-000000000000',
+        prevId: '',
+        version: '7',
+        dialect: 'postgresql',
+        tables: {},
+        enums: {},
+        schemas: {},
+        sequences: {},
+        _meta: {
+            schemas: {},
+            tables: {},
+            columns: {},
+        },
+    };
+    writeFileSync(join(metaDir, '0000_snapshot.json'), JSON.stringify(snapshot, null, 2));
 }
 
 /**
