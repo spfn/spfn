@@ -60,6 +60,12 @@ function generateClientCode(
     // Imports
     code += generateImports(mappings, options);
 
+    // Types (new!)
+    if (options.includeTypes !== false)
+    {
+        code += generateTypes(mappings, options);
+    }
+
     // API object
     code += generateApiObject(grouped, options);
 
@@ -150,6 +156,77 @@ function groupContractsByImportPath(mappings: RouteContractMapping[]): Record<st
     }
 
     return result;
+}
+
+/**
+ * Generate types section
+ */
+function generateTypes(mappings: RouteContractMapping[], _options: ClientGenerationOptions): string
+{
+    let code = '';
+
+    code += `// ============================================\n`;
+    code += `// Auto-generated Types\n`;
+    code += `// ============================================\n\n`;
+
+    for (let i = 0; i < mappings.length; i++)
+    {
+        const mapping = mappings[i];
+        const typeName = generateTypeName(mapping);
+        const contractType = `typeof ${mapping.contractName}`;
+
+        // Response type (always present)
+        code += `export type ${typeName}Response = InferContract<${contractType}>['response'];\n`;
+
+        // Query type (if exists)
+        if (mapping.hasQuery)
+        {
+            code += `export type ${typeName}Query = InferContract<${contractType}>['query'];\n`;
+        }
+
+        // Params type (if exists)
+        if (mapping.hasParams || mapping.path.includes(':'))
+        {
+            code += `export type ${typeName}Params = InferContract<${contractType}>['params'];\n`;
+        }
+
+        // Body type (if exists)
+        if (mapping.hasBody)
+        {
+            code += `export type ${typeName}Body = InferContract<${contractType}>['body'];\n`;
+        }
+
+        code += `\n`;
+    }
+
+    return code;
+}
+
+/**
+ * Convert contract name to type name
+ *
+ * Examples:
+ * - getTeamMembersContract -> GetTeamMembers
+ * - createTeamMemberContract -> CreateTeamMember
+ * - updateCompanyContract -> UpdateCompany
+ */
+function generateTypeName(mapping: RouteContractMapping): string
+{
+    let name = mapping.contractName;
+
+    // Remove "Contract" suffix
+    if (name.endsWith('Contract'))
+    {
+        name = name.slice(0, -8);
+    }
+
+    // Convert to PascalCase if not already
+    if (name.length > 0)
+    {
+        name = name.charAt(0).toUpperCase() + name.slice(1);
+    }
+
+    return name;
 }
 
 /**
