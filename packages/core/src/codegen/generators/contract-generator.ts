@@ -30,35 +30,28 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
     return {
         name: 'contract',
         watchPatterns: [
-            config.routesDir ?? 'src/server/routes/**/*.ts',
             'src/lib/contracts/**/*.ts',
         ],
 
         async generate(options: GeneratorOptions): Promise<void>
         {
             const cwd = options.cwd;
-            const routesDir = config.routesDir ?? join(cwd, 'src', 'server', 'routes');
             const libContractsDir = join(cwd, 'src', 'lib', 'contracts');
             const outputPath = config.outputPath ?? join(cwd, 'src', 'lib', 'api.ts');
 
             try
             {
-                // Scan contracts from multiple directories
-                const contractDirs = [routesDir];
-
-                // Add lib/contracts if it exists
-                if (existsSync(libContractsDir))
+                // Only scan lib/contracts (legacy routes/ scanning removed)
+                if (!existsSync(libContractsDir))
                 {
-                    contractDirs.push(libContractsDir);
+                    if (options.debug)
+                    {
+                        contractLogger.warn('No contracts directory found at src/lib/contracts');
+                    }
+                    return;
                 }
 
-                let allContracts: any[] = [];
-
-                for (const dir of contractDirs)
-                {
-                    const contracts = await scanContracts(dir);
-                    allContracts = allContracts.concat(contracts);
-                }
+                const allContracts = await scanContracts(libContractsDir);
 
                 if (allContracts.length === 0)
                 {
@@ -71,7 +64,7 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
 
                 // Generate client
                 const stats = await generateClient(allContracts, {
-                    routesDir,
+                    routesDir: libContractsDir, // For backwards compatibility
                     outputPath,
                     baseUrl: config.baseUrl,
                     includeTypes: true,

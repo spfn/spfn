@@ -13,9 +13,7 @@ import type { RouteContractMapping, HttpMethod } from './types.js';
 /**
  * Scan for contract files and extract contract exports
  *
- * Supports two modes:
- * 1. New: Absolute paths in contracts (e.g., path: '/teams/:id')
- * 2. Legacy: Relative paths with file-based basePath (e.g., path: '/:id' in routes/teams/contract.ts)
+ * All contracts must use absolute paths (e.g., path: '/teams/:id')
  *
  * @param routesDir - Path to scan for contracts (can be routes/ or lib/contracts/)
  * @returns Array of contract-to-route mappings
@@ -34,31 +32,20 @@ export async function scanContracts(routesDir: string): Promise<RouteContractMap
         {
             const contractExport = exports[j];
 
-            // Check if contract uses absolute path (starts with /)
-            const isAbsolutePath = contractExport.path.startsWith('/') && contractExport.path.length > 1;
-
-            let fullPath: string;
-            let importPath: string;
-
-            if (isAbsolutePath)
+            // All contracts must use absolute paths
+            if (!contractExport.path.startsWith('/'))
             {
-                // New mode: Use absolute path from contract directly
-                fullPath = contractExport.path;
-                importPath = getImportPath(filePath, routesDir);
-            }
-            else
-            {
-                // Legacy mode: Calculate base path from file location
-                const basePath = getBasePathFromFile(filePath, routesDir);
-                fullPath = combinePaths(basePath, contractExport.path);
-                importPath = getImportPathFromRoutes(filePath, routesDir);
+                throw new Error(
+                    `Contract '${contractExport.name}' in ${filePath} must use absolute path. ` +
+                    `Found: '${contractExport.path}'. Use '/your-path' instead.`
+                );
             }
 
             mappings.push({
                 method: contractExport.method,
-                path: fullPath,
+                path: contractExport.path,
                 contractName: contractExport.name,
-                contractImportPath: importPath,
+                contractImportPath: getImportPath(filePath, routesDir),
                 routeFile: '', // Not needed anymore
                 contractFile: filePath,
                 hasQuery: contractExport.hasQuery,
@@ -383,140 +370,7 @@ function isContractName(name: string): boolean
 }
 
 /**
- * Get base URL path from contract file location
- *
- * @example
- * routes/posts/contract.ts → /posts
- * routes/users/[id]/contract.ts → /users/:id
- * routes/index/contract.ts → /
- */
-function getBasePathFromFile(filePath: string, routesDir: string): string
-{
-    // Get relative path from routes dir
-    let relativePath = filePath.replace(routesDir, '');
-
-    // Remove leading slash
-    if (relativePath.startsWith('/'))
-    {
-        relativePath = relativePath.slice(1);
-    }
-
-    // Remove /contract.ts
-    relativePath = relativePath.replace('/contract.ts', '');
-
-    // Handle index → /
-    if (relativePath === 'index' || relativePath === '')
-    {
-        return '/';
-    }
-
-    // Split into segments
-    const segments = relativePath.split('/');
-    const transformed: string[] = [];
-
-    for (let i = 0; i < segments.length; i++)
-    {
-        const seg = segments[i];
-
-        // Skip 'index' segments (routes/index/contract.ts → /, routes/posts/index/contract.ts → /posts)
-        if (seg === 'index')
-        {
-            continue;
-        }
-
-        // Dynamic parameter: [id] → :id
-        if (seg.startsWith('[') && seg.endsWith(']'))
-        {
-            transformed.push(':' + seg.slice(1, -1));
-        }
-        // Static segment
-        else
-        {
-            transformed.push(seg);
-        }
-    }
-
-    // If no segments remain, return root
-    if (transformed.length === 0)
-    {
-        return '/';
-    }
-
-    return '/' + transformed.join('/');
-}
-
-/**
- * Combine base path with contract path
- *
- * @example
- * combinePaths('/posts', '/') → /posts
- * combinePaths('/posts', '/:id') → /posts/:id
- * combinePaths('/', '/health') → /health
- */
-function combinePaths(basePath: string, contractPath: string): string
-{
-    // Normalize paths
-    basePath = basePath || '/';
-    contractPath = contractPath || '/';
-
-    // Remove trailing slash from base
-    if (basePath.endsWith('/') && basePath !== '/')
-    {
-        basePath = basePath.slice(0, -1);
-    }
-
-    // If contract path is absolute, use it as is
-    if (contractPath.startsWith('/') && contractPath !== '/')
-    {
-        // If base is /, just use contract path
-        if (basePath === '/')
-        {
-            return contractPath;
-        }
-        // Otherwise combine: /posts + /sub → /posts/sub
-        return basePath + contractPath;
-    }
-
-    // Contract path is / or relative
-    if (contractPath === '/')
-    {
-        return basePath;
-    }
-
-    // Combine: /posts + id → /posts/id
-    return basePath + '/' + contractPath;
-}
-
-/**
- * Get import path for contract file (legacy mode)
- *
- * @example
- * routes/posts/contract.ts → @/server/routes/posts/contract
- * routes/users/[id]/contract.ts → @/server/routes/users/[id]/contract
- */
-function getImportPathFromRoutes(filePath: string, routesDir: string): string
-{
-    // Get relative path from routes dir
-    let relativePath = filePath.replace(routesDir, '');
-
-    // Remove leading slash
-    if (relativePath.startsWith('/'))
-    {
-        relativePath = relativePath.slice(1);
-    }
-
-    // Remove .ts extension
-    if (relativePath.endsWith('.ts'))
-    {
-        relativePath = relativePath.slice(0, -3);
-    }
-
-    // Return as module path
-    return '@/server/routes/' + relativePath;
-}
-
-/**
- * Get import path for contract file (new mode - absolute paths)
+ * Get import path for contract file
  *
  * Detects if contract is in lib/contracts/ or server/routes/
  *
@@ -524,15 +378,14 @@ function getImportPathFromRoutes(filePath: string, routesDir: string): string
  * /path/to/src/lib/contracts/teams.ts → @/lib/contracts/teams
  * /path/to/src/server/routes/teams/contract.ts → @/server/routes/teams/contract
  */
-function getImportPath(filePath: string, scanDir: string): string
+function getImportPath(filePath: string, _scanDir: string): string
 {
     // Try to find src/ directory
     const srcIndex = filePath.indexOf('/src/');
 
     if (srcIndex === -1)
     {
-        // Fallback: use scanDir-based logic
-        return getImportPathFromRoutes(filePath, scanDir);
+        throw new Error(`Cannot determine import path for ${filePath}: /src/ directory not found`);
     }
 
     // Get path from src/ onwards

@@ -1,4 +1,5 @@
 import { Type } from '@sinclair/typebox';
+import type { RouteContract } from '@spfn/core/route';
 
 /**
  * Root Contract
@@ -16,4 +17,4 @@ export const rootContract = {
         }),
         message: Type.String(),
     })
-};
+} as const satisfies RouteContract;
