@@ -4,11 +4,11 @@
  * Scans server/contracts directory and extracts exported contracts
  */
 
+import { readFileSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
 import * as ts from 'typescript';
-import { readFileSync } from 'fs';
-import type { RouteContractMapping, HttpMethod } from './types.js';
+import type { HttpMethod, RouteContractMapping } from './types.js';
 
 /**
  * Scan for contract files and extract contract exports
@@ -389,10 +389,9 @@ function getImportPath(filePath: string, _scanDir: string): string
     }
 
     // Get path from src/ onwards
-    const fromSrc = filePath.substring(srcIndex + 5); // +5 to skip '/src/'
-
+     // +5 to skip '/src/'
     // Remove .ts extension
-    let cleanPath = fromSrc;
+    let cleanPath = filePath.substring(srcIndex + 5);
     if (cleanPath.endsWith('.ts'))
     {
         cleanPath = cleanPath.slice(0, -3);

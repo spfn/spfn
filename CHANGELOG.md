@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.61] - 2025-10-30
+
+### Fixed
+
+#### @spfn/core
+
+- **ESM Config Loading**: Fixed server.config loading to support .mjs extension
+  - `startServer()` now checks for `.spfn/server/server.config.mjs` before falling back to `.js`
+  - Resolves "Unknown file extension .ts" error in production mode
+  - Build output from tsup generates .mjs files which are now properly loaded
+
 ## [0.1.0-alpha.60] - 2025-10-29
 
 ### Breaking Changes

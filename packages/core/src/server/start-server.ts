@@ -99,12 +99,18 @@ async function loadAndMergeConfig(config?: ServerConfig): Promise<ServerConfig>
     const cwd = process.cwd();
     const configPath = join(cwd, 'src', 'server', 'server.config.ts');
     const configJsPath = join(cwd, 'src', 'server', 'server.config.js');
+    const builtConfigMjsPath = join(cwd, '.spfn', 'server', 'server.config.mjs');
     const builtConfigPath = join(cwd, '.spfn', 'server', 'server.config.js');
 
     let fileConfig: ServerConfig = {};
 
-    // Check in order: .spfn/server (built), src/server (.js), src/server (.ts)
-    if (existsSync(builtConfigPath))
+    // Check in order: .spfn/server (built .mjs), .spfn/server (built .js), src/server (.js), src/server (.ts)
+    if (existsSync(builtConfigMjsPath))
+    {
+        const configModule = await import(builtConfigMjsPath);
+        fileConfig = configModule.default ?? {};
+    }
+    else if (existsSync(builtConfigPath))
     {
         const configModule = await import(builtConfigPath);
         fileConfig = configModule.default ?? {};

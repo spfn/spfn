@@ -61,7 +61,7 @@ export function bind<TContract extends RouteContract>(
 
         if (contract.query)
         {
-            // Convert types (e.g., string "123" -> number 123, "true" -> boolean true)
+            // Convert types (e.g., string "123" -> number 123, "true" -> boㅇolean true)
             query = Value.Convert(contract.query, query) as typeof query;
 
             // Then validate
