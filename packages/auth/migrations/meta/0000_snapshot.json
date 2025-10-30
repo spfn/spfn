@@ -1,5 +1,5 @@
 {
-  "id": "cb5a022a-cae3-48a8-b016-c2d8ebc69cbf",
+  "id": "a1376e5e-8568-4184-8df1-46682e7023e1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -117,8 +117,8 @@
           "primaryKey": true,
           "notNull": true
         },
-        "user_id_id": {
-          "name": "user_id_id",
+        "user_id": {
+          "name": "user_id",
           "type": "bigserial",
           "primaryKey": false,
           "notNull": true
@@ -198,13 +198,13 @@
         }
       },
       "foreignKeys": {
-        "user_social_accounts_user_id_id_users_id_fk": {
-          "name": "user_social_accounts_user_id_id_users_id_fk",
+        "user_social_accounts_user_id_users_id_fk": {
+          "name": "user_social_accounts_user_id_users_id_fk",
           "tableFrom": "user_social_accounts",
           "tableTo": "users",
           "schemaTo": "spfn_auth",
           "columnsFrom": [
-            "user_id_id"
+            "user_id"
           ],
           "columnsTo": [
             "id"

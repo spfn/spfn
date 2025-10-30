@@ -15,7 +15,7 @@ export const userSocialAccounts = schema.table('user_social_accounts',
         id: id(),
 
         // Foreign key to users
-        userId: foreignKey('user_id', () => users.id),
+        userId: foreignKey('user', () => users.id),
 
         // Provider info
         provider: text(
