@@ -9,6 +9,7 @@ import { keyCommand } from './commands/key.js';
 import { setupCommand } from './commands/setup.js';
 import { dbCommand } from './commands/db.js';
 import { addCommand } from './commands/add.js';
+import { generateCommand } from './commands/generate.js';
 
 // Export types
 export type {
@@ -31,6 +32,7 @@ program
 program.addCommand(createCommand);
 program.addCommand(initCommand);
 program.addCommand(addCommand);
+program.addCommand(generateCommand);
 program.addCommand(devCommand);
 program.addCommand(buildCommand);
 program.addCommand(startCommand);

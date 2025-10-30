@@ -58,6 +58,46 @@ spfn init -y           # Skip prompts, use defaults
 - **Frontend**: Import contracts for type-safe API calls
 - **Auto-generated Client**: `src/lib/api.ts` is generated from contracts
 
+### Generate Function Modules
+```bash
+spfn generate fn <name>                    # Generate new SPFN function module (interactive)
+spfn g fn <name>                           # Short alias
+
+# With options
+spfn g fn blog -e posts,comments -y        # Create blog module with posts & comments entities
+spfn g fn shop -d "E-commerce shop" -e products,orders,customers
+```
+
+**What `spfn generate fn` creates:**
+- `packages/<name>/` - New function module in monorepo
+- `src/entities/` - Drizzle ORM entity definitions
+- `src/repositories/` - CRUD repository layer
+- `src/routes/` - RESTful API route handlers
+- `src/contracts/` - TypeBox API contracts
+- `package.json` - Pre-configured with SPFN metadata
+- `tsup.config.ts` - Build configuration
+- `drizzle.config.ts` - Database migration setup
+
+**Options:**
+- `-e, --entities <list>` - Comma-separated entity names
+- `-d, --description <text>` - Module description
+- `--skip-routes` - Generate entities without routes
+- `--skip-cache` - Skip cache generation
+- `-y, --yes` - Skip all prompts
+
+**Example workflow:**
+```bash
+# 1. Generate module
+spfn g fn blog -e posts,comments -y
+
+# 2. Build the module
+cd packages/blog
+npm run build
+
+# 3. Install in your app
+spfn add @spfn/blog
+```
+
 ### Install Ecosystem Packages
 ```bash
 spfn add <package>         # Install SPFN ecosystem package with automatic DB setup
