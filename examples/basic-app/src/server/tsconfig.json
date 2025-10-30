@@ -17,7 +17,7 @@
     "declaration": true,
     "sourceMap": true,
     "outDir": "../../.spfn/server",
-    "rootDir": ".",
+    "rootDir": "..",
     "baseUrl": "../..",
     "paths": {
       "@/*": ["./src/*"]
