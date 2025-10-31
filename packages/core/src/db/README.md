@@ -123,20 +123,65 @@ Reusable column definitions for common patterns.
 **Available Helpers:**
 
 ```typescript
+import { pgTable, text, integer, boolean, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { id, timestamps, foreignKey, optionalForeignKey } from '@spfn/core/db';
 
+// Basic table with SPFN helpers
 export const users = pgTable('users', {
   id: id(),                    // bigserial primary key
-  email: text('email').unique(),
+  email: text('email').notNull(),
+  name: text('name'),
+  isActive: boolean('is_active').notNull().default(true),
   ...timestamps()              // createdAt + updatedAt
-});
+}, (table) => [
+  // Modern Drizzle constraint syntax (array-based)
+  uniqueIndex('users_email_idx').on(table.email),
+  index('users_active_idx').on(table.isActive)
+]);
 
+// Table with foreign keys and constraints
 export const posts = pgTable('posts', {
   id: id(),
+  title: text('title').notNull(),
+  content: text('content'),
+  published: boolean('published').notNull().default(false),
+  viewCount: integer('view_count').notNull().default(0),
+
+  // Foreign keys using SPFN helpers
   authorId: foreignKey('author', () => users.id),  // Required FK with cascade
   categoryId: optionalForeignKey('category', () => categories.id),  // Nullable FK
+
   ...timestamps()
-});
+}, (table) => [
+  // Indexes for performance
+  index('posts_author_idx').on(table.authorId),
+  index('posts_category_idx').on(table.categoryId),
+  index('posts_published_idx').on(table.published),
+
+  // Composite index for common queries
+  index('posts_author_published_idx').on(table.authorId, table.published)
+]);
+
+// Table with unique constraints
+export const categories = pgTable('categories', {
+  id: id(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  ...timestamps()
+}, (table) => [
+  uniqueIndex('categories_slug_idx').on(table.slug),
+  index('categories_name_idx').on(table.name)
+]);
+
+// Many-to-many join table
+export const postTags = pgTable('post_tags', {
+  postId: foreignKey('post', () => posts.id),
+  tagId: foreignKey('tag', () => tags.id),
+  ...timestamps()
+}, (table) => [
+  // Composite primary key
+  uniqueIndex('post_tags_pkey').on(table.postId, table.tagId)
+]);
 ```
 
 **Helpers:**
@@ -144,6 +189,13 @@ export const posts = pgTable('posts', {
 - `timestamps()` - Adds createdAt and updatedAt timestamp fields
 - `foreignKey(name, ref)` - Required foreign key with cascade delete
 - `optionalForeignKey(name, ref)` - Nullable foreign key
+
+**Constraint Syntax (Modern Drizzle):**
+- Use the second argument (callback) to define indexes and constraints
+- Return an array of constraints: `(table) => [index(...), uniqueIndex(...)]`
+- `index(name).on(column1, column2, ...)` - Performance index
+- `uniqueIndex(name).on(column)` - Unique constraint with index
+- Composite indexes: `.on(column1, column2)` for multi-column queries
 
 ## Environment Variables
 

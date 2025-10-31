@@ -68,6 +68,9 @@ export interface ClientGenerationOptions
 
     /** Generate JSDoc comments? */
     includeJsDoc?: boolean;
+
+    /** Split API by resource into separate files? */
+    splitByResource?: boolean;
 }
 
 /**

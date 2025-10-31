@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.63] - 2025-11-01
+
+### Enhanced
+
+#### @spfn/core
+
+- **API Client Generation Improvements**:
+  - **Type Reuse**: API method signatures now reuse generated types instead of repeating `InferContract<typeof ...>` expressions
+    - Before: `list: (options: { query?: InferContract<typeof getTeamsContract>['query'] }) => ...`
+    - After: `list: (options: { query?: GetTeamsQuery }) => ...`
+    - Improves code readability and maintainability
+
+  - **Resource-Based File Splitting** (Default enabled):
+    - API client now splits into separate files per resource: `src/lib/api/` directory structure
+    - Before: Single `api.ts` file with all endpoints
+    - After: Individual files (teams.ts, users.ts, etc.) + unified `index.ts`
+    - Benefits:
+      - ✅ File size stays manageable as your API grows
+      - ✅ Types and APIs are co-located by resource
+      - ✅ Better tree-shaking for optimal bundle size
+      - ✅ Team members can work on different resources in parallel
+    - Configuration: `splitByResource` option (default: `true`)
+    - Legacy single-file mode still available with `splitByResource: false`
+
+- **Documentation Updates**:
+  - Updated codegen README with detailed split mode documentation
+  - Added output mode comparison (split vs single file)
+  - Added type reuse examples
+  - Updated main README to reflect new API structure
+  - Updated official documentation site
+
 ## [0.1.0-alpha.62] - 2025-10-30
 
 ### Fixed

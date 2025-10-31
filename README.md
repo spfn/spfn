@@ -92,8 +92,9 @@ After initialization, you'll have:
 - Shared between server and client
 - Full type safety and validation
 
-✅ **Auto-Generated Client** (`src/lib/api.ts`)
+✅ **Auto-Generated Client** (`src/lib/api/`)
 - Type-safe API client for Next.js
+- Resource-based file splitting for scalability
 - Auto-updated on contract changes (dev mode)
 - Full TypeScript autocomplete
 

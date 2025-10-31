@@ -6,7 +6,7 @@ import { createApp } from '@spfn/core/route';
 import { findOne } from '@spfn/core/db';
 import { users } from '../../entities';
 import { success, error, ErrorCodes } from '../../types';
-import { checkAccountExistsContract } from './contract.js';
+import { checkAccountExistsContract } from '../../contracts/auth.js';
 
 const app = createApp();
 

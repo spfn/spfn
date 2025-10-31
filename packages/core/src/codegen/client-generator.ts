@@ -23,14 +23,22 @@ export async function generateClient(
     const grouped = groupByResource(mappings);
     const resourceNames = Object.keys(grouped);
 
-    // Generate code
-    const code = generateClientCode(mappings, grouped, options);
+    if (options.splitByResource === false)
+    {
+        // Generate single file (legacy mode)
+        const code = generateClientCode(mappings, grouped, options);
 
-    // Ensure output directory exists
-    await mkdir(dirname(options.outputPath), { recursive: true });
+        // Ensure output directory exists
+        await mkdir(dirname(options.outputPath), { recursive: true });
 
-    // Write file
-    await writeFile(options.outputPath, code, 'utf-8');
+        // Write file
+        await writeFile(options.outputPath, code, 'utf-8');
+    }
+    else
+    {
+        // Generate split files by resource (default)
+        await generateSplitClient(mappings, grouped, options);
+    }
 
     // Calculate stats
     return {
@@ -280,7 +288,6 @@ export const api = {\n`;
 function generateMethodCode(mapping: RouteContractMapping, options: ClientGenerationOptions): string
 {
     const methodName = generateMethodName(mapping);
-    const contractType = `typeof ${mapping.contractName}`;
     const hasParams = mapping.hasParams || mapping.path.includes(':');
     const hasQuery = mapping.hasQuery || false;
     const hasBody = mapping.hasBody || false;
@@ -298,22 +305,23 @@ function generateMethodCode(mapping: RouteContractMapping, options: ClientGenera
     // Method signature
     code += `        ${methodName}: (`;
 
-    // Parameters
+    // Parameters - use generated type names instead of InferContract
     const params: string[] = [];
+    const typeName = generateTypeName(mapping);
 
     if (hasParams)
     {
-        params.push(`params: InferContract<${contractType}>['params']`);
+        params.push(`params: ${typeName}Params`);
     }
 
     if (hasQuery)
     {
-        params.push(`query?: InferContract<${contractType}>['query']`);
+        params.push(`query?: ${typeName}Query`);
     }
 
     if (hasBody)
     {
-        params.push(`body: InferContract<${contractType}>['body']`);
+        params.push(`body: ${typeName}Body`);
     }
 
     if (params.length > 0)
@@ -420,4 +428,195 @@ function countUniqueContractFiles(mappings: RouteContractMapping[]): number
     }
 
     return files.size;
+}
+
+/**
+ * Generate split API client files by resource
+ */
+async function generateSplitClient(
+    _mappings: RouteContractMapping[],
+    grouped: Record<string, RouteContractMapping[]>,
+    options: ClientGenerationOptions
+): Promise<void>
+{
+    // When splitting, outputPath should become a directory
+    // e.g., /src/lib/api.ts -> /src/lib/api/
+    const outputPath = options.outputPath;
+    const outputDir = outputPath.endsWith('.ts') || outputPath.endsWith('.js')
+        ? outputPath.replace(/\.[jt]s$/, '')
+        : outputPath;
+
+    // Create output directory
+    await mkdir(outputDir, { recursive: true });
+
+    const resourceNames = Object.keys(grouped);
+
+    // Generate individual resource files
+    for (let i = 0; i < resourceNames.length; i++)
+    {
+        const resourceName = resourceNames[i];
+        const routes = grouped[resourceName];
+
+        const code = generateResourceFile(resourceName, routes, options);
+        const filePath = `${outputDir}/${resourceName}.ts`;
+
+        await writeFile(filePath, code, 'utf-8');
+    }
+
+    // Generate index file
+    const indexCode = generateIndexFile(resourceNames, options);
+    const indexPath = `${outputDir}/index.ts`;
+
+    await writeFile(indexPath, indexCode, 'utf-8');
+}
+
+/**
+ * Generate a single resource file
+ */
+function generateResourceFile(
+    resourceName: string,
+    routes: RouteContractMapping[],
+    options: ClientGenerationOptions
+): string
+{
+    let code = '';
+
+    // Header
+    code += generateHeader();
+
+    // Imports
+    code += `import { client } from '@spfn/core/client';\n`;
+
+    if (options.includeTypes !== false)
+    {
+        code += `import type { InferContract } from '@spfn/core';\n`;
+    }
+
+    code += `\n`;
+
+    // Contract imports
+    const importGroups = groupContractsByImportPath(routes);
+    const importPaths = Object.keys(importGroups);
+
+    for (let i = 0; i < importPaths.length; i++)
+    {
+        const importPath = importPaths[i];
+        const contracts = importGroups[importPath];
+
+        code += `import { ${contracts.join(', ')} } from '${importPath}';\n`;
+    }
+
+    code += `\n`;
+
+    // Types
+    if (options.includeTypes !== false)
+    {
+        code += `// ============================================\n`;
+        code += `// Types\n`;
+        code += `// ============================================\n\n`;
+
+        for (let i = 0; i < routes.length; i++)
+        {
+            const route = routes[i];
+            const typeName = generateTypeName(route);
+            const contractType = `typeof ${route.contractName}`;
+
+            // Response type (always present)
+            code += `export type ${typeName}Response = InferContract<${contractType}>['response'];\n`;
+
+            // Query type (if exists)
+            if (route.hasQuery)
+            {
+                code += `export type ${typeName}Query = InferContract<${contractType}>['query'];\n`;
+            }
+
+            // Params type (if exists)
+            if (route.hasParams || route.path.includes(':'))
+            {
+                code += `export type ${typeName}Params = InferContract<${contractType}>['params'];\n`;
+            }
+
+            // Body type (if exists)
+            if (route.hasBody)
+            {
+                code += `export type ${typeName}Body = InferContract<${contractType}>['body'];\n`;
+            }
+
+            code += `\n`;
+        }
+    }
+
+    // API object
+    code += `/**\n`;
+    code += ` * ${resourceName} API\n`;
+    code += ` */\n`;
+    code += `export const ${resourceName} = {\n`;
+
+    for (let i = 0; i < routes.length; i++)
+    {
+        const route = routes[i];
+        code += generateMethodCode(route, options);
+    }
+
+    code += `} as const;\n`;
+
+    return code;
+}
+
+/**
+ * Generate index file that combines all resources
+ */
+function generateIndexFile(
+    resourceNames: string[],
+    _options: ClientGenerationOptions
+): string
+{
+    let code = '';
+
+    // Header
+    code += generateHeader();
+
+    // Re-export client
+    code += `export { client } from '@spfn/core/client';\n\n`;
+
+    // Re-export all resource modules
+    for (let i = 0; i < resourceNames.length; i++)
+    {
+        const resourceName = resourceNames[i];
+        code += `export * from './${resourceName}.js';\n`;
+    }
+
+    code += `\n`;
+
+    // Import resources
+    for (let i = 0; i < resourceNames.length; i++)
+    {
+        const resourceName = resourceNames[i];
+        code += `import { ${resourceName} } from './${resourceName}.js';\n`;
+    }
+
+    code += `\n`;
+
+    // Combined API object
+    code += `/**\n`;
+    code += ` * Type-safe API client\n`;
+    code += ` */\n`;
+    code += `export const api = {\n`;
+
+    for (let i = 0; i < resourceNames.length; i++)
+    {
+        const resourceName = resourceNames[i];
+        code += `    ${resourceName}`;
+
+        if (i < resourceNames.length - 1)
+        {
+            code += `,`;
+        }
+
+        code += `\n`;
+    }
+
+    code += `} as const;\n`;
+
+    return code;
 }

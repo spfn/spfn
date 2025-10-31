@@ -20,12 +20,13 @@ SPFN's codegen system uses an **orchestrator pattern** that manages multiple cod
 Automatically generates type-safe API clients from your route contracts.
 
 **Input:** Route files with contracts (e.g., `src/server/routes/**/*.ts`)
-**Output:** Type-safe client library (e.g., `src/lib/api.ts`)
+**Output:** Type-safe client library (e.g., `src/lib/api/` or `src/lib/api.ts`)
 
 **Features:**
 - Scans all route contracts from your routes directory
 - Groups routes by resource
-- Generates typed client methods
+- Generates typed client methods with reusable type definitions
+- Resource-based file splitting (default) for better scalability
 - Includes JSDoc comments with usage examples
 
 **Configuration:**
@@ -39,12 +40,48 @@ Automatically generates type-safe API clients from your route contracts.
         "enabled": true,
         "routesDir": "src/server/routes",
         "outputPath": "src/lib/api.ts",
-        "baseUrl": "http://localhost:8790"
+        "baseUrl": "http://localhost:8790",
+        "splitByResource": true
       }
     ]
   }
 }
 ```
+
+**Output Modes:**
+
+1. **Split by Resource** (default, `splitByResource: true`):
+   ```
+   src/lib/api/
+     index.ts       # Unified exports + api object
+     categories.ts  # Categories API + types
+     companies.ts   # Companies API + types
+     teams.ts       # Teams API + types
+   ```
+   - ✅ Scalable: File size stays manageable
+   - ✅ Better organization: Related types and APIs together
+   - ✅ Tree-shaking friendly: Import only what you need
+   - ✅ Team-friendly: Parallel work on different resources
+
+2. **Single File** (legacy, `splitByResource: false`):
+   ```
+   src/lib/api.ts  # All APIs + types in one file
+   ```
+   - Use this for smaller projects or backward compatibility
+
+**Type Reuse:**
+
+The generator creates reusable type definitions and references them in method signatures:
+
+```typescript
+// Type definitions (generated once)
+export type GetCategoriesQuery = InferContract<typeof getCategoriesContract>['query'];
+
+// Method signatures (reusing types)
+list: (options: { query?: GetCategoriesQuery }) => client.call(...)
+```
+
+This eliminates repetitive `InferContract<typeof ...>` expressions and improves readability.
 
 **Legacy naming** (still supported for backward compatibility):
 ```json
@@ -511,9 +548,12 @@ interface CodegenConfig {
 function createContractGenerator(config?: ContractGeneratorConfig): Generator;
 
 interface ContractGeneratorConfig {
-  routesDir?: string;    // Default: 'src/server/routes'
-  outputPath?: string;   // Default: 'src/lib/api.ts'
-  baseUrl?: string;      // Default: 'http://localhost:8790'
+  routesDir?: string;       // Default: 'src/server/routes'
+  outputPath?: string;      // Default: 'src/lib/api.ts'
+  baseUrl?: string;         // Default: 'http://localhost:8790'
+  splitByResource?: boolean;// Default: true (split into separate files)
+  includeTypes?: boolean;   // Default: true (generate TypeScript types)
+  includeJsDoc?: boolean;   // Default: true (generate JSDoc comments)
 }
 ```
 
