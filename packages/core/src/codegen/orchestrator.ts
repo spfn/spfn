@@ -7,7 +7,7 @@
 import { watch as chokidarWatch } from 'chokidar';
 import { join, relative } from 'path';
 import mm from 'micromatch';
-import type { Generator, GeneratorOptions } from './generator.js';
+import type { Generator, GeneratorOptions, GeneratorTrigger } from './generator.js';
 import { logger } from '../logger';
 
 const orchestratorLogger = logger.child('orchestrator');
@@ -40,25 +40,50 @@ export class CodegenOrchestrator
     }
 
     /**
-     * Run all generators once
+     * Check if generator should run for given trigger
      */
-    async generateAll(): Promise<void>
+    private shouldRun(generator: Generator, trigger: GeneratorTrigger): boolean
+    {
+        const runOn = generator.runOn ?? ['watch', 'manual', 'build'];
+        return runOn.includes(trigger);
+    }
+
+    /**
+     * Run all generators once
+     *
+     * @param trigger - How the generators are being triggered
+     */
+    async generateAll(trigger: GeneratorTrigger = 'manual'): Promise<void>
     {
         if (this.debug)
         {
             orchestratorLogger.info('Running all generators', {
                 count: this.generators.length,
-                names: this.generators.map(g => g.name)
+                names: this.generators.map(g => g.name),
+                trigger
             });
         }
 
         for (const generator of this.generators)
         {
+            // Check if generator should run for this trigger
+            if (!this.shouldRun(generator, trigger))
+            {
+                if (this.debug)
+                {
+                    orchestratorLogger.info(`[${generator.name}] Skipped (runOn: ${generator.runOn?.join(', ') ?? 'default'})`);
+                }
+                continue;
+            }
+
             try
             {
                 const genOptions: GeneratorOptions = {
                     cwd: this.cwd,
-                    debug: this.debug
+                    debug: this.debug,
+                    trigger: {
+                        type: trigger
+                    }
                 };
 
                 await generator.generate(genOptions);
@@ -81,8 +106,8 @@ export class CodegenOrchestrator
      */
     async watch(): Promise<void>
     {
-        // Initial generation
-        await this.generateAll();
+        // Initial generation with 'watch' trigger
+        await this.generateAll('watch');
 
         // Collect all watch patterns from generators
         const allPatterns = this.generators.flatMap(g => g.watchPatterns);
@@ -146,6 +171,12 @@ export class CodegenOrchestrator
             // Find matching generators
             for (const generator of this.generators)
             {
+                // Check if generator should run for 'watch' trigger
+                if (!this.shouldRun(generator, 'watch'))
+                {
+                    continue;
+                }
+
                 const matches = generator.watchPatterns.some(pattern =>
                     mm.isMatch(filePath, pattern)
                 );
@@ -154,20 +185,20 @@ export class CodegenOrchestrator
                 {
                     try
                     {
-                        if (generator.onFileChange)
-                        {
-                            // Use custom handler
-                            await generator.onFileChange(filePath, event);
-                        }
-                        else
-                        {
-                            // Fallback to full regeneration
-                            const genOptions: GeneratorOptions = {
-                                cwd: this.cwd,
-                                debug: this.debug
-                            };
-                            await generator.generate(genOptions);
-                        }
+                        // Call generate() with trigger information
+                        const genOptions: GeneratorOptions = {
+                            cwd: this.cwd,
+                            debug: this.debug,
+                            trigger: {
+                                type: 'watch',
+                                changedFile: {
+                                    path: filePath,
+                                    event
+                                }
+                            }
+                        };
+
+                        await generator.generate(genOptions);
 
                         if (this.debug)
                         {

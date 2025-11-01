@@ -19,15 +19,16 @@ SPFN's codegen system uses an **orchestrator pattern** that manages multiple cod
 
 Automatically generates type-safe API clients from your route contracts.
 
-**Input:** Route files with contracts (e.g., `src/server/routes/**/*.ts`)
-**Output:** Type-safe client library (e.g., `src/lib/api/` or `src/lib/api.ts`)
+**Input:** Contract files (default: `src/lib/contracts/**/*.ts`)
+**Output:** Type-safe client library (default: `src/lib/api/`)
 
 **Features:**
-- Scans all route contracts from your routes directory
+- Scans all contract files from your contracts directory
 - Groups routes by resource
 - Generates typed client methods with reusable type definitions
-- Resource-based file splitting (default) for better scalability
+- Resource-based file splitting (always enabled)
 - Includes JSDoc comments with usage examples
+- **Incremental updates**: Detects contract signature changes and skips regeneration if only formatting changed
 
 **Configuration:**
 
@@ -38,10 +39,9 @@ Automatically generates type-safe API clients from your route contracts.
       {
         "name": "@spfn/core:contract",
         "enabled": true,
-        "routesDir": "src/server/routes",
-        "outputPath": "src/lib/api.ts",
-        "baseUrl": "http://localhost:8790",
-        "splitByResource": true
+        "contractsDir": "src/lib/contracts",
+        "outputPath": "src/lib/api",
+        "baseUrl": "http://localhost:8790"
       }
     ]
   }
@@ -215,12 +215,18 @@ export default function createAdminNavGenerator(): Generator {
     // File patterns to watch (glob patterns)
     watchPatterns: ['src/app/admin/**/nav.config.tsx'],
 
+    // When to run this generator (default: ['watch', 'manual', 'build'])
+    runOn: ['watch', 'build'],  // Exclude 'manual' and 'start'
+
     // Generate code
     async generate(options: GeneratorOptions): Promise<void> {
-      const { cwd, debug } = options;
+      const { cwd, debug, trigger } = options;
 
       if (debug) {
         console.log('🔄 Generating admin navigation...');
+        if (trigger?.changedFile) {
+          console.log(`   Triggered by: ${trigger.changedFile.path} (${trigger.changedFile.event})`);
+        }
       }
 
       // Your generation logic here
@@ -236,12 +242,6 @@ export default function createAdminNavGenerator(): Generator {
       if (debug) {
         console.log(`✅ Generated ${navItems.length} nav items`);
       }
-    },
-
-    // Optional: Handle individual file changes
-    async onFileChange(filePath: string, event: 'add' | 'change' | 'unlink') {
-      console.log(`📝 Admin nav config ${event}: ${filePath}`);
-      await this.generate({ cwd: process.cwd(), debug: false });
     }
   };
 }
@@ -381,7 +381,7 @@ await orchestrator.watch();
 ### Generator Interface
 
 ```typescript
-import type { Generator, GeneratorOptions } from '@spfn/core/codegen';
+import type { Generator, GeneratorOptions, GeneratorTrigger } from '@spfn/core/codegen';
 
 export function createMyGenerator(config?: MyGeneratorConfig): Generator {
   return {
@@ -390,20 +390,28 @@ export function createMyGenerator(config?: MyGeneratorConfig): Generator {
     // File patterns to watch (glob patterns)
     watchPatterns: ['src/app/**/*.tsx'],
 
+    // When to run this generator (default: ['watch', 'manual', 'build'])
+    runOn: ['watch', 'manual', 'build'],  // Optional, exclude 'start' if not needed
+
     // Generate code
     async generate(options: GeneratorOptions): Promise<void> {
-      const { cwd, debug } = options;
+      const { cwd, debug, trigger } = options;
 
-      // Your generation logic here
+      // Check if triggered by file change
+      if (trigger?.changedFile) {
+        const { path, event } = trigger.changedFile;
+
+        // Implement incremental update if possible
+        if (canDoIncrementalUpdate(path, event)) {
+          await incrementalUpdate(path);
+          return;
+        }
+      }
+
+      // Otherwise, do full regeneration
       // - Scan files
       // - Process data
       // - Write output files
-    },
-
-    // Optional: Handle individual file changes
-    async onFileChange(filePath: string, event: 'add' | 'change' | 'unlink') {
-      // Custom logic for individual file changes
-      // If not provided, orchestrator will call generate() on any change
     }
   };
 }
@@ -474,6 +482,9 @@ interface OrchestratorOptions {
 Interface for code generators.
 
 ```typescript
+/** Generator execution trigger types */
+type GeneratorTrigger = 'watch' | 'manual' | 'build' | 'start';
+
 interface Generator {
   /** Unique generator name */
   name: string;
@@ -482,15 +493,23 @@ interface Generator {
   watchPatterns: string[];
 
   /**
-   * Generate code once
+   * When this generator should run
+   * @default ['watch', 'manual', 'build']
+   *
+   * - 'watch': During dev mode file watching
+   * - 'manual': When explicitly run via CLI (`spfn codegen run`)
+   * - 'build': During build process
+   * - 'start': On server start
    */
-  generate(options: GeneratorOptions): Promise<void>;
+  runOn?: GeneratorTrigger[];
 
   /**
-   * Handle individual file changes (optional)
-   * If not provided, orchestrator will call generate() on any file change
+   * Generate code
+   *
+   * Generator can implement incremental updates by checking `options.trigger.changedFile`.
+   * If incremental update is not possible, do full regeneration.
    */
-  onFileChange?(filePath: string, event: 'add' | 'change' | 'unlink'): Promise<void>;
+  generate(options: GeneratorOptions): Promise<void>;
 }
 
 interface GeneratorOptions {
@@ -499,6 +518,18 @@ interface GeneratorOptions {
 
   /** Enable debug logging */
   debug?: boolean;
+
+  /** Execution trigger information */
+  trigger?: {
+    /** How the generator was triggered */
+    type: GeneratorTrigger;
+
+    /** Changed file information (only for 'watch' trigger) */
+    changedFile?: {
+      path: string;
+      event: 'add' | 'change' | 'unlink';
+    };
+  };
 
   /** Custom configuration options */
   [key: string]: any;
@@ -533,12 +564,9 @@ interface CodegenConfig {
 function createContractGenerator(config?: ContractGeneratorConfig): Generator;
 
 interface ContractGeneratorConfig {
-  routesDir?: string;       // Default: 'src/server/routes'
-  outputPath?: string;      // Default: 'src/lib/api.ts'
-  baseUrl?: string;         // Default: 'http://localhost:8790'
-  splitByResource?: boolean;// Default: true (split into separate files)
-  includeTypes?: boolean;   // Default: true (generate TypeScript types)
-  includeJsDoc?: boolean;   // Default: true (generate JSDoc comments)
+  contractsDir?: string;    // Default: 'src/lib/contracts'
+  outputPath?: string;      // Default: 'src/lib/api' (directory, not file)
+  baseUrl?: string;         // Base URL for API client
 }
 ```
 

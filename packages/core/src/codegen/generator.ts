@@ -4,6 +4,11 @@
  * Defines the contract for code generators that can be orchestrated by the codegen system.
  */
 
+/**
+ * Generator execution trigger types
+ */
+export type GeneratorTrigger = 'watch' | 'manual' | 'build' | 'start';
+
 export interface GeneratorOptions
 {
     /** Project root directory */
@@ -11,6 +16,18 @@ export interface GeneratorOptions
 
     /** Enable debug logging */
     debug?: boolean;
+
+    /** Execution trigger information */
+    trigger?: {
+        /** How the generator was triggered */
+        type: GeneratorTrigger;
+
+        /** Changed file information (only for 'watch' trigger) */
+        changedFile?: {
+            path: string;
+            event: 'add' | 'change' | 'unlink';
+        };
+    };
 
     /** Custom configuration options */
     [key: string]: any;
@@ -25,19 +42,46 @@ export interface Generator
     watchPatterns: string[];
 
     /**
-     * Generate code once
+     * When this generator should run
      *
-     * @param options - Generator options
+     * @default ['watch', 'manual', 'build']
+     *
+     * Examples:
+     * - ['watch', 'build']: Run during development and build (e.g., admin-nav-generator)
+     * - ['build', 'start']: Run during build and server start (e.g., db-migration)
+     * - ['watch', 'manual']: Run during development and manual CLI (e.g., contract-generator)
+     * - ['start']: Run only on server start (e.g., runtime config generator)
      */
-    generate(options: GeneratorOptions): Promise<void>;
+    runOn?: GeneratorTrigger[];
 
     /**
-     * Handle individual file changes (optional)
+     * Generate code
      *
-     * If not provided, the orchestrator will call generate() on any file change.
+     * Generator can implement incremental updates by checking `options.trigger.changedFile`.
+     * If incremental update is not possible, do full regeneration.
      *
-     * @param filePath - Changed file path (relative to cwd)
-     * @param event - Type of file event
+     * @param options - Generator options with trigger context
+     *
+     * @example
+     * ```typescript
+     * async generate(options: GeneratorOptions): Promise<void>
+     * {
+     *     // Check if incremental update is possible
+     *     if (options.trigger?.changedFile)
+     *     {
+     *         const { path, event } = options.trigger.changedFile;
+     *
+     *         if (canDoIncrementalUpdate(path, event))
+     *         {
+     *             await updateSingleFile(path);
+     *             return;
+     *         }
+     *     }
+     *
+     *     // Fallback: full regeneration
+     *     await fullRegenerate();
+     * }
+     * ```
      */
-    onFileChange?(filePath: string, event: 'add' | 'change' | 'unlink'): Promise<void>;
+    generate(options: GeneratorOptions): Promise<void>;
 }

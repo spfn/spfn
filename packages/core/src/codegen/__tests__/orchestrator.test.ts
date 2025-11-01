@@ -177,7 +177,10 @@ describe('Orchestrator', () =>
 
             expect(receivedOptions).toEqual({
                 cwd: TEST_DIR,
-                debug: true
+                debug: true,
+                trigger: {
+                    type: 'manual'
+                }
             });
         });
     });
@@ -312,22 +315,18 @@ describe('Orchestrator', () =>
             expect(changes.length).toBeGreaterThanOrEqual(1);
         });
 
-        it('should call onFileChange when provided', async () =>
+        it('should pass trigger information on file change', async () =>
         {
             const { watch: chokidarWatch } = await import('chokidar');
 
-            const changes: Array<{ file: string; event: string }> = [];
+            const receivedTriggers: Array<any> = [];
 
             const mockGen: Generator = {
                 name: 'test-gen',
                 watchPatterns: ['**/*.ts'],
-                async generate()
+                async generate(options: GeneratorOptions)
                 {
-                    changes.push({ file: 'generate', event: 'generate' });
-                },
-                async onFileChange(filePath: string, event: 'add' | 'change' | 'unlink')
-                {
-                    changes.push({ file: filePath, event });
+                    receivedTriggers.push(options.trigger);
                 }
             };
 
@@ -355,8 +354,8 @@ describe('Orchestrator', () =>
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
-            // Clear initial generate
-            changes.length = 0;
+            // Clear initial trigger
+            receivedTriggers.length = 0;
 
             // Simulate file change
             if (changeHandler)
@@ -365,9 +364,15 @@ describe('Orchestrator', () =>
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
 
-            // Should have called onFileChange (not generate)
-            const fileChangeEvents = changes.filter(c => c.event === 'change');
-            expect(fileChangeEvents.length).toBeGreaterThan(0);
+            // Should have received trigger with changedFile information
+            expect(receivedTriggers.length).toBeGreaterThan(0);
+            expect(receivedTriggers[0]).toMatchObject({
+                type: 'watch',
+                changedFile: {
+                    path: 'test.ts',
+                    event: 'change'
+                }
+            });
         });
 
         it('should handle multiple generators with different patterns', async () =>
