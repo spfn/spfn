@@ -482,6 +482,248 @@ app.bind(createTeamContract, async (c) => {
 
 ---
 
+## API Response Helpers (Optional)
+
+SPFN provides optional standardized response helpers for consistent API responses. These are completely opt-in - use them only when you want standardization.
+
+### Success Responses
+
+```typescript
+import { success, ApiResponseSchema } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
+
+const getUserContract = {
+    method: 'GET' as const,
+    path: '/users/:id',
+    params: Type.Object({ id: Type.Integer() }),
+    response: ApiResponseSchema(Type.Object({
+        id: Type.Number(),
+        name: Type.String(),
+        email: Type.String()
+    }))
+} as const satisfies RouteContract;
+
+app.bind(getUserContract, async (c) => {
+    const user = await db.getUser(c.params.id);
+
+    // Simple success response
+    return success(c, user);
+    // → { success: true, data: { id, name, email } }
+
+    // With metadata
+    return success(c, user, {
+        timestamp: new Date().toISOString(),
+        requestId: crypto.randomUUID()
+    });
+    // → { success: true, data: {...}, meta: { timestamp, requestId } }
+
+    // With custom status code
+    return success(c, newUser, undefined, 201);
+});
+```
+
+### Error Responses
+
+```typescript
+import { error, ApiResponseSchema } from '@spfn/core/route';
+
+app.bind(getUserContract, async (c) => {
+    const user = await db.getUser(c.params.id);
+
+    if (!user) {
+        return error(c, 'User not found', 404);
+        // → { success: false, error: { message, type: 'NotFoundError', statusCode: 404 } }
+    }
+
+    // With additional details
+    return error(c, 'Invalid email format', 400, {
+        field: 'email',
+        value: data.email
+    });
+    // → { success: false, error: { message, type, statusCode, details: {...} } }
+
+    return success(c, user);
+});
+```
+
+### Paginated Responses
+
+```typescript
+import { paginated, ApiResponseSchema } from '@spfn/core/route';
+
+const listUsersContract = {
+    method: 'GET' as const,
+    path: '/users',
+    query: Type.Object({
+        page: Type.Number(),
+        limit: Type.Number()
+    }),
+    response: ApiResponseSchema(Type.Array(Type.Object({
+        id: Type.Number(),
+        name: Type.String()
+    })))
+} as const satisfies RouteContract;
+
+app.bind(listUsersContract, async (c) => {
+    const { page, limit } = c.query;
+    const { users, total } = await db.listUsers(page, limit);
+
+    return paginated(c, users, page, limit, total);
+    // → {
+    //   success: true,
+    //   data: [...users],
+    //   meta: {
+    //     pagination: { page, limit, total, totalPages }
+    //   }
+    // }
+});
+```
+
+### TypeBox Schema Helpers
+
+Use schema helpers for type-safe contract definitions:
+
+```typescript
+import {
+    ApiSuccessSchema,
+    ApiErrorSchema,
+    ApiResponseSchema
+} from '@spfn/core/route';
+
+// Success-only response
+const contract1 = {
+    response: ApiSuccessSchema(Type.Object({
+        id: Type.Number(),
+        name: Type.String()
+    }))
+};
+
+// Error-only response
+const contract2 = {
+    response: ApiErrorSchema()
+};
+
+// Union of success and error (most common)
+const contract3 = {
+    response: ApiResponseSchema(Type.Object({
+        id: Type.Number(),
+        name: Type.String()
+    }))
+    // Equivalent to Type.Union([ApiSuccessSchema(...), ApiErrorSchema()])
+};
+```
+
+### Response Type Structure
+
+All API responses follow this structure:
+
+```typescript
+// Success response
+type ApiSuccessResponse<T> = {
+    success: true;
+    data: T;
+    meta?: {
+        timestamp?: string;
+        requestId?: string;
+        pagination?: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
+        [key: string]: any;
+    };
+};
+
+// Error response (consistent with ErrorHandler)
+type ApiErrorResponse = {
+    success: false;
+    error: {
+        message: string;
+        type: string;
+        statusCode: number;
+        stack?: string;
+        details?: any;
+    };
+};
+
+// Discriminated union
+type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
+```
+
+### Integration with ErrorHandler
+
+API responses are fully compatible with the ErrorHandler middleware:
+
+```typescript
+import { ErrorHandler } from '@spfn/core';
+import { success, error, ApiResponseSchema } from '@spfn/core/route';
+
+const app = createApp();
+
+// Enable error handler
+app.onError(ErrorHandler());
+
+app.bind(contract, async (c) => {
+    // ValidationError thrown by bind() is caught by ErrorHandler
+    const data = await c.data();  // Auto-validated
+
+    // Manual error response
+    if (someCondition) {
+        return error(c, 'Custom error', 400);
+    }
+
+    return success(c, result);
+});
+
+// Both ValidationError and manual error() return consistent format:
+// { success: false, error: { message, type, statusCode, details? } }
+```
+
+### Error Type Mapping
+
+The `error()` helper automatically maps status codes to error types:
+
+| Status Code | Error Type |
+|------------|-----------|
+| 400 | ValidationError |
+| 401 | UnauthorizedError |
+| 403 | ForbiddenError |
+| 404 | NotFoundError |
+| 409 | ConflictError |
+| 422 | UnprocessableEntityError |
+| 500+ | InternalServerError |
+
+```typescript
+error(c, 'Not found', 404)         // → type: 'NotFoundError'
+error(c, 'Unauthorized', 401)      // → type: 'UnauthorizedError'
+error(c, 'Server error', 500)      // → type: 'InternalServerError'
+```
+
+### Why Optional?
+
+The API response helpers are completely optional because:
+
+1. **Flexibility**: You can use any response format you prefer
+2. **Gradual adoption**: Mix and match with existing code
+3. **No lock-in**: Response format is not enforced by the framework
+4. **Use when needed**: Only use standardization where it adds value
+
+```typescript
+// Option 1: Use helpers for standardization
+return success(c, data);
+
+// Option 2: Custom format
+return c.json({ result: data, timestamp: Date.now() });
+
+// Option 3: Plain response
+return c.json(data);
+
+// All are valid! Choose what works best for your use case.
+```
+
+---
+
 ## Advanced Patterns
 
 ### Multiple Response Types with Union
