@@ -7,10 +7,16 @@
 import { describe, it, expect } from 'vitest';
 import {
     id,
+    uuid,
     timestamps,
     autoUpdateTimestamp,
     foreignKey,
     optionalForeignKey,
+    auditFields,
+    publishingFields,
+    verificationTimestamp,
+    softDelete,
+    statusEnum,
 } from '../helpers.js';
 import { pgTable, text } from 'drizzle-orm/pg-core';
 
@@ -261,6 +267,223 @@ describe('Schema Helpers', () =>
             expect(articles.updatedAt).toBeDefined();
             expect(articles.publishedAt).toBeDefined();
             // Note: __autoUpdate marker is lost when spread into pgTable
+        });
+    });
+
+    describe('uuid()', () =>
+    {
+        it('should create uuid primary key column', () =>
+        {
+            const uuidColumn = uuid();
+
+            expect(uuidColumn).toBeDefined();
+            expect(typeof uuidColumn).toBe('object');
+        });
+
+        it('should work in table definition', () =>
+        {
+            const testTable = pgTable('test', {
+                id: uuid(),
+            });
+
+            expect(testTable.id).toBeDefined();
+        });
+    });
+
+    describe('auditFields()', () =>
+    {
+        it('should create createdBy and updatedBy columns', () =>
+        {
+            const cols = auditFields();
+
+            expect(cols.createdBy).toBeDefined();
+            expect(cols.updatedBy).toBeDefined();
+        });
+
+        it('should work in table definition', () =>
+        {
+            const testTable = pgTable('test', {
+                id: id(),
+                ...auditFields(),
+            });
+
+            expect(testTable.createdBy).toBeDefined();
+            expect(testTable.updatedBy).toBeDefined();
+        });
+    });
+
+    describe('publishingFields()', () =>
+    {
+        it('should create publishedAt and publishedBy columns', () =>
+        {
+            const cols = publishingFields();
+
+            expect(cols.publishedAt).toBeDefined();
+            expect(cols.publishedBy).toBeDefined();
+        });
+
+        it('should work in table definition', () =>
+        {
+            const testTable = pgTable('test', {
+                id: id(),
+                ...publishingFields(),
+            });
+
+            expect(testTable.publishedAt).toBeDefined();
+            expect(testTable.publishedBy).toBeDefined();
+        });
+    });
+
+    describe('verificationTimestamp()', () =>
+    {
+        it('should create verification timestamp column', () =>
+        {
+            const col = verificationTimestamp('emailVerified');
+
+            expect(col.emailVerifiedAt).toBeDefined();
+        });
+
+        it('should convert camelCase to snake_case with _at suffix', () =>
+        {
+            const col = verificationTimestamp('phoneVerified');
+
+            expect(col.phoneVerifiedAt).toBeDefined();
+        });
+
+        it('should work in table definition', () =>
+        {
+            const testTable = pgTable('test', {
+                id: id(),
+                ...verificationTimestamp('emailVerified'),
+                ...verificationTimestamp('phoneVerified'),
+            });
+
+            expect(testTable.emailVerifiedAt).toBeDefined();
+            expect(testTable.phoneVerifiedAt).toBeDefined();
+        });
+    });
+
+    describe('softDelete()', () =>
+    {
+        it('should create deletedAt and deletedBy columns', () =>
+        {
+            const cols = softDelete();
+
+            expect(cols.deletedAt).toBeDefined();
+            expect(cols.deletedBy).toBeDefined();
+        });
+
+        it('should work in table definition', () =>
+        {
+            const testTable = pgTable('test', {
+                id: id(),
+                ...softDelete(),
+            });
+
+            expect(testTable.deletedAt).toBeDefined();
+            expect(testTable.deletedBy).toBeDefined();
+        });
+    });
+
+    describe('statusEnum()', () =>
+    {
+        it('should create status column with enum constraint', () =>
+        {
+            const statusCol = statusEnum(['draft', 'published', 'archived'] as const);
+
+            expect(statusCol).toBeDefined();
+        });
+
+        it('should use first status as default when not specified', () =>
+        {
+            const statusCol = statusEnum(['draft', 'published'] as const);
+
+            expect(statusCol).toBeDefined();
+        });
+
+        it('should use custom default status', () =>
+        {
+            const statusCol = statusEnum(['active', 'inactive', 'suspended'] as const, 'active');
+
+            expect(statusCol).toBeDefined();
+        });
+
+        it('should work in table definition', () =>
+        {
+            const testTable = pgTable('test', {
+                id: id(),
+                status: statusEnum(['draft', 'published', 'archived'] as const),
+            });
+
+            expect(testTable.status).toBeDefined();
+        });
+    });
+
+    describe('Integration: New helpers with existing helpers', () =>
+    {
+        it('should create table with UUID and audit fields', () =>
+        {
+            const sessions = pgTable('sessions', {
+                id: uuid(),
+                userId: text('user_id'),
+                ...timestamps(),
+                ...auditFields(),
+            });
+
+            expect(sessions.id).toBeDefined();
+            expect(sessions.userId).toBeDefined();
+            expect(sessions.createdAt).toBeDefined();
+            expect(sessions.updatedAt).toBeDefined();
+            expect(sessions.createdBy).toBeDefined();
+            expect(sessions.updatedBy).toBeDefined();
+        });
+
+        it('should create CMS-style table with publishing fields', () =>
+        {
+            const articles = pgTable('articles', {
+                id: id(),
+                title: text('title'),
+                status: statusEnum(['draft', 'published', 'archived'] as const),
+                ...timestamps(),
+                ...publishingFields(),
+                ...auditFields(),
+            });
+
+            expect(articles.id).toBeDefined();
+            expect(articles.title).toBeDefined();
+            expect(articles.status).toBeDefined();
+            expect(articles.publishedAt).toBeDefined();
+            expect(articles.publishedBy).toBeDefined();
+            expect(articles.createdBy).toBeDefined();
+            expect(articles.updatedBy).toBeDefined();
+        });
+
+        it('should create table with soft delete', () =>
+        {
+            const posts = pgTable('posts', {
+                id: id(),
+                title: text('title'),
+                ...timestamps(),
+                ...softDelete(),
+            });
+
+            expect(posts.deletedAt).toBeDefined();
+            expect(posts.deletedBy).toBeDefined();
+        });
+
+        it('should create auth table with verification timestamps', () =>
+        {
+            const users = pgTable('users', {
+                id: id(),
+                email: text('email'),
+                phone: text('phone'),
+                ...verificationTimestamp('emailVerified'),
+                ...verificationTimestamp('phoneVerified'),
+                ...timestamps(),
+            });
+
+            expect(users.emailVerifiedAt).toBeDefined();
+            expect(users.phoneVerifiedAt).toBeDefined();
         });
     });
 });

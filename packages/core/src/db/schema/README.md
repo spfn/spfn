@@ -6,10 +6,10 @@ Reusable column definitions and schema helper functions for Drizzle ORM to reduc
 
 ```
 schema/
-├── helpers.ts (186줄)           # Schema helper functions
-├── index.ts (6줄)               # Public API exports
+├── helpers.ts (396줄)           # 11 schema helper functions
+├── index.ts (18줄)              # Public API exports
 └── __tests__/
-    └── helpers.test.ts (266줄)  # 23 tests - 100% coverage
+    └── helpers.test.ts (489줄)  # 42 tests - 100% coverage
 ```
 
 ## 🚀 Quick Start
@@ -215,6 +215,256 @@ CREATE TABLE posts (
 - **`foreignKey()`**: `.notNull()` - Required relationship, default `onDelete: 'cascade'`
 - **`optionalForeignKey()`**: Nullable - Optional relationship, default `onDelete: 'set null'`
 
+### `uuid()`
+
+UUID primary key.
+
+Creates a UUID column as primary key with automatic default value generation using `gen_random_uuid()`.
+
+**Returns:** `uuid` primary key column
+
+**Example:**
+```typescript
+export const sessions = pgTable('sessions', {
+    id: uuid(),
+    userId: foreignKey('user', () => users.id),
+    ...timestamps(),
+});
+```
+
+**Generated SQL:**
+```sql
+CREATE TABLE sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+```
+
+**When to use UUID vs bigserial:**
+- **UUID**: Distributed systems, external IDs, public-facing IDs, merge scenarios
+- **bigserial**: Single database, sequential ordering, performance-critical paths
+
+### `auditFields()`
+
+Audit fields for tracking record creators and updaters.
+
+Adds `createdBy` and `updatedBy` text fields for user tracking.
+
+**Returns:** Object with `createdBy` and `updatedBy` columns
+
+**Example:**
+```typescript
+export const posts = pgTable('posts', {
+    id: id(),
+    title: text('title'),
+    ...timestamps(),
+    ...auditFields(),
+});
+
+// Usage in route
+await db.insert(posts).values({
+    title: 'New Post',
+    createdBy: currentUser.email,
+});
+```
+
+**Generated SQL:**
+```sql
+CREATE TABLE posts (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    created_by TEXT,
+    updated_by TEXT
+);
+```
+
+### `publishingFields()`
+
+Publishing fields for content management systems.
+
+Tracks when and by whom content was published.
+
+**Returns:** Object with `publishedAt` and `publishedBy` columns
+
+**Example:**
+```typescript
+export const articles = pgTable('articles', {
+    id: id(),
+    title: text('title'),
+    status: text('status'), // draft/published/archived
+    ...publishingFields(),
+    ...timestamps(),
+});
+
+// Publishing an article
+await db.update(articles)
+    .set({
+        status: 'published',
+        publishedAt: new Date(),
+        publishedBy: currentUser.email,
+    })
+    .where(eq(articles.id, articleId));
+```
+
+**Generated SQL:**
+```sql
+CREATE TABLE articles (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT,
+    status TEXT,
+    published_at TIMESTAMP WITH TIME ZONE,
+    published_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+```
+
+### `verificationTimestamp(fieldName)`
+
+Custom verification timestamp field.
+
+Creates a nullable timestamp field for tracking verification status.
+
+**Parameters:**
+- `fieldName: string` - Field name in camelCase (e.g., 'emailVerified', 'phoneVerified')
+
+**Returns:** Object with verification timestamp column (converts to snake_case + '_at')
+
+**Example:**
+```typescript
+export const users = pgTable('users', {
+    id: id(),
+    email: text('email'),
+    phone: text('phone'),
+    ...verificationTimestamp('emailVerified'),  // emailVerifiedAt -> email_verified_at
+    ...verificationTimestamp('phoneVerified'),  // phoneVerifiedAt -> phone_verified_at
+    ...timestamps(),
+});
+
+// Verify email
+await db.update(users)
+    .set({ emailVerifiedAt: new Date() })
+    .where(eq(users.email, userEmail));
+```
+
+**Generated SQL:**
+```sql
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT,
+    phone TEXT,
+    email_verified_at TIMESTAMP WITH TIME ZONE,
+    phone_verified_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+```
+
+### `softDelete()`
+
+Soft delete fields.
+
+Adds `deletedAt` and `deletedBy` for logical deletion instead of physical removal.
+
+**Returns:** Object with `deletedAt` and `deletedBy` columns
+
+**Example:**
+```typescript
+export const posts = pgTable('posts', {
+    id: id(),
+    title: text('title'),
+    ...timestamps(),
+    ...softDelete(),
+});
+
+// Soft delete
+await db.update(posts)
+    .set({
+        deletedAt: new Date(),
+        deletedBy: currentUser.email,
+    })
+    .where(eq(posts.id, postId));
+
+// Query only non-deleted records
+const activePosts = await db.select()
+    .from(posts)
+    .where(isNull(posts.deletedAt));
+```
+
+**Generated SQL:**
+```sql
+CREATE TABLE posts (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    deleted_by TEXT
+);
+```
+
+**Benefits of Soft Delete:**
+- Data recovery capability
+- Audit trail preservation
+- Maintains referential integrity
+- Gradual data cleanup
+
+### `statusEnum(statuses, defaultStatus?)`
+
+Type-safe status enum field.
+
+Creates a status text column with enum constraint and default value.
+
+**Parameters:**
+- `statuses: readonly [string, ...string[]]` - Array of status values (at least 2 required)
+- `defaultStatus?: string` - Default status value (defaults to first status)
+
+**Returns:** Status column with enum constraint
+
+**Example:**
+```typescript
+// Basic usage
+export const posts = pgTable('posts', {
+    id: id(),
+    title: text('title'),
+    status: statusEnum(['draft', 'published', 'archived'] as const),
+    ...timestamps(),
+});
+
+// With custom default
+export const users = pgTable('users', {
+    id: id(),
+    email: text('email'),
+    status: statusEnum(['active', 'inactive', 'suspended'] as const, 'active'),
+    ...timestamps(),
+});
+
+// TypeScript infers the type
+type PostStatus = 'draft' | 'published' | 'archived';
+```
+
+**Generated SQL:**
+```sql
+CREATE TABLE posts (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    CHECK (status IN ('draft', 'published', 'archived'))
+);
+```
+
+**Benefits:**
+- Compile-time type safety
+- Runtime validation
+- Auto-completion in IDE
+- Prevents invalid status values
+
 ## 🎯 Design Patterns
 
 ### Basic Entity
@@ -362,7 +612,7 @@ The schema module has comprehensive test coverage:
 
 ```
 schema/__tests__/
-└── helpers.test.ts    # 23 tests - 100% coverage
+└── helpers.test.ts    # 42 tests - 100% coverage
 ```
 
 ### Test Coverage
@@ -382,20 +632,30 @@ pnpm vitest run src/db/schema/__tests__ --coverage
 
 ### What's Tested
 
-**Function Tests:**
+**Core Helper Functions:**
 - ✅ `id()` - bigserial primary key creation
+- ✅ `uuid()` - UUID primary key with gen_random_uuid()
 - ✅ `timestamps()` - createdAt/updatedAt fields
 - ✅ `timestamps({ autoUpdate: true })` - auto-update marker
-- ✅ `autoUpdateTimestamp()` - custom timestamp fields
-- ✅ `autoUpdateTimestamp(name)` - camelCase to snake_case conversion
+- ✅ `autoUpdateTimestamp()` - custom timestamp fields with camelCase conversion
 - ✅ `foreignKey()` - required foreign key with cascade options
 - ✅ `optionalForeignKey()` - optional foreign key with set null default
 
+**New Helper Functions:**
+- ✅ `auditFields()` - createdBy/updatedBy columns
+- ✅ `publishingFields()` - publishedAt/publishedBy columns
+- ✅ `verificationTimestamp()` - custom verification timestamps
+- ✅ `softDelete()` - deletedAt/deletedBy columns
+- ✅ `statusEnum()` - type-safe enum with default value
+
 **Integration Tests:**
 - ✅ Complete table schemas with all helpers
+- ✅ UUID tables with audit fields
+- ✅ CMS-style tables with publishing fields
+- ✅ Soft delete patterns
+- ✅ Auth tables with verification timestamps
 - ✅ Multiple foreign keys in one table
 - ✅ Auto-updating timestamps combination
-- ✅ Custom timestamp fields with timestamps()
 
 ### Example Test
 
