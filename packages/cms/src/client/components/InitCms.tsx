@@ -7,7 +7,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useCmsStore } from '@/store';
+import { useCmsStore } from '@/client/store/cms.store';
 import type { SectionAPI } from '@/server';
 
 interface InitCmsProps

@@ -3,11 +3,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '../../../__tests__/helpers/db.js';
+import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '../../../__tests__/helpers/db';
 import { users } from '../../../entities';
-import { hashPassword } from '../../../helpers/password.js';
-import { generateToken } from '../../../helpers/jwt.js';
-import app from '../index.js';
+import { hashPassword } from '../../../helpers/password';
+import { generateToken } from '../../../helpers/jwt';
+import app from '../index';
 
 describe('POST /auth/change-password', () =>
 {

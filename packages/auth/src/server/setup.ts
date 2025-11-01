@@ -5,8 +5,8 @@
  */
 
 import { findOne, create } from '@spfn/core/db';
-import { users } from './entities';
-import { hashPassword } from './helpers';
+import { users } from '@/server/entities';
+import { hashPassword } from '@/server/helpers';
 
 /**
  * Ensure admin account exists from environment variables

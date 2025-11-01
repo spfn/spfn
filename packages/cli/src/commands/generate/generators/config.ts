@@ -29,15 +29,10 @@ export function generatePackageJson(fnDir: string, fnName: string, description: 
                 import: './dist/server.js',
                 require: './dist/server.js',
             },
-            './types': {
-                types: './dist/types.d.ts',
-                import: './dist/types.js',
-                require: './dist/types.js',
-            },
-            './repositories': {
-                types: './dist/repositories/index.d.ts',
-                import: './dist/repositories/index.js',
-                require: './dist/repositories/index.js',
+            './client': {
+                types: './dist/client.d.ts',
+                import: './dist/client.js',
+                require: './dist/client.js',
             },
         },
         files: ['dist', 'migrations', 'README.md'],
@@ -51,8 +46,8 @@ export function generatePackageJson(fnDir: string, fnName: string, description: 
         author: 'SPFN Team',
         license: 'MIT',
         spfn: {
-            schemas: ['./dist/entities/*.js'],
-            routes: { dir: './dist/routes' },
+            schemas: ['./dist/server/entities/*.js'],
+            routes: { dir: './dist/server/routes' },
             migrations: { dir: './migrations' },
             setupMessage: `  📚 Next steps:\n    1. Import from '@spfn/${fnName}'\n    2. View data: pnpm spfn db studio\n    3. API at: http://localhost:8790/${fnName}`,
         },
@@ -114,10 +109,10 @@ export function generateTsupConfig(fnDir: string): void
 {
     const content = `import { defineConfig } from 'tsup';
 import { glob } from 'glob';
-import path from 'path';
+import * as path from 'path';
 
 // Find all route handler files
-const routeFiles = glob.sync('src/routes/**/index.ts');
+const routeFiles = glob.sync('src/server/routes/**/index.ts');
 const routeEntries = Object.fromEntries(
     routeFiles.map((file) =>
     {
@@ -130,7 +125,7 @@ const routeEntries = Object.fromEntries(
 );
 
 // Find all entity files
-const entityFiles = glob.sync('src/entities/**/*.ts');
+const entityFiles = glob.sync('src/server/entities/**/*.ts');
 const entityEntries = Object.fromEntries(
     entityFiles.map((file) =>
     {
@@ -140,7 +135,7 @@ const entityEntries = Object.fromEntries(
 );
 
 // Find all contract files
-const contractFiles = glob.sync('src/contracts/**/*.ts');
+const contractFiles = glob.sync('src/lib/contracts/**/*.ts');
 const contractEntries = Object.fromEntries(
     contractFiles.map((file) =>
     {
@@ -153,8 +148,7 @@ export default defineConfig({
     entry: {
         index: 'src/index.ts',
         server: 'src/server.ts',
-        types: 'src/types.ts',
-        'repositories/index': 'src/repositories/index.ts',
+        client: 'src/client.ts',
         ...entityEntries,
         ...contractEntries,
         ...routeEntries,
@@ -205,7 +199,7 @@ export function generateDrizzleConfig(fnDir: string, fnName: string): void
  * users run \`spfn db push\` or \`spfn db migrate\`
  */
 export default defineConfig({
-    schema: './src/entities/*.ts',
+    schema: './src/server/entities/*.ts',
     out: './migrations',
     dialect: 'postgresql',
     schemaFilter: ['${schemaName}'], // Only generate for ${fnName} schema

@@ -6,7 +6,7 @@
 
 import { Type } from '@sinclair/typebox';
 import type { RouteContract } from '@spfn/core/route';
-import { ApiResponseSchema } from '../types/schemas';
+import { ApiResponseSchema } from '@/lib/types/schemas';
 
 // Email regex pattern (basic validation)
 const EMAIL_PATTERN = '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$';

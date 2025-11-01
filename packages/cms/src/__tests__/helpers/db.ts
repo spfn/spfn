@@ -159,32 +159,40 @@ async function createTables(db: ReturnType<typeof drizzle>)
     await db.execute(sql`
         CREATE TABLE spfn_cms.draft_cache (
             id SERIAL PRIMARY KEY,
-            cache_key TEXT NOT NULL UNIQUE,
-            data JSONB NOT NULL,
-            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            section TEXT NOT NULL,
+            locale TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            content JSONB NOT NULL,
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            CONSTRAINT cms_draft_cache_unique UNIQUE (section, locale, user_id)
         )
     `);
 
-    // Create index for draft_cache
+    // Create indexes for draft_cache
     await db.execute(sql`
-        CREATE INDEX cms_draft_cache_key_idx ON spfn_cms.draft_cache(cache_key)
+        CREATE INDEX cms_draft_cache_section_idx ON spfn_cms.draft_cache(section)
+    `);
+    await db.execute(sql`
+        CREATE INDEX cms_draft_cache_user_idx ON spfn_cms.draft_cache(user_id)
     `);
 
     // Create published_cache table
     await db.execute(sql`
         CREATE TABLE spfn_cms.published_cache (
             id SERIAL PRIMARY KEY,
-            cache_key TEXT NOT NULL UNIQUE,
-            data JSONB NOT NULL,
-            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            section TEXT NOT NULL,
+            locale TEXT NOT NULL,
+            content JSONB NOT NULL,
+            published_at TIMESTAMP WITH TIME ZONE NOT NULL,
+            published_by TEXT,
+            version INTEGER NOT NULL DEFAULT 1,
+            CONSTRAINT cms_published_cache_unique UNIQUE (section, locale)
         )
     `);
 
     // Create index for published_cache
     await db.execute(sql`
-        CREATE INDEX cms_published_cache_key_idx ON spfn_cms.published_cache(cache_key)
+        CREATE INDEX cms_published_cache_section_idx ON spfn_cms.published_cache(section)
     `);
 
     // Create audit_logs table

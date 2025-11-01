@@ -71,7 +71,6 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
                     // Try incremental update for changed files
                     const success = await attemptIncrementalSync({
                         cwd: options.cwd,
-                        labelsDir,
                         labelsPath,
                         changedFilePath: changedFile.path,
                         debug: options.debug
@@ -156,7 +155,6 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
 interface IncrementalSyncOptions
 {
     cwd: string;
-    labelsDir: string;
     labelsPath: string;
     changedFilePath: string;
     debug?: boolean;
@@ -174,7 +172,7 @@ interface IncrementalSyncOptions
  */
 async function attemptIncrementalSync(options: IncrementalSyncOptions): Promise<boolean>
 {
-    const { cwd, labelsDir, labelsPath, changedFilePath, debug } = options;
+    const { cwd, labelsPath, changedFilePath, debug } = options;
 
     try
     {
@@ -297,14 +295,16 @@ function loadSectionLabels(sectionPath: string): Record<string, any>
                 }
                 catch (error)
                 {
-                    syncLogger.warn(`Failed to parse ${filePath}:`, error);
+                    const err = error instanceof Error ? error : new Error(String(error));
+                    syncLogger.warn(`Failed to parse ${filePath}`, err);
                 }
             }
         }
     }
     catch (error)
     {
-        syncLogger.warn(`Failed to read section ${sectionPath}:`, error);
+        const err = error instanceof Error ? error : new Error(String(error));
+        syncLogger.warn(`Failed to read section ${sectionPath}`, err);
     }
 
     return labels;

@@ -5,10 +5,10 @@
  */
 
 import type { Context, Next } from 'hono';
-import { verifyToken } from '../helpers/jwt.js';
+import { verifyToken } from '@/server/helpers/jwt';
 import { findOne } from '@spfn/core/db';
-import { users } from '../entities/users.js';
-import type { User } from '../entities/users.js';
+import { users } from '@/server/entities/users';
+import type { User } from '@/server/entities/users';
 
 // Extend Hono context with user
 declare module 'hono'

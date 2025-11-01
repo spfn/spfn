@@ -23,7 +23,7 @@ export function generateRoute(fnDir: string, entityName: string): void
         KEBAB_NAME: kebabName,
     });
 
-    const routeDir = join(fnDir, `src/routes/${kebabName}`);
+    const routeDir = join(fnDir, `src/server/routes/${kebabName}`);
     mkdirSync(routeDir, { recursive: true });
     writeFileSync(join(routeDir, 'index.ts'), content);
 }

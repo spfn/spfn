@@ -1,20 +1,45 @@
 /**
- * @spfn/auth - Server exports
+ * @spfn/auth/server
  *
- * Server-side only exports (routes, repositories, helpers)
+ * Server-side Only Module
+ * 서버 전용 모듈 (서버 컴포넌트 + 백엔드)
+ *
+ * Includes:
+ * - Routes (auth endpoints)
+ * - Repositories (user, verification-code)
+ * - Helpers (jwt, password)
+ * - Middleware (authenticate)
+ * - Setup functions
+ *
+ * @note This module should only be imported in server-side code
  */
 
-// Export routes
-export * from './routes/index.js';
+// ============================================================================
+// Routes
+// ============================================================================
 
-// Export repositories
-export * from './repositories/index.js';
+export * from '@/server/routes/index';
 
-// Export helpers
-export * from './helpers/index.js';
+// ============================================================================
+// Repositories (DB access)
+// ============================================================================
 
-// Export middleware
-export * from './middleware/index.js';
+export * from '@/server/repositories/index';
 
-// Export setup functions
-export * from './setup.js';
+// ============================================================================
+// Helpers (JWT, Password)
+// ============================================================================
+
+export * from '@/server/helpers/index';
+
+// ============================================================================
+// Middleware
+// ============================================================================
+
+export * from '@/server/middleware/index';
+
+// ============================================================================
+// Setup Functions
+// ============================================================================
+
+export * from '@/server/setup';

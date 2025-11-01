@@ -10,7 +10,7 @@ export {
     getLocale,
     setLocale,
     getLocales,
-} from './helpers/locale.actions';
+} from './server/helpers/locale.actions';
 
 // Locale Constants
-export { LOCALE_COOKIE_KEY } from './helpers/locale.constants';
+export { LOCALE_COOKIE_KEY } from './lib/constants/locale.constants';

@@ -25,7 +25,7 @@ export {
     LOCALE_INFO_MAP,
     type LocaleInfo,
     type SupportedLocale,
-} from './locale.constants';
+} from '@/lib/constants/locale.constants';
 
 /**
  * Locale 유효성 검사

@@ -14,9 +14,9 @@
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js"
     },
-    "./middleware": {
-      "types": "./dist/middleware/index.d.ts",
-      "import": "./dist/middleware/index.js"
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
     }
   },
   "files": [
@@ -33,7 +33,7 @@
     "db:generate": "drizzle-kit generate",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:routes": "vitest src/routes",
+    "test:routes": "vitest src/server/routes",
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
     "docker:test:down": "docker compose -f docker-compose.test.yml down",
     "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f"
@@ -50,16 +50,16 @@
   "spfn": {
     "prefix": "/_auth",
     "schemas": [
-      "./dist/entities/*.js"
+      "./dist/server/entities/*.js"
     ],
     "routes": {
       "basePath": "/auth",
-      "dir": "./dist/routes"
+      "dir": "./dist/server/routes"
     },
     "migrations": {
       "dir": "./migrations"
     },
-    "setupMessage": "  📚 Next steps:\n    1. Import auth: import { authMiddleware } from '@spfn/auth/middleware'\n    2. View tables: pnpm spfn db studio\n    3. API at: http://localhost:8790/_auth"
+    "setupMessage": "  📚 Next steps:\n    1. Import auth: import { authMiddleware } from '@spfn/auth/server'\n    2. View tables: pnpm spfn db studio\n    3. API at: http://localhost:8790/_auth"
   },
   "dependencies": {
     "@spfn/core": "workspace:*",

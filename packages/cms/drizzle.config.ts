@@ -8,7 +8,7 @@ import { defineConfig } from 'drizzle-kit';
  * users run `spfn db push` or `spfn db migrate`
  */
 export default defineConfig({
-    schema: './src/entities/*.ts',
+    schema: './src/server/entities/*.ts',
     out: './migrations',
     dialect: 'postgresql',
     schemaFilter: ['spfn_cms'], // Only generate for CMS schema

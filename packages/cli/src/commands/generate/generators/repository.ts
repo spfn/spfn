@@ -22,7 +22,7 @@ export function generateRepository(fnDir: string, entityName: string): void
     });
 
     writeFileSync(
-        join(fnDir, `src/repositories/${toKebabCase(entityName)}.repository.ts`),
+        join(fnDir, `src/server/repositories/${toKebabCase(entityName)}.repository.ts`),
         content
     );
 }
@@ -33,8 +33,8 @@ export function generateRepository(fnDir: string, entityName: string): void
 export function generateRepositoriesIndex(fnDir: string, entities: string[]): void
 {
     const exports = entities
-        .map((entity) => `export * from './${toKebabCase(entity)}.repository.js';`)
+        .map((entity) => `export * from './${toKebabCase(entity)}.repository';`)
         .join('\n');
 
-    writeFileSync(join(fnDir, 'src/repositories/index.ts'), exports + '\n');
+    writeFileSync(join(fnDir, 'src/server/repositories/index.ts'), exports + '\n');
 }

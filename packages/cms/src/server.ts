@@ -429,4 +429,4 @@ export * from './server/labels/index';
 // Backend: Codegen Generators (for development)
 // ============================================================================
 
-export { createLabelSyncGenerator, LabelSyncGenerator } from './server/generators/label-sync-generator';
+export { createLabelSyncGenerator } from './server/generators/label-sync-generator';

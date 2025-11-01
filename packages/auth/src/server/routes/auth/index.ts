@@ -4,12 +4,12 @@
 
 import { createApp } from '@spfn/core/route';
 import { findOne, updateOne } from '@spfn/core/db';
-import { users } from '../../entities';
-import { success, error, ErrorCodes } from '../../types';
-import { checkAccountExistsContract, loginContract, changePasswordContract } from '../../contracts';
-import { authenticate } from '../../middleware';
-import { hashPassword, verifyPassword } from '../../helpers';
-import { generateToken } from '../../helpers';
+import { users } from '@/server/entities';
+import { success, error, ErrorCodes } from '@/lib/types';
+import { checkAccountExistsContract, loginContract, changePasswordContract } from '@/lib/contracts';
+import { authenticate } from '@/server/middleware';
+import { hashPassword, verifyPassword } from '@/server/helpers';
+import { generateToken } from '@/server/helpers';
 
 const app = createApp();
 

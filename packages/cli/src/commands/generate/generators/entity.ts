@@ -25,7 +25,7 @@ export function generateEntity(fnDir: string, fnName: string, entityName: string
     });
 
     writeFileSync(
-        join(fnDir, `src/entities/${toKebabCase(entityName)}.ts`),
+        join(fnDir, `src/server/entities/${toKebabCase(entityName)}.ts`),
         content
     );
 }
@@ -36,8 +36,8 @@ export function generateEntity(fnDir: string, fnName: string, entityName: string
 export function generateEntitiesIndex(fnDir: string, entities: string[]): void
 {
     const exports = entities
-        .map((entity) => `export * from './${toKebabCase(entity)}.js';`)
+        .map((entity) => `export * from './${toKebabCase(entity)}';`)
         .join('\n');
 
-    writeFileSync(join(fnDir, 'src/entities/index.ts'), exports + '\n');
+    writeFileSync(join(fnDir, 'src/server/entities/index.ts'), exports + '\n');
 }

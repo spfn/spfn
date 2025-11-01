@@ -18,4 +18,4 @@ export const generators = {
 /**
  * Re-export individual generator factories
  */
-export { createLabelSyncGenerator, LabelSyncGenerator } from '@/server/generators/label-sync-generator';
+export { createLabelSyncGenerator } from '@/server/generators/label-sync-generator';

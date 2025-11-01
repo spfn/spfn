@@ -20,7 +20,7 @@ export function generateContract(fnDir: string, entityName: string): void
     });
 
     writeFileSync(
-        join(fnDir, `src/contracts/${toKebabCase(entityName)}.ts`),
+        join(fnDir, `src/lib/contracts/${toKebabCase(entityName)}.ts`),
         content
     );
 }

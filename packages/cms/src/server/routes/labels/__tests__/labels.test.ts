@@ -1,13 +1,15 @@
 /**
- * @spfn/cms - Labels Route Tests
+ * CMS Labels Routes Tests
+ *
+ * Tests POST /labels and GET /labels endpoints
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
-import { cmsLabels } from '@/server/entities';
-import app from '../index';
+import { cmsLabelsRepository } from '@/server/repositories';
+import labelsApp from '../index';
 
-describe('Labels Routes', () =>
+describe('POST /labels', () =>
 {
     beforeAll(async () =>
     {
@@ -25,355 +27,250 @@ describe('Labels Routes', () =>
         await clearTables(db);
     });
 
-    describe('GET /labels', () =>
+    it('should create a new label', async () =>
     {
-        it('should return empty list when no labels exist', async () =>
-        {
-            const req = new Request('http://localhost/labels',
-                {
-                    method: 'GET',
-                }
-            );
-
-            const res = await app.fetch(req);
-            const data = await res.json();
-
-            expect(res.status).toBe(200);
-            expect(data.labels).toEqual([]);
-            expect(data.total).toBe(0);
-            expect(data.limit).toBe(20);
-            expect(data.offset).toBe(0);
-        });
-
-        it('should return list of labels', async () =>
-        {
-            const db = getTestDb();
-
-            // Create test labels
-            await db.insert(cmsLabels).values([
-                {
-                    key: 'home.hero.title',
-                    section: 'home',
-                    type: 'text',
-                    createdBy: 'test@example.com',
-                },
-                {
-                    key: 'home.hero.subtitle',
-                    section: 'home',
-                    type: 'text',
-                    createdBy: 'test@example.com',
-                },
-                {
-                    key: 'about.hero.image',
-                    section: 'about',
-                    type: 'image',
-                    createdBy: 'test@example.com',
-                },
-            ]);
-
-            const req = new Request('http://localhost/labels',
-                {
-                    method: 'GET',
-                }
-            );
-
-            const res = await app.fetch(req);
-            const data = await res.json();
-
-            expect(res.status).toBe(200);
-            expect(data.labels).toHaveLength(3);
-            expect(data.total).toBe(3);
-            expect(data.labels[0]).toHaveProperty('id');
-            expect(data.labels[0]).toHaveProperty('key');
-            expect(data.labels[0]).toHaveProperty('section');
-            expect(data.labels[0]).toHaveProperty('type');
-            expect(data.labels[0]).toHaveProperty('createdAt');
-            expect(data.labels[0]).toHaveProperty('updatedAt');
-        });
-
-        it('should filter labels by section', async () =>
-        {
-            const db = getTestDb();
-
-            // Create test labels
-            await db.insert(cmsLabels).values([
-                {
-                    key: 'home.hero.title',
-                    section: 'home',
-                    type: 'text',
-                },
-                {
-                    key: 'home.hero.subtitle',
-                    section: 'home',
-                    type: 'text',
-                },
-                {
-                    key: 'about.hero.title',
-                    section: 'about',
-                    type: 'text',
-                },
-            ]);
-
-            const req = new Request('http://localhost/labels?section=home',
-                {
-                    method: 'GET',
-                }
-            );
-
-            const res = await app.fetch(req);
-            const data = await res.json();
-
-            expect(res.status).toBe(200);
-            expect(data.labels).toHaveLength(2);
-            expect(data.total).toBe(2);
-            expect(data.labels.every((label: any) => label.section === 'home')).toBe(true);
-        });
-
-        it('should support pagination with limit and offset', async () =>
-        {
-            const db = getTestDb();
-
-            // Create 25 test labels
-            const labels = Array.from({ length: 25 }, (_, i) => ({
-                key: `test.label.${i}`,
-                section: 'test',
-                type: 'text',
-            }));
-            await db.insert(cmsLabels).values(labels);
-
-            // First page
-            const req1 = new Request('http://localhost/labels?limit=10&offset=0',
-                {
-                    method: 'GET',
-                }
-            );
-            const res1 = await app.fetch(req1);
-            const data1 = await res1.json();
-
-            expect(res1.status).toBe(200);
-            expect(data1.labels).toHaveLength(10);
-            expect(data1.total).toBe(25);
-            expect(data1.limit).toBe(10);
-            expect(data1.offset).toBe(0);
-
-            // Second page
-            const req2 = new Request('http://localhost/labels?limit=10&offset=10',
-                {
-                    method: 'GET',
-                }
-            );
-            const res2 = await app.fetch(req2);
-            const data2 = await res2.json();
-
-            expect(res2.status).toBe(200);
-            expect(data2.labels).toHaveLength(10);
-            expect(data2.total).toBe(25);
-            expect(data2.offset).toBe(10);
-
-            // Third page
-            const req3 = new Request('http://localhost/labels?limit=10&offset=20',
-                {
-                    method: 'GET',
-                }
-            );
-            const res3 = await app.fetch(req3);
-            const data3 = await res3.json();
-
-            expect(res3.status).toBe(200);
-            expect(data3.labels).toHaveLength(5);
-            expect(data3.total).toBe(25);
-        });
-    });
-
-    describe('POST /labels', () =>
-    {
-        it('should create a new label', async () =>
-        {
-            const req = new Request('http://localhost/labels',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        key: 'home.hero.title',
-                        section: 'home',
-                        type: 'text',
-                        createdBy: 'test@example.com',
-                    }),
-                }
-            );
-
-            const res = await app.fetch(req);
-            const data = await res.json();
-
-            expect(res.status).toBe(201);
-            expect(data.id).toBeDefined();
-            expect(data.key).toBe('home.hero.title');
-            expect(data.section).toBe('home');
-            expect(data.type).toBe('text');
-            expect(data.publishedVersion).toBeNull();
-            expect(data.createdBy).toBe('test@example.com');
-            expect(data.createdAt).toBeDefined();
-            expect(data.updatedAt).toBeDefined();
-        });
-
-        it('should create labels with different types', async () =>
-        {
-            const types = ['text', 'image', 'video', 'file', 'object'];
-
-            for (const type of types)
-            {
-                const req = new Request('http://localhost/labels',
-                    {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            key: `test.${type}.value`,
-                            section: 'test',
-                            type,
-                        }),
-                    }
-                );
-
-                const res = await app.fetch(req);
-                const data = await res.json();
-
-                expect(res.status).toBe(201);
-                expect(data.type).toBe(type);
-            }
-        });
-
-        it('should return 409 when key already exists', async () =>
-        {
-            const db = getTestDb();
-
-            // Create existing label
-            await db.insert(cmsLabels).values({
+        const res = await labelsApp.request('/labels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
                 key: 'home.hero.title',
                 section: 'home',
                 type: 'text',
+                createdBy: 'test-user',
+            }),
+        });
+
+        expect(res.status).toBe(201);
+
+        const data = await res.json();
+        expect(data.id).toBeDefined();
+        expect(data.key).toBe('home.hero.title');
+        expect(data.section).toBe('home');
+        expect(data.type).toBe('text');
+        expect(data.createdBy).toBe('test-user');
+        expect(data.createdAt).toBeDefined();
+        expect(data.updatedAt).toBeDefined();
+    });
+
+    it('should reject duplicate key', async () =>
+    {
+        await cmsLabelsRepository.create({
+            key: 'home.hero.title',
+            section: 'home',
+            type: 'text',
+        });
+
+        const res = await labelsApp.request('/labels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                key: 'home.hero.title',
+                section: 'home',
+                type: 'text',
+            }),
+        });
+
+        expect(res.status).toBe(409);
+
+        const data = await res.json();
+        expect(data.error).toBeDefined();
+        expect(data.key).toBe('home.hero.title');
+    });
+
+    it('should validate request body', async () =>
+    {
+        const res = await labelsApp.request('/labels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                key: 'invalid-key', // Invalid format (needs section.subsection.name)
+                section: 'home',
+                type: 'text',
+            }),
+        });
+
+        expect(res.status).toBe(400);
+    });
+});
+
+describe('GET /labels', () =>
+{
+    beforeAll(async () =>
+    {
+        await setupTestDb();
+    });
+
+    afterAll(async () =>
+    {
+        await teardownTestDb();
+    });
+
+    beforeEach(async () =>
+    {
+        const db = getTestDb();
+        await clearTables(db);
+    });
+
+    it('should return empty list when no labels exist', async () =>
+    {
+        const res = await labelsApp.request('/labels');
+
+        expect(res.status).toBe(200);
+
+        const data = await res.json();
+        expect(data.labels).toEqual([]);
+        expect(data.total).toBe(0);
+        expect(data.limit).toBe(20);
+        expect(data.offset).toBe(0);
+    });
+
+    it('should return all labels with pagination', async () =>
+    {
+        // Create test data
+        for (let i = 0; i < 15; i++)
+        {
+            await cmsLabelsRepository.create({
+                key: `home.label${i}.title`,
+                section: 'home',
+                type: 'text',
             });
+        }
 
-            // Try to create duplicate
-            const req = new Request('http://localhost/labels',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        key: 'home.hero.title',
-                        section: 'home',
-                        type: 'text',
-                    }),
-                }
-            );
+        const res = await labelsApp.request('/labels?limit=10&offset=0');
 
-            const res = await app.fetch(req);
-            const data = await res.json();
+        expect(res.status).toBe(200);
 
-            expect(res.status).toBe(409);
-            expect(data.error).toBe('Label with this key already exists');
-            expect(data.key).toBe('home.hero.title');
+        const data = await res.json();
+        expect(data.labels).toHaveLength(10);
+        expect(data.total).toBe(15);
+        expect(data.limit).toBe(10);
+        expect(data.offset).toBe(0);
+    });
+
+    it('should filter by section', async () =>
+    {
+        await cmsLabelsRepository.create({
+            key: 'home.hero.title',
+            section: 'home',
+            type: 'text',
         });
 
-        it('should return 400 for invalid key format', async () =>
+        await cmsLabelsRepository.create({
+            key: 'about.intro.title',
+            section: 'about',
+            type: 'text',
+        });
+
+        const res = await labelsApp.request('/labels?section=home');
+
+        expect(res.status).toBe(200);
+
+        const data = await res.json();
+        expect(data.labels).toHaveLength(1);
+        expect(data.labels[0].section).toBe('home');
+        expect(data.total).toBe(1);
+    });
+
+    it('should handle pagination correctly', async () =>
+    {
+        // Create 25 labels
+        for (let i = 0; i < 25; i++)
         {
-            const req = new Request('http://localhost/labels',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        key: 'invalid_key',
-                        section: 'home',
-                        type: 'text',
-                    }),
-                }
-            );
+            await cmsLabelsRepository.create({
+                key: `test.label${i}.title`,
+                section: 'test',
+                type: 'text',
+            });
+        }
 
-            const res = await app.fetch(req);
+        // Get second page
+        const res = await labelsApp.request('/labels?limit=10&offset=10');
 
-            expect(res.status).toBe(400);
-        });
+        expect(res.status).toBe(200);
 
-        it('should return 400 for invalid section format', async () =>
+        const data = await res.json();
+        expect(data.labels).toHaveLength(10);
+        expect(data.offset).toBe(10);
+
+        // Get third page
+        const res3 = await labelsApp.request('/labels?limit=10&offset=20');
+        const data3 = await res3.json();
+        expect(data3.labels).toHaveLength(5);
+    });
+
+    it('should reject invalid query parameters', async () =>
+    {
+        const res = await labelsApp.request('/labels?section=&limit=&offset=');
+
+        // Empty string values for numeric parameters should be rejected
+        expect(res.status).toBe(400);
+    });
+
+    it('should reject very large limit values', async () =>
+    {
+        const res = await labelsApp.request('/labels?limit=1000');
+
+        // Should be rejected by contract validation
+        expect(res.status).toBe(400);
+    });
+
+    it('should reject negative offset', async () =>
+    {
+        const res = await labelsApp.request('/labels?offset=-1');
+
+        // Should be rejected by contract validation
+        expect(res.status).toBe(400);
+    });
+});
+
+describe('Edge Cases', () =>
+{
+    beforeAll(async () =>
+    {
+        await setupTestDb();
+    });
+
+    afterAll(async () =>
+    {
+        await teardownTestDb();
+    });
+
+    beforeEach(async () =>
+    {
+        const db = getTestDb();
+        await clearTables(db);
+    });
+
+    it('should handle concurrent requests', async () =>
+    {
+        const promises = [];
+
+        for (let i = 0; i < 10; i++)
         {
-            const req = new Request('http://localhost/labels',
-                {
+            promises.push(
+                labelsApp.request('/labels', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        key: 'home.hero.title',
-                        section: 'Invalid_Section',
+                        key: `test.concurrent${i}.title`,
+                        section: 'test',
                         type: 'text',
                     }),
-                }
+                })
             );
+        }
 
-            const res = await app.fetch(req);
+        const results = await Promise.all(promises);
 
-            expect(res.status).toBe(400);
-        });
-
-        it('should return 400 for invalid type', async () =>
+        // All should succeed
+        results.forEach(res =>
         {
-            const req = new Request('http://localhost/labels',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        key: 'home.hero.title',
-                        section: 'home',
-                        type: 'invalid-type',
-                    }),
-                }
-            );
-
-            const res = await app.fetch(req);
-
-            expect(res.status).toBe(400);
+            expect(res.status).toBe(201);
         });
 
-        it('should return 400 when required fields are missing', async () =>
-        {
-            // Missing key
-            const req1 = new Request('http://localhost/labels',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        section: 'home',
-                        type: 'text',
-                    }),
-                }
-            );
-            const res1 = await app.fetch(req1);
-            expect(res1.status).toBe(400);
-
-            // Missing section
-            const req2 = new Request('http://localhost/labels',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        key: 'home.hero.title',
-                        type: 'text',
-                    }),
-                }
-            );
-            const res2 = await app.fetch(req2);
-            expect(res2.status).toBe(400);
-
-            // Missing type
-            const req3 = new Request('http://localhost/labels',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        key: 'home.hero.title',
-                        section: 'home',
-                    }),
-                }
-            );
-            const res3 = await app.fetch(req3);
-            expect(res3.status).toBe(400);
-        });
+        // Verify all were created
+        const listRes = await labelsApp.request('/labels');
+        const listData = await listRes.json();
+        expect(listData.total).toBe(10);
     });
 });

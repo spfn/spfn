@@ -8,10 +8,10 @@
  */
 
 // Client-side Store & Hooks
-export { useCmsStore, useSection, useSections } from './client';
+export { useCmsStore, useSection, useSections } from './client/hooks';
 
 // Client-side Initializer
-export { InitCms } from './client';
+export { InitCms } from './client/components/InitCms';
 
 // Locale Management (Server Actions - callable from client)
 export {

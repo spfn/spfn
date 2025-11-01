@@ -3,9 +3,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '../../../__tests__/helpers/db.js';
+import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '../../../__tests__/helpers/db';
 import { users } from '../../../entities';
-import app from '../index.js';
+import app from '../index';
 
 describe('POST /auth/exists', () =>
 {

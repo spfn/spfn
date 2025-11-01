@@ -1,13 +1,23 @@
 /**
  * @spfn/auth
  *
- * Authentication, authorization, and RBAC module for SPFN
+ * Common Module (Types, Entities)
+ * 공통 모듈 (타입, 엔티티)
+ *
+ * Import structure:
+ * - @spfn/auth         - Common (types, entities)
+ * - @spfn/auth/server  - Server-side (routes, repositories, helpers, middleware)
+ * - @spfn/auth/client  - Client-side (hooks, store, components)
  */
 
-// Export types
-export * from './types/index.js';
+// ============================================================================
+// Types
+// ============================================================================
 
-// Export entities
-export * from './entities/index.js';
+export * from '@/lib/types/index';
 
-// Client-side exports will be added here
+// ============================================================================
+// Entities (for type reference)
+// ============================================================================
+
+export * from '@/server/entities/index';

@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsup';
 import { glob } from 'glob';
-import path from 'path';
+import * as path from 'path';
 
 // Find all route handler files
 const routeFiles = glob.sync('src/server/routes/**/index.ts');

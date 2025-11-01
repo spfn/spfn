@@ -6,7 +6,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, extname, join } from 'path';
-import { extractLabels } from '@/labels';
+import { extractLabels } from '@/server/labels';
 import { cmsLabelsRepository, cmsPublishedCacheRepository } from '@/server/repositories';
 import type { NestedLabels, SectionDefinition, SyncOptions, SyncResult } from '@/lib/types';
 
