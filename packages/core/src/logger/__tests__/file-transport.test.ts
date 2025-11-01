@@ -280,6 +280,9 @@ describe('FileTransport', () =>
                 module: 'database',
             });
 
+            // Close transport to flush the stream
+            await transport.close();
+
             const files = readdirSync(testLogDir);
             const content = readFileSync(join(testLogDir, files[0]), 'utf-8');
             const parsed = JSON.parse(content.trim());
@@ -301,6 +304,9 @@ describe('FileTransport', () =>
                 message: 'Test message',
                 context: { userId: 123, action: 'login' },
             });
+
+            // Close transport to flush the stream
+            await transport.close();
 
             const files = readdirSync(testLogDir);
             const content = readFileSync(join(testLogDir, files[0]), 'utf-8');
@@ -325,6 +331,9 @@ describe('FileTransport', () =>
                 message: 'Error occurred',
                 error,
             });
+
+            // Close transport to flush the stream
+            await transport.close();
 
             const files = readdirSync(testLogDir);
             const content = readFileSync(join(testLogDir, files[0]), 'utf-8');

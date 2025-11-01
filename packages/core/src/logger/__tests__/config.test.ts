@@ -528,21 +528,22 @@ describe('Logger Configuration', () =>
             stderrSpy.mockRestore();
         });
 
-        it('should accept missing NODE_ENV without warnings', () =>
+        it('should warn when NODE_ENV is not set', () =>
         {
-            // SPFN CLI sets NODE_ENV, but if not set, it's okay
+            // When NODE_ENV is not set, a warning should be printed
             delete process.env.NODE_ENV;
 
             const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
             expect(() => validateConfig()).not.toThrow();
 
-            // Should not write any warnings about NODE_ENV
+            // Should write a warning about NODE_ENV
             const calls = stderrSpy.mock.calls.map(call => call[0]);
             const nodeEnvWarnings = calls.filter(call =>
                 typeof call === 'string' && call.includes('NODE_ENV')
             );
-            expect(nodeEnvWarnings).toHaveLength(0);
+            expect(nodeEnvWarnings).toHaveLength(1);
+            expect(nodeEnvWarnings[0]).toContain('Warning: NODE_ENV is not set');
 
             stderrSpy.mockRestore();
         });
