@@ -4,31 +4,31 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { createRedisFromEnv, createSingleRedisFromEnv } from '../redis-factory.js';
-import { initRedis, getRedis, getRedisRead, closeRedis, setRedis, getRedisInfo } from '../redis-manager.js';
+import { createCacheFromEnv, createSingleCacheFromEnv } from '../cache-factory.js';
+import { initCache, getCache, getCacheRead, closeCache, setCache, getCacheInfo } from '../cache-manager.js';
 
-describe('Redis Integration Tests', () =>
+describe('Cache Integration Tests', () =>
 {
     const originalEnv = process.env;
 
     beforeAll(() =>
     {
-        // Ensure Redis containers are running
-        console.log('📝 Integration tests require running Redis containers');
+        // Ensure Cache containers are running
+        console.log('📝 Integration tests require running Cache containers');
         console.log('   Run: docker-compose -f docker-compose.test.yml up -d');
     });
 
     beforeEach(async () =>
     {
         // Clean up before each test
-        await closeRedis();
+        await closeCache();
         process.env = { ...originalEnv };
     });
 
     afterAll(async () =>
     {
         // Clean up after all tests
-        await closeRedis();
+        await closeCache();
         process.env = originalEnv;
     });
 
@@ -38,7 +38,7 @@ describe('Redis Integration Tests', () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            const { write, read } = await createRedisFromEnv();
+            const { write, read } = await createCacheFromEnv();
 
             expect(write).toBeDefined();
             expect(read).toBeDefined();
@@ -58,7 +58,7 @@ describe('Redis Integration Tests', () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            const { write } = await createRedisFromEnv();
+            const { write } = await createCacheFromEnv();
 
             if (write)
             {
@@ -84,7 +84,7 @@ describe('Redis Integration Tests', () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            const { write } = await createRedisFromEnv();
+            const { write } = await createCacheFromEnv();
 
             if (write)
             {
@@ -110,7 +110,7 @@ describe('Redis Integration Tests', () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            const { write } = await createRedisFromEnv();
+            const { write } = await createCacheFromEnv();
 
             if (write)
             {
@@ -140,7 +140,7 @@ describe('Redis Integration Tests', () =>
             process.env.REDIS_WRITE_URL = 'redis://localhost:6380';
             process.env.REDIS_READ_URL = 'redis://localhost:6381';
 
-            const { write, read } = await createRedisFromEnv();
+            const { write, read } = await createCacheFromEnv();
 
             expect(write).toBeDefined();
             expect(read).toBeDefined();
@@ -165,7 +165,7 @@ describe('Redis Integration Tests', () =>
             process.env.REDIS_WRITE_URL = 'redis://localhost:6380';
             process.env.REDIS_READ_URL = 'redis://localhost:6381';
 
-            const { write, read } = await createRedisFromEnv();
+            const { write, read } = await createCacheFromEnv();
 
             if (write && read)
             {
@@ -192,17 +192,17 @@ describe('Redis Integration Tests', () =>
 
     describe('Redis Manager Integration', () =>
     {
-        it('should initialize Redis via initRedis()', async () =>
+        it('should initialize Redis via initCache()', async () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            const result = await initRedis();
+            const result = await initCache();
 
             expect(result.write).toBeDefined();
             expect(result.read).toBeDefined();
 
-            // Test via getRedis()
-            const redis = getRedis();
+            // Test via getCache()
+            const redis = getCache();
             expect(redis).toBeDefined();
 
             if (redis)
@@ -211,35 +211,35 @@ describe('Redis Integration Tests', () =>
                 expect(pong).toBe('PONG');
             }
 
-            await closeRedis();
+            await closeCache();
         });
 
         it('should test connection with ping() before accepting', async () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            const result = await initRedis();
+            const result = await initCache();
 
             expect(result.write).toBeDefined();
 
-            // If initRedis() succeeded, connection was tested with ping()
-            const info = getRedisInfo();
+            // If initCache() succeeded, connection was tested with ping()
+            const info = getCacheInfo();
             expect(info.hasWrite).toBe(true);
 
-            await closeRedis();
+            await closeCache();
         });
 
         it('should fail gracefully with invalid host', async () =>
         {
             process.env.REDIS_URL = 'redis://invalid-host-that-does-not-exist:6379';
 
-            const result = await initRedis();
+            const result = await initCache();
 
             // Should fail but not throw
             expect(result.write).toBeUndefined();
             expect(result.read).toBeUndefined();
 
-            const info = getRedisInfo();
+            const info = getCacheInfo();
             expect(info.hasWrite).toBe(false);
         }, 30000); // 30 second timeout for connection failure
 
@@ -248,42 +248,42 @@ describe('Redis Integration Tests', () =>
             process.env.REDIS_WRITE_URL = 'redis://localhost:6380';
             process.env.REDIS_READ_URL = 'redis://localhost:6381';
 
-            await initRedis();
+            await initCache();
 
-            const write = getRedis();
-            const read = getRedisRead();
+            const write = getCache();
+            const read = getCacheRead();
 
             expect(write).toBeDefined();
             expect(read).toBeDefined();
             expect(write).not.toBe(read);
 
-            const info = getRedisInfo();
+            const info = getCacheInfo();
             expect(info.hasWrite).toBe(true);
             expect(info.hasRead).toBe(true);
             expect(info.isReplica).toBe(true);
 
-            await closeRedis();
+            await closeCache();
         });
 
         it('should use write instance as read fallback for single instance', async () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            await initRedis();
+            await initCache();
 
-            const write = getRedis();
-            const read = getRedisRead();
+            const write = getCache();
+            const read = getCacheRead();
 
             expect(write).toBeDefined();
             expect(read).toBeDefined();
             expect(write).toBe(read); // Same instance
 
-            const info = getRedisInfo();
+            const info = getCacheInfo();
             expect(info.hasWrite).toBe(true);
             expect(info.hasRead).toBe(true);
             expect(info.isReplica).toBe(false);
 
-            await closeRedis();
+            await closeCache();
         });
     });
 
@@ -293,7 +293,7 @@ describe('Redis Integration Tests', () =>
         {
             process.env.REDIS_URL = 'redis://:secret123@localhost:6382';
 
-            const { write } = await createRedisFromEnv();
+            const { write } = await createCacheFromEnv();
 
             expect(write).toBeDefined();
 
@@ -319,17 +319,17 @@ describe('Redis Integration Tests', () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            await initRedis();
+            await initCache();
 
-            let redis = getRedis();
+            let redis = getCache();
             expect(redis).toBeDefined();
 
-            await closeRedis();
+            await closeCache();
 
-            redis = getRedis();
+            redis = getCache();
             expect(redis).toBeUndefined();
 
-            const info = getRedisInfo();
+            const info = getCacheInfo();
             expect(info.hasWrite).toBe(false);
             expect(info.hasRead).toBe(false);
         });
@@ -339,31 +339,31 @@ describe('Redis Integration Tests', () =>
             process.env.REDIS_WRITE_URL = 'redis://localhost:6380';
             process.env.REDIS_READ_URL = 'redis://localhost:6381';
 
-            await initRedis();
+            await initCache();
 
-            let info = getRedisInfo();
+            let info = getCacheInfo();
             expect(info.hasWrite).toBe(true);
             expect(info.hasRead).toBe(true);
             expect(info.isReplica).toBe(true);
 
-            await closeRedis();
+            await closeCache();
 
-            info = getRedisInfo();
+            info = getCacheInfo();
             expect(info.hasWrite).toBe(false);
             expect(info.hasRead).toBe(false);
             expect(info.isReplica).toBe(false);
         });
 
-        it('should be safe to call closeRedis() multiple times', async () =>
+        it('should be safe to call closeCache() multiple times', async () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            await initRedis();
-            await closeRedis();
-            await closeRedis(); // Second call should not throw
-            await closeRedis(); // Third call should not throw
+            await initCache();
+            await closeCache();
+            await closeCache(); // Second call should not throw
+            await closeCache(); // Third call should not throw
 
-            const info = getRedisInfo();
+            const info = getCacheInfo();
             expect(info.hasWrite).toBe(false);
         });
     });
@@ -374,8 +374,8 @@ describe('Redis Integration Tests', () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            await initRedis();
-            const redis = getRedis();
+            await initCache();
+            const redis = getCache();
 
             if (redis)
             {
@@ -411,15 +411,15 @@ describe('Redis Integration Tests', () =>
                 await Promise.all(delPromises);
             }
 
-            await closeRedis();
+            await closeCache();
         });
 
         it('should handle pipelines for bulk operations', async () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            await initRedis();
-            const redis = getRedis();
+            await initCache();
+            const redis = getCache();
 
             if (redis)
             {
@@ -450,15 +450,15 @@ describe('Redis Integration Tests', () =>
                 await delPipeline.exec();
             }
 
-            await closeRedis();
+            await closeCache();
         });
 
         it('should handle sets and sorted sets', async () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            await initRedis();
-            const redis = getRedis();
+            await initCache();
+            const redis = getCache();
 
             if (redis)
             {
@@ -481,15 +481,15 @@ describe('Redis Integration Tests', () =>
                 await redis.del('test:zset');
             }
 
-            await closeRedis();
+            await closeCache();
         });
 
         it('should handle lists for queues', async () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            await initRedis();
-            const redis = getRedis();
+            await initCache();
+            const redis = getCache();
 
             if (redis)
             {
@@ -516,15 +516,15 @@ describe('Redis Integration Tests', () =>
                 await redis.del('test:queue');
             }
 
-            await closeRedis();
+            await closeCache();
         });
 
         it('should handle hash operations', async () =>
         {
             process.env.REDIS_URL = 'redis://localhost:6379';
 
-            await initRedis();
-            const redis = getRedis();
+            await initCache();
+            const redis = getCache();
 
             if (redis)
             {
@@ -551,7 +551,7 @@ describe('Redis Integration Tests', () =>
                 await redis.del('test:user:1');
             }
 
-            await closeRedis();
+            await closeCache();
         });
     });
 });

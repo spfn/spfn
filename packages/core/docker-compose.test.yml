@@ -19,57 +19,57 @@ services:
       timeout: 5s
       retries: 5
 
-  # Single Redis instance (for basic tests)
-  redis-single:
-    image: redis:7-alpine
-    container_name: spfn-redis-single
+  # Single Valkey instance (for basic tests)
+  valkey-single:
+    image: valkey/valkey:8.0
+    container_name: spfn-valkey-single
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes
+    command: valkey-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 2s
       timeout: 3s
       retries: 5
 
   # Master instance (for master-replica tests)
-  redis-master:
-    image: redis:7-alpine
-    container_name: spfn-redis-master
+  valkey-master:
+    image: valkey/valkey:8.0
+    container_name: spfn-valkey-master
     ports:
       - "6380:6379"
-    command: redis-server --appendonly yes
+    command: valkey-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 2s
       timeout: 3s
       retries: 5
 
   # Replica instance (for master-replica tests)
-  redis-replica:
-    image: redis:7-alpine
-    container_name: spfn-redis-replica
+  valkey-replica:
+    image: valkey/valkey:8.0
+    container_name: spfn-valkey-replica
     ports:
       - "6381:6379"
-    command: redis-server --replicaof redis-master 6379 --appendonly yes
+    command: valkey-server --replicaof valkey-master 6379 --appendonly yes
     depends_on:
-      redis-master:
+      valkey-master:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 2s
       timeout: 3s
       retries: 5
 
-  # Redis with authentication (for auth tests)
-  redis-auth:
-    image: redis:7-alpine
-    container_name: spfn-redis-auth
+  # Valkey with authentication (for auth tests)
+  valkey-auth:
+    image: valkey/valkey:8.0
+    container_name: spfn-valkey-auth
     ports:
       - "6382:6379"
-    command: redis-server --requirepass secret123
+    command: valkey-server --requirepass secret123
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "secret123", "ping"]
+      test: ["CMD", "valkey-cli", "-a", "secret123", "ping"]
       interval: 2s
       timeout: 3s
       retries: 5

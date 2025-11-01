@@ -3,34 +3,44 @@
  *
  * @spfn/core package entry point
  *
+ * This is the main entry point that exports high-level APIs and common utilities.
+ * For specific functionality, use submodules:
+ * - @spfn/core/errors - Error classes and utilities
+ * - @spfn/core/middleware - Middleware functions
+ * - @spfn/core/cache - Cache utilities (Valkey/Redis)
+ * - @spfn/core/db - Database utilities and helpers
+ * - @spfn/core/route - Routing utilities
+ * - @spfn/core/server - Server creation and management
+ * - @spfn/core/logger - Logging utilities
+ * - @spfn/core/env - Environment variable management
+ * - @spfn/core/codegen - Code generation utilities
+ *
  * @example
  * ```ts
- * // Level 1: Zero config
- * import { startServer } from '@spfn/core';
+ * // High-level server API (main module)
+ * import { createServer, startServer } from '@spfn/core';
  * await startServer();
  *
- * // Level 2: Partial config (server.config.ts)
- * export default { port: 4000, cors: { origin: '*' } };
- *
- * // Level 3: Full control (app.ts)
- * export default () => {
- *   const app = new Hono();
- *   // Full customization
- *   return app;
- * };
+ * // Specific functionality (submodules)
+ * import { ValidationError, HttpError } from '@spfn/core/errors';
+ * import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
+ * import { getCache, getCacheRead, isCacheDisabled } from '@spfn/core/cache';
+ * import { Transactional } from '@spfn/core/db';
  * ```
  */
 
-// Server (High-level API)
+// ============================================================================
+// High-level Server API
+// ============================================================================
+
 export { createServer, startServer } from './server';
 export type { ServerConfig, AppFactory } from './server/types.js';
 
-// Route System
-export { AutoRouteLoader, loadRoutes } from './route/auto-loader.js';
-export type { RouteInfo, RouteStats } from './route/auto-loader.js';
-export { bind } from './route/bind.js';
+// ============================================================================
+// Common Types (frequently used across modules)
+// ============================================================================
 
-// Route Types
+// Route types (commonly used for contract definitions)
 export type {
     HttpMethod,
     RouteContext,
@@ -40,49 +50,3 @@ export type {
 } from './route/types.js';
 
 export { isHttpMethod } from './route/types.js';
-
-// Database
-export {
-    id,
-    timestamps,
-    foreignKey,
-    optionalForeignKey,
-    getDrizzleConfig,
-    detectDialect,
-    generateDrizzleConfigFile,
-    fromPostgresError,
-} from './db';
-export type {
-    DrizzleConfigOptions,
-} from './db';
-
-// Cache (Redis)
-export { getRedis, getRedisRead, setRedis, initRedis, closeRedis, getRedisInfo, createRedisFromEnv, createSingleRedisFromEnv } from './cache';
-export type { RedisClients } from './cache';
-
-// Transaction
-export { Transactional, getTransaction, runWithTransaction } from './db/transaction';
-export type { TransactionContext, TransactionalOptions } from './db/transaction';
-
-// Logger
-export { logger } from './logger';
-export type { LogLevel, LoggerAdapter } from './logger';
-
-// Middleware
-export { RequestLogger, maskSensitiveData } from './middleware/request-logger.js';
-export type { RequestLoggerConfig } from './middleware/request-logger.js';
-export { ErrorHandler } from './middleware/error-handler.js';
-export type { ErrorHandlerOptions } from './middleware/error-handler.js';
-
-// Custom Errors
-export {
-    DatabaseError,
-    ConnectionError,
-    QueryError,
-    NotFoundError,
-    ValidationError,
-    TransactionError,
-    DeadlockError,
-    DuplicateEntryError,
-    isDatabaseError,
-} from './errors';

@@ -1,51 +1,91 @@
-# @spfn/core/cache - Redis Infrastructure
+# @spfn/core/cache - Cache Infrastructure (Valkey/Redis)
 
-Global Redis instance management with automatic environment variable detection.
+Global cache instance management with automatic environment variable detection and graceful degradation.
+
+## What is Valkey?
+
+**Valkey** is a high-performance, open-source key-value store forked from Redis 7.2.4. It maintains **100% protocol compatibility** with Redis, allowing seamless migration.
+
+- 🔗 Website: https://valkey.io
+- 📦 Drop-in Redis replacement
+- ⚡ Same protocol, same commands, same client libraries
+- 🆓 Truly open-source (BSD 3-Clause)
+
+---
 
 ## Features
 
-- ✅ **Zero-Config**: Works with just environment variables
-- ✅ **Singleton Pattern**: One Redis connection shared across all modules
+- ✅ **Zero-Config**: Works with environment variables only
+- ✅ **Valkey & Redis**: Full support for both (100% compatible)
+- ✅ **Graceful Degradation**: Runs in disabled mode if cache unavailable
+- ✅ **Singleton Pattern**: One connection shared across all modules
 - ✅ **Master-Replica Support**: Automatic read/write separation
 - ✅ **Multiple Patterns**: Single, Master-Replica, Sentinel, Cluster
-- ✅ **TLS/SSL Support**: `rediss://` protocol with configurable certificate validation
-- ✅ **Graceful Degradation**: Optional dependency with memory fallback
+- ✅ **TLS/SSL Support**: `valkeys://` and `rediss://` protocols
+- ✅ **Optional Dependency**: Works without cache library installed
 - ✅ **Connection Testing**: Automatic `ping()` before accepting instances
 - ✅ **Auto-initialization**: Called by `startServer()`
+- ✅ **Disabled Mode**: Application continues without cache
 
 ---
 
 ## Quick Start
 
-### 1. Single Redis Instance (Most Common)
+### 1. Install Cache Library (Optional)
 
 ```bash
-# .env
+# For Valkey (recommended)
+pnpm install ioredis
+
+# ioredis works with both Valkey and Redis
+```
+
+### 2. Configure Environment
+
+```bash
+# .env - Modern (Valkey)
+VALKEY_URL=valkey://localhost:6379
+
+# Or use generic cache naming
+CACHE_URL=valkey://localhost:6379
+
+# Or legacy (Redis - still supported)
 REDIS_URL=redis://localhost:6379
 ```
+
+### 3. Auto-initialization
 
 ```typescript
 import { startServer } from '@spfn/core';
 
-// Redis automatically initialized
+// Cache automatically initialized (or disabled if unavailable)
 await startServer();
 ```
 
-### 2. Using Redis in Your Code
+### 4. Using Cache in Your Code
 
 ```typescript
-import { getRedis, getRedisRead } from '@spfn/core';
+import { getCache, getCacheRead, isCacheDisabled } from '@spfn/core/cache';
 
 // Write operations
-const redis = getRedis();
-if (redis) {
-  await redis.set('user:123', JSON.stringify({ name: 'John' }));
+const cache = getCache();
+if (cache) {
+  await cache.set('user:123', JSON.stringify({ name: 'John' }));
+} else {
+  // Cache disabled - handle gracefully
+  console.log('Cache unavailable, proceeding without cache');
 }
 
 // Read operations (uses replica if available)
-const redisRead = getRedisRead();
-if (redisRead) {
-  const data = await redisRead.get('user:123');
+const cacheRead = getCacheRead();
+if (cacheRead) {
+  const data = await cacheRead.get('user:123');
+}
+
+// Check if cache is disabled
+if (isCacheDisabled()) {
+  // Use alternative strategy (e.g., database, in-memory)
+  return await fetchFromDatabase();
 }
 ```
 
@@ -53,61 +93,70 @@ if (redisRead) {
 
 ## Environment Variables
 
-### Single Instance
+### Modern (Valkey - Recommended)
+
 ```bash
-REDIS_URL=redis://localhost:6379
+# Single instance
+VALKEY_URL=valkey://localhost:6379
+VALKEY_URL=valkey://:password@localhost:6379  # With auth
+VALKEY_URL=valkeys://secure.valkey.io:6380    # TLS
+VALKEY_TLS_REJECT_UNAUTHORIZED=false          # Self-signed certs
 
-# With authentication
-REDIS_URL=redis://:password@localhost:6379
+# Master-Replica (read/write separation)
+VALKEY_WRITE_URL=valkey://master:6379
+VALKEY_READ_URL=valkey://replica:6379
 
-# TLS (secure)
-REDIS_URL=rediss://secure.redis.com:6380
-REDIS_TLS_REJECT_UNAUTHORIZED=false  # For self-signed certificates
+# Sentinel (high availability)
+VALKEY_SENTINEL_HOSTS=sentinel1:26379,sentinel2:26379
+VALKEY_MASTER_NAME=mymaster
+VALKEY_PASSWORD=secret
+
+# Cluster (horizontal scaling)
+VALKEY_CLUSTER_NODES=node1:6379,node2:6379,node3:6379
+VALKEY_PASSWORD=secret
 ```
 
-### Master-Replica (Read/Write Separation)
+### Generic Cache Naming
+
 ```bash
+# Works with both Valkey and Redis
+CACHE_URL=valkey://localhost:6379
+CACHE_WRITE_URL=valkey://master:6379
+CACHE_READ_URL=valkey://replica:6379
+```
+
+### Legacy (Redis - Backward Compatibility)
+
+```bash
+# Still supported for existing deployments
+REDIS_URL=redis://localhost:6379
 REDIS_WRITE_URL=redis://master:6379
 REDIS_READ_URL=redis://replica:6379
-```
-
-### Sentinel (High Availability)
-```bash
-REDIS_SENTINEL_HOSTS=sentinel1:26379,sentinel2:26379,sentinel3:26379
-REDIS_MASTER_NAME=mymaster
-REDIS_PASSWORD=secret
-```
-
-### Cluster (Horizontal Scaling)
-```bash
-REDIS_CLUSTER_NODES=node1:6379,node2:6379,node3:6379
-REDIS_PASSWORD=secret
 ```
 
 ### Priority Order
 
 When multiple configurations exist:
-1. **Single Instance** (`REDIS_URL` only)
-2. **Master-Replica** (`REDIS_WRITE_URL` + `REDIS_READ_URL`)
-3. **Sentinel** (`REDIS_SENTINEL_HOSTS` + `REDIS_MASTER_NAME`)
-4. **Cluster** (`REDIS_CLUSTER_NODES`)
+1. **VALKEY_\*** (highest priority)
+2. **CACHE_\***
+3. **REDIS_\*** (legacy, lowest priority)
 
 ---
 
 ## API Reference
 
-### `getRedis()`
+### `getCache()`
 
-Get global Redis write instance.
+Get global cache write instance.
 
 ```typescript
-import { getRedis } from '@spfn/core';
+import { getCache } from '@spfn/core/cache';
 
-const redis = getRedis();
-if (redis) {
-  await redis.set('key', 'value');
-  await redis.del('old-key');
-  await redis.incr('counter');
+const cache = getCache();
+if (cache) {
+  await cache.set('key', 'value');
+  await cache.del('old-key');
+  await cache.incr('counter');
 }
 ```
 
@@ -115,17 +164,17 @@ if (redis) {
 
 ---
 
-### `getRedisRead()`
+### `getCacheRead()`
 
-Get global Redis read instance (falls back to write if no replica).
+Get global cache read instance (falls back to write if no replica).
 
 ```typescript
-import { getRedisRead } from '@spfn/core';
+import { getCacheRead } from '@spfn/core/cache';
 
-const redis = getRedisRead();
-if (redis) {
-  const value = await redis.get('key');
-  const users = await redis.lrange('users', 0, -1);
+const cache = getCacheRead();
+if (cache) {
+  const value = await cache.get('key');
+  const users = await cache.lrange('users', 0, -1);
 }
 ```
 
@@ -139,41 +188,71 @@ if (redis) {
 
 ---
 
-### `initRedis()`
+### `isCacheDisabled()`
 
-Initialize Redis from environment variables. Automatically called by `startServer()`.
+Check if cache is disabled (connection failed or not configured).
 
 ```typescript
-import { initRedis } from '@spfn/core';
+import { isCacheDisabled } from '@spfn/core/cache';
+
+if (isCacheDisabled()) {
+  // Use alternative strategy
+  return await fetchFromDatabase();
+}
+
+// Use cache normally
+const cache = getCache();
+await cache?.set('key', 'value');
+```
+
+**Returns:** `boolean`
+
+**When is cache disabled?**
+- No environment variables configured
+- ioredis library not installed
+- Connection to cache server failed
+- `ping()` test failed during initialization
+
+---
+
+### `initCache()`
+
+Initialize cache from environment variables. Automatically called by `startServer()`.
+
+```typescript
+import { initCache } from '@spfn/core/cache';
 
 // Manual initialization (not needed if using startServer)
-const { write, read } = await initRedis();
+const { write, read, disabled } = await initCache();
 
-if (write) {
-  console.log('Redis initialized');
+if (!disabled) {
+  console.log('Cache available');
+} else {
+  console.log('Cache disabled - running without cache');
 }
 ```
 
-**Returns:** `Promise<{ write?: Redis | Cluster; read?: Redis | Cluster }>`
+**Returns:** `Promise<{ write?: Redis | Cluster; read?: Redis | Cluster; disabled: boolean }>`
 
 **Behavior:**
 - Tests connection with `ping()`
 - Returns existing instances if already initialized
-- Logs connection status
+- Logs connection status or disabled mode
 - Cleans up failed connections
+- Sets disabled flag on failure
 
 ---
 
-### `closeRedis()`
+### `closeCache()`
 
-Close all Redis connections and cleanup. Called during graceful shutdown.
+Close all cache connections and cleanup. Called during graceful shutdown.
 
 ```typescript
-import { closeRedis } from '@spfn/core';
+import { closeCache } from '@spfn/core/cache';
 
 // During graceful shutdown
 process.on('SIGTERM', async () => {
-  await closeRedis();
+  await closeCache();
   process.exit(0);
 });
 ```
@@ -182,17 +261,17 @@ process.on('SIGTERM', async () => {
 
 ---
 
-### `setRedis(write, read?)`
+### `setCache(write, read?)`
 
-Set global Redis instances manually (for testing or custom configuration).
+Set global cache instances manually (for testing or custom configuration).
 
 ```typescript
-import { setRedis } from '@spfn/core';
+import { setCache } from '@spfn/core/cache';
 import Redis from 'ioredis';
 
-const write = new Redis('redis://master:6379');
-const read = new Redis('redis://replica:6379');
-setRedis(write, read);
+const write = new Redis('valkey://master:6379');
+const read = new Redis('valkey://replica:6379');
+setCache(write, read);
 ```
 
 **Parameters:**
@@ -201,23 +280,78 @@ setRedis(write, read);
 
 ---
 
-### `getRedisInfo()`
+### `getCacheInfo()`
 
-Get Redis connection information (for debugging).
+Get cache connection information (for debugging).
 
 ```typescript
-import { getRedisInfo } from '@spfn/core';
+import { getCacheInfo } from '@spfn/core/cache';
 
-const info = getRedisInfo();
+const info = getCacheInfo();
 console.log(info);
 // {
-//   hasWrite: true,
+// hasWrite: true,
 //   hasRead: true,
-//   isReplica: true  // true if read instance is different from write
+//   isReplica: true,  // true if read instance is different from write
+//   disabled: false
 // }
 ```
 
-**Returns:** `{ hasWrite: boolean; hasRead: boolean; isReplica: boolean }`
+**Returns:** `{ hasWrite: boolean; hasRead: boolean; isReplica: boolean; disabled: boolean }`
+
+---
+
+## Graceful Degradation (Disabled Mode)
+
+The cache module is designed to never break your application. When cache is unavailable, it operates in **disabled mode**:
+
+### Automatic Disabled Mode Triggers
+
+1. **No Configuration**: No `VALKEY_URL` or `REDIS_URL` set
+2. **Library Missing**: ioredis not installed
+3. **Connection Failed**: Cannot connect to cache server
+4. **Ping Failed**: Cache server not responding
+
+### Handling Disabled Mode
+
+```typescript
+import { getCache, isCacheDisabled } from '@spfn/core/cache';
+
+// Pattern 1: Check before using
+const cache = getCache();
+if (cache) {
+  await cache.set('key', 'value');
+} else {
+  // Gracefully skip caching
+  console.log('Cache unavailable, proceeding without cache');
+}
+
+// Pattern 2: Check disabled flag
+if (isCacheDisabled()) {
+  // Use alternative strategy
+  return await database.query('SELECT * FROM users');
+}
+
+// Pattern 3: Optional chaining
+await getCache()?.set('key', 'value');  // Safe, won't throw
+```
+
+### Logging in Disabled Mode
+
+```typescript
+// Info level - disabled mode activated
+[cache] No cache configuration found - running without cache
+[cache] Cache disabled - no configuration or library not installed
+
+// Warn level - library missing
+[cache] Cache client library not installed
+        suggestion: Install ioredis to enable cache: pnpm install ioredis
+        mode: disabled
+
+// Error level - connection failed
+[cache] Cache connection failed - running in disabled mode
+        mode: disabled
+```
 
 ---
 
@@ -226,57 +360,80 @@ console.log(info);
 ### Master-Replica Pattern
 
 ```typescript
-import { getRedis, getRedisRead } from '@spfn/core';
+import { getCache, getCacheRead } from '@spfn/core/cache';
 
 // Write to master
 async function updateUser(id: string, data: any) {
-  const redis = getRedis();
-  if (redis) {
-    await redis.set(`user:${id}`, JSON.stringify(data));
+  const cache = getCache();
+  if (cache) {
+    await cache.set(`user:${id}`, JSON.stringify(data));
   }
 }
 
 // Read from replica
 async function getUser(id: string) {
-  const redis = getRedisRead();
-  if (redis) {
-    const data = await redis.get(`user:${id}`);
+  const cache = getCacheRead();
+  if (cache) {
+    const data = await cache.get(`user:${id}`);
     return data ? JSON.parse(data) : null;
   }
   return null;
 }
 ```
 
-### Testing with Mock Redis
+### Testing with Mock Cache
 
 ```typescript
-import { setRedis } from '@spfn/core';
+import { setCache, isCacheDisabled } from '@spfn/core/cache';
+import { vi } from 'vitest';
 
-// In your test setup
-beforeAll(() => {
-  const mockRedis = {
-    get: vi.fn(),
-    set: vi.fn(),
-    del: vi.fn(),
-    ping: vi.fn().mockResolvedValue('PONG'),
-    quit: vi.fn().mockResolvedValue('OK'),
-  };
-  setRedis(mockRedis as any);
+describe('My Feature', () => {
+  beforeAll(() => {
+    const mockCache = {
+      get: vi.fn(),
+      set: vi.fn(),
+      del: vi.fn(),
+      ping: vi.fn().mockResolvedValue('PONG'),
+      quit: vi.fn().mockResolvedValue('OK'),
+    };
+    setCache(mockCache as any);
+  });
+
+  afterAll(async () => {
+    setCache(undefined);
+  });
+
+  it('should use cache when available', () => {
+    expect(isCacheDisabled()).toBe(false);
+  });
 });
+```
 
-afterAll(async () => {
-  setRedis(undefined);
+### Testing Disabled Mode
+
+```typescript
+import { setCache, isCacheDisabled } from '@spfn/core/cache';
+
+describe('Disabled Mode', () => {
+  beforeAll(() => {
+    setCache(undefined); // Simulate disabled cache
+  });
+
+  it('should handle disabled cache gracefully', () => {
+    expect(isCacheDisabled()).toBe(true);
+    // Your code should still work without cache
+  });
 });
 ```
 
 ### Custom Configuration
 
 ```typescript
-import { setRedis } from '@spfn/core';
+import { setCache } from '@spfn/core/cache';
 import Redis from 'ioredis';
 
-// Custom Redis configuration
-const redis = new Redis({
+// Custom Valkey configuration
+const cache = new Redis({
   host: 'localhost',
   port: 6379,
   password: 'secret',
@@ -287,7 +444,57 @@ const redis = new Redis({
   maxRetriesPerRequest: 3,
 });
 
-setRedis(redis);
+setCache(cache);
+```
+
+---
+
+## Migration from Redis to Valkey
+
+Valkey is 100% compatible with Redis. No code changes needed!
+
+### Before (Redis)
+
+```bash
+# .env
+REDIS_URL=redis://localhost:6379
+```
+
+```typescript
+import { getRedis } from '@spfn/core/cache';  // Still works!
+
+const redis = getRedis();
+await redis?.set('key', 'value');
+```
+
+### After (Valkey)
+
+```bash
+# .env
+VALKEY_URL=valkey://localhost:6379
+```
+
+```typescript
+import { getCache } from '@spfn/core/cache';  // Modern
+
+const cache = getCache();
+await cache?.set('key', 'value');  // Same API!
+```
+
+### Backward Compatibility
+
+Legacy `getRedis()` functions are still available:
+
+```typescript
+// All legacy functions work (deprecated but functional)
+import {
+  getRedis,           // → getCache()
+  getRedisRead,       // → getCacheRead()
+  setRedis,           // → setCache()
+  initRedis,          // → initCache()
+  closeRedis,         // → closeCache()
+  getRedisInfo,       // → getCacheInfo()
+} from '@spfn/core/cache';
 ```
 
 ---
@@ -296,29 +503,29 @@ setRedis(redis);
 
 ### Singleton Pattern
 
-All modules share the same Redis instance:
+All modules share the same cache instance:
 
 ```typescript
 // @spfn/auth
-import { getRedis } from '@spfn/core/cache';
-const redis = getRedis();  // Same instance
+import { getCache } from '@spfn/core/cache';
+const cache = getCache();  // Same instance
 
 // @spfn/session
-import { getRedis } from '@spfn/core/cache';
-const redis = getRedis();  // Same instance
+import { getCache } from '@spfn/core/cache';
+const cache = getCache();  // Same instance
 
 // Your app
-import { getRedis } from '@spfn/core/cache';
-const redis = getRedis();  // Same instance
+import { getCache } from '@spfn/core/cache';
+const cache = getCache();  // Same instance
 ```
 
 ### Dynamic Import
 
-Redis is loaded only when needed:
+Cache library is loaded only when needed:
 
 ```typescript
-// No REDIS_URL → ioredis never imported
-// With REDIS_URL → ioredis dynamically loaded at runtime
+// No VALKEY_URL → ioredis never imported, disabled mode
+// With VALKEY_URL → ioredis dynamically loaded at runtime
 ```
 
 ### Optional Dependency
@@ -336,75 +543,59 @@ Redis is loaded only when needed:
 Users install ioredis only when needed:
 
 ```bash
-# Without Redis
-pnpm install @spfn/core  # Works fine
+# Without cache
+pnpm install @spfn/core  # Works fine, cache disabled
 
-# With Redis
-pnpm install @spfn/core ioredis
+# With cache
+pnpm install @spfn/core ioredis  # Cache enabled
 ```
 
 ---
 
 ## Troubleshooting
 
-### Logging
+### Configuration Not Working
 
-All cache operations use structured logging via `@spfn/core/logger`:
+**Check Priority Order:**
+1. `VALKEY_URL` > `CACHE_URL` > `REDIS_URL`
+2. `VALKEY_WRITE_URL` > `CACHE_WRITE_URL` > `REDIS_WRITE_URL`
 
-```typescript
-// Info level - successful connections
-[cache] Redis connected
-[cache] Redis connected (Master-Replica)
-[cache] Redis connections closed
-
-// Warn level - degraded functionality
-[cache] Failed to create Redis client: <error>
-        suggestion: Using memory-only cache. Install ioredis: npm install ioredis
-
-// Error level - connection failures
-[cache] Redis connection failed: <error details>
-[cache] Error closing Redis write instance: <error>
-```
-
-Configure log levels via environment variables:
+**Example:**
 ```bash
-LOG_LEVEL=debug  # Show all cache operations
-LOG_LEVEL=info   # Default - shows connections
-LOG_LEVEL=warn   # Only warnings and errors
+# This will use VALKEY_URL (higher priority)
+VALKEY_URL=valkey://localhost:6379
+REDIS_URL=redis://localhost:6380  # Ignored
 ```
 
-### ⚠️ Warning: "Using memory-only cache"
+### ⚠️ Warning: "Cache client library not installed"
 
-**Cause:** No Redis configuration found or ioredis not installed.
+**Cause:** ioredis not installed.
 
-**Solutions:**
-1. Install ioredis: `pnpm install ioredis`
-2. Set `REDIS_URL` in `.env`
+**Solution:**
+```bash
+pnpm install ioredis
+```
 
-### ❌ Error: "Redis connection failed"
+**Note:** Application continues in disabled mode - not a breaking error.
 
-**Cause:** Cannot connect to Redis server.
+### ❌ Error: "Cache connection failed"
+
+**Cause:** Cannot connect to cache server.
 
 **Check:**
-1. Redis server is running
+1. Cache server is running
 2. Host/port is correct
-3. Network firewall allows connection
+3. Network/firewall allows connection
 4. Password is correct (if authentication enabled)
+
+**Recovery:** Application automatically enters disabled mode and continues.
 
 ### TLS Certificate Issues
 
 ```bash
 # For self-signed certificates
-REDIS_TLS_REJECT_UNAUTHORIZED=false
+VALKEY_TLS_REJECT_UNAUTHORIZED=false
 ```
-
-### Connection Pooling
-
-ioredis automatically manages connection pooling. Default settings:
-
-- Max retries: 3
-- Retry delay: Exponential backoff
-- Keep-alive: Enabled
 
 ---
 
@@ -414,24 +605,24 @@ ioredis automatically manages connection pooling. Default settings:
 
 ```bash
 # Separate read/write workloads
-REDIS_WRITE_URL=redis://master:6379
-REDIS_READ_URL=redis://replica:6379
+VALKEY_WRITE_URL=valkey://master:6379
+VALKEY_READ_URL=valkey://replica:6379
 ```
 
 ```typescript
 // Writes go to master
-await getRedis()?.set('key', 'value');
+await getCache()?.set('key', 'value');
 
 // Reads from replica (reduces master load)
-await getRedisRead()?.get('key');
+await getCacheRead()?.get('key');
 ```
 
 ### 2. Pipeline Commands
 
 ```typescript
-const redis = getRedis();
-if (redis) {
-  const pipeline = redis.pipeline();
+const cache = getCache();
+if (cache) {
+  const pipeline = cache.pipeline();
   pipeline.set('key1', 'value1');
   pipeline.set('key2', 'value2');
   pipeline.set('key3', 'value3');
@@ -442,9 +633,9 @@ if (redis) {
 ### 3. Use Lua Scripts for Atomic Operations
 
 ```typescript
-const redis = getRedis();
-if (redis) {
-  const result = await redis.eval(
+const cache = getCache();
+if (cache) {
+  await cache.eval(
     `
     local current = redis.call('GET', KEYS[1])
     if current and tonumber(current) < tonumber(ARGV[1]) then
@@ -464,6 +655,7 @@ if (redis) {
 
 ## Related
 
+- [Valkey Documentation](https://valkey.io/docs/) - Valkey official docs
+- [ioredis Documentation](https://github.com/redis/ioredis) - Full client API
 - [FRAMEWORK_PHILOSOPHY.md](../../../../FRAMEWORK_PHILOSOPHY.md) - Infrastructure singleton pattern
-- [ioredis Documentation](https://github.com/redis/ioredis) - Full Redis client API
 - [@spfn/core](../../README.md) - Main package documentation
