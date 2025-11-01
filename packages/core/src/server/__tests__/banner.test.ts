@@ -4,11 +4,11 @@
  * Tests for server startup banner printing functionality.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type SpyInstance } from 'vitest';
 import { printBanner } from '../banner.js';
 
 describe('Server Banner', () => {
-    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+    let consoleLogSpy: SpyInstance;
 
     beforeEach(() => {
         consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
