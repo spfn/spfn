@@ -417,6 +417,66 @@ export interface TransactionalOptions {
 }
 ```
 
+## Testing
+
+The transaction module has comprehensive test coverage:
+
+### Test Structure
+
+```
+transaction/__tests__/
+├── middleware.test.ts                # 14 unit tests - 100% coverage
+├── middleware.integration.test.ts    # 11 integration tests
+└── context.integration.test.ts       # 10 integration tests
+```
+
+### Test Coverage
+
+- **middleware.ts**: 100% coverage with unit tests
+- **context.ts**: Integration tests only (AsyncLocalStorage requires real environment)
+- **index.ts**: Export-only file (no testing required)
+
+### Running Tests
+
+```bash
+# Run all transaction tests
+pnpm vitest run src/db/transaction/__tests__
+
+# Run with coverage
+pnpm vitest run src/db/transaction/__tests__ --coverage
+
+# Run unit tests only
+pnpm vitest run src/db/transaction/__tests__/middleware.test.ts
+
+# Run integration tests (requires Docker PostgreSQL)
+pnpm docker:test:up
+pnpm vitest run src/db/transaction/__tests__/*.integration.test.ts
+```
+
+### What's Tested
+
+**Unit Tests (middleware.test.ts):**
+- ✅ Basic transaction lifecycle (start, commit, rollback)
+- ✅ Error handling and PostgreSQL error conversion
+- ✅ Slow transaction warnings
+- ✅ Timeout enforcement
+- ✅ Logging enable/disable
+- ✅ Context error detection
+- ✅ Environment variable configuration
+
+**Integration Tests (context.integration.test.ts):**
+- ✅ AsyncLocalStorage context propagation
+- ✅ Nested transaction tracking
+- ✅ Concurrent transaction isolation
+- ✅ Real database operations
+
+**Integration Tests (middleware.integration.test.ts):**
+- ✅ Automatic transaction management in Hono routes
+- ✅ Auto-commit on success
+- ✅ Auto-rollback on error
+- ✅ Complex multi-operation scenarios
+- ✅ Concurrent request handling
+
 ## Future Improvements
 
 Planned features:
