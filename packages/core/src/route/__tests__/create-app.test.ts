@@ -249,4 +249,74 @@ describe('createApp()', () =>
         const data2 = await res2.json();
         expect(data2).toEqual({ route: 'route2' });
     });
+
+    it('should store contract meta in _contractMetas', () => {
+        const app = createApp();
+
+        const contract: RouteContract = {
+            method: 'GET',
+            path: '/test',
+            response: Type.Object({ success: Type.Boolean() }),
+            meta: {
+                skipMiddlewares: ['auth'],
+                description: 'Test endpoint',
+            },
+        };
+
+        app.bind(contract, async (c) => {
+            return c.json({ success: true });
+        });
+
+        // Verify meta is stored in _contractMetas
+        expect(app._contractMetas).toBeDefined();
+        expect(app._contractMetas!.size).toBe(1);
+
+        const key = `${contract.method} ${contract.path}`;
+        const storedMeta = app._contractMetas!.get(key);
+        expect(storedMeta).toEqual(contract.meta);
+    });
+
+    it('should store empty object when contract has no meta', () => {
+        const app = createApp();
+
+        const contract: RouteContract = {
+            method: 'GET',
+            path: '/test',
+            response: Type.Object({ success: Type.Boolean() }),
+            // No meta field
+        };
+
+        app.bind(contract, async (c) => {
+            return c.json({ success: true });
+        });
+
+        const key = `${contract.method} ${contract.path}`;
+        const storedMeta = app._contractMetas!.get(key);
+        expect(storedMeta).toEqual({});
+    });
+
+    it('should store meta for multiple contracts', () => {
+        const app = createApp();
+
+        const contract1: RouteContract = {
+            method: 'GET',
+            path: '/public',
+            response: Type.Object({}),
+            meta: { skipMiddlewares: ['auth'] },
+        };
+
+        const contract2: RouteContract = {
+            method: 'POST',
+            path: '/private',
+            response: Type.Object({}),
+            meta: { description: 'Protected endpoint' },
+        };
+
+        app.bind(contract1, async (c) => c.json({}));
+        app.bind(contract2, async (c) => c.json({}));
+
+        expect(app._contractMetas!.size).toBe(2);
+        expect(app._contractMetas!.get('GET /public')).toEqual({ skipMiddlewares: ['auth'] });
+        expect(app._contractMetas!.get('POST /private')).toEqual({ description: 'Protected endpoint' });
+    });
 });

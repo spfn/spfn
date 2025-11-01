@@ -117,7 +117,7 @@ describe('bind()', () => {
             expect(json.email).toBe('john@example.com');
         });
 
-        it('should return 500 for invalid query params', async () => {
+        it('should return 500 for invalid query params without ErrorHandler', async () => {
             const contract = {
                 method: 'GET',
                 path: '/test',
@@ -137,7 +137,8 @@ describe('bind()', () => {
             const app = new Hono();
             app.get('/test', handler);
 
-            // Missing required query params - should return error response
+            // Missing required query params - ValidationError is thrown
+            // Without ErrorHandler middleware, Hono returns 500
             const res = await app.request('/test');
             expect(res.status).toBe(500);
         });
@@ -364,7 +365,7 @@ describe('bind()', () => {
             expect(json.tags).toEqual(['foo', 'bar']);
         });
 
-        it('should fail validation for single value when array is required', async () => {
+        it('should accept single value for array (Hono converts to array)', async () => {
             const contract = {
                 method: 'GET',
                 path: '/test',
@@ -373,21 +374,26 @@ describe('bind()', () => {
                 }),
                 response: Type.Object({
                     success: Type.Boolean(),
+                    tags: Type.Array(Type.String()),
                 }),
             } as const satisfies RouteContract;
 
             const handler = bind(contract, async (c) => {
                 return c.json({
                     success: true,
+                    tags: c.query.tags,
                 });
             });
 
             const app = new Hono();
             app.get('/test', handler);
 
-            // Single param doesn't satisfy Array schema - should fail validation
+            // Single param is converted to array by Hono - should succeed
             const res = await app.request('/test?tags=foo');
-            expect(res.status).toBe(500);
+            expect(res.status).toBe(200);
+
+            const json = await res.json();
+            expect(json.tags).toEqual(['foo']);
         });
 
         it('should handle nested objects in body', async () => {
@@ -439,6 +445,110 @@ describe('bind()', () => {
             const json = await res.json();
             expect(json.userName).toBe('John');
             expect(json.userAge).toBe(30);
+        });
+
+        it('should handle type conversion with Value.Convert', async () => {
+            const contract = {
+                method: 'GET',
+                path: '/test',
+                query: Type.Object({
+                    page: Type.Number(),
+                    limit: Type.Number(),
+                    active: Type.Boolean(),
+                }),
+                response: Type.Object({
+                    page: Type.Number(),
+                    limit: Type.Number(),
+                    active: Type.Boolean(),
+                }),
+            } as const satisfies RouteContract;
+
+            const handler = bind(contract, async (c) => {
+                // Values should be converted from string to proper types
+                return c.json({
+                    page: c.query.page,
+                    limit: c.query.limit,
+                    active: c.query.active,
+                });
+            });
+
+            const app = new Hono();
+            app.get('/test', handler);
+
+            // Query params come as strings, but should be converted
+            const res = await app.request('/test?page=1&limit=10&active=true');
+            expect(res.status).toBe(200);
+
+            const json = await res.json();
+            expect(json.page).toBe(1); // number, not string
+            expect(json.limit).toBe(10); // number, not string
+            expect(json.active).toBe(true); // boolean, not string
+            expect(typeof json.page).toBe('number');
+            expect(typeof json.active).toBe('boolean');
+        });
+
+        it('should fail validation for invalid params with detailed fields', async () => {
+            const contract = {
+                method: 'GET',
+                path: '/users/:id',
+                params: Type.Object({
+                    id: Type.Number(), // Expect number
+                }),
+                response: Type.Object({
+                    id: Type.Number(),
+                }),
+            } as const satisfies RouteContract;
+
+            const handler = bind(contract, async (c) => {
+                return c.json({ id: c.params.id });
+            });
+
+            const app = new Hono();
+
+            // Import ErrorHandler to handle ValidationError properly
+            const { ErrorHandler } = await import('../../middleware/error-handler.js');
+            app.onError(ErrorHandler());
+
+            app.get('/users/:id', handler);
+
+            // Pass non-numeric id
+            const res = await app.request('/users/abc');
+            expect(res.status).toBe(400); // ErrorHandler returns 400 for validation errors
+
+            const json = await res.json();
+            expect(json.error.message).toBe('Invalid path parameters');
+            expect(json.error.details.fields).toBeDefined();
+            expect(json.error.details.fields.length).toBeGreaterThan(0);
+            expect(json.error.details.fields[0].path).toBeDefined();
+            expect(json.error.details.fields[0].message).toBeDefined();
+        });
+
+        it('should handle json() with custom status and headers', async () => {
+            const contract = {
+                method: 'POST',
+                path: '/test',
+                response: Type.Object({
+                    message: Type.String(),
+                }),
+            } as const satisfies RouteContract;
+
+            const handler = bind(contract, async (c) => {
+                return c.json(
+                    { message: 'Created' },
+                    201,
+                    { 'X-Custom-Header': 'test-value' }
+                );
+            });
+
+            const app = new Hono();
+            app.post('/test', handler);
+
+            const res = await app.request('/test', { method: 'POST' });
+            expect(res.status).toBe(201);
+            expect(res.headers.get('X-Custom-Header')).toBe('test-value');
+
+            const json = await res.json();
+            expect(json.message).toBe('Created');
         });
     });
 });
