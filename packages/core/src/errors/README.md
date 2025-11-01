@@ -685,6 +685,144 @@ describe('Error Handling', () => {
 
 ---
 
+## Test Coverage
+
+The errors module has comprehensive test coverage with **70 tests** (all passing ✅).
+
+### Database Errors Tests (21 tests)
+**File:** `src/errors/__tests__/database-errors.test.ts`
+
+- **DatabaseError** (3 tests)
+  - Properties validation (message, statusCode, details, timestamp, stack)
+  - Default status code (500)
+  - JSON serialization
+
+- **ConnectionError** (2 tests)
+  - Status code 503
+  - Inheritance from DatabaseError
+
+- **QueryError** (3 tests)
+  - Default status code (500)
+  - Custom status code
+  - Inheritance from DatabaseError
+
+- **NotFoundError** (3 tests)
+  - Message and details generation
+  - String ID handling
+  - Inheritance chain (DatabaseError → QueryError → NotFoundError)
+
+- **ConstraintViolationError** (2 tests)
+  - Status code 400
+  - Inheritance chain
+
+- **TransactionError** (3 tests)
+  - Default status code (500)
+  - Custom status code
+  - Inheritance from DatabaseError
+
+- **DeadlockError** (2 tests)
+  - Status code 409
+  - Inheritance chain (DatabaseError → TransactionError → DeadlockError)
+
+- **DuplicateEntryError** (3 tests)
+  - Message and details generation
+  - Numeric value handling
+  - Inheritance chain
+
+### HTTP Errors Tests (34 tests)
+**File:** `src/errors/__tests__/http-errors.test.ts`
+
+- **HttpError** (2 tests)
+  - Properties validation
+  - JSON serialization
+
+- **BadRequestError** (4 tests)
+  - Status code 400
+  - Default message
+  - Details handling
+  - Inheritance from HttpError
+
+- **UnauthorizedError** (4 tests)
+  - Status code 401
+  - Default message
+  - Details handling
+  - Inheritance from HttpError
+
+- **ForbiddenError** (4 tests)
+  - Status code 403
+  - Default message
+  - Details handling
+  - Inheritance from HttpError
+
+- **ConflictError** (4 tests)
+  - Status code 409
+  - Default message
+  - Details handling
+  - Inheritance from HttpError
+
+- **TooManyRequestsError** (6 tests)
+  - Status code 429
+  - Default message
+  - retryAfter details
+  - Merging retryAfter with other details
+  - Works without retryAfter
+  - Inheritance from HttpError
+
+- **InternalServerError** (4 tests)
+  - Status code 500
+  - Default message
+  - Details handling
+  - Inheritance from HttpError
+
+- **ServiceUnavailableError** (6 tests)
+  - Status code 503
+  - Default message
+  - retryAfter details
+  - Merging retryAfter with other details
+  - Works without retryAfter
+  - Inheritance from HttpError
+
+### Error Utils Tests (15 tests)
+**File:** `src/errors/__tests__/error-utils.test.ts`
+
+- **isDatabaseError()** (4 tests)
+  - DatabaseError instances
+  - Non-DatabaseError errors
+  - null/undefined handling
+  - Non-error objects
+
+- **isHttpError()** (5 tests)
+  - HttpError instances
+  - HttpError subclasses
+  - Non-HttpError errors
+  - null/undefined handling
+  - Non-error objects
+
+- **hasStatusCode()** (6 tests)
+  - Objects with numeric statusCode
+  - Plain objects with statusCode
+  - Objects without statusCode
+  - Non-numeric statusCode
+  - null/undefined handling
+  - Primitive values
+
+### Running Tests
+
+```bash
+# Run all errors tests
+pnpm test src/errors
+
+# Run specific test file
+pnpm test src/errors/__tests__/database-errors.test.ts
+pnpm test src/errors/__tests__/http-errors.test.ts
+pnpm test src/errors/__tests__/error-utils.test.ts
+
+# Watch mode
+pnpm test:watch src/errors
+```
+
+---
+
 ## Troubleshooting
 
 ### Error not serializing in API response
