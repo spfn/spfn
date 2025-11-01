@@ -1,13 +1,13 @@
 ---
 title: "Why Hono?"
-description: "Learn why SPFN chose Hono as its underlying web framework"
+description: "Learn why Superfunction chose Hono as its underlying web framework"
 order: 3
 available: true
 ---
 
 # Why Hono?
 
-SPFN is built on top of Hono, a fast, lightweight web framework that works across multiple JavaScript runtimes. This choice enables SPFN to be performant, flexible, and future-proof.
+Superfunction is built on top of Hono, a fast, lightweight web framework that works across multiple JavaScript runtimes. This choice enables Superfunction to be performant, flexible, and future-proof.
 
 ## What is Hono?
 
@@ -225,9 +225,9 @@ app.get('/search', (c) => {
 | Plugin System | △ Middleware-based | ✓ Comprehensive |
 | Runtime Portability | ✓ Multi-runtime | △ Node.js only |
 
-## How SPFN Extends Hono
+## How Superfunction Extends Hono
 
-SPFN builds on top of Hono to add contract-based routing and type safety:
+Superfunction builds on top of Hono to add contract-based routing and type safety:
 
 ```typescript
 // Pure Hono (no type safety)
@@ -237,7 +237,7 @@ app.get('/users/:id', async (c) => {
   return c.json(user);  // No response type checking
 });
 
-// SPFN (contract-based, type-safe)
+// Superfunction (contract-based, type-safe)
 import { createApp } from 'spfn';
 import { getUserContract } from '@/lib/contracts/users';
 
@@ -249,7 +249,7 @@ app.bind(getUserContract, async (c) => {
   return c.json(user);  // Response type-checked against contract
 });
 
-// SPFN adds:
+// Superfunction adds:
 // 1. Contract-based routing
 // 2. Automatic validation (TypeBox)
 // 3. Type inference (InferContract)
@@ -261,7 +261,7 @@ app.bind(getUserContract, async (c) => {
 
 ### Deployment Flexibility
 
-Because SPFN uses Hono, you can deploy the same codebase to multiple platforms:
+Because Superfunction uses Hono, you can deploy the same codebase to multiple platforms:
 
 - **Traditional servers** - Deploy to VPS, EC2, Docker containers
 - **Serverless** - AWS Lambda, Google Cloud Functions, Azure Functions
@@ -297,7 +297,7 @@ Deploy to edge locations worldwide for minimal latency:
 
 ## Conclusion
 
-Hono was chosen as SPFN's foundation because:
+Hono was chosen as Superfunction's foundation because:
 
 1. **Performance** - One of the fastest JavaScript frameworks
 2. **Standards-based** - Uses Web Standard APIs for portability
@@ -306,10 +306,10 @@ Hono was chosen as SPFN's foundation because:
 5. **Modern** - TypeScript-first with excellent DX
 6. **Future-proof** - Built on web standards, not platform-specific APIs
 
-By building on Hono, SPFN inherits these benefits while adding contract-based routing, automatic validation, and end-to-end type safety.
+By building on Hono, Superfunction inherits these benefits while adding contract-based routing, automatic validation, and end-to-end type safety.
 
 > **✅ Success:** Next: Build Process
 >
-> Learn how SPFN's build system transforms your code for production.
+> Learn how Superfunction's build system transforms your code for production.
 >
 > [Build Process →](/docs/architecture/build-process)

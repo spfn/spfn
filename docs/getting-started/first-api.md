@@ -1,6 +1,6 @@
 ---
 title: "Your First API"
-description: "Create your first type-safe API with SPFN"
+description: "Create your first type-safe API with Superfunction"
 order: 5
 available: true
 ---
@@ -51,7 +51,7 @@ const app = createApp();
 app.bind(createUserContract, async (c) => {
   const data = await c.data();
 
-  // Use SPFN helper functions
+  // Use Superfunction helper functions
   const user = await create(users, {
     name: data.name,
     email: data.email
@@ -65,7 +65,7 @@ export default app;
 
 ## Step 3: Use in Next.js
 
-The SPFN CLI automatically generates a type-safe client. Just import and use it!
+The Superfunction CLI automatically generates a type-safe client. Just import and use it!
 
 ```typescript
 // src/app/page.tsx
@@ -96,11 +96,11 @@ export default function Home() {
 
 > **That's it!**
 >
-> You've created your first type-safe API with SPFN. The types flow automatically from contract to implementation to client usage.
+> You've created your first type-safe API with Superfunction. The types flow automatically from contract to implementation to client usage.
 
 ## What Happens Behind the Scenes?
 
-1. SPFN validates request body against the contract schema
+1. Superfunction validates request body against the contract schema
 2. TypeScript ensures your handler returns the correct response type
 3. The CLI generates a type-safe client with full autocomplete
 4. All types are inferred—no manual type definitions needed!

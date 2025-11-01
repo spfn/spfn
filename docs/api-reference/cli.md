@@ -1,13 +1,13 @@
 ---
 title: "CLI Commands"
-description: "Complete reference for SPFN CLI commands"
+description: "Complete reference for Superfunction CLI commands"
 order: 5
 available: true
 ---
 
 # CLI Commands
 
-SPFN provides a powerful CLI for development, building, and database management.
+Superfunction provides a powerful CLI for development, building, and database management.
 
 ## spfn dev
 
@@ -385,6 +385,6 @@ psql $DATABASE_URL < backup.sql
 
 > **✅ Success:** API Reference Complete!
 >
-> You've learned all the core SPFN APIs. Next, explore the architecture section to understand how SPFN works internally.
+> You've learned all the core Superfunction APIs. Next, explore the architecture section to understand how Superfunction works internally.
 >
 > [Architecture →](/docs/architecture/how-it-works)

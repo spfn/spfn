@@ -1,13 +1,13 @@
 ---
 title: "Contracts"
 description: "Learn how to define type-safe API contracts with TypeBox"
-order: 1
+order: 2
 available: true
 ---
 
 # Contracts
 
-Contracts are the foundation of SPFN's type safety. They define your API shape using TypeBox schemas.
+Contracts are the foundation of Superfunction's type safety. They define your API shape using TypeBox schemas.
 
 ## What is a Contract?
 
@@ -72,7 +72,7 @@ export const createPostContract = {
 
 ## TypeBox Schemas
 
-SPFN uses TypeBox for schema definitions. Common types:
+Superfunction uses TypeBox for schema definitions. Common types:
 
 - `Type.String()` - String with optional constraints (minLength, maxLength, format)
 - `Type.Number()` - Numeric values (integer, minimum, maximum)
@@ -84,7 +84,7 @@ SPFN uses TypeBox for schema definitions. Common types:
 
 ## Why TypeBox?
 
-SPFN uses TypeBox for schema validation instead of alternatives like Zod or Yup:
+Superfunction uses TypeBox for schema validation instead of alternatives like Zod or Yup:
 
 - **JSON Schema Standard** - Universal format for OpenAPI, tooling, and cross-language support
 - **Performance** - 10x faster than Zod, 20x faster than Yup

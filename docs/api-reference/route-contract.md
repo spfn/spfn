@@ -7,7 +7,7 @@ available: true
 
 # RouteContract
 
-RouteContract is the core type that defines type-safe API endpoints in SPFN using TypeBox schemas.
+RouteContract is the core type that defines type-safe API endpoints in Superfunction using TypeBox schemas.
 
 ## RouteContract Type
 

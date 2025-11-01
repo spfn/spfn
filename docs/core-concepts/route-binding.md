@@ -1,7 +1,7 @@
 ---
 title: "Route Binding"
 description: "Learn how to bind contracts to handlers with middleware, validation, and error handling"
-order: 2
+order: 3
 available: true
 ---
 
@@ -9,7 +9,7 @@ Route binding connects your contracts to handler functions with automatic valida
 
 ## Built on Hono
 
-SPFN is built on top of Hono, a lightweight and ultrafast web framework:
+Superfunction is built on top of Hono, a lightweight and ultrafast web framework:
 
 - **Edge-Ready** - Runs on Cloudflare Workers, Deno, Bun, and Node.js
 - **Ultrafast** - Minimal overhead with excellent performance
@@ -155,7 +155,7 @@ app.bind(updateTeamContract, async (c) => {
 
 ## Automatic Validation
 
-SPFN automatically validates all incoming requests against your contract schemas:
+Superfunction automatically validates all incoming requests against your contract schemas:
 
 ### Type Conversion
 
@@ -175,7 +175,7 @@ query: Type.Object({
 
 ### Validation Error Response
 
-When validation fails, SPFN returns a structured error response:
+When validation fails, Superfunction returns a structured error response:
 
 ```json
 // Request: GET /teams/abc (id should be integer)
@@ -200,7 +200,7 @@ When validation fails, SPFN returns a structured error response:
 
 ## Middleware Management
 
-SPFN provides flexible middleware management at both global and method levels.
+Superfunction provides flexible middleware management at both global and method levels.
 
 ### Global Middlewares
 
@@ -288,7 +288,7 @@ app.bind(
 
 ## Error Handling
 
-SPFN provides built-in error types for common HTTP errors:
+Superfunction provides built-in error types for common HTTP errors:
 
 ### Built-in Error Types
 
@@ -442,6 +442,6 @@ export const updateTeamContract = {
 
 > **✅ Success:** Next: Type Safety
 >
-> Learn how SPFN ensures end-to-end type safety from contracts to frontend.
+> Learn how Superfunction ensures end-to-end type safety from contracts to frontend.
 >
 > [Type Safety →](/docs/core-concepts/type-safety)

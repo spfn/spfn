@@ -1,18 +1,18 @@
 ---
 title: "Quick Start"
-description: "Get your SPFN project up and running in 5 minutes"
+description: "Get your Superfunction project up and running in 5 minutes"
 order: 3
 available: true
 ---
 
 # Quick Start
 
-Get your SPFN project up and running in 5 minutes.
+Get your Superfunction project up and running in 5 minutes.
 
 ## Option 1: Create New Project (Recommended)
 
 ```bash
-# Create new project with SPFN + Next.js + TypeScript + Tailwind
+# Create new project with Superfunction + Next.js + TypeScript + Tailwind
 npx spfn@alpha create my-app
 cd my-app
 

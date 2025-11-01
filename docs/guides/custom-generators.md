@@ -1,13 +1,13 @@
 ---
 title: "Custom Generators"
-description: "Learn how to create custom code generators for your SPFN project"
+description: "Learn how to create custom code generators for your Superfunction project"
 order: 5
 available: true
 ---
 
 # Custom Generators
 
-SPFN's code generation system is extensible, allowing you to create custom generators for any code generation needs in your project.
+Superfunction's code generation system is extensible, allowing you to create custom generators for any code generation needs in your project.
 
 ## What are Generators?
 

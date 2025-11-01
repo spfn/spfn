@@ -9,47 +9,40 @@ available: true
 
 > **Type-safe backend for Next.js**
 
-Next.js handles your frontend. SPFN handles your backend.
+Next.js handles your frontend. Superfunction handles your backend.
 
-## What is SPFN?
+## What is Superfunction?
 
-SPFN is an end-to-end type-safe backend framework for Next.js that gives you real backend capabilities—not just a backend for frontend.
+Superfunction is an end-to-end type-safe backend framework for Next.js that gives you real backend capabilities—not just a backend for frontend.
 
-## When You Need SPFN
+## Do You Need Superfunction?
 
-**🚀 Building a mobile app?**
-→ Next.js (landing page) + SPFN (API) = Complete solution
+**Simple API routes?** → Next.js is enough
+**Real backend features?** → Next.js + Superfunction
 
-**💼 Building a SaaS product?**
-→ Next.js (marketing + dashboard) + SPFN (backend) = Full-stack
+### Next.js API Routes vs Superfunction
 
-**⚡ Building with functions?**
-→ SPFN functions = Plug & play features with automatic DB setup
+| Feature | Next.js API Routes | Superfunction |
+|---------|-------------------|------|
+| **Connection Pooling** | ❌ Creates new connection per request | ✅ Persistent connection pool |
+| **Background Jobs** | ❌ Not supported | ✅ Queue system with scheduling |
+| **Transactions** | ⚠️ Limited (single request scope) | ✅ Full ACID transactions |
+| **Long-running Tasks** | ❌ 10s timeout (Vercel) | ✅ No timeout limits |
+| **WebSocket/SSE** | ⚠️ Limited support | ✅ Full bidirectional support |
+| **Type Safety** | ⚠️ Manual sync needed | ✅ E2E auto-generated client |
+| **Deployment** | ✅ Simple (Vercel) | ✅ One codebase, deploy together |
 
-**🎯 Need these features?**
-- Complex business logic with transactions
-- Connection pools (PostgreSQL, Redis)
-- Background jobs & scheduled tasks
-- End-to-end type safety (Contract → Client)
-- Function ecosystem with auto-discovery
+### Use Superfunction When You Need:
 
-**If you just need simple API routes, Next.js is enough.**
-**If you need a real backend, Next.js + SPFN.**
-
-## Why SPFN?
-
-Serverless functions in Next.js are great for simple use cases, but they fall short when you need:
-
-- Persistent database connections without hitting connection limits
-- Long-running background tasks
-- Real-time bidirectional communication
-- Complex transaction orchestration
-
-SPFN solves these problems by running a dedicated backend server alongside your Next.js app—all in one project.
+- 📱 **Mobile apps** - Marketing page (Next.js) + API server (Superfunction) in one project
+- 💼 **SaaS products** - Complex business logic with transactions
+- 🔌 **Connection pools** - PostgreSQL, Redis without hitting limits
+- ⏰ **Background jobs** - Email sending, data processing, scheduled tasks
+- 🎯 **E2E type safety** - Contract → Backend → Client auto-sync
 
 ## How It Works
 
-SPFN uses a contract-based architecture:
+Superfunction uses a contract-based architecture:
 
 1. **Define contracts** - Shared TypeBox schemas that define your API shape
 2. **Implement routes** - Backend handlers with full type safety
@@ -95,4 +88,4 @@ const user = await api.users.getById({ params: { id: '123' } });
 
 ## Next Steps
 
-Ready to get started? Follow our [Quick Start](/docs/getting-started/quick-start) guide to create your first SPFN project in under 5 minutes.
+Ready to get started? Follow our [Quick Start](/docs/getting-started/quick-start) guide to create your first Superfunction project in under 5 minutes.

@@ -1,13 +1,13 @@
 ---
 title: "Database Guide"
-description: "Learn how to work with PostgreSQL and Drizzle ORM in SPFN"
+description: "Learn how to work with PostgreSQL and Drizzle ORM in Superfunction"
 order: 1
 available: true
 ---
 
 # Database Guide
 
-SPFN provides a type-safe database layer built on Drizzle ORM with helper functions, automatic transactions, and read/write separation.
+Superfunction provides a type-safe database layer built on Drizzle ORM with helper functions, automatic transactions, and read/write separation.
 
 ## Features
 
@@ -48,7 +48,7 @@ console.log('Database initialized');
 
 ## Defining Schemas
 
-Define your database schemas using Drizzle ORM with SPFN helpers:
+Define your database schemas using Drizzle ORM with Superfunction helpers:
 
 ### Basic Schema
 
@@ -109,7 +109,7 @@ export const posts = pgTable('posts', {
 
 ### Schema Helpers
 
-SPFN provides reusable column helpers:
+Superfunction provides reusable column helpers:
 
 - `id()` - Auto-incrementing bigserial primary key
 - `timestamps()` - Adds createdAt and updatedAt columns
@@ -118,7 +118,7 @@ SPFN provides reusable column helpers:
 
 ## Helper Functions
 
-SPFN provides type-safe helper functions for common database operations:
+Superfunction provides type-safe helper functions for common database operations:
 
 ### Finding Records
 
@@ -272,7 +272,7 @@ const counter = await upsert(countersTable, {
 
 ## Transactions
 
-SPFN provides automatic transaction management with the `Transactional()` middleware:
+Superfunction provides automatic transaction management with the `Transactional()` middleware:
 
 ### Using Transactional Middleware
 
@@ -421,7 +421,7 @@ const usersWithPosts = await db
 
 ## Database Migrations
 
-SPFN uses Drizzle Kit for database migrations:
+Superfunction uses Drizzle Kit for database migrations:
 
 ### Configuration
 
@@ -465,7 +465,7 @@ npx drizzle-kit migrate
 
 ## Read/Write Separation
 
-SPFN automatically routes read operations to replica databases when configured:
+Superfunction automatically routes read operations to replica databases when configured:
 
 ```typescript
 // Helper functions handle separation automatically
@@ -555,6 +555,6 @@ export const posts = pgTable('posts', {
 
 > **Next: Authentication**
 >
-> Learn how to implement authentication in your SPFN application.
+> Learn how to implement authentication in your Superfunction application.
 >
 > [Authentication Guide →](/docs/guides/authentication)

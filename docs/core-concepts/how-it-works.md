@@ -1,13 +1,13 @@
 ---
 title: "How It Works"
-description: "Understand how SPFN works under the hood"
+description: "Understand how Superfunction works under the hood"
 order: 1
 available: true
 ---
 
 # How It Works
 
-SPFN provides end-to-end type safety by connecting contracts, server routes, and frontend API calls through automatic code generation and TypeScript type inference.
+Superfunction provides end-to-end type safety by connecting contracts, server routes, and frontend API calls through automatic code generation and TypeScript type inference.
 
 ## The Three-Step Flow
 
@@ -79,14 +79,14 @@ const user = await api.users.getById({
 ```
 
 **What happens:**
-- SPFN scans all contracts and generates a typed client
+- Superfunction scans all contracts and generates a typed client
 - The client provides full IntelliSense and type checking
 - Frontend code breaks at compile-time if contracts change
 - No need to manually update API call types
 
 ## Auto-Sync Magic
 
-Between each step, SPFN automatically synchronizes types:
+Between each step, Superfunction automatically synchronizes types:
 
 1. **Contract → Server**: TypeScript inference provides typed context
 2. **Server → Build**: Code generation creates typed client
@@ -209,7 +209,7 @@ result.name  // TypeScript knows this exists and is string
 
 ## Why This Matters
 
-**Without SPFN:**
+**Without Superfunction:**
 ```typescript
 // Backend
 app.get('/users/:id', async (req, res) => {
@@ -224,7 +224,7 @@ const user = await response.json();  // type: any
 console.log(user.name);  // Hope this exists!
 ```
 
-**With SPFN:**
+**With Superfunction:**
 ```typescript
 // Contract (single source of truth)
 export const getUserContract = {
@@ -253,8 +253,8 @@ console.log(user.age);   // Error: Property 'age' does not exist ✓
 
 ## Next Steps
 
-Now that you understand how SPFN works, explore:
+Now that you understand how Superfunction works, explore:
 
-- [Testing](/docs/guides/testing) - Learn how to test your SPFN application
+- [Testing](/docs/guides/testing) - Learn how to test your Superfunction application
 - [Deployment](/docs/guides/deployment) - Deploy to production
 - [API Reference](/docs/api-reference/route-contract) - Deep dive into contracts

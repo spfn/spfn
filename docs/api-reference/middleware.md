@@ -7,7 +7,7 @@ available: true
 
 # Middleware
 
-SPFN provides built-in middleware for common patterns and supports custom middleware creation for cross-cutting concerns.
+Superfunction provides built-in middleware for common patterns and supports custom middleware creation for cross-cutting concerns.
 
 ## Built-in Middleware
 
@@ -468,6 +468,6 @@ if (!token) {
 
 > **✅ Success:** Next: CLI Commands
 >
-> Learn about SPFN CLI commands for development and deployment.
+> Learn about Superfunction CLI commands for development and deployment.
 >
 > [CLI Commands →](/docs/api-reference/cli)

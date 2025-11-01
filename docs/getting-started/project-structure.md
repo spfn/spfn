@@ -1,13 +1,13 @@
 ---
 title: "Project Structure"
-description: "Understand the SPFN project structure and file organization"
+description: "Understand the Superfunction project structure and file organization"
 order: 4
 available: true
 ---
 
 # Project Structure
 
-A SPFN project organizes your Next.js app, backend server, and shared contracts in a single codebase.
+A Superfunction project organizes your Next.js app, backend server, and shared contracts in a single codebase.
 
 ## Directory Structure
 
@@ -18,7 +18,7 @@ my-app/
 │  │  ├─ page.tsx
 │  │  └─ layout.tsx
 │  │
-│  ├─ server/           # SPFN Backend
+│  ├─ server/           # Superfunction Backend
 │  │  ├─ routes/        # File-based routing
 │  │  │  ├─ examples/
 │  │  │  │  └─ index.ts         # GET /examples
@@ -70,7 +70,7 @@ React components for your Next.js application.
 
 ### `.spfnrc.json`
 
-SPFN configuration for code generation and custom generators:
+Superfunction configuration for code generation and custom generators:
 
 ```json
 {
@@ -90,7 +90,7 @@ SPFN configuration for code generation and custom generators:
 
 ### `spfn.config.js`
 
-Deployment configuration for SuperCloud (SPFN cloud platform):
+Deployment configuration for SuperCloud (Superfunction cloud platform):
 
 ```javascript
 export default {
@@ -114,7 +114,7 @@ export default {
 }
 ```
 
-> **Note:** SuperCloud (Coming Soon): Deploy with `git push` to SPFN's managed infrastructure. Configure your subdomain and region, then deploy automatically on every push.
+> **Note:** SuperCloud (Coming Soon): Deploy with `git push` to Superfunction's managed infrastructure. Configure your subdomain and region, then deploy automatically on every push.
 
 ### `drizzle.config.ts`
 
@@ -124,6 +124,6 @@ Drizzle ORM configuration for database migrations and type generation.
 
 > **Ready to build?**
 >
-> Learn how to create your first backend API with SPFN.
+> Learn how to create your first backend API with Superfunction.
 >
 > [Create Your First API →](/docs/getting-started/first-api)

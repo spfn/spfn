@@ -1,13 +1,13 @@
 ---
 title: "Error Handling"
-description: "Learn how to handle errors effectively in SPFN applications"
+description: "Learn how to handle errors effectively in Superfunction applications"
 order: 2
 available: true
 ---
 
 # Error Handling
 
-SPFN provides type-safe custom error classes with HTTP status codes, metadata, and automatic JSON serialization for consistent API error responses.
+Superfunction provides type-safe custom error classes with HTTP status codes, metadata, and automatic JSON serialization for consistent API error responses.
 
 ## Features
 
@@ -20,7 +20,7 @@ SPFN provides type-safe custom error classes with HTTP status codes, metadata, a
 
 ## Error Classes
 
-SPFN provides pre-built error classes for common scenarios:
+Superfunction provides pre-built error classes for common scenarios:
 
 ### Database Errors
 
@@ -96,7 +96,7 @@ throw new ServiceUnavailableError('Service under maintenance', 3600);  // retry 
 
 ## Using Errors in Routes
 
-Simply throw errors in your route handlers - SPFN automatically converts them to JSON responses:
+Simply throw errors in your route handlers - Superfunction automatically converts them to JSON responses:
 
 ### Basic Example
 
@@ -128,7 +128,7 @@ export default app;
 
 ### Error Response Format
 
-SPFN automatically serializes errors to a consistent JSON format:
+Superfunction automatically serializes errors to a consistent JSON format:
 
 ```json
 // Request: GET /users/999
@@ -204,7 +204,7 @@ app.bind(deleteUserContract, async (c) => {
 
 ## PostgreSQL Error Conversion
 
-SPFN automatically converts PostgreSQL errors to appropriate custom error types:
+Superfunction automatically converts PostgreSQL errors to appropriate custom error types:
 
 ```typescript
 import { fromPostgresError } from '@spfn/core';
@@ -222,7 +222,7 @@ app.bind(createUserContract, async (c) => {
   }
 });
 
-// PostgreSQL Error Code → SPFN Error
+// PostgreSQL Error Code → Superfunction Error
 // 23505 (unique_violation) → DuplicateEntryError
 // 23503 (foreign_key_violation) → ValidationError
 // 40P01 (deadlock_detected) → DeadlockError
@@ -232,7 +232,7 @@ app.bind(createUserContract, async (c) => {
 
 > **Automatic Conversion**
 >
-> SPFN's database helpers automatically convert PostgreSQL errors, so you don't need to manually call `fromPostgresError()` in most cases.
+> Superfunction's database helpers automatically convert PostgreSQL errors, so you don't need to manually call `fromPostgresError()` in most cases.
 
 ## Error Handling in Transactions
 
@@ -542,6 +542,6 @@ throw new TooManyRequestsError('Rate limit exceeded');
 
 > **Next: Testing**
 >
-> Learn how to test your SPFN application with comprehensive testing strategies.
+> Learn how to test your Superfunction application with comprehensive testing strategies.
 >
 > [Testing Guide →](/docs/guides/testing)

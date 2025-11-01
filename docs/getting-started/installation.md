@@ -1,11 +1,11 @@
 ---
 title: "Installation"
-description: "Install SPFN and set up your development environment"
+description: "Install Superfunction and set up your development environment"
 order: 2
 available: true
 ---
 
-Get started with SPFN by creating a new project or adding it to an existing Next.js application.
+Get started with Superfunction by creating a new project or adding it to an existing Next.js application.
 
 ## System Requirements
 
@@ -16,18 +16,18 @@ Get started with SPFN by creating a new project or adding it to an existing Next
 
 ## Automatic Installation
 
-The easiest way to get started is using the SPFN CLI:
+The easiest way to get started is using the Superfunction CLI:
 
 ```bash
 npx spfn@alpha create my-app
 cd my-app
 ```
 
-This creates a new SPFN project with Next.js, TypeScript, and all necessary dependencies pre-configured.
+This creates a new Superfunction project with Next.js, TypeScript, and all necessary dependencies pre-configured.
 
 ## Manual Installation
 
-To add SPFN to an existing Next.js project:
+To add Superfunction to an existing Next.js project:
 
 ```bash
 npm install spfn @spfn/core
@@ -39,7 +39,7 @@ yarn add spfn @spfn/core
 
 ## Database Setup
 
-SPFN requires PostgreSQL. You can use Docker for development:
+Superfunction requires PostgreSQL. You can use Docker for development:
 
 ```bash
 # Using the included docker-compose.yml
@@ -59,6 +59,6 @@ This starts two servers:
 - **Backend:** `http://localhost:8790`
 - **Frontend:** `http://localhost:3790`
 
-> **✅ Success:** Now that you have SPFN installed, learn about the project structure.
+> **✅ Success:** Now that you have Superfunction installed, learn about the project structure.
 >
 > [Project Structure →](/docs/getting-started/project-structure)

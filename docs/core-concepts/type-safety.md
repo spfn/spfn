@@ -1,13 +1,13 @@
 ---
 title: "Type Safety"
-description: "Learn how SPFN ensures end-to-end type safety from contracts to frontend"
-order: 3
+description: "Learn how Superfunction ensures end-to-end type safety from contracts to frontend"
+order: 4
 available: true
 ---
 
 # Type Safety
 
-SPFN provides end-to-end type safety from contract definition to frontend usage, with zero manual type definitions.
+Superfunction provides end-to-end type safety from contract definition to frontend usage, with zero manual type definitions.
 
 ## How Type Safety Works
 
@@ -42,7 +42,7 @@ type CreateTeamResponse = InferContract<typeof createTeamContract>['response'];
 
 ## Auto-Generated Types
 
-When you run `npm run spfn:dev`, SPFN automatically generates `src/lib/api.ts` with all types extracted:
+When you run `npm run spfn:dev`, Superfunction automatically generates `src/lib/api.ts` with all types extracted:
 
 ```typescript
 /**
@@ -284,7 +284,7 @@ app.bind(createTeamContract, async (c) => {
 
 ## Runtime vs Compile-Time
 
-SPFN provides both runtime and compile-time safety:
+Superfunction provides both runtime and compile-time safety:
 
 **Runtime Safety:**
 - Request validation with TypeBox
@@ -341,6 +341,6 @@ When you modify a contract:
 
 > **Next: Client Generation**
 >
-> Learn how SPFN's code generation works and how to customize the generated client.
+> Learn how Superfunction's code generation works and how to customize the generated client.
 >
 > [Client Generation →](/docs/core-concepts/client-generation)

@@ -7,11 +7,11 @@ available: true
 
 # App (Server)
 
-SPFN provides flexible server configuration with three levels of customization: zero-config, partial config, and full control.
+Superfunction provides flexible server configuration with three levels of customization: zero-config, partial config, and full control.
 
 ## createServer
 
-Creates a Hono app instance with SPFN routing and middleware.
+Creates a Hono app instance with Superfunction routing and middleware.
 
 ```typescript
 function createServer(config?: ServerConfig): Promise<Hono>
@@ -337,7 +337,7 @@ export default async function createApp() {
   // Full customization
   app.use('*', customMiddleware());
 
-  // Load SPFN routes
+  // Load Superfunction routes
   await loadRoutes(app, { routesPath: 'src/server/routes' });
 
   return app;

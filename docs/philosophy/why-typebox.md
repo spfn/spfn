@@ -1,13 +1,13 @@
 ---
 title: "Why TypeBox?"
-description: "Learn why SPFN chose TypeBox over Zod and other validation libraries"
+description: "Learn why Superfunction chose TypeBox over Zod and other validation libraries"
 order: 2
 available: true
 ---
 
 # Why TypeBox?
 
-SPFN uses TypeBox for schema validation and type inference. This decision was driven by performance, standards compliance, and developer experience considerations.
+Superfunction uses TypeBox for schema validation and type inference. This decision was driven by performance, standards compliance, and developer experience considerations.
 
 ## The Validation Library Landscape
 
@@ -134,7 +134,7 @@ const typeboxSchema = Type.Object({
   limit: Type.Number()
 });
 
-// SPFN uses this for all route params/query
+// Superfunction uses this for all route params/query
 const converted = Value.Convert(contract.params, rawParams);
 ```
 
@@ -168,7 +168,7 @@ const CompiledUserSchema = TypeCompiler.Compile(UserSchema);
 CompiledUserSchema.Check(data);  // Compiled (very fast)
 Value.Check(UserSchema, data);   // Interpreted (still fast)
 
-// SPFN can optionally use compiled schemas in production
+// Superfunction can optionally use compiled schemas in production
 // for maximum performance
 ```
 
@@ -252,7 +252,7 @@ if (!result.success) {
 
 ## When Zod Might Be Better
 
-While SPFN uses TypeBox, Zod excels in certain scenarios:
+While Superfunction uses TypeBox, Zod excels in certain scenarios:
 
 - **Better error messages** - Zod has more user-friendly validation errors
 - **Larger ecosystem** - More third-party integrations and examples
@@ -260,9 +260,9 @@ While SPFN uses TypeBox, Zod excels in certain scenarios:
 - **Form validation** - Better for client-side forms (react-hook-form, etc.)
 - **Complex transforms** - More powerful transformation API
 
-> **⚠️ Warning:** Can I use Zod with SPFN?
+> **⚠️ Warning:** Can I use Zod with Superfunction?
 >
-> Currently, SPFN is tightly coupled with TypeBox. However, we're exploring plugin support to allow custom validation libraries in the future.
+> Currently, Superfunction is tightly coupled with TypeBox. However, we're exploring plugin support to allow custom validation libraries in the future.
 >
 > For now, you can use Zod for your own validation needs (e.g., form validation in frontend) while using TypeBox for API contracts.
 
@@ -282,7 +282,7 @@ While SPFN uses TypeBox, Zod excels in certain scenarios:
 
 ## Conclusion
 
-TypeBox was chosen for SPFN because:
+TypeBox was chosen for Superfunction because:
 
 1. **Performance is critical** for high-throughput APIs
 2. **JSON Schema compatibility** enables OpenAPI generation and ecosystem integration
@@ -294,6 +294,6 @@ While Zod offers better error messages and a larger ecosystem, TypeBox's perform
 
 > **✅ Success:** Next: Why Hono?
 >
-> Learn why SPFN uses Hono as its underlying web framework.
+> Learn why Superfunction uses Hono as its underlying web framework.
 >
 > [Why Hono? →](/docs/architecture/why-hono)

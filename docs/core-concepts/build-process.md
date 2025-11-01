@@ -1,55 +1,32 @@
 ---
 title: "Build Process"
-description: "Understand how SPFN builds and transforms your application for production"
-order: 4
+description: "Understand how Superfunction builds and transforms your application for production"
+order: 7
 available: true
 ---
 
 # Build Process
 
-SPFN's build process orchestrates Next.js and Hono server builds, generates type-safe client code, and optimizes your application for production deployment.
+Superfunction's build process orchestrates Next.js and Hono server builds, generates type-safe client code, and optimizes your application for production deployment.
 
 ## Build Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-│              spfn build command                     │
-└────────────────┬────────────────────────────────────┘
-                 │
-      ┌──────────┴──────────┐
-      │                     │
-      ▼                     ▼
-┌──────────┐          ┌──────────┐
-│  Step 1  │          │  Step 2  │
-│ Contract │          │  Server  │
-│ Codegen  │          │  Build   │
-└────┬─────┘          └────┬─────┘
-     │                     │
-     │  src/lib/api/       │  dist/server/
-     │  (Generated)        │  (Compiled)
-     │                     │
-     └──────────┬──────────┘
-                │
-                ▼
-          ┌──────────┐
-          │  Step 3  │
-          │  Next.js │
-          │  Build   │
-          └────┬─────┘
-               │
-               │  .next/
-               │  (Optimized)
-               │
-               ▼
-        ┌────────────┐
-        │ Production │
-        │   Ready    │
-        └────────────┘
+```bash
+spfn build
+│
+├─ Step 1: Contract Code Generation
+│  └─ Output: src/lib/api/ (Generated client)
+│
+├─ Step 2: Server Build
+│  └─ Output: dist/server/ (Compiled Hono server)
+│
+└─ Step 3: Next.js Build
+   └─ Output: .next/ (Optimized frontend)
 ```
 
 ## Step 1: Contract Code Generation
 
-SPFN scans all contracts in `src/lib/contracts/` and generates a type-safe API client with resource-based file splitting in `src/lib/api/`.
+Superfunction scans all contracts in `src/lib/contracts/` and generates a type-safe API client with resource-based file splitting in `src/lib/api/`.
 
 ### Contract Discovery
 
@@ -194,21 +171,21 @@ await writeFile('dist/server/index.js', entryCode);
 
 ### Build Output
 
-```
+```bash
 dist/
-└── server/
-    ├── index.js              # Server entry point
-    ├── routes/
-    │   ├── users.js          # Compiled user routes
-    │   ├── posts.js          # Compiled post routes
-    │   └── ...
-    ├── middleware/
-    │   ├── auth.js
-    │   └── logger.js
-    └── lib/
-        └── contracts/
-            ├── users.js
-            └── posts.js
+└─ server/
+   ├─ index.js              # Server entry point
+   ├─ routes/
+   │  ├─ users.js           # Compiled user routes
+   │  ├─ posts.js           # Compiled post routes
+   │  └─ ...
+   ├─ middleware/
+   │  ├─ auth.js
+   │  └─ logger.js
+   └─ lib/
+      └─ contracts/
+         ├─ users.js
+         └─ posts.js
 ```
 
 ## Step 3: Next.js Build
@@ -218,24 +195,24 @@ Next.js frontend is built with optimizations for production.
 ### Next.js Build Process
 
 ```bash
-// next build runs:
-// 1. TypeScript type checking
-// 2. Page compilation and optimization
-// 3. Static generation (SSG) for eligible pages
-// 4. Image optimization
-// 5. Bundle splitting and tree shaking
-// 6. CSS minification
-// 7. Code splitting by route
+# next build runs:
+# 1. TypeScript type checking
+# 2. Page compilation and optimization
+# 3. Static generation (SSG) for eligible pages
+# 4. Image optimization
+# 5. Bundle splitting and tree shaking
+# 6. CSS minification
+# 7. Code splitting by route
 
-// Build output
+# Build output
 .next/
-├── static/
-│   ├── chunks/          # JavaScript bundles
-│   └── css/             # Stylesheets
-├── server/
-│   ├── app/             # App Router pages
-│   └── pages/           # Pages Router (if used)
-└── cache/               # Build cache
+├─ static/
+│  ├─ chunks/          # JavaScript bundles
+│  └─ css/             # Stylesheets
+├─ server/
+│  ├─ app/             # App Router pages
+│  └─ pages/           # Pages Router (if used)
+└─ cache/              # Build cache
 ```
 
 ### API Client Integration
@@ -277,31 +254,19 @@ export default async function UsersPage() {
 - **Error overlay** - Detailed error messages in browser
 
 ```bash
-// spfn dev starts:
-// 1. Contract watcher (regenerate API client on change)
-// 2. Next.js dev server (port 3790)
-// 3. Hono dev server (port 8790)
-// 4. File watcher for routes
+# spfn dev starts:
+spfn dev
+│
+├─ Contract watcher (regenerate API client on change)
+├─ Next.js dev server (port 3790)
+├─ Hono dev server (port 8790)
+└─ File watcher for routes
 
-// Process:
-┌──────────────┐
-│ File Change  │
-└──────┬───────┘
-       │
-       ▼
-┌─────────────────┐
-│ Contract change?│────Yes───▶ Regenerate API client
-└────────┬────────┘
-         │ No
-         ▼
-┌─────────────────┐
-│  Route change?  │────Yes───▶ Reload Hono server
-└────────┬────────┘
-         │ No
-         ▼
-┌─────────────────┐
-│ Frontend change?│────Yes───▶ Next.js HMR
-└─────────────────┘
+# When file changes:
+File Change
+├─ Contract change? → Regenerate API client
+├─ Route change? → Reload Hono server
+└─ Frontend change? → Next.js HMR
 ```
 
 ### Production Build (spfn build)
@@ -313,26 +278,24 @@ export default async function UsersPage() {
 - **No source maps** - Smaller bundle size (optional)
 
 ```bash
-// spfn build output
-┌─────────────────────────────────────────────────────┐
-│ Build Summary                                       │
-├─────────────────────────────────────────────────────┤
-│ API Client       src/lib/api/        25 KB         │
-│ Server Bundle    dist/server/        450 KB        │
-│ Next.js Build    .next/               2.8 MB       │
-│                                                     │
-│ Routes:          42 routes discovered              │
-│ Contracts:       38 contracts processed            │
-│ Pages:           12 pages generated                │
-│ Build Time:      18.3s                             │
-└─────────────────────────────────────────────────────┘
+# spfn build output
+
+Build Summary:
+  API Client        src/lib/api/        25 KB
+  Server Bundle     dist/server/        450 KB
+  Next.js Build     .next/               2.8 MB
+
+  Routes:           42 routes discovered
+  Contracts:        38 contracts processed
+  Pages:            12 pages generated
+  Build Time:       18.3s
 ```
 
 ## Build Optimizations
 
 ### 1. Contract Caching
 
-SPFN caches contract parsing to speed up builds:
+Superfunction caches contract parsing to speed up builds:
 
 ```json
 // .spfn/cache/contracts.json
@@ -361,16 +324,16 @@ SPFN caches contract parsing to speed up builds:
 Server and Next.js builds run in parallel:
 
 ```bash
-// Sequential (slow): 45s total
+# Sequential (slow): 45s total
 Contract generation → 3s
-Server build       → 12s
-Next.js build      → 30s
+Server build        → 12s
+Next.js build       → 30s
 
-// Parallel (fast): 33s total
+# Parallel (fast): 33s total
 Contract generation → 3s
-├─ Server build    → 12s  ┐
-└─ Next.js build   → 30s  ├─ Run in parallel
-                          ┘
+  ├─ Server build   → 12s  (in parallel)
+  └─ Next.js build  → 30s  (in parallel)
+
 Total: 3s + max(12s, 30s) = 33s
 ```
 
@@ -471,9 +434,3 @@ spfn dev --no-clear  // Keep cache between restarts
 - **TypeScript errors** - Run `tsc --noEmit` to see detailed errors
 - **Import errors** - Verify contract imports use correct paths
 - **Memory errors** - Increase Node.js memory: `NODE_OPTIONS=--max-old-space-size=4096`
-
-> **✅ Success:** Next: Performance
->
-> Learn about SPFN's performance characteristics and optimization strategies.
->
-> [Performance →](/docs/architecture/performance)

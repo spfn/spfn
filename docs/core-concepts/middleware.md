@@ -1,7 +1,7 @@
 ---
 title: "Middleware"
 description: "Learn how to create and manage middleware for authentication, logging, and more"
-order: 5
+order: 6
 available: true
 ---
 
@@ -11,7 +11,7 @@ Middleware allows you to run code before and after route handlers, enabling feat
 
 ## Middleware Types
 
-SPFN supports three types of middleware:
+Superfunction supports three types of middleware:
 
 - **Global**: Runs on all routes
 - **Route-Specific**: Runs on specific routes only

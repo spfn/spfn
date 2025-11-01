@@ -1,13 +1,13 @@
 ---
 title: "Deployment"
-description: "Learn how to deploy SPFN applications using Docker"
+description: "Learn how to deploy Superfunction applications using Docker"
 order: 4
 available: true
 ---
 
 # Deployment
 
-SPFN applications are designed to be deployed using Docker, providing consistent environments across development and production.
+Superfunction applications are designed to be deployed using Docker, providing consistent environments across development and production.
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ SPFN applications are designed to be deployed using Docker, providing consistent
 
 ## Docker Compose Setup
 
-SPFN provides a pre-configured `docker-compose.yml` for running PostgreSQL and Redis. Redis is optional and can be removed if you don't need caching or session storage:
+Superfunction provides a pre-configured `docker-compose.yml` for running PostgreSQL and Redis. Redis is optional and can be removed if you don't need caching or session storage:
 
 ```yaml
 # docker-compose.yml
@@ -85,10 +85,10 @@ docker-compose down
 
 ## Application Dockerfile
 
-SPFN provides a production-ready Dockerfile optimized for both Next.js and API server:
+Superfunction provides a production-ready Dockerfile optimized for both Next.js and API server:
 
 ```dockerfile
-# Production Dockerfile for SPFN
+# Production Dockerfile for Superfunction
 FROM node:20-alpine
 
 WORKDIR /app
@@ -282,7 +282,7 @@ docker-compose -f docker-compose.production.yml down
 
 ## Database Migrations
 
-SPFN provides CLI commands for managing database migrations:
+Superfunction provides CLI commands for managing database migrations:
 
 ```bash
 # Generate migration from schema changes
@@ -523,7 +523,7 @@ docker-compose down -v
 
 > **✅ Success:** Next Steps
 >
-> Your SPFN application is now deployed! Consider adding:
+> Your Superfunction application is now deployed! Consider adding:
 > - Monitoring with Sentry or similar tools
 > - Automated backups for PostgreSQL
 > - Load balancing for horizontal scaling

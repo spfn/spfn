@@ -1,13 +1,13 @@
 ---
 title: "Testing"
-description: "Learn how to test SPFN applications with Vitest and Playwright"
+description: "Learn how to test Superfunction applications with Vitest and Playwright"
 order: 3
 available: true
 ---
 
 # Testing
 
-SPFN applications can be thoroughly tested using modern testing tools like Vitest for unit/integration tests and Playwright for E2E tests.
+Superfunction applications can be thoroughly tested using modern testing tools like Vitest for unit/integration tests and Playwright for E2E tests.
 
 ## Testing Setup
 
@@ -725,6 +725,6 @@ jobs:
 
 > **✅ Success:** Next: Deployment
 >
-> Now that you know how to test your SPFN application, learn how to deploy it to production.
+> Now that you know how to test your Superfunction application, learn how to deploy it to production.
 >
 > [Deployment →](/docs/guides/deployment)

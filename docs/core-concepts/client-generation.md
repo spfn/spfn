@@ -1,17 +1,17 @@
 ---
 title: "Client Generation"
 description: "Learn how to use the auto-generated type-safe API client"
-order: 4
+order: 5
 available: true
 ---
 
 # Client Generation
 
-SPFN automatically generates a fully type-safe API client from your contracts, providing autocomplete and type checking for all API calls.
+Superfunction automatically generates a fully type-safe API client from your contracts, providing autocomplete and type checking for all API calls.
 
 ## Auto-Generated Client
 
-When you run `npm run spfn:dev`, SPFN scans all contracts in `src/lib/contracts/` and generates `src/lib/api/` with resource-based file splitting:
+When you run `npm run spfn:dev`, Superfunction scans all contracts in `src/lib/contracts/` and generates `src/lib/api/` with resource-based file splitting:
 
 ```typescript
 // File structure (auto-generated)
