@@ -10,6 +10,7 @@ import {
     generateTsupConfig,
     generateDrizzleConfig,
     generateInitMigration,
+    generateExampleGenerator,
     generateReadme,
 } from './config.js';
 import { generateEntity, generateEntitiesIndex } from './entity.js';
@@ -21,6 +22,7 @@ import { generateMainIndex, generateServerIndex, generateClientIndex, generateTy
 export interface GenerateFunctionStructureOptions
 {
     fnDir: string;
+    scope: string;
     fnName: string;
     description: string;
     entities: string[];
@@ -33,7 +35,7 @@ export interface GenerateFunctionStructureOptions
  */
 export async function generateFunctionStructure(options: GenerateFunctionStructureOptions): Promise<void>
 {
-    const { fnDir, fnName, description, entities, enableRoutes } = options;
+    const { fnDir, scope, fnName, description, entities, enableRoutes } = options;
 
     // Create directory structure (3-layer architecture)
     const dirs = [
@@ -55,12 +57,13 @@ export async function generateFunctionStructure(options: GenerateFunctionStructu
     dirs.forEach((dir) => mkdirSync(join(fnDir, dir), { recursive: true }));
 
     // Generate base configuration files
-    generatePackageJson(fnDir, fnName, description);
+    generatePackageJson(fnDir, scope, fnName, description);
     generateTsConfig(fnDir);
     generateTsupConfig(fnDir);
-    generateDrizzleConfig(fnDir, fnName);
+    generateDrizzleConfig(fnDir, scope, fnName);
     generateInitMigration(fnDir, fnName);
-    generateReadme(fnDir, fnName, description);
+    generateExampleGenerator(fnDir, scope, fnName);
+    generateReadme(fnDir, scope, fnName, description);
 
     // Generate entity-related files
     if (entities.length > 0)

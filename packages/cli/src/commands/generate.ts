@@ -13,6 +13,7 @@ import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
 import { validateMonorepoRoot, validateFunctionNotExists } from './generate/validation.js';
 import {
+    promptScope,
     promptFunctionName,
     promptDescription,
     promptEntities,
@@ -45,7 +46,14 @@ async function generateFunction(
 
     const packagesDir = join(cwd, 'packages');
 
-    // 2. Get function name
+    // 2. Get npm scope
+    let scope = '@spfn';
+    if (!options.yes)
+    {
+        scope = await promptScope();
+    }
+
+    // 3. Get function name
     let fnName = name;
     if (!fnName && !options.yes)
     {
@@ -58,12 +66,12 @@ async function generateFunction(
         process.exit(1);
     }
 
-    // 3. Check if function already exists
+    // 4. Check if function already exists
     validateFunctionNotExists(packagesDir, fnName);
 
     const fnDir = join(packagesDir, fnName);
 
-    // 4. Get description
+    // 5. Get description
     let description = options.description;
     if (!description && !options.yes)
     {
@@ -74,7 +82,7 @@ async function generateFunction(
         description = `SPFN ${fnName} function`;
     }
 
-    // 5. Get entities list
+    // 6. Get entities list
     let entities: string[] = [];
     if (options.entities)
     {
@@ -85,12 +93,13 @@ async function generateFunction(
         entities = await promptEntities();
     }
 
-    // 6. Options configuration
+    // 7. Options configuration
     const enableCache = !options.skipCache;
     const enableRoutes = !options.skipRoutes;
 
-    // 7. Confirmation
+    // 8. Confirmation
     const config: FunctionConfig = {
+        scope,
         fnName,
         description,
         entities,
@@ -115,6 +124,7 @@ async function generateFunction(
         // Generate all files
         await generateFunctionStructure({
             fnDir,
+            scope,
             fnName,
             description,
             entities,
@@ -146,11 +156,11 @@ async function generateFunction(
 
         // Success message
         console.log('');
-        logger.success(`✨ Function ${chalk.cyan(`@spfn/${fnName}`)} created successfully!\n`);
+        logger.success(`✨ Function ${chalk.cyan(`${scope}/${fnName}`)} created successfully!\n`);
         logger.info(chalk.bold('📚 Next steps:'));
         console.log(`  ${chalk.gray('1.')} cd packages/${fnName}`);
         console.log(`  ${chalk.gray('2.')} npm run build`);
-        console.log(`  ${chalk.gray('3.')} spfn add @spfn/${fnName}`);
+        console.log(`  ${chalk.gray('3.')} spfn add ${scope}/${fnName}`);
         console.log('');
     }
     catch (error)

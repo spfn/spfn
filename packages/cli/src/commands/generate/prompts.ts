@@ -8,11 +8,45 @@ import { logger } from '../../utils/logger.js';
 
 export interface FunctionConfig
 {
+    scope: string;
     fnName: string;
     description: string;
     entities: string[];
     enableCache: boolean;
     enableRoutes: boolean;
+}
+
+/**
+ * Prompt for npm scope
+ */
+export async function promptScope(): Promise<string>
+{
+    const response = await prompts({
+        type: 'text',
+        name: 'scope',
+        message: 'NPM scope (e.g., @mycompany, @username):',
+        initial: '@spfn',
+        validate: (value) =>
+        {
+            if (!value || value.length === 0)
+            {
+                return 'Scope is required';
+            }
+            if (!/^@[a-z0-9-]+$/.test(value))
+            {
+                return 'Scope must start with @ and contain lowercase alphanumeric with hyphens';
+            }
+            return true;
+        },
+    });
+
+    if (!response.scope)
+    {
+        logger.info('Cancelled');
+        process.exit(0);
+    }
+
+    return response.scope;
 }
 
 /**
@@ -83,11 +117,11 @@ export async function promptEntities(): Promise<string[]>
  */
 export async function confirmConfiguration(config: FunctionConfig): Promise<boolean>
 {
-    const { fnName, description, entities, enableCache, enableRoutes } = config;
+    const { scope, fnName, description, entities, enableCache, enableRoutes } = config;
 
     console.log('');
     logger.info(chalk.bold('⚡ Function Configuration:'));
-    console.log(`  ${chalk.gray('Name:')}        ${chalk.cyan(`@spfn/${fnName}`)}`);
+    console.log(`  ${chalk.gray('Package:')}     ${chalk.cyan(`${scope}/${fnName}`)}`);
     console.log(`  ${chalk.gray('Description:')} ${description}`);
     console.log(`  ${chalk.gray('Entities:')}    ${entities.length > 0 ? entities.join(', ') : chalk.gray('none')}`);
     console.log(`  ${chalk.gray('Cache:')}       ${enableCache ? chalk.green('yes') : chalk.gray('no')}`);

@@ -11,9 +11,9 @@
  */
 
 import { join } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import type { Generator, GeneratorOptions, GeneratorTrigger } from '../../generator';
-import { scanContracts } from '../../scanners/contract-scanner';
+import { scanContracts } from '../../scanners';
 import { generateClient } from './client-generator';
 import { logger } from '../../../logger';
 import type { RouteContractMapping, ClientGenerationOptions } from '../../types';
@@ -88,17 +88,81 @@ function needsFullRegeneration(
 function createClientOptions(
     contractsDir: string,
     outputPath: string,
-    baseUrl?: string
+    baseUrl?: string,
+    apiName?: string
 ): ClientGenerationOptions
 {
     return {
         routesDir: contractsDir,
         outputPath,
         baseUrl,
+        apiName,
         includeTypes: true,
         includeJsDoc: true,
         splitByResource: true
     };
+}
+
+/**
+ * Generate API name from prefix
+ *
+ * Examples:
+ * - /_cms -> cmsApi
+ * - /_auth -> authApi
+ * - /api -> api
+ * - undefined -> api
+ *
+ * @param prefix - Package prefix from spfn config
+ * @returns API name in camelCase
+ */
+function generateApiName(prefix?: string): string
+{
+    if (!prefix || prefix === '/api')
+    {
+        return 'api';
+    }
+
+    // Remove leading slash and underscores/hyphens
+    // /_cms -> cms
+    // /_auth -> auth
+    const name = prefix.replace(/^\/[_-]?/, '').replace(/[_-]/g, '');
+
+    if (!name)
+    {
+        return 'api';
+    }
+
+    // Convert to camelCase and append 'Api'
+    return `${name}Api`;
+}
+
+/**
+ * Read prefix from package.json
+ *
+ * @param cwd - Project directory
+ * @returns Prefix from spfn config or undefined
+ */
+function readPrefixFromPackageJson(cwd: string): string | undefined
+{
+    try
+    {
+        const packageJsonPath = join(cwd, 'package.json');
+
+        if (!existsSync(packageJsonPath))
+        {
+            return undefined;
+        }
+
+        const content = readFileSync(packageJsonPath, 'utf-8');
+        const packageJson = JSON.parse(content);
+
+        return packageJson.spfn?.prefix;
+    }
+    catch (error)
+    {
+        // Ignore errors, return undefined
+        return undefined;
+    }
 }
 
 export function createContractGenerator(config: ContractGeneratorConfig = {}): Generator
@@ -184,8 +248,12 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
                     return;
                 }
 
+                // Read prefix from package.json and generate API name
+                const prefix = readPrefixFromPackageJson(cwd);
+                const apiName = generateApiName(prefix);
+
                 // Generate client
-                const clientOptions = createClientOptions(fullContractsDir, fullOutputPath, config.baseUrl);
+                const clientOptions = createClientOptions(fullContractsDir, fullOutputPath, config.baseUrl, apiName);
                 const stats = await generateClient(allContracts, clientOptions);
 
                 // Update cache

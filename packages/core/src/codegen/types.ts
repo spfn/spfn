@@ -63,6 +63,9 @@ export interface ClientGenerationOptions
     /** Base URL for the API client */
     baseUrl?: string;
 
+    /** API object name (default: 'api') */
+    apiName?: string;
+
     /** Include type imports? */
     includeTypes?: boolean;
 

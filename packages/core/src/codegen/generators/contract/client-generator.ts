@@ -5,7 +5,7 @@
  */
 
 import { mkdir, writeFile } from 'fs/promises';
-import { groupByResource } from '../../scanners/route-scanner';
+import { groupByResource } from '../../scanners';
 import type { ClientGenerationOptions, GenerationStats, RouteContractMapping } from '../../types';
 
 /**
@@ -369,14 +369,33 @@ function generateResourceFile(
 }
 
 /**
+ * Convert PascalCase to camelCase
+ *
+ * Examples:
+ * - CmsLabels -> cmsLabels
+ * - CmsLabelsByKey -> cmsLabelsByKey
+ * - Users -> users
+ */
+function toCamelCase(str: string): string
+{
+    if (str.length === 0)
+    {
+        return str;
+    }
+
+    return str.charAt(0).toLowerCase() + str.slice(1);
+}
+
+/**
  * Generate index file that combines all resources
  */
 function generateIndexFile(
     resourceNames: string[],
-    _options: ClientGenerationOptions
+    options: ClientGenerationOptions
 ): string
 {
     let code = '';
+    const apiName = options.apiName || 'api';
 
     // Header
     code += generateHeader();
@@ -402,16 +421,20 @@ function generateIndexFile(
 
     code += `\n`;
 
+    // Convert resource names to camelCase for object keys
+    const resourceKeys = resourceNames.map(name => toCamelCase(name));
+
     // Combined API object
     code += `/**\n`;
     code += ` * Type-safe API client\n`;
     code += ` */\n`;
-    code += `export const api = {\n`;
+    code += `export const ${apiName} = {\n`;
 
     for (let i = 0; i < resourceNames.length; i++)
     {
         const resourceName = resourceNames[i];
-        code += `    ${resourceName}`;
+        const resourceKey = resourceKeys[i];
+        code += `    ${resourceKey}: ${resourceName}`;
 
         if (i < resourceNames.length - 1)
         {
