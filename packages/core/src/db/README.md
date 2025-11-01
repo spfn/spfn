@@ -116,7 +116,7 @@ Automatic transaction management with AsyncLocalStorage propagation.
 
 [Read Transaction Documentation →](./transaction/README.md)
 
-### Schema Helpers
+### [Schema](./schema/README.md)
 
 Reusable column definitions for common patterns.
 
@@ -544,9 +544,117 @@ export async function POST(c: RouteContext) {
 | `foreignKey()` | `bigint` | Required foreign key |
 | `optionalForeignKey()` | `bigint \| null` | Nullable foreign key |
 
+[Read Schema Documentation →](./schema/README.md)
+
+## Testing
+
+The database module has comprehensive test coverage across all sub-modules:
+
+### Test Coverage Summary
+
+```
+Module            Coverage    Tests   Files
+─────────────────────────────────────────────
+manager/          ~100%       116     5 test files
+transaction/      100%*       35      3 test files
+schema/           100%        23      1 test file
+helpers.ts        84.26%      29      Unit tests
+postgres-errors.ts 100%       48      Unit tests
+schema-helper.ts  100%        22      Unit tests
+─────────────────────────────────────────────
+Total                         273     12 test files
+```
+
+*transaction/middleware.ts has 100% coverage with unit tests; context.ts is tested via integration tests only (AsyncLocalStorage requires real environment)
+
+### Running Tests
+
+```bash
+# Run all database tests
+pnpm vitest run src/db
+
+# Run with coverage
+pnpm vitest run src/db --coverage
+
+# Run specific module tests
+pnpm vitest run src/db/manager/__tests__
+pnpm vitest run src/db/transaction/__tests__
+pnpm vitest run src/db/schema/__tests__
+
+# Run integration tests (requires Docker PostgreSQL)
+pnpm docker:test:up
+pnpm vitest run src/db/**/*.integration.test.ts
+```
+
+### Test Structure
+
+```
+db/
+├── __tests__/                           # Root-level tests
+│   ├── helpers.test.ts                  # 29 tests - CRUD helpers
+│   ├── postgres-errors.test.ts          # 48 tests - Error conversion
+│   └── schema-helper.test.ts            # 22 tests - Schema utilities
+├── manager/__tests__/                   # Manager module tests
+│   ├── config.test.ts                   # 33 tests - Configuration
+│   ├── connection.test.ts               # 9 tests - Connection logic
+│   ├── factory.test.ts                  # 23 tests - Pattern detection
+│   ├── manager.test.ts                  # 38 tests - Core API
+│   └── health-check.test.ts             # 13 tests - Health monitoring
+├── transaction/__tests__/               # Transaction module tests
+│   ├── middleware.test.ts               # 14 tests - Unit tests
+│   ├── middleware.integration.test.ts   # 11 tests - Real PostgreSQL
+│   └── context.integration.test.ts      # 10 tests - AsyncLocalStorage
+└── schema/__tests__/                    # Schema module tests
+    └── helpers.test.ts                  # 23 tests - Schema helpers
+```
+
+### What's Tested
+
+**Manager Module:**
+- ✅ Configuration builders with priority resolution
+- ✅ Connection retry with exponential backoff
+- ✅ Database pattern detection (write-read, legacy, single)
+- ✅ Manager initialization and lifecycle
+- ✅ Health check intervals and reconnection
+- ✅ Pool configuration and environment variables
+
+**Transaction Module:**
+- ✅ Basic transaction lifecycle (start, commit, rollback)
+- ✅ Error handling and PostgreSQL error conversion
+- ✅ Slow transaction warnings and timeout enforcement
+- ✅ Logging enable/disable
+- ✅ Context error detection
+- ✅ AsyncLocalStorage context propagation
+- ✅ Nested transaction tracking
+- ✅ Concurrent transaction isolation
+
+**Schema Module:**
+- ✅ `id()` - bigserial primary key creation
+- ✅ `timestamps()` - createdAt/updatedAt fields
+- ✅ `autoUpdateTimestamp()` - custom timestamp fields
+- ✅ `foreignKey()` - required foreign key with cascade options
+- ✅ `optionalForeignKey()` - optional foreign key with set null default
+- ✅ Integration tests with complete table schemas
+
+**Helper Functions:**
+- ✅ CRUD operations (find, create, update, delete, count)
+- ✅ Object-based and SQL-based where clauses
+- ✅ Read/write database separation
+- ✅ Transaction context detection
+- ✅ Error handling
+
+**PostgreSQL Errors:**
+- ✅ Connection exceptions (Class 08)
+- ✅ Integrity constraint violations (Class 23)
+- ✅ Transaction rollback errors (Class 40)
+- ✅ Syntax errors (Class 42)
+- ✅ Unique violation parsing
+- ✅ Error conversion to custom types
+
 ## Further Reading
 
 - [Manager Documentation](./manager/README.md) - Connection management and configuration
 - [Transaction Documentation](./transaction/README.md) - Transaction patterns and best practices
+- [Schema Documentation](./schema/README.md) - Reusable column definitions
 - [Drizzle ORM Documentation](https://orm.drizzle.team/) - Complete ORM reference
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/) - Database reference
