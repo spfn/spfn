@@ -10,7 +10,7 @@ import {
     ConnectionError,
     DuplicateEntryError,
     DeadlockError,
-    ValidationError,
+    ConstraintViolationError,
     QueryError,
     TransactionError,
 } from '../errors';
@@ -89,13 +89,13 @@ export function fromPostgresError(error: any): DatabaseError
         // Class 23 — Integrity Constraint Violation
         case '23000': // integrity_constraint_violation
         case '23001': // restrict_violation
-            return new ValidationError(message, { code, constraint: 'integrity' });
+            return new ConstraintViolationError(message, { code, constraint: 'integrity' });
 
         case '23502': // not_null_violation
-            return new ValidationError(message, { code, constraint: 'not_null' });
+            return new ConstraintViolationError(message, { code, constraint: 'not_null' });
 
         case '23503': // foreign_key_violation
-            return new ValidationError(message, { code, constraint: 'foreign_key' });
+            return new ConstraintViolationError(message, { code, constraint: 'foreign_key' });
 
         case '23505': // unique_violation
             const parsed = parseUniqueViolation(message);
@@ -106,7 +106,7 @@ export function fromPostgresError(error: any): DatabaseError
             return new DuplicateEntryError('field', 'value');
 
         case '23514': // check_violation
-            return new ValidationError(message, { code, constraint: 'check' });
+            return new ConstraintViolationError(message, { code, constraint: 'check' });
 
         // Class 40 — Transaction Rollback
         case '40000': // transaction_rollback
