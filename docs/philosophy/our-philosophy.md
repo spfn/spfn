@@ -352,10 +352,10 @@ const results = await db.execute(sql`
 
 #### Deployment Freedom
 
-**Deploy anywhere with persistent Node.js process:**
+**Option 1: All-in-one deployment (Recommended)**
 
 ```bash
-# Docker (recommended, full control)
+# Docker (full control)
 docker-compose up
 # Provided docker-compose.yml with PostgreSQL
 
@@ -366,21 +366,36 @@ git push
 # Your own server (maximum control)
 pnpm run spfn:build  # or: npx spfn build
 pnpm run spfn:start  # or: npx spfn start
-# Works on any VPS with Node.js
 ```
 
-**Why NOT Vercel/Netlify?**
+**Why this works best:**
+- ✅ Persistent connection pooling (no cold starts)
+- ✅ Single deployment, easier monitoring
+- ✅ Simple CORS configuration
 
-Serverless platforms don't work well with Superfunction's architecture:
-- ❌ No persistent connection pooling (cold starts)
-- ❌ Hono server needs persistent process
-- ❌ Edge runtime limitations
+**Option 2: Split deployment (Vercel + separate server)**
 
-Superfunction is designed for **long-running servers** with connection pools, not serverless functions.
+```bash
+# Next.js → Vercel (excellent Next.js hosting)
+# Superfunction server → Railway/Render/VPS
+
+# Build only server
+pnpm run spfn:build --server-only
+
+# Deploy separately
+vercel deploy          # Next.js frontend
+railway up             # Superfunction backend
+```
+
+**When to use split deployment:**
+- ✅ You want Vercel's Next.js optimizations
+- ✅ You need connection pooling for database
+- ⚠️ Requires managing two services
+- ⚠️ Need to configure CORS
 
 **No vendor lock-in:**
 - Standard Docker setup
-- Deploy to any VPS or cloud with persistent Node.js
+- Works on any platform with persistent Node.js
 - PostgreSQL anywhere (Supabase, Neon, self-hosted)
 - No platform-specific code
 
