@@ -5,8 +5,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { groupByResource } from '../route-scanner.js';
-import type { RouteContractMapping } from '../types.js';
+import { groupByResource } from '../scanners/route-scanner';
+import type { RouteContractMapping } from '../types';
 
 describe('Route Scanner', () =>
 {

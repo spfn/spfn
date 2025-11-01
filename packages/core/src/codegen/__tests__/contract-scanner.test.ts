@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { writeFileSync, mkdirSync, rmSync } from 'fs';
 import { resolve, join } from 'path';
-import { scanContracts } from '../contract-scanner.js';
+import { scanContracts } from '../scanners/contract-scanner';
 
 const TEST_DIR = resolve(process.cwd(), '.test-tmp-contract-scanner');
 const SRC_DIR = join(TEST_DIR, 'src');

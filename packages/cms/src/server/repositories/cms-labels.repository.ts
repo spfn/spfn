@@ -6,7 +6,7 @@
 
 import { findOne, findMany as findManyHelper, create as createHelper, updateOne, deleteOne, count as countHelper } from '@spfn/core/db';
 import { desc } from 'drizzle-orm';
-import { cmsLabels, type CmsLabel, type NewCmsLabel } from '../entities/index.js';
+import { cmsLabels, type CmsLabel, type NewCmsLabel } from '@/entities';
 
 /**
  * 라벨 목록 조회 (페이지네이션)

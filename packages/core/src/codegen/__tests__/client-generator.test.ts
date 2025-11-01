@@ -7,8 +7,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, readFileSync, existsSync } from 'fs';
 import { resolve, join } from 'path';
-import { generateClient } from '../client-generator.js';
-import type { RouteContractMapping, ClientGenerationOptions } from '../types.js';
+import { generateClient } from '../generators/contract/client-generator';
+import type { RouteContractMapping, ClientGenerationOptions } from '../types';
 
 const TEST_DIR = resolve(process.cwd(), '.test-tmp-generator');
 const OUTPUT_DIR = join(TEST_DIR, 'api');

@@ -21,6 +21,11 @@
       "import": "./dist/client.js",
       "require": "./dist/client.js"
     },
+    "./api": {
+      "types": "./dist/api.d.ts",
+      "import": "./dist/api.js",
+      "require": "./dist/api.js"
+    },
     "./actions": {
       "types": "./dist/actions.d.ts",
       "import": "./dist/actions.js",
@@ -66,7 +71,13 @@
     "build": "npm run db:generate && tsup",
     "watch": "tsup --watch",
     "clean": "rm -rf dist migrations",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:routes": "vitest src/routes",
+    "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
+    "docker:test:down": "docker compose -f docker-compose.test.yml down",
+    "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f"
   },
   "keywords": [
     "spfn",
@@ -84,16 +95,26 @@
     "directory": "packages/cms"
   },
   "spfn": {
+    "prefix": "/_cms",
     "schemas": [
-      "./dist/entities/*.js"
+      "./dist/server/entities/*.js"
     ],
     "routes": {
-      "dir": "./dist/routes"
+      "dir": "./dist/server/routes"
     },
     "migrations": {
       "dir": "./migrations"
     },
-    "setupMessage": "  📚 Next steps:\n    1. Import CMS components: import { useLabels } from '@spfn/cms'\n    2. View labels in Drizzle Studio: pnpm spfn db studio\n    3. CMS API available at: http://localhost:8790/cms\n    4. Learn more: https://github.com/spfnio/spfn"
+    "codegen": {
+      "generators": [
+        {
+          "name": "@spfn/core:contract",
+          "contractsDir": "src/lib/contracts",
+          "outputPath": "src/api"
+        }
+      ]
+    },
+    "setupMessage": "  📚 Next steps:\n    1. Import CMS components: import { useLabels } from '@spfn/cms'\n    2. View labels in Drizzle Studio: pnpm spfn db studio\n    3. CMS API available at: http://localhost:8790/_cms\n    4. Learn more: https://github.com/spfnio/spfn"
   },
   "peerDependencies": {
     "@spfn/core": "workspace:*",
@@ -107,12 +128,16 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "@types/react": "^19",
+    "@vitest/coverage-v8": "^4.0.6",
     "drizzle-kit": "^0.31.6",
     "drizzle-typebox": "^0.1.0",
     "glob": "^11.0.3",
+    "postgres": "^3.4.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.6"
   }
 }
