@@ -31,6 +31,21 @@
       "import": "./dist/server/index.js",
       "require": "./dist/server/index.js"
     },
+    "./errors": {
+      "types": "./dist/errors/index.d.ts",
+      "import": "./dist/errors/index.js",
+      "require": "./dist/errors/index.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware/index.d.ts",
+      "import": "./dist/middleware/index.js",
+      "require": "./dist/middleware/index.js"
+    },
+    "./cache": {
+      "types": "./dist/cache/index.d.ts",
+      "import": "./dist/cache/index.js",
+      "require": "./dist/cache/index.js"
+    },
     "./codegen": {
       "types": "./dist/codegen/index.d.ts",
       "import": "./dist/codegen/index.js",
@@ -63,6 +78,7 @@
     "test": "vitest",
     "test:unit": "vitest --config vitest.unit.config.ts",
     "test:integration": "vitest --config vitest.integration.config.ts",
+    "test:coverage": "vitest run --config vitest.unit.config.ts --coverage",
     "test:logger": "vitest src/logger",
     "test:errors": "vitest src/errors",
     "test:codegen": "vitest src/codegen",
@@ -138,9 +154,10 @@
   "devDependencies": {
     "@types/micromatch": "^4.0.9",
     "@types/node": "^20.11.0",
+    "@vitest/coverage-v8": "^4.0.6",
     "drizzle-kit": "^0.31.5",
     "tsup": "^8.0.0",
-    "vitest": "^3.2.4"
+    "vitest": "^4.0.6"
   },
   "files": [
     "dist",

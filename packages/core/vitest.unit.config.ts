@@ -35,6 +35,32 @@ export default defineConfig({
                 minThreads: 1,
             },
         },
+        // Coverage configuration
+        coverage: {
+            provider: 'v8',
+            reporter: ['text', 'json', 'html', 'json-summary'],
+            include: [
+                'src/logger/**/*.ts',
+                'src/errors/**/*.ts',
+                'src/codegen/**/*.ts',
+                'src/route/**/*.ts',
+                'src/client/**/*.ts',
+                'src/middleware/**/*.ts',
+                'src/env/**/*.ts',
+            ],
+            exclude: [
+                '**/*.{test,spec}.ts',
+                '**/__tests__/**',
+                '**/fixtures/**',
+                '**/types.ts',
+                '**/index.ts',
+            ],
+            all: true,
+            lines: 80,
+            functions: 80,
+            branches: 80,
+            statements: 80,
+        },
     },
     resolve: {
         alias: {
