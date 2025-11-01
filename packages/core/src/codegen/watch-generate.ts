@@ -6,10 +6,10 @@
 
 import { join } from 'path';
 import { watch as chokidarWatch } from 'chokidar';
-import { scanContracts } from './contract-scanner.js';
-import { generateClient } from './client-generator.js';
+import { scanContracts } from './scanners/contract-scanner';
+import { generateClient } from './generators/contract/client-generator';
 import { logger } from '../logger';
-import type { GenerationStats } from './types.js';
+import type { GenerationStats } from './types';
 
 const codegenLogger = logger.child('codegen');
 
