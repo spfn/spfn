@@ -60,9 +60,14 @@ export const api = {
 > - Import only what you need for better performance
 > - Team members can work on different resources in parallel
 
-> **Automatic Updates**
+> **Automatic Updates with Smart Regeneration**
 >
-> The client regenerates automatically when you add, modify, or delete contracts. No manual steps required!
+> The client regenerates automatically when contracts change, with intelligent optimizations:
+>
+> - **Incremental updates**: Only regenerates when contract signatures actually change
+> - **Smart detection**: Skips regeneration if only formatting or comments changed
+> - **Fast rebuilds**: Contract signature comparison ensures minimal rebuild times
+> - **No manual steps**: Everything happens automatically in watch mode
 
 ## Client Structure
 

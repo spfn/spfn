@@ -25,7 +25,7 @@ SPFN's build process orchestrates Next.js and Hono server builds, generates type
 │ Codegen  │          │  Build   │
 └────┬─────┘          └────┬─────┘
      │                     │
-     │  src/lib/api.ts     │  dist/server/
+     │  src/lib/api/       │  dist/server/
      │  (Generated)        │  (Compiled)
      │                     │
      └──────────┬──────────┘
@@ -49,7 +49,7 @@ SPFN's build process orchestrates Next.js and Hono server builds, generates type
 
 ## Step 1: Contract Code Generation
 
-SPFN scans all contracts in `src/lib/contracts/` and generates a type-safe API client.
+SPFN scans all contracts in `src/lib/contracts/` and generates a type-safe API client with resource-based file splitting in `src/lib/api/`.
 
 ### Contract Discovery
 
@@ -96,26 +96,24 @@ export const getUserContract = {
   })
 } satisfies RouteContract;
 
-// Output: Generated API client (src/lib/api.ts)
+// Output: Generated API client (src/lib/api/users.ts)
+import { client } from '@spfn/core/client';
 import type { InferContract } from '@spfn/core';
-import { getUserContract } from './contracts/users';
+import { getUserContract } from '@/lib/contracts/users';
 
-class UsersAPI {
-  async get(params: InferContract<typeof getUserContract>['params']) {
-    const response = await fetch(`/users/${params.id}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json() as Promise<
-      InferContract<typeof getUserContract>['response']
-    >;
-  }
-}
+// Reusable types
+export type GetUserParams = InferContract<typeof getUserContract>['params'];
+export type GetUserResponse = InferContract<typeof getUserContract>['response'];
 
-export const api = {
-  users: new UsersAPI()
-};
+// API methods
+export const users = {
+  get: (options: { params: GetUserParams }) =>
+    client.call(getUserContract, options)
+} as const;
 
 // Usage in frontend (fully type-safe!)
-const user = await api.users.get({ id: 123 });
+import { api } from '@/lib/api';
+const user = await api.users.get({ params: { id: 123 } });
 //    ^? { id: number; name: string; email: string }
 ```
 
@@ -242,7 +240,7 @@ Next.js frontend is built with optimizations for production.
 
 ### API Client Integration
 
-The generated API client (`src/lib/api.ts`) is imported and tree-shaken by Next.js:
+The generated API client (`src/lib/api/`) is imported and tree-shaken by Next.js:
 
 ```typescript
 // Frontend page
@@ -319,7 +317,7 @@ export default async function UsersPage() {
 ┌─────────────────────────────────────────────────────┐
 │ Build Summary                                       │
 ├─────────────────────────────────────────────────────┤
-│ API Client       src/lib/api.ts      25 KB         │
+│ API Client       src/lib/api/        25 KB         │
 │ Server Bundle    dist/server/        450 KB        │
 │ Next.js Build    .next/               2.8 MB       │
 │                                                     │
@@ -401,8 +399,9 @@ export default defineConfig({
   // Contract generation
   contracts: {
     input: 'src/lib/contracts',
-    output: 'src/lib/api.ts',
-    watch: true  // Auto-regenerate in dev mode
+    output: 'src/lib/api',  // Directory, not file
+    watch: true,  // Auto-regenerate in dev mode
+    incremental: true  // Smart regeneration (skip if only formatting changed)
   },
 
   // Server build
