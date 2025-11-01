@@ -4,7 +4,7 @@
  * Main user table supporting multiple authentication methods
  */
 
-import { text, timestamp, check } from 'drizzle-orm/pg-core';
+import { text, timestamp, check, boolean } from 'drizzle-orm/pg-core';
 import { id, timestamps, createFunctionSchema } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
 
@@ -19,6 +19,7 @@ export const users = schema.table('users',
 
         // Authentication
         passwordHash: text('password_hash'),
+        passwordChangeRequired: boolean('password_change_required').notNull().default(false),
 
         // Authorization
         role: text(

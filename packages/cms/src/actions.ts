@@ -10,7 +10,7 @@ export {
     getLocale,
     setLocale,
     getLocales,
-} from './helpers/locale.actions.js';
+} from './helpers/locale.actions';
 
 // Locale Constants
-export { LOCALE_COOKIE_KEY } from './helpers/locale.constants.js';
+export { LOCALE_COOKIE_KEY } from './helpers/locale.constants';

@@ -6,7 +6,7 @@
 
 import { findOne, findMany, deleteOne, deleteMany, upsert as upsertHelper } from '@spfn/core/db';
 import { eq, and, sql } from 'drizzle-orm';
-import { cmsPublishedCache, type NewCmsPublishedCache } from '@/entities';
+import { cmsPublishedCache, type NewCmsPublishedCache } from '@/server/entities';
 
 /**
  * 섹션 + 언어로 발행된 캐시 조회

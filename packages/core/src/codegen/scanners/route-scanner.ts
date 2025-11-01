@@ -4,7 +4,7 @@
  * Helper functions for grouping and organizing route-contract mappings
  */
 
-import type { RouteContractMapping } from './types.js';
+import type { RouteContractMapping } from '../types';
 
 /**
  * Group mappings by resource

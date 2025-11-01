@@ -32,6 +32,7 @@
     "clean": "rm -rf dist migrations",
     "db:generate": "drizzle-kit generate",
     "test": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:routes": "vitest src/routes",
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
     "docker:test:down": "docker compose -f docker-compose.test.yml down",
@@ -47,6 +48,7 @@
   ],
   "license": "MIT",
   "spfn": {
+    "prefix": "/_auth",
     "schemas": [
       "./dist/entities/*.js"
     ],
@@ -57,7 +59,7 @@
     "migrations": {
       "dir": "./migrations"
     },
-    "setupMessage": "  📚 Next steps:\n    1. Import auth: import { authMiddleware } from '@spfn/auth/middleware'\n    2. View tables: pnpm spfn db studio\n    3. API at: http://localhost:8790/auth"
+    "setupMessage": "  📚 Next steps:\n    1. Import auth: import { authMiddleware } from '@spfn/auth/middleware'\n    2. View tables: pnpm spfn db studio\n    3. API at: http://localhost:8790/_auth"
   },
   "dependencies": {
     "@spfn/core": "workspace:*",
@@ -70,11 +72,12 @@
     "@types/bcrypt": "^5.0.2",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.11.0",
+    "@vitest/coverage-v8": "^4.0.6",
     "drizzle-kit": "^0.31.6",
     "glob": "^11.0.3",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.3.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.0.6"
   }
 }

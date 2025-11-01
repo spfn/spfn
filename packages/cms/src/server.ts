@@ -1,19 +1,25 @@
 /**
- * CMS Server Module
+ * @spfn/cms/server
  *
- * Next.js 서버 컴포넌트용 CMS 유틸리티
- * - React cache를 사용한 데이터 중복 제거
- * - SPFN API를 통한 contract-based 호출
- * - 변수 치환 지원
- * - 쿠키 기반 locale 자동 관리
+ * Server-side Only Module
+ * 서버 전용 모듈 (서버 컴포넌트 + 백엔드)
+ *
+ * Includes:
+ * - Server Components (getSection, getSections)
+ * - Locale Management (Server Actions)
+ * - Backend: Sync utilities
+ * - Backend: Repositories
+ * - Backend: Entities
+ * - Backend: Label helpers
+ * - Backend: Codegen generators
  *
  * @note This module should only be imported in server-side code
  */
 
 import { cache } from 'react';
 import { client } from '@spfn/core/client';
-import { getPublishedCacheContract } from './contracts/published-cache';
-import { getLocale } from './helpers/locale.actions';
+import { getPublishedCacheContract } from '@/lib/contracts/published-cache';
+import { getLocale } from '@/server/helpers/locale.actions';
 
 /**
  * Section Data Type
@@ -369,3 +375,58 @@ export const getSections = cache(async (
         return sectionsMap;
     }
 });
+
+// ============================================================================
+// Locale Management (Server Actions + Constants)
+// ============================================================================
+
+export {
+    getLocale,
+    setLocale,
+    getLocales,
+    getLocaleWithInfo,
+    getLocalesWithInfo,
+    isValidLocale,
+} from './server/helpers/locale';
+
+export {
+    LOCALE_COOKIE_KEY,
+    getLocaleInfo,
+    getSupportedLocales,
+    getFlag,
+    getDialCode,
+    isRTL,
+    LOCALE_INFO_MAP,
+    type LocaleInfo,
+    type SupportedLocale,
+} from './lib/constants/locale.constants';
+
+// ============================================================================
+// Backend: Sync Utilities (server startup, CLI scripts)
+// ============================================================================
+
+export { syncSection, syncAll, initLabelSync, loadLabelsFromJson } from './server/helpers/sync';
+
+// ============================================================================
+// Backend: Repositories (DB access)
+// ============================================================================
+
+export * from './server/repositories/index';
+
+// ============================================================================
+// Backend: Entities (DB schemas)
+// ============================================================================
+
+export * from './server/entities/index';
+
+// ============================================================================
+// Backend: Label Helpers (for processing JSON labels)
+// ============================================================================
+
+export * from './server/labels/index';
+
+// ============================================================================
+// Backend: Codegen Generators (for development)
+// ============================================================================
+
+export { createLabelSyncGenerator, LabelSyncGenerator } from './server/generators/label-sync-generator';

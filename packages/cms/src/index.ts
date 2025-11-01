@@ -1,34 +1,44 @@
 /**
  * @spfn/cms
  *
- * Backend + Server Components
- * 백엔드 및 서버 컴포넌트 전용 (서버에서만 실행)
+ * Common Module (Configuration, Constants, Types)
+ * 공통 모듈 (설정, 상수, 타입)
  *
- * For client components, use: import { ... } from '@spfn/cms/client'
+ * Import structure:
+ * - @spfn/cms         - Common (config, constants, types)
+ * - @spfn/cms/server  - Server-side (backend + server components)
+ * - @spfn/cms/client  - Client-side (hooks, stores)
+ * - @spfn/cms/api     - Admin API (labels CRUD)
  */
 
+// ============================================================================
 // Configuration API
-export { getCmsConfig, configureCms, resetCmsConfig } from './cms.config.js';
-export type { CmsConfig } from './cms.config.js';
+// ============================================================================
 
-// Server Components API (React Server Components)
-export * from './server.js';
-export type { SectionData, SectionAPI } from './server.js';
+export { getCmsConfig, configureCms, resetCmsConfig } from './server/config/cms.config';
+export type { CmsConfig } from './server/config/cms.config';
 
-// Backend: Repositories (DB access)
-export * from './repositories/index.js';
+// ============================================================================
+// Constants
+// ============================================================================
 
-// Backend: Entities (DB schemas)
-export * from './entities/index.js';
+export { DEFAULT_LABELS_DIR } from './lib/constants/index';
 
-// Backend: Sync utilities (server startup, CLI scripts)
-export { syncSection, syncAll, initLabelSync, loadLabelsFromJson } from './helpers/sync.js';
+export {
+    LOCALE_COOKIE_KEY,
+    getLocaleInfo,
+    getSupportedLocales,
+    getFlag,
+    getDialCode,
+    isRTL,
+    LOCALE_INFO_MAP,
+    type LocaleInfo,
+    type SupportedLocale,
+} from './lib/constants/locale.constants';
 
-// Backend: Label helpers (for processing JSON labels)
-export * from './labels/index.js';
+// ============================================================================
+// Common Types
+// ============================================================================
 
-// Backend: Codegen generators (for development)
-export { createLabelSyncGenerator, LabelSyncGenerator } from './generators/label-sync-generator.js';
-
-// Types
-export type * from './types.js';
+export type { SectionData, SectionAPI } from './server';
+export type * from './lib/types/index';

@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
 import { join, dirname } from 'path';
 import * as ts from 'typescript';
-import type { HttpMethod, RouteContractMapping } from './types.js';
+import type { HttpMethod, RouteContractMapping } from '../types';
 
 /**
  * Scan for contract files and extract contract exports

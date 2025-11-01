@@ -31,7 +31,7 @@
 
 import type { TSchema } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import type { RouteContext } from './types.js';
+import type { RouteContext, RouteContract } from './types.js';
 import type { ErrorResponse } from '../middleware/error-handler.js';
 
 // ============================================================================
@@ -162,7 +162,7 @@ export function ApiResponseSchema<T extends TSchema>(dataSchema: T) {
  * return success(c, newUser, undefined, 201);
  * ```
  */
-export function success<T, TContract = any>(
+export function success<T, TContract extends RouteContract = any>(
   c: RouteContext<TContract>,
   data: T,
   meta?: ApiSuccessResponse<T>['meta'],
@@ -177,7 +177,7 @@ export function success<T, TContract = any>(
     response.meta = meta;
   }
 
-  return c.json(response, status);
+  return c.json(response as any, status as any);
 }
 
 /**
@@ -195,7 +195,7 @@ export function success<T, TContract = any>(
  * return error(c, 'Invalid input', 400, { fields: ['email', 'password'] });
  * ```
  */
-export function error<TContract = any>(
+export function error<TContract extends RouteContract = any>(
   c: RouteContext<TContract>,
   message: string,
   statusCode: number = 400,
@@ -214,7 +214,7 @@ export function error<TContract = any>(
     response.error.details = details;
   }
 
-  return c.json(response, statusCode);
+  return c.json(response as any, statusCode as any);
 }
 
 /**
@@ -226,7 +226,7 @@ export function error<TContract = any>(
  * return paginated(c, users, page, limit, total);
  * ```
  */
-export function paginated<T, TContract = any>(
+export function paginated<T, TContract extends RouteContract = any>(
   c: RouteContext<TContract>,
   data: T[],
   page: number,

@@ -32,6 +32,11 @@ const dbLogger = logger.child('database');
 export type DbConnectionType = 'read' | 'write';
 
 /**
+ * GetDatabase function type
+ */
+export type GetDatabaseFn = (type?: DbConnectionType) => PostgresJsDatabase<Record<string, unknown>> | undefined;
+
+/**
  * Get global database write instance
  *
  * @returns Database write instance or undefined if not initialized

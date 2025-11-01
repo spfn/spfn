@@ -59,7 +59,7 @@ pnpm spfn db migrate   # Apply migrations
 Create JSON files organized by sections and categories:
 
 ```
-src/cms/labels/
+src/lib/labels/
   layout/              ← Section name
     nav.json           ← Category
     footer.json
@@ -68,7 +68,7 @@ src/cms/labels/
     features.json
 ```
 
-**Example:** `src/cms/labels/layout/nav.json`
+**Example:** `src/lib/labels/layout/nav.json`
 
 ```json
 {
@@ -89,7 +89,7 @@ src/cms/labels/
 }
 ```
 
-**Multi-language example:** `src/cms/labels/home/hero.json`
+**Multi-language example:** `src/lib/labels/home/hero.json`
 
 ```json
 {
@@ -110,7 +110,7 @@ src/cms/labels/
 }
 ```
 
-**Variable substitution:** `src/cms/labels/layout/footer.json`
+**Variable substitution:** `src/lib/labels/layout/footer.json`
 
 ```json
 {
@@ -127,13 +127,14 @@ Configure `src/server/server.config.ts`:
 
 ```typescript
 import type { ServerConfig } from '@spfn/core/server';
-import { initLabelSync } from '@spfn/cms';
+import { initLabelSync } from '@spfn/cms/server';
+import { DEFAULT_LABELS_DIR } from '@spfn/cms';
 
 export default {
   beforeRoutes: async (app) => {
     await initLabelSync({
       verbose: true,
-      labelsDir: 'src/cms/labels'  // Optional, this is the default
+      // labelsDir: DEFAULT_LABELS_DIR  // Optional, this is the default
     });
   },
 } satisfies ServerConfig;
@@ -205,7 +206,7 @@ export default function Nav() {
 ## File Structure
 
 ```
-src/cms/labels/
+src/lib/labels/
   layout/                  # Section: layout
     nav.json               # Category: nav
     footer.json            # Category: footer
@@ -221,7 +222,7 @@ src/cms/labels/
 
 Example:
 ```
-src/cms/labels/layout/nav.json:
+src/lib/labels/layout/nav.json:
   key: "layout.nav.team" → t('nav.team') in code
 ```
 
@@ -278,6 +279,18 @@ t('greeting', undefined, { name: 'John' })
 ```
 
 ## Configuration
+
+### Default Paths
+
+The default label directory path is defined as a constant:
+
+```typescript
+import { DEFAULT_LABELS_DIR } from '@spfn/cms';
+
+console.log(DEFAULT_LABELS_DIR); // 'src/lib/labels'
+```
+
+This constant is used throughout the CMS package and can be referenced in your code to avoid hardcoding paths.
 
 ### Environment Variables
 
@@ -399,7 +412,7 @@ const { t: tEn } = await getSection('home', 'en');
 ## Architecture
 
 ```
-JSON Files (src/cms/labels/**/*.json)
+JSON Files (src/lib/labels/**/*.json)
               ↓
       loadLabelsFromJson()
               ↓
@@ -425,49 +438,71 @@ JSON Files (src/cms/labels/**/*.json)
 
 ## API Reference
 
-### Server-side API
+### Common API (`@spfn/cms`)
 
-- `getSection(section, locale?)` - Get section labels (auto-detects locale if not specified)
-- `getSections(sections, locale?)` - Get multiple sections (auto-detects locale if not specified)
-- `initLabelSync(options?)` - Sync labels on server startup
-
-### Server Actions API (`@spfn/cms/actions`)
-
-Available for both server and client components:
-
-- `getLocale()` - Get current locale (cookie → browser → default)
-- `setLocale(locale)` - Set locale (saves to cookie)
-- `getLocales()` - Get supported locale list
-- `LOCALE_COOKIE_KEY` - Locale cookie key constant
-
-### Configuration API
-
+**Configuration:**
 - `getCmsConfig()` - Get current CMS configuration
 - `configureCms(config)` - Update configuration (runtime)
 - `resetCmsConfig()` - Reset configuration to defaults
+
+**Constants:**
+- `DEFAULT_LABELS_DIR` - Default label directory path (`'src/lib/labels'`)
+- `LOCALE_COOKIE_KEY` - Locale cookie key constant
+- Locale helpers: `getLocaleInfo()`, `getSupportedLocales()`, `getFlag()`, `getDialCode()`, `isRTL()`
+
+**Types:**
+- `SectionData`, `SectionAPI`, `CmsConfig`, `LocaleInfo`, `SupportedLocale`
+
+### Server-side API (`@spfn/cms/server`)
+
+**Server Components:**
+- `getSection(section, locale?)` - Get section labels (auto-detects locale if not specified)
+- `getSections(sections, locale?)` - Get multiple sections (auto-detects locale if not specified)
+
+**Backend/Sync:**
+- `initLabelSync(options?)` - Sync labels on server startup
+- `syncAll(sections, options?)` - Sync all sections
+- `syncSection(definition, options?)` - Sync specific section
+- `loadLabelsFromJson(labelsDir)` - Load labels from JSON files
+
+**Repositories & Entities:**
+- All repository and entity exports
+
+**Codegen:**
+- `createLabelSyncGenerator(config?)` - Generator factory
+- `LabelSyncGenerator` - Generator class
+
+**Locale (Server Actions):**
+- `getLocale()` - Get current locale (cookie → browser → default)
+- `setLocale(locale)` - Set locale (saves to cookie)
+- `getLocales()` - Get supported locale list
+- `getLocaleWithInfo()`, `getLocalesWithInfo()`, `isValidLocale()`
+
+### Server Actions API (`@spfn/cms/actions`)
+
+*Alias for `@spfn/cms/server` locale functions - available for both server and client components*
 
 ### Client-side API (`@spfn/cms/client`)
 
 - `useSection(section, options?)` - Section labels hook
 - `useSections(sections)` - Multiple sections hook
 - `useCmsStore()` - CMS store hook
-- `cmsApi` - CMS API client
 - `InitCms` - Client initialization component
 
-### Sync API
+### Management API (`@spfn/cms/api`)
 
-- `loadLabelsFromJson(labelsDir)` - Load labels from JSON files
-- `syncAll(sections, options?)` - Sync all sections
-- `syncSection(definition, options?)` - Sync specific section
+⚠️ **Admin only** - Use with proper authentication
 
-### Codegen Integration
-
-- `createLabelSyncGenerator(config?)` - Generator factory
-- `LabelSyncGenerator` - Generator class
+- `cmsApi.labels.list(options?)` - List labels with filters
+- `cmsApi.labels.getById(options)` - Get label by ID
+- `cmsApi.labels.create(options)` - Create new label
+- `cmsApi.labels.update(options)` - Update label
+- `cmsApi.labels.delete(options)` - Delete label
+- `cmsApi.publishedCache.get(options)` - Get published cache
 
 ## Development Workflow
 
-1. **Create/Edit JSON files** in `src/cms/labels/`
+1. **Create/Edit JSON files** in `src/lib/labels/`
 2. **Auto-sync happens** (if dev server is running)
 3. **Labels immediately available** via `getSection()` or `useSection()`
 
@@ -478,7 +513,7 @@ Available for both server and client components:
 pnpm dev
 
 # Terminal 2: Edit label file
-echo '{"test": {"key": "layout.test", "defaultValue": "Test"}}' > src/cms/labels/layout/test.json
+echo '{"test": {"key": "layout.test", "defaultValue": "Test"}}' > src/lib/labels/layout/test.json
 
 # Auto-sync triggers
 # ✅ Label sync completed

@@ -50,10 +50,12 @@ const dbLogger = logger.child('database');
  * );
  * ```
  */
+import type { GetDatabaseFn } from './manager';
+
 export function startHealthCheck(
     config: HealthCheckConfig,
     options: DatabaseOptions | undefined,
-    getDatabase: (type?: 'read' | 'write') => PostgresJsDatabase | undefined,
+    getDatabase: GetDatabaseFn,
     closeDatabase: () => Promise<void>
 ): void
 {

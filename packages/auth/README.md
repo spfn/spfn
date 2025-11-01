@@ -1,5 +1,8 @@
 # @spfn/auth
 
+![Coverage](https://img.shields.io/badge/coverage-83.01%25-green)
+![Tests](https://img.shields.io/badge/tests-25%20passed-brightgreen)
+
 Authentication, authorization, and RBAC module for SPFN.
 
 ## Features
@@ -38,6 +41,26 @@ npx spfn db migrate
 ```bash
 JWT_SECRET=your-secret-key
 JWT_EXPIRES_IN=7d
+```
+
+## Testing
+
+Run tests with coverage:
+
+```bash
+pnpm test:coverage
+```
+
+Run tests in watch mode:
+
+```bash
+pnpm test
+```
+
+Start test database:
+
+```bash
+pnpm docker:test:up
 ```
 
 ## Development Status

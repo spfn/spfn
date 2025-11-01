@@ -4,14 +4,17 @@
  * Server-side only exports (routes, repositories, helpers)
  */
 
-// Export routes (when created)
+// Export routes
 export * from './routes/index.js';
 
-// Export repositories (when created)
+// Export repositories
 export * from './repositories/index.js';
 
-// Export helpers (when created)
+// Export helpers
 export * from './helpers/index.js';
 
-// Export middleware (when created)
+// Export middleware
 export * from './middleware/index.js';
+
+// Export setup functions
+export * from './setup.js';

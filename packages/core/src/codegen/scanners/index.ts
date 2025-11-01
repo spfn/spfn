@@ -5,4 +5,4 @@
  */
 
 export { scanContracts } from './contract-scanner';
-export { scanRoutes } from './route-scanner';
+export { groupByResource } from './route-scanner';

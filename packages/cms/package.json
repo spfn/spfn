@@ -31,35 +31,10 @@
       "import": "./dist/actions.js",
       "require": "./dist/actions.js"
     },
-    "./store": {
-      "types": "./dist/store.d.ts",
-      "import": "./dist/store.js",
-      "require": "./dist/store.js"
-    },
-    "./types": {
-      "types": "./dist/types.d.ts",
-      "import": "./dist/types.js",
-      "require": "./dist/types.js"
-    },
-    "./labels": {
-      "types": "./dist/labels/index.d.ts",
-      "import": "./dist/labels/index.js",
-      "require": "./dist/labels/index.js"
-    },
     "./generators": {
-      "types": "./dist/generators/index.d.ts",
-      "import": "./dist/generators/index.js",
-      "require": "./dist/generators/index.js"
-    },
-    "./codegen/generators": {
-      "types": "./dist/generators/index.d.ts",
-      "import": "./dist/generators/index.js",
-      "require": "./dist/generators/index.js"
-    },
-    "./repositories": {
-      "types": "./dist/repositories/index.d.ts",
-      "import": "./dist/repositories/index.js",
-      "require": "./dist/repositories/index.js"
+      "types": "./dist/server/generators/index.d.ts",
+      "import": "./dist/server/generators/index.js",
+      "require": "./dist/server/generators/index.js"
     }
   },
   "files": [
@@ -74,7 +49,7 @@
     "db:generate": "drizzle-kit generate",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:routes": "vitest src/routes",
+    "test:routes": "vitest src/server/routes",
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
     "docker:test:down": "docker compose -f docker-compose.test.yml down",
     "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f"

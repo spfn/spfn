@@ -3,7 +3,7 @@ import { glob } from 'glob';
 import path from 'path';
 
 // Find all route handler files
-const routeFiles = glob.sync('src/routes/**/index.ts');
+const routeFiles = glob.sync('src/server/routes/**/index.ts');
 const routeEntries = Object.fromEntries(
     routeFiles.map((file) => {
         const key = file
@@ -15,7 +15,7 @@ const routeEntries = Object.fromEntries(
 );
 
 // Find all entity files
-const entityFiles = glob.sync('src/entities/**/*.ts');
+const entityFiles = glob.sync('src/server/entities/**/*.ts');
 const entityEntries = Object.fromEntries(
     entityFiles.map((file) => {
         const key = file.replace('src/', '').replace('.ts', '');
@@ -24,7 +24,7 @@ const entityEntries = Object.fromEntries(
 );
 
 // Find all contract files
-const contractFiles = glob.sync('src/contracts/**/*.ts');
+const contractFiles = glob.sync('src/lib/contracts/**/*.ts');
 const contractEntries = Object.fromEntries(
     contractFiles.map((file) => {
         const key = file.replace('src/', '').replace('.ts', '');
@@ -37,12 +37,11 @@ export default defineConfig({
         index: 'src/index.ts',
         server: 'src/server.ts',
         client: 'src/client.ts',
+        api: 'src/api.ts',
         actions: 'src/actions.ts',
-        store: 'src/store.ts',
-        types: 'src/types.ts',
-        'labels/index': 'src/labels/index.ts',
-        'generators/index': 'src/generators/index.ts',
-        'repositories/index': 'src/repositories/index.ts',
+        'server/labels/index': 'src/server/labels/index.ts',
+        'server/generators/index': 'src/server/generators/index.ts',
+        'server/repositories/index': 'src/server/repositories/index.ts',
         ...entityEntries,
         ...contractEntries,
         ...routeEntries,

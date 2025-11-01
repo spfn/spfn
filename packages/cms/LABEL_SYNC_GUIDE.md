@@ -19,7 +19,7 @@ Use the `beforeRoutes` hook in your `src/server/server.config.ts` file:
 
 ```typescript
 import type { ServerConfig } from '@spfn/core/server';
-import { initLabelSync } from '@spfn/cms';
+import { initLabelSync, DEFAULT_LABELS_DIR } from '@spfn/cms';
 
 export default {
   beforeRoutes: async (app) => {
@@ -27,7 +27,7 @@ export default {
     await initLabelSync({
       verbose: true,          // Output progress logs
       updateExisting: false,  // Don't update existing labels (default)
-      labelsDir: 'src/cms/labels',  // JSON file directory (default)
+      // labelsDir: DEFAULT_LABELS_DIR,  // JSON file directory (this is the default)
     });
   },
 } satisfies ServerConfig;
@@ -108,7 +108,7 @@ spfn dev
 pnpm dev
 ```
 
-When you modify label files (`src/cms/labels/**/*.json`), they are automatically synchronized to the database.
+When you modify label files (`src/lib/labels/**/*.json`), they are automatically synchronized to the database.
 
 ---
 
@@ -117,7 +117,7 @@ When you modify label files (`src/cms/labels/**/*.json`), they are automatically
 ### File Structure
 
 ```
-src/cms/labels/
+src/lib/labels/
   layout/              # Section name
     nav.json           # Category
     footer.json
@@ -128,7 +128,7 @@ src/cms/labels/
 
 ### Basic Labels
 
-`src/cms/labels/layout/nav.json`:
+`src/lib/labels/layout/nav.json`:
 
 ```json
 {
@@ -150,7 +150,7 @@ src/cms/labels/
 
 ### Multi-language Labels
 
-`src/cms/labels/home/hero.json`:
+`src/lib/labels/home/hero.json`:
 
 ```json
 {
@@ -174,7 +174,7 @@ src/cms/labels/
 
 ### Variable Substitution
 
-`src/cms/labels/layout/footer.json`:
+`src/lib/labels/layout/footer.json`:
 
 ```json
 {
@@ -211,7 +211,7 @@ When you save this file:
 2. **Add/modify label files**
    ```bash
    # Create new label file
-   cat > src/cms/labels/layout/test.json <<EOF
+   cat > src/lib/labels/layout/test.json <<EOF
    {
      "newLabel": {
        "key": "layout.test.new",
@@ -224,7 +224,7 @@ When you save this file:
 
 3. **Check results**
    ```
-   [label-sync] Label file change { file: 'src/cms/labels/layout/test.json' }
+   [label-sync] Label file change { file: 'src/lib/labels/layout/test.json' }
    [label-sync] Found 1 sections
    [layout] Found 1 labels in definition
    [layout] Found 0 labels in DB
@@ -252,7 +252,7 @@ pnpm build
 
 **A.** Check the following:
 
-1. Verify JSON files are in the `src/cms/labels/` directory
+1. Verify JSON files are in the `src/lib/labels/` directory
 2. Verify file structure is correct (section/category.json)
 3. Verify server is running in development mode (`NODE_ENV=development`)
 4. Verify label-sync generator is enabled in `.spfnrc.json`
@@ -368,11 +368,22 @@ Code that runs in the browser:
 // Hooks
 import { useSection, useSections, useCmsStore } from '@spfn/cms/client';
 
-// API Client
-import { cmsApi } from '@spfn/cms/client';
-
 // Initializer
 import { InitCms } from '@spfn/cms/client';
+```
+
+### Management API (`@spfn/cms/api`)
+
+⚠️ **Admin only** - For admin panels with proper authentication:
+
+```typescript
+// CMS Management API
+import { cmsApi } from '@spfn/cms/api';
+
+// Use in admin components
+const response = await cmsApi.labels.create({
+  body: { key: 'layout.nav.new', defaultValue: 'New Item' }
+});
 ```
 
 ---
@@ -383,7 +394,7 @@ import { InitCms } from '@spfn/cms/client';
 ┌────────────────────────────────────────────────────┐
 │  JSON Files Layer                                  │
 │  ┌───────────────────┐                            │
-│  │ src/cms/labels/   │                            │
+│  │ src/lib/labels/   │                            │
 │  │   layout/         │                            │
 │  │     nav.json      │                            │
 │  │     footer.json   │                            │

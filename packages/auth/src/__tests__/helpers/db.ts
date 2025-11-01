@@ -7,7 +7,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
-import { initDatabase } from '@spfn/core/db';
+import { initDatabase, closeDatabase } from '@spfn/core/db';
 import * as schema from '../../entities/index.js';
 
 const TEST_DATABASE_URL = 'postgresql://authtest:authtest123@localhost:5435/spfn_auth_test';
@@ -28,12 +28,11 @@ export async function setupTestDb()
     testClient = postgres(TEST_DATABASE_URL);
     testDb = drizzle(testClient, { schema });
 
+    // Set DATABASE_URL environment variable for @spfn/core/db
+    process.env.DATABASE_URL = TEST_DATABASE_URL;
+
     // Initialize @spfn/core/db with test database
-    await initDatabase(
-        {
-            url: TEST_DATABASE_URL,
-        }
-    );
+    await initDatabase();
 
     // Run migrations (create tables)
     await createTables(testDb);
@@ -46,6 +45,9 @@ export async function setupTestDb()
  */
 export async function teardownTestDb()
 {
+    // Close @spfn/core/db instance first
+    await closeDatabase();
+
     if (testDb && testClient)
     {
         await testClient.end();
@@ -84,6 +86,7 @@ async function createTables(db: ReturnType<typeof drizzle>)
             email TEXT UNIQUE,
             phone TEXT UNIQUE,
             password_hash TEXT,
+            password_change_required BOOLEAN NOT NULL DEFAULT FALSE,
             role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('superadmin', 'admin', 'user')),
             status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
             email_verified_at TIMESTAMP WITH TIME ZONE,

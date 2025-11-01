@@ -5,7 +5,7 @@
  * e.g., @spfn/core:contract
  */
 
-import { createContractGenerator } from './contract-generator.js';
+import { createContractGenerator } from './contract';
 
 /**
  * Generators registry
@@ -18,4 +18,5 @@ export const generators = {
 /**
  * Re-export individual generator factories
  */
-export { createContractGenerator } from './contract-generator.js';
+export { createContractGenerator } from './contract';
+export type { ContractGeneratorConfig } from './contract';
