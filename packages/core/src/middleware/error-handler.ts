@@ -30,8 +30,15 @@ interface ErrorWithStatusCode extends Error
     details?: any;
 }
 
-interface ErrorResponse
+/**
+ * Standard error response format
+ *
+ * Used by ErrorHandler middleware for all error responses.
+ * Compatible with ApiResponse pattern for consistent API responses.
+ */
+export interface ErrorResponse
 {
+    success: false;
     error: {
         message: string;
         type: string;
@@ -73,6 +80,7 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
         }
 
         const response: ErrorResponse = {
+            success: false,
             error: {
                 message: err.message || 'Internal Server Error',
                 type: errorType,
