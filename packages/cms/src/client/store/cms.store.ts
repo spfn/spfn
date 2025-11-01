@@ -9,7 +9,7 @@
 'use client';
 
 import { create } from 'zustand';
-import { cmsApi } from '@/api';
+import { CmsPublishedCache } from '@/api';
 import type { SectionData } from '@/server';
 
 interface CmsState
@@ -97,7 +97,7 @@ export const useCmsStore = create<CmsState>((set, get) => ({
 
         try
         {
-            const response = await cmsApi.publishedCache.get({
+            const response = await CmsPublishedCache.get({
                 query: { sections: section, locale },
             });
 
