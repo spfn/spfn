@@ -60,6 +60,21 @@ export class BadRequestError extends HttpError
 }
 
 /**
+ * Validation Error (400)
+ *
+ * Input validation failure (request params, query, body)
+ * Used by contract-based routing for automatic validation
+ */
+export class ValidationError extends HttpError
+{
+    constructor(message: string, details?: Record<string, any>)
+    {
+        super(message, 400, details);
+        this.name = 'ValidationError';
+    }
+}
+
+/**
  * Unauthorized Error (401)
  *
  * Authentication required or authentication failed

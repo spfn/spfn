@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
     HttpError,
     BadRequestError,
+    ValidationError,
     UnauthorizedError,
     ForbiddenError,
     ConflictError,
@@ -75,6 +76,37 @@ describe('BadRequestError', () =>
 
         expect(error).toBeInstanceOf(HttpError);
         expect(error).toBeInstanceOf(BadRequestError);
+    });
+});
+
+describe('ValidationError', () =>
+{
+    it('should create ValidationError with status code 400', () =>
+    {
+        const error = new ValidationError('Invalid input data');
+
+        expect(error.name).toBe('ValidationError');
+        expect(error.message).toBe('Invalid input data');
+        expect(error.statusCode).toBe(400);
+    });
+
+    it('should accept details', () =>
+    {
+        const error = new ValidationError('Validation failed', {
+            fields: { email: 'Invalid format', age: 'Must be >= 18' }
+        });
+
+        expect(error.details).toEqual({
+            fields: { email: 'Invalid format', age: 'Must be >= 18' }
+        });
+    });
+
+    it('should be instance of HttpError', () =>
+    {
+        const error = new ValidationError('Validation failed');
+
+        expect(error).toBeInstanceOf(HttpError);
+        expect(error).toBeInstanceOf(ValidationError);
     });
 });
 

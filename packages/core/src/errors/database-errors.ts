@@ -88,16 +88,17 @@ export class NotFoundError extends QueryError
 }
 
 /**
- * Validation Error (400 Bad Request)
+ * Constraint Violation Error (400 Bad Request)
  *
- * Input data validation failure
+ * Database constraint violation (NOT NULL, CHECK, FOREIGN KEY, etc.)
+ * This is different from HTTP ValidationError which validates request input
  */
-export class ValidationError extends QueryError
+export class ConstraintViolationError extends QueryError
 {
     constructor(message: string, details?: Record<string, any>)
     {
         super(message, 400, details);
-        this.name = 'ValidationError';
+        this.name = 'ConstraintViolationError';
     }
 }
 

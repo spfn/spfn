@@ -8,7 +8,7 @@ import {
     ConnectionError,
     QueryError,
     NotFoundError,
-    ValidationError,
+    ConstraintViolationError,
     TransactionError,
     DeadlockError,
     DuplicateEntryError,
@@ -128,13 +128,13 @@ describe('NotFoundError', () =>
     });
 });
 
-describe('ValidationError', () =>
+describe('ConstraintViolationError', () =>
 {
-    it('should create ValidationError with status code 400', () =>
+    it('should create ConstraintViolationError with status code 400', () =>
     {
-        const error = new ValidationError('Invalid data', { field: 'email' });
+        const error = new ConstraintViolationError('Invalid data', { field: 'email' });
 
-        expect(error.name).toBe('ValidationError');
+        expect(error.name).toBe('ConstraintViolationError');
         expect(error.message).toBe('Invalid data');
         expect(error.statusCode).toBe(400);
         expect(error.details).toEqual({ field: 'email' });
@@ -142,11 +142,11 @@ describe('ValidationError', () =>
 
     it('should be instance of QueryError and DatabaseError', () =>
     {
-        const error = new ValidationError('Invalid data');
+        const error = new ConstraintViolationError('Invalid data');
 
         expect(error).toBeInstanceOf(DatabaseError);
         expect(error).toBeInstanceOf(QueryError);
-        expect(error).toBeInstanceOf(ValidationError);
+        expect(error).toBeInstanceOf(ConstraintViolationError);
     });
 });
 

@@ -10,7 +10,7 @@ export {
     ConnectionError,
     QueryError,
     NotFoundError,
-    ValidationError,
+    ConstraintViolationError,
     TransactionError,
     DeadlockError,
     DuplicateEntryError,
@@ -20,6 +20,7 @@ export {
 export {
     HttpError,
     BadRequestError,
+    ValidationError,
     UnauthorizedError,
     ForbiddenError,
     ConflictError,
