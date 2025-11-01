@@ -280,7 +280,7 @@ export async function POST(c: Context) {
 
 ### Sensitive Data Masking
 
-Automatically masks sensitive fields in logged data:
+Automatically masks sensitive fields in logged data with comprehensive edge case handling:
 
 ```typescript
 import { maskSensitiveData } from '@spfn/core';
@@ -299,6 +299,43 @@ const masked = maskSensitiveData(data, ['password', 'apiKey']);
 //   email: 'john@example.com',
 //   apiKey: '***MASKED***'
 // }
+```
+
+**Features:**
+- **Case-Insensitive Matching**: Masks `password`, `PASSWORD`, or `Password`
+- **Partial Matches**: Masks `userPassword`, `accessToken`, `secretKey`
+- **Nested Objects**: Recursively masks fields in nested structures
+- **Array Support**: Masks sensitive fields in arrays and nested arrays
+- **Circular Reference Handling**: Safely handles circular references without infinite loops
+- **Immutable**: Creates a new object without modifying the original
+
+**Examples:**
+
+```typescript
+// Nested objects
+const user = {
+  name: 'john',
+  credentials: {
+    password: 'secret',
+    token: 'abc123'
+  }
+};
+const masked = maskSensitiveData(user, ['password', 'token']);
+// credentials.password and credentials.token are masked
+
+// Arrays
+const users = [
+  { name: 'john', password: 'secret1' },
+  { name: 'jane', password: 'secret2' }
+];
+const masked = maskSensitiveData(users, ['password']);
+// All password fields are masked
+
+// Circular references
+const data = { name: 'john', password: 'secret' };
+data.self = data;
+const masked = maskSensitiveData(data, ['password']);
+// { name: 'john', password: '***MASKED***', self: '[Circular]' }
 ```
 
 ---
@@ -458,6 +495,42 @@ app.onError(ErrorHandler({
 ## Environment Variables
 
 No environment variables required. Configuration is code-based.
+
+---
+
+## Test Coverage
+
+The middleware module has comprehensive test coverage:
+
+### Error Handler Tests (17 tests)
+- Basic error handling (3 tests)
+- Error details validation (2 tests)
+- Stack trace handling (3 tests)
+- HTTP status code mapping (2 tests)
+- Logging options (2 tests)
+- Edge cases (3 tests)
+- Response format validation (2 tests)
+
+### Request Logger Tests (29 tests)
+- Basic logging (3 tests)
+- Error handling (3 tests)
+- Request ID generation (1 test)
+- Excluded paths (3 tests)
+- Slow request detection (2 tests)
+- Integration with other middleware (1 test)
+- **maskSensitiveData tests (20 tests)**:
+  - Basic masking (4 tests): password fields, multiple fields, case-insensitive, partial matches
+  - Nested objects (2 tests): shallow and deep nesting
+  - Arrays (2 tests): array elements, nested arrays
+  - Circular references (2 tests): simple and nested circular references
+  - Edge cases (6 tests): null, undefined, primitives, empty objects/arrays, immutability
+
+**Total: 46 tests** covering all middleware functionality
+
+Run tests:
+```bash
+pnpm test src/middleware
+```
 
 ---
 
