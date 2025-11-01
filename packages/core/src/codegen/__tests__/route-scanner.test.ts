@@ -121,5 +121,101 @@ describe('Route Scanner', () =>
             const grouped = groupByResource([]);
             expect(Object.keys(grouped)).toHaveLength(0);
         });
+
+        it('should handle paths with only dynamic segments', () =>
+        {
+            const mappings: RouteContractMapping[] = [
+                {
+                    method: 'GET',
+                    path: '/:id',
+                    contractName: 'getByIdContract',
+                    contractImportPath: '@/contracts',
+                    routeFile: 'routes/[id].ts'
+                },
+                {
+                    method: 'GET',
+                    path: '/:id/:slug',
+                    contractName: 'getByIdSlugContract',
+                    contractImportPath: '@/contracts',
+                    routeFile: 'routes/[id]/[slug].ts'
+                }
+            ];
+
+            const grouped = groupByResource(mappings);
+
+            // Should group under 'root' when only dynamic segments
+            expect(grouped['root']).toBeDefined();
+        });
+
+        it('should handle paths with hyphens in names', () =>
+        {
+            const mappings: RouteContractMapping[] = [
+                {
+                    method: 'POST',
+                    path: '/upload-and-analyze',
+                    contractName: 'uploadContract',
+                    contractImportPath: '@/contracts',
+                    routeFile: 'routes/upload-and-analyze.ts'
+                },
+                {
+                    method: 'GET',
+                    path: '/video-processing/status',
+                    contractName: 'statusContract',
+                    contractImportPath: '@/contracts',
+                    routeFile: 'routes/video-processing/status.ts'
+                }
+            ];
+
+            const grouped = groupByResource(mappings);
+
+            // Should convert hyphens to camelCase
+            expect(grouped['uploadAndAnalyze']).toBeDefined();
+            expect(grouped['videoProcessingStatus']).toBeDefined();
+        });
+
+        it('should handle paths with underscores in names', () =>
+        {
+            const mappings: RouteContractMapping[] = [
+                {
+                    method: 'GET',
+                    path: '/user_profile',
+                    contractName: 'profileContract',
+                    contractImportPath: '@/contracts',
+                    routeFile: 'routes/user_profile.ts'
+                },
+                {
+                    method: 'GET',
+                    path: '/admin_panel/settings',
+                    contractName: 'settingsContract',
+                    contractImportPath: '@/contracts',
+                    routeFile: 'routes/admin_panel/settings.ts'
+                }
+            ];
+
+            const grouped = groupByResource(mappings);
+
+            // Should convert underscores to camelCase
+            expect(grouped['userProfile']).toBeDefined();
+            expect(grouped['adminPanelSettings']).toBeDefined();
+        });
+
+        it('should handle mixed static and dynamic segments', () =>
+        {
+            const mappings: RouteContractMapping[] = [
+                {
+                    method: 'GET',
+                    path: '/users/:userId/posts/:postId',
+                    contractName: 'getUserPostContract',
+                    contractImportPath: '@/contracts',
+                    routeFile: 'routes/users/[userId]/posts/[postId].ts'
+                }
+            ];
+
+            const grouped = groupByResource(mappings);
+
+            // Should group by static segments only
+            expect(grouped['usersPosts']).toBeDefined();
+            expect(grouped['usersPosts']).toHaveLength(1);
+        });
     });
 });
