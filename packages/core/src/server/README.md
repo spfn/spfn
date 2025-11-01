@@ -796,6 +796,64 @@ export default async () => {
 };
 ```
 
+## Test Coverage
+
+The server module has comprehensive test coverage across all functionality:
+
+### Test Files (83 tests total)
+
+**server.test.ts (25 tests)**
+- Server Configuration (3 tests): timeout, database, and general config types
+- Timeout Default Values (3 tests): defaults, environment variables, config priority
+- CORS Configuration (2 tests): custom config, disable option
+- Port and Host Configuration (4 tests): port/host settings, env vars, config priority
+- Middleware Configuration (1 test): named middlewares
+- Shutdown Configuration (3 tests): timeout config, env vars
+- Health Check Configuration (6 tests): enable/disable, path, detailed mode, env vars
+- ServerInstance Type (3 tests): interface validation, config type, close method
+
+**server.integration.test.ts (22 tests)**
+- Health Check Endpoint (5 tests): basic, detailed, custom path, disabled, degraded status
+- Hooks Error Handling (3 tests): beforeRoutes, afterRoutes, execution order
+- Configuration Validation (9 tests): port, timeout, health check path validation
+- Middleware Configuration (4 tests): disable logger/CORS/error handler, custom middleware
+- CORS Configuration (1 test): default CORS behavior
+
+**helpers.test.ts (27 tests)**
+- applyServerTimeouts (2 tests): apply timeouts, handle missing properties
+- getTimeoutConfig (5 tests): defaults, env vars, config priority, partial config, invalid env
+- getShutdownTimeout (4 tests): default, env var, config priority, invalid env
+- buildMiddlewareOrder (6 tests): all enabled, disabled middleware, custom, hooks, complete order
+- buildStartupConfig (7 tests): defaults, disabled middleware, custom count, hooks, health check
+- createHealthCheckHandler (3 tests): basic, detailed, timestamp format
+
+**banner.test.ts (9 tests)**
+- printBanner (9 tests): development/production mode, 0.0.0.0 host, custom host, ports, formatting, ASCII logo, URLs, triangle symbol
+
+### Coverage by Module
+
+- **create-server.ts**: Configuration loading, app creation, middleware application, hooks
+- **start-server.ts**: Server startup, infrastructure init, graceful shutdown, signal handling
+- **helpers.ts**: Timeouts, health checks, middleware ordering, config building (100% covered)
+- **validation.ts**: Config validation, error messages (100% covered)
+- **banner.ts**: Startup banner printing (100% covered)
+- **types.ts**: TypeScript type definitions (validated through usage)
+
+### Run Tests
+
+```bash
+# Run all server tests
+pnpm test src/server/__tests__/
+
+# Run specific test file
+pnpm test src/server/__tests__/helpers.test.ts
+pnpm test src/server/__tests__/banner.test.ts
+pnpm test src/server/__tests__/server.test.ts
+pnpm test src/server/__tests__/server.integration.test.ts
+```
+
+---
+
 ## See Also
 
 - [Route Module](../route/README.md) - File-based routing
