@@ -6,7 +6,7 @@
 
 import { readFileSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import * as ts from 'typescript';
 import type { HttpMethod, RouteContractMapping } from './types.js';
 
@@ -22,6 +22,9 @@ export async function scanContracts(contractsDir: string): Promise<RouteContract
 {
     const contractFiles = await scanContractFiles(contractsDir);
     const mappings: RouteContractMapping[] = [];
+
+    // Get package prefix from package.json (e.g., "/_auth")
+    const packagePrefix = getPackagePrefix(contractsDir);
 
     for (let i = 0; i < contractFiles.length; i++)
     {
@@ -41,9 +44,14 @@ export async function scanContracts(contractsDir: string): Promise<RouteContract
                 );
             }
 
+            // Apply package prefix if exists
+            const finalPath = packagePrefix
+                ? `${packagePrefix}${contractExport.path}`
+                : contractExport.path;
+
             mappings.push({
                 method: contractExport.method,
-                path: contractExport.path,
+                path: finalPath,
                 contractName: contractExport.name,
                 contractImportPath: getImportPath(filePath),
                 routeFile: '',
@@ -362,6 +370,51 @@ function isContractName(name: string): boolean
         name.endsWith('Schema') ||
         name.endsWith('schema')
     );
+}
+
+/**
+ * Get package prefix from package.json
+ *
+ * Looks for spfn.prefix in package.json starting from contractsDir
+ *
+ * @param contractsDir - Path to contracts directory
+ * @returns Prefix string or empty string if not found
+ */
+function getPackagePrefix(contractsDir: string): string
+{
+    try
+    {
+        // Find package.json by going up from contractsDir
+        let currentDir = dirname(contractsDir);
+
+        // Try up to 5 levels up
+        for (let i = 0; i < 5; i++)
+        {
+            const packageJsonPath = join(currentDir, 'package.json');
+
+            try
+            {
+                const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+
+                if (packageJson.spfn?.prefix)
+                {
+                    return packageJson.spfn.prefix;
+                }
+            }
+            catch
+            {
+                // package.json not found at this level, continue
+            }
+
+            currentDir = dirname(currentDir);
+        }
+    }
+    catch
+    {
+        // Failed to read package.json
+    }
+
+    return '';
 }
 
 /**
