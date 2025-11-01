@@ -120,14 +120,15 @@ export class AutoRouteLoader
 
     /**
      * Load routes from an external directory (e.g., from SPFN function packages)
-     * Routes use contract-based absolute paths, so no basePath prefix needed
+     * Reads package.json spfn.prefix and mounts routes under that prefix
      *
      * @param app - Hono app instance
      * @param routesDir - Directory containing route handlers
      * @param packageName - Name of the package (for logging)
+     * @param prefix - Optional prefix to mount routes under (from package.json spfn.prefix)
      * @returns Route statistics
      */
-    async loadExternalRoutes(app: Hono, routesDir: string, packageName: string): Promise<RouteStats>
+    async loadExternalRoutes(app: Hono, routesDir: string, packageName: string, prefix?: string): Promise<RouteStats>
     {
         const startTime = Date.now();
         const tempRoutesDir = this.routesDir;
@@ -145,11 +146,10 @@ export class AutoRouteLoader
         let successCount = 0;
         let failureCount = 0;
 
-        // Load routes directly to main app (no basePath prefix)
-        // Routes use absolute paths from contracts
+        // Load routes with prefix if provided (from package.json spfn.prefix)
         for (const file of files)
         {
-            const success = await this.loadRoute(app, file);
+            const success = await this.loadRoute(app, file, prefix);
             if (success)
             {
                 successCount++;
@@ -166,6 +166,7 @@ export class AutoRouteLoader
         {
             routeLogger.info('External routes loaded', {
                 package: packageName,
+                prefix: prefix || '/',
                 total: successCount,
                 failed: failureCount,
                 elapsed: `${elapsed}ms`,
@@ -232,7 +233,7 @@ export class AutoRouteLoader
         return fileName === 'index.ts' || fileName === 'index.js' || fileName === 'index.mjs';
     }
 
-    private async loadRoute(app: Hono, absolutePath: string): Promise<boolean>
+    private async loadRoute(app: Hono, absolutePath: string, prefix?: string): Promise<boolean>
     {
         const relativePath = relative(this.routesDir, absolutePath);
 
@@ -263,13 +264,15 @@ export class AutoRouteLoader
             // Register contract-based middlewares
             this.registerContractBasedMiddlewares(app, contractPaths, module);
 
-            // Mount without basePath - contracts use absolute paths
-            app.route('/', module.default);
+            // Mount with prefix if provided (from package.json spfn.prefix)
+            const mountPath = prefix || '/';
+            app.route(mountPath, module.default);
 
-            // Track routes for stats
+            // Track routes for stats (include prefix in path)
             contractPaths.forEach(path => {
+                const fullPath = prefix ? `${prefix}${path}` : path;
                 this.routes.push({
-                    path,
+                    path: fullPath,
                     file: relativePath,
                     meta: module.meta,
                     priority: this.calculateContractPriority(path),
@@ -278,7 +281,7 @@ export class AutoRouteLoader
                 if (this.debug)
                 {
                     const icon = path.includes('*') ? '⭐' : path.includes(':') ? '🔸' : '🔹';
-                    routeLogger.debug(`Registered route: ${path}`, { icon, file: relativePath });
+                    routeLogger.debug(`Registered route: ${fullPath}`, { icon, file: relativePath });
                 }
             });
 
@@ -468,10 +471,11 @@ export async function loadRoutes(
             {
                 try
                 {
-                    await loader.loadExternalRoutes(app, func.routesDir, func.packageName);
+                    await loader.loadExternalRoutes(app, func.routesDir, func.packageName, func.prefix);
                     routeLogger.info('Function routes loaded', {
                         package: func.packageName,
                         routesDir: func.routesDir,
+                        prefix: func.prefix || '/',
                     });
                 }
                 catch (error)

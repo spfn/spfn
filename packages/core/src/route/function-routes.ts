@@ -17,6 +17,7 @@ export type FunctionRouteInfo = {
     packageName: string;
     routesDir: string;
     packagePath: string;
+    prefix?: string;  // From package.json spfn.prefix
 };
 
 /**
@@ -69,6 +70,7 @@ export function discoverFunctionRoutes(cwd: string = process.cwd()): FunctionRou
                 if (pkg.spfn?.routes?.dir)
                 {
                     const { dir } = pkg.spfn.routes;
+                    const prefix = pkg.spfn.prefix;  // Read prefix from package.json
                     const packagePath = dirname(pkgPath);
                     const routesDir = join(packagePath, dir);
 
@@ -76,11 +78,13 @@ export function discoverFunctionRoutes(cwd: string = process.cwd()): FunctionRou
                         packageName,
                         routesDir,
                         packagePath,
+                        prefix,  // Include prefix in function info
                     });
 
                     routeLogger.debug('Discovered function routes', {
                         package: packageName,
                         dir,
+                        prefix: prefix || '(none)',
                     });
                 }
             }

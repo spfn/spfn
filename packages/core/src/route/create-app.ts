@@ -8,6 +8,7 @@ import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { bind } from './bind.js';
 import type { RouteContract, RouteHandler } from './types.js';
+import { ErrorHandler } from '../middleware';
 
 export type SPFNApp = Hono & {
     bind<TContract extends RouteContract>(
@@ -35,6 +36,9 @@ export function createApp(): SPFNApp
     const app = hono as SPFNApp;
 
     app._contractMetas = new Map();
+
+    // Register default error handler
+    app.onError(ErrorHandler());
 
     const methodMap = new Map<string, (path: string, handlers: any[]) => void>([
         ['get', (path, handlers) => hono.get(path, ...handlers)],

@@ -17,8 +17,7 @@ import { ValidationError } from '../errors';
 export function bind<TContract extends RouteContract>(
     contract: TContract,
     handler: (c: RouteContext<TContract>) => Response | Promise<Response>
-)
-{
+) {
     return async (rawContext: Context) =>
     {
         let params = rawContext.req.param();
