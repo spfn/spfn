@@ -11,6 +11,8 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 
 const TEST_ROUTES_DIR = join(process.cwd(), '__test_routes__');
+// Use absolute path from src/route directory
+const CREATE_APP_PATH = join(process.cwd(), 'src', 'route', 'create-app.js');
 
 describe('AutoRouteLoader', () => {
     beforeAll(() => {
@@ -19,50 +21,112 @@ describe('AutoRouteLoader', () => {
             mkdirSync(TEST_ROUTES_DIR, { recursive: true });
         }
 
-        // Create test route files
+        // Create test route directories (each route needs its own directory with index.ts)
         mkdirSync(join(TEST_ROUTES_DIR, 'users'), { recursive: true });
+        mkdirSync(join(TEST_ROUTES_DIR, 'users', '[id]'), { recursive: true });
         mkdirSync(join(TEST_ROUTES_DIR, 'posts'), { recursive: true });
+        mkdirSync(join(TEST_ROUTES_DIR, 'posts', '[...slug]'), { recursive: true });
 
-        // Static route: /users
+        // Static route: /users (contract-based)
         writeFileSync(
             join(TEST_ROUTES_DIR, 'users', 'index.ts'),
             `
-import { Hono } from 'hono';
-const app = new Hono();
-app.get('/', (c) => c.json({ message: 'Users list' }));
+import { Type } from '@sinclair/typebox';
+import { createApp } from '${CREATE_APP_PATH}';
+
+const app = createApp();
+
+const listContract = {
+    method: 'GET',
+    path: '/users',
+    response: Type.Object({
+        message: Type.String(),
+    }),
+} as const;
+
+app.bind(listContract, async (c) => {
+    return c.json({ message: 'Users list' });
+});
+
 export default app;
             `
         );
 
-        // Dynamic route: /users/:id
+        // Dynamic route: /users/:id (contract-based)
         writeFileSync(
-            join(TEST_ROUTES_DIR, 'users', '[id].ts'),
+            join(TEST_ROUTES_DIR, 'users', '[id]', 'index.ts'),
             `
-import { Hono } from 'hono';
-const app = new Hono();
-app.get('/', (c) => c.json({ id: c.req.param('id') }));
+import { Type } from '@sinclair/typebox';
+import { createApp } from '${CREATE_APP_PATH}';
+
+const app = createApp();
+
+const getContract = {
+    method: 'GET',
+    path: '/users/:id',
+    params: Type.Object({
+        id: Type.String(),
+    }),
+    response: Type.Object({
+        id: Type.String(),
+    }),
+} as const;
+
+app.bind(getContract, async (c) => {
+    return c.json({ id: c.params.id });
+});
+
 export default app;
             `
         );
 
-        // Static route: /posts
+        // Static route: /posts (contract-based)
         writeFileSync(
             join(TEST_ROUTES_DIR, 'posts', 'index.ts'),
             `
-import { Hono } from 'hono';
-const app = new Hono();
-app.get('/', (c) => c.json({ message: 'Posts list' }));
+import { Type } from '@sinclair/typebox';
+import { createApp } from '${CREATE_APP_PATH}';
+
+const app = createApp();
+
+const listContract = {
+    method: 'GET',
+    path: '/posts',
+    response: Type.Object({
+        message: Type.String(),
+    }),
+} as const;
+
+app.bind(listContract, async (c) => {
+    return c.json({ message: 'Posts list' });
+});
+
 export default app;
             `
         );
 
-        // Catch-all route: /posts/*
+        // Catch-all route: /posts/* (contract-based)
         writeFileSync(
-            join(TEST_ROUTES_DIR, 'posts', '[...slug].ts'),
+            join(TEST_ROUTES_DIR, 'posts', '[...slug]', 'index.ts'),
             `
-import { Hono } from 'hono';
-const app = new Hono();
-app.get('/*', (c) => c.json({ slug: c.req.param('slug') }));
+import { Type } from '@sinclair/typebox';
+import { createApp } from '${CREATE_APP_PATH}';
+
+const app = createApp();
+
+const catchAllContract = {
+    method: 'GET',
+    path: '/posts/*',
+    response: Type.Object({
+        matched: Type.Boolean(),
+    }),
+} as const;
+
+app.bind(catchAllContract, async (c) => {
+    // Hono's /* wildcard - just return success
+    return c.json({ matched: true });
+});
+
 export default app;
             `
         );
@@ -121,7 +185,11 @@ export default app;
     describe('Route Registration', () => {
         it('should register static routes correctly', async () => {
             const app = new Hono();
-            await loadRoutes(app, { routesDir: TEST_ROUTES_DIR, debug: false });
+            await loadRoutes(app, {
+                routesDir: TEST_ROUTES_DIR,
+                debug: false,
+                includeFunctionRoutes: false
+            });
 
             const res = await app.request('/users');
             expect(res.status).toBe(200);
@@ -132,7 +200,11 @@ export default app;
 
         it('should register dynamic routes correctly', async () => {
             const app = new Hono();
-            await loadRoutes(app, { routesDir: TEST_ROUTES_DIR, debug: false });
+            await loadRoutes(app, {
+                routesDir: TEST_ROUTES_DIR,
+                debug: false,
+                includeFunctionRoutes: false
+            });
 
             const res = await app.request('/users/123');
             expect(res.status).toBe(200);
@@ -143,13 +215,23 @@ export default app;
 
         it('should register catch-all routes correctly', async () => {
             const app = new Hono();
-            await loadRoutes(app, { routesDir: TEST_ROUTES_DIR, debug: false });
+            const stats = await loadRoutes(app, {
+                routesDir: TEST_ROUTES_DIR,
+                debug: false,
+                includeFunctionRoutes: false
+            });
 
-            const res = await app.request('/posts/2024/01/hello-world');
-            expect(res.status).toBe(200);
+            // Verify catch-all route is registered
+            const catchAllRoute = stats.routes.find(r => r.path === '/posts/*');
+            expect(catchAllRoute).toBeDefined();
+            expect(catchAllRoute?.priority).toBe(3); // Catch-all priority
 
-            // Catch-all route should match
-            expect(res.ok).toBe(true);
+            // Test actual routing behavior - Hono's /* matches all paths
+            const res1 = await app.request('/posts/hello');
+            expect(res1.status).toBe(200);
+
+            const res2 = await app.request('/posts/2024/01/hello');
+            expect(res2.status).toBe(200);
         });
     });
 
@@ -164,10 +246,11 @@ export default app;
             expect(usersRoute?.meta).toBeUndefined();
         });
 
-        it('should handle routes without metadata', async () => {
-            const testDir = join(process.cwd(), '__test_routes_no_meta__');
+        it('should reject routes without contract-based routing', async () => {
+            const testDir = join(process.cwd(), '__test_routes_no_contract__');
             mkdirSync(testDir, { recursive: true });
 
+            // Create a route without contract-based routing
             writeFileSync(
                 join(testDir, 'index.ts'),
                 `
@@ -182,7 +265,8 @@ export default app;
             const loader = new AutoRouteLoader(testDir, false);
             const stats = await loader.load(app);
 
-            expect(stats.routes[0].meta).toBeUndefined();
+            // Should not load routes without contracts
+            expect(stats.total).toBe(0);
 
             rmSync(testDir, { recursive: true, force: true });
         });
@@ -245,6 +329,7 @@ export default app;
             const stats = await loadRoutes(app, {
                 routesDir: TEST_ROUTES_DIR,
                 debug: false,
+                includeFunctionRoutes: false,
             });
 
             expect(stats.total).toBe(4);
@@ -258,9 +343,9 @@ export default app;
 
             // Create route file using createApp with skipMiddlewares
             writeFileSync(
-                join(testDir, 'test.ts'),
+                join(testDir, 'index.ts'),
                 `
-import { createApp } from '${join(__dirname, '..', 'create-app.js')}';
+import { createApp } from '${CREATE_APP_PATH}';
 
 const app = createApp();
 
@@ -311,17 +396,94 @@ export default app;
 
             // Test public endpoint (should skip auth)
             executions.length = 0;
-            const res1 = await app.request('/test/public');
+            const res1 = await app.request('/public');
             expect(res1.status).toBe(200);
             expect(executions).not.toContain('auth');
 
             // Test private endpoint (should execute auth)
             executions.length = 0;
-            const res2 = await app.request('/test/private');
+            const res2 = await app.request('/private');
             expect(res2.status).toBe(200);
             expect(executions).toContain('auth');
 
             rmSync(testDir, { recursive: true, force: true });
+        });
+    });
+
+    describe('External Routes (loadExternalRoutes)', () => {
+        it('should load external routes with prefix', async () => {
+            const externalDir = join(process.cwd(), '__test_external_routes__');
+            mkdirSync(join(externalDir, 'api'), { recursive: true });
+
+            // Create external route
+            writeFileSync(
+                join(externalDir, 'api', 'index.ts'),
+                `
+import { Type } from '@sinclair/typebox';
+import { createApp } from '${CREATE_APP_PATH}';
+
+const app = createApp();
+
+const testContract = {
+    method: 'GET',
+    path: '/test',
+    response: Type.Object({
+        external: Type.Boolean(),
+    }),
+} as const;
+
+app.bind(testContract, async (c) => {
+    return c.json({ external: true });
+});
+
+export default app;
+                `
+            );
+
+            const app = new Hono();
+            const loader = new AutoRouteLoader(TEST_ROUTES_DIR, false);
+
+            // Load external routes with prefix
+            const stats = await loader.loadExternalRoutes(
+                app,
+                externalDir,
+                'test-package',
+                '/external'
+            );
+
+            expect(stats.total).toBe(1);
+            expect(stats.routes[0].path).toBe('/external/test');
+
+            // Test actual route with prefix
+            const res = await app.request('/external/test');
+            expect(res.status).toBe(200);
+            const json = await res.json();
+            expect(json.external).toBe(true);
+
+            rmSync(externalDir, { recursive: true, force: true });
+        });
+    });
+
+    describe('Middleware Options', () => {
+        it('should accept middlewares option in loadRoutes', async () => {
+            const executions: string[] = [];
+
+            const logMiddleware = async (c: any, next: any) => {
+                executions.push('log');
+                return next();
+            };
+
+            const app = new Hono();
+            await loadRoutes(app, {
+                routesDir: TEST_ROUTES_DIR,
+                debug: false,
+                includeFunctionRoutes: false,
+                middlewares: [{ name: 'log', handler: logMiddleware }]
+            });
+
+            const res = await app.request('/users');
+            expect(res.status).toBe(200);
+            expect(executions).toContain('log');
         });
     });
 });
