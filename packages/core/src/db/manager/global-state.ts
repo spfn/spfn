@@ -24,8 +24,8 @@ import type { MonitoringConfig } from './config.js';
  */
 declare global
 {
-    var __SPFN_DB_WRITE__: PostgresJsDatabase | undefined;
-    var __SPFN_DB_READ__: PostgresJsDatabase | undefined;
+    var __SPFN_DB_WRITE__: PostgresJsDatabase<Record<string, unknown>> | undefined;
+    var __SPFN_DB_READ__: PostgresJsDatabase<Record<string, unknown>> | undefined;
     var __SPFN_DB_WRITE_CLIENT__: Sql | undefined;
     var __SPFN_DB_READ_CLIENT__: Sql | undefined;
     var __SPFN_DB_HEALTH_CHECK__: NodeJS.Timeout | undefined;
@@ -39,26 +39,26 @@ declare global
 /**
  * Get write database instance from global state
  */
-export const getWriteInstance = (): PostgresJsDatabase | undefined =>
+export const getWriteInstance = (): PostgresJsDatabase<Record<string, unknown>> | undefined =>
     globalThis.__SPFN_DB_WRITE__;
 
 /**
  * Set write database instance in global state
  */
-export const setWriteInstance = (instance: PostgresJsDatabase | undefined): void => {
+export const setWriteInstance = (instance: PostgresJsDatabase<Record<string, unknown>> | undefined): void => {
     globalThis.__SPFN_DB_WRITE__ = instance;
 };
 
 /**
  * Get read database instance from global state
  */
-export const getReadInstance = (): PostgresJsDatabase | undefined =>
+export const getReadInstance = (): PostgresJsDatabase<Record<string, unknown>> | undefined =>
     globalThis.__SPFN_DB_READ__;
 
 /**
  * Set read database instance in global state
  */
-export const setReadInstance = (instance: PostgresJsDatabase | undefined): void => {
+export const setReadInstance = (instance: PostgresJsDatabase<Record<string, unknown>> | undefined): void => {
     globalThis.__SPFN_DB_READ__ = instance;
 };
 

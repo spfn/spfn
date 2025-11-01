@@ -46,7 +46,7 @@ export type DbConnectionType = 'read' | 'write';
  * }
  * ```
  */
-export function getDatabase(type?: DbConnectionType): PostgresJsDatabase | undefined
+export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<string, unknown>> | undefined
 {
     const writeInst = getWriteInstance();
     const readInst = getReadInstance();
@@ -80,8 +80,8 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase | undef
  * ```
  */
 export function setDatabase(
-    write: PostgresJsDatabase | undefined,
-    read?: PostgresJsDatabase | undefined
+    write: PostgresJsDatabase<Record<string, unknown>> | undefined,
+    read?: PostgresJsDatabase<Record<string, unknown>> | undefined
 ): void
 {
     setWriteInstance(write);
@@ -135,8 +135,8 @@ export function setDatabase(
  * ```
  */
 export async function initDatabase(options?: DatabaseOptions): Promise<{
-    write?: PostgresJsDatabase;
-    read?: PostgresJsDatabase;
+    write?: PostgresJsDatabase<Record<string, unknown>>;
+    read?: PostgresJsDatabase<Record<string, unknown>>;
 }>
 {
     // Already initialized

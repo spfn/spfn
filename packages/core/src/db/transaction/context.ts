@@ -16,9 +16,9 @@ import { logger } from '../../logger'; // Assuming logger is accessible
 
 /**
  * Transaction database type
- * Record<string, never> represents an empty schema; actual schema is determined at runtime
+ * Uses Record<string, unknown> to accept any schema shape
  */
-export type TransactionDB = PostgresJsDatabase;
+export type TransactionDB = PostgresJsDatabase<Record<string, unknown>>;
 
 const txLogger = logger.child('transaction');
 
