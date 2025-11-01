@@ -1,7 +1,7 @@
 /**
  * Contract Scanner Tests
  *
- * Tests for co-located contract scanning (routes/star-star/contract.ts)
+ * Tests for lib/contracts scanning (centralized contract directory)
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -10,13 +10,14 @@ import { resolve, join } from 'path';
 import { scanContracts } from '../contract-scanner.js';
 
 const TEST_DIR = resolve(process.cwd(), '.test-tmp-contract-scanner');
-const ROUTES_DIR = join(TEST_DIR, 'routes');
+const SRC_DIR = join(TEST_DIR, 'src');
+const CONTRACTS_DIR = join(SRC_DIR, 'lib', 'contracts');
 
 describe('Contract Scanner', () =>
 {
     beforeEach(() =>
     {
-        mkdirSync(ROUTES_DIR, { recursive: true });
+        mkdirSync(CONTRACTS_DIR, { recursive: true });
     });
 
     afterEach(() =>
@@ -24,22 +25,19 @@ describe('Contract Scanner', () =>
         rmSync(TEST_DIR, { recursive: true, force: true });
     });
 
-    describe('Co-located Contracts', () =>
+    describe('lib/contracts Directory', () =>
     {
-        it('should scan single contract from routes/users/contract.ts', async () =>
+        it('should scan single contract from lib/contracts/users.ts', async () =>
         {
-            const usersDir = join(ROUTES_DIR, 'users');
-            mkdirSync(usersDir, { recursive: true });
-
-            writeFileSync(join(usersDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users.ts'), `
                 export const listUsersContract = {
                     method: 'GET',
-                    path: '/',
+                    path: '/users',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(1);
             expect(mappings[0]).toMatchObject({
@@ -47,35 +45,32 @@ describe('Contract Scanner', () =>
                 path: '/users',
                 contractName: 'listUsersContract'
             });
-            expect(mappings[0].contractImportPath).toBe('@/server/routes/users/contract');
+            expect(mappings[0].contractImportPath).toBe('@/lib/contracts/users');
         });
 
-        it('should combine base path with contract path', async () =>
+        it('should scan multiple contracts from single file', async () =>
         {
-            const usersDir = join(ROUTES_DIR, 'users');
-            mkdirSync(usersDir, { recursive: true });
-
-            writeFileSync(join(usersDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users.ts'), `
                 export const listContract = {
                     method: 'GET',
-                    path: '/',
+                    path: '/users',
                     response: {}
                 };
 
                 export const createContract = {
                     method: 'POST',
-                    path: '/',
+                    path: '/users',
                     response: {}
                 };
 
                 export const getByIdContract = {
                     method: 'GET',
-                    path: '/:id',
+                    path: '/users/:id',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(3);
             expect(mappings.find(m => m.method === 'GET' && m.path === '/users')).toBeDefined();
@@ -83,26 +78,23 @@ describe('Contract Scanner', () =>
             expect(mappings.find(m => m.method === 'GET' && m.path === '/users/:id')).toBeDefined();
         });
 
-        it('should handle dynamic parameters in directory names', async () =>
+        it('should handle dynamic parameters in paths', async () =>
         {
-            const userIdDir = join(ROUTES_DIR, 'users', '[id]');
-            mkdirSync(userIdDir, { recursive: true });
-
-            writeFileSync(join(userIdDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users.ts'), `
                 export const getUserContract = {
                     method: 'GET',
-                    path: '/',
+                    path: '/users/:id',
                     response: {}
                 };
 
                 export const updateUserContract = {
                     method: 'PATCH',
-                    path: '/',
+                    path: '/users/:id',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(2);
             expect(mappings[0].path).toBe('/users/:id');
@@ -111,113 +103,68 @@ describe('Contract Scanner', () =>
 
         it('should handle nested dynamic parameters', async () =>
         {
-            const nestedDir = join(ROUTES_DIR, 'users', '[userId]', 'posts', '[postId]');
-            mkdirSync(nestedDir, { recursive: true });
-
-            writeFileSync(join(nestedDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'posts.ts'), `
                 export const getPostContract = {
                     method: 'GET',
-                    path: '/',
+                    path: '/users/:userId/posts/:postId',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(1);
             expect(mappings[0].path).toBe('/users/:userId/posts/:postId');
-        });
-
-        it('should handle root index route', async () =>
-        {
-            const indexDir = join(ROUTES_DIR, 'index');
-            mkdirSync(indexDir, { recursive: true });
-
-            writeFileSync(join(indexDir, 'contract.ts'), `
-                export const rootContract = {
-                    method: 'GET',
-                    path: '/',
-                    response: {}
-                };
-            `);
-
-            const mappings = await scanContracts(ROUTES_DIR);
-
-            expect(mappings).toHaveLength(1);
-            expect(mappings[0].path).toBe('/');
-        });
-
-        it('should skip index segments in paths', async () =>
-        {
-            const postsIndexDir = join(ROUTES_DIR, 'posts', 'index');
-            mkdirSync(postsIndexDir, { recursive: true });
-
-            writeFileSync(join(postsIndexDir, 'contract.ts'), `
-                export const listPostsContract = {
-                    method: 'GET',
-                    path: '/',
-                    response: {}
-                };
-            `);
-
-            const mappings = await scanContracts(ROUTES_DIR);
-
-            expect(mappings).toHaveLength(1);
-            expect(mappings[0].path).toBe('/posts');
         });
     });
 
     describe('Multiple Contract Files', () =>
     {
-        it('should scan contracts from multiple directories', async () =>
+        it('should scan contracts from multiple files', async () =>
         {
             // Users contracts
-            const usersDir = join(ROUTES_DIR, 'users');
-            mkdirSync(usersDir, { recursive: true });
-            writeFileSync(join(usersDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users.ts'), `
                 export const listUsersContract = {
                     method: 'GET',
-                    path: '/',
+                    path: '/users',
                     response: {}
                 };
             `);
 
             // Posts contracts
-            const postsDir = join(ROUTES_DIR, 'posts');
-            mkdirSync(postsDir, { recursive: true });
-            writeFileSync(join(postsDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'posts.ts'), `
                 export const listPostsContract = {
                     method: 'GET',
-                    path: '/',
+                    path: '/posts',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(2);
             expect(mappings.some(m => m.path === '/users')).toBe(true);
             expect(mappings.some(m => m.path === '/posts')).toBe(true);
         });
 
-        it('should handle deeply nested routes', async () =>
+        it('should handle nested directory structure', async () =>
         {
-            const apiDir = join(ROUTES_DIR, 'api', 'v1', 'users');
+            const apiDir = join(CONTRACTS_DIR, 'api');
             mkdirSync(apiDir, { recursive: true });
 
-            writeFileSync(join(apiDir, 'contract.ts'), `
+            writeFileSync(join(apiDir, 'users.ts'), `
                 export const listUsersContract = {
                     method: 'GET',
-                    path: '/',
+                    path: '/api/v1/users',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(1);
             expect(mappings[0].path).toBe('/api/v1/users');
-            expect(mappings[0].contractImportPath).toBe('@/server/routes/api/v1/users/contract');
+            expect(mappings[0].contractImportPath).toBe('@/lib/contracts/api/users');
         });
     });
 
@@ -225,23 +172,20 @@ describe('Contract Scanner', () =>
     {
         it('should skip contracts without method', async () =>
         {
-            const usersDir = join(ROUTES_DIR, 'users');
-            mkdirSync(usersDir, { recursive: true });
-
-            writeFileSync(join(usersDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users.ts'), `
                 export const invalidContract = {
-                    path: '/',
+                    path: '/users',
                     response: {}
                 };
 
                 export const validContract = {
                     method: 'GET',
-                    path: '/',
+                    path: '/users',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(1);
             expect(mappings[0].contractName).toBe('validContract');
@@ -249,10 +193,7 @@ describe('Contract Scanner', () =>
 
         it('should skip contracts without path', async () =>
         {
-            const usersDir = join(ROUTES_DIR, 'users');
-            mkdirSync(usersDir, { recursive: true });
-
-            writeFileSync(join(usersDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users.ts'), `
                 export const invalidContract = {
                     method: 'GET',
                     response: {}
@@ -260,12 +201,12 @@ describe('Contract Scanner', () =>
 
                 export const validContract = {
                     method: 'GET',
-                    path: '/',
+                    path: '/users',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(1);
             expect(mappings[0].contractName).toBe('validContract');
@@ -273,10 +214,7 @@ describe('Contract Scanner', () =>
 
         it('should skip non-contract exports', async () =>
         {
-            const usersDir = join(ROUTES_DIR, 'users');
-            mkdirSync(usersDir, { recursive: true });
-
-            writeFileSync(join(usersDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users.ts'), `
                 // Regular constants
                 export const API_URL = 'http://example.com';
                 export const MAX_USERS = 100;
@@ -289,7 +227,7 @@ describe('Contract Scanner', () =>
                 // Valid contract
                 export const getUserContract = {
                     method: 'GET',
-                    path: '/:id',
+                    path: '/users/:id',
                     response: {}
                 };
 
@@ -297,7 +235,7 @@ describe('Contract Scanner', () =>
                 export type UserType = { id: string };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(1);
             expect(mappings[0].contractName).toBe('getUserContract');
@@ -308,42 +246,39 @@ describe('Contract Scanner', () =>
     {
         it('should handle all HTTP methods', async () =>
         {
-            const usersDir = join(ROUTES_DIR, 'users');
-            mkdirSync(usersDir, { recursive: true });
-
-            writeFileSync(join(usersDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users.ts'), `
                 export const getContract = {
                     method: 'GET',
-                    path: '/',
+                    path: '/users',
                     response: {}
                 };
 
                 export const postContract = {
                     method: 'POST',
-                    path: '/',
+                    path: '/users',
                     response: {}
                 };
 
                 export const putContract = {
                     method: 'PUT',
-                    path: '/:id',
+                    path: '/users/:id',
                     response: {}
                 };
 
                 export const patchContract = {
                     method: 'PATCH',
-                    path: '/:id',
+                    path: '/users/:id',
                     response: {}
                 };
 
                 export const deleteContract = {
                     method: 'DELETE',
-                    path: '/:id',
+                    path: '/users/:id',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(5);
             expect(mappings.map(m => m.method).sort()).toEqual(['DELETE', 'GET', 'PATCH', 'POST', 'PUT']);
@@ -354,18 +289,15 @@ describe('Contract Scanner', () =>
     {
         it('should recognize contract suffix', async () =>
         {
-            const usersDir = join(ROUTES_DIR, 'users');
-            mkdirSync(usersDir, { recursive: true });
-
-            writeFileSync(join(usersDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users.ts'), `
                 export const getUserContract = {
                     method: 'GET',
-                    path: '/:id',
+                    path: '/users/:id',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(1);
             expect(mappings[0].contractName).toBe('getUserContract');
@@ -373,18 +305,15 @@ describe('Contract Scanner', () =>
 
         it('should recognize schema suffix', async () =>
         {
-            const usersDir = join(ROUTES_DIR, 'users');
-            mkdirSync(usersDir, { recursive: true });
-
-            writeFileSync(join(usersDir, 'contract.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users.ts'), `
                 export const getUserSchema = {
                     method: 'GET',
-                    path: '/:id',
+                    path: '/users/:id',
                     response: {}
                 };
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(1);
             expect(mappings[0].contractName).toBe('getUserSchema');
@@ -401,19 +330,41 @@ describe('Contract Scanner', () =>
 
         it('should handle directory without contract files', async () =>
         {
-            const usersDir = join(ROUTES_DIR, 'users');
-            mkdirSync(usersDir, { recursive: true });
-
             // Create non-contract file
-            writeFileSync(join(usersDir, 'index.ts'), `
+            writeFileSync(join(CONTRACTS_DIR, 'index.ts'), `
                 export default function handler() {
                     return { status: 200 };
                 }
             `);
 
-            const mappings = await scanContracts(ROUTES_DIR);
+            const mappings = await scanContracts(CONTRACTS_DIR);
 
             expect(mappings).toHaveLength(0);
+        });
+
+        it('should handle .js and .mjs files', async () =>
+        {
+            writeFileSync(join(CONTRACTS_DIR, 'users.js'), `
+                export const getUserContract = {
+                    method: 'GET',
+                    path: '/users/:id',
+                    response: {}
+                };
+            `);
+
+            writeFileSync(join(CONTRACTS_DIR, 'posts.mjs'), `
+                export const getPostContract = {
+                    method: 'GET',
+                    path: '/posts/:id',
+                    response: {}
+                };
+            `);
+
+            const mappings = await scanContracts(CONTRACTS_DIR);
+
+            expect(mappings).toHaveLength(2);
+            expect(mappings.some(m => m.contractName === 'getUserContract')).toBe(true);
+            expect(mappings.some(m => m.contractName === 'getPostContract')).toBe(true);
         });
     });
 });

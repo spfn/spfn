@@ -8,7 +8,6 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { createJiti } from 'jiti';
 import type { Generator } from './generator.js';
-import { createContractGenerator, type ContractGeneratorConfig } from './generators/contract-generator.js';
 import { logger } from '../logger';
 
 const configLogger = logger.child('config');
@@ -72,7 +71,7 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
     configLogger.info('Using default config');
     return {
         generators: [
-            { name: 'contract', enabled: true }
+            { name: '@spfn/core:contract', enabled: true }
         ]
     };
 }
@@ -210,32 +209,13 @@ export async function createGeneratorsFromConfig(config: CodegenConfig, cwd: str
                     }
                 }
             }
-            // Built-in generators (backward compatibility)
+            // Unknown generator name format
             else if ('name' in generatorConfig)
             {
-                // Map old names to new format
-                if (generatorConfig.name === 'contract')
-                {
-                    // Redirect to @spfn/core:contract
-                    if (generatorConfig.enabled !== false)
-                    {
-                        const contractConfig: ContractGeneratorConfig = {
-                            routesDir: generatorConfig.routesDir,
-                            outputPath: generatorConfig.outputPath,
-                            baseUrl: generatorConfig.baseUrl
-                        };
-
-                        generators.push(createContractGenerator(contractConfig));
-                        configLogger.info('Contract generator enabled (legacy name)');
-                    }
-                }
-                else
-                {
-                    configLogger.warn(
-                        `Unknown generator "${generatorConfig.name}". ` +
-                        `Use package:name format (e.g., "@spfn/core:contract")`
-                    );
-                }
+                configLogger.warn(
+                    `Invalid generator name "${generatorConfig.name}". ` +
+                    `Use package:name format (e.g., "@spfn/core:contract")`
+                );
             }
         }
         catch (error)

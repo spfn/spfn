@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.64] - 2025-11-01
+
+### Changed
+
+#### @spfn/core
+
+- **Codegen Architecture Simplification**:
+  - **Removed legacy routes/ directory scanning**: Now only scans `lib/contracts/` directory
+  - **Removed single file output mode**: Split-by-resource is now the only output mode
+  - **Removed legacy generator naming**: Only `package:name` format supported (e.g., `@spfn/core:contract`)
+  - **Simplified contract scanner**: Cleaner implementation with reduced complexity
+  - **Updated all tests**: All 32 codegen tests updated to match new architecture
+
+- **Breaking Changes**:
+  - Contract files must be in `src/lib/contracts/` directory (no longer supports `src/routes/`)
+  - Generator configuration must use `@spfn/core:contract` format (legacy `contract` name removed)
+  - API client always outputs to directory structure (single file mode removed)
+
 ## [0.1.0-alpha.63] - 2025-11-01
 
 ### Enhanced

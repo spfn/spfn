@@ -15,12 +15,12 @@ import type { HttpMethod, RouteContractMapping } from './types.js';
  *
  * All contracts must use absolute paths (e.g., path: '/teams/:id')
  *
- * @param routesDir - Path to scan for contracts (can be routes/ or lib/contracts/)
+ * @param contractsDir - Path to lib/contracts/ directory
  * @returns Array of contract-to-route mappings
  */
-export async function scanContracts(routesDir: string): Promise<RouteContractMapping[]>
+export async function scanContracts(contractsDir: string): Promise<RouteContractMapping[]>
 {
-    const contractFiles = await scanContractFiles(routesDir);
+    const contractFiles = await scanContractFiles(contractsDir);
     const mappings: RouteContractMapping[] = [];
 
     for (let i = 0; i < contractFiles.length; i++)
@@ -45,8 +45,8 @@ export async function scanContracts(routesDir: string): Promise<RouteContractMap
                 method: contractExport.method,
                 path: contractExport.path,
                 contractName: contractExport.name,
-                contractImportPath: getImportPath(filePath, routesDir),
-                routeFile: '', // Not needed anymore
+                contractImportPath: getImportPath(filePath),
+                routeFile: '',
                 contractFile: filePath,
                 hasQuery: contractExport.hasQuery,
                 hasBody: contractExport.hasBody,
@@ -59,18 +59,15 @@ export async function scanContracts(routesDir: string): Promise<RouteContractMap
 }
 
 /**
- * Recursively scan for contract files
+ * Recursively scan for contract files in lib/contracts/
  *
- * Scans for:
- * - contract.ts files (legacy mode - routes/teams/contract.ts)
- * - All .ts files in lib/contracts/ (new mode - lib/contracts/teams.ts)
+ * Scans for all .ts, .js, .mjs files (excluding test and declaration files)
  */
 async function scanContractFiles(dir: string, files: string[] = []): Promise<string[]>
 {
     try
     {
         const entries = await readdir(dir);
-        const isLibContracts = dir.includes('/lib/contracts');
 
         for (let i = 0; i < entries.length; i++)
         {
@@ -82,9 +79,9 @@ async function scanContractFiles(dir: string, files: string[] = []): Promise<str
             {
                 await scanContractFiles(fullPath, files);
             }
-            else if (isLibContracts)
+            else
             {
-                // In lib/contracts, scan all .ts, .js, .mjs files
+                // Scan all .ts, .js, .mjs files (excluding test and declaration files)
                 if (
                     (entry.endsWith('.ts') || entry.endsWith('.js') || entry.endsWith('.mjs')) &&
                     !entry.endsWith('.d.ts') &&
@@ -92,14 +89,6 @@ async function scanContractFiles(dir: string, files: string[] = []): Promise<str
                     !entry.endsWith('.test.js') &&
                     !entry.endsWith('.test.mjs')
                 )
-                {
-                    files.push(fullPath);
-                }
-            }
-            else
-            {
-                // In routes/, only scan contract.ts files (legacy)
-                if (entry === 'contract.ts')
                 {
                     files.push(fullPath);
                 }
@@ -378,13 +367,10 @@ function isContractName(name: string): boolean
 /**
  * Get import path for contract file
  *
- * Detects if contract is in lib/contracts/ or server/routes/
- *
  * @example
  * /path/to/src/lib/contracts/teams.ts → @/lib/contracts/teams
- * /path/to/src/server/routes/teams/contract.ts → @/server/routes/teams/contract
  */
-function getImportPath(filePath: string, _scanDir: string): string
+function getImportPath(filePath: string): string
 {
     // Try to find src/ directory
     const srcIndex = filePath.indexOf('/src/');
@@ -394,8 +380,7 @@ function getImportPath(filePath: string, _scanDir: string): string
         throw new Error(`Cannot determine import path for ${filePath}: /src/ directory not found`);
     }
 
-    // Get path from src/ onwards
-     // +5 to skip '/src/'
+    // Get path from src/ onwards (+5 to skip '/src/')
     // Remove file extension (.ts, .js, .mjs)
     let cleanPath = filePath.substring(srcIndex + 5);
     if (cleanPath.endsWith('.ts'))

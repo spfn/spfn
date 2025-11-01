@@ -23,14 +23,38 @@ import type { ServerConfig, AppFactory, ServerInstance } from '@spfn/core/server
 
 ## Three Levels of Control
 
-### Level 1: Zero Config (Full Auto)
+### Level 1: Zero Config (CLI Auto)
 
-Just start the server - everything is configured automatically.
+The easiest way - no server code needed! Just use the CLI.
+
+```bash
+# Development mode
+spfn dev
+
+# Production build
+spfn build
+
+# Production start
+spfn start
+```
+
+**What CLI does automatically:**
+- ✅ Creates temporary entry file (`node_modules/.spfn/server.mjs`)
+- ✅ Loads environment variables
+- ✅ Calls `startServer()` with sensible defaults
+- ✅ Starts on `localhost:8790` (configurable via `--port` flag)
+- ✅ Hot reload with `tsx --watch` in dev mode
+- ✅ Runs codegen watcher for contract changes
+- ✅ Integrates with Next.js automatically
+
+**No code required!** The CLI generates the server entry point for you.
+
+You can also start programmatically:
 
 ```ts
 import { startServer } from '@spfn/core/server';
 
-// Starts on localhost:4000 with all defaults
+// Starts on localhost:8790 with all defaults
 await startServer();
 ```
 
@@ -39,6 +63,7 @@ await startServer();
 - ✅ CORS middleware
 - ✅ Error handler
 - ✅ Route loading from `src/server/routes`
+- ✅ Database initialization from env vars
 - ✅ Redis initialization from env vars
 
 ### Level 2: Partial Config (`server.config.ts`)
@@ -191,7 +216,7 @@ serve({ fetch: app.fetch, port: 3000 });
 ```ts
 interface ServerConfig {
   // Server settings
-  port?: number;              // default: 4000
+  port?: number;              // default: 8790 (CLI), 4000 (programmatic)
   host?: string;              // default: 'localhost'
 
   // HTTP Server Timeouts

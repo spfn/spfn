@@ -5,7 +5,6 @@
  */
 
 import { mkdir, writeFile } from 'fs/promises';
-import { dirname } from 'path';
 import { groupByResource } from './route-scanner.js';
 import type { ClientGenerationOptions, GenerationStats, RouteContractMapping } from './types.js';
 
@@ -23,22 +22,8 @@ export async function generateClient(
     const grouped = groupByResource(mappings);
     const resourceNames = Object.keys(grouped);
 
-    if (options.splitByResource === false)
-    {
-        // Generate single file (legacy mode)
-        const code = generateClientCode(mappings, grouped, options);
-
-        // Ensure output directory exists
-        await mkdir(dirname(options.outputPath), { recursive: true });
-
-        // Write file
-        await writeFile(options.outputPath, code, 'utf-8');
-    }
-    else
-    {
-        // Generate split files by resource (default)
-        await generateSplitClient(mappings, grouped, options);
-    }
+    // Generate split files by resource
+    await generateSplitClient(mappings, grouped, options);
 
     // Calculate stats
     return {
@@ -49,38 +34,6 @@ export async function generateClient(
         methodsGenerated: mappings.length,
         duration: Date.now() - startTime
     };
-}
-
-/**
- * Generate the actual client code
- */
-function generateClientCode(
-    mappings: RouteContractMapping[],
-    grouped: Record<string, RouteContractMapping[]>,
-    options: ClientGenerationOptions
-): string
-{
-    let code = '';
-
-    // Header
-    code += generateHeader();
-
-    // Imports
-    code += generateImports(mappings, options);
-
-    // Types (new!)
-    if (options.includeTypes !== false)
-    {
-        code += generateTypes(mappings, options);
-    }
-
-    // API object
-    code += generateApiObject(grouped, options);
-
-    // Footer
-    code += generateFooter();
-
-    return code;
 }
 
 /**
@@ -98,39 +51,6 @@ function generateHeader(): string
  */
 
 `;
-}
-
-/**
- * Generate imports section
- */
-function generateImports(mappings: RouteContractMapping[], options: ClientGenerationOptions): string
-{
-    let code = '';
-
-    code += `import { client } from '@spfn/core/client';\n`;
-
-    if (options.includeTypes !== false)
-    {
-        code += `import type { InferContract } from '@spfn/core';\n`;
-    }
-
-    code += `\n`;
-
-    // Contract imports (group by import path)
-    const importGroups = groupContractsByImportPath(mappings);
-    const importPaths = Object.keys(importGroups);
-
-    for (let i = 0; i < importPaths.length; i++)
-    {
-        const importPath = importPaths[i];
-        const contracts = importGroups[importPath];
-
-        code += `import { ${contracts.join(', ')} } from '${importPath}';\n`;
-    }
-
-    code += `\n`;
-
-    return code;
 }
 
 /**
@@ -167,50 +87,6 @@ function groupContractsByImportPath(mappings: RouteContractMapping[]): Record<st
 }
 
 /**
- * Generate types section
- */
-function generateTypes(mappings: RouteContractMapping[], _options: ClientGenerationOptions): string
-{
-    let code = '';
-
-    code += `// ============================================\n`;
-    code += `// Auto-generated Types\n`;
-    code += `// ============================================\n\n`;
-
-    for (let i = 0; i < mappings.length; i++)
-    {
-        const mapping = mappings[i];
-        const typeName = generateTypeName(mapping);
-        const contractType = `typeof ${mapping.contractName}`;
-
-        // Response type (always present)
-        code += `export type ${typeName}Response = InferContract<${contractType}>['response'];\n`;
-
-        // Query type (if exists)
-        if (mapping.hasQuery)
-        {
-            code += `export type ${typeName}Query = InferContract<${contractType}>['query'];\n`;
-        }
-
-        // Params type (if exists)
-        if (mapping.hasParams || mapping.path.includes(':'))
-        {
-            code += `export type ${typeName}Params = InferContract<${contractType}>['params'];\n`;
-        }
-
-        // Body type (if exists)
-        if (mapping.hasBody)
-        {
-            code += `export type ${typeName}Body = InferContract<${contractType}>['body'];\n`;
-        }
-
-        code += `\n`;
-    }
-
-    return code;
-}
-
-/**
  * Convert contract name to type name
  *
  * Examples:
@@ -235,51 +111,6 @@ function generateTypeName(mapping: RouteContractMapping): string
     }
 
     return name;
-}
-
-/**
- * Generate API object with all methods
- */
-function generateApiObject(
-    grouped: Record<string, RouteContractMapping[]>,
-    options: ClientGenerationOptions
-): string
-{
-    let code = '';
-
-    code += `/**
- * Type-safe API client
- */
-export const api = {\n`;
-
-    const resourceNames = Object.keys(grouped);
-
-    for (let i = 0; i < resourceNames.length; i++)
-    {
-        const resourceName = resourceNames[i];
-        const routes = grouped[resourceName];
-
-        code += `    ${resourceName}: {\n`;
-
-        for (let j = 0; j < routes.length; j++)
-        {
-            const route = routes[j];
-            code += generateMethodCode(route, options);
-        }
-
-        code += `    }`;
-
-        if (i < resourceNames.length - 1)
-        {
-            code += `,`;
-        }
-
-        code += `\n`;
-    }
-
-    code += `} as const;\n\n`;
-
-    return code;
 }
 
 /**
@@ -384,32 +215,6 @@ function generateMethodName(mapping: RouteContractMapping): string
 
     // Default: method name
     return method;
-}
-
-/**
- * Generate footer
- */
-function generateFooter(): string
-{
-    return `/**
- * Export client instance for advanced usage
- *
- * Use this to add interceptors or customize the client:
- *
- * @example
- * \`\`\`ts
- * import { client } from './api';
- * import { createAuthInterceptor } from '@spfn/auth/nextjs';
- * import { NextJSCookieProvider } from '@spfn/auth/nextjs';
- *
- * client.use(createAuthInterceptor({
- *   cookieProvider: new NextJSCookieProvider(),
- *   encryptionKey: process.env.ENCRYPTION_KEY!
- * }));
- * \`\`\`
- */
-export { client };
-`;
 }
 
 /**

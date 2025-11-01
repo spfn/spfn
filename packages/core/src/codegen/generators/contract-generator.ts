@@ -41,7 +41,7 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
 
             try
             {
-                // Only scan lib/contracts (legacy routes/ scanning removed)
+                // Only scan lib/contracts
                 if (!existsSync(libContractsDir))
                 {
                     if (options.debug)
@@ -64,11 +64,12 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
 
                 // Generate client
                 const stats = await generateClient(allContracts, {
-                    routesDir: libContractsDir, // For backwards compatibility
+                    routesDir: libContractsDir,
                     outputPath,
                     baseUrl: config.baseUrl,
                     includeTypes: true,
-                    includeJsDoc: true
+                    includeJsDoc: true,
+                    splitByResource: true
                 });
 
                 if (options.debug)

@@ -48,26 +48,22 @@ Automatically generates type-safe API clients from your route contracts.
 }
 ```
 
-**Output Modes:**
+**Output Format:**
 
-1. **Split by Resource** (default, `splitByResource: true`):
-   ```
-   src/lib/api/
-     index.ts       # Unified exports + api object
-     categories.ts  # Categories API + types
-     companies.ts   # Companies API + types
-     teams.ts       # Teams API + types
-   ```
-   - ✅ Scalable: File size stays manageable
-   - ✅ Better organization: Related types and APIs together
-   - ✅ Tree-shaking friendly: Import only what you need
-   - ✅ Team-friendly: Parallel work on different resources
+Split by Resource (always enabled):
+```
+src/lib/api/
+  index.ts       # Unified exports + api object
+  categories.ts  # Categories API + types
+  companies.ts   # Companies API + types
+  teams.ts       # Teams API + types
+```
 
-2. **Single File** (legacy, `splitByResource: false`):
-   ```
-   src/lib/api.ts  # All APIs + types in one file
-   ```
-   - Use this for smaller projects or backward compatibility
+Benefits:
+- ✅ Scalable: File size stays manageable
+- ✅ Better organization: Related types and APIs together
+- ✅ Tree-shaking friendly: Import only what you need
+- ✅ Team-friendly: Parallel work on different resources
 
 **Type Reuse:**
 
@@ -82,14 +78,6 @@ list: (options: { query?: GetCategoriesQuery }) => client.call(...)
 ```
 
 This eliminates repetitive `InferContract<typeof ...>` expressions and improves readability.
-
-**Legacy naming** (still supported for backward compatibility):
-```json
-{
-  "name": "contract",
-  "enabled": true
-}
-```
 
 ## Configuration
 
@@ -120,13 +108,10 @@ Configure codegen in `.spfnrc.json` or `package.json`:
 }
 ```
 
-**Package-based generators** use `package:name` format (v0.1.0-alpha.52+):
+**Package-based generators** use `package:name` format:
 - `{ "name": "@spfn/core:contract", "enabled": true, ...config }`
 - `{ "name": "@spfn/cms:label-sync", "enabled": true }`
 - Automatically discovers generators from installed packages
-
-**Built-in generators** (legacy format, still supported):
-- `{ "name": "contract", "enabled": true, ...config }`
 
 **Custom generators** use `path` field:
 - `{ "path": "./relative/path/to/generator.ts" }` - Relative to project root
@@ -675,39 +660,36 @@ Consider:
 
 ## Migration Guide
 
-### From v0.1.0-alpha.20 to v0.1.0-alpha.21
+### Upgrading to Latest Version
 
-**Configuration format change:**
+**Configuration format:**
 
-```typescript
-// Before (alpha.20)
-{
-  "codegen": {
-    "generators": {
-      "contract": { "enabled": true }
-    }
-  }
-}
-
-// After (alpha.21+)
+Current format (array-based):
+```json
 {
   "codegen": {
     "generators": [
-      { "name": "contract", "enabled": true },
-      { "path": "./src/generators/my-gen.ts" }  // NEW: Custom generators
+      { "name": "@spfn/core:contract", "enabled": true },
+      { "path": "./src/generators/my-gen.ts" }
     ]
   }
 }
 ```
 
-**API changes:**
+**Generator naming:**
+
+Use package:name format:
+```json
+// ✅ Correct
+{ "name": "@spfn/core:contract", "enabled": true }
+
+// ❌ Old format no longer supported
+{ "name": "contract", "enabled": true }
+```
+
+**API usage:**
 
 ```typescript
-// Before (alpha.20)
-import { createGeneratorsFromConfig } from '@spfn/core/codegen';
-const generators = createGeneratorsFromConfig(config);  // sync
-
-// After (alpha.21+)
 import { createGeneratorsFromConfig } from '@spfn/core/codegen';
 const generators = await createGeneratorsFromConfig(config, cwd);  // async + cwd required
 ```
