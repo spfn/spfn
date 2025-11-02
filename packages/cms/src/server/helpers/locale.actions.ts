@@ -8,7 +8,7 @@
  * - 클라이언트 컴포넌트: Server Action으로 자동 처리
  */
 
-import { cookies, headers } from 'next/headers';
+import { cookies, headers } from 'next/headers.js';
 import { getCmsConfig } from '@/server/config/cms.config';
 import {
     LOCALE_COOKIE_KEY,
