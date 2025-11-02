@@ -9,6 +9,9 @@
 import { createApp } from '@spfn/core/route';
 import { cmsLabelsRepository } from '@/server/repositories';
 import { getLabelsContract, createLabelContract } from '@/lib/contracts/labels';
+import { loadLabelsFromJson } from '@/server/helpers/sync';
+import { extractLabels } from '@/server/labels';
+import { join } from 'path';
 
 const app = createApp();
 
@@ -18,7 +21,7 @@ const app = createApp();
  */
 app.bind(getLabelsContract, async (c) =>
 {
-    const { section, limit = 20, offset = 0 } = c.query;
+    const { section, limit = 20, offset = 0, includeDefaultValues } = c.query;
 
     // 라벨 목록 조회
     const labels = await cmsLabelsRepository.findMany({
@@ -30,6 +33,31 @@ app.bind(getLabelsContract, async (c) =>
     // 전체 개수 조회
     const total = await cmsLabelsRepository.count(section);
 
+    // includeDefaultValues가 true이면 라벨 정의에서 기본값 로드
+    let defaultValuesMap: Record<string, any> = {};
+    if (includeDefaultValues && section)
+    {
+        try
+        {
+            const labelsDir = join(process.cwd(), 'src/cms/labels');
+            const sections = loadLabelsFromJson(labelsDir);
+            const sectionDef = sections.find(s => s.section === section);
+
+            if (sectionDef)
+            {
+                const extracted = extractLabels(sectionDef);
+                defaultValuesMap = extracted.reduce((acc, label) => {
+                    acc[label.key] = label.defaultValue;
+                    return acc;
+                }, {} as Record<string, any>);
+            }
+        }
+        catch (error)
+        {
+            console.warn('[getLabels] Failed to load default values:', error);
+        }
+    }
+
     return c.json({
         labels: labels.map((label) => ({
             id: label.id,
@@ -40,6 +68,7 @@ app.bind(getLabelsContract, async (c) =>
             createdBy: label.createdBy,
             createdAt: label.createdAt.toISOString(),
             updatedAt: label.updatedAt.toISOString(),
+            ...(includeDefaultValues && { defaultValue: defaultValuesMap[label.key] })
         })),
         total,
         limit,

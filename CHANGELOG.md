@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.69] - 2025-11-02
+
+### Added
+
+#### @spfn/cms
+
+- **Labels API - Default Values Support**: Added `includeDefaultValues` query parameter to `GET /_cms/labels`
+  - Returns `defaultValue` field from label definition JSON files
+  - Enables admin UIs to show default values when no content is saved
+  - Automatically loads and merges default values from `src/cms/labels/{section}/*.json`
+
+- **Published Cache Upsert Endpoint**: Added `POST /_cms/published-cache` endpoint
+  - Create or update published content cache
+  - Request body: `{ section, locale, content, version }`
+  - Returns updated cache with `publishedAt` timestamp
+  - Enables programmatic cache updates after publishing labels
+
+### Changed
+
+#### @spfn/cms
+
+- **Labels Contract**: Updated `getLabelsContract` response schema to include optional `defaultValue` field
+
 ## [0.1.0-alpha.68] - 2025-11-02
 
 ### Changed

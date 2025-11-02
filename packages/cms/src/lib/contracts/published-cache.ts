@@ -32,3 +32,24 @@ export const getPublishedCacheContract = {
         })
     ])
 } as const satisfies RouteContract;
+
+/**
+ * POST /_cms/published-cache
+ * 발행된 콘텐츠 캐시 업데이트/생성 (upsert)
+ */
+export const upsertPublishedCacheContract = {
+    method: 'POST' as const,
+    path: '/_cms/published-cache',
+    body: Type.Object({
+        section: Type.String({ description: '섹션 이름 (예: home)' }),
+        locale: Type.String({ description: '언어 코드 (예: ko, en, ja)' }),
+        content: Type.Record(Type.String(), Type.Any(), { description: '발행할 콘텐츠 (key-value 형태)' }),
+        version: Type.Number({ description: '버전 번호' })
+    }),
+    response: Type.Union([
+        SectionData,
+        Type.Object({
+            error: Type.String()
+        })
+    ])
+} as const satisfies RouteContract;

@@ -2,11 +2,12 @@
  * CMS Published Cache Routes
  *
  * - GET /cms/published-cache - 발행된 콘텐츠 캐시 조회 (단일 또는 배치)
+ * - POST /cms/published-cache - 발행된 콘텐츠 캐시 업데이트/생성 (upsert)
  */
 
 import { createApp } from '@spfn/core/route';
 import { cmsPublishedCacheRepository } from '@/server/repositories';
-import { getPublishedCacheContract } from '@/lib/contracts/published-cache';
+import { getPublishedCacheContract, upsertPublishedCacheContract } from '@/lib/contracts/published-cache';
 
 const app = createApp();
 
@@ -38,6 +39,43 @@ app.bind(getPublishedCacheContract, async (c) =>
         }));
 
     return c.json(found);
+});
+
+/**
+ * POST /cms/published-cache
+ * 발행된 콘텐츠 캐시 업데이트/생성 (upsert)
+ */
+app.bind(upsertPublishedCacheContract, async (c) =>
+{
+    try
+    {
+        const { section, locale, content, version } = await c.data();
+
+        // Upsert cache
+        const result = await cmsPublishedCacheRepository.upsert({
+            section,
+            locale,
+            content,
+            version,
+            publishedAt: new Date(),
+        });
+
+        return c.json({
+            section: result.section,
+            locale: result.locale,
+            content: result.content as Record<string, any>,
+            version: result.version,
+            publishedAt: result.publishedAt?.toISOString() || null,
+        });
+    }
+    catch (error)
+    {
+        console.error('[upsertPublishedCache] Error:', error);
+        return c.json(
+            { error: error instanceof Error ? error.message : 'Failed to upsert published cache' },
+            500
+        );
+    }
 });
 
 export default app;

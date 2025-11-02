@@ -16,7 +16,8 @@ export const getLabelsContract = {
     query: Type.Object({
         section: Type.Optional(Type.String({ description: '섹션으로 필터링 (예: home, why-futureplay)' })),
         limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: '페이지당 항목 수' })),
-        offset: Type.Optional(Type.Number({ minimum: 0, default: 0, description: '시작 오프셋' }))
+        offset: Type.Optional(Type.Number({ minimum: 0, default: 0, description: '시작 오프셋' })),
+        includeDefaultValues: Type.Optional(Type.Boolean({ description: '기본값 포함 여부', default: false }))
     }),
     response: Type.Object({
         labels: Type.Array(Type.Object({
@@ -27,7 +28,8 @@ export const getLabelsContract = {
             publishedVersion: Type.Union([Type.Number(), Type.Null()]),
             createdBy: Type.Union([Type.String(), Type.Null()]),
             createdAt: Type.String(),
-            updatedAt: Type.String()
+            updatedAt: Type.String(),
+            defaultValue: Type.Optional(Type.Any({ description: '라벨 정의 파일의 기본값' }))
         })),
         total: Type.Number(),
         limit: Type.Number(),
