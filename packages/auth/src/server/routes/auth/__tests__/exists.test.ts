@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '../../../__tests__/helpers/db';
-import { users } from '../../../entities';
+import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
+import { users } from '@/server/entities';
 import app from '../index';
 
 describe('POST /auth/exists', () =>

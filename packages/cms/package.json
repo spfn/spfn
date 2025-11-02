@@ -1,6 +1,6 @@
 {
   "name": "@spfn/cms",
-  "version": "0.1.0-alpha.64",
+  "version": "0.1.0-alpha.65",
   "description": "SPFN CMS - Content Management System with type-safe labels and Next.js integration",
   "type": "module",
   "main": "./dist/index.js",

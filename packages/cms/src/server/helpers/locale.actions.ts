@@ -79,7 +79,7 @@ async function detectBrowserLanguage(): Promise<string | null>
  * @example
  * ```tsx
  * // Server Component
- * import { getLocale } from '@spfn/cms';
+ * import { getLocale } from '@spfn/cms/actions';
  *
  * export default async function Page()
  * {
@@ -145,7 +145,7 @@ export async function getLocale(): Promise<string>
  * @example
  * ```tsx
  * // Server Component (Server Action)
- * import { setLocale } from '@spfn/cms';
+ * import { setLocale } from '@spfn/cms/actions';
  *
  * export default async function Page()
  * {
@@ -207,7 +207,7 @@ export async function setLocale(locale: string): Promise<void>
  * @example
  * ```tsx
  * // Server Component
- * import { getLocales } from '@spfn/cms';
+ * import { getLocales } from '@spfn/cms/actions';
  *
  * export default async function Page()
  * {
@@ -256,7 +256,7 @@ export async function getLocales(): Promise<string[]>
  * @example
  * ```tsx
  * // Server Component
- * import { getLocaleWithInfo } from '@spfn/cms';
+ * import { getLocaleWithInfo } from '@spfn/cms/actions';
  *
  * export default async function Page()
  * {
@@ -294,7 +294,7 @@ export async function getLocaleWithInfo(): Promise<{
  * @example
  * ```tsx
  * // Server Component
- * import { getLocalesWithInfo } from '@spfn/cms';
+ * import { getLocalesWithInfo } from '@spfn/cms/actions';
  *
  * export default async function LanguageSelector()
  * {

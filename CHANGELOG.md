@@ -7,6 +7,159 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.65] - 2025-11-02
+
+### Added
+
+#### @spfn/core
+
+- **API Response Helpers**: Optional standardized response utilities
+  - `success()`, `error()`, `paginated()` helper functions
+  - `ApiSuccessResponse<T>`, `ApiErrorResponse`, `ApiResponse<T>` types
+  - TypeBox schema helpers: `ApiSuccessSchema()`, `ApiErrorSchema()`, `ApiResponseSchema()`
+  - Completely optional - use when desired for consistency
+
+- **Route Module Enhancements**:
+  - Prefix support for external package routes (e.g., `/auth`, `/cms`)
+  - `loadExternalRoutes()` accepts prefix parameter for mounting
+  - Default ErrorHandler now registered in all SPFN apps
+  - Automatic mounting with package.json `spfn.prefix` field
+
+- **Schema Module**: 6 new helper functions for common patterns
+  - New utilities for schema composition and validation
+  - Enhanced type-safe schema operations
+
+- **Codegen Improvements**:
+  - Scope-based API naming to avoid conflicts (e.g., `cmsApi`, `authApi`)
+  - Package prefix support from package.json
+  - `runOn` option to control when generators execute: 'watch' | 'manual' | 'build' | 'start'
+  - Improved module generation with better defaults
+
+- **Build Configuration**:
+  - Submodule exports for better tree-shaking
+  - Coverage configuration for testing
+
+#### @spfn/cms
+
+- Codegen-based API client generation
+  - Auto-generated type-safe API clients via `@spfn/core:contract`
+  - Generated API structure: CmsLabels, CmsLabelsByKey, CmsPublishedCache, CmsValues
+  - All types auto-generated from contracts using InferContract
+
+#### spfn CLI
+
+- **Module Generation Enhancements**:
+  - Scope selection when generating new modules (@spfn, @mycompany, etc.)
+  - Comprehensive development guide in generated README
+  - Example custom generator in new modules
+  - Helper scripts (codegen, test, docker) in generated packages
+  - 3-layer architecture templates (lib/, server/, client/)
+
+### Changed
+
+#### @spfn/core
+
+- **Error Handling**:
+  - Renamed `ValidationError` to `ConstraintViolationError` for clarity
+  - Added HTTP `ValidationError` for request validation errors
+  - Updated ErrorResponse to include `success: false` field
+
+- **Cache Module**: Migrated from Redis to Valkey/Cache with graceful degradation
+  - Support for Valkey (Redis fork)
+  - Graceful fallback when cache is unavailable
+  - Improved error handling
+
+- **Codegen Architecture**:
+  - Reorganized folder structure:
+    - Created `scanners/` directory for contract and route scanners
+    - Created `generators/contract/` directory
+    - Improved imports (removed `.js` extensions)
+  - Improved generator architecture with runOn and trigger pattern
+  - Better separation of concerns
+
+- **Middleware Module**: Export ErrorResponse type for better type safety
+
+#### Package Structure
+
+- **3-Layer Architecture**: Restructured cms, auth, and cli packages
+  - `lib/`: Shared code (contracts, types, constants)
+  - `server/`: Server-only code (entities, routes, repositories)
+  - `client/`: Client-only code (hooks, store, components)
+  - Updated all import paths and build configurations
+
+### Fixed
+
+#### @spfn/core
+
+- TypeScript build errors across multiple modules
+- watch-generate imports after folder restructure
+- Logger test failures
+- Server TypeScript type errors (MockInstance vs SpyInstance)
+- Graceful skip for integration tests without PostgreSQL
+
+### Testing
+
+#### @spfn/core
+
+- **Route Module**:
+  - Updated auto-loader tests for contract-based routing
+  - Added function-routes discovery tests
+  - Enhanced bind and create-app test coverage
+
+- **Middleware Module**:
+  - Added 20 new maskSensitiveData tests
+  - Comprehensive coverage of edge cases and circular references
+
+- **Server Module**:
+  - Added comprehensive helper and banner tests
+  - Updated documentation with test coverage
+
+- **Database Module**:
+  - Added comprehensive tests for utility modules
+  - Comprehensive test suite with improved type system
+  - Reorganized transaction tests with 100% coverage
+
+- **Codegen Module**:
+  - Improved test coverage to 85.68% (47 → 61 tests)
+  - Added 14 new tests across all subsystems
+
+### Documentation
+
+#### Core Concepts
+
+- Added comprehensive framework documentation
+- Updated db module documentation with schema and testing info
+- Added comprehensive README for schema module
+
+#### Modules
+
+- **Route Module**: Added API Response helpers section with examples
+- **Errors Module**: Added comprehensive test coverage section
+- **Env Module**: Added comprehensive README documentation
+- **Codegen Module**:
+  - Updated documentation for new architecture
+  - Added comprehensive custom generators guide
+
+#### Philosophy & Architecture
+
+- Added comprehensive philosophy documentation
+  - Rails-inspired principles (Convention over Config, DRY, Omakase)
+  - 7 core principles: Single Source of Truth, Proven Over Novel, Type Safety First
+  - Design decisions: Why File-Based Routing, Why Contract-First, Why Single Project
+  - What Superfunction Is Not section
+- Renamed architecture/ → philosophy/ folder
+- Improved deployment options documentation
+  - Option 1: All-in-one deployment (recommended)
+  - Option 2: Split deployment (Vercel + separate server)
+
+#### Ecosystem
+
+- Added module creation documentation
+  - 8-step development workflow with code examples
+  - Configuration options and API name generation
+  - Custom generator examples and best practices
+  - Publishing guide and troubleshooting section
+
 ## [0.1.0-alpha.64] - 2025-11-01
 
 ### Changed

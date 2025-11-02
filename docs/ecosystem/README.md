@@ -1,17 +1,17 @@
 ---
 title: "Ecosystem"
-description: "Build and share reusable modules for the SPFN framework"
+description: "Build and share reusable modules for the Superfunction framework"
 order: 1
 available: true
 ---
 
-# SPFN Ecosystem
+# Superfunction Ecosystem
 
-Build and share reusable modules for the SPFN framework.
+Build and share reusable modules for the Superfunction framework.
 
 ## Overview
 
-The SPFN ecosystem allows you to create modular, reusable packages that can be:
+The Superfunction ecosystem allows you to create modular, reusable packages that can be:
 - Shared across your organization's projects
 - Published to npm for the community
 - Composed together to build full-stack applications
@@ -20,7 +20,7 @@ The SPFN ecosystem allows you to create modular, reusable packages that can be:
 
 ### Getting Started
 
-- **[Creating Modules](./creating-modules.md)** - Learn how to create your first SPFN module
+- **[Creating Modules](./creating-modules.md)** - Learn how to create your first Superfunction module
 
 ### Module Development
 
@@ -76,6 +76,6 @@ Follow the prompts to configure your module with:
 
 ## Learn More
 
-- [Core Concepts](../core-concepts/) - Understanding SPFN fundamentals
+- [Core Concepts](../core-concepts/) - Understanding Superfunction fundamentals
 - [Guides](../guides/) - Step-by-step tutorials
 - [API Reference](../api-reference/) - Complete API documentation

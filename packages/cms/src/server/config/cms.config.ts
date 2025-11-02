@@ -26,7 +26,7 @@ export interface CmsConfig
 
     /**
      * 브라우저 언어 자동 감지 여부
-     * @default false
+     * @default true
      */
     detectBrowserLanguage: boolean;
 }

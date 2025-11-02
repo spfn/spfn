@@ -16,7 +16,7 @@ Content Management System for Next.js with JSON-based labels and automatic datab
 
 ## Installation
 
-### Recommended: Using SPFN CLI (Automatic Database Setup)
+### Recommended: Using Superfunction CLI (Automatic Database Setup)
 
 ```bash
 pnpm spfn add @spfn/cms
@@ -357,7 +357,7 @@ export default async function RootLayout({ children }) {
 ```typescript
 // Client Component
 'use client';
-import { getLocale } from '@spfn/cms/actions';
+import { getLocale } from '@spfn/cms/client';
 import { useEffect, useState } from 'react';
 
 export default function LanguageSwitcher() {
@@ -493,12 +493,14 @@ JSON Files (src/lib/labels/**/*.json)
 
 ⚠️ **Admin only** - Use with proper authentication
 
-- `cmsApi.labels.list(options?)` - List labels with filters
-- `cmsApi.labels.getById(options)` - Get label by ID
-- `cmsApi.labels.create(options)` - Create new label
-- `cmsApi.labels.update(options)` - Update label
-- `cmsApi.labels.delete(options)` - Delete label
-- `cmsApi.publishedCache.get(options)` - Get published cache
+- `cmsApi.cmsLabels.get(options?)` - List labels with filters
+- `cmsApi.cmsLabels.getById(options)` - Get label by ID
+- `cmsApi.cmsLabels.post(options)` - Create new label
+- `cmsApi.cmsLabels.update(options)` - Update label
+- `cmsApi.cmsLabels.delete(options)` - Delete label
+- `cmsApi.cmsLabelsByKey` - Get labels by key
+- `cmsApi.cmsValues` - Manage label values
+- `cmsApi.cmsPublishedCache.get(options)` - Get published cache
 
 ## Development Workflow
 

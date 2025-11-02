@@ -1,17 +1,17 @@
 ---
 title: "Creating Modules"
-description: "Learn how to create reusable SPFN modules that can be shared across projects or published to npm"
+description: "Learn how to create reusable Superfunction modules that can be shared across projects or published to npm"
 order: 2
 available: true
 ---
 
-# Creating SPFN Modules
+# Creating Superfunction Modules
 
-Learn how to create reusable SPFN modules that can be shared across projects or published to npm.
+Learn how to create reusable Superfunction modules that can be shared across projects or published to npm.
 
 ## Overview
 
-SPFN modules are self-contained packages that provide:
+Superfunction modules are self-contained packages that provide:
 - Database entities with migrations
 - Type-safe API routes
 - Auto-generated client SDKs
@@ -61,7 +61,7 @@ spfn add @mycompany/my-module
 
 ## Module Structure
 
-Generated modules follow SPFN's 3-layer architecture:
+Generated modules follow Superfunction's 3-layer architecture:
 
 ```
 my-module/
@@ -403,7 +403,7 @@ Users can install and use your module:
 # Install
 npm install @mycompany/my-module
 
-# Add to SPFN app
+# Add to Superfunction app
 spfn add @mycompany/my-module
 ```
 
@@ -460,7 +460,7 @@ Write tests for:
 
 ## Examples
 
-### Official SPFN Modules
+### Official Superfunction Modules
 
 - **[@spfn/auth](https://github.com/spfn/auth)** - User authentication
   - JWT-based authentication
@@ -518,6 +518,6 @@ pnpm codegen
 
 ## Resources
 
-- [SPFN CLI Reference](../api-reference/cli.md)
+- [Superfunction CLI Reference](../api-reference/cli.md)
 - [Contract System](../core-concepts/contracts.md)
 - [Code Generators](../guides/code-generation.md)

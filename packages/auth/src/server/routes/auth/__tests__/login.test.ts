@@ -3,9 +3,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '../../../__tests__/helpers/db';
-import { users } from '../../../entities';
-import { hashPassword } from '../../../helpers/password';
+import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
+import { users } from '@/server/entities';
+import { hashPassword } from '@/server/helpers/password';
 import app from '../index';
 
 describe('POST /auth/login', () =>

@@ -85,7 +85,7 @@ npm run spfn:dev
 
 ## Architecture Pattern
 
-SPFN follows a **layered architecture** that separates concerns and keeps code maintainable:
+Superfunction follows a **layered architecture** that separates concerns and keeps code maintainable:
 
 ```
 ┌─────────────────────────────────────────┐
@@ -323,7 +323,7 @@ Drizzle ORM integration with type-safe helper functions and automatic transactio
 - **Function schema auto-discovery** (see below)
 
 ### 📦 Function Schema Discovery
-Automatic discovery of database schemas from SPFN ecosystem functions.
+Automatic discovery of database schemas from Superfunction ecosystem functions.
 
 **[→ Read Database Manager Documentation](./src/db/manager/README.md)**
 
@@ -347,7 +347,7 @@ Functions declare their schemas in `package.json`:
 }
 ```
 
-SPFN automatically discovers and merges these schemas during migration generation:
+Superfunction automatically discovers and merges these schemas during migration generation:
 ```typescript
 import { getDrizzleConfig } from '@spfn/core'
 
@@ -364,7 +364,7 @@ pnpm spfn add @spfn/cms
 # ✅ Shows setup guide
 ```
 
-**Create your own SPFN packages:**
+**Create your own Superfunction packages:**
 ```typescript
 // 1. Define entities
 export const myTable = pgTable('my_table', { ... })
@@ -557,4 +557,4 @@ MIT
 
 ---
 
-Part of the [SPFN Framework](https://github.com/spfn/spfn)
+Part of the [Superfunction Framework](https://github.com/spfn/spfn)
