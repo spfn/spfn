@@ -48,15 +48,21 @@ export async function findByLabelIdAndVersion(
 
 /**
  * 값 저장 (upsert)
+ * - version: null → Draft 저장 (덮어쓰기)
+ * - version: number → Published 버전 생성 (불변)
  */
 export async function upsert(data: NewCmsLabelValue): Promise<CmsLabelValue>
 {
     // 기존 값이 있는지 확인
+    const versionCondition = data.version === null || data.version === undefined
+        ? isNull(cmsLabelValues.version)
+        : eq(cmsLabelValues.version, data.version as number);
+
     const existing = await findOne(
         cmsLabelValues,
         and(
             eq(cmsLabelValues.labelId, data.labelId),
-            eq(cmsLabelValues.version, data.version ?? 1),
+            versionCondition,
             eq(cmsLabelValues.locale, data.locale || 'ko'),
             data.breakpoint
                 ? eq(cmsLabelValues.breakpoint, data.breakpoint)
@@ -66,17 +72,25 @@ export async function upsert(data: NewCmsLabelValue): Promise<CmsLabelValue>
 
     if (existing)
     {
-        // UPDATE
-        const updated = await updateOne(
-            cmsLabelValues,
-            { id: existing.id },
-            { value: data.value }
-        );
-        return updated!;
+        // UPDATE (only for drafts with version: null)
+        if (data.version === null || data.version === undefined)
+        {
+            const updated = await updateOne(
+                cmsLabelValues,
+                { id: existing.id },
+                { value: data.value }
+            );
+            return updated!;
+        }
+        else
+        {
+            // Published versions are immutable - this shouldn't happen
+            throw new Error(`Published version ${data.version} already exists and cannot be overwritten`);
+        }
     }
     else
     {
-        // INSERT
+        // INSERT (both draft and new published versions)
         return create(cmsLabelValues, data);
     }
 }

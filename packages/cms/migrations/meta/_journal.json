@@ -15,6 +15,13 @@
       "when": 1761923297780,
       "tag": "0001_far_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1762094162304,
+      "tag": "0002_heavy_the_enforcers",
+      "breakpoints": true
     }
   ]
 }

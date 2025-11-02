@@ -26,6 +26,8 @@ const LabelValueSchema = Type.Object({
 
 /**
  * POST /_cms/values/:labelId - 라벨 값 저장
+ * - version: null → Draft 저장 (덮어쓰기)
+ * - version: number → Published 버전 생성 (불변)
  */
 export const saveValuesContract = {
     method: 'POST' as const,
@@ -34,7 +36,10 @@ export const saveValuesContract = {
         labelId: Type.String({ description: '라벨 ID' })
     }),
     body: Type.Object({
-        version: Type.Number({ description: '버전 번호', minimum: 1 }),
+        version: Type.Union([
+            Type.Null({ description: 'Draft 저장 (덮어쓰기)' }),
+            Type.Number({ description: '버전 번호 (불변)', minimum: 1 })
+        ]),
         values: Type.Array(
             Type.Object({
                 locale: Type.String({ description: '언어 코드 (ko, en, ja)', default: 'ko' }),
@@ -54,7 +59,7 @@ export const saveValuesContract = {
         Type.Object({
             success: Type.Boolean(),
             saved: Type.Number(),
-            version: Type.Number()
+            version: Type.Union([Type.Null(), Type.Number()])
         }),
         Type.Object({
             error: Type.String()

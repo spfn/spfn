@@ -24,8 +24,8 @@ export const cmsLabelValues = schema.table('label_values', {
         .notNull()
         .references(() => cmsLabels.id, { onDelete: 'cascade' }),
 
-    // 버전 번호
-    version: integer('version').notNull().default(1),
+    // 버전 번호 (null = draft, number = published version)
+    version: integer('version'),
 
     // 언어 코드
     locale: text('locale').notNull().default('ko'),
