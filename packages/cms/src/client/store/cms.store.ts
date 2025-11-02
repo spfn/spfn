@@ -97,7 +97,7 @@ export const useCmsStore = create<CmsState>((set, get) => ({
 
         try
         {
-            const response = await cmsApi.cmsCmsPublishedCache.get({
+            const response = await cmsApi.cmsPublishedCache.get({
                 query: { sections: section, locale },
             });
 
