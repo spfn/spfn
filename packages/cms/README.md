@@ -406,8 +406,15 @@ const { t: tEn } = await getSection('home', 'en');
 
 ## Documentation
 
-- **[Label Auto-Sync Guide](./LABEL_SYNC_GUIDE.md)** - Detailed configuration guide
+### Getting Started
+- **[Label Auto-Sync Guide](./LABEL_SYNC_GUIDE.md)** - Detailed sync configuration and options
 - **[Examples](./examples/)** - Usage examples
+
+### Advanced Guides
+- **[Advanced Features](./ADVANCED_FEATURES.md)** - Breakpoints, value types, InitCms, Draft Mode
+- **[Locale Management](./LOCALE_GUIDE.md)** - Complete locale guide with 50+ languages
+- **[API Reference](./API_REFERENCE.md)** - Complete API documentation and repository functions
+- **[Draft & Versioning](./DRAFT_AND_VERSIONING.md)** - Draft system, version control, audit logs
 
 ## Architecture
 

@@ -54,6 +54,302 @@ interface SyncOptions {
 }
 ```
 
+#### Option Details
+
+##### dryRun (boolean, default: false)
+
+**Purpose**: Preview changes without modifying the database.
+
+**Use cases:**
+- Testing sync configuration before applying
+- Reviewing what will change in production
+- Debugging sync issues
+
+**Example:**
+```typescript
+await initLabelSync({
+  dryRun: true,
+  verbose: true
+});
+// Output shows what WOULD happen, but doesn't modify DB
+```
+
+**Output:**
+```
+[DRY RUN] The following changes would be applied:
+  [CREATE] home.hero.title
+  [UPDATE] home.hero.subtitle
+  [DELETE] home.old.label
+```
+
+##### updateExisting (boolean, default: false)
+
+**Purpose**: Control whether existing labels' `defaultValue` should be updated from JSON.
+
+**When true:**
+- JSON file `defaultValue` overwrites database value
+- Useful for fixing typos or updating base content
+- ⚠️ Can overwrite manual changes made via CMS UI
+
+**When false:**
+- Existing labels keep their current `defaultValue`
+- Only new labels are created
+- Safe for production (prevents accidental overwrites)
+
+**Recommendation:**
+- **Development**: `true` (easier content updates)
+- **Production**: `false` (prevents overwrites)
+
+**Example:**
+```typescript
+// Development
+await initLabelSync({
+  updateExisting: true,  // Update all values from JSON
+  verbose: true
+});
+
+// Production
+await initLabelSync({
+  updateExisting: false,  // Only create new labels
+  verbose: true
+});
+```
+
+**Scenario:**
+```
+JSON:        { "key": "home.title", "defaultValue": "Welcome!" }
+Database:    { "key": "home.title", "defaultValue": "Hello" }
+
+updateExisting: false  →  Database keeps "Hello"
+updateExisting: true   →  Database updated to "Welcome!"
+```
+
+##### removeUnused (boolean, default: false)
+
+**Purpose**: Delete labels that exist in database but not in JSON files.
+
+**When true:**
+- Labels removed from JSON are deleted from DB
+- Helps keep database clean
+- ⚠️ **DANGEROUS** - Can cause data loss
+
+**When false:**
+- Orphaned labels remain in database
+- Safe, but database may accumulate unused labels
+
+**Recommendation:**
+- **Never use in production** (too risky)
+- **Development only** with caution
+- Always test with `dryRun: true` first
+
+**Example:**
+```typescript
+// DANGEROUS - Use with extreme caution
+await initLabelSync({
+  removeUnused: true,
+  dryRun: true,      // ALWAYS test with dryRun first!
+  verbose: true
+});
+```
+
+**Safe workflow:**
+```typescript
+// Step 1: Preview deletions
+await initLabelSync({
+  removeUnused: true,
+  dryRun: true,
+  verbose: true
+});
+// Review output carefully
+
+// Step 2: If safe, apply
+await initLabelSync({
+  removeUnused: true,
+  dryRun: false,
+  verbose: true
+});
+```
+
+##### verbose (boolean, default: auto)
+
+**Purpose**: Control logging detail level.
+
+**Auto-detection:**
+- `true` in development (`NODE_ENV=development`)
+- `false` in production
+
+**When true:**
+- Shows detailed progress for each section
+- Lists all created/updated/deleted labels
+- Useful for debugging
+
+**When false:**
+- Shows only summary
+- Cleaner logs for production
+
+**Example:**
+```typescript
+await initLabelSync({
+  verbose: true
+});
+```
+
+**Output comparison:**
+
+**Verbose: true**
+```
+[layout] Found 5 labels in definition
+[layout] Found 3 labels in DB
+  [CREATE] layout.nav.about
+  [CREATE] layout.nav.services
+  [UNCHANGED] layout.nav.home (ID: 1)
+  [UNCHANGED] layout.nav.contact (ID: 2)
+  [UNCHANGED] layout.nav.team (ID: 3)
+  [CACHE] Updating published cache for section: layout
+[home] Found 12 labels in definition
+  ...
+```
+
+**Verbose: false**
+```
+✅ Label sync completed
+   Sections: 2
+   Created:  2
+   Updated:  0
+   Unchanged: 13
+```
+
+##### labelsDir (string, default: 'src/lib/labels')
+
+**Purpose**: Specify custom label directory path.
+
+**Default**: `DEFAULT_LABELS_DIR` constant (`'src/lib/labels'`)
+
+**Example:**
+```typescript
+import { initLabelSync } from '@spfn/cms/server';
+
+await initLabelSync({
+  labelsDir: 'custom/labels/path',
+  verbose: true
+});
+```
+
+**Multiple projects:**
+```typescript
+// Project A
+await initLabelSync({
+  labelsDir: 'src/projectA/labels'
+});
+
+// Project B
+await initLabelSync({
+  labelsDir: 'src/projectB/labels'
+});
+```
+
+---
+
+### SyncResult Type
+
+Each sync operation returns detailed results:
+
+```typescript
+interface SyncResult {
+  section: string;      // Section name
+  created: number;      // Number of labels created
+  updated: number;      // Number of labels updated
+  deleted: number;      // Number of labels deleted
+  unchanged: number;    // Number of labels unchanged
+  errors: Array<{       // List of errors
+    key: string;        // Label key that failed
+    error: string;      // Error message
+  }>;
+}
+```
+
+**Example usage:**
+```typescript
+import { syncAll } from '@spfn/cms/server';
+
+const sections = loadLabelsFromJson('src/lib/labels');
+const results = await syncAll(sections, {
+  verbose: true
+});
+
+// Analyze results
+results.forEach(result => {
+  console.log(`Section: ${result.section}`);
+  console.log(`  Created: ${result.created}`);
+  console.log(`  Updated: ${result.updated}`);
+  console.log(`  Unchanged: ${result.unchanged}`);
+
+  if (result.errors.length > 0) {
+    console.error('  Errors:');
+    result.errors.forEach(({ key, error }) => {
+      console.error(`    ${key}: ${error}`);
+    });
+  }
+});
+
+// Check for failures
+const hasErrors = results.some(r => r.errors.length > 0);
+if (hasErrors) {
+  throw new Error('Label sync failed');
+}
+```
+
+---
+
+### Common Option Combinations
+
+#### Development (Active Development)
+```typescript
+await initLabelSync({
+  verbose: true,          // See all changes
+  updateExisting: true,   // Update content from JSON
+  removeUnused: false,    // Keep old labels (safer)
+  dryRun: false
+});
+```
+
+#### Production (Safe Mode)
+```typescript
+await initLabelSync({
+  verbose: false,         // Minimal logging
+  updateExisting: false,  // Don't overwrite existing
+  removeUnused: false,    // Never delete
+  dryRun: false
+});
+```
+
+#### Testing/Preview
+```typescript
+await initLabelSync({
+  verbose: true,          // Show everything
+  updateExisting: true,   // Test updates
+  removeUnused: true,     // Test deletions
+  dryRun: true           // DON'T APPLY
+});
+```
+
+#### Cleanup (Use with EXTREME caution)
+```typescript
+// Step 1: Preview
+await initLabelSync({
+  verbose: true,
+  removeUnused: true,
+  dryRun: true           // Preview first!
+});
+
+// Step 2: Review output, then apply
+await initLabelSync({
+  verbose: true,
+  removeUnused: true,
+  dryRun: false          // Apply after reviewing
+});
+```
+
 ### Output Example
 
 ```

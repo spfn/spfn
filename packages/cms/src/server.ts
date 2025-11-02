@@ -377,17 +377,10 @@ export const getSections = cache(async (
 });
 
 // ============================================================================
-// Locale Management (Server Actions + Constants)
+// Locale Management (Constants Only)
 // ============================================================================
-
-export {
-    getLocale,
-    setLocale,
-    getLocales,
-    getLocaleWithInfo,
-    getLocalesWithInfo,
-    isValidLocale,
-} from './server/helpers/locale';
+// Note: Server Actions (getLocale, setLocale, etc.) are exported from actions.ts
+// to avoid bundling "use server" directives into server.ts
 
 export {
     LOCALE_COOKIE_KEY,
