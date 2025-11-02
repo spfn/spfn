@@ -6,4 +6,5 @@
 
 export * from './users';
 export * from './user-social-accounts';
+export * from './user-public-keys';
 export * from './verification-codes';

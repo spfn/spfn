@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
 import { users } from '@/server/entities';
+import type { ApiResponse, CheckAccountExistsData } from '@/lib/types/api';
 import app from '../index';
 
 describe('POST /auth/exists', () =>
@@ -49,7 +50,7 @@ describe('POST /auth/exists', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<CheckAccountExistsData>;
 
             // Debug: print response if not 200
             if (res.status !== 200)
@@ -63,11 +64,11 @@ describe('POST /auth/exists', () =>
                 {
                     success: true,
                     data:
-                    {
-                        exists: true,
-                        identifier: 'test@example.com',
-                        identifierType: 'email',
-                    },
+                        {
+                            exists: true,
+                            identifier: 'test@example.com',
+                            identifierType: 'email',
+                        },
                 }
             );
         });
@@ -83,18 +84,18 @@ describe('POST /auth/exists', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<CheckAccountExistsData>;
 
             expect(res.status).toBe(200);
             expect(data).toMatchObject(
                 {
                     success: true,
                     data:
-                    {
-                        exists: false,
-                        identifier: 'nonexistent@example.com',
-                        identifierType: 'email',
-                    },
+                        {
+                            exists: false,
+                            identifier: 'nonexistent@example.com',
+                            identifierType: 'email',
+                        },
                 }
             );
         });
@@ -124,18 +125,18 @@ describe('POST /auth/exists', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<CheckAccountExistsData>;
 
             expect(res.status).toBe(200);
             expect(data).toMatchObject(
                 {
                     success: true,
                     data:
-                    {
-                        exists: true,
-                        identifier: '+821012345678',
-                        identifierType: 'phone',
-                    },
+                        {
+                            exists: true,
+                            identifier: '+821012345678',
+                            identifierType: 'phone',
+                        },
                 }
             );
         });
@@ -151,18 +152,18 @@ describe('POST /auth/exists', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<CheckAccountExistsData>;
 
             expect(res.status).toBe(200);
             expect(data).toMatchObject(
                 {
                     success: true,
                     data:
-                    {
-                        exists: false,
-                        identifier: '+821099999999',
-                        identifierType: 'phone',
-                    },
+                        {
+                            exists: false,
+                            identifier: '+821099999999',
+                            identifierType: 'phone',
+                        },
                 }
             );
         });

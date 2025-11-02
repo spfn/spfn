@@ -1,3 +1,11 @@
+---
+title: "Locale Management"
+description: "Complete guide to internationalization with 50+ supported languages"
+order: 5
+parent: "cms"
+available: true
+---
+
 # Locale Management Guide
 
 Complete guide to internationalization (i18n) in @spfn/cms with 50+ supported languages.

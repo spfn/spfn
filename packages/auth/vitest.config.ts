@@ -46,6 +46,15 @@ export default defineConfig(
                 ],
                 include: ['src/**/*.ts'],
                 all: true,
+
+                // Coverage thresholds
+                thresholds:
+                {
+                    lines: 80,
+                    functions: 80,
+                    branches: 75,
+                    statements: 80,
+                },
             },
         },
         resolve:

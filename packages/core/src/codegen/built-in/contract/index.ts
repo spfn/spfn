@@ -12,11 +12,11 @@
 
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
-import type { Generator, GeneratorOptions, GeneratorTrigger } from '../../generator';
-import { scanContracts } from '../../scanners';
-import { generateClient } from './client-generator';
+import type { Generator, GeneratorOptions, GeneratorTrigger } from '../../core/generator';
+import { scanContracts } from './scanner';
+import { generateClient } from './emitter';
 import { logger } from '../../../logger';
-import type { RouteContractMapping, ClientGenerationOptions } from '../../types';
+import type { RouteContractMapping, ClientGenerationOptions } from '../../core/types';
 
 const contractLogger = logger.child('contract-gen');
 
@@ -185,6 +185,10 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
             const fullContractsDir = join(cwd, contractsDir);
             const fullOutputPath = join(cwd, outputPath);
 
+            // Read prefix from package.json once at the start
+            const prefix = readPrefixFromPackageJson(cwd);
+            const apiName = generateApiName(prefix);
+
             try
             {
                 // Check if contracts directory exists
@@ -216,6 +220,7 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
                         outputPath: fullOutputPath,
                         changedFilePath: changedFile.path,
                         baseUrl: config.baseUrl,
+                        apiName,
                         debug: options.debug
                     });
 
@@ -236,23 +241,19 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
                 }
 
                 // Full regeneration
-                const allContracts = await scanContracts(fullContractsDir);
-
+                const allContracts = await scanContracts(fullContractsDir, prefix);
                 if (allContracts.length === 0)
                 {
                     if (options.debug)
                     {
                         contractLogger.warn('No contracts found');
                     }
+
                     contractCache = null;
                     return;
                 }
 
-                // Read prefix from package.json and generate API name
-                const prefix = readPrefixFromPackageJson(cwd);
-                const apiName = generateApiName(prefix);
-
-                // Generate client
+                // Generate client (apiName already calculated at start of function)
                 const clientOptions = createClientOptions(fullContractsDir, fullOutputPath, config.baseUrl, apiName);
                 const stats = await generateClient(allContracts, clientOptions);
 
@@ -292,6 +293,7 @@ interface IncrementalUpdateOptions
     outputPath: string;
     changedFilePath: string;
     baseUrl?: string;
+    apiName: string;
     debug?: boolean;
 }
 
@@ -308,7 +310,7 @@ interface IncrementalUpdateOptions
  */
 async function attemptIncrementalUpdate(options: IncrementalUpdateOptions): Promise<boolean>
 {
-    const { cwd, contractsDir, outputPath, changedFilePath, baseUrl, debug } = options;
+    const { cwd, contractsDir, outputPath, changedFilePath, baseUrl, apiName, debug } = options;
 
     if (!contractCache)
     {
@@ -351,9 +353,9 @@ async function attemptIncrementalUpdate(options: IncrementalUpdateOptions): Prom
             return true;  // No changes, skip regen
         }
 
-        // Regenerate everything since contracts are interconnected
+        // Regenerate everything since contracts are interconnected (apiName passed as parameter)
         // (A safer approach than trying to regenerate only affected resources)
-        const clientOptions = createClientOptions(contractsDir, outputPath, baseUrl);
+        const clientOptions = createClientOptions(contractsDir, outputPath, baseUrl, apiName);
         const stats = await generateClient(updatedContracts, clientOptions);
 
         // Update cache

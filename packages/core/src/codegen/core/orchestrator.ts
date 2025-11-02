@@ -8,7 +8,7 @@ import { watch as chokidarWatch } from 'chokidar';
 import { join, relative } from 'path';
 import mm from 'micromatch';
 import type { Generator, GeneratorOptions, GeneratorTrigger } from './generator.js';
-import { logger } from '../logger';
+import { logger } from '../../logger';
 
 const orchestratorLogger = logger.child('orchestrator');
 

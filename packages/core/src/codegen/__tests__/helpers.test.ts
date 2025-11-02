@@ -1,14 +1,14 @@
 /**
- * Route Scanner Tests
+ * Codegen Helpers Tests
  *
- * Tests for route grouping utilities
+ * Tests for resource grouping utilities
  */
 
 import { describe, it, expect } from 'vitest';
-import { groupByResource } from '../scanners/route-scanner';
-import type { RouteContractMapping } from '../types';
+import { groupByResource } from '../built-in/contract/helpers';
+import type { RouteContractMapping } from '../core/types';
 
-describe('Route Scanner', () =>
+describe('Codegen Helpers', () =>
 {
     describe('groupByResource()', () =>
     {

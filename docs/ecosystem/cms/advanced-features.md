@@ -1,3 +1,11 @@
+---
+title: "Advanced Features"
+description: "Breakpoints, value types, InitCms component, Draft Mode, and nested label structures"
+order: 4
+parent: "cms"
+available: true
+---
+
 # Advanced Features
 
 This guide covers advanced features of @spfn/cms that extend beyond basic text label management.

@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
 import { users } from '@/server/entities';
 import { hashPassword } from '@/server/helpers/password';
+import type { ApiResponse, LoginData } from '@/lib/types/api';
 import app from '../index';
 
 describe('POST /auth/login', () =>
@@ -56,15 +57,18 @@ describe('POST /auth/login', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<LoginData>;
 
             expect(res.status).toBe(200);
             expect(data.success).toBe(true);
-            expect(data.data).toHaveProperty('token');
-            expect(data.data).toHaveProperty('user');
-            expect(data.data.user.email).toBe('user@example.com');
-            expect(data.data.user.role).toBe('user');
-            expect(data.data.passwordChangeRequired).toBe(false);
+            if (data.success)
+            {
+                expect(data.data).toHaveProperty('token');
+                expect(data.data).toHaveProperty('user');
+                expect(data.data.user.email).toBe('user@example.com');
+                expect(data.data.user.role).toBe('user');
+                expect(data.data.passwordChangeRequired).toBe(false);
+            }
         });
 
         it('should login with phone and return token', async () =>
@@ -95,11 +99,14 @@ describe('POST /auth/login', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<LoginData>;
 
             expect(res.status).toBe(200);
             expect(data.success).toBe(true);
-            expect(data.data.user.phone).toBe('+821012345678');
+            if (data.success)
+            {
+                expect(data.data.user.phone).toBe('+821012345678');
+            }
         });
 
         it('should indicate passwordChangeRequired for admin accounts', async () =>
@@ -132,11 +139,14 @@ describe('POST /auth/login', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<LoginData>;
 
             expect(res.status).toBe(200);
             expect(data.success).toBe(true);
-            expect(data.data.passwordChangeRequired).toBe(true);
+            if (data.success)
+            {
+                expect(data.data.passwordChangeRequired).toBe(true);
+            }
         });
     });
 
@@ -156,11 +166,14 @@ describe('POST /auth/login', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<LoginData>;
 
             expect(res.status).toBe(401);
             expect(data.success).toBe(false);
-            expect(data.error.code).toBe('INVALID_CREDENTIALS');
+            if (!data.success)
+            {
+                expect(data.error.code).toBe('INVALID_CREDENTIALS');
+            }
         });
 
         it('should return 401 for wrong password', async () =>
@@ -189,11 +202,14 @@ describe('POST /auth/login', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<LoginData>;
 
             expect(res.status).toBe(401);
             expect(data.success).toBe(false);
-            expect(data.error.code).toBe('INVALID_CREDENTIALS');
+            if (!data.success)
+            {
+                expect(data.error.code).toBe('INVALID_CREDENTIALS');
+            }
         });
 
         it('should return 403 for inactive user', async () =>
@@ -223,11 +239,14 @@ describe('POST /auth/login', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<LoginData>;
 
             expect(res.status).toBe(403);
             expect(data.success).toBe(false);
-            expect(data.error.code).toBe('FORBIDDEN');
+            if (!data.success)
+            {
+                expect(data.error.code).toBe('FORBIDDEN');
+            }
         });
 
         it('should return 403 for suspended user', async () =>
@@ -257,7 +276,7 @@ describe('POST /auth/login', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<LoginData>;
 
             expect(res.status).toBe(403);
             expect(data.success).toBe(false);

@@ -1,10 +1,10 @@
 /**
- * Route Scanner Utilities
+ * Codegen Helper Utilities
  *
- * Helper functions for grouping and organizing route-contract mappings
+ * Helper functions for grouping and organizing contract mappings
  */
 
-import type { RouteContractMapping } from '../types';
+import type { RouteContractMapping } from '../../core/types';
 
 /**
  * Group mappings by resource
@@ -37,11 +37,20 @@ export function groupByResource(mappings: RouteContractMapping[]): Record<string
  * - /users/:id → users
  * - /users/:id/posts → usersPosts
  * - /videos/upload-and-analyze → videosUploadAndAnalyze
+ * - /_cms/labels → labels (with prefix='/_cms')
+ * - /_cms/published-cache → publishedCache (with prefix='/_cms')
  */
 function extractResourceName(path: string): string
 {
+    // Strip prefix from path if provided
+    let processedPath = path;
+    if (!processedPath.startsWith('/'))
+    {
+        processedPath = '/' + processedPath;
+    }
+
     // Remove leading slash
-    const segments = path.slice(1).split('/').filter(s => s && s !== '*');
+    const segments = processedPath.slice(1).split('/').filter(s => s && s !== '*');
 
     // Remove dynamic segments
     const staticSegments: string[] = [];
@@ -60,7 +69,7 @@ function extractResourceName(path: string): string
         return 'root';
     }
 
-    // Convert first segment (handle hyphens)
+    // Convert first segment (keep lowercase for first)
     const first = toCamelCase(staticSegments[0], false);
 
     if (staticSegments.length === 1)

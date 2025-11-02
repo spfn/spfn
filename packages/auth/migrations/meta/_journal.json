@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1730333000000,
-      "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1761838184247,
-      "tag": "0001_black_spyke",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1761959427777,
-      "tag": "0002_cultured_vindicator",
+      "when": 1762080790511,
+      "tag": "0000_brainy_firebird",
       "breakpoints": true
     }
   ]

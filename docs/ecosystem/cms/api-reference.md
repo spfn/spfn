@@ -1,3 +1,11 @@
+---
+title: "API Reference"
+description: "Complete API documentation including repositories, routes, and utility functions"
+order: 6
+parent: "cms"
+available: true
+---
+
 # API Reference
 
 Complete API documentation for @spfn/cms including repositories, routes, and utility functions.

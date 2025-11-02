@@ -1,3 +1,11 @@
+---
+title: "Draft & Versioning"
+description: "Draft system, version control, audit logs, and concurrent editing"
+order: 7
+parent: "cms"
+available: true
+---
+
 # Draft System & Version Control
 
 Complete guide to draft management, version control, and audit logging in @spfn/cms.

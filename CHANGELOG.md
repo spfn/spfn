@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.68] - 2025-11-02
+
+### Changed
+
+#### @spfn/core
+
+- **Codegen Folder Structure Refactoring**: Reorganized codegen module for better clarity and extensibility
+  - Created `core/` directory for system files (orchestrator, generator interface, config loader, types)
+  - Created `built-in/` directory for built-in generators
+  - Moved contract generator to `built-in/contract/`
+  - Renamed files for clarity:
+    - `client-generator.ts` → `emitter.ts` (code generation)
+    - `contract-scanner.ts` → `scanner.ts`
+    - `route-scanner.ts` → `helpers.ts` (resource grouping utilities)
+  - Prepared structure for future built-in generators (e.g., auth, migrations)
+  - Updated all import paths to reflect new structure
+
+## [0.1.0-alpha.67] - 2025-11-02
+
+### Changed
+
+#### @spfn/cms
+
+- **Contract Path Prefixing**: All CMS contract paths now explicitly include `/_cms` prefix
+  - `GET /labels` → `GET /_cms/labels`
+  - `GET /labels/:id` → `GET /_cms/labels/:id`
+  - `POST /values/:labelId` → `POST /_cms/values/:labelId`
+  - `GET /values/:labelId/:version` → `GET /_cms/values/:labelId/:version`
+  - `GET /published-cache` → `GET /_cms/published-cache`
+  - Ensures contract paths match the actual route mounting point
+
+#### @spfn/core
+
+- **Prefix Validation for External Routes**: Auto-loader now validates contract paths against package prefix
+  - When `loadExternalRoutes()` is called with a prefix parameter, contract paths must start with that prefix
+  - Errors with clear hints if prefix is missing (e.g., "Contract paths should start with '/auth'. Example: path: '/auth/login'")
+  - Prevents mismatch between backend route mounting and client API calls
+  - Existing routes without prefix will fail validation until contracts are updated
+
+### Fixed
+
+#### @spfn/core
+
+- **Auto-loader Tests**: Updated external routes tests to reflect new prefix validation behavior
+  - Test contract paths now include required prefix
+  - Added test case for prefix validation error scenario
+
+## [0.1.0-alpha.66] - 2025-11-02
+
+### Fixed
+
+#### @spfn/cms
+
+- **Server Actions Bundling**: Fixed "use server" directive bundling issue
+  - Removed Server Actions exports from `server.ts` to prevent Turbopack build errors
+  - Server Actions (`getLocale`, `setLocale`, etc.) now only exported from `actions.ts`
+  - `server.ts` now only exports constants and server components
+  - Resolves "Server Actions must be async functions" error in Next.js 15 with Turbopack
+
 ## [0.1.0-alpha.65] - 2025-11-02
 
 ### Added

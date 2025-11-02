@@ -8,12 +8,11 @@ import type { RouteContract } from '@spfn/core/route';
  */
 
 /**
- * GET /labels - 라벨 목록 조회
- * Final path: /_cms/labels (prefix added from package.json)
+ * GET /_cms/labels - 라벨 목록 조회
  */
 export const getLabelsContract = {
     method: 'GET' as const,
-    path: '/labels',
+    path: '/_cms/labels',
     query: Type.Object({
         section: Type.Optional(Type.String({ description: '섹션으로 필터링 (예: home, why-futureplay)' })),
         limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: '페이지당 항목 수' })),
@@ -37,11 +36,11 @@ export const getLabelsContract = {
 } as const satisfies RouteContract;
 
 /**
- * POST /labels - 새 라벨 생성
+ * POST /_cms/labels - 새 라벨 생성
  */
 export const createLabelContract = {
     method: 'POST' as const,
-    path: '/labels',
+    path: '/_cms/labels',
     body: Type.Object({
         key: Type.String({
             description: '고유 키 (예: home.hero.title)',
@@ -79,11 +78,11 @@ export const createLabelContract = {
 } as const satisfies RouteContract;
 
 /**
- * GET /labels/:id - 라벨 단건 조회
+ * GET /_cms/labels/:id - 라벨 단건 조회
  */
 export const getLabelContract = {
     method: 'GET' as const,
-    path: '/labels/:id',
+    path: '/_cms/labels/:id',
     params: Type.Object({
         id: Type.String({ description: '라벨 ID' })
     }),
@@ -105,11 +104,11 @@ export const getLabelContract = {
 } as const satisfies RouteContract;
 
 /**
- * PATCH /labels/:id - 라벨 메타데이터 수정
+ * PATCH /_cms/labels/:id - 라벨 메타데이터 수정
  */
 export const updateLabelContract = {
     method: 'PATCH' as const,
-    path: '/labels/:id',
+    path: '/_cms/labels/:id',
     params: Type.Object({
         id: Type.String({ description: '라벨 ID' })
     }),
@@ -141,11 +140,11 @@ export const updateLabelContract = {
 } as const satisfies RouteContract;
 
 /**
- * DELETE /labels/:id - 라벨 삭제
+ * DELETE /_cms/labels/:id - 라벨 삭제
  */
 export const deleteLabelContract = {
     method: 'DELETE' as const,
-    path: '/labels/:id',
+    path: '/_cms/labels/:id',
     params: Type.Object({
         id: Type.String({ description: '라벨 ID' })
     }),
@@ -161,11 +160,11 @@ export const deleteLabelContract = {
 } as const satisfies RouteContract;
 
 /**
- * GET /labels/by-key/:key - Key로 라벨 조회
+ * GET /_cms/labels/by-key/:key - Key로 라벨 조회
  */
 export const getLabelByKeyContract = {
     method: 'GET' as const,
-    path: '/labels/by-key/:key',
+    path: '/_cms/labels/by-key/:key',
     params: Type.Object({
         key: Type.String({ description: '라벨 Key (예: home.hero.title)' })
     }),

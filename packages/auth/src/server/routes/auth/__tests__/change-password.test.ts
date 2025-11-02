@@ -3,10 +3,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
 import { users } from '@/server/entities';
 import { hashPassword } from '@/server/helpers/password';
 import { generateToken } from '@/server/helpers/jwt';
+import type { ApiResponse, ChangePasswordData } from '@/lib/types/api';
 import app from '../index';
 
 describe('POST /auth/change-password', () =>
@@ -46,7 +48,7 @@ describe('POST /auth/change-password', () =>
 
             // Generate auth token
             const token = generateToken({
-                userId: user.id,
+                userId: String(user.id),
                 role: user.role,
             });
 
@@ -66,14 +68,17 @@ describe('POST /auth/change-password', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<ChangePasswordData>;
 
             expect(res.status).toBe(200);
             expect(data.success).toBe(true);
-            expect(data.data.success).toBe(true);
+            if (data.success)
+            {
+                expect(data.data.success).toBe(true);
+            }
 
             // Verify password was actually changed in DB
-            const [updatedUser] = await db.select().from(users).where(users => users.id === user.id);
+            const [updatedUser] = await db.select().from(users).where(eq(users.id, user.id));
             expect(updatedUser.passwordHash).not.toBe(oldPasswordHash);
             expect(updatedUser.passwordChangeRequired).toBe(false);
         });
@@ -96,7 +101,7 @@ describe('POST /auth/change-password', () =>
 
             // Generate auth token
             const token = generateToken({
-                userId: user.id,
+                userId: String(user.id),
                 role: user.role,
             });
 
@@ -116,13 +121,13 @@ describe('POST /auth/change-password', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<ChangePasswordData>;
 
             expect(res.status).toBe(200);
             expect(data.success).toBe(true);
 
             // Verify passwordChangeRequired was cleared
-            const [updatedUser] = await db.select().from(users).where(users => users.id === user.id);
+            const [updatedUser] = await db.select().from(users).where(eq(users.id, user.id));
             expect(updatedUser.passwordChangeRequired).toBe(false);
         });
     });
@@ -143,11 +148,14 @@ describe('POST /auth/change-password', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<ChangePasswordData>;
 
             expect(res.status).toBe(401);
             expect(data.success).toBe(false);
-            expect(data.error.code).toBe('UNAUTHORIZED');
+            if (!data.success)
+            {
+                expect(data.error.code).toBe('UNAUTHORIZED');
+            }
         });
 
         it('should return 401 with invalid token', async () =>
@@ -167,7 +175,7 @@ describe('POST /auth/change-password', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<ChangePasswordData>;
 
             expect(res.status).toBe(401);
             expect(data.success).toBe(false);
@@ -188,7 +196,7 @@ describe('POST /auth/change-password', () =>
 
             // Generate auth token
             const token = generateToken({
-                userId: user.id,
+                userId: String(user.id),
                 role: 'user',
             });
 
@@ -208,11 +216,14 @@ describe('POST /auth/change-password', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<ChangePasswordData>;
 
             expect(res.status).toBe(401);
             expect(data.success).toBe(false);
-            expect(data.error.code).toBe('INVALID_CREDENTIALS');
+            if (!data.success)
+            {
+                expect(data.error.code).toBe('INVALID_CREDENTIALS');
+            }
         });
 
         it('should return 403 for suspended user', async () =>
@@ -231,7 +242,7 @@ describe('POST /auth/change-password', () =>
 
             // Generate auth token
             const token = generateToken({
-                userId: user.id,
+                userId: String(user.id),
                 role: 'user',
             });
 
@@ -251,7 +262,7 @@ describe('POST /auth/change-password', () =>
             );
 
             const res = await app.fetch(req);
-            const data = await res.json();
+            const data = await res.json() as ApiResponse<ChangePasswordData>;
 
             expect(res.status).toBe(403);
             expect(data.success).toBe(false);
@@ -273,7 +284,7 @@ describe('POST /auth/change-password', () =>
             ).returning();
 
             const token = generateToken({
-                userId: user.id,
+                userId: String(user.id),
                 role: 'user',
             });
 
@@ -309,7 +320,7 @@ describe('POST /auth/change-password', () =>
             ).returning();
 
             const token = generateToken({
-                userId: user.id,
+                userId: String(user.id),
                 role: 'user',
             });
 

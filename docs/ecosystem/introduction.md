@@ -1,5 +1,5 @@
 ---
-title: "Ecosystem"
+title: "Introduction"
 description: "Build and share reusable modules for the Superfunction framework"
 order: 1
 available: true
@@ -43,11 +43,13 @@ spfn add @spfn/auth
 ```
 
 ### @spfn/cms
-Full-featured content management system with multi-language support and version control.
+Full-featured content management system with JSON-based labels, 50+ languages, and version control.
 
 ```bash
 spfn add @spfn/cms
 ```
+
+**[📖 Documentation](./cms/index.md)** | [Getting Started](./cms/getting-started.md) | [API Reference](./cms/api-reference.md)
 
 ## Community Modules
 

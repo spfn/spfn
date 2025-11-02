@@ -415,7 +415,7 @@ export default app;
             const externalDir = join(process.cwd(), '__test_external_routes__');
             mkdirSync(join(externalDir, 'api'), { recursive: true });
 
-            // Create external route
+            // Create external route with prefix in contract path
             writeFileSync(
                 join(externalDir, 'api', 'index.ts'),
                 `
@@ -426,7 +426,7 @@ const app = createApp();
 
 const testContract = {
     method: 'GET',
-    path: '/test',
+    path: '/external/test', // Contract path must include prefix
     response: Type.Object({
         external: Type.Boolean(),
     }),
@@ -443,7 +443,7 @@ export default app;
             const app = new Hono();
             const loader = new AutoRouteLoader(TEST_ROUTES_DIR, false);
 
-            // Load external routes with prefix
+            // Load external routes with prefix validation
             const stats = await loader.loadExternalRoutes(
                 app,
                 externalDir,
@@ -459,6 +459,52 @@ export default app;
             expect(res.status).toBe(200);
             const json = await res.json();
             expect(json.external).toBe(true);
+
+            rmSync(externalDir, { recursive: true, force: true });
+        });
+
+        it('should reject routes without prefix when prefix is required', async () => {
+            const externalDir = join(process.cwd(), '__test_external_routes_invalid__');
+            mkdirSync(join(externalDir, 'api'), { recursive: true });
+
+            // Create external route WITHOUT prefix in contract path
+            writeFileSync(
+                join(externalDir, 'api', 'index.ts'),
+                `
+import { Type } from '@sinclair/typebox';
+import { createApp } from '${CREATE_APP_PATH}';
+
+const app = createApp();
+
+const testContract = {
+    method: 'GET',
+    path: '/test', // Missing required prefix!
+    response: Type.Object({
+        external: Type.Boolean(),
+    }),
+} as const;
+
+app.bind(testContract, async (c) => {
+    return c.json({ external: true });
+});
+
+export default app;
+                `
+            );
+
+            const app = new Hono();
+            const loader = new AutoRouteLoader(TEST_ROUTES_DIR, false);
+
+            // Load external routes with prefix - should fail validation
+            const stats = await loader.loadExternalRoutes(
+                app,
+                externalDir,
+                'test-package',
+                '/external'
+            );
+
+            // Route should be rejected due to missing prefix
+            expect(stats.total).toBe(0);
 
             rmSync(externalDir, { recursive: true, force: true });
         });

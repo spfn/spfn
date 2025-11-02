@@ -5,8 +5,8 @@
  */
 
 import { mkdir, writeFile } from 'fs/promises';
-import { groupByResource } from '../../scanners';
-import type { ClientGenerationOptions, GenerationStats, RouteContractMapping } from '../../types';
+import { groupByResource } from './helpers';
+import type { ClientGenerationOptions, GenerationStats, RouteContractMapping } from '../../core/types';
 
 /**
  * Generate API client code
@@ -236,6 +236,26 @@ function countUniqueContractFiles(mappings: RouteContractMapping[]): number
 }
 
 /**
+ * Convert camelCase to kebab-case
+ *
+ * Examples:
+ * - labels -> labels
+ * - publishedCache -> published-cache
+ * - usersPosts -> users-posts
+ */
+function toKebabCase(str: string): string
+{
+    if (str.length === 0)
+    {
+        return str;
+    }
+
+    return str
+        .replace(/([a-z])([A-Z])/g, '$1-$2')
+        .toLowerCase();
+}
+
+/**
  * Generate split API client files by resource
  */
 async function generateSplitClient(
@@ -263,7 +283,9 @@ async function generateSplitClient(
         const routes = grouped[resourceName];
 
         const code = generateResourceFile(resourceName, routes, options);
-        const filePath = `${outputDir}/${resourceName}.ts`;
+        // Convert to kebab-case for file name
+        const kebabName = toKebabCase(resourceName);
+        const filePath = `${outputDir}/${kebabName}.ts`;
 
         await writeFile(filePath, code, 'utf-8');
     }
@@ -403,20 +425,22 @@ function generateIndexFile(
     // Re-export client
     code += `export { client } from '@spfn/core/client';\n\n`;
 
-    // Re-export all resource modules
+    // Re-export all resource modules (use kebab-case for file names)
     for (let i = 0; i < resourceNames.length; i++)
     {
         const resourceName = resourceNames[i];
-        code += `export * from './${resourceName}.js';\n`;
+        const kebabName = toKebabCase(resourceName);
+        code += `export * from './${kebabName}.js';\n`;
     }
 
     code += `\n`;
 
-    // Import resources
+    // Import resources (use kebab-case for file names, but keep original camelCase name for import)
     for (let i = 0; i < resourceNames.length; i++)
     {
         const resourceName = resourceNames[i];
-        code += `import { ${resourceName} } from './${resourceName}.js';\n`;
+        const kebabName = toKebabCase(resourceName);
+        code += `import { ${resourceName} } from './${kebabName}.js';\n`;
     }
 
     code += `\n`;

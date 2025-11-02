@@ -261,18 +261,32 @@ export class AutoRouteLoader
             // Extract paths from contract metas for logging and stats
             const contractPaths = this.extractContractPaths(module);
 
+            // Validate contract paths against prefix (if prefix is provided)
+            if (prefix)
+            {
+                const invalidPaths = contractPaths.filter(path => !path.startsWith(prefix));
+                if (invalidPaths.length > 0)
+                {
+                    routeLogger.error('Contract paths must include the package prefix', {
+                        file: relativePath,
+                        prefix,
+                        invalidPaths,
+                        hint: `Contract paths should start with "${prefix}". Example: path: "${prefix}/labels"`
+                    });
+                    return false;
+                }
+            }
+
             // Register contract-based middlewares
             this.registerContractBasedMiddlewares(app, contractPaths, module);
 
-            // Mount with prefix if provided (from package.json spfn.prefix)
-            const mountPath = prefix || '/';
-            app.route(mountPath, module.default);
+            // Mount directly (contracts already include full path with prefix)
+            app.route('/', module.default);
 
-            // Track routes for stats (include prefix in path)
+            // Track routes for stats
             contractPaths.forEach(path => {
-                const fullPath = prefix ? `${prefix}${path}` : path;
                 this.routes.push({
-                    path: fullPath,
+                    path: path, // Use contract path as-is (already includes prefix)
                     file: relativePath,
                     meta: module.meta,
                     priority: this.calculateContractPriority(path),
@@ -281,7 +295,7 @@ export class AutoRouteLoader
                 if (this.debug)
                 {
                     const icon = path.includes('*') ? '⭐' : path.includes(':') ? '🔸' : '🔹';
-                    routeLogger.debug(`Registered route: ${fullPath}`, { icon, file: relativePath });
+                    routeLogger.debug(`Registered route: ${path}`, { icon, file: relativePath });
                 }
             });
 

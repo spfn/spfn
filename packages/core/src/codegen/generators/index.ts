@@ -1,22 +1,20 @@
 /**
- * SPFN Core Generators Registry
+ * Built-in Generators Export
  *
- * Exports generators for use with package-based naming convention
- * e.g., @spfn/core:contract
+ * Provides a registry of all built-in generators
  */
 
-import { createContractGenerator } from './contract';
+import { createContractGenerator } from '../built-in/contract';
 
 /**
- * Generators registry
- * Maps generator names to their factory functions
+ * Registry of available generators
+ *
+ * Used by package-based generator loading (e.g., "@spfn/core:contract")
  */
 export const generators = {
-    contract: createContractGenerator,
+    contract: createContractGenerator
 };
 
-/**
- * Re-export individual generator factories
- */
-export { createContractGenerator } from './contract';
-export type { ContractGeneratorConfig } from './contract';
+// Export generator creation functions
+export { createContractGenerator } from '../built-in/contract';
+export type { ContractGeneratorConfig } from '../built-in/contract';

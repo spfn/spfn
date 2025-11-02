@@ -64,7 +64,7 @@
   },
   "dependencies": {
     "@spfn/core": "workspace:*",
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "drizzle-orm": "^0.44.6",
     "jsonwebtoken": "^9.0.2",
     "postgres": "^3.4.0"
@@ -76,6 +76,7 @@
     "@vitest/coverage-v8": "^4.0.6",
     "drizzle-kit": "^0.31.6",
     "glob": "^11.0.3",
+    "jose": "^6.1.0",
     "spfn": "workspace:*",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",

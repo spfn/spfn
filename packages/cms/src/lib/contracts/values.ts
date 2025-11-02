@@ -25,12 +25,11 @@ const LabelValueSchema = Type.Object({
 });
 
 /**
- * POST /values/:labelId - 라벨 값 저장
- * Final path: /_cms/values/:labelId (prefix added from package.json)
+ * POST /_cms/values/:labelId - 라벨 값 저장
  */
 export const saveValuesContract = {
     method: 'POST' as const,
-    path: '/values/:labelId',
+    path: '/_cms/values/:labelId',
     params: Type.Object({
         labelId: Type.String({ description: '라벨 ID' })
     }),
@@ -64,12 +63,11 @@ export const saveValuesContract = {
 } as const satisfies RouteContract;
 
 /**
- * GET /values/:labelId/:version - 특정 버전의 값 조회
- * Final path: /_cms/values/:labelId/:version (prefix added from package.json)
+ * GET /_cms/values/:labelId/:version - 특정 버전의 값 조회
  */
 export const getValuesContract = {
     method: 'GET' as const,
-    path: '/values/:labelId/:version',
+    path: '/_cms/values/:labelId/:version',
     params: Type.Object({
         labelId: Type.String({ description: '라벨 ID' }),
         version: Type.String({ description: '버전 번호' })

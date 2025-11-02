@@ -6,9 +6,9 @@
 
 import { readFileSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
-import { join, dirname } from 'path';
+import { join } from 'path';
 import * as ts from 'typescript';
-import type { HttpMethod, RouteContractMapping } from '../types';
+import type { HttpMethod, RouteContractMapping } from '../../core/types';
 
 /**
  * Scan for contract files and extract contract exports
@@ -16,15 +16,13 @@ import type { HttpMethod, RouteContractMapping } from '../types';
  * All contracts must use absolute paths (e.g., path: '/teams/:id')
  *
  * @param contractsDir - Path to lib/contracts/ directory
+ * @param packagePrefix - Optional package prefix to apply to all contract paths
  * @returns Array of contract-to-route mappings
  */
-export async function scanContracts(contractsDir: string): Promise<RouteContractMapping[]>
+export async function scanContracts(contractsDir: string, packagePrefix?: string): Promise<RouteContractMapping[]>
 {
     const contractFiles = await scanContractFiles(contractsDir);
     const mappings: RouteContractMapping[] = [];
-
-    // Get package prefix from package.json (e.g., "/_auth")
-    const packagePrefix = getPackagePrefix(contractsDir);
 
     for (let i = 0; i < contractFiles.length; i++)
     {
@@ -44,14 +42,19 @@ export async function scanContracts(contractsDir: string): Promise<RouteContract
                 );
             }
 
-            // Apply package prefix if exists
-            const finalPath = packagePrefix
-                ? `${packagePrefix}${contractExport.path}`
-                : contractExport.path;
+            if(packagePrefix && !contractExport.path.startsWith(packagePrefix))
+            {
+                throw new Error(
+                    `Contract '${contractExport.name}' in ${filePath} must include package prefix. ` +
+                    `Expected path to start with '${packagePrefix}', but found: '${contractExport.path}'. ` +
+                    `Example: path: '${packagePrefix}/${contractExport.path}'`
+                );
+            }
 
+            // Apply package prefix if exists
             mappings.push({
                 method: contractExport.method,
-                path: finalPath,
+                path: contractExport.path,
                 contractName: contractExport.name,
                 contractImportPath: getImportPath(filePath),
                 routeFile: '',
@@ -370,51 +373,6 @@ function isContractName(name: string): boolean
         name.endsWith('Schema') ||
         name.endsWith('schema')
     );
-}
-
-/**
- * Get package prefix from package.json
- *
- * Looks for spfn.prefix in package.json starting from contractsDir
- *
- * @param contractsDir - Path to contracts directory
- * @returns Prefix string or empty string if not found
- */
-function getPackagePrefix(contractsDir: string): string
-{
-    try
-    {
-        // Find package.json by going up from contractsDir
-        let currentDir = dirname(contractsDir);
-
-        // Try up to 5 levels up
-        for (let i = 0; i < 5; i++)
-        {
-            const packageJsonPath = join(currentDir, 'package.json');
-
-            try
-            {
-                const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-
-                if (packageJson.spfn?.prefix)
-                {
-                    return packageJson.spfn.prefix;
-                }
-            }
-            catch
-            {
-                // package.json not found at this level, continue
-            }
-
-            currentDir = dirname(currentDir);
-        }
-    }
-    catch
-    {
-        // Failed to read package.json
-    }
-
-    return '';
 }
 
 /**

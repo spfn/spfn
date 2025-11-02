@@ -10,13 +10,12 @@ const SectionData = Type.Object({
 });
 
 /**
- * GET /published-cache
+ * GET /_cms/published-cache
  * 발행된 콘텐츠 캐시 조회 (단일 또는 여러 섹션)
- * Final path: /_cms/published-cache (prefix added from package.json)
  */
 export const getPublishedCacheContract = {
     method: 'GET' as const,
-    path: '/published-cache',
+    path: '/_cms/published-cache',
     query: Type.Object({
         sections: Type.Union([
             Type.String({ description: '단일 섹션 이름 (예: home)' }),

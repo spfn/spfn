@@ -4,15 +4,10 @@
  * Automatic client code generation from route contracts
  */
 
-export { scanContracts } from './scanners/contract-scanner';
-export { groupByResource } from './scanners/route-scanner';
-export { generateClient } from './generators/contract/client-generator';
-export { watchAndGenerate } from './watch-generate';
-
 // Orchestrator & Generator system
-export { CodegenOrchestrator } from './orchestrator';
-export { createContractGenerator } from './generators/contract';
-export { loadCodegenConfig, createGeneratorsFromConfig } from './config-loader';
+export { CodegenOrchestrator } from './core/orchestrator';
+export { createContractGenerator } from './built-in/contract';
+export { loadCodegenConfig, createGeneratorsFromConfig } from './core/config-loader';
 
 export type {
     HttpMethod,
@@ -20,22 +15,22 @@ export type {
     ResourceRoutes,
     ClientGenerationOptions,
     GenerationStats
-} from './types';
+} from './core/types';
 
 export type {
     Generator,
     GeneratorOptions,
     GeneratorTrigger
-} from './generator';
+} from './core/generator';
 
 export type {
     OrchestratorOptions
-} from './orchestrator';
+} from './core/orchestrator';
 
 export type {
     ContractGeneratorConfig
-} from './generators/contract';
+} from './built-in/contract';
 
 export type {
     CodegenConfig
-} from './config-loader';
+} from './core/config-loader';

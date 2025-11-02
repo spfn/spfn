@@ -1,3 +1,11 @@
+---
+title: "Label Sync Guide"
+description: "Complete guide to JSON-based label auto-synchronization with detailed options and strategies"
+order: 3
+parent: "cms"
+available: true
+---
+
 # Label Auto-Sync Guide
 
 This guide explains how to use the JSON file-based label auto-synchronization feature in `@spfn/cms`.

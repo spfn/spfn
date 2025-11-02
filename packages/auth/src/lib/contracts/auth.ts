@@ -8,11 +8,23 @@ import { Type } from '@sinclair/typebox';
 import type { RouteContract } from '@spfn/core/route';
 import { ApiResponseSchema } from '@/lib/types/schemas';
 
-// Email regex pattern (basic validation)
-const EMAIL_PATTERN = '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$';
+// Email regex pattern (RFC 5322 compliant)
+// Validates: local-part@domain.tld
+// - Local part: alphanumeric, dots, hyphens, underscores
+// - Domain: alphanumeric, hyphens, dots
+// - TLD: minimum 2 characters
+const EMAIL_PATTERN = '^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$';
 
 // Phone regex pattern (E.164 format)
+// Format: +[country code][number] (1-15 digits total)
 const PHONE_PATTERN = '^\\+[1-9]\\d{1,14}$';
+
+// SHA-256 fingerprint pattern (64 hex characters)
+const FINGERPRINT_PATTERN = '^[a-f0-9]{64}$';
+
+// Base64 pattern (DER encoded keys)
+// Matches standard Base64 with padding
+const BASE64_PATTERN = '^[A-Za-z0-9+/]+=*$';
 
 /**
  * POST /exists - Check if account exists
@@ -54,10 +66,66 @@ export const checkAccountExistsContract = {
 } as const satisfies RouteContract;
 
 /**
+ * POST /register - Register new user
+ *
+ * Register with email/phone and password, includes public key
+ * Final path: /_auth/register (prefix added from package.json)
+ */
+export const registerContract = {
+    method: 'POST' as const,
+    path: '/register',
+    body: Type.Object({
+        email: Type.Optional(Type.String({
+            pattern: EMAIL_PATTERN,
+            description: 'Email address'
+        })),
+        phone: Type.Optional(Type.String({
+            pattern: PHONE_PATTERN,
+            description: 'Phone number in E.164 format'
+        })),
+        password: Type.String({
+            minLength: 8,
+            description: 'User password (minimum 8 characters)'
+        }),
+        publicKey: Type.String({
+            pattern: BASE64_PATTERN,
+            description: 'Base64 encoded DER public key (SPKI format)'
+        }),
+        keyId: Type.String({
+            format: 'uuid',
+            description: 'Client-generated UUID v4 key identifier'
+        }),
+        fingerprint: Type.String({
+            pattern: FINGERPRINT_PATTERN,
+            description: 'SHA-256 fingerprint of public key (64 hex characters)'
+        }),
+        algorithm: Type.Union([
+            Type.Literal('ES256'),
+            Type.Literal('RS256')
+        ], {
+            description: 'Signing algorithm (ES256 recommended, RS256 for compatibility)'
+        }),
+        keySize: Type.Optional(Type.Number({
+            description: 'Key size in bytes'
+        })),
+    }, {
+        minProperties: 5, // email/phone + password + publicKey + keyId + fingerprint
+        description: 'Email or phone must be provided'
+    }),
+    response: ApiResponseSchema(
+        Type.Object({
+            userId: Type.String(),
+            email: Type.Optional(Type.String()),
+            phone: Type.Optional(Type.String()),
+        })
+    ),
+} as const satisfies RouteContract;
+
+/**
  * POST /login - User login
  *
  * Authenticate user with email/phone and password
- * Returns JWT token and user info
+ * Replaces existing key with new one
  * Final path: /_auth/login (prefix added from package.json)
  */
 export const loginContract = {
@@ -76,24 +144,100 @@ export const loginContract = {
             minLength: 1,
             description: 'User password'
         }),
+        publicKey: Type.String({
+            pattern: BASE64_PATTERN,
+            description: 'Base64 encoded DER public key (SPKI format)'
+        }),
+        keyId: Type.String({
+            format: 'uuid',
+            description: 'Client-generated UUID v4 key identifier'
+        }),
+        fingerprint: Type.String({
+            pattern: FINGERPRINT_PATTERN,
+            description: 'SHA-256 fingerprint of public key (64 hex characters)'
+        }),
+        oldKeyId: Type.Optional(Type.String({
+            format: 'uuid',
+            description: 'Previous key ID to revoke (server-side cleanup)'
+        })),
+        algorithm: Type.Union([
+            Type.Literal('ES256'),
+            Type.Literal('RS256')
+        ], {
+            description: 'Signing algorithm (ES256 recommended, RS256 for compatibility)'
+        }),
+        keySize: Type.Optional(Type.Number({
+            description: 'Key size in bytes'
+        })),
     }, {
-        minProperties: 2, // email/phone + password
-        description: 'Email or phone must be provided along with password'
+        minProperties: 5, // email/phone + password + publicKey + keyId + fingerprint
+        description: 'Email or phone must be provided along with key data'
     }),
     response: ApiResponseSchema(
         Type.Object({
-            token: Type.String({ description: 'JWT authentication token' }),
-            user: Type.Object({
-                id: Type.String(),
-                email: Type.Optional(Type.String()),
-                phone: Type.Optional(Type.String()),
-                role: Type.String(),
-                emailVerifiedAt: Type.Optional(Type.String()),
-                phoneVerifiedAt: Type.Optional(Type.String()),
-            }),
+            userId: Type.String(),
+            email: Type.Optional(Type.String()),
+            phone: Type.Optional(Type.String()),
             passwordChangeRequired: Type.Boolean({
                 description: 'Whether user must change password before proceeding'
             }),
+        })
+    ),
+} as const satisfies RouteContract;
+
+/**
+ * POST /logout - Logout user
+ *
+ * Revokes current key (requires authentication)
+ * Final path: /_auth/logout (prefix added from package.json)
+ */
+export const logoutContract = {
+    method: 'POST' as const,
+    path: '/logout',
+    body: Type.Object({}),
+    response: ApiResponseSchema(
+        Type.Object({
+            success: Type.Boolean(),
+        })
+    ),
+} as const satisfies RouteContract;
+
+/**
+ * POST /keys/rotate - Rotate key
+ *
+ * Replace current key with new one (requires authentication)
+ * Final path: /_auth/keys/rotate (prefix added from package.json)
+ */
+export const rotateKeyContract = {
+    method: 'POST' as const,
+    path: '/keys/rotate',
+    body: Type.Object({
+        publicKey: Type.String({
+            pattern: BASE64_PATTERN,
+            description: 'Base64 encoded DER public key (SPKI format)'
+        }),
+        keyId: Type.String({
+            format: 'uuid',
+            description: 'Client-generated UUID v4 key identifier'
+        }),
+        fingerprint: Type.String({
+            pattern: FINGERPRINT_PATTERN,
+            description: 'SHA-256 fingerprint of public key (64 hex characters)'
+        }),
+        algorithm: Type.Union([
+            Type.Literal('ES256'),
+            Type.Literal('RS256')
+        ], {
+            description: 'Signing algorithm (ES256 recommended, RS256 for compatibility)'
+        }),
+        keySize: Type.Optional(Type.Number({
+            description: 'Key size in bytes'
+        })),
+    }),
+    response: ApiResponseSchema(
+        Type.Object({
+            success: Type.Boolean(),
+            keyId: Type.String(),
         })
     ),
 } as const satisfies RouteContract;

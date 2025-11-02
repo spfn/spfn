@@ -4,7 +4,7 @@
  * Types for contract detection and client code generation
  */
 
-import type { HttpMethod } from '../route/types.js';
+import type { HttpMethod } from '../../route';
 
 export type { HttpMethod };
 
