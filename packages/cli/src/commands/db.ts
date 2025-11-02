@@ -40,7 +40,7 @@ async function runDrizzleCommand(command: string): Promise<void>
             }
 
             // Generate temporary config
-            const { generateDrizzleConfigFile } = await import('@spfn/core');
+            const { generateDrizzleConfigFile } = await import('@spfn/core/db');
             const configContent = generateDrizzleConfigFile({
                 cwd: process.cwd()
             });

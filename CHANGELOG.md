@@ -7,6 +7,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.72] - 2025-11-03
+
+### Added
+
+#### @spfn/auth
+
+- **Custom Error Classes**: Added comprehensive error handling system in `server/errors/auth-errors.ts`
+  - New errors: `InvalidCredentials`, `AccountDisabled`, `AccountAlreadyExists`, `InvalidVerificationCode`, `InvalidToken`, `TokenExpired`, `KeyExpired`, etc.
+  - Migrated from manual JSON responses to throwing typed errors
+
+- **Email/SMS Verification System**: Implemented complete verification code flow
+  - Added `verification_codes` entity and helper functions
+  - New endpoints: `POST /_auth/codes` (send code), `POST /_auth/codes/verify` (verify code)
+  - Verification tokens with 15-minute validity for registration flow
+  - Support for registration, password reset, and email/phone change purposes
+
+- **Auth Context Helpers**: Created type-safe context access system
+  - New `AuthContext` interface grouping user, userId, keyId
+  - Extended Hono's `ContextVariableMap` for type-safe context
+  - Helper functions: `getAuth()`, `getUser()`, `getUserId()`, `getKeyId()`
+  - Updated all routes to use type-safe helpers
+
+- **Generated API Client**: Auto-generated type-safe client functions in `lib/api/`
+  - Functions: `authExists()`, `authLogin()`, `authRegister()`, `authCodesVerify()`, etc.
+  - Automatic contract-to-function conversion with proper naming
+
+- **Integration Tests**: Added comprehensive test coverage
+  - New integration tests for authenticate middleware (390 lines)
+  - New unit tests for verification system (250 lines)
+
+#### @spfn/cms
+
+- **Draft System**: Implemented draft/published version system
+  - `version: null` for drafts (mutable)
+  - `version: number` for published versions (immutable)
+  - Database migration 0002: Made version column nullable
+  - Drafts can be overwritten, published versions are immutable
+
+#### @spfn/core
+
+- **Enhanced Error Handling**: Added new HTTP error classes
+  - Better error serialization and HTTP status mapping
+  - Integration with auth error system
+
+- **API Response Helpers**: Added `c.success()` and `c.error()` helpers to RouteContext
+  - Simplified error handling in route handlers
+  - Better integration with error throwing pattern
+
+- **Route Binding**: New `bind.ts` module with route binding utilities
+
+### Changed
+
+#### @spfn/auth
+
+- **Registration Flow**: Now requires verification token from code verification
+  - New flow: send code → verify code → register with token
+  - Enhanced security with verification step
+
+- **Authentication Middleware**: Refactored to use error throwing instead of response objects
+  - Better separation of concerns
+  - Improved error messages and types
+  - Fire-and-forget `lastUsedAt` updates
+
+- **API Response Format**: Simplified response types (removed wrapper objects)
+  - Direct data returns instead of nested `data` wrapper for success responses
+
+#### @spfn/cms
+
+- **Entity Schema**: `cms_label_values.version` is now nullable
+- **Contract**: `saveValuesContract` accepts `version: null | number`
+- **Repository**: `upsert()` handles null version with draft/publish logic
+- **Store**: Fixed API call from `cmsPublishedCache.get()` to `getPublishedCache()`
+
+#### @spfn/core
+
+- **API Response Module**: Simplified `route/api-response.ts` (210 lines removed)
+- **Code Generator**: Improved contract-to-client generation in `codegen/built-in/contract/emitter.ts`
+  - Better function naming (e.g., POST /api/auth/login → `authLogin()`)
+  - Improved type generation for API clients
+
+### Breaking Changes
+
+#### @spfn/auth
+
+- Registration endpoint now requires `verificationToken` parameter
+- API response format changed (no more nested `data` wrapper for success)
+- Auth context access changed from `c.raw.get('user')` to `getUser(c)`
+
 ## [0.1.0-alpha.69] - 2025-11-02
 
 ### Added
