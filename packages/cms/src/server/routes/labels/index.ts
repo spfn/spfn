@@ -11,6 +11,7 @@ import { cmsLabelsRepository } from '@/server/repositories';
 import { getLabelsContract, createLabelContract } from '@/lib/contracts/labels';
 import { loadLabelsFromJson } from '@/server/helpers/sync';
 import { extractLabels } from '@/server/labels';
+import { DEFAULT_LABELS_DIR } from '@/lib/constants';
 import { join } from 'path';
 
 const app = createApp();
@@ -39,7 +40,7 @@ app.bind(getLabelsContract, async (c) =>
     {
         try
         {
-            const labelsDir = join(process.cwd(), 'src/cms/labels');
+            const labelsDir = join(process.cwd(), DEFAULT_LABELS_DIR);
             const sections = loadLabelsFromJson(labelsDir);
             const sectionDef = sections.find(s => s.section === section);
 

@@ -8,6 +8,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, extname, join } from 'path';
 import { extractLabels } from '@/server/labels';
 import { cmsLabelsRepository, cmsPublishedCacheRepository } from '@/server/repositories';
+import { DEFAULT_LABELS_DIR } from '@/lib/constants';
 import type { NestedLabels, SectionDefinition, SyncOptions, SyncResult } from '@/lib/types';
 
 /**
@@ -372,7 +373,7 @@ async function updatePublishedCache(section: string): Promise<void>
  * Call this in your server.config.ts beforeRoutes hook
  *
  * @param options - Sync options
- * @param options.labelsDir - Path to labels directory (default: 'src/cms/labels')
+ * @param options.labelsDir - Path to labels directory (default: 'src/lib/labels')
  *
  * @example
  * ```typescript
@@ -389,7 +390,7 @@ export async function initLabelSync(options: SyncOptions & { labelsDir?: string 
 {
     const isDevelopment = process.env.NODE_ENV === 'development';
     const verbose = options.verbose ?? isDevelopment;
-    const labelsDir = options.labelsDir ?? 'src/cms/labels';
+    const labelsDir = options.labelsDir ?? DEFAULT_LABELS_DIR;
 
     if (verbose)
     {
