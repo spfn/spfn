@@ -27,6 +27,80 @@ const FINGERPRINT_PATTERN = '^[a-f0-9]{64}$';
 const BASE64_PATTERN = '^[A-Za-z0-9+/]+=*$';
 
 /**
+ * POST /codes - Send verification code
+ *
+ * Sends a 6-digit verification code to email or phone
+ * Final path: /_auth/codes
+ */
+export const sendVerificationCodeContract = {
+    method: 'POST' as const,
+    path: '/_auth/codes',
+    body: Type.Object({
+        target: Type.String({
+            description: 'Email address or phone number in E.164 format'
+        }),
+        targetType: Type.Union([
+            Type.Literal('email'),
+            Type.Literal('phone')
+        ], {
+            description: 'Type of target (email or phone)'
+        }),
+        purpose: Type.Union([
+            Type.Literal('registration'),
+            Type.Literal('login'),
+            Type.Literal('password_reset')
+        ], {
+            description: 'Purpose of verification'
+        }),
+    }),
+    response: ApiResponseSchema(
+        Type.Object({
+            success: Type.Boolean(),
+            expiresAt: Type.String({ description: 'ISO 8601 expiry time' }),
+        })
+    ),
+} as const satisfies RouteContract;
+
+/**
+ * POST /codes/verify - Verify code (without creating account)
+ *
+ * Validates verification code, returns a temporary token
+ * Final path: /_auth/codes/verify
+ */
+export const verifyCodeContract = {
+    method: 'POST' as const,
+    path: '/_auth/codes/verify',
+    body: Type.Object({
+        target: Type.String({
+            description: 'Email address or phone number'
+        }),
+        targetType: Type.Union([
+            Type.Literal('email'),
+            Type.Literal('phone')
+        ]),
+        code: Type.String({
+            minLength: 6,
+            maxLength: 6,
+            pattern: '^[0-9]{6}$',
+            description: '6-digit verification code'
+        }),
+        purpose: Type.Union([
+            Type.Literal('registration'),
+            Type.Literal('login'),
+            Type.Literal('password_reset')
+        ]),
+    }),
+    response: ApiResponseSchema(
+        Type.Object({
+            valid: Type.Boolean(),
+            verificationToken: Type.Optional(Type.String({
+                description: 'Temporary token for completing registration (15min validity)'
+            })),
+        })
+    ),
+} as const satisfies RouteContract;
+
+/**
  * POST /exists - Check if account exists
  *
  * Checks if an email or phone number is already registered
@@ -34,7 +108,7 @@ const BASE64_PATTERN = '^[A-Za-z0-9+/]+=*$';
  */
 export const checkAccountExistsContract = {
     method: 'POST' as const,
-    path: '/exists',
+    path: '/_auth/exists',
     body: Type.Object(
         {
             email: Type.Optional(Type.String({
@@ -73,7 +147,7 @@ export const checkAccountExistsContract = {
  */
 export const registerContract = {
     method: 'POST' as const,
-    path: '/register',
+    path: '/_auth/register',
     body: Type.Object({
         email: Type.Optional(Type.String({
             pattern: EMAIL_PATTERN,
@@ -83,6 +157,9 @@ export const registerContract = {
             pattern: PHONE_PATTERN,
             description: 'Phone number in E.164 format'
         })),
+        verificationToken: Type.String({
+            description: 'Verification token obtained from /verify-code endpoint'
+        }),
         password: Type.String({
             minLength: 8,
             description: 'User password (minimum 8 characters)'
@@ -109,8 +186,8 @@ export const registerContract = {
             description: 'Key size in bytes'
         })),
     }, {
-        minProperties: 5, // email/phone + password + publicKey + keyId + fingerprint
-        description: 'Email or phone must be provided'
+        minProperties: 6, // email/phone + verificationToken + password + publicKey + keyId + fingerprint
+        description: 'Email or phone must be provided with verification token'
     }),
     response: ApiResponseSchema(
         Type.Object({
@@ -130,7 +207,7 @@ export const registerContract = {
  */
 export const loginContract = {
     method: 'POST' as const,
-    path: '/login',
+    path: '/_auth/login',
     body: Type.Object({
         email: Type.Optional(Type.String({
             pattern: EMAIL_PATTERN,
@@ -193,7 +270,7 @@ export const loginContract = {
  */
 export const logoutContract = {
     method: 'POST' as const,
-    path: '/logout',
+    path: '/_auth/logout',
     body: Type.Object({}),
     response: ApiResponseSchema(
         Type.Object({
@@ -210,7 +287,7 @@ export const logoutContract = {
  */
 export const rotateKeyContract = {
     method: 'POST' as const,
-    path: '/keys/rotate',
+    path: '/_auth/keys/rotate',
     body: Type.Object({
         publicKey: Type.String({
             pattern: BASE64_PATTERN,
@@ -243,15 +320,15 @@ export const rotateKeyContract = {
 } as const satisfies RouteContract;
 
 /**
- * POST /change-password - Change user password
+ * PUT /password - Change user password
  *
  * Allows authenticated users to change their password
  * Requires current password for verification
- * Final path: /_auth/change-password (prefix added from package.json)
+ * Final path: /_auth/password (prefix added from package.json)
  */
 export const changePasswordContract = {
-    method: 'POST' as const,
-    path: '/change-password',
+    method: 'PUT' as const,
+    path: '/_auth/password',
     body: Type.Object({
         currentPassword: Type.String({
             minLength: 1,

@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { TSchema, Static } from '@sinclair/typebox';
+import type { ApiSuccessResponse } from './api-response.js';
 
 /**
  * File-based Routing System Type Definitions
@@ -64,6 +65,17 @@ export type RouteContext<TContract extends RouteContract = any> = {
         data: InferContract<TContract>['response'],
         status?: ContentfulStatusCode,
         headers?: HeaderRecord
+    ): Response;
+    success<T>(
+        data: T,
+        meta?: ApiSuccessResponse<T>['meta'],
+        status?: number
+    ): Response;
+    paginated<T>(
+        data: T[],
+        page: number,
+        limit: number,
+        total: number
     ): Response;
     raw: Context;
 };

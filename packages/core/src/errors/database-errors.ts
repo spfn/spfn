@@ -74,16 +74,16 @@ export class QueryError extends DatabaseError
 }
 
 /**
- * Not Found Error (404 Not Found)
+ * Entity Not Found Error (404 Not Found)
  *
- * Requested resource does not exist
+ * Database entity does not exist
  */
-export class NotFoundError extends QueryError
+export class EntityNotFoundError extends QueryError
 {
     constructor(resource: string, id: string | number)
     {
         super(`${resource} with id ${id} not found`, 404, { resource, id });
-        this.name = 'NotFoundError';
+        this.name = 'EntityNotFoundError';
     }
 }
 

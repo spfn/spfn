@@ -9,7 +9,7 @@
  * - New: Client signs with privateKey, server verifies with publicKey (asymmetric)
  */
 
-import jwt from 'jsonwebtoken';
+import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 import type { SessionPayload } from '@/lib/types/api';
 
@@ -37,7 +37,7 @@ export function generateToken(payload: SessionPayload): string
 {
     return jwt.sign(payload, JWT_SECRET, {
         expiresIn: JWT_EXPIRES_IN,
-    });
+    } as SignOptions);
 }
 
 /**
@@ -95,10 +95,18 @@ export function verifyClientToken(
             type: 'spki',
         });
 
-        return jwt.verify(token, publicKeyObject, {
+        const decoded = jwt.verify(token, publicKeyObject, {
             algorithms: [algorithm],  // Prevent algorithm confusion attacks
             issuer: 'spfn-client',    // Validate token issuer
-        }) as TokenPayload;
+        });
+
+        // jwt.verify can return string, but we expect object payload
+        if (typeof decoded === 'string')
+        {
+            throw new Error('Invalid token format: expected object payload');
+        }
+
+        return decoded as TokenPayload;
     }
     catch (error)
     {
@@ -106,10 +114,12 @@ export function verifyClientToken(
         {
             throw new Error('Token has expired');
         }
+
         if (error instanceof jwt.JsonWebTokenError)
         {
             throw new Error('Invalid token signature');
         }
+
         throw new Error(`Token verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }

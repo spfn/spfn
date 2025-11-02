@@ -7,8 +7,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, readFileSync, existsSync } from 'fs';
 import { resolve, join } from 'path';
-import { generateClient } from '../generators/contract/client-generator';
-import type { RouteContractMapping, ClientGenerationOptions } from '../types';
+import { generateClient } from '../built-in/contract/emitter';
+import type { RouteContractMapping, ClientGenerationOptions } from '../core/types';
 
 const TEST_DIR = resolve(process.cwd(), '.test-tmp-generator');
 const OUTPUT_DIR = join(TEST_DIR, 'api');
@@ -65,17 +65,15 @@ describe('Client Generator', () =>
             // Should include singleton client import
             expect(usersFile).toContain("import { client } from '@spfn/core/client'");
 
-            // Should export users object
-            expect(usersFile).toContain('export const users =');
-
-            // Should generate method
-            expect(usersFile).toContain('list:');
+            // Should export individual functions (not object)
+            expect(usersFile).toContain('export const listUsers =');
 
             // Read the index file
             const indexFile = readFileSync(join(OUTPUT_DIR, 'index.ts'), 'utf-8');
 
-            // Should export all from users
-            expect(indexFile).toContain("export * from './users.js'");
+            // Should export types from users
+            expect(indexFile).toContain("export type {");
+            expect(indexFile).toContain("from './users.js'");
 
             // Should export client
             expect(indexFile).toContain("export { client } from '@spfn/core/client'");
@@ -124,10 +122,10 @@ describe('Client Generator', () =>
             expect(usersFile).toContain('createUserContract');
             expect(usersFile).toContain('getUserContract');
 
-            // Should generate all methods
-            expect(usersFile).toContain('list:');
-            expect(usersFile).toContain('create:');
-            expect(usersFile).toContain('getById:');
+            // Should generate all functions
+            expect(usersFile).toContain('export const listUsers =');
+            expect(usersFile).toContain('export const createUser =');
+            expect(usersFile).toContain('export const getUser =');
         });
 
         it('should generate client with multiple resources', async () =>
@@ -163,15 +161,16 @@ describe('Client Generator', () =>
             expect(existsSync(join(OUTPUT_DIR, 'users.ts'))).toBe(true);
             expect(existsSync(join(OUTPUT_DIR, 'posts.ts'))).toBe(true);
 
-            // Check index file exports both resources
+            // Check index file exports types from both resources
             const indexFile = readFileSync(join(OUTPUT_DIR, 'index.ts'), 'utf-8');
-            expect(indexFile).toContain("export * from './users.js'");
-            expect(indexFile).toContain("export * from './posts.js'");
+            expect(indexFile).toContain("export type {");
+            expect(indexFile).toContain("from './users.js'");
+            expect(indexFile).toContain("from './posts.js'");
 
-            // Check that api object combines both resources
+            // Check that api object combines all functions flattened
             expect(indexFile).toContain('export const api =');
-            expect(indexFile).toContain('users,');
-            expect(indexFile).toContain('posts');
+            expect(indexFile).toContain('listUsers');
+            expect(indexFile).toContain('listPosts');
         });
 
 
@@ -256,10 +255,10 @@ describe('Client Generator', () =>
 
             const usersFile = readFileSync(join(OUTPUT_DIR, 'users.ts'), 'utf-8');
 
-            // Should generate semantic method names
-            expect(usersFile).toContain('getById:');
-            expect(usersFile).toContain('delete:');
-            expect(usersFile).toContain('update:');
+            // Should generate semantic function names based on contract names
+            expect(usersFile).toContain('export const getUser =');
+            expect(usersFile).toContain('export const deleteUser =');
+            expect(usersFile).toContain('export const updateUser =');
         });
 
         it('should deduplicate contract imports', async () =>
@@ -320,13 +319,14 @@ describe('Client Generator', () =>
 
             expect(stats.methodsGenerated).toBe(1);
 
-            // Check index file for resource export
+            // Check index file for resource export (kebab-case)
             const indexFile = readFileSync(join(OUTPUT_DIR, 'index.ts'), 'utf-8');
-            expect(indexFile).toContain("export * from './apiV1UsersPostsComments.js'");
+            expect(indexFile).toContain("export type {");
+            expect(indexFile).toContain("from './api-v1users-posts-comments.js'");
 
-            // Check that api object has the resource
+            // Check that api object has the function flattened
             expect(indexFile).toContain('export const api =');
-            expect(indexFile).toContain('apiV1UsersPostsComments');
+            expect(indexFile).toContain('getComments');
         });
 
 

@@ -76,6 +76,7 @@
     "@vitest/coverage-v8": "^4.0.6",
     "drizzle-kit": "^0.31.6",
     "glob": "^11.0.3",
+    "hono": "^4.9.0",
     "jose": "^6.1.0",
     "spfn": "workspace:*",
     "tsup": "^8.3.5",

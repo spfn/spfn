@@ -10,7 +10,47 @@
  */
 
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
+import jwt, { type Algorithm, type SignOptions } from 'jsonwebtoken';
+
+type Unit =
+    | "Years"
+    | "Year"
+    | "Yrs"
+    | "Yr"
+    | "Y"
+    | "Weeks"
+    | "Week"
+    | "W"
+    | "Days"
+    | "Day"
+    | "D"
+    | "Hours"
+    | "Hour"
+    | "Hrs"
+    | "Hr"
+    | "H"
+    | "Minutes"
+    | "Minute"
+    | "Mins"
+    | "Min"
+    | "M"
+    | "Seconds"
+    | "Second"
+    | "Secs"
+    | "Sec"
+    | "s"
+    | "Milliseconds"
+    | "Millisecond"
+    | "Msecs"
+    | "Msec"
+    | "Ms";
+
+type UnitAnyCase = Unit | Uppercase<Unit> | Lowercase<Unit>;
+
+type StringValue =
+    | `${number}`
+    | `${number}${UnitAnyCase}`
+    | `${number} ${UnitAnyCase}`;
 
 export interface KeyPair
 {
@@ -126,9 +166,9 @@ export function generateKeyPair(
 export function generateClientToken(
     payload: Record<string, any>,
     privateKeyB64: string,
-    algorithm: 'ES256' | 'RS256',
+    algorithm: Algorithm,
     options?: {
-        expiresIn?: string;
+        expiresIn?: StringValue | number;
         issuer?: string;
     }
 ): string
@@ -145,11 +185,19 @@ export function generateClientToken(
             type: 'pkcs8',
         });
 
-        return jwt.sign(payload, privateKeyObject, {
-            algorithm,
-            expiresIn: options?.expiresIn || '15m',
-            issuer: options?.issuer || 'spfn-client',
+        // Export as PEM for jwt.sign
+        const privateKeyPEM = privateKeyObject.export({
+            type: 'pkcs8',
+            format: 'pem',
         });
+
+        const signOptions: SignOptions = {
+            algorithm,
+            expiresIn: options?.expiresIn,
+            issuer: options?.issuer || 'spfn-client',
+        }
+
+        return jwt.sign(payload, privateKeyPEM, signOptions);
     }
     catch (error)
     {

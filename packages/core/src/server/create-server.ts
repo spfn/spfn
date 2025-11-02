@@ -16,6 +16,15 @@ import { createHealthCheckHandler } from './helpers.js';
 
 import type { ServerConfig, AppFactory } from './types.js';
 
+// Extend Hono context with error handler flag
+declare module 'hono'
+{
+    interface ContextVariableMap
+    {
+        errorHandlerEnabled?: boolean;
+    }
+}
+
 const serverLogger = logger.child('server');
 
 /**
@@ -74,25 +83,35 @@ async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
     const enableCors = middlewareConfig.cors !== false;
     const enableErrorHandler = middlewareConfig.errorHandler !== false;
 
-    // 1. Default middleware
+    // 1. Set error handler flag in context
+    if (enableErrorHandler)
+    {
+        app.use('*', async (c, next) =>
+        {
+            c.set('errorHandlerEnabled', true);
+            await next();
+        });
+    }
+
+    // 2. Default middleware
     applyDefaultMiddleware(app, config, enableLogger, enableCors);
 
-    // 2. Custom middleware
+    // 3. Custom middleware
     config?.use?.forEach(mw => app.use('*', mw));
 
-    // 3. Health check endpoint
+    // 4. Health check endpoint
     registerHealthCheckEndpoint(app, config);
 
-    // 4. beforeRoutes hook
+    // 5. beforeRoutes hook
     await executeBeforeRoutesHook(app, config);
 
-    // 5. Load routes
+    // 6. Load routes
     await loadAppRoutes(app, config);
 
-    // 6. afterRoutes hook
+    // 7. afterRoutes hook
     await executeAfterRoutesHook(app, config);
 
-    // 7. Error handler
+    // 8. Error handler
     if (enableErrorHandler)
     {
         app.onError(ErrorHandler());

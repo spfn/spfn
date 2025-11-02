@@ -19,20 +19,32 @@
 
 import type { Context, Next } from 'hono';
 import { verifyClientToken } from '@/server/helpers/jwt';
-import { findOne } from '@spfn/core/db';
+import { findOne, getDatabase } from '@spfn/core/db';
 import { users, userPublicKeys } from '@/server/entities';
 import type { User } from '@/server/entities/users';
+import {
+    InvalidTokenError,
+    TokenExpiredError,
+    KeyExpiredError,
+    AccountDisabledError,
+} from '@/server/errors';
+import { UnauthorizedError } from '@spfn/core/errors';
 import { eq, and } from 'drizzle-orm';
-import { db } from '@spfn/core/db';
 
-// Extend Hono context with user
+// Auth context type
+export interface AuthContext
+{
+    user: User;
+    userId: string;
+    keyId: string;
+}
+
+// Extend Hono context with auth
 declare module 'hono'
 {
     interface ContextVariableMap
     {
-        user: User;
-        userId: string;
-        keyId: string;
+        auth: AuthContext;
     }
 }
 
@@ -46,14 +58,13 @@ declare module 'hono'
  * ```typescript
  * // In route file
  * app.bind(logoutContract, [authenticate], async (c) => {
- *     const user = c.get('user');  // Available after authentication
- *     const userId = c.get('userId');
- *     const keyId = c.get('keyId');
- *     // ...
+ *     const auth = c.raw.get('auth');  // Get auth context
+ *     const { user, userId, keyId } = auth;
+ *     // Or access directly: c.raw.get('auth').user
  * });
  * ```
  */
-export async function authenticate(c: Context, next: Next)
+export async function authenticate(c: Context, next: Next): Promise<Response | void>
 {
     // Extract Authorization header
     const authHeader = c.req.header('Authorization');
@@ -62,150 +73,56 @@ export async function authenticate(c: Context, next: Next)
     // Validate Authorization header format
     if (!authHeader || !authHeader.startsWith('Bearer '))
     {
-        return c.json(
-            {
-                success: false,
-                error:
-                {
-                    code: 'UNAUTHORIZED',
-                    message: 'Missing or invalid authorization header',
-                },
-            },
-            401
-        );
+        throw new UnauthorizedError('Missing or invalid authorization header');
     }
 
     // Validate X-Key-Id header
     if (!keyId)
     {
-        return c.json(
-            {
-                success: false,
-                error:
-                {
-                    code: 'UNAUTHORIZED',
-                    message: 'Missing X-Key-Id header',
-                },
-            },
-            401
-        );
+        throw new UnauthorizedError('Missing X-Key-Id header');
     }
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
+    // 1. Get public key from database
+    // Query conditions:
+    // - keyId matches (UUID)
+    // - isActive = true (not revoked)
+    const db = getDatabase()!;
+    const [keyRecord] = await db
+        .select()
+        .from(userPublicKeys)
+        .where(
+            and(
+                eq(userPublicKeys.keyId, keyId),
+                eq(userPublicKeys.isActive, true)
+            )
+        );
+
+    if (!keyRecord)
+    {
+        throw new UnauthorizedError('Invalid or revoked key');
+    }
+
+    // 2. Check key expiration
+    // Keys expire after 90 days by default
+    if (keyRecord.expiresAt && new Date() > keyRecord.expiresAt)
+    {
+        throw new KeyExpiredError();
+    }
+
+    // 3. Verify JWT signature with public key
+    // This validates:
+    // - Signature matches (client signed with private key)
+    // - Token not expired (15min default)
+    // - Issuer is 'spfn-client'
     try
     {
-        // 1. Get public key from database
-        // Query conditions:
-        // - keyId matches (UUID)
-        // - isActive = true (not revoked)
-        const [keyRecord] = await db
-            .select()
-            .from(userPublicKeys)
-            .where(
-                and(
-                    eq(userPublicKeys.keyId, keyId),
-                    eq(userPublicKeys.isActive, true)
-                )
-            );
-
-        if (!keyRecord)
-        {
-            return c.json(
-                {
-                    success: false,
-                    error:
-                    {
-                        code: 'UNAUTHORIZED',
-                        message: 'Invalid or revoked key',
-                    },
-                },
-                401
-            );
-        }
-
-        // 2. Check key expiration
-        // Keys expire after 90 days by default
-        if (keyRecord.expiresAt && new Date() > keyRecord.expiresAt)
-        {
-            return c.json(
-                {
-                    success: false,
-                    error:
-                    {
-                        code: 'KEY_EXPIRED',
-                        message: 'Key has expired, please rotate',
-                    },
-                },
-                401
-            );
-        }
-
-        // 3. Verify JWT signature with public key
-        // This validates:
-        // - Signature matches (client signed with private key)
-        // - Token not expired (15min default)
-        // - Issuer is 'spfn-client'
-        const payload = verifyClientToken(
+        verifyClientToken(
             token,
             keyRecord.publicKey,
             keyRecord.algorithm as 'ES256' | 'RS256'
         );
-
-        // 4. Get user from database
-        const user = await findOne(users, { id: keyRecord.userId });
-        if (!user)
-        {
-            return c.json(
-                {
-                    success: false,
-                    error:
-                    {
-                        code: 'UNAUTHORIZED',
-                        message: 'User not found',
-                    },
-                },
-                401
-            );
-        }
-
-        // 5. Check if user account is active
-        // Status can be: active, inactive, suspended
-        if (user.status !== 'active')
-        {
-            return c.json(
-                {
-                    success: false,
-                    error:
-                    {
-                        code: 'ACCOUNT_DISABLED',
-                        message: `Account is ${user.status}`,
-                    },
-                },
-                403  // Forbidden (not 401 Unauthorized)
-            );
-        }
-
-        // 6. Update last used timestamp (fire-and-forget)
-        // Don't await to avoid blocking the request
-        // Useful for:
-        // - Security audits
-        // - Detecting inactive keys
-        // - Key rotation reminders
-        db.update(userPublicKeys)
-            .set({ lastUsedAt: new Date() })
-            .where(eq(userPublicKeys.id, keyRecord.id))
-            .execute()
-            .catch(err => console.error('Failed to update lastUsedAt:', err));
-
-        // 7. Attach user data to context
-        // Available in downstream route handlers
-        c.set('user', user);
-        c.set('userId', String(user.id));
-        c.set('keyId', keyId);
-
-        // Continue to route handler
-        await next();
     }
     catch (err)
     {
@@ -215,47 +132,54 @@ export async function authenticate(c: Context, next: Next)
             // Token expired (15min TTL)
             if (err.name === 'TokenExpiredError')
             {
-                return c.json(
-                    {
-                        success: false,
-                        error:
-                        {
-                            code: 'TOKEN_EXPIRED',
-                            message: 'Token has expired',
-                        },
-                    },
-                    401
-                );
+                throw new TokenExpiredError();
             }
 
             // Invalid signature
             if (err.name === 'JsonWebTokenError')
             {
-                return c.json(
-                    {
-                        success: false,
-                        error:
-                        {
-                            code: 'INVALID_TOKEN',
-                            message: 'Invalid token signature',
-                        },
-                    },
-                    401
-                );
+                throw new InvalidTokenError('Invalid token signature');
             }
         }
 
         // Generic authentication failure
-        return c.json(
-            {
-                success: false,
-                error:
-                {
-                    code: 'AUTHENTICATION_FAILED',
-                    message: 'Authentication failed',
-                },
-            },
-            401
-        );
+        throw new UnauthorizedError('Authentication failed');
     }
+
+    // 4. Get user from database
+    const user = await findOne(users, { id: keyRecord.userId });
+    if (!user)
+    {
+        throw new UnauthorizedError('User not found');
+    }
+
+    // 5. Check if user account is active
+    // Status can be: active, inactive, suspended
+    if (user.status !== 'active')
+    {
+        throw new AccountDisabledError(user.status);
+    }
+
+    // 6. Update last used timestamp (fire-and-forget)
+    // Don't await to avoid blocking the request
+    // Useful for:
+    // - Security audits
+    // - Detecting inactive keys
+    // - Key rotation reminders
+    db.update(userPublicKeys)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(userPublicKeys.id, keyRecord.id))
+        .execute()
+        .catch((err: unknown) => console.error('Failed to update lastUsedAt:', err));
+
+    // 7. Attach auth data to context
+    // Available in downstream route handlers via c.get('auth')
+    c.set('auth', {
+        user,
+        userId: String(user.id),
+        keyId,
+    });
+
+    // Continue to route handler
+    await next();
 }

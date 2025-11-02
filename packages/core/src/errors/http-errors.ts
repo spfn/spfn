@@ -103,6 +103,21 @@ export class ForbiddenError extends HttpError
 }
 
 /**
+ * Not Found Error (404)
+ *
+ * Requested resource does not exist
+ * Generic HTTP 404 error (for database-specific NotFoundError, see database-errors.ts)
+ */
+export class NotFoundError extends HttpError
+{
+    constructor(message: string = 'Resource not found', details?: Record<string, any>)
+    {
+        super(message, 404, details);
+        this.name = 'NotFoundError';
+    }
+}
+
+/**
  * Conflict Error (409)
  *
  * Generic conflict - resource state conflict, concurrent modification, etc.
@@ -150,6 +165,20 @@ export class InternalServerError extends HttpError
     {
         super(message, 500, details);
         this.name = 'InternalServerError';
+    }
+}
+
+/**
+ * Unprocessable Entity Error (422)
+ *
+ * Request is well-formed but contains semantic errors
+ */
+export class UnprocessableEntityError extends HttpError
+{
+    constructor(message: string = 'Unprocessable entity', details?: Record<string, any>)
+    {
+        super(message, 422, details);
+        this.name = 'UnprocessableEntityError';
     }
 }
 

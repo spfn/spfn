@@ -15,9 +15,6 @@ export type { SPFNApp } from './create-app.js';
 
 // API Response helpers (optional)
 export {
-  success,
-  error,
-  paginated,
   ApiSuccessSchema,
   ApiErrorSchema,
   ApiResponseSchema,

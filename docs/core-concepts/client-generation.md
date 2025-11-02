@@ -30,24 +30,32 @@ import { getTeamsContract, createTeamContract } from '@/lib/contracts/teams';
 export type GetTeamsResponse = InferContract<typeof getTeamsContract>['response'];
 export type GetTeamsQuery = InferContract<typeof getTeamsContract>['query'];
 export type CreateTeamBody = InferContract<typeof createTeamContract>['body'];
+export type CreateTeamResponse = InferContract<typeof createTeamContract>['response'];
 
-// API client with full type safety
-export const teams = {
-    list: (options: { query?: GetTeamsQuery }) => client.call(getTeamsContract, options),
-    create: (options: { body: CreateTeamBody }) => client.call(createTeamContract, options),
-} as const;
+// Individual function exports with full type safety
+export const getTeams = (options: { query?: GetTeamsQuery }) =>
+    client.call(getTeamsContract, options);
+
+export const createTeam = (options: { body: CreateTeamBody }) =>
+    client.call(createTeamContract, options);
 
 // src/lib/api/index.ts (Auto-generated)
 export { client } from '@spfn/core/client';
-export * from './teams.js';
-export * from './users.js';
 
-import { teams } from './teams.js';
-import { users } from './users.js';
+// Re-export types from resource modules
+export type { GetTeamsResponse, GetTeamsQuery, CreateTeamBody, CreateTeamResponse } from './teams.js';
+export type { GetUsersResponse, CreateUserBody, CreateUserResponse } from './users.js';
 
+// Import functions from resource modules
+import { getTeams, createTeam } from './teams.js';
+import { getUsers, createUser } from './users.js';
+
+// Flat API object with all functions
 export const api = {
-    teams,
-    users
+    getTeams,
+    createTeam,
+    getUsers,
+    createUser
 } as const;
 ```
 
@@ -71,21 +79,26 @@ export const api = {
 
 ## Client Structure
 
-The generated client organizes endpoints by resource:
+The generated client provides flat function exports organized by resource files:
 
 ```typescript
 import { api } from '@/lib/api';
 
-// Grouped by resource
-api.teams.list()          // GET /teams
-api.teams.getById()       // GET /teams/:id
-api.teams.create()        // POST /teams
-api.teams.update()        // PUT /teams/:id
-api.teams.delete()        // DELETE /teams/:id
+// Flat API object with camelCase function names
+api.getTeams()          // GET /teams
+api.getTeam()           // GET /teams/:id
+api.createTeam()        // POST /teams
+api.updateTeam()        // PUT /teams/:id
+api.deleteTeam()        // DELETE /teams/:id
 
-api.users.list()          // GET /users
-api.users.create()        // POST /users
+api.getUsers()          // GET /users
+api.createUser()        // POST /users
 // ... and so on
+
+// Function names are derived from contract names
+// getTeamsContract → getTeams
+// createTeamContract → createTeam
+// updateTeamContract → updateTeam
 ```
 
 ## Using the Client
@@ -100,7 +113,7 @@ import { api } from '@/lib/api';
 
 export default async function TeamsPage() {
   // Direct API call - no useState, no useEffect
-  const { items: teams, total } = await api.teams.list({
+  const { items: teams, total } = await api.getTeams({
     query: { published: true }
   });
 
@@ -141,7 +154,7 @@ export function CreateTeamForm() {
     setLoading(true);
 
     try {
-      const team = await api.teams.create({ body: formData });
+      const team = await api.createTeam({ body: formData });
       console.log('Created team:', team.id);
     } catch (error) {
       console.error('Failed to create team:', error);
@@ -162,7 +175,7 @@ The generated client follows consistent patterns for different HTTP methods:
 
 ```typescript
 // GET /teams with query parameters
-const result = await api.teams.list({
+const result = await api.getTeams({
   query: {
     published: true,
     limit: 10,
@@ -170,15 +183,15 @@ const result = await api.teams.list({
   }
 });
 
-// GET /teams (no query parameters)
-const result = await api.teams.list({});
+// GET /teams (no query parameters - if query is optional)
+const result = await api.getTeams();
 ```
 
 ### GET Requests (Single Item)
 
 ```typescript
 // GET /teams/:id
-const team = await api.teams.getById({
+const team = await api.getTeam({
   params: { id: 123 }
 });
 
@@ -189,7 +202,7 @@ console.log(team.name); // Fully typed!
 
 ```typescript
 // POST /teams with body
-const team = await api.teams.create({
+const team = await api.createTeam({
   body: {
     name: 'Engineering',
     slug: 'engineering',
@@ -202,7 +215,7 @@ const team = await api.teams.create({
 
 ```typescript
 // PUT /teams/:id with params and body
-const team = await api.teams.update({
+const team = await api.updateTeam({
   params: { id: 123 },
   body: {
     name: 'Engineering Team',
@@ -215,7 +228,7 @@ const team = await api.teams.update({
 
 ```typescript
 // DELETE /teams/:id
-const result = await api.teams.delete({
+const result = await api.deleteTeam({
   params: { id: 123 }
 });
 ```
@@ -267,7 +280,7 @@ import { client } from '@/lib/api';
 client.setBaseURL(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8790');
 
 // Now all API calls use this base URL
-await api.teams.list({}); // → http://localhost:8790/teams
+await api.getTeams(); // → http://localhost:8790/teams
 ```
 
 ## Error Handling
@@ -276,7 +289,7 @@ The client throws errors that you can catch and handle:
 
 ```typescript
 try {
-  const team = await api.teams.create({
+  const team = await api.createTeam({
     body: { name: 'Team', slug: 'team' }
   });
 } catch (error) {
@@ -297,40 +310,21 @@ try {
 }
 ```
 
-## Resource Naming Convention
-
-The client groups methods by resource name derived from contract filenames:
-
-```bash
-// File structure determines API client structure
-src/lib/contracts/
-├─ teams.ts           → api.teams.*
-├─ users.ts           → api.users.*
-├─ team-members.ts    → api.teamMembers.*
-└─ investment-proposals.ts → api.investmentProposals.*
-
-// Naming conversion:
-// - teams.ts → api.teams
-// - team-members.ts → api.teamMembers (camelCase)
-// - investment-proposals.ts → api.investmentProposals (camelCase)
-```
-
 ## Method Naming Convention
 
-Method names are derived from contract variable names:
+Function names are derived from contract variable names by removing the "Contract" suffix:
 
 ```typescript
 // src/lib/contracts/teams.ts
-export const getTeamsContract = { /* ... */ };         // → api.teams.list()
-export const getTeamContract = { /* ... */ };          // → api.teams.getById()
-export const createTeamContract = { /* ... */ };       // → api.teams.create()
-export const updateTeamContract = { /* ... */ };       // → api.teams.update()
-export const deleteTeamContract = { /* ... */ };       // → api.teams.delete()
+export const getTeamsContract = { /* ... */ };         // → api.getTeams()
+export const getTeamContract = { /* ... */ };          // → api.getTeam()
+export const createTeamContract = { /* ... */ };       // → api.createTeam()
+export const updateTeamContract = { /* ... */ };       // → api.updateTeam()
+export const deleteTeamContract = { /* ... */ };       // → api.deleteTeam()
 
-// Special cases:
-export const getTeamBySlugContract = { /* ... */ };    // → api.teams.getBySlug()
-export const publishTeamContract = { /* ... */ };      // → api.teams.publish()
-export const createPresignedUrlContract = { /* ... */ }; // → api.filesPresigned.post()
+// Special naming examples:
+export const getTeamBySlugContract = { /* ... */ };    // → api.getTeamBySlug()
+export const publishTeamContract = { /* ... */ };      // → api.publishTeam()
 ```
 
 ## Best Practices
@@ -340,7 +334,7 @@ export const createPresignedUrlContract = { /* ... */ }; // → api.filesPresign
 ```typescript
 // ✅ Good: Use generated client
 import { api } from '@/lib/api';
-const teams = await api.teams.list({});
+const teams = await api.getTeams();
 
 // ❌ Bad: Manual fetch
 const response = await fetch('/teams');
@@ -381,7 +375,7 @@ export async function apiCall<T>(
 
 // Usage
 const team = await apiCall(
-  () => api.teams.create({ body: data }),
+  () => api.createTeam({ body: data }),
   'Failed to create team'
 );
 ```

@@ -13,7 +13,6 @@ import {
     verifyClientToken,
     getKeySize,
     shouldRotateKey,
-    type TokenPayload,
 } from '@/client/lib/crypto';
 import { decodeToken } from '@/server/helpers/jwt';
 

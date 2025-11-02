@@ -31,8 +31,7 @@
 
 import type { TSchema } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import type { RouteContext, RouteContract } from './types.js';
-import type { ErrorResponse } from '../middleware/error-handler.js';
+import type { ErrorResponse } from '../middleware';
 
 // ============================================================================
 // Type Definitions
@@ -41,20 +40,21 @@ import type { ErrorResponse } from '../middleware/error-handler.js';
 /**
  * Success response wrapper
  */
-export interface ApiSuccessResponse<T = any> {
-  success: true;
-  data: T;
-  meta?: {
-    timestamp?: string;
-    requestId?: string;
-    pagination?: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
+export interface ApiSuccessResponse<T = any>
+{
+    success: true;
+    data: T;
+    meta?: {
+        timestamp?: string;
+        requestId?: string;
+        pagination?: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
+        [key: string]: any;
     };
-    [key: string]: any;
-  };
 }
 
 /**
@@ -86,37 +86,39 @@ export type ApiResponse<T = any> = ApiSuccessResponse<T> | ApiErrorResponse;
  * };
  * ```
  */
-export function ApiSuccessSchema<T extends TSchema>(dataSchema: T) {
-  return Type.Object({
-    success: Type.Literal(true),
-    data: dataSchema,
-    meta: Type.Optional(Type.Object({
-      timestamp: Type.Optional(Type.String()),
-      requestId: Type.Optional(Type.String()),
-      pagination: Type.Optional(Type.Object({
-        page: Type.Number(),
-        limit: Type.Number(),
-        total: Type.Number(),
-        totalPages: Type.Number(),
-      })),
-    })),
-  });
+export function ApiSuccessSchema<T extends TSchema>(dataSchema: T)
+{
+    return Type.Object({
+        success: Type.Literal(true),
+        data: dataSchema,
+        meta: Type.Optional(Type.Object({
+            timestamp: Type.Optional(Type.String()),
+            requestId: Type.Optional(Type.String()),
+            pagination: Type.Optional(Type.Object({
+                page: Type.Number(),
+                limit: Type.Number(),
+                total: Type.Number(),
+                totalPages: Type.Number(),
+            })),
+        })),
+    });
 }
 
 /**
  * Creates a TypeBox schema for ApiErrorResponse
  */
-export function ApiErrorSchema() {
-  return Type.Object({
-    success: Type.Literal(false),
-    error: Type.Object({
-      message: Type.String(),
-      type: Type.String(),
-      statusCode: Type.Number(),
-      stack: Type.Optional(Type.String()),
-      details: Type.Optional(Type.Any()),
-    }),
-  });
+export function ApiErrorSchema()
+{
+    return Type.Object({
+        success: Type.Literal(false),
+        error: Type.Object({
+            message: Type.String(),
+            type: Type.String(),
+            statusCode: Type.Number(),
+            stack: Type.Optional(Type.String()),
+            details: Type.Optional(Type.Any()),
+        }),
+    });
 }
 
 /**
@@ -136,124 +138,10 @@ export function ApiErrorSchema() {
  * };
  * ```
  */
-export function ApiResponseSchema<T extends TSchema>(dataSchema: T) {
-  return Type.Union([
-    ApiSuccessSchema(dataSchema),
-    ApiErrorSchema(),
-  ]);
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Creates a success response
- *
- * @example
- * ```ts
- * // Simple success
- * return success(c, { id: '123', name: 'John' });
- *
- * // With metadata
- * return success(c, user, { timestamp: new Date().toISOString() });
- *
- * // With custom status
- * return success(c, newUser, undefined, 201);
- * ```
- */
-export function success<T, TContract extends RouteContract = any>(
-  c: RouteContext<TContract>,
-  data: T,
-  meta?: ApiSuccessResponse<T>['meta'],
-  status: number = 200
-): Response {
-  const response: ApiSuccessResponse<T> = {
-    success: true,
-    data,
-  };
-
-  if (meta) {
-    response.meta = meta;
-  }
-
-  return c.json(response as any, status as any);
-}
-
-/**
- * Creates an error response
- *
- * Note: This is a convenience wrapper. ValidationErrors thrown by bind()
- * are automatically handled by ErrorHandler middleware.
- *
- * @example
- * ```ts
- * // Not found
- * return error(c, 'User not found', 404);
- *
- * // Validation error with details
- * return error(c, 'Invalid input', 400, { fields: ['email', 'password'] });
- * ```
- */
-export function error<TContract extends RouteContract = any>(
-  c: RouteContext<TContract>,
-  message: string,
-  statusCode: number = 400,
-  details?: any
-): Response {
-  const response: ApiErrorResponse = {
-    success: false,
-    error: {
-      message,
-      type: getErrorType(statusCode),
-      statusCode,
-    },
-  };
-
-  if (details) {
-    response.error.details = details;
-  }
-
-  return c.json(response as any, statusCode as any);
-}
-
-/**
- * Creates a paginated success response
- *
- * @example
- * ```ts
- * const { users, total } = await db.listUsers(page, limit);
- * return paginated(c, users, page, limit, total);
- * ```
- */
-export function paginated<T, TContract extends RouteContract = any>(
-  c: RouteContext<TContract>,
-  data: T[],
-  page: number,
-  limit: number,
-  total: number
-): Response {
-  return success(c, data, {
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
-  });
-}
-
-// ============================================================================
-// Utilities
-// ============================================================================
-
-function getErrorType(statusCode: number): string {
-  if (statusCode >= 500) return 'InternalServerError';
-  if (statusCode === 404) return 'NotFoundError';
-  if (statusCode === 401) return 'UnauthorizedError';
-  if (statusCode === 403) return 'ForbiddenError';
-  if (statusCode === 400) return 'ValidationError';
-  if (statusCode === 409) return 'ConflictError';
-  if (statusCode === 422) return 'UnprocessableEntityError';
-  return 'ClientError';
+export function ApiResponseSchema<T extends TSchema>(dataSchema: T)
+{
+    return Type.Union([
+        ApiSuccessSchema(dataSchema),
+        ApiErrorSchema(),
+    ]);
 }

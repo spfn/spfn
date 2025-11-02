@@ -1,7 +1,9 @@
 import type { Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Value } from '@sinclair/typebox/value';
 import type { RouteContract, RouteContext, InferContract } from './types.js';
 import { ValidationError } from '../errors';
+import type { ApiSuccessResponse } from './api-response.js';
 
 /**
  * Contract-based Route Handler Wrapper
@@ -109,12 +111,60 @@ export function bind<TContract extends RouteContract>(
                         );
                     }
                 }
+
                 return body as InferContract<TContract>['body'];
             },
 
             json: (data, status, headers) =>
             {
+                // Warn if ErrorHandler is enabled but response doesn't follow standard format
+                const errorHandlerEnabled = rawContext.get('errorHandlerEnabled');
+                if (errorHandlerEnabled && process.env.NODE_ENV !== 'production')
+                {
+                    const hasSuccessField = data && typeof data === 'object' && 'success' in data;
+                    if (!hasSuccessField)
+                    {
+                        console.warn(
+                            '[SPFN] Warning: ErrorHandler is enabled but c.json() is being used with non-standard response format.\n' +
+                            'Consider using c.success() for consistent API responses, or disable ErrorHandler if you prefer custom formats.'
+                        );
+                    }
+                }
+
                 return rawContext.json(data, status, headers);
+            },
+
+            success: <T>(data: T, meta?: ApiSuccessResponse<T>['meta'], status: ContentfulStatusCode | undefined = 200) =>
+            {
+                const response: ApiSuccessResponse<T> = {
+                    success: true,
+                    data,
+                };
+
+                if (meta)
+                {
+                    response.meta = meta;
+                }
+
+                return rawContext.json(response, status);
+            },
+
+            paginated: <T>(data: T[], page: number, limit: number, total: number) =>
+            {
+                const response: ApiSuccessResponse<T[]> = {
+                    success: true,
+                    data,
+                    meta: {
+                        pagination: {
+                            page,
+                            limit,
+                            total,
+                            totalPages: Math.ceil(total / limit),
+                        },
+                    },
+                };
+
+                return rawContext.json(response, 200 as ContentfulStatusCode);
             },
 
             raw: rawContext,

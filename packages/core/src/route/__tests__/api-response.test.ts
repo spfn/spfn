@@ -8,18 +8,26 @@ import { describe, it, expect } from 'vitest';
 import { Type } from '@sinclair/typebox';
 import { createApp } from '../create-app.js';
 import {
-  success,
-  error,
-  paginated,
   ApiSuccessSchema,
   ApiErrorSchema,
   ApiResponseSchema,
 } from '../api-response.js';
 import type { RouteContract } from '../types.js';
 import type { ApiSuccessResponse, ApiErrorResponse } from '../api-response.js';
+import {
+  NotFoundError,
+  BadRequestError,
+  ValidationError,
+  UnauthorizedError,
+  ForbiddenError,
+  ConflictError,
+  UnprocessableEntityError,
+  InternalServerError,
+} from '../../errors/index.js';
+import { ErrorHandler } from '../../middleware/error-handler.js';
 
 describe('API Response Helpers', () => {
-  describe('success()', () => {
+  describe('c.success()', () => {
     it('should create success response with data', async () => {
       const app = createApp();
 
@@ -34,7 +42,7 @@ describe('API Response Helpers', () => {
       };
 
       app.bind(contract, async (c) => {
-        return success(c, {
+        return c.success({
           id: c.params.id,
           name: 'John Doe',
         });
@@ -59,7 +67,7 @@ describe('API Response Helpers', () => {
       };
 
       app.bind(contract, async (c) => {
-        return success(c, { message: 'Hello' }, {
+        return c.success({ message: 'Hello' }, {
           timestamp: '2024-01-01T00:00:00Z',
           requestId: 'req-123',
         });
@@ -91,7 +99,7 @@ describe('API Response Helpers', () => {
 
       app.bind(contract, async (c) => {
         const body = await c.data();
-        return success(c, {
+        return c.success({
           id: '123',
           name: body.name,
         }, undefined, 201);
@@ -111,9 +119,10 @@ describe('API Response Helpers', () => {
     });
   });
 
-  describe('error()', () => {
-    it('should create error response with message', async () => {
+  describe('throw errors', () => {
+    it('should handle thrown NotFoundError', async () => {
       const app = createApp();
+      app.onError(ErrorHandler());
 
       const contract: RouteContract = {
         method: 'GET',
@@ -128,9 +137,9 @@ describe('API Response Helpers', () => {
       app.bind(contract, async (c) => {
         const userId = c.params.id;
         if (userId === 'invalid') {
-          return error(c, 'User not found', 404);
+          throw new NotFoundError('User not found');
         }
-        return success(c, { id: userId, name: 'John' });
+        return c.success({ id: userId, name: 'John' });
       });
 
       const res = await app.fetch(new Request('http://localhost/users/invalid'));
@@ -143,8 +152,9 @@ describe('API Response Helpers', () => {
       expect(json.error.statusCode).toBe(404);
     });
 
-    it('should create error response with details', async () => {
+    it('should handle thrown ValidationError with details', async () => {
       const app = createApp();
+      app.onError(ErrorHandler());
 
       const contract: RouteContract = {
         method: 'POST',
@@ -156,12 +166,12 @@ describe('API Response Helpers', () => {
       app.bind(contract, async (c) => {
         const body = await c.data();
         if (!body.email.includes('@')) {
-          return error(c, 'Invalid email format', 400, {
+          throw new ValidationError('Invalid email format', {
             fields: ['email'],
             value: body.email,
           });
         }
-        return success(c, { id: '123' });
+        return c.success({ id: '123' });
       });
 
       const res = await app.fetch(new Request('http://localhost/users', {
@@ -182,8 +192,9 @@ describe('API Response Helpers', () => {
       });
     });
 
-    it('should use default 400 status code', async () => {
+    it('should handle thrown BadRequestError with default status', async () => {
       const app = createApp();
+      app.onError(ErrorHandler());
 
       const contract: RouteContract = {
         method: 'GET',
@@ -192,7 +203,7 @@ describe('API Response Helpers', () => {
       };
 
       app.bind(contract, async (c) => {
-        return error(c, 'Bad request');
+        throw new BadRequestError('Bad request');
       });
 
       const res = await app.fetch(new Request('http://localhost/test'));
@@ -200,23 +211,23 @@ describe('API Response Helpers', () => {
 
       const json = await res.json() as ApiErrorResponse;
       expect(json.error.statusCode).toBe(400);
-      expect(json.error.type).toBe('ValidationError');
+      expect(json.error.type).toBe('BadRequestError');
     });
 
     it('should handle different error types based on status code', async () => {
       const testCases = [
-        { code: 401, type: 'UnauthorizedError' },
-        { code: 403, type: 'ForbiddenError' },
-        { code: 404, type: 'NotFoundError' },
-        { code: 409, type: 'ConflictError' },
-        { code: 422, type: 'UnprocessableEntityError' },
-        { code: 500, type: 'InternalServerError' },
-        { code: 503, type: 'InternalServerError' },
+        { ErrorClass: UnauthorizedError, code: 401, type: 'UnauthorizedError' },
+        { ErrorClass: ForbiddenError, code: 403, type: 'ForbiddenError' },
+        { ErrorClass: NotFoundError, code: 404, type: 'NotFoundError' },
+        { ErrorClass: ConflictError, code: 409, type: 'ConflictError' },
+        { ErrorClass: UnprocessableEntityError, code: 422, type: 'UnprocessableEntityError' },
+        { ErrorClass: InternalServerError, code: 500, type: 'InternalServerError' },
       ];
 
-      for (const { code, type } of testCases) {
+      for (const { ErrorClass, code, type } of testCases) {
         // Create a new app instance for each test case
         const app = createApp();
+        app.onError(ErrorHandler());
 
         const contract: RouteContract = {
           method: 'GET',
@@ -225,7 +236,7 @@ describe('API Response Helpers', () => {
         };
 
         app.bind(contract, async (c) => {
-          return error(c, `Error ${code}`, code);
+          throw new ErrorClass(`Error ${code}`);
         });
 
         const res = await app.fetch(new Request('http://localhost/error'));
@@ -237,7 +248,7 @@ describe('API Response Helpers', () => {
     });
   });
 
-  describe('paginated()', () => {
+  describe('c.paginated()', () => {
     it('should create paginated response', async () => {
       const app = createApp();
 
@@ -262,7 +273,7 @@ describe('API Response Helpers', () => {
         ];
         const total = 100;
 
-        return paginated(c, users, page, limit, total);
+        return c.paginated(users, page, limit, total);
       });
 
       const res = await app.fetch(new Request('http://localhost/users?page=1&limit=10'));
@@ -290,7 +301,7 @@ describe('API Response Helpers', () => {
 
       app.bind(contract, async (c) => {
         const items = [{ id: '1' }, { id: '2' }, { id: '3' }];
-        return paginated(c, items, 1, 3, 25);
+        return c.paginated(items, 1, 3, 25);
       });
 
       const res = await app.fetch(new Request('http://localhost/items'));
@@ -309,7 +320,7 @@ describe('API Response Helpers', () => {
       };
 
       app.bind(contract, async (c) => {
-        return paginated(c, [], 1, 10, 0);
+        return c.paginated([], 1, 10, 0);
       });
 
       const res = await app.fetch(new Request('http://localhost/empty'));
@@ -342,7 +353,7 @@ describe('API Response Helpers', () => {
       };
 
       app.bind(contract, async (c) => {
-        return success(c, {
+        return c.success({
           id: '123',
           name: 'John',
         });
@@ -357,6 +368,7 @@ describe('API Response Helpers', () => {
 
     it('ApiErrorSchema should validate error response', async () => {
       const app = createApp();
+      app.onError(ErrorHandler());
 
       const contract: RouteContract = {
         method: 'GET',
@@ -365,7 +377,7 @@ describe('API Response Helpers', () => {
       };
 
       app.bind(contract, async (c) => {
-        return error(c, 'Something went wrong', 500);
+        throw new InternalServerError('Something went wrong');
       });
 
       const res = await app.fetch(new Request('http://localhost/error'));
@@ -378,6 +390,7 @@ describe('API Response Helpers', () => {
 
     it('ApiResponseSchema should accept both success and error', async () => {
       const app = createApp();
+      app.onError(ErrorHandler());
 
       const DataSchema = Type.Object({ value: Type.String() });
 
@@ -390,9 +403,9 @@ describe('API Response Helpers', () => {
 
       app.bind(contract, async (c) => {
         if (c.params.type === 'success') {
-          return success(c, { value: 'ok' });
+          return c.success({ value: 'ok' });
         }
-        return error(c, 'Failed', 500);
+        throw new InternalServerError('Failed');
       });
 
       // Test success case
@@ -412,7 +425,6 @@ describe('API Response Helpers', () => {
   describe('Integration with ErrorHandler', () => {
     it('should have consistent response format', async () => {
       const app = createApp();
-      const { ErrorHandler } = await import('../../middleware/error-handler.js');
       app.onError(ErrorHandler());
 
       const contract: RouteContract = {
@@ -423,7 +435,7 @@ describe('API Response Helpers', () => {
       };
 
       app.bind(contract, async (c) => {
-        return success(c, { id: c.params.id });
+        return c.success({ id: c.params.id });
       });
 
       // Pass invalid param to trigger ValidationError

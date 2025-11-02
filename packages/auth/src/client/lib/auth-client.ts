@@ -14,6 +14,14 @@
 import { cookies } from 'next/headers';
 import { generateKeyPair, generateClientToken, type KeyPair } from './crypto';
 import { sealSession, unsealSession, type SessionData } from './session';
+import type {
+    RegisterBody,
+    RegisterResponse,
+    LoginBody,
+    LoginResponse,
+    RotateKeyBody,
+    RotateKeyResponse,
+} from '@/lib/api';
 
 export interface AuthClientConfig
 {

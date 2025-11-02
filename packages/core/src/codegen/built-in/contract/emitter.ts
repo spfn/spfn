@@ -114,11 +114,32 @@ function generateTypeName(mapping: RouteContractMapping): string
 }
 
 /**
- * Generate a single method
+ * Generate function name from contract name
+ *
+ * Examples:
+ * - getLabelsContract -> getLabels
+ * - createLabelContract -> createLabel
+ * - updateLabelContract -> updateLabel
  */
-function generateMethodCode(mapping: RouteContractMapping, options: ClientGenerationOptions): string
+function generateFunctionName(mapping: RouteContractMapping): string
 {
-    const methodName = generateMethodName(mapping);
+    let name = mapping.contractName;
+
+    // Remove "Contract" suffix
+    if (name.endsWith('Contract'))
+    {
+        name = name.slice(0, -8);
+    }
+
+    return name;
+}
+
+/**
+ * Generate a single function export
+ */
+function generateFunctionCode(mapping: RouteContractMapping, options: ClientGenerationOptions): string
+{
+    const functionName = generateFunctionName(mapping);
     const hasParams = mapping.hasParams || mapping.path.includes(':');
     const hasQuery = mapping.hasQuery || false;
     const hasBody = mapping.hasBody || false;
@@ -128,13 +149,13 @@ function generateMethodCode(mapping: RouteContractMapping, options: ClientGenera
     // JSDoc
     if (options.includeJsDoc !== false)
     {
-        code += `        /**\n`;
-        code += `         * ${mapping.method} ${mapping.path}\n`;
-        code += `         */\n`;
+        code += `/**\n`;
+        code += ` * ${mapping.method} ${mapping.path}\n`;
+        code += ` */\n`;
     }
 
-    // Method signature
-    code += `        ${methodName}: (`;
+    // Function signature
+    code += `export const ${functionName} = (`;
 
     // Parameters - use generated type names instead of InferContract
     const params: string[] = [];
@@ -170,51 +191,9 @@ function generateMethodCode(mapping: RouteContractMapping, options: ClientGenera
         code += `, options`;
     }
 
-    code += `),\n`;
+    code += `);\n\n`;
 
     return code;
-}
-
-/**
- * Generate method name from route
- */
-function generateMethodName(mapping: RouteContractMapping): string
-{
-    const method = mapping.method.toLowerCase();
-
-    // For index routes
-    if (mapping.path === '/' || mapping.path.match(/^\/[\w-]+$/))
-    {
-        // Simple path like /users -> get, create, update
-        if (method === 'get')
-        {
-            return 'list';
-        }
-        if (method === 'post')
-        {
-            return 'create';
-        }
-    }
-
-    // For dynamic routes like /users/:id
-    if (mapping.path.includes(':'))
-    {
-        if (method === 'get')
-        {
-            return 'getById';
-        }
-        if (method === 'put' || method === 'patch')
-        {
-            return 'update';
-        }
-        if (method === 'delete')
-        {
-            return 'delete';
-        }
-    }
-
-    // Default: method name
-    return method;
 }
 
 /**
@@ -291,7 +270,7 @@ async function generateSplitClient(
     }
 
     // Generate index file
-    const indexCode = generateIndexFile(resourceNames, options);
+    const indexCode = generateIndexFile(grouped, options);
     const indexPath = `${outputDir}/index.ts`;
 
     await writeFile(indexPath, indexCode, 'utf-8');
@@ -301,7 +280,7 @@ async function generateSplitClient(
  * Generate a single resource file
  */
 function generateResourceFile(
-    resourceName: string,
+    _resourceName: string,
     routes: RouteContractMapping[],
     options: ClientGenerationOptions
 ): string
@@ -373,51 +352,31 @@ function generateResourceFile(
         }
     }
 
-    // API object
-    code += `/**\n`;
-    code += ` * ${resourceName} API\n`;
-    code += ` */\n`;
-    code += `export const ${resourceName} = {\n`;
+    // Generate individual function exports
+    code += `// ============================================\n`;
+    code += `// API Functions\n`;
+    code += `// ============================================\n\n`;
 
     for (let i = 0; i < routes.length; i++)
     {
         const route = routes[i];
-        code += generateMethodCode(route, options);
+        code += generateFunctionCode(route, options);
     }
-
-    code += `} as const;\n`;
 
     return code;
-}
-
-/**
- * Convert PascalCase to camelCase
- *
- * Examples:
- * - CmsLabels -> cmsLabels
- * - CmsLabelsByKey -> cmsLabelsByKey
- * - Users -> users
- */
-function toCamelCase(str: string): string
-{
-    if (str.length === 0)
-    {
-        return str;
-    }
-
-    return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
 /**
  * Generate index file that combines all resources
  */
 function generateIndexFile(
-    resourceNames: string[],
+    grouped: Record<string, RouteContractMapping[]>,
     options: ClientGenerationOptions
 ): string
 {
     let code = '';
     const apiName = options.apiName || 'api';
+    const resourceNames = Object.keys(grouped);
 
     // Header
     code += generateHeader();
@@ -425,50 +384,90 @@ function generateIndexFile(
     // Re-export client
     code += `export { client } from '@spfn/core/client';\n\n`;
 
-    // Re-export all resource modules (use kebab-case for file names)
+    // Re-export only types from resource modules (use kebab-case for file names)
     for (let i = 0; i < resourceNames.length; i++)
     {
         const resourceName = resourceNames[i];
+        const routes = grouped[resourceName];
         const kebabName = toKebabCase(resourceName);
-        code += `export * from './${kebabName}.js';\n`;
+
+        // Collect all type names for this resource
+        const typeNames: string[] = [];
+        for (let j = 0; j < routes.length; j++)
+        {
+            const route = routes[j];
+            const typeName = generateTypeName(route);
+
+            // Always export Response type
+            typeNames.push(`${typeName}Response`);
+
+            // Conditionally export other types
+            if (route.hasQuery)
+            {
+                typeNames.push(`${typeName}Query`);
+            }
+            if (route.hasParams || route.path.includes(':'))
+            {
+                typeNames.push(`${typeName}Params`);
+            }
+            if (route.hasBody)
+            {
+                typeNames.push(`${typeName}Body`);
+            }
+        }
+
+        if (typeNames.length > 0)
+        {
+            code += `export type { ${typeNames.join(', ')} } from './${kebabName}.js';\n`;
+        }
     }
 
     code += `\n`;
 
-    // Import resources (use kebab-case for file names, but keep original camelCase name for import)
+    // Import all functions from each resource file
     for (let i = 0; i < resourceNames.length; i++)
     {
         const resourceName = resourceNames[i];
+        const routes = grouped[resourceName];
         const kebabName = toKebabCase(resourceName);
-        code += `import { ${resourceName} } from './${kebabName}.js';\n`;
+
+        // Get all function names for this resource
+        const functionNames = routes.map(route => generateFunctionName(route));
+
+        code += `import { ${functionNames.join(', ')} } from './${kebabName}.js';\n`;
     }
 
     code += `\n`;
 
-    // Convert resource names to camelCase for object keys
-    const resourceKeys = resourceNames.map(name => toCamelCase(name));
-
-    // Combined API object
+    // Combined API object with all functions flattened
     code += `/**\n`;
     code += ` * Type-safe API client\n`;
     code += ` */\n`;
     code += `export const ${apiName} = {\n`;
 
+    // Add all functions from all resources
+    let isFirst = true;
     for (let i = 0; i < resourceNames.length; i++)
     {
         const resourceName = resourceNames[i];
-        const resourceKey = resourceKeys[i];
-        code += `    ${resourceKey}: ${resourceName}`;
+        const routes = grouped[resourceName];
 
-        if (i < resourceNames.length - 1)
+        for (let j = 0; j < routes.length; j++)
         {
-            code += `,`;
-        }
+            const route = routes[j];
+            const functionName = generateFunctionName(route);
 
-        code += `\n`;
+            if (!isFirst)
+            {
+                code += `,\n`;
+            }
+
+            code += `    ${functionName}`;
+            isFirst = false;
+        }
     }
 
-    code += `} as const;\n`;
+    code += `\n} as const;\n`;
 
     return code;
 }

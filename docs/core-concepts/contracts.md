@@ -98,7 +98,7 @@ Superfunction uses TypeBox for schema validation instead of alternatives like Zo
 Organize contracts by domain or feature:
 
 ```bash
-src/contracts/
+src/lib/contracts/
 ├── users.ts        # User-related contracts
 ├── posts.ts        # Post-related contracts
 ├── auth.ts         # Authentication contracts
