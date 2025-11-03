@@ -90,6 +90,7 @@ app.bind(getAdminLabelContract, async (c) =>
                 key: label.key,
                 section: label.section,
                 type: label.type,
+                description: label.description,
                 publishedVersion: label.publishedVersion,
                 createdBy: label.createdBy,
                 createdAt: label.createdAt.toISOString(),

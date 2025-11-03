@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.75] - 2025-11-03
+
+### Added
+
+#### @spfn/cms
+
+- **Label Description Field**: Added `description` field support throughout CMS system
+  - Added `description` column to `cms_labels` entity (nullable text field)
+  - Updated all API contracts to include `description` field in responses
+  - Updated all route handlers to return `description` field
+  - Admin UI now displays label descriptions in label list and editor header
+  - Descriptions shown below label keys for better context and usability
+
+### Fixed
+
+#### @spfn/cms
+
+- Fixed TypeScript build errors related to missing `description` field in API responses
+- Ensured consistent `description` field presence across all label-related endpoints
+
 ## [0.1.0-alpha.74] - 2025-11-03
 
 ### Added
