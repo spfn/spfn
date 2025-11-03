@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.79] - 2025-11-04
+
+### Changed
+
+#### @spfn/cms
+
+- **Locale Naming Improvements**: Clarified naming distinction between project locales and system locales
+  - Renamed `CmsConfig.supportedLocales` to `CmsConfig.locales` (kept deprecated `supportedLocales` for backward compatibility)
+  - Added `getAllLocales()` function to get system-available locales (50+ supported languages)
+  - Deprecated `getSupportedLocales()` in favor of `getAllLocales()`
+  - Updated `configureCms()` to accept both `locales` and `supportedLocales` parameters with automatic synchronization
+  - Updated all internal usages from `config.supportedLocales` to `config.locales`
+  - **New naming convention**: `configureCms({ locales: ['en', 'ko'] })` for project-active locales, `getAllLocales()` for system-available locales
+
+### Fixed
+
+#### @spfn/cms
+
+- **Label Type Sync Bug**: Fixed label type field not being preserved during sync operations
+  - Fixed `flattenLabels()` in `helpers.ts` to include `type` field in flattened results
+  - Fixed `syncSection()` in `sync.ts` to update `type` field in database
+  - Fixed change detection to recognize type changes (e.g., text → image)
+  - Label types (text, image, video, file, object) now correctly synced from JSON to database
+
 ## [0.1.0-alpha.78] - 2025-11-03
 
 ### Fixed

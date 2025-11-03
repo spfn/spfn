@@ -19,8 +19,14 @@ export interface CmsConfig
     defaultLocale: string;
 
     /**
-     * 지원하는 언어 목록
+     * 프로젝트에서 사용할 언어 목록
      * @example ['ko', 'en', 'ja']
+     */
+    locales: string[];
+
+    /**
+     * @deprecated Use 'locales' instead
+     * @internal For backward compatibility
      */
     supportedLocales: string[];
 
@@ -58,20 +64,21 @@ function loadConfigFromEnv(): CmsConfig
     const supportedLocalesStr = getEnvVar('SPFN_CMS_SUPPORTED_LOCALES', 'en,ko');
     const detectBrowserLanguage = getEnvBoolean('SPFN_CMS_DETECT_BROWSER_LANGUAGE', true);
 
-    const supportedLocales = supportedLocalesStr
+    const locales = supportedLocalesStr
         .split(',')
         .map(locale => locale.trim())
         .filter(locale => locale.length > 0);
 
     // 기본 언어가 지원 목록에 없으면 추가
-    if (!supportedLocales.includes(defaultLocale))
+    if (!locales.includes(defaultLocale))
     {
-        supportedLocales.unshift(defaultLocale);
+        locales.unshift(defaultLocale);
     }
 
     return {
         defaultLocale,
-        supportedLocales,
+        locales,
+        supportedLocales: locales, // backward compatibility
         detectBrowserLanguage,
     };
 }
@@ -91,8 +98,8 @@ let currentConfig: CmsConfig = loadConfigFromEnv();
  * import { getCmsConfig } from '@spfn/cms';
  *
  * const config = getCmsConfig();
- * console.log(config.defaultLocale); // 'ko'
- * console.log(config.supportedLocales); // ['ko', 'en']
+ * console.log(config.defaultLocale); // 'en'
+ * console.log(config.locales); // ['en', 'ko']
  * ```
  */
 export function getCmsConfig(): Readonly<CmsConfig>
@@ -115,26 +122,43 @@ export function getCmsConfig(): Readonly<CmsConfig>
  * // 앱 초기화 시 (선택적)
  * configureCms({
  *     defaultLocale: 'en',
- *     supportedLocales: ['en', 'ko', 'ja'],
+ *     locales: ['en', 'ko', 'ja'],
  *     detectBrowserLanguage: true,
  * });
  * ```
  */
 export function configureCms(config: Partial<CmsConfig>): void
 {
+    // Backward compatibility: supportedLocales → locales
+    if (config.supportedLocales && !config.locales)
+    {
+        config = { ...config, locales: config.supportedLocales };
+    }
+
     currentConfig = {
         ...currentConfig,
         ...config,
     };
 
+    // Sync locales ↔ supportedLocales
+    if (config.locales)
+    {
+        currentConfig.supportedLocales = config.locales;
+    }
+    else if (config.supportedLocales)
+    {
+        currentConfig.locales = config.supportedLocales;
+    }
+
     // 기본 언어가 지원 목록에 있는지 확인
-    if (config.defaultLocale && !currentConfig.supportedLocales.includes(config.defaultLocale))
+    if (config.defaultLocale && !currentConfig.locales.includes(config.defaultLocale))
     {
         console.warn(
-            `[CMS Config] Default locale '${config.defaultLocale}' not in supported locales, adding automatically.`,
-            `Supported locales: [${currentConfig.supportedLocales.join(', ')}]`
+            `[CMS Config] Default locale '${config.defaultLocale}' not in locales, adding automatically.`,
+            `Locales: [${currentConfig.locales.join(', ')}]`
         );
 
+        currentConfig.locales.unshift(config.defaultLocale);
         currentConfig.supportedLocales.unshift(config.defaultLocale);
     }
 }

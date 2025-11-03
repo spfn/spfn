@@ -701,13 +701,21 @@ export function getLocaleInfo(locale: string): LocaleInfo | undefined
 }
 
 /**
- * 지원하는 모든 Locale 목록 가져오기
+ * 시스템이 지원 가능한 모든 Locale 목록 가져오기
  *
- * @returns Locale 코드 배열
+ * @returns Locale 코드 배열 (50+ locales available)
+ */
+export function getAllLocales(): SupportedLocale[]
+{
+    return Object.keys(LOCALE_INFO_MAP) as SupportedLocale[];
+}
+
+/**
+ * @deprecated Use getAllLocales() instead
  */
 export function getSupportedLocales(): SupportedLocale[]
 {
-    return Object.keys(LOCALE_INFO_MAP) as SupportedLocale[];
+    return getAllLocales();
 }
 
 /**

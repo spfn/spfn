@@ -49,7 +49,7 @@ async function detectBrowserLanguage(): Promise<string | null>
         // 지원하는 언어 중 첫 번째 매칭되는 언어 반환
         for (const lang of languages)
         {
-            if (config.supportedLocales.includes(lang))
+            if (config.locales.includes(lang))
             {
                 return lang;
             }
@@ -114,7 +114,7 @@ export async function getLocale(): Promise<string>
     const cookieStore = await cookies();
     const cookieLocale = cookieStore.get(LOCALE_COOKIE_KEY)?.value;
 
-    if (cookieLocale && config.supportedLocales.includes(cookieLocale))
+    if (cookieLocale && config.locales.includes(cookieLocale))
     {
         return cookieLocale;
     }
@@ -181,10 +181,10 @@ export async function setLocale(locale: string): Promise<void>
     const config = getCmsConfig();
 
     // 유효성 검사
-    if (!config.supportedLocales.includes(locale))
+    if (!config.locales.includes(locale))
     {
         throw new Error(
-            `Unsupported locale: ${locale}. Supported locales: ${config.supportedLocales.join(', ')}`
+            `Unsupported locale: ${locale}. Supported locales: ${config.locales.join(', ')}`
         );
     }
 
@@ -243,7 +243,7 @@ export async function setLocale(locale: string): Promise<void>
 export async function getLocales(): Promise<string[]>
 {
     const config = getCmsConfig();
-    return config.supportedLocales;
+    return config.locales;
 }
 
 /**
@@ -315,9 +315,9 @@ export async function getLocaleWithInfo(): Promise<{
 export async function getLocalesWithInfo(): Promise<LocaleInfo[]>
 {
     const config = getCmsConfig();
-    const supportedLocales = config.supportedLocales;
+    const locales = config.locales;
 
-    return supportedLocales
+    return locales
         .map(locale => getLocaleInfo(locale))
         .filter((info): info is LocaleInfo => info !== undefined);
 }

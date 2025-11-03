@@ -27,7 +27,8 @@ export { DEFAULT_LABELS_DIR } from './lib/constants/index';
 export {
     LOCALE_COOKIE_KEY,
     getLocaleInfo,
-    getSupportedLocales,
+    getAllLocales,
+    getSupportedLocales, // @deprecated Use getAllLocales()
     getFlag,
     getDialCode,
     isRTL,
