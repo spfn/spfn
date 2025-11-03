@@ -3,6 +3,7 @@ import type { RouteContract } from '@spfn/core/route';
 
 /**
  * Label Value 타입 정의
+ * 모든 타입은 반드시 객체 형태로 저장되어야 함
  */
 const LabelValueSchema = Type.Object({
     type: Type.Union([
@@ -13,7 +14,7 @@ const LabelValueSchema = Type.Object({
         Type.Literal('object')
     ]),
     content: Type.Optional(Type.String()), // text type
-    url: Type.Optional(Type.String()), // image, video, file types
+    url: Type.Optional(Type.String()), // image, video, file types (required for these types but optional in schema)
     alt: Type.Optional(Type.String()), // image type
     width: Type.Optional(Type.Number()), // image type
     height: Type.Optional(Type.Number()), // image type
@@ -51,7 +52,7 @@ export const saveValuesContract = {
                     Type.Literal('2xl'),
                     Type.Null()
                 ], { description: '반응형 브레이크포인트' })),
-                value: LabelValueSchema
+                value: LabelValueSchema  // 모든 라벨 값은 객체 형태 (type 필드 필수)
             })
         )
     }),
