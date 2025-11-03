@@ -96,6 +96,19 @@ export async function upsert(data: NewCmsLabelValue): Promise<CmsLabelValue>
 }
 
 /**
+ * Draft 값들 조회 (version = null)
+ */
+export async function findDraftsByLabelId(labelId: number): Promise<CmsLabelValue[]>
+{
+    return findMany(cmsLabelValues, {
+        where: and(
+            eq(cmsLabelValues.labelId, labelId),
+            isNull(cmsLabelValues.version)
+        )
+    });
+}
+
+/**
  * 여러 값 일괄 저장
  */
 export async function upsertMany(values: NewCmsLabelValue[]): Promise<CmsLabelValue[]>
@@ -126,6 +139,7 @@ export async function deleteByVersion(labelId: number, version: number): Promise
 // Legacy export for backward compatibility
 export const cmsLabelValuesRepository = {
     findByLabelIdAndVersion,
+    findDraftsByLabelId,
     upsert,
     upsertMany,
     deleteByVersion

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.74] - 2025-11-03
+
+### Added
+
+#### @spfn/cms
+
+- **Draft & Publish System (Phase 1)**: Implemented complete publish workflow for CMS labels
+  - New contracts: `publishLabelContract` (POST /_cms/labels/:labelId/publish), `getAdminLabelContract` (GET /_cms/labels/:labelId/admin)
+  - New helper functions: `publishLabel()` - converts Draft (version=null) to Published (version=number), `updatePublishedCache()` - regenerates cache for all locales
+  - New API endpoints with full error handling and validation
+  - Repository extension: `findDraftsByLabelId()` for querying draft values
+  - Auto-generated API client functions: `publishLabel()`, `getAdminLabel()`
+  - Status calculation: 'default-only', 'unpublished', 'published', 'modified'
+  - Published cache regeneration with defaultValue fallback support
+
+#### @spfn/core
+
+- **Contract Scanner Logging**: Added debug logging to contract scanner for troubleshooting
+  - New logger: `scannerLogger` with detailed contract extraction logs
+  - Logs: contract file discovery, extraction progress, final mapping count
+  - Helps diagnose codegen issues and contract detection problems
+
 ## [0.1.0-alpha.73] - 2025-11-03
 
 ### Fixed

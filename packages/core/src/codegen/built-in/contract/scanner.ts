@@ -9,6 +9,9 @@ import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
 import * as ts from 'typescript';
 import type { HttpMethod, RouteContractMapping } from '../../core/types';
+import { logger } from '../../../logger';
+
+const scannerLogger = logger.child('contract-scanner');
 
 /**
  * Scan for contract files and extract contract exports
@@ -21,17 +24,22 @@ import type { HttpMethod, RouteContractMapping } from '../../core/types';
  */
 export async function scanContracts(contractsDir: string, packagePrefix?: string): Promise<RouteContractMapping[]>
 {
+    scannerLogger.debug('Starting contract scan', { contractsDir, packagePrefix });
     const contractFiles = await scanContractFiles(contractsDir);
+    scannerLogger.debug('Found contract files', { count: contractFiles.length, files: contractFiles });
     const mappings: RouteContractMapping[] = [];
 
     for (let i = 0; i < contractFiles.length; i++)
     {
         const filePath = contractFiles[i];
+        scannerLogger.debug('Extracting contracts from file', { filePath });
         const exports = extractContractExports(filePath);
+        scannerLogger.debug('Extracted contracts', { filePath, count: exports.length, contracts: exports.map(e => e.name) });
 
         for (let j = 0; j < exports.length; j++)
         {
             const contractExport = exports[j];
+            scannerLogger.debug('Processing contract', { name: contractExport.name, method: contractExport.method, path: contractExport.path });
 
             // All contracts must use absolute paths
             if (!contractExport.path.startsWith('/'))
@@ -66,6 +74,7 @@ export async function scanContracts(contractsDir: string, packagePrefix?: string
         }
     }
 
+    scannerLogger.info('Contract scan completed', { totalMappings: mappings.length });
     return mappings;
 }
 

@@ -187,3 +187,81 @@ export const getLabelByKeyContract = {
         })
     ])
 } as const satisfies RouteContract;
+
+/**
+ * POST /_cms/labels/:labelId/publish - 라벨 발행 (Draft → Published)
+ */
+export const publishLabelContract = {
+    method: 'POST' as const,
+    path: '/_cms/labels/:labelId/publish',
+    params: Type.Object({
+        labelId: Type.String({ description: '라벨 ID' })
+    }),
+    body: Type.Object({
+        notes: Type.Optional(Type.String({ description: '발행 노트 (버전 설명)' })),
+        publishedBy: Type.Optional(Type.String({ description: '발행자 ID' }))
+    }),
+    response: Type.Union([
+        Type.Object({
+            success: Type.Boolean(),
+            labelId: Type.Number(),
+            version: Type.Number(),
+            message: Type.String()
+        }),
+        Type.Object({
+            error: Type.String()
+        })
+    ])
+} as const satisfies RouteContract;
+
+/**
+ * GET /_cms/labels/:labelId/admin - 관리자용 라벨 조회 (Draft + Published + Status)
+ */
+export const getAdminLabelContract = {
+    method: 'GET' as const,
+    path: '/_cms/labels/:labelId/admin',
+    params: Type.Object({
+        labelId: Type.String({ description: '라벨 ID' })
+    }),
+    response: Type.Union([
+        Type.Object({
+            label: Type.Object({
+                id: Type.Number(),
+                key: Type.String(),
+                section: Type.String(),
+                type: Type.String(),
+                publishedVersion: Type.Union([Type.Number(), Type.Null()]),
+                createdBy: Type.Union([Type.String(), Type.Null()]),
+                createdAt: Type.String(),
+                updatedAt: Type.String()
+            }),
+            draft: Type.Array(Type.Object({
+                id: Type.Number(),
+                labelId: Type.Number(),
+                version: Type.Null(),
+                locale: Type.String(),
+                breakpoint: Type.Union([Type.String(), Type.Null()]),
+                value: Type.Any(),
+                createdAt: Type.String()
+            })),
+            published: Type.Array(Type.Object({
+                id: Type.Number(),
+                labelId: Type.Number(),
+                version: Type.Number(),
+                locale: Type.String(),
+                breakpoint: Type.Union([Type.String(), Type.Null()]),
+                value: Type.Any(),
+                createdAt: Type.String()
+            })),
+            status: Type.Union([
+                Type.Literal('default-only'),
+                Type.Literal('unpublished'),
+                Type.Literal('published'),
+                Type.Literal('modified')
+            ])
+        }),
+        Type.Object({
+            error: Type.String()
+        })
+    ])
+} as const satisfies RouteContract;
