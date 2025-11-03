@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.78] - 2025-11-03
+
+### Fixed
+
+#### @spfn/cms
+
+- **Translation Function Object Support**: Fixed `t()` function to handle object-type label values
+  - Added automatic `content` field extraction from object values (e.g., `{ type: "text", content: "..." }`)
+  - Applied to both `getSection()` and `getSections()` functions
+  - Now correctly renders labels that have structured object values instead of plain strings
+  - Enables CMS to support rich label metadata while maintaining simple `t()` API
+
 ## [0.1.0-alpha.77] - 2025-11-03
 
 ### Fixed

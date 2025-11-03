@@ -182,6 +182,12 @@ export const getSection = cache(async (
                 value = defaultValue ?? '';
             }
 
+            // 객체 타입이면 content 필드 추출 시도
+            if (typeof value === 'object' && value !== null && 'content' in value)
+            {
+                value = value.content;
+            }
+
             // 문자열이 아니면 빈 문자열 반환
             if (typeof value !== 'string')
             {
@@ -321,6 +327,12 @@ export const getSections = cache(async (
                     if (value === undefined || value === null)
                     {
                         value = defaultValue ?? '';
+                    }
+
+                    // 객체 타입이면 content 필드 추출 시도
+                    if (typeof value === 'object' && value !== null && 'content' in value)
+                    {
+                        value = value.content;
                     }
 
                     // 문자열이 아니면 빈 문자열 반환
