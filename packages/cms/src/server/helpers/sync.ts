@@ -221,7 +221,8 @@ export async function syncSection(
                     ? JSON.stringify(label.defaultValue)
                     : label.defaultValue;
 
-                const hasChanged = existing.defaultValue !== newDefaultValue;
+                const newType = label.type || 'text';
+                const hasChanged = existing.defaultValue !== newDefaultValue || existing.type !== newType;
 
                 if (hasChanged)
                 {
@@ -237,6 +238,7 @@ export async function syncSection(
                         try
                         {
                             await cmsLabelsRepository.updateById(existing.id, {
+                                type: label.type || 'text',
                                 defaultValue: newDefaultValue,
                                 description: label.description,
                             });

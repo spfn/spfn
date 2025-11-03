@@ -43,6 +43,7 @@ export function flattenLabels(labels: NestedLabels): FlatLabel[]
             // LabelDefinition인 경우
             result.push({
                 key: obj.key,
+                type: obj.type,
                 defaultValue: obj.defaultValue,
                 description: obj.description,
             });
