@@ -182,24 +182,23 @@ export const getSection = cache(async (
                 value = defaultValue ?? '';
             }
 
-            // 객체 타입이면 content 필드 추출 시도
-            if (typeof value === 'object' && value !== null && 'content' in value)
+            // text 타입 객체이면 content 필드 추출
+            if (typeof value === 'object' && value !== null && value.type === 'text' && 'content' in value)
             {
                 value = value.content;
             }
 
-            // 문자열이 아니면 빈 문자열 반환
-            if (typeof value !== 'string')
+            // 문자열인 경우 변수 치환 처리
+            if (typeof value === 'string')
             {
-                return '';
+                if (replace)
+                {
+                    value = replaceVariables(value, replace);
+                }
+                return value;
             }
 
-            // 문자열이고 치환 맵이 있으면 변수 치환
-            if (replace)
-            {
-                value = replaceVariables(value, replace);
-            }
-
+            // 문자열이 아니면 원본 값 반환 (객체 타입: image, video, file, object 등)
             return value;
         };
 
@@ -329,24 +328,23 @@ export const getSections = cache(async (
                         value = defaultValue ?? '';
                     }
 
-                    // 객체 타입이면 content 필드 추출 시도
-                    if (typeof value === 'object' && value !== null && 'content' in value)
+                    // text 타입 객체이면 content 필드 추출
+                    if (typeof value === 'object' && value !== null && value.type === 'text' && 'content' in value)
                     {
                         value = value.content;
                     }
 
-                    // 문자열이 아니면 빈 문자열 반환
-                    if (typeof value !== 'string')
+                    // 문자열인 경우 변수 치환 처리
+                    if (typeof value === 'string')
                     {
-                        return '';
+                        if (replace)
+                        {
+                            value = replaceVariables(value, replace);
+                        }
+                        return value;
                     }
 
-                    // 문자열이고 치환 맵이 있으면 변수 치환
-                    if (replace)
-                    {
-                        value = replaceVariables(value, replace);
-                    }
-
+                    // 문자열이 아니면 원본 값 반환 (객체 타입: image, video, file, object 등)
                     return value;
                 };
             };
