@@ -37,7 +37,6 @@ export async function publishLabel(
 
     // 2. Draft 값들 조회 (version = null)
     const drafts = await cmsLabelValuesRepository.findDraftsByLabelId(labelId);
-
     if (drafts.length === 0)
     {
         throw new Error(`No draft values found for label ${labelId}`);

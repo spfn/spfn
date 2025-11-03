@@ -1,0 +1,1 @@
+DROP TABLE "spfn_cms"."label_versions" CASCADE;

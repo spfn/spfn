@@ -8,10 +8,9 @@
 import { createApp } from '@spfn/core/route';
 import { getLabelVersionsContract } from '@/lib/contracts/labels';
 import { cmsLabelsRepository } from '@/server/repositories/cms-labels.repository';
-import { cmsLabelValuesRepository } from '@/server/repositories/cms-label-values.repository';
 import { getDatabase } from '@spfn/core/db';
-import { cmsLabelVersions, type CmsLabelVersion } from '@/server/entities/cms-label-versions';
-import { eq, desc } from 'drizzle-orm';
+import { cmsLabelValues } from '@/server/entities/cms-label-values';
+import { eq, and } from 'drizzle-orm';
 
 const app = createApp();
 
@@ -44,29 +43,31 @@ app.bind(getLabelVersionsContract, async (c) =>
         // DB 접근 (읽기 전용)
         const db = getDatabase('read')!;
 
-        // 모든 버전의 메타데이터 조회 (label_versions 테이블)
-        // status가 'published'인 버전만 조회
-        const versionRecords = await db
-            .select()
-            .from(cmsLabelVersions)
-            .where(eq(cmsLabelVersions.labelId, label.id))
-            .orderBy(desc(cmsLabelVersions.version));
+        // label_values 테이블에서 version이 null이 아닌 레코드들을 version별로 그룹화하여 조회
+        // 1부터 publishedVersion까지의 모든 버전 조회
+        const versionsWithValues: any[] = [];
 
-        // 각 버전의 값들을 조회하고 병합
-        const versionsWithValues = await Promise.all(
-            versionRecords.map(async (versionRecord: CmsLabelVersion) =>
+        for (let version = 1; version <= label.publishedVersion; version++)
+        {
+            // 해당 버전의 모든 값 조회
+            const values = await db
+                .select()
+                .from(cmsLabelValues)
+                .where(
+                    and(
+                        eq(cmsLabelValues.labelId, label.id),
+                        eq(cmsLabelValues.version, version)
+                    )
+                )
+                .orderBy(cmsLabelValues.locale);
+
+            if (values.length > 0)
             {
-                // 해당 버전의 모든 값 조회
-                const values = await cmsLabelValuesRepository.findByLabelIdAndVersion(
-                    label.id,
-                    versionRecord.version
-                );
-
-                return {
-                    version: versionRecord.version,
-                    publishedAt: versionRecord.publishedAt?.toISOString() || new Date().toISOString(),
-                    publishedBy: versionRecord.publishedBy,
-                    notes: versionRecord.notes,
+                versionsWithValues.push({
+                    version,
+                    publishedAt: values[0].createdAt.toISOString(), // 첫 번째 값의 생성 시각 사용
+                    publishedBy: null, // label_values에는 publishedBy 정보가 없음
+                    notes: null, // label_values에는 notes 정보가 없음
                     values: values.map(v => ({
                         id: v.id,
                         locale: v.locale,
@@ -74,9 +75,12 @@ app.bind(getLabelVersionsContract, async (c) =>
                         value: v.value,
                         createdAt: v.createdAt.toISOString()
                     }))
-                };
-            })
-        );
+                });
+            }
+        }
+
+        // 버전 내림차순 정렬 (최신 버전이 먼저)
+        versionsWithValues.sort((a, b) => b.version - a.version);
 
         return c.json({ versions: versionsWithValues });
     }

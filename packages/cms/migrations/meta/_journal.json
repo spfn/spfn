@@ -22,6 +22,13 @@
       "when": 1762094162304,
       "tag": "0002_heavy_the_enforcers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1762179726406,
+      "tag": "0003_rare_runaways",
+      "breakpoints": true
     }
   ]
 }

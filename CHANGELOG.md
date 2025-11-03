@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.77] - 2025-11-03
+
+### Fixed
+
+#### @spfn/cms
+
+- **Label Version History API**: Fixed to query from `cms_label_values` table directly
+  - Changed from `cms_label_versions` (unused table) to `cms_label_values`
+  - Queries published versions where `version IS NOT NULL`
+  - Returns version history with values grouped by version number
+  - Note: `publishedBy` and `notes` fields are null (not stored in label_values table)
+
 ## [0.1.0-alpha.76] - 2025-11-03
 
 ### Added
