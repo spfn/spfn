@@ -10,21 +10,21 @@
 import { client } from '@spfn/core/client';
 import type { InferContract } from '@spfn/core';
 
-import { getAdminLabelContract } from '@/lib/contracts/labels';
+import { getLabelVersionsContract } from '@/lib/contracts/labels';
 
 // ============================================
 // Types
 // ============================================
 
-export type GetAdminLabelResponse = InferContract<typeof getAdminLabelContract>['response'];
-export type GetAdminLabelParams = InferContract<typeof getAdminLabelContract>['params'];
+export type GetLabelVersionsResponse = InferContract<typeof getLabelVersionsContract>['response'];
+export type GetLabelVersionsParams = InferContract<typeof getLabelVersionsContract>['params'];
 
 // ============================================
 // API Functions
 // ============================================
 
 /**
- * GET /_cms/labels/:labelId/admin
+ * GET /_cms/labels/:labelId/versions
  */
-export const getAdminLabel = (options: { params: GetAdminLabelParams }) => client.call(getAdminLabelContract, options);
+export const getLabelVersions = (options: { params: GetLabelVersionsParams }) => client.call(getLabelVersionsContract, options);
 

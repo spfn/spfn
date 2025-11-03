@@ -5,7 +5,7 @@
  */
 
 import { findOne, findMany as findManyHelper, create as createHelper, updateOne, deleteOne, count as countHelper } from '@spfn/core/db';
-import { desc } from 'drizzle-orm';
+import { asc } from 'drizzle-orm';
 import { cmsLabels, type CmsLabel, type NewCmsLabel } from '@/server/entities';
 
 /**
@@ -21,7 +21,7 @@ export async function findMany(options?: {
 
     return findManyHelper(cmsLabels, {
         where: section ? { section } : undefined,
-        orderBy: desc(cmsLabels.updatedAt),
+        orderBy: asc(cmsLabels.key),  // key 오름차순 정렬 (JSON 파일의 순서 유지)
         limit,
         offset
     });
@@ -58,7 +58,7 @@ export async function findBySection(section: string): Promise<CmsLabel[]>
 {
     return findManyHelper(cmsLabels, {
         where: { section },
-        orderBy: desc(cmsLabels.updatedAt),
+        orderBy: asc(cmsLabels.key),  // key 오름차순 정렬 (JSON 파일의 순서 유지)
     });
 }
 

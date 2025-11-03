@@ -270,3 +270,34 @@ export const getAdminLabelContract = {
         })
     ])
 } as const satisfies RouteContract;
+
+/**
+ * GET /_cms/labels/:labelId/versions - 라벨 버전 히스토리 조회
+ */
+export const getLabelVersionsContract = {
+    method: 'GET' as const,
+    path: '/_cms/labels/:labelId/versions',
+    params: Type.Object({
+        labelId: Type.String({ description: '라벨 ID' })
+    }),
+    response: Type.Union([
+        Type.Object({
+            versions: Type.Array(Type.Object({
+                version: Type.Number({ description: '버전 번호' }),
+                publishedAt: Type.String({ description: '발행 시각 (ISO 8601)' }),
+                publishedBy: Type.Union([Type.String(), Type.Null()], { description: '발행자 ID' }),
+                notes: Type.Union([Type.String(), Type.Null()], { description: '발행 노트' }),
+                values: Type.Array(Type.Object({
+                    id: Type.Number(),
+                    locale: Type.String(),
+                    breakpoint: Type.Union([Type.String(), Type.Null()]),
+                    value: Type.Any(),
+                    createdAt: Type.String()
+                }))
+            }))
+        }),
+        Type.Object({
+            error: Type.String()
+        })
+    ])
+} as const satisfies RouteContract;

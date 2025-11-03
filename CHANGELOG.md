@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.76] - 2025-11-03
+
+### Added
+
+#### @spfn/cms
+
+- **Label Version History API**: Added new API endpoint to fetch complete version history for labels
+  - New contract: `getLabelVersionsContract` (GET /_cms/labels/:labelId/versions)
+  - New route handler: `/labels/[labelId]/versions/index.ts` with DB query optimization
+  - Auto-generated API client function: `getLabelVersions()`
+  - Returns all published versions with metadata (publishedAt, publishedBy, notes) and values
+  - Optimized single API call replaces multiple sequential calls for better performance
+  - Version history sorted by version number (descending - newest first)
+
 ## [0.1.0-alpha.75] - 2025-11-03
 
 ### Added
