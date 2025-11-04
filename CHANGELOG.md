@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.80] - 2025-11-04
+
+### Changed
+
+#### @spfn/cms
+
+- **API Route Parameter Naming**: Standardized route parameters to follow RESTful conventions
+  - Changed route parameter from `:labelId` to `:id` in all label detail endpoints
+  - Updated paths: `/_cms/labels/:id/publish`, `/_cms/labels/:id/admin`, `/_cms/labels/:id/versions`
+  - Updated all contracts to use `id` instead of `labelId` in params
+  - Reorganized route files from `labels/[labelId]/` to `labels/[id]/` directory structure
+
+- **Labels List API Simplification**: Removed pagination from labels list endpoint
+  - Removed `limit` and `offset` query parameters from `getLabelsContract`
+  - Removed `limit` and `offset` fields from response
+  - Returns all labels without pagination for simpler client implementation
+
+### Fixed
+
+#### @spfn/cms
+
+- **Test Organization**: Split monolithic test file into separate test files by feature
+  - Created `labels-admin.test.ts` for admin endpoint tests
+  - Created `labels-publish.test.ts` for publish workflow tests
+  - Created `labels-versions.test.ts` for version history tests
+  - Improved test maintainability and discoverability
+
 ## [0.1.0-alpha.79] - 2025-11-04
 
 ### Changed

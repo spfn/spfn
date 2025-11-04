@@ -62,6 +62,7 @@ export async function teardownTestDb()
 export async function clearTables(db: ReturnType<typeof drizzle>)
 {
     await db.execute(sql`TRUNCATE TABLE spfn_auth.users CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spfn_auth.user_public_keys CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.user_social_accounts CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.verification_codes CASCADE`);
 }
@@ -76,6 +77,7 @@ async function createTables(db: ReturnType<typeof drizzle>)
 
     // Drop existing tables
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.verification_codes CASCADE`);
+    await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.user_public_keys CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.user_social_accounts CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.users CASCADE`);
 
@@ -95,6 +97,24 @@ async function createTables(db: ReturnType<typeof drizzle>)
             created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             CONSTRAINT email_or_phone_check CHECK (email IS NOT NULL OR phone IS NOT NULL)
+        )
+    `);
+
+    // Create user_public_keys table
+    await db.execute(sql`
+        CREATE TABLE spfn_auth.user_public_keys (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES spfn_auth.users(id) ON DELETE CASCADE,
+            key_id TEXT NOT NULL UNIQUE,
+            public_key TEXT NOT NULL,
+            algorithm TEXT NOT NULL DEFAULT 'ES256' CHECK (algorithm IN ('ES256', 'RS256')),
+            fingerprint TEXT NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            last_used_at TIMESTAMP WITH TIME ZONE,
+            expires_at TIMESTAMP WITH TIME ZONE,
+            revoked_at TIMESTAMP WITH TIME ZONE,
+            revoked_reason TEXT
         )
     `);
 

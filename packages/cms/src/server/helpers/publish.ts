@@ -7,10 +7,6 @@
 import { cmsLabelsRepository } from '@/server/repositories/cms-labels.repository';
 import { cmsLabelValuesRepository } from '@/server/repositories/cms-label-values.repository';
 import { cmsPublishedCacheRepository } from '@/server/repositories/cms-published-cache.repository';
-import { loadLabelsFromJson } from './sync';
-import { extractLabels } from '@/server/labels';
-import { DEFAULT_LABELS_DIR } from '@/lib/constants';
-import { join } from 'path';
 import type { SupportedLocale } from '@/lib/constants/locale.constants';
 
 /**
@@ -87,28 +83,6 @@ export async function updatePublishedCache(
     // 섹션의 모든 라벨 조회
     const labels = await cmsLabelsRepository.findBySection(section);
 
-    // 기본값 로드 (defaultValue fallback용)
-    let defaultValuesMap: Record<string, any> = {};
-    try
-    {
-        const labelsDir = join(process.cwd(), DEFAULT_LABELS_DIR);
-        const sections = loadLabelsFromJson(labelsDir);
-        const sectionDef = sections.find(s => s.section === section);
-
-        if (sectionDef)
-        {
-            const extracted = extractLabels(sectionDef);
-            defaultValuesMap = extracted.reduce((acc, label) => {
-                acc[label.key] = label.defaultValue;
-                return acc;
-            }, {} as Record<string, any>);
-        }
-    }
-    catch (error)
-    {
-        console.warn('[updatePublishedCache] Failed to load default values:', error);
-    }
-
     // 지원하는 로케일 목록 (환경변수 또는 기본값)
     const locales: SupportedLocale[] = (process.env.SPFN_CMS_SUPPORTED_LOCALES?.split(',') as SupportedLocale[]) || ['ko', 'en', 'ja'];
 
@@ -119,38 +93,52 @@ export async function updatePublishedCache(
 
         for (const label of labels)
         {
-            // 발행된 버전이 있으면 해당 버전, 없으면 건너뛰기
-            if (label.publishedVersion === null)
+            // 발행된 버전이 있으면 해당 값 사용
+            if (label.publishedVersion !== null)
             {
-                // 발행된 버전이 없으면 defaultValue 사용
-                const defaultVal = defaultValuesMap[label.key]?.[locale];
-                if (defaultVal)
+                // 발행된 값 조회
+                const values = await cmsLabelValuesRepository.findByLabelIdAndVersion(
+                    label.id,
+                    label.publishedVersion,
+                    { locale }
+                );
+
+                if (values.length > 0)
                 {
-                    content[label.key] = defaultVal;
+                    // 발행된 값 사용 (breakpoint별로 여러 값이 있을 수 있음)
+                    // 단순화: 첫 번째 값만 사용 (breakpoint 로직은 추후 개선)
+                    content[label.key] = values[0].value;
+                    continue;
                 }
-                continue;
             }
 
-            // 발행된 값 조회
-            const values = await cmsLabelValuesRepository.findByLabelIdAndVersion(
-                label.id,
-                label.publishedVersion,
-                { locale }
-            );
-
-            if (values.length > 0)
+            // Fallback: DB의 defaultValue 사용 (발행되지 않았거나 published 값이 없는 경우)
+            if (label.defaultValue)
             {
-                // 발행된 값 사용 (breakpoint별로 여러 값이 있을 수 있음)
-                // 단순화: 첫 번째 값만 사용 (breakpoint 로직은 추후 개선)
-                content[label.key] = values[0].value;
-            }
-            else
-            {
-                // Fallback: defaultValue 사용
-                const defaultVal = defaultValuesMap[label.key]?.[locale];
-                if (defaultVal)
+                try
                 {
-                    content[label.key] = defaultVal;
+                    const parsed = JSON.parse(label.defaultValue);
+
+                    // 멀티링구얼 객체인지 확인
+                    if (typeof parsed === 'object' && !Array.isArray(parsed))
+                    {
+                        // 멀티링구얼 구조: { ko: "...", en: "..." }
+                        if (parsed[locale])
+                        {
+                            content[label.key] = parsed[locale];
+                        }
+                    }
+                    else
+                    {
+                        // JSON이지만 멀티링구얼이 아님 (배열 등) - 모든 locale에 동일하게 할당
+                        content[label.key] = parsed;
+                    }
+                }
+                catch
+                {
+                    // JSON 파싱 실패 = 평문 문자열
+                    // 평문은 모든 locale에 동일하게 할당
+                    content[label.key] = label.defaultValue;
                 }
             }
         }

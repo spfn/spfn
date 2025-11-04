@@ -2,7 +2,7 @@
  * CMS Label Publish Route
  *
  * 라벨 발행 API (Draft → Published)
- * - POST /labels/:labelId/publish - Draft를 Published로 발행 (final: /_cms/labels/:labelId/publish)
+ * - POST /labels/:id/publish - Draft를 Published로 발행 (final: /_cms/labels/:id/publish)
  */
 
 import { createApp } from '@spfn/core/route';
@@ -12,24 +12,24 @@ import { publishLabel } from '@/server/helpers/publish';
 const app = createApp();
 
 /**
- * POST /labels/:labelId/publish
+ * POST /labels/:id/publish
  * Draft → Published 발행
  */
 app.bind(publishLabelContract, async (c) =>
 {
-    const { labelId } = c.params;
+    const { id } = c.params;
     const body = await c.data();
 
     try
     {
-        const result = await publishLabel(parseInt(labelId), {
+        const result = await publishLabel(parseInt(id), {
             notes: body.notes,
             publishedBy: body.publishedBy
         });
 
         return c.json({
             success: true,
-            labelId: parseInt(labelId),
+            id: parseInt(id),
             version: result.version,
             message: result.message
         });

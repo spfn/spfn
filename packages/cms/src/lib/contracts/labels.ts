@@ -15,9 +15,7 @@ export const getLabelsContract = {
     path: '/_cms/labels',
     query: Type.Object({
         section: Type.Optional(Type.String({ description: '섹션으로 필터링 (예: home, why-futureplay)' })),
-        limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: '페이지당 항목 수' })),
-        offset: Type.Optional(Type.Number({ minimum: 0, default: 0, description: '시작 오프셋' })),
-        includeDefaultValues: Type.Optional(Type.Boolean({ description: '기본값 포함 여부', default: false }))
+        includeDefaultValues: Type.Optional(Type.Boolean({ description: '기본값 포함 여부' }))
     }),
     response: Type.Object({
         labels: Type.Array(Type.Object({
@@ -32,9 +30,7 @@ export const getLabelsContract = {
             updatedAt: Type.String(),
             defaultValue: Type.Optional(Type.Any({ description: '라벨 정의 파일의 기본값' }))
         })),
-        total: Type.Number(),
-        limit: Type.Number(),
-        offset: Type.Number()
+        total: Type.Number()
     })
 } as const satisfies RouteContract;
 
@@ -193,13 +189,13 @@ export const getLabelByKeyContract = {
 } as const satisfies RouteContract;
 
 /**
- * POST /_cms/labels/:labelId/publish - 라벨 발행 (Draft → Published)
+ * POST /_cms/labels/:id/publish - 라벨 발행 (Draft → Published)
  */
 export const publishLabelContract = {
     method: 'POST' as const,
-    path: '/_cms/labels/:labelId/publish',
+    path: '/_cms/labels/:id/publish',
     params: Type.Object({
-        labelId: Type.String({ description: '라벨 ID' })
+        id: Type.String({ description: '라벨 ID' })
     }),
     body: Type.Object({
         notes: Type.Optional(Type.String({ description: '발행 노트 (버전 설명)' })),
@@ -208,7 +204,7 @@ export const publishLabelContract = {
     response: Type.Union([
         Type.Object({
             success: Type.Boolean(),
-            labelId: Type.Number(),
+            id: Type.Number(),
             version: Type.Number(),
             message: Type.String()
         }),
@@ -219,13 +215,13 @@ export const publishLabelContract = {
 } as const satisfies RouteContract;
 
 /**
- * GET /_cms/labels/:labelId/admin - 관리자용 라벨 조회 (Draft + Published + Status)
+ * GET /_cms/labels/:id/admin - 관리자용 라벨 조회 (Draft + Published + Status)
  */
 export const getAdminLabelContract = {
     method: 'GET' as const,
-    path: '/_cms/labels/:labelId/admin',
+    path: '/_cms/labels/:id/admin',
     params: Type.Object({
-        labelId: Type.String({ description: '라벨 ID' })
+        id: Type.String({ description: '라벨 ID' })
     }),
     response: Type.Union([
         Type.Object({
@@ -272,13 +268,13 @@ export const getAdminLabelContract = {
 } as const satisfies RouteContract;
 
 /**
- * GET /_cms/labels/:labelId/versions - 라벨 버전 히스토리 조회
+ * GET /_cms/labels/:id/versions - 라벨 버전 히스토리 조회
  */
 export const getLabelVersionsContract = {
     method: 'GET' as const,
-    path: '/_cms/labels/:labelId/versions',
+    path: '/_cms/labels/:id/versions',
     params: Type.Object({
-        labelId: Type.String({ description: '라벨 ID' })
+        id: Type.String({ description: '라벨 ID' })
     }),
     response: Type.Union([
         Type.Object({

@@ -7,50 +7,221 @@
 import { findOne, create } from '@spfn/core/db';
 import { users } from '@/server/entities';
 import { hashPassword } from '@/server/helpers';
+import type { UserRole } from '@/server/entities/users';
 
 /**
- * Ensure admin account exists from environment variables
+ * Admin account configuration
+ */
+interface AdminAccountConfig
+{
+    email: string;
+    password: string;
+    role?: UserRole;
+    phone?: string;
+    passwordChangeRequired?: boolean;
+}
+
+/**
+ * Parse admin accounts from environment variables
  *
- * Environment variables:
- * - ADMIN_EMAIL: Admin email address (required)
- * - ADMIN_PASSWORD: Admin password (required)
+ * Supports three formats (in priority order):
  *
- * The admin account will have:
- * - role: 'superadmin'
+ * 1. JSON format (ADMIN_ACCOUNTS):
+ *    ```
+ *    ADMIN_ACCOUNTS='[{"email":"admin@example.com","password":"pass","role":"superadmin"}]'
+ *    ```
+ *
+ * 2. Comma-separated format (ADMIN_EMAILS + ADMIN_PASSWORDS + ADMIN_ROLES):
+ *    ```
+ *    ADMIN_EMAILS=admin@example.com,user@example.com
+ *    ADMIN_PASSWORDS=admin-pass,user-pass
+ *    ADMIN_ROLES=superadmin,user
+ *    ```
+ *
+ * 3. Single account format (legacy, ADMIN_EMAIL + ADMIN_PASSWORD):
+ *    ```
+ *    ADMIN_EMAIL=admin@example.com
+ *    ADMIN_PASSWORD=admin-password
+ *    ```
+ *
+ * @returns Array of admin account configurations
+ */
+function parseAdminAccounts(): AdminAccountConfig[]
+{
+    const accounts: AdminAccountConfig[] = [];
+
+    // Method 1: JSON format (highest priority)
+    if (process.env.ADMIN_ACCOUNTS)
+    {
+        try
+        {
+            const parsed = JSON.parse(process.env.ADMIN_ACCOUNTS);
+
+            if (!Array.isArray(parsed))
+            {
+                console.error('[Auth] ❌ ADMIN_ACCOUNTS must be an array');
+                return accounts;
+            }
+
+            for (const item of parsed)
+            {
+                if (!item.email || !item.password)
+                {
+                    console.warn('[Auth] ⚠️  Skipping account: missing email or password');
+                    continue;
+                }
+
+                accounts.push({
+                    email: item.email,
+                    password: item.password,
+                    role: item.role || 'user',
+                    phone: item.phone,
+                    passwordChangeRequired: item.passwordChangeRequired !== false, // Default: true
+                });
+            }
+
+            return accounts;
+        }
+        catch (error)
+        {
+            const err = error as Error;
+            console.error('[Auth] ❌ Failed to parse ADMIN_ACCOUNTS:', err.message);
+            return accounts;
+        }
+    }
+
+    // Method 2: Comma-separated format
+    if (process.env.ADMIN_EMAILS)
+    {
+        const emails = process.env.ADMIN_EMAILS.split(',').map(s => s.trim());
+        const passwords = (process.env.ADMIN_PASSWORDS || '').split(',').map(s => s.trim());
+        const roles = (process.env.ADMIN_ROLES || '').split(',').map(s => s.trim());
+
+        // Validate lengths match
+        if (passwords.length !== emails.length)
+        {
+            console.error('[Auth] ❌ ADMIN_EMAILS and ADMIN_PASSWORDS length mismatch');
+            return accounts;
+        }
+
+        for (let i = 0; i < emails.length; i++)
+        {
+            const email = emails[i];
+            const password = passwords[i];
+            const role = (roles[i] as UserRole) || 'user';
+
+            if (!email || !password)
+            {
+                console.warn(`[Auth] ⚠️  Skipping account ${i + 1}: missing email or password`);
+                continue;
+            }
+
+            accounts.push({
+                email,
+                password,
+                role,
+                passwordChangeRequired: true,
+            });
+        }
+
+        return accounts;
+    }
+
+    // Method 3: Single account (legacy format)
+    if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD)
+    {
+        accounts.push({
+            email: process.env.ADMIN_EMAIL,
+            password: process.env.ADMIN_PASSWORD,
+            role: 'superadmin',
+            passwordChangeRequired: true,
+        });
+    }
+
+    return accounts;
+}
+
+/**
+ * Ensure admin accounts exist from environment variables
+ *
+ * Supports multiple admin account creation via three formats:
+ * 1. JSON format (ADMIN_ACCOUNTS)
+ * 2. Comma-separated format (ADMIN_EMAILS + ADMIN_PASSWORDS + ADMIN_ROLES)
+ * 3. Single account format (ADMIN_EMAIL + ADMIN_PASSWORD) - legacy
+ *
+ * Default behavior for created accounts:
  * - emailVerifiedAt: current timestamp (auto-verified)
  * - passwordChangeRequired: true (must change on first login)
+ * - status: 'active'
+ *
+ * @example
+ * ```typescript
+ * // In your server startup code:
+ * import { ensureAdminExists } from '@spfn/auth/server';
+ *
+ * await ensureAdminExists();
+ * ```
  */
 export async function ensureAdminExists(): Promise<void>
 {
-    const email = process.env.ADMIN_EMAIL;
-    const password = process.env.ADMIN_PASSWORD;
+    const accounts = parseAdminAccounts();
 
-    // Skip if not configured
-    if (!email || !password)
+    // Skip if no accounts configured
+    if (accounts.length === 0)
     {
         return;
     }
 
-    // Check if admin already exists
-    const existing = await findOne(users, { email });
-    if (existing)
+    console.log(`[Auth] Creating ${accounts.length} admin account(s)...`);
+
+    let created = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const account of accounts)
     {
-        console.log('[Auth] Admin account already exists:', email);
-        return;
+        try
+        {
+            // Check if account already exists
+            const existing = await findOne(users, { email: account.email });
+
+            if (existing)
+            {
+                console.log(`[Auth] ⚠️  Account already exists: ${account.email} (skipped)`);
+                skipped++;
+                continue;
+            }
+
+            // Hash password
+            const passwordHash = await hashPassword(account.password);
+
+            // Create admin account
+            await create(users, {
+                email: account.email,
+                phone: account.phone || null,
+                passwordHash,
+                role: account.role || 'user',
+                emailVerifiedAt: new Date(), // Auto-verify admin
+                passwordChangeRequired: account.passwordChangeRequired !== false,
+                status: 'active',
+            });
+
+            console.log(`[Auth] ✅ Admin account created: ${account.email} (${account.role || 'user'})`);
+            created++;
+        }
+        catch (error)
+        {
+            const err = error as Error;
+            console.error(`[Auth] ❌ Failed to create account ${account.email}:`, err.message);
+            failed++;
+        }
     }
 
-    // Create admin account
-    const passwordHash = await hashPassword(password);
+    // Summary
+    console.log(`[Auth] 📊 Summary: ${created} created, ${skipped} skipped, ${failed} failed`);
 
-    await create(users, {
-        email,
-        passwordHash,
-        role: 'superadmin',
-        emailVerifiedAt: new Date(), // Auto-verify admin
-        passwordChangeRequired: true, // Force password change
-        status: 'active',
-    });
-
-    console.log('[Auth] ✅ Admin account created:', email);
-    console.log('[Auth] ⚠️  Please change the password on first login!');
+    if (created > 0)
+    {
+        console.log('[Auth] ⚠️  Please change passwords on first login!');
+    }
 }

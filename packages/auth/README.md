@@ -7,13 +7,58 @@ Authentication, authorization, and RBAC module for SPFN.
 
 ## Features
 
-- User management
-- Authentication (login, logout, register)
-- Session management
-- Role-Based Access Control (RBAC)
-- JWT token generation and verification
-- Password hashing with bcrypt
-- Type-safe API contracts
+- **Asymmetric JWT Authentication** - Client-signed tokens with ES256/RS256
+- **User Management** - Email/phone-based identity with bcrypt password hashing
+- **Multi-Factor Authentication** - 6-digit OTP via email/SMS
+- **Session Management** - Public key rotation and revocation (90-day expiry)
+- **Role-Based Access Control (RBAC)** - superadmin, admin, user roles
+- **Account Status Management** - active, inactive, suspended states
+- **Verification Flow** - Temporary tokens (15min) for secure operations
+- **Type-Safe API Contracts** - Built with Typebox validation
+
+## Architecture
+
+### Asymmetric JWT Authentication
+
+This package uses **client-signed JWT tokens** for enhanced security compared to traditional symmetric JWT:
+
+```
+┌─────────────┐                           ┌─────────────┐
+│   Client    │                           │   Server    │
+│             │                           │             │
+│  1. Generate│                           │             │
+│     keypair │                           │             │
+│     (ES256) │                           │             │
+│             │                           │             │
+│  2. Register│──────────────────────────>│ 3. Store    │
+│     publicKey                           │    publicKey│
+│     + fingerprint                       │    (verify  │
+│                                         │    fingerprint)
+│             │                           │             │
+│  4. Sign JWT│                           │             │
+│     with    │                           │             │
+│     privateKey                          │             │
+│             │                           │             │
+│  5. Request │──────────────────────────>│ 6. Verify   │
+│     + JWT   │  Authorization: Bearer    │    signature│
+│     + keyId │  X-Key-Id: uuid           │    with     │
+│             │                           │    publicKey│
+│             │                           │             │
+│             │<──────────────────────────│ 7. Success  │
+│             │   { success: true }       │             │
+└─────────────┘                           └─────────────┘
+```
+
+**Key Benefits:**
+- Server never knows the private key
+- No shared secrets (unlike HMAC)
+- Each client has unique key pair
+- Easy key rotation without global impact
+- Automatic 90-day key expiry
+
+**Supported Algorithms:**
+- **ES256** (ECDSA P-256) - Recommended, ~91 bytes, compact and fast
+- **RS256** (RSA 2048) - Fallback, ~294 bytes, wider compatibility
 
 ## Installation
 
@@ -21,51 +66,778 @@ Authentication, authorization, and RBAC module for SPFN.
 pnpm add @spfn/auth
 ```
 
-## Usage
+## Quick Start
+
+### 1. Client-Side Key Generation
 
 ```typescript
-// In your SPFN project
-import { ... } from '@spfn/auth';
-import { ... } from '@spfn/auth/server';
-import { ... } from '@spfn/auth/middleware';
+import { generateKeyPair } from '@spfn/auth/client';
+
+// Generate ES256 key pair (recommended)
+const keyPair = generateKeyPair('ES256');
+
+console.log(keyPair);
+// {
+//   privateKey: 'MIG...',        // Base64 DER (store securely!)
+//   publicKey: 'MFkw...',        // Base64 DER (send to server)
+//   keyId: '550e8400-...',       // UUID v4
+//   fingerprint: 'a1b2c3...',   // SHA-256 (64 hex chars)
+//   algorithm: 'ES256'
+// }
+
+// Store privateKey securely in localStorage/sessionStorage
+localStorage.setItem('auth.privateKey', keyPair.privateKey);
+localStorage.setItem('auth.keyId', keyPair.keyId);
 ```
+
+### 2. User Registration
+
+```typescript
+import { authRegister } from '@spfn/auth/api';
+
+// Step 1: Send verification code
+await authSendCode({
+  target: 'user@example.com',
+  targetType: 'email',
+  purpose: 'registration'
+});
+
+// Step 2: Verify code and get temporary token
+const { verificationToken } = await authVerifyCode({
+  target: 'user@example.com',
+  targetType: 'email',
+  code: '123456',
+  purpose: 'registration'
+});
+
+// Step 3: Register with verification token
+const result = await authRegister({
+  email: 'user@example.com',
+  password: 'securePassword123',
+  verificationToken,
+  publicKey: keyPair.publicKey,
+  keyId: keyPair.keyId,
+  fingerprint: keyPair.fingerprint,
+  algorithm: 'ES256'
+});
+
+console.log(result);
+// { userId: '42', email: 'user@example.com' }
+```
+
+### 3. User Login
+
+```typescript
+import { authLogin } from '@spfn/auth/api';
+
+// Generate new key pair for this session
+const newKeyPair = generateKeyPair('ES256');
+
+const result = await authLogin({
+  email: 'user@example.com',
+  password: 'securePassword123',
+  publicKey: newKeyPair.publicKey,
+  keyId: newKeyPair.keyId,
+  fingerprint: newKeyPair.fingerprint,
+  oldKeyId: localStorage.getItem('auth.keyId'), // Revoke old key
+  algorithm: 'ES256'
+});
+
+// Store new credentials
+localStorage.setItem('auth.privateKey', newKeyPair.privateKey);
+localStorage.setItem('auth.keyId', newKeyPair.keyId);
+localStorage.setItem('auth.userId', result.userId);
+```
+
+### 4. Making Authenticated Requests
+
+```typescript
+import { generateClientToken } from '@spfn/auth/client';
+
+// Sign JWT with your private key
+const privateKey = localStorage.getItem('auth.privateKey');
+const keyId = localStorage.getItem('auth.keyId');
+const userId = localStorage.getItem('auth.userId');
+
+const token = generateClientToken(
+  { userId, keyId, timestamp: Date.now() },
+  privateKey,
+  'ES256',
+  { expiresIn: '15m', issuer: 'spfn-client' }
+);
+
+// Send request with Authorization header
+const response = await fetch('/_auth/logout', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'X-Key-Id': keyId,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({})
+});
+```
+
+### 5. Server-Side Middleware
+
+```typescript
+import { createApp } from '@spfn/core/route';
+import { authenticate } from '@spfn/auth/server';
+import { getAuth, getUser } from '@spfn/auth/server';
+
+const app = createApp();
+
+// Apply authentication middleware
+app.bind(myProtectedRoute, [authenticate], async (c) => {
+  // Get authenticated user
+  const { user, userId, keyId } = getAuth(c);
+
+  // Or just get user directly
+  const user = getUser(c);
+
+  console.log(user.email, user.role, user.status);
+
+  return c.success({ message: 'Authenticated!' });
+});
+```
+
+## API Reference
+
+### Public Endpoints (No Authentication Required)
+
+#### `POST /_auth/codes`
+Send a 6-digit verification code to email or phone.
+
+**Request:**
+```typescript
+{
+  target: string;           // Email or phone number in E.164
+  targetType: 'email' | 'phone';
+  purpose: 'registration' | 'login' | 'password_reset';
+}
+```
+
+**Response:**
+```typescript
+{
+  success: boolean;
+  expiresAt: string;        // ISO 8601 timestamp
+}
+```
+
+---
+
+#### `POST /_auth/codes/verify`
+Verify the 6-digit code and receive a temporary token (15min validity).
+
+**Request:**
+```typescript
+{
+  target: string;
+  targetType: 'email' | 'phone';
+  code: string;             // 6 digits
+  purpose: 'registration' | 'login' | 'password_reset';
+}
+```
+
+**Response:**
+```typescript
+{
+  valid: boolean;
+  verificationToken?: string;  // Use for registration/password reset
+}
+```
+
+---
+
+#### `POST /_auth/exists`
+Check if an account with given email/phone already exists.
+
+**Request:**
+```typescript
+{
+  email?: string;           // Email address
+  phone?: string;           // E.164 format (e.g., +821012345678)
+}
+```
+
+**Response:**
+```typescript
+{
+  exists: boolean;
+  identifier: string;       // The checked value
+  identifierType: 'email' | 'phone';
+}
+```
+
+---
+
+#### `POST /_auth/register`
+Register a new user account.
+
+**Request:**
+```typescript
+{
+  email?: string;           // One of email or phone required
+  phone?: string;           // E.164 format
+  verificationToken: string;  // From /codes/verify
+  password: string;         // Minimum 8 characters
+  publicKey: string;        // Base64 DER (SPKI format)
+  keyId: string;            // UUID v4
+  fingerprint: string;      // SHA-256 hex (64 chars)
+  algorithm: 'ES256' | 'RS256';
+  keySize?: number;         // Optional, for logging
+}
+```
+
+**Response:**
+```typescript
+{
+  userId: string;
+  email?: string;
+  phone?: string;
+}
+```
+
+---
+
+#### `POST /_auth/login`
+Authenticate user and register new public key.
+
+**Request:**
+```typescript
+{
+  email?: string;           // One of email or phone required
+  phone?: string;
+  password: string;
+  publicKey: string;        // New key for this session
+  keyId: string;            // UUID v4
+  fingerprint: string;      // SHA-256 hex
+  oldKeyId?: string;        // Previous key to revoke
+  algorithm: 'ES256' | 'RS256';
+  keySize?: number;
+}
+```
+
+**Response:**
+```typescript
+{
+  userId: string;
+  email?: string;
+  phone?: string;
+  passwordChangeRequired: boolean;  // If true, must change password
+}
+```
+
+---
+
+### Authenticated Endpoints (Require JWT + X-Key-Id Headers)
+
+#### `POST /_auth/logout`
+Revoke current key and logout.
+
+**Request:**
+```typescript
+{}  // Empty body
+```
+
+**Response:**
+```typescript
+{
+  success: boolean;
+}
+```
+
+---
+
+#### `POST /_auth/keys/rotate`
+Replace current key with a new one (before 90-day expiry).
+
+**Request:**
+```typescript
+{
+  publicKey: string;        // New public key
+  keyId: string;            // New UUID v4
+  fingerprint: string;      // New fingerprint
+  algorithm: 'ES256' | 'RS256';
+  keySize?: number;
+}
+```
+
+**Response:**
+```typescript
+{
+  success: boolean;
+  keyId: string;            // New key ID
+}
+```
+
+---
+
+#### `PUT /_auth/password`
+Change user password (requires current password).
+
+**Request:**
+```typescript
+{
+  currentPassword: string;
+  newPassword: string;      // Minimum 8 characters
+}
+```
+
+**Response:**
+```typescript
+{
+  success: boolean;
+}
+```
+
+---
+
+## Database Schema
+
+### Table: `users`
+
+Main user identity table.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | bigserial | Primary key |
+| `email` | text | Email address (unique, nullable) |
+| `phone` | text | Phone in E.164 format (unique, nullable) |
+| `passwordHash` | text | bcrypt hash ($2b$10$..., 60 chars) |
+| `passwordChangeRequired` | boolean | Force password change on next login |
+| `role` | enum | `superadmin`, `admin`, `user` |
+| `status` | enum | `active`, `inactive`, `suspended` |
+| `emailVerifiedAt` | timestamp | Email verification time |
+| `phoneVerifiedAt` | timestamp | Phone verification time |
+| `lastLoginAt` | timestamp | Last successful login |
+| `createdAt` | timestamp | Account creation time |
+| `updatedAt` | timestamp | Last update time |
+
+**Constraints:**
+- At least one of `email` OR `phone` must be provided
+- Email and phone are unique when not null
+
+---
+
+### Table: `user_public_keys`
+
+Stores client public keys for JWT verification.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | bigserial | Primary key |
+| `userId` | bigint | Foreign key to users.id |
+| `keyId` | text | Client-generated UUID (unique) |
+| `publicKey` | text | Base64 DER encoded (SPKI) |
+| `algorithm` | enum | `ES256`, `RS256` |
+| `fingerprint` | text | SHA-256 hex (64 chars) |
+| `isActive` | boolean | Key status (true = active) |
+| `createdAt` | timestamp | Key creation time |
+| `lastUsedAt` | timestamp | Last authentication time |
+| `expiresAt` | timestamp | Expiry time (90 days default) |
+| `revokedAt` | timestamp | Revocation time |
+| `revokedReason` | text | Revocation reason |
+
+**Indexes:**
+- `userId`, `keyId`, `isActive`, `fingerprint`
+
+---
+
+### Table: `verification_codes`
+
+Stores OTP codes for email/SMS verification.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | bigserial | Primary key |
+| `target` | text | Email or phone number |
+| `targetType` | enum | `email`, `phone` |
+| `code` | text | 6-digit code |
+| `purpose` | enum | `registration`, `login`, `password_reset`, etc. |
+| `expiresAt` | timestamp | Code expiry (5-10 minutes) |
+| `usedAt` | timestamp | Time code was used |
+| `createdAt` | timestamp | Code creation time |
+
+---
+
+### Table: `user_social_accounts`
+
+OAuth provider accounts (future feature).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | bigserial | Primary key |
+| `userId` | bigint | Foreign key to users.id |
+| `provider` | text | OAuth provider (google, github, etc.) |
+| `providerId` | text | Provider's user ID |
+| `accessToken` | text | OAuth access token |
+| `refreshToken` | text | OAuth refresh token |
+| `expiresAt` | timestamp | Token expiry |
+| `createdAt` | timestamp | Account link time |
+
+---
+
+## Role-Based Access Control (RBAC)
+
+### Roles
+
+| Role | Description | Capabilities |
+|------|-------------|--------------|
+| `superadmin` | Platform administrator | Full system access, manage all users, configure system |
+| `admin` | Organization administrator | Manage organization users, configure org settings |
+| `user` | Regular user | Access own data, standard features |
+
+### Checking Roles in Code
+
+```typescript
+import { getUser } from '@spfn/auth/server';
+
+app.bind(adminRoute, [authenticate], async (c) => {
+  const user = getUser(c);
+
+  if (user.role !== 'admin' && user.role !== 'superadmin') {
+    throw new ForbiddenError('Admin access required');
+  }
+
+  // Admin logic here...
+});
+```
+
+### Account Status
+
+| Status | Description | Login Allowed |
+|--------|-------------|---------------|
+| `active` | Normal operation | Yes |
+| `inactive` | User deactivated account | No |
+| `suspended` | Locked due to security/ToS violation | No |
+
+---
+
+## Security
+
+### Key Management Best Practices
+
+1. **Store Private Keys Securely**
+   - Use `sessionStorage` for session-only keys
+   - Use `localStorage` for persistent keys
+   - Never send private keys to server
+   - Never expose in logs or error messages
+
+2. **Rotate Keys Before Expiry**
+   - Keys expire after 90 days
+   - Rotate keys when `daysRemaining <= 7`
+   - Use `POST /_auth/keys/rotate` endpoint
+
+```typescript
+import { shouldRotateKey } from '@spfn/auth/client';
+
+const createdAt = new Date(localStorage.getItem('auth.keyCreatedAt'));
+const { shouldRotate, daysRemaining } = shouldRotateKey(createdAt, 90);
+
+if (shouldRotate) {
+  console.warn(`Key expires in ${daysRemaining} days - rotate soon!`);
+  // Call rotation endpoint...
+}
+```
+
+3. **Fingerprint Verification**
+   - Always send fingerprint with public key
+   - Server validates fingerprint = SHA-256(publicKey)
+   - Prevents key tampering during transmission
+
+4. **Token Expiry**
+   - JWT tokens expire after 15 minutes by default
+   - Use short expiry for sensitive operations
+   - Generate new token for each request or cache for <15min
+
+5. **Environment Variables**
+
+```bash
+# .env
+JWT_SECRET=your-secret-key-change-in-production  # For legacy tokens
+JWT_EXPIRES_IN=7d                                 # Token expiry
+```
+
+---
 
 ## Setup
 
-1. Run migrations to create auth tables:
+### 1. Run Database Migrations
+
 ```bash
 npx spfn db migrate
 ```
 
-2. Configure environment variables:
+This creates the auth schema with 4 tables:
+- `users`
+- `user_public_keys`
+- `verification_codes`
+- `user_social_accounts`
+
+### 2. Configure Environment Variables
+
 ```bash
-JWT_SECRET=your-secret-key
+# .env
+JWT_SECRET=your-secret-key-change-in-production
 JWT_EXPIRES_IN=7d
 ```
 
-## Testing
+### 3. Create Initial Admin Accounts (Optional)
 
-Run tests with coverage:
+You can automatically create admin accounts on server startup using environment variables. Three formats are supported:
+
+#### Option 1: JSON Format (Most Flexible)
+
+Allows full control over each account's configuration.
 
 ```bash
-pnpm test:coverage
+# .env
+ADMIN_ACCOUNTS='[
+  {
+    "email": "super@example.com",
+    "password": "super-password",
+    "role": "superadmin",
+    "phone": "+821012345678",
+    "passwordChangeRequired": true
+  },
+  {
+    "email": "admin@example.com",
+    "password": "admin-password",
+    "role": "admin"
+  },
+  {
+    "email": "user@example.com",
+    "password": "user-password",
+    "role": "user",
+    "passwordChangeRequired": false
+  }
+]'
 ```
 
-Run tests in watch mode:
+**JSON Fields:**
+- `email` (required): Email address
+- `password` (required): Initial password
+- `role` (optional): `superadmin`, `admin`, or `user` (default: `user`)
+- `phone` (optional): Phone number in E.164 format
+- `passwordChangeRequired` (optional): Force password change on first login (default: `true`)
+
+---
+
+#### Option 2: Comma-Separated Format (Simple)
+
+Quick setup for multiple accounts with basic configuration.
+
+```bash
+# .env
+ADMIN_EMAILS=super@example.com,admin@example.com,user@example.com
+ADMIN_PASSWORDS=super-pass,admin-pass,user-pass
+ADMIN_ROLES=superadmin,admin,user  # Optional, defaults to 'user'
+```
+
+**Requirements:**
+- `ADMIN_EMAILS` and `ADMIN_PASSWORDS` must have the same number of items
+- `ADMIN_ROLES` is optional (defaults to `user` for each account)
+- All accounts will have `passwordChangeRequired: true`
+
+---
+
+#### Option 3: Single Account (Legacy)
+
+For backward compatibility, you can create a single superadmin account.
+
+```bash
+# .env
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=secure-password
+```
+
+This creates a single account with:
+- `role: 'superadmin'`
+- `passwordChangeRequired: true`
+
+---
+
+#### Usage in Server Code
+
+Call `ensureAdminExists()` in your server startup code:
+
+```typescript
+// src/server/index.ts or app initialization
+import { ensureAdminExists } from '@spfn/auth/server';
+
+// Call during server startup
+await ensureAdminExists();
+```
+
+**Output Example:**
+```
+[Auth] Creating 3 admin account(s)...
+[Auth] ✅ Admin account created: super@example.com (superadmin)
+[Auth] ✅ Admin account created: admin@example.com (admin)
+[Auth] ⚠️  Account already exists: user@example.com (skipped)
+[Auth] 📊 Summary: 2 created, 1 skipped, 0 failed
+[Auth] ⚠️  Please change passwords on first login!
+```
+
+**Behavior:**
+- Accounts are only created if they don't already exist
+- All created accounts are auto-verified (`emailVerifiedAt` is set)
+- By default, password change is required on first login
+- If no environment variables are set, the function silently returns
+
+---
+
+### 4. Import in Your SPFN Project
+
+```typescript
+// Server-side only
+import { authenticate, getAuth, getUser } from '@spfn/auth/server';
+import { users, userPublicKeys } from '@spfn/auth'; // Entities
+
+// Client-side only
+import { generateKeyPair, generateClientToken } from '@spfn/auth/client';
+
+// Common (both sides)
+import type { User, UserRole, UserStatus } from '@spfn/auth';
+```
+
+---
+
+## Testing
+
+### Run All Tests
 
 ```bash
 pnpm test
 ```
 
-Start test database:
+### Run Tests with Coverage
+
+```bash
+pnpm test:coverage
+```
+
+Current coverage: **83.01%** (25 tests passing)
+
+### Run Route Tests Only
+
+```bash
+pnpm test:routes
+```
+
+### Start Test Database
 
 ```bash
 pnpm docker:test:up
 ```
 
+### Stop Test Database
+
+```bash
+pnpm docker:test:down
+```
+
+---
+
+## Package Structure
+
+```
+@spfn/auth/
+├── dist/
+│   ├── index.js          # Common exports (types, entities)
+│   ├── server.js         # Server-only exports (routes, middleware, helpers)
+│   └── client.js         # Client-only exports (crypto, hooks, store)
+├── migrations/           # Drizzle database migrations
+└── src/
+    ├── index.ts          # Common entry point
+    ├── server.ts         # Server entry point
+    ├── client.ts         # Client entry point
+    ├── lib/              # Shared code
+    │   ├── api/          # API client functions
+    │   ├── contracts/    # Type-safe API contracts
+    │   └── types/        # Shared TypeScript types
+    ├── server/           # Server-only code
+    │   ├── entities/     # Drizzle ORM entities
+    │   ├── routes/       # API route handlers
+    │   ├── middleware/   # Authentication middleware
+    │   ├── helpers/      # JWT, password, verification utils
+    │   └── repositories/ # Database access layer
+    └── client/           # Client-only code
+        ├── lib/          # Crypto helpers (key generation, JWT signing)
+        ├── hooks/        # React hooks (TODO)
+        ├── store/        # Zustand state management (TODO)
+        └── components/   # React components (TODO)
+```
+
+---
+
+## SPFN Framework Integration
+
+This package automatically integrates with SPFN via `package.json`:
+
+```json
+{
+  "spfn": {
+    "prefix": "/_auth",
+    "schemas": ["./dist/server/entities/*.js"],
+    "routes": {
+      "basePath": "/auth",
+      "dir": "./dist/server/routes"
+    },
+    "migrations": {
+      "dir": "./migrations"
+    }
+  }
+}
+```
+
+Routes are automatically registered:
+- `/_auth/codes` → Send verification code
+- `/_auth/codes/verify` → Verify code
+- `/_auth/exists` → Check account existence
+- `/_auth/register` → Register user
+- `/_auth/login` → Login
+- `/_auth/logout` → Logout (authenticated)
+- `/_auth/keys/rotate` → Rotate key (authenticated)
+- `/_auth/password` → Change password (authenticated)
+
+---
+
 ## Development Status
 
-This package is currently in alpha. APIs may change.
+**Version:** 0.1.0-alpha.0 (Alpha)
+
+**Completed:**
+- Asymmetric JWT authentication (ES256/RS256)
+- User registration and login
+- OTP verification flow (email/SMS)
+- Session management with key rotation
+- Password change functionality
+- RBAC roles and account status
+- Comprehensive test coverage (83%)
+
+**In Progress:**
+- Client-side React hooks (useAuth, useSession)
+- Client-side Zustand store
+- React UI components (LoginForm, RegisterForm)
+
+**Roadmap:**
+- OAuth provider integration (Google, GitHub)
+- Two-factor authentication (2FA)
+- Password reset flow
+- Email change flow
+- Phone change flow
+- Admin management APIs
+
+---
+
+## Contributing
+
+This is an internal SPFN package. Please follow the monorepo conventions when contributing.
+
+---
 
 ## License
 

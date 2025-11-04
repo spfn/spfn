@@ -9,21 +9,17 @@ import { asc } from 'drizzle-orm';
 import { cmsLabels, type CmsLabel, type NewCmsLabel } from '@/server/entities';
 
 /**
- * 라벨 목록 조회 (페이지네이션)
+ * 라벨 목록 조회
  */
 export async function findMany(options?: {
     section?: string;
-    limit?: number;
-    offset?: number;
 }): Promise<CmsLabel[]>
 {
-    const { section, limit = 20, offset = 0 } = options || {};
+    const { section } = options || {};
 
     return findManyHelper(cmsLabels, {
         where: section ? { section } : undefined,
         orderBy: asc(cmsLabels.key),  // key 오름차순 정렬 (JSON 파일의 순서 유지)
-        limit,
-        offset
     });
 }
 

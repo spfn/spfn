@@ -18,17 +18,15 @@ const app = createApp();
 
 /**
  * GET /labels
- * 라벨 목록 조회 (페이지네이션, 섹션 필터)
+ * 라벨 목록 조회 (섹션 필터)
  */
 app.bind(getLabelsContract, async (c) =>
 {
-    const { section, limit = 20, offset = 0, includeDefaultValues } = c.query;
+    const { section, includeDefaultValues } = c.query;
 
     // 라벨 목록 조회
     const labels = await cmsLabelsRepository.findMany({
         section,
-        limit,
-        offset,
     });
 
     // 전체 개수 조회
@@ -73,8 +71,6 @@ app.bind(getLabelsContract, async (c) =>
             ...(includeDefaultValues && { defaultValue: defaultValuesMap[label.key] })
         })),
         total,
-        limit,
-        offset,
     });
 });
 

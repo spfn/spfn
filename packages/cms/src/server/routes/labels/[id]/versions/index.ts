@@ -2,7 +2,7 @@
  * CMS Label Versions Route
  *
  * 라벨 버전 히스토리 조회 API
- * - GET /labels/:labelId/versions - 모든 버전 히스토리 조회 (final: /_cms/labels/:labelId/versions)
+ * - GET /labels/:id/versions - 모든 버전 히스토리 조회 (final: /_cms/labels/:id/versions)
  */
 
 import { createApp } from '@spfn/core/route';
@@ -15,17 +15,17 @@ import { eq, and } from 'drizzle-orm';
 const app = createApp();
 
 /**
- * GET /labels/:labelId/versions
+ * GET /labels/:id/versions
  * 라벨의 모든 버전 히스토리 조회
  */
 app.bind(getLabelVersionsContract, async (c) =>
 {
-    const { labelId } = c.params;
+    const { id } = c.params;
 
     try
     {
         // 라벨 존재 확인
-        const label = await cmsLabelsRepository.findById(parseInt(labelId));
+        const label = await cmsLabelsRepository.findById(parseInt(id));
         if (!label)
         {
             return c.json(

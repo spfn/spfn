@@ -120,11 +120,9 @@ describe('GET /labels', () =>
         const data = await res.json();
         expect(data.labels).toEqual([]);
         expect(data.total).toBe(0);
-        expect(data.limit).toBe(20);
-        expect(data.offset).toBe(0);
     });
 
-    it('should return all labels with pagination', async () =>
+    it('should return all labels', async () =>
     {
         // Create test data
         for (let i = 0; i < 15; i++)
@@ -136,15 +134,13 @@ describe('GET /labels', () =>
             });
         }
 
-        const res = await labelsApp.request('/labels?limit=10&offset=0');
+        const res = await labelsApp.request('/labels');
 
         expect(res.status).toBe(200);
 
         const data = await res.json();
-        expect(data.labels).toHaveLength(10);
+        expect(data.labels).toHaveLength(15);
         expect(data.total).toBe(15);
-        expect(data.limit).toBe(10);
-        expect(data.offset).toBe(0);
     });
 
     it('should filter by section', async () =>
@@ -171,54 +167,11 @@ describe('GET /labels', () =>
         expect(data.total).toBe(1);
     });
 
-    it('should handle pagination correctly', async () =>
-    {
-        // Create 25 labels
-        for (let i = 0; i < 25; i++)
-        {
-            await cmsLabelsRepository.create({
-                key: `test.label${i}.title`,
-                section: 'test',
-                type: 'text',
-            });
-        }
-
-        // Get second page
-        const res = await labelsApp.request('/labels?limit=10&offset=10');
-
-        expect(res.status).toBe(200);
-
-        const data = await res.json();
-        expect(data.labels).toHaveLength(10);
-        expect(data.offset).toBe(10);
-
-        // Get third page
-        const res3 = await labelsApp.request('/labels?limit=10&offset=20');
-        const data3 = await res3.json();
-        expect(data3.labels).toHaveLength(5);
-    });
-
     it('should reject invalid query parameters', async () =>
     {
-        const res = await labelsApp.request('/labels?section=&limit=&offset=');
+        const res = await labelsApp.request('/labels?section=');
 
-        // Empty string values for numeric parameters should be rejected
-        expect(res.status).toBe(400);
-    });
-
-    it('should reject very large limit values', async () =>
-    {
-        const res = await labelsApp.request('/labels?limit=1000');
-
-        // Should be rejected by contract validation
-        expect(res.status).toBe(400);
-    });
-
-    it('should reject negative offset', async () =>
-    {
-        const res = await labelsApp.request('/labels?offset=-1');
-
-        // Should be rejected by contract validation
+        // Empty string values should be rejected
         expect(res.status).toBe(400);
     });
 });
