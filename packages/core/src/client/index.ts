@@ -13,6 +13,9 @@ export {
     isTimeoutError,
     isNetworkError,
     isHttpError,
+    isServerError,
+    getServerErrorType,
+    getServerErrorDetails,
 } from './contract-client.js';
 
 export type {

@@ -70,13 +70,27 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
         {
             const logLevel = statusCode >= 500 ? 'error' : 'warn';
 
-            errorLogger[logLevel]('Error occurred', {
+            const logData: Record<string, any> = {
                 type: errorType,
                 message: err.message,
                 statusCode,
                 path: c.req.path,
                 method: c.req.method,
-            });
+            };
+
+            // Include details if available
+            if (errorWithCode.details)
+            {
+                logData.details = errorWithCode.details;
+            }
+
+            // Include stack trace for 500 errors in development
+            if (statusCode >= 500 && includeStack)
+            {
+                logData.stack = err.stack;
+            }
+
+            errorLogger[logLevel]('Error occurred', logData);
         }
 
         const response: ErrorResponse = {

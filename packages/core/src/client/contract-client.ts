@@ -104,9 +104,11 @@ export class ContractClient
             contract.path,
             options?.params as Record<string, string | number> | undefined
         );
+
         const queryString = ContractClient.buildQuery(
             options?.query as Record<string, string | string[] | number | boolean> | undefined
         );
+
         const url = `${baseUrl}${urlPath}${queryString}`;
 
         const method = ContractClient.getHttpMethod(contract, options);
@@ -384,4 +386,59 @@ export function isNetworkError(error: unknown): error is ApiClientError
 export function isHttpError(error: unknown): error is ApiClientError
 {
     return error instanceof ApiClientError && error.errorType === 'http';
+}
+
+/**
+ * Check if error is a specific server error type
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await api.workflows.getById({ params: { uuid: 'xxx' } });
+ * } catch (error) {
+ *   if (isServerError(error, 'NotFoundError')) {
+ *     showNotFoundMessage();
+ *   } else if (isServerError(error, 'ValidationError')) {
+ *     showValidationErrors(getServerErrorDetails(error));
+ *   }
+ * }
+ * ```
+ */
+export function isServerError(error: unknown, errorType: string): error is ApiClientError
+{
+    if (!isHttpError(error)) return false;
+    const response = error.response as any;
+    return response?.error?.type === errorType;
+}
+
+/**
+ * Get server error type from ApiClientError
+ *
+ * @example
+ * ```ts
+ * const errorType = getServerErrorType(error);
+ * // 'NotFoundError', 'ValidationError', 'PaymentFailedError', etc.
+ * ```
+ */
+export function getServerErrorType(error: ApiClientError): string | undefined
+{
+    const response = error.response as any;
+    return response?.error?.type;
+}
+
+/**
+ * Get server error details from ApiClientError
+ *
+ * @example
+ * ```ts
+ * if (isServerError(error, 'PaymentFailedError')) {
+ *   const details = getServerErrorDetails(error);
+ *   console.log('Payment ID:', details.paymentId);
+ * }
+ * ```
+ */
+export function getServerErrorDetails<T = any>(error: ApiClientError): T | undefined
+{
+    const response = error.response as any;
+    return response?.error?.details;
 }
