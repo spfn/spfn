@@ -418,7 +418,7 @@ function generateIndexFile(
 
         if (typeNames.length > 0)
         {
-            code += `export type { ${typeNames.join(', ')} } from './${kebabName}.js';\n`;
+            code += `export type { ${typeNames.join(', ')} } from './${kebabName}';\n`;
         }
     }
 
@@ -434,7 +434,7 @@ function generateIndexFile(
         // Get all function names for this resource
         const functionNames = routes.map(route => generateFunctionName(route));
 
-        code += `import { ${functionNames.join(', ')} } from './${kebabName}.js';\n`;
+        code += `import { ${functionNames.join(', ')} } from './${kebabName}';\n`;
     }
 
     code += `\n`;

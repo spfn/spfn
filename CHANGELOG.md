@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.81] - 2025-11-05
+
+### Fixed
+
+#### @spfn/core
+
+- **Code Generation**: Removed `.js` extension from generated TypeScript import paths in contract client
+  - Changed type export paths from `./${kebabName}.js` to `./${kebabName}`
+  - Changed function import paths from `./${kebabName}.js` to `./${kebabName}`
+  - Improves compatibility with TypeScript module resolution
+
 ## [0.1.0-alpha.80] - 2025-11-04
 
 ### Changed

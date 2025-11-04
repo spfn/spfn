@@ -98,9 +98,10 @@ export function ApiErrorSchema()
 }
 
 /**
- * Creates a TypeBox union schema for ApiResponse<T>
+ * Creates a TypeBox schema for ApiSuccessResponse<T>
  *
  * Use this in your route contract's response field for standardized responses.
+ * Note: ContractClient throws ApiClientError on failure, so only success type is needed.
  *
  * @example
  * ```ts
@@ -116,8 +117,5 @@ export function ApiErrorSchema()
  */
 export function ApiResponseSchema<T extends TSchema>(dataSchema: T)
 {
-    return Type.Union([
-        ApiSuccessSchema(dataSchema),
-        ApiErrorSchema(),
-    ]);
+    return ApiSuccessSchema(dataSchema);
 }
