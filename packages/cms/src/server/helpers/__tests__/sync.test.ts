@@ -508,7 +508,7 @@ describe('syncSection', () =>
                     },
                     subtitle: {
                         key: 'home.subtitle',
-                        defaultValue: 'Subtitle (ko only)',
+                        defaultValue: 'Subtitle (shared across locales)',
                     },
                 },
             };
@@ -518,13 +518,81 @@ describe('syncSection', () =>
             const cacheKo = await cmsPublishedCacheRepository.findBySection('home', 'ko');
             const cacheEn = await cmsPublishedCacheRepository.findBySection('home', 'en');
 
+            // 단일 값은 모든 locale에 복사되어야 함
             expect(cacheKo?.content).toEqual({
                 'home.title': '제목',
-                'home.subtitle': 'Subtitle (ko only)',
+                'home.subtitle': 'Subtitle (shared across locales)',
             });
             expect(cacheEn?.content).toEqual({
                 'home.title': 'Title',
+                'home.subtitle': 'Subtitle (shared across locales)',
             });
+        });
+
+        it('should distribute single values (like image paths) to all locales', async () =>
+        {
+            const definition: SectionDefinition = {
+                section: 'home',
+                labels: {
+                    title: {
+                        key: 'home.companies.1.title',
+                        defaultValue: {
+                            ko: '처음엔 모든 게 무모해 보였죠',
+                            en: 'At first, everything seemed reckless',
+                        },
+                    },
+                    logo: {
+                        key: 'home.companies.1.logo',
+                        type: 'image',
+                        defaultValue: '/companies/soslab-logo.png',
+                        description: '회사 로고 이미지 경로',
+                    },
+                    media: {
+                        key: 'home.companies.1.media',
+                        type: 'image',
+                        defaultValue: '/companies/soslab-media.jpg',
+                        description: '회사 미디어 이미지 경로',
+                    },
+                },
+            };
+
+            await syncSection(definition);
+
+            const cacheKo = await cmsPublishedCacheRepository.findBySection('home', 'ko');
+            const cacheEn = await cmsPublishedCacheRepository.findBySection('home', 'en');
+
+            // 다국어 객체는 locale별로 분산
+            expect(cacheKo?.content['home.companies.1.title']).toBe('처음엔 모든 게 무모해 보였죠');
+            expect(cacheEn?.content['home.companies.1.title']).toBe('At first, everything seemed reckless');
+
+            // 단일 값(이미지 경로)은 모든 locale에 복사
+            expect(cacheKo?.content['home.companies.1.logo']).toBe('/companies/soslab-logo.png');
+            expect(cacheEn?.content['home.companies.1.logo']).toBe('/companies/soslab-logo.png');
+            expect(cacheKo?.content['home.companies.1.media']).toBe('/companies/soslab-media.jpg');
+            expect(cacheEn?.content['home.companies.1.media']).toBe('/companies/soslab-media.jpg');
+        });
+
+        it('should ensure minimum locales (ko, en) when no multilingual values exist', async () =>
+        {
+            const definition: SectionDefinition = {
+                section: 'home',
+                labels: {
+                    logo: {
+                        key: 'home.logo',
+                        type: 'image',
+                        defaultValue: '/logo.png',
+                    },
+                },
+            };
+
+            await syncSection(definition);
+
+            const cacheKo = await cmsPublishedCacheRepository.findBySection('home', 'ko');
+            const cacheEn = await cmsPublishedCacheRepository.findBySection('home', 'en');
+
+            // 다국어 객체가 없어도 기본 locale (ko, en)에 복사
+            expect(cacheKo?.content).toEqual({ 'home.logo': '/logo.png' });
+            expect(cacheEn?.content).toEqual({ 'home.logo': '/logo.png' });
         });
     });
 });

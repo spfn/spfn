@@ -322,7 +322,9 @@ async function updatePublishedCache(section: string): Promise<void>
     const labels = await cmsLabelsRepository.findBySection(section);
     const localesSet = new Set<string>();
     const labelsByLocale: Record<string, Record<string, any>> = {};
+    const singleValueLabels: Array<{ key: string; value: any }> = [];
 
+    // First pass: 다국어 객체 처리 및 사용 중인 locale 수집
     labels.forEach((label) =>
     {
         try
@@ -331,7 +333,7 @@ async function updatePublishedCache(section: string): Promise<void>
 
             if (typeof parsed === 'object' && !Array.isArray(parsed))
             {
-                // Multilingual
+                // Multilingual object
                 Object.keys(parsed).forEach((locale) => localesSet.add(locale));
                 Object.entries(parsed).forEach(([locale, value]) =>
                 {
@@ -341,19 +343,32 @@ async function updatePublishedCache(section: string): Promise<void>
             }
             else
             {
-                // Single value
-                if (!labelsByLocale.ko) labelsByLocale.ko = {};
-                labelsByLocale.ko[label.key] = label.defaultValue;
-                localesSet.add('ko');
+                // Single value (will be distributed to all locales in second pass)
+                singleValueLabels.push({ key: label.key, value: label.defaultValue });
             }
         }
         catch
         {
-            // Plain string
-            if (!labelsByLocale.ko) labelsByLocale.ko = {};
-            labelsByLocale.ko[label.key] = label.defaultValue;
-            localesSet.add('ko');
+            // Plain string (will be distributed to all locales in second pass)
+            singleValueLabels.push({ key: label.key, value: label.defaultValue });
         }
+    });
+
+    // 최소 기본 locale 보장 (ko, en)
+    if (localesSet.size === 0)
+    {
+        localesSet.add('ko');
+        localesSet.add('en');
+    }
+
+    // Second pass: 단일 값을 모든 locale에 복사
+    singleValueLabels.forEach(({ key, value }) =>
+    {
+        localesSet.forEach((locale) =>
+        {
+            if (!labelsByLocale[locale]) labelsByLocale[locale] = {};
+            labelsByLocale[locale][key] = value;
+        });
     });
 
     const timestamp = new Date();
