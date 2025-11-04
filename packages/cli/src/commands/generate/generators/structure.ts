@@ -35,7 +35,10 @@ export interface GenerateFunctionStructureOptions
  */
 export async function generateFunctionStructure(options: GenerateFunctionStructureOptions): Promise<void>
 {
-    const { fnDir, scope, fnName, description, entities, enableRoutes } = options;
+    const { fnDir, scope, fnName, description, enableRoutes } = options;
+
+    // Filter out empty entity names
+    const entities = options.entities.filter(e => e && e.trim().length > 0);
 
     // Create directory structure (3-layer architecture)
     const dirs = [
@@ -61,7 +64,6 @@ export async function generateFunctionStructure(options: GenerateFunctionStructu
     generateTsConfig(fnDir);
     generateTsupConfig(fnDir);
     generateDrizzleConfig(fnDir, scope, fnName);
-    generateInitMigration(fnDir, fnName);
     generateExampleGenerator(fnDir, scope, fnName);
     generateReadme(fnDir, scope, fnName, description);
 
@@ -86,19 +88,19 @@ export async function generateFunctionStructure(options: GenerateFunctionStructu
     else
     {
         // Empty index files
-        writeFileSync(join(fnDir, 'src/server/entities/index.ts'), '// Export your entities here\n');
-        writeFileSync(join(fnDir, 'src/server/repositories/index.ts'), '// Export your repositories here\n');
+        writeFileSync(join(fnDir, 'src/server/entities/index.ts'), '// Export your entities here\nexport {}\n');
+        writeFileSync(join(fnDir, 'src/server/repositories/index.ts'), '// Export your repositories here\nexport {}\n');
     }
 
     // Generate client module files
-    writeFileSync(join(fnDir, 'src/client/hooks/index.ts'), '/**\n * Client Hooks\n */\n\n// TODO: Add hooks (e.g., useAuth, useData, etc.)\n');
-    writeFileSync(join(fnDir, 'src/client/store/index.ts'), '/**\n * Client Store\n */\n\n// TODO: Add Zustand store if needed\n');
-    writeFileSync(join(fnDir, 'src/client/components/index.ts'), '/**\n * Client Components\n */\n\n// TODO: Add React components\n');
+    writeFileSync(join(fnDir, 'src/client/hooks/index.ts'), '/**\n * Client Hooks\n */\n\n// TODO: Add hooks (e.g., useAuth, useData, etc.)\nexport {}\n');
+    writeFileSync(join(fnDir, 'src/client/store/index.ts'), '/**\n * Client Store\n */\n\n// TODO: Add Zustand store if needed\nexport {}\n');
+    writeFileSync(join(fnDir, 'src/client/components/index.ts'), '/**\n * Client Components\n */\n\n// TODO: Add React components\nexport {}\n');
     writeFileSync(join(fnDir, 'src/client/index.ts'), '/**\n * Client Module Entry\n */\n\nexport * from \'./hooks\';\nexport * from \'./store\';\nexport * from \'./components\';\n');
 
     // Generate lib module files
-    writeFileSync(join(fnDir, 'src/lib/types/index.ts'), '/**\n * Shared Type Definitions\n */\n\n// Add your shared types here\n');
-    writeFileSync(join(fnDir, 'src/lib/contracts/index.ts'), '/**\n * API Contracts\n */\n\n// Export your contracts here\n');
+    writeFileSync(join(fnDir, 'src/lib/types/index.ts'), '/**\n * Shared Type Definitions\n */\n\n// Add your shared types here\nexport {}\n');
+    writeFileSync(join(fnDir, 'src/lib/contracts/index.ts'), '/**\n * API Contracts\n */\n\n// Export your contracts here\nexport {}\n');
 
     // Generate main exports
     generateMainIndex(fnDir, fnName);

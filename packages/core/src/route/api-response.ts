@@ -3,30 +3,6 @@
  *
  * Optional utilities for consistent API responses across your application.
  * Use these in your route contracts for standardized success/error responses.
- *
- * @example
- * ```ts
- * import { ApiResponseSchema, success, error, paginated } from '@spfn/core/route';
- * import { Type } from '@sinclair/typebox';
- *
- * const getUserContract = {
- *   method: 'GET',
- *   path: '/users/:id',
- *   params: Type.Object({ id: Type.String() }),
- *   response: ApiResponseSchema(Type.Object({
- *     id: Type.String(),
- *     name: Type.String(),
- *   })),
- * } as const;
- *
- * app.bind(getUserContract, async (c) => {
- *   const user = await db.getUser(c.params.id);
- *   if (!user) {
- *     return error(c, 'User not found', 404);
- *   }
- *   return success(c, user);
- * });
- * ```
  */
 
 import type { TSchema } from '@sinclair/typebox';

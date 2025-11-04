@@ -53,3 +53,4 @@ packages/*/.guide/
 .woodpecker.yml
 .woodpecker.dev.yml
 .woodpecker.main.yml
+/apps/

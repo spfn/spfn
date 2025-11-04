@@ -389,12 +389,14 @@ export function conditionalLogger() {
 }
 
 // src/server/middlewares/feature-flag.ts
+import { NotFoundError } from '@spfn/core/errors';
+
 export function featureFlagMiddleware(flagName: string) {
   return async (c: Context, next: Next) => {
     const isEnabled = await checkFeatureFlag(flagName);
 
     if (!isEnabled) {
-      return c.json({ error: 'Feature not available' }, 404);
+      throw new NotFoundError('Feature not available');
     }
 
     await next();

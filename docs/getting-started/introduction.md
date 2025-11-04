@@ -65,6 +65,7 @@ export const getUserContract = {
 
 // 2. Implement route (src/server/routes/users/[id]/index.ts)
 import { createApp } from '@spfn/core/route';
+import { NotFoundError } from '@spfn/core/errors';
 import { findOne } from '@spfn/core/db';
 import { getUserContract } from '@/lib/contracts/users';
 import { users } from '@/server/entities';
@@ -73,7 +74,7 @@ const app = createApp();
 
 app.bind(getUserContract, async (c) => {
   const user = await findOne(users, { id: c.params.id });
-  if (!user) return c.json({ error: 'User not found' }, 404);
+  if (!user) throw new NotFoundError('User', c.params.id);
   return c.json(user);
 });
 

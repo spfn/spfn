@@ -90,10 +90,10 @@ export async function promptDescription(fnName: string): Promise<string>
         type: 'text',
         name: 'description',
         message: 'Function description:',
-        initial: `SPFN ${fnName} function`,
+        initial: 'A description of what this module does',
     });
 
-    return response.description || `SPFN ${fnName} function`;
+    return response.description || 'A description of what this module does';
 }
 
 /**

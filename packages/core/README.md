@@ -204,6 +204,7 @@ export const listPostsContract = {
 // src/server/routes/posts/index.ts
 import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
+import { ConflictError } from '@spfn/core/errors';
 import { findPostBySlug, createPost, findPublishedPosts } from '../../repositories/posts.repository';
 import { createPostContract, listPostsContract } from './contracts';
 
@@ -221,7 +222,7 @@ app.bind(createPostContract, [Transactional()], async (c) => {
   // Check if slug exists
   const existing = await findPostBySlug(slug);
   if (existing) {
-    return c.json({ error: 'Post with this title already exists' }, 409);
+    throw new ConflictError('Post with this title already exists', { slug });
   }
 
   // Create post

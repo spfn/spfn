@@ -7,11 +7,11 @@
 import { Command } from 'commander';
 import ora from 'ora';
 import { join } from 'path';
+import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
-import { validateMonorepoRoot, validateFunctionNotExists } from './generate/validation.js';
 import {
     promptScope,
     promptFunctionName,
@@ -24,6 +24,7 @@ import { generateFunctionStructure } from './generate/generators/structure.js';
 
 interface GenerateFnOptions
 {
+    scope?: string;
     description?: string;
     entities?: string;
     skipCache?: boolean;
@@ -41,19 +42,18 @@ async function generateFunction(
 {
     const cwd = process.cwd();
 
-    // 1. Validate monorepo structure
-    validateMonorepoRoot(cwd);
-
-    const packagesDir = join(cwd, 'packages');
-
-    // 2. Get npm scope
-    let scope = '@spfn';
-    if (!options.yes)
+    // 1. Get npm scope (always prompt if not provided)
+    let scope = options.scope;
+    if (!scope && !options.yes)
     {
         scope = await promptScope();
     }
+    else if (!scope)
+    {
+        scope = '@spfn';
+    }
 
-    // 3. Get function name
+    // 2. Get function name
     let fnName = name;
     if (!fnName && !options.yes)
     {
@@ -66,10 +66,13 @@ async function generateFunction(
         process.exit(1);
     }
 
-    // 4. Check if function already exists
-    validateFunctionNotExists(packagesDir, fnName);
-
-    const fnDir = join(packagesDir, fnName);
+    // 3. Check if function already exists in current directory
+    const fnDir = join(cwd, fnName);
+    if (existsSync(fnDir))
+    {
+        logger.error(`Directory ${fnName} already exists at ${fnDir}`);
+        process.exit(1);
+    }
 
     // 5. Get description
     let description = options.description;
@@ -134,33 +137,14 @@ async function generateFunction(
 
         spinner.succeed('Function structure generated');
 
-        // 9. Install dependencies
-        const pm = await detectPackageManager(cwd);
-        logger.step(`Installing dependencies with ${pm}...`);
-
-        const installSpinner = ora('Installing dependencies...').start();
-
-        try
-        {
-            execSync(`${pm} install`, {
-                cwd,
-                stdio: 'pipe'
-            });
-            installSpinner.succeed('Dependencies installed');
-        }
-        catch (error)
-        {
-            installSpinner.warn('Failed to install dependencies automatically');
-            logger.info(`Run "${pm} install" manually in the monorepo root`);
-        }
-
         // Success message
         console.log('');
-        logger.success(`✨ Function ${chalk.cyan(`${scope}/${fnName}`)} created successfully!\n`);
+        logger.success(`✨ Package ${chalk.cyan(`${scope}/${fnName}`)} created successfully!\n`);
         logger.info(chalk.bold('📚 Next steps:'));
-        console.log(`  ${chalk.gray('1.')} cd packages/${fnName}`);
-        console.log(`  ${chalk.gray('2.')} npm run build`);
-        console.log(`  ${chalk.gray('3.')} spfn add ${scope}/${fnName}`);
+        console.log(`  ${chalk.gray('1.')} cd ${fnName}`);
+        console.log(`  ${chalk.gray('2.')} pnpm install ${chalk.dim('(in monorepo root)')}`);
+        console.log(`  ${chalk.gray('3.')} pnpm build`);
+        console.log(`  ${chalk.gray('4.')} ${chalk.dim('Use the package in your app')}`);
         console.log('');
     }
     catch (error)
@@ -181,6 +165,7 @@ generateCommand
     .command('fn')
     .description('Generate a new SPFN function module')
     .argument('[name]', 'Function name')
+    .option('-s, --scope <scope>', 'NPM scope (e.g., @spfn, @mycompany)')
     .option('-d, --description <text>', 'Function description')
     .option('-e, --entities <list>', 'Comma-separated entity names')
     .option('--skip-cache', 'Skip cache generation')

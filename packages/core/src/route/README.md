@@ -489,7 +489,7 @@ SPFN provides optional standardized response helpers for consistent API response
 ### Success Responses
 
 ```typescript
-import { success, ApiResponseSchema } from '@spfn/core/route';
+import { ApiResponseSchema } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
 
 const getUserContract = {
@@ -507,49 +507,52 @@ app.bind(getUserContract, async (c) => {
     const user = await db.getUser(c.params.id);
 
     // Simple success response
-    return success(c, user);
+    return c.success(user);
     // → { success: true, data: { id, name, email } }
 
     // With metadata
-    return success(c, user, {
+    return c.success(user, {
         timestamp: new Date().toISOString(),
         requestId: crypto.randomUUID()
     });
     // → { success: true, data: {...}, meta: { timestamp, requestId } }
 
     // With custom status code
-    return success(c, newUser, undefined, 201);
+    return c.success(newUser, undefined, 201);
 });
 ```
 
 ### Error Responses
 
 ```typescript
-import { error, ApiResponseSchema } from '@spfn/core/route';
+import { NotFoundError, BadRequestError } from '@spfn/core/errors';
+import { ApiResponseSchema } from '@spfn/core/route';
 
 app.bind(getUserContract, async (c) => {
     const user = await db.getUser(c.params.id);
 
     if (!user) {
-        return error(c, 'User not found', 404);
-        // → { success: false, error: { message, type: 'NotFoundError', statusCode: 404 } }
+        throw new NotFoundError('User not found', { userId: c.params.id });
+        // → ErrorHandler catches and returns:
+        // { success: false, error: { message, type: 'NotFoundError', statusCode: 404, details: {...} } }
     }
 
-    // With additional details
-    return error(c, 'Invalid email format', 400, {
-        field: 'email',
-        value: data.email
-    });
-    // → { success: false, error: { message, type, statusCode, details: {...} } }
+    // Custom validation error with details
+    if (!isValidEmail(data.email)) {
+        throw new BadRequestError('Invalid email format', {
+            field: 'email',
+            value: data.email
+        });
+    }
 
-    return success(c, user);
+    return c.success(user);
 });
 ```
 
 ### Paginated Responses
 
 ```typescript
-import { paginated, ApiResponseSchema } from '@spfn/core/route';
+import { ApiResponseSchema } from '@spfn/core/route';
 
 const listUsersContract = {
     method: 'GET' as const,
@@ -568,7 +571,7 @@ app.bind(listUsersContract, async (c) => {
     const { page, limit } = c.query;
     const { users, total } = await db.listUsers(page, limit);
 
-    return paginated(c, users, page, limit, total);
+    return c.paginated(users, page, limit, total);
     // → {
     //   success: true,
     //   data: [...users],
@@ -657,7 +660,8 @@ API responses are fully compatible with the ErrorHandler middleware:
 
 ```typescript
 import { ErrorHandler } from '@spfn/core';
-import { success, error, ApiResponseSchema } from '@spfn/core/route';
+import { NotFoundError, BadRequestError } from '@spfn/core/errors';
+import { ApiResponseSchema } from '@spfn/core/route';
 
 const app = createApp();
 
@@ -668,41 +672,44 @@ app.bind(contract, async (c) => {
     // ValidationError thrown by bind() is caught by ErrorHandler
     const data = await c.data();  // Auto-validated
 
-    // Manual error response
+    // Manual error handling by throwing HttpError
     if (someCondition) {
-        return error(c, 'Custom error', 400);
+        throw new BadRequestError('Custom error');
     }
 
-    return success(c, result);
+    return c.success(result);
 });
 
-// Both ValidationError and manual error() return consistent format:
+// Both ValidationError and thrown HttpErrors are caught by ErrorHandler:
 // { success: false, error: { message, type, statusCode, details? } }
 ```
 
-### Error Type Mapping
+### Available HTTP Errors
 
-The `error()` helper automatically maps status codes to error types:
+Throw these errors for consistent error handling:
 
-| Status Code | Error Type |
-|------------|-----------|
-| 400 | ValidationError |
-| 401 | UnauthorizedError |
-| 403 | ForbiddenError |
-| 404 | NotFoundError |
-| 409 | ConflictError |
-| 422 | UnprocessableEntityError |
-| 500+ | InternalServerError |
+| Error Class | Status Code | Use Case |
+|------------|-------------|----------|
+| BadRequestError | 400 | Malformed request or validation failure |
+| UnauthorizedError | 401 | Authentication required or failed |
+| ForbiddenError | 403 | Authenticated but lacks permission |
+| NotFoundError | 404 | Resource not found |
+| ConflictError | 409 | Resource state conflict |
+| UnprocessableEntityError | 422 | Semantic errors in request |
+| InternalServerError | 500 | Generic server error |
 
 ```typescript
-error(c, 'Not found', 404)         // → type: 'NotFoundError'
-error(c, 'Unauthorized', 401)      // → type: 'UnauthorizedError'
-error(c, 'Server error', 500)      // → type: 'InternalServerError'
+import { NotFoundError, UnauthorizedError, InternalServerError } from '@spfn/core/errors';
+
+// Throw errors - ErrorHandler catches them automatically
+throw new NotFoundError('User not found', { userId: 123 });
+throw new UnauthorizedError('Invalid token');
+throw new InternalServerError('Database connection failed');
 ```
 
 ### Why Optional?
 
-The API response helpers are completely optional because:
+The API response helpers (`c.success()`, `c.paginated()`) are completely optional because:
 
 1. **Flexibility**: You can use any response format you prefer
 2. **Gradual adoption**: Mix and match with existing code
@@ -710,8 +717,9 @@ The API response helpers are completely optional because:
 4. **Use when needed**: Only use standardization where it adds value
 
 ```typescript
-// Option 1: Use helpers for standardization
-return success(c, data);
+// Option 1: Use c.success() for standardization
+return c.success(data);
+// → { success: true, data: {...} }
 
 // Option 2: Custom format
 return c.json({ result: data, timestamp: Date.now() });

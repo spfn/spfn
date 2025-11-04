@@ -3,8 +3,9 @@
  */
 
 import { join } from 'path';
-import { writeFileSync } from 'fs';
-import { toSnakeCase } from '../string-utils.js';
+import { writeFileSync, mkdirSync } from 'fs';
+import { toSnakeCase, toPascalCase } from '../string-utils.js';
+import { loadTemplate } from '../template-loader.js';
 
 /**
  * Generate package.json
@@ -103,7 +104,7 @@ export function generatePackageJson(fnDir: string, scope: string, fnName: string
 
     writeFileSync(
         join(fnDir, 'package.json'),
-        JSON.stringify(content, null, 2) + '\n'
+        JSON.stringify(content, null, 4) + '\n'
     );
 }
 
@@ -113,22 +114,37 @@ export function generatePackageJson(fnDir: string, scope: string, fnName: string
 export function generateTsConfig(fnDir: string): void
 {
     const content = {
-        extends: '../../tsconfig.json',
         compilerOptions: {
+            target: 'ES2022',
+            module: 'ESNext',
+            lib: ['ES2022'],
+            moduleResolution: 'bundler',
+            esModuleInterop: true,
+            skipLibCheck: true,
+            strict: true,
+            noUncheckedIndexedAccess: true,
+            declaration: true,
+            declarationMap: true,
+            sourceMap: true,
             outDir: './dist',
             rootDir: './src',
-            composite: true,
+            composite: false,
+            isolatedModules: true,
+            resolveJsonModule: true,
+            allowSyntheticDefaultImports: true,
+            forceConsistentCasingInFileNames: true,
+            baseUrl: '.',
             paths: {
                 '@/*': ['./src/*'],
             },
         },
         include: ['src/**/*'],
-        exclude: ['node_modules', 'dist'],
+        exclude: ['node_modules', 'dist', '**/*.test.ts', '**/__tests__/**'],
     };
 
     writeFileSync(
         join(fnDir, 'tsconfig.json'),
-        JSON.stringify(content, null, 2) + '\n'
+        JSON.stringify(content, null, 4) + '\n'
     );
 }
 
@@ -244,9 +260,6 @@ export default defineConfig({
  */
 export function generateInitMigration(fnDir: string, fnName: string): void
 {
-    const { loadTemplate } = require('../template-loader.js');
-    const { toPascalCase } = require('../string-utils.js');
-
     const content = loadTemplate('init-migration', {
         FN_NAME: fnName,
         PASCAL_NAME: toPascalCase(fnName),
@@ -256,7 +269,6 @@ export function generateInitMigration(fnDir: string, fnName: string): void
     const migrationsDir = join(fnDir, 'migrations');
     const metaDir = join(migrationsDir, 'meta');
 
-    const { mkdirSync } = require('fs');
     mkdirSync(migrationsDir, { recursive: true });
     mkdirSync(metaDir, { recursive: true });
 
@@ -303,7 +315,6 @@ export function generateInitMigration(fnDir: string, fnName: string): void
  */
 export function generateExampleGenerator(fnDir: string, scope: string, fnName: string): void
 {
-    const { toPascalCase } = require('../string-utils.js');
     const pascalName = toPascalCase(fnName);
 
     const content = `/**
