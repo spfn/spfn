@@ -1,9 +1,9 @@
 # @spfn/auth
 
-![Coverage](https://img.shields.io/badge/coverage-83.01%25-green)
-![Tests](https://img.shields.io/badge/tests-25%20passed-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-85%2B%25-green)
+![Tests](https://img.shields.io/badge/tests-226%20passed-brightgreen)
 
-Authentication, authorization, and RBAC module for SPFN.
+Authentication, authorization, and comprehensive RBAC module for SPFN.
 
 ## Features
 
@@ -707,7 +707,7 @@ Main user identity table.
 | `phone` | text | Phone in E.164 format (unique, nullable) |
 | `passwordHash` | text | bcrypt hash ($2b$10$..., 60 chars) |
 | `passwordChangeRequired` | boolean | Force password change on next login |
-| `role` | enum | `superadmin`, `admin`, `user` |
+| `roleId` | bigint | Foreign key to roles.id |
 | `status` | enum | `active`, `inactive`, `suspended` |
 | `emailVerifiedAt` | timestamp | Email verification time |
 | `phoneVerifiedAt` | timestamp | Phone verification time |
@@ -718,6 +718,7 @@ Main user identity table.
 **Constraints:**
 - At least one of `email` OR `phone` must be provided
 - Email and phone are unique when not null
+- `roleId` references roles.id (NOT NULL)
 
 ---
 
@@ -776,6 +777,97 @@ OAuth provider accounts (future feature).
 | `refreshToken` | text | OAuth refresh token |
 | `expiresAt` | timestamp | Token expiry |
 | `createdAt` | timestamp | Account link time |
+
+---
+
+### Table: `roles`
+
+Role definitions for RBAC system.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | bigserial | Primary key |
+| `name` | text | Role name (unique, e.g., 'admin', 'user') |
+| `displayName` | text | Human-readable name |
+| `description` | text | Role description |
+| `isBuiltin` | boolean | Cannot be deleted (user, admin, superadmin) |
+| `isSystem` | boolean | System role (cannot be deleted) |
+| `isActive` | boolean | Role status |
+| `priority` | integer | Role hierarchy (higher = more privileged) |
+| `createdAt` | timestamp | Creation time |
+| `updatedAt` | timestamp | Last update time |
+
+**Built-in roles:**
+- `user` (priority 10) - Default role
+- `admin` (priority 80) - Admin role
+- `superadmin` (priority 100) - Super admin
+
+---
+
+### Table: `permissions`
+
+Permission definitions for RBAC system.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | bigserial | Primary key |
+| `name` | text | Permission name (unique, e.g., 'user:delete') |
+| `displayName` | text | Human-readable name |
+| `description` | text | Permission description |
+| `category` | text | Permission category (e.g., 'user', 'content') |
+| `isBuiltin` | boolean | Built-in permission |
+| `isSystem` | boolean | System permission |
+| `isActive` | boolean | Permission status |
+| `createdAt` | timestamp | Creation time |
+| `updatedAt` | timestamp | Last update time |
+
+**Built-in permissions:**
+- `auth:self:manage` - Self auth management
+- `user:read`, `user:write`, `user:delete` - User management
+- `rbac:role:manage`, `rbac:permission:manage` - RBAC management
+
+---
+
+### Table: `role_permissions`
+
+Maps roles to permissions (many-to-many).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | bigserial | Primary key |
+| `roleId` | bigint | Foreign key to roles.id |
+| `permissionId` | bigint | Foreign key to permissions.id |
+| `createdAt` | timestamp | Creation time |
+| `updatedAt` | timestamp | Last update time |
+
+**Constraints:**
+- `UNIQUE(roleId, permissionId)`
+- `ON DELETE CASCADE` for both foreign keys
+
+---
+
+### Table: `user_permissions`
+
+User-specific permission overrides.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | bigserial | Primary key |
+| `userId` | bigint | Foreign key to users.id |
+| `permissionId` | bigint | Foreign key to permissions.id |
+| `granted` | boolean | true = grant, false = revoke |
+| `reason` | text | Reason for override |
+| `expiresAt` | timestamp | Optional expiration time |
+| `createdAt` | timestamp | Creation time |
+| `updatedAt` | timestamp | Last update time |
+
+**Constraints:**
+- `UNIQUE(userId, permissionId)`
+- `ON DELETE CASCADE` for both foreign keys
+
+**Use cases:**
+- Temporary admin access (with `expiresAt`)
+- Revoke specific permission (even if role has it)
 
 ---
 
