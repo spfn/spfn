@@ -594,11 +594,23 @@ async function dbPush(): Promise<void>
  * Also applies function package migrations if available.
  * Use this in both development and production environments.
  */
-async function dbMigrate(): Promise<void>
+async function dbMigrate(options: { withBackup?: boolean } = {}): Promise<void>
 {
     // Load environment variables first (required for DATABASE_URL)
     const { loadEnvironment } = await import('@spfn/core/env');
     loadEnvironment({ debug: false });
+
+    // Create backup before migration if requested
+    if (options.withBackup)
+    {
+        console.log(chalk.blue('📦 Creating pre-migration backup...\n'));
+        await dbBackup({
+            format: 'custom',
+            tag: 'pre-migration',
+            env: process.env.NODE_ENV
+        });
+        console.log('');
+    }
 
     // First, execute function package migrations
     const { discoverFunctionMigrations, executeFunctionMigrations } = await import('../utils/function-migrations.js');
@@ -1025,6 +1037,77 @@ async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?
 		file = selected;
 	}
 
+	// Load and check backup metadata
+	const metadata = await loadBackupMetadata(file);
+
+	if (metadata)
+	{
+		console.log(chalk.blue('\n📋 Backup Information:\n'));
+		console.log(chalk.dim(`  Database: ${metadata.database}`));
+		console.log(chalk.dim(`  Created: ${new Date(metadata.timestamp).toLocaleString()}`));
+
+		if (metadata.environment)
+		{
+			console.log(chalk.dim(`  Environment: ${metadata.environment}`));
+		}
+
+		if (metadata.tags && metadata.tags.length > 0)
+		{
+			console.log(chalk.dim(`  Tags: ${metadata.tags.join(', ')}`));
+		}
+
+		if (metadata.backup.dataOnly)
+		{
+			console.log(chalk.yellow('  ⚠️  Data-only backup (no schema)'));
+		}
+
+		if (metadata.backup.schemaOnly)
+		{
+			console.log(chalk.yellow('  ⚠️  Schema-only backup (no data)'));
+		}
+
+		// Check version compatibility
+		const warnings: string[] = [];
+
+		// Get current git and migration info
+		const [currentGitInfo, currentMigrationInfo] = await Promise.all([
+			collectGitInfo(),
+			collectMigrationInfo(dbUrl)
+		]);
+
+		// Check Git version mismatch
+		if (metadata.git && currentGitInfo)
+		{
+			if (metadata.git.commit !== currentGitInfo.commit)
+			{
+				warnings.push(`Git commit mismatch: backup from ${metadata.git.commit.substring(0, 7)}, current is ${currentGitInfo.commit.substring(0, 7)}`);
+			}
+
+			if (metadata.git.branch !== currentGitInfo.branch)
+			{
+				warnings.push(`Git branch mismatch: backup from '${metadata.git.branch}', current is '${currentGitInfo.branch}'`);
+			}
+		}
+
+		// Check Migration version mismatch
+		if (metadata.migrations && currentMigrationInfo)
+		{
+			if (metadata.migrations.hash !== currentMigrationInfo.hash)
+			{
+				warnings.push(`Migration version mismatch: backup has ${metadata.migrations.count} migrations, current has ${currentMigrationInfo.count}`);
+				warnings.push(`  Last migration in backup: ${metadata.migrations.hash}`);
+				warnings.push(`  Current last migration: ${currentMigrationInfo.hash}`);
+			}
+		}
+
+		if (warnings.length > 0)
+		{
+			console.log(chalk.yellow('\n⚠️  Version Warnings:\n'));
+			warnings.forEach(warning => console.log(chalk.yellow(`  - ${warning}`)));
+			console.log('');
+		}
+	}
+
 	// Confirm before restore
 	const { confirm } = await prompts({
 		type: 'confirm',
@@ -1299,7 +1382,8 @@ dbCommand
     .command('migrate')
     .alias('m')
     .description('Run pending migrations')
-    .action(dbMigrate);
+    .option('--with-backup', 'Create backup before running migrations')
+    .action((options) => dbMigrate(options));
 
 dbCommand
     .command('studio')

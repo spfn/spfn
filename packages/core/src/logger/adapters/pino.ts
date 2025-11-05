@@ -19,14 +19,41 @@ export class PinoAdapter implements LoggerAdapter
         const isProduction = process.env.NODE_ENV === 'production';
         const isDevelopment = process.env.NODE_ENV === 'development';
 
-        // Development: use simple console output without transport
-        // Production: use JSON output
-        this.logger = pino({
-            level: config.level,
+        // Try to use pino-pretty in development if available (optional dependency)
+        const transport = isDevelopment ? {
+            target: 'pino-pretty',
+            options: {
+                colorize: true,
+                translateTime: 'HH:MM:ss.l',
+                ignore: 'pid,hostname',
+                singleLine: false,
+                messageFormat: '{module} {msg}',
+                errorLikeObjectKeys: ['err', 'error'],
+            },
+        } : undefined;
 
-            // 기본 필드
-            base: config.module ? { module: config.module } : undefined,
-        });
+        // Development: pretty print (if pino-pretty available) or JSON
+        // Production: JSON output
+        try
+        {
+            this.logger = pino({
+                level: config.level,
+
+                // 기본 필드
+                base: config.module ? { module: config.module } : undefined,
+
+                // Transport (pretty print in development if available)
+                transport,
+            });
+        }
+        catch (error)
+        {
+            // Fallback: pino-pretty not available, use plain JSON
+            this.logger = pino({
+                level: config.level,
+                base: config.module ? { module: config.module } : undefined,
+            });
+        }
     }
 
     child(module: string): LoggerAdapter
