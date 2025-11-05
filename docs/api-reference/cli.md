@@ -184,6 +184,193 @@ SELECT * FROM __drizzle_migrations;
 | 2  | def456...  | 2024-01-16 11:30:00 |
 ```
 
+## spfn db push
+
+Push schema changes directly to the database without generating migration files. Useful for rapid prototyping in development.
+
+```bash
+# Push schema changes to database
+spfn db push
+```
+
+> **⚠️ Warning:** Development Only
+>
+> `spfn db push` is intended for development only. For production, always use `spfn db generate` and `spfn db migrate` to maintain migration history.
+
+## spfn db studio
+
+Open Drizzle Studio, a web-based GUI for browsing and editing your database.
+
+```bash
+# Open Drizzle Studio (default port 4983)
+spfn db studio
+
+# Use custom port
+spfn db studio --port 4984
+```
+
+Drizzle Studio will be available at `https://local.drizzle.studio`.
+
+### Auto-Port Finding
+
+If the default port is in use, the command automatically finds the next available port:
+
+```bash
+spfn db studio
+# ⚠️  Port 4983 is in use, using port 4984 instead
+```
+
+This allows you to run multiple Studio instances across different projects simultaneously.
+
+## spfn db backup
+
+Create a backup of your database. Backups are stored in the `./backups` directory.
+
+```bash
+# Create backup (default: SQL format)
+spfn db backup
+
+# Create compressed backup
+spfn db backup --format custom
+
+# Backup to custom path
+spfn db backup --output /path/to/backup.sql
+
+# Backup specific schema only
+spfn db backup --schema spfn_cms
+```
+
+### Output
+
+```bash
+💾 Creating database backup...
+
+✅ Backup created successfully
+   File: /Users/project/backups/mydb_2025-01-05_143022.sql
+   Size: 218.40 KB
+```
+
+### Backup Formats
+
+| Format | Extension | Compression | Use Case |
+|--------|-----------|-------------|----------|
+| `sql` | `.sql` | None | Text-based, readable, version control |
+| `custom` | `.dump` | Built-in | Compressed, faster restore |
+
+> **Note:** Security
+>
+> Backup files contain sensitive data. The `./backups` directory is automatically added to `.gitignore` to prevent accidental commits.
+
+## spfn db restore
+
+Restore database from a backup file.
+
+```bash
+# Interactive backup selection
+spfn db restore
+
+# Restore specific file
+spfn db restore backups/mydb_2025-01-05_143022.sql
+
+# Drop existing tables before restore
+spfn db restore backup.sql --drop
+
+# Restore specific schema only
+spfn db restore backup.sql --schema spfn_cms
+```
+
+### Interactive Selection
+
+When no file is specified, you'll be prompted to select from available backups:
+
+```bash
+spfn db restore
+
+? Select backup to restore:
+  > mydb_2025-01-05_143022.sql (218.40 KB)
+    mydb_2025-01-04_120000.sql (215.12 KB)
+    mydb_2025-01-03_120000.sql (210.45 KB)
+```
+
+> **⚠️ Warning:** Data Loss
+>
+> Restoring a backup will replace all data in the database. Always confirm before proceeding.
+
+## spfn db backup:list
+
+List all available database backups.
+
+```bash
+spfn db backup:list
+```
+
+### Output
+
+```bash
+📋 Database backups:
+
+  Date                  Size        File
+  ─────────────────────────────────────────────────────────
+  01/05/2025, 02:30:22 PM  218.40 KB   mydb_2025-01-05_143022.sql
+  01/04/2025, 12:00:00 PM  215.12 KB   mydb_2025-01-04_120000.sql
+  01/03/2025, 12:00:00 PM  210.45 KB   mydb_2025-01-03_120000.sql
+
+  Total: 3 backup(s)
+```
+
+## spfn db backup:clean
+
+Remove old database backups based on retention policies.
+
+```bash
+# Keep 10 most recent backups (default)
+spfn db backup:clean
+
+# Keep 5 most recent backups
+spfn db backup:clean --keep 5
+
+# Delete backups older than 7 days
+spfn db backup:clean --older-than 7
+```
+
+### Confirmation
+
+The command shows which backups will be deleted and asks for confirmation:
+
+```bash
+🧹 Cleaning old backups...
+
+The following 2 backup(s) will be deleted:
+
+  - mydb_2025-01-01_120000.sql (205.34 KB)
+  - mydb_2024-12-31_120000.sql (203.12 KB)
+
+? Proceed with deletion? (y/N)
+```
+
+## spfn db drop
+
+Drop all tables in the database. **Use with extreme caution.**
+
+```bash
+spfn db drop
+```
+
+> **⚠️ Danger:** Destructive Operation
+>
+> This command will permanently delete all tables in your database. It cannot be undone. Always create a backup before running this command.
+
+## spfn db check
+
+Check database connection and schema status.
+
+```bash
+spfn db check
+
+# Output
+✓ Database connection OK
+```
+
 ## spfn codegen
 
 Generate type-safe API client from contracts. Uses configured generators from `codegen.config.ts`.
@@ -320,6 +507,10 @@ Recommended scripts for your `package.json`:
     "spfn:start": "spfn start",
     "db:generate": "spfn db generate",
     "db:migrate": "spfn db migrate",
+    "db:push": "spfn db push",
+    "db:studio": "spfn db studio",
+    "db:backup": "spfn db backup",
+    "db:restore": "spfn db restore",
     "codegen": "spfn codegen"
   }
 }
@@ -398,7 +589,7 @@ git commit -m "Add user roles"
 
 ```bash
 # 1. Backup database
-pg_dump $DATABASE_URL > backup.sql
+spfn db backup
 
 # 2. Run migration
 spfn db migrate
@@ -407,7 +598,7 @@ spfn db migrate
 spfn dev
 
 # 4. Rollback if needed
-psql $DATABASE_URL < backup.sql
+spfn db restore
 ```
 
 ### 4. Production Checklist
