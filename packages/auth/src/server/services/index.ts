@@ -59,3 +59,31 @@ export {
     updateLastLoginService,
     updateUserService,
 } from './user.service';
+
+// RBAC Service
+export {
+    initializeAuth,
+} from './rbac.service';
+
+// Permission Service
+export {
+    getUserPermissions,
+    hasPermission,
+    hasAnyPermission,
+    hasAllPermissions,
+    hasRole,
+    hasAnyRole,
+} from './permission.service';
+
+// Role Service
+export {
+    createRole,
+    updateRole,
+    deleteRole,
+    addPermissionToRole,
+    removePermissionFromRole,
+    setRolePermissions,
+    getAllRoles,
+    getRoleByName,
+    getRolePermissions,
+} from './role.service';

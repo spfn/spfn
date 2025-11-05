@@ -7,6 +7,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '../helpers/db';
 import { ensureAdminExists } from '@/server/setup';
+import { initializeAuth } from '@/server/services/rbac.service';
+import { getRoleByName } from '@/server/services/role.service';
 import { users } from '@/server/entities';
 import { verifyPassword } from '@/server/helpers/password';
 import { eq } from 'drizzle-orm';
@@ -27,6 +29,9 @@ describe('Setup - ensureAdminExists()', () =>
     {
         const db = getTestDb();
         await clearTables(db);
+
+        // Initialize RBAC system (creates roles)
+        await initializeAuth();
 
         // Clear environment variables before each test
         delete process.env.ADMIN_ACCOUNTS;
@@ -65,12 +70,17 @@ describe('Setup - ensureAdminExists()', () =>
             const db = getTestDb();
             const allUsers = await db.select().from(users);
 
+            // Get role IDs for comparison
+            const superadminRole = await getRoleByName('superadmin');
+            const adminRole = await getRoleByName('admin');
+            const userRole = await getRoleByName('user');
+
             expect(allUsers).toHaveLength(3);
 
             // Check super admin
             const superAdmin = allUsers.find(u => u.email === 'super@example.com');
             expect(superAdmin).toBeDefined();
-            expect(superAdmin?.role).toBe('superadmin');
+            expect(superAdmin?.roleId).toBe(superadminRole!.id);
             expect(superAdmin?.phone).toBe('+821012345678');
             expect(superAdmin?.emailVerifiedAt).toBeTruthy();
             expect(superAdmin?.passwordChangeRequired).toBe(true);
@@ -82,11 +92,11 @@ describe('Setup - ensureAdminExists()', () =>
 
             // Check admin
             const admin = allUsers.find(u => u.email === 'admin@example.com');
-            expect(admin?.role).toBe('admin');
+            expect(admin?.roleId).toBe(adminRole!.id);
 
             // Check user
             const regularUser = allUsers.find(u => u.email === 'user@example.com');
-            expect(regularUser?.role).toBe('user');
+            expect(regularUser?.roleId).toBe(userRole!.id);
         });
 
         it('should use default role "user" if not specified', async () =>
@@ -102,9 +112,10 @@ describe('Setup - ensureAdminExists()', () =>
 
             const db = getTestDb();
             const [user] = await db.select().from(users).where(eq(users.email, 'default@example.com'));
+            const userRole = await getRoleByName('user');
 
             expect(user).toBeDefined();
-            expect(user.role).toBe('user');
+            expect(user.roleId).toBe(userRole!.id);
         });
 
         it('should respect passwordChangeRequired flag', async () =>
@@ -216,16 +227,21 @@ describe('Setup - ensureAdminExists()', () =>
             const db = getTestDb();
             const allUsers = await db.select().from(users);
 
+            // Get role IDs
+            const superadminRole = await getRoleByName('superadmin');
+            const adminRole = await getRoleByName('admin');
+            const userRole = await getRoleByName('user');
+
             expect(allUsers).toHaveLength(3);
 
             const superAdmin = allUsers.find(u => u.email === 'super@example.com');
-            expect(superAdmin?.role).toBe('superadmin');
+            expect(superAdmin?.roleId).toBe(superadminRole!.id);
 
             const admin = allUsers.find(u => u.email === 'admin@example.com');
-            expect(admin?.role).toBe('admin');
+            expect(admin?.roleId).toBe(adminRole!.id);
 
             const regularUser = allUsers.find(u => u.email === 'user@example.com');
-            expect(regularUser?.role).toBe('user');
+            expect(regularUser?.roleId).toBe(userRole!.id);
         });
 
         it('should trim whitespace from values', async () =>
@@ -254,10 +270,11 @@ describe('Setup - ensureAdminExists()', () =>
 
             const db = getTestDb();
             const allUsers = await db.select().from(users);
+            const userRole = await getRoleByName('user');
 
             expect(allUsers).toHaveLength(2);
-            expect(allUsers[0].role).toBe('user');
-            expect(allUsers[1].role).toBe('user');
+            expect(allUsers[0].roleId).toBe(userRole!.id);
+            expect(allUsers[1].roleId).toBe(userRole!.id);
         });
 
         it('should handle email/password length mismatch', async () =>
@@ -323,10 +340,11 @@ describe('Setup - ensureAdminExists()', () =>
 
             const db = getTestDb();
             const allUsers = await db.select().from(users);
+            const superadminRole = await getRoleByName('superadmin');
 
             expect(allUsers).toHaveLength(1);
             expect(allUsers[0].email).toBe('admin@example.com');
-            expect(allUsers[0].role).toBe('superadmin');
+            expect(allUsers[0].roleId).toBe(superadminRole!.id);
             expect(allUsers[0].passwordChangeRequired).toBe(true);
             expect(allUsers[0].emailVerifiedAt).toBeTruthy();
         });

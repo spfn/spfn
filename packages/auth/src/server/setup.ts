@@ -7,7 +7,7 @@
 import { findOne, create } from '@spfn/core/db';
 import { users } from '@/server/entities';
 import { hashPassword } from '@/server/helpers';
-import type { UserRole } from '@/server/entities/users';
+import { getRoleByName } from '@/server/services/role.service';
 
 /**
  * Admin account configuration
@@ -16,7 +16,7 @@ interface AdminAccountConfig
 {
     email: string;
     password: string;
-    role?: UserRole;
+    role?: string; // Role name (e.g., 'user', 'admin', 'superadmin')
     phone?: string;
     passwordChangeRequired?: boolean;
 }
@@ -108,7 +108,7 @@ function parseAdminAccounts(): AdminAccountConfig[]
         {
             const email = emails[i];
             const password = passwords[i];
-            const role = (roles[i] as UserRole) || 'user';
+            const role = roles[i] || 'user';
 
             if (!email || !password)
             {
@@ -192,6 +192,17 @@ export async function ensureAdminExists(): Promise<void>
                 continue;
             }
 
+            // Get role ID from role name
+            const roleName = account.role || 'user';
+            const role = await getRoleByName(roleName);
+
+            if (!role)
+            {
+                console.error(`[Auth] ❌ Role '${roleName}' not found for ${account.email}. Run initializeAuth() first.`);
+                failed++;
+                continue;
+            }
+
             // Hash password
             const passwordHash = await hashPassword(account.password);
 
@@ -200,13 +211,13 @@ export async function ensureAdminExists(): Promise<void>
                 email: account.email,
                 phone: account.phone || null,
                 passwordHash,
-                role: account.role || 'user',
+                roleId: role.id,
                 emailVerifiedAt: new Date(), // Auto-verify admin
                 passwordChangeRequired: account.passwordChangeRequired !== false,
                 status: 'active',
             });
 
-            console.log(`[Auth] ✅ Admin account created: ${account.email} (${account.role || 'user'})`);
+            console.log(`[Auth] ✅ Admin account created: ${account.email} (${roleName})`);
             created++;
         }
         catch (error)

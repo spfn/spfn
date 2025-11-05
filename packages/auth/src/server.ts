@@ -8,11 +8,19 @@
  * - Routes (auth endpoints)
  * - Repositories (user, verification-code)
  * - Helpers (jwt, password)
- * - Middleware (authenticate)
+ * - Middleware (authenticate, requirePermissions, requireRole)
+ * - Services (auth, verification, key, user, rbac, permission, role)
+ * - RBAC (roles, permissions, types)
  * - Setup functions
  *
  * @note This module should only be imported in server-side code
  */
+
+// ============================================================================
+// RBAC (Roles, Permissions, Types)
+// ============================================================================
+
+export * from '@/server/rbac';
 
 // ============================================================================
 // Routes

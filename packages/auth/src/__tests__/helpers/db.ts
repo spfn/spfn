@@ -61,7 +61,12 @@ export async function teardownTestDb()
  */
 export async function clearTables(db: ReturnType<typeof drizzle>)
 {
+    // Clear in reverse dependency order
+    await db.execute(sql`TRUNCATE TABLE spfn_auth.user_permissions CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spfn_auth.role_permissions CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.users CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spfn_auth.permissions CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spfn_auth.roles CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.user_public_keys CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.user_social_accounts CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.verification_codes CASCADE`);
@@ -75,11 +80,47 @@ async function createTables(db: ReturnType<typeof drizzle>)
     // Create schema if not exists
     await db.execute(sql`CREATE SCHEMA IF NOT EXISTS spfn_auth`);
 
-    // Drop existing tables
+    // Drop existing tables (in reverse dependency order)
+    await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.user_permissions CASCADE`);
+    await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.role_permissions CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.verification_codes CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.user_public_keys CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.user_social_accounts CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.users CASCADE`);
+    await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.permissions CASCADE`);
+    await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.roles CASCADE`);
+
+    // Create roles table
+    await db.execute(sql`
+        CREATE TABLE spfn_auth.roles (
+            id BIGSERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            display_name TEXT NOT NULL,
+            description TEXT,
+            is_builtin BOOLEAN NOT NULL DEFAULT FALSE,
+            is_system BOOLEAN NOT NULL DEFAULT FALSE,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            priority INTEGER NOT NULL DEFAULT 10,
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )
+    `);
+
+    // Create permissions table
+    await db.execute(sql`
+        CREATE TABLE spfn_auth.permissions (
+            id BIGSERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            display_name TEXT NOT NULL,
+            description TEXT,
+            category TEXT,
+            is_builtin BOOLEAN NOT NULL DEFAULT FALSE,
+            is_system BOOLEAN NOT NULL DEFAULT FALSE,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )
+    `);
 
     // Create users table
     await db.execute(sql`
@@ -89,7 +130,7 @@ async function createTables(db: ReturnType<typeof drizzle>)
             phone TEXT UNIQUE,
             password_hash TEXT,
             password_change_required BOOLEAN NOT NULL DEFAULT FALSE,
-            role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('superadmin', 'admin', 'user')),
+            role_id BIGINT NOT NULL REFERENCES spfn_auth.roles(id),
             status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
             email_verified_at TIMESTAMP WITH TIME ZONE,
             phone_verified_at TIMESTAMP WITH TIME ZONE,
@@ -97,6 +138,33 @@ async function createTables(db: ReturnType<typeof drizzle>)
             created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             CONSTRAINT email_or_phone_check CHECK (email IS NOT NULL OR phone IS NOT NULL)
+        )
+    `);
+
+    // Create role_permissions table
+    await db.execute(sql`
+        CREATE TABLE spfn_auth.role_permissions (
+            id BIGSERIAL PRIMARY KEY,
+            role_id BIGINT NOT NULL REFERENCES spfn_auth.roles(id) ON DELETE CASCADE,
+            permission_id BIGINT NOT NULL REFERENCES spfn_auth.permissions(id) ON DELETE CASCADE,
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            UNIQUE(role_id, permission_id)
+        )
+    `);
+
+    // Create user_permissions table
+    await db.execute(sql`
+        CREATE TABLE spfn_auth.user_permissions (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES spfn_auth.users(id) ON DELETE CASCADE,
+            permission_id BIGINT NOT NULL REFERENCES spfn_auth.permissions(id) ON DELETE CASCADE,
+            granted BOOLEAN NOT NULL DEFAULT TRUE,
+            reason TEXT,
+            expires_at TIMESTAMP WITH TIME ZONE,
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            UNIQUE(user_id, permission_id)
         )
     `);
 

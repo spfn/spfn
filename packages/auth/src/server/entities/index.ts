@@ -4,7 +4,14 @@
  * Core authentication and authorization entities
  */
 
+// User entities
 export * from './users';
 export * from './user-social-accounts';
 export * from './user-public-keys';
 export * from './verification-codes';
+
+// RBAC entities
+export * from './roles';
+export * from './permissions';
+export * from './role-permissions';
+export * from './user-permissions';

@@ -4,6 +4,8 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
+import { initializeAuth } from '@/server/services/rbac.service';
+import { getRoleByName } from '@/server/services/role.service';
 import { users } from '@/server/entities';
 import { hashPassword } from '@/server/helpers/password';
 import { generateKeyPairES256 } from '@/client/lib/crypto';
@@ -47,6 +49,9 @@ describe('POST /_auth/login', () =>
     {
         const db = getTestDb();
         await clearTables(db);
+
+        // Initialize RBAC system
+        await initializeAuth();
     });
 
     describe('Successful login', () =>
@@ -55,13 +60,16 @@ describe('POST /_auth/login', () =>
         {
             const db = getTestDb();
 
+            // Get user role
+            const userRole = await getRoleByName('user');
+
             // Create test user
             const passwordHash = await hashPassword('MyPassword123!');
             await db.insert(users).values(
                 {
                     email: 'user@example.com',
                     passwordHash,
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'active',
                 }
             );
@@ -107,13 +115,16 @@ describe('POST /_auth/login', () =>
         {
             const db = getTestDb();
 
+            // Get user role
+            const userRole = await getRoleByName('user');
+
             // Create test user
             const passwordHash = await hashPassword('MyPassword123!');
             await db.insert(users).values(
                 {
                     phone: '+821012345678',
                     passwordHash,
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'active',
                 }
             );
@@ -149,13 +160,16 @@ describe('POST /_auth/login', () =>
         {
             const db = getTestDb();
 
+            // Get superadmin role
+            const superadminRole = await getRoleByName('superadmin');
+
             // Create admin user with password change required
             const passwordHash = await hashPassword('TempPassword123!');
             await db.insert(users).values(
                 {
                     email: 'admin@example.com',
                     passwordHash,
-                    role: 'superadmin',
+                    roleId: superadminRole!.id,
                     status: 'active',
                     passwordChangeRequired: true,
                     emailVerifiedAt: new Date(),
@@ -234,13 +248,16 @@ describe('POST /_auth/login', () =>
         {
             const db = getTestDb();
 
+            // Get user role
+            const userRole = await getRoleByName('user');
+
             // Create test user
             const passwordHash = await hashPassword('CorrectPassword123!');
             await db.insert(users).values(
                 {
                     email: 'user@example.com',
                     passwordHash,
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'active',
                 }
             );
@@ -278,13 +295,16 @@ describe('POST /_auth/login', () =>
         {
             const db = getTestDb();
 
+            // Get user role
+            const userRole = await getRoleByName('user');
+
             // Create inactive user
             const passwordHash = await hashPassword('Password123!');
             await db.insert(users).values(
                 {
                     email: 'inactive@example.com',
                     passwordHash,
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'inactive',
                 }
             );
@@ -319,13 +339,16 @@ describe('POST /_auth/login', () =>
         {
             const db = getTestDb();
 
+            // Get user role
+            const userRole = await getRoleByName('user');
+
             // Create suspended user
             const passwordHash = await hashPassword('Password123!');
             await db.insert(users).values(
                 {
                     email: 'suspended@example.com',
                     passwordHash,
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'suspended',
                 }
             );

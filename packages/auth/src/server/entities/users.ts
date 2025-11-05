@@ -12,9 +12,10 @@
  * - Email/phone verification
  */
 
-import { text, timestamp, check, boolean, index } from 'drizzle-orm/pg-core';
+import { text, timestamp, check, boolean, bigint, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, createFunctionSchema } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
+import { roles } from './roles';
 
 const schema = createFunctionSchema('@spfn/auth');
 
@@ -42,15 +43,12 @@ export const users = schema.table('users',
         passwordChangeRequired: boolean('password_change_required').notNull().default(false),
 
         // Authorization (Role-Based Access Control)
-        // - superadmin: Full system access (platform management)
-        // - admin: Organization/tenant management
-        // - user: Regular user (default)
-        role: text(
-            'role',
-            {
-                enum: ['superadmin', 'admin', 'user']
-            }
-        ).notNull().default('user'),
+        // Foreign key to roles table
+        // References built-in roles: user (default), admin, superadmin
+        // Can also reference custom roles created at runtime
+        roleId: bigint('role_id', { mode: 'number' })
+            .references(() => roles.id)
+            .notNull(),
 
         // Account status
         // - active: Normal operation (default)
@@ -90,14 +88,13 @@ export const users = schema.table('users',
         index('users_email_idx').on(table.email),
         index('users_phone_idx').on(table.phone),
         index('users_status_idx').on(table.status),
-        index('users_role_idx').on(table.role),
+        index('users_role_id_idx').on(table.roleId),
     ]
 );
 
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
-export type UserRole = 'superadmin' | 'admin' | 'user';
 export type UserStatus = 'active' | 'inactive' | 'suspended';
 
 // Helper type with computed verification status

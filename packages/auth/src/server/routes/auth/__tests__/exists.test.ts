@@ -4,6 +4,8 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
+import { initializeAuth } from '@/server/services/rbac.service';
+import { getRoleByName } from '@/server/services/role.service';
 import { users } from '@/server/entities';
 import type { ApiResponse, CheckAccountExistsData } from '@/lib/types/api';
 import app from '../index';
@@ -24,6 +26,9 @@ describe('POST /auth/exists', () =>
     {
         const db = getTestDb();
         await clearTables(db);
+
+        // Initialize RBAC system
+        await initializeAuth();
     });
 
     describe('Email lookup', () =>
@@ -32,12 +37,15 @@ describe('POST /auth/exists', () =>
         {
             const db = getTestDb();
 
+            // Get user role ID
+            const userRole = await getRoleByName('user');
+
             // Create test user
             await db.insert(users).values(
                 {
                     email: 'test@example.com',
                     passwordHash: 'hashed_password',
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'active',
                 }
             );
@@ -109,12 +117,15 @@ describe('POST /auth/exists', () =>
         {
             const db = getTestDb();
 
+            // Get user role ID
+            const userRole = await getRoleByName('user');
+
             // Create test user
             await db.insert(users).values(
                 {
                     phone: '+821012345678',
                     passwordHash: 'hashed_password',
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'active',
                 }
             );

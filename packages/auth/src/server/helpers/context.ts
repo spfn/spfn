@@ -10,17 +10,30 @@ import type { AuthContext } from '../middleware/authenticate.js';
 /**
  * Get auth context from route context
  *
+ * Accepts both raw Hono Context and RouteContext with raw property
+ *
  * @example
  * ```typescript
+ * // With RouteContext (RPC routes)
  * app.bind(logoutContract, [authenticate], async (c) => {
  *     const { user, userId, keyId } = getAuth(c);
  *     // Use authenticated data...
  * });
+ *
+ * // With raw Context (middleware)
+ * const auth = getAuth(c);
  * ```
  */
-export function getAuth(c: { raw: Context }): AuthContext
+export function getAuth(c: Context | { raw: Context }): AuthContext
 {
-    return c.raw.get('auth');
+    // Check if it's RouteContext with raw property
+    if ('raw' in c && c.raw)
+    {
+        return c.raw.get('auth');
+    }
+
+    // Otherwise, it's raw Hono Context
+    return (c as Context).get('auth');
 }
 
 /**
@@ -34,9 +47,9 @@ export function getAuth(c: { raw: Context }): AuthContext
  * });
  * ```
  */
-export function getUser(c: { raw: Context })
+export function getUser(c: Context | { raw: Context })
 {
-    return c.raw.get('auth').user;
+    return getAuth(c).user;
 }
 
 /**
@@ -50,9 +63,9 @@ export function getUser(c: { raw: Context })
  * });
  * ```
  */
-export function getUserId(c: { raw: Context }): string
+export function getUserId(c: Context | { raw: Context }): string
 {
-    return c.raw.get('auth').userId;
+    return getAuth(c).userId;
 }
 
 /**
@@ -66,7 +79,7 @@ export function getUserId(c: { raw: Context }): string
  * });
  * ```
  */
-export function getKeyId(c: { raw: Context }): string
+export function getKeyId(c: Context | { raw: Context }): string
 {
-    return c.raw.get('auth').keyId;
+    return getAuth(c).keyId;
 }

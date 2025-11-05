@@ -1,0 +1,490 @@
+/**
+ * @spfn/auth - RBAC System Unit Tests
+ *
+ * Tests for RBAC initialization, roles, and permissions
+ */
+
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '../helpers/db';
+import { initializeAuth } from '@/server/services/rbac.service';
+import {
+    createRole,
+    updateRole,
+    deleteRole,
+    getAllRoles,
+    getRoleByName,
+    getRolePermissions,
+    addPermissionToRole,
+    setRolePermissions,
+} from '@/server/services/role.service';
+import {
+    getUserPermissions,
+    hasPermission,
+    hasAnyPermission,
+    hasAllPermissions,
+    hasRole,
+} from '@/server/services/permission.service';
+import { getDatabase } from '@spfn/core/db';
+import { users, roles, permissions, rolePermissions, userPermissions } from '@/server/entities';
+import { hashPassword } from '@/server/helpers/password';
+import { eq } from 'drizzle-orm';
+
+describe('RBAC System', () =>
+{
+    beforeAll(async () =>
+    {
+        await setupTestDb();
+    });
+
+    afterAll(async () =>
+    {
+        await teardownTestDb();
+    });
+
+    beforeEach(async () =>
+    {
+        const db = getTestDb();
+        await clearTables(db);
+    });
+
+    describe('initializeAuth()', () =>
+    {
+        it('should create built-in roles (user, admin, superadmin)', async () =>
+        {
+            await initializeAuth();
+
+            const allRoles = await getAllRoles();
+
+            expect(allRoles).toHaveLength(3);
+            expect(allRoles.map(r => r.name).sort()).toEqual(['admin', 'superadmin', 'user']);
+
+            // Check properties
+            const superadmin = allRoles.find(r => r.name === 'superadmin');
+            expect(superadmin).toBeDefined();
+            expect(superadmin?.priority).toBe(100);
+            expect(superadmin?.isBuiltin).toBe(true);
+            expect(superadmin?.isSystem).toBe(true);
+
+            const admin = allRoles.find(r => r.name === 'admin');
+            expect(admin?.priority).toBe(80);
+
+            const user = allRoles.find(r => r.name === 'user');
+            expect(user?.priority).toBe(10);
+        });
+
+        it('should create built-in permissions', async () =>
+        {
+            await initializeAuth();
+
+            const db = getDatabase()!;
+            const allPerms = await db.select().from(permissions);
+
+            // Should have auth:self:manage, user:*, rbac:*
+            const permNames = allPerms.map(p => p.name).sort();
+
+            expect(permNames).toContain('auth:self:manage');
+            expect(permNames).toContain('user:read');
+            expect(permNames).toContain('user:write');
+            expect(permNames).toContain('user:delete');
+            expect(permNames).toContain('rbac:role:manage');
+            expect(permNames).toContain('rbac:permission:manage');
+        });
+
+        it('should assign permissions to built-in roles', async () =>
+        {
+            await initializeAuth();
+
+            const superadminRole = await getRoleByName('superadmin');
+            const adminRole = await getRoleByName('admin');
+            const userRole = await getRoleByName('user');
+
+            // Superadmin should have all permissions
+            const superadminPerms = await getRolePermissions(superadminRole!.id);
+            expect(superadminPerms).toContain('auth:self:manage');
+            expect(superadminPerms).toContain('user:read');
+            expect(superadminPerms).toContain('user:write');
+            expect(superadminPerms).toContain('user:delete');
+            expect(superadminPerms).toContain('rbac:role:manage');
+            expect(superadminPerms).toContain('rbac:permission:manage');
+
+            // Admin should have user management permissions
+            const adminPerms = await getRolePermissions(adminRole!.id);
+            expect(adminPerms).toContain('auth:self:manage');
+            expect(adminPerms).toContain('user:read');
+            expect(adminPerms).toContain('user:write');
+            expect(adminPerms).toContain('user:delete');
+            expect(adminPerms).not.toContain('rbac:permission:manage');
+
+            // User should only have self-management
+            const userPerms = await getRolePermissions(userRole!.id);
+            expect(userPerms).toEqual(['auth:self:manage']);
+        });
+
+        it('should create custom roles', async () =>
+        {
+            await initializeAuth({
+                roles: [
+                    {
+                        name: 'editor',
+                        displayName: 'Content Editor',
+                        priority: 30,
+                    },
+                ],
+                permissions: [
+                    {
+                        name: 'post:create',
+                        displayName: 'Create Posts',
+                        category: 'content',
+                    },
+                ],
+                rolePermissions: {
+                    editor: ['post:create', 'auth:self:manage'],
+                },
+            });
+
+            const editor = await getRoleByName('editor');
+            expect(editor).toBeDefined();
+            expect(editor?.displayName).toBe('Content Editor');
+            expect(editor?.priority).toBe(30);
+            expect(editor?.isSystem).toBe(false);
+
+            const editorPerms = await getRolePermissions(editor!.id);
+            expect(editorPerms).toContain('post:create');
+            expect(editorPerms).toContain('auth:self:manage');
+        });
+
+        it('should be idempotent (can run multiple times)', async () =>
+        {
+            await initializeAuth();
+            await initializeAuth();
+            await initializeAuth();
+
+            const allRoles = await getAllRoles();
+            expect(allRoles).toHaveLength(3);
+        });
+
+        it('should extend built-in roles with custom permissions', async () =>
+        {
+            await initializeAuth({
+                permissions: [
+                    { name: 'test:action', displayName: 'Test Action' },
+                ],
+                rolePermissions: {
+                    admin: ['test:action'],  // Extend admin role
+                },
+            });
+
+            const adminRole = await getRoleByName('admin');
+            const adminPerms = await getRolePermissions(adminRole!.id);
+
+            // Should have both built-in and custom permissions
+            expect(adminPerms).toContain('user:read');
+            expect(adminPerms).toContain('test:action');
+        });
+    });
+
+    describe('Role Management', () =>
+    {
+        beforeEach(async () =>
+        {
+            await initializeAuth();
+        });
+
+        it('should create a custom role', async () =>
+        {
+            const role = await createRole({
+                name: 'moderator',
+                displayName: 'Moderator',
+                description: 'Community moderator',
+                priority: 40,
+            });
+
+            expect(role.name).toBe('moderator');
+            expect(role.displayName).toBe('Moderator');
+            expect(role.priority).toBe(40);
+            expect(role.isSystem).toBe(false);
+            expect(role.isBuiltin).toBe(false);
+        });
+
+        it('should not allow duplicate role names', async () =>
+        {
+            await createRole({
+                name: 'moderator',
+                displayName: 'Moderator',
+            });
+
+            await expect(createRole({
+                name: 'moderator',
+                displayName: 'Another Moderator',
+            })).rejects.toThrow('already exists');
+        });
+
+        it('should update role', async () =>
+        {
+            const role = await createRole({
+                name: 'moderator',
+                displayName: 'Moderator',
+                priority: 40,
+            });
+
+            const updated = await updateRole(role.id, {
+                displayName: 'Senior Moderator',
+                priority: 50,
+            });
+
+            expect(updated.displayName).toBe('Senior Moderator');
+            expect(updated.priority).toBe(50);
+        });
+
+        it('should not allow modifying built-in role priority', async () =>
+        {
+            const userRole = await getRoleByName('user');
+
+            await expect(updateRole(userRole!.id, {
+                priority: 999,
+            })).rejects.toThrow('built-in');
+        });
+
+        it('should delete custom role', async () =>
+        {
+            const role = await createRole({
+                name: 'moderator',
+                displayName: 'Moderator',
+            });
+
+            await deleteRole(role.id);
+
+            const deleted = await getRoleByName('moderator');
+            expect(deleted).toBeNull();
+        });
+
+        it('should not allow deleting built-in roles', async () =>
+        {
+            const userRole = await getRoleByName('user');
+
+            await expect(deleteRole(userRole!.id)).rejects.toThrow('built-in');
+        });
+
+        it('should not allow deleting system roles', async () =>
+        {
+            await initializeAuth({
+                roles: [
+                    {
+                        name: 'preset-role',
+                        displayName: 'Preset Role',
+                        isSystem: true,
+                    },
+                ],
+            });
+
+            const presetRole = await getRoleByName('preset-role');
+
+            await expect(deleteRole(presetRole!.id)).rejects.toThrow('system role');
+        });
+    });
+
+    describe('Permission Management', () =>
+    {
+        beforeEach(async () =>
+        {
+            await initializeAuth({
+                permissions: [
+                    { name: 'post:create', displayName: 'Create Posts', category: 'content' },
+                    { name: 'post:publish', displayName: 'Publish Posts', category: 'content' },
+                    { name: 'post:delete', displayName: 'Delete Posts', category: 'content' },
+                ],
+            });
+        });
+
+        it('should add permission to role', async () =>
+        {
+            const db = getDatabase()!;
+
+            const userRole = await getRoleByName('user');
+            const [postCreatePerm] = await db.select().from(permissions).where(eq(permissions.name, 'post:create')).limit(1);
+
+            await addPermissionToRole(userRole!.id, postCreatePerm.id);
+
+            const userPerms = await getRolePermissions(userRole!.id);
+            expect(userPerms).toContain('post:create');
+        });
+
+        it('should set role permissions (replace all)', async () =>
+        {
+            const db = getDatabase()!;
+
+            const userRole = await getRoleByName('user');
+            const perms = await db.select().from(permissions).where(eq(permissions.category, 'content'));
+
+            await setRolePermissions(userRole!.id, perms.map(p => p.id));
+
+            const userPerms = await getRolePermissions(userRole!.id);
+            expect(userPerms).toHaveLength(3);
+            expect(userPerms).toContain('post:create');
+            expect(userPerms).toContain('post:publish');
+            expect(userPerms).toContain('post:delete');
+            expect(userPerms).not.toContain('auth:self:manage');  // Replaced
+        });
+    });
+
+    describe('User Permission Checking', () =>
+    {
+        let testUserId: bigint;
+
+        beforeEach(async () =>
+        {
+            await initializeAuth({
+                permissions: [
+                    { name: 'post:create', displayName: 'Create Posts' },
+                    { name: 'post:publish', displayName: 'Publish Posts' },
+                ],
+            });
+
+            const db = getDatabase()!;
+            const userRole = await getRoleByName('user');
+
+            // Create test user
+            const [user] = await db.insert(users).values({
+                email: 'test@example.com',
+                passwordHash: await hashPassword('password'),
+                roleId: userRole!.id,
+                emailVerifiedAt: new Date(),
+            }).returning();
+
+            testUserId = user.id;
+        });
+
+        it('should get user permissions from role', async () =>
+        {
+            const perms = await getUserPermissions(testUserId);
+
+            expect(perms).toContain('auth:self:manage');
+        });
+
+        it('should check if user has permission', async () =>
+        {
+            const hasPerm = await hasPermission(testUserId, 'auth:self:manage');
+            expect(hasPerm).toBe(true);
+
+            const noPerm = await hasPermission(testUserId, 'user:delete');
+            expect(noPerm).toBe(false);
+        });
+
+        it('should check if user has any permission', async () =>
+        {
+            const hasAny = await hasAnyPermission(testUserId, ['user:delete', 'auth:self:manage']);
+            expect(hasAny).toBe(true);
+
+            const hasNone = await hasAnyPermission(testUserId, ['user:delete', 'user:write']);
+            expect(hasNone).toBe(false);
+        });
+
+        it('should check if user has all permissions', async () =>
+        {
+            const db = getDatabase()!;
+            const userRole = await getRoleByName('user');
+            const [postCreatePerm] = await db.select().from(permissions).where(eq(permissions.name, 'post:create')).limit(1);
+
+            await addPermissionToRole(userRole!.id, postCreatePerm.id);
+
+            const hasAll = await hasAllPermissions(testUserId, ['auth:self:manage', 'post:create']);
+            expect(hasAll).toBe(true);
+
+            const notAll = await hasAllPermissions(testUserId, ['auth:self:manage', 'user:delete']);
+            expect(notAll).toBe(false);
+        });
+
+        it('should check user role', async () =>
+        {
+            const isUser = await hasRole(testUserId, 'user');
+            expect(isUser).toBe(true);
+
+            const isAdmin = await hasRole(testUserId, 'admin');
+            expect(isAdmin).toBe(false);
+        });
+
+        it('should grant user-specific permission', async () =>
+        {
+            const db = getDatabase()!;
+            const [userDeletePerm] = await db.select().from(permissions).where(eq(permissions.name, 'user:delete')).limit(1);
+
+            // Grant permission to this user specifically
+            await db.insert(userPermissions).values({
+                userId: testUserId,
+                permissionId: userDeletePerm.id,
+                granted: true,
+                reason: 'Temporary admin access',
+            });
+
+            const perms = await getUserPermissions(testUserId);
+            expect(perms).toContain('user:delete');
+
+            const hasPerm = await hasPermission(testUserId, 'user:delete');
+            expect(hasPerm).toBe(true);
+        });
+
+        it('should revoke user-specific permission', async () =>
+        {
+            const db = getDatabase()!;
+            const [authPerm] = await db.select().from(permissions).where(eq(permissions.name, 'auth:self:manage')).limit(1);
+
+            // Revoke permission (even though role has it)
+            await db.insert(userPermissions).values({
+                userId: testUserId,
+                permissionId: authPerm.id,
+                granted: false,
+                reason: 'Security violation',
+            });
+
+            const perms = await getUserPermissions(testUserId);
+            expect(perms).not.toContain('auth:self:manage');
+
+            const hasPerm = await hasPermission(testUserId, 'auth:self:manage');
+            expect(hasPerm).toBe(false);
+        });
+
+        it('should respect permission expiration', async () =>
+        {
+            const db = getDatabase()!;
+            const [userDeletePerm] = await db.select().from(permissions).where(eq(permissions.name, 'user:delete')).limit(1);
+
+            // Grant expired permission
+            await db.insert(userPermissions).values({
+                userId: testUserId,
+                permissionId: userDeletePerm.id,
+                granted: true,
+                expiresAt: new Date('2020-01-01'),  // Expired
+            });
+
+            const perms = await getUserPermissions(testUserId);
+            expect(perms).not.toContain('user:delete');
+        });
+
+        it('should respect future expiration', async () =>
+        {
+            const db = getDatabase()!;
+            const [userDeletePerm] = await db.select().from(permissions).where(eq(permissions.name, 'user:delete')).limit(1);
+
+            // Grant permission that expires in future
+            const futureDate = new Date();
+            futureDate.setDate(futureDate.getDate() + 7);
+
+            await db.insert(userPermissions).values({
+                userId: testUserId,
+                permissionId: userDeletePerm.id,
+                granted: true,
+                expiresAt: futureDate,
+            });
+
+            const perms = await getUserPermissions(testUserId);
+            expect(perms).toContain('user:delete');
+        });
+
+        it('should return empty array for non-existent user', async () =>
+        {
+            // Non-existent user ID
+            const perms = await getUserPermissions(999999n);
+            expect(perms).toEqual([]);
+        });
+    });
+});

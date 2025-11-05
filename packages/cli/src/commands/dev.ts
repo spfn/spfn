@@ -14,6 +14,11 @@ export const devCommand = new Command('dev')
     .option('--no-watch', 'Disable hot reload (watch mode)')
     .action(async (options) =>
     {
+        // Increase max listeners to prevent warning in dev mode
+        // Dev mode runs multiple concurrent processes (SPFN server, contract watcher, Next.js)
+        // Each process adds event listeners (SIGTERM, SIGINT, exit, etc.)
+        process.setMaxListeners(20);
+
         // Set NODE_ENV to development (Next.js style)
         if (!process.env.NODE_ENV) {
             process.env.NODE_ENV = 'development';

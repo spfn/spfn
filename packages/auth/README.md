@@ -781,27 +781,245 @@ OAuth provider accounts (future feature).
 
 ## Role-Based Access Control (RBAC)
 
-### Roles
+The `@spfn/auth` package provides a flexible, extensible RBAC system that combines **code-defined system roles** with **runtime-created custom roles** and **granular permissions**.
 
-| Role | Description | Capabilities |
-|------|-------------|--------------|
-| `superadmin` | Platform administrator | Full system access, manage all users, configure system |
-| `admin` | Organization administrator | Manage organization users, configure org settings |
-| `user` | Regular user | Access own data, standard features |
+### Built-in Roles
 
-### Checking Roles in Code
+These roles are automatically created and cannot be deleted:
+
+| Role | Priority | Built-in Permissions |
+|------|----------|---------------------|
+| `superadmin` | 100 | Full system access + RBAC management |
+| `admin` | 80 | User management |
+| `user` | 10 | Self auth management (default) |
+
+### Built-in Permissions
+
+Required permissions for auth package functionality:
+
+- `auth:self:manage` - Change own password, rotate keys
+- `user:read` - View user information
+- `user:write` - Create and update users
+- `user:delete` - Delete users
+- `rbac:role:manage` - Create, update, delete roles
+- `rbac:permission:manage` - Assign permissions
+
+### Initialization
+
+#### Minimal Setup (Built-in Only)
 
 ```typescript
-import { getUser } from '@spfn/auth/server';
+import { initializeAuth } from '@spfn/auth/server';
 
-app.bind(adminRoute, [authenticate], async (c) => {
-  const user = getUser(c);
+// Only built-in roles: user, admin, superadmin
+await initializeAuth();
+```
 
-  if (user.role !== 'admin' && user.role !== 'superadmin') {
-    throw new ForbiddenError('Admin access required');
+#### With Presets
+
+```typescript
+await initializeAuth({
+  usePresets: true,  // Adds: moderator, editor, viewer + content permissions
+});
+```
+
+#### Custom Roles & Permissions
+
+```typescript
+await initializeAuth({
+  roles: [
+    {
+      name: 'content-creator',
+      displayName: 'Content Creator',
+      priority: 20,
+    },
+    {
+      name: 'subscriber',
+      displayName: 'Subscriber',
+      priority: 15,
+    },
+  ],
+  permissions: [
+    {
+      name: 'post:create',
+      displayName: 'Create Posts',
+      category: 'content',
+    },
+    {
+      name: 'post:publish',
+      displayName: 'Publish Posts',
+      category: 'content',
+    },
+    {
+      name: 'video:upload',
+      displayName: 'Upload Videos',
+      category: 'media',
+    },
+  ],
+  rolePermissions: {
+    // Extend built-in admin role
+    admin: ['post:create', 'post:publish', 'video:upload'],
+
+    // Custom role permissions
+    'content-creator': ['post:create', 'post:publish', 'video:upload'],
+    subscriber: ['post:create'],
+  },
+});
+```
+
+### Permission Middleware
+
+```typescript
+import { authenticate, requirePermissions, requireRole } from '@spfn/auth/server';
+
+// Require specific permission
+app.bind(
+  deleteUserContract,
+  [authenticate, requirePermissions('user:delete')],
+  async (c) => {
+    // Only users with user:delete permission
   }
+);
 
-  // Admin logic here...
+// Require multiple permissions (all)
+app.bind(
+  publishPostContract,
+  [authenticate, requirePermissions('post:write', 'post:publish')],
+  async (c) => {
+    // Needs both permissions
+  }
+);
+
+// Require role
+app.bind(
+  adminDashboardContract,
+  [authenticate, requireRole('admin', 'superadmin')],
+  async (c) => {
+    // Only admin or superadmin
+  }
+);
+
+// Require any of these permissions
+import { requireAnyPermission } from '@spfn/auth/server';
+
+app.bind(
+  viewContentContract,
+  [authenticate, requireAnyPermission('content:read', 'admin:access')],
+  async (c) => {
+    // Has either permission
+  }
+);
+```
+
+### Permission Checking in Code
+
+```typescript
+import { hasPermission, hasRole, getUserPermissions } from '@spfn/auth/server';
+
+app.bind(createPostContract, [authenticate], async (c) => {
+  const { userId } = getAuth(c);
+
+  // Check single permission
+  const canPublish = await hasPermission(userId, 'post:publish');
+
+  // Check role
+  const isAdmin = await hasRole(userId, 'admin');
+
+  // Get all permissions
+  const perms = await getUserPermissions(userId);
+
+  // Conditional logic
+  const post = await createPost({
+    ...body,
+    status: canPublish ? 'published' : 'draft',
+  });
+
+  return c.success(post);
+});
+```
+
+### Runtime Role Management
+
+```typescript
+import { createRole, addPermissionToRole } from '@spfn/auth/server';
+
+// Create custom role at runtime
+const role = await createRole({
+  name: 'moderator',
+  displayName: 'Community Moderator',
+  description: 'Manages community content',
+  priority: 40,
+  permissionIds: [1n, 2n, 3n],  // Permission IDs
+});
+
+// Add permission to role
+await addPermissionToRole(role.id, 5n);
+
+// Update role
+await updateRole(role.id, {
+  displayName: 'Senior Moderator',
+  priority: 45,
+});
+
+// Delete role (system roles protected)
+await deleteRole(role.id);
+```
+
+### Preset Roles & Permissions
+
+Available presets (opt-in):
+
+**Roles:**
+- `moderator` (priority 50) - Content moderation
+- `editor` (priority 30) - Content creation
+- `viewer` (priority 5) - Read-only access
+
+**Permissions:**
+- `content:read`, `content:write`, `content:delete`, `content:publish`
+- `comment:moderate`
+- `system:config`
+- `analytics:view`
+
+Use individually:
+
+```typescript
+import { PRESET_ROLES, PRESET_PERMISSIONS } from '@spfn/auth/server';
+
+await initializeAuth({
+  presetRoles: ['MODERATOR', 'EDITOR'],
+  presetPermissions: ['CONTENT_READ', 'CONTENT_WRITE', 'CONTENT_PUBLISH'],
+  rolePermissions: {
+    moderator: ['content:read', 'content:write', 'comment:moderate'],
+    editor: ['content:read', 'content:write', 'content:publish'],
+  },
+});
+```
+
+### User-Specific Permissions
+
+Grant or revoke permissions for individual users:
+
+```typescript
+import { userPermissions } from '@spfn/auth';
+import { getDatabase } from '@spfn/core/db';
+
+const db = getDatabase()!;
+
+// Grant temporary permission
+await db.insert(userPermissions).values({
+  userId: 123n,
+  permissionId: 5n,
+  granted: true,
+  reason: 'Temporary admin access for migration',
+  expiresAt: new Date('2025-12-31'),
+});
+
+// Revoke permission (even if role has it)
+await db.insert(userPermissions).values({
+  userId: 456n,
+  permissionId: 3n,
+  granted: false,
+  reason: 'Security violation',
 });
 ```
 
@@ -870,11 +1088,19 @@ JWT_EXPIRES_IN=7d                                 # Token expiry
 npx spfn db migrate
 ```
 
-This creates the auth schema with 4 tables:
-- `users`
-- `user_public_keys`
-- `verification_codes`
-- `user_social_accounts`
+This creates the auth schema with 8 tables:
+
+**Core Tables:**
+- `users` - User accounts and profiles
+- `user_public_keys` - Client public keys for JWT
+- `verification_codes` - OTP verification codes
+- `user_social_accounts` - OAuth provider accounts
+
+**RBAC Tables:**
+- `roles` - System and custom roles
+- `permissions` - System and custom permissions
+- `role_permissions` - Role-permission mappings
+- `user_permissions` - User-specific permission overrides
 
 ### 2. Configure Environment Variables
 

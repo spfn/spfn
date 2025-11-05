@@ -5,6 +5,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
+import { initializeAuth } from '@/server/services/rbac.service';
+import { getRoleByName } from '@/server/services/role.service';
 import { users, userPublicKeys } from '@/server/entities';
 import { hashPassword } from '@/server/helpers/password';
 import { generateKeyPairES256, generateClientToken } from '@/client/lib/crypto';
@@ -27,6 +29,9 @@ describe('PUT /_auth/password', () =>
     {
         const db = getTestDb();
         await clearTables(db);
+
+        // Initialize RBAC system
+        await initializeAuth();
     });
 
     describe('Successful password change', () =>
@@ -35,13 +40,16 @@ describe('PUT /_auth/password', () =>
         {
             const db = getTestDb();
 
+            // Get user role
+            const userRole = await getRoleByName('user');
+
             // Create test user
             const oldPasswordHash = await hashPassword('OldPassword123!');
             const [user] = await db.insert(users).values(
                 {
                     email: 'user@example.com',
                     passwordHash: oldPasswordHash,
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'active',
                 }
             ).returning();
@@ -101,13 +109,16 @@ describe('PUT /_auth/password', () =>
         {
             const db = getTestDb();
 
+            // Get superadmin role
+            const superadminRole = await getRoleByName('superadmin');
+
             // Create admin user with password change required
             const oldPasswordHash = await hashPassword('TempPassword123!');
             const [user] = await db.insert(users).values(
                 {
                     email: 'admin@example.com',
                     passwordHash: oldPasswordHash,
-                    role: 'superadmin',
+                    roleId: superadminRole!.id,
                     status: 'active',
                     passwordChangeRequired: true,
                 }
@@ -210,12 +221,15 @@ describe('PUT /_auth/password', () =>
             const db = getTestDb();
 
             // Create test user
+            // Get user role
+            const userRole = await getRoleByName('user');
+
             const passwordHash = await hashPassword('CorrectPassword123!');
             const [user] = await db.insert(users).values(
                 {
                     email: 'user@example.com',
                     passwordHash,
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'active',
                 }
             ).returning();
@@ -265,13 +279,16 @@ describe('PUT /_auth/password', () =>
         {
             const db = getTestDb();
 
+            // Get user role
+            const userRole = await getRoleByName('user');
+
             // Create suspended user
             const passwordHash = await hashPassword('Password123!');
             const [user] = await db.insert(users).values(
                 {
                     email: 'suspended@example.com',
                     passwordHash,
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'suspended',
                 }
             ).returning();
@@ -324,12 +341,15 @@ describe('PUT /_auth/password', () =>
         {
             const db = getTestDb();
 
+            // Get user role
+            const userRole = await getRoleByName('user');
+
             const passwordHash = await hashPassword('OldPassword123!');
             const [user] = await db.insert(users).values(
                 {
                     email: 'user@example.com',
                     passwordHash,
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'active',
                 }
             ).returning();
@@ -376,12 +396,15 @@ describe('PUT /_auth/password', () =>
         {
             const db = getTestDb();
 
+            // Get user role
+            const userRole = await getRoleByName('user');
+
             const passwordHash = await hashPassword('Password123!');
             const [user] = await db.insert(users).values(
                 {
                     email: 'user@example.com',
                     passwordHash,
-                    role: 'user',
+                    roleId: userRole!.id,
                     status: 'active',
                 }
             ).returning();
