@@ -22,6 +22,9 @@ const PHONE_PATTERN = '^\\+[1-9]\\d{1,14}$';
 // SHA-256 fingerprint pattern (64 hex characters)
 const FINGERPRINT_PATTERN = '^[a-f0-9]{64}$';
 
+// UUID v4 pattern (8-4-4-4-12 format)
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+
 // Base64 pattern (DER encoded keys)
 // Matches standard Base64 with padding
 const BASE64_PATTERN = '^[A-Za-z0-9+/]+=*$';
@@ -169,7 +172,7 @@ export const registerContract = {
             description: 'Base64 encoded DER public key (SPKI format)'
         }),
         keyId: Type.String({
-            format: 'uuid',
+            pattern: UUID_PATTERN,
             description: 'Client-generated UUID v4 key identifier'
         }),
         fingerprint: Type.String({
@@ -226,7 +229,7 @@ export const loginContract = {
             description: 'Base64 encoded DER public key (SPKI format)'
         }),
         keyId: Type.String({
-            format: 'uuid',
+            pattern: UUID_PATTERN,
             description: 'Client-generated UUID v4 key identifier'
         }),
         fingerprint: Type.String({
@@ -234,7 +237,7 @@ export const loginContract = {
             description: 'SHA-256 fingerprint of public key (64 hex characters)'
         }),
         oldKeyId: Type.Optional(Type.String({
-            format: 'uuid',
+            pattern: UUID_PATTERN,
             description: 'Previous key ID to revoke (server-side cleanup)'
         })),
         algorithm: Type.Union([
@@ -294,7 +297,7 @@ export const rotateKeyContract = {
             description: 'Base64 encoded DER public key (SPKI format)'
         }),
         keyId: Type.String({
-            format: 'uuid',
+            pattern: UUID_PATTERN,
             description: 'Client-generated UUID v4 key identifier'
         }),
         fingerprint: Type.String({

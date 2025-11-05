@@ -65,7 +65,7 @@
   "dependencies": {
     "@spfn/core": "workspace:*",
     "bcrypt": "^6.0.0",
-    "drizzle-orm": "^0.44.6",
+    "drizzle-orm": "^0.44.7",
     "jsonwebtoken": "^9.0.2",
     "postgres": "^3.4.0"
   },

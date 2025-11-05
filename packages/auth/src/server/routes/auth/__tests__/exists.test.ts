@@ -37,11 +37,13 @@ describe('POST /auth/exists', () =>
                 {
                     email: 'test@example.com',
                     passwordHash: 'hashed_password',
+                    role: 'user',
+                    status: 'active',
                 }
             );
 
             // Make request
-            const req = new Request('http://localhost/exists',
+            const req = new Request('http://localhost/_auth/exists',
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -75,7 +77,7 @@ describe('POST /auth/exists', () =>
 
         it('should return exists: false when user does not exist with email', async () =>
         {
-            const req = new Request('http://localhost/exists',
+            const req = new Request('http://localhost/_auth/exists',
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -112,11 +114,13 @@ describe('POST /auth/exists', () =>
                 {
                     phone: '+821012345678',
                     passwordHash: 'hashed_password',
+                    role: 'user',
+                    status: 'active',
                 }
             );
 
             // Make request
-            const req = new Request('http://localhost/exists',
+            const req = new Request('http://localhost/_auth/exists',
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -143,7 +147,7 @@ describe('POST /auth/exists', () =>
 
         it('should return exists: false when user does not exist with phone', async () =>
         {
-            const req = new Request('http://localhost/exists',
+            const req = new Request('http://localhost/_auth/exists',
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -173,7 +177,7 @@ describe('POST /auth/exists', () =>
     {
         it('should return error when neither email nor phone is provided', async () =>
         {
-            const req = new Request('http://localhost/exists',
+            const req = new Request('http://localhost/_auth/exists',
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -188,7 +192,7 @@ describe('POST /auth/exists', () =>
 
         it('should validate email format', async () =>
         {
-            const req = new Request('http://localhost/exists',
+            const req = new Request('http://localhost/_auth/exists',
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -203,7 +207,7 @@ describe('POST /auth/exists', () =>
 
         it('should validate phone format (E.164)', async () =>
         {
-            const req = new Request('http://localhost/exists',
+            const req = new Request('http://localhost/_auth/exists',
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

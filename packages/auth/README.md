@@ -201,6 +201,306 @@ app.bind(myProtectedRoute, [authenticate], async (c) => {
 });
 ```
 
+---
+
+## Service Layer (Reusable Business Logic)
+
+The `@spfn/auth` package provides **service functions** that encapsulate all business logic, making it easy to create custom authentication flows while reusing the same secure logic.
+
+### Why Service Layer?
+
+Instead of being locked into predefined API routes, you can:
+- **Create custom authentication flows** that match your app's UX
+- **Add custom logic** before/after authentication operations
+- **Integrate with external systems** (CRM, analytics, Slack notifications)
+- **Build complex workflows** combining multiple auth operations
+- **Maintain consistency** by reusing the same secure business logic
+
+### Available Services
+
+#### Authentication Services
+
+```typescript
+import {
+  checkAccountExistsService,
+  registerService,
+  loginService,
+  logoutService,
+  changePasswordService,
+} from '@spfn/auth/server';
+```
+
+#### Verification Services
+
+```typescript
+import {
+  sendVerificationCodeService,
+  verifyCodeService,
+} from '@spfn/auth/server';
+```
+
+#### Key Management Services
+
+```typescript
+import {
+  registerPublicKeyService,
+  rotateKeyService,
+  revokeKeyService,
+} from '@spfn/auth/server';
+```
+
+#### User Services
+
+```typescript
+import {
+  getUserByIdService,
+  getUserByEmailService,
+  getUserByPhoneService,
+  updateLastLoginService,
+  updateUserService,
+} from '@spfn/auth/server';
+```
+
+---
+
+### Example 1: Custom Login with Slack Notification
+
+```typescript
+import { createApp } from '@spfn/core/route';
+import { loginService } from '@spfn/auth/server';
+
+const app = createApp();
+
+app.post('/custom-login', async (c) => {
+  const body = await c.req.json();
+
+  // Log login attempt
+  console.log(`Login attempt: ${body.email}`);
+
+  try {
+    // Reuse auth service
+    const result = await loginService({
+      email: body.email,
+      password: body.password,
+      publicKey: body.publicKey,
+      keyId: body.keyId,
+      fingerprint: body.fingerprint,
+      algorithm: body.algorithm,
+    });
+
+    // Send Slack notification
+    await fetch('https://hooks.slack.com/services/YOUR/WEBHOOK/URL', {
+      method: 'POST',
+      body: JSON.stringify({
+        text: `✅ User ${result.email} logged in successfully!`,
+      }),
+    });
+
+    // Track analytics
+    await trackEvent('user_login', {
+      userId: result.userId,
+      email: result.email,
+    });
+
+    return c.json(result);
+  } catch (error) {
+    // Custom error handling
+    await trackEvent('login_failed', { email: body.email });
+    throw error;
+  }
+});
+```
+
+---
+
+### Example 2: Custom Registration with CRM Integration
+
+```typescript
+import {
+  verifyCodeService,
+  registerService,
+} from '@spfn/auth/server';
+
+app.post('/custom-register', async (c) => {
+  const body = await c.req.json();
+
+  // Step 1: Verify OTP code
+  const { verificationToken } = await verifyCodeService({
+    target: body.email,
+    targetType: 'email',
+    code: body.otp,
+    purpose: 'registration',
+  });
+
+  // Step 2: Register user
+  const user = await registerService({
+    email: body.email,
+    password: body.password,
+    verificationToken,
+    publicKey: body.publicKey,
+    keyId: body.keyId,
+    fingerprint: body.fingerprint,
+    algorithm: 'ES256',
+  });
+
+  // Step 3: Add to CRM
+  await fetch('https://api.your-crm.com/contacts', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.CRM_API_KEY}` },
+    body: JSON.stringify({
+      email: user.email,
+      userId: user.userId,
+      source: 'registration',
+      createdAt: new Date().toISOString(),
+    }),
+  });
+
+  // Step 4: Send welcome email
+  await sendWelcomeEmail(user.email);
+
+  return c.json({
+    success: true,
+    userId: user.userId,
+    message: 'Registration complete! Check your email for next steps.',
+  });
+});
+```
+
+---
+
+### Example 3: Complex Multi-Step Flow
+
+```typescript
+import {
+  checkAccountExistsService,
+  sendVerificationCodeService,
+  verifyCodeService,
+  registerService,
+} from '@spfn/auth/server';
+
+app.post('/signup-wizard', async (c) => {
+  const { step, email, code, password, publicKey, keyId, fingerprint } = await c.req.json();
+
+  if (step === 1) {
+    // Check if account already exists
+    const { exists } = await checkAccountExistsService({ email });
+
+    if (exists) {
+      return c.json({ error: 'Account already exists', suggestLogin: true }, 409);
+    }
+
+    // Send verification code
+    const result = await sendVerificationCodeService({
+      target: email,
+      targetType: 'email',
+      purpose: 'registration',
+    });
+
+    return c.json({ step: 2, expiresAt: result.expiresAt });
+  }
+
+  if (step === 2) {
+    // Verify code
+    const { verificationToken } = await verifyCodeService({
+      target: email,
+      targetType: 'email',
+      code,
+      purpose: 'registration',
+    });
+
+    // Store token temporarily
+    return c.json({ step: 3, verificationToken });
+  }
+
+  if (step === 3) {
+    // Complete registration
+    const user = await registerService({
+      email,
+      password,
+      verificationToken: body.verificationToken,
+      publicKey,
+      keyId,
+      fingerprint,
+      algorithm: 'ES256',
+    });
+
+    return c.json({ success: true, userId: user.userId });
+  }
+
+  return c.json({ error: 'Invalid step' }, 400);
+});
+```
+
+---
+
+### Example 4: Check User Without Creating Route
+
+```typescript
+import { getUserByEmailService } from '@spfn/auth/server';
+
+// Use in any server code
+async function sendNotificationToAdmin(email: string) {
+  const user = await getUserByEmailService(email);
+
+  if (user && user.role === 'admin') {
+    await sendEmail(user.email, 'Admin Notification', '...');
+  }
+}
+```
+
+---
+
+### Service Function Signatures
+
+#### `loginService(params)`
+
+```typescript
+await loginService({
+  email?: string;              // One of email or phone required
+  phone?: string;
+  password: string;
+  publicKey: string;
+  keyId: string;
+  fingerprint: string;
+  oldKeyId?: string;           // Optional: revoke old key
+  algorithm?: 'ES256' | 'RS256';
+});
+
+// Returns: { userId, email?, phone?, passwordChangeRequired }
+```
+
+#### `registerService(params)`
+
+```typescript
+await registerService({
+  email?: string;
+  phone?: string;
+  verificationToken: string;   // From verifyCodeService
+  password: string;
+  publicKey: string;
+  keyId: string;
+  fingerprint: string;
+  algorithm?: 'ES256' | 'RS256';
+});
+
+// Returns: { userId, email?, phone? }
+```
+
+#### `verifyCodeService(params)`
+
+```typescript
+await verifyCodeService({
+  target: string;              // Email or phone
+  targetType: 'email' | 'phone';
+  code: string;                // 6-digit code
+  purpose: 'registration' | 'login' | 'password_reset';
+});
+
+// Returns: { valid: true, verificationToken: string }
+```
+
+---
+
 ## API Reference
 
 ### Public Endpoints (No Authentication Required)
@@ -747,7 +1047,7 @@ pnpm docker:test:down
 @spfn/auth/
 ├── dist/
 │   ├── index.js          # Common exports (types, entities)
-│   ├── server.js         # Server-only exports (routes, middleware, helpers)
+│   ├── server.js         # Server-only exports (routes, middleware, helpers, services)
 │   └── client.js         # Client-only exports (crypto, hooks, store)
 ├── migrations/           # Drizzle database migrations
 └── src/
@@ -760,7 +1060,13 @@ pnpm docker:test:down
     │   └── types/        # Shared TypeScript types
     ├── server/           # Server-only code
     │   ├── entities/     # Drizzle ORM entities
-    │   ├── routes/       # API route handlers
+    │   ├── services/     # 🆕 Business logic layer (reusable functions)
+    │   │   ├── auth.service.ts
+    │   │   ├── verification.service.ts
+    │   │   ├── key.service.ts
+    │   │   ├── user.service.ts
+    │   │   └── index.ts
+    │   ├── routes/       # API route handlers (thin layer calling services)
     │   ├── middleware/   # Authentication middleware
     │   ├── helpers/      # JWT, password, verification utils
     │   └── repositories/ # Database access layer

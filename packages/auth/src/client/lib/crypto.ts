@@ -193,8 +193,8 @@ export function generateClientToken(
 
         const signOptions: SignOptions = {
             algorithm,
-            expiresIn: options?.expiresIn,
             issuer: options?.issuer || 'spfn-client',
+            expiresIn: options?.expiresIn ?? '15m', // Default to 15 minutes
         }
 
         return jwt.sign(payload, privateKeyPEM, signOptions);

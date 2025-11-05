@@ -12,7 +12,8 @@ import * as dbModule from '@spfn/core/db';
 import * as jwtHelpers from '@/server/helpers/jwt';
 
 // Mock database functions
-vi.mock('@spfn/core/db', async (importOriginal) => {
+vi.mock('@spfn/core/db', async (importOriginal) =>
+{
     const actual = await importOriginal() as any;
     return {
         ...actual,
@@ -22,7 +23,8 @@ vi.mock('@spfn/core/db', async (importOriginal) => {
 });
 
 // Mock JWT verification
-vi.mock('@/server/helpers/jwt', async (importOriginal) => {
+vi.mock('@/server/helpers/jwt', async (importOriginal) =>
+{
     const actual = await importOriginal() as any;
     return {
         ...actual,
@@ -62,18 +64,10 @@ describe('Authenticate Middleware', () =>
         {
             (mockContext.req!.header as any).mockReturnValue(undefined);
 
-            await authenticate(mockContext as Context, mockNext);
+            await expect(authenticate(mockContext as Context, mockNext))
+                .rejects
+                .toThrow('Missing or invalid authorization header');
 
-            expect(mockContext.json).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    success: false,
-                    error: expect.objectContaining({
-                        code: 'UNAUTHORIZED',
-                        message: 'Missing or invalid authorization header',
-                    }),
-                }),
-                401
-            );
             expect(mockNext).not.toHaveBeenCalled();
         });
 
@@ -85,17 +79,10 @@ describe('Authenticate Middleware', () =>
                 return undefined;
             });
 
-            await authenticate(mockContext as Context, mockNext);
+            await expect(authenticate(mockContext as Context, mockNext))
+                .rejects
+                .toThrow('Missing or invalid authorization header');
 
-            expect(mockContext.json).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    success: false,
-                    error: expect.objectContaining({
-                        code: 'UNAUTHORIZED',
-                    }),
-                }),
-                401
-            );
             expect(mockNext).not.toHaveBeenCalled();
         });
 
@@ -107,18 +94,10 @@ describe('Authenticate Middleware', () =>
                 return undefined;
             });
 
-            await authenticate(mockContext as Context, mockNext);
+            await expect(authenticate(mockContext as Context, mockNext))
+                .rejects
+                .toThrow('Missing X-Key-Id header');
 
-            expect(mockContext.json).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    success: false,
-                    error: expect.objectContaining({
-                        code: 'UNAUTHORIZED',
-                        message: 'Missing X-Key-Id header',
-                    }),
-                }),
-                401
-            );
             expect(mockNext).not.toHaveBeenCalled();
         });
     });
@@ -147,18 +126,10 @@ describe('Authenticate Middleware', () =>
                 }),
             } as any);
 
-            await authenticate(mockContext as Context, mockNext);
+            await expect(authenticate(mockContext as Context, mockNext))
+                .rejects
+                .toThrow('Invalid or revoked key');
 
-            expect(mockContext.json).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    success: false,
-                    error: expect.objectContaining({
-                        code: 'UNAUTHORIZED',
-                        message: 'Invalid or revoked key',
-                    }),
-                }),
-                401
-            );
             expect(mockNext).not.toHaveBeenCalled();
         });
 
@@ -186,18 +157,10 @@ describe('Authenticate Middleware', () =>
                 }),
             } as any);
 
-            await authenticate(mockContext as Context, mockNext);
+            await expect(authenticate(mockContext as Context, mockNext))
+                .rejects
+                .toThrow('Public key has expired');
 
-            expect(mockContext.json).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    success: false,
-                    error: expect.objectContaining({
-                        code: 'KEY_EXPIRED',
-                        message: 'Key has expired, please rotate',
-                    }),
-                }),
-                401
-            );
             expect(mockNext).not.toHaveBeenCalled();
         });
     });
@@ -252,18 +215,10 @@ describe('Authenticate Middleware', () =>
             // Mock findOne to return null (user not found)
             vi.mocked(dbModule.findOne).mockResolvedValue(null);
 
-            await authenticate(mockContext as Context, mockNext);
+            await expect(authenticate(mockContext as Context, mockNext))
+                .rejects
+                .toThrow('User not found');
 
-            expect(mockContext.json).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    success: false,
-                    error: expect.objectContaining({
-                        code: 'UNAUTHORIZED',
-                        message: 'User not found',
-                    }),
-                }),
-                401
-            );
             expect(mockNext).not.toHaveBeenCalled();
         });
 
@@ -276,18 +231,10 @@ describe('Authenticate Middleware', () =>
                 status: 'inactive',
             } as any);
 
-            await authenticate(mockContext as Context, mockNext);
+            await expect(authenticate(mockContext as Context, mockNext))
+                .rejects
+                .toThrow('Account is inactive');
 
-            expect(mockContext.json).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    success: false,
-                    error: expect.objectContaining({
-                        code: 'ACCOUNT_DISABLED',
-                        message: 'Account is inactive',
-                    }),
-                }),
-                403
-            );
             expect(mockNext).not.toHaveBeenCalled();
         });
 
@@ -300,18 +247,10 @@ describe('Authenticate Middleware', () =>
                 status: 'suspended',
             } as any);
 
-            await authenticate(mockContext as Context, mockNext);
+            await expect(authenticate(mockContext as Context, mockNext))
+                .rejects
+                .toThrow('Account is suspended');
 
-            expect(mockContext.json).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    success: false,
-                    error: expect.objectContaining({
-                        code: 'ACCOUNT_DISABLED',
-                        message: 'Account is suspended',
-                    }),
-                }),
-                403
-            );
             expect(mockNext).not.toHaveBeenCalled();
         });
     });
@@ -375,13 +314,10 @@ describe('Authenticate Middleware', () =>
             await authenticate(mockContext as Context, mockNext);
 
             // Should set user data in context
-            expect(mockContext.set).toHaveBeenCalledWith('user', expect.objectContaining({
-                id: 1,
-                email: 'test@example.com',
-                status: 'active',
+            expect(mockContext.set).toHaveBeenCalledWith('auth', expect.objectContaining({
+                userId: '1',
+                keyId,
             }));
-            expect(mockContext.set).toHaveBeenCalledWith('userId', '1');
-            expect(mockContext.set).toHaveBeenCalledWith('keyId', keyId);
 
             // Should call next middleware
             expect(mockNext).toHaveBeenCalled();

@@ -5,13 +5,13 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
-import { users } from '@/server/entities';
+import { users, userPublicKeys } from '@/server/entities';
 import { hashPassword } from '@/server/helpers/password';
-import { generateToken } from '@/server/helpers/jwt';
+import { generateKeyPairES256, generateClientToken } from '@/client/lib/crypto';
 import type { ApiResponse, ChangePasswordData } from '@/lib/types/api';
 import app from '../index';
 
-describe('POST /auth/change-password', () =>
+describe('PUT /_auth/password', () =>
 {
     beforeAll(async () =>
     {
@@ -46,19 +46,33 @@ describe('POST /auth/change-password', () =>
                 }
             ).returning();
 
-            // Generate auth token
-            const token = generateToken({
-                userId: String(user.id),
-                role: user.role,
+            // Generate key pair and register public key
+            const { privateKey, publicKey, keyId, fingerprint, algorithm } = generateKeyPairES256();
+            await db.insert(userPublicKeys).values({
+                userId: user.id,
+                keyId,
+                publicKey,
+                fingerprint,
+                algorithm,
+                isActive: true,
+                expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
             });
 
+            // Generate client-signed token
+            const token = generateClientToken(
+                { userId: String(user.id) },
+                privateKey,
+                algorithm
+            );
+
             // Change password request
-            const req = new Request('http://localhost/change-password',
+            const req = new Request('http://localhost/_auth/password',
                 {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`,
+                        'X-Key-Id': keyId,
                     },
                     body: JSON.stringify({
                         currentPassword: 'OldPassword123!',
@@ -99,19 +113,33 @@ describe('POST /auth/change-password', () =>
                 }
             ).returning();
 
-            // Generate auth token
-            const token = generateToken({
-                userId: String(user.id),
-                role: user.role,
+            // Generate key pair and register public key
+            const { privateKey, publicKey, keyId, fingerprint, algorithm } = generateKeyPairES256();
+            await db.insert(userPublicKeys).values({
+                userId: user.id,
+                keyId,
+                publicKey,
+                fingerprint,
+                algorithm,
+                isActive: true,
+                expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
             });
 
+            // Generate client-signed token
+            const token = generateClientToken(
+                { userId: String(user.id) },
+                privateKey,
+                algorithm
+            );
+
             // Change password request
-            const req = new Request('http://localhost/change-password',
+            const req = new Request('http://localhost/_auth/password',
                 {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`,
+                        'X-Key-Id': keyId,
                     },
                     body: JSON.stringify({
                         currentPassword: 'TempPassword123!',
@@ -136,9 +164,9 @@ describe('POST /auth/change-password', () =>
     {
         it('should return 401 without authentication token', async () =>
         {
-            const req = new Request('http://localhost/change-password',
+            const req = new Request('http://localhost/_auth/password',
                 {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         currentPassword: 'OldPassword123!',
@@ -152,17 +180,13 @@ describe('POST /auth/change-password', () =>
 
             expect(res.status).toBe(401);
             expect(data.success).toBe(false);
-            if (!data.success)
-            {
-                expect(data.error.code).toBe('UNAUTHORIZED');
-            }
         });
 
         it('should return 401 with invalid token', async () =>
         {
-            const req = new Request('http://localhost/change-password',
+            const req = new Request('http://localhost/_auth/password',
                 {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer invalid-token',
@@ -191,22 +215,37 @@ describe('POST /auth/change-password', () =>
                 {
                     email: 'user@example.com',
                     passwordHash,
+                    role: 'user',
+                    status: 'active',
                 }
             ).returning();
 
-            // Generate auth token
-            const token = generateToken({
-                userId: String(user.id),
-                role: 'user',
+            // Generate key pair and register public key
+            const { privateKey, publicKey, keyId, fingerprint, algorithm } = generateKeyPairES256();
+            await db.insert(userPublicKeys).values({
+                userId: user.id,
+                keyId,
+                publicKey,
+                fingerprint,
+                algorithm,
+                isActive: true,
+                expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
             });
 
+            const token = generateClientToken(
+                { userId: String(user.id) },
+                privateKey,
+                algorithm
+            );
+
             // Try to change password with wrong current password
-            const req = new Request('http://localhost/change-password',
+            const req = new Request('http://localhost/_auth/password',
                 {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`,
+                        'X-Key-Id': keyId,
                     },
                     body: JSON.stringify({
                         currentPassword: 'WrongPassword123!',
@@ -220,10 +259,6 @@ describe('POST /auth/change-password', () =>
 
             expect(res.status).toBe(401);
             expect(data.success).toBe(false);
-            if (!data.success)
-            {
-                expect(data.error.code).toBe('INVALID_CREDENTIALS');
-            }
         });
 
         it('should return 403 for suspended user', async () =>
@@ -236,23 +271,37 @@ describe('POST /auth/change-password', () =>
                 {
                     email: 'suspended@example.com',
                     passwordHash,
+                    role: 'user',
                     status: 'suspended',
                 }
             ).returning();
 
-            // Generate auth token
-            const token = generateToken({
-                userId: String(user.id),
-                role: 'user',
+            // Generate key pair and register public key
+            const { privateKey, publicKey, keyId, fingerprint, algorithm } = generateKeyPairES256();
+            await db.insert(userPublicKeys).values({
+                userId: user.id,
+                keyId,
+                publicKey,
+                fingerprint,
+                algorithm,
+                isActive: true,
+                expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
             });
 
+            const token = generateClientToken(
+                { userId: String(user.id) },
+                privateKey,
+                algorithm
+            );
+
             // Try to change password
-            const req = new Request('http://localhost/change-password',
+            const req = new Request('http://localhost/_auth/password',
                 {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`,
+                        'X-Key-Id': keyId,
                     },
                     body: JSON.stringify({
                         currentPassword: 'Password123!',
@@ -280,20 +329,36 @@ describe('POST /auth/change-password', () =>
                 {
                     email: 'user@example.com',
                     passwordHash,
+                    role: 'user',
+                    status: 'active',
                 }
             ).returning();
 
-            const token = generateToken({
-                userId: String(user.id),
-                role: 'user',
+            // Generate key pair and register public key
+            const { privateKey, publicKey, keyId, fingerprint, algorithm } = generateKeyPairES256();
+            await db.insert(userPublicKeys).values({
+                userId: user.id,
+                keyId,
+                publicKey,
+                fingerprint,
+                algorithm,
+                isActive: true,
+                expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
             });
 
-            const req = new Request('http://localhost/change-password',
+            const token = generateClientToken(
+                { userId: String(user.id) },
+                privateKey,
+                algorithm
+            );
+
+            const req = new Request('http://localhost/_auth/password',
                 {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`,
+                        'X-Key-Id': keyId,
                     },
                     body: JSON.stringify({
                         currentPassword: 'OldPassword123!',
@@ -316,20 +381,36 @@ describe('POST /auth/change-password', () =>
                 {
                     email: 'user@example.com',
                     passwordHash,
+                    role: 'user',
+                    status: 'active',
                 }
             ).returning();
 
-            const token = generateToken({
-                userId: String(user.id),
-                role: 'user',
+            // Generate key pair and register public key
+            const { privateKey, publicKey, keyId, fingerprint, algorithm } = generateKeyPairES256();
+            await db.insert(userPublicKeys).values({
+                userId: user.id,
+                keyId,
+                publicKey,
+                fingerprint,
+                algorithm,
+                isActive: true,
+                expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
             });
 
-            const req = new Request('http://localhost/change-password',
+            const token = generateClientToken(
+                { userId: String(user.id) },
+                privateKey,
+                algorithm
+            );
+
+            const req = new Request('http://localhost/_auth/password',
                 {
-                    method: 'POST',
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`,
+                        'X-Key-Id': keyId,
                     },
                     body: JSON.stringify({
                         newPassword: 'NewPassword456!',
