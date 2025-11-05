@@ -48,15 +48,15 @@ spfn init -y           # Skip prompts, use defaults
 - `src/server/entities/` - Database entities (Drizzle ORM)
 - `docker-compose.yml` - PostgreSQL + Redis for local development
 - `Dockerfile`, `.dockerignore`, `docker-compose.production.yml` - Production deployment
-- `.guide/` - **Quick-start and deployment guides** (⭐ Use with AI tools!)
 - `.env.local.example` - Environment variable template
 - `spfn.config.js` - Deployment configuration with JSDoc type hints
+- `.spfnrc.json` - Code generation configuration
 
 **SPFN's Contract-Based Architecture:**
 - **Contracts** (`src/lib/contracts/`): Define API endpoints with absolute paths (e.g., `/users/:id`)
 - **Handlers** (`src/server/routes/`): Import contracts and implement business logic
 - **Frontend**: Import contracts for type-safe API calls
-- **Auto-generated Client**: `src/lib/api.ts` is generated from contracts
+- **Auto-generated Client**: `src/lib/api/` is auto-generated from contracts (via `spfn dev` or `spfn build`)
 
 ### Generate Function Modules
 ```bash
@@ -245,31 +245,6 @@ export default {
 For complete documentation and guides, see:
 - **[SPFN Framework](../../README.md)** - Getting started
 - **[@spfn/core](../core/README.md)** - API reference and core concepts
-- **`.guide/` directory in your project** - Quick-start and deployment guides
-
-### Working with AI Tools
-
-When using AI assistants (Claude, ChatGPT, etc.) to build your SPFN project:
-
-**⭐ Share the `.guide/` documentation with your AI assistant!**
-
-After running `spfn init`, you'll have a `.guide/` directory with practical guides:
-- **`quick-start.md`** - Build your first API endpoint (5 minutes)
-- **`deployment.md`** - Complete deployment guide
-
-These guides help AI understand SPFN's architecture and generate correct code for:
-- Creating entities and routes
-- Database migrations
-- Type-safe API clients
-- Production deployment
-
-**Example prompt:**
-```
-I'm using SPFN framework. Here's the quick-start guide:
-[paste .guide/quick-start.md]
-
-Now help me create a blog post API with title, content, and author fields.
-```
 
 ## Requirements
 
