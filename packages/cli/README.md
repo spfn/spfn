@@ -70,13 +70,21 @@ spfn g fn shop -d "E-commerce shop" -e products,orders,customers
 
 **What `spfn generate fn` creates:**
 - `packages/<name>/` - New function module in monorepo
-- `src/entities/` - Drizzle ORM entity definitions
-- `src/repositories/` - CRUD repository layer
-- `src/routes/` - RESTful API route handlers
-- `src/contracts/` - TypeBox API contracts
+- `src/server/entities/schema.ts` - **Exported schema** (ensures CREATE SCHEMA in migrations)
+- `src/server/entities/*.ts` - Drizzle ORM entity definitions (import schema)
+- `src/server/repositories/` - CRUD repository layer
+- `src/server/routes/` - RESTful API route handlers
+- `src/lib/contracts/` - TypeBox API contracts
 - `package.json` - Pre-configured with SPFN metadata
 - `tsup.config.ts` - Build configuration
 - `drizzle.config.ts` - Database migration setup
+
+**Database Schema Naming:**
+- Scope and module name are automatically converted to safe PostgreSQL schema names
+- Examples: `@my-company/blog` → `my_company_blog`, `@spfn/cms` → `spfn_cms`
+- Special characters (`.`, `!`, `-`) are converted to underscores
+- Names starting with numbers get `_` prefix (e.g., `@123company` → `_123company`)
+- Ensures PostgreSQL compatibility (lowercase, numbers, underscores only)
 
 **Options:**
 - `-e, --entities <list>` - Comma-separated entity names
@@ -107,29 +115,19 @@ spfn add @company/plugin   # Install third-party SPFN package
 
 **What `spfn add` does:**
 1. ✅ Installs the package via pnpm/npm
-2. ✅ Discovers package's database schemas automatically
-3. ✅ Generates migrations for package tables
-4. ✅ Applies migrations to your database
-5. ✅ Shows package-specific setup guide
+2. ✅ Discovers package's pre-built migrations
+3. ✅ Applies package migrations to your database
+4. ✅ Shows package-specific setup guide
 
 **Example: Installing @spfn/cms**
 ```bash
 $ pnpm spfn add @spfn/cms
 
 📦 Setting up @spfn/cms...
+✓ Package installed
 
 🗄️  Setting up database for @spfn/cms...
-
-6 tables
-cms_labels           10 columns 2 indexes
-cms_label_values      7 columns 2 indexes 1 fks
-cms_label_versions    9 columns 2 indexes 1 fks
-cms_draft_cache       6 columns 2 indexes
-cms_published_cache   7 columns 1 indexes
-cms_audit_logs        8 columns 4 indexes 1 fks
-
-✔ Migration generated
-✔ Migration applied
+✓ Migrations applied
 
 ✅ @spfn/cms installed successfully!
 
@@ -145,12 +143,14 @@ cms_audit_logs        8 columns 4 indexes 1 fks
   {
     "name": "@spfn/cms",
     "spfn": {
-      "schemas": ["./dist/entities/*.js"],
+      "schemas": ["./dist/server/entities/*.js"],
+      "migrations": { "dir": "./migrations" },
       "setupMessage": "📚 Next steps: ..."
     }
   }
   ```
-- Packages can provide their own database tables without creating dependencies
+- Packages include pre-built migrations in their `migrations/` directory
+- Package migrations are applied first, then project migrations
 - Works with both published npm packages and local development (workspace packages)
 
 ### Development & Production
