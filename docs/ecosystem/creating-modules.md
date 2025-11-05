@@ -451,15 +451,36 @@ spfn add @mycompany/my-module
 
 ### 2. Database Schema Isolation
 
-Always use a dedicated schema for your module:
+Always use a dedicated schema for your module to prevent table name conflicts.
 
-```typescript
-const myModuleSchema = pgSchema('spfn_my_module');
+**Auto-Generated Schema Names:**
 
-export const posts = myModuleSchema.table('posts', { /* ... */ });
+When using `spfn generate fn`, the CLI automatically creates safe PostgreSQL schema names from your npm scope and module name:
+
+```bash
+# Examples of automatic schema name conversion:
+@mycompany/my-module  → mycompany_my_module
+@my-company/cms       → my_company_cms
+@my.company/auth      → my_company_auth
+@123company/billing   → _123company_billing  # Number prefix → add underscore
+@spfn/cms             → spfn_cms
 ```
 
-This prevents table name conflicts with other modules.
+**Schema Name Rules:**
+- Special characters (`.`, `!`, `-`) are converted to underscores
+- Multiple underscores are collapsed to single
+- Names starting with numbers get `_` prefix (PostgreSQL requirement)
+- Maximum 63 characters (PostgreSQL limit)
+- Only lowercase, numbers, and underscores allowed
+
+**Generated Schema File:**
+
+```typescript
+// src/server/entities/schema.ts (auto-generated)
+export const myModuleSchema = createFunctionSchema('@mycompany/my-module');
+```
+
+The actual PostgreSQL schema name (`mycompany_my_module`) is handled internally by `createFunctionSchema()`.
 
 ### 3. API Versioning
 
