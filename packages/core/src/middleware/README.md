@@ -161,6 +161,7 @@ Automatically logs all API requests with performance tracking and error monitori
 - **Performance Tracking**: Response time measurement
 - **Slow Request Detection**: Automatic warnings for slow requests
 - **Error Tracking**: Automatic error logging
+- **Detailed Error Logging**: Response body and request body logging for 4xx/5xx errors
 - **Sensitive Data Masking**: Mask passwords, tokens, etc.
 - **Path Exclusion**: Skip health checks and other paths
 
@@ -232,19 +233,44 @@ export async function POST(c: Context) {
 }
 ```
 
-**Request Completed (4xx Warning):**
+**Request Completed (4xx Warning with Error Details):**
 ```json
 {
   "level": "warn",
   "module": "api",
   "msg": "Request completed",
   "requestId": "req_1759541628735_xn79oj7yc",
-  "method": "GET",
-  "path": "/not-found",
-  "status": 404,
-  "duration": 2
+  "method": "PUT",
+  "path": "/api/tasks/t1-1-001",
+  "status": 400,
+  "duration": 2,
+  "response": {
+    "success": false,
+    "error": {
+      "message": "Invalid request body",
+      "type": "ValidationError",
+      "statusCode": 400,
+      "details": {
+        "fields": [
+          {
+            "path": "/status",
+            "message": "Expected string",
+            "value": 123
+          }
+        ]
+      }
+    }
+  },
+  "request": {
+    "status": 123,
+    "title": "Updated task title"
+  }
 }
 ```
+
+**Note:** For 4xx/5xx errors:
+- `response`: Full error response body (including error message, type, and details)
+- `request`: Request body for POST/PUT/PATCH (with sensitive data masked)
 
 **Slow Request (> threshold):**
 ```json
