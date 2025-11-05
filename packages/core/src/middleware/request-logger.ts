@@ -116,9 +116,6 @@ export function RequestLogger(config?: RequestLoggerConfig)
             const duration = Date.now() - startTime;
             const status = c.res.status;
 
-            const logLevel = status >= 400 ? 'warn' : 'info';
-            const isSlowRequest = duration >= cfg.slowRequestThreshold;
-
             const logData: Record<string, any> = {
                 requestId,
                 method,
@@ -127,11 +124,43 @@ export function RequestLogger(config?: RequestLoggerConfig)
                 duration,
             };
 
+            const isSlowRequest = duration >= cfg.slowRequestThreshold;
             if (isSlowRequest)
             {
                 logData.slow = true;
             }
 
+            // Add detailed error information for 4xx/5xx responses
+            if (status >= 400)
+            {
+                try
+                {
+                    // Clone response to read body without consuming it
+                    const responseBody = await c.res.clone().json();
+                    logData.response = responseBody;
+                }
+                catch
+                {
+                    // Response is not JSON or already consumed - ignore
+                }
+
+                // Add request body for POST/PUT/PATCH to see what data caused the error
+                if (['POST', 'PUT', 'PATCH'].includes(method))
+                {
+                    try
+                    {
+                        // Try to get the already parsed body from context
+                        const requestBody = await c.req.json();
+                        logData.request = maskSensitiveData(requestBody, cfg.sensitiveFields);
+                    }
+                    catch
+                    {
+                        // Body is not JSON or already consumed - ignore
+                    }
+                }
+            }
+
+            const logLevel = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
             apiLogger[logLevel]('Request completed', logData);
         }
         catch (error)
