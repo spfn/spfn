@@ -141,10 +141,44 @@ Apply pending migrations to the database. Applies both package migrations and pr
 # Apply all pending migrations
 spfn db migrate
 
+# Create automatic backup before migration
+spfn db migrate --with-backup
+
 # Output with SPFN modules installed
 📦 Applying function package migrations:
   - @spfn/cms
   - @spfn/auth
+✅ Function migrations applied
+
+✓ Applying project migrations...
+✓ Project migrations applied successfully
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--with-backup` | Create a pre-migration backup before applying migrations |
+
+### Auto-Backup Feature
+
+The `--with-backup` flag creates a compressed backup tagged as "pre-migration" before applying any migrations. This provides a safety net for risky migration operations:
+
+```bash
+spfn db migrate --with-backup
+
+# Output
+📦 Creating pre-migration backup...
+
+💾 Creating database backup...
+✅ Backup created successfully
+   File: /Users/project/backups/mydb_2025-01-05_143022.dump
+   Size: 156.20 KB
+
+📋 Collecting metadata...
+✓ Metadata saved: mydb_2025-01-05_143022.meta.json
+
+📦 Applying function package migrations...
 ✅ Function migrations applied
 
 ✓ Applying project migrations...
@@ -238,7 +272,28 @@ spfn db backup --output /path/to/backup.sql
 
 # Backup specific schema only
 spfn db backup --schema spfn_cms
+
+# Data-only backup (no schema)
+spfn db backup --data-only
+
+# Schema-only backup (no data)
+spfn db backup --schema-only
+
+# Tagged backup for production
+spfn db backup --env production --tag "release,v1.2.3"
 ```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `-f, --format <format>` | Backup format: `sql` or `custom` (default: `sql`) |
+| `-o, --output <path>` | Custom output path |
+| `-s, --schema <name>` | Backup specific schema only |
+| `--data-only` | Backup data only (no schema) |
+| `--schema-only` | Backup schema only (no data) |
+| `--tag <tags>` | Comma-separated tags for this backup |
+| `--env <environment>` | Environment label (e.g., `production`, `staging`) |
 
 ### Output
 
@@ -248,6 +303,9 @@ spfn db backup --schema spfn_cms
 ✅ Backup created successfully
    File: /Users/project/backups/mydb_2025-01-05_143022.sql
    Size: 218.40 KB
+
+📋 Collecting metadata...
+✓ Metadata saved: mydb_2025-01-05_143022.meta.json
 ```
 
 ### Backup Formats
@@ -267,7 +325,7 @@ spfn db backup --schema spfn_cms
 
 ## spfn db restore
 
-Restore database from a backup file.
+Restore database from a backup file. Automatically displays backup metadata and version compatibility warnings.
 
 ```bash
 # Interactive backup selection
@@ -281,6 +339,43 @@ spfn db restore backup.sql --drop
 
 # Restore specific schema only
 spfn db restore backup.sql --schema spfn_cms
+
+# Data-only restore (requires .dump format)
+spfn db restore backup.dump --data-only
+
+# Schema-only restore (requires .dump format)
+spfn db restore backup.dump --schema-only
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--drop` | Drop existing tables before restore |
+| `-s, --schema <name>` | Restore specific schema only |
+| `--data-only` | Restore data only (requires `.dump` format) |
+| `--schema-only` | Restore schema only (requires `.dump` format) |
+
+### Metadata & Version Check
+
+Before restore, metadata is displayed with version compatibility warnings:
+
+```bash
+📋 Backup Information:
+
+  Database: mydb
+  Created: 1/5/2025, 2:30:22 PM
+  Environment: production
+  Tags: release, v1.2.3
+
+⚠️  Version Warnings:
+
+  - Git commit mismatch: backup from abc1234, current is def5678
+  - Migration version mismatch: backup has 42 migrations, current has 45
+    Last migration in backup: 0042_add_user_roles
+    Current last migration: 0045_add_notifications
+
+⚠️  This will replace all data in the database. Continue? (y/N)
 ```
 
 ### Interactive Selection
@@ -298,7 +393,7 @@ spfn db restore
 
 > **⚠️ Warning:** Data Loss
 >
-> Restoring a backup will replace all data in the database. Always confirm before proceeding.
+> Restoring a backup will replace all data in the database. Version warnings help prevent accidental data loss from incompatible backups.
 
 ## spfn db backup:list
 
