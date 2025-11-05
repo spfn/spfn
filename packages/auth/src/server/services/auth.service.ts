@@ -183,13 +183,22 @@ export async function registerService(
     // Hash password
     const passwordHash = await hashPassword(password);
 
+    // Get default user role
+    const { getRoleByName } = await import('./role.service');
+    const userRole = await getRoleByName('user');
+
+    if (!userRole)
+    {
+        throw new Error('Default user role not found. Run initializeAuth() first.');
+    }
+
     // Create user
     const newUser = await create(users, {
         email: email || null,
         phone: phone || null,
         passwordHash,
         passwordChangeRequired: false,
-        role: 'user',
+        roleId: userRole.id,
         status: 'active',
         createdAt: new Date(),
         updatedAt: new Date(),

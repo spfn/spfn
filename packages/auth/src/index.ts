@@ -20,4 +20,38 @@ export * from '@/lib/types/index';
 // Entities (for type reference)
 // ============================================================================
 
-export * from '@/server/entities/index';
+// Export all entities
+export {
+    users,
+    userPublicKeys,
+    verificationCodes,
+    userSocialAccounts,
+    roles,
+    permissions,
+    rolePermissions,
+    userPermissions,
+} from '@/server/entities/index';
+
+// Export entity types with aliases to avoid conflicts
+export type {
+    User,
+    NewUser,
+    UserStatus,
+    UserWithVerification,
+    UserPublicKey,
+    NewUserPublicKey,
+    VerificationCode,
+    NewVerificationCode,
+    UserSocialAccount,
+    NewUserSocialAccount,
+    Role,
+    NewRole,
+    RoleEntity,
+    NewRoleEntity,
+    PermissionEntity,
+    NewPermissionEntity,
+    RolePermission,
+    NewRolePermission,
+    UserPermission,
+    NewUserPermission,
+} from '@/server/entities/index';

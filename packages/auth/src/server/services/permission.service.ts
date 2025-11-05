@@ -32,7 +32,7 @@ export async function getUserPermissions(userId: string | bigint): Promise<strin
         throw new Error('[Auth] Database not initialized');
     }
 
-    const userIdNum = typeof userId === 'string' ? BigInt(userId) : userId;
+    const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
 
     // 1. Get user's role
     const [user] = await db
@@ -192,7 +192,7 @@ export async function hasRole(userId: string | bigint, roleName: string): Promis
         throw new Error('[Auth] Database not initialized');
     }
 
-    const userIdNum = typeof userId === 'string' ? BigInt(userId) : userId;
+    const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
 
     const [user] = await db
         .select({ roleId: users.roleId })

@@ -60,5 +60,9 @@ export const permissions = schema.table('permissions',
 );
 
 // Type exports
-export type Permission = typeof permissions.$inferSelect;
-export type NewPermission = typeof permissions.$inferInsert;
+export type PermissionEntity = typeof permissions.$inferSelect;
+export type NewPermissionEntity = typeof permissions.$inferInsert;
+
+// Legacy alias for backward compatibility
+export type Permission = PermissionEntity;
+export type NewPermission = NewPermissionEntity;

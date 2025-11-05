@@ -61,5 +61,9 @@ export const roles = schema.table('roles',
 );
 
 // Type exports
-export type Role = typeof roles.$inferSelect;
-export type NewRole = typeof roles.$inferInsert;
+export type RoleEntity = typeof roles.$inferSelect;
+export type NewRoleEntity = typeof roles.$inferInsert;
+
+// Legacy alias for backward compatibility
+export type Role = RoleEntity;
+export type NewRole = NewRoleEntity;

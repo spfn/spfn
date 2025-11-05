@@ -6,8 +6,8 @@
 
 import { getDatabase } from '@spfn/core/db';
 import { roles, permissions, rolePermissions } from '@/server/entities';
-import type { Role, NewRole } from '@/server/entities/roles';
-import { eq, and, inArray } from 'drizzle-orm';
+import type { Role } from '@/server/entities/roles';
+import { eq, and } from 'drizzle-orm';
 
 /**
  * Create a new custom role
@@ -32,7 +32,7 @@ export async function createRole(data: {
     displayName: string;
     description?: string;
     priority?: number;
-    permissionIds?: bigint[];
+    permissionIds?: number[];
 }): Promise<Role>
 {
     const db = getDatabase();
@@ -72,7 +72,7 @@ export async function createRole(data: {
     {
         const mappings = data.permissionIds.map(permId => ({
             roleId: newRole.id,
-            permissionId: permId,
+            permissionId: Number(permId),
         }));
 
         await db.insert(rolePermissions).values(mappings);
@@ -100,7 +100,7 @@ export async function createRole(data: {
  * ```
  */
 export async function updateRole(
-    roleId: bigint,
+    roleId: number,
     data: {
         displayName?: string;
         description?: string;
@@ -116,11 +116,13 @@ export async function updateRole(
         throw new Error('[Auth] Database not initialized');
     }
 
+    const roleIdNum = Number(roleId);
+
     // Get role
     const [role] = await db
         .select()
         .from(roles)
-        .where(eq(roles.id, roleId))
+        .where(eq(roles.id, roleIdNum))
         .limit(1);
 
     if (!role)
@@ -138,7 +140,7 @@ export async function updateRole(
     const [updated] = await db
         .update(roles)
         .set(data)
-        .where(eq(roles.id, roleId))
+        .where(eq(roles.id, roleIdNum))
         .returning();
 
     return updated;
@@ -155,7 +157,7 @@ export async function updateRole(
  * await deleteRole(5n);  // Delete custom role
  * ```
  */
-export async function deleteRole(roleId: bigint): Promise<void>
+export async function deleteRole(roleId: number): Promise<void>
 {
     const db = getDatabase();
 
@@ -164,11 +166,13 @@ export async function deleteRole(roleId: bigint): Promise<void>
         throw new Error('[Auth] Database not initialized');
     }
 
+    const roleIdNum = Number(roleId);
+
     // Get role
     const [role] = await db
         .select()
         .from(roles)
-        .where(eq(roles.id, roleId))
+        .where(eq(roles.id, roleIdNum))
         .limit(1);
 
     if (!role)
@@ -189,7 +193,7 @@ export async function deleteRole(roleId: bigint): Promise<void>
     }
 
     // Delete role (cascade will remove role_permissions)
-    await db.delete(roles).where(eq(roles.id, roleId));
+    await db.delete(roles).where(eq(roles.id, roleIdNum));
 
     console.log(`[Auth] 🗑️  Deleted role: ${role.name}`);
 }
@@ -205,7 +209,7 @@ export async function deleteRole(roleId: bigint): Promise<void>
  * await addPermissionToRole(1n, 5n);
  * ```
  */
-export async function addPermissionToRole(roleId: bigint, permissionId: bigint): Promise<void>
+export async function addPermissionToRole(roleId: number, permissionId: number): Promise<void>
 {
     const db = getDatabase();
 
@@ -214,14 +218,17 @@ export async function addPermissionToRole(roleId: bigint, permissionId: bigint):
         throw new Error('[Auth] Database not initialized');
     }
 
+    const roleIdNum = Number(roleId);
+    const permissionIdNum = Number(permissionId);
+
     // Check if mapping already exists
     const existing = await db
         .select()
         .from(rolePermissions)
         .where(
             and(
-                eq(rolePermissions.roleId, roleId),
-                eq(rolePermissions.permissionId, permissionId)
+                eq(rolePermissions.roleId, roleIdNum),
+                eq(rolePermissions.permissionId, permissionIdNum)
             )
         )
         .limit(1);
@@ -233,8 +240,8 @@ export async function addPermissionToRole(roleId: bigint, permissionId: bigint):
 
     // Create mapping
     await db.insert(rolePermissions).values({
-        roleId,
-        permissionId,
+        roleId: roleIdNum,
+        permissionId: permissionIdNum,
     });
 }
 
@@ -249,7 +256,7 @@ export async function addPermissionToRole(roleId: bigint, permissionId: bigint):
  * await removePermissionFromRole(1n, 5n);
  * ```
  */
-export async function removePermissionFromRole(roleId: bigint, permissionId: bigint): Promise<void>
+export async function removePermissionFromRole(roleId: number, permissionId: number): Promise<void>
 {
     const db = getDatabase();
 
@@ -258,12 +265,15 @@ export async function removePermissionFromRole(roleId: bigint, permissionId: big
         throw new Error('[Auth] Database not initialized');
     }
 
+    const roleIdNum = Number(roleId);
+    const permissionIdNum = Number(permissionId);
+
     await db
         .delete(rolePermissions)
         .where(
             and(
-                eq(rolePermissions.roleId, roleId),
-                eq(rolePermissions.permissionId, permissionId)
+                eq(rolePermissions.roleId, roleIdNum),
+                eq(rolePermissions.permissionId, permissionIdNum)
             )
         );
 }
@@ -279,7 +289,7 @@ export async function removePermissionFromRole(roleId: bigint, permissionId: big
  * await setRolePermissions(1n, [1n, 2n, 3n]);
  * ```
  */
-export async function setRolePermissions(roleId: bigint, permissionIds: bigint[]): Promise<void>
+export async function setRolePermissions(roleId: number, permissionIds: number[]): Promise<void>
 {
     const db = getDatabase();
 
@@ -288,15 +298,17 @@ export async function setRolePermissions(roleId: bigint, permissionIds: bigint[]
         throw new Error('[Auth] Database not initialized');
     }
 
+    const roleIdNum = Number(roleId);
+
     // Delete existing mappings
-    await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+    await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleIdNum));
 
     // Create new mappings
     if (permissionIds.length > 0)
     {
         const mappings = permissionIds.map(permId => ({
-            roleId,
-            permissionId: permId,
+            roleId: roleIdNum,
+            permissionId: Number(permId),
         }));
 
         await db.insert(rolePermissions).values(mappings);
@@ -374,7 +386,7 @@ export async function getRoleByName(name: string): Promise<Role | null>
  * // ['user:read', 'user:write']
  * ```
  */
-export async function getRolePermissions(roleId: bigint): Promise<string[]>
+export async function getRolePermissions(roleId: number): Promise<string[]>
 {
     const db = getDatabase();
 
@@ -383,11 +395,13 @@ export async function getRolePermissions(roleId: bigint): Promise<string[]>
         throw new Error('[Auth] Database not initialized');
     }
 
+    const roleIdNum = Number(roleId);
+
     const perms = await db
         .select({ name: permissions.name })
         .from(rolePermissions)
         .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
-        .where(eq(rolePermissions.roleId, roleId));
+        .where(eq(rolePermissions.roleId, roleIdNum));
 
     return perms.map(p => p.name);
 }

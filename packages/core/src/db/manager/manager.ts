@@ -37,6 +37,50 @@ export type DbConnectionType = 'read' | 'write';
 export type GetDatabaseFn = (type?: DbConnectionType) => PostgresJsDatabase<Record<string, unknown>> | undefined;
 
 /**
+ * Get caller information from stack trace
+ */
+function getCallerInfo(): string | undefined
+{
+    try
+    {
+        const stack = new Error().stack;
+        if (!stack) return undefined;
+
+        const lines = stack.split('\n');
+        // Skip first 3 lines: Error, getCallerInfo, getDatabase
+        for (let i = 3; i < lines.length; i++)
+        {
+            const line = lines[i];
+            // Find first meaningful caller (not node_modules/@spfn/core/db)
+            if (!line.includes('node_modules') && !line.includes('/db/manager/'))
+            {
+                // Extract file:line from stack line
+                const match = line.match(/\((.+):(\d+):(\d+)\)/) || line.match(/at (.+):(\d+):(\d+)/);
+                if (match)
+                {
+                    const fullPath = match[1];
+                    // Get relative path from project root
+                    const parts = fullPath.split('/');
+                    const srcIndex = parts.lastIndexOf('src');
+                    if (srcIndex !== -1)
+                    {
+                        const relativePath = parts.slice(srcIndex).join('/');
+                        return `${relativePath}:${match[2]}`;
+                    }
+                    return `${fullPath}:${match[2]}`;
+                }
+                break;
+            }
+        }
+    }
+    catch
+    {
+        // Ignore errors in stack trace parsing
+    }
+    return undefined;
+}
+
+/**
  * Get global database write instance
  *
  * @returns Database write instance or undefined if not initialized
@@ -56,8 +100,17 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
     const writeInst = getWriteInstance();
     const readInst = getReadInstance();
 
-    // Debug logging to trace database access
-    dbLogger.debug(`getDatabase() called with type=${type}, writeInstance=${!!writeInst}, readInstance=${!!readInst}`);
+    // Detailed debug logging with caller info (only if DB_DEBUG_TRACE is enabled)
+    if (process.env.DB_DEBUG_TRACE === 'true')
+    {
+        const caller = getCallerInfo();
+        dbLogger.debug('getDatabase() called', {
+            type: type || 'write',
+            hasWrite: !!writeInst,
+            hasRead: !!readInst,
+            caller,
+        });
+    }
 
     if (type === 'read')
     {
@@ -111,6 +164,7 @@ export function setDatabase(
  * - DB_MONITORING_ENABLED (enable query monitoring, default: true in dev, false in prod)
  * - DB_MONITORING_SLOW_THRESHOLD (slow query threshold in ms, default: 1000)
  * - DB_MONITORING_LOG_QUERIES (log actual SQL queries, default: false)
+ * - DB_DEBUG_TRACE (enable detailed getDatabase() call tracing with caller info, default: false)
  *
  * Configuration priority:
  * 1. options parameter (ServerConfig)
