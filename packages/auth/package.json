@@ -37,7 +37,11 @@
     "test:routes": "vitest src/server/routes",
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
     "docker:test:down": "docker compose -f docker-compose.test.yml down",
-    "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f"
+    "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f",
+    "prepublishOnly": "pnpm run clean && pnpm run build && pnpm test run",
+    "publish:alpha": "npm publish --access public --tag alpha",
+    "publish:beta": "npm publish --access public --tag beta",
+    "publish:latest": "npm publish --access public"
   },
   "keywords": [
     "spfn",
@@ -63,7 +67,7 @@
     "setupMessage": "  📚 Next steps:\n    1. Import auth: import { authMiddleware } from '@spfn/auth/server'\n    2. View tables: pnpm spfn db studio\n    3. API at: http://localhost:8790/_auth"
   },
   "dependencies": {
-    "@spfn/core": "workspace:*",
+    "@spfn/core": "^0.1.0-alpha.82",
     "bcrypt": "^6.0.0",
     "drizzle-orm": "^0.44.7",
     "jsonwebtoken": "^9.0.2",
