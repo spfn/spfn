@@ -149,6 +149,16 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             // Copy all template files (includes tsconfig.json and tsup.config.ts)
             copySync(serverTemplateDir, targetDir);
 
+            // Copy lib directory (contracts, types, etc.)
+            const libTemplateDir = join(templatesDir, 'lib');
+            const libTargetDir = join(cwd, 'src', 'lib');
+
+            if (existsSync(libTemplateDir))
+            {
+                ensureDirSync(libTargetDir);
+                copySync(libTemplateDir, libTargetDir);
+            }
+
             spinner.succeed('Server structure created');
         }
         catch (error)

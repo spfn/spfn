@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.82] - 2025-11-05
+
+### Added
+
+#### spfn (CLI)
+
+- **Database Backup System Enhancements**: Major improvements to backup/restore functionality
+  - **Backup Metadata Tracking**: Automatically collects and saves metadata for each backup
+    - Git information (commit hash, branch, tag, dirty status)
+    - Migration version (last applied migration, count, hash)
+    - Environment labels and custom tags
+    - Metadata saved as `.meta.json` files alongside backups
+  - **Selective Backup Options**: New flags for granular backup control
+    - `--data-only`: Backup data without schema
+    - `--schema-only`: Backup schema without data
+    - `--tag <tags>`: Add comma-separated tags to backups
+    - `--env <environment>`: Label backup environment (production, staging, etc.)
+  - **Version Compatibility Warnings**: Restore command now displays metadata and warnings
+    - Shows backup database, creation date, environment, and tags
+    - Detects Git commit/branch mismatches between backup and current state
+    - Warns about migration version differences before restore
+    - Helps prevent accidental data loss from incompatible backups
+  - **Auto-Backup on Migrate**: New `--with-backup` flag for `spfn db migrate`
+    - Automatically creates pre-migration backup before applying migrations
+    - Uses compressed custom format for smaller file size
+    - Tagged as "pre-migration" for easy identification
+  - **Enhanced Security**: Backup commands now auto-update `.gitignore`
+    - Adds `backups/` to project root `.gitignore`
+    - Adds `*.meta.json` to `backups/.gitignore`
+    - Prevents accidental commits of sensitive backup files
+
+#### @spfn/core
+
+- **Types Package**: New `@spfn/core/types` export for pure type definitions
+  - Extracted API response types and schemas to dedicated types package
+  - Includes `ErrorResponse`, `ApiSuccessResponse`, `ApiErrorResponse`, `ApiResponse`
+  - Includes TypeBox schema helpers: `ApiSuccessSchema`, `ApiErrorSchema`, `ApiResponseSchema`
+  - Safe to use in both server and client code
+  - Better tree-shaking potential
+
+### Changed
+
+#### @spfn/core
+
+- **API Response Types Refactoring**: Reorganized type definitions for better modularity
+  - Moved API response types from `route/api-response.ts` to `types/api-response.ts`
+  - Updated error-handler to import `ErrorResponse` from `@spfn/core/types`
+  - Deprecated `route/api-response.ts` (re-exports from types for backwards compatibility)
+  - Added `pino-pretty` as optional dependency for improved logging
+
+### Fixed
+
+#### spfn (CLI)
+
+- **Backup Options Validation**: Added validation to prevent conflicting options
+  - Backup and restore commands now reject `--data-only` and `--schema-only` used together
+  - Clear error messages guide users to correct usage
+
 ## [0.1.0-alpha.81] - 2025-11-05
 
 ### Fixed
