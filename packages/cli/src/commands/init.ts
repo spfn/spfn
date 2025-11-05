@@ -237,25 +237,6 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
             logger.warn('Could not copy Docker files (you can create them manually)');
         }
 
-        // 4.5.2. Copy .guide directory (documentation)
-        try
-        {
-            const templatesDir = findTemplatesPath();
-            const guideTemplateDir = join(templatesDir, '.guide');
-            const guideTargetDir = join(cwd, '.guide');
-
-            if (existsSync(guideTemplateDir) && !existsSync(guideTargetDir))
-            {
-                copySync(guideTemplateDir, guideTargetDir);
-                logger.success('Created .guide directory (quick start & deployment guides)');
-            }
-        }
-        catch (error)
-        {
-            // Not critical, continue
-            logger.warn('Could not copy .guide directory');
-        }
-
         // 4.6. Generate deployment config (spfn.config.js)
         const deploymentConfigPath = join(cwd, 'spfn.config.js');
         if (!existsSync(deploymentConfigPath))

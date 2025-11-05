@@ -65,8 +65,7 @@ const { startServer } = await import('@spfn/core/server');
 await startServer({
     port: ${options.port},
     host: '${options.host}',
-    routesPath: ${options.routes ? `'${options.routes}'` : 'undefined'},
-    debug: true
+    ${options.routes ? `routesPath: '${options.routes}',` : ''}debug: true
 });
 `);
 
@@ -82,16 +81,6 @@ await initDatabase({
     pool: { max: 3 }  // Watcher needs fewer connections than server
 });
 
-// Setup graceful shutdown
-process.on('SIGTERM', async () => {
-    await closeDatabase();
-    process.exit(0);
-});
-process.on('SIGINT', async () => {
-    await closeDatabase();
-    process.exit(0);
-});
-
 import { CodegenOrchestrator, loadCodegenConfig, createGeneratorsFromConfig } from '@spfn/core/codegen';
 
 const cwd = process.cwd();
@@ -104,7 +93,25 @@ const orchestrator = new CodegenOrchestrator({
     debug: true
 });
 
+// Setup graceful shutdown
+const cleanup = async () => {
+    await orchestrator.close();
+    await closeDatabase();
+};
+
+process.on('SIGTERM', async () => {
+    await cleanup();
+    process.exit(0);
+});
+process.on('SIGINT', async () => {
+    await cleanup();
+    process.exit(0);
+});
+
 await orchestrator.watch();
+
+// Keep process alive
+await new Promise(() => {});
 `);
 
         const pm = detectPackageManager(cwd);

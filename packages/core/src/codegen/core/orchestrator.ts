@@ -31,12 +31,29 @@ export class CodegenOrchestrator
     private readonly debug: boolean;
     private isGenerating = false;
     private pendingRegenerations = new Set<string>();
+    private watcher?: ReturnType<typeof chokidarWatch>;
 
     constructor(options: OrchestratorOptions)
     {
         this.generators = options.generators;
         this.cwd = options.cwd ?? process.cwd();
         this.debug = options.debug ?? false;
+    }
+
+    /**
+     * Close watcher and cleanup resources
+     */
+    async close(): Promise<void>
+    {
+        if (this.watcher)
+        {
+            if (this.debug)
+            {
+                orchestratorLogger.info('Closing watcher');
+            }
+            await this.watcher.close();
+            this.watcher = undefined;
+        }
     }
 
     /**
@@ -139,7 +156,7 @@ export class CodegenOrchestrator
             });
         }
 
-        const watcher = chokidarWatch(watchDirs, {
+        this.watcher = chokidarWatch(watchDirs, {
             ignored: /(^|[\/\\])\../, // ignore dotfiles
             persistent: true,
             ignoreInitial: true,
@@ -223,23 +240,12 @@ export class CodegenOrchestrator
             }
         };
 
-        watcher
+        this.watcher
             .on('add', (path) => handleChange(path, 'add'))
             .on('change', (path) => handleChange(path, 'change'))
             .on('unlink', (path) => handleChange(path, 'unlink'));
 
-        // Cleanup on exit
-        process.on('SIGINT', () =>
-        {
-            if (this.debug)
-            {
-                orchestratorLogger.info('Shutting down watch mode');
-            }
-            watcher.close();
-            process.exit(0);
-        });
-
-        // Keep process alive
-        await new Promise(() => {});
+        // Note: Graceful shutdown should be handled by caller (e.g., watcher.mjs)
+        // This allows proper cleanup order: orchestrator.close() -> closeDatabase() -> exit
     }
 }
