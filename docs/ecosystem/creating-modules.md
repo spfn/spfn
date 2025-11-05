@@ -95,42 +95,54 @@ my-module/
 
 ### Step 1: Define Database Entities
 
-Create your database schema using Drizzle ORM with **proper schema export**:
+When you run `spfn generate fn` with entities, the CLI **automatically generates** a properly structured schema file:
 
 ```typescript
-// src/server/entities/my-module-schema.ts
+// src/server/entities/schema.ts (auto-generated ✨)
 import { createFunctionSchema } from '@spfn/core/db';
 
-// ✅ IMPORTANT: Export schema to auto-generate CREATE SCHEMA statement
+// ✅ Export schema to auto-generate CREATE SCHEMA in migrations
 export const myModuleSchema = createFunctionSchema('@mycompany/my-module');
 ```
 
-```typescript
-// src/server/entities/post.ts
-import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core';
-import { myModuleSchema } from './my-module-schema';
+Generated entity files import this schema:
 
-export const posts = myModuleSchema.table('posts', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  title: text('title').notNull(),
-  content: text('content').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+```typescript
+// src/server/entities/post.ts (auto-generated ✨)
+import { index, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { myModuleSchema } from './schema';
+
+export const post = myModuleSchema.table('post', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('spfn_my_module_post_name_idx').on(table.name),
+]);
 ```
 
-> **⚠️ Important: Always Export Your Schema**
+> **✅ Best Practice: Schema Structure**
 >
-> Always create and export your schema in a dedicated file. Drizzle Kit only generates `CREATE SCHEMA` statements when the schema object is exported. If you create the schema locally in each entity file, the schema creation will not be included in migrations, causing database errors.
+> The `spfn generate fn` command follows the recommended pattern:
+> - **One schema file** (`schema.ts`) per module - exported for Drizzle Kit
+> - **Entity files** import the schema instead of creating local instances
+> - **Index file** exports both schema and entities
+>
+> This ensures `CREATE SCHEMA` is auto-generated in migrations.
+>
+> **Manual Entity Creation:**
+> If you're adding entities manually (not via generate), always import the existing schema:
 >
 > ```typescript
-> // ❌ Bad: Local schema (no CREATE SCHEMA in migration)
-> const schema = createFunctionSchema('@my/module');
-> export const posts = schema.table(...);
+> // ✅ Good: Import existing schema
+> import { myModuleSchema } from './schema';
+> export const newEntity = myModuleSchema.table(...);
 >
-> // ✅ Good: Exported schema (CREATE SCHEMA included)
-> export const mySchema = createFunctionSchema('@my/module');
-> export const posts = mySchema.table(...);
+> // ❌ Bad: Create local schema
+> const schema = createFunctionSchema('@my/module');
+> export const newEntity = schema.table(...);
 > ```
 
 ### Step 2: Generate Migrations
