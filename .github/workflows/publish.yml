@@ -6,8 +6,8 @@ on:
       - '@spfn/core@*'  # @spfn/core 패키지만 배포
       - 'spfn@*'        # spfn 패키지만 배포
       - '@spfn/cms@*'   # @spfn/cms 패키지만 배포
-      # - '@spfn/auth@*'  # @spfn/auth 패키지만 배포 (temporarily disabled)
-      - 'v*'            # 모든 패키지 배포 (버전 릴리스) - auth 제외
+      - '@spfn/auth@*'  # @spfn/auth 패키지만 배포
+      - 'v*'            # 모든 패키지 배포 (버전 릴리스)
 
 jobs:
   publish:
@@ -51,10 +51,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/@spfn/cms@') || startsWith(github.ref, 'refs/tags/v')
         run: pnpm --filter @spfn/core --filter @spfn/cms build
 
-      # NOTE: @spfn/auth is temporarily disabled
-      # - name: Build @spfn/auth (with core dependency)
-      #   if: startsWith(github.ref, 'refs/tags/@spfn/auth@')
-      #   run: pnpm --filter @spfn/core --filter @spfn/auth build
+      - name: Build @spfn/auth (with core dependency)
+        if: startsWith(github.ref, 'refs/tags/@spfn/auth@') || startsWith(github.ref, 'refs/tags/v')
+        run: pnpm --filter @spfn/core --filter @spfn/auth build
 
       # Determine which packages to publish based on tag
       - name: Publish @spfn/core to npm
@@ -72,11 +71,10 @@ jobs:
         working-directory: packages/cms
         run: pnpm publish --access public --tag alpha --provenance --no-git-checks
 
-      # NOTE: @spfn/auth is temporarily disabled
-      # - name: Publish @spfn/auth to npm
-      #   if: startsWith(github.ref, 'refs/tags/@spfn/auth@')
-      #   working-directory: packages/auth
-      #   run: pnpm publish --access public --tag alpha --provenance --no-git-checks
+      - name: Publish @spfn/auth to npm
+        if: startsWith(github.ref, 'refs/tags/@spfn/auth@') || startsWith(github.ref, 'refs/tags/v')
+        working-directory: packages/auth
+        run: pnpm publish --access public --tag alpha --provenance --no-git-checks
 
       # Add latest tag (always update latest for published packages)
       - name: Add latest tag to @spfn/core
@@ -100,10 +98,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # NOTE: @spfn/auth is temporarily disabled
-      # - name: Add latest tag to @spfn/auth
-      #   if: startsWith(github.ref, 'refs/tags/@spfn/auth@')
-      #   working-directory: packages/auth
-      #   run: npm dist-tag add @spfn/auth@$(node -p "require('./package.json').version") latest
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Add latest tag to @spfn/auth
+        if: startsWith(github.ref, 'refs/tags/@spfn/auth@') || startsWith(github.ref, 'refs/tags/v')
+        working-directory: packages/auth
+        run: npm dist-tag add @spfn/auth@$(node -p "require('./package.json').version") latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
