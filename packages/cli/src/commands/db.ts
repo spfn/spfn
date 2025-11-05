@@ -6,13 +6,56 @@
 
 import { Command } from 'commander';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import chalk from 'chalk';
 import ora from 'ora';
 import prompts from 'prompts';
+import net from 'net';
 
 const execAsync = promisify(exec);
+
+/**
+ * Check if a port is available
+ */
+async function isPortAvailable(port: number): Promise<boolean>
+{
+	return new Promise((resolve) =>
+	{
+		const server = net.createServer();
+
+		server.once('error', (err: NodeJS.ErrnoException) =>
+		{
+			server.close();
+			resolve(false);
+		});
+
+		server.once('listening', () =>
+		{
+			server.close();
+			resolve(true);
+		});
+
+		server.listen(port, '127.0.0.1');
+	});
+}
+
+/**
+ * Find an available port starting from the given port
+ */
+async function findAvailablePort(startPort: number, maxAttempts: number = 10): Promise<number>
+{
+	for (let i = 0; i < maxAttempts; i++)
+	{
+		const port = startPort + i;
+		if (await isPortAvailable(port))
+		{
+			return port;
+		}
+	}
+
+	throw new Error(`No available ports found between ${startPort} and ${startPort + maxAttempts - 1}`);
+}
 
 /**
  * Generate temporary drizzle.config.ts and run drizzle-kit command
@@ -209,17 +252,120 @@ async function dbMigrate(): Promise<void>
 
 /**
  * Open Drizzle Studio (database GUI)
+ * Uses spawn instead of exec to handle long-running process
  */
-async function dbStudio(port: number = 4983): Promise<void>
+async function dbStudio(requestedPort?: number): Promise<void>
 {
     console.log(chalk.blue('🎨 Opening Drizzle Studio...\n'));
 
+    // Load environment variables first
+    const { loadEnvironment } = await import('@spfn/core/env');
+    loadEnvironment({ debug: false });
+
+    // Find available port
+    const defaultPort = 4983;
+    const startPort = requestedPort || defaultPort;
+    let port: number;
+
     try
     {
-        await runDrizzleCommand(`studio --port ${port}`);
+        port = await findAvailablePort(startPort);
+
+        if (port !== startPort)
+        {
+            console.log(chalk.yellow(`⚠️  Port ${startPort} is in use, using port ${port} instead\n`));
+        }
     }
     catch (error)
     {
+        console.error(chalk.red(error instanceof Error ? error.message : 'Failed to find available port'));
+        process.exit(1);
+    }
+
+    const hasUserConfig = existsSync('./drizzle.config.ts');
+    const tempConfigPath = `./drizzle.config.${process.pid}.${Date.now()}.temp.ts`;
+
+    try
+    {
+        const configPath = hasUserConfig ? './drizzle.config.ts' : tempConfigPath;
+
+        if (!hasUserConfig)
+        {
+            if (!process.env.DATABASE_URL)
+            {
+                console.error(chalk.red('❌ DATABASE_URL not found in environment'));
+                console.log(chalk.yellow('\n💡 Tip: Add DATABASE_URL to your .env file'));
+                process.exit(1);
+            }
+
+            // Generate temporary config
+            const { generateDrizzleConfigFile } = await import('@spfn/core/db');
+            const configContent = generateDrizzleConfigFile({
+                cwd: process.cwd(),
+                disablePackageDiscovery: true
+            });
+
+            writeFileSync(tempConfigPath, configContent);
+            console.log(chalk.dim('Using auto-generated Drizzle config\n'));
+        }
+
+        // Spawn drizzle-kit studio process
+        const studioProcess = spawn('drizzle-kit', ['studio', `--port=${port}`, `--config=${configPath}`], {
+            stdio: 'inherit',
+            shell: true
+        });
+
+        // Handle process termination
+        const cleanup = () =>
+        {
+            if (!hasUserConfig && existsSync(tempConfigPath))
+            {
+                unlinkSync(tempConfigPath);
+            }
+        };
+
+        studioProcess.on('exit', (code) =>
+        {
+            cleanup();
+            if (code !== 0 && code !== null)
+            {
+                console.error(chalk.red(`\n❌ Drizzle Studio exited with code ${code}`));
+                process.exit(code);
+            }
+        });
+
+        studioProcess.on('error', (error) =>
+        {
+            cleanup();
+            console.error(chalk.red('❌ Failed to start Drizzle Studio'));
+            console.error(chalk.red(error.message));
+            process.exit(1);
+        });
+
+        // Handle Ctrl+C gracefully
+        process.on('SIGINT', () =>
+        {
+            console.log(chalk.yellow('\n\n👋 Shutting down Drizzle Studio...'));
+            studioProcess.kill('SIGTERM');
+            cleanup();
+            process.exit(0);
+        });
+
+        process.on('SIGTERM', () =>
+        {
+            studioProcess.kill('SIGTERM');
+            cleanup();
+            process.exit(0);
+        });
+    }
+    catch (error)
+    {
+        // Clean up temp config on error
+        if (!hasUserConfig && existsSync(tempConfigPath))
+        {
+            unlinkSync(tempConfigPath);
+        }
+
         console.error(chalk.red('❌ Failed to start Drizzle Studio'));
         console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
         process.exit(1);
@@ -301,8 +447,8 @@ dbCommand
 dbCommand
     .command('studio')
     .description('Open Drizzle Studio (database GUI)')
-    .option('-p, --port <port>', 'Studio port', '4983')
-    .action((options) => dbStudio(Number(options.port)));
+    .option('-p, --port <port>', 'Studio port (auto-finds if in use)')
+    .action((options) => dbStudio(options.port ? Number(options.port) : undefined));
 
 dbCommand
     .command('drop')
