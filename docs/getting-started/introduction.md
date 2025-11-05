@@ -13,7 +13,7 @@ Next.js handles your frontend. Superfunction handles your backend.
 
 ## What is Superfunction?
 
-Superfunction is an end-to-end type-safe backend framework for Next.js that gives you real backend capabilities—not just a backend for frontend.
+Superfunction is an end-to-end type-safe backend architecture for Next.js that gives you real backend capabilities—not just a backend for frontend.
 
 ## Do You Need Superfunction?
 

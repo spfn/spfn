@@ -20,6 +20,7 @@ export class PinoAdapter implements LoggerAdapter
         const isDevelopment = process.env.NODE_ENV === 'development';
 
         // Try to use pino-pretty in development if available (optional dependency)
+        // Use sync mode to avoid worker thread issues with tsx --watch and pnpm
         const transport = isDevelopment ? {
             target: 'pino-pretty',
             options: {
@@ -29,6 +30,7 @@ export class PinoAdapter implements LoggerAdapter
                 singleLine: false,
                 messageFormat: '{module} {msg}',
                 errorLikeObjectKeys: ['err', 'error'],
+                sync: true, // Use sync mode to avoid worker thread module resolution issues
             },
         } : undefined;
 

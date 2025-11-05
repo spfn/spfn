@@ -1,13 +1,13 @@
 ---
 title: "Introduction"
-description: "Build and share reusable modules for the Superfunction framework"
+description: "Build and share reusable modules for Superfunction"
 order: 1
 available: true
 ---
 
 # Superfunction Ecosystem
 
-Build and share reusable modules for the Superfunction framework.
+Build and share reusable Superfunction modules.
 
 ## Overview
 
