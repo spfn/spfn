@@ -182,7 +182,7 @@ async function ensureBackupDir(): Promise<string>
 
 		if (!gitignoreExists)
 		{
-			await fs.writeFile(gitignorePath, '# Ignore all backup files\n*.sql\n*.dump\n');
+			await fs.writeFile(gitignorePath, '# Ignore all backup files\n*.sql\n*.dump\n*.meta.json\n');
 		}
 
 		// Ensure project root .gitignore includes backups/
@@ -197,6 +197,195 @@ async function ensureBackupDir(): Promise<string>
 }
 
 /**
+ * Backup metadata structure
+ */
+interface BackupMetadata
+{
+	// Basic info
+	timestamp: string;
+	database: string;
+	environment?: string;
+
+	// Git info
+	git?: {
+		commit: string;
+		branch: string;
+		tag?: string;
+		dirty: boolean;
+	};
+
+	// Migration info
+	migrations?: {
+		lastApplied: string;
+		count: number;
+		hash: string;
+	};
+
+	// Backup file info
+	backup: {
+		filename: string;
+		format: 'sql' | 'custom';
+		sizeBytes: number;
+		schema?: string;
+		dataOnly?: boolean;
+		schemaOnly?: boolean;
+	};
+
+	// User-defined
+	tags?: string[];
+	notes?: string;
+}
+
+/**
+ * Collect Git information for backup metadata
+ */
+async function collectGitInfo(): Promise<BackupMetadata['git'] | undefined>
+{
+	try
+	{
+		// Check if we're in a git repository
+		const { stdout: isRepo } = await execAsync('git rev-parse --is-inside-work-tree 2>/dev/null || echo "false"');
+		if (isRepo.trim() !== 'true')
+		{
+			return undefined;
+		}
+
+		// Get commit hash
+		const { stdout: commit } = await execAsync('git rev-parse HEAD');
+
+		// Get branch name
+		const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD');
+
+		// Try to get tag (may fail if not on a tagged commit)
+		let tag: string | undefined;
+		try
+		{
+			const { stdout: tagOutput } = await execAsync('git describe --tags --exact-match 2>/dev/null');
+			tag = tagOutput.trim() || undefined;
+		}
+		catch
+		{
+			// Not on a tagged commit, that's okay
+		}
+
+		// Check if there are uncommitted changes
+		const { stdout: status } = await execAsync('git status --porcelain');
+		const dirty = status.trim().length > 0;
+
+		return {
+			commit: commit.trim(),
+			branch: branch.trim(),
+			tag,
+			dirty
+		};
+	}
+	catch (error)
+	{
+		// Git not available or not in a git repo
+		return undefined;
+	}
+}
+
+/**
+ * Collect migration information from database
+ */
+async function collectMigrationInfo(dbUrl: string): Promise<BackupMetadata['migrations'] | undefined>
+{
+	try
+	{
+		const { Pool } = await import('pg');
+		const pool = new Pool({ connectionString: dbUrl });
+
+		try
+		{
+			// Check if migrations table exists
+			const tableCheck = await pool.query(`
+				SELECT EXISTS (
+					SELECT FROM information_schema.tables
+					WHERE table_name = '__drizzle_migrations'
+				);
+			`);
+
+			if (!tableCheck.rows[0].exists)
+			{
+				return undefined;
+			}
+
+			// Get migration info
+			const result = await pool.query(`
+				SELECT * FROM __drizzle_migrations
+				ORDER BY created_at DESC
+				LIMIT 1;
+			`);
+
+			if (result.rows.length === 0)
+			{
+				return undefined;
+			}
+
+			const lastMigration = result.rows[0];
+
+			// Get total count
+			const countResult = await pool.query(`
+				SELECT COUNT(*) as count FROM __drizzle_migrations;
+			`);
+
+			return {
+				lastApplied: lastMigration.hash || 'unknown',
+				count: parseInt(countResult.rows[0].count),
+				hash: lastMigration.hash
+			};
+		}
+		finally
+		{
+			await pool.end();
+		}
+	}
+	catch (error)
+	{
+		// Database connection failed or table doesn't exist
+		console.log(chalk.dim('⚠️  Could not fetch migration info'));
+		return undefined;
+	}
+}
+
+/**
+ * Save backup metadata to JSON file
+ */
+async function saveBackupMetadata(metadata: BackupMetadata, backupFilename: string): Promise<void>
+{
+	const metadataPath = backupFilename.replace(/\.(sql|dump)$/, '.meta.json');
+
+	try
+	{
+		await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+		console.log(chalk.dim(`✓ Metadata saved: ${path.basename(metadataPath)}`));
+	}
+	catch (error)
+	{
+		console.log(chalk.dim('⚠️  Could not save metadata'));
+	}
+}
+
+/**
+ * Load backup metadata from JSON file
+ */
+async function loadBackupMetadata(backupFilename: string): Promise<BackupMetadata | undefined>
+{
+	const metadataPath = backupFilename.replace(/\.(sql|dump)$/, '.meta.json');
+
+	try
+	{
+		const content = await fs.readFile(metadataPath, 'utf-8');
+		return JSON.parse(content);
+	}
+	catch (error)
+	{
+		return undefined;
+	}
+}
+
+/**
  * List all backup files
  */
 interface BackupFile
@@ -206,6 +395,7 @@ interface BackupFile
 	size: string;
 	sizeBytes: number;
 	date: Date;
+	metadata?: BackupMetadata;
 }
 
 async function listBackupFiles(): Promise<BackupFile[]>
@@ -224,12 +414,16 @@ async function listBackupFiles(): Promise<BackupFile[]>
 					const filepath = path.join(backupDir, f);
 					const stats = await fs.stat(filepath);
 
+					// Load metadata if available
+					const metadata = await loadBackupMetadata(filepath);
+
 					return {
 						name: f,
 						path: filepath,
 						size: formatBytes(stats.size),
 						sizeBytes: stats.size,
 						date: stats.mtime,
+						metadata
 					};
 				})
 		);
@@ -619,6 +813,10 @@ async function dbBackup(options: {
 	format?: 'sql' | 'custom';
 	output?: string;
 	schema?: string;
+	dataOnly?: boolean;
+	schemaOnly?: boolean;
+	tag?: string;
+	env?: string;
 }): Promise<void>
 {
 	console.log(chalk.blue('💾 Creating database backup...\n'));
@@ -648,6 +846,13 @@ async function dbBackup(options: {
 	const ext = format === 'sql' ? 'sql' : 'dump';
 	const filename = options.output || path.join(backupDir, `${dbInfo.database}_${timestamp}.${ext}`);
 
+	// Validate mutually exclusive options
+	if (options.dataOnly && options.schemaOnly)
+	{
+		console.error(chalk.red('❌ Cannot use --data-only and --schema-only together'));
+		process.exit(1);
+	}
+
 	// Build pg_dump command args
 	const args = [
 		'-h', dbInfo.host,
@@ -665,6 +870,16 @@ async function dbBackup(options: {
 	if (options.schema)
 	{
 		args.push('-n', options.schema);
+	}
+
+	if (options.dataOnly)
+	{
+		args.push('--data-only');
+	}
+
+	if (options.schemaOnly)
+	{
+		args.push('--schema-only');
 	}
 
 	// Execute pg_dump
@@ -696,6 +911,40 @@ async function dbBackup(options: {
 			console.log(chalk.green(`\n✅ Backup created successfully`));
 			console.log(chalk.gray(`   File: ${filename}`));
 			console.log(chalk.gray(`   Size: ${size}`));
+
+			// Collect and save metadata
+			console.log(chalk.dim('\n📋 Collecting metadata...'));
+
+			const [gitInfo, migrationInfo] = await Promise.all([
+				collectGitInfo(),
+				collectMigrationInfo(dbUrl)
+			]);
+
+			// Prepare tags array
+			const tags: string[] = [];
+			if (options.tag)
+			{
+				tags.push(...options.tag.split(',').map(t => t.trim()));
+			}
+
+			const metadata: BackupMetadata = {
+				timestamp: new Date().toISOString(),
+				database: dbInfo.database,
+				environment: options.env || process.env.NODE_ENV,
+				git: gitInfo,
+				migrations: migrationInfo,
+				backup: {
+					filename: path.basename(filename),
+					format: format as 'sql' | 'custom',
+					sizeBytes: stats.size,
+					schema: options.schema,
+					dataOnly: options.dataOnly,
+					schemaOnly: options.schemaOnly
+				},
+				tags: tags.length > 0 ? tags : undefined
+			};
+
+			await saveBackupMetadata(metadata, filename);
 		}
 		else
 		{
@@ -727,7 +976,7 @@ async function dbBackup(options: {
 /**
  * Restore database from backup file
  */
-async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?: string } = {}): Promise<void>
+async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?: string; dataOnly?: boolean; schemaOnly?: boolean } = {}): Promise<void>
 {
 	console.log(chalk.blue('♻️  Restoring database from backup...\n'));
 
@@ -790,6 +1039,13 @@ async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?
 		process.exit(0);
 	}
 
+	// Validate mutually exclusive options
+	if (options.dataOnly && options.schemaOnly)
+	{
+		console.error(chalk.red('❌ Cannot use --data-only and --schema-only together'));
+		process.exit(1);
+	}
+
 	// Parse connection info
 	const dbInfo = parseDatabaseUrl(dbUrl);
 
@@ -818,10 +1074,28 @@ async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?
 			args.push('-n', options.schema);
 		}
 
+		if (options.dataOnly)
+		{
+			args.push('--data-only');
+		}
+
+		if (options.schemaOnly)
+		{
+			args.push('--schema-only');
+		}
+
 		args.push(file);
 	}
 	else
 	{
+		// For plain SQL files, --data-only and --schema-only are not directly supported
+		// The backup file itself should have been created with these options
+		if (options.dataOnly || options.schemaOnly)
+		{
+			console.log(chalk.yellow('⚠️  Note: --data-only and --schema-only options only work with custom format backups (.dump)'));
+			console.log(chalk.yellow('    For SQL files, the backup must have been created with the desired option.\n'));
+		}
+
 		args.push('-h', dbInfo.host);
 		args.push('-p', dbInfo.port);
 		args.push('-U', dbInfo.user);
@@ -1049,6 +1323,10 @@ dbCommand
 	.option('-f, --format <format>', 'Backup format (sql or custom)', 'sql')
 	.option('-o, --output <path>', 'Custom output path')
 	.option('-s, --schema <name>', 'Backup specific schema only')
+	.option('--data-only', 'Backup data only (no schema)')
+	.option('--schema-only', 'Backup schema only (no data)')
+	.option('--tag <tags>', 'Comma-separated tags for this backup')
+	.option('--env <environment>', 'Environment label (e.g., production, staging)')
 	.action((options) => dbBackup(options));
 
 dbCommand
@@ -1056,6 +1334,8 @@ dbCommand
 	.description('Restore database from backup')
 	.option('--drop', 'Drop existing tables before restore')
 	.option('-s, --schema <name>', 'Restore specific schema only')
+	.option('--data-only', 'Restore data only (requires custom format .dump file)')
+	.option('--schema-only', 'Restore schema only (requires custom format .dump file)')
 	.action((file, options) => dbRestore(file, options));
 
 dbCommand
