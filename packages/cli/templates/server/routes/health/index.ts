@@ -12,7 +12,7 @@ const app = createApp();
 
 app.bind(healthContract, async (c) =>
 {
-    return c.json({
+    return c.success({
         status: 'ok',
         timestamp: new Date().toISOString()
     });

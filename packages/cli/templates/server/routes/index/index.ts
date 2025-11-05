@@ -11,8 +11,7 @@ const app = createApp();
 
 app.bind(rootContract, async (c) =>
 {
-    return c.json(
-    {
+    return c.success({
         name: 'SPFN API',
         version: '1.0.0',
         status: 'running',

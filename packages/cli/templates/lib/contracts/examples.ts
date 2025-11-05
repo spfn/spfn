@@ -1,5 +1,6 @@
 import { Type } from '@sinclair/typebox';
 import type { RouteContract } from '@spfn/core/route';
+import { ApiResponseSchema } from '@spfn/core/route';
 
 /**
  * Example Contracts
@@ -17,22 +18,22 @@ export const getExamplesContract = {
         limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
         offset: Type.Optional(Type.Number({ minimum: 0 }))
     }),
-    response: Type.Object({
-        examples: Type.Array(Type.Object({
-            id: Type.String(),
-            name: Type.String(),
-            description: Type.String()
-        })),
-        total: Type.Number(),
-        limit: Type.Number(),
-        offset: Type.Number()
-    })
+    response: ApiResponseSchema(
+        Type.Object({
+            examples: Type.Array(Type.Object({
+                id: Type.String(),
+                name: Type.String(),
+                description: Type.String()
+            })),
+            total: Type.Number(),
+            limit: Type.Number(),
+            offset: Type.Number()
+        })
+    )
 } as const satisfies RouteContract;
 
 /**
  * GET /examples/:id - Get single example
- *
- * Demonstrates Union response pattern for error handling
  */
 export const getExampleContract = {
     method: 'GET' as const,
@@ -40,21 +41,15 @@ export const getExampleContract = {
     params: Type.Object({
         id: Type.Integer({ minimum: 1 })  // Auto-converts string to number
     }),
-    response: Type.Union([
-        // Success response (200)
+    response: ApiResponseSchema(
         Type.Object({
             id: Type.Number(),
             name: Type.String(),
             description: Type.String(),
             createdAt: Type.Number(),
             updatedAt: Type.Number()
-        }),
-        // Error response (404, 400, etc)
-        Type.Object({
-            error: Type.String(),
-            code: Type.String()
         })
-    ])
+    )
 } as const satisfies RouteContract;
 
 /**
@@ -67,12 +62,14 @@ export const createExampleContract = {
         name: Type.String(),
         description: Type.String()
     }),
-    response: Type.Object({
-        id: Type.String(),
-        name: Type.String(),
-        description: Type.String(),
-        createdAt: Type.Number()
-    })
+    response: ApiResponseSchema(
+        Type.Object({
+            id: Type.String(),
+            name: Type.String(),
+            description: Type.String(),
+            createdAt: Type.Number()
+        })
+    )
 } as const satisfies RouteContract;
 
 /**
@@ -88,12 +85,14 @@ export const updateExampleContract = {
         name: Type.Optional(Type.String()),
         description: Type.Optional(Type.String())
     }),
-    response: Type.Object({
-        id: Type.String(),
-        name: Type.String(),
-        description: Type.String(),
-        updatedAt: Type.Number()
-    })
+    response: ApiResponseSchema(
+        Type.Object({
+            id: Type.String(),
+            name: Type.String(),
+            description: Type.String(),
+            updatedAt: Type.Number()
+        })
+    )
 } as const satisfies RouteContract;
 
 /**
@@ -105,8 +104,9 @@ export const deleteExampleContract = {
     params: Type.Object({
         id: Type.String()
     }),
-    response: Type.Object({
-        success: Type.Boolean(),
-        id: Type.String()
-    })
+    response: ApiResponseSchema(
+        Type.Object({
+            id: Type.String()
+        })
+    )
 } as const satisfies RouteContract;

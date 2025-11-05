@@ -43,7 +43,7 @@ app.bind(getExamplesContract, async (c) =>
         }
     ];
 
-    return c.json({
+    return c.success({
         examples: examples.slice(offset, offset + limit),
         total: examples.length,
         limit,
@@ -65,7 +65,7 @@ app.bind(getExampleContract, async (c) =>
         updatedAt: Date.now()
     };
 
-    return c.json(example);
+    return c.success(example);
 });
 
 // POST /examples - Create example
@@ -81,7 +81,7 @@ app.bind(createExampleContract, async (c) =>
         createdAt: Date.now()
     };
 
-    return c.json(example);
+    return c.success(example);
 });
 
 // PUT /examples/:id - Update example
@@ -98,7 +98,7 @@ app.bind(updateExampleContract, async (c) =>
         updatedAt: Date.now()
     };
 
-    return c.json(example);
+    return c.success(example);
 });
 
 // DELETE /examples/:id - Delete example
@@ -107,10 +107,7 @@ app.bind(deleteExampleContract, async (c) =>
     const { id } = c.params;
 
     // Mock data - replace with actual database delete
-    return c.json({
-        success: true,
-        id
-    });
+    return c.success({ id });
 });
 
 export default app;
