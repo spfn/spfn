@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.83] - 2025-11-06
+
+### Added
+
+#### @spfn/core
+
+- **Server Lifecycle Hooks**: New comprehensive lifecycle hook system for server initialization and shutdown
+  - `lifecycle.beforeInfrastructure`: Execute before database and Redis initialization
+  - `lifecycle.afterInfrastructure`: Execute after infrastructure is ready
+  - `lifecycle.beforeRoutes`: Execute before routes are registered (moved from top-level)
+  - `lifecycle.afterRoutes`: Execute after routes are registered (moved from top-level)
+  - `lifecycle.afterStart`: Execute after server starts listening
+  - `lifecycle.beforeShutdown`: Execute before graceful shutdown
+  - All hooks properly integrated with server startup sequence
+  - See [API Reference - Server Lifecycle](/docs/api-reference/app.md#lifecycle-hooks)
+
+- **Infrastructure Control**: New configuration options for database and Redis initialization
+  - `infrastructure.database`: Control automatic database initialization (default: true)
+  - `infrastructure.redis`: Control automatic Redis initialization (default: true)
+  - Useful for custom infrastructure setup in lifecycle hooks
+  - See [API Reference - Infrastructure Control](/docs/api-reference/app.md#infrastructure-control)
+
+- **Logger API Documentation**: Comprehensive documentation for the logger module
+  - Complete API reference with all methods and types
+  - Configuration guide for environment variables
+  - Transport configuration (Console, File)
+  - Sensitive data masking documentation
+  - Best practices and troubleshooting guide
+  - See [API Reference - Logger](/docs/api-reference/logger.md)
+
+### Changed
+
+#### @spfn/core
+
+- **Logger Architecture Refactored**: Simplified from adapter-based to transport-only architecture
+  - Removed adapter layer (`adapter-factory.ts`, `adapters/` directory)
+  - Simplified to direct logger → transport flow
+  - Removed pino and pino-pretty dependencies (344 dependencies reduced)
+  - Created new `factory.ts` for transport-based initialization
+  - Bundle size reduced by 17% for logger module, 4% for core package
+  - All 153 logger tests passing
+
+- **Lifecycle Hooks Consolidated**: `beforeRoutes` and `afterRoutes` moved into `lifecycle` object
+  - **Breaking Change**: Top-level `beforeRoutes` and `afterRoutes` are now deprecated
+  - Use `lifecycle.beforeRoutes` and `lifecycle.afterRoutes` instead
+  - Updated `create-server.ts` to reference new paths
+  - More consistent API design with all lifecycle hooks in one place
+
+### Fixed
+
+#### @spfn/core
+
+- **Memory Leak Warnings**: Resolved MaxListenersExceeded warnings in development
+  - Added `process.setMaxListeners(15)` in shutdown handler registration
+  - Prevents warnings when using hot reload with tsx --watch
+  - Handles multiple process event listeners properly
+
+- **Thread-Stream Module Resolution**: Fixed persistent module resolution errors
+  - Removed pino-pretty to eliminate worker thread issues with tsx --watch
+  - Custom logger now uses built-in ANSI color codes
+  - Cleaner development experience without module resolution errors
+
 ## [0.1.0-alpha.82] - 2025-11-05
 
 ### Added
