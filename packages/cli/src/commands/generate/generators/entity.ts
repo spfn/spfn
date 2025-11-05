@@ -4,7 +4,7 @@
 
 import { join } from 'path';
 import { writeFileSync, existsSync } from 'fs';
-import { toPascalCase, toKebabCase, toSnakeCase, toCamelCase } from '../string-utils.js';
+import { toPascalCase, toKebabCase, toCamelCase, toSafeSchemaName } from '../string-utils.js';
 import { loadTemplate } from '../template-loader.js';
 
 /**
@@ -38,7 +38,13 @@ export function generateSchema(fnDir: string, scope: string, fnName: string): vo
  */
 export function generateEntity(fnDir: string, scope: string, fnName: string, entityName: string): void
 {
-    const schemaName = `spfn_${toSnakeCase(fnName)}`;
+    // Convert scope and fnName to safe PostgreSQL schema name
+    // Examples: @my-company/my-module → my_company_my_module
+    //           @my.company/test-fn → my_company_test_fn
+    const safeScope = toSafeSchemaName(scope);
+    const safeFnName = toSafeSchemaName(fnName);
+    const schemaName = `${safeScope}_${safeFnName}`;
+
     const tableName = toKebabCase(entityName);
     const pascalName = toPascalCase(entityName);
     const schemaVarName = `${toCamelCase(fnName)}Schema`;
