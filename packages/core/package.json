@@ -41,6 +41,11 @@
       "import": "./dist/middleware/index.js",
       "require": "./dist/middleware/index.js"
     },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js",
+      "require": "./dist/types/index.js"
+    },
     "./cache": {
       "types": "./dist/cache/index.d.ts",
       "import": "./dist/cache/index.js",
@@ -149,7 +154,8 @@
     "zod": "^4.1.11"
   },
   "optionalDependencies": {
-    "ioredis": "^5.4.1"
+    "ioredis": "^5.4.1",
+    "pino-pretty": "^11.0.0"
   },
   "devDependencies": {
     "@types/micromatch": "^4.0.9",

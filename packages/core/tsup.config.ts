@@ -9,6 +9,7 @@ export default defineConfig({
         'server/index': 'src/server/index.ts',
         'errors/index': 'src/errors/index.ts',
         'middleware/index': 'src/middleware/index.ts',
+        'types/index': 'src/types/index.ts',
         'cache/index': 'src/cache/index.ts',
         'codegen/index': 'src/codegen/index.ts',
         'codegen/generators/index': 'src/codegen/generators/index.ts',

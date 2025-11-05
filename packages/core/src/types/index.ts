@@ -1,8 +1,8 @@
 /**
- * Standard API Response Types & Helpers
+ * @spfn/core/types
  *
- * @deprecated Import from '@spfn/core/types' instead
- * This file re-exports from types for backwards compatibility.
+ * Pure type definitions and TypeBox schemas.
+ * Safe to use in both server and client code.
  */
 
 export {
@@ -15,4 +15,4 @@ export {
     ApiSuccessSchema,
     ApiErrorSchema,
     ApiResponseSchema,
-} from '../types/api-response.js';
+} from './api-response.js';

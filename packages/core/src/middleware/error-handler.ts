@@ -6,6 +6,7 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { logger } from '../logger';
+import type { ErrorResponse } from '../types/api-response.js';
 
 const errorLogger = logger.child('error-handler');
 
@@ -33,20 +34,9 @@ interface ErrorWithStatusCode extends Error
 /**
  * Standard error response format
  *
- * Used by ErrorHandler middleware for all error responses.
- * Compatible with ApiResponse pattern for consistent API responses.
+ * Re-exported from @spfn/core/types for convenience
  */
-export interface ErrorResponse
-{
-    success: false;
-    error: {
-        message: string;
-        type: string;
-        statusCode: number;
-        stack?: string;
-        details?: any;
-    };
-}
+export type { ErrorResponse } from '../types/api-response.js';
 
 /**
  * Error handler middleware
