@@ -6,6 +6,8 @@
 
 import { Command } from 'commander';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import chalk from 'chalk';
@@ -55,6 +57,150 @@ async function findAvailablePort(startPort: number, maxAttempts: number = 10): P
 	}
 
 	throw new Error(`No available ports found between ${startPort} and ${startPort + maxAttempts - 1}`);
+}
+
+/**
+ * Parse DATABASE_URL into connection info
+ */
+interface DbConnectionInfo
+{
+	host: string;
+	port: string;
+	user: string;
+	password: string;
+	database: string;
+}
+
+function parseDatabaseUrl(dbUrl: string): DbConnectionInfo
+{
+	try
+	{
+		const url = new URL(dbUrl);
+		return {
+			host: url.hostname,
+			port: url.port || '5432',
+			user: url.username,
+			password: url.password,
+			database: url.pathname.slice(1), // Remove leading /
+		};
+	}
+	catch (error)
+	{
+		throw new Error(`Invalid DATABASE_URL format: ${error instanceof Error ? error.message : 'Unknown error'}`);
+	}
+}
+
+/**
+ * Format bytes to human-readable size
+ */
+function formatBytes(bytes: number): string
+{
+	if (bytes === 0)
+	{
+		return '0 B';
+	}
+
+	const k = 1024;
+	const sizes = ['B', 'KB', 'MB', 'GB'];
+	const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+	return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+}
+
+/**
+ * Format timestamp for backup filename
+ */
+function formatTimestamp(): string
+{
+	const now = new Date();
+	const year = now.getFullYear();
+	const month = String(now.getMonth() + 1).padStart(2, '0');
+	const day = String(now.getDate()).padStart(2, '0');
+	const hours = String(now.getHours()).padStart(2, '0');
+	const minutes = String(now.getMinutes()).padStart(2, '0');
+	const seconds = String(now.getSeconds()).padStart(2, '0');
+
+	return `${year}-${month}-${day}_${hours}${minutes}${seconds}`;
+}
+
+/**
+ * Ensure backups directory exists with .gitignore
+ */
+async function ensureBackupDir(): Promise<string>
+{
+	const backupDir = path.join(process.cwd(), 'backups');
+
+	try
+	{
+		await fs.mkdir(backupDir, { recursive: true });
+
+		// Create .gitignore if it doesn't exist
+		const gitignorePath = path.join(backupDir, '.gitignore');
+		const gitignoreExists = existsSync(gitignorePath);
+
+		if (!gitignoreExists)
+		{
+			await fs.writeFile(gitignorePath, '# Ignore all backup files\n*.sql\n*.dump\n');
+		}
+
+		return backupDir;
+	}
+	catch (error)
+	{
+		throw new Error(`Failed to create backup directory: ${error instanceof Error ? error.message : 'Unknown error'}`);
+	}
+}
+
+/**
+ * List all backup files
+ */
+interface BackupFile
+{
+	name: string;
+	path: string;
+	size: string;
+	sizeBytes: number;
+	date: Date;
+}
+
+async function listBackupFiles(): Promise<BackupFile[]>
+{
+	const backupDir = path.join(process.cwd(), 'backups');
+
+	try
+	{
+		const files = await fs.readdir(backupDir);
+
+		const backups = await Promise.all(
+			files
+				.filter(f => f.endsWith('.sql') || f.endsWith('.dump'))
+				.map(async (f) =>
+				{
+					const filepath = path.join(backupDir, f);
+					const stats = await fs.stat(filepath);
+
+					return {
+						name: f,
+						path: filepath,
+						size: formatBytes(stats.size),
+						sizeBytes: stats.size,
+						date: stats.mtime,
+					};
+				})
+		);
+
+		// Sort by date (newest first)
+		return backups.sort((a, b) => b.date.getTime() - a.date.getTime());
+	}
+	catch (error)
+	{
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+		{
+			return [];
+		}
+
+		throw error;
+	}
 }
 
 /**
@@ -422,6 +568,398 @@ async function dbCheck(): Promise<void>
 }
 
 /**
+ * Backup database to file
+ */
+async function dbBackup(options: {
+	format?: 'sql' | 'custom';
+	output?: string;
+	schema?: string;
+}): Promise<void>
+{
+	console.log(chalk.blue('💾 Creating database backup...\n'));
+
+	// Load environment variables
+	const { loadEnvironment } = await import('@spfn/core/env');
+	loadEnvironment({ debug: false });
+
+	const dbUrl = process.env.DATABASE_URL;
+
+	if (!dbUrl)
+	{
+		console.error(chalk.red('❌ DATABASE_URL not found in environment'));
+		console.log(chalk.yellow('\n💡 Tip: Add DATABASE_URL to your .env file'));
+		process.exit(1);
+	}
+
+	// Parse connection info
+	const dbInfo = parseDatabaseUrl(dbUrl);
+
+	// Ensure backup directory exists
+	const backupDir = await ensureBackupDir();
+
+	// Generate filename
+	const timestamp = formatTimestamp();
+	const format = options.format || 'sql';
+	const ext = format === 'sql' ? 'sql' : 'dump';
+	const filename = options.output || path.join(backupDir, `${dbInfo.database}_${timestamp}.${ext}`);
+
+	// Build pg_dump command args
+	const args = [
+		'-h', dbInfo.host,
+		'-p', dbInfo.port,
+		'-U', dbInfo.user,
+		'-d', dbInfo.database,
+		'-f', filename,
+	];
+
+	if (format === 'custom')
+	{
+		args.push('-Fc'); // Custom format with compression
+	}
+
+	if (options.schema)
+	{
+		args.push('-n', options.schema);
+	}
+
+	// Execute pg_dump
+	const spinner = ora('Creating backup...').start();
+
+	const pgDump = spawn('pg_dump', args, {
+		stdio: ['ignore', 'pipe', 'pipe'],
+		env: {
+			...process.env,
+			PGPASSWORD: dbInfo.password,
+		},
+	});
+
+	let errorOutput = '';
+
+	pgDump.stderr?.on('data', (data) =>
+	{
+		errorOutput += data.toString();
+	});
+
+	pgDump.on('close', async (code) =>
+	{
+		if (code === 0)
+		{
+			const stats = await fs.stat(filename);
+			const size = formatBytes(stats.size);
+
+			spinner.succeed('Backup created');
+			console.log(chalk.green(`\n✅ Backup created successfully`));
+			console.log(chalk.gray(`   File: ${filename}`));
+			console.log(chalk.gray(`   Size: ${size}`));
+		}
+		else
+		{
+			spinner.fail('Backup failed');
+			console.error(chalk.red('\n❌ Failed to create backup'));
+
+			if (errorOutput.includes('pg_dump: command not found') || errorOutput.includes('not found'))
+			{
+				console.error(chalk.yellow('\n💡 pg_dump is not installed. Please install PostgreSQL client tools.'));
+			}
+			else if (errorOutput)
+			{
+				console.error(chalk.red(errorOutput));
+			}
+
+			process.exit(1);
+		}
+	});
+
+	pgDump.on('error', (error) =>
+	{
+		spinner.fail('Backup failed');
+		console.error(chalk.red('\n❌ Failed to start pg_dump'));
+		console.error(chalk.red(error.message));
+		process.exit(1);
+	});
+}
+
+/**
+ * Restore database from backup file
+ */
+async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?: string } = {}): Promise<void>
+{
+	console.log(chalk.blue('♻️  Restoring database from backup...\n'));
+
+	// Load environment variables
+	const { loadEnvironment } = await import('@spfn/core/env');
+	loadEnvironment({ debug: false });
+
+	const dbUrl = process.env.DATABASE_URL;
+
+	if (!dbUrl)
+	{
+		console.error(chalk.red('❌ DATABASE_URL not found in environment'));
+		console.log(chalk.yellow('\n💡 Tip: Add DATABASE_URL to your .env file'));
+		process.exit(1);
+	}
+
+	let file = backupFile;
+
+	// If no file specified, show list and let user select
+	if (!file)
+	{
+		const backups = await listBackupFiles();
+
+		if (backups.length === 0)
+		{
+			console.log(chalk.yellow('No backups found in ./backups directory'));
+			process.exit(0);
+		}
+
+		const { selected } = await prompts({
+			type: 'select',
+			name: 'selected',
+			message: 'Select backup to restore:',
+			choices: backups.map(b => ({
+				title: `${b.name} (${b.size})`,
+				value: b.path,
+			})),
+		});
+
+		if (!selected)
+		{
+			console.log(chalk.gray('Cancelled'));
+			process.exit(0);
+		}
+
+		file = selected;
+	}
+
+	// Confirm before restore
+	const { confirm } = await prompts({
+		type: 'confirm',
+		name: 'confirm',
+		message: chalk.yellow('⚠️  This will replace all data in the database. Continue?'),
+		initial: false,
+	});
+
+	if (!confirm)
+	{
+		console.log(chalk.gray('Cancelled'));
+		process.exit(0);
+	}
+
+	// Parse connection info
+	const dbInfo = parseDatabaseUrl(dbUrl);
+
+	// Check file format
+	const ext = path.extname(file);
+	const isCustomFormat = ext === '.dump';
+
+	// Build restore command
+	const command = isCustomFormat ? 'pg_restore' : 'psql';
+	const args: string[] = [];
+
+	if (isCustomFormat)
+	{
+		args.push('-h', dbInfo.host);
+		args.push('-p', dbInfo.port);
+		args.push('-U', dbInfo.user);
+		args.push('-d', dbInfo.database);
+
+		if (options.drop)
+		{
+			args.push('--clean');
+		}
+
+		if (options.schema)
+		{
+			args.push('-n', options.schema);
+		}
+
+		args.push(file);
+	}
+	else
+	{
+		args.push('-h', dbInfo.host);
+		args.push('-p', dbInfo.port);
+		args.push('-U', dbInfo.user);
+		args.push('-d', dbInfo.database);
+		args.push('-f', file);
+	}
+
+	// Execute restore
+	const spinner = ora('Restoring backup...').start();
+
+	const restoreProcess = spawn(command, args, {
+		stdio: ['ignore', 'pipe', 'pipe'],
+		env: {
+			...process.env,
+			PGPASSWORD: dbInfo.password,
+		},
+	});
+
+	let errorOutput = '';
+
+	restoreProcess.stderr?.on('data', (data) =>
+	{
+		errorOutput += data.toString();
+	});
+
+	restoreProcess.on('close', (code) =>
+	{
+		if (code === 0)
+		{
+			spinner.succeed('Restore completed');
+			console.log(chalk.green('\n✅ Database restored successfully'));
+		}
+		else
+		{
+			spinner.fail('Restore failed');
+			console.error(chalk.red('\n❌ Failed to restore database'));
+
+			if (errorOutput)
+			{
+				console.error(chalk.red(errorOutput));
+			}
+
+			process.exit(1);
+		}
+	});
+
+	restoreProcess.on('error', (error) =>
+	{
+		spinner.fail('Restore failed');
+		console.error(chalk.red(`\n❌ Failed to start ${command}`));
+		console.error(chalk.red(error.message));
+		process.exit(1);
+	});
+}
+
+/**
+ * List all database backups
+ */
+async function dbBackupList(): Promise<void>
+{
+	console.log(chalk.blue('📋 Database backups:\n'));
+
+	const backups = await listBackupFiles();
+
+	if (backups.length === 0)
+	{
+		console.log(chalk.yellow('No backups found in ./backups directory'));
+		console.log(chalk.gray('\n💡 Create a backup with: pnpm spfn db backup\n'));
+		return;
+	}
+
+	// Display backups in a table-like format
+	console.log(chalk.bold('  Date                  Size        File'));
+	console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+
+	backups.forEach(backup =>
+	{
+		const date = backup.date.toLocaleString('en-US', {
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+		});
+
+		const sizeStr = backup.size.padEnd(10);
+
+		console.log(chalk.white(`  ${date}  ${sizeStr}  ${backup.name}`));
+	});
+
+	console.log(chalk.gray(`\n  Total: ${backups.length} backup(s)\n`));
+}
+
+/**
+ * Clean old backups
+ */
+async function dbBackupClean(options: {
+	keep?: number;
+	olderThan?: number;
+}): Promise<void>
+{
+	console.log(chalk.blue('🧹 Cleaning old backups...\n'));
+
+	const backups = await listBackupFiles();
+
+	if (backups.length === 0)
+	{
+		console.log(chalk.yellow('No backups found'));
+		return;
+	}
+
+	let toDelete: BackupFile[] = [];
+
+	// Filter by --keep option
+	if (options.keep !== undefined)
+	{
+		const keepCount = options.keep;
+		toDelete = backups.slice(keepCount); // Keep first N, delete rest
+	}
+	// Filter by --older-than option
+	else if (options.olderThan !== undefined)
+	{
+		const daysAgo = options.olderThan;
+		const cutoffDate = new Date();
+		cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+
+		toDelete = backups.filter(b => b.date < cutoffDate);
+	}
+	else
+	{
+		// Default: keep 10 most recent
+		const defaultKeep = 10;
+		toDelete = backups.slice(defaultKeep);
+	}
+
+	if (toDelete.length === 0)
+	{
+		console.log(chalk.green('✅ No backups to clean'));
+		return;
+	}
+
+	// Show what will be deleted
+	console.log(chalk.yellow(`The following ${toDelete.length} backup(s) will be deleted:\n`));
+
+	toDelete.forEach(backup =>
+	{
+		console.log(chalk.gray(`  - ${backup.name} (${backup.size})`));
+	});
+
+	// Confirm deletion
+	const { confirm } = await prompts({
+		type: 'confirm',
+		name: 'confirm',
+		message: '\nProceed with deletion?',
+		initial: false,
+	});
+
+	if (!confirm)
+	{
+		console.log(chalk.gray('Cancelled'));
+		return;
+	}
+
+	// Delete files
+	const spinner = ora('Deleting backups...').start();
+
+	try
+	{
+		await Promise.all(toDelete.map(backup => fs.unlink(backup.path)));
+
+		spinner.succeed('Backups deleted');
+		console.log(chalk.green(`\n✅ Deleted ${toDelete.length} backup(s)`));
+	}
+	catch (error)
+	{
+		spinner.fail('Failed to delete backups');
+		console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
+		process.exit(1);
+	}
+}
+
+/**
  * Database command group
  */
 export const dbCommand = new Command('db')
@@ -459,3 +997,30 @@ dbCommand
     .command('check')
     .description('Check database connection')
     .action(dbCheck);
+
+dbCommand
+	.command('backup')
+	.description('Create a database backup')
+	.option('-f, --format <format>', 'Backup format (sql or custom)', 'sql')
+	.option('-o, --output <path>', 'Custom output path')
+	.option('-s, --schema <name>', 'Backup specific schema only')
+	.action((options) => dbBackup(options));
+
+dbCommand
+	.command('restore [file]')
+	.description('Restore database from backup')
+	.option('--drop', 'Drop existing tables before restore')
+	.option('-s, --schema <name>', 'Restore specific schema only')
+	.action((file, options) => dbRestore(file, options));
+
+dbCommand
+	.command('backup:list')
+	.description('List all database backups')
+	.action(dbBackupList);
+
+dbCommand
+	.command('backup:clean')
+	.description('Clean old database backups')
+	.option('-k, --keep <number>', 'Keep N most recent backups', parseInt)
+	.option('-o, --older-than <days>', 'Delete backups older than N days', parseInt)
+	.action((options) => dbBackupClean(options));
