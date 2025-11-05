@@ -463,6 +463,80 @@ npx drizzle-kit generate
 npx drizzle-kit migrate
 ```
 
+## Working with SPFN Modules
+
+When using SPFN modules (like `@spfn/cms`, `@spfn/auth`), database operations are handled differently to prevent conflicts:
+
+### Module Migrations
+
+Modules ship with pre-built migrations in their `migrations/` directory. These are automatically applied:
+
+```bash
+# When you run:
+spfn db push
+# or
+spfn db migrate
+
+# Module migrations are applied first:
+📦 Applying function package migrations:
+  - @spfn/cms
+  - @spfn/auth
+✅ Function migrations applied
+
+# Then your project migrations:
+✅ Project migrations applied successfully
+```
+
+### Module Schemas
+
+Each module uses an isolated PostgreSQL schema to prevent conflicts:
+
+| Module | Schema Name | Tables |
+|--------|-------------|---------|
+| @spfn/cms | `spfn_cms` | labels, label_values, audit_logs, etc. |
+| @spfn/auth | `spfn_auth` | users, sessions, etc. |
+| Your app | `public` | Your custom tables |
+
+You can query across schemas:
+
+```typescript
+import { getDatabase } from '@spfn/core/db';
+import { eq } from 'drizzle-orm';
+import { posts } from '@/server/entities/posts'; // public.posts
+import { cmsLabels } from '@spfn/cms/server/entities'; // spfn_cms.labels
+
+const db = getDatabase('read');
+
+// Join across schemas
+const postsWithLabels = await db
+  .select({
+    post: posts,
+    label: cmsLabels
+  })
+  .from(posts)
+  .leftJoin(cmsLabels, eq(posts.labelId, cmsLabels.id));
+```
+
+### Generating Migrations
+
+`spfn db generate` only processes **your project's entities**, not module entities:
+
+```bash
+spfn db generate
+
+# Output:
+Reading config...
+1 tables         # Only your app's tables
+users 4 columns  # Module tables excluded
+```
+
+This prevents issues with:
+- Mixed `.ts`/`.js` file types between project and packages
+- Different TypeScript configurations
+- Build order dependencies
+
+Module migrations are already included in the published package, so you never need to regenerate them.
+
 ## Read/Write Separation
 
 Superfunction automatically routes read operations to replica databases when configured:

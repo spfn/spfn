@@ -98,6 +98,12 @@ spfn db generate
 ✓ Migration generated: drizzle/0001_*.sql
 ```
 
+> **Note:** Package Entity Exclusion
+>
+> `spfn db generate` only processes **your project's entities**. SPFN modules (like `@spfn/cms`, `@spfn/auth`) ship with pre-built migrations that are applied separately during `spfn db migrate`.
+>
+> This prevents issues with mixed `.ts`/`.js` file types between your project and installed packages.
+
 ### Workflow
 
 ```bash
@@ -114,6 +120,11 @@ export const users = pgTable('users', {
 # 2. Generate migration
 spfn db generate
 
+# Output shows only your project tables
+Reading config...
+1 tables
+users 5 columns
+
 # 3. Review migration file
 # drizzle/0001_add_role_column.sql
 ALTER TABLE "users" ADD COLUMN "role" varchar(50) DEFAULT 'user' NOT NULL;
@@ -124,16 +135,40 @@ spfn db migrate
 
 ## spfn db migrate
 
-Apply pending migrations to the database. Wraps `drizzle-kit migrate`.
+Apply pending migrations to the database. Applies both package migrations and project migrations.
 
 ```bash
 # Apply all pending migrations
 spfn db migrate
 
-# Output
-✓ Applying migration...
-✓ Migration completed successfully
+# Output with SPFN modules installed
+📦 Applying function package migrations:
+  - @spfn/cms
+  - @spfn/auth
+✅ Function migrations applied
+
+✓ Applying project migrations...
+✓ Project migrations applied successfully
 ```
+
+### How Package Migrations Work
+
+When using SPFN modules, migrations are applied in two phases:
+
+1. **Package Migrations** - Pre-built migrations from installed modules (e.g., `@spfn/cms`)
+   - Applied first to create module tables
+   - Shipped with the module, no generation needed
+   - Isolated in module-specific schemas (e.g., `spfn_cms`, `spfn_auth`)
+
+2. **Project Migrations** - Your application's migrations
+   - Applied after package migrations
+   - Generated via `spfn db generate`
+   - Typically in the `public` schema
+
+This separation ensures:
+- Module tables are created before your app references them
+- Clean schema isolation between modules
+- No conflicts between module and project tables
 
 ### Migration Status
 
