@@ -9,13 +9,13 @@
  */
 
 import { serial, integer, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
-import { createFunctionSchema } from '@spfn/core/db';
+import { cmsSchema } from './cms-schema';
 import { cmsLabels } from '@/server/entities/cms-labels';
 
 // Create isolated schema for @spfn/cms
-const schema = createFunctionSchema('@spfn/cms');
+// Schema imported from cms-schema.ts
 
-export const cmsAuditLogs = schema.table('audit_logs', {
+export const cmsAuditLogs = cmsSchema.table('audit_logs', {
     // Primary Key
     id: serial('id').primaryKey(),
 

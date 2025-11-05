@@ -12,12 +12,12 @@
  */
 
 import { serial, text, jsonb, integer, timestamp, index, unique } from 'drizzle-orm/pg-core';
-import { createFunctionSchema } from '@spfn/core/db';
+import { cmsSchema } from './cms-schema';
 
 // Create isolated schema for @spfn/cms
-const schema = createFunctionSchema('@spfn/cms');
+// Schema imported from cms-schema.ts
 
-export const cmsPublishedCache = schema.table('published_cache', {
+export const cmsPublishedCache = cmsSchema.table('published_cache', {
     // Primary Key
     id: serial('id').primaryKey(),
 

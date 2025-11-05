@@ -11,5 +11,5 @@ export default defineConfig({
     schema: './src/server/entities/*.ts',
     out: './migrations',
     dialect: 'postgresql',
-    schemaFilter: ['spfn_cms'], // Only generate for CMS schema
+    // schemaFilter: ['spfn_cms'], // Only generate for CMS schema
 });

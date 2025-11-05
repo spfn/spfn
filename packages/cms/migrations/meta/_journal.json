@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1730333000000,
-      "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1761923297780,
-      "tag": "0001_far_lady_vermin",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1762094162304,
-      "tag": "0002_heavy_the_enforcers",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1762179726406,
-      "tag": "0003_rare_runaways",
+      "when": 1762312122317,
+      "tag": "0000_milky_blockbuster",
       "breakpoints": true
     }
   ]
