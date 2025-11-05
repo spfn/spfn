@@ -5,12 +5,9 @@
  */
 
 import { index, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { createFunctionSchema } from '@spfn/core/db';
+import { {{SCHEMA_VAR_NAME}} } from './{{SCHEMA_FILE_NAME}}';
 
-// Create isolated schema for @spfn/{{FN_NAME}}
-const schema = createFunctionSchema('@spfn/{{FN_NAME}}');
-
-export const {{ENTITY_NAME}} = schema.table('{{TABLE_NAME}}', {
+export const {{ENTITY_NAME}} = {{SCHEMA_VAR_NAME}}.table('{{TABLE_NAME}}', {
     // Primary Key
     id: serial('id').primaryKey(),
 

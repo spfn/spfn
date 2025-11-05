@@ -13,7 +13,7 @@ import {
     generateExampleGenerator,
     generateReadme,
 } from './config.js';
-import { generateEntity, generateEntitiesIndex } from './entity.js';
+import { generateSchema, generateEntity, generateEntitiesIndex } from './entity.js';
 import { generateRepository, generateRepositoriesIndex } from './repository.js';
 import { generateRoute } from './route.js';
 import { generateContract } from './contract.js';
@@ -70,9 +70,13 @@ export async function generateFunctionStructure(options: GenerateFunctionStructu
     // Generate entity-related files
     if (entities.length > 0)
     {
+        // Generate schema file first (once per module)
+        generateSchema(fnDir, scope, fnName);
+
+        // Generate entity files
         for (const entity of entities)
         {
-            generateEntity(fnDir, fnName, entity);
+            generateEntity(fnDir, scope, fnName, entity);
             generateRepository(fnDir, entity);
 
             if (enableRoutes)
