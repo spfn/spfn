@@ -259,7 +259,11 @@ spfn db backup --schema spfn_cms
 
 > **Note:** Security
 >
-> Backup files contain sensitive data. The `./backups` directory is automatically added to `.gitignore` to prevent accidental commits.
+> Backup files contain sensitive data. The backup commands automatically update both:
+> - `./backups/.gitignore` - Ignores all `.sql` and `.dump` files
+> - Project root `.gitignore` - Adds `backups/` directory
+>
+> This prevents accidental commits of sensitive backup files to version control.
 
 ## spfn db restore
 
