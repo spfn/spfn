@@ -36,11 +36,21 @@ The Superfunction ecosystem allows you to create modular, reusable packages that
 ## Official Modules
 
 ### @spfn/auth
-Authentication and user management module with JWT, sessions, and protected routes.
+Enterprise-grade authentication and authorization with asymmetric JWT, RBAC, and comprehensive security features.
 
 ```bash
 spfn add @spfn/auth
 ```
+
+**Features:**
+- ✅ Asymmetric JWT (ES256/RS256) - Client-signed tokens, no shared secrets
+- ✅ Multi-factor authentication - 6-digit OTP via email/SMS
+- ✅ Role-Based Access Control - Built-in roles (superadmin, admin, user) + custom roles
+- ✅ Session management - 90-day key expiry, automatic rotation
+- ✅ User-specific permissions - Grant/revoke with expiration support
+- ✅ 226 tests, 85%+ coverage
+
+**[📖 README](../packages/auth/README.md)** | [npm](https://www.npmjs.com/package/@spfn/auth)
 
 ### @spfn/cms
 Full-featured content management system with JSON-based labels, 50+ languages, and version control.
