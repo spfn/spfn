@@ -26,7 +26,7 @@ async function isPortAvailable(port: number): Promise<boolean>
 	{
 		const server = net.createServer();
 
-		server.once('error', (err: NodeJS.ErrnoException) =>
+		server.once('error', () =>
 		{
 			server.close();
 			resolve(false);
@@ -1035,6 +1035,13 @@ async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?
 		}
 
 		file = selected;
+	}
+
+	// Type guard to ensure file is defined
+	if (!file)
+	{
+		console.error(chalk.red('❌ No backup file selected'));
+		process.exit(1);
 	}
 
 	// Load and check backup metadata
