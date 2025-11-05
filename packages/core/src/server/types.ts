@@ -259,14 +259,126 @@ export interface ServerConfig
     };
 
     /**
-     * Hook: Run before routes are loaded
+     * Infrastructure initialization control
+     * Controls automatic initialization of database and Redis
+     * @default Both enabled if credentials exist
      */
-    beforeRoutes?: (app: Hono) => void | Promise<void>;
+    infrastructure?: {
+        /**
+         * Enable/disable automatic database initialization
+         * @default true if DATABASE_URL exists
+         */
+        database?: boolean;
+
+        /**
+         * Enable/disable automatic Redis initialization
+         * @default true if REDIS_URL exists
+         */
+        redis?: boolean;
+    };
 
     /**
-     * Hook: Run after routes are loaded
+     * Server lifecycle hooks for custom infrastructure setup and management
+     * Allows initialization of custom services and resources at different stages
      */
-    afterRoutes?: (app: Hono) => void | Promise<void>;
+    lifecycle?: {
+        /**
+         * Hook: Run before infrastructure initialization
+         * Execute before database and Redis are initialized
+         * Use this for pre-initialization setup (logging, monitoring, etc.)
+         *
+         * @param config - The final server configuration
+         * @example
+         * ```typescript
+         * beforeInfrastructure: async (config) => {
+         *   await initMonitoring();
+         *   await setupCustomLogger();
+         * }
+         * ```
+         */
+        beforeInfrastructure?: (config: ServerConfig) => Promise<void>;
+
+        /**
+         * Hook: Run after infrastructure (DB/Redis) is initialized
+         * Database and Redis instances are available via getDatabase() and getRedis()
+         * Use this for:
+         * - Running migrations
+         * - Seeding initial data
+         * - Initializing services that depend on DB/Redis
+         *
+         * @example
+         * ```typescript
+         * import { getDatabase } from '@spfn/core/db';
+         * import { migrate } from 'drizzle-orm/postgres-js/migrator';
+         *
+         * afterInfrastructure: async () => {
+         *   const db = getDatabase();
+         *   await migrate(db, { migrationsFolder: './drizzle' });
+         *   await seedInitialData(db);
+         * }
+         * ```
+         */
+        afterInfrastructure?: () => Promise<void>;
+
+        /**
+         * Hook: Run before routes are loaded
+         * Use this to add global middleware or prepare the app before routes
+         *
+         * @param app - The Hono app instance
+         * @example
+         * ```typescript
+         * beforeRoutes: async (app) => {
+         *   app.use('/*', globalMiddleware());
+         * }
+         * ```
+         */
+        beforeRoutes?: (app: Hono) => void | Promise<void>;
+
+        /**
+         * Hook: Run after routes are loaded
+         * Use this to add fallback handlers or final middleware
+         *
+         * @param app - The Hono app instance
+         * @example
+         * ```typescript
+         * afterRoutes: async (app) => {
+         *   app.notFound((c) => c.json({ error: 'Not Found' }, 404));
+         * }
+         * ```
+         */
+        afterRoutes?: (app: Hono) => void | Promise<void>;
+
+        /**
+         * Hook: Run after server starts successfully
+         * Server is listening and ready to accept requests
+         * Receives the server instance for runtime access
+         *
+         * @param instance - The server instance with server, app, config, and close()
+         * @example
+         * ```typescript
+         * afterStart: async (instance) => {
+         *   console.log(`Server ready at http://${instance.config.host}:${instance.config.port}`);
+         *   await notifyHealthCheckService();
+         * }
+         * ```
+         */
+        afterStart?: (instance: ServerInstance) => Promise<void>;
+
+        /**
+         * Hook: Run before graceful shutdown
+         * Infrastructure (DB/Redis) is still available
+         * Use this to cleanup custom resources and services
+         *
+         * @example
+         * ```typescript
+         * beforeShutdown: async () => {
+         *   await closeMessageQueue();
+         *   await closeSearchService();
+         * }
+         * ```
+         */
+        beforeShutdown?: () => Promise<void>;
+    };
 }
 
 /**

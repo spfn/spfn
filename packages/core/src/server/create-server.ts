@@ -155,14 +155,14 @@ function registerHealthCheckEndpoint(app: Hono, config?: ServerConfig): void
 
 async function executeBeforeRoutesHook(app: Hono, config?: ServerConfig): Promise<void>
 {
-    if (!config?.beforeRoutes)
+    if (!config?.lifecycle?.beforeRoutes)
     {
         return;
     }
 
     try
     {
-        await config.beforeRoutes(app);
+        await config.lifecycle.beforeRoutes(app);
     }
     catch (error)
     {
@@ -183,14 +183,14 @@ async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void>
 
 async function executeAfterRoutesHook(app: Hono, config?: ServerConfig): Promise<void>
 {
-    if (!config?.afterRoutes)
+    if (!config?.lifecycle?.afterRoutes)
     {
         return;
     }
 
     try
     {
-        await config.afterRoutes(app);
+        await config.lifecycle.afterRoutes(app);
     }
     catch (error)
     {

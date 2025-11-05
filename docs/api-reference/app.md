@@ -188,26 +188,96 @@ export default {
 } satisfies ServerConfig;
 ```
 
-### Lifecycle Hooks
+### Infrastructure Control
+
+Control automatic initialization of database and Redis:
 
 ```typescript
 export default {
-  beforeRoutes: async (app) => {
-    // Run before routes are loaded
-    app.use('/*', async (c, next) => {
-      console.log('Global middleware');
-      await next();
-    });
-  },
-
-  afterRoutes: async (app) => {
-    // Run after routes are loaded
-    app.notFound((c) => {
-      return c.json({ error: 'Not Found' }, 404);
-    });
+  infrastructure: {
+    database: false,  // Disable auto database initialization
+    redis: false,     // Disable auto Redis initialization
   },
 } satisfies ServerConfig;
 ```
+
+By default, both database and Redis are automatically initialized if credentials exist in environment variables.
+
+### Lifecycle Hooks
+
+SPFN provides hooks at different stages of server lifecycle:
+
+```typescript
+import { getDatabase } from '@spfn/core/db';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
+
+export default {
+  lifecycle: {
+    // Before infrastructure (DB/Redis) initialization
+    beforeInfrastructure: async (config) => {
+      console.log('Setting up monitoring...');
+      await initMonitoring();
+    },
+
+    // After infrastructure is ready
+    // Database and Redis are available via getDatabase() and getRedis()
+    afterInfrastructure: async () => {
+      // Run migrations
+      const db = getDatabase();
+      await migrate(db, { migrationsFolder: './drizzle' });
+
+      // Seed initial data
+      await seedInitialData(db);
+
+      // Initialize services that depend on DB/Redis
+      await initSearchService(db);
+    },
+
+    // Before routes are loaded
+    beforeRoutes: async (app) => {
+      app.use('/*', async (c, next) => {
+        console.log('Global middleware');
+        await next();
+      });
+    },
+
+    // After routes are loaded
+    afterRoutes: async (app) => {
+      app.notFound((c) => {
+        return c.json({ error: 'Not Found' }, 404);
+      });
+    },
+
+    // After server starts and is ready to accept requests
+    afterStart: async (instance) => {
+      console.log(`Server ready at http://${instance.config.host}:${instance.config.port}`);
+      await notifyHealthCheckService();
+    },
+
+    // Before graceful shutdown (infrastructure still available)
+    beforeShutdown: async () => {
+      console.log('Cleaning up custom resources...');
+      await closeSearchService();
+      await closeMessageQueue();
+    },
+  },
+} satisfies ServerConfig;
+```
+
+**Execution Order:**
+1. `beforeInfrastructure` - Pre-initialization setup
+2. Database & Redis initialization (if enabled)
+3. `afterInfrastructure` - Post-infrastructure setup
+4. `beforeRoutes` - Before route loading
+5. Load routes
+6. `afterRoutes` - After route loading
+7. Start HTTP server
+8. `afterStart` - Server is ready
+9. ... server running ...
+10. SIGTERM/SIGINT received
+11. `beforeShutdown` - Pre-shutdown cleanup
+12. Close database & Redis connections
+13. Exit process
 
 ## ServerInstance
 

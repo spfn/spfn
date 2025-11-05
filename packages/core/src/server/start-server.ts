@@ -67,12 +67,12 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
 
         logServerStarted(debug, host!, port!, finalConfig, timeouts);
 
-        const shutdownServer = createShutdownHandler(server as Server);
+        const shutdownServer = createShutdownHandler(server as Server, finalConfig);
         const shutdown = createGracefulShutdown(shutdownServer, finalConfig);
 
         registerShutdownHandlers(shutdown);
 
-        return {
+        const serverInstance: ServerInstance = {
             server: server as Server,
             app,
             config: finalConfig,
@@ -82,13 +82,31 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
                 await shutdownServer();
             },
         };
+
+        // Execute afterStart hook
+        if (finalConfig.lifecycle?.afterStart)
+        {
+            serverLogger.debug('Executing afterStart hook...');
+            try
+            {
+                await finalConfig.lifecycle.afterStart(serverInstance);
+            }
+            catch (error)
+            {
+                serverLogger.error('afterStart hook failed', error as Error);
+                // Don't throw - server is already running
+                // Just log the error and continue
+            }
+        }
+
+        return serverInstance;
     }
     catch (error)
     {
         const err = error as Error;
         serverLogger.error('Server initialization failed', err);
 
-        await cleanupOnFailure();
+        await cleanupOnFailure(finalConfig);
 
         throw error;
     }
@@ -144,11 +162,59 @@ function logMiddlewareOrder(config: ServerConfig): void
 
 async function initializeInfrastructure(config: ServerConfig): Promise<void>
 {
-    serverLogger.debug('Initializing database...');
-    await initDatabase(config.database);
+    // Execute beforeInfrastructure hook
+    if (config.lifecycle?.beforeInfrastructure)
+    {
+        serverLogger.debug('Executing beforeInfrastructure hook...');
+        try
+        {
+            await config.lifecycle.beforeInfrastructure(config);
+        }
+        catch (error)
+        {
+            serverLogger.error('beforeInfrastructure hook failed', error as Error);
+            throw new Error('Server initialization failed in beforeInfrastructure hook');
+        }
+    }
 
-    serverLogger.debug('Initializing Redis...');
-    await initRedis();
+    // Initialize database if not explicitly disabled
+    const shouldInitDatabase = config.infrastructure?.database !== false;
+    if (shouldInitDatabase)
+    {
+        serverLogger.debug('Initializing database...');
+        await initDatabase(config.database);
+    }
+    else
+    {
+        serverLogger.debug('Database initialization disabled');
+    }
+
+    // Initialize Redis if not explicitly disabled
+    const shouldInitRedis = config.infrastructure?.redis !== false;
+    if (shouldInitRedis)
+    {
+        serverLogger.debug('Initializing Redis...');
+        await initRedis();
+    }
+    else
+    {
+        serverLogger.debug('Redis initialization disabled');
+    }
+
+    // Execute afterInfrastructure hook
+    if (config.lifecycle?.afterInfrastructure)
+    {
+        serverLogger.debug('Executing afterInfrastructure hook...');
+        try
+        {
+            await config.lifecycle.afterInfrastructure();
+        }
+        catch (error)
+        {
+            serverLogger.error('afterInfrastructure hook failed', error as Error);
+            throw new Error('Server initialization failed in afterInfrastructure hook');
+        }
+    }
 }
 
 function startHttpServer(app: any, host: string, port: number): any
@@ -193,7 +259,7 @@ function logServerStarted(
     });
 }
 
-function createShutdownHandler(server: Server): () => Promise<void>
+function createShutdownHandler(server: Server, config: ServerConfig): () => Promise<void>
 {
     return async () =>
     {
@@ -207,11 +273,36 @@ function createShutdownHandler(server: Server): () => Promise<void>
             });
         });
 
-        serverLogger.debug('Closing database connections...');
-        await closeDatabase();
+        // Execute beforeShutdown hook
+        if (config.lifecycle?.beforeShutdown)
+        {
+            serverLogger.debug('Executing beforeShutdown hook...');
+            try
+            {
+                await config.lifecycle.beforeShutdown();
+            }
+            catch (error)
+            {
+                serverLogger.error('beforeShutdown hook failed', error as Error);
+                // Continue with shutdown even if hook fails
+            }
+        }
 
-        serverLogger.debug('Closing Redis connections...');
-        await closeRedis();
+        // Only close resources that were enabled for initialization
+        const shouldCloseDatabase = config.infrastructure?.database !== false;
+        const shouldCloseRedis = config.infrastructure?.redis !== false;
+
+        if (shouldCloseDatabase)
+        {
+            serverLogger.debug('Closing database connections...');
+            await closeDatabase();
+        }
+
+        if (shouldCloseRedis)
+        {
+            serverLogger.debug('Closing Redis connections...');
+            await closeRedis();
+        }
 
         serverLogger.info('Server shutdown completed');
     };
@@ -285,13 +376,26 @@ function registerShutdownHandlers(shutdown: (signal: string) => Promise<void>): 
     });
 }
 
-async function cleanupOnFailure(): Promise<void>
+async function cleanupOnFailure(config: ServerConfig): Promise<void>
 {
     try
     {
         serverLogger.debug('Cleaning up after initialization failure...');
-        await closeDatabase();
-        await closeRedis();
+
+        // Only cleanup resources that were enabled for initialization
+        const shouldCleanupDatabase = config.infrastructure?.database !== false;
+        const shouldCleanupRedis = config.infrastructure?.redis !== false;
+
+        if (shouldCleanupDatabase)
+        {
+            await closeDatabase();
+        }
+
+        if (shouldCleanupRedis)
+        {
+            await closeRedis();
+        }
+
         serverLogger.debug('Cleanup completed');
     }
     catch (cleanupError)
