@@ -46,8 +46,8 @@ function getAdapterType(): AdapterType
         return adapterEnv;
     }
 
-    // Default: pino
-    return 'pino';
+    // Default: custom (no thread-stream issues)
+    return 'custom';
 }
 
 /**

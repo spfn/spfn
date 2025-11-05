@@ -357,6 +357,9 @@ function createGracefulShutdown(
 
 function registerShutdownHandlers(shutdown: (signal: string) => Promise<void>): void
 {
+    // Increase max listeners to prevent warnings in development with hot reload
+    process.setMaxListeners(15);
+
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
 

@@ -19,9 +19,13 @@ export class PinoAdapter implements LoggerAdapter
         const isProduction = process.env.NODE_ENV === 'production';
         const isDevelopment = process.env.NODE_ENV === 'development';
 
-        // Try to use pino-pretty in development if available (optional dependency)
+        // Disable pino-pretty by default to avoid thread-stream worker issues
+        // Set PINO_PRETTY=true to enable (use with caution in development)
+        const usePinoPretty = process.env.PINO_PRETTY === 'true' && isDevelopment;
+
+        // Try to use pino-pretty in development if explicitly enabled
         // Use sync mode to avoid worker thread issues with tsx --watch and pnpm
-        const transport = isDevelopment ? {
+        const transport = usePinoPretty ? {
             target: 'pino-pretty',
             options: {
                 colorize: true,
