@@ -124,6 +124,48 @@ function formatTimestamp(): string
 }
 
 /**
+ * Ensure backups/ is added to project .gitignore
+ */
+async function ensureBackupInGitignore(): Promise<void>
+{
+	const gitignorePath = path.join(process.cwd(), '.gitignore');
+
+	try
+	{
+		let content = '';
+		let exists = existsSync(gitignorePath);
+
+		if (exists)
+		{
+			content = await fs.readFile(gitignorePath, 'utf-8');
+		}
+
+		// Check if backups/ is already ignored
+		const lines = content.split('\n');
+		const hasBackupsIgnore = lines.some(line =>
+			line.trim() === 'backups/' ||
+			line.trim() === '/backups/' ||
+			line.trim() === 'backups'
+		);
+
+		if (!hasBackupsIgnore)
+		{
+			const entry = exists && content && !content.endsWith('\n')
+				? '\n\n# Database backups\nbackups/\n'
+				: '# Database backups\nbackups/\n';
+
+			await fs.appendFile(gitignorePath, entry);
+			console.log(chalk.dim('✓ Added backups/ to .gitignore'));
+		}
+	}
+	catch (error)
+	{
+		// Non-critical error, just log it
+		console.log(chalk.dim('⚠️  Could not update .gitignore'));
+	}
+}
+
+/**
  * Ensure backups directory exists with .gitignore
  */
 async function ensureBackupDir(): Promise<string>
@@ -142,6 +184,9 @@ async function ensureBackupDir(): Promise<string>
 		{
 			await fs.writeFile(gitignorePath, '# Ignore all backup files\n*.sql\n*.dump\n');
 		}
+
+		// Ensure project root .gitignore includes backups/
+		await ensureBackupInGitignore();
 
 		return backupDir;
 	}
