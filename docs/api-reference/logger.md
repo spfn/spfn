@@ -7,17 +7,17 @@ available: true
 
 # Logger
 
-SPFN provides a flexible, transport-based logging system with support for console, file, Slack, and email outputs. The logger automatically handles sensitive data masking, child loggers for module-specific logging, and environment-based configuration.
+SPFN provides a flexible, transport-based logging system with support for console and file outputs. The logger automatically handles sensitive data masking, child loggers for module-specific logging, and environment-based configuration.
 
 ## Architecture
 
 The logger uses a simple transport-based architecture:
 
 ```
-Logger → Transports (Console, File, Slack, Email)
+Logger → Transports (Console, File)
 ```
 
-Each transport can be independently configured with its own log level and enabled/disabled state.
+Each transport can be independently configured with its own log level and enabled/disabled state. Additional transports (Slack, Email, etc.) are planned for future releases.
 
 ## Basic Usage
 
@@ -107,36 +107,6 @@ LOGGER_FILE_ENABLED=true
 LOG_DIR=/var/log/myapp
 ```
 
-#### Slack Transport
-
-- `SLACK_WEBHOOK_URL` - Slack incoming webhook URL
-- `SLACK_CHANNEL` - Channel to send logs (optional)
-- `SLACK_USERNAME` - Bot username (optional, default: "Logger Bot")
-
-```bash
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-SLACK_CHANNEL=#alerts
-SLACK_USERNAME=MyApp Logger
-```
-
-#### Email Transport
-
-- `SMTP_HOST` - SMTP server host
-- `SMTP_PORT` - SMTP server port
-- `SMTP_USER` - SMTP username (optional)
-- `SMTP_PASSWORD` - SMTP password (optional)
-- `EMAIL_FROM` - Sender email address
-- `EMAIL_TO` - Recipient email addresses (comma-separated)
-
-```bash
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=myapp@gmail.com
-SMTP_PASSWORD=app_password
-EMAIL_FROM=alerts@myapp.com
-EMAIL_TO=admin@myapp.com,ops@myapp.com
-```
-
 ### Transport Levels
 
 Each transport has a default minimum log level:
@@ -145,8 +115,6 @@ Each transport has a default minimum log level:
 |-----------|---------------|-------------|
 | Console | `debug` | All logs in development |
 | File | `info` | Info and above in production |
-| Slack | `error` | Errors and fatal only |
-| Email | `fatal` | Critical errors only |
 
 ### Default Behavior by Environment
 
@@ -157,8 +125,6 @@ Each transport has a default minimum log level:
   transports: [
     ConsoleTransport({ colorize: true })  // Enabled
     // FileTransport - Disabled
-    // SlackTransport - Disabled
-    // EmailTransport - Disabled
   ]
 }
 ```
@@ -169,9 +135,7 @@ Each transport has a default minimum log level:
   level: 'info',
   transports: [
     ConsoleTransport({ colorize: false }), // JSON output
-    FileTransport({ logDir: '/var/log/myapp' }), // If configured
-    SlackTransport({ level: 'error' }), // If configured
-    EmailTransport({ level: 'fatal' })  // If configured
+    FileTransport({ logDir: '/var/log/myapp' }) // If configured
   ]
 }
 ```
@@ -504,25 +468,19 @@ mkdir -p /var/log/myapp
 chmod 755 /var/log/myapp
 ```
 
-### Slack notifications not sending
-
-Verify webhook URL:
-```bash
-# Test webhook manually
-curl -X POST -H 'Content-type: application/json' \
-  --data '{"text":"Test message"}' \
-  $SLACK_WEBHOOK_URL
-```
-
 ## Future Transports
 
 The following transports are planned for future releases:
 
-- **Database Transport** - Store logs in PostgreSQL
-- **CloudWatch Transport** - AWS CloudWatch integration
-- **Datadog Transport** - Datadog APM integration
-- **Sentry Transport** - Error tracking with Sentry
-- **Custom Transport** - Developer-defined transports
+- **Slack Transport** - Send error and fatal logs to Slack channels via webhook
+- **Email Transport** - Send fatal errors via email for critical alerts
+- **Database Transport** - Store logs in PostgreSQL for long-term analysis
+- **CloudWatch Transport** - AWS CloudWatch integration for cloud deployments
+- **Datadog Transport** - Datadog APM integration for monitoring and tracing
+- **Sentry Transport** - Error tracking and monitoring with Sentry
+- **Custom Transport** - Developer-defined transports for specialized needs
+
+Configuration infrastructure for Slack and Email transports is already implemented in the codebase, making it straightforward to add these transports when needed.
 
 ## Related
 
