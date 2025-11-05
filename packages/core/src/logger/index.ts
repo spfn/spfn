@@ -1,7 +1,7 @@
 /**
  * Logger Module Exports
  *
- * Entry point for logger module (Pure re-export only)
+ * Entry point for logger module
  *
  * 💡 Usage examples:
  * ```typescript
@@ -19,14 +19,15 @@
  * logger.warn('Retry attempt', { attempt: 3, delay: 1000 });
  * ```
  *
- * 💡 Adapter switching:
- * - Environment variable: LOGGER_ADAPTER=pino (default) or custom
- * - Pino: High performance, production-proven
- * - Custom: Full control, no Pino dependency
+ * 💡 Transports:
+ * - Console: Colored output for development, JSON for production
+ * - File: Automatic file logging in production (LOG_FILE_ENABLED=true)
+ * - Future: Slack, Email, and custom transports
  */
 
 // Logger Instance
-export { logger } from './adapter-factory.js';
+export { logger } from './factory.js';
+export { Logger } from './logger.js';
 
 // Types
-export type { LogLevel, LoggerAdapter } from './adapters/types.js';
+export type { LogLevel, Transport } from './types.js';
