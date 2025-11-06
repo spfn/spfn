@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '../helpers/db';
+import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '../helpers/db';
 import { ensureAdminExists } from '@/server/setup';
 import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
@@ -13,7 +13,10 @@ import { users } from '@/server/entities';
 import { verifyPassword } from '@/server/helpers/password';
 import { eq } from 'drizzle-orm';
 
-describe('Setup - ensureAdminExists()', () =>
+// Check if database is available before running tests
+const dbAvailable = await isDatabaseAvailable();
+
+describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 {
     beforeAll(async () =>
     {

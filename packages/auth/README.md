@@ -1166,8 +1166,8 @@ if (shouldRotate) {
 
 ```bash
 # .env
-JWT_SECRET=your-secret-key-change-in-production  # For legacy tokens
-JWT_EXPIRES_IN=7d                                 # Token expiry
+SPFN_AUTH_JWT_SECRET=your-secret-key-change-in-production  # For legacy tokens
+SPFN_AUTH_JWT_EXPIRES_IN=7d                                 # Token expiry
 ```
 
 ---
@@ -1196,11 +1196,69 @@ This creates the auth schema with 8 tables:
 
 ### 2. Configure Environment Variables
 
+#### Core Settings (Required)
+
 ```bash
 # .env
-JWT_SECRET=your-secret-key-change-in-production
-JWT_EXPIRES_IN=7d
+
+# ========================================
+# Core Authentication Settings (Required)
+# ========================================
+
+# JWT Token Settings
+SPFN_AUTH_JWT_SECRET=your-secret-key-change-in-production  # JWT signing secret (REQUIRED)
+SPFN_AUTH_JWT_EXPIRES_IN=7d                                 # JWT token expiry (default: 7d)
+
+# Verification Token Settings
+SPFN_AUTH_VERIFICATION_TOKEN_SECRET=separate-secret-key     # Optional: separate secret for verification tokens
+                                                            # If not set, uses SPFN_AUTH_JWT_SECRET
+
+# Password Hashing
+SPFN_AUTH_BCRYPT_SALT_ROUNDS=10                            # bcrypt salt rounds (default: 10)
+                                                            # Higher = more secure but slower (10-12 recommended)
+
+# ========================================
+# Client-Side Settings (Optional)
+# ========================================
+
+# Session Management (for client-side session encryption)
+SPFN_AUTH_SESSION_SECRET=session-encryption-key             # Required if using client-side session features
+
+# API URL Configuration (for client-side API calls)
+SPFN_API_URL=http://localhost:8790                         # SPFN API server URL
+NEXT_PUBLIC_API_URL=http://localhost:8790                   # Next.js public API URL (takes precedence)
+
+# Environment
+NODE_ENV=production                               # production | development
 ```
+
+#### Admin Account Creation (Optional)
+
+See [Section 3: Create Initial Admin Accounts](#3-create-initial-admin-accounts-optional) below for details.
+
+d---
+
+### Legacy Environment Variables (Backward Compatibility)
+
+For backward compatibility, the package also supports legacy environment variable names without the `SPFN_AUTH_` prefix. The new prefixed versions take precedence:
+
+```bash
+# Legacy (still supported, but deprecated)
+JWT_SECRET=...
+JWT_EXPIRES_IN=...
+VERIFICATION_TOKEN_SECRET=...
+BCRYPT_SALT_ROUNDS=...
+SESSION_SECRET=...
+
+ADMIN_ACCOUNTS=...
+ADMIN_EMAILS=...
+ADMIN_PASSWORDS=...
+ADMIN_ROLES=...
+ADMIN_EMAIL=...
+ADMIN_PASSWORD=...
+```
+
+**Recommendation:** Use the new `SPFN_AUTH_*` prefixed variables to avoid conflicts with other packages.
 
 ### 3. Create Initial Admin Accounts (Optional)
 
@@ -1212,7 +1270,7 @@ Allows full control over each account's configuration.
 
 ```bash
 # .env
-ADMIN_ACCOUNTS='[
+SPFN_AUTH_ADMIN_ACCOUNTS='[
   {
     "email": "super@example.com",
     "password": "super-password",
@@ -1249,14 +1307,14 @@ Quick setup for multiple accounts with basic configuration.
 
 ```bash
 # .env
-ADMIN_EMAILS=super@example.com,admin@example.com,user@example.com
-ADMIN_PASSWORDS=super-pass,admin-pass,user-pass
-ADMIN_ROLES=superadmin,admin,user  # Optional, defaults to 'user'
+SPFN_AUTH_ADMIN_EMAILS=super@example.com,admin@example.com,user@example.com
+SPFN_AUTH_ADMIN_PASSWORDS=super-pass,admin-pass,user-pass
+SPFN_AUTH_ADMIN_ROLES=superadmin,admin,user  # Optional, defaults to 'user'
 ```
 
 **Requirements:**
-- `ADMIN_EMAILS` and `ADMIN_PASSWORDS` must have the same number of items
-- `ADMIN_ROLES` is optional (defaults to `user` for each account)
+- `SPFN_AUTH_ADMIN_EMAILS` and `SPFN_AUTH_ADMIN_PASSWORDS` must have the same number of items
+- `SPFN_AUTH_ADMIN_ROLES` is optional (defaults to `user` for each account)
 - All accounts will have `passwordChangeRequired: true`
 
 ---
@@ -1267,8 +1325,8 @@ For backward compatibility, you can create a single superadmin account.
 
 ```bash
 # .env
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=secure-password
+SPFN_AUTH_ADMIN_EMAIL=admin@example.com
+SPFN_AUTH_ADMIN_PASSWORD=secure-password
 ```
 
 This creates a single account with:

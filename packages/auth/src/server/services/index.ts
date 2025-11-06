@@ -87,3 +87,17 @@ export {
     getRoleByName,
     getRolePermissions,
 } from './role.service';
+
+// Invitation Service
+export {
+    createInvitation,
+    getInvitationByToken,
+    getInvitationWithDetails,
+    validateInvitation,
+    acceptInvitation,
+    listInvitations,
+    cancelInvitation,
+    deleteInvitation,
+    expireOldInvitations,
+    resendInvitation,
+} from './invitation.service';

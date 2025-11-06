@@ -3,14 +3,17 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
+import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '@/__tests__/helpers/db';
 import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
 import { users } from '@/server/entities';
 import type { ApiResponse, CheckAccountExistsData } from '@/lib/types/api';
 import app from '../index';
 
-describe('POST /auth/exists', () =>
+// Check if database is available before running tests
+const dbAvailable = await isDatabaseAvailable();
+
+describe.skipIf(!dbAvailable)('POST /auth/exists', () =>
 {
     beforeAll(async () =>
     {

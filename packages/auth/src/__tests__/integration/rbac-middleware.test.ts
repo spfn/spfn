@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '../helpers/db';
+import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '../helpers/db';
 import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
 import { requirePermissions, requireAnyPermission } from '@/server/middleware/require-permission';
@@ -18,7 +18,10 @@ import { getDatabase } from '@spfn/core/db';
 import { eq } from 'drizzle-orm';
 import type { Context } from 'hono';
 
-describe('RBAC Middleware', () =>
+// Check if database is available before running tests
+const dbAvailable = await isDatabaseAvailable();
+
+describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
 {
     let app: Hono;
     let testUserToken: string;

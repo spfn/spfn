@@ -10,19 +10,65 @@ import { sql } from 'drizzle-orm';
 import { initDatabase, closeDatabase } from '@spfn/core/db';
 import * as schema from '@/server/entities/index';
 
-const TEST_DATABASE_URL = 'postgresql://authtest:authtest123@localhost:5435/spfn_auth_test';
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://authtest:authtest123@localhost:5435/spfn_auth_test';
 
 let testDb: ReturnType<typeof drizzle> | null = null;
 let testClient: ReturnType<typeof postgres> | null = null;
+let dbAvailable: boolean | null = null;
+
+/**
+ * Check if test database is available
+ *
+ * @returns true if DB is available, false otherwise
+ */
+export async function isDatabaseAvailable(): Promise<boolean>
+{
+    if (dbAvailable !== null)
+    {
+        return dbAvailable;
+    }
+
+    try
+    {
+        const client = postgres(TEST_DATABASE_URL, {
+            max: 1,
+            connect_timeout: 3, // 3 seconds timeout
+        });
+
+        // Try to connect
+        await client`SELECT 1`;
+        await client.end();
+
+        dbAvailable = true;
+        return true;
+    }
+    catch (error)
+    {
+        console.log('[Test] ⚠️  Test database not available. Integration tests will be skipped.');
+        console.log(`[Test]    Expected database: ${TEST_DATABASE_URL}`);
+        console.log(`[Test]    Error: ${(error as Error).message}`);
+        dbAvailable = false;
+        return false;
+    }
+}
 
 /**
  * Initialize test database connection
+ *
+ * @throws Error if database is not available
  */
 export async function setupTestDb()
 {
     if (testDb)
     {
         return testDb;
+    }
+
+    // Check if DB is available first
+    const available = await isDatabaseAvailable();
+    if (!available)
+    {
+        throw new Error('Test database not available');
     }
 
     testClient = postgres(TEST_DATABASE_URL);
@@ -64,6 +110,7 @@ export async function clearTables(db: ReturnType<typeof drizzle>)
     // Clear in reverse dependency order
     await db.execute(sql`TRUNCATE TABLE spfn_auth.user_permissions CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.role_permissions CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spfn_auth.user_invitations CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.users CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.permissions CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.roles CASCADE`);
@@ -83,6 +130,7 @@ async function createTables(db: ReturnType<typeof drizzle>)
     // Drop existing tables (in reverse dependency order)
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.user_permissions CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.role_permissions CASCADE`);
+    await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.user_invitations CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.verification_codes CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.user_public_keys CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.user_social_accounts CASCADE`);
@@ -229,6 +277,32 @@ async function createTables(db: ReturnType<typeof drizzle>)
         CREATE INDEX target_purpose_idx
         ON spfn_auth.verification_codes(target, purpose, expires_at)
     `);
+
+    // Create user_invitations table
+    await db.execute(sql`
+        CREATE TABLE spfn_auth.user_invitations (
+            id BIGSERIAL PRIMARY KEY,
+            email TEXT NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            role_id BIGINT NOT NULL REFERENCES spfn_auth.roles(id),
+            invited_by BIGINT NOT NULL REFERENCES spfn_auth.users(id),
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'expired', 'cancelled')),
+            expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+            accepted_at TIMESTAMP WITH TIME ZONE,
+            cancelled_at TIMESTAMP WITH TIME ZONE,
+            metadata JSONB,
+            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )
+    `);
+
+    // Create indexes for user_invitations
+    await db.execute(sql`CREATE INDEX invitations_token_idx ON spfn_auth.user_invitations(token)`);
+    await db.execute(sql`CREATE INDEX invitations_email_idx ON spfn_auth.user_invitations(email)`);
+    await db.execute(sql`CREATE INDEX invitations_status_idx ON spfn_auth.user_invitations(status)`);
+    await db.execute(sql`CREATE INDEX invitations_invited_by_idx ON spfn_auth.user_invitations(invited_by)`);
+    await db.execute(sql`CREATE INDEX invitations_expires_at_idx ON spfn_auth.user_invitations(expires_at)`);
+    await db.execute(sql`CREATE INDEX invitations_role_id_idx ON spfn_auth.user_invitations(role_id)`);
 }
 
 /**

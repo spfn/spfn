@@ -20,9 +20,14 @@ import bcrypt from 'bcrypt';
  * - 12 rounds: ~400ms (more secure, slower)
  * - 14 rounds: ~1600ms (very secure, too slow for most apps)
  *
- * Can be configured via BCRYPT_SALT_ROUNDS environment variable
+ * Can be configured via SPFN_AUTH_BCRYPT_SALT_ROUNDS environment variable
  */
-const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
+const SALT_ROUNDS = parseInt(
+    process.env.SPFN_AUTH_BCRYPT_SALT_ROUNDS ||  // New prefixed version (recommended)
+    process.env.BCRYPT_SALT_ROUNDS ||             // Legacy fallback
+    '10',
+    10
+);
 
 /**
  * Hash a plain text password using bcrypt

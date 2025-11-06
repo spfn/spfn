@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
+import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '@/__tests__/helpers/db';
 import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
 import { users } from '@/server/entities';
@@ -33,7 +33,10 @@ interface ErrorResponse
     };
 }
 
-describe('POST /_auth/login', () =>
+// Check if database is available before running tests
+const dbAvailable = await isDatabaseAvailable();
+
+describe.skipIf(!dbAvailable)('POST /_auth/login', () =>
 {
     beforeAll(async () =>
     {

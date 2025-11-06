@@ -52,16 +52,18 @@ function calculateEntropy(str: string): number
  */
 function getSessionSecret(): Uint8Array
 {
-    const secret = process.env.SESSION_SECRET;
+    const secret =
+        process.env.SPFN_AUTH_SESSION_SECRET ||  // New prefixed version (recommended)
+        process.env.SESSION_SECRET;               // Legacy fallback
 
     if (!secret)
     {
-        throw new Error('SESSION_SECRET environment variable is not set');
+        throw new Error('SPFN_AUTH_SESSION_SECRET environment variable is not set');
     }
 
     if (secret.length < 32)
     {
-        throw new Error('SESSION_SECRET must be at least 32 characters long');
+        throw new Error('SPFN_AUTH_SESSION_SECRET must be at least 32 characters long');
     }
 
     // Derive a 32-byte key using SHA-256 for A256GCM compatibility
@@ -212,11 +214,13 @@ export function validateSessionSecret(): {
 {
     try
     {
-        const secret = process.env.SESSION_SECRET;
+        const secret =
+            process.env.SPFN_AUTH_SESSION_SECRET ||  // New prefixed version (recommended)
+            process.env.SESSION_SECRET;               // Legacy fallback
 
         if (!secret)
         {
-            return { valid: false, error: 'SESSION_SECRET is not set' };
+            return { valid: false, error: 'SPFN_AUTH_SESSION_SECRET is not set' };
         }
 
         const length = secret.length;
@@ -228,7 +232,7 @@ export function validateSessionSecret(): {
         {
             return {
                 valid: false,
-                error: `SESSION_SECRET too short (${length} chars, minimum 32)`,
+                error: `SPFN_AUTH_SESSION_SECRET too short (${length} chars, minimum 32)`,
                 details: { length, uniqueChars, entropy },
             };
         }
@@ -238,7 +242,7 @@ export function validateSessionSecret(): {
         {
             return {
                 valid: false,
-                error: `SESSION_SECRET has low diversity (${uniqueChars} unique chars, minimum 16)`,
+                error: `SPFN_AUTH_SESSION_SECRET has low diversity (${uniqueChars} unique chars, minimum 16)`,
                 details: { length, uniqueChars, entropy },
             };
         }
@@ -254,7 +258,7 @@ export function validateSessionSecret(): {
         {
             return {
                 valid: false,
-                error: `SESSION_SECRET has low entropy (${entropy.toFixed(2)} bits/char, minimum 3.5). Use a more random secret.`,
+                error: `SPFN_AUTH_SESSION_SECRET has low entropy (${entropy.toFixed(2)} bits/char, minimum 3.5). Use a more random secret.`,
                 details: { length, uniqueChars, entropy },
             };
         }
@@ -266,6 +270,6 @@ export function validateSessionSecret(): {
     }
     catch (err)
     {
-        return { valid: false, error: 'Failed to validate SESSION_SECRET' };
+        return { valid: false, error: 'Failed to validate SPFN_AUTH_SESSION_SECRET' };
     }
 }

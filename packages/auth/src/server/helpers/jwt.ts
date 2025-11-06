@@ -5,7 +5,7 @@
  * Supports both server-signed (legacy) and client-signed (asymmetric) tokens
  *
  * Architecture:
- * - Legacy: Server signs/verifies with JWT_SECRET (symmetric HMAC)
+ * - Legacy: Server signs/verifies with SPFN_AUTH_JWT_SECRET (symmetric HMAC)
  * - New: Client signs with privateKey, server verifies with publicKey (asymmetric)
  */
 
@@ -13,8 +13,15 @@ import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 import type { SessionPayload } from '@/lib/types/api';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_SECRET =
+    process.env.SPFN_AUTH_JWT_SECRET ||      // New prefixed version (recommended)
+    process.env.JWT_SECRET ||                 // Legacy fallback
+    'dev-secret-key-change-in-production';
+
+const JWT_EXPIRES_IN =
+    process.env.SPFN_AUTH_JWT_EXPIRES_IN ||  // New prefixed version (recommended)
+    process.env.JWT_EXPIRES_IN ||             // Legacy fallback
+    '7d';
 
 export interface TokenPayload extends SessionPayload
 {

@@ -51,15 +51,19 @@ function parseAdminAccounts(): AdminAccountConfig[]
     const accounts: AdminAccountConfig[] = [];
 
     // Method 1: JSON format (highest priority)
-    if (process.env.ADMIN_ACCOUNTS)
+    if (process.env.SPFN_AUTH_ADMIN_ACCOUNTS || process.env.ADMIN_ACCOUNTS)
     {
         try
         {
-            const parsed = JSON.parse(process.env.ADMIN_ACCOUNTS);
+            const accountsJson =
+                process.env.SPFN_AUTH_ADMIN_ACCOUNTS ||  // New prefixed version (recommended)
+                process.env.ADMIN_ACCOUNTS;               // Legacy fallback
+
+            const parsed = JSON.parse(accountsJson!);
 
             if (!Array.isArray(parsed))
             {
-                console.error('[Auth] ❌ ADMIN_ACCOUNTS must be an array');
+                console.error('[Auth] ❌ SPFN_AUTH_ADMIN_ACCOUNTS must be an array');
                 return accounts;
             }
 
@@ -85,22 +89,34 @@ function parseAdminAccounts(): AdminAccountConfig[]
         catch (error)
         {
             const err = error as Error;
-            console.error('[Auth] ❌ Failed to parse ADMIN_ACCOUNTS:', err.message);
+            console.error('[Auth] ❌ Failed to parse SPFN_AUTH_ADMIN_ACCOUNTS:', err.message);
             return accounts;
         }
     }
 
     // Method 2: Comma-separated format
-    if (process.env.ADMIN_EMAILS)
+    const adminEmails =
+        process.env.SPFN_AUTH_ADMIN_EMAILS ||  // New prefixed version (recommended)
+        process.env.ADMIN_EMAILS;               // Legacy fallback
+
+    if (adminEmails)
     {
-        const emails = process.env.ADMIN_EMAILS.split(',').map(s => s.trim());
-        const passwords = (process.env.ADMIN_PASSWORDS || '').split(',').map(s => s.trim());
-        const roles = (process.env.ADMIN_ROLES || '').split(',').map(s => s.trim());
+        const emails = adminEmails.split(',').map(s => s.trim());
+        const passwords = (
+            process.env.SPFN_AUTH_ADMIN_PASSWORDS ||  // New prefixed version (recommended)
+            process.env.ADMIN_PASSWORDS ||             // Legacy fallback
+            ''
+        ).split(',').map(s => s.trim());
+        const roles = (
+            process.env.SPFN_AUTH_ADMIN_ROLES ||  // New prefixed version (recommended)
+            process.env.ADMIN_ROLES ||             // Legacy fallback
+            ''
+        ).split(',').map(s => s.trim());
 
         // Validate lengths match
         if (passwords.length !== emails.length)
         {
-            console.error('[Auth] ❌ ADMIN_EMAILS and ADMIN_PASSWORDS length mismatch');
+            console.error('[Auth] ❌ SPFN_AUTH_ADMIN_EMAILS and SPFN_AUTH_ADMIN_PASSWORDS length mismatch');
             return accounts;
         }
 
@@ -128,11 +144,19 @@ function parseAdminAccounts(): AdminAccountConfig[]
     }
 
     // Method 3: Single account (legacy format)
-    if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD)
+    const adminEmail =
+        process.env.SPFN_AUTH_ADMIN_EMAIL ||  // New prefixed version (recommended)
+        process.env.ADMIN_EMAIL;               // Legacy fallback
+
+    const adminPassword =
+        process.env.SPFN_AUTH_ADMIN_PASSWORD ||  // New prefixed version (recommended)
+        process.env.ADMIN_PASSWORD;               // Legacy fallback
+
+    if (adminEmail && adminPassword)
     {
         accounts.push({
-            email: process.env.ADMIN_EMAIL,
-            password: process.env.ADMIN_PASSWORD,
+            email: adminEmail,
+            password: adminPassword,
             role: 'superadmin',
             passwordChangeRequired: true,
         });
@@ -145,9 +169,9 @@ function parseAdminAccounts(): AdminAccountConfig[]
  * Ensure admin accounts exist from environment variables
  *
  * Supports multiple admin account creation via three formats:
- * 1. JSON format (ADMIN_ACCOUNTS)
- * 2. Comma-separated format (ADMIN_EMAILS + ADMIN_PASSWORDS + ADMIN_ROLES)
- * 3. Single account format (ADMIN_EMAIL + ADMIN_PASSWORD) - legacy
+ * 1. JSON format (SPFN_AUTH_ADMIN_ACCOUNTS)
+ * 2. Comma-separated format (SPFN_AUTH_ADMIN_EMAILS + SPFN_AUTH_ADMIN_PASSWORDS + SPFN_AUTH_ADMIN_ROLES)
+ * 3. Single account format (SPFN_AUTH_ADMIN_EMAIL + SPFN_AUTH_ADMIN_PASSWORD) - legacy
  *
  * Default behavior for created accounts:
  * - emailVerifiedAt: current timestamp (auto-verified)

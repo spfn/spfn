@@ -15,11 +15,15 @@ import { eq, and } from 'drizzle-orm';
  */
 function getVerificationTokenSecret(): string
 {
-    const secret = process.env.VERIFICATION_TOKEN_SECRET || process.env.JWT_SECRET;
+    const secret =
+        process.env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET ||  // New prefixed version (recommended)
+        process.env.VERIFICATION_TOKEN_SECRET ||            // Legacy fallback
+        process.env.SPFN_AUTH_JWT_SECRET ||                 // New JWT secret fallback
+        process.env.JWT_SECRET;                             // Legacy JWT secret fallback
 
     if (!secret || secret.length < 32)
     {
-        throw new Error('VERIFICATION_TOKEN_SECRET must be at least 32 characters long');
+        throw new Error('SPFN_AUTH_VERIFICATION_TOKEN_SECRET must be at least 32 characters long');
     }
 
     return secret;

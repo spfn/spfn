@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
+import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '@/__tests__/helpers/db';
 import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
 import { users, userPublicKeys } from '@/server/entities';
@@ -13,7 +13,10 @@ import { generateKeyPairES256, generateClientToken } from '@/client/lib/crypto';
 import type { ApiResponse, ChangePasswordData } from '@/lib/types/api';
 import app from '../index';
 
-describe('PUT /_auth/password', () =>
+// Check if database is available before running tests
+const dbAvailable = await isDatabaseAvailable();
+
+describe.skipIf(!dbAvailable)('PUT /_auth/password', () =>
 {
     beforeAll(async () =>
     {
