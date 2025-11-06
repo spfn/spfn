@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.84] - 2025-11-06
+
+### Added
+
+#### spfn (CLI)
+
+- **Database Sync Command**: New `spfn db sync` command for environment synchronization
+  - Sync databases between local and remote environments (dev, staging, production)
+  - Automatic backup of target database before sync (mandatory, cannot be skipped)
+  - Production protection requiring explicit `--force` flag for safety
+  - Table filtering support with `--tables` and `--exclude-tables` options
+  - Bidirectional sync with `--pull` flag (reverse direction)
+  - Dry-run mode with `--dry-run` for previewing changes
+  - Environment configuration via `SPFN_DB_*` environment variables
+  - Full replacement strategy for predictable results
+  - See [CLI Reference - Database Sync](/docs/api-reference/cli.md#spfn-db-sync)
+
+#### @spfn/core
+
+- **Event System**: New event-driven architecture with type-safe event emitter
+  - Memory adapter for lightweight in-process events
+  - Type-safe event definitions with TypeScript generics
+  - Support for async event handlers with automatic error handling
+  - `waitFor()` method for promise-based event waiting
+  - `once()` method for one-time event handlers
+  - Automatic cleanup and memory management
+  - Foundation for future distributed event adapters (Redis, NATS)
+  - See [API Reference - Events](/docs/api-reference/events.md)
+
 ## [0.1.0-alpha.83] - 2025-11-06
 
 ### Added
