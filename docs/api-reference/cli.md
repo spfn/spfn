@@ -447,6 +447,231 @@ The following 2 backup(s) will be deleted:
 ? Proceed with deletion? (y/N)
 ```
 
+## spfn db sync
+
+Sync database between environments with automatic backup protection. Perfect for pushing local development data to staging/dev servers, or pulling production data for local debugging.
+
+```bash
+# Sync local → dev server (push)
+spfn db sync dev
+
+# Sync dev server → local (pull)
+spfn db sync dev --pull
+
+# Preview without making changes
+spfn db sync dev --dry-run
+
+# Sync specific tables only
+spfn db sync dev --tables users,posts
+
+# Exclude specific tables
+spfn db sync dev --exclude-tables logs,sessions
+
+# Data-only sync (preserve schema)
+spfn db sync dev --data-only
+
+# Force sync to production (requires confirmation)
+spfn db sync prod --force
+```
+
+### Environment Configuration
+
+Configure sync targets in your `.env` file using the `SPFN_DB_*` prefix:
+
+```bash
+# .env or .env.local
+DATABASE_URL=postgresql://localhost:5432/myapp_local
+
+# Sync targets
+SPFN_DB_DEV=postgresql://user:pass@dev-server:5432/myapp_dev
+SPFN_DB_STAGING=postgresql://user:pass@staging:5432/myapp_staging
+SPFN_DB_PROD=postgresql://user:pass@prod:5432/myapp_prod
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--pull` | Reverse direction: pull from target to local |
+| `--tables <tables>` | Sync only specific tables (comma-separated) |
+| `--exclude-tables <tables>` | Exclude specific tables (comma-separated) |
+| `--data-only` | Sync data only (schema unchanged) |
+| `--schema-only` | Sync schema only (data unchanged) |
+| `--force` | Allow syncing to production-like environments |
+| `--dry-run` | Show sync plan without making changes |
+
+### Sync Process
+
+The sync process has 4 steps with automatic safety measures:
+
+```bash
+spfn db sync dev
+
+🔄 Database sync
+
+📋 Sync Plan:
+
+  Source:  local (myapp_local)
+           42 tables, 156.20 KB
+
+  Target:  dev (myapp_dev)
+           42 tables, 143.15 KB
+
+  ⚠️  Target database will be completely replaced!
+  ℹ️  Target will be backed up before sync
+
+? Sync local → dev? (y/N)
+
+📦 Step 1/4: Creating target backup...
+✅ Backup created successfully
+
+📤 Step 2/4: Dumping source database...
+✓ Source dump created
+
+📥 Step 3/4: Restoring to target database...
+✓ Target restored
+
+🧹 Step 4/4: Cleaning up...
+✓ Temporary files deleted
+
+✅ Sync completed successfully!
+   local → dev
+```
+
+### Safety Features
+
+**Automatic Backup**
+Target database is always backed up before sync (cannot be skipped):
+```bash
+# Backup is created automatically in ./backups
+backups/dev_2025-01-05_143022.dump
+backups/dev_2025-01-05_143022.meta.json
+```
+
+**Production Protection**
+Syncing to production-like environments requires explicit `--force` flag:
+```bash
+# This will be blocked
+spfn db sync prod
+
+# ❌ Cannot sync to production-like environment 'prod' without --force flag
+#    This is a safety measure to prevent accidental data loss
+#    Use --force if you really want to do this
+
+# Must use --force
+spfn db sync prod --force
+```
+
+Environment names containing `prod`, `production`, `live`, or `main` are considered production-like.
+
+**Explicit Confirmation**
+Every sync requires user confirmation after displaying the plan.
+
+**Connection Verification**
+Both source and target connections are tested before starting.
+
+### Common Use Cases
+
+**1. Push Local Changes to Dev**
+```bash
+# After developing locally with test data
+spfn db sync dev
+
+# Dev server now has your local data
+```
+
+**2. Pull Production Data for Debugging**
+```bash
+# Get production data for local debugging
+spfn db sync prod --pull --force
+
+# Or pull without sensitive tables
+spfn db sync prod --pull --force --exclude-tables payment_logs,user_sessions
+```
+
+**3. Clone Environment**
+```bash
+# Copy staging to dev
+SPFN_DB_STAGING=postgresql://staging:5432/db
+spfn db sync dev --from staging
+```
+
+**4. Partial Sync**
+```bash
+# Sync only specific tables (e.g., product catalog)
+spfn db sync dev --tables products,categories,brands
+
+# Sync everything except logs
+spfn db sync dev --exclude-tables access_logs,error_logs,audit_logs
+```
+
+**5. Preview Changes**
+```bash
+# See what would happen without actually doing it
+spfn db sync dev --dry-run
+
+# ✅ Dry run complete (no changes made)
+```
+
+### Recovery
+
+If sync fails or produces unexpected results, restore from the automatic backup:
+
+```bash
+# List recent backups
+spfn db backup:list
+
+# Restore from pre-sync backup
+spfn db restore backups/dev_2025-01-05_143022.dump
+```
+
+### Workflow Examples
+
+**Development Workflow**
+```bash
+# 1. Develop locally with test data
+npm run dev
+
+# 2. Create some test users, posts, etc.
+# ...
+
+# 3. Push to dev server for team testing
+spfn db sync dev
+
+# 4. Team tests features on dev server with your data
+```
+
+**Debugging Production Issues**
+```bash
+# 1. Pull production data (excluding sensitive tables)
+spfn db sync prod --pull --force \
+  --exclude-tables user_passwords,payment_methods,sessions
+
+# 2. Debug locally with production-like data
+npm run dev
+
+# 3. Fix issue and test with real data
+```
+
+**Setting Up New Environment**
+```bash
+# Clone staging to new preview environment
+SPFN_DB_PREVIEW=postgresql://preview:5432/db
+spfn db sync preview --from staging
+
+# Or from local snapshot
+spfn db backup --tag "seed-data"
+spfn db restore backups/seed_data.dump
+```
+
+> **⚠️ Important:** Full Replacement
+>
+> Sync performs a **complete replacement** of the target database. All existing data in the target will be deleted and replaced with source data. Always review the sync plan before confirming.
+
+> **💡 Tip:** Table Filtering
+>
+> Use `--exclude-tables` to skip large or sensitive tables like logs, sessions, or analytics data for faster syncs.
+
 ## spfn db drop
 
 Drop all tables in the database. **Use with extreme caution.**
@@ -610,6 +835,7 @@ Recommended scripts for your `package.json`:
     "db:studio": "spfn db studio",
     "db:backup": "spfn db backup",
     "db:restore": "spfn db restore",
+    "db:sync": "spfn db sync",
     "codegen": "spfn codegen"
   }
 }

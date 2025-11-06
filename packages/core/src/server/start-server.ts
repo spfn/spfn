@@ -221,11 +221,13 @@ function startHttpServer(app: any, host: string, port: number): any
 {
     serverLogger.debug(`Starting server on ${host}:${port}...`);
 
-    return serve({
+    const server = serve({
         fetch: app.fetch,
         port,
         hostname: host,
     });
+
+    return server;
 }
 
 function logServerTimeouts(timeouts: {
@@ -365,7 +367,22 @@ function registerShutdownHandlers(shutdown: (signal: string) => Promise<void>): 
 
     process.on('uncaughtException', (error) =>
     {
-        serverLogger.error('Uncaught exception', error);
+        // Enhanced logging for EADDRINUSE errors
+        if (error.message?.includes('EADDRINUSE'))
+        {
+            serverLogger.error('Port conflict detected - detailed trace:', {
+                error: error.message,
+                stack: error.stack,
+                code: (error as any).code,
+                port: (error as any).port,
+                address: (error as any).address,
+                syscall: (error as any).syscall,
+            });
+        }
+        else
+        {
+            serverLogger.error('Uncaught exception', error);
+        }
         shutdown('UNCAUGHT_EXCEPTION');
     });
 

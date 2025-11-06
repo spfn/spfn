@@ -15,6 +15,7 @@ export default defineConfig({
         'codegen/generators/index': 'src/codegen/generators/index.ts',
         'env/index': 'src/env/index.ts',
         'logger/index': 'src/logger/index.ts',
+        'events/index': 'src/events/index.ts',
     },
     format: ['esm'],
     dts: true,
