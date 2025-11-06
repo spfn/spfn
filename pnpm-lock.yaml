@@ -97,8 +97,8 @@ importers:
         specifier: ^0.34.0
         version: 0.34.41
       '@spfn/core':
-        specifier: workspace:*
-        version: link:../../packages/core
+        specifier: ^0.1.0-alpha.84
+        version: 0.1.0-alpha.84(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)
       '@tabler/icons-react':
         specifier: ^3.35.0
         version: 3.35.0(react@19.2.0)
@@ -145,8 +145,8 @@ importers:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       spfn:
-        specifier: workspace:*
-        version: link:../../packages/cli
+        specifier: ^0.1.0-alpha.84
+        version: 0.1.0-alpha.84(@types/pg@8.15.6)(gel@2.1.1)(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.3.1
@@ -3287,6 +3287,10 @@ packages:
     resolution: {integrity: sha512-ccfr+/StWscYwoAUSWWY7t7icvPkVeHVHRAel+oMkryA3se4aVNx69F+p15KPRf5VQaxe0jnIc2NoU62h5YSfQ==}
     engines: {node: '>=18.18.0'}
 
+  '@spfn/core@0.1.0-alpha.84':
+    resolution: {integrity: sha512-iXZjBHkVsNw0Qa4aSs/RmfOmco++DiibTUvq2IxGab3hcOOILswaC7l0PYINrq4PV+FB8T4o7Bat/4iScA38ow==}
+    engines: {node: '>=18.18.0'}
+
   '@standard-schema/spec@1.0.0':
     resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
 
@@ -6232,6 +6236,16 @@ packages:
 
   space-separated-tokens@2.0.2:
     resolution: {integrity: sha512-PEGlAwrG8yXGXRjW32fGbg66JAlOAwbObuqVoJpv/mRgoWDQfgH1wDPvtzWyUSNAXBGSk8h755YDbbcEy3SH2Q==}
+
+  spfn@0.1.0-alpha.84:
+    resolution: {integrity: sha512-X/p5cGxEueXmNUPhaDVxsTt6vtsgK/unvPiwLuMxLLwih8+LvAxa8MZBfgbH/2CPPwnww/4IcM+cWfIpy3Rv+Q==}
+    engines: {node: '>=18.18.0'}
+    hasBin: true
+    peerDependencies:
+      typescript: ^5.3.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   split2@4.2.0:
     resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
@@ -10034,6 +10048,54 @@ snapshots:
       - sqlite3
       - supports-color
 
+  '@spfn/core@0.1.0-alpha.84(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)':
+    dependencies:
+      '@hono/node-server': 1.19.5(hono@4.9.9)
+      '@sinclair/typebox': 0.34.41
+      chalk: 5.6.2
+      chokidar: 4.0.3
+      dotenv: 17.2.3
+      drizzle-orm: 0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+      drizzle-typebox: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
+      hono: 4.9.9
+      jiti: 2.6.1
+      micromatch: 4.0.8
+      postgres: 3.4.7
+      typescript: 5.9.3
+      zod: 4.1.11
+    optionalDependencies:
+      ioredis: 5.8.2
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@cloudflare/workers-types'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opentelemetry/api'
+      - '@planetscale/database'
+      - '@prisma/client'
+      - '@tidbcloud/serverless'
+      - '@types/better-sqlite3'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - better-sqlite3
+      - bun-types
+      - expo-sqlite
+      - gel
+      - knex
+      - kysely
+      - mysql2
+      - pg
+      - prisma
+      - sql.js
+      - sqlite3
+      - supports-color
+
   '@standard-schema/spec@1.0.0': {}
 
   '@standard-schema/utils@0.3.0': {}
@@ -13463,6 +13525,58 @@ snapshots:
   space-separated-tokens@1.1.5: {}
 
   space-separated-tokens@2.0.2: {}
+
+  spfn@0.1.0-alpha.84(@types/pg@8.15.6)(gel@2.1.1)(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3):
+    dependencies:
+      '@spfn/core': 0.1.0-alpha.84(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)
+      chalk: 5.6.2
+      commander: 11.1.0
+      drizzle-orm: 0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+      execa: 8.0.1
+      fs-extra: 11.3.2
+      ora: 7.0.1
+      pg: 8.16.3
+      postgres: 3.4.7
+      prompts: 2.4.2
+      tsup: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
+    optionalDependencies:
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@cloudflare/workers-types'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@microsoft/api-extractor'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opentelemetry/api'
+      - '@planetscale/database'
+      - '@prisma/client'
+      - '@swc/core'
+      - '@tidbcloud/serverless'
+      - '@types/better-sqlite3'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - better-sqlite3
+      - bun-types
+      - expo-sqlite
+      - gel
+      - jiti
+      - knex
+      - kysely
+      - mysql2
+      - pg-native
+      - postcss
+      - prisma
+      - sql.js
+      - sqlite3
+      - supports-color
+      - tsx
+      - yaml
 
   split2@4.2.0: {}
 
