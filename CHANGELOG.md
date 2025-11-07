@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [@spfn/auth@0.1.0-alpha.1] - 2025-11-07
+
+### Added
+
+#### @spfn/auth
+
+- **Invitation System**: New invitation-based user registration system
+  - Create invitations with expiry dates and usage limits
+  - Accept invitations to create accounts
+  - List and manage invitations
+  - Support for role assignment via invitations
+  - See [Auth Package Documentation](/packages/auth/README.md#invitation-system)
+
+- **Plugin System Support**: Package now exports plugin configuration
+  - Auto-discovery of routes via SPFN plugin system
+  - Automatic database schema registration
+  - Configurable route prefix and base path
+
+### Changed
+
+#### @spfn/auth
+
+- **Environment Variables**: Updated to use `SPFN_AUTH_*` prefix for better namespacing
+  - `SPFN_AUTH_JWT_SECRET` (was `JWT_SECRET`)
+  - `SPFN_AUTH_JWT_EXPIRES_IN` (was `JWT_EXPIRES_IN`)
+  - `SPFN_AUTH_VERIFICATION_TOKEN_SECRET` (was `VERIFICATION_TOKEN_SECRET`)
+  - `SPFN_AUTH_BCRYPT_SALT_ROUNDS` (was `BCRYPT_SALT_ROUNDS`)
+  - `SPFN_AUTH_SESSION_SECRET` (was `SESSION_SECRET`)
+  - `SPFN_AUTH_ADMIN_ACCOUNTS` (was `ADMIN_ACCOUNTS`)
+  - Legacy variable names still supported for backward compatibility
+  - See [Environment Variables Documentation](/packages/auth/README.md#environment-variables)
+
+- **Routes Structure**: Reorganized routes into modular structure
+  - `/auth/*` routes for authentication operations
+  - `/invitations/*` routes for invitation management
+  - Better separation of concerns and maintainability
+
 ## [0.1.0-alpha.84] - 2025-11-06
 
 ### Added

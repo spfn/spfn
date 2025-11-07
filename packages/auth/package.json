@@ -1,6 +1,6 @@
 {
   "name": "@spfn/auth",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "type": "module",
   "description": "Authentication, authorization, and RBAC module for SPFN",
   "main": "./dist/index.js",
@@ -67,7 +67,7 @@
     "setupMessage": "  📚 Next steps:\n    1. Import auth: import { authMiddleware } from '@spfn/auth/server'\n    2. View tables: pnpm spfn db studio\n    3. API at: http://localhost:8790/_auth"
   },
   "dependencies": {
-    "@spfn/core": "^0.1.0-alpha.82",
+    "@spfn/core": "workspace:*",
     "bcrypt": "^6.0.0",
     "drizzle-orm": "^0.44.7",
     "jsonwebtoken": "^9.0.2",
