@@ -40,6 +40,7 @@ export default defineConfig({
         index: 'src/index.ts',
         server: 'src/server.ts',
         client: 'src/client.ts',
+        plugin: 'src/plugin.ts',
         ...entityEntries,
         ...contractEntries,
         ...routeEntries,
