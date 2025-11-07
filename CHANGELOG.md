@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [0.1.0-alpha.85] - 2025-11-07
+
+### Added
+
+#### @spfn/core
+
+- **Plugin System**: New plugin discovery system for automatic package initialization
+  - Auto-discovers `plugin.ts` files from `@spfn/*` packages in node_modules
+  - `ServerPlugin` interface with lifecycle hooks (afterInfrastructure, beforeRoutes, afterRoutes, afterStart, beforeShutdown)
+  - Plugins can automatically initialize services, mount routes, and hook into server lifecycle
+  - Enables packages like `@spfn/auth` to self-configure without manual setup
+  - See [API Reference - Server Plugins](/docs/api-reference/server.md#plugins)
+
 ## [@spfn/auth@0.1.0-alpha.1] - 2025-11-07
 
 ### Added

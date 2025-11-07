@@ -13,8 +13,9 @@ import { loadRoutes } from '../route';
 import { ErrorHandler, RequestLogger } from '../middleware';
 import { logger } from '../logger';
 import { createHealthCheckHandler } from './helpers.js';
+import { executePluginHooks } from './plugin-discovery.js';
 
-import type { ServerConfig, AppFactory } from './types.js';
+import type { ServerConfig, AppFactory, ServerPlugin } from './types.js';
 
 // Extend Hono context with error handler flag
 declare module 'hono'
@@ -35,7 +36,7 @@ const serverLogger = logger.child('server');
  * 2. server.config.ts -> Partial customization
  * 3. app.ts -> Full control (no auto config)
  */
-export async function createServer(config?: ServerConfig): Promise<Hono>
+export async function createServer(config?: ServerConfig, plugins: ServerPlugin[] = []): Promise<Hono>
 {
     const cwd = process.cwd();
     const appPath = join(cwd, 'src', 'server', 'app.ts');
@@ -44,17 +45,18 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
     // Level 3: Full control with app.ts
     if (existsSync(appPath) || existsSync(appJsPath))
     {
-        return await loadCustomApp(appPath, appJsPath, config);
+        return await loadCustomApp(appPath, appJsPath, config, plugins);
     }
 
     // Level 1 & 2: Auto config
-    return await createAutoConfiguredApp(config);
+    return await createAutoConfiguredApp(config, plugins);
 }
 
 async function loadCustomApp(
     appPath: string,
     appJsPath: string,
-    config?: ServerConfig
+    config?: ServerConfig,
+    plugins: ServerPlugin[] = []
 ): Promise<Hono>
 {
     const appModule = await import(existsSync(appPath) ? appPath : appJsPath);
@@ -67,14 +69,20 @@ async function loadCustomApp(
 
     const app = await appFactory();
 
+    // Execute beforeRoutes hooks from plugins
+    await executePluginHooks(plugins, 'beforeRoutes', app);
+
     // Only load routes, everything else is user's responsibility
     const debug = config?.debug ?? process.env.NODE_ENV === 'development';
     await loadRoutes(app, { routesDir: config?.routesPath, debug });
 
+    // Execute afterRoutes hooks from plugins
+    await executePluginHooks(plugins, 'afterRoutes', app);
+
     return app;
 }
 
-async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
+async function createAutoConfiguredApp(config?: ServerConfig, plugins: ServerPlugin[] = []): Promise<Hono>
 {
     const app = new Hono();
 
@@ -102,16 +110,22 @@ async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
     // 4. Health check endpoint
     registerHealthCheckEndpoint(app, config);
 
-    // 5. beforeRoutes hook
+    // 5. beforeRoutes hook from config
     await executeBeforeRoutesHook(app, config);
 
-    // 6. Load routes
+    // 6. beforeRoutes hooks from plugins
+    await executePluginHooks(plugins, 'beforeRoutes', app);
+
+    // 7. Load routes
     await loadAppRoutes(app, config);
 
-    // 7. afterRoutes hook
+    // 8. afterRoutes hook from config
     await executeAfterRoutesHook(app, config);
 
-    // 8. Error handler
+    // 9. afterRoutes hooks from plugins
+    await executePluginHooks(plugins, 'afterRoutes', app);
+
+    // 10. Error handler
     if (enableErrorHandler)
     {
         app.onError(ErrorHandler());

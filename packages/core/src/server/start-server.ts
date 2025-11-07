@@ -15,6 +15,7 @@ import { logger } from '../logger';
 import { printBanner } from './banner.js';
 import { validateServerConfig } from './validation.js';
 import { createServer } from './create-server.js';
+import { discoverPlugins, executePluginHooks } from './plugin-discovery.js';
 import {
     applyServerTimeouts,
     getTimeoutConfig,
@@ -23,7 +24,7 @@ import {
     buildStartupConfig,
 } from './helpers.js';
 
-import type { ServerConfig, ServerInstance } from './types.js';
+import type { ServerConfig, ServerInstance, ServerPlugin } from './types.js';
 
 const serverLogger = logger.child('server');
 
@@ -48,11 +49,23 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
         logMiddlewareOrder(finalConfig);
     }
 
+    // Discover plugins from installed packages
+    serverLogger.debug('Discovering plugins...');
+    const plugins = await discoverPlugins();
+
+    if (plugins.length > 0)
+    {
+        serverLogger.info('Plugins discovered', {
+            count: plugins.length,
+            plugins: plugins.map(p => p.name),
+        });
+    }
+
     try
     {
-        await initializeInfrastructure(finalConfig);
+        await initializeInfrastructure(finalConfig, plugins);
 
-        const app = await createServer(finalConfig);
+        const app = await createServer(finalConfig, plugins);
         const server = startHttpServer(app, host!, port!);
 
         const timeouts = getTimeoutConfig(finalConfig.timeout);
@@ -67,7 +80,7 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
 
         logServerStarted(debug, host!, port!, finalConfig, timeouts);
 
-        const shutdownServer = createShutdownHandler(server as Server, finalConfig);
+        const shutdownServer = createShutdownHandler(server as Server, finalConfig, plugins);
         const shutdown = createGracefulShutdown(shutdownServer, finalConfig);
 
         registerShutdownHandlers(shutdown);
@@ -83,7 +96,7 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
             },
         };
 
-        // Execute afterStart hook
+        // Execute afterStart hook from config
         if (finalConfig.lifecycle?.afterStart)
         {
             serverLogger.debug('Executing afterStart hook...');
@@ -98,6 +111,9 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
                 // Just log the error and continue
             }
         }
+
+        // Execute afterStart hooks from plugins
+        await executePluginHooks(plugins, 'afterStart', serverInstance);
 
         return serverInstance;
     }
@@ -160,7 +176,7 @@ function logMiddlewareOrder(config: ServerConfig): void
     });
 }
 
-async function initializeInfrastructure(config: ServerConfig): Promise<void>
+async function initializeInfrastructure(config: ServerConfig, plugins: ServerPlugin[]): Promise<void>
 {
     // Execute beforeInfrastructure hook
     if (config.lifecycle?.beforeInfrastructure)
@@ -201,7 +217,7 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
         serverLogger.debug('Redis initialization disabled');
     }
 
-    // Execute afterInfrastructure hook
+    // Execute afterInfrastructure hook from config
     if (config.lifecycle?.afterInfrastructure)
     {
         serverLogger.debug('Executing afterInfrastructure hook...');
@@ -215,6 +231,9 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
             throw new Error('Server initialization failed in afterInfrastructure hook');
         }
     }
+
+    // Execute afterInfrastructure hooks from plugins
+    await executePluginHooks(plugins, 'afterInfrastructure');
 }
 
 function startHttpServer(app: any, host: string, port: number): any
@@ -261,7 +280,7 @@ function logServerStarted(
     });
 }
 
-function createShutdownHandler(server: Server, config: ServerConfig): () => Promise<void>
+function createShutdownHandler(server: Server, config: ServerConfig, plugins: ServerPlugin[]): () => Promise<void>
 {
     return async () =>
     {
@@ -275,7 +294,7 @@ function createShutdownHandler(server: Server, config: ServerConfig): () => Prom
             });
         });
 
-        // Execute beforeShutdown hook
+        // Execute beforeShutdown hook from config
         if (config.lifecycle?.beforeShutdown)
         {
             serverLogger.debug('Executing beforeShutdown hook...');
@@ -288,6 +307,17 @@ function createShutdownHandler(server: Server, config: ServerConfig): () => Prom
                 serverLogger.error('beforeShutdown hook failed', error as Error);
                 // Continue with shutdown even if hook fails
             }
+        }
+
+        // Execute beforeShutdown hooks from plugins
+        try
+        {
+            await executePluginHooks(plugins, 'beforeShutdown');
+        }
+        catch (error)
+        {
+            serverLogger.error('Plugin beforeShutdown hooks failed', error as Error);
+            // Continue with shutdown even if plugin hooks fail
         }
 
         // Only close resources that were enabled for initialization
@@ -383,7 +413,11 @@ function registerShutdownHandlers(shutdown: (signal: string) => Promise<void>): 
         {
             serverLogger.error('Uncaught exception', error);
         }
-        shutdown('UNCAUGHT_EXCEPTION');
+
+        // In watch mode, exit immediately to allow clean restart
+        // Graceful shutdown takes too long and can cause port conflicts
+        serverLogger.info('Exiting immediately for clean restart');
+        process.exit(1);
     });
 
     process.on('unhandledRejection', (reason, promise) =>
@@ -392,7 +426,10 @@ function registerShutdownHandlers(shutdown: (signal: string) => Promise<void>): 
             reason,
             promise,
         });
-        shutdown('UNHANDLED_REJECTION');
+
+        // In watch mode, exit immediately to allow clean restart
+        serverLogger.info('Exiting immediately for clean restart');
+        process.exit(1);
     });
 }
 

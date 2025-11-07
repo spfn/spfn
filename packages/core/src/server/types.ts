@@ -8,6 +8,64 @@ import type { serve } from '@hono/node-server';
 type CorsConfig = Parameters<typeof cors>[0];
 
 /**
+ * SPFN Plugin Interface
+ *
+ * Allows packages to automatically hook into server lifecycle
+ * Plugins are auto-discovered from @spfn/* packages in node_modules
+ *
+ * @example
+ * ```typescript
+ * // packages/auth/src/plugin.ts
+ * export const spfnPlugin: ServerPlugin = {
+ *   name: '@spfn/auth',
+ *   afterInfrastructure: async () => {
+ *     await initializeAuth();
+ *   },
+ *   beforeRoutes: async (app) => {
+ *     app.route('/_auth', authRoutes);
+ *   }
+ * };
+ * ```
+ */
+export interface ServerPlugin
+{
+    /**
+     * Plugin name (should match package name)
+     */
+    name: string;
+
+    /**
+     * Hook: Run after infrastructure (DB/Redis) initialization
+     * Use for: migrations, seeding, RBAC setup
+     */
+    afterInfrastructure?: () => Promise<void>;
+
+    /**
+     * Hook: Run before routes are loaded
+     * Use for: mounting plugin routes, adding middleware
+     */
+    beforeRoutes?: (app: Hono) => Promise<void>;
+
+    /**
+     * Hook: Run after all routes are loaded
+     * Use for: final setup, fallback handlers
+     */
+    afterRoutes?: (app: Hono) => Promise<void>;
+
+    /**
+     * Hook: Run after server starts successfully
+     * Use for: notifications, health checks
+     */
+    afterStart?: (instance: ServerInstance) => Promise<void>;
+
+    /**
+     * Hook: Run before graceful shutdown
+     * Use for: cleanup plugin resources
+     */
+    beforeShutdown?: () => Promise<void>;
+}
+
+/**
  * Server Configuration Options
  *
  * Level 2: Partial customization with server.config.ts
