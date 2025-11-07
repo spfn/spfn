@@ -1,7 +1,8 @@
 import { Command } from 'commander';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { execa } from 'execa';
+import { execa, type ExecaChildProcess } from 'execa';
+import chokidar from 'chokidar';
 import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
 
@@ -59,7 +60,7 @@ export const devCommand = new Command('dev')
 const { loadEnvironment } = await import('@spfn/core/env');
 loadEnvironment({ debug: true });
 
-// Now import server (logger singleton will be created with correct NODE_ENV)
+// Import and start server
 const { startServer } = await import('@spfn/core/server');
 
 await startServer({
@@ -94,16 +95,19 @@ const orchestrator = new CodegenOrchestrator({
 });
 
 // Setup graceful shutdown
-const cleanup = async () => {
+const cleanup = async () =>
+{
     await orchestrator.close();
     await closeDatabase();
 };
 
-process.on('SIGTERM', async () => {
+process.on('SIGTERM', async () =>
+{
     await cleanup();
     process.exit(0);
 });
-process.on('SIGINT', async () => {
+process.on('SIGINT', async () =>
+{
     await cleanup();
     process.exit(0);
 });
@@ -122,74 +126,298 @@ await new Promise(() => {});
             const watchMode = options.watch !== false;
             logger.info(`Starting SPFN Server on http://${options.host}:${options.port}${watchMode ? ' (watch mode)' : ''}\n`);
 
-            try
-            {
-                const tsxCmd = watchMode ? 'tsx --watch' : 'tsx';
-                const serverCmd = pm === 'npm' ? `npx ${tsxCmd} ${serverEntry}` : `${pm} exec ${tsxCmd} ${serverEntry}`;
-                const watcherCmd = pm === 'npm' ? `npx tsx ${watcherEntry}` : `${pm} exec tsx ${watcherEntry}`;
+            let serverProcess: ExecaChildProcess | null = null;
+            let watcherProcess: ExecaChildProcess | null = null;
+            let isRestarting = false;
 
-                await execa(pm === 'npm' ? 'npx' : pm,
-                    pm === 'npm'
-                        ? ['concurrently', '--raw', '--kill-others', `"${serverCmd}"`, `"${watcherCmd}"`]
-                        : ['exec', 'concurrently', '--raw', '--kill-others', `"${serverCmd}"`, `"${watcherCmd}"`],
-                    {
-                        stdio: 'inherit',
-                        cwd,
-                        shell: true,
-                    }
-                );
-            }
-            catch (error)
+            // Start codegen watcher
+            const startWatcher = () =>
             {
-                // Concurrently was killed by user (Ctrl+C), this is expected
-                const execError = error as { exitCode?: number };
-                if (execError.exitCode === 130)
+                const watcherCmd = pm === 'npm' ? 'npx' : pm;
+                const watcherArgs = pm === 'npm'
+                    ? ['tsx', watcherEntry]
+                    : ['exec', 'tsx', watcherEntry];
+
+                watcherProcess = execa(watcherCmd, watcherArgs, {
+                    cwd,
+                    stdio: 'inherit',
+                    reject: false,
+                });
+
+                watcherProcess.then((result) =>
                 {
-                    process.exit(0);
+                    if (result.exitCode !== 0 && result.exitCode !== 130)
+                    {
+                        logger.error(`Codegen watcher exited with code ${result.exitCode}`);
+                        process.exit(1);
+                    }
+                });
+            };
+
+            // Start server process
+            const startServer = () =>
+            {
+                const serverCmd = pm === 'npm' ? 'npx' : pm;
+                const serverArgs = pm === 'npm'
+                    ? ['tsx', serverEntry]
+                    : ['exec', 'tsx', serverEntry];
+
+                serverProcess = execa(serverCmd, serverArgs, {
+                    cwd,
+                    stdio: 'inherit',
+                    reject: false,
+                });
+
+                // Don't await or catch - let it run independently
+            };
+
+            // Restart server
+            const restartServer = async () =>
+            {
+                if (isRestarting) return;
+                isRestarting = true;
+
+                logger.info('[SPFN] File changed, restarting server...');
+
+                if (serverProcess)
+                {
+                    try
+                    {
+                        serverProcess.kill('SIGTERM');
+                        await serverProcess.catch(() => {});
+                        // Wait for port to be released
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    catch (error)
+                    {
+                        // Ignore errors during kill
+                    }
                 }
 
-                logger.error(`Failed to start server: ${error}`);
-                process.exit(1);
+                startServer();
+                isRestarting = false;
+            };
+
+            // Setup file watcher for server files
+            if (watchMode)
+            {
+                const watcher = chokidar.watch(serverDir, {
+                    ignored: /(^|[\/\\])\../, // ignore dotfiles
+                    persistent: true,
+                    ignoreInitial: true,
+                    awaitWriteFinish: {
+                        stabilityThreshold: 100,
+                        pollInterval: 50,
+                    },
+                });
+
+                watcher.on('change', (path) =>
+                {
+                    logger.info(`[SPFN] Changed: ${path.replace(cwd + '/', '')}`);
+                    restartServer();
+                });
+
+                watcher.on('add', (path) =>
+                {
+                    logger.info(`[SPFN] Added: ${path.replace(cwd + '/', '')}`);
+                    restartServer();
+                });
+
+                watcher.on('unlink', (path) =>
+                {
+                    logger.info(`[SPFN] Removed: ${path.replace(cwd + '/', '')}`);
+                    restartServer();
+                });
             }
+
+            // Cleanup on exit
+            const cleanup = async () =>
+            {
+                if (serverProcess)
+                {
+                    serverProcess.kill('SIGTERM');
+                }
+                if (watcherProcess)
+                {
+                    watcherProcess.kill('SIGTERM');
+                }
+                process.exit(0);
+            };
+
+            process.on('SIGINT', cleanup);
+            process.on('SIGTERM', cleanup);
+
+            // Start both processes
+            startWatcher();
+            startServer();
+
+            // Keep process alive - let cleanup handlers manage exit
+            await new Promise(() => {});
 
             return;
         }
 
         // Run both Next.js (via spfn:next script) + Hono server + Contract watcher
         const watchMode = options.watch !== false;
-        const nextCmd = pm === 'npm' ? 'npm run spfn:next' : `${pm} run spfn:next`;
-        const tsxCmd = watchMode ? 'tsx --watch' : 'tsx';
-        const serverCmd = pm === 'npm' ? `npx ${tsxCmd} ${serverEntry}` : `${pm} exec ${tsxCmd} ${serverEntry}`;
-        const watcherCmd = pm === 'npm' ? `npx tsx ${watcherEntry}` : `${pm} exec tsx ${watcherEntry}`;
-
-        // Delay Next.js start to let server start first
-        const delayedNextCmd = `sleep 2 && ${nextCmd}`;
-
         logger.info(`Starting SPFN server + Next.js (Turbopack)${watchMode ? ' (watch mode)' : ''}...\n`);
 
-        try
+        let serverProcess: ExecaChildProcess | null = null;
+        let watcherProcess: ExecaChildProcess | null = null;
+        let nextProcess: ExecaChildProcess | null = null;
+        let isRestarting = false;
+
+        // Start codegen watcher
+        const startWatcher = () =>
         {
-            await execa(pm === 'npm' ? 'npx' : pm,
-                pm === 'npm'
-                    ? ['concurrently', '--raw', '--kill-others', `"${serverCmd}"`, `"${watcherCmd}"`, `"${delayedNextCmd}"`]
-                    : ['exec', 'concurrently', '--raw', '--kill-others', `"${serverCmd}"`, `"${watcherCmd}"`, `"${delayedNextCmd}"`],
-                {
-                    stdio: 'inherit',
-                    cwd,
-                    shell: true,
-                }
-            );
-        }
-        catch (error)
-        {
-            // Concurrently was killed by user (Ctrl+C), this is expected
-            const execError = error as { exitCode?: number };
-            if (execError.exitCode === 130)
+            const watcherCmd = pm === 'npm' ? 'npx' : pm;
+            const watcherArgs = pm === 'npm'
+                ? ['tsx', watcherEntry]
+                : ['exec', 'tsx', watcherEntry];
+
+            watcherProcess = execa(watcherCmd, watcherArgs, {
+                cwd,
+                stdio: 'inherit',
+                reject: false,
+            });
+
+            watcherProcess.then((result) =>
             {
-                process.exit(0);
+                if (result.exitCode !== 0 && result.exitCode !== 130)
+                {
+                    logger.error(`Codegen watcher exited with code ${result.exitCode}`);
+                    process.exit(1);
+                }
+            });
+        };
+
+        // Start Next.js
+        const startNext = () =>
+        {
+            const nextCmd = pm === 'npm' ? 'npm' : pm;
+            const nextArgs = pm === 'npm'
+                ? ['run', 'spfn:next']
+                : ['run', 'spfn:next'];
+
+            nextProcess = execa(nextCmd, nextArgs, {
+                cwd,
+                stdio: 'inherit',
+                reject: false,
+            });
+
+            nextProcess.then((result) =>
+            {
+                if (result.exitCode !== 0 && result.exitCode !== 130)
+                {
+                    logger.error(`Next.js exited with code ${result.exitCode}`);
+                    process.exit(1);
+                }
+            });
+        };
+
+        // Start server process
+        const startServer = () =>
+        {
+            const serverCmd = pm === 'npm' ? 'npx' : pm;
+            const serverArgs = pm === 'npm'
+                ? ['tsx', serverEntry]
+                : ['exec', 'tsx', serverEntry];
+
+            serverProcess = execa(serverCmd, serverArgs, {
+                cwd,
+                stdio: 'inherit',
+                reject: false,
+            });
+
+            // Don't await or catch - let it run independently
+        };
+
+        // Restart server
+        const restartServer = async () =>
+        {
+            if (isRestarting) return;
+            isRestarting = true;
+
+            logger.info('[SPFN] File changed, restarting server...');
+
+            if (serverProcess)
+            {
+                try
+                {
+                    serverProcess.kill('SIGTERM');
+                    await serverProcess.catch(() => {});
+                    // Wait for port to be released
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                catch (error)
+                {
+                    // Ignore errors during kill
+                }
             }
 
-            logger.error(`Failed to start development servers: ${error}`);
-            process.exit(1);
+            startServer();
+            isRestarting = false;
+        };
+
+        // Setup file watcher for server files
+        if (watchMode)
+        {
+            const watcher = chokidar.watch(serverDir, {
+                ignored: /(^|[\/\\])\../, // ignore dotfiles
+                persistent: true,
+                ignoreInitial: true,
+                awaitWriteFinish: {
+                    stabilityThreshold: 100,
+                    pollInterval: 50,
+                },
+            });
+
+            watcher.on('change', (path) =>
+            {
+                logger.info(`[SPFN] Changed: ${path.replace(cwd + '/', '')}`);
+                restartServer();
+            });
+
+            watcher.on('add', (path) =>
+            {
+                logger.info(`[SPFN] Added: ${path.replace(cwd + '/', '')}`);
+                restartServer();
+            });
+
+            watcher.on('unlink', (path) =>
+            {
+                logger.info(`[SPFN] Removed: ${path.replace(cwd + '/', '')}`);
+                restartServer();
+            });
         }
+
+        // Cleanup on exit
+        const cleanup = async () =>
+        {
+            if (serverProcess)
+            {
+                serverProcess.kill('SIGTERM');
+            }
+            if (watcherProcess)
+            {
+                watcherProcess.kill('SIGTERM');
+            }
+            if (nextProcess)
+            {
+                nextProcess.kill('SIGTERM');
+            }
+            process.exit(0);
+        };
+
+        process.on('SIGINT', cleanup);
+        process.on('SIGTERM', cleanup);
+
+        // Start all processes
+        startWatcher();
+        startServer();
+        // Delay Next.js start to let server start first
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        startNext();
+
+        // Keep process alive - let cleanup handlers manage exit
+        await new Promise(() => {});
     });

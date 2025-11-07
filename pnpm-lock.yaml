@@ -99,9 +99,6 @@ importers:
       '@sinclair/typebox':
         specifier: ^0.34.0
         version: 0.34.41
-      '@spfn/auth':
-        specifier: alpha
-        version: 0.1.0-alpha.0(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)
       '@spfn/core':
         specifier: alpha
         version: 0.1.0-alpha.84(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)
@@ -757,6 +754,9 @@ importers:
       chalk:
         specifier: ^5.3.0
         version: 5.6.2
+      chokidar:
+        specifier: ^4.0.3
+        version: 4.0.3
       commander:
         specifier: ^11.1.0
         version: 11.1.0
@@ -3382,9 +3382,6 @@ packages:
   '@smithy/uuid@1.1.0':
     resolution: {integrity: sha512-4aUIteuyxtBUhVdiQqcDhKFitwfd9hqoSDYY2KRXiWtgoWJ9Bmise+KfEPDiVHWeJepvF8xJO9/9+WDIciMFFw==}
     engines: {node: '>=18.0.0'}
-
-  '@spfn/auth@0.1.0-alpha.0':
-    resolution: {integrity: sha512-iReIrUlGRDAkmGe28/qpwO4i+eCl4XthtaZLvU6x6XPJfSmIfrJPVsgP1AtYUWnPXvtRTIq6Nr8Z4HBfjUvrhA==}
 
   '@spfn/cms@0.1.0-alpha.84':
     resolution: {integrity: sha512-dm/ps68rTf+LkW8C7aXNy1ZG1ZcCgIt5r0UC477WOCh3kPWba1ot1QQqX4uOhQGFUTuc0iZxvYD9Y9XMhr790g==}
@@ -10380,44 +10377,6 @@ snapshots:
   '@smithy/uuid@1.1.0':
     dependencies:
       tslib: 2.8.1
-
-  '@spfn/auth@0.1.0-alpha.0(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)':
-    dependencies:
-      '@spfn/core': 0.1.0-alpha.84(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)
-      bcrypt: 6.0.0
-      drizzle-orm: 0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
-      jsonwebtoken: 9.0.2
-      postgres: 3.4.7
-    transitivePeerDependencies:
-      - '@aws-sdk/client-rds-data'
-      - '@cloudflare/workers-types'
-      - '@electric-sql/pglite'
-      - '@libsql/client'
-      - '@libsql/client-wasm'
-      - '@neondatabase/serverless'
-      - '@op-engineering/op-sqlite'
-      - '@opentelemetry/api'
-      - '@planetscale/database'
-      - '@prisma/client'
-      - '@tidbcloud/serverless'
-      - '@types/better-sqlite3'
-      - '@types/pg'
-      - '@types/sql.js'
-      - '@upstash/redis'
-      - '@vercel/postgres'
-      - '@xata.io/client'
-      - better-sqlite3
-      - bun-types
-      - expo-sqlite
-      - gel
-      - knex
-      - kysely
-      - mysql2
-      - pg
-      - prisma
-      - sql.js
-      - sqlite3
-      - supports-color
 
   '@spfn/cms@0.1.0-alpha.84(@spfn/core@0.1.0-alpha.84(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3))(@types/react@19.2.2)(drizzle-orm@0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))(immer@10.2.0)(next@15.5.5(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0))':
     dependencies:
