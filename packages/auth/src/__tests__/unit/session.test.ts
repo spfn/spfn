@@ -354,7 +354,7 @@ describe('Session - Secret Strength Validation (validateSessionSecret)', () =>
         const result = validateSessionSecret();
 
         expect(result.valid).toBe(false);
-        expect(result.error).toBe('SESSION_SECRET is not set');
+        expect(result.error).toBe('SPFN_AUTH_SESSION_SECRET is not set');
     });
 
     it('should reject short secret', () =>

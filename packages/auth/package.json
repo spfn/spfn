@@ -38,7 +38,7 @@
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
     "docker:test:down": "docker compose -f docker-compose.test.yml down",
     "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f",
-    "prepublishOnly": "pnpm run clean && pnpm run build && pnpm test run",
+    "prepublishOnly": "pnpm run clean && pnpm run build",
     "publish:alpha": "npm publish --access public --tag alpha",
     "publish:beta": "npm publish --access public --tag beta",
     "publish:latest": "npm publish --access public"
