@@ -78,6 +78,14 @@ export const BUILTIN_PERMISSIONS: Record<string, PermissionConfig> = {
         isSystem: true,
         isBuiltin: true,
     },
+    USER_INVITE: {
+        name: 'user:invite',
+        displayName: 'Invite Users',
+        description: 'Create and send user invitations',
+        category: 'user',
+        isSystem: true,
+        isBuiltin: true,
+    },
 
     // RBAC management (superadmin functions)
     RBAC_ROLE_MANAGE: {
@@ -108,6 +116,7 @@ export const BUILTIN_ROLE_PERMISSIONS: Record<string, string[]> = {
         'user:read',
         'user:write',
         'user:delete',
+        'user:invite',
         'rbac:role:manage',
         'rbac:permission:manage',
     ],
@@ -116,6 +125,7 @@ export const BUILTIN_ROLE_PERMISSIONS: Record<string, string[]> = {
         'user:read',
         'user:write',
         'user:delete',
+        'user:invite',
     ],
     user: [
         'auth:self:manage',

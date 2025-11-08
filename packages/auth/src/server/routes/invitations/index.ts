@@ -14,7 +14,7 @@ import {
     resendInvitationContract,
     deleteInvitationContract,
 } from '@/lib/contracts';
-import { authenticate } from '@/server/middleware';
+import { authenticate, requirePermissions, requireRole } from '@/server/middleware';
 import { getAuth } from '@/server/helpers';
 import {
     getInvitationWithDetails,
@@ -93,9 +93,9 @@ app.bind(acceptInvitationContract, async (c) =>
 
 /**
  * POST /_auth/invitations
- * Create new invitation (requires admin)
+ * Create new invitation (requires user:invite permission)
  */
-app.bind(createInvitationContract, [authenticate], async (c) =>
+app.bind(createInvitationContract, [authenticate, requirePermissions('user:invite')], async (c) =>
 {
     const body = await c.data();
     const { userId } = getAuth(c);
@@ -124,9 +124,9 @@ app.bind(createInvitationContract, [authenticate], async (c) =>
 
 /**
  * GET /_auth/invitations
- * List invitations with filtering (requires admin)
+ * List invitations with filtering (requires user:read permission)
  */
-app.bind(listInvitationsContract, [authenticate], async (c) =>
+app.bind(listInvitationsContract, [authenticate, requirePermissions('user:read')], async (c) =>
 {
     const query = await c.data();
 
@@ -153,9 +153,9 @@ app.bind(listInvitationsContract, [authenticate], async (c) =>
 
 /**
  * POST /_auth/invitations/cancel
- * Cancel invitation (requires admin or invitation owner)
+ * Cancel invitation (requires user:invite permission)
  */
-app.bind(cancelInvitationContract, [authenticate], async (c) =>
+app.bind(cancelInvitationContract, [authenticate, requirePermissions('user:invite')], async (c) =>
 {
     const data = await c.data();
     const { userId } = getAuth(c);
@@ -174,9 +174,9 @@ app.bind(cancelInvitationContract, [authenticate], async (c) =>
 
 /**
  * POST /_auth/invitations/resend
- * Resend invitation email (requires admin)
+ * Resend invitation email (requires user:invite permission)
  */
-app.bind(resendInvitationContract, [authenticate], async (c) =>
+app.bind(resendInvitationContract, [authenticate, requirePermissions('user:invite')], async (c) =>
 {
     const data = await c.data();
 
@@ -193,9 +193,9 @@ app.bind(resendInvitationContract, [authenticate], async (c) =>
 
 /**
  * POST /_auth/invitations/delete
- * Delete invitation (requires superadmin)
+ * Delete invitation permanently (requires superadmin role)
  */
-app.bind(deleteInvitationContract, [authenticate], async (c) =>
+app.bind(deleteInvitationContract, [authenticate, requireRole('superadmin')], async (c) =>
 {
     const data = await c.data();
 
