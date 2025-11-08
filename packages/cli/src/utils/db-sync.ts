@@ -167,11 +167,11 @@ export async function getDatabaseInfo(env: SyncEnvironment): Promise<{
 				SELECT pg_size_pretty(pg_database_size(current_database())) as size;
 			`);
 
-			// Get table count
+			// Get table count (all schemas except system schemas)
 			const tableResult = await pool.query(`
 				SELECT COUNT(*) as count
 				FROM information_schema.tables
-				WHERE table_schema = 'public'
+				WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
 				AND table_type = 'BASE TABLE';
 			`);
 

@@ -1379,6 +1379,7 @@ async function dbSync(target: string, options: {
 	schemaOnly?: boolean;
 	force?: boolean;
 	dryRun?: boolean;
+	yes?: boolean;
 }): Promise<void>
 {
 	console.log(chalk.blue('🔄 Database sync\n'));
@@ -1509,18 +1510,21 @@ async function dbSync(target: string, options: {
 		return;
 	}
 
-	// Confirmation
-	const { confirm } = await prompts({
-		type: 'confirm',
-		name: 'confirm',
-		message: chalk.yellow(`Sync ${source.name} → ${targetEnv.name}?`),
-		initial: false,
-	});
-
-	if (!confirm)
+	// Confirmation (skip if --yes flag is provided)
+	if (!options.yes)
 	{
-		console.log(chalk.gray('Cancelled'));
-		process.exit(0);
+		const { confirm } = await prompts({
+			type: 'confirm',
+			name: 'confirm',
+			message: chalk.yellow(`Sync ${source.name} → ${targetEnv.name}?`),
+			initial: false,
+		});
+
+		if (!confirm)
+		{
+			console.log(chalk.gray('Cancelled'));
+			process.exit(0);
+		}
 	}
 
 	// Step 1: Backup target (required)
@@ -1801,4 +1805,5 @@ dbCommand
 	.option('--schema-only', 'Sync schema only (data unchanged)')
 	.option('--force', 'Allow syncing to production-like environments')
 	.option('--dry-run', 'Show sync plan without making changes')
+	.option('-y, --yes', 'Skip confirmation prompt')
 	.action((target, options) => dbSync(target, options));

@@ -4,6 +4,7 @@ import { Value } from '@sinclair/typebox/value';
 import type { RouteContract, RouteContext, InferContract } from './types.js';
 import { ValidationError } from '../errors';
 import type { ApiSuccessResponse } from './api-response.js';
+import { logger } from '../logger';
 
 /**
  * Contract-based Route Handler Wrapper
@@ -124,8 +125,8 @@ export function bind<TContract extends RouteContract>(
                     const hasSuccessField = data && typeof data === 'object' && 'success' in data;
                     if (!hasSuccessField)
                     {
-                        console.warn(
-                            '[SPFN] Warning: ErrorHandler is enabled but c.json() is being used with non-standard response format.\n' +
+                        logger.warn(
+                            'ErrorHandler is enabled but c.json() is being used with non-standard response format.\n' +
                             'Consider using c.success() for consistent API responses, or disable ErrorHandler if you prefer custom formats.'
                         );
                     }
