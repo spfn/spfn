@@ -470,6 +470,9 @@ spfn db sync dev --exclude-tables logs,sessions
 # Data-only sync (preserve schema)
 spfn db sync dev --data-only
 
+# Skip confirmation prompt (useful for CI/CD)
+spfn db sync dev --yes
+
 # Force sync to production (requires confirmation)
 spfn db sync prod --force
 ```
@@ -499,6 +502,7 @@ SPFN_DB_PROD=postgresql://user:pass@prod:5432/myapp_prod
 | `--schema-only` | Sync schema only (data unchanged) |
 | `--force` | Allow syncing to production-like environments |
 | `--dry-run` | Show sync plan without making changes |
+| `-y, --yes` | Skip confirmation prompt |
 
 ### Sync Process
 
