@@ -74,40 +74,14 @@ export interface AuthInitOptions
      * ```typescript
      * {
      *   // Extend built-in admin role
-     *   admin: ['post:create', 'post:publish'],
+     *   admin: ['project:create', 'project:delete'],
      *
      *   // Define custom role permissions
-     *   'content-creator': ['post:create', 'post:publish'],
+     *   'project-manager': ['project:create', 'task:assign'],
      * }
      * ```
      */
     rolePermissions?: Record<string, string[]>;
-
-    /**
-     * Use all preset roles and permissions
-     * Includes: moderator, editor, viewer and related permissions
-     * @default false
-     */
-    usePresets?: boolean;
-
-    /**
-     * Select specific preset roles to include
-     * Available: MODERATOR, EDITOR, VIEWER
-     */
-    presetRoles?: Array<'MODERATOR' | 'EDITOR' | 'VIEWER'>;
-
-    /**
-     * Select specific preset permissions to include
-     */
-    presetPermissions?: Array<
-        | 'CONTENT_READ'
-        | 'CONTENT_WRITE'
-        | 'CONTENT_DELETE'
-        | 'CONTENT_PUBLISH'
-        | 'COMMENT_MODERATE'
-        | 'SYSTEM_CONFIG'
-        | 'ANALYTICS_VIEW'
-    >;
 
     /**
      * Default role name for new users

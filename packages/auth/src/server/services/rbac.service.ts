@@ -10,9 +10,6 @@ import {
     BUILTIN_ROLES,
     BUILTIN_PERMISSIONS,
     BUILTIN_ROLE_PERMISSIONS,
-    PRESET_ROLES,
-    PRESET_PERMISSIONS,
-    PRESET_ROLE_PERMISSIONS,
 } from '@/server/rbac';
 import type { AuthInitOptions, RoleConfig, PermissionConfig } from '@/server/rbac';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -20,23 +17,29 @@ import { eq, and, inArray } from 'drizzle-orm';
 /**
  * Initialize auth package with RBAC system
  *
- * Creates built-in roles, permissions, and optionally presets or custom configurations
+ * Creates built-in roles, permissions, and custom configurations
  *
  * @param options - Initialization options
  *
  * @example
  * ```typescript
- * // Minimal - only built-in roles
+ * // Minimal - only built-in roles (user, admin, superadmin)
  * await initializeAuth();
- *
- * // With presets
- * await initializeAuth({ usePresets: true });
  *
  * // Custom roles and permissions
  * await initializeAuth({
- *   roles: [{ name: 'editor', displayName: 'Editor', priority: 30 }],
- *   permissions: [{ name: 'post:create', displayName: 'Create Posts' }],
- *   rolePermissions: { editor: ['post:create'] },
+ *   roles: [
+ *     { name: 'project-manager', displayName: 'Project Manager', priority: 50 },
+ *     { name: 'developer', displayName: 'Developer', priority: 30 },
+ *   ],
+ *   permissions: [
+ *     { name: 'project:create', displayName: 'Create Project', category: 'project' },
+ *     { name: 'task:assign', displayName: 'Assign Task', category: 'task' },
+ *   ],
+ *   rolePermissions: {
+ *     'project-manager': ['project:create', 'task:assign'],
+ *     'developer': ['task:complete'],
+ *   },
  * });
  * ```
  */
@@ -51,30 +54,11 @@ export async function initializeAuth(options: AuthInitOptions = {}): Promise<voi
 
     console.log('[Auth] 🔐 Initializing RBAC system...');
 
-    // 1. Collect all roles
-    const allRoles: RoleConfig[] = [...Object.values(BUILTIN_ROLES)];
-
-    // Add preset roles if requested
-    if (options.usePresets)
-    {
-        allRoles.push(...Object.values(PRESET_ROLES));
-    }
-    else if (options.presetRoles)
-    {
-        for (const presetKey of options.presetRoles)
-        {
-            if (PRESET_ROLES[presetKey])
-            {
-                allRoles.push(PRESET_ROLES[presetKey]);
-            }
-        }
-    }
-
-    // Add custom roles
-    if (options.roles)
-    {
-        allRoles.push(...options.roles);
-    }
+    // 1. Collect all roles (built-in + custom)
+    const allRoles: RoleConfig[] = [
+        ...Object.values(BUILTIN_ROLES),
+        ...(options.roles || []),
+    ];
 
     // 2. Create/update all roles
     for (const roleConfig of allRoles)
@@ -82,30 +66,11 @@ export async function initializeAuth(options: AuthInitOptions = {}): Promise<voi
         await upsertRole(roleConfig);
     }
 
-    // 3. Collect all permissions
-    const allPermissions: PermissionConfig[] = [...Object.values(BUILTIN_PERMISSIONS)];
-
-    // Add preset permissions if requested
-    if (options.usePresets)
-    {
-        allPermissions.push(...Object.values(PRESET_PERMISSIONS));
-    }
-    else if (options.presetPermissions)
-    {
-        for (const presetKey of options.presetPermissions)
-        {
-            if (PRESET_PERMISSIONS[presetKey])
-            {
-                allPermissions.push(PRESET_PERMISSIONS[presetKey]);
-            }
-        }
-    }
-
-    // Add custom permissions
-    if (options.permissions)
-    {
-        allPermissions.push(...options.permissions);
-    }
+    // 3. Collect all permissions (built-in + custom)
+    const allPermissions: PermissionConfig[] = [
+        ...Object.values(BUILTIN_PERMISSIONS),
+        ...(options.permissions || []),
+    ];
 
     // 4. Create/update all permissions
     for (const permConfig of allPermissions)
@@ -113,14 +78,8 @@ export async function initializeAuth(options: AuthInitOptions = {}): Promise<voi
         await upsertPermission(permConfig);
     }
 
-    // 5. Collect all role-permission mappings
+    // 5. Collect all role-permission mappings (built-in + custom)
     const allMappings: Record<string, string[]> = { ...BUILTIN_ROLE_PERMISSIONS };
-
-    // Add preset mappings if requested
-    if (options.usePresets)
-    {
-        Object.assign(allMappings, PRESET_ROLE_PERMISSIONS);
-    }
 
     // Merge custom mappings
     if (options.rolePermissions)
