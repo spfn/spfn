@@ -269,14 +269,14 @@ importers:
         specifier: ^0.34.41
         version: 0.34.41
       '@spfn/auth':
-        specifier: workspace:*
-        version: link:../../packages/auth
+        specifier: ^0.1.0-alpha.87
+        version: 0.1.0-alpha.87(@types/pg@8.15.6)(gel@2.1.1)(next@15.5.5(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(pg@8.16.3)
       '@spfn/cms':
-        specifier: workspace:*
-        version: link:../../packages/cms
+        specifier: ^0.1.0-alpha.86
+        version: 0.1.0-alpha.86(@spfn/core@0.1.0-alpha.86(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3))(@types/react@19.2.2)(drizzle-orm@0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))(immer@10.2.0)(next@15.5.5(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0))
       '@spfn/core':
-        specifier: workspace:*
-        version: link:../../packages/core
+        specifier: ^0.1.0-alpha.86
+        version: 0.1.0-alpha.86(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)
       ajv:
         specifier: ^8.17.1
         version: 8.17.1
@@ -341,8 +341,8 @@ importers:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       spfn:
-        specifier: workspace:*
-        version: link:../../packages/cli
+        specifier: ^0.1.0-alpha.86
+        version: 0.1.0-alpha.86(@types/pg@8.15.6)(gel@2.1.1)(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.3.1
@@ -749,16 +749,16 @@ importers:
         specifier: ^4.9.0
         version: 4.9.9
       next:
-        specifier: ^15.0.0
-        version: 15.5.5(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: ^16.0.1
+        version: 16.0.1(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       spfn:
         specifier: workspace:*
         version: link:../cli
       tsup:
-        specifier: ^8.3.5
+        specifier: ^8.5.0
         version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
       tsx:
-        specifier: ^4.19.2
+        specifier: ^4.20.6
         version: 4.20.6
       typescript:
         specifier: ^5.3.3
@@ -773,7 +773,7 @@ importers:
         specifier: workspace:*
         version: link:../core
       chalk:
-        specifier: ^5.3.0
+        specifier: ^5.6.2
         version: 5.6.2
       chokidar:
         specifier: ^4.0.3
@@ -825,7 +825,7 @@ importers:
         specifier: ^17.2.3
         version: 17.2.3
       drizzle-kit:
-        specifier: ^0.31.5
+        specifier: ^0.31.6
         version: 0.31.6
       tsx:
         specifier: ^4.20.6
@@ -849,8 +849,8 @@ importers:
         specifier: ^2.6.1
         version: 2.6.1
       next:
-        specifier: ^15.0.0
-        version: 15.5.5(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+        specifier: ^16.0.1
+        version: 16.0.1(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.0
@@ -883,13 +883,13 @@ importers:
         specifier: workspace:*
         version: link:../cli
       tsup:
-        specifier: ^8.3.5
+        specifier: ^8.5.0
         version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
       tsx:
-        specifier: ^4.19.2
+        specifier: ^4.20.6
         version: 4.20.6
       typescript:
-        specifier: ^5
+        specifier: ^5.3.3
         version: 5.9.3
       vitest:
         specifier: ^4.0.6
@@ -951,13 +951,13 @@ importers:
         specifier: ^4.0.6
         version: 4.0.6(vitest@4.0.6(@types/debug@4.1.12)(@types/node@20.19.24)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.6))
       drizzle-kit:
-        specifier: ^0.31.5
+        specifier: ^0.31.6
         version: 0.31.6
       next:
         specifier: ^16.0.1
         version: 16.0.1(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       tsup:
-        specifier: ^8.0.0
+        specifier: ^8.5.0
         version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)
       vitest:
         specifier: ^4.0.6
@@ -3414,6 +3414,22 @@ packages:
     peerDependenciesMeta:
       next:
         optional: true
+
+  '@spfn/auth@0.1.0-alpha.87':
+    resolution: {integrity: sha512-wALuFZWJ4WS4ncmre94uCxdXsqm7lF6uULYOp4UFpxDnELghqOCMNJgTpISdzACo+9TqC0A4x4MDVdSdYA/lFQ==}
+    peerDependencies:
+      next: '>=13.0.0'
+    peerDependenciesMeta:
+      next:
+        optional: true
+
+  '@spfn/cms@0.1.0-alpha.86':
+    resolution: {integrity: sha512-Aw6be6gqO0TD+kCg4kWZyrbDqPzhwIZ4iDJU0YvGcdamCT/Nn+2hoCceNijwNhtIJX6So5cDQNTim3/mxvtjBg==}
+    peerDependencies:
+      '@spfn/core': 0.1.0-alpha.86
+      drizzle-orm: ^0.44.7
+      next: ^15.0.0
+      react: ^18.0.0 || ^19.0.0
 
   '@spfn/core@0.1.0-alpha.86':
     resolution: {integrity: sha512-OiseN62Mi8OwF180qVbgFuMHS23sur7tEjXssQjMCimty2FAFxz5WlwWXXnusvgE1g6+GsAv4iVVvnAPHFmyNA==}
@@ -10471,6 +10487,61 @@ snapshots:
       - sqlite3
       - supports-color
 
+  '@spfn/auth@0.1.0-alpha.87(@types/pg@8.15.6)(gel@2.1.1)(next@15.5.5(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(pg@8.16.3)':
+    dependencies:
+      '@spfn/core': 0.1.0-alpha.86(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)
+      bcrypt: 6.0.0
+      drizzle-orm: 0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+      jose: 6.1.0
+      jsonwebtoken: 9.0.2
+      postgres: 3.4.7
+    optionalDependencies:
+      next: 15.5.5(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@cloudflare/workers-types'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opentelemetry/api'
+      - '@planetscale/database'
+      - '@prisma/client'
+      - '@tidbcloud/serverless'
+      - '@types/better-sqlite3'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - better-sqlite3
+      - bun-types
+      - expo-sqlite
+      - gel
+      - knex
+      - kysely
+      - mysql2
+      - pg
+      - prisma
+      - sql.js
+      - sqlite3
+      - supports-color
+
+  '@spfn/cms@0.1.0-alpha.86(@spfn/core@0.1.0-alpha.86(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3))(@types/react@19.2.2)(drizzle-orm@0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))(immer@10.2.0)(next@15.5.5(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0))':
+    dependencies:
+      '@sinclair/typebox': 0.34.41
+      '@spfn/core': 0.1.0-alpha.86(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)
+      drizzle-orm: 0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+      jiti: 2.6.1
+      next: 15.5.5(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      react: 19.1.0
+      zustand: 5.0.8(@types/react@19.2.2)(immer@10.2.0)(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0))
+    transitivePeerDependencies:
+      - '@types/react'
+      - immer
+      - use-sync-external-store
+
   '@spfn/core@0.1.0-alpha.86(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)':
     dependencies:
       '@hono/node-server': 1.19.5(hono@4.9.9)
@@ -12868,30 +12939,6 @@ snapshots:
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
       styled-jsx: 5.1.6(@babel/core@7.28.5)(react@19.1.0)
-    optionalDependencies:
-      '@next/swc-darwin-arm64': 15.5.5
-      '@next/swc-darwin-x64': 15.5.5
-      '@next/swc-linux-arm64-gnu': 15.5.5
-      '@next/swc-linux-arm64-musl': 15.5.5
-      '@next/swc-linux-x64-gnu': 15.5.5
-      '@next/swc-linux-x64-musl': 15.5.5
-      '@next/swc-win32-arm64-msvc': 15.5.5
-      '@next/swc-win32-x64-msvc': 15.5.5
-      babel-plugin-react-compiler: 1.0.0
-      sharp: 0.34.4
-    transitivePeerDependencies:
-      - '@babel/core'
-      - babel-plugin-macros
-
-  next@15.5.5(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
-    dependencies:
-      '@next/env': 15.5.5
-      '@swc/helpers': 0.5.15
-      caniuse-lite: 1.0.30001751
-      postcss: 8.4.31
-      react: 19.2.0
-      react-dom: 19.2.0(react@19.2.0)
-      styled-jsx: 5.1.6(react@19.2.0)
     optionalDependencies:
       '@next/swc-darwin-arm64': 15.5.5
       '@next/swc-darwin-x64': 15.5.5

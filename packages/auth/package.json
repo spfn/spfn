@@ -1,6 +1,6 @@
 {
   "name": "@spfn/auth",
-  "version": "0.1.0-alpha.87",
+  "version": "0.1.0-alpha.88",
   "type": "module",
   "description": "Authentication, authorization, and RBAC module for SPFN",
   "main": "./dist/index.js",
@@ -116,15 +116,15 @@
     "drizzle-kit": "^0.31.6",
     "glob": "^11.0.3",
     "hono": "^4.9.0",
-    "next": "^15.0.0",
+    "next": "^16.0.1",
     "spfn": "workspace:*",
-    "tsup": "^8.3.5",
-    "tsx": "^4.19.2",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6",
     "typescript": "^5.3.3",
     "vitest": "^4.0.6"
   },
   "peerDependencies": {
-    "next": ">=13.0.0"
+    "next": "^16.0.1"
   },
   "peerDependenciesMeta": {
     "next": {

@@ -2,6 +2,18 @@
 
 All notable changes to the SPFN CLI will be documented in this file.
 
+## [0.1.0-alpha.88] - 2025-11-10
+
+### Changed
+
+- **Dependency Version Unification**: Unified dependency versions across all packages
+  - `drizzle-kit`: Updated to ^0.31.6 (from ^0.31.5)
+  - `tsup`: Updated to ^8.5.0 (from ^8.0.0 - ^8.3.5)
+  - `tsx`: Updated to ^4.20.6 (from ^4.19.2)
+  - `chalk`: Updated to ^5.6.2 (from ^5.3.0)
+  - `typescript`: Standardized to ^5.3.3 (from mixed versions)
+  - All packages now use consistent build tool versions for better compatibility
+
 ## [0.1.0-alpha.51] - 2025-10-23
 
 ### Added

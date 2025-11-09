@@ -1,6 +1,6 @@
 {
   "name": "@spfn/cms",
-  "version": "0.1.0-alpha.86",
+  "version": "0.1.0-alpha.88",
   "description": "SPFN CMS - Content Management System with type-safe labels and Next.js integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -95,7 +95,7 @@
   "peerDependencies": {
     "@spfn/core": "workspace:*",
     "drizzle-orm": "^0.44.7",
-    "next": "^15.0.0",
+    "next": "^16.0.1",
     "react": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
@@ -112,9 +112,9 @@
     "glob": "^11.0.3",
     "postgres": "^3.4.0",
     "spfn": "workspace:*",
-    "tsup": "^8.3.5",
-    "tsx": "^4.19.2",
-    "typescript": "^5",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.3.3",
     "vitest": "^4.0.6"
   }
 }
