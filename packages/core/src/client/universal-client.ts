@@ -9,29 +9,33 @@
 import type { RouteContract, InferContract } from '../route';
 import { ContractClient, type CallOptions, ApiClientError } from './contract-client';
 
+// Type declaration for window (available in browser)
+declare const window: unknown | undefined;
+
 /**
  * Detect if code is running in server environment
  *
- * Uses environment variable check instead of typeof window
- * More reliable for Next.js SSR/SSG contexts
+ * Uses typeof window check for reliable browser detection
  */
 function isServerEnvironment(): boolean
 {
-    try
-    {
-        // Server-only environment variables
-        return !!(
-            process.env.SERVER_API_URL ||
-            process.env.SPFN_API_URL ||
-            process.env.NODE_ENV
-        );
-    }
-    catch (error)
-    {
-        // If process.env throws error, we're in browser
-        return false;
-    }
+    return typeof window === 'undefined';
 }
+
+/**
+ * Request interceptor function
+ *
+ * Called before each request to modify headers dynamically
+ * Useful for adding authentication tokens, session data, etc.
+ *
+ * @param headers - Current request headers (mutable)
+ * @param contract - Route contract being called
+ * @returns Modified headers or void (modify in place)
+ */
+export type RequestInterceptor = (
+    headers: Record<string, string>,
+    contract: RouteContract
+) => Promise<void> | void;
 
 /**
  * Universal Client Configuration
@@ -197,6 +201,7 @@ export class UniversalClient
             method,
             headers,
             credentials: 'include', // Important: Include cookies for session
+            ...options?.fetchOptions, // Spread environment-specific options (e.g., Next.js cache/next)
         };
 
         // Add body for POST/PUT/PATCH
