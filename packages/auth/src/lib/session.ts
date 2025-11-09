@@ -50,7 +50,7 @@ function calculateEntropy(str: string): number
  *
  * Derives a 32-byte key using SHA-256 to ensure compatibility with Jose A256GCM
  */
-function getSessionSecret(): Uint8Array
+async function getSessionSecret(): Promise<Uint8Array>
 {
     const secret =
         process.env.SPFN_AUTH_SESSION_SECRET ||  // New prefixed version (recommended)
@@ -67,8 +67,11 @@ function getSessionSecret(): Uint8Array
     }
 
     // Derive a 32-byte key using SHA-256 for A256GCM compatibility
-    const crypto = require('crypto');
-    return new Uint8Array(crypto.createHash('sha256').update(secret).digest());
+    // Use Web Crypto API for universal compatibility (browser + Node.js)
+    const encoder = new TextEncoder();
+    const data = encoder.encode(secret);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return new Uint8Array(hashBuffer);
 }
 
 /**
@@ -83,7 +86,7 @@ export async function sealSession(
     ttl: number = 60 * 60 * 24 * 7 // 7 days
 ): Promise<string>
 {
-    const secret = getSessionSecret();
+    const secret = await getSessionSecret();
 
     return await new jose.EncryptJWT({ data })
         .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
@@ -103,7 +106,7 @@ export async function sealSession(
  */
 export async function unsealSession(jwt: string): Promise<SessionData>
 {
-    const secret = getSessionSecret();
+    const secret = await getSessionSecret();
 
     try
     {
@@ -120,14 +123,17 @@ export async function unsealSession(jwt: string): Promise<SessionData>
         {
             throw new Error('Session expired');
         }
+
         if (err instanceof jose.errors.JWEDecryptionFailed)
         {
             throw new Error('Invalid session');
         }
+
         if (err instanceof jose.errors.JWTClaimValidationFailed)
         {
             throw new Error('Session validation failed');
         }
+
         throw new Error('Failed to unseal session');
     }
 }
@@ -145,7 +151,7 @@ export async function getSessionInfo(jwt: string): Promise<{
     audience: string;
 } | null>
 {
-    const secret = getSessionSecret();
+    const secret = await getSessionSecret();
 
     try
     {
