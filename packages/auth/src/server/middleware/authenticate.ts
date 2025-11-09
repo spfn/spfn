@@ -4,11 +4,14 @@
  * Verify client-signed JWT token with public key
  *
  * Flow:
- * 1. Extract Authorization header + X-Key-Id header
- * 2. Fetch public key from database
- * 3. Verify JWT signature with public key
- * 4. Validate user status
- * 5. Attach user to context
+ * 1. Extract Authorization header
+ * 2. Decode JWT to extract keyId
+ * 3. Fetch public key from database
+ * 4. Check key expiration
+ * 5. Verify JWT signature with public key
+ * 6. Validate user status
+ * 7. Update last used timestamp
+ * 8. Attach user to context
  *
  * Security Checks:
  * - Token signature verification
@@ -68,7 +71,6 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
 {
     // Extract Authorization header
     const authHeader = c.req.header('Authorization');
-    const keyId = c.req.header('X-Key-Id');
 
     // Validate Authorization header format
     if (!authHeader || !authHeader.startsWith('Bearer '))
@@ -76,15 +78,21 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
         throw new UnauthorizedError('Missing or invalid authorization header');
     }
 
-    // Validate X-Key-Id header
-    if (!keyId)
-    {
-        throw new UnauthorizedError('Missing X-Key-Id header');
-    }
-
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    // 1. Get public key from database
+    // 1. Decode JWT to extract keyId (without verification)
+    // We need keyId to fetch the public key for verification
+    const { decodeToken } = await import('@/server/helpers/jwt');
+    const decoded = decodeToken(token);
+
+    if (!decoded || !decoded.keyId)
+    {
+        throw new UnauthorizedError('Invalid token: missing keyId');
+    }
+
+    const keyId = decoded.keyId as string;
+
+    // 2. Get public key from database
     // Query conditions:
     // - keyId matches (UUID)
     // - isActive = true (not revoked)
@@ -104,14 +112,14 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
         throw new UnauthorizedError('Invalid or revoked key');
     }
 
-    // 2. Check key expiration
+    // 3. Check key expiration
     // Keys expire after 90 days by default
     if (keyRecord.expiresAt && new Date() > keyRecord.expiresAt)
     {
         throw new KeyExpiredError();
     }
 
-    // 3. Verify JWT signature with public key
+    // 4. Verify JWT signature with public key
     // This validates:
     // - Signature matches (client signed with private key)
     // - Token not expired (15min default)
@@ -146,21 +154,21 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
         throw new UnauthorizedError('Authentication failed');
     }
 
-    // 4. Get user from database
+    // 5. Get user from database
     const user = await findOne(users, { id: keyRecord.userId });
     if (!user)
     {
         throw new UnauthorizedError('User not found');
     }
 
-    // 5. Check if user account is active
+    // 6. Check if user account is active
     // Status can be: active, inactive, suspended
     if (user.status !== 'active')
     {
         throw new AccountDisabledError(user.status);
     }
 
-    // 6. Update last used timestamp (fire-and-forget)
+    // 7. Update last used timestamp (fire-and-forget)
     // Don't await to avoid blocking the request
     // Useful for:
     // - Security audits
@@ -172,7 +180,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
         .execute()
         .catch((err: unknown) => console.error('Failed to update lastUsedAt:', err));
 
-    // 7. Attach auth data to context
+    // 8. Attach auth data to context
     // Available in downstream route handlers via c.get('auth')
     c.set('auth', {
         user,

@@ -7,7 +7,8 @@ import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailabl
 import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
 import { users } from '@/server/entities';
-import type { ApiResponse, CheckAccountExistsData } from '@/lib/types/api';
+import type { ApiResponse } from '@spfn/core';
+import type { CheckAccountExistsData } from '@/lib/types/api';
 import app from '../index';
 
 // Check if database is available before running tests

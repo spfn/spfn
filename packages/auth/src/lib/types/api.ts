@@ -2,7 +2,7 @@
  * @spfn/auth - API Response Types
  *
  * Auth-specific types for API endpoints
- * For standard response types, import from '@spfn/core/route'
+ * For standard ApiResponse type, import from '@spfn/core/types/api-response'
  */
 
 /**

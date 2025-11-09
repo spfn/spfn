@@ -12,7 +12,6 @@ import { requirePermissions, requireAnyPermission } from '@/server/middleware/re
 import { requireRole } from '@/server/middleware/require-role';
 import { users } from '@/server/entities';
 import { hashPassword } from '@/server/helpers/password';
-import { generateToken } from '@/server/helpers/jwt';
 import { Hono } from 'hono';
 import { getDatabase } from '@spfn/core/db';
 import { eq } from 'drizzle-orm';
@@ -24,9 +23,6 @@ const dbAvailable = await isDatabaseAvailable();
 describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
 {
     let app: Hono;
-    let testUserToken: string;
-    let testAdminToken: string;
-    let testSuperadminToken: string;
 
     beforeAll(async () =>
     {
@@ -57,31 +53,26 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
         const adminRole = await getRoleByName('admin');
         const superadminRole = await getRoleByName('superadmin');
 
-        const [testUser] = await db.insert(users).values({
+        await db.insert(users).values({
             email: 'user@test.com',
             passwordHash: await hashPassword('password'),
             roleId: userRole!.id,
             emailVerifiedAt: new Date(),
-        }).returning();
+        });
 
-        const [testAdmin] = await db.insert(users).values({
+        await db.insert(users).values({
             email: 'admin@test.com',
             passwordHash: await hashPassword('password'),
             roleId: adminRole!.id,
             emailVerifiedAt: new Date(),
-        }).returning();
+        });
 
-        const [testSuperadmin] = await db.insert(users).values({
+        await db.insert(users).values({
             email: 'superadmin@test.com',
             passwordHash: await hashPassword('password'),
             roleId: superadminRole!.id,
             emailVerifiedAt: new Date(),
-        }).returning();
-
-        // Generate tokens
-        testUserToken = generateToken({ userId: String(testUser.id) });
-        testAdminToken = generateToken({ userId: String(testAdmin.id) });
-        testSuperadminToken = generateToken({ userId: String(testSuperadmin.id) });
+        });
 
         // Setup Hono app
         app = new Hono();
@@ -91,7 +82,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
         {
             if ('statusCode' in err && typeof err.statusCode === 'number')
             {
-                return c.json({ error: err.message }, err.statusCode);
+                return c.json({ error: err.message }, err.statusCode as any);
             }
             return c.json({ error: 'Internal Server Error' }, 500);
         });
@@ -110,7 +101,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
                 async (c: Context, next) =>
                 {
                     // Mock authenticate middleware
-                    c.set('auth', { userId: String(superadmin.id) });
+                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key' });
                     await next();
                 },
                 requirePermissions('user:read'),
@@ -133,7 +124,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/admin-only',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(user.id) });
+                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key' });
                     await next();
                 },
                 requirePermissions('user:delete'), // user role doesn't have this
@@ -153,7 +144,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/protected',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(admin.id) });
+                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key' });
                     await next();
                 },
                 requirePermissions('user:read', 'user:write'), // admin has both
@@ -172,7 +163,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/protected',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(admin.id) });
+                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key' });
                     await next();
                 },
                 requirePermissions('user:read', 'rbac:permission:manage'), // admin doesn't have rbac:permission:manage
@@ -205,7 +196,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/content',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(user.id) });
+                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key' });
                     await next();
                 },
                 requireAnyPermission('auth:self:manage', 'admin:access'), // user has auth:self:manage
@@ -224,7 +215,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/content',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(user.id) });
+                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key' });
                     await next();
                 },
                 requireAnyPermission('user:delete', 'rbac:role:manage'), // user has neither
@@ -246,7 +237,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/admin-dashboard',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(admin.id) });
+                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
@@ -265,7 +256,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/admin-dashboard',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(user.id) });
+                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
@@ -284,7 +275,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/admin-dashboard',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(superadmin.id) });
+                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
@@ -317,7 +308,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.post('/users/delete',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(superadmin.id) });
+                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
@@ -337,7 +328,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.post('/users/delete',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(user.id) });
+                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'), // user is not admin
@@ -357,7 +348,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.post('/rbac/manage',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { userId: String(admin.id) });
+                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'), // admin passes

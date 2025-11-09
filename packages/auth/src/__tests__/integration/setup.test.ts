@@ -435,7 +435,6 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should log correct summary for mixed create/skip', async () =>
         {
-            const db = getTestDb();
             const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
             // Create first account

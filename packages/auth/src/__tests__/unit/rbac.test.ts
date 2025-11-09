@@ -25,7 +25,7 @@ import {
     hasRole,
 } from '@/server/services/permission.service';
 import { getDatabase } from '@spfn/core/db';
-import { users, roles, permissions, rolePermissions, userPermissions } from '@/server/entities';
+import { users, permissions, userPermissions } from '@/server/entities';
 import { hashPassword } from '@/server/helpers/password';
 import { eq } from 'drizzle-orm';
 
@@ -329,7 +329,7 @@ describe('RBAC System', () =>
 
     describe('User Permission Checking', () =>
     {
-        let testUserId: bigint;
+        let testUserId: number;
 
         beforeEach(async () =>
         {
@@ -483,7 +483,7 @@ describe('RBAC System', () =>
         it('should return empty array for non-existent user', async () =>
         {
             // Non-existent user ID
-            const perms = await getUserPermissions(999999n);
+            const perms = await getUserPermissions(999999);
             expect(perms).toEqual([]);
         });
     });

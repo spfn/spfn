@@ -88,6 +88,8 @@ export default defineConfig({
         'bcrypt',
         'jsonwebtoken',
         'next',
+        'next/headers',
+        'server-only',
         'jose',
     ],
 });

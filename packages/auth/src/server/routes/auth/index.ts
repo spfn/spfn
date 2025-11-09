@@ -15,7 +15,6 @@ import {
     sendVerificationCodeContract,
     verifyCodeContract
 } from '@/lib/contracts';
-import { authenticate } from '@/server/middleware';
 import { getAuth, getUser } from '@/server/helpers';
 import {
     checkAccountExistsService,
@@ -72,7 +71,7 @@ app.bind(loginContract, async (c) =>
 
 // ===== Authenticated Routes Below =====
 // POST /api/auth/logout (Authenticated)
-app.bind(logoutContract, [authenticate], async (c) =>
+app.bind(logoutContract, async (c) =>
 {
     const { keyId, userId } = getAuth(c);
     await logoutService({ userId: Number(userId), keyId });
@@ -80,7 +79,7 @@ app.bind(logoutContract, [authenticate], async (c) =>
 });
 
 // POST /api/auth/keys/rotate (Authenticated)
-app.bind(rotateKeyContract, [authenticate], async (c) =>
+app.bind(rotateKeyContract, async (c) =>
 {
     const body = await c.data();
     const { keyId: oldKeyId, userId } = getAuth(c);
@@ -98,7 +97,7 @@ app.bind(rotateKeyContract, [authenticate], async (c) =>
 });
 
 // PUT /_auth/password (Authenticated)
-app.bind(changePasswordContract, [authenticate], async (c) =>
+app.bind(changePasswordContract, async (c) =>
 {
     const body = await c.data();
     const user = getUser(c);

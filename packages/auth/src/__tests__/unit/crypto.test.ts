@@ -13,7 +13,7 @@ import {
     verifyClientToken,
     getKeySize,
     shouldRotateKey,
-} from '@/client/lib/crypto';
+} from '@/lib/crypto';
 import { decodeToken } from '@/server/helpers/jwt';
 
 describe('Crypto - ES256 Key Generation', () =>

@@ -27,8 +27,10 @@ export interface TokenPayload extends SessionPayload
 {
     exp?: number;
     iat?: number;
+    iss?: string;
     keyId?: string;
     timestamp?: number;
+    [key: string]: any;
 }
 
 /**

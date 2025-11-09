@@ -8,7 +8,7 @@ import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
 import { users } from '@/server/entities';
 import { hashPassword } from '@/server/helpers/password';
-import { generateKeyPairES256 } from '@/client/lib/crypto';
+import { generateKeyPairES256 } from '@/lib/crypto';
 import app from '../index';
 
 // Response type based on login contract

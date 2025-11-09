@@ -76,9 +76,8 @@ export class AccountDisabledError extends ForbiddenError
 {
     constructor(status: string = 'disabled')
     {
-        super(`Account is ${status}`);
+        super(`Account is ${status}`, { details: { status } });
         this.name = 'AccountDisabledError';
-        this.details = { status };
     }
 }
 
@@ -91,9 +90,8 @@ export class AccountAlreadyExistsError extends ConflictError
 {
     constructor(identifier: string, identifierType: 'email' | 'phone')
     {
-        super('Account already exists');
+        super('Account already exists', { details: { identifier, identifierType } });
         this.name = 'AccountAlreadyExistsError';
-        this.details = { identifier, identifierType };
     }
 }
 
@@ -148,9 +146,8 @@ export class VerificationTokenPurposeMismatchError extends ValidationError
 {
     constructor(expected: string, actual: string)
     {
-        super(`Verification token is for ${actual}, but ${expected} was expected`);
+        super(`Verification token is for ${actual}, but ${expected} was expected`, { details: { expected, actual } });
         this.name = 'VerificationTokenPurposeMismatchError';
-        this.details = { expected, actual };
     }
 }
 

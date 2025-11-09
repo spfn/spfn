@@ -14,7 +14,7 @@ import { eq, and } from 'drizzle-orm';
  * Combines role-based permissions with user-specific overrides
  * Handles expiration of temporary permissions
  *
- * @param userId - User ID (string or bigint)
+ * @param userId - User ID (string, number, or bigint)
  * @returns Array of permission names
  *
  * @example
@@ -23,7 +23,7 @@ import { eq, and } from 'drizzle-orm';
  * // ['auth:self:manage', 'user:read', 'post:create']
  * ```
  */
-export async function getUserPermissions(userId: string | bigint): Promise<string[]>
+export async function getUserPermissions(userId: string | number | bigint): Promise<string[]>
 {
     const db = getDatabase();
 
@@ -115,7 +115,7 @@ export async function getUserPermissions(userId: string | bigint): Promise<strin
  * ```
  */
 export async function hasPermission(
-    userId: string | bigint,
+    userId: string | number | bigint,
     permissionName: string
 ): Promise<boolean>
 {
@@ -138,7 +138,7 @@ export async function hasPermission(
  * ```
  */
 export async function hasAnyPermission(
-    userId: string | bigint,
+    userId: string | number | bigint,
     permissionNames: string[]
 ): Promise<boolean>
 {
@@ -161,7 +161,7 @@ export async function hasAnyPermission(
  * ```
  */
 export async function hasAllPermissions(
-    userId: string | bigint,
+    userId: string | number | bigint,
     permissionNames: string[]
 ): Promise<boolean>
 {
@@ -183,7 +183,7 @@ export async function hasAllPermissions(
  * }
  * ```
  */
-export async function hasRole(userId: string | bigint, roleName: string): Promise<boolean>
+export async function hasRole(userId: string | number | bigint, roleName: string): Promise<boolean>
 {
     const db = getDatabase();
 
@@ -221,7 +221,7 @@ export async function hasRole(userId: string | bigint, roleName: string): Promis
  * @param roleNames - Array of role names
  * @returns true if user has at least one role
  */
-export async function hasAnyRole(userId: string | bigint, roleNames: string[]): Promise<boolean>
+export async function hasAnyRole(userId: string | number | bigint, roleNames: string[]): Promise<boolean>
 {
     for (const roleName of roleNames)
     {

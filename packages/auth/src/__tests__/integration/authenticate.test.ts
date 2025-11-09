@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { authenticate } from '@/server/middleware/authenticate';
-import { generateKeyPair, generateClientToken } from '@/client/lib/crypto';
+import { generateKeyPair, generateClientToken } from '@/lib/crypto';
 import type { Context, Next } from 'hono';
 import * as dbModule from '@spfn/core/db';
 import * as jwtHelpers from '@/server/helpers/jwt';
@@ -50,12 +50,9 @@ describe('Authenticate Middleware', () =>
             req: {
                 header: vi.fn(),
             } as any,
-            json: vi.fn((data, status) => ({ data, status })),
+            json: vi.fn((data, status) => ({ data, status })) as any,
             set: vi.fn(),
-            raw: {
-                get: vi.fn(),
-            } as any,
-        };
+        } as any;
     });
 
     describe('Header Validation', () =>
@@ -178,7 +175,11 @@ describe('Authenticate Middleware', () =>
             });
 
             // Mock JWT verification to succeed
-            vi.mocked(jwtHelpers.verifyClientToken).mockReturnValue(undefined);
+            vi.mocked(jwtHelpers.verifyClientToken).mockReturnValue({
+                userId: '1',
+                keyId: 'test-key-id',
+                iss: 'spfn-client',
+            });
 
             // Mock valid key
             const futureDate = new Date();

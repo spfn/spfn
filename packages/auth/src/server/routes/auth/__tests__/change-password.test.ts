@@ -9,8 +9,9 @@ import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
 import { users, userPublicKeys } from '@/server/entities';
 import { hashPassword } from '@/server/helpers/password';
-import { generateKeyPairES256, generateClientToken } from '@/client/lib/crypto';
-import type { ApiResponse, ChangePasswordData } from '@/lib/types/api';
+import { generateKeyPairES256, generateClientToken } from '@/lib/crypto';
+import type { ApiResponse } from '@spfn/core';
+import type { ChangePasswordData } from '@/lib/types/api';
 import app from '../index';
 
 // Check if database is available before running tests

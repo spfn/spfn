@@ -10,7 +10,7 @@ import {
     verifyKeyFingerprint,
     decodeToken,
 } from '@/server/helpers/jwt';
-import { generateKeyPair, generateClientToken } from '@/client/lib/crypto';
+import { generateKeyPair, generateClientToken } from '@/lib/crypto';
 
 describe('JWT - Server-side Verification with ES256', () =>
 {

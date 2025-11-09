@@ -11,8 +11,8 @@ import {
     getSessionInfo,
     shouldRefreshSession,
     validateSessionSecret,
-} from '@/client/lib/session';
-import type { SessionData } from '@/client/lib/session';
+} from '@/lib/session';
+import type { SessionData } from '@/lib/session';
 
 describe('Session - Seal/Unseal', () =>
 {
