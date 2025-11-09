@@ -7,7 +7,7 @@
 
 import type { ServerPlugin } from '@spfn/core/server';
 import type { Hono } from 'hono';
-import { initializeAuth } from './server/services/rbac.service';
+import { initializeAuth } from '@/server/services';
 import { logger } from '@spfn/core/logger';
 
 const authLogger = logger.child('auth-plugin');

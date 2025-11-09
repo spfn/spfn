@@ -249,6 +249,9 @@ export async function loginService(
         throw new InvalidCredentialsError();
     }
 
+    console.log('user', user);
+    console.log('패스워드: ', password);
+
     // Verify password
     const isValid = await verifyPassword(password, user.passwordHash);
     if (!isValid)

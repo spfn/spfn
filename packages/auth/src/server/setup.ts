@@ -207,6 +207,8 @@ export async function ensureAdminExists(): Promise<void>
 
     for (const account of accounts)
     {
+        authLogger.info(`Creating ${account.email} admin account(s)...`);
+
         try
         {
             // Check if account already exists

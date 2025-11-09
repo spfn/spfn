@@ -1,6 +1,6 @@
 {
   "name": "@spfn/auth",
-  "version": "0.1.0-alpha.86",
+  "version": "0.1.0-alpha.87",
   "type": "module",
   "description": "Authentication, authorization, and RBAC module for SPFN",
   "main": "./dist/index.js",
@@ -8,31 +8,38 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     },
     "./server": {
       "types": "./dist/server.d.ts",
-      "import": "./dist/server.js"
+      "import": "./dist/server.js",
+      "require": "./dist/server.js"
     },
     "./client": {
       "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
+      "import": "./dist/client.js",
+      "require": "./dist/client.js"
     },
     "./lib": {
       "types": "./dist/lib.d.ts",
-      "import": "./dist/lib.js"
+      "import": "./dist/lib.js",
+      "require": "./dist/lib.js"
     },
     "./adapters": {
       "types": "./dist/adapters.d.ts",
-      "import": "./dist/adapters.js"
+      "import": "./dist/adapters.js",
+      "require": "./dist/adapters.js"
     },
     "./nextjs/api": {
       "types": "./dist/adapters/nextjs/api.d.ts",
-      "import": "./dist/adapters/nextjs/api.js"
+      "import": "./dist/adapters/nextjs/api.js",
+      "require": "./dist/adapters/nextjs/api.js"
     },
     "./nextjs/server": {
       "types": "./dist/adapters/nextjs/server.d.ts",
-      "import": "./dist/adapters/nextjs/server.js"
+      "import": "./dist/adapters/nextjs/server.js",
+      "require": "./dist/adapters/nextjs/server.js"
     }
   },
   "files": [
@@ -96,7 +103,8 @@
     "bcrypt": "^6.0.0",
     "drizzle-orm": "^0.44.7",
     "jsonwebtoken": "^9.0.2",
-    "postgres": "^3.4.0"
+    "postgres": "^3.4.0",
+    "jose": "^6.1.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -108,7 +116,6 @@
     "drizzle-kit": "^0.31.6",
     "glob": "^11.0.3",
     "hono": "^4.9.0",
-    "jose": "^6.1.0",
     "next": "^15.0.0",
     "spfn": "workspace:*",
     "tsup": "^8.3.5",

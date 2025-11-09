@@ -20,7 +20,7 @@ export { spfnPlugin } from './plugin.js';
 // Types
 // ============================================================================
 
-export * from '@/lib/types/index';
+export * from './lib/types/index';
 
 // ============================================================================
 // Entities (for type reference)
@@ -36,7 +36,7 @@ export {
     permissions,
     rolePermissions,
     userPermissions,
-} from '@/server/entities/index';
+} from './server/entities/index';
 
 // Export entity types with aliases to avoid conflicts
 export type {
@@ -60,4 +60,4 @@ export type {
     NewRolePermission,
     UserPermission,
     NewUserPermission,
-} from '@/server/entities/index';
+} from './server/entities/index';

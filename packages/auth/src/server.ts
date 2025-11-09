@@ -20,7 +20,7 @@
 // RBAC (Roles, Permissions, Types)
 // ============================================================================
 
-export * from '@/server/rbac';
+export * from './server/rbac';
 
 // ============================================================================
 // Routes
@@ -30,28 +30,28 @@ export * from '@/server/rbac';
 // Services (Business Logic)
 // ============================================================================
 
-export * from '@/server/services/index';
+export * from './server/services/index';
 
 // ============================================================================
 // Repositories (DB access)
 // ============================================================================
 
-export * from '@/server/repositories/index';
+export * from './server/repositories/index';
 
 // ============================================================================
 // Helpers (JWT, Password)
 // ============================================================================
 
-export * from '@/server/helpers/index';
+export * from './server/helpers/index';
 
 // ============================================================================
 // Middleware
 // ============================================================================
 
-export * from '@/server/middleware/index';
+export * from './server/middleware/index';
 
 // ============================================================================
 // Setup Functions
 // ============================================================================
 
-export * from '@/server/setup';
+export { ensureAdminExists } from './server/setup';
