@@ -89,4 +89,24 @@ export interface AuthInitOptions
      * @default 'user'
      */
     defaultRole?: string;
+
+    /**
+     * Default session TTL (Time To Live)
+     *
+     * Supports:
+     * - Number: seconds (e.g., 2592000)
+     * - String: duration format ('30d', '12h', '45m', '3600s')
+     *
+     * Can be overridden at runtime with `remember` parameter.
+     *
+     * @default '7d' (7 days)
+     *
+     * @example
+     * ```typescript
+     * {
+     *   sessionTtl: '30d',  // 30 days
+     * }
+     * ```
+     */
+    sessionTtl?: string | number;
 }

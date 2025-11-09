@@ -4,12 +4,20 @@
  * Server-side only (uses next/headers)
  */
 
-'use server';
-
 import { cookies } from 'next/headers.js';
 import { sealSession, unsealSession, type SessionData } from '@/lib/session';
+import { COOKIE_NAMES } from '@/lib/config';
 
 export type { SessionData };
+
+/**
+ * Public session information (excludes sensitive data)
+ */
+export interface PublicSession
+{
+    /** User ID */
+    userId: string;
+}
 
 /**
  * Save session to HttpOnly cookie
@@ -17,11 +25,12 @@ export type { SessionData };
 export async function saveSession(
     data: SessionData,
     maxAge: number = 60 * 60 * 24 * 7  // 7 days
-): Promise<void> {
+): Promise<void>
+{
     const token = await sealSession(data, maxAge);
     const cookieStore = await cookies();
 
-    cookieStore.set('session', token, {
+    cookieStore.set(COOKIE_NAMES.SESSION, token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
@@ -32,22 +41,41 @@ export async function saveSession(
 
 /**
  * Get session from HttpOnly cookie
+ *
+ * Returns public session info only (excludes privateKey, algorithm, keyId)
  */
-export async function getSession(): Promise<SessionData | null> {
+export async function getSession(): Promise<PublicSession | null>
+{
     const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
+    const sessionCookie = cookieStore.get(COOKIE_NAMES.SESSION);
 
-    if (!sessionCookie) {
+    if (!sessionCookie)
+    {
         return null;
     }
 
-    return unsealSession(sessionCookie.value);
+    try
+    {
+        const session = await unsealSession(sessionCookie.value);
+        // Return only public information
+        return {
+            userId: session.userId,
+        };
+    }
+    catch (error)
+    {
+        // Session expired or invalid
+        console.error('[getSession] Failed to unseal session:', error);
+        return null;
+    }
 }
 
 /**
  * Clear session cookie
  */
-export async function clearSession(): Promise<void> {
+export async function clearSession(): Promise<void>
+{
     const cookieStore = await cookies();
-    cookieStore.delete('session');
+    cookieStore.delete(COOKIE_NAMES.SESSION);
+    cookieStore.delete(COOKIE_NAMES.SESSION_KEY_ID);
 }

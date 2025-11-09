@@ -11,24 +11,6 @@
  *
  * @requires next >= 13.0.0
  */
-// Import interceptors (triggers auto-registration)
-import './interceptors';
-
-// Session helpers
-export {
-    saveSession,
-    getSession,
-    clearSession,
-    type SessionData
-} from './session-helpers';
-
-// Interceptor exports (for advanced usage)
-export {
-    authInterceptors,
-    loginRegisterInterceptor,
-    authenticationInterceptor,
-    keyRotationInterceptor,
-} from './interceptors';
 
 // Re-export types and simple API functions
 export {
@@ -67,6 +49,7 @@ import { sendVerificationCode } from '@/lib/api/auth-codes';
 import { verifyCode } from '@/lib/api/auth-codes-verify';
 import { checkAccountExists } from '@/lib/api/auth-exists';
 import { changePassword } from '@/lib/api/auth-password';
+import { getMe } from '@/lib/api/auth-me';
 import { getInvitation, createInvitation, listInvitations } from '@/lib/api/auth-invitations';
 import { acceptInvitation } from '@/lib/api/auth-invitations-accept';
 import { cancelInvitation } from '@/lib/api/auth-invitations-cancel';
@@ -76,11 +59,6 @@ import { login as loginApi } from '@/lib/api/auth-login';
 import { register as registerApi } from '@/lib/api/auth-register';
 import { logout as logoutApi } from '@/lib/api/auth-logout';
 import { rotateKey as rotateKeyApi } from '@/lib/api/auth-keys-rotate';
-
-// Re-export simple API functions (no key handling needed)
-export { sendVerificationCode, verifyCode, checkAccountExists, changePassword };
-export { getInvitation, createInvitation, listInvitations };
-export { acceptInvitation, cancelInvitation, resendInvitation, deleteInvitation };
 
 /**
  * Client-side login types (without key fields)
@@ -159,6 +137,7 @@ export const authApi = {
     verifyCode,
     checkAccountExists,
     changePassword,
+    getMe,
     getInvitation,
     createInvitation,
     listInvitations,

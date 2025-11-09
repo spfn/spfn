@@ -6,8 +6,12 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/client/nextjs';
+import { logger } from '@spfn/core/logger';
 import { generateKeyPair } from '@/lib/crypto';
 import { sealSession } from '@/lib/session';
+import { getSessionTtl, COOKIE_NAMES } from '@/lib/config';
+
+const authLogger = logger.child('auth:interceptor:login-register');
 
 /**
  * Login and Register Interceptor
@@ -23,7 +27,10 @@ export const loginRegisterInterceptor: InterceptorRule =
     request: async (ctx, next) =>
     {
         // Get old session if exists (for key rotation on login)
-        const oldKeyId = ctx.cookies.get('spfn_session_key_id');
+        const oldKeyId = ctx.cookies.get(COOKIE_NAMES.SESSION_KEY_ID);
+
+        // Extract remember option from request body (if provided)
+        const remember = ctx.body?.remember;
 
         // Generate new key pair
         const keyPair = generateKeyPair('ES256');
@@ -46,10 +53,14 @@ export const loginRegisterInterceptor: InterceptorRule =
             ctx.body.oldKeyId = oldKeyId;
         }
 
-        // Store privateKey in metadata for response interceptor
+        // Remove remember from body (not part of contract)
+        delete ctx.body.remember;
+
+        // Store privateKey and remember in metadata for response interceptor
         ctx.metadata.privateKey = keyPair.privateKey;
         ctx.metadata.keyId = keyPair.keyId;
         ctx.metadata.algorithm = keyPair.algorithm;
+        ctx.metadata.remember = remember;
 
         await next();
     },
@@ -67,13 +78,16 @@ export const loginRegisterInterceptor: InterceptorRule =
 
         if (!data?.userId)
         {
-            console.error('[Auth Interceptor] No userId in response');
+            authLogger.error('No userId in response');
             await next();
             return;
         }
 
         try
         {
+            // Get session TTL (priority: runtime > global > env > default)
+            const ttl = getSessionTtl(ctx.metadata.remember);
+
             // Encrypt session data
             const sessionData =
             {
@@ -83,30 +97,30 @@ export const loginRegisterInterceptor: InterceptorRule =
                 algorithm: ctx.metadata.algorithm,
             };
 
-            const sealed = await sealSession(sessionData, 60 * 60 * 24 * 7); // 7 days
+            const sealed = await sealSession(sessionData, ttl);
 
             // Set HttpOnly session cookie
             ctx.setCookies.push({
-                name: 'spfn_session',
+                name: COOKIE_NAMES.SESSION,
                 value: sealed,
                 options: {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
                     sameSite: 'strict',
-                    maxAge: 60 * 60 * 24 * 7, // 7 days
+                    maxAge: ttl,
                     path: '/',
                 },
             });
 
             // Set keyId cookie (for oldKeyId lookup)
             ctx.setCookies.push({
-                name: 'spfn_session_key_id',
+                name: COOKIE_NAMES.SESSION_KEY_ID,
                 value: ctx.metadata.keyId,
                 options: {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
                     sameSite: 'strict',
-                    maxAge: 60 * 60 * 24 * 7,
+                    maxAge: ttl,
                     path: '/',
                 },
             });
@@ -114,7 +128,7 @@ export const loginRegisterInterceptor: InterceptorRule =
         catch (error)
         {
             const err = error as Error;
-            console.error('[Auth Interceptor] Failed to save session:', err);
+            authLogger.error('Failed to save session', err);
         }
 
         await next();

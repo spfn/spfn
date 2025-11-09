@@ -7,6 +7,7 @@
  * - Key generation (ES256/RS256)
  * - JWT signing and verification
  * - Session encryption (Jose JWE)
+ * - Session TTL configuration
  *
  * Use Cases:
  * - Next.js API Routes
@@ -17,3 +18,4 @@
 
 export * from './crypto';
 export * from './session';
+export * from './config';

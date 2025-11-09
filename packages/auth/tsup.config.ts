@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsup';
 import { glob } from 'glob';
-import path from 'path';
+import * as path from 'path';
 
 // Find all route handler files
 const routeFiles = glob.sync('src/server/routes/**/index.ts');
@@ -35,16 +35,6 @@ const contractEntries = Object.fromEntries(
     })
 );
 
-// Find adapter files
-const adapterFiles = glob.sync('src/adapters/**/*.ts');
-const adapterEntries = Object.fromEntries(
-    adapterFiles.map((file) =>
-    {
-        const key = file.replace('src/', '').replace('.ts', '');
-        return [key, file];
-    })
-);
-
 // Find lib files
 const libFiles = glob.sync('src/lib/**/*.ts');
 const libEntries = Object.fromEntries(
@@ -61,12 +51,12 @@ export default defineConfig({
         server: 'src/server.ts',
         client: 'src/client.ts',
         lib: 'src/lib.ts',
-        adapters: 'src/adapters.ts',
+        'adapters/nextjs/api': 'src/adapters/nextjs/api.ts',
+        'adapters/nextjs/server': 'src/adapters/nextjs/server.ts',
         plugin: 'src/plugin.ts',
         ...entityEntries,
         ...contractEntries,
         ...routeEntries,
-        ...adapterEntries,
         ...libEntries,
     },
     format: ['esm'],
@@ -89,7 +79,10 @@ export default defineConfig({
         'jsonwebtoken',
         'next',
         'next/headers',
+        'next/navigation',
         'server-only',
         'jose',
+        'react',
+        'react/jsx-runtime',
     ],
 });

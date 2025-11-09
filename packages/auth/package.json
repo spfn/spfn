@@ -26,9 +26,13 @@
       "types": "./dist/adapters.d.ts",
       "import": "./dist/adapters.js"
     },
-    "./nextjs": {
-      "types": "./dist/adapters/nextjs/index.d.ts",
-      "import": "./dist/adapters/nextjs/index.js"
+    "./nextjs/api": {
+      "types": "./dist/adapters/nextjs/api.d.ts",
+      "import": "./dist/adapters/nextjs/api.js"
+    },
+    "./nextjs/server": {
+      "types": "./dist/adapters/nextjs/server.d.ts",
+      "import": "./dist/adapters/nextjs/server.js"
     }
   },
   "files": [
@@ -98,6 +102,8 @@
     "@types/bcrypt": "^5.0.2",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.11.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
     "@vitest/coverage-v8": "^4.0.6",
     "drizzle-kit": "^0.31.6",
     "glob": "^11.0.3",

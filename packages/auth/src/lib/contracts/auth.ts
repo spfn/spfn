@@ -348,3 +348,38 @@ export const changePasswordContract = {
         })
     ),
 } as const satisfies RouteContract;
+
+/**
+ * GET /me - Get current user info
+ *
+ * Returns authenticated user's information including role and permissions
+ * Requires authentication
+ * Final path: /_auth/me (prefix added from package.json)
+ */
+export const getMeContract = {
+    method: 'GET' as const,
+    path: '/_auth/me',
+    body: Type.Object({}),
+    response: ApiResponseSchema(
+        Type.Object({
+            userId: Type.String({ description: 'User ID' }),
+            email: Type.Optional(Type.String({ description: 'User email address' })),
+            phone: Type.Optional(Type.String({ description: 'User phone number' })),
+            role: Type.Object({
+                id: Type.Number({ description: 'Role ID' }),
+                name: Type.String({ description: 'Role name (e.g., user, admin)' }),
+                displayName: Type.String({ description: 'Display name for UI' }),
+                priority: Type.Number({ description: 'Role priority level' }),
+            }, { description: 'User role information' }),
+            permissions: Type.Array(
+                Type.Object({
+                    id: Type.Number({ description: 'Permission ID' }),
+                    name: Type.String({ description: 'Permission name (e.g., user:delete)' }),
+                    displayName: Type.String({ description: 'Display name for UI' }),
+                    category: Type.Optional(Type.String({ description: 'Permission category' })),
+                }),
+                { description: 'List of permissions granted through role' }
+            ),
+        })
+    ),
+} as const satisfies RouteContract;

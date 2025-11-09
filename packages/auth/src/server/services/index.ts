@@ -60,6 +60,15 @@ export {
     updateUserService,
 } from './user.service';
 
+// Me Service
+export {
+    getMeService,
+} from './me.service';
+
+export type {
+    GetMeResult,
+} from './me.service';
+
 // RBAC Service
 export {
     initializeAuth,

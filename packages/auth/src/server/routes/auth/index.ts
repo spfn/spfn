@@ -13,7 +13,8 @@ import {
     rotateKeyContract,
     changePasswordContract,
     sendVerificationCodeContract,
-    verifyCodeContract
+    verifyCodeContract,
+    getMeContract
 } from '@/lib/contracts';
 import { getAuth, getUser } from '@/server/helpers';
 import {
@@ -25,6 +26,7 @@ import {
     sendVerificationCodeService,
     verifyCodeService,
     rotateKeyService,
+    getMeService,
 } from '@/server/services';
 
 const app = createApp();
@@ -73,7 +75,15 @@ app.bind(loginContract, async (c) =>
 // POST /api/auth/logout (Authenticated)
 app.bind(logoutContract, async (c) =>
 {
-    const { keyId, userId } = getAuth(c);
+    const auth = getAuth(c);
+
+    // If no auth (expired/invalid session), logout is still considered successful
+    if (!auth)
+    {
+        return c.success({ success: true });
+    }
+
+    const { keyId, userId } = auth;
     await logoutService({ userId: Number(userId), keyId });
     return c.success({ success: true });
 });
@@ -110,6 +120,14 @@ app.bind(changePasswordContract, async (c) =>
     });
 
     return c.success({ success: true });
+});
+
+// GET /_auth/me (Authenticated)
+app.bind(getMeContract, async (c) =>
+{
+    const { userId } = getAuth(c);
+    const result = await getMeService(userId);
+    return c.success(result);
 });
 
 export default app;

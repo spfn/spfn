@@ -5,9 +5,13 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/client/nextjs';
+import { logger } from '@spfn/core/logger';
 import { generateKeyPair } from '@/lib/crypto';
 import { unsealSession, sealSession } from '@/lib/session';
 import { generateClientToken } from '@/lib/crypto';
+import { getSessionTtl, COOKIE_NAMES } from '@/lib/config';
+
+const authLogger = logger.child('auth:interceptor:key-rotation');
 
 /**
  * Key Rotation Interceptor
@@ -22,7 +26,7 @@ export const keyRotationInterceptor: InterceptorRule =
 
     request: async (ctx, next) =>
     {
-        const sessionCookie = ctx.cookies.get('spfn_session');
+        const sessionCookie = ctx.cookies.get(COOKIE_NAMES.SESSION);
 
         if (!sessionCookie)
         {
@@ -75,7 +79,7 @@ export const keyRotationInterceptor: InterceptorRule =
         catch (error)
         {
             const err = error as Error;
-            console.error('[Auth Interceptor] Failed to prepare key rotation:', err);
+            authLogger.error('Failed to prepare key rotation', err);
         }
 
         await next();
@@ -92,13 +96,16 @@ export const keyRotationInterceptor: InterceptorRule =
 
         if (!ctx.metadata.newPrivateKey || !ctx.metadata.userId)
         {
-            console.error('[Auth Interceptor] Missing key rotation metadata');
+            authLogger.error('Missing key rotation metadata');
             await next();
             return;
         }
 
         try
         {
+            // Get session TTL
+            const ttl = getSessionTtl();
+
             // Create new session with rotated key
             const newSessionData =
             {
@@ -108,30 +115,30 @@ export const keyRotationInterceptor: InterceptorRule =
                 algorithm: ctx.metadata.newAlgorithm,
             };
 
-            const sealed = await sealSession(newSessionData, 60 * 60 * 24 * 7); // 7 days
+            const sealed = await sealSession(newSessionData, ttl);
 
             // Update session cookie
             ctx.setCookies.push({
-                name: 'spfn_session',
+                name: COOKIE_NAMES.SESSION,
                 value: sealed,
                 options: {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
                     sameSite: 'strict',
-                    maxAge: 60 * 60 * 24 * 7,
+                    maxAge: ttl,
                     path: '/',
                 },
             });
 
             // Update keyId cookie
             ctx.setCookies.push({
-                name: 'spfn_session_key_id',
+                name: COOKIE_NAMES.SESSION_KEY_ID,
                 value: ctx.metadata.newKeyId,
                 options: {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
                     sameSite: 'strict',
-                    maxAge: 60 * 60 * 24 * 7,
+                    maxAge: ttl,
                     path: '/',
                 },
             });
@@ -139,7 +146,7 @@ export const keyRotationInterceptor: InterceptorRule =
         catch (error)
         {
             const err = error as Error;
-            console.error('[Auth Interceptor] Failed to update session after rotation:', err);
+            authLogger.error('Failed to update session after rotation', err);
         }
 
         await next();

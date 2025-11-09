@@ -14,6 +14,7 @@ import {
 } from '@/server/rbac';
 import type { AuthInitOptions, RoleConfig, PermissionConfig } from '@/server/rbac';
 import { eq, and, inArray } from 'drizzle-orm';
+import { configureAuth } from '@/lib/config';
 
 const authLogger = logger.child('@spfn/auth');
 
@@ -56,6 +57,15 @@ export async function initializeAuth(options: AuthInitOptions = {}): Promise<voi
     }
 
     authLogger.info('🔐 Initializing RBAC system...');
+
+    // Configure global auth settings
+    if (options.sessionTtl !== undefined)
+    {
+        configureAuth({
+            sessionTtl: options.sessionTtl,
+        });
+        authLogger.info(`⏱️  Session TTL: ${options.sessionTtl}`);
+    }
 
     // 1. Collect all roles (built-in + custom)
     const allRoles: RoleConfig[] = [
