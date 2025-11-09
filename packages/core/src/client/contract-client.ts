@@ -40,6 +40,25 @@ export interface CallOptions<TContract extends RouteContract>
     body?: InferContract<TContract>['body'];
     headers?: Record<string, string>;
     baseUrl?: string;
+
+    /**
+     * Additional fetch options (extends RequestInit)
+     *
+     * Can be used for environment-specific options like Next.js cache/next
+     *
+     * @example
+     * ```ts
+     * // Next.js time-based revalidation
+     * { fetchOptions: { next: { revalidate: 60 } } }
+     *
+     * // Next.js disable cache
+     * { fetchOptions: { cache: 'no-store' } }
+     *
+     * // Next.js on-demand revalidation
+     * { fetchOptions: { next: { tags: ['products'] } } }
+     * ```
+     */
+    fetchOptions?: Record<string, any>;
 }
 
 /**
@@ -128,6 +147,7 @@ export class ContractClient
         let init: RequestInit = {
             method,
             headers,
+            ...options?.fetchOptions, // Spread environment-specific options (e.g., Next.js cache/next)
         };
 
         if (options?.body !== undefined)

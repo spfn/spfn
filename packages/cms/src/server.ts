@@ -124,6 +124,7 @@ export const getSection = cache(async (
             getPublishedCacheContract,
             {
                 query: { sections: section, locale: actualLocale },
+                fetchOptions: { next: { revalidate: 60 } } // 60초마다 자동 갱신
             }
         );
 
@@ -270,6 +271,7 @@ export const getSections = cache(async (
             getPublishedCacheContract,
             {
                 query: { sections, locale: actualLocale },
+                fetchOptions: { next: { revalidate: 60 } } // 60초마다 자동 갱신
             }
         );
 
