@@ -711,6 +711,9 @@ importers:
       drizzle-orm:
         specifier: ^0.44.7
         version: 0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+      jose:
+        specifier: ^6.1.0
+        version: 6.1.0
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.2
@@ -745,9 +748,6 @@ importers:
       hono:
         specifier: ^4.9.0
         version: 4.9.9
-      jose:
-        specifier: ^6.1.0
-        version: 6.1.0
       next:
         specifier: ^15.0.0
         version: 15.5.5(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
