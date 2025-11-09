@@ -255,6 +255,7 @@ export class AutoRouteLoader
                     file: relativePath,
                     hint: 'Export contracts using satisfies RouteContract and use app.bind()'
                 });
+
                 return false;
             }
 

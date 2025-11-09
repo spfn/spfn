@@ -203,6 +203,256 @@ app.bind(myProtectedRoute, [authenticate], async (c) => {
 
 ---
 
+## Next.js Integration
+
+The `@spfn/auth/nextjs` adapter provides seamless authentication integration for Next.js applications with automatic JWT injection and session management.
+
+### Features
+
+- **Automatic JWT Generation** - Generates JWT from HttpOnly cookie sessions
+- **Server-Side Interceptor** - Auto-inject JWT in server components and API routes
+- **Client-Side Proxy** - Auto-inject JWT for browser requests via `/api/actions`
+- **High-Level Auth API** - Simple wrappers with automatic key generation
+- **Session Helpers** - Server-side session management utilities
+
+### Installation
+
+```typescript
+import { authApi } from '@spfn/auth/nextjs';
+```
+
+### 1. High-Level Auth API
+
+The `authApi` object provides simplified authentication functions with automatic key generation and session management:
+
+```typescript
+import { authApi } from '@spfn/auth/nextjs';
+
+// ✅ Register (automatic key generation + session)
+const result = await authApi.register({
+  email: 'user@example.com',
+  password: 'SecurePass123!',
+  verificationToken: '...' // from verification code
+});
+// → Automatically generates keypair, stores in session cookie
+
+// ✅ Login (automatic key generation + rotation)
+const result = await authApi.login({
+  email: 'user@example.com',
+  password: 'SecurePass123!'
+});
+// → Automatically generates new keypair, rotates old key
+
+// ✅ Logout (revokes current key)
+await authApi.logout();
+
+// ✅ Rotate Key (before 90-day expiry)
+await authApi.rotateKey();
+```
+
+**No manual key generation needed!** The `authApi` handles:
+- ES256 keypair generation
+- Public key registration with server
+- Private key storage in encrypted HttpOnly cookies
+- Automatic key rotation on login
+
+### 2. Server-Side JWT Injection
+
+For server components and API routes, use the `createAuthInterceptor`:
+
+```typescript
+// app/api/protected/route.ts
+import { UniversalClient } from '@spfn/core/client';
+import { createAuthInterceptor } from '@spfn/auth/nextjs';
+
+// Create client with auth interceptor
+const client = new UniversalClient({
+  baseURL: process.env.SPFN_API_URL!,
+  requestInterceptor: createAuthInterceptor()
+});
+
+export async function GET() {
+  // JWT is automatically injected from session cookie
+  const data = await client.call(someContract);
+  return Response.json(data);
+}
+```
+
+**How it works:**
+1. Reads `session` HttpOnly cookie
+2. Unseals session to get `privateKey`, `keyId`, `userId`
+3. Generates JWT signed with `privateKey`
+4. Adds `Authorization: Bearer <jwt>` header automatically
+
+### 3. Client-Side Proxy Setup
+
+For browser requests, set up the Next.js API Route proxy:
+
+```typescript
+// app/api/actions/[...path]/route.ts
+export {
+  GET,
+  POST,
+  PUT,
+  DELETE,
+  PATCH
+} from '@spfn/auth/nextjs/proxy';
+```
+
+Then use `UniversalClient` from browser:
+
+```typescript
+'use client';
+import { UniversalClient } from '@spfn/core/client';
+
+const client = new UniversalClient({
+  baseURL: '/api/actions' // Proxy endpoint
+});
+
+// Browser → /api/actions/user/profile → SPFN API (with JWT injected)
+const user = await client.call(getUserContract);
+```
+
+**How it works:**
+1. Browser makes request to `/api/actions/*`
+2. Proxy reads `session` cookie (server-side only)
+3. Generates JWT from session
+4. Forwards request to SPFN API with `Authorization` header
+5. Returns response to browser
+
+### 4. Session Helpers
+
+Direct session management utilities:
+
+```typescript
+import {
+  saveSession,
+  getSession,
+  clearSession
+} from '@spfn/auth/nextjs';
+
+// Save session data (encrypted HttpOnly cookie)
+await saveSession({
+  userId: '123',
+  privateKey: '...',
+  keyId: 'uuid',
+  algorithm: 'ES256'
+}, 60 * 60 * 24 * 7); // 7 days
+
+// Get current session
+const session = await getSession();
+console.log(session?.userId);
+
+// Clear session
+await clearSession();
+```
+
+### 5. JWT Helper (Manual Usage)
+
+Generate JWT from session manually if needed:
+
+```typescript
+import { generateJWTFromSession } from '@spfn/auth/nextjs';
+
+const jwt = await generateJWTFromSession();
+// → Returns signed JWT or null if no session
+```
+
+### Updated Middleware (No X-Key-Id Required)
+
+The authenticate middleware now extracts `keyId` from the JWT payload, so you **no longer need** to send the `X-Key-Id` header:
+
+```typescript
+// ❌ Old way (deprecated)
+fetch('/api/protected', {
+  headers: {
+    'Authorization': `Bearer ${jwt}`,
+    'X-Key-Id': keyId  // ← No longer needed!
+  }
+});
+
+// ✅ New way
+fetch('/api/protected', {
+  headers: {
+    'Authorization': `Bearer ${jwt}`  // keyId extracted from JWT
+  }
+});
+```
+
+The middleware flow:
+1. Decode JWT to extract `keyId` (without verification)
+2. Fetch public key from database using `keyId`
+3. Verify JWT signature with public key
+4. Validate user and attach to context
+
+### Complete Next.js Example
+
+```typescript
+// app/auth/login/route.ts
+import { authApi } from '@spfn/auth/nextjs';
+
+export async function POST(request: Request) {
+  const { email, password } = await request.json();
+
+  try {
+    const result = await authApi.login({ email, password });
+    return Response.json({ success: true, userId: result.userId });
+  } catch (error) {
+    return Response.json({ success: false, error: error.message }, { status: 401 });
+  }
+}
+
+// app/dashboard/page.tsx (Server Component)
+import { UniversalClient } from '@spfn/core/client';
+import { createAuthInterceptor } from '@spfn/auth/nextjs';
+
+const client = new UniversalClient({
+  baseURL: process.env.SPFN_API_URL!,
+  requestInterceptor: createAuthInterceptor()
+});
+
+export default async function Dashboard() {
+  // JWT automatically injected
+  const user = await client.call(getUserContract);
+
+  return <div>Welcome {user.email}</div>;
+}
+
+// app/profile/page.tsx (Client Component)
+'use client';
+import { UniversalClient } from '@spfn/core/client';
+
+const client = new UniversalClient({
+  baseURL: '/api/actions'
+});
+
+export default function Profile() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    // Browser → Proxy → SPFN API (JWT auto-injected)
+    client.call(getUserContract).then(setUser);
+  }, []);
+
+  return <div>{user?.email}</div>;
+}
+```
+
+### Environment Variables
+
+```bash
+# Required for session encryption
+SPFN_AUTH_SESSION_SECRET=your-32-char-secret-key
+
+# SPFN API URL (server-side)
+SPFN_API_URL=http://localhost:8790
+
+# Public API URL (optional, for client-side)
+NEXT_PUBLIC_API_URL=http://localhost:8790
+```
+
+---
+
 ## Service Layer (Reusable Business Logic)
 
 The `@spfn/auth` package provides **service functions** that encapsulate all business logic, making it easy to create custom authentication flows while reusing the same secure logic.

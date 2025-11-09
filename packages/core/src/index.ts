@@ -40,6 +40,14 @@ export type { ServerConfig, AppFactory } from './server/types.js';
 // Common Types (frequently used across modules)
 // ============================================================================
 
+// API Response types (commonly used for route responses)
+export type {
+    ApiResponse,
+    ApiSuccessResponse,
+    ApiErrorResponse,
+    ErrorResponse,
+} from './types/api-response.js';
+
 // Route types (commonly used for contract definitions)
 export type {
     HttpMethod,

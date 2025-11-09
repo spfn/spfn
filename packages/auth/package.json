@@ -26,7 +26,7 @@
       "types": "./dist/adapters.d.ts",
       "import": "./dist/adapters.js"
     },
-    "./adapters/nextjs": {
+    "./nextjs": {
       "types": "./dist/adapters/nextjs/index.d.ts",
       "import": "./dist/adapters/nextjs/index.js"
     }
