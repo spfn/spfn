@@ -227,7 +227,27 @@ export function formatConsole(metadata: LogMetadata, colorize = true): string
     {
         Object.entries(metadata.context).forEach(([key, value]) =>
         {
-            const valueStr = typeof value === 'string' ? value : String(value);
+            let valueStr: string;
+            if (typeof value === 'string')
+            {
+                valueStr = value;
+            }
+            else if (typeof value === 'object' && value !== null)
+            {
+                try
+                {
+                    valueStr = JSON.stringify(value);
+                }
+                catch (error)
+                {
+                    valueStr = '[circular]';
+                }
+            }
+            else
+            {
+                valueStr = String(value);
+            }
+
             if (colorize)
             {
                 parts.push(`${COLORS.dim}[${key}=${valueStr}]${COLORS.reset}`);
