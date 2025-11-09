@@ -14,13 +14,12 @@
  */
 
 import { bigint, boolean, text, timestamp, index, unique } from 'drizzle-orm/pg-core';
-import { id, timestamps, createFunctionSchema } from '@spfn/core/db';
+import { id, timestamps } from '@spfn/core/db';
 import { users } from './users';
 import { permissions } from './permissions';
+import { authSchema } from './schema';
 
-const schema = createFunctionSchema('@spfn/auth');
-
-export const userPermissions = schema.table('user_permissions',
+export const userPermissions = authSchema.table('user_permissions',
     {
         // Primary key
         id: id(),

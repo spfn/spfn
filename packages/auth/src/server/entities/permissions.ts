@@ -11,11 +11,10 @@
  */
 
 import { text, boolean, index } from 'drizzle-orm/pg-core';
-import { id, timestamps, createFunctionSchema } from '@spfn/core/db';
+import { id, timestamps } from '@spfn/core/db';
+import { authSchema } from './schema';
 
-const schema = createFunctionSchema('@spfn/auth');
-
-export const permissions = schema.table('permissions',
+export const permissions = authSchema.table('permissions',
     {
         // Primary key
         id: id(),

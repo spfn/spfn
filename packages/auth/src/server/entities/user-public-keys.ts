@@ -6,16 +6,15 @@
  */
 
 import { text, timestamp, boolean, index } from 'drizzle-orm/pg-core';
-import { id, foreignKey, createFunctionSchema } from '@spfn/core/db';
+import { id, foreignKey } from '@spfn/core/db';
 import { users } from './users';
-
-const schema = createFunctionSchema('@spfn/auth');
+import { authSchema } from './schema';
 
 /**
  * User Public Keys Table
  * Each user can have multiple public keys (for rotation)
  */
-export const userPublicKeys = schema.table(
+export const userPublicKeys = authSchema.table(
     'user_public_keys',
     {
         id: id(),

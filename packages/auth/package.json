@@ -17,6 +17,18 @@
     "./client": {
       "types": "./dist/client.d.ts",
       "import": "./dist/client.js"
+    },
+    "./lib": {
+      "types": "./dist/lib.d.ts",
+      "import": "./dist/lib.js"
+    },
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "import": "./dist/adapters.js"
+    },
+    "./adapters/nextjs": {
+      "types": "./dist/adapters/nextjs/index.d.ts",
+      "import": "./dist/adapters/nextjs/index.js"
     }
   },
   "files": [
@@ -91,10 +103,19 @@
     "glob": "^11.0.3",
     "hono": "^4.9.0",
     "jose": "^6.1.0",
+    "next": "^15.0.0",
     "spfn": "workspace:*",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.3.3",
     "vitest": "^4.0.6"
+  },
+  "peerDependencies": {
+    "next": ">=13.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
   }
 }

@@ -5,9 +5,12 @@
  */
 
 import { findOne, create } from '@spfn/core/db';
+import { logger } from '@spfn/core/logger';
 import { users } from '@/server/entities';
 import { hashPassword } from '@/server/helpers';
 import { getRoleByName } from '@/server/services/role.service';
+
+const authLogger = logger.child('@spfn/auth');
 
 /**
  * Admin account configuration
@@ -63,7 +66,7 @@ function parseAdminAccounts(): AdminAccountConfig[]
 
             if (!Array.isArray(parsed))
             {
-                console.error('[Auth] ❌ SPFN_AUTH_ADMIN_ACCOUNTS must be an array');
+                authLogger.error('❌ SPFN_AUTH_ADMIN_ACCOUNTS must be an array');
                 return accounts;
             }
 
@@ -71,7 +74,7 @@ function parseAdminAccounts(): AdminAccountConfig[]
             {
                 if (!item.email || !item.password)
                 {
-                    console.warn('[Auth] ⚠️  Skipping account: missing email or password');
+                    authLogger.warn('⚠️  Skipping account: missing email or password');
                     continue;
                 }
 
@@ -89,7 +92,7 @@ function parseAdminAccounts(): AdminAccountConfig[]
         catch (error)
         {
             const err = error as Error;
-            console.error('[Auth] ❌ Failed to parse SPFN_AUTH_ADMIN_ACCOUNTS:', err.message);
+            authLogger.error('❌ Failed to parse SPFN_AUTH_ADMIN_ACCOUNTS:', err);
             return accounts;
         }
     }
@@ -116,7 +119,7 @@ function parseAdminAccounts(): AdminAccountConfig[]
         // Validate lengths match
         if (passwords.length !== emails.length)
         {
-            console.error('[Auth] ❌ SPFN_AUTH_ADMIN_EMAILS and SPFN_AUTH_ADMIN_PASSWORDS length mismatch');
+            authLogger.error('❌ SPFN_AUTH_ADMIN_EMAILS and SPFN_AUTH_ADMIN_PASSWORDS length mismatch');
             return accounts;
         }
 
@@ -128,7 +131,7 @@ function parseAdminAccounts(): AdminAccountConfig[]
 
             if (!email || !password)
             {
-                console.warn(`[Auth] ⚠️  Skipping account ${i + 1}: missing email or password`);
+                authLogger.warn(`⚠️  Skipping account ${i + 1}: missing email or password`);
                 continue;
             }
 
@@ -196,7 +199,7 @@ export async function ensureAdminExists(): Promise<void>
         return;
     }
 
-    console.log(`[Auth] Creating ${accounts.length} admin account(s)...`);
+    authLogger.info(`Creating ${accounts.length} admin account(s)...`);
 
     let created = 0;
     let skipped = 0;
@@ -211,7 +214,7 @@ export async function ensureAdminExists(): Promise<void>
 
             if (existing)
             {
-                console.log(`[Auth] ⚠️  Account already exists: ${account.email} (skipped)`);
+                authLogger.info(`⚠️  Account already exists: ${account.email} (skipped)`);
                 skipped++;
                 continue;
             }
@@ -222,7 +225,7 @@ export async function ensureAdminExists(): Promise<void>
 
             if (!role)
             {
-                console.error(`[Auth] ❌ Role '${roleName}' not found for ${account.email}. Run initializeAuth() first.`);
+                authLogger.error(`❌ Role '${roleName}' not found for ${account.email}. Run initializeAuth() first.`);
                 failed++;
                 continue;
             }
@@ -241,22 +244,22 @@ export async function ensureAdminExists(): Promise<void>
                 status: 'active',
             });
 
-            console.log(`[Auth] ✅ Admin account created: ${account.email} (${roleName})`);
+            authLogger.info(`✅ Admin account created: ${account.email} (${roleName})`);
             created++;
         }
         catch (error)
         {
             const err = error as Error;
-            console.error(`[Auth] ❌ Failed to create account ${account.email}:`, err.message);
+            authLogger.error(`❌ Failed to create account ${account.email}:`, err);
             failed++;
         }
     }
 
     // Summary
-    console.log(`[Auth] 📊 Summary: ${created} created, ${skipped} skipped, ${failed} failed`);
+    authLogger.info(`📊 Summary: ${created} created, ${skipped} skipped, ${failed} failed`);
 
     if (created > 0)
     {
-        console.log('[Auth] ⚠️  Please change passwords on first login!');
+        authLogger.info('⚠️  Please change passwords on first login!');
     }
 }

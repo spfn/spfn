@@ -5,12 +5,11 @@
  */
 
 import { text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
-import { id, timestamps, foreignKey, createFunctionSchema } from '@spfn/core/db';
+import { id, timestamps, foreignKey } from '@spfn/core/db';
 import { users } from './users';
+import { authSchema } from './schema';
 
-const schema = createFunctionSchema('@spfn/auth');
-
-export const userSocialAccounts = schema.table('user_social_accounts',
+export const userSocialAccounts = authSchema.table('user_social_accounts',
     {
         id: id(),
 

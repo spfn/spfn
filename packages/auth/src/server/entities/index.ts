@@ -4,6 +4,9 @@
  * Core authentication and authorization entities
  */
 
+// Schema definition
+export * from './schema';
+
 // User entities
 export * from './users';
 export * from './user-social-accounts';

@@ -11,17 +11,9 @@
  * - httpOnly cookie management
  */
 
-import { cookies } from 'next/headers';
-import { generateKeyPair, generateClientToken, type KeyPair } from './crypto';
-import { sealSession, unsealSession, type SessionData } from './session';
-import type {
-    RegisterBody,
-    RegisterResponse,
-    LoginBody,
-    LoginResponse,
-    RotateKeyBody,
-    RotateKeyResponse,
-} from '@/lib/api';
+import { cookies } from 'next/headers.js';
+import { generateKeyPair, generateClientToken } from '@/lib/crypto';
+import { sealSession, unsealSession, type SessionData } from '@/lib/session';
 
 export interface AuthClientConfig
 {
@@ -222,7 +214,7 @@ export class AuthClient
         finally
         {
             // Always clear local session
-            this.clearSession();
+            await this.clearSession();
         }
     }
 
@@ -350,7 +342,7 @@ export class AuthClient
      */
     async getSession(): Promise<SessionData>
     {
-        const cookieStore = cookies();
+        const cookieStore = await cookies();
         const sessionCookie = cookieStore.get(`${this.config.cookiePrefix}_session`)?.value;
 
         if (!sessionCookie)
@@ -394,7 +386,7 @@ export class AuthClient
     {
         const sealed = await sealSession(data, this.config.sessionMaxAge);
 
-        const cookieStore = cookies();
+        const cookieStore = await cookies();
         cookieStore.set(`${this.config.cookiePrefix}_session`, sealed, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -407,9 +399,9 @@ export class AuthClient
     /**
      * Clear session cookie
      */
-    private clearSession(): void
+    private async clearSession(): Promise<void>
     {
-        const cookieStore = cookies();
+        const cookieStore = await cookies();
         cookieStore.delete(`${this.config.cookiePrefix}_session`);
     }
 }

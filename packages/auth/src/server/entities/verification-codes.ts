@@ -6,11 +6,10 @@
  */
 
 import { text, timestamp, index } from 'drizzle-orm/pg-core';
-import { id, timestamps, createFunctionSchema } from '@spfn/core/db';
+import { id, timestamps } from '@spfn/core/db';
+import { authSchema } from './schema';
 
-const schema = createFunctionSchema('@spfn/auth');
-
-export const verificationCodes = schema.table('verification_codes',
+export const verificationCodes = authSchema.table('verification_codes',
     {
         id: id(),
 

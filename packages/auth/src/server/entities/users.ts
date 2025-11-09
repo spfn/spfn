@@ -13,13 +13,12 @@
  */
 
 import { text, timestamp, check, boolean, bigint, index } from 'drizzle-orm/pg-core';
-import { id, timestamps, createFunctionSchema } from '@spfn/core/db';
+import { id, timestamps } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
 import { roles } from './roles';
+import { authSchema } from './schema';
 
-const schema = createFunctionSchema('@spfn/auth');
-
-export const users = schema.table('users',
+export const users = authSchema.table('users',
     {
         // Identity
         id: id(),

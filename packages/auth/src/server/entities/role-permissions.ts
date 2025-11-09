@@ -9,13 +9,12 @@
  */
 
 import { bigint, index, unique } from 'drizzle-orm/pg-core';
-import { id, timestamps, createFunctionSchema } from '@spfn/core/db';
+import { id, timestamps } from '@spfn/core/db';
 import { roles } from './roles';
 import { permissions } from './permissions';
+import { authSchema } from './schema';
 
-const schema = createFunctionSchema('@spfn/auth');
-
-export const rolePermissions = schema.table('role_permissions',
+export const rolePermissions = authSchema.table('role_permissions',
     {
         // Primary key
         id: id(),
