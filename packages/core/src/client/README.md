@@ -4,6 +4,7 @@ Type-safe HTTP client with end-to-end type safety using RouteContract.
 
 ## Features
 
+### ContractClient (Basic Client)
 - ✅ **End-to-End Type Safety**: Full TypeScript inference from server contracts
 - ✅ **Contract-based**: Shares types with server routes via RouteContract
 - ✅ **Zero Runtime Validation**: Types only, no schema validation overhead
@@ -15,6 +16,14 @@ Type-safe HTTP client with end-to-end type safety using RouteContract.
 - ✅ **Request Interceptors**: Add authentication, logging, etc.
 - ✅ **Next.js Safe**: No server dependencies, safe for client components
 - ✅ **Minimal**: Uses native `fetch` API, zero dependencies
+
+### UniversalClient (Auto-routing Client)
+- ✅ **Environment Detection**: Automatically detects server vs browser
+- ✅ **Auto-routing**: Server → Direct API call, Browser → Proxy route
+- ✅ **Cookie Forwarding**: HttpOnly cookies work seamlessly
+- ✅ **Same API**: Identical interface as ContractClient
+- ✅ **Zero Configuration**: Works out of the box with sensible defaults
+- ✅ **Flexible Proxy Path**: Configurable API route path
 
 ---
 
@@ -865,6 +874,326 @@ const users = await client.call(getUsersContract);
 2. Move contracts to `src/lib/contracts/` if not already there
 3. Remove the first `path` parameter from all `client.call()` calls
 4. Use auto-generated `api` object instead of calling `client.call()` directly
+
+---
+
+## UniversalClient - Auto-routing Client
+
+The `UniversalClient` automatically detects execution environment and routes requests accordingly:
+
+- **Server Components**: Direct call to SPFN API server (internal network)
+- **Client Components**: Proxies through Next.js API Route (enables cookie forwarding)
+
+### Why UniversalClient?
+
+When using authentication with HttpOnly cookies:
+
+1. **Browser Security**: HttpOnly cookies cannot be accessed by JavaScript
+2. **CORS Protection**: Direct browser → SPFN server calls require CORS configuration
+3. **Cookie Forwarding**: API Routes can forward cookies to SPFN server
+
+### Architecture
+
+```
+Client Component (Browser)
+    ↓ fetch('/api/proxy/_auth/login')
+Next.js API Route (/api/proxy/[...path])
+    ↓ Forward cookies + request
+SPFN API Server (http://localhost:8790)
+```
+
+### Setup
+
+#### 1. Create API Route Proxy
+
+Create `app/api/proxy/[...path]/route.ts` in your Next.js app:
+
+```typescript
+import { type NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+
+const SPFN_API_URL = process.env.SERVER_API_URL || 'http://localhost:8790';
+
+async function handleProxy(
+    request: NextRequest,
+    pathSegments: string[],
+    method: string
+): Promise<NextResponse>
+{
+    const path = `/${pathSegments.join('/')}`;
+    const url = `${SPFN_API_URL}${path}`;
+
+    // Get cookies from request
+    const cookieStore = cookies();
+    const sessionCookie = cookieStore.get('session');
+
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+    };
+
+    // Forward session cookie
+    if (sessionCookie)
+    {
+        headers['Cookie'] = `session=${sessionCookie.value}`;
+    }
+
+    const init: RequestInit = { method, headers };
+
+    // Forward body for POST/PUT/PATCH
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH')
+    {
+        const body = await request.text();
+        if (body) init.body = body;
+    }
+
+    const response = await fetch(url, init);
+    const data = await response.text();
+
+    let jsonData;
+    try
+    {
+        jsonData = JSON.parse(data);
+    }
+    catch (error)
+    {
+        jsonData = { data };
+    }
+
+    const nextResponse = NextResponse.json(jsonData, {
+        status: response.status,
+    });
+
+    // Forward Set-Cookie header
+    const setCookieHeader = response.headers.get('Set-Cookie');
+    if (setCookieHeader)
+    {
+        nextResponse.headers.set('Set-Cookie', setCookieHeader);
+    }
+
+    return nextResponse;
+}
+
+export async function GET(
+    request: NextRequest,
+    { params }: { params: { path: string[] } }
+)
+{
+    return handleProxy(request, params.path, 'GET');
+}
+
+export async function POST(
+    request: NextRequest,
+    { params }: { params: { path: string[] } }
+)
+{
+    return handleProxy(request, params.path, 'POST');
+}
+
+export async function PUT(
+    request: NextRequest,
+    { params }: { params: { path: string[] } }
+)
+{
+    return handleProxy(request, params.path, 'PUT');
+}
+
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: { path: string[] } }
+)
+{
+    return handleProxy(request, params.path, 'DELETE');
+}
+```
+
+#### 2. Configure Environment Variables
+
+```bash
+# .env.local
+SERVER_API_URL=http://localhost:8790
+```
+
+#### 3. Use UniversalClient
+
+```typescript
+import { createUniversalClient } from '@spfn/core/client';
+
+const client = createUniversalClient();
+
+// Server Component - direct call to SPFN API
+const result = await client.call(contract, options);
+
+// Client Component - proxies through /api/proxy
+'use client';
+const result = await client.call(contract, options); // Automatic
+```
+
+### API Reference
+
+#### `createUniversalClient(config?)`
+
+Creates a new universal API client.
+
+```typescript
+const client = createUniversalClient({
+  apiUrl: 'http://localhost:8790',  // Server-side direct calls
+  proxyBasePath: '/api/proxy',       // Client-side proxy path
+  headers: { 'X-Custom': 'value' },
+  timeout: 30000,
+});
+```
+
+**Parameters:**
+
+- `config?: UniversalClientConfig`
+  - `apiUrl?: string` - SPFN API server URL (default: `process.env.SERVER_API_URL` or `http://localhost:8790`)
+  - `proxyBasePath?: string` - Next.js API route path (default: `/api/proxy`)
+  - `headers?: Record<string, string>` - Default headers
+  - `timeout?: number` - Request timeout in milliseconds
+  - `fetch?: typeof fetch` - Custom fetch implementation
+
+#### `client.call(contract, options?)`
+
+Identical to `ContractClient.call()` - automatically routes based on environment.
+
+#### `client.isServerEnv()`
+
+Check if currently running in server environment:
+
+```typescript
+const client = createUniversalClient();
+console.log(client.isServerEnv()); // true (server), false (browser)
+```
+
+### Usage Examples
+
+#### Server Component (Direct Call)
+
+```typescript
+// app/dashboard/page.tsx
+import { createUniversalClient } from '@spfn/core/client';
+import { loginContract } from '@/lib/contracts/auth';
+
+export default async function DashboardPage()
+{
+    const client = createUniversalClient();
+
+    // Runs on server → direct call to SPFN API
+    const result = await client.call(loginContract, {
+        body: { email: 'user@example.com', password: 'pass123' }
+    });
+
+    return <div>User: {result.userId}</div>;
+}
+```
+
+#### Client Component (Proxied Call)
+
+```typescript
+// app/login/LoginForm.tsx
+'use client';
+
+import { useState } from 'react';
+import { createUniversalClient } from '@spfn/core/client';
+import { loginContract } from '@/lib/contracts/auth';
+
+export default function LoginForm()
+{
+    const [email, setEmail] = useState('');
+
+    const handleLogin = async () =>
+    {
+        const client = createUniversalClient();
+
+        // Runs in browser → proxies through /api/proxy/_auth/login
+        // Cookies are automatically forwarded
+        const result = await client.call(loginContract, {
+            body: { email, password: 'pass123' }
+        });
+
+        console.log('Logged in:', result.userId);
+    };
+
+    return (
+        <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} />
+            <button type="submit">Login</button>
+        </form>
+    );
+}
+```
+
+### Custom Proxy Path
+
+To use a different proxy path:
+
+```typescript
+// app/layout.tsx
+import { configureUniversalClient } from '@spfn/core/client';
+
+configureUniversalClient({
+    proxyBasePath: '/api/spfn', // Custom path
+});
+```
+
+Then create your proxy at `app/api/spfn/[...path]/route.ts` instead.
+
+### Security Considerations
+
+#### Cookie Security
+
+Ensure cookies are set with secure attributes:
+
+```typescript
+// In SPFN API login route
+c.header(
+    'Set-Cookie',
+    `session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`
+);
+```
+
+**Attributes:**
+- `HttpOnly`: Prevents JavaScript access
+- `Secure`: HTTPS only (disable in development)
+- `SameSite=Strict`: CSRF protection
+- `Path=/`: Available on all routes
+- `Max-Age`: Expiry time (7 days = 604800 seconds)
+
+#### Environment Detection
+
+UniversalClient detects environment using:
+
+1. `process.env.SERVER_API_URL` (server-only)
+2. `process.env.SPFN_API_URL` (server-only)
+3. `process.env.NODE_ENV` (server-only)
+
+If any of these exist, it's considered server environment.
+
+### Troubleshooting
+
+#### Problem: Cookies not being forwarded
+
+**Solution:** Check:
+1. Cookies are set with correct domain
+2. `credentials: 'include'` in fetch options (automatic in UniversalClient)
+3. CORS is configured properly (if needed)
+
+#### Problem: 404 on proxy route
+
+**Solution:** Verify:
+1. File is at: `app/api/proxy/[...path]/route.ts`
+2. File exports GET, POST, etc. functions
+3. Next.js dev server was restarted
+
+#### Problem: Direct calls in browser
+
+**Solution:** Check environment variable detection:
+```typescript
+console.log('SERVER_API_URL:', process.env.SERVER_API_URL);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+```
+
+If `process.env` is undefined in browser, the client will use proxy.
 
 ---
 

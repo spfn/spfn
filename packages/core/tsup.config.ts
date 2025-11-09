@@ -4,6 +4,7 @@ export default defineConfig({
     entry: {
         index: 'src/index.ts',
         'client/index': 'src/client/index.ts',
+        'client/nextjs/index': 'src/client/nextjs/index.ts',
         'route/index': 'src/route/index.ts',
         'db/index': 'src/db/index.ts',
         'server/index': 'src/server/index.ts',
@@ -37,5 +38,7 @@ export default defineConfig({
         'chokidar',
         'dotenv',
         '@sinclair/typebox',
+        'next',
+        'next/server',
     ],
 });

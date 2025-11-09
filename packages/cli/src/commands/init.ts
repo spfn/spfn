@@ -159,6 +159,26 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
                 copySync(libTemplateDir, libTargetDir);
             }
 
+            // Create API actions proxy route (app/api/actions/[...path]/route.ts)
+            const actionsDir = join(cwd, 'app', 'api', 'actions', '[...path]');
+            const actionsRoutePath = join(actionsDir, 'route.ts');
+
+            if (!existsSync(actionsRoutePath))
+            {
+                ensureDirSync(actionsDir);
+                const routeContent = `/**
+ * SPFN API Proxy
+ *
+ * Automatically forwards requests to SPFN API server with cookie support
+ * This enables HttpOnly session cookies to work in client components
+ */
+
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+`;
+                writeFileSync(actionsRoutePath, routeContent);
+                logger.success('Created app/api/actions/[...path]/route.ts (API proxy)');
+            }
+
             spinner.succeed('Server structure created');
         }
         catch (error)
