@@ -39,6 +39,10 @@ import {
     executeResponseInterceptors,
 } from './interceptor';
 import { interceptorRegistry } from './registry';
+import { logger } from '../../logger';
+
+// Create proxy-specific logger
+const proxyLogger = logger.child('nextjs-proxy');
 
 /**
  * Get SPFN API URL from environment or config
@@ -141,17 +145,17 @@ async function handleProxy(
 
         // Execute request interceptors
         const rules = config?.interceptors || [];
-        console.log(`[SPFN Proxy] Handling ${method} ${path}`);
-        console.log(`[SPFN Proxy] Total available interceptor rules: ${rules.length}`);
+        proxyLogger.debug(`Handling ${method} ${path}`);
+        proxyLogger.debug(`Total available interceptor rules: ${rules.length}`);
 
         const matchedRules = filterMatchingInterceptors(rules, path, method);
-        console.log(`[SPFN Proxy] Matched ${matchedRules.length} interceptor rules for this request`);
+        proxyLogger.debug(`Matched ${matchedRules.length} interceptor rules for this request`);
 
         const requestInterceptors = matchedRules
             .map((rule) => rule.request)
             .filter((interceptor): interceptor is NonNullable<typeof interceptor> => !!interceptor);
 
-        console.log(`[SPFN Proxy] Executing ${requestInterceptors.length} request interceptors`);
+        proxyLogger.debug(`Executing ${requestInterceptors.length} request interceptors`);
 
         await executeRequestInterceptors(requestContext, requestInterceptors);
 
@@ -191,8 +195,7 @@ async function handleProxy(
 
         if (config?.debug)
         {
-            console.log(`[SPFN Proxy] Calling ${url}`);
-            console.log(`[SPFN Proxy] Headers:`, requestContext.headers);
+            proxyLogger.debug(`Calling ${url}`, { headers: requestContext.headers });
         }
 
         // Call SPFN API
@@ -235,7 +238,7 @@ async function handleProxy(
 
         if (config?.debug)
         {
-            console.log(`[SPFN Proxy] Response interceptors: ${responseInterceptors.length}`);
+            proxyLogger.debug(`Response interceptors: ${responseInterceptors.length}`);
         }
 
         await executeResponseInterceptors(responseContext, responseInterceptors);
@@ -288,14 +291,21 @@ async function handleProxy(
 
         if (config?.debug)
         {
-            console.log(`[SPFN Proxy] Response: ${responseContext.response.status}`);
+            proxyLogger.debug(`Response: ${responseContext.response.status}`);
         }
 
         return nextResponse;
     }
     catch (error)
     {
-        console.error('[SPFN Proxy] Error:', error);
+        if (error instanceof Error)
+        {
+            proxyLogger.error('Proxy error', error);
+        }
+        else
+        {
+            proxyLogger.error('Proxy error', { error });
+        }
 
         return NextResponse.json(
             {
@@ -360,7 +370,7 @@ export function createProxy(config?: ProxyConfig)
 
     let allInterceptors: InterceptorRule[] = [];
 
-    console.log('[SPFN Proxy] Creating proxy with config:', {
+    proxyLogger.debug('Creating proxy with config', {
         autoDiscoverInterceptors: finalConfig.autoDiscoverInterceptors,
         customInterceptors: finalConfig.interceptors?.length || 0,
         disableAutoInterceptors: finalConfig.disableAutoInterceptors || [],
@@ -370,22 +380,24 @@ export function createProxy(config?: ProxyConfig)
     if (finalConfig.autoDiscoverInterceptors)
     {
         const registeredPackages = interceptorRegistry.getPackageNames();
-        console.log('[SPFN Proxy] Registered packages in registry:', registeredPackages);
+        proxyLogger.debug('Registered packages in registry', { packages: registeredPackages });
 
         const autoInterceptors = interceptorRegistry.getAll(
             finalConfig.disableAutoInterceptors || []
         );
         allInterceptors.push(...autoInterceptors);
 
-        console.log('[SPFN Proxy] Auto-discovered interceptors from packages:', registeredPackages);
-        console.log(`[SPFN Proxy] Total auto-discovered interceptors: ${autoInterceptors.length}`);
+        proxyLogger.debug('Auto-discovered interceptors from packages', {
+            packages: registeredPackages,
+            count: autoInterceptors.length
+        });
     }
 
     // Add custom interceptors
     if (finalConfig.interceptors)
     {
         allInterceptors.push(...finalConfig.interceptors);
-        console.log(`[SPFN Proxy] Custom interceptors: ${finalConfig.interceptors.length}`);
+        proxyLogger.debug(`Custom interceptors: ${finalConfig.interceptors.length}`);
     }
 
     // Create final config with merged interceptors
@@ -394,7 +406,7 @@ export function createProxy(config?: ProxyConfig)
         interceptors: allInterceptors,
     };
 
-    console.log(`[SPFN Proxy] Total interceptors loaded: ${allInterceptors.length}`);
+    proxyLogger.debug(`Total interceptors loaded: ${allInterceptors.length}`);
 
     return {
         GET: async (
@@ -442,7 +454,7 @@ function getDefaultProxy(): ReturnType<typeof createProxy>
 {
     if (!defaultProxy)
     {
-        console.log('[SPFN Proxy] Initializing default proxy with auto-discovery');
+        proxyLogger.debug('Initializing default proxy with auto-discovery');
         defaultProxy = createProxy();
     }
     return defaultProxy;

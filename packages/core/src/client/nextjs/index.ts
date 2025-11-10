@@ -4,6 +4,16 @@
  * Provides seamless integration with Next.js App Router with interceptor pattern
  */
 
+// Next.js Client (always routes through API proxy)
+export {
+    NextjsClient,
+    createNextjsClient,
+    configureNextjsClient,
+    getNextjsClient,
+    nextjsClient,
+} from './client';
+export type { NextjsClientConfig } from './client';
+
 // Default proxy handlers (with auto-discovery enabled)
 export { GET, POST, PUT, PATCH, DELETE } from './proxy';
 

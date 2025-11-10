@@ -1,32 +1,32 @@
 /**
  * SPFN Client Module
  *
- * Contract-based type-safe API client for browser and Next.js
+ * Contract-based type-safe API client for Next.js
  */
 
-// Universal Client (recommended for all new projects)
+// Next.js Client (recommended for all Next.js projects)
 export {
-    UniversalClient,
-    createUniversalClient,
-    configureUniversalClient,
-    getUniversalClient,
-    universalClient,
-} from './universal-client.js';
+    NextjsClient,
+    createNextjsClient,
+    configureNextjsClient,
+    getNextjsClient,
+    nextjsClient,
+} from './nextjs/client.js';
 
 export type {
-    UniversalClientConfig,
-} from './universal-client.js';
+    NextjsClientConfig,
+} from './nextjs/client.js';
 
-// Main client exports (now using UniversalClient)
+// Main client exports (alias for NextjsClient)
 export {
-    createUniversalClient as createClient,
-    configureUniversalClient as configureClient,
-    universalClient as client,
-} from './universal-client.js';
+    createNextjsClient as createClient,
+    configureNextjsClient as configureClient,
+    nextjsClient as client,
+} from './nextjs/client.js';
 
 export type {
-    UniversalClientConfig as ClientConfig,
-} from './universal-client.js';
+    NextjsClientConfig as ClientConfig,
+} from './nextjs/client.js';
 
 // Legacy ContractClient (direct API calls only)
 export {
