@@ -12,19 +12,19 @@ import type { Server } from 'http';
 import { initRedis, closeRedis } from '../cache';
 import { initDatabase, closeDatabase } from '../db';
 import { logger } from '../logger';
-import { printBanner } from './banner.js';
-import { validateServerConfig } from './validation.js';
-import { createServer } from './create-server.js';
-import { discoverPlugins, executePluginHooks } from './plugin-discovery.js';
+import { printBanner } from './banner';
+import { validateServerConfig } from './validation';
+import { createServer } from './create-server';
+import { discoverPlugins, executePluginHooks } from './plugin-discovery';
 import {
     applyServerTimeouts,
     getTimeoutConfig,
     getShutdownTimeout,
     buildMiddlewareOrder,
     buildStartupConfig,
-} from './helpers.js';
+} from './helpers';
 
-import type { ServerConfig, ServerInstance, ServerPlugin } from './types.js';
+import type { ServerConfig, ServerInstance, ServerPlugin } from './types';
 
 const serverLogger = logger.child('server');
 
@@ -132,9 +132,9 @@ async function loadAndMergeConfig(config?: ServerConfig): Promise<ServerConfig>
 {
     const cwd = process.cwd();
     const configPath = join(cwd, 'src', 'server', 'server.config.ts');
-    const configJsPath = join(cwd, 'src', 'server', 'server.config.js');
+    const configJsPath = join(cwd, 'src', 'server', 'server.config');
     const builtConfigMjsPath = join(cwd, '.spfn', 'server', 'server.config.mjs');
-    const builtConfigPath = join(cwd, '.spfn', 'server', 'server.config.js');
+    const builtConfigPath = join(cwd, '.spfn', 'server', 'server.config');
 
     let fileConfig: ServerConfig = {};
 

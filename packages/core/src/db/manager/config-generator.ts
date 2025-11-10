@@ -210,10 +210,10 @@ function discoverPackageSchemas(cwd: string): string[]
 
                     // Filter out index files (they are re-exports, not schema definitions)
                     const schemaFiles = expandedFiles.filter(file =>
-                        !file.endsWith('/index.js') &&
+                        !file.endsWith('/index') &&
                         !file.endsWith('/index.ts') &&
                         !file.endsWith('/index.mjs') &&
-                        !file.endsWith('\\index.js') &&
+                        !file.endsWith('\\index') &&
                         !file.endsWith('\\index.ts') &&
                         !file.endsWith('\\index.mjs')
                     );
@@ -373,10 +373,10 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
 
             // Filter out index files (they are re-exports, not schema definitions)
             const filtered = expanded.filter(file =>
-                !file.endsWith('/index.js') &&
+                !file.endsWith('/index') &&
                 !file.endsWith('/index.ts') &&
                 !file.endsWith('/index.mjs') &&
-                !file.endsWith('\\index.js') &&
+                !file.endsWith('\\index') &&
                 !file.endsWith('\\index.ts') &&
                 !file.endsWith('\\index.mjs')
             );

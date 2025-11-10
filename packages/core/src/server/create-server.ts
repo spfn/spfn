@@ -12,10 +12,10 @@ import { join } from 'path';
 import { loadRoutes } from '../route';
 import { ErrorHandler, RequestLogger } from '../middleware';
 import { logger } from '../logger';
-import { createHealthCheckHandler } from './helpers.js';
-import { executePluginHooks } from './plugin-discovery.js';
+import { createHealthCheckHandler } from './helpers';
+import { executePluginHooks } from './plugin-discovery';
 
-import type { ServerConfig, AppFactory, ServerPlugin } from './types.js';
+import type { ServerConfig, AppFactory, ServerPlugin } from './types';
 
 // Extend Hono context with error handler flag
 declare module 'hono'
@@ -40,7 +40,7 @@ export async function createServer(config?: ServerConfig, plugins: ServerPlugin[
 {
     const cwd = process.cwd();
     const appPath = join(cwd, 'src', 'server', 'app.ts');
-    const appJsPath = join(cwd, 'src', 'server', 'app.js');
+    const appJsPath = join(cwd, 'src', 'server', 'app');
 
     // Level 3: Full control with app.ts
     if (existsSync(appPath) || existsSync(appJsPath))

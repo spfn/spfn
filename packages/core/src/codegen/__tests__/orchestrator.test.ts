@@ -7,8 +7,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync } from 'fs';
 import { resolve, join } from 'path';
-import { CodegenOrchestrator } from '../orchestrator.js';
-import type { Generator, GeneratorOptions } from '../generator.js';
+import { CodegenOrchestrator } from '../orchestrator';
+import type { Generator, GeneratorOptions } from '../generator';
 
 const TEST_DIR = resolve(process.cwd(), '.test-tmp-orchestrator');
 
@@ -243,7 +243,7 @@ describe('Orchestrator', () =>
 
             const mockGen: Generator = {
                 name: 'test-gen',
-                watchPatterns: ['src/**/*.ts', 'lib/**/*.js'],
+                watchPatterns: ['src/**/*.ts', 'lib/**/*'],
                 async generate()
                 {
                     // noop
@@ -393,7 +393,7 @@ describe('Orchestrator', () =>
 
             const gen2: Generator = {
                 name: 'gen-2',
-                watchPatterns: ['lib/**/*.js'],
+                watchPatterns: ['lib/**/*'],
                 async generate()
                 {
                     gen2Changes.push('gen2');
@@ -421,7 +421,7 @@ describe('Orchestrator', () =>
 
             const mockGen: Generator = {
                 name: 'test-gen',
-                watchPatterns: ['src/**/*.ts', 'lib/**/*.js', './**/*.config'],
+                watchPatterns: ['src/**/*.ts', 'lib/**/*', './**/*.config'],
                 async generate()
                 {
                     // noop

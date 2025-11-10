@@ -1,60 +1,39 @@
 /**
- * SPFN Core Module Exports
+ * @spfn/core - DO NOT IMPORT FROM THIS PATH
  *
- * @spfn/core package entry point
+ * ⚠️ This module has no exports.
  *
- * This is the main entry point that exports high-level APIs and common utilities.
- * For specific functionality, use submodules:
- * - @spfn/core/errors - Error classes and utilities
- * - @spfn/core/middleware - Middleware functions
- * - @spfn/core/cache - Cache utilities (Valkey/Redis)
- * - @spfn/core/db - Database utilities and helpers
- * - @spfn/core/route - Routing utilities
- * - @spfn/core/server - Server creation and management
- * - @spfn/core/logger - Logging utilities
- * - @spfn/core/env - Environment variable management
- * - @spfn/core/codegen - Code generation utilities
+ * You must use specific submodules instead:
+ *
+ * ## Universal (Client + Server)
+ * - @spfn/core/types       - Type definitions (RouteContract, InferContract, etc.)
+ * - @spfn/core/client      - ContractClient
+ * - @spfn/core/client/nextjs - NextjsClient
+ * - @spfn/core/errors      - Error classes
+ *
+ * ## Server-Only
+ * - @spfn/core/server      - Server creation and management
+ * - @spfn/core/route       - Route binding utilities
+ * - @spfn/core/db          - Database utilities (Drizzle)
+ * - @spfn/core/cache       - Cache utilities (Valkey/Redis)
+ * - @spfn/core/middleware  - Server middleware
+ * - @spfn/core/logger      - Logging utilities
+ * - @spfn/core/env         - Environment variable management
+ * - @spfn/core/events      - Event system
+ *
+ * ## Build-Time
+ * - @spfn/core/codegen     - Code generation utilities
  *
  * @example
- * ```ts
- * // High-level server API (main module)
- * import { createServer, startServer } from '@spfn/core';
- * await startServer();
+ * ```typescript
+ * // ❌ DON'T
+ * import { createServer } from '@spfn/core';
  *
- * // Specific functionality (submodules)
- * import { ValidationError, HttpError } from '@spfn/core/errors';
- * import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
- * import { getCache, getCacheRead, isCacheDisabled } from '@spfn/core/cache';
- * import { Transactional } from '@spfn/core/db';
+ * // ✅ DO
+ * import { createServer } from '@spfn/core/server';
+ * import type { RouteContract } from '@spfn/core/types';
+ * import { createClient } from '@spfn/core/client';
  * ```
  */
 
-// ============================================================================
-// High-level Server API
-// ============================================================================
-
-export { createServer, startServer } from './server';
-export type { ServerConfig, AppFactory } from './server/types.js';
-
-// ============================================================================
-// Common Types (frequently used across modules)
-// ============================================================================
-
-// API Response types (commonly used for route responses)
-export type {
-    ApiResponse,
-    ApiSuccessResponse,
-    ApiErrorResponse,
-    ErrorResponse,
-} from './types/api-response.js';
-
-// Route types (commonly used for contract definitions)
-export type {
-    HttpMethod,
-    RouteContext,
-    RouteContract,
-    RouteHandler,
-    InferContract,
-} from './route/types.js';
-
-export { isHttpMethod } from './route/types.js';
+// Intentionally empty - use submodules

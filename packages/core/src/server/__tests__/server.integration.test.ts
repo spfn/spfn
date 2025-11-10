@@ -7,8 +7,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
-import { createServer, startServer } from '../server.js';
-import type { ServerConfig } from '../types.js';
+import { createServer, startServer } from '../server';
+import type { ServerConfig } from '../types';
 import type { Hono } from 'hono';
 
 // Create a temporary test routes directory
@@ -187,7 +187,7 @@ describe('Server Integration', () => {
 
     describe('Configuration Validation', () => {
         it('should throw error for invalid port number', async () => {
-            const { validateServerConfig } = await import('../validation.js');
+            const { validateServerConfig } = await import('../validation');
 
             const config: ServerConfig = {
                 port: -1,
@@ -199,7 +199,7 @@ describe('Server Integration', () => {
         });
 
         it('should throw error for port above 65535', async () => {
-            const { validateServerConfig } = await import('../validation.js');
+            const { validateServerConfig } = await import('../validation');
 
             const config: ServerConfig = {
                 port: 70000,
@@ -211,7 +211,7 @@ describe('Server Integration', () => {
         });
 
         it('should throw error for negative timeout values', async () => {
-            const { validateServerConfig } = await import('../validation.js');
+            const { validateServerConfig } = await import('../validation');
 
             const config: ServerConfig = {
                 timeout: {
@@ -225,7 +225,7 @@ describe('Server Integration', () => {
         });
 
         it('should throw error when headers timeout exceeds request timeout', async () => {
-            const { validateServerConfig } = await import('../validation.js');
+            const { validateServerConfig } = await import('../validation');
 
             const config: ServerConfig = {
                 timeout: {
@@ -240,7 +240,7 @@ describe('Server Integration', () => {
         });
 
         it('should throw error for invalid health check path', async () => {
-            const { validateServerConfig } = await import('../validation.js');
+            const { validateServerConfig } = await import('../validation');
 
             const config: ServerConfig = {
                 healthCheck: {
@@ -254,7 +254,7 @@ describe('Server Integration', () => {
         });
 
         it('should throw error for negative shutdown timeout', async () => {
-            const { validateServerConfig } = await import('../validation.js');
+            const { validateServerConfig } = await import('../validation');
 
             const config: ServerConfig = {
                 shutdown: {
@@ -268,7 +268,7 @@ describe('Server Integration', () => {
         });
 
         it('should accept valid configuration', async () => {
-            const { validateServerConfig } = await import('../validation.js');
+            const { validateServerConfig } = await import('../validation');
 
             const config: ServerConfig = {
                 port: 3000,

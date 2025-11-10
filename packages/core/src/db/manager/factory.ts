@@ -7,8 +7,8 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 
 import { logger } from '../../logger';
 import { loadEnvironment } from '../../env';
-import { createDatabaseConnection } from './connection.js';
-import { getPoolConfig, getRetryConfig, type DatabaseOptions, type DatabaseClients, type PoolConfig, type RetryConfig } from './config.js';
+import { createDatabaseConnection } from './connection';
+import { getPoolConfig, getRetryConfig, type DatabaseOptions, type DatabaseClients, type PoolConfig, type RetryConfig } from './config';
 
 const dbLogger = logger.child('database');
 

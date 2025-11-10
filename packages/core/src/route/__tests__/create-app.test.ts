@@ -6,8 +6,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { Type } from '@sinclair/typebox';
-import { createApp } from '../create-app.js';
-import type { RouteContract } from '../types.js';
+import { createApp } from '../create-app';
+import type { RouteContract } from '../types';
 
 describe('createApp()', () =>
 {

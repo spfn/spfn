@@ -26,8 +26,8 @@
  */
 
 // Logger Instance
-export { logger } from './factory.js';
-export { Logger } from './logger.js';
+export { logger } from './factory';
+export { Logger } from './logger';
 
 // Types
-export type { LogLevel, Transport } from './types.js';
+export type { LogLevel, Transport } from './types';

@@ -4,7 +4,7 @@
  * Validates server configuration to catch errors early with clear messages.
  */
 
-import type { ServerConfig } from './types.js';
+import type { ServerConfig } from './types';
 
 /**
  * Validate server configuration

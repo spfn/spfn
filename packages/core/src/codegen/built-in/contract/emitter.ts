@@ -246,7 +246,7 @@ async function generateSplitClient(
     // When splitting, outputPath should become a directory
     // e.g., /src/lib/api.ts -> /src/lib/api/
     const outputPath = options.outputPath;
-    const outputDir = outputPath.endsWith('.ts') || outputPath.endsWith('.js')
+    const outputDir = outputPath.endsWith('.ts') || outputPath.endsWith('')
         ? outputPath.replace(/\.[jt]s$/, '')
         : outputPath;
 
@@ -295,7 +295,7 @@ function generateResourceFile(
 
     if (options.includeTypes !== false)
     {
-        code += `import type { InferContract } from '@spfn/core';\n`;
+        code += `import type { InferContract } from '@spfn/core/route/types';\n`;
     }
 
     code += `\n`;

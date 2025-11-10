@@ -14,7 +14,7 @@ export {
     TransactionError,
     DeadlockError,
     DuplicateEntryError,
-} from './database-errors.js';
+} from './database-errors';
 
 // HTTP Error Classes
 export {
@@ -29,11 +29,11 @@ export {
     UnprocessableEntityError,
     InternalServerError,
     ServiceUnavailableError,
-} from './http-errors.js';
+} from './http-errors';
 
 // Error Utilities
 export {
     isDatabaseError,
     isHttpError,
     hasStatusCode,
-} from './error-utils.js';
+} from './error-utils';

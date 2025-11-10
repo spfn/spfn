@@ -49,8 +49,8 @@ export function packageNameToSchema(packageName: string): string
 {
     // Remove @ and replace / and - with _
     return packageName
-        .replace('@', '')
-        .replace('/', '_')
+        .replace(/@/g, '')
+        .replace(/\//g, '_')
         .replace(/-/g, '_');
 }
 

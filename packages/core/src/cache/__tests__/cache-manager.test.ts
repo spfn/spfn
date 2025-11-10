@@ -15,7 +15,7 @@ import {
     initRedis,
     closeRedis,
     getRedisInfo,
-} from '../cache-manager.js';
+} from '../cache-manager';
 
 describe('cache-manager', () =>
 {

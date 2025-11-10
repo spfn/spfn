@@ -5,8 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { loadCodegenConfig, createGeneratorsFromConfig } from '../config-loader.js';
-import type { CodegenConfig } from '../config-loader.js';
+import { loadCodegenConfig, createGeneratorsFromConfig } from '../config-loader';
+import type { CodegenConfig } from '../config-loader';
 
 // Mock fs module
 vi.mock('fs', () => ({

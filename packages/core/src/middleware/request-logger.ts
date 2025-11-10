@@ -3,8 +3,8 @@
  *
  * Automatic API request/response logging with performance monitoring
  */
-import type { Context, Next } from 'hono';
 import { randomBytes } from 'crypto';
+import type { Context, Next } from 'hono';
 import { logger } from '../logger';
 
 export interface RequestLoggerConfig
@@ -136,8 +136,7 @@ export function RequestLogger(config?: RequestLoggerConfig)
                 try
                 {
                     // Clone response to read body without consuming it
-                    const responseBody = await c.res.clone().json();
-                    logData.response = responseBody;
+                    logData.response = await c.res.clone().json();
                 }
                 catch
                 {

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { discoverFunctionRoutes } from '../function-routes.js';
+import { discoverFunctionRoutes } from '../function-routes';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 

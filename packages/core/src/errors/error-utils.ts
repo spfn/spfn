@@ -4,8 +4,8 @@
  * Generic error type checking utilities
  */
 
-import { DatabaseError } from './database-errors.js';
-import { HttpError } from './http-errors.js';
+import { DatabaseError } from './database-errors';
+import { HttpError } from './http-errors';
 
 /**
  * Check if error is a DatabaseError

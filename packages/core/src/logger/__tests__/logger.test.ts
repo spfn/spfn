@@ -17,9 +17,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { logger } from '../index.js';
-import { Logger } from '../logger.js';
-import type { Transport, LogMetadata } from '../types.js';
+import { logger } from '../index';
+import { Logger } from '../logger';
+import type { Transport, LogMetadata } from '../types';
 
 describe('Logger', () => {
   describe('Basic Logging', () => {

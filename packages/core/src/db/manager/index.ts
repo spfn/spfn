@@ -3,8 +3,8 @@
  */
 
 // Database Factory (Environment Detection)
-export { createDatabaseFromEnv } from './factory.js';
-export type { DatabaseClients } from './config.js';
+export { createDatabaseFromEnv } from './factory';
+export type { DatabaseClients } from './config';
 
 // Database Manager (Singleton Pattern)
 export {
@@ -14,10 +14,10 @@ export {
     closeDatabase,
     getDatabaseInfo,
     getDatabaseMonitoringConfig,
-} from './manager.js';
+} from './manager';
 
 // Connection Functions
-export { createDatabaseConnection, checkConnection } from './connection.js';
+export { createDatabaseConnection, checkConnection } from './connection';
 
 // Configuration Types
-export type { PoolConfig, RetryConfig } from './config.js';
+export type { PoolConfig, RetryConfig } from './config';

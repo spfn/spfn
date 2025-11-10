@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
-import { Transactional } from '../middleware.js';
+import { Transactional } from '../middleware';
 
 // Mock dependencies
 vi.mock('../../../logger', () => ({
@@ -24,13 +24,13 @@ vi.mock('../../manager', () => ({
     getDatabase: vi.fn(),
 }));
 
-vi.mock('../context.js', () => ({
+vi.mock('../context', () => ({
     runWithTransaction: vi.fn(async (_tx: any, _txId: string, fn: () => Promise<void>) => {
         await fn();
     }),
 }));
 
-vi.mock('../../postgres-errors.js', () => ({
+vi.mock('../../postgres-errors', () => ({
     fromPostgresError: vi.fn((error) => error instanceof Error ? error : new Error('Unknown error')),
 }));
 
@@ -346,7 +346,7 @@ describe('Transaction Middleware', () =>
 
             // Re-import to pick up new env var
             vi.resetModules();
-            const { Transactional: TransactionalFresh } = await import('../middleware.js');
+            const { Transactional: TransactionalFresh } = await import('../middleware');
 
             const app = new Hono();
             app.use('*', TransactionalFresh());
@@ -395,7 +395,7 @@ describe('Transaction Middleware', () =>
             const { getDatabase } = await import('../../manager');
             vi.mocked(getDatabase).mockReturnValue(mockWriteDb as any);
 
-            const { fromPostgresError } = await import('../../postgres-errors.js');
+            const { fromPostgresError } = await import('../../postgres-errors');
             const pgError = new Error('PostgreSQL error');
             const convertedError = new Error('Converted error');
             vi.mocked(fromPostgresError).mockReturnValue(convertedError);
@@ -431,7 +431,7 @@ describe('Transaction Middleware', () =>
             vi.mocked(getDatabase).mockReturnValue(mockWriteDb as any);
 
             const { TransactionError } = await import('../../../errors');
-            const { fromPostgresError } = await import('../../postgres-errors.js');
+            const { fromPostgresError } = await import('../../postgres-errors');
 
             const app = new Hono();
             app.use('*', Transactional());
@@ -550,7 +550,7 @@ describe('Transaction Middleware', () =>
             vi.mocked(logger.child).mockReturnValue(mockLogger as any);
 
             const testError = new Error('Test error');
-            const { fromPostgresError } = await import('../../postgres-errors.js');
+            const { fromPostgresError } = await import('../../postgres-errors');
             vi.mocked(fromPostgresError).mockReturnValue(testError);
 
             const app = new Hono();

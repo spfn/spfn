@@ -6,13 +6,13 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Hono } from 'hono';
-import { AutoRouteLoader, loadRoutes } from '../auto-loader.js';
+import { AutoRouteLoader, loadRoutes } from '../auto-loader';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 
 const TEST_ROUTES_DIR = join(process.cwd(), '__test_routes__');
 // Use absolute path from src/route directory
-const CREATE_APP_PATH = join(process.cwd(), 'src', 'route', 'create-app.js');
+const CREATE_APP_PATH = join(process.cwd(), 'src', 'route', 'create-app');
 
 describe('AutoRouteLoader', () => {
     beforeAll(() => {

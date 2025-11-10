@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createDatabaseConnection, checkConnection } from '../connection.js';
-import { ConnectionError } from '../../../errors/index.js';
+import { createDatabaseConnection, checkConnection } from '../connection';
+import { ConnectionError } from '../../../errors/index';
 
 // Mock postgres module
 vi.mock('postgres', () => ({

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { startHealthCheck, stopHealthCheck } from '../health-check.js';
+import { startHealthCheck, stopHealthCheck } from '../health-check';
 
 // Mock logger
 vi.mock('../../../logger', () => ({
@@ -21,7 +21,7 @@ vi.mock('../../../logger', () => ({
 }));
 
 // Mock factory
-vi.mock('../factory.js', () => ({
+vi.mock('../factory', () => ({
     createDatabaseFromEnv: vi.fn(async () => ({
         write: { execute: vi.fn(async () => {}) },
         read: { execute: vi.fn(async () => {}) },
@@ -31,7 +31,7 @@ vi.mock('../factory.js', () => ({
 }));
 
 // Mock global-state
-vi.mock('../global-state.js', () => ({
+vi.mock('../global-state', () => ({
     getHealthCheckInterval: vi.fn(() => null),
     setHealthCheckInterval: vi.fn(),
     setWriteInstance: vi.fn(),
@@ -75,7 +75,7 @@ describe('Database Health Check', () =>
 
             startHealthCheck(config, undefined, getDatabase, closeDatabase);
 
-            const { setHealthCheckInterval } = await import('../global-state.js');
+            const { setHealthCheckInterval } = await import('../global-state');
             expect(setHealthCheckInterval).toHaveBeenCalledWith(expect.any(Object));
         });
 
@@ -96,7 +96,7 @@ describe('Database Health Check', () =>
             const closeDatabase = vi.fn(async () => {});
 
             // Mock existing interval
-            const { getHealthCheckInterval, setHealthCheckInterval } = await import('../global-state.js');
+            const { getHealthCheckInterval, setHealthCheckInterval } = await import('../global-state');
             vi.mocked(getHealthCheckInterval).mockReturnValueOnce({} as any);
 
             startHealthCheck(config, undefined, getDatabase, closeDatabase);
@@ -249,7 +249,7 @@ describe('Database Health Check', () =>
             const getDatabase = vi.fn(() => mockDb) as any;
             const closeDatabase = vi.fn(async () => {});
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValue({
                 write: { execute: vi.fn(async () => {}) } as any,
                 read: { execute: vi.fn(async () => {}) } as any,
@@ -285,7 +285,7 @@ describe('Database Health Check', () =>
             const getDatabase = vi.fn(() => mockDb) as any;
             const closeDatabase = vi.fn(async () => {});
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockRejectedValue(
                 new Error('Reconnection failed')
             );
@@ -323,7 +323,7 @@ describe('Database Health Check', () =>
             const getDatabase = vi.fn(() => mockDb) as any;
             const closeDatabase = vi.fn(async () => {});
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             let attempts = 0;
             vi.mocked(createDatabaseFromEnv).mockImplementation(async () =>
             {
@@ -370,7 +370,7 @@ describe('Database Health Check', () =>
             const getDatabase = vi.fn(() => mockDb) as any;
             const closeDatabase = vi.fn(async () => {});
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValue({
                 write: undefined,
                 read: undefined,
@@ -382,7 +382,7 @@ describe('Database Health Check', () =>
             await vi.advanceTimersByTimeAsync(1000);
 
             // Should not set instances when write is undefined
-            const { setWriteInstance } = await import('../global-state.js');
+            const { setWriteInstance } = await import('../global-state');
             expect(setWriteInstance).not.toHaveBeenCalled();
         });
     });
@@ -393,7 +393,7 @@ describe('Database Health Check', () =>
         {
             const mockInterval = {} as any;
 
-            const { getHealthCheckInterval, setHealthCheckInterval } = await import('../global-state.js');
+            const { getHealthCheckInterval, setHealthCheckInterval } = await import('../global-state');
             vi.mocked(getHealthCheckInterval).mockReturnValue(mockInterval);
 
             stopHealthCheck();
@@ -403,7 +403,7 @@ describe('Database Health Check', () =>
 
         it('should do nothing when not running', async () =>
         {
-            const { getHealthCheckInterval, setHealthCheckInterval } = await import('../global-state.js');
+            const { getHealthCheckInterval, setHealthCheckInterval } = await import('../global-state');
             vi.mocked(getHealthCheckInterval).mockReturnValue(null);
 
             stopHealthCheck();

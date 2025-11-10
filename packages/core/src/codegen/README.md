@@ -284,8 +284,8 @@ Create generators in npm packages that can be discovered automatically using the
 
 ```typescript
 // packages/my-package/src/generators/index.ts
-import { createMyGenerator } from './my-generator.js';
-import { createAnotherGenerator } from './another-generator.js';
+import { createMyGenerator } from './my-generator';
+import { createAnotherGenerator } from './another-generator';
 
 /**
  * Generators registry
@@ -297,8 +297,8 @@ export const generators = {
 };
 
 // Re-export individual generators
-export { createMyGenerator } from './my-generator.js';
-export { createAnotherGenerator } from './another-generator.js';
+export { createMyGenerator } from './my-generator';
+export { createAnotherGenerator } from './another-generator';
 ```
 
 **Step 2:** Export generators in package.json
@@ -364,7 +364,7 @@ You can also register generators programmatically:
 
 ```typescript
 import { CodegenOrchestrator, createContractGenerator } from '@spfn/core/codegen';
-import { createAdminNavGenerator } from './generators/admin-nav-generator.js';
+import { createAdminNavGenerator } from './generators/admin-nav-generator';
 
 const orchestrator = new CodegenOrchestrator({
   generators: [

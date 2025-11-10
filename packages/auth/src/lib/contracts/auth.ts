@@ -4,9 +4,9 @@
  * Type-safe API contracts for authentication operations
  */
 
+import { AuthSessionSchema } from "@/lib/contracts/schemas/auth-session";
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route';
-import { ApiResponseSchema } from '@/lib/types/schemas';
+import { ApiResponseSchema, type RouteContract } from '@spfn/core/route/types';
 
 // Email regex pattern (RFC 5322 compliant)
 // Validates: local-part@domain.tld
@@ -350,66 +350,21 @@ export const changePasswordContract = {
 } as const satisfies RouteContract;
 
 /**
- * GET /me - Get current user account info
+ * GET /session - Get authentication session
  *
- * Returns authenticated user's complete account information (User + Profile)
- * Excludes sensitive fields like phone, dateOfBirth, gender, status, passwordChangeRequired
+ * Returns authentication and authorization information including:
+ * - Minimal user info (id, email, verification status)
+ * - Role
+ * - Permissions
+ *
+ * Lightweight endpoint for auth checks and guards
+ * Does not include profile data
+ *
  * Requires authentication
- * Final path: /_auth/me (prefix added from package.json)
+ * Final path: /_auth/session (prefix added from package.json)
  */
-export const getMeContract = {
+export const getAuthSessionContract = {
     method: 'GET' as const,
-    path: '/_auth/me',
-    response: ApiResponseSchema(
-        Type.Object({
-            // User authentication data (excluding sensitive/internal fields)
-            user: Type.Object({
-                userId: Type.String({ description: 'User ID' }),
-                email: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'User email address' })),
-                emailVerified: Type.Boolean({ description: 'Email verification status' }),
-                phoneVerified: Type.Boolean({ description: 'Phone verification status' }),
-                lastLoginAt: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Last login timestamp (ISO 8601)' })),
-                createdAt: Type.String({ description: 'Account creation timestamp (ISO 8601)' }),
-                updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
-            }, { description: 'User authentication data' }),
-
-            // User profile data (excluding sensitive personal info)
-            profile: Type.Optional(Type.Union([
-                Type.Object({
-                    profileId: Type.String({ description: 'Profile ID' }),
-                    displayName: Type.String({ description: 'Display name' }),
-                    firstName: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'First name' })),
-                    lastName: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Last name' })),
-                    avatarUrl: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Avatar URL' })),
-                    bio: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Bio' })),
-                    locale: Type.String({ description: 'Locale preference' }),
-                    timezone: Type.String({ description: 'Timezone preference' }),
-                    website: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Website URL' })),
-                    location: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Location' })),
-                    company: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Company' })),
-                    jobTitle: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Job title' })),
-                    createdAt: Type.String({ description: 'Profile creation timestamp (ISO 8601)' }),
-                    updatedAt: Type.String({ description: 'Profile last update timestamp (ISO 8601)' }),
-                }, { description: 'User profile data' }),
-                Type.Null()
-            ], { description: 'User profile (null if not created yet)' })),
-
-            // Role and permissions
-            role: Type.Object({
-                id: Type.Number({ description: 'Role ID' }),
-                name: Type.String({ description: 'Role name (e.g., user, admin)' }),
-                displayName: Type.String({ description: 'Display name for UI' }),
-                priority: Type.Number({ description: 'Role priority level' }),
-            }, { description: 'User role information' }),
-            permissions: Type.Array(
-                Type.Object({
-                    id: Type.Number({ description: 'Permission ID' }),
-                    name: Type.String({ description: 'Permission name (e.g., user:delete)' }),
-                    displayName: Type.String({ description: 'Display name for UI' }),
-                    category: Type.Optional(Type.String({ description: 'Permission category' })),
-                }),
-                { description: 'List of permissions granted through role' }
-            ),
-        })
-    ),
+    path: '/_auth/session',
+    response: ApiResponseSchema(AuthSessionSchema),
 } as const satisfies RouteContract;

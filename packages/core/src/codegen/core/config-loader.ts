@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { createJiti } from 'jiti';
-import type { Generator } from './generator.js';
+import type { Generator } from './generator';
 import { logger } from '../../logger';
 
 const configLogger = logger.child('config');

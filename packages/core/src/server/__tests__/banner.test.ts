@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { MockInstance } from 'vitest';
-import { printBanner } from '../banner.js';
+import { printBanner } from '../banner';
 
 describe('Server Banner', () => {
     let consoleLogSpy: MockInstance;

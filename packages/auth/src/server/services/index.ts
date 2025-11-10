@@ -60,15 +60,6 @@ export {
     updateUserService,
 } from './user.service';
 
-// Me Service
-export {
-    getMeService,
-} from './me.service';
-
-export type {
-    GetMeResult,
-} from './me.service';
-
 // RBAC Service
 export {
     initializeAuth,
@@ -110,3 +101,14 @@ export {
     expireOldInvitations,
     resendInvitation,
 } from './invitation.service';
+
+// Auth Session Service (new)
+export { getAuthSessionService } from './auth-session.service';
+export type { AuthSessionResult } from './auth-session.service';
+
+// User Profile Service (new)
+export { getUserProfileService } from './user-profile.service';
+export type { UserProfileResult } from './user-profile.service';
+
+// Shared utilities
+export * from './shared';

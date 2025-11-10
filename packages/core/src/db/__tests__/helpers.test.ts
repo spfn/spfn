@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { eq, gt } from 'drizzle-orm';
 import { pgTable, text, serial, integer } from 'drizzle-orm/pg-core';
-import * as managerModule from '../manager/index.js';
+import * as managerModule from '../manager/index';
 import {
     findOne,
     findMany,
@@ -18,7 +18,7 @@ import {
     deleteOne,
     deleteMany,
     count,
-} from '../helpers.js';
+} from '../helpers';
 
 // Test schema
 const testUsers = pgTable('test_users', {

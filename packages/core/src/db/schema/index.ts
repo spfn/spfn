@@ -15,4 +15,4 @@ export {
     verificationTimestamp,
     softDelete,
     statusEnum,
-} from './helpers.js';
+} from './helpers';

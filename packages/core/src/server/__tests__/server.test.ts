@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ServerConfig, ServerInstance } from '../types.js';
+import type { ServerConfig, ServerInstance } from '../types';
 
 describe('Server Module', () => {
 

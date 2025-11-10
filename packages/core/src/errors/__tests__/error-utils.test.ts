@@ -7,14 +7,14 @@ import {
     isDatabaseError,
     isHttpError,
     hasStatusCode,
-} from '../error-utils.js';
+} from '../error-utils';
 import {
     DatabaseError,
-} from '../database-errors.js';
+} from '../database-errors';
 import {
     HttpError,
     UnauthorizedError,
-} from '../http-errors.js';
+} from '../http-errors';
 
 describe('isDatabaseError', () =>
 {

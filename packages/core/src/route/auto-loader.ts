@@ -230,7 +230,7 @@ export class AutoRouteLoader
     {
         // Strict convention: Only index.ts, index.js, or index.mjs files are route handlers
         // This prevents accidental loading of utility files, helpers, types, etc.
-        return fileName === 'index.ts' || fileName === 'index.js' || fileName === 'index.mjs';
+        return fileName === 'index.ts' || fileName === 'index' || fileName === 'index.mjs';
     }
 
     private async loadRoute(app: Hono, absolutePath: string, prefix?: string): Promise<boolean>
@@ -475,7 +475,7 @@ export async function loadRoutes(
     // Load function routes if enabled
     if (includeFunctionRoutes)
     {
-        const { discoverFunctionRoutes } = await import('./function-routes.js');
+        const { discoverFunctionRoutes } = await import('./function-routes');
         const functionRoutes = discoverFunctionRoutes();
 
         if (functionRoutes.length > 0)

@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Type } from '@sinclair/typebox';
-import { createClient, ApiClientError } from '../contract-client.js';
+import { createClient, ApiClientError } from '../contract-client';
 import type { RouteContract } from '../../route';
 
 // Mock fetch

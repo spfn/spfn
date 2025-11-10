@@ -6,9 +6,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { Type } from '@sinclair/typebox';
-import { bind } from '../bind.js';
+import { bind } from '../bind';
 import { Hono } from 'hono';
-import type { RouteContract } from '../types.js';
+import type { RouteContract } from '../types';
 
 describe('bind()', () => {
     describe('Request Validation', () => {
@@ -506,7 +506,7 @@ describe('bind()', () => {
             const app = new Hono();
 
             // Import ErrorHandler to handle ValidationError properly
-            const { ErrorHandler } = await import('../../middleware/error-handler.js');
+            const { ErrorHandler } = await import('../../middleware/error-handler');
             app.onError(ErrorHandler());
 
             app.get('/users/:id', handler);

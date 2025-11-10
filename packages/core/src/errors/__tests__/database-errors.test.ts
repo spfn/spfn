@@ -12,7 +12,7 @@ import {
     TransactionError,
     DeadlockError,
     DuplicateEntryError,
-} from '../database-errors.js';
+} from '../database-errors';
 
 describe('DatabaseError', () =>
 {

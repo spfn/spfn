@@ -11,7 +11,7 @@ import {
     getRetryConfig,
     buildHealthCheckConfig,
     buildMonitoringConfig,
-} from '../config.js';
+} from '../config';
 
 describe('Configuration Builders', () =>
 {

@@ -35,7 +35,7 @@ function requiresAuth(path: string): boolean
 /**
  * General Authentication Interceptor
  *
- * Applies to all /_auth/* paths except login/register/codes
+ * Applies to all paths except login/register/codes
  * - Validates session
  * - Generates JWT token
  * - Refreshes session if needed
@@ -43,7 +43,7 @@ function requiresAuth(path: string): boolean
  */
 export const generalAuthInterceptor: InterceptorRule =
 {
-    pathPattern: /^\/_auth\//,
+    pathPattern: '*',  // Match all paths, filter by requiresAuth()
     method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 
     request: async (ctx, next) =>
@@ -56,12 +56,21 @@ export const generalAuthInterceptor: InterceptorRule =
             return;
         }
 
+        // Log available cookies
+        const cookieNames = Array.from(ctx.cookies.keys());
+        authLogger.debug('Available cookies:', {
+            cookieNames,
+            totalCount: cookieNames.length,
+            lookingFor: COOKIE_NAMES.SESSION,
+        });
+
         const sessionCookie = ctx.cookies.get(COOKIE_NAMES.SESSION);
 
         authLogger.debug('Request', {
             method: ctx.method,
             path: ctx.path,
             hasSession: !!sessionCookie,
+            sessionCookieValue: sessionCookie ? '***EXISTS***' : 'NOT_FOUND',
         });
 
         // No session cookie
@@ -95,7 +104,7 @@ export const generalAuthInterceptor: InterceptorRule =
             }
 
             // Generate JWT token
-            const token = await generateClientToken(
+            const token = generateClientToken(
                 {
                     userId: session.userId,
                     keyId: session.keyId,

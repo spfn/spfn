@@ -7,7 +7,7 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
 import { logger } from '../../logger';
-import { createDatabaseFromEnv } from './factory.js';
+import { createDatabaseFromEnv } from './factory';
 import type { DatabaseOptions, MonitoringConfig } from "./config.js";
 import { buildHealthCheckConfig, buildMonitoringConfig } from "./config.js";
 import {
@@ -21,8 +21,8 @@ import {
     setReadClient,
     getMonitoringConfig,
     setMonitoringConfig,
-} from './global-state.js';
-import { startHealthCheck, stopHealthCheck } from './health-check.js';
+} from './global-state';
+import { startHealthCheck, stopHealthCheck } from './health-check';
 
 const dbLogger = logger.child('database');
 

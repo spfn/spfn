@@ -85,12 +85,11 @@
   },
   "homepage": "https://github.com/spfn/spfn/tree/main/packages/auth#readme",
   "spfn": {
-    "prefix": "/_auth",
     "schemas": [
       "./dist/server/entities/*.js"
     ],
     "routes": {
-      "basePath": "/auth",
+      "basePath": "/_auth",
       "dir": "./dist/server/routes"
     },
     "migrations": {

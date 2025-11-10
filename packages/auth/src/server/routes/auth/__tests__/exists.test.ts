@@ -7,7 +7,7 @@ import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailabl
 import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
 import { users } from '@/server/entities';
-import type { ApiResponse } from '@spfn/core';
+import type { ApiResponse } from @spfn/core/route/types;
 import type { CheckAccountExistsData } from '@/lib/types/api';
 import app from '../index';
 

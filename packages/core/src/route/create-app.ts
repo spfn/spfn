@@ -6,8 +6,8 @@
 
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
-import { bind } from './bind.js';
-import type { RouteContract, RouteHandler } from './types.js';
+import { bind } from './bind';
+import type { RouteContract, RouteHandler } from './types';
 import { ErrorHandler } from '../middleware';
 
 export type SPFNApp = Hono & {

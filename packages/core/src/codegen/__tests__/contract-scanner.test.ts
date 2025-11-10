@@ -344,7 +344,7 @@ describe('Contract Scanner', () =>
 
         it('should handle .js and .mjs files', async () =>
         {
-            writeFileSync(join(CONTRACTS_DIR, 'users.js'), `
+            writeFileSync(join(CONTRACTS_DIR, 'users'), `
                 export const getUserContract = {
                     method: 'GET',
                     path: '/users/:id',

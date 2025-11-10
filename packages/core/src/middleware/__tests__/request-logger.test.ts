@@ -15,7 +15,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import { RequestLogger, maskSensitiveData } from '../request-logger.js';
+import { RequestLogger, maskSensitiveData } from '../request-logger';
 
 type Env = {
   Variables: {

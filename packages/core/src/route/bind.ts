@@ -1,9 +1,9 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Value } from '@sinclair/typebox/value';
-import type { RouteContract, RouteContext, InferContract } from './types.js';
+import type { RouteContract, RouteContext, InferContract } from './types';
 import { ValidationError } from '../errors';
-import type { ApiSuccessResponse } from './api-response.js';
+import type { ApiSuccessResponse } from './api-response';
 import { logger } from '../logger';
 
 /**

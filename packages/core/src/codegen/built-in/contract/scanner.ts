@@ -103,10 +103,10 @@ async function scanContractFiles(dir: string, files: string[] = []): Promise<str
             {
                 // Scan all .ts, .js, .mjs files (excluding test and declaration files)
                 if (
-                    (entry.endsWith('.ts') || entry.endsWith('.js') || entry.endsWith('.mjs')) &&
+                    (entry.endsWith('.ts') || entry.endsWith('') || entry.endsWith('.mjs')) &&
                     !entry.endsWith('.d.ts') &&
                     !entry.endsWith('.test.ts') &&
-                    !entry.endsWith('.test.js') &&
+                    !entry.endsWith('.test') &&
                     !entry.endsWith('.test.mjs')
                 )
                 {
@@ -407,7 +407,7 @@ function getImportPath(filePath: string): string
     {
         cleanPath = cleanPath.slice(0, -3);
     }
-    else if (cleanPath.endsWith('.js'))
+    else if (cleanPath.endsWith(''))
     {
         cleanPath = cleanPath.slice(0, -3);
     }

@@ -14,8 +14,8 @@ import {
     buildMiddlewareOrder,
     buildStartupConfig,
     createHealthCheckHandler,
-} from '../helpers.js';
-import type { ServerConfig } from '../types.js';
+} from '../helpers';
+import type { ServerConfig } from '../types';
 import { Hono } from 'hono';
 
 describe('Server Helpers', () => {

@@ -4,17 +4,16 @@
  * Uses API to check permissions in real-time
  */
 
-import { getMe } from '@/lib/api/auth-me';
+import { getAuthSession } from '@/lib/api/auth-session';
 
 /**
- * Get current user info with roles and permissions via API
+ * Get current auth session with roles and permissions via API
  */
-async function getCurrentUserInfo()
+async function getAuthSessionData()
 {
     try
     {
-        const result = await getMe({ body: {} });
-
+        const result = await getAuthSession();
         if (!result.success)
         {
             return null;
@@ -24,7 +23,7 @@ async function getCurrentUserInfo()
     }
     catch (error)
     {
-        console.error('[Auth Utils] Failed to get user info:', error);
+        console.error('[Auth Utils] Failed to get auth session:', error);
         return null;
     }
 }
@@ -34,8 +33,8 @@ async function getCurrentUserInfo()
  */
 export async function getUserRole(): Promise<string | null>
 {
-    const userInfo = await getCurrentUserInfo();
-    return userInfo?.role.name || null;
+    const session = await getAuthSessionData();
+    return session?.role.name || null;
 }
 
 /**
@@ -43,14 +42,14 @@ export async function getUserRole(): Promise<string | null>
  */
 export async function getUserPermissions(): Promise<string[]>
 {
-    const userInfo = await getCurrentUserInfo();
+    const session = await getAuthSessionData();
 
-    if (!userInfo)
+    if (!session)
     {
         return [];
     }
 
-    return userInfo.permissions.map(p => p.name);
+    return session.permissions.map(p => p.name);
 }
 
 /**
@@ -58,14 +57,14 @@ export async function getUserPermissions(): Promise<string[]>
  */
 export async function hasAnyRole(requiredRoles: string[]): Promise<boolean>
 {
-    const userInfo = await getCurrentUserInfo();
+    const session = await getAuthSessionData();
 
-    if (!userInfo)
+    if (!session)
     {
         return false;
     }
 
-    return requiredRoles.includes(userInfo.role.name);
+    return requiredRoles.includes(session.role.name);
 }
 
 /**
@@ -73,13 +72,13 @@ export async function hasAnyRole(requiredRoles: string[]): Promise<boolean>
  */
 export async function hasAnyPermission(requiredPermissions: string[]): Promise<boolean>
 {
-    const userInfo = await getCurrentUserInfo();
+    const session = await getAuthSessionData();
 
-    if (!userInfo)
+    if (!session)
     {
         return false;
     }
 
-    const userPermissionNames = userInfo.permissions.map(p => p.name);
+    const userPermissionNames = session.permissions.map(p => p.name);
     return requiredPermissions.some(permission => userPermissionNames.includes(permission));
 }

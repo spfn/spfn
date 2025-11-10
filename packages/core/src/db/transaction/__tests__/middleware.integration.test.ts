@@ -9,10 +9,10 @@ import { Hono } from 'hono';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import * as postgres from 'postgres';
 import { sql } from 'drizzle-orm';
-import { Transactional } from '../middleware.js';
-import { getTransaction, getTransactionId } from '../context.js';
-import { setDatabase } from '../../manager/index.js';
-import { testUsers } from '../../__tests__/fixtures/test-schema.js';
+import { Transactional } from '../middleware';
+import { getTransaction, getTransactionId } from '../context';
+import { setDatabase } from '../../manager/index';
+import { testUsers } from '../../__tests__/fixtures/test-schema';
 
 describe('Transaction Middleware (Integration)', () =>
 {

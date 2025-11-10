@@ -18,9 +18,9 @@ import { randomUUID } from 'crypto';
 import { logger } from '../../logger';
 import { createMiddleware } from 'hono/factory';
 import { getDatabase } from "../manager";
-import { runWithTransaction, type TransactionDB } from './context.js';
+import { runWithTransaction, type TransactionDB } from './context';
 import { TransactionError } from '../../errors';
-import { fromPostgresError } from '../postgres-errors.js';
+import { fromPostgresError } from '../postgres-errors';
 
 /**
  * Transaction middleware options

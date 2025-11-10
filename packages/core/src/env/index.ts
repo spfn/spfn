@@ -29,19 +29,19 @@ export {
     getEnvVars,
     isEnvironmentLoaded,
     resetEnvironment,
-} from './loader.js';
+} from './loader';
 
 // Type definitions
 export type {
     LoadEnvironmentOptions,
     LoadResult,
     GetEnvOptions,
-} from './config.js';
+} from './config';
 
 export {
     ENV_FILE_PRIORITY,
     TEST_ONLY_FILES,
-} from './config.js';
+} from './config';
 
 // Validation utilities
 export {
@@ -61,4 +61,4 @@ export {
     combineValidators,
     validatePostgresUrl,
     validateRedisUrl,
-} from './validator.js';
+} from './validator';

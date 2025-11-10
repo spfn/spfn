@@ -73,7 +73,7 @@ describe('Client Generator', () =>
 
             // Should export types from users
             expect(indexFile).toContain("export type {");
-            expect(indexFile).toContain("from './users.js'");
+            expect(indexFile).toContain("from './users'");
 
             // Should export client
             expect(indexFile).toContain("export { client } from '@spfn/core/client'");
@@ -164,8 +164,8 @@ describe('Client Generator', () =>
             // Check index file exports types from both resources
             const indexFile = readFileSync(join(OUTPUT_DIR, 'index.ts'), 'utf-8');
             expect(indexFile).toContain("export type {");
-            expect(indexFile).toContain("from './users.js'");
-            expect(indexFile).toContain("from './posts.js'");
+            expect(indexFile).toContain("from './users'");
+            expect(indexFile).toContain("from './posts'");
 
             // Check that api object combines all functions flattened
             expect(indexFile).toContain('export const api =');
@@ -322,7 +322,7 @@ describe('Client Generator', () =>
             // Check index file for resource export (kebab-case)
             const indexFile = readFileSync(join(OUTPUT_DIR, 'index.ts'), 'utf-8');
             expect(indexFile).toContain("export type {");
-            expect(indexFile).toContain("from './api-v1users-posts-comments.js'");
+            expect(indexFile).toContain("from './api-v1users-posts-comments'");
 
             // Check that api object has the function flattened
             expect(indexFile).toContain('export const api =');

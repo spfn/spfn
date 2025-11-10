@@ -105,7 +105,7 @@ async function loadPluginFromPackage(
     const packageDir = dirname(pkgPath);
 
     // Try to load plugin from main entry point
-    const mainEntry = pkg.main || 'dist/index.js';
+    const mainEntry = pkg.main || 'dist/index';
     const mainPath = join(packageDir, mainEntry);
 
     if (!existsSync(mainPath))

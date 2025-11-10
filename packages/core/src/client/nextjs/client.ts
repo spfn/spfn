@@ -13,7 +13,7 @@
  * - Same behavior everywhere
  */
 
-import type { RouteContract, InferContract } from '../../route';
+import type { RouteContract, InferContract } from '../../route/types';
 import { ContractClient, type CallOptions } from '../contract-client';
 
 // Type declaration for window (available in browser)
@@ -93,13 +93,22 @@ export class NextjsClient
         // Determine baseUrl based on environment
         const isServer = typeof window === 'undefined';
 
+        console.log('[NextjsClient] Constructor - Environment:', {
+            isServer,
+            configBaseUrl: config.baseUrl,
+            SPFN_APP_URL: process.env.SPFN_APP_URL,
+            proxyBasePath: this.proxyBasePath,
+        });
+
         if (config.baseUrl)
         {
             this.baseUrl = config.baseUrl;
+            console.log('[NextjsClient] Using config.baseUrl:', this.baseUrl);
         }
         else if (process.env.SPFN_APP_URL)
         {
             this.baseUrl = process.env.SPFN_APP_URL;
+            console.log('[NextjsClient] Using SPFN_APP_URL:', this.baseUrl);
         }
         else if (isServer)
         {
@@ -116,11 +125,15 @@ export class NextjsClient
         {
             // Client environment: use relative path
             this.baseUrl = '';
+            console.log('[NextjsClient] Using empty baseUrl (client-side relative)');
         }
+
+        const finalBaseUrl = this.baseUrl + this.proxyBasePath;
+        console.log('[NextjsClient] Final baseUrl for ContractClient:', finalBaseUrl);
 
         // Create contract client pointing to API Route
         this.contractClient = new ContractClient({
-            baseUrl: this.baseUrl + this.proxyBasePath,
+            baseUrl: finalBaseUrl,
             headers: config.headers,
             timeout: config.timeout,
             fetch: config.fetch,
@@ -140,11 +153,44 @@ export class NextjsClient
         options?: CallOptions<TContract>
     ): Promise<InferContract<TContract>['response']>
     {
-        // Ensure credentials: 'include' for cookie forwarding
+        const isServer = typeof window === 'undefined';
+        const headers: Record<string, string> = { ...options?.headers };
+
+        // In Server Components, manually forward cookies from original request
+        if (isServer)
+        {
+            try
+            {
+                // Dynamic import to avoid issues in client-side
+                const { cookies } = await import('next/headers');
+                const cookieStore = await cookies();
+                const cookieHeader = cookieStore
+                    .getAll()
+                    .map(cookie => `${cookie.name}=${cookie.value}`)
+                    .join('; ');
+
+                if (cookieHeader)
+                {
+                    headers['Cookie'] = cookieHeader;
+                    console.log('[NextjsClient] Server-side: Forwarding cookies to API Route');
+                }
+                else
+                {
+                    console.log('[NextjsClient] Server-side: No cookies to forward');
+                }
+            }
+            catch (error)
+            {
+                console.warn('[NextjsClient] Failed to get cookies in server environment:', error);
+            }
+        }
+
+        // Ensure credentials: 'include' for cookie forwarding (client-side)
         const finalOptions: CallOptions<TContract> = {
             ...options,
+            headers,
             fetchOptions: {
-                credentials: 'include', // Important: Include cookies for session
+                credentials: 'include', // Important: Include cookies for session (client-side)
                 ...options?.fetchOptions,
             },
         };

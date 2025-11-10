@@ -3,14 +3,7 @@
   "version": "0.1.0-alpha.88",
   "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.js"
-    },
     "./client": {
       "types": "./dist/client/index.d.ts",
       "import": "./dist/client/index.js",
@@ -25,6 +18,11 @@
       "types": "./dist/route/index.d.ts",
       "import": "./dist/route/index.js",
       "require": "./dist/route/index.js"
+    },
+    "./route/types": {
+      "types": "./dist/route/types.d.ts",
+      "import": "./dist/route/types.js",
+      "require": "./dist/route/types.js"
     },
     "./db": {
       "types": "./dist/db/index.d.ts",
@@ -45,11 +43,6 @@
       "types": "./dist/middleware/index.d.ts",
       "import": "./dist/middleware/index.js",
       "require": "./dist/middleware/index.js"
-    },
-    "./types": {
-      "types": "./dist/types/index.d.ts",
-      "import": "./dist/types/index.js",
-      "require": "./dist/types/index.js"
     },
     "./cache": {
       "types": "./dist/cache/index.d.ts",

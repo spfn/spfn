@@ -21,7 +21,7 @@
  */
 
 // Server functions
-export { createServer, startServer } from './server.js';
+export { createServer, startServer } from './server';
 
 // Server types
-export type { ServerConfig, AppFactory, ServerInstance, ServerPlugin } from './types.js';
+export type { ServerConfig, AppFactory, ServerInstance, ServerPlugin } from './types';

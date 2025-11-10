@@ -4,11 +4,11 @@
  * Creates and initializes the logger instance with configured transports
  */
 
-import { Logger } from './logger.js';
-import { ConsoleTransport } from './transports/console.js';
-import { FileTransport } from './transports/file.js';
-import { getDefaultLogLevel, getConsoleConfig, getFileConfig, validateConfig } from './config.js';
-import type { Transport } from './types.js';
+import { Logger } from './logger';
+import { ConsoleTransport } from './transports/console';
+import { FileTransport } from './transports/file';
+import { getDefaultLogLevel, getConsoleConfig, getFileConfig, validateConfig } from './config';
+import type { Transport } from './types';
 
 /**
  * Initialize transports based on environment and configuration

@@ -10,7 +10,6 @@ export { createContractGenerator } from './built-in/contract';
 export { loadCodegenConfig, createGeneratorsFromConfig } from './core/config-loader';
 
 export type {
-    HttpMethod,
     RouteContractMapping,
     ResourceRoutes,
     ClientGenerationOptions,

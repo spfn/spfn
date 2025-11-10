@@ -18,17 +18,8 @@ export { client } from '@/lib/api';
 // Auto re-export all types from lib/api (automatically includes new endpoints)
 export type * from '@/lib/api';
 
-// Re-export User types
-export type * from '@/lib/types/user';
-
-// Re-export UserProfile types
-export type * from '@/lib/types/user-profile';
-
-// Re-export Account types
-export type * from '@/lib/types/account';
-
 // Import base authApi and specific functions for wrapping
-import { authApi as baseAuthApi } from '@/lib/api';
+import { api as baseAuthApi } from '@/lib/api';
 import { login as loginApi } from '@/lib/api/auth-login';
 import { register as registerApi } from '@/lib/api/auth-register';
 import { logout as logoutApi } from '@/lib/api/auth-logout';

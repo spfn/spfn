@@ -6,14 +6,14 @@
 
 import { describe, it, expect } from 'vitest';
 import { Type } from '@sinclair/typebox';
-import { createApp } from '../create-app.js';
+import { createApp } from '../create-app';
 import {
   ApiSuccessSchema,
   ApiErrorSchema,
   ApiResponseSchema,
-} from '../api-response.js';
-import type { RouteContract } from '../types.js';
-import type { ApiSuccessResponse, ApiErrorResponse } from '../api-response.js';
+} from '../api-response';
+import type { RouteContract } from '../types';
+import type { ApiSuccessResponse, ApiErrorResponse } from '../api-response';
 import {
   NotFoundError,
   BadRequestError,
@@ -23,8 +23,8 @@ import {
   ConflictError,
   UnprocessableEntityError,
   InternalServerError,
-} from '../../errors/index.js';
-import { ErrorHandler } from '../../middleware/error-handler.js';
+} from '../../errors/index';
+import { ErrorHandler } from '../../middleware/error-handler';
 
 describe('API Response Helpers', () => {
   describe('c.success()', () => {

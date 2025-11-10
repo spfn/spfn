@@ -12,8 +12,8 @@ import type {
     LoadEnvironmentOptions,
     LoadResult,
     GetEnvOptions,
-} from './config.js';
-import { ENV_FILE_PRIORITY, TEST_ONLY_FILES } from './config.js';
+} from './config';
+import { ENV_FILE_PRIORITY, TEST_ONLY_FILES } from './config';
 
 const envLogger = logger.child('environment');
 

@@ -13,7 +13,7 @@ import {
     TooManyRequestsError,
     InternalServerError,
     ServiceUnavailableError,
-} from '../http-errors.js';
+} from '../http-errors';
 
 describe('HttpError', () =>
 {

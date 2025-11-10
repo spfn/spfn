@@ -4,9 +4,7 @@
  * Types for contract detection and client code generation
  */
 
-import type { HttpMethod } from '../../route';
-
-export type { HttpMethod };
+import type { HttpMethod } from '../../route/types';
 
 /**
  * Route-Contract mapping extracted from contract files

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { fromPostgresError } from '../postgres-errors.js';
+import { fromPostgresError } from '../postgres-errors';
 import {
     ConnectionError,
     DuplicateEntryError,

@@ -14,7 +14,7 @@ import {
     changePasswordContract,
     sendVerificationCodeContract,
     verifyCodeContract,
-    getMeContract
+    getAuthSessionContract
 } from '@/lib/contracts';
 import { getAuth, getUser } from '@/server/helpers';
 import {
@@ -26,8 +26,8 @@ import {
     sendVerificationCodeService,
     verifyCodeService,
     rotateKeyService,
-    getMeService,
 } from '@/server/services';
+import { getAuthSessionService } from '@/server/services/auth-session.service';
 
 const app = createApp();
 
@@ -122,11 +122,11 @@ app.bind(changePasswordContract, async (c) =>
     return c.success({ success: true });
 });
 
-// GET /_auth/me (Authenticated)
-app.bind(getMeContract, async (c) =>
+// GET /_auth/session (Authenticated)
+app.bind(getAuthSessionContract, async (c) =>
 {
     const { userId } = getAuth(c);
-    const result = await getMeService(userId);
+    const result = await getAuthSessionService(userId);
     return c.success(result);
 });
 

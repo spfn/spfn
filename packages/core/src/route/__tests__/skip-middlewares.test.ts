@@ -6,9 +6,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import { createApp } from '../create-app.js';
+import { createApp } from '../create-app';
 import { Type as t } from '@sinclair/typebox';
-import type { RouteContract } from '../types.js';
+import type { RouteContract } from '../types';
 
 describe('Skip Middlewares', () =>
 {

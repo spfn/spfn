@@ -11,7 +11,6 @@
 
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
-import type { SessionPayload } from '@/lib/types/api';
 
 const JWT_SECRET =
     process.env.SPFN_AUTH_JWT_SECRET ||      // New prefixed version (recommended)
@@ -23,12 +22,17 @@ const JWT_EXPIRES_IN =
     process.env.JWT_EXPIRES_IN ||             // Legacy fallback
     '7d';
 
+export interface SessionPayload
+{
+    userId: string;
+    keyId?: string;
+}
+
 export interface TokenPayload extends SessionPayload
 {
     exp?: number;
     iat?: number;
     iss?: string;
-    keyId?: string;
     timestamp?: number;
     [key: string]: any;
 }

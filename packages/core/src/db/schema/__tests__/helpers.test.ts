@@ -17,7 +17,7 @@ import {
     verificationTimestamp,
     softDelete,
     statusEnum,
-} from '../helpers.js';
+} from '../helpers';
 import { pgTable, text } from 'drizzle-orm/pg-core';
 
 describe('Schema Helpers', () =>

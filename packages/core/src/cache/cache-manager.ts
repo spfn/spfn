@@ -8,7 +8,7 @@
 
 import type { Redis, Cluster } from 'ioredis';
 
-import { createCacheFromEnv } from './cache-factory.js';
+import { createCacheFromEnv } from './cache-factory';
 import { logger } from '../logger';
 
 const cacheLogger = logger.child('cache');

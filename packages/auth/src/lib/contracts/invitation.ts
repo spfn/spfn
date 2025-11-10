@@ -5,8 +5,7 @@
  */
 
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route';
-import { ApiResponseSchema } from '@/lib/types/schemas';
+import { ApiResponseSchema, type RouteContract } from '@spfn/core/route/types';
 
 // UUID v4 pattern
 const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';

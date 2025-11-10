@@ -11,7 +11,7 @@
 export {
     createCacheFromEnv,
     createSingleCacheFromEnv,
-} from './cache-factory.js';
+} from './cache-factory';
 
 export {
     getCache,
@@ -21,9 +21,9 @@ export {
     initCache,
     closeCache,
     getCacheInfo,
-} from './cache-manager.js';
+} from './cache-manager';
 
-export type { CacheClients } from './cache-factory.js';
+export type { CacheClients } from './cache-factory';
 
 // Legacy exports (backward compatibility)
 // Manager functions - re-exported from cache-manager.js
@@ -34,12 +34,12 @@ export {
     initRedis,
     closeRedis,
     getRedisInfo,
-} from './cache-manager.js';
+} from './cache-manager';
 
 // Factory functions - re-exported from cache-factory.js
 export {
     createCacheFromEnv as createRedisFromEnv,
     createSingleCacheFromEnv as createSingleRedisFromEnv,
-} from './cache-factory.js';
+} from './cache-factory';
 
-export type { CacheClients as RedisClients } from './cache-factory.js';
+export type { CacheClients as RedisClients } from './cache-factory';

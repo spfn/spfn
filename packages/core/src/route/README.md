@@ -88,7 +88,7 @@ import {
     getTeamsContract,
     getTeamContract,
     createTeamContract
-} from '../../lib/contracts/teams.js';  // ← Import from lib/
+} from '../../lib/contracts/teams';  // ← Import from lib/
 
 const app = createApp();
 
@@ -833,7 +833,7 @@ Handlers can be organized however you want:
 // Option 1: One handler file per resource
 // src/server/routes/teams.ts
 import { createApp } from '@spfn/core/route';
-import * as contracts from '../../lib/contracts/teams.js';
+import * as contracts from '../../lib/contracts/teams';
 
 const app = createApp();
 app.bind(contracts.getTeamsContract, listTeamsHandler);
@@ -844,7 +844,7 @@ export default app;
 // Option 2: Split by concern
 // src/server/routes/teams/list.ts
 import { createApp } from '@spfn/core/route';
-import { getTeamsContract } from '../../../lib/contracts/teams.js';
+import { getTeamsContract } from '../../../lib/contracts/teams';
 
 const app = createApp();
 app.bind(getTeamsContract, async (c) => { ... });
@@ -852,7 +852,7 @@ export default app;
 
 // src/server/routes/teams/create.ts
 import { createApp } from '@spfn/core/route';
-import { createTeamContract } from '../../../lib/contracts/teams.js';
+import { createTeamContract } from '../../../lib/contracts/teams';
 
 const app = createApp();
 app.bind(createTeamContract, async (c) => { ... });
@@ -1069,7 +1069,7 @@ params: Type.Object({
 ```typescript
 // ✅ Must use createApp() and app.bind()
 import { createApp } from '@spfn/core/route';
-import { getTeamsContract } from '../../lib/contracts/teams.js';
+import { getTeamsContract } from '../../lib/contracts/teams';
 
 const app = createApp();
 app.bind(getTeamsContract, handler);

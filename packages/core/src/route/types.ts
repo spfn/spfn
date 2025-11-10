@@ -1,7 +1,8 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { TSchema, Static } from '@sinclair/typebox';
-import type { ApiSuccessResponse } from './api-response.js';
+
+import type { ApiSuccessResponse } from './api-response';
 
 /**
  * File-based Routing System Type Definitions
@@ -92,3 +93,12 @@ export function isHttpMethod(value: unknown): value is HttpMethod
         ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(value)
     );
 }
+
+// API Response helpers (optional)
+export {
+    ApiSuccessSchema,
+    ApiErrorSchema,
+    ApiResponseSchema,
+} from './api-response';
+
+export type * from './api-response';

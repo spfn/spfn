@@ -6,14 +6,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createDatabaseFromEnv } from '../factory.js';
+import { createDatabaseFromEnv } from '../factory';
 
 // Mock dependencies
 vi.mock('drizzle-orm/postgres-js', () => ({
     drizzle: vi.fn((client) => ({ _client: client, _type: 'drizzle' })),
 }));
 
-vi.mock('../connection.js', () => ({
+vi.mock('../connection', () => ({
     createDatabaseConnection: vi.fn(async (url) => ({
         _url: url,
         _type: 'postgres-client',
@@ -70,7 +70,7 @@ describe('Database Factory', () =>
 
                 const result = await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledTimes(2);
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://write:5432/db',
@@ -96,7 +96,7 @@ describe('Database Factory', () =>
 
                 const result = await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledTimes(2);
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://primary:5432/db',
@@ -119,7 +119,7 @@ describe('Database Factory', () =>
 
                 const result = await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledTimes(1);
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
@@ -139,7 +139,7 @@ describe('Database Factory', () =>
 
                 const result = await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledTimes(1);
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://write:5432/db',
@@ -168,7 +168,7 @@ describe('Database Factory', () =>
 
                 await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 // Should use write-read pattern, not legacy
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://write:5432/db',
@@ -189,7 +189,7 @@ describe('Database Factory', () =>
 
                 await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 // Should use legacy pattern (2 connections)
                 expect(createDatabaseConnection).toHaveBeenCalledTimes(2);
             });
@@ -205,7 +205,7 @@ describe('Database Factory', () =>
                     pool: { max: 50, idleTimeout: 60 },
                 });
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
                     { max: 50, idleTimeout: 60 },
@@ -220,7 +220,7 @@ describe('Database Factory', () =>
 
                 await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
                     { max: 20, idleTimeout: 30 },
@@ -238,7 +238,7 @@ describe('Database Factory', () =>
                     pool: { idleTimeout: 45 },
                 });
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
                     { max: 100, idleTimeout: 45 },
@@ -304,7 +304,7 @@ describe('Database Factory', () =>
             {
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 vi.mocked(createDatabaseConnection).mockRejectedValueOnce(
                     new Error('Connection failed')
                 );
@@ -318,7 +318,7 @@ describe('Database Factory', () =>
             {
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 vi.mocked(createDatabaseConnection).mockRejectedValueOnce(
                     new Error('Network timeout')
                 );
@@ -332,7 +332,7 @@ describe('Database Factory', () =>
             {
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
 
-                const { createDatabaseConnection } = await import('../connection.js');
+                const { createDatabaseConnection } = await import('../connection');
                 vi.mocked(createDatabaseConnection).mockRejectedValueOnce(
                     'String error'
                 );

@@ -9,7 +9,7 @@ import {
     createFunctionSchema,
     packageNameToSchema,
     getSchemaInfo,
-} from '../schema-helper.js';
+} from '../schema-helper';
 
 describe('Schema Helper', () =>
 {

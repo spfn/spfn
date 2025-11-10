@@ -14,8 +14,8 @@ import {
     getTransactionId,
     runWithTransaction,
     type TransactionDB,
-} from '../context.js';
-import { testUsers } from '../../__tests__/fixtures/test-schema.js';
+} from '../context';
+import { testUsers } from '../../__tests__/fixtures/test-schema';
 
 describe('Transaction Context (Integration)', () =>
 {

@@ -3,27 +3,12 @@
  */
 
 // Auto Route Loader (Simplified)
-export { AutoRouteLoader, loadRoutes } from './auto-loader.js';
-export type { RouteInfo, RouteStats } from './auto-loader.js';
+export { AutoRouteLoader, loadRoutes } from './auto-loader';
+export type { RouteInfo, RouteStats } from './auto-loader';
 
 // Contract-based validation
-export { bind } from './bind.js';
+export { bind } from './bind';
 
 // App factory
-export { createApp } from './create-app.js';
-export type { SPFNApp } from './create-app.js';
-
-// API Response helpers (optional)
-export {
-  ApiSuccessSchema,
-  ApiErrorSchema,
-  ApiResponseSchema,
-} from './api-response.js';
-export type {
-  ApiSuccessResponse,
-  ApiErrorResponse,
-  ApiResponse,
-} from './api-response.js';
-
-// Types
-export * from './types.js';
+export { createApp } from './create-app';
+export type { SPFNApp } from './create-app';

@@ -13,7 +13,7 @@ import {
     closeDatabase,
     getDatabaseInfo,
     getDatabaseMonitoringConfig,
-} from '../manager.js';
+} from '../manager';
 
 // Mock dependencies
 vi.mock('../../../logger', () => ({
@@ -27,7 +27,7 @@ vi.mock('../../../logger', () => ({
     },
 }));
 
-vi.mock('../factory.js', () => ({
+vi.mock('../factory', () => ({
     createDatabaseFromEnv: vi.fn(async () => ({
         write: { execute: vi.fn(async () => {}), _type: 'write-db' },
         read: { execute: vi.fn(async () => {}), _type: 'read-db' },
@@ -36,7 +36,7 @@ vi.mock('../factory.js', () => ({
     })),
 }));
 
-vi.mock('../config.js', () => ({
+vi.mock('../config', () => ({
     buildHealthCheckConfig: vi.fn(() => ({
         enabled: true,
         interval: 60000,
@@ -51,7 +51,7 @@ vi.mock('../config.js', () => ({
     })),
 }));
 
-vi.mock('../health-check.js', () => ({
+vi.mock('../health-check', () => ({
     startHealthCheck: vi.fn(),
     stopHealthCheck: vi.fn(),
 }));
@@ -202,7 +202,7 @@ describe('Database Manager', () =>
             expect(result1.write).toBe(result2.write);
             expect(result1.read).toBe(result2.read);
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             // Should only call createDatabaseFromEnv once
             expect(createDatabaseFromEnv).toHaveBeenCalledTimes(1);
         });
@@ -211,13 +211,13 @@ describe('Database Manager', () =>
         {
             await initDatabase();
 
-            const { startHealthCheck } = await import('../health-check.js');
+            const { startHealthCheck } = await import('../health-check');
             expect(startHealthCheck).toHaveBeenCalledTimes(1);
         });
 
         it('should not start health check when disabled', async () =>
         {
-            const { buildHealthCheckConfig } = await import('../config.js');
+            const { buildHealthCheckConfig } = await import('../config');
             vi.mocked(buildHealthCheckConfig).mockReturnValueOnce({
                 enabled: false,
                 interval: 60000,
@@ -228,7 +228,7 @@ describe('Database Manager', () =>
 
             await initDatabase();
 
-            const { startHealthCheck } = await import('../health-check.js');
+            const { startHealthCheck } = await import('../health-check');
             expect(startHealthCheck).not.toHaveBeenCalled();
         });
 
@@ -249,7 +249,7 @@ describe('Database Manager', () =>
 
             await initDatabase(options);
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             expect(createDatabaseFromEnv).toHaveBeenCalledWith(options);
         });
 
@@ -259,7 +259,7 @@ describe('Database Manager', () =>
                 execute: vi.fn(async () => {}),
             };
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: mockWrite,
                 read: mockWrite,
@@ -277,7 +277,7 @@ describe('Database Manager', () =>
             const mockWrite: any = { execute: vi.fn(async () => {}) };
             const mockRead: any = { execute: vi.fn(async () => {}) };
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: mockWrite,
                 read: mockRead,
@@ -299,7 +299,7 @@ describe('Database Manager', () =>
                 }),
             };
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: mockWrite,
                 read: mockWrite,
@@ -323,7 +323,7 @@ describe('Database Manager', () =>
                 }),
             };
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: mockWrite,
                 read: mockWrite,
@@ -338,7 +338,7 @@ describe('Database Manager', () =>
 
         it('should warn when no database configuration found', async () =>
         {
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: undefined,
                 read: undefined,
@@ -356,7 +356,7 @@ describe('Database Manager', () =>
                 pool: { max: 100, idleTimeout: 120 },
             });
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             expect(createDatabaseFromEnv).toHaveBeenCalledWith({
                 pool: { max: 100, idleTimeout: 120 },
             });
@@ -368,7 +368,7 @@ describe('Database Manager', () =>
                 healthCheck: { enabled: false },
             });
 
-            const { buildHealthCheckConfig } = await import('../config.js');
+            const { buildHealthCheckConfig } = await import('../config');
             expect(buildHealthCheckConfig).toHaveBeenCalledWith({ enabled: false });
         });
 
@@ -378,7 +378,7 @@ describe('Database Manager', () =>
                 monitoring: { slowThreshold: 2000 },
             });
 
-            const { buildMonitoringConfig } = await import('../config.js');
+            const { buildMonitoringConfig } = await import('../config');
             expect(buildMonitoringConfig).toHaveBeenCalledWith({
                 slowThreshold: 2000,
             });
@@ -406,7 +406,7 @@ describe('Database Manager', () =>
             await initDatabase();
             await closeDatabase();
 
-            const { stopHealthCheck } = await import('../health-check.js');
+            const { stopHealthCheck } = await import('../health-check');
             expect(stopHealthCheck).toHaveBeenCalled();
         });
 
@@ -414,7 +414,7 @@ describe('Database Manager', () =>
         {
             const mockWriteClient = { end: vi.fn(async () => {}) };
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: { execute: vi.fn() } as any,
                 read: { execute: vi.fn() } as any,
@@ -433,7 +433,7 @@ describe('Database Manager', () =>
             const mockWriteClient = { end: vi.fn(async () => {}) };
             const mockReadClient = { end: vi.fn(async () => {}) };
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: { execute: vi.fn() } as any,
                 read: { execute: vi.fn() } as any,
@@ -456,7 +456,7 @@ describe('Database Manager', () =>
                 }),
             };
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: { execute: vi.fn() } as any,
                 read: { execute: vi.fn() } as any,
@@ -481,7 +481,7 @@ describe('Database Manager', () =>
                 }),
             };
 
-            const { createDatabaseFromEnv } = await import('../factory.js');
+            const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: { execute: vi.fn() } as any,
                 read: { execute: vi.fn() } as any,

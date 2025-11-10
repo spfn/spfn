@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ErrorHandler } from '../error-handler.js';
+import { ErrorHandler } from '../error-handler';
 import { Hono } from 'hono';
 
 describe('ErrorHandler Middleware', () =>

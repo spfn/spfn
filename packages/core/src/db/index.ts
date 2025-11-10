@@ -23,19 +23,19 @@ export type {
 } from './manager';
 
 // Drizzle Config Generator
-export { getDrizzleConfig, detectDialect, generateDrizzleConfigFile } from './manager/config-generator.js';
-export type { DrizzleConfigOptions } from './manager/config-generator.js';
+export { getDrizzleConfig, detectDialect, generateDrizzleConfigFile } from './manager/config-generator';
+export type { DrizzleConfigOptions } from './manager/config-generator';
 
 // Schema Helpers
 export { id, timestamps, foreignKey, optionalForeignKey } from './schema';
-export { createFunctionSchema, packageNameToSchema, getSchemaInfo } from './schema-helper.js';
+export { createFunctionSchema, packageNameToSchema, getSchemaInfo } from './schema-helper';
 
 // Transaction
 export { Transactional, getTransaction, runWithTransaction } from './transaction';
 export type { TransactionContext, TransactionDB, TransactionalOptions } from './transaction';
 
 // PostgreSQL Error Utilities
-export { fromPostgresError } from './postgres-errors.js';
+export { fromPostgresError } from './postgres-errors';
 
 // Helper Functions
 export {
@@ -49,4 +49,4 @@ export {
     deleteOne,
     deleteMany,
     count,
-} from './helpers.js';
+} from './helpers';

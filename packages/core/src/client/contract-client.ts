@@ -3,7 +3,7 @@
  *
  * Type-safe HTTP client that works with RouteContract for full end-to-end type safety
  */
-import type { RouteContract, InferContract } from '../route';
+import type { RouteContract, InferContract } from '../route/types';
 
 export type RequestInterceptor = (
     url: string,

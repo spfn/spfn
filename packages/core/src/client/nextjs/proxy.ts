@@ -31,7 +31,7 @@
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { cookies } from 'next/headers.js';
+import { cookies } from 'next/headers';
 import type { ProxyConfig, RequestInterceptorContext, ResponseInterceptorContext, InterceptorRule } from './types';
 import {
     filterMatchingInterceptors,
@@ -148,16 +148,37 @@ async function handleProxy(
         proxyLogger.debug(`Handling ${method} ${path}`);
         proxyLogger.debug(`Total available interceptor rules: ${rules.length}`);
 
+        // Log all available rules
+        rules.forEach((rule, index) => {
+            proxyLogger.debug(`Rule ${index}:`, {
+                pathPattern: rule.pathPattern?.toString(),
+                method: rule.method,
+            });
+        });
+
         const matchedRules = filterMatchingInterceptors(rules, path, method);
         proxyLogger.debug(`Matched ${matchedRules.length} interceptor rules for this request`);
+
+        // Log matched rules
+        matchedRules.forEach((rule, index) => {
+            proxyLogger.debug(`Matched Rule ${index}:`, {
+                pathPattern: rule.pathPattern?.toString(),
+                method: rule.method,
+                hasRequestInterceptor: !!rule.request,
+                hasResponseInterceptor: !!rule.response,
+            });
+        });
 
         const requestInterceptors = matchedRules
             .map((rule) => rule.request)
             .filter((interceptor): interceptor is NonNullable<typeof interceptor> => !!interceptor);
 
         proxyLogger.debug(`Executing ${requestInterceptors.length} request interceptors`);
+        proxyLogger.debug('Headers before interceptors:', requestContext.headers);
 
         await executeRequestInterceptors(requestContext, requestInterceptors);
+
+        proxyLogger.debug('Headers after interceptors:', requestContext.headers);
 
         // Build SPFN API URL
         const apiUrl = getApiUrl(config);

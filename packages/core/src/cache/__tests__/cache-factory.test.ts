@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createCacheFromEnv, createSingleCacheFromEnv } from '../cache-factory.js';
+import { createCacheFromEnv, createSingleCacheFromEnv } from '../cache-factory';
 
 describe('cache-factory', () =>
 {

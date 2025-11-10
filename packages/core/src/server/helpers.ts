@@ -12,8 +12,8 @@ export function createHealthCheckHandler(detailed: boolean): Handler
 
         if (detailed)
         {
-            const { getDatabase } = await import('../db/index.js');
-            const { getRedis } = await import('../cache/index.js');
+            const { getDatabase } = await import('../db/index');
+            const { getRedis } = await import('../cache/index');
 
             const db = getDatabase();
             let dbStatus = 'disconnected';

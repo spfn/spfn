@@ -7,8 +7,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync } from 'fs';
 import { resolve, join } from 'path';
-import { CodegenOrchestrator } from '../orchestrator.js';
-import type { Generator, GeneratorOptions } from '../generator.js';
+import { CodegenOrchestrator } from '../orchestrator';
+import type { Generator, GeneratorOptions } from '../generator';
 
 const TEST_DIR = resolve(process.cwd(), '.test-tmp-orchestrator-custom');
 

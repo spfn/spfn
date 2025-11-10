@@ -10,7 +10,7 @@
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
-import type { MonitoringConfig } from './config.js';
+import type { MonitoringConfig } from './config';
 
 // ============================================================================
 // Global Type Declarations
