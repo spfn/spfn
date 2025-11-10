@@ -699,7 +699,8 @@ async function dbStudio(requestedPort?: number): Promise<void>
             const { generateDrizzleConfigFile } = await import('@spfn/core/db');
             const configContent = generateDrizzleConfigFile({
                 cwd: process.cwd(),
-                disablePackageDiscovery: true
+                disablePackageDiscovery: true,
+                expandGlobs: true  // Expand glob patterns for Studio compatibility
             });
 
             writeFileSync(tempConfigPath, configContent);

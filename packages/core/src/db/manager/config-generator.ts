@@ -28,6 +28,9 @@ export interface DrizzleConfigOptions
 
     /** Only include schemas from specific package (e.g., '@spfn/cms') */
     packageFilter?: string;
+
+    /** Expand glob patterns to actual file paths (useful for Drizzle Studio) */
+    expandGlobs?: boolean;
 }
 
 /**
@@ -358,7 +361,31 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
         : discoverPackageSchemas(options.cwd ?? process.cwd());
 
     // Merge user schemas and package schemas
-    const allSchemas = [...userSchemas, ...packageSchemas];
+    let allSchemas = [...userSchemas, ...packageSchemas];
+
+    // Expand glob patterns if requested (useful for Drizzle Studio)
+    if (options.expandGlobs)
+    {
+        const expandedSchemas: string[] = [];
+        for (const schema of allSchemas)
+        {
+            const expanded = expandGlobPattern(schema);
+
+            // Filter out index files (they are re-exports, not schema definitions)
+            const filtered = expanded.filter(file =>
+                !file.endsWith('/index.js') &&
+                !file.endsWith('/index.ts') &&
+                !file.endsWith('/index.mjs') &&
+                !file.endsWith('\\index.js') &&
+                !file.endsWith('\\index.ts') &&
+                !file.endsWith('\\index.mjs')
+            );
+
+            expandedSchemas.push(...filtered);
+        }
+        allSchemas = expandedSchemas;
+    }
+
     const schema = allSchemas.length === 1 ? allSchemas[0] : allSchemas;
 
     return {
@@ -399,11 +426,22 @@ function getDbCredentials(dialect: string, url: string)
 export function generateDrizzleConfigFile(options: DrizzleConfigOptions = {}): string
 {
     const config = getDrizzleConfig(options);
+    const cwd = options.cwd ?? process.cwd();
+
+    // Convert schema paths to absolute paths for Drizzle Studio compatibility
+    const normalizeSchemaPath = (schemaPath: string): string => {
+        // If already absolute, return as-is
+        if (schemaPath.startsWith('/') || schemaPath.match(/^[A-Za-z]:\\/)) {
+            return schemaPath;
+        }
+        // Convert relative to absolute
+        return join(cwd, schemaPath);
+    };
 
     // Format schema value (handle both string and array)
     const schemaValue = Array.isArray(config.schema)
-        ? `[\n        ${config.schema.map(s => `'${s}'`).join(',\n        ')}\n    ]`
-        : `'${config.schema}'`;
+        ? `[\n        ${config.schema.map(s => `'${normalizeSchemaPath(s)}'`).join(',\n        ')}\n    ]`
+        : `'${normalizeSchemaPath(config.schema as string)}'`;
 
     return `import { defineConfig } from 'drizzle-kit';
 
