@@ -15,6 +15,9 @@
 
 import type { RouteContract, InferContract } from '../../route/types';
 import { ContractClient, type CallOptions } from '../contract-client';
+import { logger } from '../../logger';
+
+const clientLogger = logger.child('nextjs-client');
 
 // Type declaration for window (available in browser)
 declare const window: unknown | undefined;
@@ -93,7 +96,7 @@ export class NextjsClient
         // Determine baseUrl based on environment
         const isServer = typeof window === 'undefined';
 
-        console.log('[NextjsClient] Constructor - Environment:', {
+        clientLogger.debug('🔧 Constructor - Environment:', {
             isServer,
             configBaseUrl: config.baseUrl,
             SPFN_APP_URL: process.env.SPFN_APP_URL,
@@ -103,18 +106,18 @@ export class NextjsClient
         if (config.baseUrl)
         {
             this.baseUrl = config.baseUrl;
-            console.log('[NextjsClient] Using config.baseUrl:', this.baseUrl);
+            clientLogger.debug(`⚙️  Using config.baseUrl: ${this.baseUrl}`);
         }
         else if (process.env.SPFN_APP_URL)
         {
             this.baseUrl = process.env.SPFN_APP_URL;
-            console.log('[NextjsClient] Using SPFN_APP_URL:', this.baseUrl);
+            clientLogger.debug(`⚙️  Using SPFN_APP_URL: ${this.baseUrl}`);
         }
         else if (isServer)
         {
             // Server environment requires SPFN_APP_URL to be set
             throw new Error(
-                '[NextjsClient] SPFN_APP_URL environment variable is required in server environment.\n' +
+                '❌ SPFN_APP_URL environment variable is required in server environment.\n' +
                 'Please set SPFN_APP_URL in your .env file:\n' +
                 '  SPFN_APP_URL=http://localhost:3000\n' +
                 'Or configure the client with baseUrl:\n' +
@@ -125,11 +128,11 @@ export class NextjsClient
         {
             // Client environment: use relative path
             this.baseUrl = '';
-            console.log('[NextjsClient] Using empty baseUrl (client-side relative)');
+            clientLogger.debug('⚙️  Using empty baseUrl (client-side relative)');
         }
 
         const finalBaseUrl = this.baseUrl + this.proxyBasePath;
-        console.log('[NextjsClient] Final baseUrl for ContractClient:', finalBaseUrl);
+        clientLogger.debug(`✅ Final baseUrl for ContractClient: ${finalBaseUrl}`);
 
         // Create contract client pointing to API Route
         this.contractClient = new ContractClient({
@@ -172,16 +175,18 @@ export class NextjsClient
                 if (cookieHeader)
                 {
                     headers['Cookie'] = cookieHeader;
-                    console.log('[NextjsClient] Server-side: Forwarding cookies to API Route');
+                    clientLogger.debug('🍪 Server-side: Forwarding cookies to API Route');
                 }
                 else
                 {
-                    console.log('[NextjsClient] Server-side: No cookies to forward');
+                    clientLogger.debug('ℹ️  Server-side: No cookies to forward');
                 }
             }
             catch (error)
             {
-                console.warn('[NextjsClient] Failed to get cookies in server environment:', error);
+                clientLogger.warn('⚠️ Failed to get cookies in server environment:', {
+                    error: error instanceof Error ? error.message : String(error)
+                });
             }
         }
 
