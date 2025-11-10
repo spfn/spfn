@@ -7,6 +7,7 @@
 import { cookies } from 'next/headers.js';
 import { sealSession, unsealSession, type SessionData } from '@/lib/session';
 import { COOKIE_NAMES } from '@/lib/config';
+import { logger } from '@spfn/core/logger';
 
 export type { SessionData };
 
@@ -64,8 +65,13 @@ export async function getSession(): Promise<PublicSession | null>
     }
     catch (error)
     {
-        // Session expired or invalid
-        console.error('[getSession] Failed to unseal session:', error);
+        // Session expired or invalid - log in dev mode
+        // Note: Cannot delete cookies in Server Components (read-only)
+        // Invalid cookies will be cleaned up on next login/logout via Route Handler or Server Action
+        logger.debug('Session validation failed', {
+            error: error instanceof Error ? error.message : String(error)
+        });
+
         return null;
     }
 }

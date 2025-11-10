@@ -1,0 +1,86 @@
+/**
+ * @spfn/auth - User Profiles Entity
+ *
+ * User profile information (separate from authentication data)
+ *
+ * Features:
+ * - Display name and personal information
+ * - Avatar and bio
+ * - Locale and timezone preferences
+ * - Optional demographic data
+ * - Social links and professional info
+ */
+
+import { text, index } from 'drizzle-orm/pg-core';
+import { id, timestamps } from '@spfn/core/db';
+import { users } from './users';
+import { authSchema } from './schema';
+
+export const userProfiles = authSchema.table('user_profiles',
+    {
+        // Identity
+        id: id(),
+
+        // Foreign key to users table
+        userId: text('user_id')
+            .references(() => users.id)
+            .notNull()
+            .unique(),
+
+        // Display Information
+        // Display name shown in UI (required)
+        displayName: text('display_name').notNull(),
+
+        // First name (optional)
+        firstName: text('first_name'),
+
+        // Last name (optional)
+        lastName: text('last_name'),
+
+        // Profile Media
+        // Avatar/profile picture URL
+        avatarUrl: text('avatar_url'),
+
+        // Short bio/description (max 500 chars recommended)
+        bio: text('bio'),
+
+        // Preferences
+        // Locale/language preference (e.g., 'en', 'ko', 'ja')
+        locale: text('locale').default('en'),
+
+        // Timezone (e.g., 'Asia/Seoul', 'America/New_York')
+        timezone: text('timezone').default('UTC'),
+
+        // Optional Information
+        // Date of birth (YYYY-MM-DD format)
+        dateOfBirth: text('date_of_birth'),
+
+        // Gender (flexible text field)
+        gender: text('gender'),
+
+        // Personal Links
+        // Personal or professional website
+        website: text('website'),
+
+        // Location (city, country, etc.)
+        location: text('location'),
+
+        // Professional Information
+        // Company name
+        company: text('company'),
+
+        // Job title
+        jobTitle: text('job_title'),
+
+        ...timestamps(),
+    },
+    (table) => [
+        // Indexes for query optimization
+        index('user_profiles_user_id_idx').on(table.userId),
+        index('user_profiles_display_name_idx').on(table.displayName),
+    ]
+);
+
+// Type exports
+export type UserProfile = typeof userProfiles.$inferSelect;
+export type NewUserProfile = typeof userProfiles.$inferInsert;

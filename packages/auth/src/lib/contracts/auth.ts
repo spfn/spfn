@@ -350,9 +350,10 @@ export const changePasswordContract = {
 } as const satisfies RouteContract;
 
 /**
- * GET /me - Get current user info
+ * GET /me - Get current user account info
  *
- * Returns authenticated user's information including role and permissions
+ * Returns authenticated user's complete account information (User + Profile)
+ * Excludes sensitive fields like phone, dateOfBirth, gender, status, passwordChangeRequired
  * Requires authentication
  * Final path: /_auth/me (prefix added from package.json)
  */
@@ -362,9 +363,39 @@ export const getMeContract = {
     body: Type.Object({}),
     response: ApiResponseSchema(
         Type.Object({
-            userId: Type.String({ description: 'User ID' }),
-            email: Type.Optional(Type.String({ description: 'User email address' })),
-            phone: Type.Optional(Type.String({ description: 'User phone number' })),
+            // User authentication data (excluding sensitive/internal fields)
+            user: Type.Object({
+                userId: Type.String({ description: 'User ID' }),
+                email: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'User email address' })),
+                emailVerified: Type.Boolean({ description: 'Email verification status' }),
+                phoneVerified: Type.Boolean({ description: 'Phone verification status' }),
+                lastLoginAt: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Last login timestamp (ISO 8601)' })),
+                createdAt: Type.String({ description: 'Account creation timestamp (ISO 8601)' }),
+                updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
+            }, { description: 'User authentication data' }),
+
+            // User profile data (excluding sensitive personal info)
+            profile: Type.Optional(Type.Union([
+                Type.Object({
+                    profileId: Type.String({ description: 'Profile ID' }),
+                    displayName: Type.String({ description: 'Display name' }),
+                    firstName: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'First name' })),
+                    lastName: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Last name' })),
+                    avatarUrl: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Avatar URL' })),
+                    bio: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Bio' })),
+                    locale: Type.String({ description: 'Locale preference' }),
+                    timezone: Type.String({ description: 'Timezone preference' }),
+                    website: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Website URL' })),
+                    location: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Location' })),
+                    company: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Company' })),
+                    jobTitle: Type.Optional(Type.Union([Type.String(), Type.Null()], { description: 'Job title' })),
+                    createdAt: Type.String({ description: 'Profile creation timestamp (ISO 8601)' }),
+                    updatedAt: Type.String({ description: 'Profile last update timestamp (ISO 8601)' }),
+                }, { description: 'User profile data' }),
+                Type.Null()
+            ], { description: 'User profile (null if not created yet)' })),
+
+            // Role and permissions
             role: Type.Object({
                 id: Type.Number({ description: 'Role ID' }),
                 name: Type.String({ description: 'Role name (e.g., user, admin)' }),

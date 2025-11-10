@@ -9,6 +9,7 @@ export * from './schema';
 
 // User entities
 export * from './users';
+export * from './user-profiles';
 export * from './user-social-accounts';
 export * from './user-public-keys';
 export * from './verification-codes';

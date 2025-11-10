@@ -12,49 +12,23 @@
  * @requires next >= 13.0.0
  */
 
-// Re-export types and simple API functions
-export {
-    client,
-    // Types
-    type SendVerificationCodeResponse,
-    type SendVerificationCodeBody,
-    type VerifyCodeResponse,
-    type VerifyCodeBody,
-    type CheckAccountExistsResponse,
-    type CheckAccountExistsBody,
-    type RegisterResponse,
-    type LoginResponse,
-    type LogoutResponse,
-    type RotateKeyResponse,
-    type ChangePasswordResponse,
-    type ChangePasswordBody,
-    type GetInvitationResponse,
-    type GetInvitationParams,
-    type CreateInvitationResponse,
-    type CreateInvitationBody,
-    type ListInvitationsResponse,
-    type ListInvitationsQuery,
-    type AcceptInvitationResponse,
-    type AcceptInvitationBody,
-    type CancelInvitationResponse,
-    type CancelInvitationBody,
-    type ResendInvitationResponse,
-    type ResendInvitationBody,
-    type DeleteInvitationResponse,
-    type DeleteInvitationBody,
-} from '@/lib/api';
+// Re-export client
+export { client } from '@/lib/api';
 
-// Import API functions
-import { sendVerificationCode } from '@/lib/api/auth-codes';
-import { verifyCode } from '@/lib/api/auth-codes-verify';
-import { checkAccountExists } from '@/lib/api/auth-exists';
-import { changePassword } from '@/lib/api/auth-password';
-import { getMe } from '@/lib/api/auth-me';
-import { getInvitation, createInvitation, listInvitations } from '@/lib/api/auth-invitations';
-import { acceptInvitation } from '@/lib/api/auth-invitations-accept';
-import { cancelInvitation } from '@/lib/api/auth-invitations-cancel';
-import { resendInvitation } from '@/lib/api/auth-invitations-resend';
-import { deleteInvitation } from '@/lib/api/auth-invitations-delete';
+// Auto re-export all types from lib/api (automatically includes new endpoints)
+export type * from '@/lib/api';
+
+// Re-export User types
+export type * from '@/lib/types/user';
+
+// Re-export UserProfile types
+export type * from '@/lib/types/user-profile';
+
+// Re-export Account types
+export type * from '@/lib/types/account';
+
+// Import base authApi and specific functions for wrapping
+import { authApi as baseAuthApi } from '@/lib/api';
 import { login as loginApi } from '@/lib/api/auth-login';
 import { register as registerApi } from '@/lib/api/auth-register';
 import { logout as logoutApi } from '@/lib/api/auth-logout';
@@ -125,24 +99,16 @@ export const rotateKey = async () =>
 
 /**
  * Auth API collection
+ *
+ * Combines all base API functions with Next.js-specific wrapped functions
+ * Wrapped functions (login, register, logout, rotateKey) handle key generation/JWT automatically
+ * Other functions are automatically included from baseAuthApi
  */
 export const authApi = {
-    // Wrapped functions (key handling)
+    ...baseAuthApi,
+    // Override with wrapped versions (key handling + interceptors)
     login,
     register,
     logout,
     rotateKey,
-    // Simple functions (no key handling)
-    sendVerificationCode,
-    verifyCode,
-    checkAccountExists,
-    changePassword,
-    getMe,
-    getInvitation,
-    createInvitation,
-    listInvitations,
-    acceptInvitation,
-    cancelInvitation,
-    resendInvitation,
-    deleteInvitation,
 } as const;

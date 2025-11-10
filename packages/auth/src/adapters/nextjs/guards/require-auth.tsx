@@ -48,11 +48,12 @@ export interface RequireAuthProps
  */
 export async function RequireAuth({
     children,
-    redirectTo = '/login',
+    redirectTo = '/auth/login',
     fallback,
 }: RequireAuthProps)
 {
     const session = await getSession();
+    console.log('session', session);
 
     if (!session)
     {
