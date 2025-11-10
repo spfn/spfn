@@ -7,14 +7,6 @@ import { discoverFunctionRoutes } from './function-routes';
 
 const routeLogger = logger.child('route');
 
-declare module 'hono'
-{
-    interface ContextVariableMap
-    {
-        _skipMiddlewares?: string[];
-    }
-}
-
 /**
  * AutoRouteLoader: Simplified File-based Routing System
  *
@@ -46,6 +38,12 @@ export type RouteStats = {
     };
     byTag: Record<string, number>;
     routes: RouteInfo[];
+};
+
+type ContractInfo = {
+    method: string;
+    path: string;
+    skipMiddlewares?: string[];
 };
 
 type RouteModule = {
@@ -259,7 +257,8 @@ export class AutoRouteLoader
                 return false;
             }
 
-            // Extract paths from contract metas for logging and stats
+            // Extract contracts and paths from contract metas
+            const contracts = this.extractContracts(module);
             const contractPaths = this.extractContractPaths(module);
 
             // Validate contract paths against prefix (if prefix is provided)
@@ -278,8 +277,8 @@ export class AutoRouteLoader
                 }
             }
 
-            // Register contract-based middlewares
-            this.registerContractBasedMiddlewares(app, contractPaths, module);
+            // Register contract-based middlewares (registration-time filtering)
+            this.registerContractBasedMiddlewares(app, contracts);
 
             // Mount directly (contracts already include full path with prefix)
             app.route('/', module.default);
@@ -329,6 +328,30 @@ export class AutoRouteLoader
         return Array.from(paths);
     }
 
+    private extractContracts(module: RouteModule): ContractInfo[]
+    {
+        const contracts: ContractInfo[] = [];
+
+        if (module.default._contractMetas)
+        {
+            for (const [key, meta] of module.default._contractMetas.entries())
+            {
+                // key format: "GET /teams/:id"
+                const [method, path] = key.split(' ');
+                if (method && path)
+                {
+                    contracts.push({
+                        method,
+                        path,
+                        skipMiddlewares: meta?.skipMiddlewares,
+                    });
+                }
+            }
+        }
+
+        return contracts;
+    }
+
     private calculateContractPriority(path: string): number
     {
         if (path.includes('*')) return 3;  // Catch-all
@@ -353,43 +376,47 @@ export class AutoRouteLoader
         return true;
     }
 
-    private registerContractBasedMiddlewares(app: Hono, contractPaths: string[], module: RouteModule): void
+    private registerContractBasedMiddlewares(app: Hono, contracts: ContractInfo[]): void
     {
-        // Register middleware checker for all contract paths
-        app.use('*', (c, next) =>
+        // Group contracts by path to avoid redundant middleware registration
+        const pathGroups = new Map<string, ContractInfo[]>();
+
+        for (const contract of contracts)
         {
-            const method = c.req.method;
-            const requestPath = new URL(c.req.url).pathname;
-
-            const key = `${method} ${requestPath}`;
-            const meta = module.default._contractMetas?.get(key);
-
-            if (meta?.skipMiddlewares)
+            if (!pathGroups.has(contract.path))
             {
-                c.set('_skipMiddlewares', meta.skipMiddlewares);
+                pathGroups.set(contract.path, []);
+            }
+            pathGroups.get(contract.path)!.push(contract);
+        }
+
+        // Register middlewares for each unique path
+        for (const [path, pathContracts] of pathGroups.entries())
+        {
+            // Collect all skipMiddlewares for this path across all contracts
+            const skipMiddlewaresSet = new Set<string>();
+            for (const contract of pathContracts)
+            {
+                if (contract.skipMiddlewares)
+                {
+                    contract.skipMiddlewares.forEach(name => skipMiddlewaresSet.add(name));
+                }
             }
 
-            return next();
-        });
-
-        // Register middlewares for each contract path
-        for (const contractPath of contractPaths)
-        {
-            const middlewarePath = contractPath === '/' ? '/*' : `${contractPath}/*`;
-
+            // Register only non-skipped middlewares for this path
             for (const middleware of this.middlewares)
             {
-                app.use(middlewarePath, async (c, next) =>
+                if (skipMiddlewaresSet.has(middleware.name))
                 {
-                    const skipList = c.get('_skipMiddlewares') || [];
-
-                    if (skipList.includes(middleware.name))
+                    if (this.debug)
                     {
-                        return next();
+                        routeLogger.debug(`Skipping middleware '${middleware.name}' for path: ${path}`);
                     }
+                    continue; // Don't register this middleware
+                }
 
-                    return middleware.handler(c, next);
-                });
+                // Register middleware for the exact path (Hono automatically handles sub-paths)
+                app.use(path, middleware.handler);
             }
         }
     }

@@ -182,12 +182,16 @@ async function handleProxy(
 
         // Build SPFN API URL
         const apiUrl = getApiUrl(config);
+        proxyLogger.debug(`API base URL: ${apiUrl}`);
+
         const queryString = Object.entries(query)
             .flatMap(([key, value]) =>
                 Array.isArray(value) ? value.map((v) => `${key}=${v}`) : [`${key}=${value}`]
             )
             .join('&');
         const url = `${apiUrl}${path}${queryString ? `?${queryString}` : ''}`;
+
+        proxyLogger.debug(`Full URL to fetch: ${url}`);
 
         // Build fetch options
         const init: RequestInit = {
@@ -218,6 +222,18 @@ async function handleProxy(
         {
             proxyLogger.debug(`Calling ${url}`, { headers: requestContext.headers });
         }
+
+        // Log fetch details before calling
+        proxyLogger.debug('Fetch details:', {
+            url,
+            method: init.method,
+            headers: init.headers,
+            hasBody: !!init.body,
+            bodyType: init.body ? typeof init.body : 'none',
+            bodySize: init.body instanceof FormData ? 'FormData' :
+                     typeof init.body === 'string' ? init.body.length :
+                     'unknown'
+        });
 
         // Call SPFN API
         const response = await fetch(url, init);
@@ -319,13 +335,53 @@ async function handleProxy(
     }
     catch (error)
     {
+        // Extract detailed error information
+        const errorDetails: any = {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            type: error?.constructor?.name || 'Unknown',
+        };
+
         if (error instanceof Error)
         {
-            proxyLogger.error('Proxy error', error);
+            // Log error stack
+            errorDetails.stack = error.stack;
+
+            // Log error cause if available (useful for fetch errors)
+            if ((error as any).cause)
+            {
+                errorDetails.cause = {
+                    message: (error as any).cause.message,
+                    code: (error as any).cause.code,
+                    errno: (error as any).cause.errno,
+                    syscall: (error as any).cause.syscall,
+                    address: (error as any).cause.address,
+                    port: (error as any).cause.port,
+                };
+            }
+
+            // For TypeError: fetch failed, log additional context
+            if (error.message?.includes('fetch failed'))
+            {
+                try
+                {
+                    const apiUrl = getApiUrl(config);
+                    errorDetails.attemptedUrl = apiUrl;
+                    errorDetails.envVars = {
+                        SERVER_API_URL: process.env.SERVER_API_URL,
+                        SPFN_API_URL: process.env.SPFN_API_URL,
+                    };
+                }
+                catch (e)
+                {
+                    // Ignore error while logging error
+                }
+            }
+
+            proxyLogger.error('Proxy error details:', errorDetails);
         }
         else
         {
-            proxyLogger.error('Proxy error', { error });
+            proxyLogger.error('Proxy error (non-Error type):', { error, errorDetails });
         }
 
         return NextResponse.json(
