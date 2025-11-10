@@ -1,784 +1,1442 @@
-# @spfn/core/client - Contract-based HTTP Client
+# @spfn/core/client - Next.js API Client with Interceptors
 
-Type-safe HTTP client with end-to-end type safety using RouteContract.
+Contract-based type-safe HTTP client for Next.js applications with API Route Proxy architecture.
 
 ## Features
 
-### ContractClient (Basic Client)
-- ✅ **End-to-End Type Safety**: Full TypeScript inference from server contracts
-- ✅ **Contract-based**: Shares types with server routes via RouteContract
-- ✅ **Zero Runtime Validation**: Types only, no schema validation overhead
-- ✅ **Absolute Paths**: Contracts define their own URL paths
-- ✅ **Path Parameters**: Automatic `:id` substitution from contract.path
-- ✅ **Query Parameters**: Support for strings, numbers, arrays
-- ✅ **Timeout Control**: Built-in AbortController with configurable timeout
-- ✅ **Error Handling**: Structured ApiClientError with status codes
-- ✅ **Request Interceptors**: Add authentication, logging, etc.
-- ✅ **Next.js Safe**: No server dependencies, safe for client components
-- ✅ **Minimal**: Uses native `fetch` API, zero dependencies
+- ✅ **Contract-based Type Safety**: Full TypeScript inference from server contracts
+- ✅ **API Route Proxy**: Unified request path for all environments (Server/Client Components)
+- ✅ **HttpOnly Cookie Support**: Seamless authentication with secure cookies
+- ✅ **Interceptor System**: Middleware pattern for request/response manipulation
+- ✅ **Auto-discovery Registry**: Package-level interceptor registration
+- ✅ **CORS-free**: Same-origin requests through Next.js API Routes
+- ✅ **Security**: API URLs and secrets hidden from browser
+- ✅ **Next.js Optimized**: Native support for caching, ISR, and revalidation
 
-### UniversalClient (Auto-routing Client)
-- ✅ **Environment Detection**: Automatically detects server vs browser
-- ✅ **Auto-routing**: Server → Direct API call, Browser → Proxy route
-- ✅ **Cookie Forwarding**: HttpOnly cookies work seamlessly
-- ✅ **Same API**: Identical interface as ContractClient
-- ✅ **Zero Configuration**: Works out of the box with sensible defaults
-- ✅ **Flexible Proxy Path**: Configurable API route path
+---
+
+## Why API Route Proxy Pattern? 🤔
+
+### ❌ Problem: Direct API Call Limitations
+
+**Before (Direct API Calls):**
+```
+Browser (Client Component)
+    ↓ fetch('http://api.server.com/_auth/login')
+    ❌ CORS configuration required
+    ❌ HttpOnly cookies cannot be forwarded
+    ❌ API URL exposed in browser
+    ❌ Different code paths for Server vs Client Components
+    ↓
+SPFN API Server
+```
+
+#### Issues with Direct Calls:
+
+**1. 🍪 HttpOnly Cookie Problem**
+```typescript
+// ❌ Inaccessible from JavaScript
+document.cookie; // HttpOnly cookies are hidden
+
+// ❌ Cannot manually include cookies in fetch
+fetch('http://api.server.com/api', {
+  headers: {
+    'Cookie': 'session=xxx' // ⚠️ Browser blocks this
+  }
+});
+```
+
+**2. 🌐 CORS Issues**
+```typescript
+// Next.js App: http://localhost:3000
+// SPFN API: http://localhost:8790
+
+// ❌ Cross-Origin Request
+fetch('http://localhost:8790/_auth/login')
+// → CORS preflight required
+// → CORS configuration needed on SPFN API
+// → credentials: 'include' required
+```
+
+**3. 🔒 Security Concerns**
+```typescript
+// ❌ API URL exposed to browser
+const apiUrl = 'http://internal-api.company.com:8790';
+
+// ❌ Risk of exposing API keys or internal tokens
+```
+
+**4. 🔀 Environment-specific Code**
+```typescript
+// ❌ Complex environment detection logic
+const isServer = typeof window === 'undefined';
+
+if (isServer) {
+  // Server Component: Direct call
+  await fetch('http://localhost:8790/api');
+} else {
+  // Client Component: How to forward cookies?
+}
+```
+
+---
+
+### ✅ Solution: API Route Proxy Pattern
+
+**After (API Route Proxy):**
+```
+Browser (Client Component)
+    ↓ fetch('/api/actions/_auth/login')  ← Same Origin
+    ✅ No CORS issues
+    ✅ Cookies forwarded automatically
+    ✅ Only /api path exposed
+    ↓
+Next.js API Route (/api/actions/[...path])
+    ↓ Server-side fetch('http://localhost:8790/_auth/login')
+    ✅ Manual cookie forwarding possible
+    ✅ Header manipulation (Interceptors)
+    ✅ Response transformation (Interceptors)
+    ↓
+SPFN API Server (http://localhost:8790)
+```
+
+#### Advantages:
+
+**1. 🍪 Perfect HttpOnly Cookie Support**
+```typescript
+// Client Component
+const result = await client.call(loginContract, {
+  body: { email, password }
+});
+// ✅ Browser → API Route: Cookies included automatically
+// ✅ API Route → SPFN API: Server manually forwards cookies
+// ✅ SPFN API → API Route: Set-Cookie response
+// ✅ API Route → Browser: Set-Cookie forwarded
+```
+
+**2. 🌐 CORS Problem Solved**
+```typescript
+// ✅ Same-origin request
+fetch('/api/actions/_auth/login')
+// localhost:3000 → localhost:3000
+// No CORS needed!
+```
+
+**3. 🔒 Enhanced Security**
+```typescript
+// ✅ Only /api path exposed to browser
+// ✅ Actual SPFN API URL hidden in server environment variables
+const SPFN_API_URL = process.env.SPFN_API_URL; // Inaccessible from browser
+
+// ✅ Additional validation possible in API Route
+export const POST = async (request) => {
+  // Rate limiting, IP check, etc.
+  return handleProxy(request, ...);
+};
+```
+
+**4. 🔧 Unified Interceptor System**
+```typescript
+// ✅ Same interceptor logic for all environments
+// Request Interceptor: Add headers, inject auth tokens
+// Response Interceptor: Set cookies, transform responses
+
+export const { POST } = createProxy({
+  interceptors: [{
+    pathPattern: '/_auth/*',
+    request: async (ctx, next) => {
+      // 🎯 Runs on server - sensitive operations allowed
+      const secret = process.env.API_SECRET;
+      ctx.headers['X-API-Secret'] = secret;
+      await next();
+    },
+    response: async (ctx, next) => {
+      // 🎯 Runs on server - set HttpOnly cookies
+      ctx.setCookies.push({
+        name: 'session',
+        value: ctx.response.body.token,
+        options: { httpOnly: true, secure: true }
+      });
+      await next();
+    }
+  }]
+});
+```
+
+**5. 🎨 Simple Client Code**
+```typescript
+// ✅ Server Component
+export default async function Page() {
+  const client = createNextjsClient();
+  const user = await client.call(getUserContract, {
+    params: { id: '123' }
+  });
+  return <div>{user.name}</div>;
+}
+
+// ✅ Client Component - Same API!
+'use client';
+export function UserProfile() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const client = createNextjsClient();
+    client.call(getUserContract, { params: { id: '123' } })
+      .then(setUser);
+  }, []);
+
+  // 🎯 No environment branching!
+  // 🎯 Cookie handling automatic!
+}
+```
+
+**6. 📊 Next.js Features Integration**
+```typescript
+// ✅ Next.js caching
+await client.call(getUserContract, {
+  params: { id: '123' },
+  fetchOptions: {
+    next: { revalidate: 60 } // 60 second cache
+  }
+});
+
+// ✅ ISR (Incremental Static Regeneration)
+// ✅ On-demand Revalidation
+```
+
+---
+
+### 🏗️ Architecture Comparison
+
+#### Before: UniversalClient (Environment Branching)
+```
+┌─────────────────────┐
+│ Server Component    │
+├─────────────────────┤
+│ UniversalClient     │
+│   isServer? → Yes   │
+│   ↓                 │
+│   Direct Call       │ ──→ http://localhost:8790
+└─────────────────────┘
+
+┌─────────────────────┐
+│ Client Component    │
+├─────────────────────┤
+│ UniversalClient     │
+│   isServer? → No    │
+│   ↓                 │
+│   API Route Call    │ ──→ /api/proxy/* ──→ http://localhost:8790
+└─────────────────────┘
+
+⚠️ Issues:
+- Two different code paths
+- Server Component direct calls → interceptors not applied
+- Environment detection logic needed
+- Inconsistent cookie handling
+```
+
+#### After: NextjsClient (Unified Path)
+```
+┌─────────────────────┐
+│ Server Component    │
+├─────────────────────┤
+│ NextjsClient        │
+│   ↓                 │
+│   API Route Call    │ ──→ /api/actions/* ──┐
+└─────────────────────┘                       │
+                                              ↓
+┌─────────────────────┐              ┌──────────────┐
+│ Client Component    │              │ API Route    │
+├─────────────────────┤              │ + Interceptor│
+│ NextjsClient        │              └──────┬───────┘
+│   ↓                 │                     │
+│   API Route Call    │ ──→ /api/actions/* ─┘
+└─────────────────────┘                     ↓
+                                    http://localhost:8790
+
+✅ Benefits:
+- Single code path
+- Interceptors applied to all requests
+- No environment detection needed
+- Consistent cookie handling
+```
 
 ---
 
 ## Quick Start
 
-### Installation
+### 1. Install
 
 ```bash
 pnpm install @spfn/core
 ```
 
-### Basic Usage
-
-```typescript
-import { createClient } from '@spfn/core/client';
-import { getUserContract, createUserContract } from '@/lib/contracts/users';
-
-// Create client instance
-const client = createClient({
-  baseUrl: 'http://localhost:4000'
-});
-
-// GET request - fully typed from contract
-const user = await client.call(getUserContract, {
-  params: { id: '123' }
-});
-// ✅ user.name is typed based on contract.response
-// ✅ URL is /users/123 from contract.path: '/users/:id'
-
-// POST request - body and response typed
-const newUser = await client.call(createUserContract, {
-  body: { name: 'John', email: 'john@example.com' }
-});
-// ✅ TypeScript validates body matches contract.body
-// ✅ newUser is typed from contract.response
-// ✅ URL is /users from contract.path: '/users'
-```
-
----
-
-## Core Concepts
-
-### Contract-based Type Safety
-
-The client integrates with your server-side `RouteContract` definitions for full type safety. Contracts **must** be in `src/lib/contracts/` with absolute paths:
-
-```typescript
-// src/lib/contracts/users.ts - Shared between client and server
-import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route';
-
-export const getUserContract = {
-  method: 'GET' as const,
-  path: '/users/:id',  // ← Absolute path with parameter
-  params: Type.Object({
-    id: Type.String()
-  }),
-  response: Type.Object({
-    id: Type.Number(),
-    name: Type.String(),
-    email: Type.String()
-  })
-} as const satisfies RouteContract;
-
-export const createUserContract = {
-  method: 'POST' as const,
-  path: '/users',  // ← Absolute path
-  body: Type.Object({
-    name: Type.String(),
-    email: Type.String()
-  }),
-  response: Type.Object({
-    id: Type.Number(),
-    name: Type.String(),
-    email: Type.String()
-  })
-} as const satisfies RouteContract;
-```
-
-```typescript
-// Client code - Full type safety
-import { createClient } from '@spfn/core/client';
-import { getUserContract, createUserContract } from '@/lib/contracts/users';
-
-const client = createClient();
-
-// TypeScript knows the exact shape of user
-const user = await client.call(getUserContract, {
-  params: { id: '123' }
-});
-// URL: GET /users/123 (from contract.path: '/users/:id')
-
-console.log(user.name); // ✅ TypeScript knows user.name is string
-console.log(user.unknown); // ❌ TypeScript error - property doesn't exist
-
-// TypeScript validates body structure
-const newUser = await client.call(createUserContract, {
-  body: { name: 'John', email: 'john@example.com' } // ✅ Correct
-  // body: { name: 123 } // ❌ TypeScript error - wrong type
-});
-// URL: POST /users (from contract.path: '/users')
-```
-
-### Environment Configuration
-
-Configure base URL via environment variables:
+### 2. Environment Variables
 
 ```bash
-# .env.local (Next.js)
-NEXT_PUBLIC_API_URL=https://api.example.com
+# .env.local (or .env)
 
-# .env (Other environments)
-NEXT_PUBLIC_API_URL=http://localhost:4000
+# Next.js app URL (required for Server Components)
+SPFN_APP_URL=http://localhost:3000
+
+# SPFN API server URL (used by API Route Proxy)
+SPFN_API_URL=http://localhost:8790
 ```
 
-**Default:** `http://localhost:4000`
+### 3. Create API Route Proxy
+
+Create `app/api/actions/[...path]/route.ts`:
+
+```typescript
+/**
+ * SPFN API Route Proxy
+ *
+ * Forwards all requests to SPFN API server with automatic:
+ * - Cookie forwarding
+ * - Interceptor execution
+ * - Header manipulation
+ */
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+```
+
+That's it! The proxy automatically discovers and applies all registered interceptors.
+
+### 4. Use Client
+
+```typescript
+// app/users/[id]/page.tsx
+import { createNextjsClient } from '@spfn/core/client';
+import { getUserContract } from '@/lib/contracts/users';
+
+export default async function UserPage({ params }: { params: { id: string } }) {
+  const client = createNextjsClient();
+
+  const user = await client.call(getUserContract, {
+    params: { id: params.id }
+  });
+
+  return (
+    <div>
+      <h1>{user.name}</h1>
+      <p>{user.email}</p>
+    </div>
+  );
+}
+```
+
+```typescript
+// app/components/LoginForm.tsx
+'use client';
+
+import { useState } from 'react';
+import { createNextjsClient } from '@spfn/core/client';
+import { loginContract } from '@/lib/contracts/auth';
+
+export function LoginForm() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const client = createNextjsClient();
+
+    try {
+      const result = await client.call(loginContract, {
+        body: { email, password }
+      });
+
+      console.log('Logged in:', result.userId);
+      // Cookies are automatically set by interceptors
+    } catch (error) {
+      console.error('Login failed:', error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleLogin}>
+      <input
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+        placeholder="Email"
+      />
+      <input
+        type="password"
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+        placeholder="Password"
+      />
+      <button type="submit">Login</button>
+    </form>
+  );
+}
+```
 
 ---
 
-## API Reference
+## Architecture Overview
 
-### `createClient(config?)`
+```
+┌───────────────────────────────────────────────────────────┐
+│                     Next.js Application                    │
+│                                                            │
+│  ┌──────────────────┐       ┌──────────────────┐         │
+│  │ Server Component │       │ Client Component │         │
+│  │                  │       │  'use client'    │         │
+│  └────────┬─────────┘       └────────┬─────────┘         │
+│           │                          │                    │
+│           └──────────┬───────────────┘                    │
+│                      │                                    │
+│                      │ nextjsClient.call()               │
+│                      ↓                                    │
+│           ┌─────────────────────┐                        │
+│           │   NextjsClient      │                        │
+│           └──────────┬──────────┘                        │
+│                      │                                    │
+│                      │ POST /api/actions/_auth/login     │
+│                      ↓                                    │
+│           ┌─────────────────────────────────────┐        │
+│           │  API Route Proxy                    │        │
+│           │  /api/actions/[...path]/route.ts    │        │
+│           │                                     │        │
+│           │  1. Request Interceptors            │        │
+│           │     - Add headers                   │        │
+│           │     - Auth token injection          │        │
+│           │     - Cookie forwarding             │        │
+│           │                                     │        │
+│           │  2. Forward to SPFN API             │        │
+│           │     fetch(SPFN_API_URL + path)      │        │
+│           │                                     │        │
+│           │  3. Response Interceptors           │        │
+│           │     - Set cookies                   │        │
+│           │     - Transform response            │        │
+│           │     - Error handling                │        │
+│           └──────────┬──────────────────────────┘        │
+└──────────────────────┼───────────────────────────────────┘
+                       │
+                       │ HTTP Request
+                       ↓
+            ┌──────────────────────┐
+            │   SPFN API Server    │
+            │  http://localhost:8790│
+            │                      │
+            │  /_auth/login        │
+            │  /users/:id          │
+            │  ...                 │
+            └──────────────────────┘
+```
 
-Creates a new contract-based API client instance.
+---
+
+## NextjsClient API
+
+### `createNextjsClient(config?)`
+
+Creates a new Next.js API client instance.
 
 ```typescript
-import { createClient } from '@spfn/core/client';
+import { createNextjsClient } from '@spfn/core/client';
 
-const client = createClient({
-  baseUrl: 'http://localhost:4000',
+const client = createNextjsClient({
+  baseUrl: 'http://localhost:3000',
+  proxyBasePath: '/api/actions',
   headers: {
-    'X-Custom-Header': 'value'
+    'X-App-Version': '1.0.0'
   },
-  timeout: 30000 // 30 seconds
+  timeout: 30000
 });
 ```
 
-**Parameters:**
+**Configuration:**
 
-- `config?: ClientConfig` - Optional configuration
-  - `baseUrl?: string` - API base URL (default: `process.env.NEXT_PUBLIC_API_URL` or `http://localhost:4000`)
-  - `headers?: Record<string, string>` - Default headers for all requests
-  - `timeout?: number` - Request timeout in milliseconds (default: 30000)
-  - `fetch?: typeof fetch` - Custom fetch implementation (for testing)
+```typescript
+interface NextjsClientConfig {
+  /**
+   * Next.js API route base path
+   *
+   * @default '/api/actions'
+   */
+  proxyBasePath?: string;
 
-**Returns:** `ContractClient` instance
+  /**
+   * Base URL for server-side API Route calls
+   *
+   * Required in Server Components when calling API routes
+   *
+   * @default process.env.SPFN_APP_URL || 'http://localhost:3000'
+   */
+  baseUrl?: string;
+
+  /**
+   * Additional headers for all requests
+   */
+  headers?: Record<string, string>;
+
+  /**
+   * Request timeout in milliseconds
+   *
+   * @default 30000
+   */
+  timeout?: number;
+
+  /**
+   * Custom fetch implementation
+   */
+  fetch?: typeof fetch;
+}
+```
+
+**Environment Variables:**
+
+- `SPFN_APP_URL`: Next.js app URL (required for Server Components)
+- `SPFN_API_URL`: SPFN API server URL (used by API Route Proxy)
 
 ---
 
 ### `client.call(contract, options?)`
 
-Makes a type-safe API request using a contract. The URL is determined by `contract.path`.
+Makes a type-safe API request using a contract.
 
 ```typescript
 const user = await client.call(getUserContract, {
   params: { id: '123' },
   query: { include: 'posts' },
-  headers: { 'Authorization': 'Bearer token' }
+  headers: { 'Authorization': 'Bearer token' },
+  fetchOptions: { next: { revalidate: 60 } }
 });
-// URL: GET /users/123?include=posts (from contract.path: '/users/:id')
 ```
 
 **Parameters:**
 
-- `contract: RouteContract` - Route contract defining path, method, and types
-- `options?: CallOptions<TContract>` - Request options
-  - `params?: InferContract<TContract>['params']` - Path parameters for `:id` substitution
-  - `query?: InferContract<TContract>['query']` - Query parameters
-  - `body?: InferContract<TContract>['body']` - Request body (typed from contract)
-  - `headers?: Record<string, string>` - Additional headers for this request
-  - `baseUrl?: string` - Override base URL for this request
+```typescript
+interface CallOptions<TContract extends RouteContract> {
+  /**
+   * Path parameters for :id substitution
+   */
+  params?: InferContract<TContract>['params'];
 
-**Returns:** `Promise<InferContract<TContract>['response']>` - Typed response data
+  /**
+   * Query parameters
+   */
+  query?: InferContract<TContract>['query'];
+
+  /**
+   * Request body (typed from contract)
+   */
+  body?: InferContract<TContract>['body'];
+
+  /**
+   * Additional headers for this request
+   */
+  headers?: Record<string, string>;
+
+  /**
+   * Next.js-specific fetch options
+   *
+   * @example
+   * // Time-based revalidation
+   * { next: { revalidate: 60 } }
+   *
+   * // Disable cache
+   * { cache: 'no-store' }
+   *
+   * // Tag-based revalidation
+   * { next: { tags: ['users'] } }
+   */
+  fetchOptions?: RequestInit & {
+    next?: {
+      revalidate?: number | false;
+      tags?: string[];
+    };
+  };
+}
+```
+
+**Returns:** `Promise<InferContract<TContract>['response']>` - Typed response
 
 **Throws:** `ApiClientError` if response is not OK (status >= 400)
 
-**Key Changes:**
-- ✅ No more `path` parameter - URL comes from `contract.path`
-- ✅ Contracts must use absolute paths (e.g., `/users/:id`)
-- ✅ Cleaner API: `client.call(contract, options)` instead of `client.call(path, contract, options)`
-
 ---
 
-### `client.use(interceptor)`
+### Global Singleton
 
-Adds a request interceptor. Interceptors can modify requests before they're sent.
-
-```typescript
-client.use(async (url, init) => {
-  const token = await getAuthToken();
-  return {
-    ...init,
-    headers: {
-      ...init.headers,
-      Authorization: `Bearer ${token}`
-    }
-  };
-});
-```
-
-**Parameters:**
-
-- `interceptor: RequestInterceptor` - Function that receives and can modify request
-  - `url: string` - Full request URL
-  - `init: RequestInit` - Fetch init object
-  - Returns: `RequestInit` or `Promise<RequestInit>`
-
-Interceptors are executed in the order they are added.
-
----
-
-### `client.withConfig(config)`
-
-Creates a new client with merged configuration. Useful for adding authentication tokens.
+For convenience, use the global singleton:
 
 ```typescript
-const baseClient = createClient({ baseUrl: 'http://localhost:4000' });
+import { configureNextjsClient, nextjsClient } from '@spfn/core/client';
 
-// Create authenticated client
-const authClient = baseClient.withConfig({
-  headers: { 'Authorization': `Bearer ${token}` }
+// Configure once in app initialization
+configureNextjsClient({
+  baseUrl: process.env.SPFN_APP_URL,
+  proxyBasePath: '/api/actions',
 });
 
-// authClient inherits baseUrl and adds Authorization header
-const user = await authClient.call(getUserContract, {
-  params: { id: 'me' }
-});
-```
-
-**Parameters:**
-
-- `config: Partial<ClientConfig>` - Configuration to merge
-
-**Returns:** New `ContractClient` instance with merged config
-
----
-
-### `ApiClientError`
-
-Error class for failed API requests.
-
-```typescript
-try {
-  const user = await client.call(getUserContract, {
-    params: { id: '999' }
-  });
-} catch (error) {
-  if (error instanceof ApiClientError) {
-    console.log(error.status);      // 404
-    console.log(error.url);         // "http://localhost:4000/users/999"
-    console.log(error.response);    // Error body from server
-    console.log(error.errorType);   // 'http' | 'network' | 'timeout'
-    console.log(error.message);     // "GET /users/:id failed: 404 Not Found"
-  }
-}
-```
-
-**Properties:**
-
-- `status: number` - HTTP status code (0 for network/timeout errors)
-- `url: string` - Full URL that was requested
-- `response?: unknown` - Parsed error response body (if available)
-- `errorType?: 'http' | 'network' | 'timeout'` - Error classification
-- `message: string` - Human-readable error message
-
-**Type Guards:**
-
-```typescript
-import { isHttpError, isNetworkError, isTimeoutError } from '@spfn/core/client';
-
-try {
-  const data = await client.call(contract, options);
-} catch (error) {
-  if (isHttpError(error)) {
-    // HTTP error (4xx, 5xx)
-    console.log('Status:', error.status);
-  } else if (isNetworkError(error)) {
-    // Network connectivity issue
-    console.log('Network error');
-  } else if (isTimeoutError(error)) {
-    // Request timed out
-    console.log('Timeout');
-  }
-}
-```
-
----
-
-## Advanced Usage
-
-### Path Parameter Substitution
-
-Automatic replacement of `:param` placeholders from `contract.path`:
-
-```typescript
-// Single parameter
-const getUserContract = {
-  method: 'GET' as const,
-  path: '/users/:id',  // ← Path defined in contract
-  params: Type.Object({ id: Type.String() }),
-  response: UserSchema
-} as const satisfies RouteContract;
-
-await client.call(getUserContract, {
+// Use anywhere
+const user = await nextjsClient.call(getUserContract, {
   params: { id: '123' }
 });
-// → GET http://localhost:4000/users/123
+```
+
+---
+
+## API Route Proxy
+
+### Basic Setup (Auto-discovery)
+
+The simplest setup automatically discovers all registered interceptors:
+
+```typescript
+// app/api/actions/[...path]/route.ts
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+```
+
+This is equivalent to:
+
+```typescript
+import { createProxy } from '@spfn/core/client/nextjs';
+
+export const { GET, POST, PUT, PATCH, DELETE } = createProxy({
+  apiUrl: process.env.SPFN_API_URL || 'http://localhost:8790',
+  autoDiscoverInterceptors: true, // default
+});
+```
+
+### Custom Configuration
+
+```typescript
+// app/api/actions/[...path]/route.ts
+import { createProxy } from '@spfn/core/client/nextjs';
+
+export const { GET, POST, PUT, PATCH, DELETE } = createProxy({
+  /**
+   * SPFN API base URL
+   */
+  apiUrl: 'http://localhost:8790',
+
+  /**
+   * Enable automatic interceptor discovery
+   *
+   * @default true
+   */
+  autoDiscoverInterceptors: true,
+
+  /**
+   * Disable interceptors from specific packages
+   */
+  disableAutoInterceptors: ['old-auth-package'],
+
+  /**
+   * Additional custom interceptors
+   *
+   * Executed after auto-discovered interceptors
+   */
+  interceptors: [
+    {
+      pathPattern: '/users/:id',
+      method: 'GET',
+      request: async (ctx, next) => {
+        console.log(`Fetching user ${ctx.path}`);
+        await next();
+      }
+    }
+  ],
+
+  /**
+   * Enable debug logging
+   */
+  debug: true,
+});
+```
+
+---
+
+## Interceptor System
+
+Interceptors provide middleware-style hooks for request/response manipulation.
+
+### Concepts
+
+- **Request Interceptor**: Executed before calling SPFN API
+- **Response Interceptor**: Executed after SPFN API responds
+- **InterceptorRule**: Defines when and how to intercept
+- **Path Matching**: Supports wildcards, params, and RegExp
+- **Method Matching**: Filter by HTTP method
+
+### Request Interceptor
+
+Modify requests before they reach SPFN API:
+
+```typescript
+import type { RequestInterceptor } from '@spfn/core/client/nextjs';
+
+const authInterceptor: RequestInterceptor = async (ctx, next) => {
+  // Add authorization header
+  const session = await getSession(ctx.cookies);
+  if (session) {
+    ctx.headers['Authorization'] = `Bearer ${session.token}`;
+  }
+
+  // Store data for response interceptor
+  ctx.metadata.userId = session?.userId;
+
+  // Continue to next interceptor
+  await next();
+};
+```
+
+**Request Context:**
+
+```typescript
+interface RequestInterceptorContext {
+  path: string;                        // e.g., '/_auth/login'
+  method: string;                      // e.g., 'POST'
+  headers: Record<string, string>;     // Mutable
+  body?: any;                          // Mutable
+  query: Record<string, string | string[]>;
+  cookies: Map<string, string>;
+  request: NextRequest;                // Original Next.js request
+  metadata: Record<string, any>;       // Share data between interceptors
+}
+```
+
+### Response Interceptor
+
+Transform responses or set cookies:
+
+```typescript
+import type { ResponseInterceptor } from '@spfn/core/client/nextjs';
+
+const cookieInterceptor: ResponseInterceptor = async (ctx, next) => {
+  // Set HttpOnly cookie on successful login
+  if (ctx.path === '/_auth/login' && ctx.response.status === 200) {
+    ctx.setCookies.push({
+      name: 'session',
+      value: ctx.response.body.sessionToken,
+      options: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 86400, // 24 hours
+        path: '/'
+      }
+    });
+
+    // Remove sensitive data from response
+    delete ctx.response.body.sessionToken;
+  }
+
+  await next();
+};
+```
+
+**Response Context:**
+
+```typescript
+interface ResponseInterceptorContext {
+  path: string;
+  method: string;
+  request: {
+    headers: Record<string, string>;   // Immutable
+    body?: any;                        // Immutable
+  };
+  response: {
+    status: number;                    // Mutable
+    statusText: string;                // Mutable
+    headers: Headers;                  // Mutable
+    body: any;                         // Mutable
+  };
+  setCookies: Array<{                  // Push to set cookies
+    name: string;
+    value: string;
+    options?: {
+      httpOnly?: boolean;
+      secure?: boolean;
+      sameSite?: 'strict' | 'lax' | 'none';
+      maxAge?: number;
+      path?: string;
+      domain?: string;
+    };
+  }>;
+  metadata: Record<string, any>;       // From request interceptor
+}
+```
+
+### Interceptor Rule
+
+Combine request/response interceptors with path/method matching:
+
+```typescript
+import type { InterceptorRule } from '@spfn/core/client/nextjs';
+
+const authRule: InterceptorRule = {
+  /**
+   * Path pattern to match
+   *
+   * - Wildcards: '/_auth/*' matches /_auth/login, /_auth/register
+   * - Params: '/users/:id' matches /users/123, /users/456
+   * - RegExp: /^\/_auth\/.+$/ for complex patterns
+   * - All: '*' matches any path
+   */
+  pathPattern: '/_auth/*',
+
+  /**
+   * HTTP method filter (optional)
+   *
+   * - Single: 'POST'
+   * - Multiple: ['POST', 'PUT']
+   * - Omit: matches all methods
+   */
+  method: 'POST',
+
+  /**
+   * Request interceptor (optional)
+   */
+  request: async (ctx, next) => {
+    // Runs before SPFN API call
+    await next();
+  },
+
+  /**
+   * Response interceptor (optional)
+   */
+  response: async (ctx, next) => {
+    // Runs after SPFN API responds
+    await next();
+  }
+};
+```
+
+### Path Matching Examples
+
+```typescript
+// Wildcard: matches all paths under /_auth/
+{
+  pathPattern: '/_auth/*',
+  // Matches: /_auth/login, /_auth/register, /_auth/logout
+}
+
+// Path parameter: matches dynamic segments
+{
+  pathPattern: '/users/:id',
+  // Matches: /users/123, /users/abc
+}
 
 // Multiple parameters
-const getPostContract = {
-  method: 'GET' as const,
-  path: '/users/:userId/posts/:postId',  // ← Multiple params in path
-  params: Type.Object({
-    userId: Type.String(),
-    postId: Type.String()
-  }),
-  response: PostSchema
-} as const satisfies RouteContract;
+{
+  pathPattern: '/users/:userId/posts/:postId',
+  // Matches: /users/123/posts/456
+}
 
-await client.call(getPostContract, {
-  params: { userId: '123', postId: '456' }
-});
-// → GET http://localhost:4000/users/123/posts/456
+// RegExp: for complex patterns
+{
+  pathPattern: /^\/(users|posts)\/[^/]+$/,
+  // Matches: /users/123, /posts/456
+}
 
-// Number parameters (auto-converted to string)
-await client.call(getUserContract, {
-  params: { id: 123 }
-});
-// → GET http://localhost:4000/users/123
+// Match all
+{
+  pathPattern: '*',
+  // Matches: any path
+}
 ```
 
----
-
-### Query Parameters
-
-Supports strings, numbers, booleans, and arrays:
+### Method Matching Examples
 
 ```typescript
-// Simple query parameters
-const listUsersContract = {
-  method: 'GET' as const,
-  path: '/users',
-  query: Type.Object({
-    page: Type.String(),
-    limit: Type.String()
-  }),
-  response: UsersListSchema
-} as const satisfies RouteContract;
+// Single method
+{
+  pathPattern: '/_auth/login',
+  method: 'POST',
+  // Only POST requests
+}
 
-await client.call(listUsersContract, {
-  query: { page: '1', limit: '10' }
-});
-// → GET /users?page=1&limit=10
+// Multiple methods
+{
+  pathPattern: '/users/:id',
+  method: ['GET', 'PUT', 'DELETE'],
+  // GET, PUT, or DELETE requests
+}
 
-// Array query parameters
-const listPostsContract = {
-  method: 'GET' as const,
-  path: '/posts',
-  query: Type.Object({
-    tags: Type.Array(Type.String())
-  }),
-  response: PostsListSchema
-} as const satisfies RouteContract;
-
-await client.call(listPostsContract, {
-  query: { tags: ['javascript', 'typescript'] }
-});
-// → GET /posts?tags=javascript&tags=typescript
-
-// Mixed types
-await client.call(listPostsContract, {
-  query: {
-    page: 1,              // number
-    featured: true,       // boolean
-    tags: ['js', 'ts']   // array
-  }
-});
-// → GET /posts?page=1&featured=true&tags=js&tags=ts
-```
-
----
-
-### Request Body
-
-Automatically JSON-stringified and typed:
-
-```typescript
-import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route';
-
-const createUserContract = {
-  method: 'POST' as const,
-  path: '/users',
-  body: Type.Object({
-    name: Type.String(),
-    email: Type.String(),
-    age: Type.Optional(Type.Number())
-  }),
-  response: Type.Object({
-    id: Type.Number(),
-    name: Type.String()
-  })
-} as const satisfies RouteContract;
-
-// TypeScript validates body structure
-const user = await client.call(createUserContract, {
-  body: {
-    name: 'John Doe',
-    email: 'john@example.com',
-    age: 30
-  }
-});
-// ✅ Body is validated by TypeScript
-// ✅ Automatically sets Content-Type: application/json
-// ✅ Automatically JSON.stringify()
-// URL: POST /users (from contract.path)
-```
-
----
-
-### Custom Headers
-
-```typescript
-// Default headers for all requests
-const client = createClient({
-  headers: {
-    'X-API-Key': 'secret',
-    'X-Client-Version': '1.0.0'
-  }
-});
-
-// Override or add headers per request
-await client.call(getUserContract, {
-  params: { id: '123' },
-  headers: {
-    'X-Request-ID': 'abc123',
-    'Authorization': 'Bearer token'
-  }
-});
-// Headers are merged: X-API-Key, X-Client-Version, X-Request-ID, Authorization
-```
-
----
-
-### Timeout Control
-
-```typescript
-// Default timeout: 30 seconds
-const client = createClient({ timeout: 30000 });
-
-// Custom timeout per client
-const fastClient = createClient({ timeout: 5000 }); // 5 seconds
-
-try {
-  const data = await fastClient.call(slowEndpointContract);
-} catch (error) {
-  if (isTimeoutError(error)) {
-    console.log('Request timed out after 5 seconds');
-  }
+// All methods (omit field)
+{
+  pathPattern: '/users/*',
+  // Any HTTP method
 }
 ```
 
 ---
 
-### Error Handling
+## Registry System
+
+The Registry enables packages to automatically register interceptors without manual configuration.
+
+### Package Registration
+
+Packages register their interceptors on import:
 
 ```typescript
-import { ApiClientError, isHttpError, isNetworkError, isTimeoutError } from '@spfn/core/client';
+// packages/auth/src/interceptors/index.ts
+import { registerInterceptors } from '@spfn/core/client/nextjs';
 
-try {
-  const user = await client.call(getUserContract, {
-    params: { id: '123' }
-  });
-} catch (error) {
-  if (isHttpError(error)) {
-    // HTTP errors (4xx, 5xx)
-    if (error.status === 404) {
-      console.log('User not found');
-    } else if (error.status === 401) {
-      console.log('Unauthorized - redirect to login');
-    } else if (error.status >= 500) {
-      console.log('Server error - try again later');
+const authInterceptors = [
+  {
+    pathPattern: '/_auth/login',
+    method: 'POST',
+    response: async (ctx, next) => {
+      if (ctx.response.status === 200) {
+        ctx.setCookies.push({
+          name: 'session',
+          value: ctx.response.body.sessionToken,
+          options: { httpOnly: true, maxAge: 86400 }
+        });
+      }
+      await next();
     }
-
-    // Access error details
-    console.log(error.response); // Server error body
-  } else if (isNetworkError(error)) {
-    // Network connectivity issues
-    console.log('Network error - check connection');
-  } else if (isTimeoutError(error)) {
-    // Request timeout
-    console.log('Request timed out');
+  },
+  {
+    pathPattern: '/_auth/logout',
+    method: 'POST',
+    response: async (ctx, next) => {
+      ctx.setCookies.push({
+        name: 'session',
+        value: '',
+        options: { maxAge: 0 } // Delete cookie
+      });
+      await next();
+    }
   }
-}
+];
+
+// Auto-register on import
+registerInterceptors('auth', authInterceptors);
 ```
 
----
+### Import Interceptors
 
-## Integration Examples
-
-### Auto-generated API Client
-
-SPFN automatically generates a type-safe API client from your contracts:
+Import the interceptor file before creating the proxy:
 
 ```typescript
-// src/lib/api.ts (auto-generated)
-import { client } from '@spfn/core/client';
-import { getUsersContract, getUserContract, createUserContract } from '@/lib/contracts/users';
+// app/api/actions/[...path]/route.ts
 
-export const api = {
-  users: {
-    list: () => client.call(getUsersContract),
-    getById: (options: { params: { id: string } }) => client.call(getUserContract, options),
-    create: (options: { body: CreateUserBody }) => client.call(createUserContract, options),
-  }
-} as const;
+// Import to trigger registration
+import '@/packages/auth/src/interceptors';
+import '@/packages/storage/src/interceptors';
 
-export { client };
+// Proxy automatically discovers registered interceptors
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
 ```
 
-```typescript
-// Usage in your app - fully type-safe!
-import { api } from '@/lib/api';
+### Selective Disable
 
-// ✅ No need to import contracts directly
-const users = await api.users.list();
-const user = await api.users.getById({ params: { id: '123' } });
-const newUser = await api.users.create({
-  body: { name: 'John', email: 'john@example.com' }
+Disable auto-discovered interceptors from specific packages:
+
+```typescript
+import { createProxy } from '@spfn/core/client/nextjs';
+
+export const { GET, POST } = createProxy({
+  // Disable auth interceptors (maybe using custom implementation)
+  disableAutoInterceptors: ['auth'],
+
+  // Provide custom auth interceptor
+  interceptors: [
+    {
+      pathPattern: '/_auth/*',
+      request: async (ctx, next) => {
+        // Custom auth logic
+        await next();
+      }
+    }
+  ]
 });
 ```
 
----
+### Manual Registry Access
 
-### Next.js App Router
+For advanced use cases:
 
 ```typescript
+import { interceptorRegistry } from '@spfn/core/client/nextjs';
+
+// Check if package has registered interceptors
+if (interceptorRegistry.has('auth')) {
+  console.log('Auth interceptors are registered');
+}
+
+// Get interceptors for specific package
+const authInterceptors = interceptorRegistry.get('auth');
+
+// Get all registered package names
+const packages = interceptorRegistry.getPackageNames();
+console.log('Registered packages:', packages);
+
+// Get all interceptors (excluding some)
+const all = interceptorRegistry.getAll(['old-package']);
+```
+
+---
+
+## Examples
+
+### Authentication with Interceptors
+
+Complete authentication flow using interceptors:
+
+```typescript
+// packages/auth/src/interceptors/index.ts
+import { registerInterceptors } from '@spfn/core/client/nextjs';
+import type { InterceptorRule } from '@spfn/core/client/nextjs';
+
+const authInterceptors: InterceptorRule[] = [
+  // Login: Set session cookie
+  {
+    pathPattern: '/_auth/login',
+    method: 'POST',
+    response: async (ctx, next) => {
+      if (ctx.response.status === 200) {
+        const { sessionToken, ...userInfo } = ctx.response.body;
+
+        // Set HttpOnly session cookie
+        ctx.setCookies.push({
+          name: 'session',
+          value: sessionToken,
+          options: {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 86400, // 24 hours
+            path: '/'
+          }
+        });
+
+        // Remove token from response body
+        ctx.response.body = userInfo;
+      }
+
+      await next();
+    }
+  },
+
+  // Logout: Delete session cookie
+  {
+    pathPattern: '/_auth/logout',
+    method: 'POST',
+    response: async (ctx, next) => {
+      ctx.setCookies.push({
+        name: 'session',
+        value: '',
+        options: { maxAge: 0, path: '/' }
+      });
+
+      await next();
+    }
+  },
+
+  // Protected routes: Forward session cookie
+  {
+    pathPattern: '*',
+    request: async (ctx, next) => {
+      const session = ctx.cookies.get('session');
+      if (session) {
+        ctx.headers['Cookie'] = `session=${session}`;
+      }
+      await next();
+    }
+  }
+];
+
+registerInterceptors('auth', authInterceptors);
+```
+
+```typescript
+// app/api/actions/[...path]/route.ts
+import '@/packages/auth/src/interceptors';
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+```
+
+```typescript
+// app/components/LoginForm.tsx
 'use client';
 
-import { api } from '@/lib/api';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { nextjsClient } from '@spfn/core/client';
+import { loginContract } from '@/lib/contracts/auth';
 
-export function UserList() {
-  const [users, setUsers] = useState<Awaited<ReturnType<typeof api.users.list>>>([]);
-  const [loading, setLoading] = useState(true);
+export function LoginForm() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  useEffect(() => {
-    api.users.list()
-      .then(setUsers)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  if (loading) return <div>Loading...</div>;
+    try {
+      // Call login API
+      const user = await nextjsClient.call(loginContract, {
+        body: { email, password }
+      });
+
+      // Session cookie is automatically set by interceptor
+      console.log('Logged in:', user);
+      window.location.href = '/dashboard';
+    } catch (error) {
+      console.error('Login failed:', error);
+    }
+  };
+
+  return (
+    <form onSubmit={handleLogin}>
+      <input
+        type="email"
+        value={email}
+        onChange={e => setEmail(e.target.value)}
+      />
+      <input
+        type="password"
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+      />
+      <button type="submit">Login</button>
+    </form>
+  );
+}
+```
+
+### Logging Interceptor
+
+Log all API requests and responses:
+
+```typescript
+// lib/interceptors/logging.ts
+import { registerInterceptors } from '@spfn/core/client/nextjs';
+
+const loggingInterceptors = [
+  {
+    pathPattern: '*',
+    request: async (ctx, next) => {
+      const startTime = Date.now();
+      ctx.metadata.startTime = startTime;
+
+      console.log(`→ ${ctx.method} ${ctx.path}`);
+
+      await next();
+    },
+    response: async (ctx, next) => {
+      const duration = Date.now() - (ctx.metadata.startTime || 0);
+
+      console.log(
+        `← ${ctx.method} ${ctx.path}: ${ctx.response.status} (${duration}ms)`
+      );
+
+      await next();
+    }
+  }
+];
+
+registerInterceptors('logging', loggingInterceptors);
+```
+
+### API Key Injection
+
+Inject API keys from server environment:
+
+```typescript
+// lib/interceptors/api-key.ts
+import { registerInterceptors } from '@spfn/core/client/nextjs';
+
+const apiKeyInterceptors = [
+  {
+    pathPattern: '/external-api/*',
+    request: async (ctx, next) => {
+      // API key is only accessible on server
+      const apiKey = process.env.EXTERNAL_API_KEY;
+
+      if (apiKey) {
+        ctx.headers['X-API-Key'] = apiKey;
+      }
+
+      await next();
+    }
+  }
+];
+
+registerInterceptors('api-key', apiKeyInterceptors);
+```
+
+### Rate Limiting
+
+Implement rate limiting in interceptor:
+
+```typescript
+// lib/interceptors/rate-limit.ts
+import { registerInterceptors } from '@spfn/core/client/nextjs';
+
+const rateLimitMap = new Map<string, number[]>();
+
+const rateLimitInterceptors = [
+  {
+    pathPattern: '/_auth/login',
+    method: 'POST',
+    request: async (ctx, next) => {
+      const ip = ctx.request.headers.get('x-forwarded-for') || 'unknown';
+      const now = Date.now();
+      const windowMs = 60000; // 1 minute
+      const maxRequests = 5;
+
+      // Get recent requests for this IP
+      const requests = rateLimitMap.get(ip) || [];
+      const recentRequests = requests.filter(time => now - time < windowMs);
+
+      if (recentRequests.length >= maxRequests) {
+        // Rate limit exceeded - short-circuit
+        throw new Error('Too many requests');
+      }
+
+      // Record this request
+      recentRequests.push(now);
+      rateLimitMap.set(ip, recentRequests);
+
+      await next();
+    }
+  }
+];
+
+registerInterceptors('rate-limit', rateLimitInterceptors);
+```
+
+### Response Transformation
+
+Transform API responses:
+
+```typescript
+// lib/interceptors/response-transform.ts
+import { registerInterceptors } from '@spfn/core/client/nextjs';
+
+const transformInterceptors = [
+  {
+    pathPattern: '/api/v1/*',
+    response: async (ctx, next) => {
+      // Wrap response in standard format
+      ctx.response.body = {
+        success: ctx.response.status >= 200 && ctx.response.status < 300,
+        data: ctx.response.body,
+        timestamp: new Date().toISOString()
+      };
+
+      await next();
+    }
+  }
+];
+
+registerInterceptors('transform', transformInterceptors);
+```
+
+### Next.js Caching
+
+Use Next.js caching with the client:
+
+```typescript
+// app/users/[id]/page.tsx
+import { createNextjsClient } from '@spfn/core/client';
+import { getUserContract } from '@/lib/contracts/users';
+
+export default async function UserPage({ params }: { params: { id: string } }) {
+  const client = createNextjsClient();
+
+  // Cache for 60 seconds
+  const user = await client.call(getUserContract, {
+    params: { id: params.id },
+    fetchOptions: {
+      next: { revalidate: 60 }
+    }
+  });
+
+  return <div>{user.name}</div>;
+}
+```
+
+```typescript
+// app/posts/page.tsx
+import { createNextjsClient } from '@spfn/core/client';
+import { getPostsContract } from '@/lib/contracts/posts';
+
+export default async function PostsPage() {
+  const client = createNextjsClient();
+
+  // Tag-based revalidation
+  const posts = await client.call(getPostsContract, {
+    fetchOptions: {
+      next: { tags: ['posts'] }
+    }
+  });
 
   return (
     <div>
-      {users.map(user => (
-        <div key={user.id}>{user.name}</div>
+      {posts.map(post => (
+        <article key={post.id}>{post.title}</article>
       ))}
     </div>
   );
 }
 ```
 
+```typescript
+// app/actions/revalidate.ts
+'use server';
+
+import { revalidateTag } from 'next/cache';
+
+export async function revalidatePosts() {
+  revalidateTag('posts');
+}
+```
+
 ---
 
-### React Query Integration
+## Error Handling
+
+### ApiClientError
+
+All errors thrown by the client are instances of `ApiClientError`:
 
 ```typescript
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import type { InferContract } from '@spfn/core';
-import { createUserContract } from '@/lib/contracts/users';
+import {
+  ApiClientError,
+  isHttpError,
+  isNetworkError,
+  isTimeoutError,
+  isServerError,
+  getServerErrorType,
+  getServerErrorDetails
+} from '@spfn/core/client';
 
-// Query hook
-export function useUsers() {
-  return useQuery({
-    queryKey: ['users'],
-    queryFn: () => api.users.list()
+try {
+  const user = await client.call(getUserContract, {
+    params: { id: '123' }
   });
+} catch (error) {
+  if (error instanceof ApiClientError) {
+    console.log(error.status);      // HTTP status code
+    console.log(error.url);         // Request URL
+    console.log(error.response);    // Error response body
+    console.log(error.errorType);   // 'http' | 'network' | 'timeout'
+  }
 }
+```
 
-// Mutation hook
-export function useCreateUser() {
-  const queryClient = useQueryClient();
+### Type Guards
 
-  return useMutation({
-    mutationFn: (data: InferContract<typeof createUserContract>['body']) =>
-      api.users.create({ body: data }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+```typescript
+try {
+  await client.call(loginContract, { body: { email, password } });
+} catch (error) {
+  if (isHttpError(error)) {
+    // HTTP errors (4xx, 5xx)
+    if (error.status === 401) {
+      console.log('Unauthorized - redirect to login');
+    } else if (error.status === 404) {
+      console.log('Not found');
+    } else if (error.status >= 500) {
+      console.log('Server error');
     }
+  } else if (isNetworkError(error)) {
+    // Network connectivity issues
+    console.log('Network error - check connection');
+  } else if (isTimeoutError(error)) {
+    // Request timeout
+    console.log('Request timed out - retry?');
+  }
+}
+```
+
+### Server Error Types
+
+SPFN API returns structured error responses:
+
+```typescript
+try {
+  await client.call(getWorkflowContract, {
+    params: { uuid: 'xxx' }
   });
+} catch (error) {
+  // Check for specific server error type
+  if (isServerError(error, 'NotFoundError')) {
+    console.log('Workflow not found');
+  } else if (isServerError(error, 'ValidationError')) {
+    const details = getServerErrorDetails(error);
+    console.log('Validation failed:', details);
+  } else if (isServerError(error, 'PaymentFailedError')) {
+    const details = getServerErrorDetails(error);
+    console.log('Payment failed:', details.paymentId);
+  }
+
+  // Or get error type dynamically
+  const errorType = getServerErrorType(error);
+  console.log('Error type:', errorType);
 }
-
-// Component usage
-function UserManager() {
-  const { data: users, isLoading } = useUsers();
-  const createUser = useCreateUser();
-
-  const handleCreate = () => {
-    createUser.mutate({
-      name: 'New User',
-      email: 'new@example.com'
-    });
-  };
-
-  return (
-    <div>
-      {users?.map(user => <div key={user.id}>{user.name}</div>)}
-      <button onClick={handleCreate}>Create User</button>
-    </div>
-  );
-}
-```
-
----
-
-### Request Interceptors
-
-Add authentication, logging, or other cross-cutting concerns:
-
-```typescript
-import { client } from '@/lib/api';
-
-// Add authentication header
-client.use(async (url, init) => {
-  const token = await getAuthToken();
-  return {
-    ...init,
-    headers: {
-      ...init.headers,
-      Authorization: `Bearer ${token}`
-    }
-  };
-});
-
-// Add request logging
-client.use(async (url, init) => {
-  console.log(`[${init.method}] ${url}`);
-  return init;
-});
-
-// Add request ID
-client.use(async (url, init) => {
-  return {
-    ...init,
-    headers: {
-      ...init.headers,
-      'X-Request-ID': crypto.randomUUID()
-    }
-  };
-});
-
-// All api.* calls will now include auth, logging, and request ID
-const user = await api.users.getById({ params: { id: '123' } });
-```
-
----
-
-### Authentication Pattern
-
-```typescript
-import { client } from '@/lib/api';
-
-// Configure client with auth token
-export function configureAuth(token: string) {
-  client.use(async (url, init) => {
-    return {
-      ...init,
-      headers: {
-        ...init.headers,
-        Authorization: `Bearer ${token}`
-      }
-    };
-  });
-}
-
-// Usage in React component
-function App() {
-  const { token } = useAuth();
-
-  useEffect(() => {
-    if (token) {
-      configureAuth(token);
-    }
-  }, [token]);
-
-  // All API calls now authenticated
-  return <UserList />;
-}
-```
-
----
-
-## Comparison with Manual fetch
-
-### Before (Manual typing)
-
-```typescript
-// ❌ No type safety, manual typing
-const response = await fetch('http://localhost:4000/users/123');
-const user: User = await response.json(); // Manual typing, no validation
-
-// ❌ Manual URL construction
-const userId = '123';
-const url = `http://localhost:4000/users/${userId}`;
-
-// ❌ Manual error handling
-if (!response.ok) {
-  throw new Error('Failed');
-}
-
-// ❌ No query param handling
-const tags = ['js', 'ts'];
-const queryString = tags.map(t => `tags=${t}`).join('&');
-```
-
-### After (Contract-based)
-
-```typescript
-// ✅ Full type safety from contract
-const user = await api.users.getById({ params: { id: '123' } });
-// TypeScript knows exact type of user
-// URL automatically constructed from contract.path: '/users/:id'
-
-// ✅ Automatic parameter substitution
-// ✅ Automatic error handling with ApiClientError
-// ✅ Timeout control
-// ✅ Header management
-// ✅ Query param handling
-const posts = await api.posts.list({
-  query: { tags: ['javascript', 'typescript'] }
-});
 ```
 
 ---
 
 ## Best Practices
 
-### 1. Use Auto-generated API Client
+### 1. Use NextjsClient (Not ContractClient)
 
 ```typescript
-// ✅ Good - Use auto-generated api object
-import { api } from '@/lib/api';
-const users = await api.users.list();
+// ✅ Good - NextjsClient with API Route Proxy
+import { createNextjsClient } from '@spfn/core/client';
 
-// ❌ Bad - Import contracts and call client manually
-import { client } from '@spfn/core/client';
-import { getUsersContract } from '@/lib/contracts/users';
-const users = await client.call(getUsersContract);
+const client = createNextjsClient();
+const user = await client.call(getUserContract, { params: { id } });
+
+// ❌ Bad - ContractClient with direct calls
+import { ContractClient } from '@spfn/core/client';
+
+const client = new ContractClient({ baseUrl: 'http://localhost:8790' });
+const user = await client.call(getUserContract, { params: { id } });
+// → Bypasses interceptors, cookie handling, and proxy benefits
 ```
 
-### 2. Contracts Must Use Absolute Paths
+### 2. Use Interceptors for Cross-cutting Concerns
+
+```typescript
+// ✅ Good - Centralized auth via interceptor
+registerInterceptors('auth', [{
+  pathPattern: '*',
+  request: async (ctx, next) => {
+    const session = ctx.cookies.get('session');
+    if (session) {
+      ctx.headers['Cookie'] = `session=${session}`;
+    }
+    await next();
+  }
+}]);
+
+// ❌ Bad - Repeat auth header everywhere
+await client.call(contract, {
+  headers: { 'Cookie': `session=${getSession()}` }
+});
+```
+
+### 3. Package-level Interceptor Registration
+
+```typescript
+// ✅ Good - Auto-register on import
+// packages/auth/src/interceptors/index.ts
+registerInterceptors('auth', [...]);
+
+// app/api/actions/[...path]/route.ts
+import '@/packages/auth/src/interceptors';
+export { GET, POST } from '@spfn/core/client/nextjs';
+
+// ❌ Bad - Manual configuration in every proxy
+export const { GET, POST } = createProxy({
+  interceptors: [
+    // Manually copying interceptor code...
+  ]
+});
+```
+
+### 4. Contracts Must Use Absolute Paths
 
 ```typescript
 // ✅ Good - Absolute path
@@ -796,416 +1454,334 @@ export const getUserContract = {
 };
 ```
 
-### 3. Handle Errors Consistently
+### 5. Use Global Singleton with Configuration
 
 ```typescript
-// ✅ Good - Use type guards
-import { isHttpError, isNetworkError, isTimeoutError } from '@spfn/core/client';
+// ✅ Good - Configure once, use everywhere
+// app/layout.tsx
+import { configureNextjsClient } from '@spfn/core/client';
 
-try {
-  const data = await api.users.getById({ params: { id } });
-} catch (error) {
-  if (isHttpError(error)) {
-    if (error.status === 404) {
-      showNotFoundError();
-    } else if (error.status === 401) {
-      redirectToLogin();
-    }
-  } else if (isNetworkError(error)) {
-    showOfflineMessage();
-  } else if (isTimeoutError(error)) {
-    showTimeoutError();
-  }
-}
+configureNextjsClient({
+  baseUrl: process.env.SPFN_APP_URL,
+  proxyBasePath: '/api/actions',
+});
+
+// app/components/UserProfile.tsx
+import { nextjsClient } from '@spfn/core/client';
+
+const user = await nextjsClient.call(getUserContract, { params: { id } });
+
+// ❌ Bad - Create new client instance every time
+const client = createNextjsClient();
 ```
 
-### 4. Use Interceptors for Cross-cutting Concerns
+### 6. Leverage Next.js Caching
 
 ```typescript
-// ✅ Good - Centralized auth via interceptor
-import { client } from '@/lib/api';
-
-client.use(async (url, init) => {
-  const token = await getAuthToken();
-  return {
-    ...init,
-    headers: { ...init.headers, Authorization: `Bearer ${token}` }
-  };
+// ✅ Good - Use Next.js caching features
+const posts = await client.call(getPostsContract, {
+  fetchOptions: {
+    next: { revalidate: 60, tags: ['posts'] }
+  }
 });
 
-// ❌ Bad - Repeat auth header everywhere
-await client.call(contract, {
-  headers: { Authorization: `Bearer ${token}` }
-});
+// ❌ Bad - No caching, always fetches
+const posts = await client.call(getPostsContract);
 ```
 
 ---
 
-## Migration from Old API
+## Migration Guide
 
-If you have existing code using the old `client.call(path, contract, options)` signature:
+### From UniversalClient to NextjsClient
 
-### Before
+**Before (UniversalClient):**
 
 ```typescript
-// ❌ Old API - path as first parameter
-const user = await client.call('/users/:id', getUserContract, {
-  params: { id: '123' }
+import { createUniversalClient } from '@spfn/core/client';
+
+const client = createUniversalClient({
+  apiUrl: 'http://localhost:8790',
+  proxyBasePath: '/api/proxy'
 });
 
-const users = await client.call('/users', getUsersContract);
+// Environment detection happens internally
+const user = await client.call(getUserContract, { params: { id } });
 ```
 
-### After
+**After (NextjsClient):**
 
 ```typescript
-// ✅ New API - contract only (path comes from contract.path)
+import { createNextjsClient } from '@spfn/core/client';
+
+const client = createNextjsClient({
+  baseUrl: 'http://localhost:3000',  // Next.js app URL
+  proxyBasePath: '/api/actions'      // API Route path
+});
+
+// Always routes through API Route
+const user = await client.call(getUserContract, { params: { id } });
+```
+
+**Key Changes:**
+
+1. **Import Path:**
+   ```typescript
+   // Before
+   import { createUniversalClient } from '@spfn/core/client';
+
+   // After
+   import { createNextjsClient } from '@spfn/core/client';
+   // or
+   import { createClient } from '@spfn/core/client'; // Alias
+   ```
+
+2. **Configuration:**
+   ```typescript
+   // Before
+   createUniversalClient({
+     apiUrl: 'http://localhost:8790',  // SPFN API URL
+     proxyBasePath: '/api/proxy'
+   });
+
+   // After
+   createNextjsClient({
+     baseUrl: 'http://localhost:3000',  // Next.js app URL
+     proxyBasePath: '/api/actions'
+   });
+   ```
+
+3. **Environment Variables:**
+   ```bash
+   # Before
+   SERVER_API_URL=http://localhost:8790
+
+   # After
+   SPFN_APP_URL=http://localhost:3000  # For Server Components
+   SPFN_API_URL=http://localhost:8790  # For API Route Proxy
+   ```
+
+4. **API Route Proxy:**
+   ```typescript
+   // Before: app/api/proxy/[...path]/route.ts
+   export { GET, POST } from '@spfn/core/client';
+
+   // After: app/api/actions/[...path]/route.ts
+   export { GET, POST } from '@spfn/core/client/nextjs';
+   ```
+
+5. **Behavior Change:**
+   - **Before**: Server Components → Direct call, Client Components → Proxy
+   - **After**: Both Server and Client Components → Always proxy
+
+### From ContractClient to NextjsClient
+
+If you're using `ContractClient` directly:
+
+**Before:**
+
+```typescript
+import { ContractClient } from '@spfn/core/client';
+
+const client = new ContractClient({
+  baseUrl: 'http://localhost:8790'
+});
+
+const user = await client.call(getUserContract, { params: { id } });
+```
+
+**After:**
+
+```typescript
+import { createNextjsClient } from '@spfn/core/client';
+
+const client = createNextjsClient();
+
+const user = await client.call(getUserContract, { params: { id } });
+```
+
+**Benefits:**
+- ✅ Automatic cookie handling
+- ✅ Interceptor support
+- ✅ No CORS issues
+- ✅ Enhanced security
+
+---
+
+## Legacy: ContractClient
+
+> ⚠️ **Note**: `ContractClient` is a low-level client for direct API calls. Use `NextjsClient` for all Next.js applications.
+
+`ContractClient` is only recommended for:
+- Non-Next.js environments (Node.js scripts, other frameworks)
+- Testing and debugging
+- Advanced use cases where you need direct API access
+
+### Basic Usage
+
+```typescript
+import { ContractClient } from '@spfn/core/client';
+
+const client = new ContractClient({
+  baseUrl: 'http://localhost:8790',
+  headers: { 'X-API-Key': 'secret' },
+  timeout: 30000
+});
+
 const user = await client.call(getUserContract, {
   params: { id: '123' }
 });
-// URL: GET /users/123 (from contract.path: '/users/:id')
-
-const users = await client.call(getUsersContract);
-// URL: GET /users (from contract.path: '/users')
 ```
 
-**Migration Steps:**
-1. Ensure all contracts use absolute paths (e.g., `/users/:id` not `/:id`)
-2. Move contracts to `src/lib/contracts/` if not already there
-3. Remove the first `path` parameter from all `client.call()` calls
-4. Use auto-generated `api` object instead of calling `client.call()` directly
+### Limitations
+
+- ❌ No interceptor support
+- ❌ No automatic cookie handling
+- ❌ CORS configuration needed
+- ❌ API URL exposed to browser
+- ❌ Separate code paths for server/client
+
+For full details, see legacy documentation.
 
 ---
 
-## UniversalClient - Auto-routing Client
+## API Reference
 
-The `UniversalClient` automatically detects execution environment and routes requests accordingly:
-
-- **Server Components**: Direct call to SPFN API server (internal network)
-- **Client Components**: Proxies through Next.js API Route (enables cookie forwarding)
-
-### Why UniversalClient?
-
-When using authentication with HttpOnly cookies:
-
-1. **Browser Security**: HttpOnly cookies cannot be accessed by JavaScript
-2. **CORS Protection**: Direct browser → SPFN server calls require CORS configuration
-3. **Cookie Forwarding**: API Routes can forward cookies to SPFN server
-
-### Architecture
-
-```
-Client Component (Browser)
-    ↓ fetch('/api/proxy/_auth/login')
-Next.js API Route (/api/proxy/[...path])
-    ↓ Forward cookies + request
-SPFN API Server (http://localhost:8790)
-```
-
-### Setup
-
-#### 1. Create API Route Proxy
-
-Create `app/api/proxy/[...path]/route.ts` in your Next.js app:
+### Types
 
 ```typescript
-import { type NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+// Client configuration
+interface NextjsClientConfig {
+  proxyBasePath?: string;
+  baseUrl?: string;
+  headers?: Record<string, string>;
+  timeout?: number;
+  fetch?: typeof fetch;
+}
 
-const SPFN_API_URL = process.env.SERVER_API_URL || 'http://localhost:8790';
+// Call options
+interface CallOptions<TContract extends RouteContract> {
+  params?: InferContract<TContract>['params'];
+  query?: InferContract<TContract>['query'];
+  body?: InferContract<TContract>['body'];
+  headers?: Record<string, string>;
+  fetchOptions?: RequestInit & {
+    next?: { revalidate?: number | false; tags?: string[] };
+  };
+}
 
-async function handleProxy(
-    request: NextRequest,
-    pathSegments: string[],
-    method: string
-): Promise<NextResponse>
-{
-    const path = `/${pathSegments.join('/')}`;
-    const url = `${SPFN_API_URL}${path}`;
+// Interceptor types
+interface RequestInterceptorContext {
+  path: string;
+  method: string;
+  headers: Record<string, string>;
+  body?: any;
+  query: Record<string, string | string[]>;
+  cookies: Map<string, string>;
+  request: NextRequest;
+  metadata: Record<string, any>;
+}
 
-    // Get cookies from request
-    const cookieStore = cookies();
-    const sessionCookie = cookieStore.get('session');
-
-    const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
+interface ResponseInterceptorContext {
+  path: string;
+  method: string;
+  request: { headers: Record<string, string>; body?: any };
+  response: {
+    status: number;
+    statusText: string;
+    headers: Headers;
+    body: any;
+  };
+  setCookies: Array<{
+    name: string;
+    value: string;
+    options?: {
+      httpOnly?: boolean;
+      secure?: boolean;
+      sameSite?: 'strict' | 'lax' | 'none';
+      maxAge?: number;
+      path?: string;
+      domain?: string;
     };
-
-    // Forward session cookie
-    if (sessionCookie)
-    {
-        headers['Cookie'] = `session=${sessionCookie.value}`;
-    }
-
-    const init: RequestInit = { method, headers };
-
-    // Forward body for POST/PUT/PATCH
-    if (method === 'POST' || method === 'PUT' || method === 'PATCH')
-    {
-        const body = await request.text();
-        if (body) init.body = body;
-    }
-
-    const response = await fetch(url, init);
-    const data = await response.text();
-
-    let jsonData;
-    try
-    {
-        jsonData = JSON.parse(data);
-    }
-    catch (error)
-    {
-        jsonData = { data };
-    }
-
-    const nextResponse = NextResponse.json(jsonData, {
-        status: response.status,
-    });
-
-    // Forward Set-Cookie header
-    const setCookieHeader = response.headers.get('Set-Cookie');
-    if (setCookieHeader)
-    {
-        nextResponse.headers.set('Set-Cookie', setCookieHeader);
-    }
-
-    return nextResponse;
+  }>;
+  metadata: Record<string, any>;
 }
 
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { path: string[] } }
-)
-{
-    return handleProxy(request, params.path, 'GET');
+type RequestInterceptor = (
+  context: RequestInterceptorContext,
+  next: () => Promise<void>
+) => Promise<void>;
+
+type ResponseInterceptor = (
+  context: ResponseInterceptorContext,
+  next: () => Promise<void>
+) => Promise<void>;
+
+interface InterceptorRule {
+  pathPattern: string | RegExp;
+  method?: string | string[];
+  request?: RequestInterceptor;
+  response?: ResponseInterceptor;
 }
 
-export async function POST(
-    request: NextRequest,
-    { params }: { params: { path: string[] } }
-)
-{
-    return handleProxy(request, params.path, 'POST');
+// Proxy configuration
+interface ProxyConfig {
+  apiUrl?: string;
+  interceptors?: InterceptorRule[];
+  autoDiscoverInterceptors?: boolean;
+  disableAutoInterceptors?: string[];
+  debug?: boolean;
 }
 
-export async function PUT(
-    request: NextRequest,
-    { params }: { params: { path: string[] } }
-)
-{
-    return handleProxy(request, params.path, 'PUT');
-}
-
-export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { path: string[] } }
-)
-{
-    return handleProxy(request, params.path, 'DELETE');
+// Error class
+class ApiClientError extends Error {
+  status: number;
+  url: string;
+  response?: unknown;
+  errorType?: 'http' | 'network' | 'timeout';
 }
 ```
 
-#### 2. Configure Environment Variables
-
-```bash
-# .env.local
-SERVER_API_URL=http://localhost:8790
-```
-
-#### 3. Use UniversalClient
+### Functions
 
 ```typescript
-import { createUniversalClient } from '@spfn/core/client';
+// Client creation
+function createNextjsClient(config?: NextjsClientConfig): NextjsClient
+function configureNextjsClient(config: NextjsClientConfig): void
+function getNextjsClient(): NextjsClient
 
-const client = createUniversalClient();
-
-// Server Component - direct call to SPFN API
-const result = await client.call(contract, options);
-
-// Client Component - proxies through /api/proxy
-'use client';
-const result = await client.call(contract, options); // Automatic
-```
-
-### API Reference
-
-#### `createUniversalClient(config?)`
-
-Creates a new universal API client.
-
-```typescript
-const client = createUniversalClient({
-  apiUrl: 'http://localhost:8790',  // Server-side direct calls
-  proxyBasePath: '/api/proxy',       // Client-side proxy path
-  headers: { 'X-Custom': 'value' },
-  timeout: 30000,
-});
-```
-
-**Parameters:**
-
-- `config?: UniversalClientConfig`
-  - `apiUrl?: string` - SPFN API server URL (default: `process.env.SERVER_API_URL` or `http://localhost:8790`)
-  - `proxyBasePath?: string` - Next.js API route path (default: `/api/proxy`)
-  - `headers?: Record<string, string>` - Default headers
-  - `timeout?: number` - Request timeout in milliseconds
-  - `fetch?: typeof fetch` - Custom fetch implementation
-
-#### `client.call(contract, options?)`
-
-Identical to `ContractClient.call()` - automatically routes based on environment.
-
-#### `client.isServerEnv()`
-
-Check if currently running in server environment:
-
-```typescript
-const client = createUniversalClient();
-console.log(client.isServerEnv()); // true (server), false (browser)
-```
-
-### Usage Examples
-
-#### Server Component (Direct Call)
-
-```typescript
-// app/dashboard/page.tsx
-import { createUniversalClient } from '@spfn/core/client';
-import { loginContract } from '@/lib/contracts/auth';
-
-export default async function DashboardPage()
-{
-    const client = createUniversalClient();
-
-    // Runs on server → direct call to SPFN API
-    const result = await client.call(loginContract, {
-        body: { email: 'user@example.com', password: 'pass123' }
-    });
-
-    return <div>User: {result.userId}</div>;
+// Proxy creation
+function createProxy(config?: ProxyConfig): {
+  GET: RouteHandler;
+  POST: RouteHandler;
+  PUT: RouteHandler;
+  PATCH: RouteHandler;
+  DELETE: RouteHandler;
 }
+
+// Registry
+function registerInterceptors(
+  packageName: string,
+  interceptors: InterceptorRule[]
+): void
+
+// Error type guards
+function isHttpError(error: unknown): error is ApiClientError
+function isNetworkError(error: unknown): error is ApiClientError
+function isTimeoutError(error: unknown): error is ApiClientError
+function isServerError(error: unknown, errorType: string): error is ApiClientError
+function getServerErrorType(error: ApiClientError): string | undefined
+function getServerErrorDetails<T = any>(error: ApiClientError): T | undefined
+
+// Interceptor utilities
+function matchPath(path: string, pattern: string | RegExp): boolean
+function matchMethod(method: string, pattern?: string | string[]): boolean
+function filterMatchingInterceptors(
+  rules: InterceptorRule[],
+  path: string,
+  method: string
+): InterceptorRule[]
 ```
-
-#### Client Component (Proxied Call)
-
-```typescript
-// app/login/LoginForm.tsx
-'use client';
-
-import { useState } from 'react';
-import { createUniversalClient } from '@spfn/core/client';
-import { loginContract } from '@/lib/contracts/auth';
-
-export default function LoginForm()
-{
-    const [email, setEmail] = useState('');
-
-    const handleLogin = async () =>
-    {
-        const client = createUniversalClient();
-
-        // Runs in browser → proxies through /api/proxy/_auth/login
-        // Cookies are automatically forwarded
-        const result = await client.call(loginContract, {
-            body: { email, password: 'pass123' }
-        });
-
-        console.log('Logged in:', result.userId);
-    };
-
-    return (
-        <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} />
-            <button type="submit">Login</button>
-        </form>
-    );
-}
-```
-
-### Custom Proxy Path
-
-To use a different proxy path:
-
-```typescript
-// app/layout.tsx
-import { configureUniversalClient } from '@spfn/core/client';
-
-configureUniversalClient({
-    proxyBasePath: '/api/spfn', // Custom path
-});
-```
-
-Then create your proxy at `app/api/spfn/[...path]/route.ts` instead.
-
-### Security Considerations
-
-#### Cookie Security
-
-Ensure cookies are set with secure attributes:
-
-```typescript
-// In SPFN API login route
-c.header(
-    'Set-Cookie',
-    `session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`
-);
-```
-
-**Attributes:**
-- `HttpOnly`: Prevents JavaScript access
-- `Secure`: HTTPS only (disable in development)
-- `SameSite=Strict`: CSRF protection
-- `Path=/`: Available on all routes
-- `Max-Age`: Expiry time (7 days = 604800 seconds)
-
-#### Environment Detection
-
-UniversalClient detects environment using:
-
-1. `process.env.SERVER_API_URL` (server-only)
-2. `process.env.SPFN_API_URL` (server-only)
-3. `process.env.NODE_ENV` (server-only)
-
-If any of these exist, it's considered server environment.
-
-### Troubleshooting
-
-#### Problem: Cookies not being forwarded
-
-**Solution:** Check:
-1. Cookies are set with correct domain
-2. `credentials: 'include'` in fetch options (automatic in UniversalClient)
-3. CORS is configured properly (if needed)
-
-#### Problem: 404 on proxy route
-
-**Solution:** Verify:
-1. File is at: `app/api/proxy/[...path]/route.ts`
-2. File exports GET, POST, etc. functions
-3. Next.js dev server was restarted
-
-#### Problem: Direct calls in browser
-
-**Solution:** Check environment variable detection:
-```typescript
-console.log('SERVER_API_URL:', process.env.SERVER_API_URL);
-console.log('NODE_ENV:', process.env.NODE_ENV);
-```
-
-If `process.env` is undefined in browser, the client will use proxy.
-
----
-
-## Limitations
-
-### JSON Only
-
-Only supports JSON request/response bodies. For other content types (FormData, Blob, etc.), use native `fetch` or FormData-specific endpoints.
-
-### No Streaming Support
-
-Does not support streaming responses. For streaming, use native `fetch` with ReadableStream.
 
 ---
 
@@ -1214,4 +1790,5 @@ Does not support streaming responses. For streaming, use native `fetch` with Rea
 - [@spfn/core/route](../route/README.md) - Server-side routing with contracts
 - [@spfn/core/codegen](../codegen/README.md) - Auto-generate API client
 - [TypeBox](https://github.com/sinclairzx81/typebox) - Schema definitions
-- [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
+- [Next.js API Routes](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)
+- [Next.js Caching](https://nextjs.org/docs/app/building-your-application/caching)
