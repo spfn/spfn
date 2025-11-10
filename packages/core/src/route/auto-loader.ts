@@ -81,7 +81,7 @@ export class AutoRouteLoader
 
         if (files.length === 0)
         {
-            routeLogger.warn('No route files found');
+            routeLogger.warn('⚠️ No route files found');
             return this.getStats();
         }
 
@@ -111,7 +111,7 @@ export class AutoRouteLoader
 
         if (failureCount > 0)
         {
-            routeLogger.warn('Some routes failed to load', { failureCount });
+            routeLogger.warn('⚠️ Some routes failed to load', { failureCount });
         }
 
         return stats;
@@ -137,7 +137,7 @@ export class AutoRouteLoader
 
         if (files.length === 0)
         {
-            routeLogger.warn('No route files found', { dir: routesDir, package: packageName });
+            routeLogger.warn('⚠️ No route files found', { dir: routesDir, package: packageName });
             this.routesDir = tempRoutesDir;
             return this.getStats();
         }
@@ -163,7 +163,7 @@ export class AutoRouteLoader
 
         if (this.debug)
         {
-            routeLogger.info('External routes loaded', {
+            routeLogger.info('📦 External routes loaded', {
                 package: packageName,
                 prefix: prefix || '/',
                 total: successCount,
@@ -249,7 +249,7 @@ export class AutoRouteLoader
 
             if (!hasContractMetas)
             {
-                routeLogger.error('Route must use contract-based routing', {
+                routeLogger.error('❌ Route must use contract-based routing', {
                     file: relativePath,
                     hint: 'Export contracts using satisfies RouteContract and use app.bind()'
                 });
@@ -267,7 +267,7 @@ export class AutoRouteLoader
                 const invalidPaths = contractPaths.filter(path => !path.startsWith(prefix));
                 if (invalidPaths.length > 0)
                 {
-                    routeLogger.error('Contract paths must include the package prefix', {
+                    routeLogger.error('❌ Contract paths must include the package prefix', {
                         file: relativePath,
                         prefix,
                         invalidPaths,
@@ -363,13 +363,13 @@ export class AutoRouteLoader
     {
         if (!module.default)
         {
-            routeLogger.error('Route must export Hono instance as default', { file: relativePath });
+            routeLogger.error('❌ Route must export Hono instance as default', { file: relativePath });
             return false;
         }
 
         if (typeof module.default.route !== 'function')
         {
-            routeLogger.error('Default export is not a Hono instance', { file: relativePath });
+            routeLogger.error('❌ Default export is not a Hono instance', { file: relativePath });
             return false;
         }
 
@@ -410,7 +410,7 @@ export class AutoRouteLoader
                 {
                     if (this.debug)
                     {
-                        routeLogger.debug(`Skipping middleware '${middleware.name}' for path: ${path}`);
+                        routeLogger.debug(`⏭️  Skipping middleware '${middleware.name}' for path: ${path}`);
                     }
                     continue; // Don't register this middleware
                 }
@@ -428,7 +428,7 @@ export class AutoRouteLoader
 
         if (message.includes('Cannot find module') || message.includes('MODULE_NOT_FOUND'))
         {
-            routeLogger.error('Missing dependency', {
+            routeLogger.error('❌ Missing dependency', {
                 file: relativePath,
                 error: message,
                 hint: 'Run: npm install',
@@ -436,7 +436,7 @@ export class AutoRouteLoader
         }
         else if (message.includes('SyntaxError') || stack?.includes('SyntaxError'))
         {
-            routeLogger.error('Syntax error', {
+            routeLogger.error('❌ Syntax error', {
                 file: relativePath,
                 error: message,
                 ...(this.debug && stack && {
@@ -446,7 +446,7 @@ export class AutoRouteLoader
         }
         else if (message.includes('Unexpected token'))
         {
-            routeLogger.error('Parse error', {
+            routeLogger.error('❌ Parse error', {
                 file: relativePath,
                 error: message,
                 hint: 'Check for syntax errors or invalid TypeScript',
@@ -454,7 +454,7 @@ export class AutoRouteLoader
         }
         else
         {
-            routeLogger.error('Route loading failed', {
+            routeLogger.error('❌ Route loading failed', {
                 file: relativePath,
                 error: message,
                 ...(this.debug && stack && { stack }),
@@ -468,7 +468,7 @@ export class AutoRouteLoader
             .map(([tag, count]) => `${tag}(${count})`)
             .join(', ');
 
-        routeLogger.info('Routes loaded successfully', {
+        routeLogger.info('✅ Routes loaded successfully', {
             total: stats.total,
             priority: {
                 static: stats.byPriority.static,
@@ -505,14 +505,14 @@ export async function loadRoutes(
         const functionRoutes = discoverFunctionRoutes();
         if (functionRoutes.length > 0)
         {
-            routeLogger.info('Loading function routes', { count: functionRoutes.length });
+            routeLogger.info('📦 Loading function routes', { count: functionRoutes.length });
 
             for (const func of functionRoutes)
             {
                 try
                 {
                     await loader.loadExternalRoutes(app, func.routesDir, func.packageName, func.prefix);
-                    routeLogger.info('Function routes loaded', {
+                    routeLogger.info('✅ Function routes loaded', {
                         package: func.packageName,
                         routesDir: func.routesDir,
                         prefix: func.prefix || '/',
@@ -520,7 +520,7 @@ export async function loadRoutes(
                 }
                 catch (error)
                 {
-                    routeLogger.error('Failed to load function routes', {
+                    routeLogger.error('❌ Failed to load function routes', {
                         package: func.packageName,
                         error: error instanceof Error ? error.message : 'Unknown error',
                     });
