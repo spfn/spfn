@@ -6,7 +6,6 @@
  */
 
 import type { ServerPlugin } from '@spfn/core/server';
-import type { Hono } from 'hono';
 import { initializeAuth } from '@/server/services';
 import { logger } from '@spfn/core/logger';
 
@@ -39,28 +38,30 @@ export const spfnPlugin: ServerPlugin = {
      * Mount authentication routes
      * Contract paths already include /_auth prefix, so mount at root
      */
-    beforeRoutes: async (app: Hono) =>
-    {
-        authLogger.info('Mounting authentication routes...');
-
-        try
-        {
-            // Import routes dynamically to avoid circular dependencies
-            const authRoutes = await import('./server/routes/auth/index.js');
-            const invitationRoutes = await import('./server/routes/invitations/index.js');
-
-            // Mount at root - contract paths already have /_auth prefix
-            app.route('/', authRoutes.default);
-            app.route('/', invitationRoutes.default);
-
-            authLogger.info('Authentication routes mounted at /_auth/*');
-        }
-        catch (error)
-        {
-            authLogger.error('Failed to mount authentication routes', error as Error);
-            throw error;
-        }
-    },
+    // beforeRoutes: async (app: Hono) =>
+    // {
+    //     authLogger.info('Mounting authentication routes...');
+    //
+    //     try
+    //     {
+    //         // Import routes dynamically to avoid circular dependencies
+    //         const authRoutes = await import('./server/routes/auth/index.js');
+    //         const invitationRoutes = await import('./server/routes/invitations/index.js');
+    //         const usersRoutes = await import('./server/routes/users/index.js');
+    //
+    //         // Mount at root - contract paths already have /_auth prefix
+    //         app.route('/', authRoutes.default);
+    //         app.route('/', invitationRoutes.default);
+    //         app.route('/', usersRoutes.default)
+    //
+    //         authLogger.info('Authentication routes mounted at /_auth/*');
+    //     }
+    //     catch (error)
+    //     {
+    //         authLogger.error('Failed to mount authentication routes', error as Error);
+    //         throw error;
+    //     }
+    // },
 
     /**
      * Log successful startup

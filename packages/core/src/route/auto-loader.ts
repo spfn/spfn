@@ -3,6 +3,7 @@ import { join, relative } from 'path';
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { logger } from '../logger';
+import { discoverFunctionRoutes } from './function-routes';
 
 const routeLogger = logger.child('route');
 
@@ -207,7 +208,6 @@ export class AutoRouteLoader
     private async scanFiles(dir: string, files: string[] = []): Promise<string[]>
     {
         const entries = await readdir(dir);
-
         for (const entry of entries)
         {
             const fullPath = join(dir, entry);
@@ -230,7 +230,7 @@ export class AutoRouteLoader
     {
         // Strict convention: Only index.ts, index.js, or index.mjs files are route handlers
         // This prevents accidental loading of utility files, helpers, types, etc.
-        return fileName === 'index.ts' || fileName === 'index' || fileName === 'index.mjs';
+        return fileName === 'index.ts' || fileName === 'index.js' || fileName === 'index' || fileName === 'index.mjs';
     }
 
     private async loadRoute(app: Hono, absolutePath: string, prefix?: string): Promise<boolean>
@@ -475,9 +475,7 @@ export async function loadRoutes(
     // Load function routes if enabled
     if (includeFunctionRoutes)
     {
-        const { discoverFunctionRoutes } = await import('./function-routes');
         const functionRoutes = discoverFunctionRoutes();
-
         if (functionRoutes.length > 0)
         {
             routeLogger.info('Loading function routes', { count: functionRoutes.length });
