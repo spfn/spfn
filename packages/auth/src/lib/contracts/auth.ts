@@ -360,7 +360,6 @@ export const changePasswordContract = {
 export const getMeContract = {
     method: 'GET' as const,
     path: '/_auth/me',
-    body: Type.Object({}),
     response: ApiResponseSchema(
         Type.Object({
             // User authentication data (excluding sensitive/internal fields)

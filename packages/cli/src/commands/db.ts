@@ -15,6 +15,8 @@ import ora from 'ora';
 import prompts from 'prompts';
 import net from 'net';
 
+import { loadEnvironment } from "@spfn/core/env";
+
 const execAsync = promisify(exec);
 
 /**
@@ -448,7 +450,6 @@ async function listBackupFiles(): Promise<BackupFile[]>
 async function runDrizzleCommand(command: string): Promise<void>
 {
     // Load environment variables first
-    const { loadEnvironment } = await import('@spfn/core/env');
     loadEnvironment({ debug: false });
 
     const hasUserConfig = existsSync('./drizzle.config.ts');
@@ -549,7 +550,6 @@ async function dbGenerate(): Promise<void>
 async function dbPush(): Promise<void>
 {
     // Load environment variables first (required for DATABASE_URL)
-    const { loadEnvironment } = await import('@spfn/core/env');
     loadEnvironment({ debug: false });
 
     // First, push schema changes
@@ -597,7 +597,6 @@ async function dbPush(): Promise<void>
 async function dbMigrate(options: { withBackup?: boolean } = {}): Promise<void>
 {
     // Load environment variables first (required for DATABASE_URL)
-    const { loadEnvironment } = await import('@spfn/core/env');
     loadEnvironment({ debug: false });
 
     // Create backup before migration if requested
@@ -656,7 +655,6 @@ async function dbStudio(requestedPort?: number): Promise<void>
     console.log(chalk.blue('🎨 Opening Drizzle Studio...\n'));
 
     // Load environment variables first
-    const { loadEnvironment } = await import('@spfn/core/env');
     loadEnvironment({ debug: false });
 
     // Find available port
@@ -835,7 +833,6 @@ async function dbBackup(options: {
 	console.log(chalk.blue('💾 Creating database backup...\n'));
 
 	// Load environment variables
-	const { loadEnvironment } = await import('@spfn/core/env');
 	loadEnvironment({ debug: false });
 
 	const dbUrl = process.env.DATABASE_URL;
@@ -994,7 +991,6 @@ async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?
 	console.log(chalk.blue('♻️  Restoring database from backup...\n'));
 
 	// Load environment variables
-	const { loadEnvironment } = await import('@spfn/core/env');
 	loadEnvironment({ debug: false });
 
 	const dbUrl = process.env.DATABASE_URL;
@@ -1386,7 +1382,6 @@ async function dbSync(target: string, options: {
 	console.log(chalk.blue('🔄 Database sync\n'));
 
 	// Load environment variables
-	const { loadEnvironment } = await import('@spfn/core/env');
 	loadEnvironment({ debug: false });
 
 	const {

@@ -37,7 +37,7 @@ export const spfnPlugin: ServerPlugin = {
 
     /**
      * Mount authentication routes
-     * Routes are auto-discovered from src/server/routes
+     * Contract paths already include /_auth prefix, so mount at root
      */
     beforeRoutes: async (app: Hono) =>
     {
@@ -46,12 +46,14 @@ export const spfnPlugin: ServerPlugin = {
         try
         {
             // Import routes dynamically to avoid circular dependencies
-            const authRoutes = await import('./server/routes/index.js');
+            const authRoutes = await import('./server/routes/auth/index.js');
+            const invitationRoutes = await import('./server/routes/invitations/index.js');
 
-            // Mount at /_auth prefix
-            app.route('/_auth', authRoutes.default);
+            // Mount at root - contract paths already have /_auth prefix
+            app.route('/', authRoutes.default);
+            app.route('/', invitationRoutes.default);
 
-            authLogger.info('Authentication routes mounted at /_auth');
+            authLogger.info('Authentication routes mounted at /_auth/*');
         }
         catch (error)
         {

@@ -18,6 +18,27 @@ CREATE TABLE "spfn_auth"."users" (
 	CONSTRAINT "email_or_phone_check" CHECK ("spfn_auth"."users"."email" IS NOT NULL OR "spfn_auth"."users"."phone" IS NOT NULL)
 );
 --> statement-breakpoint
+CREATE TABLE "spfn_auth"."user_profiles" (
+	"id" bigserial PRIMARY KEY NOT NULL,
+	"user_id" bigint NOT NULL,
+	"display_name" text NOT NULL,
+	"first_name" text,
+	"last_name" text,
+	"avatar_url" text,
+	"bio" text,
+	"locale" text DEFAULT 'en',
+	"timezone" text DEFAULT 'UTC',
+	"date_of_birth" text,
+	"gender" text,
+	"website" text,
+	"location" text,
+	"company" text,
+	"job_title" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "user_profiles_user_id_unique" UNIQUE("user_id")
+);
+--> statement-breakpoint
 CREATE TABLE "spfn_auth"."user_social_accounts" (
 	"id" bigserial PRIMARY KEY NOT NULL,
 	"user_id" bigserial NOT NULL,
@@ -126,6 +147,7 @@ CREATE TABLE "spfn_auth"."user_permissions" (
 );
 --> statement-breakpoint
 ALTER TABLE "spfn_auth"."users" ADD CONSTRAINT "users_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "spfn_auth"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "spfn_auth"."user_profiles" ADD CONSTRAINT "user_profiles_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "spfn_auth"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "spfn_auth"."user_social_accounts" ADD CONSTRAINT "user_social_accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "spfn_auth"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "spfn_auth"."user_public_keys" ADD CONSTRAINT "user_public_keys_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "spfn_auth"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "spfn_auth"."user_invitations" ADD CONSTRAINT "user_invitations_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "spfn_auth"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -138,6 +160,8 @@ CREATE INDEX "users_email_idx" ON "spfn_auth"."users" USING btree ("email");--> 
 CREATE INDEX "users_phone_idx" ON "spfn_auth"."users" USING btree ("phone");--> statement-breakpoint
 CREATE INDEX "users_status_idx" ON "spfn_auth"."users" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "users_role_id_idx" ON "spfn_auth"."users" USING btree ("role_id");--> statement-breakpoint
+CREATE INDEX "user_profiles_user_id_idx" ON "spfn_auth"."user_profiles" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "user_profiles_display_name_idx" ON "spfn_auth"."user_profiles" USING btree ("display_name");--> statement-breakpoint
 CREATE UNIQUE INDEX "provider_user_unique_idx" ON "spfn_auth"."user_social_accounts" USING btree ("provider","provider_user_id");--> statement-breakpoint
 CREATE INDEX "user_public_keys_user_id_idx" ON "spfn_auth"."user_public_keys" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_public_keys_key_id_idx" ON "spfn_auth"."user_public_keys" USING btree ("key_id");--> statement-breakpoint

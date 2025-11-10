@@ -11,7 +11,7 @@
  * - Social links and professional info
  */
 
-import { text, index } from 'drizzle-orm/pg-core';
+import { text, bigint, index } from 'drizzle-orm/pg-core';
 import { id, timestamps } from '@spfn/core/db';
 import { users } from './users';
 import { authSchema } from './schema';
@@ -22,7 +22,7 @@ export const userProfiles = authSchema.table('user_profiles',
         id: id(),
 
         // Foreign key to users table
-        userId: text('user_id')
+        userId: bigint('user_id', { mode: 'number' })
             .references(() => users.id)
             .notNull()
             .unique(),
