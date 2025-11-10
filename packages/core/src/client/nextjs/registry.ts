@@ -6,6 +6,9 @@
  */
 
 import type { InterceptorRule } from './types';
+import { logger } from '../../logger';
+
+const registryLogger = logger.child('interceptor-registry');
 
 /**
  * Global interceptor registry
@@ -35,17 +38,17 @@ class InterceptorRegistry
      */
     register(packageName: string, interceptors: InterceptorRule[]): void
     {
-        console.log(`[SPFN Registry] Registering ${interceptors.length} interceptors for package "${packageName}"`);
+        registryLogger.debug(`📝 Registering ${interceptors.length} interceptors for package "${packageName}"`);
 
         if (this.interceptors.has(packageName))
         {
-            console.warn(
-                `[SPFN Registry] Interceptors for "${packageName}" already registered. Overwriting.`
+            registryLogger.warn(
+                `⚠️ Interceptors for "${packageName}" already registered. Overwriting.`
             );
         }
 
         this.interceptors.set(packageName, interceptors);
-        console.log(`[SPFN Registry] Successfully registered interceptors for "${packageName}". Total packages: ${this.getPackageNames().length}`);
+        registryLogger.debug(`✅ Successfully registered interceptors for "${packageName}". Total packages: ${this.getPackageNames().length}`);
     }
 
     /**
