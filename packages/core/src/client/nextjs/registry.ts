@@ -6,9 +6,11 @@
  */
 
 import type { InterceptorRule } from './types';
-import { logger } from '../../logger';
 
-const registryLogger = logger.child('interceptor-registry');
+// Simple debug logger for development
+const isDev = process.env.NODE_ENV === 'development';
+const debug = isDev ? (...args: any[]) => console.log('[interceptor-registry]', ...args) : () => {};
+const warn = (...args: any[]) => console.warn('[interceptor-registry]', ...args);
 
 /**
  * Global interceptor registry
@@ -38,17 +40,17 @@ class InterceptorRegistry
      */
     register(packageName: string, interceptors: InterceptorRule[]): void
     {
-        registryLogger.debug(`📝 Registering ${interceptors.length} interceptors for package "${packageName}"`);
+        debug(`📝 Registering ${interceptors.length} interceptors for package "${packageName}"`);
 
         if (this.interceptors.has(packageName))
         {
-            registryLogger.warn(
+            warn(
                 `⚠️ Interceptors for "${packageName}" already registered. Overwriting.`
             );
         }
 
         this.interceptors.set(packageName, interceptors);
-        registryLogger.debug(`✅ Successfully registered interceptors for "${packageName}". Total packages: ${this.getPackageNames().length}`);
+        debug(`✅ Successfully registered interceptors for "${packageName}". Total packages: ${this.getPackageNames().length}`);
     }
 
     /**

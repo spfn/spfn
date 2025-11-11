@@ -15,12 +15,13 @@
 
 import type { RouteContract, InferContract } from '../../route/types';
 import { ContractClient, type CallOptions } from '../contract-client';
-import { logger } from '../../logger';
-
-const clientLogger = logger.child('nextjs-client');
 
 // Type declaration for window (available in browser)
 declare const window: unknown | undefined;
+
+// Simple debug logger for development
+const isDev = process.env.NODE_ENV === 'development';
+const debug = isDev ? (...args: any[]) => console.log('[nextjs-client]', ...args) : () => {};
 
 /**
  * Next.js Client Configuration
@@ -96,7 +97,7 @@ export class NextjsClient
         // Determine baseUrl based on environment
         const isServer = typeof window === 'undefined';
 
-        clientLogger.debug('🔧 Constructor - Environment:', {
+        debug('🔧 Constructor - Environment:', {
             isServer,
             configBaseUrl: config.baseUrl,
             SPFN_APP_URL: process.env.SPFN_APP_URL,
@@ -106,12 +107,12 @@ export class NextjsClient
         if (config.baseUrl)
         {
             this.baseUrl = config.baseUrl;
-            clientLogger.debug(`⚙️  Using config.baseUrl: ${this.baseUrl}`);
+            debug(`⚙️  Using config.baseUrl: ${this.baseUrl}`);
         }
         else if (process.env.SPFN_APP_URL)
         {
             this.baseUrl = process.env.SPFN_APP_URL;
-            clientLogger.debug(`⚙️  Using SPFN_APP_URL: ${this.baseUrl}`);
+            debug(`⚙️  Using SPFN_APP_URL: ${this.baseUrl}`);
         }
         else if (isServer)
         {
@@ -128,11 +129,11 @@ export class NextjsClient
         {
             // Client environment: use relative path
             this.baseUrl = '';
-            clientLogger.debug('⚙️  Using empty baseUrl (client-side relative)');
+            debug('⚙️  Using empty baseUrl (client-side relative)');
         }
 
         const finalBaseUrl = this.baseUrl + this.proxyBasePath;
-        clientLogger.debug(`✅ Final baseUrl for ContractClient: ${finalBaseUrl}`);
+        debug(`✅ Final baseUrl for ContractClient: ${finalBaseUrl}`);
 
         // Create contract client pointing to API Route
         this.contractClient = new ContractClient({
@@ -175,16 +176,16 @@ export class NextjsClient
                 if (cookieHeader)
                 {
                     headers['Cookie'] = cookieHeader;
-                    clientLogger.debug('🍪 Server-side: Forwarding cookies to API Route');
+                    debug('🍪 Server-side: Forwarding cookies to API Route');
                 }
                 else
                 {
-                    clientLogger.debug('ℹ️  Server-side: No cookies to forward');
+                    debug('ℹ️  Server-side: No cookies to forward');
                 }
             }
             catch (error)
             {
-                clientLogger.warn('⚠️ Failed to get cookies in server environment:', {
+                console.warn('[nextjs-client] ⚠️ Failed to get cookies in server environment:', {
                     error: error instanceof Error ? error.message : String(error)
                 });
             }
