@@ -562,28 +562,96 @@ pnpm test src/middleware
 
 ## API Reference
 
-### `ErrorHandler(options?)`
+### Types
 
-**Options:**
-- `includeStack?: boolean` - Include stack trace (default: dev only)
-- `enableLogging?: boolean` - Enable error logging (default: true)
+#### `ErrorHandlerOptions`
+
+Configuration options for ErrorHandler middleware.
+
+```typescript
+interface ErrorHandlerOptions {
+  includeStack?: boolean;  // Include stack trace (default: dev only)
+  enableLogging?: boolean; // Enable error logging (default: true)
+}
+```
+
+---
+
+#### `ErrorResponse`
+
+Standard error response format returned by ErrorHandler middleware.
+
+```typescript
+interface ErrorResponse {
+  success: false;
+  error: {
+    message: string;
+    type: string;
+    statusCode: number;
+    stack?: string;      // Only in development
+    details?: any;       // Additional error details
+  };
+}
+```
+
+---
+
+#### `RequestLoggerConfig`
+
+Configuration options for RequestLogger middleware.
+
+```typescript
+interface RequestLoggerConfig {
+  excludePaths?: string[];         // Paths to exclude from logging
+  sensitiveFields?: string[];      // Field names to mask
+  slowRequestThreshold?: number;   // Slow request threshold in ms
+}
+```
+
+**Default Values:**
+- `excludePaths`: `['/health', '/ping', '/favicon.ico']`
+- `sensitiveFields`: `['password', 'token', 'apiKey', 'secret', 'authorization']`
+- `slowRequestThreshold`: `1000` (1 second)
+
+---
+
+### Functions
+
+#### `ErrorHandler(options?)`
+
+**Parameters:**
+- `options?: ErrorHandlerOptions` - Configuration options
 
 **Returns:** Hono error handler function
 
+**Example:**
+```typescript
+app.onError(ErrorHandler({
+  includeStack: process.env.NODE_ENV !== 'production',
+  enableLogging: true
+}));
+```
+
 ---
 
-### `RequestLogger(config?)`
+#### `RequestLogger(config?)`
 
-**Config:**
-- `excludePaths?: string[]` - Paths to exclude (default: `['/health', '/ping', '/favicon.ico']`)
-- `sensitiveFields?: string[]` - Fields to mask (default: `['password', 'token', 'apiKey', 'secret', 'authorization']`)
-- `slowRequestThreshold?: number` - Slow request threshold in ms (default: 1000)
+**Parameters:**
+- `config?: RequestLoggerConfig` - Configuration options
 
 **Returns:** Hono middleware function
 
+**Example:**
+```typescript
+app.use('/*', RequestLogger({
+  excludePaths: ['/health', '/metrics'],
+  slowRequestThreshold: 500
+}));
+```
+
 ---
 
-### `maskSensitiveData(obj, sensitiveFields)`
+#### `maskSensitiveData(obj, sensitiveFields)`
 
 **Parameters:**
 - `obj: any` - Object to mask

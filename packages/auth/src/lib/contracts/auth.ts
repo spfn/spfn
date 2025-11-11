@@ -62,6 +62,9 @@ export const sendVerificationCodeContract = {
             expiresAt: Type.String({ description: 'ISO 8601 expiry time' }),
         })
     ),
+    meta: {
+        skipMiddlewares: ['auth']
+    }
 } as const satisfies RouteContract;
 
 /**
@@ -101,6 +104,9 @@ export const verifyCodeContract = {
             })),
         })
     ),
+    meta: {
+        skipMiddlewares: ['auth']
+    }
 } as const satisfies RouteContract;
 
 /**
@@ -140,6 +146,9 @@ export const checkAccountExistsContract = {
             }
         )
     ),
+    meta: {
+        skipMiddlewares: ['auth']
+    }
 } as const satisfies RouteContract;
 
 /**
@@ -199,6 +208,9 @@ export const registerContract = {
             phone: Type.Optional(Type.String()),
         })
     ),
+    meta: {
+        skipMiddlewares: ['auth']
+    }
 } as const satisfies RouteContract;
 
 /**
@@ -263,6 +275,9 @@ export const loginContract = {
             }),
         })
     ),
+    meta: {
+        skipMiddlewares: ['auth']
+    }
 } as const satisfies RouteContract;
 
 /**

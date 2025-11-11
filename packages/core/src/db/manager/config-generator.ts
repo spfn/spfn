@@ -212,9 +212,11 @@ function discoverPackageSchemas(cwd: string): string[]
                     const schemaFiles = expandedFiles.filter(file =>
                         !file.endsWith('/index') &&
                         !file.endsWith('/index.ts') &&
+                        !file.endsWith('/index.js') &&
                         !file.endsWith('/index.mjs') &&
                         !file.endsWith('\\index') &&
                         !file.endsWith('\\index.ts') &&
+                        !file.endsWith('\\index.js') &&
                         !file.endsWith('\\index.mjs')
                     );
 

@@ -96,6 +96,12 @@ export default {
     // Your middleware here
   ],
 
+  // Named middlewares (can be skipped per route)
+  middlewares: [
+    { name: 'auth', handler: async (c, next) => { /* auth logic */ await next(); } },
+    { name: 'rateLimit', handler: async (c, next) => { /* rate limit logic */ await next(); } },
+  ],
+
   // Lifecycle hooks
   beforeRoutes: async (app) => {
     // Run before routes load
@@ -239,6 +245,12 @@ interface ServerConfig {
   // Custom middleware
   use?: MiddlewareHandler[];
 
+  // Named middlewares (skippable per route)
+  middlewares?: Array<{
+    name: string;
+    handler: MiddlewareHandler;
+  }>;
+
   // Routes
   routesPath?: string;        // default: src/server/routes
   debug?: boolean;            // default: NODE_ENV === 'development'
@@ -334,6 +346,52 @@ app.get('/custom', (c) => c.json({ custom: true }));
 // Test the app
 const res = await app.request('/custom');
 console.log(await res.json()); // { custom: true }
+```
+
+### Named Middlewares with Route-Level Skip
+
+```ts
+// server.config.ts
+import { authMiddleware, rateLimitMiddleware } from './middleware';
+
+export default {
+  // Register named middlewares
+  middlewares: [
+    { name: 'auth', handler: authMiddleware() },
+    { name: 'rateLimit', handler: rateLimitMiddleware() },
+  ],
+} satisfies ServerConfig;
+```
+
+```ts
+// src/server/routes/public/status.ts
+import { createRoute } from '@spfn/core';
+
+// Skip auth and rateLimit for this route
+export const GET = createRoute({
+  meta: {
+    skipMiddlewares: ['auth', 'rateLimit'],
+  },
+  handler: async (c) => {
+    return c.json({ status: 'ok' });
+  },
+});
+```
+
+```ts
+// src/server/routes/admin/users.ts
+import { createRoute } from '@spfn/core';
+
+// Only skip rateLimit, auth still applies
+export const GET = createRoute({
+  meta: {
+    skipMiddlewares: ['rateLimit'],
+  },
+  handler: async (c) => {
+    // Auth middleware runs, rateLimit skipped
+    return c.json({ users: [] });
+  },
+});
 ```
 
 ## Middleware Order
