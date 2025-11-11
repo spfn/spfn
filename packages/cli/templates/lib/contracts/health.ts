@@ -1,6 +1,5 @@
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route';
-import { ApiResponseSchema } from '@spfn/core/route';
+import { type RouteContract, ApiResponseSchema } from '@spfn/core/route/types';
 
 /**
  * Health Check Contract
