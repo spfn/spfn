@@ -130,3 +130,112 @@ function toCamelCase(str: string, capitalize: boolean): string
 
     return result.join('');
 }
+
+/**
+ * Convert resource name to PascalCase
+ *
+ * @param resourceName - Resource name in camelCase (e.g., 'schedule', 'schedules', 'schedulesRecurring')
+ * @returns PascalCase string
+ *
+ * Examples:
+ * - toPascalCase('schedule') → 'Schedule'
+ * - toPascalCase('schedules') → 'Schedules'
+ * - toPascalCase('schedulesRecurring') → 'SchedulesRecurring'
+ */
+export function toPascalCase(str: string): string
+{
+    if (str.length === 0)
+    {
+        return str;
+    }
+
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
+ * Collision detection result
+ */
+export interface CollisionInfo
+{
+    typeCollisions: Set<string>;      // Type names that have collisions
+    functionCollisions: Set<string>;  // Function names that have collisions
+}
+
+/**
+ * Detect type and function name collisions across resources
+ *
+ * @param grouped - Resources grouped by name
+ * @param generateTypeName - Function to generate type name from mapping
+ * @param generateFunctionName - Function to generate function name from mapping
+ * @returns Collision information
+ */
+export function detectCollisions(
+    grouped: Record<string, RouteContractMapping[]>,
+    generateTypeName: (mapping: RouteContractMapping) => string,
+    generateFunctionName: (mapping: RouteContractMapping) => string
+): CollisionInfo
+{
+    const typeToResources = new Map<string, Set<string>>();
+    const functionToResources = new Map<string, Set<string>>();
+
+    // Collect all type and function names by resource
+    for (const resourceName of Object.keys(grouped))
+    {
+        const routes = grouped[resourceName];
+
+        for (let i = 0; i < routes.length; i++)
+        {
+            const route = routes[i];
+            const baseTypeName = generateTypeName(route);
+            const functionName = generateFunctionName(route);
+
+            // Check type collisions for all variants (Response, Query, Params, Body)
+            const typeVariants = [
+                `${baseTypeName}Response`,
+                route.hasQuery ? `${baseTypeName}Query` : null,
+                (route.hasParams || route.path.includes(':')) ? `${baseTypeName}Params` : null,
+                route.hasBody ? `${baseTypeName}Body` : null
+            ].filter((name): name is string => name !== null);
+
+            for (const typeName of typeVariants)
+            {
+                if (!typeToResources.has(typeName))
+                {
+                    typeToResources.set(typeName, new Set());
+                }
+                typeToResources.get(typeName)!.add(resourceName);
+            }
+
+            // Check function collisions
+            if (!functionToResources.has(functionName))
+            {
+                functionToResources.set(functionName, new Set());
+            }
+            functionToResources.get(functionName)!.add(resourceName);
+        }
+    }
+
+    // Filter to only collisions (2+ resources using same name)
+    const typeCollisions = new Set<string>();
+    for (const [typeName, resources] of typeToResources.entries())
+    {
+        if (resources.size > 1)
+        {
+            typeCollisions.add(typeName);
+        }
+    }
+
+    const functionCollisions = new Set<string>();
+    for (const [functionName, resources] of functionToResources.entries())
+    {
+        if (resources.size > 1)
+        {
+            functionCollisions.add(functionName);
+        }
+    }
+
+    return {
+        typeCollisions,
+        functionCollisions
+    };
+}

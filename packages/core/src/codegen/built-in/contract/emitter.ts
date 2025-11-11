@@ -5,7 +5,7 @@
  */
 
 import { mkdir, writeFile } from 'fs/promises';
-import { groupByResource } from './helpers';
+import { groupByResource, detectCollisions, toPascalCase } from './helpers';
 import type { ClientGenerationOptions, GenerationStats, RouteContractMapping } from '../../core/types';
 
 /**
@@ -378,6 +378,9 @@ function generateIndexFile(
     const apiName = options.apiName || 'api';
     const resourceNames = Object.keys(grouped);
 
+    // Detect collisions
+    const collisionInfo = detectCollisions(grouped, generateTypeName, generateFunctionName);
+
     // Header
     code += generateHeader();
 
@@ -391,34 +394,47 @@ function generateIndexFile(
         const routes = grouped[resourceName];
         const kebabName = toKebabCase(resourceName);
 
-        // Collect all type names for this resource
-        const typeNames: string[] = [];
+        // Collect all type exports for this resource
+        const typeExports: string[] = [];
+
         for (let j = 0; j < routes.length; j++)
         {
             const route = routes[j];
             const typeName = generateTypeName(route);
 
-            // Always export Response type
-            typeNames.push(`${typeName}Response`);
+            // Type variants to check
+            const variants = [
+                { suffix: 'Response', exists: true },
+                { suffix: 'Query', exists: route.hasQuery },
+                { suffix: 'Params', exists: route.hasParams || route.path.includes(':') },
+                { suffix: 'Body', exists: route.hasBody }
+            ];
 
-            // Conditionally export other types
-            if (route.hasQuery)
+            for (const variant of variants)
             {
-                typeNames.push(`${typeName}Query`);
-            }
-            if (route.hasParams || route.path.includes(':'))
-            {
-                typeNames.push(`${typeName}Params`);
-            }
-            if (route.hasBody)
-            {
-                typeNames.push(`${typeName}Body`);
+                if (!variant.exists) continue;
+
+                const fullTypeName = `${typeName}${variant.suffix}`;
+
+                // Check if this type has collision
+                if (collisionInfo.typeCollisions.has(fullTypeName))
+                {
+                    // Apply resource prefix to resolve collision
+                    const resourcePrefix = toPascalCase(resourceName);
+                    const aliasName = `${resourcePrefix}${fullTypeName}`;
+                    typeExports.push(`${fullTypeName} as ${aliasName}`);
+                }
+                else
+                {
+                    // No collision, export as-is
+                    typeExports.push(fullTypeName);
+                }
             }
         }
 
-        if (typeNames.length > 0)
+        if (typeExports.length > 0)
         {
-            code += `export type { ${typeNames.join(', ')} } from './${kebabName}';\n`;
+            code += `export type { ${typeExports.join(', ')} } from './${kebabName}';\n`;
         }
     }
 
@@ -431,10 +447,30 @@ function generateIndexFile(
         const routes = grouped[resourceName];
         const kebabName = toKebabCase(resourceName);
 
-        // Get all function names for this resource
-        const functionNames = routes.map(route => generateFunctionName(route));
+        // Get all function imports for this resource
+        const functionImports: string[] = [];
 
-        code += `import { ${functionNames.join(', ')} } from './${kebabName}';\n`;
+        for (let j = 0; j < routes.length; j++)
+        {
+            const route = routes[j];
+            const functionName = generateFunctionName(route);
+
+            // Check if this function has collision
+            if (collisionInfo.functionCollisions.has(functionName))
+            {
+                // Apply resource prefix (camelCase) to resolve collision
+                const resourcePrefix = resourceName;  // already in camelCase
+                const aliasName = `${resourcePrefix}${toPascalCase(functionName)}`;
+                functionImports.push(`${functionName} as ${aliasName}`);
+            }
+            else
+            {
+                // No collision, import as-is
+                functionImports.push(functionName);
+            }
+        }
+
+        code += `import { ${functionImports.join(', ')} } from './${kebabName}';\n`;
     }
 
     code += `\n`;
@@ -457,12 +493,17 @@ function generateIndexFile(
             const route = routes[j];
             const functionName = generateFunctionName(route);
 
+            // Use aliased name if collision exists
+            const exportName = collisionInfo.functionCollisions.has(functionName)
+                ? `${resourceName}${toPascalCase(functionName)}`
+                : functionName;
+
             if (!isFirst)
             {
                 code += `,\n`;
             }
 
-            code += `    ${functionName}`;
+            code += `    ${exportName}`;
             isFirst = false;
         }
     }
