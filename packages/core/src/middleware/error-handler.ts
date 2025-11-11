@@ -74,13 +74,15 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                 logData.details = errorWithCode.details;
             }
 
-            // Include stack trace for 500 errors in development
-            if (statusCode >= 500 && includeStack)
+            // Pass Error object directly to logger for proper stack trace formatting
+            if (includeStack)
             {
-                logData.stack = err.stack;
+                errorLogger[logLevel]('Error occurred', err, logData);
             }
-
-            errorLogger[logLevel]('Error occurred', logData);
+            else
+            {
+                errorLogger[logLevel]('Error occurred', logData);
+            }
         }
 
         const response: ErrorResponse = {
