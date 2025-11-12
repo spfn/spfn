@@ -121,6 +121,38 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
 }
 
 /**
+ * Get global database instance or throw error if not initialized
+ *
+ * This is a convenience wrapper around getDatabase() that throws an error
+ * instead of returning undefined. Use this when you expect the database
+ * to be initialized and want to avoid null checks.
+ *
+ * @param type - Connection type ('read' or 'write', defaults to 'write')
+ * @returns Database instance (never undefined)
+ * @throws Error if database is not initialized
+ *
+ * @example
+ * ```typescript
+ * import { getDatabaseOrThrow } from '@spfn/core/db';
+ *
+ * // No need for null checks
+ * const db = getDatabaseOrThrow('read');
+ * const users = await db.select().from(usersTable);
+ * ```
+ */
+export function getDatabaseOrThrow(type?: DbConnectionType): PostgresJsDatabase<Record<string, unknown>>
+{
+    const db = getDatabase(type);
+    if (!db)
+    {
+        throw new Error(
+            `Database not initialized. Call initDatabase() first or set DATABASE_URL environment variable.`
+        );
+    }
+    return db;
+}
+
+/**
  * Set global database instances (for testing or manual configuration)
  *
  * @param write - Database write instance

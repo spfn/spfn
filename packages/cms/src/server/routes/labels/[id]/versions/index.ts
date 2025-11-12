@@ -8,7 +8,7 @@
 import { createApp } from '@spfn/core/route';
 import { getLabelVersionsContract } from '@/lib/contracts/labels';
 import { cmsLabelsRepository } from '@/server/repositories/cms-labels.repository';
-import { getDatabase } from '@spfn/core/db';
+import { getDatabaseOrThrow } from '@spfn/core/db';
 import { cmsLabelValues } from '@/server/entities/cms-label-values';
 import { eq, and } from 'drizzle-orm';
 
@@ -41,7 +41,7 @@ app.bind(getLabelVersionsContract, async (c) =>
         }
 
         // DB 접근 (읽기 전용)
-        const db = getDatabase('read')!;
+        const db = getDatabaseOrThrow('read');
 
         // label_values 테이블에서 version이 null이 아닌 레코드들을 version별로 그룹화하여 조회
         // 1부터 publishedVersion까지의 모든 버전 조회

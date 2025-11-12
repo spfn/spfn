@@ -364,15 +364,32 @@ app.bind(
 
 For complex queries beyond helper functions, use the direct database API:
 
+### Getting Database Instance
+
+```typescript
+import { getDatabase, getDatabaseOrThrow } from '@spfn/core/db';
+
+// Option 1: getDatabase() - Returns undefined if not initialized
+const db = getDatabase('read');
+if (!db) {
+  throw new Error('Database not initialized');
+}
+
+// Option 2: getDatabaseOrThrow() - Automatically throws if not initialized (recommended)
+const db = getDatabaseOrThrow('read');  // No null check needed!
+```
+
+**Recommendation**: Use `getDatabaseOrThrow()` in most cases to avoid repetitive null checks. Only use `getDatabase()` if you need to gracefully handle the uninitialized state.
+
 ### Joins and Aggregations
 
 ```typescript
-import { getDatabase } from '@spfn/core/db';
+import { getDatabaseOrThrow } from '@spfn/core/db';
 import { eq, sql, desc } from 'drizzle-orm';
 import { posts, users, comments } from '@/server/entities';
 
 export async function GET(c: RouteContext) {
-  const db = getDatabase('read');  // Use read replica
+  const db = getDatabaseOrThrow('read');  // Use read replica
 
   // Complex join with aggregation
   const results = await db
