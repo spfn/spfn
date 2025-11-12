@@ -48,6 +48,7 @@
     "clean": "rm -rf dist migrations",
     "db:generate": "drizzle-kit generate",
     "codegen": "spfn codegen run",
+    "rebuild-cache": "tsx src/scripts/rebuild-published-cache.ts",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:routes": "vitest src/server/routes",

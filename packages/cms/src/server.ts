@@ -316,7 +316,7 @@ export const getSections = cache(async (
         });
 
         // Then, fill in data for found sections
-        response.forEach(sectionData =>
+        response.forEach((sectionData: SectionData) =>
         {
             const createTranslationFn = (section: string, content: Record<string, any>): ServerTranslationFunction =>
             {

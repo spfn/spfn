@@ -7,6 +7,7 @@
  */
 
 import { createApp } from '@spfn/core/route';
+import { Transactional } from '@spfn/core/db';
 import { cmsLabelsRepository } from '@/server/repositories';
 import { getLabelsContract, createLabelContract } from '@/lib/contracts/labels';
 import { loadLabelsFromJson } from '@/server/helpers/sync';
@@ -78,7 +79,7 @@ app.bind(getLabelsContract, async (c) =>
  * POST /labels
  * 새 라벨 생성
  */
-app.bind(createLabelContract, async (c) =>
+app.bind(createLabelContract, [Transactional()], async (c) =>
 {
     const body = await c.data();
 

@@ -8,7 +8,7 @@
  */
 
 import { client } from '@spfn/core/client';
-import type { InferContract } from '@spfn/core';
+import type { InferContract } from '@spfn/core/route/types';
 
 import { getPublishedCacheContract, upsertPublishedCacheContract } from '@/lib/contracts/published-cache';
 

@@ -6,6 +6,7 @@
  */
 
 import { createApp } from '@spfn/core/route';
+import { Transactional } from '@spfn/core/db';
 import { cmsPublishedCacheRepository } from '@/server/repositories';
 import { getPublishedCacheContract, upsertPublishedCacheContract } from '@/lib/contracts/published-cache';
 
@@ -45,7 +46,7 @@ app.bind(getPublishedCacheContract, async (c) =>
  * POST /cms/published-cache
  * 발행된 콘텐츠 캐시 업데이트/생성 (upsert)
  */
-app.bind(upsertPublishedCacheContract, async (c) =>
+app.bind(upsertPublishedCacheContract, [Transactional()], async (c) =>
 {
     try
     {
