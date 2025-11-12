@@ -5,6 +5,7 @@
  */
 
 import { createApp } from '@spfn/core/route';
+import { Transactional } from '@spfn/core/db';
 import {
     checkAccountExistsContract,
     registerContract,
@@ -56,7 +57,7 @@ app.bind(verifyCodeContract, async (c) =>
 });
 
 // POST /api/auth/register
-app.bind(registerContract, async (c) =>
+app.bind(registerContract, [Transactional()], async (c) =>
 {
     const body = await c.data();
     const result = await registerService(body);
@@ -64,7 +65,7 @@ app.bind(registerContract, async (c) =>
 });
 
 // POST /api/auth/login
-app.bind(loginContract, async (c) =>
+app.bind(loginContract, [Transactional()], async (c) =>
 {
     const body = await c.data();
     const result = await loginService(body);
@@ -89,7 +90,7 @@ app.bind(logoutContract, async (c) =>
 });
 
 // POST /api/auth/keys/rotate (Authenticated)
-app.bind(rotateKeyContract, async (c) =>
+app.bind(rotateKeyContract, [Transactional()], async (c) =>
 {
     const body = await c.data();
     const { keyId: oldKeyId, userId } = getAuth(c);
