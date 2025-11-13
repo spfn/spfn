@@ -31,6 +31,58 @@ interface ErrorWithStatusCode extends Error
     details?: any;
 }
 
+interface ErrorCause
+{
+    message: string;
+    name?: string;
+    code?: string;
+    detail?: string;
+    hint?: string;
+    constraint?: string;
+    table?: string;
+    column?: string;
+    schema?: string;
+    stack?: string;
+}
+
+/**
+ * Extract error cause chain recursively
+ */
+function extractErrorCauses(error: Error, includeStack: boolean): ErrorCause[]
+{
+    const causes: ErrorCause[] = [];
+    let currentError: any = error.cause;
+
+    while (currentError)
+    {
+        const cause: ErrorCause = {
+            message: currentError.message || String(currentError),
+            name: currentError.name,
+        };
+
+        // Extract PostgreSQL/Database specific error info
+        if (currentError.code) cause.code = currentError.code;
+        if (currentError.detail) cause.detail = currentError.detail;
+        if (currentError.hint) cause.hint = currentError.hint;
+        if (currentError.constraint) cause.constraint = currentError.constraint;
+        if (currentError.table) cause.table = currentError.table;
+        if (currentError.column) cause.column = currentError.column;
+        if (currentError.schema) cause.schema = currentError.schema;
+
+        if (includeStack && currentError.stack)
+        {
+            cause.stack = currentError.stack;
+        }
+
+        causes.push(cause);
+
+        // Move to next cause in chain
+        currentError = currentError.cause;
+    }
+
+    return causes;
+}
+
 /**
  * Standard error response format
  *
@@ -72,6 +124,13 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
             if (errorWithCode.details)
             {
                 logData.details = errorWithCode.details;
+            }
+
+            // Extract and include error cause chain
+            const causes = extractErrorCauses(err, includeStack);
+            if (causes.length > 0)
+            {
+                logData.causes = causes;
             }
 
             // Pass Error object directly to logger for proper stack trace formatting
