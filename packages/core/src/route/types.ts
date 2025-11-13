@@ -78,6 +78,10 @@ export type RouteContext<TContract extends RouteContract = any> = {
         limit: number,
         total: number
     ): Response;
+    noContent(): Response;
+    created<T>(data: T, location?: string): Response;
+    accepted<T>(data?: T): Response;
+    notModified(): Response;
     raw: Context;
 };
 

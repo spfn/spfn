@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { Value } from '@sinclair/typebox/value';
-import type { RouteContract, RouteContext, InferContract } from './types';
+import type { RouteContract, RouteContext, InferContract, HeaderRecord } from './types';
 import { ValidationError } from '../errors';
 import type { ApiSuccessResponse } from './api-response';
 import { logger } from '../logger';
@@ -166,6 +166,47 @@ export function bind<TContract extends RouteContract>(
                 };
 
                 return rawContext.json(response, 200 as ContentfulStatusCode);
+            },
+
+            noContent: () =>
+            {
+                return rawContext.body(null, 204 as ContentfulStatusCode);
+            },
+
+            created: <T>(data: T, location?: string) =>
+            {
+                const response: ApiSuccessResponse<T> = {
+                    success: true,
+                    data,
+                };
+
+                const headers: HeaderRecord = {};
+                if (location)
+                {
+                    headers['Location'] = location;
+                }
+
+                return rawContext.json(response, 201 as ContentfulStatusCode, headers);
+            },
+
+            accepted: <T>(data?: T) =>
+            {
+                if (data === undefined)
+                {
+                    return rawContext.body(null, 202 as ContentfulStatusCode);
+                }
+
+                const response: ApiSuccessResponse<T> = {
+                    success: true,
+                    data,
+                };
+
+                return rawContext.json(response, 202 as ContentfulStatusCode);
+            },
+
+            notModified: () =>
+            {
+                return rawContext.body(null, 304 as ContentfulStatusCode);
             },
 
             raw: rawContext,

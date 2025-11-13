@@ -23,6 +23,21 @@ type RouteContext<TContract extends RouteContract = any> = {
     status?: ContentfulStatusCode,
     headers?: HeaderRecord
   ): Response;
+  success<T>(
+    data: T,
+    meta?: ApiSuccessResponse<T>['meta'],
+    status?: number
+  ): Response;
+  paginated<T>(
+    data: T[],
+    page: number,
+    limit: number,
+    total: number
+  ): Response;
+  noContent(): Response;
+  created<T>(data: T, location?: string): Response;
+  accepted<T>(data?: T): Response;
+  notModified(): Response;
   raw: Context; // Hono Context
 };
 ```
@@ -140,6 +155,138 @@ return c.json(
   200,
   { 'X-Custom-Header': 'value' }
 );
+```
+
+## Response Helpers
+
+SPFN provides convenient response helpers for common HTTP patterns with standardized formats.
+
+### c.success()
+
+Return successful response with standard format (200 OK).
+
+```typescript
+// Basic success
+return c.success({ id: 1, name: 'John' });
+// Response: { success: true, data: { id: 1, name: 'John' } }
+
+// With metadata
+return c.success(
+  { id: 1, name: 'John' },
+  { timestamp: Date.now() }
+);
+// Response: { success: true, data: {...}, meta: { timestamp: ... } }
+
+// With custom status
+return c.success({ message: 'Updated' }, undefined, 200);
+```
+
+### c.paginated()
+
+Return paginated list with pagination metadata (200 OK).
+
+```typescript
+export const handler = async (c: RouteContext<typeof getUsersContract>) => {
+  const { page = 1, limit = 10 } = c.query;
+
+  const users = await findMany(users, {
+    limit,
+    offset: (page - 1) * limit
+  });
+  const total = await count(users);
+
+  return c.paginated(users, page, limit, total);
+};
+
+// Response format:
+// {
+//   success: true,
+//   data: [...],
+//   meta: {
+//     pagination: {
+//       page: 1,
+//       limit: 10,
+//       total: 100,
+//       totalPages: 10
+//     }
+//   }
+// }
+```
+
+### c.created()
+
+Return created resource with Location header (201 Created).
+
+```typescript
+export const handler = async (c: RouteContext<typeof createUserContract>) => {
+  const body = await c.data();
+  const user = await create(users, body);
+
+  // With Location header
+  return c.created(user, `/users/${user.id}`);
+};
+
+// Response: 201 Created
+// Headers: Location: /users/123
+// Body: { success: true, data: { id: 123, ... } }
+```
+
+### c.noContent()
+
+Return empty response for successful DELETE operations (204 No Content).
+
+```typescript
+export const handler = async (c: RouteContext<typeof deleteUserContract>) => {
+  const { id } = c.params;
+  await deleteOne(users, { id });
+
+  return c.noContent();
+};
+
+// Response: 204 No Content (no body)
+```
+
+### c.accepted()
+
+Return accepted response for async operations (202 Accepted).
+
+```typescript
+// With job data
+export const handler = async (c: RouteContext<typeof processJobContract>) => {
+  const body = await c.data();
+  const job = await queueJob(body);
+
+  return c.accepted({ jobId: job.id, status: 'queued' });
+};
+// Response: 202 Accepted
+// Body: { success: true, data: { jobId: '...', status: 'queued' } }
+
+// Without data (fire-and-forget)
+return c.accepted();
+// Response: 202 Accepted (no body)
+```
+
+### c.notModified()
+
+Return not modified response for cache validation (304 Not Modified).
+
+```typescript
+export const handler = async (c: RouteContext<typeof getUserContract>) => {
+  const { id } = c.params;
+  const etag = c.raw.req.header('If-None-Match');
+
+  const user = await findOne(users, { id });
+  const currentEtag = generateEtag(user);
+
+  if (etag === currentEtag) {
+    return c.notModified();
+  }
+
+  c.raw.header('ETag', currentEtag);
+  return c.success(user);
+};
+
+// Response: 304 Not Modified (no body)
 ```
 
 ### c.raw
