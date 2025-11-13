@@ -27,6 +27,13 @@ export function isFileLoggingEnabled(): boolean
  */
 export function getDefaultLogLevel(): LogLevel
 {
+    // Allow explicit LOG_LEVEL override
+    const logLevelEnv = process.env.LOG_LEVEL?.toLowerCase();
+    if (logLevelEnv && ['debug', 'info', 'warn', 'error', 'fatal'].includes(logLevelEnv))
+    {
+        return logLevelEnv as LogLevel;
+    }
+
     const isProduction = process.env.NODE_ENV === 'production';
     const isDevelopment = process.env.NODE_ENV === 'development';
 
@@ -43,6 +50,7 @@ export function getDefaultLogLevel(): LogLevel
     // Test environment
     return 'warn';
 }
+
 
 /**
  * Console Transport configuration

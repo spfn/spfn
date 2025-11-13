@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { existsSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { execa } from 'execa';
 import ora from 'ora';
@@ -24,6 +24,11 @@ async function buildProject(options: BuildOptions): Promise<void>
     // Set NODE_ENV to production (Next.js style)
     if (!process.env.NODE_ENV) {
         process.env.NODE_ENV = 'production';
+    }
+
+    // Suppress verbose logs during build (codegen, etc.)
+    if (!process.env.LOG_LEVEL) {
+        process.env.LOG_LEVEL = 'warn';
     }
 
     const cwd = process.cwd();
@@ -138,7 +143,7 @@ async function buildProject(options: BuildOptions): Promise<void>
                     '@sinclair/typebox',
                     '@spfn/core',
                 ],
-                silent: false,
+                silent: true,
                 onSuccess: async () => {
                     // Silently succeed
                 },
@@ -173,11 +178,66 @@ await startServer({
             writeFileSync(prodServerPath, prodServerContent);
 
             spinner.succeed(`SPFN server build completed → .spfn/server`);
+
+            // Display routes like Next.js does
+            const routesDir = join(cwd, '.spfn', 'server', 'routes');
+            if (existsSync(routesDir))
+            {
+                console.log();
+                console.log(chalk.bold('Route (api)'));
+
+                try
+                {
+                    const routes = readdirSync(routesDir, { withFileTypes: true })
+                        .filter(dirent => dirent.isDirectory())
+                        .map(dirent => dirent.name)
+                        .sort();
+
+                    if (routes.length > 0)
+                    {
+                        routes.forEach((route, index) =>
+                        {
+                            const isLast = index === routes.length - 1;
+                            const prefix = isLast ? '└' : '├';
+                            const routePath = `/api/${route}`;
+
+                            // Check for health route (single GET method)
+                            if (route === 'health')
+                            {
+                                console.log(`${prefix} ${chalk.green('GET')}  ${routePath}`);
+                            }
+                            else
+                            {
+                                console.log(`${prefix} ${chalk.cyan('*')}    ${routePath}`);
+                            }
+                        });
+
+                        console.log();
+                        console.log(chalk.cyan('*') + '  (Hono)  multiple methods supported');
+                    }
+                }
+                catch (error)
+                {
+                    // Silently fail if routes can't be read
+                }
+            }
         }
         catch (error)
         {
             spinner.fail('SPFN server build failed');
-            logger.error(String(error));
+
+            // Show detailed error information (type errors, syntax errors, etc.)
+            if (error instanceof Error) {
+                console.error('\n' + chalk.red(error.message));
+
+                // Show stack trace for debugging
+                if (error.stack) {
+                    console.error(chalk.dim('\n' + error.stack));
+                }
+            } else {
+                logger.error(String(error));
+            }
+
             process.exit(1);
         }
     }
@@ -196,8 +256,6 @@ await startServer({
 
     console.log('  ' + chalk.cyan('Or deploy with Docker:'));
     console.log(`    ${chalk.cyan('docker compose -f docker-compose.production.yml up --build -d')}\n`);
-
-    console.log(chalk.dim('  📖 See .guide/deployment.md for complete deployment guide\n'));
 }
 
 export const buildCommand = new Command('build')
