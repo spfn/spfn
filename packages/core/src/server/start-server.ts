@@ -400,9 +400,7 @@ function registerShutdownHandlers(shutdown: (signal: string) => Promise<void>): 
         // Enhanced logging for EADDRINUSE errors
         if (error.message?.includes('EADDRINUSE'))
         {
-            serverLogger.error('Port conflict detected - detailed trace:', {
-                error: error.message,
-                stack: error.stack,
+            serverLogger.error('Port conflict detected - detailed trace:', error, {
                 code: (error as any).code,
                 port: (error as any).port,
                 address: (error as any).address,
@@ -422,10 +420,20 @@ function registerShutdownHandlers(shutdown: (signal: string) => Promise<void>): 
 
     process.on('unhandledRejection', (reason, promise) =>
     {
-        serverLogger.error('Unhandled promise rejection', {
-            reason,
-            promise,
-        });
+        // If reason is an Error object, pass it as second parameter for proper stack trace
+        if (reason instanceof Error)
+        {
+            serverLogger.error('Unhandled promise rejection', reason, {
+                promise,
+            });
+        }
+        else
+        {
+            serverLogger.error('Unhandled promise rejection', {
+                reason,
+                promise,
+            });
+        }
 
         // In watch mode, exit immediately to allow clean restart
         serverLogger.info('Exiting immediately for clean restart');
