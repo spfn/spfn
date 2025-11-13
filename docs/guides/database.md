@@ -436,6 +436,320 @@ const usersWithPosts = await db
   );
 ```
 
+## Repository Pattern
+
+Superfunction provides the `BaseRepository` class to eliminate repetitive database access patterns and provide consistent transaction support across your repositories.
+
+### Why Use BaseRepository?
+
+Before BaseRepository, you would repeat this pattern in every repository:
+
+```typescript
+// ❌ Before: Repetitive pattern
+export class UserRepository {
+  private db = getDatabaseOrThrow();
+
+  async findById(id: string) {
+    return await this.db.select().from(users).where(eq(users.id, id));
+  }
+}
+```
+
+With BaseRepository, you get:
+- ✅ Automatic database instance management
+- ✅ Built-in transaction context detection
+- ✅ Read/Write separation support
+- ✅ Type-safe schema generics
+- ✅ Less boilerplate code
+
+### Basic Usage
+
+```typescript
+// src/server/repositories/users.ts
+import { BaseRepository } from '@spfn/core/db';
+import { eq, desc } from 'drizzle-orm';
+import { users } from '@/server/entities/users';
+
+export class UserRepository extends BaseRepository {
+  async findById(id: string) {
+    // this.readDb uses read replica when available
+    const result = await this.readDb
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+
+    return result[0];
+  }
+
+  async findByEmail(email: string) {
+    const result = await this.readDb
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    return result[0];
+  }
+
+  async findAll(options: { limit?: number; offset?: number } = {}) {
+    const { limit = 20, offset = 0 } = options;
+
+    return await this.readDb
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async create(data: NewUser) {
+    // this.db uses write primary
+    const result = await this.db
+      .insert(users)
+      .values(data)
+      .returning();
+
+    return result[0];
+  }
+
+  async update(id: string, data: Partial<NewUser>) {
+    const result = await this.db
+      .update(users)
+      .set(data)
+      .where(eq(users.id, id))
+      .returning();
+
+    return result[0];
+  }
+
+  async delete(id: string) {
+    const result = await this.db
+      .delete(users)
+      .where(eq(users.id, id))
+      .returning();
+
+    return result[0];
+  }
+}
+```
+
+### Using Repositories in Routes
+
+```typescript
+// src/server/routes/users/index.ts
+import { createApp } from '@spfn/core/route';
+import { UserRepository } from '@/server/repositories/users';
+
+const app = createApp();
+const userRepo = new UserRepository();
+
+app.bind(getUserContract, async (c) => {
+  const { id } = await c.params();
+
+  const user = await userRepo.findById(id);
+
+  if (!user) {
+    return c.notFound({ message: 'User not found' });
+  }
+
+  return c.json({ user });
+});
+
+app.bind(createUserContract, async (c) => {
+  const data = await c.data();
+
+  const user = await userRepo.create(data);
+
+  return c.json({ user });
+});
+
+export default app;
+```
+
+### Automatic Transaction Support
+
+BaseRepository automatically detects transaction context and uses the appropriate database instance:
+
+```typescript
+// src/server/routes/users/index.ts
+import { createApp } from '@spfn/core/route';
+import { Transactional } from '@spfn/core/db';
+import { UserRepository } from '@/server/repositories/users';
+import { ProfileRepository } from '@/server/repositories/profiles';
+
+const app = createApp();
+const userRepo = new UserRepository();
+const profileRepo = new ProfileRepository();
+
+app.bind(
+  createUserWithProfileContract,
+  [Transactional()],  // ← Wraps entire operation in transaction
+  async (c) => {
+    const data = await c.data();
+
+    // Both repositories automatically use the same transaction
+    const user = await userRepo.create({
+      email: data.email,
+      name: data.name
+    });
+
+    const profile = await profileRepo.create({
+      userId: user.id,
+      bio: data.bio
+    });
+
+    // ✅ If any operation fails → automatic rollback
+    // ✅ If all succeed → automatic commit
+
+    return c.json({ user, profile });
+  }
+);
+
+export default app;
+```
+
+### Read/Write Separation
+
+BaseRepository provides two database accessors:
+
+- `this.db` - Write operations (uses primary database)
+- `this.readDb` - Read operations (uses read replica when configured)
+
+```typescript
+export class UserRepository extends BaseRepository {
+  async getStats() {
+    // Heavy read query → use read replica
+    const result = await this.readDb
+      .select({
+        total: sql<number>`count(*)`,
+        active: sql<number>`count(*) filter (where is_active = true)`,
+        inactive: sql<number>`count(*) filter (where is_active = false)`
+      })
+      .from(users);
+
+    return result[0];
+  }
+
+  async activate(id: string) {
+    // Write operation → use primary database
+    const result = await this.db
+      .update(users)
+      .set({ isActive: true })
+      .where(eq(users.id, id))
+      .returning();
+
+    return result[0];
+  }
+}
+```
+
+> **Transaction Context Overrides Read/Write Separation**
+>
+> When running inside a transaction (via `Transactional()` middleware), both `this.db` and `this.readDb` use the same transaction database instance. This ensures all operations in the transaction see a consistent view of the data.
+
+### Type-Safe Schemas
+
+Use TypeScript generics to type your repository with your schema:
+
+```typescript
+// src/server/entities/index.ts
+import * as users from './users';
+import * as posts from './posts';
+import * as comments from './comments';
+
+export const schema = {
+  ...users,
+  ...posts,
+  ...comments
+};
+
+export type AppSchema = typeof schema;
+
+// src/server/repositories/users.ts
+import { BaseRepository } from '@spfn/core/db';
+import type { AppSchema } from '@/server/entities';
+
+export class UserRepository extends BaseRepository<AppSchema> {
+  // this.db and this.readDb are now typed with AppSchema
+  async findById(id: string) {
+    // Full autocomplete and type safety
+    return await this.readDb.select().from(this.readDb.schema.users);
+  }
+}
+```
+
+### Combining with Helper Functions
+
+You can still use helper functions alongside repositories:
+
+```typescript
+import { BaseRepository } from '@spfn/core/db';
+import { findOne, create, updateOne } from '@spfn/core/db';
+import { users } from '@/server/entities/users';
+
+export class UserRepository extends BaseRepository {
+  // Helper function approach
+  async findById(id: string) {
+    return await findOne(users, { id });
+  }
+
+  // Direct query approach
+  async findByEmail(email: string) {
+    const result = await this.readDb
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    return result[0];
+  }
+
+  // Mix and match based on complexity
+  async create(data: NewUser) {
+    return await create(users, data);
+  }
+}
+```
+
+### Best Practices
+
+```typescript
+// ✅ Good: Use BaseRepository for domain logic
+export class UserRepository extends BaseRepository {
+  async findActiveUsers() {
+    return await this.readDb
+      .select()
+      .from(users)
+      .where(eq(users.isActive, true));
+  }
+
+  async deactivate(id: string) {
+    return await this.db
+      .update(users)
+      .set({ isActive: false })
+      .where(eq(users.id, id))
+      .returning();
+  }
+}
+
+// ✅ Good: Create repository instances at module level
+const userRepo = new UserRepository();
+
+// Use in routes
+app.bind(getUserContract, async (c) => {
+  const user = await userRepo.findById(c.req.param('id'));
+  return c.json({ user });
+});
+
+// ❌ Bad: Creating new instances in every request
+app.bind(getUserContract, async (c) => {
+  const userRepo = new UserRepository(); // Unnecessary overhead
+  const user = await userRepo.findById(c.req.param('id'));
+  return c.json({ user });
+});
+```
+
 ## Database Migrations
 
 Superfunction uses Drizzle Kit for database migrations:

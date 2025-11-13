@@ -51,3 +51,6 @@ export {
     deleteMany,
     count,
 } from './helpers';
+
+// Repository Pattern
+export { BaseRepository } from './repository';
