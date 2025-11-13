@@ -794,6 +794,21 @@ npx drizzle-kit generate
 npx drizzle-kit migrate
 ```
 
+> **Interactive Prompts Support**
+>
+> The `db generate` command supports Drizzle Kit's interactive prompts. When you make ambiguous schema changes (like renaming a column), Drizzle Kit will ask you to clarify:
+>
+> ```bash
+> $ npx spfn@alpha db generate
+>
+> Is pattern_id column in workflow_steps table created or renamed from another column?
+> ❯ + pattern_id                      create column
+>   ~ workflow_id › pattern_id        rename column
+>   ~ action › pattern_id             rename column
+> ```
+>
+> This helps Drizzle Kit generate accurate migrations that preserve your data instead of dropping and recreating columns.
+
 ## Working with SPFN Modules
 
 When using SPFN modules (like `@spfn/cms`, `@spfn/auth`), database operations are handled differently to prevent conflicts:
