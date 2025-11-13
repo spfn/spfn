@@ -446,6 +446,7 @@ async function listBackupFiles(): Promise<BackupFile[]>
 
 /**
  * Generate temporary drizzle.config.ts and run drizzle-kit command
+ * Uses spawn to support interactive prompts from drizzle-kit
  */
 async function runDrizzleCommand(command: string): Promise<void>
 {
@@ -455,53 +456,68 @@ async function runDrizzleCommand(command: string): Promise<void>
     const hasUserConfig = existsSync('./drizzle.config.ts');
     const tempConfigPath = `./drizzle.config.${process.pid}.${Date.now()}.temp.ts`;
 
-    try
-    {
-        const configPath = hasUserConfig ? './drizzle.config.ts' : tempConfigPath;
+    const configPath = hasUserConfig ? './drizzle.config.ts' : tempConfigPath;
 
-        if (!hasUserConfig)
+    if (!hasUserConfig)
+    {
+        if (!process.env.DATABASE_URL)
         {
-            if (!process.env.DATABASE_URL)
+            console.error(chalk.red('❌ DATABASE_URL not found in environment'));
+            console.log(chalk.yellow('\n💡 Tip: Add DATABASE_URL to your .env file'));
+            process.exit(1);
+        }
+
+        // Generate temporary config
+        const { generateDrizzleConfigFile } = await import('@spfn/core/db');
+        const configContent = generateDrizzleConfigFile({
+            cwd: process.cwd(),
+            // Exclude package schemas to avoid .ts/.js mixing (packages use migrations instead)
+            disablePackageDiscovery: true
+        });
+
+        writeFileSync(tempConfigPath, configContent);
+        console.log(chalk.dim('Using auto-generated Drizzle config\n'));
+    }
+
+    // Run drizzle-kit command with spawn to support interactive prompts
+    const args = command.split(' ');
+    args.push(`--config=${configPath}`);
+
+    return new Promise<void>((resolve, reject) =>
+    {
+        const drizzleProcess = spawn('drizzle-kit', args, {
+            stdio: 'inherit', // Allow interactive input
+            shell: true
+        });
+
+        const cleanup = () =>
+        {
+            // Clean up temp config
+            if (!hasUserConfig && existsSync(tempConfigPath))
             {
-                console.error(chalk.red('❌ DATABASE_URL not found in environment'));
-                console.log(chalk.yellow('\n💡 Tip: Add DATABASE_URL to your .env file'));
-                process.exit(1);
+                unlinkSync(tempConfigPath);
             }
+        };
 
-            // Generate temporary config
-            const { generateDrizzleConfigFile } = await import('@spfn/core/db');
-            const configContent = generateDrizzleConfigFile({
-                cwd: process.cwd(),
-                // Exclude package schemas to avoid .ts/.js mixing (packages use migrations instead)
-                disablePackageDiscovery: true
-            });
-
-            writeFileSync(tempConfigPath, configContent);
-            console.log(chalk.dim('Using auto-generated Drizzle config\n'));
-        }
-
-        // Run drizzle-kit command
-        const fullCommand = `drizzle-kit ${command} --config=${configPath}`;
-        const { stdout, stderr } = await execAsync(fullCommand);
-
-        if (stdout)
+        drizzleProcess.on('close', (code) =>
         {
-            console.log(stdout);
-        }
+            cleanup();
+            if (code === 0)
+            {
+                resolve();
+            }
+            else
+            {
+                reject(new Error(`drizzle-kit ${command} exited with code ${code}`));
+            }
+        });
 
-        if (stderr)
+        drizzleProcess.on('error', (error) =>
         {
-            console.error(stderr);
-        }
-    }
-    finally
-    {
-        // Clean up temp config
-        if (!hasUserConfig && existsSync(tempConfigPath))
-        {
-            unlinkSync(tempConfigPath);
-        }
-    }
+            cleanup();
+            reject(error);
+        });
+    });
 }
 
 /**
@@ -532,15 +548,21 @@ async function runWithSpinner(
 
 /**
  * Generate database migrations from schema changes
+ * Uses interactive mode to support drizzle-kit prompts
  */
 async function dbGenerate(): Promise<void>
 {
-    await runWithSpinner(
-        'Generating database migrations...',
-        'generate',
-        'Migrations generated successfully',
-        'Failed to generate migrations'
-    );
+    try
+    {
+        await runDrizzleCommand('generate');
+        console.log(chalk.green('\n✅ Migrations generated successfully'));
+    }
+    catch (error)
+    {
+        console.error(chalk.red('\n❌ Failed to generate migrations'));
+        console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
+        process.exit(1);
+    }
 }
 
 /**
