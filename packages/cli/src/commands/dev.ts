@@ -12,7 +12,7 @@ export const devCommand = new Command('dev')
     .option('-h, --host <host>', 'Server host', 'localhost')
     .option('--routes <path>', 'Routes directory path')
     .option('--server-only', 'Run only Hono server (skip Next.js)')
-    .option('--no-watch', 'Disable hot reload (watch mode)')
+    .option('--watch', 'Enable hot reload (watch mode)')
     .action(async (options) =>
     {
         // Increase max listeners to prevent warning in dev mode
@@ -123,7 +123,7 @@ await new Promise(() => {});
         // Run server only mode
         if (options.serverOnly || !hasNext)
         {
-            const watchMode = options.watch !== false;
+            const watchMode = options.watch === true;
             logger.info(`Starting SPFN Server on http://${options.host}:${options.port}${watchMode ? ' (watch mode)' : ''}\n`);
 
             let serverProcess: ExecaChildProcess | null = null;
@@ -258,7 +258,7 @@ await new Promise(() => {});
         }
 
         // Run both Next.js (via spfn:next script) + Hono server + Contract watcher
-        const watchMode = options.watch !== false;
+        const watchMode = options.watch === true;
         logger.info(`Starting SPFN server + Next.js (Turbopack)${watchMode ? ' (watch mode)' : ''}...\n`);
 
         let serverProcess: ExecaChildProcess | null = null;

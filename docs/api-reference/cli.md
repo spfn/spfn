@@ -11,7 +11,7 @@ Superfunction provides a powerful CLI for development, building, and database ma
 
 ## spfn dev
 
-Start development servers with hot reload for both Next.js and Hono server. Automatically runs codegen on contract changes.
+Start development servers for both Next.js and Hono server. Automatically runs codegen on contract changes. Use `--watch` flag to enable hot reload.
 
 ```bash
 # Start dev servers (Next.js + Hono)
@@ -26,8 +26,8 @@ spfn dev --port 8790 --host localhost
 # Custom routes directory
 spfn dev --routes src/server/routes
 
-# Disable hot reload
-spfn dev --no-watch
+# Enable hot reload (watch mode)
+spfn dev --watch
 ```
 
 ### Options
@@ -38,7 +38,7 @@ spfn dev --no-watch
 | `-p, --port` | Server port | 8790 |
 | `-h, --host` | Server host | localhost |
 | `--routes` | Routes directory path | src/server/routes |
-| `--no-watch` | Disable hot reload | false |
+| `--watch` | Enable hot reload (watch mode) | false |
 
 ## spfn build
 
