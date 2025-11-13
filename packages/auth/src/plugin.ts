@@ -7,9 +7,7 @@
 
 import type { ServerPlugin } from '@spfn/core/server';
 import { initializeAuth } from '@/server/services';
-import { logger } from '@spfn/core/logger';
-
-const authLogger = logger.child('auth-plugin');
+import { authLogger } from '@/server/logger';
 
 export const spfnPlugin: ServerPlugin = {
     name: '@spfn/auth',
@@ -20,16 +18,16 @@ export const spfnPlugin: ServerPlugin = {
      */
     afterInfrastructure: async () =>
     {
-        authLogger.info('Initializing authentication system...');
+        authLogger.plugin.info('Initializing authentication system...');
 
         try
         {
             await initializeAuth();
-            authLogger.info('Authentication system initialized successfully');
+            authLogger.plugin.info('Authentication system initialized successfully');
         }
         catch (error)
         {
-            authLogger.error('Failed to initialize authentication system', error as Error);
+            authLogger.plugin.error('Failed to initialize authentication system', error as Error);
             throw error;
         }
     },
@@ -68,7 +66,7 @@ export const spfnPlugin: ServerPlugin = {
      */
     afterStart: async () =>
     {
-        authLogger.info('@spfn/auth plugin started successfully', {
+        authLogger.plugin.info('@spfn/auth plugin started successfully', {
             routes: '/_auth/*',
             rbac: 'enabled',
         });

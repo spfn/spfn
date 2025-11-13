@@ -33,6 +33,7 @@ import {
 } from '@/server/errors';
 import { UnauthorizedError } from '@spfn/core/errors';
 import { eq, and } from 'drizzle-orm';
+import { authLogger } from '@/server/logger';
 
 // Auth context type
 export interface AuthContext
@@ -186,6 +187,19 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
         user,
         userId: String(user.id),
         keyId,
+    });
+
+    // Log API access
+    const method = c.req.method;
+    const path = c.req.path;
+    authLogger.middleware.info('API access', {
+        userId: user.id,
+        email: user.email,
+        keyId,
+        method,
+        path,
+        ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip'),
+        userAgent: c.req.header('user-agent'),
     });
 
     // Continue to route handler

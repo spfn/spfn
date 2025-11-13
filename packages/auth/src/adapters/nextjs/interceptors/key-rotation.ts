@@ -5,13 +5,11 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/client/nextjs';
-import { logger } from '@spfn/core/logger';
 import { generateKeyPair } from '@/lib/crypto';
 import { unsealSession, sealSession } from '@/lib/session';
 import { generateClientToken } from '@/lib/crypto';
 import { getSessionTtl, COOKIE_NAMES } from '@/lib/config';
-
-const authLogger = logger.child('auth:interceptor:key-rotation');
+import { authLogger } from '@/server/logger';
 
 /**
  * Key Rotation Interceptor
@@ -79,7 +77,7 @@ export const keyRotationInterceptor: InterceptorRule =
         catch (error)
         {
             const err = error as Error;
-            authLogger.error('Failed to prepare key rotation', err);
+            authLogger.interceptor.keyRotation.error('Failed to prepare key rotation', err);
         }
 
         await next();
@@ -96,7 +94,7 @@ export const keyRotationInterceptor: InterceptorRule =
 
         if (!ctx.metadata.newPrivateKey || !ctx.metadata.userId)
         {
-            authLogger.error('Missing key rotation metadata');
+            authLogger.interceptor.keyRotation.error('Missing key rotation metadata');
             await next();
             return;
         }
@@ -146,7 +144,7 @@ export const keyRotationInterceptor: InterceptorRule =
         catch (error)
         {
             const err = error as Error;
-            authLogger.error('Failed to update session after rotation', err);
+            authLogger.interceptor.keyRotation.error('Failed to update session after rotation', err);
         }
 
         await next();

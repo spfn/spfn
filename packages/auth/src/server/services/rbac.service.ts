@@ -5,7 +5,6 @@
  */
 
 import { getDatabase } from '@spfn/core/db';
-import { logger } from '@spfn/core/logger';
 import { roles, permissions, rolePermissions } from '@/server/entities';
 import {
     BUILTIN_ROLES,
@@ -15,8 +14,7 @@ import {
 import type { AuthInitOptions, RoleConfig, PermissionConfig } from '@/server/rbac';
 import { eq, and, inArray } from 'drizzle-orm';
 import { configureAuth } from '@/lib/config';
-
-const authLogger = logger.child('@spfn/auth');
+import { authLogger } from '@/server/logger';
 
 /**
  * Initialize auth package with RBAC system
@@ -56,7 +54,7 @@ export async function initializeAuth(options: AuthInitOptions = {}): Promise<voi
         throw new Error('[Auth] Database not initialized. Call initDatabase() first.');
     }
 
-    authLogger.info('🔐 Initializing RBAC system...');
+    authLogger.service.info('🔐 Initializing RBAC system...');
 
     // Configure global auth settings
     if (options.sessionTtl !== undefined)
@@ -64,7 +62,7 @@ export async function initializeAuth(options: AuthInitOptions = {}): Promise<voi
         configureAuth({
             sessionTtl: options.sessionTtl,
         });
-        authLogger.info(`⏱️  Session TTL: ${options.sessionTtl}`);
+        authLogger.service.info(`⏱️  Session TTL: ${options.sessionTtl}`);
     }
 
     // 1. Collect all roles (built-in + custom)
@@ -120,9 +118,9 @@ export async function initializeAuth(options: AuthInitOptions = {}): Promise<voi
         await assignPermissionsToRole(roleName, permNames);
     }
 
-    authLogger.info('✅ RBAC initialization complete');
-    authLogger.info(`📊 Roles: ${allRoles.length}, Permissions: ${allPermissions.length}`);
-    authLogger.info('🔒 Built-in roles: user, admin, superadmin');
+    authLogger.service.info('✅ RBAC initialization complete');
+    authLogger.service.info(`📊 Roles: ${allRoles.length}, Permissions: ${allPermissions.length}`);
+    authLogger.service.info('🔒 Built-in roles: user, admin, superadmin');
 }
 
 /**
@@ -150,7 +148,7 @@ async function upsertRole(config: RoleConfig): Promise<void>
             isBuiltin: config.isBuiltin ?? false,
         });
 
-        authLogger.info(`  ✅ Created role: ${config.name}`);
+        authLogger.service.info(`  ✅ Created role: ${config.name}`);
     }
     else
     {
@@ -198,7 +196,7 @@ async function upsertPermission(config: PermissionConfig): Promise<void>
             isBuiltin: config.isBuiltin ?? false,
         });
 
-        authLogger.info(`  ✅ Created permission: ${config.name}`);
+        authLogger.service.info(`  ✅ Created permission: ${config.name}`);
     }
     else
     {
@@ -230,7 +228,7 @@ async function assignPermissionsToRole(roleName: string, permissionNames: string
 
     if (!role)
     {
-        authLogger.warn(`  ⚠️  Role not found: ${roleName}, skipping permission assignment`);
+        authLogger.service.warn(`  ⚠️  Role not found: ${roleName}, skipping permission assignment`);
         return;
     }
 
@@ -242,7 +240,7 @@ async function assignPermissionsToRole(roleName: string, permissionNames: string
 
     if (perms.length === 0)
     {
-        authLogger.warn(`  ⚠️  No permissions found for role: ${roleName}`);
+        authLogger.service.warn(`  ⚠️  No permissions found for role: ${roleName}`);
         return;
     }
 

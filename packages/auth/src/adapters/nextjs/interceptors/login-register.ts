@@ -6,12 +6,10 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/client/nextjs';
-import { logger } from '@spfn/core/logger';
 import { generateKeyPair } from '@/lib/crypto';
 import { sealSession } from '@/lib/session';
 import { getSessionTtl, COOKIE_NAMES } from '@/lib/config';
-
-const authLogger = logger.child('auth:interceptor:login-register');
+import { authLogger } from '@/server/logger';
 
 /**
  * Login and Register Interceptor
@@ -78,7 +76,7 @@ export const loginRegisterInterceptor: InterceptorRule =
 
         if (!data?.userId)
         {
-            authLogger.error('No userId in response');
+            authLogger.interceptor.login.error('No userId in response');
             await next();
             return;
         }
@@ -128,7 +126,7 @@ export const loginRegisterInterceptor: InterceptorRule =
         catch (error)
         {
             const err = error as Error;
-            authLogger.error('Failed to save session', err);
+            authLogger.interceptor.login.error('Failed to save session', err);
         }
 
         await next();

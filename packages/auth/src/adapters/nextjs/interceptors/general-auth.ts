@@ -8,12 +8,10 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/client/nextjs';
-import { logger } from '@spfn/core/logger';
 import { unsealSession, sealSession, shouldRefreshSession } from '@/lib/session';
 import { generateClientToken } from '@/lib/crypto';
 import { getSessionTtl, COOKIE_NAMES } from '@/lib/config';
-
-const authLogger = logger.child('auth:interceptor:general');
+import { authLogger } from '@/server/logger';
 
 /**
  * Check if path requires authentication
@@ -51,14 +49,14 @@ export const generalAuthInterceptor: InterceptorRule =
         // Skip if path doesn't require auth
         if (!requiresAuth(ctx.path))
         {
-            authLogger.debug(`Public path, skipping auth: ${ctx.path}`);
+            authLogger.interceptor.general.debug(`Public path, skipping auth: ${ctx.path}`);
             await next();
             return;
         }
 
         // Log available cookies
         const cookieNames = Array.from(ctx.cookies.keys());
-        authLogger.debug('Available cookies:', {
+        authLogger.interceptor.general.debug('Available cookies:', {
             cookieNames,
             totalCount: cookieNames.length,
             lookingFor: COOKIE_NAMES.SESSION,
@@ -66,7 +64,7 @@ export const generalAuthInterceptor: InterceptorRule =
 
         const sessionCookie = ctx.cookies.get(COOKIE_NAMES.SESSION);
 
-        authLogger.debug('Request', {
+        authLogger.interceptor.general.debug('Request', {
             method: ctx.method,
             path: ctx.path,
             hasSession: !!sessionCookie,
@@ -76,7 +74,7 @@ export const generalAuthInterceptor: InterceptorRule =
         // No session cookie
         if (!sessionCookie)
         {
-            authLogger.debug('No session cookie, proceeding without auth');
+            authLogger.interceptor.general.debug('No session cookie, proceeding without auth');
             // Let request proceed - server will return 401
             await next();
             return;
@@ -87,7 +85,7 @@ export const generalAuthInterceptor: InterceptorRule =
             // Decrypt and validate session
             const session = await unsealSession(sessionCookie);
 
-            authLogger.debug('Session valid', {
+            authLogger.interceptor.general.debug('Session valid', {
                 userId: session.userId,
                 keyId: session.keyId,
             });
@@ -97,7 +95,7 @@ export const generalAuthInterceptor: InterceptorRule =
 
             if (needsRefresh)
             {
-                authLogger.debug('Session needs refresh (within 24h of expiry)');
+                authLogger.interceptor.general.debug('Session needs refresh (within 24h of expiry)');
                 // Mark for session renewal in response interceptor
                 ctx.metadata.refreshSession = true;
                 ctx.metadata.sessionData = session;
@@ -115,7 +113,7 @@ export const generalAuthInterceptor: InterceptorRule =
                 { expiresIn: '15m' }
             );
 
-            authLogger.debug('Generated JWT token (expires in 15m)');
+            authLogger.interceptor.general.debug('Generated JWT token (expires in 15m)');
 
             // Add authentication headers
             ctx.headers['Authorization'] = `Bearer ${token}`;
@@ -132,8 +130,8 @@ export const generalAuthInterceptor: InterceptorRule =
             // Session expired or invalid
             if (err.message.includes('expired') || err.message.includes('invalid'))
             {
-                authLogger.warn('Session expired or invalid', { message: err.message });
-                authLogger.debug('Marking session for cleanup');
+                authLogger.interceptor.general.warn('Session expired or invalid', { message: err.message });
+                authLogger.interceptor.general.debug('Marking session for cleanup');
 
                 // Mark for cleanup in response interceptor
                 ctx.metadata.clearSession = true;
@@ -141,7 +139,7 @@ export const generalAuthInterceptor: InterceptorRule =
             }
             else
             {
-                authLogger.error('Failed to process session', err);
+                authLogger.interceptor.general.error('Failed to process session', err);
             }
         }
 
@@ -208,12 +206,12 @@ export const generalAuthInterceptor: InterceptorRule =
                     },
                 });
 
-                authLogger.info('Session refreshed', { userId: sessionData.userId });
+                authLogger.interceptor.general.info('Session refreshed', { userId: sessionData.userId });
             }
             catch (error)
             {
                 const err = error as Error;
-                authLogger.error('Failed to refresh session', err);
+                authLogger.interceptor.general.error('Failed to refresh session', err);
             }
         }
         // Handle logout (clear session)
