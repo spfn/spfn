@@ -26,8 +26,7 @@ export class ConsoleTransport implements Transport
     public readonly name = 'console';
     public readonly level: LogLevel;
     public readonly enabled: boolean;
-
-    private colorize: boolean;
+    private readonly colorize: boolean;
 
     constructor(config: ConsoleTransportConfig)
     {

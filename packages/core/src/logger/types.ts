@@ -116,16 +116,6 @@ export interface ConsoleTransportConfig extends TransportConfig
 }
 
 /**
- * File Transport 설정
- */
-export interface FileTransportConfig extends TransportConfig
-{
-    logDir: string;
-    maxFileSize?: number;    // bytes
-    maxFiles?: number;       // 최대 로그 파일 개수
-}
-
-/**
  * Slack Transport 설정
  */
 export interface SlackTransportConfig extends TransportConfig

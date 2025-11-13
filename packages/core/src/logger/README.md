@@ -7,9 +7,9 @@ Universal logging module with Adapter pattern for swappable implementations.
 - ✅ **Adapter Pattern**: Switch between Pino and custom implementations
 - ✅ **Zero Dependencies** (Custom adapter): No required logging library
 - ✅ **High Performance** (Pino adapter): 5-10x faster than Winston
-- ✅ **Multiple Transports**: Console, File, Slack, Email support
+- ✅ **Browser Compatible**: Works in Next.js client/server components
+- ✅ **Console Transport**: Stdout/stderr logging for Docker/K8s
 - ✅ **Child Loggers**: Module-specific loggers with context
-- ✅ **File Rotation**: Date and size-based rotation with automatic cleanup
 - ✅ **Sensitive Data Masking**: Automatic masking of passwords, tokens, API keys
 - ✅ **Configuration Validation**: Startup validation with clear error messages
 - ✅ **Environment-Aware**: Different configs per environment
@@ -107,29 +107,27 @@ LOGGER_ADAPTER=pino
 [2025-10-21 15:39:06] [module=database] INFO: Request received userId=123
 ```
 
-### Production (Kubernetes)
+### Production (Docker/K8s)
 
 ```bash
 NODE_ENV=production
 LOGGER_ADAPTER=pino
 ```
 
-**Output:** JSON to stdout
+**Output:** JSON to stdout/stderr (Docker collects logs automatically)
 
 ```json
 {"level":30,"time":1759539501259,"module":"api","msg":"Request received","method":"POST","path":"/users"}
 ```
 
+**Docker Logging:** Logs written to stdout/stderr are automatically captured by Docker and can be:
+- Viewed with `docker logs <container>`
+- Forwarded to centralized logging systems (CloudWatch, Stackdriver, Loki)
+- Managed by Kubernetes logging infrastructure
+
 ### Production (Self-Hosted)
 
-```bash
-NODE_ENV=production
-LOGGER_ADAPTER=pino
-LOGGER_FILE_ENABLED=true
-LOG_DIR=/var/log/myapp
-```
-
-**Output:** JSON to both stdout and files with rotation
+For self-hosted environments, use external logging systems (Loki, ELK, etc.) to collect stdout/stderr instead of file-based logging.
 
 ---
 
@@ -189,15 +187,6 @@ LOGGER_ADAPTER=pino        # pino | custom (default: pino)
 LOG_LEVEL=info             # debug | info | warn | error | fatal
 ```
 
-### File Logging
-
-```bash
-LOGGER_FILE_ENABLED=true   # Enable file logging (default: false)
-LOG_DIR=/var/log/myapp     # Log directory (required when file logging enabled)
-LOG_MAX_FILE_SIZE=10M      # Max file size before rotation (default: 10MB)
-LOG_MAX_FILES=10           # Max number of log files to keep (default: 10)
-```
-
 ### External Services (Available)
 
 ```bash
@@ -223,28 +212,14 @@ SMTP_PASSWORD=password  # Optional
 
 - Always enabled
 - stdout (debug, info) / stderr (warn, error, fatal)
-- Colored in development, plain in production
-- Single-line format with pino-pretty
+- Colored in development, plain JSON in production
+- Single-line format with pino-pretty in development
+- **Docker/K8s Compatible**: Logs to stdout/stderr for container log collection
 
-### File Transport
-
-- Enabled in production with `LOGGER_FILE_ENABLED=true`
-- JSON format, one log entry per line
-- **Date-based rotation**: New file each day (YYYY-MM-DD.log)
-- **Size-based rotation**: Rotates when file exceeds maxFileSize
-- **Automatic cleanup**: Keeps only maxFiles most recent files
-- Async stream-based I/O for performance
-
-**Example file structure:**
-```
-/var/log/myapp/
-├── 2025-10-21.log         # Today (current)
-├── 2025-10-21.1.log       # Rotated (size limit)
-├── 2025-10-20.log         # Yesterday
-├── 2025-10-19.log
-...
-└── 2025-10-12.log         # Oldest (will be deleted when new day arrives)
-```
+**Recommended Logging Strategy:**
+- **Development**: Console with colors
+- **Docker/K8s**: Console (JSON) → Container logs → Centralized system (CloudWatch, Loki, etc.)
+- **Serverless**: Console (JSON) → Automatic capture by platform
 
 ### Slack Transport
 
@@ -401,18 +376,18 @@ logger.info('Login attempt', { username: 'john', password: userInput });
 ## Testing
 
 ```bash
-# Run all logger tests (153 tests)
-npm test -- src/logger
+# Run all logger tests (152 tests)
+npm test -- logger
 
 # Run specific test files
 npm test -- src/logger/__tests__/logger.test.ts
 npm test -- src/logger/__tests__/console-transport.test.ts
-npm test -- src/logger/__tests__/file-transport.test.ts
 npm test -- src/logger/__tests__/formatters.test.ts
 npm test -- src/logger/__tests__/config.test.ts
+npm test -- src/middleware/__tests__/request-logger.test.ts
 ```
 
-**Test Coverage (153 tests):**
+**Test Coverage (152 tests):**
 - ✅ Logger core (26 tests)
   - Basic logging (all levels)
   - Context logging
@@ -425,12 +400,6 @@ npm test -- src/logger/__tests__/config.test.ts
   - Log level filtering
   - Stream separation (stdout/stderr)
   - Colorization
-- ✅ File Transport (16 tests)
-  - Directory creation
-  - Async file writing
-  - Date-based rotation
-  - Size-based rotation
-  - JSON format validation
 - ✅ Formatters (45 tests)
   - Console formatting
   - JSON formatting
@@ -438,11 +407,15 @@ npm test -- src/logger/__tests__/config.test.ts
   - Email formatting
   - Timestamp formatting
   - Sensitive data masking (14 tests)
-- ✅ Configuration (50 tests)
+- ✅ Configuration (36 tests)
   - Environment detection
   - Transport configuration
-  - Configuration validation (16 tests)
+  - Configuration validation
   - External services setup
+- ✅ Request Logger Middleware (29 tests)
+  - HTTP request/response logging
+  - Error handling
+  - Context injection
 
 ---
 
@@ -457,25 +430,25 @@ npm test -- src/logger/__tests__/config.test.ts
 LOG_LEVEL=debug  # Show all logs
 ```
 
-### File logging not working
-
-**Cause:** Configuration validation failed
-
-**Solution:** Check error message at startup
-```bash
-LOGGER_FILE_ENABLED=true
-LOG_DIR=/var/log/myapp  # Ensure write permission
-```
-
 ### Configuration validation errors
 
 **Cause:** Missing or invalid environment variables
 
 **Solution:** Read the error message - it tells you exactly what's wrong
+
+### Docker/K8s Logging
+
+For containerized environments, logs are automatically captured from stdout/stderr:
+
 ```bash
-# Error will show: "LOG_DIR environment variable is required when LOGGER_FILE_ENABLED=true"
-# Solution: Set LOG_DIR
-LOG_DIR=/var/log/myapp
+# View container logs
+docker logs <container-id>
+
+# Follow logs in real-time
+docker logs -f <container-id>
+
+# Kubernetes logs
+kubectl logs <pod-name>
 ```
 
 ---

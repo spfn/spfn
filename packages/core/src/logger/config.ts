@@ -1,26 +1,15 @@
 /**
  * Logger Configuration
  *
- * Environment-based logger configuration with validation for console, file, Slack, and Email transports.
+ * Environment-based logger configuration with validation for console, Slack, and Email transports.
  */
 
-import { existsSync, accessSync, constants, mkdirSync, writeFileSync, unlinkSync } from 'fs';
-import { join } from 'path';
 import type {
     LogLevel,
     ConsoleTransportConfig,
-    FileTransportConfig,
     SlackTransportConfig,
     EmailTransportConfig,
 } from './types';
-
-/**
- * Check if file logging is enabled (for self-hosted)
- */
-export function isFileLoggingEnabled(): boolean
-{
-    return process.env.LOGGER_FILE_ENABLED === 'true';
-}
 
 /**
  * Get default log level by environment
@@ -63,22 +52,6 @@ export function getConsoleConfig(): ConsoleTransportConfig
         level: 'debug',
         enabled: true,
         colorize: !isProduction, // Dev: colored output, Production: plain text
-    };
-}
-
-/**
- * File Transport configuration
- */
-export function getFileConfig(): FileTransportConfig
-{
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    return {
-        level: 'info',
-        enabled: isProduction, // File logging in production only
-        logDir: process.env.LOG_DIR || './logs',
-        maxFileSize: 10 * 1024 * 1024, // 10MB
-        maxFiles: 10,
     };
 }
 
@@ -133,75 +106,6 @@ export function getEmailConfig(): EmailTransportConfig | null
         smtpUser: process.env.SMTP_USER,
         smtpPassword: process.env.SMTP_PASSWORD,
     };
-}
-
-/**
- * Validate directory path and write permissions
- */
-function validateDirectoryWritable(dirPath: string): void
-{
-    // Check if directory exists
-    if (!existsSync(dirPath))
-    {
-        // Try to create directory
-        try
-        {
-            mkdirSync(dirPath, { recursive: true });
-        }
-        catch (error)
-        {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            throw new Error(`Failed to create log directory "${dirPath}": ${errorMessage}`);
-        }
-    }
-
-    // Check write permission
-    try
-    {
-        accessSync(dirPath, constants.W_OK);
-    }
-    catch
-    {
-        throw new Error(`Log directory "${dirPath}" is not writable. Please check permissions.`);
-    }
-
-    // Try to write a test file
-    const testFile = join(dirPath, '.logger-write-test');
-    try
-    {
-        writeFileSync(testFile, 'test', 'utf-8');
-        unlinkSync(testFile);
-    }
-    catch (error)
-    {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(`Cannot write to log directory "${dirPath}": ${errorMessage}`);
-    }
-}
-
-/**
- * Validate file transport configuration
- */
-function validateFileConfig(): void
-{
-    if (!isFileLoggingEnabled())
-    {
-        return; // File logging disabled, skip validation
-    }
-
-    const logDir = process.env.LOG_DIR;
-
-    // Check if LOG_DIR is set
-    if (!logDir)
-    {
-        throw new Error(
-            'LOG_DIR environment variable is required when LOGGER_FILE_ENABLED=true. ' +
-            'Example: LOG_DIR=/var/log/myapp'
-        );
-    }
-
-    // Validate directory
-    validateDirectoryWritable(logDir);
 }
 
 /**
@@ -311,7 +215,6 @@ export function validateConfig(): void
     try
     {
         validateEnvironment();
-        validateFileConfig();
         validateSlackConfig();
         validateEmailConfig();
     }

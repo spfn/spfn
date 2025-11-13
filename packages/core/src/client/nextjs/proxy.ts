@@ -39,11 +39,10 @@ import {
     executeResponseInterceptors,
 } from './interceptor';
 import { interceptorRegistry } from './registry';
+import { logger } from '../../logger';
 
-// Simple debug logger for development
-const isDev = process.env.NODE_ENV === 'development';
-const debug = isDev ? (...args: any[]) => console.log('[nextjs-proxy]', ...args) : () => {};
-const logError = (...args: any[]) => console.error('[nextjs-proxy]', ...args);
+// Logger for Next.js proxy
+const proxyLogger = logger.child('@spfn/core:nextjs-proxy');
 
 /**
  * Get SPFN API URL from environment or config
@@ -146,44 +145,52 @@ async function handleProxy(
 
         // Execute request interceptors
         const rules = config?.interceptors || [];
-        debug(`Handling ${method} ${path}`);
-        debug(`Total available interceptor rules: ${rules.length}`);
+        proxyLogger.debug('Handling request', { method, path });
+        proxyLogger.debug('Total available interceptor rules', { count: rules.length });
 
         // Log all available rules
-        rules.forEach((rule, index) => {
-            debug(`Rule ${index}:`, {
-                pathPattern: rule.pathPattern?.toString(),
-                method: rule.method,
+        if (rules.length > 0)
+        {
+            rules.forEach((rule, index) => {
+                proxyLogger.debug('Rule configuration', {
+                    index,
+                    pathPattern: rule.pathPattern?.toString(),
+                    method: rule.method,
+                });
             });
-        });
+        }
 
         const matchedRules = filterMatchingInterceptors(rules, path, method);
-        debug(`Matched ${matchedRules.length} interceptor rules for this request`);
+        proxyLogger.debug('Matched interceptor rules', { count: matchedRules.length });
 
         // Log matched rules
-        matchedRules.forEach((rule, index) => {
-            debug(`Matched Rule ${index}:`, {
-                pathPattern: rule.pathPattern?.toString(),
-                method: rule.method,
-                hasRequestInterceptor: !!rule.request,
-                hasResponseInterceptor: !!rule.response,
+        if (matchedRules.length > 0)
+        {
+            matchedRules.forEach((rule, index) => {
+                proxyLogger.debug('Matched rule details', {
+                    index,
+                    pathPattern: rule.pathPattern?.toString(),
+                    method: rule.method,
+                    hasRequestInterceptor: !!rule.request,
+                    hasResponseInterceptor: !!rule.response,
+                });
             });
-        });
+        }
 
         const requestInterceptors = matchedRules
             .map((rule) => rule.request)
             .filter((interceptor): interceptor is NonNullable<typeof interceptor> => !!interceptor);
 
-        debug(`Executing ${requestInterceptors.length} request interceptors`);
-        debug('Headers before interceptors:', requestContext.headers);
+        proxyLogger.debug('Executing request interceptors', { count: requestInterceptors.length });
+        proxyLogger.debug('Headers before interceptors', { headers: requestContext.headers });
 
         await executeRequestInterceptors(requestContext, requestInterceptors);
 
-        debug('Headers after interceptors:', requestContext.headers);
+        proxyLogger.debug('Headers after interceptors', { headers: requestContext.headers });
 
         // Build SPFN API URL
         const apiUrl = getApiUrl(config);
-        debug(`API base URL: ${apiUrl}`);
+        proxyLogger.debug('API base URL', { apiUrl });
 
         const queryString = Object.entries(query)
             .flatMap(([key, value]) =>
@@ -192,7 +199,7 @@ async function handleProxy(
             .join('&');
         const url = `${apiUrl}${path}${queryString ? `?${queryString}` : ''}`;
 
-        debug(`Full URL to fetch: ${url}`);
+        proxyLogger.debug('Full URL to fetch', { url });
 
         // Build fetch options
         const init: RequestInit = {
@@ -221,11 +228,11 @@ async function handleProxy(
 
         if (config?.debug)
         {
-            debug(`Calling ${url}`, { headers: requestContext.headers });
+            proxyLogger.debug('Calling API', { url, headers: requestContext.headers });
         }
 
         // Log fetch details before calling
-        debug('Fetch details:', {
+        proxyLogger.debug('Fetch details', {
             url,
             method: init.method,
             headers: init.headers,
@@ -274,10 +281,7 @@ async function handleProxy(
             .map((rule) => rule.response)
             .filter((interceptor): interceptor is NonNullable<typeof interceptor> => !!interceptor);
 
-        if (config?.debug)
-        {
-            debug(`Response interceptors: ${responseInterceptors.length}`);
-        }
+        proxyLogger.debug('Response interceptors', { count: responseInterceptors.length });
 
         await executeResponseInterceptors(responseContext, responseInterceptors);
 
@@ -327,30 +331,23 @@ async function handleProxy(
             nextResponse.headers.append('Set-Cookie', setCookieHeaders);
         }
 
-        if (config?.debug)
-        {
-            debug(`Response: ${responseContext.response.status}`);
-        }
+        proxyLogger.debug('Response completed', { status: responseContext.response.status });
 
         return nextResponse;
     }
     catch (error)
     {
         // Extract detailed error information
-        const errorDetails: any = {
-            message: error instanceof Error ? error.message : 'Unknown error',
+        const errorContext: Record<string, unknown> = {
             type: error?.constructor?.name || 'Unknown',
         };
 
         if (error instanceof Error)
         {
-            // Log error stack
-            errorDetails.stack = error.stack;
-
             // Log error cause if available (useful for fetch errors)
             if ((error as any).cause)
             {
-                errorDetails.cause = {
+                errorContext.cause = {
                     message: (error as any).cause.message,
                     code: (error as any).cause.code,
                     errno: (error as any).cause.errno,
@@ -366,8 +363,8 @@ async function handleProxy(
                 try
                 {
                     const apiUrl = getApiUrl(config);
-                    errorDetails.attemptedUrl = apiUrl;
-                    errorDetails.envVars = {
+                    errorContext.attemptedUrl = apiUrl;
+                    errorContext.envVars = {
                         SERVER_API_URL: process.env.SERVER_API_URL,
                         SPFN_API_URL: process.env.SPFN_API_URL,
                     };
@@ -378,11 +375,11 @@ async function handleProxy(
                 }
             }
 
-            logError('Proxy error details:', errorDetails);
+            proxyLogger.error('Proxy error', error, errorContext);
         }
         else
         {
-            logError('Proxy error (non-Error type):', { error, errorDetails });
+            proxyLogger.error('Proxy error (non-Error type)', errorContext);
         }
 
         return NextResponse.json(
@@ -448,7 +445,7 @@ export function createProxy(config?: ProxyConfig)
 
     let allInterceptors: InterceptorRule[] = [];
 
-    debug('Creating proxy with config', {
+    proxyLogger.debug('Creating proxy with config', {
         autoDiscoverInterceptors: finalConfig.autoDiscoverInterceptors,
         customInterceptors: finalConfig.interceptors?.length || 0,
         disableAutoInterceptors: finalConfig.disableAutoInterceptors || [],
@@ -458,14 +455,14 @@ export function createProxy(config?: ProxyConfig)
     if (finalConfig.autoDiscoverInterceptors)
     {
         const registeredPackages = interceptorRegistry.getPackageNames();
-        debug('Registered packages in registry', { packages: registeredPackages });
+        proxyLogger.debug('Registered packages in registry', { packages: registeredPackages });
 
         const autoInterceptors = interceptorRegistry.getAll(
             finalConfig.disableAutoInterceptors || []
         );
         allInterceptors.push(...autoInterceptors);
 
-        debug('Auto-discovered interceptors from packages', {
+        proxyLogger.debug('Auto-discovered interceptors from packages', {
             packages: registeredPackages,
             count: autoInterceptors.length
         });
@@ -475,7 +472,7 @@ export function createProxy(config?: ProxyConfig)
     if (finalConfig.interceptors)
     {
         allInterceptors.push(...finalConfig.interceptors);
-        debug(`Custom interceptors: ${finalConfig.interceptors.length}`);
+        proxyLogger.debug('Custom interceptors added', { count: finalConfig.interceptors.length });
     }
 
     // Create final config with merged interceptors
@@ -484,7 +481,7 @@ export function createProxy(config?: ProxyConfig)
         interceptors: allInterceptors,
     };
 
-    debug(`Total interceptors loaded: ${allInterceptors.length}`);
+    proxyLogger.debug('Total interceptors loaded', { count: allInterceptors.length });
 
     return {
         GET: async (
@@ -532,7 +529,7 @@ function getDefaultProxy(): ReturnType<typeof createProxy>
 {
     if (!defaultProxy)
     {
-        debug('Initializing default proxy with auto-discovery');
+        proxyLogger.debug('Initializing default proxy with auto-discovery');
         defaultProxy = createProxy();
     }
     return defaultProxy;

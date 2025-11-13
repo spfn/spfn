@@ -6,8 +6,7 @@
 
 import { Logger } from './logger';
 import { ConsoleTransport } from './transports/console';
-import { FileTransport } from './transports/file';
-import { getDefaultLogLevel, getConsoleConfig, getFileConfig, validateConfig } from './config';
+import { getDefaultLogLevel, getConsoleConfig, validateConfig } from './config';
 import type { Transport } from './types';
 
 /**
@@ -20,13 +19,6 @@ function initializeTransports(): Transport[]
     // Console Transport (always enabled)
     const consoleConfig = getConsoleConfig();
     transports.push(new ConsoleTransport(consoleConfig));
-
-    // File Transport (enabled in production or via config)
-    const fileConfig = getFileConfig();
-    if (fileConfig.enabled)
-    {
-        transports.push(new FileTransport(fileConfig));
-    }
 
     // Future: Add more transports (Slack, Email, etc.)
     // if (config.slack?.enabled) {

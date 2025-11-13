@@ -3,13 +3,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, rmSync, existsSync } from 'fs';
-import { join } from 'path';
 import {
-    isFileLoggingEnabled,
     getDefaultLogLevel,
     getConsoleConfig,
-    getFileConfig,
     getSlackConfig,
     getEmailConfig,
     validateConfig,
@@ -29,30 +25,6 @@ describe('Logger Configuration', () =>
     {
         // Restore original environment
         process.env = originalEnv;
-    });
-
-    describe('isFileLoggingEnabled', () =>
-    {
-        it('should return true when LOGGER_FILE_ENABLED is "true"', () =>
-        {
-            process.env.LOGGER_FILE_ENABLED = 'true';
-
-            expect(isFileLoggingEnabled()).toBe(true);
-        });
-
-        it('should return false when LOGGER_FILE_ENABLED is not "true"', () =>
-        {
-            process.env.LOGGER_FILE_ENABLED = 'false';
-
-            expect(isFileLoggingEnabled()).toBe(false);
-        });
-
-        it('should return false when LOGGER_FILE_ENABLED is undefined', () =>
-        {
-            delete process.env.LOGGER_FILE_ENABLED;
-
-            expect(isFileLoggingEnabled()).toBe(false);
-        });
     });
 
     describe('getDefaultLogLevel', () =>
@@ -118,66 +90,6 @@ describe('Logger Configuration', () =>
             const config = getConsoleConfig();
 
             expect(config.level).toBe('debug');
-        });
-    });
-
-    describe('getFileConfig', () =>
-    {
-        it('should be enabled in production', () =>
-        {
-            process.env.NODE_ENV = 'production';
-
-            const config = getFileConfig();
-
-            expect(config.enabled).toBe(true);
-        });
-
-        it('should be disabled in development', () =>
-        {
-            process.env.NODE_ENV = 'development';
-
-            const config = getFileConfig();
-
-            expect(config.enabled).toBe(false);
-        });
-
-        it('should use info level', () =>
-        {
-            const config = getFileConfig();
-
-            expect(config.level).toBe('info');
-        });
-
-        it('should use default log directory', () =>
-        {
-            delete process.env.LOG_DIR;
-
-            const config = getFileConfig();
-
-            expect(config.logDir).toBe('./logs');
-        });
-
-        it('should use custom log directory from environment', () =>
-        {
-            process.env.LOG_DIR = '/var/log/app';
-
-            const config = getFileConfig();
-
-            expect(config.logDir).toBe('/var/log/app');
-        });
-
-        it('should have default maxFileSize of 10MB', () =>
-        {
-            const config = getFileConfig();
-
-            expect(config.maxFileSize).toBe(10 * 1024 * 1024);
-        });
-
-        it('should have default maxFiles of 10', () =>
-        {
-            const config = getFileConfig();
-
-            expect(config.maxFiles).toBe(10);
         });
     });
 
@@ -401,48 +313,11 @@ describe('Logger Configuration', () =>
 
     describe('validateConfig', () =>
     {
-        const testLogDir = join(process.cwd(), 'test-logs');
-
-        afterEach(() =>
-        {
-            // Cleanup test directory
-            if (existsSync(testLogDir))
-            {
-                rmSync(testLogDir, { recursive: true, force: true });
-            }
-        });
-
         it('should pass validation with default config', () =>
         {
             process.env.NODE_ENV = 'development';
-            delete process.env.LOGGER_FILE_ENABLED;
 
             expect(() => validateConfig()).not.toThrow();
-        });
-
-        it('should fail when file logging is enabled but LOG_DIR is not set', () =>
-        {
-            process.env.LOGGER_FILE_ENABLED = 'true';
-            delete process.env.LOG_DIR;
-
-            expect(() => validateConfig()).toThrow(/LOG_DIR environment variable is required/);
-        });
-
-        it('should create log directory if it does not exist', () =>
-        {
-            process.env.LOGGER_FILE_ENABLED = 'true';
-            process.env.LOG_DIR = testLogDir;
-
-            expect(() => validateConfig()).not.toThrow();
-            expect(existsSync(testLogDir)).toBe(true);
-        });
-
-        it('should fail when log directory is not writable', () =>
-        {
-            process.env.LOGGER_FILE_ENABLED = 'true';
-            process.env.LOG_DIR = '/root/test-logs'; // Typically not writable
-
-            expect(() => validateConfig()).toThrow();
         });
 
         it('should fail when Slack webhook URL is invalid', () =>
@@ -546,14 +421,6 @@ describe('Logger Configuration', () =>
             expect(nodeEnvWarnings[0]).toContain('Warning: NODE_ENV is not set');
 
             stderrSpy.mockRestore();
-        });
-
-        it('should wrap errors with logger prefix', () =>
-        {
-            process.env.LOGGER_FILE_ENABLED = 'true';
-            delete process.env.LOG_DIR;
-
-            expect(() => validateConfig()).toThrow(/\[Logger\] Configuration validation failed/);
         });
     });
 });
