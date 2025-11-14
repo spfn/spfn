@@ -88,7 +88,7 @@ export interface LoadResult
 /**
  * Options for getting environment variables
  */
-export interface GetEnvOptions
+export interface GetEnvOptions<T = string>
 {
     /**
      * Throw error if variable not found
@@ -100,18 +100,27 @@ export interface GetEnvOptions
      * Default value if variable not found
      * Only used if required is false
      */
-    default?: string;
+    default?: T;
 
     /**
-     * Custom validation function
-     * Return true if valid, false if invalid
+     * Custom validation and transformation function
+     *
+     * Should return the transformed value on success.
+     * Should throw an error with a descriptive message on failure.
+     *
+     * @example
+     * ```typescript
+     * // Parse and validate integer
+     * validator: (val) => {
+     *   const parsed = parseInt(val, 10);
+     *   if (Number.isNaN(parsed)) {
+     *     throw new Error('Must be a valid integer');
+     *   }
+     *   return parsed;
+     * }
+     * ```
      */
-    validator?: (value: string) => boolean;
-
-    /**
-     * Custom error message for validation failure
-     */
-    validationError?: string;
+    validator?: (value: string) => T;
 }
 
 /**

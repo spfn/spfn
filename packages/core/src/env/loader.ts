@@ -15,7 +15,7 @@ import type {
 } from './config';
 import { ENV_FILE_PRIORITY, TEST_ONLY_FILES } from './config';
 
-const envLogger = logger.child('environment');
+const envLogger = logger.child('@spfn/core:environment');
 
 /**
  * Singleton state
@@ -351,36 +351,51 @@ export function loadEnvironment(options: LoadEnvironmentOptions = {}): LoadResul
 /**
  * Get an environment variable with optional validation
  *
+ * Type-safe overloads ensure proper return types:
+ * - `required: true` → Always returns T (never undefined)
+ * - `default` provided → Always returns T (never undefined)
+ * - Neither → Returns T | undefined
+ *
  * @param key - Environment variable name
  * @param options - Get options (default, required, validator)
- * @returns Variable value or undefined
+ * @returns Variable value or undefined (based on options)
  * @throws Error if required and not found, or validation fails
  *
  * @example
  * ```typescript
- * // Simple get
- * const dbUrl = getEnvVar('DATABASE_URL');
+ * // Optional - may be undefined
+ * const dbUrl = getEnvVar('DATABASE_URL');  // string | undefined
  *
- * // With default
- * const port = getEnvVar('PORT', { default: '3000' });
+ * // With default - never undefined
+ * const port = getEnvVar('PORT', { default: 3000 });  // number
  *
- * // Required
- * const apiKey = getEnvVar('API_KEY', { required: true });
+ * // Required - never undefined
+ * const apiKey = getEnvVar('API_KEY', { required: true });  // string
  *
- * // With validation
- * const url = getEnvVar('API_URL', {
- *   validator: (val) => val.startsWith('https://'),
- *   validationError: 'API_URL must use HTTPS',
- * });
+ * // With validation and transformation
+ * const timeout = getEnvVar('TIMEOUT', {
+ *   default: 5000,
+ *   validator: (val) => {
+ *     const n = parseInt(val, 10);
+ *     if (Number.isNaN(n)) throw new Error('Must be a number');
+ *     return n;
+ *   }
+ * });  // number
  * ```
  */
-export function getEnvVar(key: string, options: GetEnvOptions = {}): string | undefined
+// Overload: required = true → T (never undefined)
+export function getEnvVar<T = string>(key: string, options: GetEnvOptions<T> & { required: true }): T;
+// Overload: default provided → T (never undefined)
+export function getEnvVar<T>(key: string, options: GetEnvOptions<T> & { default: T }): T;
+// Overload: neither required nor default → T | undefined
+export function getEnvVar<T = string>(key: string, options?: GetEnvOptions<T>): T | undefined;
+// Implementation
+export function getEnvVar<T = string>(key: string, options: GetEnvOptions<T> = {}): T | undefined
 {
     const {
         required = false,
         default: defaultValue,
         validator,
-        validationError,
     } = options;
 
     const value = process.env[key];
@@ -392,17 +407,26 @@ export function getEnvVar(key: string, options: GetEnvOptions = {}): string | un
         {
             throw new Error(`Required environment variable not found: ${key}`);
         }
+
         return defaultValue;
     }
 
-    // Validate if validator provided
-    if (validator && !validator(value))
+    // Validate and transform if validator provided
+    if (validator)
     {
-        const message = validationError || `Invalid value for environment variable: ${key}`;
-        throw new Error(message);
+        try
+        {
+            return validator(value);
+        }
+        catch (error)
+        {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(`Invalid value for environment variable ${key}: ${message}`);
+        }
     }
 
-    return value;
+    // No validator - return as-is (cast to T, assuming T is string)
+    return value as unknown as T;
 }
 
 /**
@@ -419,7 +443,7 @@ export function getEnvVar(key: string, options: GetEnvOptions = {}): string | un
  */
 export function requireEnvVar(key: string): string
 {
-    return getEnvVar(key, { required: true })!;
+    return getEnvVar(key, { required: true });
 }
 
 /**
