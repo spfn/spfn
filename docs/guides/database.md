@@ -326,7 +326,122 @@ export default app;
 > - Error → Automatic rollback when handler throws
 > - AsyncLocalStorage propagates transaction context automatically
 
-### Error Handling in Transactions
+
+### Using runInTransaction for Scripts and CLI
+
+For standalone scripts, migrations, or CLI commands outside of Hono routes, use `runInTransaction`:
+
+```typescript
+// src/scripts/migrate-users.ts
+import { runInTransaction } from '@spfn/core/db';
+import { users, profiles } from '@/server/entities';
+
+// Simple usage
+await runInTransaction(async (tx) => {
+  // All operations use the same transaction
+  const user = await tx.insert(users).values({
+    email: 'user@example.com',
+    name: 'John Doe'
+  }).returning();
+
+  await tx.insert(profiles).values({
+    userId: user[0].id,
+    bio: 'Sample bio'
+  });
+
+  // Auto-commits on success, auto-rolls back on error
+});
+```
+
+#### With Options
+
+```typescript
+import { runInTransaction } from '@spfn/core/db';
+
+// Custom timeout and logging
+await runInTransaction(
+  async (tx) => {
+    // Long-running migration
+    await tx.execute(sql`/* complex migration */`);
+  },
+  {
+    timeout: 300000,        // 5 minutes (default: 30s)
+    slowThreshold: 10000,   // Warn if > 10s (default: 1s)
+    enableLogging: true,    // Transaction logging (default: true)
+    context: 'migration:users'  // For logging (default: 'transaction')
+  }
+);
+```
+
+#### Transaction Timeout
+
+`runInTransaction` uses PostgreSQL's `statement_timeout` for database-level timeout enforcement:
+
+```typescript
+// Timeout after 60 seconds - guaranteed rollback
+await runInTransaction(
+  async (tx) => {
+    // Complex operations...
+  },
+  { timeout: 60000 }
+);
+
+// Disable timeout for very long operations
+await runInTransaction(
+  async (tx) => {
+    // Data migration that may take hours...
+  },
+  { timeout: 0 }  // No timeout
+);
+```
+
+**Environment Variable:**
+```bash
+# Default timeout for all transactions (milliseconds)
+TRANSACTION_TIMEOUT=30000  # 30 seconds (default)
+```
+
+> **Why Database-Level Timeout?**
+>
+> Using PostgreSQL's `statement_timeout` ensures that if a transaction times out, it's actually rolled back at the database level, not just canceled on the Node.js side. This prevents data inconsistency from "phantom" transactions that continue running after the application thinks they've timed out.
+
+#### Return Values
+
+```typescript
+// Return data from transaction
+const user = await runInTransaction(async (tx) => {
+  const [newUser] = await tx.insert(users)
+    .values({ email: 'test@example.com' })
+    .returning();
+  
+  return newUser;  // Returned to caller
+});
+
+console.log(user.id);  // ✅ Type-safe
+```
+
+#### Error Handling
+
+```typescript
+import { runInTransaction } from '@spfn/core/db';
+import { fromPostgresError } from '@spfn/core/db';
+
+try {
+  await runInTransaction(async (tx) => {
+    // Operations...
+  });
+} catch (error) {
+  // Errors are propagated as-is (not auto-converted)
+  // Convert PostgreSQL errors manually if needed
+  const customError = fromPostgresError(error);
+  console.error('Transaction failed:', customError);
+}
+```
+
+> **Note:** Unlike the `Transactional` middleware, `runInTransaction` does **not** automatically convert PostgreSQL errors to custom errors. You're responsible for error handling and conversion.
+
+
+
 
 ```typescript
 app.bind(
