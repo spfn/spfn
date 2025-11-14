@@ -7,7 +7,7 @@ import { startCommand } from './commands/start.js';
 import { codegenCommand } from './commands/codegen.js';
 import { keyCommand } from './commands/key.js';
 import { setupCommand } from './commands/setup.js';
-import { dbCommand } from './commands/db.js';
+import { dbCommand } from './commands/db/index.js';
 import { addCommand } from './commands/add.js';
 import { generateCommand } from './commands/generate.js';
 
