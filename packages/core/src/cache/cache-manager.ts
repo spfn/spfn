@@ -11,7 +11,7 @@ import type { Redis, Cluster } from 'ioredis';
 import { createCacheFromEnv } from './cache-factory';
 import { logger } from '../logger';
 
-const cacheLogger = logger.child('cache');
+const cacheLogger = logger.child('@spfn/core:cache');
 
 let writeInstance: Redis | Cluster | undefined;
 let readInstance: Redis | Cluster | undefined;

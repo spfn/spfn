@@ -10,7 +10,7 @@ import { loadEnvironment } from '../../env';
 import { createDatabaseConnection } from './connection';
 import { getPoolConfig, getRetryConfig, type DatabaseOptions, type DatabaseClients, type PoolConfig, type RetryConfig } from './config';
 
-const dbLogger = logger.child('database');
+const dbLogger = logger.child('@spfn/core:database');
 
 // ============================================================================
 // Types

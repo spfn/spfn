@@ -63,6 +63,13 @@ This document lists all environment variables used in the SPFN framework.
 - **Description**: Output directory for Drizzle migrations
 - **Location**: `packages/core/src/db/drizzle.config.ts`
 
+### `TRANSACTION_TIMEOUT`
+- **Type**: `number` (milliseconds)
+- **Required**: No
+- **Default**: `30000` (30 seconds)
+- **Description**: Transaction timeout for database operations
+- **Location**: `packages/core/src/db/transaction/runner.ts`
+
 ---
 
 ## Cache/Redis Configuration

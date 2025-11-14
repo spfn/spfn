@@ -8,7 +8,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { logger } from '../logger';
 import type { ErrorResponse } from '../route/types';
 
-const errorLogger = logger.child('error-handler');
+const errorLogger = logger.child('@spfn/core:error-handler');
 
 export interface ErrorHandlerOptions
 {

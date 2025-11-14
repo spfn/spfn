@@ -9,7 +9,7 @@
 import type { Redis, Cluster, RedisOptions, ClusterOptions } from 'ioredis';
 import { logger } from '../logger';
 
-const cacheLogger = logger.child('cache');
+const cacheLogger = logger.child('@spfn/core:cache');
 
 export interface CacheClients {
     /** Primary cache for writes (or both read/write if no replica) */

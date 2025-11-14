@@ -10,7 +10,7 @@ import mm from 'micromatch';
 import type { Generator, GeneratorOptions, GeneratorTrigger } from './generator';
 import { logger } from '../../logger';
 
-const orchestratorLogger = logger.child('orchestrator');
+const orchestratorLogger = logger.child('@spfn/core:orchestrator');
 
 export interface OrchestratorOptions
 {

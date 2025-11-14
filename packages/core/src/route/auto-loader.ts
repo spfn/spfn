@@ -5,7 +5,7 @@ import type { MiddlewareHandler } from 'hono';
 import { logger } from '../logger';
 import { discoverFunctionRoutes } from './function-routes';
 
-const routeLogger = logger.child('route');
+const routeLogger = logger.child('@spfn/core:route');
 
 /**
  * AutoRouteLoader: Simplified File-based Routing System

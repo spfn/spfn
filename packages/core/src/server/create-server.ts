@@ -26,7 +26,7 @@ declare module 'hono'
     }
 }
 
-const serverLogger = logger.child('server');
+const serverLogger = logger.child('@spfn/core:server');
 
 /**
  * Create Hono app with automatic configuration

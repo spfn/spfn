@@ -24,7 +24,7 @@ import {
 } from './global-state';
 import { startHealthCheck, stopHealthCheck } from './health-check';
 
-const dbLogger = logger.child('database');
+const dbLogger = logger.child('@spfn/core:database');
 
 /**
  * DB connection type

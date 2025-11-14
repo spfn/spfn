@@ -8,10 +8,8 @@ import { Command } from 'commander';
 import ora from 'ora';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { logger } from '../utils/logger.js';
-import { detectPackageManager } from '../utils/package-manager.js';
 import {
     promptScope,
     promptFunctionName,

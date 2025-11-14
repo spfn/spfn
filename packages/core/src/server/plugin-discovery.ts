@@ -10,7 +10,7 @@ import { join, dirname } from 'path';
 import { logger } from '../logger';
 import type { ServerPlugin } from './types';
 
-const pluginLogger = logger.child('plugin');
+const pluginLogger = logger.child('@spfn/core:plugin');
 
 /**
  * Discover SPFN plugins from installed packages

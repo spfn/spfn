@@ -26,7 +26,7 @@ import {
 
 import type { ServerConfig, ServerInstance, ServerPlugin } from './types';
 
-const serverLogger = logger.child('server');
+const serverLogger = logger.child('@spfn/core:server');
 
 /**
  * Start SPFN server

@@ -81,7 +81,7 @@ export function maskSensitiveData(
 export function RequestLogger(config?: RequestLoggerConfig)
 {
     const cfg = { ...DEFAULT_CONFIG, ...config };
-    const apiLogger = logger.child('api');
+    const apiLogger = logger.child('@spfn/core:api');
 
     return async (c: Context, next: Next) =>
     {

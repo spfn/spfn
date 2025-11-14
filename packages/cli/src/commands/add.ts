@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander'
-import { existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { exec } from 'child_process'
 import { promisify } from 'util'

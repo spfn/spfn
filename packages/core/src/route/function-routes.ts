@@ -11,7 +11,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { logger } from '../logger';
 
-const routeLogger = logger.child('function-routes');
+const routeLogger = logger.child('@spfn/core:function-routes');
 
 export type FunctionRouteInfo = {
     packageName: string;

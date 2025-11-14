@@ -18,7 +18,7 @@ import { generateClient } from './emitter';
 import { logger } from '../../../logger';
 import type { RouteContractMapping, ClientGenerationOptions } from '../../core/types';
 
-const contractLogger = logger.child('contract-gen');
+const contractLogger = logger.child('@spfn/core:contract-gen');
 
 /** Default paths */
 const DEFAULT_CONTRACTS_DIR = 'src/lib/contracts';

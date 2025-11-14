@@ -6,7 +6,7 @@ import { ConnectionError } from '../../errors';
 import { fromPostgresError } from '../postgres-errors';
 import type { PoolConfig, RetryConfig } from './config';
 
-const dbLogger = logger.child('database');
+const dbLogger = logger.child('@spfn/core:database');
 
 /**
  * 지연 함수

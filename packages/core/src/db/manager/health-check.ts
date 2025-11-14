@@ -19,7 +19,7 @@ import {
     setReadClient,
 } from './global-state';
 
-const dbLogger = logger.child('database');
+const dbLogger = logger.child('@spfn/core:database');
 
 /**
  * Start database health check

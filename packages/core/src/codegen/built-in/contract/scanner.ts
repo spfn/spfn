@@ -11,7 +11,7 @@ import * as ts from 'typescript';
 import type { HttpMethod, RouteContractMapping } from '../../core/types';
 import { logger } from '../../../logger';
 
-const scannerLogger = logger.child('contract-scanner');
+const scannerLogger = logger.child('@spfn/core:contract-scanner');
 
 /**
  * Scan for contract files and extract contract exports
