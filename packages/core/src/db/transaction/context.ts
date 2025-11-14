@@ -20,7 +20,7 @@ import { logger } from '../../logger'; // Assuming logger is accessible
  */
 export type TransactionDB = PostgresJsDatabase<Record<string, unknown>>;
 
-const txLogger = logger.child('transaction');
+const txLogger = logger.child('@spfn/core:transaction');
 
 /**
  * Transaction context stored in AsyncLocalStorage

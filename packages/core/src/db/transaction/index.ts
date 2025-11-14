@@ -11,3 +11,7 @@ export type { TransactionContext, TransactionDB } from './context';
 // Transaction middleware
 export { Transactional } from './middleware';
 export type { TransactionalOptions } from './middleware';
+
+// Transaction runner for scripts and CLI
+export { runInTransaction } from './runner';
+export type { RunInTransactionOptions } from './runner';

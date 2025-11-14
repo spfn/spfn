@@ -14,13 +14,10 @@
  * - UUID-based transaction IDs for debugging
  * - PostgreSQL error conversion to custom errors
  */
-import { randomUUID } from 'crypto';
-import { logger } from '../../logger';
 import { createMiddleware } from 'hono/factory';
-import { getDatabase } from "../manager";
-import { runWithTransaction, type TransactionDB } from './context';
 import { TransactionError } from '../../errors';
 import { fromPostgresError } from '../postgres-errors';
+import { runInTransaction } from './runner';
 
 /**
  * Transaction middleware options
@@ -105,47 +102,15 @@ export interface TransactionalOptions
  */
 export function Transactional(options: TransactionalOptions = {})
 {
-    // Get default timeout from environment variable (default: 30 seconds)
-    const defaultTimeout = parseInt(process.env.TRANSACTION_TIMEOUT || '30000', 10);
-
-    const {
-        slowThreshold = 1000,
-        enableLogging = true,
-        timeout = defaultTimeout,
-    } = options;
-
-    const txLogger = logger.child('transaction');
-
     return createMiddleware(async (c, next) =>
     {
-        // Generate transaction ID for debugging (using crypto.randomUUID for better uniqueness)
-        const txId = `tx_${randomUUID()}`;
-        const startTime = Date.now();
         const route = `${c.req.method} ${c.req.path}`;
-
-        if (enableLogging)
-        {
-            txLogger.debug('Transaction started', { txId, route });
-        }
 
         try
         {
-            // Get write database instance
-            const writeDb = getDatabase('write');
-            if (!writeDb)
-            {
-                throw new TransactionError(
-                    'Database not initialized. Cannot start transaction.',
-                    500,
-                    { txId, route }
-                );
-            }
-
-            // Create transaction promise
-            const transactionPromise = writeDb.transaction(async (tx: TransactionDB) =>
-            {
-                // Store transaction in AsyncLocalStorage
-                await runWithTransaction(tx, txId, async () =>
+            // Run route handler within transaction
+            await runInTransaction(
+                async () =>
                 {
                     // Execute handler
                     await next();
@@ -159,88 +124,18 @@ export function Transactional(options: TransactionalOptions = {})
                         // Throw to rollback transaction
                         throw contextWithError.error;
                     }
-
-                    // Auto-commit on success (handled by Drizzle)
-                });
-            });
-
-            // Apply timeout if enabled (timeout > 0)
-            if (timeout > 0)
-            {
-                const timeoutPromise = new Promise<never>((_, reject) =>
+                },
                 {
-                    setTimeout(() =>
-                    {
-                        reject(
-                            new TransactionError(
-                                `Transaction timeout after ${timeout}ms`,
-                                500,
-                                {
-                                    txId,
-                                    route,
-                                    timeout: `${timeout}ms`,
-                                }
-                            )
-                        );
-                    }, timeout);
-                });
-
-                // Race between transaction and timeout
-                await Promise.race([transactionPromise, timeoutPromise]);
-            }
-            else
-            {
-                // No timeout - just await transaction
-                await transactionPromise;
-            }
-
-            // Transaction successful (committed)
-            const duration = Date.now() - startTime;
-
-            if (enableLogging)
-            {
-                if (duration >= slowThreshold)
-                {
-                    txLogger.warn('Slow transaction committed', {
-                        txId,
-                        route,
-                        duration: `${duration}ms`,
-                        threshold: `${slowThreshold}ms`,
-                    });
+                    context: route,
+                    ...options,
                 }
-                else
-                {
-                    txLogger.debug('Transaction committed', {
-                        txId,
-                        route,
-                        duration: `${duration}ms`,
-                    });
-                }
-            }
+            );
         }
         catch (error)
         {
-            // Transaction failed (rolled back)
-            const duration = Date.now() - startTime;
-
             // Convert PostgreSQL error to custom error (unless it's already TransactionError)
-            const customError = error instanceof TransactionError
-                ? error
-                : fromPostgresError(error);
-
-            if (enableLogging)
-            {
-                txLogger.error('Transaction rolled back', {
-                    txId,
-                    route,
-                    duration: `${duration}ms`,
-                    error: customError.message,
-                    errorType: customError.name,
-                });
-            }
-
             // Re-throw for Hono's error handler
-            throw customError;
+            throw error instanceof TransactionError ? error : fromPostgresError(error);
         }
     });
 }
