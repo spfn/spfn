@@ -38,12 +38,16 @@ declare global
 
 /**
  * Get write database instance from global state
+ *
+ * @internal - This is an internal API. Use getDatabase() from @spfn/core/db instead.
  */
 export const getWriteInstance = (): PostgresJsDatabase<Record<string, unknown>> | undefined =>
     globalThis.__SPFN_DB_WRITE__;
 
 /**
  * Set write database instance in global state
+ *
+ * @internal - This is an internal API used by the database manager.
  */
 export const setWriteInstance = (instance: PostgresJsDatabase<Record<string, unknown>> | undefined): void => {
     globalThis.__SPFN_DB_WRITE__ = instance;
@@ -51,12 +55,16 @@ export const setWriteInstance = (instance: PostgresJsDatabase<Record<string, unk
 
 /**
  * Get read database instance from global state
+ *
+ * @internal - This is an internal API. Use getDatabase() from @spfn/core/db instead.
  */
 export const getReadInstance = (): PostgresJsDatabase<Record<string, unknown>> | undefined =>
     globalThis.__SPFN_DB_READ__;
 
 /**
  * Set read database instance in global state
+ *
+ * @internal - This is an internal API used by the database manager.
  */
 export const setReadInstance = (instance: PostgresJsDatabase<Record<string, unknown>> | undefined): void => {
     globalThis.__SPFN_DB_READ__ = instance;
@@ -68,12 +76,16 @@ export const setReadInstance = (instance: PostgresJsDatabase<Record<string, unkn
 
 /**
  * Get write client from global state (for cleanup)
+ *
+ * @internal - This is an internal API used by the database manager.
  */
 export const getWriteClient = (): Sql | undefined =>
     globalThis.__SPFN_DB_WRITE_CLIENT__;
 
 /**
  * Set write client in global state
+ *
+ * @internal - This is an internal API used by the database manager.
  */
 export const setWriteClient = (client: Sql | undefined): void => {
     globalThis.__SPFN_DB_WRITE_CLIENT__ = client;
@@ -81,12 +93,16 @@ export const setWriteClient = (client: Sql | undefined): void => {
 
 /**
  * Get read client from global state (for cleanup)
+ *
+ * @internal - This is an internal API used by the database manager.
  */
 export const getReadClient = (): Sql | undefined =>
     globalThis.__SPFN_DB_READ_CLIENT__;
 
 /**
  * Set read client in global state
+ *
+ * @internal - This is an internal API used by the database manager.
  */
 export const setReadClient = (client: Sql | undefined): void => {
     globalThis.__SPFN_DB_READ_CLIENT__ = client;
@@ -98,12 +114,16 @@ export const setReadClient = (client: Sql | undefined): void => {
 
 /**
  * Get health check interval from global state
+ *
+ * @internal - This is an internal API used by the database manager.
  */
 export const getHealthCheckInterval = (): NodeJS.Timeout | undefined =>
     globalThis.__SPFN_DB_HEALTH_CHECK__;
 
 /**
  * Set health check interval in global state
+ *
+ * @internal - This is an internal API used by the database manager.
  */
 export const setHealthCheckInterval = (interval: NodeJS.Timeout | undefined): void => {
     globalThis.__SPFN_DB_HEALTH_CHECK__ = interval;
@@ -115,12 +135,16 @@ export const setHealthCheckInterval = (interval: NodeJS.Timeout | undefined): vo
 
 /**
  * Get monitoring configuration from global state
+ *
+ * @internal - This is an internal API used by the database manager.
  */
 export const getMonitoringConfig = (): MonitoringConfig | undefined =>
     globalThis.__SPFN_DB_MONITORING__;
 
 /**
  * Set monitoring configuration in global state
+ *
+ * @internal - This is an internal API used by the database manager.
  */
 export const setMonitoringConfig = (config: MonitoringConfig | undefined): void => {
     globalThis.__SPFN_DB_MONITORING__ = config;
