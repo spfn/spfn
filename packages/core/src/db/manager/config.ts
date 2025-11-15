@@ -1,19 +1,21 @@
 /**
  * Database Configuration
  *
- * DB 연결 및 Connection Pool 설정
+ * Database connection and connection pool configuration.
  *
- * ✅ 구현 완료:
- * - 환경별 Connection Pool 설정
- * - 재시도 설정 (Exponential Backoff)
- * - 환경변수 기반 설정
+ * Features:
+ * - Environment-specific connection pool configuration
+ * - Retry configuration with exponential backoff
+ * - Environment variable-based configuration
+ * - Health check and monitoring configuration
  *
- * 🔗 관련 파일:
- * - src/server/core/db/connection.ts (연결 로직)
- * - src/server/core/db/index.ts (메인 export)
+ * Related files:
+ * - src/server/core/db/connection.ts (connection logic)
+ * - src/server/core/db/index.ts (main exports)
  */
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { Sql } from "postgres";
+import { getEnvVar } from "../../env";
 
 export interface DatabaseClients
 {
@@ -74,23 +76,33 @@ export interface DatabaseOptions
 }
 
 /**
- * Connection Pool 설정
+ * Connection pool configuration
+ *
+ * Controls the maximum number of connections and idle timeout behavior.
  */
 export interface PoolConfig
 {
-    max: number;              // 최대 연결 수
-    idleTimeout: number;      // 유휴 연결 타임아웃 (초)
+    /** Maximum number of connections in the pool */
+    max: number;
+    /** Idle connection timeout in seconds */
+    idleTimeout: number;
 }
 
 /**
- * 재시도 설정
+ * Retry configuration for exponential backoff algorithm
+ *
+ * Controls retry behavior when connection attempts fail.
  */
 export interface RetryConfig
 {
-    maxRetries: number;       // 최대 재시도 횟수
-    initialDelay: number;     // 초기 대기 시간 (ms)
-    maxDelay: number;         // 최대 대기 시간 (ms)
-    factor: number;           // 지수 증가 배수
+    /** Maximum number of retry attempts */
+    maxRetries: number;
+    /** Initial delay between retries in milliseconds */
+    initialDelay: number;
+    /** Maximum delay cap in milliseconds */
+    maxDelay: number;
+    /** Exponential backoff factor (delay multiplier) */
+    factor: number;
 }
 
 // ============================================================================
@@ -99,6 +111,8 @@ export interface RetryConfig
 
 /**
  * Parse environment variable as number with production/development defaults
+ *
+ * Uses getEnvVar with validator for better error messages and validation.
  *
  * @param key - Environment variable name
  * @param prodDefault - Default value for production
@@ -118,16 +132,34 @@ function parseEnvNumber(
 ): number
 {
     const isProduction = process.env.NODE_ENV === 'production';
-    const envValue = parseInt(process.env[key] || '', 10);
+    const defaultValue = isProduction ? prodDefault : devDefault;
 
-    // If parsing fails (NaN), use environment-based default
-    return isNaN(envValue)
-        ? (isProduction ? prodDefault : devDefault)
-        : envValue;
+    return getEnvVar(key, {
+        default: defaultValue,
+        validator: (val) =>
+        {
+            const num = parseInt(val, 10);
+
+            if (isNaN(num))
+            {
+                throw new Error(`Must be a valid number (got: "${val}")`);
+            }
+
+            if (num < 0)
+            {
+                throw new Error(`Must be a non-negative number (got: ${num})`);
+            }
+
+            return num;
+        }
+    });
 }
 
 /**
- * Parse environment variable as boolean
+ * Parse environment variable as boolean with enhanced format support
+ *
+ * Uses getEnvVar with validator for better error messages.
+ * Supports multiple truthy/falsy formats: true/false, 1/0, yes/no, on/off.
  *
  * @param key - Environment variable name
  * @param defaultValue - Default value if not set
@@ -136,14 +168,28 @@ function parseEnvNumber(
  * @example
  * ```typescript
  * const enabled = parseEnvBoolean('DB_HEALTH_CHECK_ENABLED', true);
- * // Returns true if env var is 'true', false if 'false', or default
+ * // Accepts: 'true', '1', 'yes', 'on' → true
+ * // Accepts: 'false', '0', 'no', 'off' → false
  * ```
  */
 function parseEnvBoolean(key: string, defaultValue: boolean): boolean
 {
-    const value = process.env[key];
-    if (value === undefined) return defaultValue;
-    return value.toLowerCase() === 'true';
+    return getEnvVar(key, {
+        default: defaultValue,
+        validator: (val) =>
+        {
+            const truthyValues = ['true', '1', 'yes', 'on'];
+            const falsyValues = ['false', '0', 'no', 'off'];
+            const lowerVal = val.toLowerCase().trim();
+
+            if (truthyValues.includes(lowerVal)) return true;
+            if (falsyValues.includes(lowerVal)) return false;
+
+            throw new Error(
+                `Must be one of: ${[...truthyValues, ...falsyValues].join(', ')} (got: "${val}")`
+            );
+        }
+    });
 }
 
 // ============================================================================
@@ -151,12 +197,12 @@ function parseEnvBoolean(key: string, defaultValue: boolean): boolean
 // ============================================================================
 
 /**
- * 환경별 Connection Pool 설정
+ * Get connection pool configuration based on environment
  *
- * 우선순위:
- * 1. options 파라미터 (ServerConfig에서 전달)
- * 2. 환경변수 (DB_POOL_MAX, DB_POOL_IDLE_TIMEOUT)
- * 3. 기본값 (NODE_ENV에 따라)
+ * Configuration priority (highest to lowest):
+ * 1. options parameter (passed from ServerConfig)
+ * 2. Environment variables (DB_POOL_MAX, DB_POOL_IDLE_TIMEOUT)
+ * 3. Default values (based on NODE_ENV)
  *
  * @param options - Optional pool configuration from ServerConfig
  * @returns Pool configuration
@@ -184,9 +230,11 @@ export function getPoolConfig(options?: Partial<PoolConfig>): PoolConfig
 }
 
 /**
- * 환경별 재시도 설정
+ * Get retry configuration based on environment
  *
- * 우선순위: 환경변수 > 기본값 (NODE_ENV에 따라)
+ * Configuration priority (highest to lowest):
+ * 1. Environment variables (DB_RETRY_MAX, DB_RETRY_INITIAL_DELAY, etc.)
+ * 2. Default values (based on NODE_ENV)
  *
  * @returns Retry configuration
  *
@@ -215,7 +263,10 @@ export function getRetryConfig(): RetryConfig
 /**
  * Build health check configuration with priority resolution
  *
- * 우선순위: options > env > defaults
+ * Configuration priority (highest to lowest):
+ * 1. options parameter
+ * 2. Environment variables
+ * 3. Default values
  *
  * @param options - Optional health check configuration
  * @returns Health check configuration
@@ -253,7 +304,10 @@ export function buildHealthCheckConfig(options?: Partial<HealthCheckConfig>): He
 /**
  * Build monitoring configuration with priority resolution
  *
- * 우선순위: options > env > defaults
+ * Configuration priority (highest to lowest):
+ * 1. options parameter
+ * 2. Environment variables
+ * 3. Default values
  *
  * @param options - Optional monitoring configuration
  * @returns Monitoring configuration
