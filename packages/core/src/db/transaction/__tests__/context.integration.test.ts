@@ -5,8 +5,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import * as postgres from 'postgres';
 import { sql } from 'drizzle-orm';
 import {
     getTransactionContext,
@@ -16,43 +14,33 @@ import {
     type TransactionDB,
 } from '../context';
 import { testUsers } from '../../__tests__/fixtures/test-schema';
+import { createDbTestFixture } from '../../__tests__/helpers/db-fixture';
 
 describe('Transaction Context (Integration)', () =>
 {
-    let client: ReturnType<typeof postgres>;
-    let db: ReturnType<typeof drizzle>;
-    let isDbAvailable = false;
+    const dbFixture = createDbTestFixture();
 
     beforeAll(async () =>
     {
-        try
+        await dbFixture.setup();
+
+        if (dbFixture.isAvailable)
         {
-            // Connect to test database
-            const databaseUrl = process.env.DATABASE_URL || 'postgresql://testuser:testpass@localhost:5433/spfn_test';
-            client = postgres(databaseUrl, {
-                connect_timeout: 3, // 3 seconds timeout for quick fail
-            });
-
-            // Test connection
-            await client`SELECT 1`;
-            db = drizzle(client);
-            isDbAvailable = true;
-
             // Drop tables if exist to ensure clean state
-            await client`DROP TABLE IF EXISTS test_posts CASCADE`;
-            await client`DROP TABLE IF EXISTS test_users CASCADE`;
+            await dbFixture.execute('DROP TABLE IF EXISTS test_posts CASCADE');
+            await dbFixture.execute('DROP TABLE IF EXISTS test_users CASCADE');
 
             // Create test tables
-            await client`
+            await dbFixture.execute(`
                 CREATE TABLE test_users (
                     id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
                     email TEXT NOT NULL UNIQUE,
                     created_at TIMESTAMP DEFAULT NOW() NOT NULL
                 )
-            `;
+            `);
 
-            await client`
+            await dbFixture.execute(`
                 CREATE TABLE test_posts (
                     id SERIAL PRIMARY KEY,
                     user_id INTEGER NOT NULL REFERENCES test_users(id) ON DELETE CASCADE,
@@ -60,38 +48,18 @@ describe('Transaction Context (Integration)', () =>
                     content TEXT,
                     created_at TIMESTAMP DEFAULT NOW() NOT NULL
                 )
-            `;
-        }
-        catch (error)
-        {
-            isDbAvailable = false;
-            console.log('\n⚠️  PostgreSQL not available - skipping integration tests');
-            console.log('   To run integration tests:');
-            console.log('   1. Run: pnpm docker:test:up');
-            console.log('   2. Wait for containers to be ready');
-            console.log('   3. Run tests again\n');
+            `);
         }
     });
 
     afterAll(async () =>
     {
-        if (isDbAvailable)
-        {
-            // Clean up test tables
-            await client`DROP TABLE IF EXISTS test_posts CASCADE`;
-            await client`DROP TABLE IF EXISTS test_users CASCADE`;
-            await client.end();
-        }
+        await dbFixture.execute('DROP TABLE IF EXISTS test_posts CASCADE');
+        await dbFixture.execute('DROP TABLE IF EXISTS test_users CASCADE');
+        await dbFixture.teardown();
     });
 
-    beforeEach(async () =>
-    {
-        if (isDbAvailable)
-        {
-            // Clean test data before each test
-            await client`TRUNCATE TABLE test_posts, test_users CASCADE`;
-        }
-    });
+    beforeEach(() => dbFixture.cleanTable('test_posts', 'test_users'));
 
     describe('AsyncLocalStorage Context', () =>
     {
@@ -99,7 +67,7 @@ describe('Transaction Context (Integration)', () =>
         {
             // This test doesn't need DB, so it always runs
             // This ensures beforeAll is executed
-            if (!isDbAvailable) {
+            if (!dbFixture.isAvailable) {
                 return; // Skip silently if DB not available
             }
 
@@ -112,9 +80,11 @@ describe('Transaction Context (Integration)', () =>
             expect(txId).toBeNull();
         });
 
-        it.skipIf(!isDbAvailable)('should provide transaction context within runWithTransaction', async () =>
+        it('should provide transaction context within runWithTransaction', async () =>
         {
-            await db.transaction(async (tx) =>
+            if (!dbFixture.isAvailable) return;
+
+            await dbFixture.db.transaction(async (tx) =>
             {
                 await runWithTransaction(tx as TransactionDB, 'test-tx-1', async () =>
                 {
@@ -132,9 +102,11 @@ describe('Transaction Context (Integration)', () =>
             });
         });
 
-        it.skipIf(!isDbAvailable)('should propagate transaction across async operations', async () =>
+        it('should propagate transaction across async operations', async () =>
         {
-            await db.transaction(async (tx) =>
+            if (!dbFixture.isAvailable) return;
+
+            await dbFixture.db.transaction(async (tx) =>
             {
                 await runWithTransaction(tx as TransactionDB, 'test-tx-2', async () =>
                 {
@@ -153,13 +125,15 @@ describe('Transaction Context (Integration)', () =>
             });
         });
 
-        it.skipIf(!isDbAvailable)('should isolate transaction context between concurrent transactions', async () =>
+        it('should isolate transaction context between concurrent transactions', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             const results: string[] = [];
 
             // Run two concurrent transactions
             await Promise.all([
-                db.transaction(async (tx1) =>
+                dbFixture.db.transaction(async (tx1) =>
                 {
                     await runWithTransaction(tx1 as TransactionDB, 'concurrent-tx-1', async () =>
                     {
@@ -168,7 +142,7 @@ describe('Transaction Context (Integration)', () =>
                         results.push(txId!);
                     });
                 }),
-                db.transaction(async (tx2) =>
+                dbFixture.db.transaction(async (tx2) =>
                 {
                     await runWithTransaction(tx2 as TransactionDB, 'concurrent-tx-2', async () =>
                     {
@@ -184,9 +158,11 @@ describe('Transaction Context (Integration)', () =>
             expect(results).toContain('concurrent-tx-2');
         });
 
-        it.skipIf(!isDbAvailable)('should clear context after transaction completes', async () =>
+        it('should clear context after transaction completes', async () =>
         {
-            await db.transaction(async (tx) =>
+            if (!dbFixture.isAvailable) return;
+
+            await dbFixture.db.transaction(async (tx) =>
             {
                 await runWithTransaction(tx as TransactionDB, 'test-tx-3', async () =>
                 {
@@ -201,9 +177,11 @@ describe('Transaction Context (Integration)', () =>
 
     describe('Nested Transactions', () =>
     {
-        it.skipIf(!isDbAvailable)('should detect nested transactions', async () =>
+        it('should detect nested transactions', async () =>
         {
-            await db.transaction(async (tx1) =>
+            if (!dbFixture.isAvailable) return;
+
+            await dbFixture.db.transaction(async (tx1) =>
             {
                 await runWithTransaction(tx1 as TransactionDB, 'outer-tx', async () =>
                 {
@@ -212,7 +190,7 @@ describe('Transaction Context (Integration)', () =>
                     expect(outerContext?.txId).toBe('outer-tx');
 
                     // Simulate nested transaction (savepoint)
-                    await db.transaction(async (tx2) =>
+                    await dbFixture.db.transaction(async (tx2) =>
                     {
                         await runWithTransaction(tx2 as TransactionDB, 'inner-tx', async () =>
                         {
@@ -230,23 +208,25 @@ describe('Transaction Context (Integration)', () =>
             });
         });
 
-        it.skipIf(!isDbAvailable)('should track multiple levels of nesting', async () =>
+        it('should track multiple levels of nesting', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             const levels: number[] = [];
 
-            await db.transaction(async (tx1) =>
+            await dbFixture.db.transaction(async (tx1) =>
             {
                 await runWithTransaction(tx1 as TransactionDB, 'level-1', async () =>
                 {
                     levels.push(getTransactionContext()!.level);
 
-                    await db.transaction(async (tx2) =>
+                    await dbFixture.db.transaction(async (tx2) =>
                     {
                         await runWithTransaction(tx2 as TransactionDB, 'level-2', async () =>
                         {
                             levels.push(getTransactionContext()!.level);
 
-                            await db.transaction(async (tx3) =>
+                            await dbFixture.db.transaction(async (tx3) =>
                             {
                                 await runWithTransaction(tx3 as TransactionDB, 'level-3', async () =>
                                 {
@@ -264,9 +244,11 @@ describe('Transaction Context (Integration)', () =>
 
     describe('Transaction Operations', () =>
     {
-        it.skipIf(!isDbAvailable)('should execute queries using transaction context', async () =>
+        it('should execute queries using transaction context', async () =>
         {
-            await db.transaction(async (tx) =>
+            if (!dbFixture.isAvailable) return;
+
+            await dbFixture.db.transaction(async (tx) =>
             {
                 await runWithTransaction(tx as TransactionDB, 'query-tx', async () =>
                 {
@@ -289,14 +271,16 @@ describe('Transaction Context (Integration)', () =>
             });
 
             // Clean up
-            await db.delete(testUsers);
+            await dbFixture.db.delete(testUsers);
         });
 
-        it.skipIf(!isDbAvailable)('should rollback on error', async () =>
+        it('should rollback on error', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             try
             {
-                await db.transaction(async (tx) =>
+                await dbFixture.db.transaction(async (tx) =>
                 {
                     await runWithTransaction(tx as TransactionDB, 'rollback-tx', async () =>
                     {
@@ -319,15 +303,17 @@ describe('Transaction Context (Integration)', () =>
             }
 
             // Verify rollback - user should not exist
-            const users = await db.select().from(testUsers).where(sql`email = 'rollback@example.com'`);
+            const users = await dbFixture.db.select().from(testUsers).where(sql`email = 'rollback@example.com'`);
             expect(users).toHaveLength(0);
         });
 
-        it.skipIf(!isDbAvailable)('should commit on success', async () =>
+        it('should commit on success', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             let userId: number | undefined;
 
-            await db.transaction(async (tx) =>
+            await dbFixture.db.transaction(async (tx) =>
             {
                 await runWithTransaction(tx as TransactionDB, 'commit-tx', async () =>
                 {
@@ -344,12 +330,12 @@ describe('Transaction Context (Integration)', () =>
             });
 
             // Verify commit - user should exist
-            const users = await db.select().from(testUsers).where(sql`id = ${userId}`);
+            const users = await dbFixture.db.select().from(testUsers).where(sql`id = ${userId}`);
             expect(users).toHaveLength(1);
             expect(users[0].name).toBe('Commit User');
 
             // Clean up
-            await db.delete(testUsers).where(sql`id = ${userId}`);
+            await dbFixture.db.delete(testUsers).where(sql`id = ${userId}`);
         });
     });
 });
