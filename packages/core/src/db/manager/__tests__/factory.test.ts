@@ -7,6 +7,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createDatabaseFromEnv } from '../factory';
+import { loadEnvironment } from '../../../env';
+import { createDatabaseConnection } from '../connection';
 
 // Mock dependencies
 vi.mock('drizzle-orm/postgres-js', () => ({
@@ -31,12 +33,17 @@ vi.mock('../../../logger', () => ({
     },
 }));
 
-vi.mock('../../../env', () => ({
-    loadEnvironment: vi.fn(() => ({
-        success: true,
-        loaded: ['.env'],
-    })),
-}));
+// Mock only loadEnvironment, use real hasEnvVar, getEnvVar, etc.
+vi.mock('../../../env', async (importOriginal) => {
+    const actual = await importOriginal() as any;
+    return {
+        ...actual,
+        loadEnvironment: vi.fn(() => ({
+            success: true,
+            loaded: ['.env'],
+        })),
+    };
+});
 
 describe('Database Factory', () =>
 {
@@ -150,12 +157,11 @@ describe('Database Factory', () =>
                 expect(result.write).toBe(result.read);
             });
 
-            it('should return empty result when no configuration', async () =>
+            it('should throw error when no configuration', async () =>
             {
-                const result = await createDatabaseFromEnv();
-
-                expect(result.write).toBeUndefined();
-                expect(result.read).toBeUndefined();
+                await expect(createDatabaseFromEnv()).rejects.toThrow(
+                    'No database configuration found'
+                );
             });
 
             it('should prioritize write-read over legacy pattern', async () =>
@@ -168,7 +174,6 @@ describe('Database Factory', () =>
 
                 await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection');
                 // Should use write-read pattern, not legacy
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://write:5432/db',
@@ -189,7 +194,6 @@ describe('Database Factory', () =>
 
                 await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection');
                 // Should use legacy pattern (2 connections)
                 expect(createDatabaseConnection).toHaveBeenCalledTimes(2);
             });
@@ -205,7 +209,6 @@ describe('Database Factory', () =>
                     pool: { max: 50, idleTimeout: 60 },
                 });
 
-                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
                     { max: 50, idleTimeout: 60 },
@@ -220,7 +223,6 @@ describe('Database Factory', () =>
 
                 await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
                     { max: 20, idleTimeout: 30 },
@@ -238,7 +240,6 @@ describe('Database Factory', () =>
                     pool: { idleTimeout: 45 },
                 });
 
-                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
                     { max: 100, idleTimeout: 45 },
@@ -251,20 +252,19 @@ describe('Database Factory', () =>
         {
             it('should load environment when no DATABASE_URL found initially', async () =>
             {
-                const { loadEnvironment } = await import('../../../env');
+                // No env vars initially - should throw error after loading environment
+                await expect(createDatabaseFromEnv()).rejects.toThrow(
+                    'No database configuration found'
+                );
 
-                // No env vars initially
-                const result = await createDatabaseFromEnv();
-
+                // But loadEnvironment should have been called
                 expect(loadEnvironment).toHaveBeenCalledWith({ debug: true });
-                expect(result.write).toBeUndefined();
             });
 
             it('should not load environment when DATABASE_URL exists', async () =>
             {
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
 
-                const { loadEnvironment } = await import('../../../env');
                 vi.mocked(loadEnvironment).mockClear();
 
                 await createDatabaseFromEnv();
@@ -277,7 +277,6 @@ describe('Database Factory', () =>
             {
                 process.env.DATABASE_WRITE_URL = 'postgresql://write:5432/db';
 
-                const { loadEnvironment } = await import('../../../env');
                 vi.mocked(loadEnvironment).mockClear();
 
                 await createDatabaseFromEnv();
@@ -287,9 +286,10 @@ describe('Database Factory', () =>
 
             it('should not load environment when DATABASE_READ_URL exists', async () =>
             {
+                // DATABASE_READ_URL alone is not sufficient - need WRITE_URL or DATABASE_URL
                 process.env.DATABASE_READ_URL = 'postgresql://read:5432/db';
+                process.env.DATABASE_WRITE_URL = 'postgresql://write:5432/db';
 
-                const { loadEnvironment } = await import('../../../env');
                 vi.mocked(loadEnvironment).mockClear();
 
                 await createDatabaseFromEnv();
@@ -304,7 +304,6 @@ describe('Database Factory', () =>
             {
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
 
-                const { createDatabaseConnection } = await import('../connection');
                 vi.mocked(createDatabaseConnection).mockRejectedValueOnce(
                     new Error('Connection failed')
                 );
@@ -318,7 +317,6 @@ describe('Database Factory', () =>
             {
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
 
-                const { createDatabaseConnection } = await import('../connection');
                 vi.mocked(createDatabaseConnection).mockRejectedValueOnce(
                     new Error('Network timeout')
                 );
@@ -332,7 +330,6 @@ describe('Database Factory', () =>
             {
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
 
-                const { createDatabaseConnection } = await import('../connection');
                 vi.mocked(createDatabaseConnection).mockRejectedValueOnce(
                     'String error'
                 );
@@ -404,14 +401,11 @@ describe('Database Factory', () =>
                 expect(result.writeClient).toBe(result.readClient);
             });
 
-            it('should return undefined for no configuration', async () =>
+            it('should throw error for no configuration', async () =>
             {
-                const result = await createDatabaseFromEnv();
-
-                expect(result.write).toBeUndefined();
-                expect(result.read).toBeUndefined();
-                expect(result.writeClient).toBeUndefined();
-                expect(result.readClient).toBeUndefined();
+                await expect(createDatabaseFromEnv()).rejects.toThrow(
+                    'No database configuration found'
+                );
             });
         });
     });

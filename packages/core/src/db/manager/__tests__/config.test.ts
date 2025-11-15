@@ -93,17 +93,13 @@ describe('Configuration Builders', () =>
             expect(config.idleTimeout).toBe(20);
         });
 
-        it('should handle invalid environment variable values', () =>
+        it('should throw error for invalid environment variable values', () =>
         {
             process.env.NODE_ENV = 'production';
             process.env.DB_POOL_MAX = 'invalid';
-            process.env.DB_POOL_IDLE_TIMEOUT = 'not-a-number';
 
-            const config = getPoolConfig();
-
-            // Should fall back to defaults when parsing fails
-            expect(config.max).toBe(20);
-            expect(config.idleTimeout).toBe(30);
+            // Should throw error for invalid number
+            expect(() => getPoolConfig()).toThrow('Invalid value for environment variable DB_POOL_MAX');
         });
 
         it('should handle partial option with only max', () =>
@@ -168,16 +164,13 @@ describe('Configuration Builders', () =>
             expect(config.factor).toBe(2);
         });
 
-        it('should handle invalid environment variable values', () =>
+        it('should throw error for invalid environment variable values', () =>
         {
             process.env.NODE_ENV = 'production';
             process.env.DB_RETRY_MAX = 'invalid';
-            process.env.DB_RETRY_INITIAL_DELAY = 'not-a-number';
 
-            const config = getRetryConfig();
-
-            expect(config.maxRetries).toBe(5);
-            expect(config.initialDelay).toBe(100);
+            // Should throw error for invalid number
+            expect(() => getRetryConfig()).toThrow('Invalid value for environment variable DB_RETRY_MAX');
         });
 
         it('should handle partial environment variables', () =>
@@ -279,25 +272,20 @@ describe('Configuration Builders', () =>
             expect(config.reconnect).toBe(false);
         });
 
-        it('should handle invalid boolean environment variable values', () =>
+        it('should throw error for invalid boolean environment variable values', () =>
         {
             process.env.DB_HEALTH_CHECK_ENABLED = 'invalid';
 
-            const config = buildHealthCheckConfig();
-
-            // Should fall back to false for non-'true' values
-            expect(config.enabled).toBe(false);
+            // Should throw error for invalid boolean
+            expect(() => buildHealthCheckConfig()).toThrow('Invalid value for environment variable DB_HEALTH_CHECK_ENABLED');
         });
 
-        it('should handle invalid number environment variable values', () =>
+        it('should throw error for invalid number environment variable values', () =>
         {
             process.env.DB_HEALTH_CHECK_INTERVAL = 'invalid';
-            process.env.DB_HEALTH_CHECK_MAX_RETRIES = 'not-a-number';
 
-            const config = buildHealthCheckConfig();
-
-            expect(config.interval).toBe(60000);
-            expect(config.maxRetries).toBe(3);
+            // Should throw error for invalid number
+            expect(() => buildHealthCheckConfig()).toThrow('Invalid value for environment variable DB_HEALTH_CHECK_INTERVAL');
         });
     });
 
@@ -396,14 +384,13 @@ describe('Configuration Builders', () =>
             expect(config.logQueries).toBe(false);
         });
 
-        it('should handle invalid environment variable values', () =>
+        it('should throw error for invalid environment variable values', () =>
         {
             process.env.NODE_ENV = 'production';
             process.env.DB_MONITORING_SLOW_THRESHOLD = 'invalid';
 
-            const config = buildMonitoringConfig();
-
-            expect(config.slowThreshold).toBe(1000);
+            // Should throw error for invalid number
+            expect(() => buildMonitoringConfig()).toThrow('Invalid value for environment variable DB_MONITORING_SLOW_THRESHOLD');
         });
     });
 

@@ -34,10 +34,13 @@ vi.mock('../factory', () => ({
 vi.mock('../global-state', () => ({
     getHealthCheckInterval: vi.fn(() => null),
     setHealthCheckInterval: vi.fn(),
+    getWriteInstance: vi.fn(() => undefined),
     setWriteInstance: vi.fn(),
     setReadInstance: vi.fn(),
     setWriteClient: vi.fn(),
     setReadClient: vi.fn(),
+    getMonitoringConfig: vi.fn(() => undefined),
+    setMonitoringConfig: vi.fn(),
 }));
 
 describe('Database Health Check', () =>
@@ -320,11 +323,20 @@ describe('Database Health Check', () =>
                 }),
             };
 
-            const getDatabase = vi.fn(() => mockDb) as any;
+            const { getWriteInstance } = await import('../global-state');
+
+            // getDatabase should return failing DB initially, then successful DB after reconnection
+            const getDatabase = vi.fn(() => {
+                const currentWrite = getWriteInstance();
+                return currentWrite || mockDb;
+            }) as any;
+
             const closeDatabase = vi.fn(async () => {});
 
             const { createDatabaseFromEnv } = await import('../factory');
             let attempts = 0;
+            const successDb = { execute: vi.fn(async () => {}) } as any;
+
             vi.mocked(createDatabaseFromEnv).mockImplementation(async () =>
             {
                 attempts++;
@@ -332,8 +344,8 @@ describe('Database Health Check', () =>
                 {
                     // Succeed on second attempt
                     return {
-                        write: { execute: vi.fn(async () => {}) } as any,
-                        read: { execute: vi.fn(async () => {}) } as any,
+                        write: successDb,
+                        read: successDb,
                         writeClient: { end: vi.fn(async () => {}) } as any,
                         readClient: { end: vi.fn(async () => {}) } as any,
                     };
@@ -343,9 +355,12 @@ describe('Database Health Check', () =>
 
             startHealthCheck(config, undefined, getDatabase, closeDatabase);
 
+            // Trigger first health check (fails, starts reconnection)
             await vi.advanceTimersByTimeAsync(10000);
+            // Wait for retry interval
             await vi.advanceTimersByTimeAsync(1000);
-            await vi.advanceTimersByTimeAsync(1000);
+            // Give time for async reconnection to complete
+            await vi.advanceTimersByTimeAsync(100);
 
             // Should only attempt twice (fail, then succeed)
             expect(createDatabaseFromEnv).toHaveBeenCalledTimes(2);

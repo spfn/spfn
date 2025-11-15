@@ -16,6 +16,37 @@ import {
 } from '../manager';
 
 // Mock dependencies
+vi.mock('../../../env', () => ({
+    loadEnvironment: vi.fn(() => ({
+        success: true,
+        loaded: ['.env'],
+    })),
+    hasEnvVar: vi.fn((key: string) => !!process.env[key]),
+    getEnvVar: vi.fn((key: string, options?: any) => {
+        const value = process.env[key];
+        if (value === undefined && options?.default !== undefined) {
+            return options.default;
+        }
+        if (value === undefined && options?.required) {
+            throw new Error(`Required environment variable ${key} is not set`);
+        }
+        if (value !== undefined && options?.validator) {
+            try {
+                return options.validator(value);
+            } catch (error) {
+                if (options?.default !== undefined) {
+                    return options.default;
+                }
+                throw error;
+            }
+        }
+        return value;
+    }),
+    getEnvVars: vi.fn((...keys: string[]) => {
+        return keys.map(key => process.env[key]).filter((val): val is string => val !== undefined);
+    }),
+}));
+
 vi.mock('../../../logger', () => ({
     logger: {
         child: vi.fn(() => ({
@@ -81,10 +112,9 @@ describe('Database Manager', () =>
 
     describe('getDatabase', () =>
     {
-        it('should return undefined when not initialized', () =>
+        it('should throw when not initialized', () =>
         {
-            const db = getDatabase();
-            expect(db).toBeUndefined();
+            expect(() => getDatabase()).toThrow('Database not initialized');
         });
 
         it('should return write instance by default', () =>
@@ -130,10 +160,9 @@ describe('Database Manager', () =>
             expect(db).toBe(mockWrite);
         });
 
-        it('should return undefined when requesting read and nothing set', () =>
+        it('should throw when requesting read and nothing set', () =>
         {
-            const db = getDatabase('read');
-            expect(db).toBeUndefined();
+            expect(() => getDatabase('read')).toThrow('Database not initialized');
         });
     });
 
@@ -167,7 +196,7 @@ describe('Database Manager', () =>
 
             setDatabase(undefined, undefined);
 
-            expect(getDatabase()).toBeUndefined();
+            expect(() => getDatabase()).toThrow('Database not initialized');
         });
 
         it('should overwrite existing instances', () =>
@@ -312,7 +341,7 @@ describe('Database Manager', () =>
             );
 
             // Should cleanup on failure
-            expect(getDatabase()).toBeUndefined();
+            expect(() => getDatabase()).toThrow('Database not initialized');
         });
 
         it('should handle non-Error objects in connection test', async () =>
@@ -393,7 +422,7 @@ describe('Database Manager', () =>
 
             await closeDatabase();
 
-            expect(getDatabase()).toBeUndefined();
+            expect(() => getDatabase()).toThrow('Database not initialized');
         });
 
         it('should do nothing when no connections', async () =>
@@ -470,7 +499,7 @@ describe('Database Manager', () =>
             await closeDatabase();
 
             // Instances should be cleared despite error
-            expect(getDatabase()).toBeUndefined();
+            expect(() => getDatabase()).toThrow('Database not initialized');
         });
 
         it('should handle error during cleanup', async () =>
@@ -495,7 +524,7 @@ describe('Database Manager', () =>
             await closeDatabase();
 
             // State should be cleared
-            expect(getDatabase()).toBeUndefined();
+            expect(() => getDatabase()).toThrow('Database not initialized');
         });
     });
 

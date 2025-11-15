@@ -7,11 +7,44 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createDatabaseConnection, checkConnection } from '../connection';
-import { ConnectionError } from '../../../errors/index';
+import { ConnectionError } from '../../../errors';
+import postgres from 'postgres';
 
 // Mock postgres module
 vi.mock('postgres', () => ({
     default: vi.fn(),
+}));
+
+// Mock env
+vi.mock('../../../env', () => ({
+    loadEnvironment: vi.fn(() => ({
+        success: true,
+        loaded: ['.env'],
+    })),
+    hasEnvVar: vi.fn((key: string) => !!process.env[key]),
+    getEnvVar: vi.fn((key: string, options?: any) => {
+        const value = process.env[key];
+        if (value === undefined && options?.default !== undefined) {
+            return options.default;
+        }
+        if (value === undefined && options?.required) {
+            throw new Error(`Required environment variable ${key} is not set`);
+        }
+        if (value !== undefined && options?.validator) {
+            try {
+                return options.validator(value);
+            } catch (error) {
+                if (options?.default !== undefined) {
+                    return options.default;
+                }
+                throw error;
+            }
+        }
+        return value;
+    }),
+    getEnvVars: vi.fn((...keys: string[]) => {
+        return keys.map(key => process.env[key]).filter((val): val is string => val !== undefined);
+    }),
 }));
 
 // Mock logger
@@ -35,11 +68,10 @@ describe('Database Connection', () =>
 {
     const mockPostgres = vi.fn();
 
-    beforeEach(async () =>
+    beforeEach(() =>
     {
         vi.clearAllMocks();
         // Setup default postgres mock
-        const postgres = (await import('postgres')).default;
         vi.mocked(postgres).mockImplementation(mockPostgres);
     });
 
@@ -77,6 +109,7 @@ describe('Database Connection', () =>
                 {
                     max: 10,
                     idle_timeout: 20,
+                    connect_timeout: 10,
                 }
             );
 
@@ -189,10 +222,14 @@ describe('Database Connection', () =>
 
             global.setTimeout = originalSetTimeout;
 
-            // First retry: 100ms, Second retry: 200ms
+            // First retry: 100ms with jitter (50-100ms), Second retry: 200ms with jitter (100-200ms)
             expect(delays.length).toBe(2);
-            expect(delays[0]).toBe(100);
-            expect(delays[1]).toBe(200);
+            // Jitter: 0.5-1.0 multiplier, so 100 * (0.5-1.0) = 50-100
+            expect(delays[0]).toBeGreaterThanOrEqual(50);
+            expect(delays[0]).toBeLessThanOrEqual(100);
+            // 200 * (0.5-1.0) = 100-200
+            expect(delays[1]).toBeGreaterThanOrEqual(100);
+            expect(delays[1]).toBeLessThanOrEqual(200);
         });
 
         it('should cap delay at maxDelay', async () =>
@@ -239,10 +276,13 @@ describe('Database Connection', () =>
 
             global.setTimeout = originalSetTimeout;
 
-            // First: 100ms, Second: 200ms, Third: 250ms (capped)
-            expect(delays[0]).toBe(100);
-            expect(delays[1]).toBe(200);
-            expect(delays[2]).toBe(250); // Should be capped at maxDelay
+            // First: 100ms with jitter (50-100ms), Second: 200ms with jitter (100-200ms), Third: 250ms with jitter (125-250ms, capped)
+            expect(delays[0]).toBeGreaterThanOrEqual(50);
+            expect(delays[0]).toBeLessThanOrEqual(100);
+            expect(delays[1]).toBeGreaterThanOrEqual(100);
+            expect(delays[1]).toBeLessThanOrEqual(200);
+            expect(delays[2]).toBeGreaterThanOrEqual(125); // maxDelay 250 * 0.5
+            expect(delays[2]).toBeLessThanOrEqual(250); // Capped at maxDelay
         });
 
         it('should handle connection success after retries with logging', async () =>
