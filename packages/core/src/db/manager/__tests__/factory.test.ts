@@ -53,7 +53,6 @@ describe('Database Factory', () =>
 
                 const result = await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledTimes(2);
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://write:5432/db',
@@ -79,7 +78,6 @@ describe('Database Factory', () =>
 
                 const result = await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledTimes(2);
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://primary:5432/db',
@@ -102,7 +100,6 @@ describe('Database Factory', () =>
 
                 const result = await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledTimes(1);
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
@@ -122,7 +119,6 @@ describe('Database Factory', () =>
 
                 const result = await createDatabaseFromEnv();
 
-                const { createDatabaseConnection } = await import('../connection');
                 expect(createDatabaseConnection).toHaveBeenCalledTimes(1);
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://write:5432/db',

@@ -59,7 +59,7 @@
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { getDatabaseOrThrow } from './manager';
+import { getDatabase } from './manager';
 import { getTransaction } from './transaction';
 
 /**
@@ -75,7 +75,8 @@ import { getTransaction } from './transaction';
  *
  * @template TSchema - Database schema type (defaults to Record<string, unknown>)
  */
-export abstract class BaseRepository<TSchema extends Record<string, unknown> = Record<string, unknown>> {
+export abstract class BaseRepository<TSchema extends Record<string, unknown> = Record<string, unknown>>
+{
     /**
      * Write database instance
      *
@@ -92,15 +93,17 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      * }
      * ```
      */
-    protected get db(): PostgresJsDatabase<TSchema> {
+    protected get db(): PostgresJsDatabase<TSchema>
+    {
         // Transaction context takes precedence
         const txDb = getTransaction();
-        if (txDb) {
+        if (txDb)
+        {
             return txDb as PostgresJsDatabase<TSchema>;
         }
 
         // Fall back to global write instance
-        return getDatabaseOrThrow('write') as PostgresJsDatabase<TSchema>;
+        return getDatabase('write') as PostgresJsDatabase<TSchema>;
     }
 
     /**
@@ -123,14 +126,16 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      * }
      * ```
      */
-    protected get readDb(): PostgresJsDatabase<TSchema> {
+    protected get readDb(): PostgresJsDatabase<TSchema>
+    {
         // Transaction context takes precedence
         const txDb = getTransaction();
-        if (txDb) {
+        if (txDb)
+        {
             return txDb as PostgresJsDatabase<TSchema>;
         }
 
         // Fall back to global read instance (uses replica if configured)
-        return getDatabaseOrThrow('read') as PostgresJsDatabase<TSchema>;
+        return getDatabase('read') as PostgresJsDatabase<TSchema>;
     }
 }

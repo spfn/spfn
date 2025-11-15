@@ -8,60 +8,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createDatabaseConnection, checkConnection } from '../connection';
 import { ConnectionError } from '../../../errors';
-import postgres from 'postgres';
+import * as postgres from 'postgres';
 
-// Mock postgres module
+// Mock postgres module (only mock needed to avoid real DB connections)
 vi.mock('postgres', () => ({
     default: vi.fn(),
-}));
-
-// Mock env
-vi.mock('../../../env', () => ({
-    loadEnvironment: vi.fn(() => ({
-        success: true,
-        loaded: ['.env'],
-    })),
-    hasEnvVar: vi.fn((key: string) => !!process.env[key]),
-    getEnvVar: vi.fn((key: string, options?: any) => {
-        const value = process.env[key];
-        if (value === undefined && options?.default !== undefined) {
-            return options.default;
-        }
-        if (value === undefined && options?.required) {
-            throw new Error(`Required environment variable ${key} is not set`);
-        }
-        if (value !== undefined && options?.validator) {
-            try {
-                return options.validator(value);
-            } catch (error) {
-                if (options?.default !== undefined) {
-                    return options.default;
-                }
-                throw error;
-            }
-        }
-        return value;
-    }),
-    getEnvVars: vi.fn((...keys: string[]) => {
-        return keys.map(key => process.env[key]).filter((val): val is string => val !== undefined);
-    }),
-}));
-
-// Mock logger
-vi.mock('../../../logger', () => ({
-    logger: {
-        child: vi.fn(() => ({
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            debug: vi.fn(),
-        })),
-    },
-}));
-
-// Mock postgres-errors
-vi.mock('../../postgres-errors', () => ({
-    fromPostgresError: vi.fn((error) => error instanceof Error ? error : new Error('Unknown error')),
 }));
 
 describe('Database Connection', () =>
