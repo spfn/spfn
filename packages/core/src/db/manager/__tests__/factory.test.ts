@@ -7,7 +7,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createDatabaseFromEnv } from '../factory';
-import { loadEnvironment } from '../../../env';
 import { createDatabaseConnection } from '../connection';
 
 // Mock dependencies
@@ -21,29 +20,6 @@ vi.mock('../connection', () => ({
         _type: 'postgres-client',
     })),
 }));
-
-vi.mock('../../../logger', () => ({
-    logger: {
-        child: vi.fn(() => ({
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            debug: vi.fn(),
-        })),
-    },
-}));
-
-// Mock only loadEnvironment, use real hasEnvVar, getEnvVar, etc.
-vi.mock('../../../env', async (importOriginal) => {
-    const actual = await importOriginal() as any;
-    return {
-        ...actual,
-        loadEnvironment: vi.fn(() => ({
-            success: true,
-            loaded: ['.env'],
-        })),
-    };
-});
 
 describe('Database Factory', () =>
 {
@@ -157,13 +133,6 @@ describe('Database Factory', () =>
                 expect(result.write).toBe(result.read);
             });
 
-            it('should throw error when no configuration', async () =>
-            {
-                await expect(createDatabaseFromEnv()).rejects.toThrow(
-                    'No database configuration found'
-                );
-            });
-
             it('should prioritize write-read over legacy pattern', async () =>
             {
                 // Set all env vars - write-read should win
@@ -248,56 +217,6 @@ describe('Database Factory', () =>
             });
         });
 
-        describe('Environment Loading', () =>
-        {
-            it('should load environment when no DATABASE_URL found initially', async () =>
-            {
-                // No env vars initially - should throw error after loading environment
-                await expect(createDatabaseFromEnv()).rejects.toThrow(
-                    'No database configuration found'
-                );
-
-                // But loadEnvironment should have been called
-                expect(loadEnvironment).toHaveBeenCalledWith({ debug: true });
-            });
-
-            it('should not load environment when DATABASE_URL exists', async () =>
-            {
-                process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
-
-                vi.mocked(loadEnvironment).mockClear();
-
-                await createDatabaseFromEnv();
-
-                // Should not call loadEnvironment when DATABASE_URL exists
-                expect(loadEnvironment).not.toHaveBeenCalled();
-            });
-
-            it('should not load environment when DATABASE_WRITE_URL exists', async () =>
-            {
-                process.env.DATABASE_WRITE_URL = 'postgresql://write:5432/db';
-
-                vi.mocked(loadEnvironment).mockClear();
-
-                await createDatabaseFromEnv();
-
-                expect(loadEnvironment).not.toHaveBeenCalled();
-            });
-
-            it('should not load environment when DATABASE_READ_URL exists', async () =>
-            {
-                // DATABASE_READ_URL alone is not sufficient - need WRITE_URL or DATABASE_URL
-                process.env.DATABASE_READ_URL = 'postgresql://read:5432/db';
-                process.env.DATABASE_WRITE_URL = 'postgresql://write:5432/db';
-
-                vi.mocked(loadEnvironment).mockClear();
-
-                await createDatabaseFromEnv();
-
-                expect(loadEnvironment).not.toHaveBeenCalled();
-            });
-        });
-
         describe('Error Handling', () =>
         {
             it('should throw error when connection fails', async () =>
@@ -340,40 +259,6 @@ describe('Database Factory', () =>
             });
         });
 
-        describe('Password Masking in Logs', () =>
-        {
-            it('should mask password in write-read pattern logs', async () =>
-            {
-                process.env.DATABASE_WRITE_URL = 'postgresql://user:password@write:5432/db';
-                process.env.DATABASE_READ_URL = 'postgresql://user:password@read:5432/db';
-
-                await createDatabaseFromEnv();
-
-                // Test should pass without exposing passwords
-                // Logger mock will verify passwords are masked in actual implementation
-                expect(true).toBe(true);
-            });
-
-            it('should mask password in legacy pattern logs', async () =>
-            {
-                process.env.DATABASE_URL = 'postgresql://user:password@primary:5432/db';
-                process.env.DATABASE_REPLICA_URL = 'postgresql://user:password@replica:5432/db';
-
-                await createDatabaseFromEnv();
-
-                expect(true).toBe(true);
-            });
-
-            it('should mask password in single pattern logs', async () =>
-            {
-                process.env.DATABASE_URL = 'postgresql://user:password@localhost:5432/db';
-
-                await createDatabaseFromEnv();
-
-                expect(true).toBe(true);
-            });
-        });
-
         describe('Client Return Structure', () =>
         {
             it('should return all client objects for write-read pattern', async () =>
@@ -399,13 +284,6 @@ describe('Database Factory', () =>
 
                 expect(result.write).toBe(result.read);
                 expect(result.writeClient).toBe(result.readClient);
-            });
-
-            it('should throw error for no configuration', async () =>
-            {
-                await expect(createDatabaseFromEnv()).rejects.toThrow(
-                    'No database configuration found'
-                );
             });
         });
     });

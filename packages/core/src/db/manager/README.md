@@ -17,7 +17,7 @@ manager/
 └── __tests__/                 # Comprehensive test suite
     ├── config.test.ts         # 33 tests - 100% coverage
     ├── connection.test.ts     # 9 tests - 100% coverage
-    ├── factory.test.ts        # 23 tests - 100% coverage
+    ├── factory.test.ts        # 14 tests - 100% coverage
     ├── manager.test.ts        # 38 tests - 95.83% coverage
     └── health-check.test.ts   # 13 tests - 100% coverage
 ```
@@ -27,7 +27,8 @@ manager/
 ### manager.ts (Core API)
 Main entry point for database operations:
 - `initDatabase()` - Initialize database with auto-detection
-- `getDatabase()` - Get database instance (read/write)
+- `getDatabase()` - Get database instance (throws if not initialized)
+- `getDatabaseOrThrow()` - **Deprecated:** Use `getDatabase()` instead
 - `setDatabase()` - Set database instance (testing)
 - `closeDatabase()` - Gracefully close connections
 - `getDatabaseInfo()` - Get connection info (debugging)
@@ -473,7 +474,7 @@ await db.execute('SELECT 1');  // Test query
 - ✅ Resolved type inference issues
 
 ### Testing
-- ✅ **116 comprehensive unit tests** across all modules
+- ✅ **107 comprehensive unit tests** across all modules
 - ✅ **~100% code coverage** for manager module
 - ✅ Mock-based testing for external dependencies
 - ✅ Retry logic and backoff validation
@@ -492,13 +493,13 @@ await db.execute('SELECT 1');  // Test query
 
 ## 🧪 Testing
 
-The manager module has comprehensive test coverage with 116 unit tests:
+The manager module has comprehensive test coverage with 107 unit tests:
 
 ### Test Coverage
 ```
 config.test.ts         33 tests   100% coverage
 connection.test.ts      9 tests   100% coverage
-factory.test.ts        23 tests   100% coverage
+factory.test.ts        14 tests   100% coverage
 manager.test.ts        38 tests   95.83% coverage
 health-check.test.ts   13 tests   100% coverage
 ```
