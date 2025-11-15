@@ -6,6 +6,199 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, dirname, basename } from 'path';
 
+// ============================================================================
+// Constants
+// ============================================================================
+
+/**
+ * Index file patterns to exclude from schema discovery
+ */
+const INDEX_FILE_PATTERNS = [
+    '/index',
+    '/index.ts',
+    '/index.js',
+    '/index.mjs',
+    '\\index',
+    '\\index.ts',
+    '\\index.js',
+    '\\index.mjs',
+];
+
+/**
+ * Supported file extensions for schema files
+ * Only these extensions will be included in schema discovery
+ */
+const SUPPORTED_EXTENSIONS = ['.ts', '.js', '.mjs'];
+
+// ============================================================================
+// Helper Functions (Private)
+// ============================================================================
+
+/**
+ * Check if a file path is an index file
+ *
+ * @param filePath - File path to check
+ * @returns true if file is an index file
+ * @internal
+ */
+function isIndexFile(filePath: string): boolean
+{
+    return INDEX_FILE_PATTERNS.some(pattern => filePath.endsWith(pattern));
+}
+
+/**
+ * Check if a path is absolute
+ *
+ * @param path - Path to check
+ * @returns true if path is absolute
+ * @internal
+ */
+function isAbsolutePath(path: string): boolean
+{
+    // Unix absolute path (starts with /)
+    if (path.startsWith('/')) return true;
+
+    // Windows absolute path (C:\ or C:/)
+    return !!path.match(/^[A-Za-z]:[\/\\]/);
+}
+
+/**
+ * Check if a file has a supported extension
+ *
+ * @param filePath - File path to check
+ * @returns true if file has supported extension
+ * @internal
+ */
+function hasSupportedExtension(filePath: string): boolean
+{
+    // Exclude .d.ts files (TypeScript declaration files - not actual schemas)
+    if (filePath.endsWith('.d.ts')) return false;
+
+    return SUPPORTED_EXTENSIONS.some(ext => filePath.endsWith(ext));
+}
+
+/**
+ * Filter out index files from file list
+ *
+ * @param files - Array of file paths
+ * @returns Filtered array without index files
+ * @internal
+ */
+function filterIndexFiles(files: string[]): string[]
+{
+    return files.filter(file => !isIndexFile(file));
+}
+
+/**
+ * Scan directory recursively for files
+ *
+ * @param dir - Directory to scan
+ * @param extension - Optional file extension filter
+ * @returns Array of file paths
+ * @internal
+ */
+function scanDirectoryRecursive(dir: string, extension?: string): string[]
+{
+    const files: string[] = [];
+
+    if (!existsSync(dir)) return files;
+
+    try
+    {
+        const entries = readdirSync(dir);
+
+        for (const entry of entries)
+        {
+            const fullPath = join(dir, entry);
+
+            try
+            {
+                const stat = statSync(fullPath);
+
+                if (stat.isDirectory())
+                {
+                    files.push(...scanDirectoryRecursive(fullPath, extension));
+                }
+                else if (stat.isFile())
+                {
+                    // Check if file matches extension AND has supported extension
+                    if ((!extension || fullPath.endsWith(extension)) && hasSupportedExtension(fullPath))
+                    {
+                        files.push(fullPath);
+                    }
+                }
+            }
+            catch (error: unknown)
+            {
+                // Skip files we can't stat (permission denied, etc.)
+                // Silent skip is intentional - we don't want to fail on restricted files
+            }
+        }
+    }
+    catch (error: unknown)
+    {
+        // Skip directories we can't read (permission denied, etc.)
+        // Silent skip is intentional - we don't want to fail on restricted directories
+    }
+
+    return files;
+}
+
+/**
+ * Scan directory (single level) for files matching pattern
+ *
+ * @param dir - Directory to scan
+ * @param filePattern - File pattern to match (e.g., "*.js")
+ * @returns Array of file paths
+ * @internal
+ */
+function scanDirectorySingleLevel(dir: string, filePattern: string): string[]
+{
+    const files: string[] = [];
+
+    if (!existsSync(dir)) return files;
+
+    try
+    {
+        const entries = readdirSync(dir);
+
+        for (const entry of entries)
+        {
+            const fullPath = join(dir, entry);
+
+            try
+            {
+                const stat = statSync(fullPath);
+
+                if (stat.isFile())
+                {
+                    // Simple pattern matching (*.js matches foo.js) AND check supported extensions
+                    if ((filePattern === '*' ||
+                        (filePattern.startsWith('*.') && entry.endsWith(filePattern.slice(1)))) &&
+                        hasSupportedExtension(fullPath))
+                    {
+                        files.push(fullPath);
+                    }
+                }
+            }
+            catch (error: unknown)
+            {
+                // Skip files we can't stat
+            }
+        }
+    }
+    catch (error: unknown)
+    {
+        // Skip directories we can't read
+    }
+
+    return files;
+}
+
+// ============================================================================
+// Types & Interfaces
+// ============================================================================
+
 export interface DrizzleConfigOptions
 {
     /** Database connection URL (defaults to process.env.DATABASE_URL) */
@@ -50,100 +243,21 @@ function expandGlobPattern(pattern: string): string[]
         return existsSync(pattern) ? [pattern] : [];
     }
 
-    const files: string[] = [];
-
     // Handle /**/* pattern (recursive)
     if (pattern.includes('**'))
     {
         const [baseDir, ...rest] = pattern.split('**');
         const extension = rest.join('').replace(/[\/\\]\*\./g, '').trim();
+        const dir = baseDir.trim() || '.';
 
-        const scanRecursive = (dir: string) =>
-        {
-            if (!existsSync(dir)) return;
-
-            try
-            {
-                const entries = readdirSync(dir);
-
-                for (const entry of entries)
-                {
-                    const fullPath = join(dir, entry);
-
-                    try
-                    {
-                        const stat = statSync(fullPath);
-
-                        if (stat.isDirectory())
-                        {
-                            scanRecursive(fullPath);
-                        }
-                        else if (stat.isFile())
-                        {
-                            // Check if file matches extension
-                            if (!extension || fullPath.endsWith(extension))
-                            {
-                                files.push(fullPath);
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Skip files we can't stat
-                    }
-                }
-            }
-            catch
-            {
-                // Skip directories we can't read
-            }
-        };
-
-        scanRecursive(baseDir.trim() || '.');
+        return scanDirectoryRecursive(dir, extension || undefined);
     }
+
     // Handle /* pattern (single level)
-    else if (pattern.includes('*'))
-    {
-        const dir = dirname(pattern);
-        const filePattern = basename(pattern);
+    const dir = dirname(pattern);
+    const filePattern = basename(pattern);
 
-        if (!existsSync(dir)) return [];
-
-        try
-        {
-            const entries = readdirSync(dir);
-
-            for (const entry of entries)
-            {
-                const fullPath = join(dir, entry);
-
-                try
-                {
-                    const stat = statSync(fullPath);
-
-                    if (stat.isFile())
-                    {
-                        // Simple pattern matching (*.js matches foo.js)
-                        if (filePattern === '*' ||
-                            (filePattern.startsWith('*.') && entry.endsWith(filePattern.slice(1))))
-                        {
-                            files.push(fullPath);
-                        }
-                    }
-                }
-                catch
-                {
-                    // Skip files we can't stat
-                }
-            }
-        }
-        catch
-        {
-            // Skip directories we can't read
-        }
-    }
-
-    return files;
+    return scanDirectorySingleLevel(dir, filePattern);
 }
 
 /**
@@ -176,9 +290,10 @@ function discoverPackageSchemas(cwd: string): string[]
                 ...Object.keys(projectPkg.devDependencies || {})
             ]);
         }
-        catch (error)
+        catch (error: unknown)
         {
             // If we can't read project package.json, just scan @spfn packages
+            // Silent skip is intentional - we continue with @spfn package discovery
         }
     }
 
@@ -209,24 +324,16 @@ function discoverPackageSchemas(cwd: string): string[]
                     const expandedFiles = expandGlobPattern(absolutePath);
 
                     // Filter out index files (they are re-exports, not schema definitions)
-                    const schemaFiles = expandedFiles.filter(file =>
-                        !file.endsWith('/index') &&
-                        !file.endsWith('/index.ts') &&
-                        !file.endsWith('/index.js') &&
-                        !file.endsWith('/index.mjs') &&
-                        !file.endsWith('\\index') &&
-                        !file.endsWith('\\index.ts') &&
-                        !file.endsWith('\\index.js') &&
-                        !file.endsWith('\\index.mjs')
-                    );
+                    const schemaFiles = filterIndexFiles(expandedFiles);
 
                     schemas.push(...schemaFiles);
                 }
             }
         }
-        catch (error)
+        catch (error: unknown)
         {
             // Skip packages with invalid package.json
+            // Silent skip is intentional - we continue checking other packages
         }
     };
 
@@ -242,9 +349,10 @@ function discoverPackageSchemas(cwd: string): string[]
                 checkPackage(`@spfn/${pkg}`, join(spfnDir, pkg));
             }
         }
-        catch (error)
+        catch (error: unknown)
         {
             // Skip if can't read @spfn directory
+            // Silent skip is intentional - we continue with direct dependencies
         }
     }
 
@@ -374,14 +482,7 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
             const expanded = expandGlobPattern(schema);
 
             // Filter out index files (they are re-exports, not schema definitions)
-            const filtered = expanded.filter(file =>
-                !file.endsWith('/index') &&
-                !file.endsWith('/index.ts') &&
-                !file.endsWith('/index.mjs') &&
-                !file.endsWith('\\index') &&
-                !file.endsWith('\\index.ts') &&
-                !file.endsWith('\\index.mjs')
-            );
+            const filtered = filterIndexFiles(expanded);
 
             expandedSchemas.push(...filtered);
         }
@@ -431,9 +532,11 @@ export function generateDrizzleConfigFile(options: DrizzleConfigOptions = {}): s
     const cwd = options.cwd ?? process.cwd();
 
     // Convert schema paths to absolute paths for Drizzle Studio compatibility
-    const normalizeSchemaPath = (schemaPath: string): string => {
+    const normalizeSchemaPath = (schemaPath: string): string =>
+    {
         // If already absolute, return as-is
-        if (schemaPath.startsWith('/') || schemaPath.match(/^[A-Za-z]:\\/)) {
+        if (isAbsolutePath(schemaPath))
+        {
             return schemaPath;
         }
         // Convert relative to absolute

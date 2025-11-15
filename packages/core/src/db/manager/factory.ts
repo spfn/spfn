@@ -4,9 +4,10 @@
  */
 
 import { drizzle } from 'drizzle-orm/postgres-js';
+import type { Sql } from 'postgres';
 
 import { logger } from '../../logger';
-import { loadEnvironment } from '../../env';
+import { loadEnvironment, hasEnvVar, getEnvVars } from '../../env';
 import { createDatabaseConnection } from './connection';
 import { getPoolConfig, getRetryConfig, type DatabaseOptions, type DatabaseClients, type PoolConfig, type RetryConfig } from './config';
 
@@ -36,11 +37,9 @@ type DatabasePattern =
  */
 function hasDatabaseConfig(): boolean
 {
-    return !!(
-        process.env.DATABASE_URL ||
-        process.env.DATABASE_WRITE_URL ||
-        process.env.DATABASE_READ_URL
-    );
+    return hasEnvVar('DATABASE_URL') ||
+           hasEnvVar('DATABASE_WRITE_URL') ||
+           hasEnvVar('DATABASE_READ_URL');
 }
 
 /**
@@ -66,41 +65,49 @@ function hasDatabaseConfig(): boolean
  */
 function detectDatabasePattern(): DatabasePattern
 {
+    // Get all database-related environment variables at once
+    const vars = getEnvVars([
+        'DATABASE_WRITE_URL',
+        'DATABASE_READ_URL',
+        'DATABASE_URL',
+        'DATABASE_REPLICA_URL',
+    ]);
+
     // Priority 1: Explicit write/read separation (recommended)
-    if (process.env.DATABASE_WRITE_URL && process.env.DATABASE_READ_URL)
+    if (vars.DATABASE_WRITE_URL && vars.DATABASE_READ_URL)
     {
         return {
             type: 'write-read',
-            write: process.env.DATABASE_WRITE_URL,
-            read: process.env.DATABASE_READ_URL,
+            write: vars.DATABASE_WRITE_URL,
+            read: vars.DATABASE_READ_URL,
         };
     }
 
     // Priority 2: Legacy replica pattern (backward compatibility)
-    if (process.env.DATABASE_URL && process.env.DATABASE_REPLICA_URL)
+    if (vars.DATABASE_URL && vars.DATABASE_REPLICA_URL)
     {
         return {
             type: 'legacy',
-            primary: process.env.DATABASE_URL,
-            replica: process.env.DATABASE_REPLICA_URL,
+            primary: vars.DATABASE_URL,
+            replica: vars.DATABASE_REPLICA_URL,
         };
     }
 
     // Priority 3: Single primary (most common)
-    if (process.env.DATABASE_URL)
+    if (vars.DATABASE_URL)
     {
         return {
             type: 'single',
-            url: process.env.DATABASE_URL,
+            url: vars.DATABASE_URL,
         };
     }
 
     // Priority 4: Write-only (no replica)
-    if (process.env.DATABASE_WRITE_URL)
+    if (vars.DATABASE_WRITE_URL)
     {
         return {
             type: 'single',
-            url: process.env.DATABASE_WRITE_URL,
+            url: vars.DATABASE_WRITE_URL,
         };
     }
 
@@ -111,11 +118,15 @@ function detectDatabasePattern(): DatabasePattern
 /**
  * Create write and read database clients
  *
+ * Write connection is required and will throw if it fails.
+ * Read connection is optional - if it fails, falls back to using write connection with a warning.
+ *
  * @param writeUrl - Write database connection string
  * @param readUrl - Read database connection string
  * @param poolConfig - Connection pool configuration
  * @param retryConfig - Retry configuration
  * @returns Database clients
+ * @throws Error if write connection fails
  */
 async function createWriteReadClients(
     writeUrl: string,
@@ -124,15 +135,55 @@ async function createWriteReadClients(
     retryConfig: RetryConfig
 ): Promise<DatabaseClients>
 {
-    const writeClient = await createDatabaseConnection(writeUrl, poolConfig, retryConfig);
-    const readClient = await createDatabaseConnection(readUrl, poolConfig, retryConfig);
+    let writeClient: Sql | undefined;
+    let readClient: Sql | undefined;
 
-    return {
-        write: drizzle(writeClient),
-        read: drizzle(readClient),
-        writeClient,
-        readClient,
-    };
+    try
+    {
+        // Write connection is required - must succeed
+        writeClient = await createDatabaseConnection(writeUrl, poolConfig, retryConfig);
+    }
+    catch (error)
+    {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        dbLogger.error('Failed to connect to write database', errorObj);
+        throw new Error(`Write database connection failed: ${errorObj.message}`, { cause: error });
+    }
+
+    // Read connection is optional - fallback to write if it fails
+    try
+    {
+        readClient = await createDatabaseConnection(readUrl, poolConfig, retryConfig);
+
+        return {
+            write: drizzle(writeClient),
+            read: drizzle(readClient),
+            writeClient,
+            readClient,
+        };
+    }
+    catch (error)
+    {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+
+        // Log warning but continue with write connection as fallback
+        dbLogger.warn(
+            'Failed to connect to read database (replica). Falling back to write database for read operations.',
+            {
+                error: errorObj.message,
+                readUrl: readUrl.replace(/:[^:@]+@/, ':***@'), // Mask password in logs
+                fallbackBehavior: 'Using write connection for both read and write operations',
+            }
+        );
+
+        // Use write connection for both read and write
+        return {
+            write: drizzle(writeClient),
+            read: drizzle(writeClient),
+            writeClient,
+            readClient: writeClient,
+        };
+    }
 }
 
 /**
@@ -169,7 +220,8 @@ async function createSingleClient(
  * 3. Legacy replica: DATABASE_URL + DATABASE_REPLICA_URL
  *
  * @param options - Optional database configuration (pool settings, etc.)
- * @returns Database client(s) or undefined if no configuration found
+ * @returns Database client(s)
+ * @throws {Error} If no database configuration is found or connection fails
  *
  * @example
  * ```bash
@@ -201,27 +253,32 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
         dbLogger.debug('No DATABASE_URL found, loading environment variables');
 
         const result = loadEnvironment({
-            debug: true,
+            debug: process.env.NODE_ENV !== 'production',
         });
 
         dbLogger.debug('Environment variables loaded', {
             success: result.success,
             loaded: result.loaded.length,
-            hasDatabaseUrl: !!process.env.DATABASE_URL,
-            hasWriteUrl: !!process.env.DATABASE_WRITE_URL,
-            hasReadUrl: !!process.env.DATABASE_READ_URL,
+            hasDatabaseUrl: hasEnvVar('DATABASE_URL'),
+            hasWriteUrl: hasEnvVar('DATABASE_WRITE_URL'),
+            hasReadUrl: hasEnvVar('DATABASE_READ_URL'),
         });
     }
 
     // Quick exit if no database config
     if (!hasDatabaseConfig())
     {
-        dbLogger.warn('No database configuration found', {
+        const error = new Error(
+            'No database configuration found. Please set DATABASE_URL, DATABASE_WRITE_URL, or DATABASE_READ_URL environment variable.'
+        );
+
+        dbLogger.error('No database configuration found', {
             cwd: process.cwd(),
             nodeEnv: process.env.NODE_ENV,
             checkedVars: ['DATABASE_URL', 'DATABASE_WRITE_URL', 'DATABASE_READ_URL'],
         });
-        return { write: undefined, read: undefined };
+
+        throw error;
     }
 
     try
@@ -234,10 +291,6 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
         switch (pattern.type)
         {
             case 'write-read':
-                dbLogger.debug('Using write-read pattern', {
-                    write: pattern.write.replace(/:[^:@]+@/, ':***@'),
-                    read: pattern.read.replace(/:[^:@]+@/, ':***@'),
-                });
                 return await createWriteReadClients(
                     pattern.write,
                     pattern.read,
@@ -246,10 +299,6 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
                 );
 
             case 'legacy':
-                dbLogger.debug('Using legacy replica pattern', {
-                    primary: pattern.primary.replace(/:[^:@]+@/, ':***@'),
-                    replica: pattern.replica.replace(/:[^:@]+@/, ':***@'),
-                });
                 return await createWriteReadClients(
                     pattern.primary,
                     pattern.replica,
@@ -258,30 +307,31 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
                 );
 
             case 'single':
-                dbLogger.debug('Using single database pattern', {
-                    url: pattern.url.replace(/:[^:@]+@/, ':***@'),
-                });
                 return await createSingleClient(pattern.url, poolConfig, retryConfig);
 
             case 'none':
-                dbLogger.warn('No database pattern detected');
-                return { write: undefined, read: undefined };
+                // This should never happen if hasDatabaseConfig() passed
+                // But throw for defensive programming
+                throw new Error('No database pattern detected despite passing config check');
         }
     }
     catch (error)
     {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        dbLogger.error('Failed to create database connection', {
-            error: message,
-            stage: 'initialization',
-            hasWriteUrl: !!process.env.DATABASE_WRITE_URL,
-            hasReadUrl: !!process.env.DATABASE_READ_URL,
-            hasUrl: !!process.env.DATABASE_URL,
-            hasReplicaUrl: !!process.env.DATABASE_REPLICA_URL,
-        });
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        dbLogger.error(
+            'Failed to create database connection',
+            errorObj,
+            {
+                stage: 'initialization',
+                hasWriteUrl: hasEnvVar('DATABASE_WRITE_URL'),
+                hasReadUrl: hasEnvVar('DATABASE_READ_URL'),
+                hasUrl: hasEnvVar('DATABASE_URL'),
+                hasReplicaUrl: hasEnvVar('DATABASE_REPLICA_URL'),
+            }
+        );
 
         // If DATABASE_URL is configured, connection failure should be fatal
         // This prevents the server from starting without a database connection
-        throw new Error(`Database connection failed: ${message}`, { cause: error });
+        throw new Error(`Database connection failed: ${errorObj.message}`, { cause: error });
     }
 }

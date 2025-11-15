@@ -10,6 +10,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { logger } from '../../logger';
 import { createDatabaseFromEnv } from './factory';
 import type { DatabaseOptions, HealthCheckConfig } from './config';
+import { buildMonitoringConfig } from './config';
 import {
     getHealthCheckInterval,
     setHealthCheckInterval,
@@ -17,9 +18,102 @@ import {
     setReadInstance,
     setWriteClient,
     setReadClient,
+    setMonitoringConfig,
 } from './global-state';
+import type { GetDatabaseFn } from './manager';
 
 const dbLogger = logger.child('@spfn/core:database');
+
+// ============================================================================
+// Helper Functions (Private)
+// ============================================================================
+
+/**
+ * Test a single database connection
+ *
+ * @param db - Database instance to test
+ * @throws Error if connection test fails
+ * @internal
+ */
+async function testDatabaseConnection(
+    db: PostgresJsDatabase<Record<string, unknown>>
+): Promise<void>
+{
+    await db.execute('SELECT 1');
+}
+
+/**
+ * Perform health check on database connections
+ *
+ * Tests both write and read connections.
+ *
+ * @param getDatabase - Function to get database instance
+ * @throws Error if health check fails
+ * @internal
+ */
+async function performHealthCheck(getDatabase: GetDatabaseFn): Promise<void>
+{
+    const write = getDatabase('write');
+    const read = getDatabase('read');
+
+    await testDatabaseConnection(write);
+
+    // Check read connection if different from write
+    if (read !== write)
+    {
+        await testDatabaseConnection(read);
+    }
+}
+
+/**
+ * Reconnect database and restore instances
+ *
+ * Closes existing connections, creates new ones, tests them, and restores global state.
+ *
+ * @param options - Optional database configuration
+ * @param closeDatabase - Function to close existing connections
+ * @returns true if reconnection successful, false otherwise
+ * @internal
+ */
+async function reconnectAndRestore(
+    options: DatabaseOptions | undefined,
+    closeDatabase: () => Promise<void>
+): Promise<boolean>
+{
+    // Close existing connections
+    await closeDatabase();
+
+    // Create new connections
+    const result = await createDatabaseFromEnv(options);
+
+    if (!result.write)
+    {
+        return false;
+    }
+
+    // Test both connections before restoring
+    await testDatabaseConnection(result.write);
+    if (result.read && result.read !== result.write)
+    {
+        await testDatabaseConnection(result.read);
+    }
+
+    // Store instances
+    setWriteInstance(result.write);
+    setReadInstance(result.read);
+    setWriteClient(result.writeClient);
+    setReadClient(result.readClient);
+
+    // Restore monitoring configuration
+    const monConfig = buildMonitoringConfig(options?.monitoring);
+    setMonitoringConfig(monConfig);
+
+    return true;
+}
+
+// ============================================================================
+// Public API
+// ============================================================================
 
 /**
  * Start database health check
@@ -50,8 +144,6 @@ const dbLogger = logger.child('@spfn/core:database');
  * );
  * ```
  */
-import type { GetDatabaseFn } from './manager';
-
 export function startHealthCheck(
     config: HealthCheckConfig,
     options: DatabaseOptions | undefined,
@@ -75,24 +167,10 @@ export function startHealthCheck(
     {
         try
         {
-            const write = getDatabase('write');
-            const read = getDatabase('read');
-
-            // Check write connection
-            if (write)
-            {
-                await write.execute('SELECT 1');
-            }
-
-            // Check read connection (if different)
-            if (read && read !== write)
-            {
-                await read.execute('SELECT 1');
-            }
-
+            await performHealthCheck(getDatabase);
             // Health check passed - no need to log (only log failures)
         }
-        catch (error)
+        catch (error: unknown)
         {
             const message = error instanceof Error ? error.message : 'Unknown error';
             dbLogger.error('Database health check failed', { error: message });
@@ -135,31 +213,26 @@ async function attemptReconnection(
         {
             dbLogger.debug(`Reconnection attempt ${attempt}/${config.maxRetries}`);
 
-            // Close existing connections
-            await closeDatabase();
-
-            // Wait before retry
-            await new Promise(resolve => setTimeout(resolve, config.retryInterval));
-
-            // Reinitialize database
-            const result = await createDatabaseFromEnv(options);
-
-            if (result.write)
+            // Wait before retry (skip for first attempt)
+            if (attempt > 1)
             {
-                // Test connection
-                await result.write.execute('SELECT 1');
+                await new Promise(resolve => setTimeout(resolve, config.retryInterval));
+            }
 
-                // Store instances
-                setWriteInstance(result.write);
-                setReadInstance(result.read);
-                setWriteClient(result.writeClient);
-                setReadClient(result.readClient);
+            // Attempt reconnection
+            const success = await reconnectAndRestore(options, closeDatabase);
 
+            if (success)
+            {
                 dbLogger.info('Database reconnection successful', { attempt });
                 return;
             }
+            else
+            {
+                dbLogger.error(`Reconnection attempt ${attempt} failed: No write database instance created`);
+            }
         }
-        catch (error)
+        catch (error: unknown)
         {
             const message = error instanceof Error ? error.message : 'Unknown error';
             dbLogger.error(`Reconnection attempt ${attempt} failed`, {
@@ -167,11 +240,11 @@ async function attemptReconnection(
                 attempt,
                 maxRetries: config.maxRetries,
             });
+        }
 
-            if (attempt === config.maxRetries)
-            {
-                dbLogger.error('Max reconnection attempts reached, giving up');
-            }
+        if (attempt === config.maxRetries)
+        {
+            dbLogger.error('Max reconnection attempts reached, giving up');
         }
     }
 }

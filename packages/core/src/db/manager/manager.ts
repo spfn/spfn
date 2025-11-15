@@ -5,6 +5,7 @@
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { Sql } from 'postgres';
 
 import { logger } from '../../logger';
 import { createDatabaseFromEnv } from './factory';
@@ -27,6 +28,37 @@ import { startHealthCheck, stopHealthCheck } from './health-check';
 const dbLogger = logger.child('@spfn/core:database');
 
 /**
+ * Connection close timeout in seconds
+ */
+const DB_CONNECTION_CLOSE_TIMEOUT = 5;
+
+/**
+ * Number of stack trace lines to skip when detecting caller
+ */
+const STACK_TRACE_SKIP_LINES = 3;
+
+/**
+ * Regular expressions for parsing stack trace lines
+ */
+const STACK_TRACE_PATTERNS = {
+    withParens: /\((.+):(\d+):(\d+)\)/,
+    withoutParens: /at (.+):(\d+):(\d+)/,
+};
+
+/**
+ * Initialization promise to prevent concurrent initialization
+ */
+let initPromise: Promise<{
+    write?: PostgresJsDatabase<Record<string, unknown>>;
+    read?: PostgresJsDatabase<Record<string, unknown>>;
+}> | null = null;
+
+/**
+ * Close in progress flag to prevent concurrent closeDatabase calls
+ */
+let isClosing = false;
+
+/**
  * DB connection type
  */
 export type DbConnectionType = 'read' | 'write';
@@ -34,7 +66,100 @@ export type DbConnectionType = 'read' | 'write';
 /**
  * GetDatabase function type
  */
-export type GetDatabaseFn = (type?: DbConnectionType) => PostgresJsDatabase<Record<string, unknown>> | undefined;
+export type GetDatabaseFn = (type?: DbConnectionType) => PostgresJsDatabase<Record<string, unknown>>;
+
+// ============================================================================
+// Helper Functions (Private)
+// ============================================================================
+
+/**
+ * Cleanup database connections
+ *
+ * Closes write and read client connections with timeout.
+ * Ignores cleanup errors to ensure all cleanup attempts complete.
+ *
+ * @param writeClient - Write client to cleanup
+ * @param readClient - Read client to cleanup
+ * @internal
+ */
+async function cleanupDatabaseConnections(
+    writeClient: Sql | undefined,
+    readClient: Sql | undefined
+): Promise<void>
+{
+    const cleanupPromises: Promise<void>[] = [];
+
+    if (writeClient)
+    {
+        cleanupPromises.push(
+            writeClient.end({ timeout: DB_CONNECTION_CLOSE_TIMEOUT }).catch((err) => {
+                dbLogger.debug('Write client cleanup failed', { error: err });
+            })
+        );
+    }
+
+    if (readClient && readClient !== writeClient)
+    {
+        cleanupPromises.push(
+            readClient.end({ timeout: DB_CONNECTION_CLOSE_TIMEOUT }).catch((err) => {
+                dbLogger.debug('Read client cleanup failed', { error: err });
+            })
+        );
+    }
+
+    await Promise.allSettled(cleanupPromises);
+}
+
+/**
+ * Close a single database client connection
+ *
+ * @param client - Database client to close
+ * @param type - Connection type ('write' or 'read')
+ * @internal
+ */
+async function closeDatabaseClient(client: Sql, type: 'write' | 'read'): Promise<void>
+{
+    const typeName = type.charAt(0).toUpperCase() + type.slice(1);
+    dbLogger.debug(`Closing ${type} connection...`);
+
+    try
+    {
+        await client.end({ timeout: DB_CONNECTION_CLOSE_TIMEOUT });
+        dbLogger.debug(`${typeName} connection closed`);
+    }
+    catch (err: unknown)
+    {
+        const error = err instanceof Error ? err : new Error(String(err));
+        dbLogger.error(`Error closing ${type} connection`, error);
+    }
+}
+
+/**
+ * Test database connections
+ *
+ * Executes a simple SELECT 1 query on both write and read connections.
+ *
+ * @param write - Write database instance
+ * @param read - Read database instance
+ * @throws Error if connection test fails
+ * @internal
+ */
+async function testDatabaseConnections(
+    write: PostgresJsDatabase<Record<string, unknown>> | undefined,
+    read: PostgresJsDatabase<Record<string, unknown>> | undefined
+): Promise<void>
+{
+    if (write)
+    {
+        await write.execute('SELECT 1');
+
+        // Test read connection if different from write
+        if (read && read !== write)
+        {
+            await read.execute('SELECT 1');
+        }
+    }
+}
 
 /**
  * Get caller information from stack trace
@@ -48,14 +173,14 @@ function getCallerInfo(): string | undefined
 
         const lines = stack.split('\n');
         // Skip first 3 lines: Error, getCallerInfo, getDatabase
-        for (let i = 3; i < lines.length; i++)
+        for (let i = STACK_TRACE_SKIP_LINES; i < lines.length; i++)
         {
             const line = lines[i];
             // Find first meaningful caller (not node_modules/@spfn/core/db)
             if (!line.includes('node_modules') && !line.includes('/db/manager/'))
             {
                 // Extract file:line from stack line
-                const match = line.match(/\((.+):(\d+):(\d+)\)/) || line.match(/at (.+):(\d+):(\d+)/);
+                const match = line.match(STACK_TRACE_PATTERNS.withParens) || line.match(STACK_TRACE_PATTERNS.withoutParens);
                 if (match)
                 {
                     const fullPath = match[1];
@@ -73,39 +198,62 @@ function getCallerInfo(): string | undefined
             }
         }
     }
-    catch
+    catch (error: unknown)
     {
-        // Ignore errors in stack trace parsing
+        // Stack trace parsing failed - log for debugging
+        dbLogger.debug('Failed to extract caller info from stack trace', {
+            error: error instanceof Error ? error.message : String(error)
+        });
     }
     return undefined;
 }
 
 /**
- * Get global database write instance
+ * Create database not initialized error message
  *
- * @returns Database write instance or undefined if not initialized
+ * @param type - Database connection type ('read' or 'write')
+ * @returns Error with descriptive message for uninitialized database
+ *
+ * @internal
+ */
+function createNotInitializedError(type: DbConnectionType): Error
+{
+    return new Error(
+        `Database not initialized (type: ${type}). Call initDatabase() first or set DATABASE_URL environment variable.`
+    );
+}
+
+/**
+ * Get global database instance
+ *
+ * @param type - Connection type ('read' or 'write', defaults to 'write')
+ * @returns Database instance (never undefined)
+ * @throws Error if database is not initialized
  *
  * @example
  * ```typescript
  * import { getDatabase } from '@spfn/core/db';
  *
+ * // Always returns a valid instance or throws
  * const db = getDatabase();
- * if (db) {
- *   const users = await db.select().from(usersTable);
- * }
+ * const users = await db.select().from(usersTable);
+ *
+ * // For read operations (uses replica if available, falls back to primary)
+ * const dbRead = getDatabase('read');
+ * const posts = await dbRead.select().from(postsTable);
  * ```
  */
-export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<string, unknown>> | undefined
+export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<string, unknown>>
 {
     const writeInst = getWriteInstance();
     const readInst = getReadInstance();
 
-    // Detailed debug logging with caller info (only if DB_DEBUG_TRACE is enabled)
-    if (process.env.DB_DEBUG_TRACE === 'true')
+    // Detailed debug logging with caller info (only if DB_DEBUG_TRACE is enabled in non-production)
+    if (process.env.DB_DEBUG_TRACE === 'true' && process.env.NODE_ENV !== 'production')
     {
         const caller = getCallerInfo();
         dbLogger.debug('getDatabase() called', {
-            type: type || 'write',
+            type: type ?? 'write',
             hasWrite: !!writeInst,
             hasRead: !!readInst,
             caller,
@@ -114,7 +262,18 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
 
     if (type === 'read')
     {
-        return readInst ?? writeInst;
+        const db = readInst ?? writeInst;
+        if (!db)
+        {
+            throw createNotInitializedError('read');
+        }
+        return db;
+    }
+
+    // Default: 'write' type
+    if (!writeInst)
+    {
+        throw createNotInitializedError('write');
     }
 
     return writeInst;
@@ -123,40 +282,42 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
 /**
  * Get global database instance or throw error if not initialized
  *
- * This is a convenience wrapper around getDatabase() that throws an error
- * instead of returning undefined. Use this when you expect the database
- * to be initialized and want to avoid null checks.
- *
+ * @deprecated Use getDatabase() instead - it now throws by default
  * @param type - Connection type ('read' or 'write', defaults to 'write')
  * @returns Database instance (never undefined)
  * @throws Error if database is not initialized
  *
  * @example
  * ```typescript
- * import { getDatabaseOrThrow } from '@spfn/core/db';
+ * import { getDatabase } from '@spfn/core/db';
  *
- * // No need for null checks
- * const db = getDatabaseOrThrow('read');
+ * // Use getDatabase() instead
+ * const db = getDatabase('read');
  * const users = await db.select().from(usersTable);
  * ```
  */
 export function getDatabaseOrThrow(type?: DbConnectionType): PostgresJsDatabase<Record<string, unknown>>
 {
-    const db = getDatabase(type);
-    if (!db)
+    if (process.env.NODE_ENV !== 'production')
     {
-        throw new Error(
-            `Database not initialized. Call initDatabase() first or set DATABASE_URL environment variable.`
-        );
+        dbLogger.warn('getDatabaseOrThrow() is deprecated. Use getDatabase() instead, which now throws by default.');
     }
-    return db;
+    return getDatabase(type);
 }
 
 /**
  * Set global database instances (for testing or manual configuration)
  *
- * @param write - Database write instance
- * @param read - Database read instance (optional, defaults to write)
+ * This function directly sets database instances without creating connections
+ * or performing validation. It's primarily intended for testing scenarios.
+ *
+ * @param write - Database write instance (pass undefined to clear)
+ * @param read - Database read instance (optional, defaults to write, pass undefined to clear)
+ *
+ * @remarks
+ * **Important:** To properly close database connections with cleanup, use `closeDatabase()` instead.
+ * This function only updates the global instances without closing the underlying connections.
+ * Setting both to undefined will clear the instances but leave connections open, which may cause resource leaks.
  *
  * @example
  * ```typescript
@@ -164,9 +325,13 @@ export function getDatabaseOrThrow(type?: DbConnectionType): PostgresJsDatabase<
  * import { drizzle } from 'drizzle-orm/postgres-js';
  * import postgres from 'postgres';
  *
+ * // Set custom database instances (testing)
  * const writeClient = postgres('postgresql://primary:5432/mydb');
  * const readClient = postgres('postgresql://replica:5432/mydb');
  * setDatabase(drizzle(writeClient), drizzle(readClient));
+ *
+ * // Clear instances (not recommended - use closeDatabase() instead)
+ * setDatabase(undefined, undefined);
  * ```
  */
 export function setDatabase(
@@ -230,6 +395,12 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
     read?: PostgresJsDatabase<Record<string, unknown>>;
 }>
 {
+    // Prevent initialization during close operation
+    if (isClosing)
+    {
+        throw new Error('Cannot initialize database while closing');
+    }
+
     // Already initialized
     const writeInst = getWriteInstance();
     if (writeInst)
@@ -238,20 +409,41 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
         return { write: writeInst, read: getReadInstance() };
     }
 
-    // Auto-detect from environment
-    const result = await createDatabaseFromEnv(options);
+    // Initialization in progress - wait for it to complete
+    if (initPromise)
+    {
+        dbLogger.debug('Database initialization in progress, waiting...');
+        return await initPromise;
+    }
 
-    if (result.write)
+    // Start initialization with lock
+    initPromise = (async () =>
     {
         try
         {
-            // Test connection with a simple query
-            await result.write.execute('SELECT 1');
+            // Auto-detect from environment
+            const result = await createDatabaseFromEnv(options);
 
-            // Test read instance if different
-            if (result.read && result.read !== result.write)
+            // Test connections
+            try
             {
-                await result.read.execute('SELECT 1');
+                await testDatabaseConnections(result.write, result.read);
+            }
+            catch (error: unknown)
+            {
+                // Connection test failed - cleanup and throw
+                await cleanupDatabaseConnections(result.writeClient, result.readClient);
+
+                const message = error instanceof Error ? error.message : 'Unknown error';
+                throw new Error(`Database connection test failed: ${message}`);
+            }
+
+            // Check if database was closed during initialization
+            if (isClosing)
+            {
+                dbLogger.warn('Database closed during initialization, cleaning up...');
+                await cleanupDatabaseConnections(result.writeClient, result.readClient);
+                throw new Error('Database closed during initialization');
             }
 
             // Store instances in globalThis
@@ -284,26 +476,17 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
                     logQueries: monConfig.logQueries,
                 });
             }
+
+            return { write: getWriteInstance(), read: getReadInstance() };
         }
-        catch (error)
+        finally
         {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            dbLogger.error('Database connection failed', { error: message });
-
-            // Cleanup on failure
-            await closeDatabase();
-
-            // If DATABASE_URL is configured, connection failure should be fatal
-            throw new Error(`Database connection test failed: ${message}`, { cause: error });
+            // Clear lock after initialization completes (success or failure)
+            initPromise = null;
         }
-    }
-    else
-    {
-        dbLogger.warn('No database configuration found');
-        dbLogger.warn('Set DATABASE_URL environment variable to enable database');
-    }
+    })();
 
-    return { write: getWriteInstance(), read: getReadInstance() };
+    return await initPromise;
 }
 
 /**
@@ -330,68 +513,107 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
  */
 export async function closeDatabase(): Promise<void>
 {
+    // Prevent concurrent close operations
+    if (isClosing)
+    {
+        dbLogger.debug('Database close already in progress');
+        return;
+    }
+
+    // Set closing flag early to prevent new operations
+    isClosing = true;
+
+    // Wait for any in-progress initialization to complete before closing
+    if (initPromise)
+    {
+        dbLogger.debug('Waiting for database initialization to complete before closing...');
+
+        try
+        {
+            await initPromise;
+        }
+        catch (_error: unknown)
+        {
+            // Initialization failed, but we still need to cleanup any partial state
+            dbLogger.debug('Initialization failed during close, proceeding with cleanup');
+        }
+    }
+
     const writeInst = getWriteInstance();
     const readInst = getReadInstance();
     if (!writeInst && !readInst)
     {
         dbLogger.debug('No database connections to close');
+        isClosing = false;
         return;
     }
 
-    // Stop health check
-    stopHealthCheck();
-
     try
     {
+        // Stop health check
+        stopHealthCheck();
+
         const closePromises: Promise<void>[] = [];
 
         // Close write client
         const writeC = getWriteClient();
         if (writeC)
         {
-            dbLogger.debug('Closing write connection...');
-            closePromises.push(
-                writeC.end({ timeout: 5 })
-                    .then(() => dbLogger.debug('Write connection closed'))
-                    .catch(err => dbLogger.error('Error closing write connection', err))
-            );
+            closePromises.push(closeDatabaseClient(writeC, 'write'));
         }
 
         // Close read client (if different from write)
         const readC = getReadClient();
         if (readC && readC !== writeC)
         {
-            dbLogger.debug('Closing read connection...');
-            closePromises.push(
-                readC.end({ timeout: 5 })
-                    .then(() => dbLogger.debug('Read connection closed'))
-                    .catch(err => dbLogger.error('Error closing read connection', err))
-            );
+            closePromises.push(closeDatabaseClient(readC, 'read'));
         }
 
-        // Wait for all connections to close
-        await Promise.all(closePromises);
+        // Wait for all connections to close (use allSettled to ensure all cleanup attempts complete)
+        await Promise.allSettled(closePromises);
 
         dbLogger.info('All database connections closed');
     }
-    catch (error)
-    {
-        dbLogger.error('Error during database cleanup', error as Error);
-        throw error;
-    }
     finally
     {
-        // Always clear instances
+        // Always clear instances and reset flag
         setWriteInstance(undefined);
         setReadInstance(undefined);
         setWriteClient(undefined);
         setReadClient(undefined);
         setMonitoringConfig(undefined);
+        isClosing = false;
     }
 }
 
 /**
  * Get database connection info (for debugging)
+ *
+ * Returns the current state of database connections without throwing errors.
+ * Useful for health checks, monitoring, and debugging initialization issues.
+ *
+ * @returns Connection status information
+ * - `hasWrite`: Whether write database instance is initialized
+ * - `hasRead`: Whether read database instance is initialized
+ * - `isReplica`: Whether read and write are different instances (Primary + Replica setup)
+ *
+ * @example
+ * ```typescript
+ * import { getDatabaseInfo } from '@spfn/core/db';
+ *
+ * const info = getDatabaseInfo();
+ * console.log(`Write: ${info.hasWrite}, Read: ${info.hasRead}, Replica: ${info.isReplica}`);
+ *
+ * // Check before using database
+ * if (!info.hasWrite) {
+ *   console.warn('Database not initialized');
+ * }
+ *
+ * // Detect Primary + Replica setup
+ * if (info.isReplica) {
+ *   console.log('Using Primary + Replica configuration');
+ * }
+ * ```
  */
 export function getDatabaseInfo(): {
     hasWrite: boolean;
