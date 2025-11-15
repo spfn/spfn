@@ -17,13 +17,9 @@ export default defineConfig({
         environment: 'node',
         include: ['src/**/*.{test,spec}.{js,ts}'],
 
-        // Sequential execution to reduce memory usage
-        poolOptions: {
-            threads: {
-                maxThreads: 1,
-                minThreads: 1,
-            },
-        },
+        // Sequential execution to reduce memory usage and avoid global state conflicts
+        maxConcurrency: 1,  // Run only 1 test file at a time
+        pool: 'forks',  // Use forks for better isolation with global state
 
         // Timeout for integration tests
         testTimeout: 30000,

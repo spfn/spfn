@@ -84,8 +84,6 @@
     "build": "tsup",
     "dev": "tsup",
     "test": "vitest",
-    "test:unit": "vitest --config vitest.unit.config.ts",
-    "test:integration": "vitest --config vitest.integration.config.ts",
     "test:coverage": "vitest run --config vitest.unit.config.ts --coverage",
     "test:logger": "vitest src/logger",
     "test:errors": "vitest src/errors",

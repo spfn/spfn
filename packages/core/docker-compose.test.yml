@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL for testing
   postgres:
@@ -10,7 +8,7 @@ services:
       POSTGRES_PASSWORD: testpass
       POSTGRES_DB: spfn_test
     ports:
-      - '5433:5432'
+      - '5532:5432'
     volumes:
       - postgres_test_data:/var/lib/postgresql/data
     healthcheck:
@@ -24,7 +22,7 @@ services:
     image: valkey/valkey:8.0
     container_name: spfn-valkey-single
     ports:
-      - "6379:6379"
+      - "6479:6379"
     command: valkey-server --appendonly yes
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
@@ -37,7 +35,7 @@ services:
     image: valkey/valkey:8.0
     container_name: spfn-valkey-master
     ports:
-      - "6380:6379"
+      - "6480:6379"
     command: valkey-server --appendonly yes
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
@@ -50,7 +48,7 @@ services:
     image: valkey/valkey:8.0
     container_name: spfn-valkey-replica
     ports:
-      - "6381:6379"
+      - "6481:6379"
     command: valkey-server --replicaof valkey-master 6379 --appendonly yes
     depends_on:
       valkey-master:
@@ -66,7 +64,7 @@ services:
     image: valkey/valkey:8.0
     container_name: spfn-valkey-auth
     ports:
-      - "6382:6379"
+      - "6482:6379"
     command: valkey-server --requirepass secret123
     healthcheck:
       test: ["CMD", "valkey-cli", "-a", "secret123", "ping"]

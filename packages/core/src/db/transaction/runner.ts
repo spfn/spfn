@@ -51,6 +51,12 @@ import { TransactionError } from '../../errors';
 import { getEnvVar } from '../../env';
 
 /**
+ * PostgreSQL maximum timeout value (max int4)
+ */
+const MAX_TIMEOUT_MS = 2147483647;
+const txLogger = logger.child('@spfn/core:transaction');
+
+/**
  * Transaction runner options
  */
 export interface RunInTransactionOptions
@@ -136,9 +142,9 @@ export async function runInTransaction<T>(
         validator: (val) =>
         {
             const parsed = parseInt(val, 10);
-            if (Number.isNaN(parsed) || parsed < 0 || parsed > 2147483647)
+            if (Number.isNaN(parsed) || parsed < 0 || parsed > MAX_TIMEOUT_MS)
             {
-                throw new Error('TRANSACTION_TIMEOUT must be a non-negative integer between 0 and 2147483647');
+                throw new Error(`TRANSACTION_TIMEOUT must be a non-negative integer between 0 and ${MAX_TIMEOUT_MS}`);
             }
 
             return parsed;
@@ -154,22 +160,73 @@ export async function runInTransaction<T>(
     // Handle timeout: null/undefined → default, 0 → disabled, N → N milliseconds
     const timeout = options.timeout ?? defaultTimeout;
 
-    const txLogger = logger.child('@spfn/core:transaction');
-
     // Generate transaction ID for debugging
     const txId = `tx_${randomUUID()}`;
 
-    // Validate slowThreshold
-    if (!Number.isInteger(slowThreshold) || slowThreshold < 0)
+    /**
+     * Helper function to validate parameters and throw TransactionError
+     */
+    const validateAndThrow = (
+        condition: boolean,
+        message: string,
+        logMessage: string,
+        metadata: Record<string, unknown>
+    ): void =>
     {
-        throw new TransactionError(
-            `Invalid slowThreshold value: ${slowThreshold}. Must be a non-negative integer.`,
-            400,
-            { txId, context, slowThreshold }
-        );
-    }
+        if (condition)
+        {
+            const error = new TransactionError(message, 400, metadata);
 
-    // Get write database instance
+            if (enableLogging)
+            {
+                txLogger.error(logMessage, { ...metadata, error: error.message });
+            }
+
+            throw error;
+        }
+    };
+
+    // Validate all input parameters before DB access (fail-fast pattern)
+
+    // Validate callback is a function
+    validateAndThrow(
+        typeof callback !== 'function',
+        'Callback must be a function',
+        'Invalid callback type',
+        { txId, context, callbackType: typeof callback }
+    );
+
+    // Validate slowThreshold
+    validateAndThrow(
+        !Number.isInteger(slowThreshold) || slowThreshold < 0,
+        `Invalid slowThreshold value: ${slowThreshold}. Must be a non-negative integer.`,
+        'Invalid slowThreshold',
+        { txId, context, slowThreshold }
+    );
+
+    // Validate timeout value for SQL safety
+    validateAndThrow(
+        !Number.isInteger(timeout),
+        `Invalid timeout value: ${timeout}. Must be an integer.`,
+        'Invalid timeout type',
+        { txId, context, timeout }
+    );
+
+    validateAndThrow(
+        timeout < 0,
+        `Invalid timeout value: ${timeout}. Timeout must be non-negative (0 to disable, or 1-${MAX_TIMEOUT_MS}ms).`,
+        'Invalid timeout range',
+        { txId, context, timeout }
+    );
+
+    validateAndThrow(
+        timeout > MAX_TIMEOUT_MS,
+        `Invalid timeout value: ${timeout}. Maximum timeout is ${MAX_TIMEOUT_MS}ms.`,
+        'Timeout exceeds maximum',
+        { txId, context, timeout, maxTimeout: MAX_TIMEOUT_MS }
+    );
+
+    // Get write database instance (after all input validations)
     const writeDb = getDatabase('write');
     if (!writeDb)
     {
@@ -189,34 +246,6 @@ export async function runInTransaction<T>(
         }
 
         throw error;
-    }
-
-    // Validate timeout value for SQL safety (before transaction starts)
-    if (!Number.isInteger(timeout))
-    {
-        throw new TransactionError(
-            `Invalid timeout value: ${timeout}. Must be an integer.`,
-            400,
-            { txId, context, timeout }
-        );
-    }
-
-    if (timeout < 0)
-    {
-        throw new TransactionError(
-            `Invalid timeout value: ${timeout}. Timeout must be non-negative (0 to disable, or 1-2147483647ms).`,
-            400,
-            { txId, context, timeout }
-        );
-    }
-
-    if (timeout > 2147483647)
-    {
-        throw new TransactionError(
-            `Invalid timeout value: ${timeout}. Maximum timeout is 2147483647ms.`,
-            400,
-            { txId, context, timeout }
-        );
     }
 
     // Check if we're in a nested transaction

@@ -9,7 +9,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import type { Server } from 'http';
 
-import { initRedis, closeRedis } from '../cache';
+import { closeCache, initCache } from '../cache';
 import { initDatabase, closeDatabase } from '../db';
 import { logger } from '../logger';
 import { printBanner } from './banner';
@@ -210,7 +210,7 @@ async function initializeInfrastructure(config: ServerConfig, plugins: ServerPlu
     if (shouldInitRedis)
     {
         serverLogger.debug('Initializing Redis...');
-        await initRedis();
+        await initCache();
     }
     else
     {
@@ -333,7 +333,7 @@ function createShutdownHandler(server: Server, config: ServerConfig, plugins: Se
         if (shouldCloseRedis)
         {
             serverLogger.debug('Closing Redis connections...');
-            await closeRedis();
+            await closeCache();
         }
 
         serverLogger.info('Server shutdown completed');
@@ -458,7 +458,7 @@ async function cleanupOnFailure(config: ServerConfig): Promise<void>
 
         if (shouldCleanupRedis)
         {
-            await closeRedis();
+            await closeCache();
         }
 
         serverLogger.debug('Cleanup completed');
