@@ -1,5 +1,7 @@
 import type { Hono, Handler } from 'hono';
 import type { Server } from 'http';
+import { getDatabase } from '../db';
+import { getCache } from '../cache';
 
 export function createHealthCheckHandler(detailed: boolean): Handler
 {
@@ -12,14 +14,13 @@ export function createHealthCheckHandler(detailed: boolean): Handler
 
         if (detailed)
         {
-            const { getDatabase } = await import('../db/index');
-            const { getRedis } = await import('../cache/index');
-
-            const db = getDatabase();
-            let dbStatus = 'disconnected';
+            let dbStatus: string = 'unknown';
             let dbError: string | undefined;
-            if (db)
+
+            // Try to get database instance
+            try
             {
+                const db = getDatabase();
                 try
                 {
                     await db.execute('SELECT 1');
@@ -31,9 +32,15 @@ export function createHealthCheckHandler(detailed: boolean): Handler
                     dbError = error instanceof Error ? error.message : String(error);
                 }
             }
+            catch (error)
+            {
+                // Database not initialized
+                dbStatus = 'not_initialized';
+                dbError = 'Database not available';
+            }
 
-            const redis = getRedis();
-            let redisStatus = 'disconnected';
+            const redis = getCache();
+            let redisStatus: string = redis ? 'unknown' : 'not_initialized';
             let redisError: string | undefined;
             if (redis)
             {
@@ -60,7 +67,9 @@ export function createHealthCheckHandler(detailed: boolean): Handler
                 },
             };
 
-            const hasErrors = dbStatus === 'error' || redisStatus === 'error';
+            const hasErrors =
+                (dbStatus === 'error' || dbStatus === 'not_initialized') ||
+                (redisStatus === 'error');
             response.status = hasErrors ? 'degraded' : 'ok';
         }
 

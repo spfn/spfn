@@ -59,7 +59,9 @@ async function loadCustomApp(
     plugins: ServerPlugin[] = []
 ): Promise<Hono>
 {
-    const appModule = await import(existsSync(appPath) ? appPath : appJsPath);
+    // Determine which path exists to avoid duplicate checks
+    const actualPath = existsSync(appPath) ? appPath : appJsPath;
+    const appModule = await import(actualPath);
     const appFactory: AppFactory = appModule.default;
 
     if (!appFactory)
@@ -73,7 +75,7 @@ async function loadCustomApp(
     await executePluginHooks(plugins, 'beforeRoutes', app);
 
     // Only load routes, everything else is user's responsibility
-    const debug = config?.debug ?? process.env.NODE_ENV === 'development';
+    const debug = isDebugMode(config);
     await loadRoutes(app, { routesDir: config?.routesPath, debug });
 
     // Execute afterRoutes hooks from plugins
@@ -105,7 +107,10 @@ async function createAutoConfiguredApp(config?: ServerConfig, plugins: ServerPlu
     applyDefaultMiddleware(app, config, enableLogger, enableCors);
 
     // 3. Custom middleware
-    config?.use?.forEach(mw => app.use('*', mw));
+    if (Array.isArray(config?.use))
+    {
+        config.use.forEach(mw => app.use('*', mw));
+    }
 
     // 4. Health check endpoint
     registerHealthCheckEndpoint(app, config);
@@ -146,9 +151,12 @@ function applyDefaultMiddleware(
         app.use('*', RequestLogger());
     }
 
-    if (enableCors && config?.cors !== false)
+    if (enableCors)
     {
-        app.use('*', cors(config?.cors));
+        // Only apply cors if config.cors is not explicitly false
+        // This handles both config.cors = undefined and config.cors = {...options}
+        const corsOptions = config?.cors !== false ? config?.cors : undefined;
+        app.use('*', cors(corsOptions));
     }
 }
 
@@ -169,25 +177,23 @@ function registerHealthCheckEndpoint(app: Hono, config?: ServerConfig): void
 
 async function executeBeforeRoutesHook(app: Hono, config?: ServerConfig): Promise<void>
 {
-    if (!config?.lifecycle?.beforeRoutes)
+    if (config?.lifecycle?.beforeRoutes)
     {
-        return;
-    }
-
-    try
-    {
-        await config.lifecycle.beforeRoutes(app);
-    }
-    catch (error)
-    {
-        serverLogger.error('beforeRoutes hook failed', error as Error);
-        throw new Error('Server initialization failed in beforeRoutes hook');
+        try
+        {
+            await config.lifecycle.beforeRoutes(app);
+        }
+        catch (error)
+        {
+            serverLogger.error('beforeRoutes hook failed', error as Error);
+            throw new Error('Server initialization failed in beforeRoutes hook');
+        }
     }
 }
 
 async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void>
 {
-    const debug = config?.debug ?? process.env.NODE_ENV === 'development';
+    const debug = isDebugMode(config);
     await loadRoutes(app, {
         routesDir: config?.routesPath,
         debug,
@@ -197,18 +203,24 @@ async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void>
 
 async function executeAfterRoutesHook(app: Hono, config?: ServerConfig): Promise<void>
 {
-    if (!config?.lifecycle?.afterRoutes)
+    if (config?.lifecycle?.afterRoutes)
     {
-        return;
+        try
+        {
+            await config.lifecycle.afterRoutes(app);
+        }
+        catch (error)
+        {
+            serverLogger.error('afterRoutes hook failed', error as Error);
+            throw new Error('Server initialization failed in afterRoutes hook');
+        }
     }
+}
 
-    try
-    {
-        await config.lifecycle.afterRoutes(app);
-    }
-    catch (error)
-    {
-        serverLogger.error('afterRoutes hook failed', error as Error);
-        throw new Error('Server initialization failed in afterRoutes hook');
-    }
+/**
+ * Determine if debug mode is enabled
+ */
+function isDebugMode(config?: ServerConfig): boolean
+{
+    return config?.debug ?? process.env.NODE_ENV === 'development';
 }
