@@ -5,9 +5,9 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
+import { NewUserProfile, userProfiles } from "@/server/entities/user-profiles";
 import { BaseRepository } from '@spfn/core/db';
 import { eq } from 'drizzle-orm';
-import { userProfiles, type UserProfile, type NewUserProfile } from '@/server/entities';
 
 /**
  * User Profiles Repository 클래스
@@ -17,7 +17,7 @@ export class UserProfilesRepository extends BaseRepository
     /**
      * ID로 프로필 조회
      */
-    async findById(id: number): Promise<UserProfile | null>
+    async findById(id: number)
     {
         const result = await this.readDb
             .select()
@@ -31,7 +31,7 @@ export class UserProfilesRepository extends BaseRepository
     /**
      * User ID로 프로필 조회
      */
-    async findByUserId(userId: number): Promise<UserProfile | null>
+    async findByUserId(userId: number)
     {
         const result = await this.readDb
             .select()
@@ -45,7 +45,7 @@ export class UserProfilesRepository extends BaseRepository
     /**
      * 프로필 생성
      */
-    async create(data: NewUserProfile): Promise<UserProfile>
+    async create(data: NewUserProfile)
     {
         const result = await this.db
             .insert(userProfiles)
@@ -62,7 +62,7 @@ export class UserProfilesRepository extends BaseRepository
     /**
      * 프로필 업데이트 (by ID)
      */
-    async updateById(id: number, data: Partial<NewUserProfile>): Promise<UserProfile | null>
+    async updateById(id: number, data: Partial<NewUserProfile>)
     {
         const result = await this.db
             .update(userProfiles)
@@ -76,7 +76,7 @@ export class UserProfilesRepository extends BaseRepository
     /**
      * 프로필 업데이트 (by User ID)
      */
-    async updateByUserId(userId: number, data: Partial<NewUserProfile>): Promise<UserProfile | null>
+    async updateByUserId(userId: number, data: Partial<NewUserProfile>)
     {
         const result = await this.db
             .update(userProfiles)
@@ -90,7 +90,7 @@ export class UserProfilesRepository extends BaseRepository
     /**
      * 프로필 삭제 (by ID)
      */
-    async deleteById(id: number): Promise<UserProfile | null>
+    async deleteById(id: number)
     {
         const result = await this.db
             .delete(userProfiles)
@@ -103,7 +103,7 @@ export class UserProfilesRepository extends BaseRepository
     /**
      * 프로필 삭제 (by User ID)
      */
-    async deleteByUserId(userId: number): Promise<UserProfile | null>
+    async deleteByUserId(userId: number)
     {
         const result = await this.db
             .delete(userProfiles)
@@ -118,22 +118,7 @@ export class UserProfilesRepository extends BaseRepository
      *
      * API 응답에 최적화된 형식으로 반환
      */
-    async fetchProfileData(userId: number): Promise<{
-        profileId: number;
-        displayName: string;
-        firstName?: string | null;
-        lastName?: string | null;
-        avatarUrl?: string | null;
-        bio?: string | null;
-        locale: string;
-        timezone: string;
-        website?: string | null;
-        location?: string | null;
-        company?: string | null;
-        jobTitle?: string | null;
-        createdAt: string;
-        updatedAt: string;
-    } | null>
+    async fetchProfileData(userId: number)
     {
         const profile = await this.readDb
             .select({
@@ -175,8 +160,8 @@ export class UserProfilesRepository extends BaseRepository
             location: profile.location,
             company: profile.company,
             jobTitle: profile.jobTitle,
-            createdAt: profile.createdAt.toISOString(),
-            updatedAt: profile.updatedAt.toISOString(),
+            createdAt: profile.createdAt,
+            updatedAt: profile.updatedAt,
         };
     }
 }

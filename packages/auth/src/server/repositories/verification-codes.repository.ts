@@ -5,15 +5,9 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
+import { NewVerificationCode, verificationCodes, VerificationPurpose } from "@/server/entities/verification-codes";
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
-import {
-    verificationCodes,
-    type VerificationCode,
-    type NewVerificationCode,
-    type VerificationTargetType,
-    type VerificationPurpose,
-} from '@/server/entities';
 
 /**
  * Verification Codes Repository 클래스
@@ -33,8 +27,7 @@ export class VerificationCodesRepository extends BaseRepository
     async findValidByTargetAndPurpose(
         target: string,
         purpose: VerificationPurpose
-    ): Promise<VerificationCode | null>
-    {
+    ) {
         const now = new Date();
 
         const result = await this.readDb
@@ -45,7 +38,7 @@ export class VerificationCodesRepository extends BaseRepository
                     eq(verificationCodes.target, target),
                     eq(verificationCodes.purpose, purpose),
                     isNull(verificationCodes.usedAt),
-                    lt(now, verificationCodes.expiresAt)
+                    lt(verificationCodes.expiresAt, now)
                 )
             )
             .limit(1);
@@ -57,7 +50,7 @@ export class VerificationCodesRepository extends BaseRepository
      * ID로 인증 코드 조회
      * Read replica 사용
      */
-    async findById(id: number): Promise<VerificationCode | null>
+    async findById(id: number)
     {
         const result = await this.readDb
             .select()
@@ -72,7 +65,7 @@ export class VerificationCodesRepository extends BaseRepository
      * 인증 코드 생성
      * Write primary 사용
      */
-    async create(data: NewVerificationCode): Promise<VerificationCode>
+    async create(data: NewVerificationCode)
     {
         const result = await this.db
             .insert(verificationCodes)
@@ -90,7 +83,7 @@ export class VerificationCodesRepository extends BaseRepository
      * 인증 코드 사용 처리
      * Write primary 사용
      */
-    async markAsUsed(id: number): Promise<VerificationCode | null>
+    async markAsUsed(id: number)
     {
         const result = await this.db
             .update(verificationCodes)
@@ -108,7 +101,7 @@ export class VerificationCodesRepository extends BaseRepository
      * 시도 횟수 증가
      * Write primary 사용
      */
-    async incrementAttempts(id: number): Promise<VerificationCode | null>
+    async incrementAttempts(id: number)
     {
         const code = await this.findById(id);
         if (!code) return null;
@@ -129,7 +122,7 @@ export class VerificationCodesRepository extends BaseRepository
      * 만료된 코드 삭제
      * Write primary 사용
      */
-    async deleteExpired(): Promise<number>
+    async deleteExpired()
     {
         const now = new Date();
 
@@ -148,8 +141,7 @@ export class VerificationCodesRepository extends BaseRepository
     async invalidatePreviousCodes(
         target: string,
         purpose: VerificationPurpose
-    ): Promise<number>
-    {
+    ) {
         const result = await this.db
             .update(verificationCodes)
             .set({

@@ -5,9 +5,9 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
+import { NewRoleEntity, roles } from "@/server/entities/roles";
 import { BaseRepository } from '@spfn/core/db';
 import { eq, asc } from 'drizzle-orm';
-import { roles, type RoleEntity, type NewRoleEntity } from '@/server/entities';
 
 /**
  * Roles Repository 클래스
@@ -17,7 +17,7 @@ export class RolesRepository extends BaseRepository
     /**
      * ID로 역할 조회
      */
-    async findById(id: number): Promise<RoleEntity | null>
+    async findById(id: number)
     {
         const result = await this.readDb
             .select()
@@ -31,7 +31,7 @@ export class RolesRepository extends BaseRepository
     /**
      * Name으로 역할 조회
      */
-    async findByName(name: string): Promise<RoleEntity | null>
+    async findByName(name: string)
     {
         const result = await this.readDb
             .select()
@@ -45,7 +45,7 @@ export class RolesRepository extends BaseRepository
     /**
      * 모든 역할 조회 (priority 순)
      */
-    async findAll(): Promise<RoleEntity[]>
+    async findAll()
     {
         return this.readDb
             .select()
@@ -56,7 +56,7 @@ export class RolesRepository extends BaseRepository
     /**
      * 활성 역할만 조회
      */
-    async findActive(): Promise<RoleEntity[]>
+    async findActive()
     {
         return this.readDb
             .select()
@@ -68,7 +68,7 @@ export class RolesRepository extends BaseRepository
     /**
      * 역할 생성
      */
-    async create(data: NewRoleEntity): Promise<RoleEntity>
+    async create(data: NewRoleEntity)
     {
         const result = await this.db
             .insert(roles)
@@ -85,7 +85,7 @@ export class RolesRepository extends BaseRepository
     /**
      * 역할 업데이트
      */
-    async updateById(id: number, data: Partial<NewRoleEntity>): Promise<RoleEntity | null>
+    async updateById(id: number, data: Partial<NewRoleEntity>)
     {
         const result = await this.db
             .update(roles)
@@ -99,7 +99,7 @@ export class RolesRepository extends BaseRepository
     /**
      * 역할 삭제
      */
-    async deleteById(id: number): Promise<RoleEntity | null>
+    async deleteById(id: number)
     {
         const result = await this.db
             .delete(roles)

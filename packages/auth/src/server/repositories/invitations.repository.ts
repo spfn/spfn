@@ -5,17 +5,11 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
+import { users } from "@/server/entities/users";
+import { roles } from "@/server/entities/roles";
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, lt, desc, sql } from 'drizzle-orm';
-import {
-    invitations,
-    users,
-    roles,
-    type Invitation,
-    type NewInvitation,
-    type InvitationStatus,
-    type InvitationWithDetails,
-} from '@/server/entities';
+import { invitations, InvitationStatus, NewInvitation } from "../entities/invitations";
 
 /**
  * Invitations Repository 클래스
@@ -25,7 +19,7 @@ export class InvitationsRepository extends BaseRepository
     /**
      * ID로 초대 조회
      */
-    async findById(id: number): Promise<Invitation | null>
+    async findById(id: number)
     {
         const result = await this.readDb
             .select()
@@ -39,7 +33,7 @@ export class InvitationsRepository extends BaseRepository
     /**
      * Token으로 초대 조회
      */
-    async findByToken(token: string): Promise<Invitation | null>
+    async findByToken(token: string)
     {
         const result = await this.readDb
             .select()
@@ -53,7 +47,7 @@ export class InvitationsRepository extends BaseRepository
     /**
      * 이메일로 초대 조회 (pending 상태만)
      */
-    async findPendingByEmail(email: string): Promise<Invitation | null>
+    async findPendingByEmail(email: string)
     {
         const result = await this.readDb
             .select()
@@ -72,7 +66,7 @@ export class InvitationsRepository extends BaseRepository
     /**
      * 초대자 ID로 모든 초대 조회
      */
-    async findByInvitedBy(invitedBy: number): Promise<Invitation[]>
+    async findByInvitedBy(invitedBy: number)
     {
         return this.readDb
             .select()
@@ -83,7 +77,7 @@ export class InvitationsRepository extends BaseRepository
     /**
      * 상태별 초대 조회
      */
-    async findByStatus(status: InvitationStatus): Promise<Invitation[]>
+    async findByStatus(status: InvitationStatus)
     {
         return this.readDb
             .select()
@@ -94,7 +88,7 @@ export class InvitationsRepository extends BaseRepository
     /**
      * 초대 생성
      */
-    async create(data: NewInvitation): Promise<Invitation>
+    async create(data: NewInvitation)
     {
         const result = await this.db
             .insert(invitations)
@@ -115,8 +109,7 @@ export class InvitationsRepository extends BaseRepository
         id: number,
         status: InvitationStatus,
         timestamp?: Date
-    ): Promise<Invitation | null>
-    {
+    ) {
         const updates: any = {
             status,
             updatedAt: new Date(),
@@ -146,7 +139,7 @@ export class InvitationsRepository extends BaseRepository
     /**
      * 초대 삭제
      */
-    async deleteById(id: number): Promise<Invitation | null>
+    async deleteById(id: number)
     {
         const result = await this.db
             .delete(invitations)
@@ -183,7 +176,7 @@ export class InvitationsRepository extends BaseRepository
     /**
      * Token으로 초대 조회 (role, inviter 정보 포함)
      */
-    async findByTokenWithDetails(token: string): Promise<InvitationWithDetails | null>
+    async findByTokenWithDetails(token: string)
     {
         const result = await this.readDb
             .select({
@@ -226,14 +219,7 @@ export class InvitationsRepository extends BaseRepository
         invitedBy?: number;
         page?: number;
         limit?: number;
-    }): Promise<{
-        invitations: InvitationWithDetails[];
-        total: number;
-        page: number;
-        limit: number;
-        totalPages: number;
-    }>
-    {
+    }) {
         const { status, invitedBy, page = 1, limit = 20 } = params;
         const offset = (page - 1) * limit;
 
@@ -303,7 +289,7 @@ export class InvitationsRepository extends BaseRepository
     /**
      * 초대 업데이트 (일반 업데이트 - 모든 필드 가능)
      */
-    async updateById(id: number, data: Partial<NewInvitation>): Promise<Invitation | null>
+    async updateById(id: number, data: Partial<NewInvitation>)
     {
         const result = await this.db
             .update(invitations)
@@ -320,7 +306,7 @@ export class InvitationsRepository extends BaseRepository
     /**
      * 초대 재전송 (status와 expiresAt 동시 업데이트)
      */
-    async resend(id: number, newExpiresAt: Date): Promise<Invitation | null>
+    async resend(id: number, newExpiresAt: Date)
     {
         const result = await this.db
             .update(invitations)
@@ -343,8 +329,7 @@ export class InvitationsRepository extends BaseRepository
         cancelledBy: number,
         reason?: string,
         currentMetadata?: Record<string, any> | null
-    ): Promise<Invitation | null>
-    {
+    ) {
         const newMetadata = currentMetadata
             ? { ...currentMetadata, cancelReason: reason, cancelledBy }
             : { cancelReason: reason, cancelledBy };

@@ -5,9 +5,9 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
+import { NewUserPublicKey, userPublicKeys } from "@/server/entities/user-public-keys";
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and } from 'drizzle-orm';
-import { userPublicKeys, type UserPublicKey, type NewUserPublicKey } from '@/server/entities';
 
 /**
  * User Public Keys Repository 클래스
@@ -23,7 +23,7 @@ export class KeysRepository extends BaseRepository
      * Key ID와 User ID로 공개키 조회
      * Read replica 사용
      */
-    async findByKeyIdAndUserId(keyId: string, userId: number): Promise<UserPublicKey | null>
+    async findByKeyIdAndUserId(keyId: string, userId: number)
     {
         const result = await this.readDb
             .select()
@@ -43,7 +43,7 @@ export class KeysRepository extends BaseRepository
      * User ID로 모든 공개키 조회
      * Read replica 사용
      */
-    async findAllByUserId(userId: number): Promise<UserPublicKey[]>
+    async findAllByUserId(userId: number)
     {
         return this.readDb
             .select()
@@ -55,7 +55,7 @@ export class KeysRepository extends BaseRepository
      * User ID로 활성 공개키만 조회
      * Read replica 사용
      */
-    async findActiveByUserId(userId: number): Promise<UserPublicKey[]>
+    async findActiveByUserId(userId: number)
     {
         return this.readDb
             .select()
@@ -72,7 +72,7 @@ export class KeysRepository extends BaseRepository
      * 공개키 생성
      * Write primary 사용
      */
-    async create(data: NewUserPublicKey): Promise<UserPublicKey>
+    async create(data: NewUserPublicKey)
     {
         const result = await this.db
             .insert(userPublicKeys)
@@ -93,7 +93,7 @@ export class KeysRepository extends BaseRepository
         keyId: string,
         userId: number,
         reason: string
-    ): Promise<UserPublicKey | null>
+    )
     {
         const result = await this.db
             .update(userPublicKeys)
@@ -117,7 +117,7 @@ export class KeysRepository extends BaseRepository
      * 공개키 삭제
      * Write primary 사용
      */
-    async deleteByKeyIdAndUserId(keyId: string, userId: number): Promise<UserPublicKey | null>
+    async deleteByKeyIdAndUserId(keyId: string, userId: number)
     {
         const result = await this.db
             .delete(userPublicKeys)
@@ -136,7 +136,7 @@ export class KeysRepository extends BaseRepository
      * 마지막 사용 시간 업데이트
      * Write primary 사용
      */
-    async updateLastUsed(keyId: string, userId: number): Promise<UserPublicKey | null>
+    async updateLastUsed(keyId: string, userId: number)
     {
         const result = await this.db
             .update(userPublicKeys)
@@ -149,6 +149,43 @@ export class KeysRepository extends BaseRepository
                     eq(userPublicKeys.userId, userId)
                 )
             )
+            .returning();
+
+        return result[0] ?? null;
+    }
+
+    /**
+     * Key ID로 활성 공개키 조회 (authenticate용)
+     * Read replica 사용
+     */
+    async findActiveByKeyId(keyId: string)
+    {
+        const result = await this.readDb
+            .select()
+            .from(userPublicKeys)
+            .where(
+                and(
+                    eq(userPublicKeys.keyId, keyId),
+                    eq(userPublicKeys.isActive, true)
+                )
+            )
+            .limit(1);
+
+        return result[0] ?? null;
+    }
+
+    /**
+     * Primary key로 마지막 사용 시간 업데이트 (authenticate용)
+     * Write primary 사용
+     */
+    async updateLastUsedById(id: number)
+    {
+        const result = await this.db
+            .update(userPublicKeys)
+            .set({
+                lastUsedAt: new Date(),
+            })
+            .where(eq(userPublicKeys.id, id))
             .returning();
 
         return result[0] ?? null;

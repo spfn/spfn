@@ -5,9 +5,13 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
+import { permissions } from "@/server/entities/permissions";
+import { rolePermissions } from "@/server/entities/role-permissions";
+import { roles } from "@/server/entities/roles";
 import { BaseRepository } from '@spfn/core/db';
+import { NotFoundError } from "@spfn/core/errors";
 import { eq, and } from 'drizzle-orm';
-import { users, roles, permissions, rolePermissions, type User, type NewUser } from '@/server/entities';
+import { NewUser, users } from "../entities/users";
 
 /**
  * Users Repository 클래스
@@ -23,7 +27,7 @@ export class UsersRepository extends BaseRepository
      * ID로 사용자 조회
      * Read replica 사용
      */
-    async findById(id: number): Promise<User | null>
+    async findById(id: number)
     {
         const result = await this.readDb
             .select()
@@ -38,7 +42,7 @@ export class UsersRepository extends BaseRepository
      * 이메일로 사용자 조회
      * Read replica 사용
      */
-    async findByEmail(email: string): Promise<User | null>
+    async findByEmail(email: string)
     {
         const result = await this.readDb
             .select()
@@ -53,7 +57,7 @@ export class UsersRepository extends BaseRepository
      * 전화번호로 사용자 조회
      * Read replica 사용
      */
-    async findByPhone(phone: string): Promise<User | null>
+    async findByPhone(phone: string)
     {
         const result = await this.readDb
             .select()
@@ -68,7 +72,7 @@ export class UsersRepository extends BaseRepository
      * 이메일 또는 전화번호로 사용자 조회
      * Read replica 사용
      */
-    async findByEmailOrPhone(email?: string, phone?: string): Promise<User | null>
+    async findByEmailOrPhone(email?: string, phone?: string)
     {
         if (email)
         {
@@ -86,7 +90,7 @@ export class UsersRepository extends BaseRepository
      * 사용자 생성
      * Write primary 사용
      */
-    async create(data: NewUser): Promise<User>
+    async create(data: NewUser)
     {
         const result = await this.db
             .insert(users)
@@ -104,7 +108,7 @@ export class UsersRepository extends BaseRepository
      * 사용자 정보 업데이트
      * Write primary 사용
      */
-    async updateById(id: number, data: Partial<NewUser>): Promise<User | null>
+    async updateById(id: number, data: Partial<NewUser>)
     {
         const result = await this.db
             .update(users)
@@ -123,8 +127,7 @@ export class UsersRepository extends BaseRepository
         id: number,
         passwordHash: string,
         clearPasswordChangeRequired: boolean = true
-    ): Promise<User | null>
-    {
+    ) {
         const updateData: Partial<NewUser> = {
             passwordHash,
             updatedAt: new Date(),
@@ -148,7 +151,7 @@ export class UsersRepository extends BaseRepository
      * 마지막 로그인 시간 업데이트
      * Write primary 사용
      */
-    async updateLastLogin(id: number): Promise<User | null>
+    async updateLastLogin(id: number)
     {
         const result = await this.db
             .update(users)
@@ -166,7 +169,7 @@ export class UsersRepository extends BaseRepository
      * 사용자 삭제
      * Write primary 사용
      */
-    async deleteById(id: number): Promise<User | null>
+    async deleteById(id: number)
     {
         const result = await this.db
             .delete(users)
@@ -183,20 +186,7 @@ export class UsersRepository extends BaseRepository
      * @param userId - User ID
      * @returns Role 정보와 permissions 배열
      */
-    async fetchUserRoleAndPermissions(userId: number): Promise<{
-        role: {
-            id: number;
-            name: string;
-            displayName: string;
-            priority: number;
-        };
-        permissions: Array<{
-            id: number;
-            name: string;
-            displayName: string;
-            category?: string;
-        }>;
-    }>
+    async fetchUserRoleAndPermissions(userId: number)
     {
         // 1. Get user's role
         const userWithRole = await this.readDb
@@ -214,7 +204,7 @@ export class UsersRepository extends BaseRepository
 
         if (!userWithRole)
         {
-            throw new Error('[Auth] User or role not found');
+            throw new NotFoundError('[@spfn/auth] User or role not found');
         }
 
         // 2. Get role permissions
@@ -257,16 +247,11 @@ export class UsersRepository extends BaseRepository
      * @param userId - User ID
      * @returns Minimal user data
      */
-    async fetchMinimalUserData(userId: number): Promise<{
-        userId: string;
-        email?: string | null;
-        emailVerified: boolean;
-        phoneVerified: boolean;
-    }>
+    async fetchMinimalUserData(userId: number)
     {
         const user = await this.readDb
             .select({
-                userId: users.id,
+                id: users.id,
                 email: users.email,
                 emailVerifiedAt: users.emailVerifiedAt,
                 phoneVerifiedAt: users.phoneVerifiedAt,
@@ -278,14 +263,14 @@ export class UsersRepository extends BaseRepository
 
         if (!user)
         {
-            throw new Error('[Auth] User not found');
+            throw new NotFoundError('[@spfn/auth] User not found');
         }
 
         return {
-            userId: user.userId.toString(),
+            userId: user.id,
             email: user.email,
-            emailVerified: !!user.emailVerifiedAt,
-            phoneVerified: !!user.phoneVerifiedAt,
+            isEmailVerified: !!user.emailVerifiedAt,
+            isPhoneVerified: !!user.phoneVerifiedAt,
         };
     }
 
@@ -296,19 +281,11 @@ export class UsersRepository extends BaseRepository
      * @param userId - User ID
      * @returns Full user data
      */
-    async fetchFullUserData(userId: number): Promise<{
-        userId: string;
-        email?: string | null;
-        emailVerified: boolean;
-        phoneVerified: boolean;
-        lastLoginAt?: string | null;
-        createdAt: string;
-        updatedAt: string;
-    }>
+    async fetchFullUserData(userId: number)
     {
         const user = await this.readDb
             .select({
-                userId: users.id,
+                id: users.id,
                 email: users.email,
                 emailVerifiedAt: users.emailVerifiedAt,
                 phoneVerifiedAt: users.phoneVerifiedAt,
@@ -323,17 +300,17 @@ export class UsersRepository extends BaseRepository
 
         if (!user)
         {
-            throw new Error('[Auth] User not found');
+            throw new NotFoundError('[@spfn/auth] User not found');
         }
 
         return {
-            userId: user.userId.toString(),
+            userId: user.id,
             email: user.email,
-            emailVerified: !!user.emailVerifiedAt,
-            phoneVerified: !!user.phoneVerifiedAt,
-            lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
-            createdAt: user.createdAt.toISOString(),
-            updatedAt: user.updatedAt.toISOString(),
+            isEmailVerified: !!user.emailVerifiedAt,
+            isPhoneVerified: !!user.phoneVerifiedAt,
+            lastLoginAt: user.lastLoginAt,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
         };
     }
 }

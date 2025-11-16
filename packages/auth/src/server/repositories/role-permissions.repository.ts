@@ -5,7 +5,7 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { type NewRolePermission, type RolePermission, rolePermissions } from '@/server/entities';
+import { NewRolePermission, RolePermission, rolePermissions } from "@/server/entities/role-permissions";
 import { BaseRepository } from '@spfn/core/db';
 import { and, eq } from 'drizzle-orm';
 
@@ -17,7 +17,7 @@ export class RolePermissionsRepository extends BaseRepository
     /**
      * 역할 ID로 모든 권한 조회
      */
-    async findByRoleId(roleId: number): Promise<RolePermission[]>
+    async findByRoleId(roleId: number)
     {
         return this.readDb
             .select()
@@ -28,7 +28,7 @@ export class RolePermissionsRepository extends BaseRepository
     /**
      * 권한 ID로 모든 역할 조회
      */
-    async findByPermissionId(permissionId: number): Promise<RolePermission[]>
+    async findByPermissionId(permissionId: number)
     {
         return this.readDb
             .select()
@@ -56,7 +56,7 @@ export class RolePermissionsRepository extends BaseRepository
     /**
      * 여러 역할-권한 매핑 일괄 생성
      */
-    async createMany(data: NewRolePermission[]): Promise<RolePermission[]>
+    async createMany(data: NewRolePermission[])
     {
         if (data.length === 0) return [];
 
@@ -97,7 +97,7 @@ export class RolePermissionsRepository extends BaseRepository
     /**
      * 역할의 모든 권한 매핑 삭제
      */
-    async deleteByRoleId(roleId: number): Promise<number>
+    async deleteByRoleId(roleId: number)
     {
         const result = await this.db
             .delete(rolePermissions)
@@ -110,7 +110,7 @@ export class RolePermissionsRepository extends BaseRepository
     /**
      * 역할에 권한 ID 배열로 설정 (기존 삭제 후 재생성)
      */
-    async setPermissionsForRole(roleId: number, permissionIds: number[]): Promise<RolePermission[]>
+    async setPermissionsForRole(roleId: number, permissionIds: number[])
     {
         // 기존 권한 삭제
         await this.deleteByRoleId(roleId);

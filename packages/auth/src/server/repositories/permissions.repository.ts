@@ -5,7 +5,7 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { type NewPermissionEntity, type PermissionEntity, permissions } from '@/server/entities';
+import { NewPermissionEntity, PermissionEntity, permissions } from "@/server/entities/permissions";
 import { BaseRepository } from '@spfn/core/db';
 import { asc, eq, inArray } from 'drizzle-orm';
 
@@ -17,7 +17,7 @@ export class PermissionsRepository extends BaseRepository
     /**
      * ID로 권한 조회
      */
-    async findById(id: number): Promise<PermissionEntity | null>
+    async findById(id: number)
     {
         const result = await this.readDb
             .select()
@@ -31,7 +31,7 @@ export class PermissionsRepository extends BaseRepository
     /**
      * Name으로 권한 조회
      */
-    async findByName(name: string): Promise<PermissionEntity | null>
+    async findByName(name: string)
     {
         const result = await this.readDb
             .select()
@@ -130,7 +130,7 @@ export class PermissionsRepository extends BaseRepository
     /**
      * 권한 업데이트
      */
-    async updateById(id: number, data: Partial<NewPermissionEntity>): Promise<PermissionEntity | null>
+    async updateById(id: number, data: Partial<NewPermissionEntity>)
     {
         const result = await this.db
             .update(permissions)
@@ -144,7 +144,7 @@ export class PermissionsRepository extends BaseRepository
     /**
      * 권한 삭제
      */
-    async deleteById(id: number): Promise<PermissionEntity | null>
+    async deleteById(id: number)
     {
         const result = await this.db
             .delete(permissions)

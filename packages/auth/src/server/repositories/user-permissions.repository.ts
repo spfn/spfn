@@ -5,9 +5,9 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
+import { NewUserPermission, userPermissions } from "@/server/entities/user-permissions";
 import { BaseRepository } from '@spfn/core/db';
-import { eq, and, or, isNull, isNotNull, lt } from 'drizzle-orm';
-import { userPermissions, type UserPermission, type NewUserPermission } from '@/server/entities';
+import { eq, and, or, isNull, isNotNull, lt, gt } from 'drizzle-orm';
 
 /**
  * User Permissions Repository 클래스
@@ -17,7 +17,7 @@ export class UserPermissionsRepository extends BaseRepository
     /**
      * 사용자 ID로 모든 권한 오버라이드 조회
      */
-    async findByUserId(userId: number): Promise<UserPermission[]>
+    async findByUserId(userId: number)
     {
         return this.readDb
             .select()
@@ -29,7 +29,7 @@ export class UserPermissionsRepository extends BaseRepository
      * 사용자 ID로 유효한 권한 오버라이드만 조회
      * (만료되지 않거나 만료 시간이 없는 것)
      */
-    async findValidByUserId(userId: number): Promise<UserPermission[]>
+    async findValidByUserId(userId: number)
     {
         const now = new Date();
 
@@ -53,7 +53,7 @@ export class UserPermissionsRepository extends BaseRepository
     async findByUserIdAndPermissionId(
         userId: number,
         permissionId: number
-    ): Promise<UserPermission | null>
+    )
     {
         const result = await this.readDb
             .select()
@@ -72,7 +72,7 @@ export class UserPermissionsRepository extends BaseRepository
     /**
      * 사용자 권한 오버라이드 생성
      */
-    async create(data: NewUserPermission): Promise<UserPermission>
+    async create(data: NewUserPermission)
     {
         const result = await this.db
             .insert(userPermissions)
@@ -89,7 +89,7 @@ export class UserPermissionsRepository extends BaseRepository
     /**
      * 사용자 권한 오버라이드 업데이트
      */
-    async updateById(id: number, data: Partial<NewUserPermission>): Promise<UserPermission | null>
+    async updateById(id: number, data: Partial<NewUserPermission>)
     {
         const result = await this.db
             .update(userPermissions)
@@ -106,8 +106,7 @@ export class UserPermissionsRepository extends BaseRepository
     async deleteByUserIdAndPermissionId(
         userId: number,
         permissionId: number
-    ): Promise<UserPermission | null>
-    {
+    ) {
         const result = await this.db
             .delete(userPermissions)
             .where(
@@ -124,7 +123,7 @@ export class UserPermissionsRepository extends BaseRepository
     /**
      * 사용자의 모든 권한 오버라이드 삭제
      */
-    async deleteByUserId(userId: number): Promise<number>
+    async deleteByUserId(userId: number)
     {
         const result = await this.db
             .delete(userPermissions)
@@ -137,7 +136,7 @@ export class UserPermissionsRepository extends BaseRepository
     /**
      * 만료된 권한 오버라이드 삭제
      */
-    async deleteExpired(): Promise<number>
+    async deleteExpired()
     {
         const now = new Date();
 
