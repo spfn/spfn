@@ -102,17 +102,3 @@ export const invitations = authSchema.table('user_invitations',
 // Type exports
 export type Invitation = typeof invitations.$inferSelect;
 export type NewInvitation = typeof invitations.$inferInsert;
-
-// Helper type with joined data
-export type InvitationWithDetails = Invitation &
-{
-    role: {
-        id: number;
-        name: string;
-        displayName: string;
-    };
-    inviter: {
-        id: number;
-        email: string | null;
-    };
-};

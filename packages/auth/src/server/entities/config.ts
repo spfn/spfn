@@ -10,8 +10,8 @@ export * from './schema';
 // User entities
 export * from './users';
 export * from './user-profiles';
-export * from './user-social-accounts';
 export * from './user-public-keys';
+export * from './user-social-accounts';
 export * from './verification-codes';
 export * from './invitations';
 
@@ -19,4 +19,4 @@ export * from './invitations';
 export * from './roles';
 export * from './permissions';
 export * from './role-permissions';
-export * from './user-permissions';
+export * from './user-permissions'

@@ -5,6 +5,7 @@
  * Supports key rotation and multi-key management per user
  */
 
+import { KEY_ALGORITHM } from "@/server/helpers";
 import { text, boolean, index } from 'drizzle-orm/pg-core';
 import { id, foreignKey, enumText, utcTimestamp } from '@spfn/core/db';
 import { users } from './users';
@@ -39,7 +40,7 @@ export const userPublicKeys = authSchema.table(
         // Signature algorithm
         // ES256: ECDSA with P-256 and SHA-256 (recommended, smaller keys)
         // RS256: RSA with SHA-256 (fallback, larger keys)
-        algorithm: enumText('algorithm', ['ES256', 'RS256']).notNull().default('ES256'),
+        algorithm: enumText('algorithm', KEY_ALGORITHM).notNull().default('ES256'),
 
         // Key fingerprint
         // SHA-256 hash of the public key for quick identification
