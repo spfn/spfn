@@ -1,4 +1,4 @@
-import { Type } from '@sinclair/typebox';
+import { Type, type Static } from '@sinclair/typebox';
 import { defineContract, ApiSuccessSchema } from '@spfn/core/route/types';
 
 /**
@@ -35,6 +35,8 @@ const LabelBaseSchema = Type.Object({
     updatedAt: Type.Date()
 });
 
+export type CmsLabel = Static<typeof LabelBaseSchema>;
+
 /**
  * Label value schema (common for Draft/Published)
  */
@@ -46,6 +48,8 @@ const LabelValueSchema = Type.Object({
     value: Type.Any(),
     createdAt: Type.String()
 });
+
+export type CmsLabelValue = Static<typeof LabelValueSchema>;
 
 /**
  * Draft label value schema

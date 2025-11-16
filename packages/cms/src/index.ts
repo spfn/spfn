@@ -36,3 +36,4 @@ export {
 export type { SectionData, SectionAPI, TranslationFunction } from './lib/types/section';
 export type * from './lib/types';
 export * from './server/helpers/error';
+export type { CmsLabel, CmsLabelValue } from './lib/contracts/labels';

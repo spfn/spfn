@@ -89,8 +89,13 @@ async function loadGeneratorFromPackage(
 {
     try
     {
-        // Try to load package/generators export
-        const generatorsModule = await import(`${packageName}/generators`);
+        // Try to load package/generators export using jiti for better module resolution
+        const jiti = createJiti(import.meta.url, {
+            interopDefault: true,
+            moduleCache: false
+        });
+
+        const generatorsModule = jiti(`${packageName}/generators`);
 
         // Look for generator by name in registry
         if (generatorsModule.generators?.[generatorName])

@@ -58,6 +58,7 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
                 {
                     syncLogger.warn(`Labels directory not found: ${labelsPath}`);
                 }
+
                 return;
             }
 
