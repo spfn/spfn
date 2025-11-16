@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { TSchema, Static } from '@sinclair/typebox';
+import { Type } from '@sinclair/typebox';
 
 import type { ApiSuccessResponse } from './api-response';
 
@@ -112,6 +113,31 @@ export function isHttpMethod(value: unknown): value is HttpMethod
         ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(value)
     );
 }
+
+// TypeBox helpers
+/**
+ * Nullable - Creates a union of T | null
+ *
+ * @example
+ * ```typescript
+ * // string | null
+ * firstName: Nullable(Type.String())
+ * ```
+ */
+export const Nullable = <T extends TSchema>(schema: T) =>
+    Type.Union([schema, Type.Null()]);
+
+/**
+ * OptionalNullable - Creates a union of T | null | undefined
+ *
+ * @example
+ * ```typescript
+ * // string | null | undefined
+ * lastName: OptionalNullable(Type.String())
+ * ```
+ */
+export const OptionalNullable = <T extends TSchema>(schema: T) =>
+    Type.Optional(Type.Union([schema, Type.Null()]));
 
 // API Response helpers (optional)
 export {
