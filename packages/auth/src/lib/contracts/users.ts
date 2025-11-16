@@ -5,7 +5,7 @@
  */
 
 import { UserProfileResponseSchema } from "@/lib/contracts/schemas/user-profile-response";
-import { ApiResponseSchema, type RouteContract } from '@spfn/core/route/types';
+import { ApiResponseSchema, defineContract } from '@spfn/core/route/types';
 
 /**
  * GET /profile - Get user profile
@@ -20,8 +20,8 @@ import { ApiResponseSchema, type RouteContract } from '@spfn/core/route/types';
  * Requires authentication
  * Final path: /users/profile (prefix added from package.json)
  */
-export const getUserProfileContract = {
-    method: 'GET' as const,
+export const getUserProfileContract = defineContract({
+    method: 'GET',
     path: '/_auth/users/profile',
     response: ApiResponseSchema(UserProfileResponseSchema),
-} as const satisfies RouteContract;
+});

@@ -5,7 +5,7 @@
  *
  * 환경변수:
  * - DATABASE_URL: PostgreSQL 연결 문자열 (필수)
- * - DRIZZLE_SCHEMA_PATH: 스키마 파일 경로 (기본: ./src/server/entities/index.ts)
+ * - DRIZZLE_SCHEMA_PATH: 스키마 파일 경로 (기본: ./src/server/entities/config.ts)
  * - DRIZZLE_OUT_DIR: 마이그레이션 출력 디렉토리 (기본: ./drizzle)
  *
  * ✅ 구현 완료:
@@ -36,7 +36,7 @@ import { loadEnvironment } from '../env';
 loadEnvironment();
 
 const DATABASE_URL = process.env.DATABASE_URL;
-const SCHEMA_PATH = process.env.DRIZZLE_SCHEMA_PATH || './src/server/entities/index.ts';
+const SCHEMA_PATH = process.env.DRIZZLE_SCHEMA_PATH || './src/server/entities/config.ts';
 const OUT_DIR = process.env.DRIZZLE_OUT_DIR || './drizzle';
 
 if (!DATABASE_URL)

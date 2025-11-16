@@ -135,9 +135,9 @@ export function bind<TContract extends RouteContract>(
                 return rawContext.json(data, status, headers);
             },
 
-            success: <T>(data: T, meta?: ApiSuccessResponse<T>['meta'], status: ContentfulStatusCode | undefined = 200) =>
+            success: (data, meta, status = 200) =>
             {
-                const response: ApiSuccessResponse<T> = {
+                const response: ApiSuccessResponse<typeof data> = {
                     success: true,
                     data,
                 };
@@ -150,9 +150,9 @@ export function bind<TContract extends RouteContract>(
                 return rawContext.json(response, status);
             },
 
-            paginated: <T>(data: T[], page: number, limit: number, total: number) =>
+            paginated: (data, page, limit, total) =>
             {
-                const response: ApiSuccessResponse<T[]> = {
+                const response: ApiSuccessResponse<typeof data> = {
                     success: true,
                     data,
                     meta: {
@@ -173,9 +173,9 @@ export function bind<TContract extends RouteContract>(
                 return rawContext.body(null, 204 as ContentfulStatusCode);
             },
 
-            created: <T>(data: T, location?: string) =>
+            created: (data, location) =>
             {
-                const response: ApiSuccessResponse<T> = {
+                const response: ApiSuccessResponse<typeof data> = {
                     success: true,
                     data,
                 };
@@ -189,14 +189,14 @@ export function bind<TContract extends RouteContract>(
                 return rawContext.json(response, 201 as ContentfulStatusCode, headers);
             },
 
-            accepted: <T>(data?: T) =>
+            accepted: (data) =>
             {
                 if (data === undefined)
                 {
                     return rawContext.body(null, 202 as ContentfulStatusCode);
                 }
 
-                const response: ApiSuccessResponse<T> = {
+                const response: ApiSuccessResponse<typeof data> = {
                     success: true,
                     data,
                 };

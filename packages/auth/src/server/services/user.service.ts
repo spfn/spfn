@@ -4,15 +4,15 @@
  * Handles user CRUD operations
  */
 
-import { findOne, updateOne } from '@spfn/core/db';
-import { users, type User } from '@/server/entities';
+import { type User } from '@/server/entities';
+import { usersRepository } from '@/server/repositories';
 
 /**
  * Get user by ID
  */
 export async function getUserByIdService(userId: number): Promise<User | null>
 {
-    return await findOne(users, { id: userId });
+    return await usersRepository.findById(userId);
 }
 
 /**
@@ -20,7 +20,7 @@ export async function getUserByIdService(userId: number): Promise<User | null>
  */
 export async function getUserByEmailService(email: string): Promise<User | null>
 {
-    return await findOne(users, { email });
+    return await usersRepository.findByEmail(email);
 }
 
 /**
@@ -28,7 +28,7 @@ export async function getUserByEmailService(email: string): Promise<User | null>
  */
 export async function getUserByPhoneService(phone: string): Promise<User | null>
 {
-    return await findOne(users, { phone });
+    return await usersRepository.findByPhone(phone);
 }
 
 /**
@@ -36,9 +36,7 @@ export async function getUserByPhoneService(phone: string): Promise<User | null>
  */
 export async function updateLastLoginService(userId: number): Promise<void>
 {
-    await updateOne(users, { id: userId }, {
-        lastLoginAt: new Date(),
-    });
+    await usersRepository.updateLastLogin(userId);
 }
 
 /**
@@ -49,8 +47,5 @@ export async function updateUserService(
     updates: Partial<Omit<User, 'id' | 'createdAt'>>
 ): Promise<void>
 {
-    await updateOne(users, { id: userId }, {
-        ...updates,
-        updatedAt: new Date(),
-    });
+    await usersRepository.updateById(userId, updates);
 }

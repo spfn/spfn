@@ -11,11 +11,22 @@
  * - Metadata support for custom data
  */
 
-import { text, timestamp, bigint, index, jsonb } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
+import { text, bigint, index } from 'drizzle-orm/pg-core';
+import { id, timestamps, enumText, utcTimestamp, typedJsonb } from '@spfn/core/db';
 import { roles } from './roles';
 import { users } from './users';
 import { authSchema } from './schema';
+
+/**
+ * Invitation status enum values
+ * Single source of truth for all invitation statuses
+ */
+export const INVITATION_STATUSES = ['pending', 'accepted', 'expired', 'cancelled'] as const;
+
+/**
+ * Invitation status type derived from the const array
+ */
+export type InvitationStatus = typeof INVITATION_STATUSES[number];
 
 export const invitations = authSchema.table('user_invitations',
     {
@@ -49,27 +60,22 @@ export const invitations = authSchema.table('user_invitations',
         // - accepted: User accepted and account created
         // - expired: Invitation expired (automatic)
         // - cancelled: Invitation cancelled by admin
-        status: text(
-            'status',
-            {
-                enum: ['pending', 'accepted', 'expired', 'cancelled']
-            }
-        ).notNull().default('pending'),
+        status: enumText('status', INVITATION_STATUSES).default('pending').notNull(),
 
         // Expiration timestamp (default: 7 days from creation)
         // Invitation cannot be accepted after this time
         // Background job should update status to 'expired'
-        expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+        expiresAt: utcTimestamp('expires_at').notNull(),
 
         // Timestamp when invitation was accepted
         // null = not yet accepted
         // Used for: audit trail, analytics
-        acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+        acceptedAt: utcTimestamp('accepted_at'),
 
         // Timestamp when invitation was cancelled
         // null = not cancelled
         // Used for: audit trail
-        cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+        cancelledAt: utcTimestamp('cancelled_at'),
 
         // Additional metadata (JSONB)
         // Use cases:
@@ -78,7 +84,7 @@ export const invitations = authSchema.table('user_invitations',
         // - Team/department assignment
         // - Custom fields for app-specific data
         // Example: { message: "Welcome!", department: "Engineering" }
-        metadata: jsonb('metadata'),
+        metadata: typedJsonb<Record<string, any>>('metadata'),
 
         ...timestamps(),
     },
@@ -96,7 +102,6 @@ export const invitations = authSchema.table('user_invitations',
 // Type exports
 export type Invitation = typeof invitations.$inferSelect;
 export type NewInvitation = typeof invitations.$inferInsert;
-export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'cancelled';
 
 // Helper type with joined data
 export type InvitationWithDetails = Invitation &

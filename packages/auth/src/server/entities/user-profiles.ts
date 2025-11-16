@@ -12,7 +12,7 @@
  */
 
 import { text, bigint, index } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
+import { id, timestamps, typedJsonb } from '@spfn/core/db';
 import { users } from './users';
 import { authSchema } from './schema';
 
@@ -72,12 +72,25 @@ export const userProfiles = authSchema.table('user_profiles',
         // Job title
         jobTitle: text('job_title'),
 
+        // Additional metadata (JSONB)
+        // Use cases:
+        // - Custom fields: { department: 'Engineering', employeeId: 'E1234', team: 'Backend' }
+        // - Social links: { twitter: '@user', linkedin: 'linkedin.com/in/user', github: 'username' }
+        // - UI preferences: { theme: 'dark', sidebarCollapsed: true, notificationSound: false }
+        // - Integration data: { slackId: 'U123456', discordId: '987654', zoomPmi: '1234567890' }
+        // - App-specific: { onboardingCompleted: true, tutorialStep: 5, badges: ['early-adopter'] }
+        // Example: { department: 'Engineering', theme: 'dark', twitter: '@user' }
+        metadata: typedJsonb<Record<string, any>>('metadata'),
+
         ...timestamps(),
     },
     (table) => [
         // Indexes for query optimization
         index('user_profiles_user_id_idx').on(table.userId),
         index('user_profiles_display_name_idx').on(table.displayName),
+
+        // Index for locale-based queries (useful for i18n features)
+        index('user_profiles_locale_idx').on(table.locale),
     ]
 );
 

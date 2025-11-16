@@ -19,12 +19,20 @@ export const rolePermissions = authSchema.table('role_permissions',
         // Primary key
         id: id(),
 
+        // Role reference
         // Foreign key to roles table
+        // Cascade delete: when role is deleted, all role-permission mappings are removed
+        // Used for: defining which permissions each role has
+        // Example: Admin role → [user:create, user:delete, user:update]
         roleId: bigint('role_id', { mode: 'number' })
             .notNull()
             .references(() => roles.id, { onDelete: 'cascade' }),
 
+        // Permission reference
         // Foreign key to permissions table
+        // Cascade delete: when permission is deleted, all role-permission mappings are removed
+        // Used for: granting permissions to roles
+        // Example: user:delete permission → [Admin, Superadmin]
         permissionId: bigint('permission_id', { mode: 'number' })
             .notNull()
             .references(() => permissions.id, { onDelete: 'cascade' }),

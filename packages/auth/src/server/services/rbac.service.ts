@@ -4,15 +4,17 @@
  * Initialize roles, permissions, and their mappings
  */
 
-import { getDatabase } from '@spfn/core/db';
-import { roles, permissions, rolePermissions } from '@/server/entities';
+import {
+    rolesRepository,
+    permissionsRepository,
+    rolePermissionsRepository,
+} from '@/server/repositories';
 import {
     BUILTIN_ROLES,
     BUILTIN_PERMISSIONS,
     BUILTIN_ROLE_PERMISSIONS,
 } from '@/server/rbac';
 import type { AuthInitOptions, RoleConfig, PermissionConfig } from '@/server/rbac';
-import { eq, and, inArray } from 'drizzle-orm';
 import { configureAuth } from '@/lib/config';
 import { authLogger } from '@/server/logger';
 
@@ -47,13 +49,6 @@ import { authLogger } from '@/server/logger';
  */
 export async function initializeAuth(options: AuthInitOptions = {}): Promise<void>
 {
-    const db = getDatabase();
-
-    if (!db)
-    {
-        throw new Error('[Auth] Database not initialized. Call initDatabase() first.');
-    }
-
     authLogger.service.info('🔐 Initializing RBAC system...');
 
     // Configure global auth settings
@@ -128,24 +123,19 @@ export async function initializeAuth(options: AuthInitOptions = {}): Promise<voi
  */
 async function upsertRole(config: RoleConfig): Promise<void>
 {
-    const db = getDatabase()!;
+    const existing = await rolesRepository.findByName(config.name);
 
-    const existing = await db
-        .select()
-        .from(roles)
-        .where(eq(roles.name, config.name))
-        .limit(1);
-
-    if (existing.length === 0)
+    if (!existing)
     {
         // Create new role
-        await db.insert(roles).values({
+        await rolesRepository.create({
             name: config.name,
             displayName: config.displayName,
-            description: config.description,
+            description: config.description || null,
             priority: config.priority ?? 10,
             isSystem: config.isSystem ?? false,
             isBuiltin: config.isBuiltin ?? false,
+            isActive: true,
         });
 
         authLogger.service.info(`  ✅ Created role: ${config.name}`);
@@ -153,21 +143,18 @@ async function upsertRole(config: RoleConfig): Promise<void>
     else
     {
         // Update existing role (but preserve priority for built-in roles)
-        const updateData: Record<string, any> = {
+        const updateData: any = {
             displayName: config.displayName,
-            description: config.description,
+            description: config.description || null,
         };
 
         // Only update priority for non-builtin roles
-        if (!existing[0].isBuiltin)
+        if (!existing.isBuiltin)
         {
-            updateData.priority = config.priority ?? existing[0].priority;
+            updateData.priority = config.priority ?? existing.priority;
         }
 
-        await db
-            .update(roles)
-            .set(updateData)
-            .where(eq(roles.id, existing[0].id));
+        await rolesRepository.updateById(existing.id, updateData);
     }
 }
 
@@ -176,24 +163,20 @@ async function upsertRole(config: RoleConfig): Promise<void>
  */
 async function upsertPermission(config: PermissionConfig): Promise<void>
 {
-    const db = getDatabase()!;
+    const existing = await permissionsRepository.findByName(config.name);
 
-    const existing = await db
-        .select()
-        .from(permissions)
-        .where(eq(permissions.name, config.name))
-        .limit(1);
-
-    if (existing.length === 0)
+    if (!existing)
     {
         // Create new permission
-        await db.insert(permissions).values({
+        await permissionsRepository.create({
             name: config.name,
             displayName: config.displayName,
-            description: config.description,
-            category: config.category,
+            description: config.description || null,
+            category: config.category || null,
             isSystem: config.isSystem ?? false,
             isBuiltin: config.isBuiltin ?? false,
+            isActive: true,
+            metadata: null,
         });
 
         authLogger.service.info(`  ✅ Created permission: ${config.name}`);
@@ -201,14 +184,11 @@ async function upsertPermission(config: PermissionConfig): Promise<void>
     else
     {
         // Update existing permission
-        await db
-            .update(permissions)
-            .set({
-                displayName: config.displayName,
-                description: config.description,
-                category: config.category,
-            })
-            .where(eq(permissions.id, existing[0].id));
+        await permissionsRepository.updateById(existing.id, {
+            displayName: config.displayName,
+            description: config.description || null,
+            category: config.category || null,
+        });
     }
 }
 
@@ -217,14 +197,8 @@ async function upsertPermission(config: PermissionConfig): Promise<void>
  */
 async function assignPermissionsToRole(roleName: string, permissionNames: string[]): Promise<void>
 {
-    const db = getDatabase()!;
-
     // Get role
-    const [role] = await db
-        .select()
-        .from(roles)
-        .where(eq(roles.name, roleName))
-        .limit(1);
+    const role = await rolesRepository.findByName(roleName);
 
     if (!role)
     {
@@ -233,10 +207,7 @@ async function assignPermissionsToRole(roleName: string, permissionNames: string
     }
 
     // Get permissions
-    const perms = await db
-        .select()
-        .from(permissions)
-        .where(inArray(permissions.name, permissionNames));
+    const perms = await permissionsRepository.findByNames(permissionNames);
 
     if (perms.length === 0)
     {
@@ -244,26 +215,20 @@ async function assignPermissionsToRole(roleName: string, permissionNames: string
         return;
     }
 
-    // Create mappings (skip duplicates)
-    for (const perm of perms)
-    {
-        const existing = await db
-            .select()
-            .from(rolePermissions)
-            .where(
-                and(
-                    eq(rolePermissions.roleId, role.id),
-                    eq(rolePermissions.permissionId, perm.id)
-                )
-            )
-            .limit(1);
+    // Get existing mappings to avoid duplicates
+    const existingMappings = await rolePermissionsRepository.findByRoleId(role.id);
+    const existingPermIds = new Set(existingMappings.map(m => m.permissionId));
 
-        if (existing.length === 0)
-        {
-            await db.insert(rolePermissions).values({
-                roleId: role.id,
-                permissionId: perm.id,
-            });
-        }
+    // Create new mappings (skip duplicates)
+    const newMappings = perms
+        .filter(perm => !existingPermIds.has(perm.id))
+        .map(perm => ({
+            roleId: role.id,
+            permissionId: perm.id,
+        }));
+
+    if (newMappings.length > 0)
+    {
+        await rolePermissionsRepository.createMany(newMappings);
     }
 }

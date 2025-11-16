@@ -5,8 +5,8 @@
  * Supports key rotation and multi-key management per user
  */
 
-import { text, timestamp, boolean, index } from 'drizzle-orm/pg-core';
-import { id, foreignKey } from '@spfn/core/db';
+import { text, boolean, index } from 'drizzle-orm/pg-core';
+import { id, foreignKey, enumText, utcTimestamp } from '@spfn/core/db';
 import { users } from './users';
 import { authSchema } from './schema';
 
@@ -20,36 +20,62 @@ export const userPublicKeys = authSchema.table(
         id: id(),
 
         // User reference
+        // Foreign key to users table
+        // Used for: associating keys with user accounts
         userId: foreignKey('user', () => users.id),
 
-        // Key identification (client-generated UUID)
+        // Key identification
+        // Client-generated UUID (v4 recommended)
+        // Used in: JWT header 'kid' field for key lookup
+        // Must be unique across all users
         keyId: text('key_id').notNull().unique(),
 
-        // Public key in Base64-encoded DER format (SPKI)
+        // Public key material
+        // Format: Base64-encoded DER (SPKI) format
+        // Standards: RFC 5480 (EC), RFC 3447 (RSA)
+        // Used for: JWT signature verification
         publicKey: text('public_key').notNull(),
 
-        // Algorithm used (ES256 recommended, RS256 fallback)
-        algorithm: text('algorithm', {
-            enum: ['ES256', 'RS256']
-        }).notNull().default('ES256'),
+        // Signature algorithm
+        // ES256: ECDSA with P-256 and SHA-256 (recommended, smaller keys)
+        // RS256: RSA with SHA-256 (fallback, larger keys)
+        algorithm: enumText('algorithm', ['ES256', 'RS256']).notNull().default('ES256'),
 
-        // Key fingerprint (SHA-256 hash for quick identification)
+        // Key fingerprint
+        // SHA-256 hash of the public key for quick identification
+        // Format: hex-encoded string (64 chars)
+        // Used for: duplicate detection, key verification
         fingerprint: text('fingerprint').notNull(),
 
         // Key status
+        // false: Key is deactivated (cannot be used for verification)
+        // Used for: soft key rotation, temporary key suspension
         isActive: boolean('is_active').notNull().default(true),
 
-        // Timestamps
-        createdAt: timestamp('created_at', { mode: 'date', withTimezone: true })
-            .notNull()
-            .defaultNow(),
+        // Key creation timestamp
+        // Automatically set on insertion
+        createdAt: utcTimestamp('created_at').notNull().defaultNow(),
 
-        lastUsedAt: timestamp('last_used_at', { mode: 'date', withTimezone: true }),
+        // Last usage timestamp
+        // Updated each time key is used for JWT verification
+        // Used for: tracking key activity, identifying unused keys
+        lastUsedAt: utcTimestamp('last_used_at'),
 
-        expiresAt: timestamp('expires_at', { mode: 'date', withTimezone: true }),
+        // Key expiration timestamp (optional)
+        // null: Key does not expire
+        // timestamp: Key cannot be used after this time
+        // Used for: automatic key rotation, security compliance
+        expiresAt: utcTimestamp('expires_at'),
 
-        // Revocation
-        revokedAt: timestamp('revoked_at', { mode: 'date', withTimezone: true }),
+        // Key revocation timestamp
+        // null: Key is not revoked
+        // timestamp: Key was revoked at this time
+        // Used for: security incidents, key compromise
+        revokedAt: utcTimestamp('revoked_at'),
+
+        // Revocation reason
+        // Human-readable explanation for key revocation
+        // Example: "Key compromised", "User reported device lost"
         revokedReason: text('revoked_reason'),
     },
     (table) => [

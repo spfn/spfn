@@ -143,24 +143,10 @@ app.bind(getAdminLabelContract, async (c) =>
     );
 
     return c.success({
-        label: {
-            id: label.id,
-            key: label.key,
-            section: label.section,
-            type: label.type,
-            description: label.description,
-            publishedVersion: label.publishedVersion,
-            createdBy: label.createdBy,
-            createdAt: label.createdAt.toISOString(),
-            updatedAt: label.updatedAt.toISOString()
-        },
+        label: label,
         draft: draftValues.map(v => ({
-            id: v.id,
-            labelId: v.labelId,
+            ...v,
             version: null,
-            locale: v.locale,
-            breakpoint: v.breakpoint,
-            value: v.value,
             createdAt: v.createdAt.toISOString()
         })),
         published: publishedValues.map(v => ({

@@ -5,29 +5,20 @@
  */
 
 import { AuthSessionSchema } from "@/lib/contracts/schemas/auth-session";
+import {
+    EmailSchema,
+    PhoneSchema,
+    TargetTypeSchema,
+    VerificationPurposeSchema,
+    VerificationCodeSchema,
+    KeyIdSchema,
+    PasswordSchema,
+    CryptoKeyFieldsSchema
+} from "@/lib/contracts/schemas/base";
 import { Type } from '@sinclair/typebox';
-import { ApiResponseSchema, type RouteContract } from '@spfn/core/route/types';
+import { ApiResponseSchema, defineContract } from '@spfn/core/route/types';
 
-// Email regex pattern (RFC 5322 compliant)
-// Validates: local-part@domain.tld
-// - Local part: alphanumeric, dots, hyphens, underscores
-// - Domain: alphanumeric, hyphens, dots
-// - TLD: minimum 2 characters
-const EMAIL_PATTERN = '^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$';
-
-// Phone regex pattern (E.164 format)
-// Format: +[country code][number] (1-15 digits total)
-const PHONE_PATTERN = '^\\+[1-9]\\d{1,14}$';
-
-// SHA-256 fingerprint pattern (64 hex characters)
-const FINGERPRINT_PATTERN = '^[a-f0-9]{64}$';
-
-// UUID v4 pattern (8-4-4-4-12 format)
-const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
-
-// Base64 pattern (DER encoded keys)
-// Matches standard Base64 with padding
-const BASE64_PATTERN = '^[A-Za-z0-9+/]+=*$';
+// ===== API Contracts =====
 
 /**
  * POST /codes - Send verification code
@@ -35,26 +26,15 @@ const BASE64_PATTERN = '^[A-Za-z0-9+/]+=*$';
  * Sends a 6-digit verification code to email or phone
  * Final path: /_auth/codes
  */
-export const sendVerificationCodeContract = {
-    method: 'POST' as const,
+export const sendVerificationCodeContract = defineContract({
+    method: 'POST',
     path: '/_auth/codes',
     body: Type.Object({
         target: Type.String({
             description: 'Email address or phone number in E.164 format'
         }),
-        targetType: Type.Union([
-            Type.Literal('email'),
-            Type.Literal('phone')
-        ], {
-            description: 'Type of target (email or phone)'
-        }),
-        purpose: Type.Union([
-            Type.Literal('registration'),
-            Type.Literal('login'),
-            Type.Literal('password_reset')
-        ], {
-            description: 'Purpose of verification'
-        }),
+        targetType: TargetTypeSchema,
+        purpose: VerificationPurposeSchema,
     }),
     response: ApiResponseSchema(
         Type.Object({
@@ -65,7 +45,7 @@ export const sendVerificationCodeContract = {
     meta: {
         skipMiddlewares: ['auth']
     }
-} as const satisfies RouteContract;
+});
 
 /**
  * POST /codes/verify - Verify code (without creating account)
@@ -73,28 +53,16 @@ export const sendVerificationCodeContract = {
  * Validates verification code, returns a temporary token
  * Final path: /_auth/codes/verify
  */
-export const verifyCodeContract = {
-    method: 'POST' as const,
+export const verifyCodeContract = defineContract({
+    method: 'POST',
     path: '/_auth/codes/verify',
     body: Type.Object({
         target: Type.String({
             description: 'Email address or phone number'
         }),
-        targetType: Type.Union([
-            Type.Literal('email'),
-            Type.Literal('phone')
-        ]),
-        code: Type.String({
-            minLength: 6,
-            maxLength: 6,
-            pattern: '^[0-9]{6}$',
-            description: '6-digit verification code'
-        }),
-        purpose: Type.Union([
-            Type.Literal('registration'),
-            Type.Literal('login'),
-            Type.Literal('password_reset')
-        ]),
+        targetType: TargetTypeSchema,
+        code: VerificationCodeSchema,
+        purpose: VerificationPurposeSchema,
     }),
     response: ApiResponseSchema(
         Type.Object({
@@ -107,7 +75,7 @@ export const verifyCodeContract = {
     meta: {
         skipMiddlewares: ['auth']
     }
-} as const satisfies RouteContract;
+});
 
 /**
  * POST /exists - Check if account exists
@@ -115,19 +83,13 @@ export const verifyCodeContract = {
  * Checks if an email or phone number is already registered
  * Final path: /_auth/exists (prefix added from package.json)
  */
-export const checkAccountExistsContract = {
-    method: 'POST' as const,
+export const checkAccountExistsContract = defineContract({
+    method: 'POST',
     path: '/_auth/exists',
     body: Type.Object(
         {
-            email: Type.Optional(Type.String({
-                pattern: EMAIL_PATTERN,
-                description: 'Email address to check'
-            })),
-            phone: Type.Optional(Type.String({
-                pattern: PHONE_PATTERN,
-                description: 'Phone number in E.164 format (e.g., +821012345678)'
-            })),
+            email: Type.Optional(EmailSchema),
+            phone: Type.Optional(PhoneSchema),
         },
         {
             minProperties: 1,
@@ -135,21 +97,16 @@ export const checkAccountExistsContract = {
         }
     ),
     response: ApiResponseSchema(
-        Type.Object(
-            {
-                exists: Type.Boolean({ description: 'Whether the account exists' }),
-                identifier: Type.String({ description: 'The identifier that was checked' }),
-                identifierType: Type.Union([
-                    Type.Literal('email'),
-                    Type.Literal('phone')
-                ], { description: 'Type of identifier checked' }),
-            }
-        )
+        Type.Object({
+            exists: Type.Boolean({ description: 'Whether the account exists' }),
+            identifier: Type.String({ description: 'The identifier that was checked' }),
+            identifierType: TargetTypeSchema,
+        })
     ),
     meta: {
         skipMiddlewares: ['auth']
     }
-} as const satisfies RouteContract;
+});
 
 /**
  * POST /register - Register new user
@@ -157,47 +114,20 @@ export const checkAccountExistsContract = {
  * Register with email/phone and password, includes public key
  * Final path: /_auth/register (prefix added from package.json)
  */
-export const registerContract = {
-    method: 'POST' as const,
+export const registerContract = defineContract({
+    method: 'POST',
     path: '/_auth/register',
-    body: Type.Object({
-        email: Type.Optional(Type.String({
-            pattern: EMAIL_PATTERN,
-            description: 'Email address'
-        })),
-        phone: Type.Optional(Type.String({
-            pattern: PHONE_PATTERN,
-            description: 'Phone number in E.164 format'
-        })),
-        verificationToken: Type.String({
-            description: 'Verification token obtained from /verify-code endpoint'
+    body: Type.Intersect([
+        Type.Object({
+            email: Type.Optional(EmailSchema),
+            phone: Type.Optional(PhoneSchema),
+            verificationToken: Type.String({
+                description: 'Verification token obtained from /verify-code endpoint'
+            }),
+            password: PasswordSchema,
         }),
-        password: Type.String({
-            minLength: 8,
-            description: 'User password (minimum 8 characters)'
-        }),
-        publicKey: Type.String({
-            pattern: BASE64_PATTERN,
-            description: 'Base64 encoded DER public key (SPKI format)'
-        }),
-        keyId: Type.String({
-            pattern: UUID_PATTERN,
-            description: 'Client-generated UUID v4 key identifier'
-        }),
-        fingerprint: Type.String({
-            pattern: FINGERPRINT_PATTERN,
-            description: 'SHA-256 fingerprint of public key (64 hex characters)'
-        }),
-        algorithm: Type.Union([
-            Type.Literal('ES256'),
-            Type.Literal('RS256')
-        ], {
-            description: 'Signing algorithm (ES256 recommended, RS256 for compatibility)'
-        }),
-        keySize: Type.Optional(Type.Number({
-            description: 'Key size in bytes'
-        })),
-    }, {
+        CryptoKeyFieldsSchema
+    ], {
         minProperties: 6, // email/phone + verificationToken + password + publicKey + keyId + fingerprint
         description: 'Email or phone must be provided with verification token'
     }),
@@ -211,7 +141,7 @@ export const registerContract = {
     meta: {
         skipMiddlewares: ['auth']
     }
-} as const satisfies RouteContract;
+});
 
 /**
  * POST /login - User login
@@ -220,48 +150,21 @@ export const registerContract = {
  * Replaces existing key with new one
  * Final path: /_auth/login (prefix added from package.json)
  */
-export const loginContract = {
-    method: 'POST' as const,
+export const loginContract = defineContract({
+    method: 'POST',
     path: '/_auth/login',
-    body: Type.Object({
-        email: Type.Optional(Type.String({
-            pattern: EMAIL_PATTERN,
-            description: 'Email address'
-        })),
-        phone: Type.Optional(Type.String({
-            pattern: PHONE_PATTERN,
-            description: 'Phone number in E.164 format'
-        })),
-        password: Type.String({
-            minLength: 1,
-            description: 'User password'
+    body: Type.Intersect([
+        Type.Object({
+            email: Type.Optional(EmailSchema),
+            phone: Type.Optional(PhoneSchema),
+            password: Type.String({
+                minLength: 1,
+                description: 'User password'
+            }),
+            oldKeyId: Type.Optional(KeyIdSchema),
         }),
-        publicKey: Type.String({
-            pattern: BASE64_PATTERN,
-            description: 'Base64 encoded DER public key (SPKI format)'
-        }),
-        keyId: Type.String({
-            pattern: UUID_PATTERN,
-            description: 'Client-generated UUID v4 key identifier'
-        }),
-        fingerprint: Type.String({
-            pattern: FINGERPRINT_PATTERN,
-            description: 'SHA-256 fingerprint of public key (64 hex characters)'
-        }),
-        oldKeyId: Type.Optional(Type.String({
-            pattern: UUID_PATTERN,
-            description: 'Previous key ID to revoke (server-side cleanup)'
-        })),
-        algorithm: Type.Union([
-            Type.Literal('ES256'),
-            Type.Literal('RS256')
-        ], {
-            description: 'Signing algorithm (ES256 recommended, RS256 for compatibility)'
-        }),
-        keySize: Type.Optional(Type.Number({
-            description: 'Key size in bytes'
-        })),
-    }, {
+        CryptoKeyFieldsSchema
+    ], {
         minProperties: 5, // email/phone + password + publicKey + keyId + fingerprint
         description: 'Email or phone must be provided along with key data'
     }),
@@ -278,7 +181,7 @@ export const loginContract = {
     meta: {
         skipMiddlewares: ['auth']
     }
-} as const satisfies RouteContract;
+});
 
 /**
  * POST /logout - Logout user
@@ -286,8 +189,8 @@ export const loginContract = {
  * Revokes current key (requires authentication)
  * Final path: /_auth/logout (prefix added from package.json)
  */
-export const logoutContract = {
-    method: 'POST' as const,
+export const logoutContract = defineContract({
+    method: 'POST',
     path: '/_auth/logout',
     body: Type.Object({}),
     response: ApiResponseSchema(
@@ -295,7 +198,7 @@ export const logoutContract = {
             success: Type.Boolean(),
         })
     ),
-} as const satisfies RouteContract;
+});
 
 /**
  * POST /keys/rotate - Rotate key
@@ -303,39 +206,17 @@ export const logoutContract = {
  * Replace current key with new one (requires authentication)
  * Final path: /_auth/keys/rotate (prefix added from package.json)
  */
-export const rotateKeyContract = {
-    method: 'POST' as const,
+export const rotateKeyContract = defineContract({
+    method: 'POST',
     path: '/_auth/keys/rotate',
-    body: Type.Object({
-        publicKey: Type.String({
-            pattern: BASE64_PATTERN,
-            description: 'Base64 encoded DER public key (SPKI format)'
-        }),
-        keyId: Type.String({
-            pattern: UUID_PATTERN,
-            description: 'Client-generated UUID v4 key identifier'
-        }),
-        fingerprint: Type.String({
-            pattern: FINGERPRINT_PATTERN,
-            description: 'SHA-256 fingerprint of public key (64 hex characters)'
-        }),
-        algorithm: Type.Union([
-            Type.Literal('ES256'),
-            Type.Literal('RS256')
-        ], {
-            description: 'Signing algorithm (ES256 recommended, RS256 for compatibility)'
-        }),
-        keySize: Type.Optional(Type.Number({
-            description: 'Key size in bytes'
-        })),
-    }),
+    body: CryptoKeyFieldsSchema,
     response: ApiResponseSchema(
         Type.Object({
             success: Type.Boolean(),
             keyId: Type.String(),
         })
     ),
-} as const satisfies RouteContract;
+});
 
 /**
  * PUT /password - Change user password
@@ -344,25 +225,22 @@ export const rotateKeyContract = {
  * Requires current password for verification
  * Final path: /_auth/password (prefix added from package.json)
  */
-export const changePasswordContract = {
-    method: 'PUT' as const,
+export const changePasswordContract = defineContract({
+    method: 'PUT',
     path: '/_auth/password',
     body: Type.Object({
         currentPassword: Type.String({
             minLength: 1,
             description: 'Current password for verification'
         }),
-        newPassword: Type.String({
-            minLength: 8,
-            description: 'New password (minimum 8 characters)'
-        }),
+        newPassword: PasswordSchema,
     }),
     response: ApiResponseSchema(
         Type.Object({
             success: Type.Boolean({ description: 'Whether password was changed successfully' }),
         })
     ),
-} as const satisfies RouteContract;
+});
 
 /**
  * GET /session - Get authentication session
@@ -378,8 +256,8 @@ export const changePasswordContract = {
  * Requires authentication
  * Final path: /_auth/session (prefix added from package.json)
  */
-export const getAuthSessionContract = {
-    method: 'GET' as const,
+export const getAuthSessionContract = defineContract({
+    method: 'GET',
     path: '/_auth/session',
     response: ApiResponseSchema(AuthSessionSchema),
-} as const satisfies RouteContract;
+});

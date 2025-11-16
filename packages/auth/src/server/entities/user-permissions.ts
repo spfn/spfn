@@ -13,8 +13,8 @@
  * User permissions override role permissions
  */
 
-import { bigint, boolean, text, timestamp, index, unique } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
+import { bigint, boolean, text, index, unique } from 'drizzle-orm/pg-core';
+import { id, timestamps, utcTimestamp } from '@spfn/core/db';
 import { users } from './users';
 import { permissions } from './permissions';
 import { authSchema } from './schema';
@@ -24,28 +24,42 @@ export const userPermissions = authSchema.table('user_permissions',
         // Primary key
         id: id(),
 
+        // User reference
         // Foreign key to users table
+        // Cascade delete: when user is deleted, all overrides are removed
         userId: bigint('user_id', { mode: 'number' })
             .notNull()
             .references(() => users.id, { onDelete: 'cascade' }),
 
+        // Permission reference
         // Foreign key to permissions table
+        // Cascade delete: when permission is deleted, all overrides are removed
         permissionId: bigint('permission_id', { mode: 'number' })
             .notNull()
             .references(() => permissions.id, { onDelete: 'cascade' }),
 
-        // Grant or revoke
-        // true: Grant this permission (even if role doesn't have it)
-        // false: Revoke this permission (even if role has it)
+        // Grant or revoke flag
+        // true: GRANT this permission to the user (additive override)
+        //       - Grants permission even if role doesn't have it
+        //       - Use case: Temporary elevated access, special privileges
+        //       - Example: Grant 'post:delete' to specific editor for cleanup task
+        // false: REVOKE this permission from the user (subtractive override)
+        //        - Removes permission even if role has it
+        //        - Use case: Restrict specific actions, compliance requirements
+        //        - Example: Revoke 'user:delete' from admin during audit period
+        // Priority: User permissions ALWAYS override role permissions
         granted: boolean('granted').notNull().default(true),
 
-        // Reason for grant/revocation (audit trail)
+        // Reason for grant/revocation
+        // Used for: audit trail, compliance documentation
+        // Example: "Temporary access for project X", "Security incident - restricted"
         reason: text('reason'),
 
         // Expiration timestamp (optional)
-        // null: Permanent override
-        // timestamp: Permission expires at this time
-        expiresAt: timestamp('expires_at', { withTimezone: true }),
+        // null: Permanent override (remains until manually removed)
+        // timestamp: Permission expires at this time (auto-revoked by background job)
+        // Use case: Time-limited elevated access, temporary restrictions
+        expiresAt: utcTimestamp('expires_at'),
 
         ...timestamps(),
     },

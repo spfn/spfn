@@ -1,11 +1,16 @@
 /**
  * @spfn/auth - Repositories
  *
- * Repository definitions will be added here:
- * - users.repository.ts
- * - sessions.repository.ts
- * - rbac.repository.ts
+ * Repository layer for data access with automatic Read/Write splitting
+ * and transaction context support through BaseRepository pattern
  */
 
-// Export all repositories here when created
-export {};
+export * from './users.repository';
+export * from './keys.repository';
+export * from './verification-codes.repository';
+export * from './roles.repository';
+export * from './permissions.repository';
+export * from './role-permissions.repository';
+export * from './user-permissions.repository';
+export * from './user-profiles.repository';
+export * from './invitations.repository';

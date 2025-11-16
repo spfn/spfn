@@ -12,11 +12,22 @@
  * - Email/phone verification
  */
 
-import { text, timestamp, check, boolean, bigint, index } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
+import { text, check, boolean, bigint, index } from 'drizzle-orm/pg-core';
+import { id, timestamps, enumText, utcTimestamp } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
 import { roles } from './roles';
 import { authSchema } from './schema';
+
+/**
+ * User status enum values
+ * Single source of truth for all user statuses
+ */
+export const USER_STATUSES = ['active', 'inactive', 'suspended'] as const;
+
+/**
+ * User status type derived from the const array
+ */
+export type UserStatus = typeof USER_STATUSES[number];
 
 export const users = authSchema.table('users',
     {
@@ -53,25 +64,20 @@ export const users = authSchema.table('users',
         // - active: Normal operation (default)
         // - inactive: Deactivated (user request, dormant)
         // - suspended: Locked (security incident, ToS violation)
-        status: text(
-            'status',
-            {
-                enum: ['active', 'inactive', 'suspended']
-            }
-        ).notNull().default('active'),
+        status: enumText('status', USER_STATUSES).default('active').notNull(),
 
         // Verification timestamps
         // null = unverified, timestamp = verified at this time
         // Email verification (via verification code or magic link)
-        emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+        emailVerifiedAt: utcTimestamp('email_verified_at'),
 
         // Phone verification (via SMS OTP)
-        phoneVerifiedAt: timestamp('phone_verified_at', { withTimezone: true }),
+        phoneVerifiedAt: utcTimestamp('phone_verified_at'),
 
         // Metadata
         // Last successful login timestamp
         // Used for: security auditing, dormant account detection
-        lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+        lastLoginAt: utcTimestamp('last_login_at'),
 
         ...timestamps(),
     },
@@ -94,11 +100,53 @@ export const users = authSchema.table('users',
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
-export type UserStatus = 'active' | 'inactive' | 'suspended';
 
 // Helper type with computed verification status
-export type UserWithVerification = User &
-{
+export type UserWithVerification = User & {
     isEmailVerified: boolean;
     isPhoneVerified: boolean;
+};
+
+// Helper type with role information
+export type UserWithRole = User & {
+    role: {
+        id: number;
+        name: string;
+        displayName: string;
+        priority: number;
+    };
+};
+
+// Helper type with profile information
+export type UserWithProfile = User & {
+    profile: {
+        id: number;
+        displayName: string;
+        firstName: string | null;
+        lastName: string | null;
+        avatarUrl: string | null;
+        bio: string | null;
+        locale: string | null;
+        timezone: string | null;
+    } | null;
+};
+
+// Helper type with full details (role + profile)
+export type UserWithDetails = User & {
+    role: {
+        id: number;
+        name: string;
+        displayName: string;
+        priority: number;
+    };
+    profile: {
+        id: number;
+        displayName: string;
+        firstName: string | null;
+        lastName: string | null;
+        avatarUrl: string | null;
+        bio: string | null;
+        locale: string | null;
+        timezone: string | null;
+    } | null;
 };

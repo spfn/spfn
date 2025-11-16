@@ -61,15 +61,7 @@ app.bind(getLabelsContract, async (c) =>
 
     return c.success({
         labels: labels.map((label) => ({
-            id: label.id,
-            key: label.key,
-            section: label.section,
-            type: label.type,
-            description: label.description,
-            publishedVersion: label.publishedVersion,
-            createdBy: label.createdBy,
-            createdAt: label.createdAt.toISOString(),
-            updatedAt: label.updatedAt.toISOString(),
+            ...label,
             ...(includeDefaultValues && { defaultValue: defaultValuesMap[label.key] })
         })),
         total,
@@ -99,18 +91,7 @@ app.bind(createLabelContract, [Transactional()], async (c) =>
         createdBy: body.createdBy,
     });
 
-    return c.created(
-        {
-            id: label.id,
-            key: label.key,
-            section: label.section,
-            type: label.type,
-            publishedVersion: label.publishedVersion,
-            createdBy: label.createdBy,
-            createdAt: label.createdAt.toISOString(),
-            updatedAt: label.updatedAt.toISOString(),
-        }
-    );
+    return c.created(label);
 });
 
 export default app;

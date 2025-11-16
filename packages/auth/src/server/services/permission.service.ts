@@ -4,9 +4,13 @@
  * Permission checking and validation logic
  */
 
-import { getDatabase } from '@spfn/core/db';
-import { users, roles, permissions, rolePermissions, userPermissions } from '@/server/entities';
-import { eq, and } from 'drizzle-orm';
+import {
+    usersRepository,
+    rolesRepository,
+    permissionsRepository,
+    rolePermissionsRepository,
+    userPermissionsRepository,
+} from '@/server/repositories';
 
 /**
  * Get all permissions for a user
@@ -25,21 +29,10 @@ import { eq, and } from 'drizzle-orm';
  */
 export async function getUserPermissions(userId: string | number | bigint): Promise<string[]>
 {
-    const db = getDatabase();
-
-    if (!db)
-    {
-        throw new Error('[Auth] Database not initialized');
-    }
-
     const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
 
     // 1. Get user's role
-    const [user] = await db
-        .select({ roleId: users.roleId })
-        .from(users)
-        .where(eq(users.id, userIdNum))
-        .limit(1);
+    const user = await usersRepository.findById(userIdNum);
 
     if (!user || !user.roleId)
     {
@@ -49,51 +42,41 @@ export async function getUserPermissions(userId: string | number | bigint): Prom
     const permSet = new Set<string>();
 
     // 2. Get role-based permissions
-    const rolePerms = await db
-        .select({ name: permissions.name })
-        .from(rolePermissions)
-        .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
-        .where(
-            and(
-                eq(rolePermissions.roleId, user.roleId),
-                eq(permissions.isActive, true)
-            )
+    const rolePermMappings = await rolePermissionsRepository.findByRoleId(user.roleId);
+    const permIds = rolePermMappings.map(rp => rp.permissionId);
+
+    if (permIds.length > 0)
+    {
+        const rolePerms = await Promise.all(
+            permIds.map(id => permissionsRepository.findById(id))
         );
 
-    for (const perm of rolePerms)
-    {
-        permSet.add(perm.name);
+        for (const perm of rolePerms)
+        {
+            if (perm && perm.isActive)
+            {
+                permSet.add(perm.name);
+            }
+        }
     }
 
     // 3. Apply user-specific permission overrides
-    const userPerms = await db
-        .select({
-            name: permissions.name,
-            granted: userPermissions.granted,
-            expiresAt: userPermissions.expiresAt,
-        })
-        .from(userPermissions)
-        .innerJoin(permissions, eq(userPermissions.permissionId, permissions.id))
-        .where(eq(userPermissions.userId, userIdNum));
+    const userPermMappings = await userPermissionsRepository.findValidByUserId(userIdNum);
 
-    const now = new Date();
-    for (const userPerm of userPerms)
+    for (const userPermMapping of userPermMappings)
     {
-        // Skip expired permissions
-        if (userPerm.expiresAt && userPerm.expiresAt < now)
-        {
-            continue;
-        }
+        const perm = await permissionsRepository.findById(userPermMapping.permissionId);
+        if (!perm) continue;
 
-        if (userPerm.granted)
+        if (userPermMapping.granted)
         {
             // Grant permission (add even if not in role)
-            permSet.add(userPerm.name);
+            permSet.add(perm.name);
         }
         else
         {
             // Revoke permission (remove even if in role)
-            permSet.delete(userPerm.name);
+            permSet.delete(perm.name);
         }
     }
 
@@ -185,31 +168,16 @@ export async function hasAllPermissions(
  */
 export async function hasRole(userId: string | number | bigint, roleName: string): Promise<boolean>
 {
-    const db = getDatabase();
-
-    if (!db)
-    {
-        throw new Error('[Auth] Database not initialized');
-    }
-
     const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
 
-    const [user] = await db
-        .select({ roleId: users.roleId })
-        .from(users)
-        .where(eq(users.id, userIdNum))
-        .limit(1);
+    const user = await usersRepository.findById(userIdNum);
 
     if (!user || !user.roleId)
     {
         return false;
     }
 
-    const [role] = await db
-        .select({ name: roles.name })
-        .from(roles)
-        .where(eq(roles.id, user.roleId))
-        .limit(1);
+    const role = await rolesRepository.findById(user.roleId);
 
     return role?.name === roleName;
 }

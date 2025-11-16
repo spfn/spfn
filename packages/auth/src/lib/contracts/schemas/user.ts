@@ -25,7 +25,7 @@ import { Type, Static } from '@sinclair/typebox';
  */
 export const PublicUserSchema = Type.Object(
     {
-        id: Type.String({
+        id: Type.Number({
             description: 'User ID'
         }),
         email: Type.Optional(Type.String({

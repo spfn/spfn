@@ -26,17 +26,7 @@ app.bind(getLabelByKeyContract, async (c) =>
         throw new CMSNotFoundError('Label', { key });
     }
 
-    return c.success({
-        id: label.id,
-        key: label.key,
-        section: label.section,
-        type: label.type,
-        description: label.description,
-        publishedVersion: label.publishedVersion,
-        createdBy: label.createdBy,
-        createdAt: label.createdAt.toISOString(),
-        updatedAt: label.updatedAt.toISOString(),
-    });
+    return c.success(label);
 });
 
 export default app;

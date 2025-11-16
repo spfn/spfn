@@ -33,17 +33,7 @@ app.bind(getLabelContract, async (c) =>
         throw new CMSNotFoundError('Label', labelId);
     }
 
-    return c.success({
-        id: label.id,
-        key: label.key,
-        section: label.section,
-        type: label.type,
-        description: label.description,
-        publishedVersion: label.publishedVersion,
-        createdBy: label.createdBy,
-        createdAt: label.createdAt.toISOString(),
-        updatedAt: label.updatedAt.toISOString(),
-    });
+    return c.success(label);
 });
 
 /**
@@ -70,17 +60,7 @@ app.bind(updateLabelContract, [Transactional()], async (c) =>
         throw new CMSOperationError('update', 'label', { id: labelId });
     }
 
-    return c.success({
-        id: updated.id,
-        key: updated.key,
-        section: updated.section,
-        type: updated.type,
-        description: updated.description,
-        publishedVersion: updated.publishedVersion,
-        createdBy: updated.createdBy,
-        createdAt: updated.createdAt.toISOString(),
-        updatedAt: updated.updatedAt.toISOString(),
-    });
+    return c.success(updated);
 });
 
 /**
@@ -107,7 +87,6 @@ app.bind(deleteLabelContract, [Transactional()], async (c) =>
     }
 
     return c.success({
-        success: true,
         id: deleted.id,
     });
 });

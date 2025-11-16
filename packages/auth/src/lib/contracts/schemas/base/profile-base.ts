@@ -12,7 +12,7 @@ import { Type } from '@sinclair/typebox';
  */
 export const ProfileInfoSchema = Type.Object(
     {
-        profileId: Type.String({
+        profileId: Type.Number({
             description: 'Profile ID'
         }),
         displayName: Type.String({

@@ -54,6 +54,14 @@ export type InferContract<TContract extends RouteContract> = {
 };
 
 /**
+ * Extract data type from ApiSuccessResponse<T>
+ *
+ * If response type is ApiSuccessResponse<T>, extracts T (the data field type).
+ * Otherwise, returns the response type as-is.
+ */
+export type InferResponseData<T> = T extends { success: true; data: infer D } ? D : T;
+
+/**
  * RouteContext: Route Handler Dedicated Context
  *
  * Generic version with contract-based type inference
@@ -67,20 +75,27 @@ export type RouteContext<TContract extends RouteContract = any> = {
         status?: ContentfulStatusCode,
         headers?: HeaderRecord
     ): Response;
-    success<T>(
-        data: T,
-        meta?: ApiSuccessResponse<T>['meta'],
-        status?: number
+    success(
+        data: InferResponseData<InferContract<TContract>['response']>,
+        meta?: ApiSuccessResponse<InferResponseData<InferContract<TContract>['response']>>['meta'],
+        status?: ContentfulStatusCode
     ): Response;
-    paginated<T>(
-        data: T[],
+    paginated(
+        data: InferResponseData<InferContract<TContract>['response']> extends Array<infer U>
+            ? U[]
+            : InferResponseData<InferContract<TContract>['response']>[],
         page: number,
         limit: number,
         total: number
     ): Response;
     noContent(): Response;
-    created<T>(data: T, location?: string): Response;
-    accepted<T>(data?: T): Response;
+    created(
+        data: InferResponseData<InferContract<TContract>['response']>,
+        location?: string
+    ): Response;
+    accepted(
+        data?: InferResponseData<InferContract<TContract>['response']>
+    ): Response;
     notModified(): Response;
     raw: Context;
 };

@@ -4,11 +4,9 @@
  * Handles public key registration, rotation, and revocation
  */
 
-import { create, getDatabase } from '@spfn/core/db';
-import { userPublicKeys } from '@/server/entities';
 import { verifyKeyFingerprint } from '@/server/helpers/jwt';
 import { InvalidKeyFingerprintError } from '@/server/errors';
-import { eq, and } from 'drizzle-orm';
+import { keysRepository } from '@/server/repositories';
 
 export interface RegisterPublicKeyParams
 {
@@ -69,7 +67,7 @@ export async function registerPublicKeyService(
     }
 
     // Store public key (90 days expiry)
-    await create(userPublicKeys, {
+    await keysRepository.create({
         userId,
         keyId,
         publicKey,
@@ -97,25 +95,15 @@ export async function rotateKeyService(
         throw new InvalidKeyFingerprintError();
     }
 
-    const db = getDatabase()!;
-
     // Revoke old key
-    await db
-        .update(userPublicKeys)
-        .set({
-            isActive: false,
-            revokedAt: new Date(),
-            revokedReason: 'Replaced by key rotation',
-        })
-        .where(
-            and(
-                eq(userPublicKeys.keyId, oldKeyId),
-                eq(userPublicKeys.userId, userId)
-            )
-        );
+    await keysRepository.revokeByKeyIdAndUserId(
+        oldKeyId,
+        userId,
+        'Replaced by key rotation'
+    );
 
     // Store new public key (90 days expiry)
-    await create(userPublicKeys, {
+    await keysRepository.create({
         userId,
         keyId: newKeyId,
         publicKey: newPublicKey,
@@ -141,19 +129,5 @@ export async function revokeKeyService(
 {
     const { userId, keyId, reason } = params;
 
-    const db = getDatabase()!;
-
-    await db
-        .update(userPublicKeys)
-        .set({
-            isActive: false,
-            revokedAt: new Date(),
-            revokedReason: reason,
-        })
-        .where(
-            and(
-                eq(userPublicKeys.keyId, keyId),
-                eq(userPublicKeys.userId, userId)
-            )
-        );
+    await keysRepository.revokeByKeyIdAndUserId(keyId, userId, reason);
 }

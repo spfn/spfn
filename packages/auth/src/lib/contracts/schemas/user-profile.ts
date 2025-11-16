@@ -21,7 +21,7 @@ import { Type, Static } from '@sinclair/typebox';
  */
 export const PublicUserProfileSchema = Type.Object(
     {
-        id: Type.String({
+        id: Type.Number({
             description: 'Profile ID'
         }),
         userId: Type.Number({

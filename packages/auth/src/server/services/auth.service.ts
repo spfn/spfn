@@ -4,11 +4,11 @@
  * Core authentication logic: registration, login, logout, password management
  */
 
-import { findOne, create } from '@spfn/core/db';
 import { ValidationError } from '@spfn/core/errors';
-import { users, type User } from '@/server/entities';
+import { type User } from '@/server/entities';
+import { usersRepository } from '@/server/repositories';
 import { hashPassword, verifyPassword } from '@/server/helpers';
-import { validateVerificationToken } from '@/server/helpers/verification';
+import { validateVerificationToken } from './verification.service';
 import {
     InvalidCredentialsError,
     AccountDisabledError,
@@ -103,13 +103,13 @@ export async function checkAccountExistsService(
     {
         identifier = email;
         identifierType = 'email';
-        user = await findOne(users, { email });
+        user = await usersRepository.findByEmail(email);
     }
     else if (phone)
     {
         identifier = phone;
         identifierType = 'phone';
-        user = await findOne(users, { phone });
+        user = await usersRepository.findByPhone(phone);
     }
     else
     {
@@ -160,19 +160,7 @@ export async function registerService(
     }
 
     // Check if user already exists
-    let existingUser: User | null;
-    if (email)
-    {
-        existingUser = await findOne(users, { email });
-    }
-    else if (phone)
-    {
-        existingUser = await findOne(users, { phone });
-    }
-    else
-    {
-        throw new ValidationError('Either email or phone must be provided');
-    }
+    const existingUser = await usersRepository.findByEmailOrPhone(email, phone);
 
     if (existingUser)
     {
@@ -193,15 +181,13 @@ export async function registerService(
     }
 
     // Create user
-    const newUser = await create(users, {
+    const newUser = await usersRepository.create({
         email: email || null,
         phone: phone || null,
         passwordHash,
         passwordChangeRequired: false,
         roleId: userRole.id,
         status: 'active',
-        createdAt: new Date(),
-        updatedAt: new Date(),
     });
 
     // Register public key
@@ -230,16 +216,9 @@ export async function loginService(
     const { email, phone, password, publicKey, keyId, fingerprint, oldKeyId, algorithm } = params;
 
     // Find user
-    let user: User | null;
-    if (email)
-    {
-        user = await findOne(users, { email });
-    }
-    else if (phone)
-    {
-        user = await findOne(users, { phone });
-    }
-    else
+    const user = await usersRepository.findByEmailOrPhone(email, phone);
+
+    if (!email && !phone)
     {
         throw new ValidationError('Either email or phone must be provided');
     }
@@ -325,7 +304,7 @@ export async function changePasswordService(
     }
     else
     {
-        const user = await findOne(users, { id: userId });
+        const user = await usersRepository.findById(userId);
         if (!user)
         {
             throw new ValidationError('User not found');
@@ -349,10 +328,5 @@ export async function changePasswordService(
     const newPasswordHash = await hashPassword(newPassword);
 
     // Update password and clear passwordChangeRequired flag
-    const { updateOne } = await import('@spfn/core/db');
-    await updateOne(users, { id: userId }, {
-        passwordHash: newPasswordHash,
-        passwordChangeRequired: false,
-        updatedAt: new Date(),
-    });
+    await usersRepository.updatePassword(userId, newPasswordHash, true);
 }

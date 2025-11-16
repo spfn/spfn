@@ -4,28 +4,24 @@
  * Type-safe API contracts for user invitation operations
  */
 
+import {
+    UUID_PATTERN,
+    EMAIL_PATTERN,
+    EmailSchema,
+    PasswordSchema,
+    CryptoKeyFieldsSchema
+} from '@/lib/contracts/schemas/base';
+import { INVITATION_STATUSES } from '@/server/entities/invitations';
 import { Type } from '@sinclair/typebox';
-import { ApiResponseSchema, type RouteContract } from '@spfn/core/route/types';
-
-// UUID v4 pattern
-const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
-
-// Email pattern
-const EMAIL_PATTERN = '^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$';
-
-// Base64 pattern (DER encoded keys)
-const BASE64_PATTERN = '^[A-Za-z0-9+/]+=*$';
-
-// SHA-256 fingerprint pattern (64 hex characters)
-const FINGERPRINT_PATTERN = '^[a-f0-9]{64}$';
+import { ApiResponseSchema, defineContract } from '@spfn/core/route/types';
 
 /**
  * GET /_auth/invitations/:token - Get invitation details (public)
  *
  * Retrieves invitation information for acceptance page
  */
-export const getInvitationContract = {
-    method: 'GET' as const,
+export const getInvitationContract = defineContract({
+    method: 'GET',
     path: '/_auth/invitations/:token',
     params: Type.Object({
         token: Type.String({
@@ -58,44 +54,26 @@ export const getInvitationContract = {
             })),
         })
     ),
-} as const satisfies RouteContract;
+});
 
 /**
  * POST /_auth/invitations/accept - Accept invitation (public)
  *
  * Accepts invitation and creates user account with provided credentials
  */
-export const acceptInvitationContract = {
-    method: 'POST' as const,
+export const acceptInvitationContract = defineContract({
+    method: 'POST',
     path: '/_auth/invitations/accept',
-    body: Type.Object({
-        token: Type.String({
-            pattern: UUID_PATTERN,
-            description: 'Invitation token'
+    body: Type.Intersect([
+        Type.Object({
+            token: Type.String({
+                pattern: UUID_PATTERN,
+                description: 'Invitation token'
+            }),
+            password: PasswordSchema,
         }),
-        password: Type.String({
-            minLength: 8,
-            description: 'Account password (minimum 8 characters)'
-        }),
-        publicKey: Type.String({
-            pattern: BASE64_PATTERN,
-            description: 'Base64 DER encoded public key (SPKI format)'
-        }),
-        keyId: Type.String({
-            pattern: UUID_PATTERN,
-            description: 'Unique key identifier (UUID v4)'
-        }),
-        fingerprint: Type.String({
-            pattern: FINGERPRINT_PATTERN,
-            description: 'SHA-256 fingerprint of public key (64 hex chars)'
-        }),
-        algorithm: Type.Union([
-            Type.Literal('ES256'),
-            Type.Literal('RS256')
-        ], {
-            description: 'Asymmetric signing algorithm'
-        }),
-    }),
+        CryptoKeyFieldsSchema
+    ]),
     response: ApiResponseSchema(
         Type.Object({
             userId: Type.Number({
@@ -110,7 +88,7 @@ export const acceptInvitationContract = {
             }),
         })
     ),
-} as const satisfies RouteContract;
+});
 
 /**
  * POST /_auth/invitations - Create new invitation (admin)
@@ -118,14 +96,11 @@ export const acceptInvitationContract = {
  * Creates and sends invitation to new user
  * Requires: admin role or user:invite permission
  */
-export const createInvitationContract = {
-    method: 'POST' as const,
+export const createInvitationContract = defineContract({
+    method: 'POST',
     path: '/_auth/invitations',
     body: Type.Object({
-        email: Type.String({
-            pattern: EMAIL_PATTERN,
-            description: 'Email address to invite'
-        }),
+        email: EmailSchema,
         roleId: Type.Number({
             description: 'Role ID to assign'
         }),
@@ -155,7 +130,7 @@ export const createInvitationContract = {
             }),
         })
     ),
-} as const satisfies RouteContract;
+});
 
 /**
  * GET /_auth/invitations - List invitations (admin)
@@ -163,18 +138,14 @@ export const createInvitationContract = {
  * Retrieves paginated list of invitations with filtering
  * Requires: admin role
  */
-export const listInvitationsContract = {
-    method: 'GET' as const,
+export const listInvitationsContract = defineContract({
+    method: 'GET',
     path: '/_auth/invitations',
     query: Type.Object({
-        status: Type.Optional(Type.Union([
-            Type.Literal('pending'),
-            Type.Literal('accepted'),
-            Type.Literal('expired'),
-            Type.Literal('cancelled'),
-        ], {
-            description: 'Filter by status'
-        })),
+        status: Type.Optional(Type.Union(
+            INVITATION_STATUSES.map(s => Type.Literal(s)),
+            { description: 'Filter by status' }
+        )),
         page: Type.Optional(Type.Number({
             minimum: 1,
             description: 'Page number (default: 1)'
@@ -211,7 +182,7 @@ export const listInvitationsContract = {
             totalPages: Type.Number({ description: 'Total page count' }),
         })
     ),
-} as const satisfies RouteContract;
+});
 
 /**
  * POST /_auth/invitations/cancel - Cancel invitation (admin)
@@ -219,8 +190,8 @@ export const listInvitationsContract = {
  * Cancels pending invitation
  * Requires: admin role or invitation owner
  */
-export const cancelInvitationContract = {
-    method: 'POST' as const,
+export const cancelInvitationContract = defineContract({
+    method: 'POST',
     path: '/_auth/invitations/cancel',
     body: Type.Object({
         id: Type.Number({
@@ -239,7 +210,7 @@ export const cancelInvitationContract = {
             }),
         })
     ),
-} as const satisfies RouteContract;
+});
 
 /**
  * POST /_auth/invitations/resend - Resend invitation (admin)
@@ -247,8 +218,8 @@ export const cancelInvitationContract = {
  * Resends invitation email and extends expiration
  * Requires: admin role
  */
-export const resendInvitationContract = {
-    method: 'POST' as const,
+export const resendInvitationContract = defineContract({
+    method: 'POST',
     path: '/_auth/invitations/resend',
     body: Type.Object({
         id: Type.Number({
@@ -269,7 +240,7 @@ export const resendInvitationContract = {
             }),
         })
     ),
-} as const satisfies RouteContract;
+});
 
 /**
  * DELETE /_auth/invitations/delete - Delete invitation (superadmin)
@@ -277,8 +248,8 @@ export const resendInvitationContract = {
  * Permanently deletes invitation record
  * Requires: superadmin role
  */
-export const deleteInvitationContract = {
-    method: 'POST' as const,
+export const deleteInvitationContract = defineContract({
+    method: 'POST',
     path: '/_auth/invitations/delete',
     body: Type.Object({
         id: Type.Number({
@@ -290,4 +261,4 @@ export const deleteInvitationContract = {
             success: Type.Boolean(),
         })
     ),
-} as const satisfies RouteContract;
+});

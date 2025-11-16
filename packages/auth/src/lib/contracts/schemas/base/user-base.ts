@@ -12,7 +12,7 @@ import { Type } from '@sinclair/typebox';
  */
 export const MinimalUserInfoSchema = Type.Object(
     {
-        userId: Type.String({
+        userId: Type.Number({
             description: 'User ID'
         }),
         email: Type.Optional(Type.String({
@@ -33,7 +33,7 @@ export const MinimalUserInfoSchema = Type.Object(
  */
 export const FullUserInfoSchema = Type.Object(
     {
-        userId: Type.String({
+        userId: Type.Number({
             description: 'User ID'
         }),
         email: Type.Optional(Type.String({

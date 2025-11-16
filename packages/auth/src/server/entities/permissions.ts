@@ -11,41 +11,89 @@
  */
 
 import { text, boolean, index } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
+import { id, timestamps, enumText, typedJsonb } from '@spfn/core/db';
 import { authSchema } from './schema';
+
+/**
+ * Permission category enum values
+ * Single source of truth for permission categories
+ */
+export const PERMISSION_CATEGORIES = [
+    'auth',      // Authentication & authorization
+    'user',      // User management
+    'rbac',      // Role & permission management
+    'system',    // System administration
+    'custom'     // App-specific categories
+] as const;
+
+/**
+ * Permission category type derived from the const array
+ */
+export type PermissionCategory = typeof PERMISSION_CATEGORIES[number];
 
 export const permissions = authSchema.table('permissions',
     {
         // Primary key
         id: id(),
 
-        // Permission identifier (e.g., 'user:delete', 'post:publish')
+        // Permission identifier
         // Format: resource:action or namespace:resource:action
-        // Must be unique
+        // Examples:
+        // - Simple: 'user:delete', 'post:publish'
+        // - Namespaced: 'auth:user:delete', 'cms:post:publish'
+        // Must be unique across all permissions
+        // Used in: permission checks, role assignments, API guards
         name: text('name').notNull().unique(),
 
         // Display name for UI
+        // Human-readable name shown in admin panels
+        // Example: "Delete Users", "Publish Posts"
         displayName: text('display_name').notNull(),
 
         // Permission description
+        // Detailed explanation of what this permission allows
+        // Example: "Allows deletion of user accounts from the system"
         description: text('description'),
 
-        // Category for grouping (e.g., 'user', 'post', 'admin', 'system')
-        category: text('category'),
+        // Category for grouping
+        // Used for: organizing permissions in UI, filtering
+        // Built-in categories: auth, user, rbac, system
+        // Custom categories: any app-specific category
+        category: enumText('category', PERMISSION_CATEGORIES),
 
         // Built-in permission flag
-        // true: Core package permissions - cannot be deleted
+        // true: Core package permissions (auth:*, user:*, rbac:*)
+        //       - Cannot be deleted or modified
+        //       - Must have isSystem = true
+        //       - Required for package functionality
         // false: Custom or preset permissions
+        //        - Can be deleted (if not system)
         isBuiltin: boolean('is_builtin').notNull().default(false),
 
         // System permission flag
         // true: Defined in code (builtin or preset)
+        //       - Deletion restricted
+        //       - Created during migrations or initialization
         // false: Runtime created custom permission
+        //        - Fully manageable by admins
+        //        - Created through admin UI or API
         isSystem: boolean('is_system').notNull().default(false),
 
         // Active status
-        // false: Deactivated permission (not enforced)
+        // true: Permission is enforced (default)
+        // false: Deactivated permission (not enforced in checks)
+        //        - Useful for temporarily disabling features
+        //        - Maintains audit trail without deletion
         isActive: boolean('is_active').notNull().default(true),
+
+        // Additional metadata (JSONB)
+        // Use cases:
+        // - UI configuration: { icon: 'trash', color: 'red', group: 'dangerous' }
+        // - Access control: { requiresMfa: true, ipWhitelist: ['10.0.0.0/8'] }
+        // - Dependencies: { requires: ['user:read'], conflicts: ['user:admin'] }
+        // - Audit: { createdBy: 123, source: 'migration', version: '1.0.0' }
+        // Example: { icon: 'trash', color: 'red', requiresMfa: true }
+        metadata: typedJsonb<Record<string, any>>('metadata'),
 
         ...timestamps(),
     },

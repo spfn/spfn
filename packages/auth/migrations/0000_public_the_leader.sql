@@ -34,6 +34,7 @@ CREATE TABLE "spfn_auth"."user_profiles" (
 	"location" text,
 	"company" text,
 	"job_title" text,
+	"metadata" jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "user_profiles_user_id_unique" UNIQUE("user_id")
@@ -76,9 +77,10 @@ CREATE TABLE "spfn_auth"."verification_codes" (
 	"purpose" text NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
 	"used_at" timestamp with time zone,
-	"attempts" text DEFAULT '0' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "attempts_limit_check" CHECK ("spfn_auth"."verification_codes"."attempts" >= 0 AND "spfn_auth"."verification_codes"."attempts" <= 10)
 );
 --> statement-breakpoint
 CREATE TABLE "spfn_auth"."user_invitations" (
@@ -120,6 +122,7 @@ CREATE TABLE "spfn_auth"."permissions" (
 	"is_builtin" boolean DEFAULT false NOT NULL,
 	"is_system" boolean DEFAULT false NOT NULL,
 	"is_active" boolean DEFAULT true NOT NULL,
+	"metadata" jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "permissions_name_unique" UNIQUE("name")
@@ -162,6 +165,9 @@ CREATE INDEX "users_status_idx" ON "spfn_auth"."users" USING btree ("status");--
 CREATE INDEX "users_role_id_idx" ON "spfn_auth"."users" USING btree ("role_id");--> statement-breakpoint
 CREATE INDEX "user_profiles_user_id_idx" ON "spfn_auth"."user_profiles" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_profiles_display_name_idx" ON "spfn_auth"."user_profiles" USING btree ("display_name");--> statement-breakpoint
+CREATE INDEX "user_profiles_locale_idx" ON "spfn_auth"."user_profiles" USING btree ("locale");--> statement-breakpoint
+CREATE INDEX "user_social_accounts_user_id_idx" ON "spfn_auth"."user_social_accounts" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "user_social_accounts_provider_idx" ON "spfn_auth"."user_social_accounts" USING btree ("provider");--> statement-breakpoint
 CREATE UNIQUE INDEX "provider_user_unique_idx" ON "spfn_auth"."user_social_accounts" USING btree ("provider","provider_user_id");--> statement-breakpoint
 CREATE INDEX "user_public_keys_user_id_idx" ON "spfn_auth"."user_public_keys" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_public_keys_key_id_idx" ON "spfn_auth"."user_public_keys" USING btree ("key_id");--> statement-breakpoint

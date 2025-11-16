@@ -31,8 +31,8 @@ const LabelBaseSchema = Type.Object({
     description: Type.Union([Type.String(), Type.Null()]),
     publishedVersion: Type.Union([Type.Number(), Type.Null()]),
     createdBy: Type.Union([Type.String(), Type.Null()]),
-    createdAt: Type.String(),
-    updatedAt: Type.String()
+    createdAt: Type.Date(),
+    updatedAt: Type.Date()
 });
 
 /**

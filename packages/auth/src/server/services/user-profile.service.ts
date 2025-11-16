@@ -5,8 +5,7 @@
  * Returns full user info with profile data
  */
 
-import { fetchFullUser } from './shared/fetch-user';
-import { fetchProfile } from './shared/fetch-profile';
+import { usersRepository, userProfilesRepository } from '@/server/repositories';
 
 export interface UserProfileResult {
     userId: string;
@@ -17,7 +16,7 @@ export interface UserProfileResult {
     createdAt: string;
     updatedAt: string;
     profile?: {
-        profileId: string;
+        profileId: number;
         displayName: string;
         firstName?: string | null;
         lastName?: string | null;
@@ -49,10 +48,12 @@ export interface UserProfileResult {
  * ```
  */
 export async function getUserProfileService(userId: string | number | bigint): Promise<UserProfileResult> {
+    const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
+
     // Fetch user and profile in parallel
     const [user, profile] = await Promise.all([
-        fetchFullUser(userId),
-        fetchProfile(userId),
+        usersRepository.fetchFullUserData(userIdNum),
+        userProfilesRepository.fetchProfileData(userIdNum),
     ]);
 
     return {

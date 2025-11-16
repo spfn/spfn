@@ -5,8 +5,7 @@
  * Returns minimal user info with role and permissions
  */
 
-import { fetchMinimalUser } from './shared/fetch-user';
-import { fetchRoleAndPermissions } from '@/server/services/shared';
+import { usersRepository } from '@/server/repositories';
 
 export interface AuthSessionResult {
     userId: string;
@@ -43,10 +42,12 @@ export interface AuthSessionResult {
  */
 export async function getAuthSessionService(userId: string | number | bigint): Promise<AuthSessionResult>
 {
+    const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
+
     // Fetch user and role/permissions in parallel
     const [user, roleAndPerms] = await Promise.all([
-        fetchMinimalUser(userId),
-        fetchRoleAndPermissions(userId),
+        usersRepository.fetchMinimalUserData(userIdNum),
+        usersRepository.fetchUserRoleAndPermissions(userIdNum),
     ]);
 
     return {
