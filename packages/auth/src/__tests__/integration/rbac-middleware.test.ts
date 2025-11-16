@@ -10,7 +10,7 @@ import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
 import { requirePermissions, requireAnyPermission } from '@/server/middleware/require-permission';
 import { requireRole } from '@/server/middleware/require-role';
-import { users } from '@/server/entities';
+import { users } from '@/server/entities/config';
 import { hashPassword } from '@/server/helpers/password';
 import { Hono } from 'hono';
 import { getDatabase } from '@spfn/core/db';

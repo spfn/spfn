@@ -25,7 +25,7 @@ import {
     hasRole,
 } from '@/server/services/permission.service';
 import { getDatabase } from '@spfn/core/db';
-import { users, permissions, userPermissions } from '@/server/entities';
+import { users, permissions, userPermissions } from '@/server/entities/config';
 import { hashPassword } from '@/server/helpers/password';
 import { eq } from 'drizzle-orm';
 

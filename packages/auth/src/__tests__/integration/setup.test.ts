@@ -9,7 +9,7 @@ import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailabl
 import { ensureAdminExists } from '@/server/setup';
 import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
-import { users } from '@/server/entities';
+import { users } from '@/server/entities/config';
 import { verifyPassword } from '@/server/helpers/password';
 import { eq } from 'drizzle-orm';
 

@@ -8,7 +8,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
 import { initDatabase, closeDatabase } from '@spfn/core/db';
-import * as schema from '@/server/entities/index';
+import * as schema from '@/server/entities/config';
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://authtest:authtest123@localhost:5435/spfn_auth_test';
 

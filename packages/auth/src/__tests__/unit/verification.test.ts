@@ -6,6 +6,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+    generateVerificationCode,
+    createVerificationToken,
     validateVerificationToken,
     type VerificationTokenPayload,
 } from '@/server/services/verification.service';

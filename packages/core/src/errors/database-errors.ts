@@ -67,7 +67,7 @@ export class EntityNotFoundError extends QueryError
     constructor(resource: string, id: string | number)
     {
         super(`${resource} with id ${id} not found`, 404, { resource, id });
-        this.name = 'EntityNotFoundError';
+        this.name = 'NotFoundError';
     }
 }
 

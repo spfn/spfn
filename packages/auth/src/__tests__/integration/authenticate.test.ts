@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { authenticate } from '@/server/middleware/authenticate';
-import { generateKeyPair, generateClientToken } from '@/lib/crypto';
+import { generateKeyPair, generateClientToken } from '@/server/lib/crypto';
 import type { Context, Next } from 'hono';
 import * as dbModule from '@spfn/core/db';
 import * as jwtHelpers from '@/server/helpers/jwt';

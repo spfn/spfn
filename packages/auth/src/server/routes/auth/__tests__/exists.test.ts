@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '@/__tests__/helpers/db';
 import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
-import { users } from '@/server/entities';
+import { users } from '@/server/entities/config';
 import type { ApiResponse } from '@spfn/core/route/types';
 import type { CheckAccountExistsData } from '@/lib/types/api';
 import app from '../index';

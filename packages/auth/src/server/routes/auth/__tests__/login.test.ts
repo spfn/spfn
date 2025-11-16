@@ -6,9 +6,9 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '@/__tests__/helpers/db';
 import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
-import { users } from '@/server/entities';
+import { users } from '@/server/entities/config';
 import { hashPassword } from '@/server/helpers/password';
-import { generateKeyPairES256 } from '@/lib/crypto';
+import { generateKeyPairES256 } from '@/server/lib/crypto';
 import app from '../index';
 
 // Response type based on login contract
