@@ -1,7 +1,10 @@
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route/types';
+import { defineContract, ApiSuccessSchema } from '@spfn/core/route/types';
 
-const SectionData = Type.Object({
+/**
+ * Section data schema
+ */
+const SectionDataSchema = Type.Object({
     section: Type.String(),
     locale: Type.String(),
     content: Type.Record(Type.String(), Type.Any()),
@@ -11,45 +14,36 @@ const SectionData = Type.Object({
 
 /**
  * GET /_cms/published-cache
- * 발행된 콘텐츠 캐시 조회 (단일 또는 여러 섹션)
+ * Get published content cache (single or multiple sections)
  */
-export const getPublishedCacheContract = {
-    method: 'GET' as const,
+export const getPublishedCacheContract = defineContract({
+    method: 'GET',
     path: '/_cms/published-cache',
     query: Type.Object({
         sections: Type.Union([
-            Type.String({ description: '단일 섹션 이름 (예: home)' }),
-            Type.Array(Type.String(), { description: '여러 섹션 이름 (예: ["home", "footer"])' })
+            Type.String({ description: 'Single section name (e.g., home)' }),
+            Type.Array(Type.String(), { description: 'Multiple section names (e.g., ["home", "footer"])' })
         ]),
-        locale: Type.Optional(Type.String({ default: 'ko', description: '언어 코드' })),
+        locale: Type.String({ description: 'Language code' }),
     }),
-    response: Type.Union([
-        // 성공: 항상 배열로 반환
-        Type.Array(SectionData),
-        // 에러
-        Type.Object({
-            error: Type.String()
-        })
-    ])
-} as const satisfies RouteContract;
+    response: ApiSuccessSchema(Type.Array(SectionDataSchema)),
+    meta: {
+        skipMiddlewares: ['auth']
+    }
+});
 
 /**
  * POST /_cms/published-cache
- * 발행된 콘텐츠 캐시 업데이트/생성 (upsert)
+ * Update/create published content cache (upsert)
  */
-export const upsertPublishedCacheContract = {
-    method: 'POST' as const,
+export const upsertPublishedCacheContract = defineContract({
+    method: 'POST',
     path: '/_cms/published-cache',
     body: Type.Object({
-        section: Type.String({ description: '섹션 이름 (예: home)' }),
-        locale: Type.String({ description: '언어 코드 (예: ko, en, ja)' }),
-        content: Type.Record(Type.String(), Type.Any(), { description: '발행할 콘텐츠 (key-value 형태)' }),
-        version: Type.Number({ description: '버전 번호' })
+        section: Type.String({ description: 'Section name (e.g., home)' }),
+        locale: Type.String({ description: 'Language code (e.g., ko, en, ja)' }),
+        content: Type.Record(Type.String(), Type.Any(), { description: 'Content to publish (key-value format)' }),
+        version: Type.Number({ description: 'Version number' })
     }),
-    response: Type.Union([
-        SectionData,
-        Type.Object({
-            error: Type.String()
-        })
-    ])
-} as const satisfies RouteContract;
+    response: ApiSuccessSchema(SectionDataSchema)
+});

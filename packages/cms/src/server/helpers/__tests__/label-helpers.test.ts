@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { flattenLabels, extractLabels } from '../helpers';
+import { flattenLabels, extractLabels } from '../label.helper';
 import type { SectionDefinition, NestedLabels } from '@/lib/types';
 
 describe('flattenLabels', () =>

@@ -10,6 +10,7 @@ import { getAdminLabelContract } from '@/lib/contracts/labels';
 import { cmsLabelsRepository } from '@/server/repositories/cms-labels.repository';
 import { cmsLabelValuesRepository } from '@/server/repositories/cms-label-values.repository';
 import type { CmsLabelValue } from '@/server/entities/cms-label-values';
+import { CMSNotFoundError } from '@/server/helpers/error';
 
 const app = createApp();
 
@@ -111,82 +112,68 @@ function calculateStatus(
  */
 app.bind(getAdminLabelContract, async (c) =>
 {
-    const { id } = c.params;
+    const { id: labelId } = c.params;
 
-    try
+    // 라벨 메타데이터 조회
+    const label = await cmsLabelsRepository.findById(labelId);
+    if (!label)
     {
-        // 라벨 메타데이터 조회
-        const label = await cmsLabelsRepository.findById(parseInt(id));
-        if (!label)
-        {
-            return c.json(
-                { error: 'Label not found' },
-                404
-            );
-        }
-
-        // Draft 값들 조회 (version = null)
-        const draftValues = await cmsLabelValuesRepository.findDraftsByLabelId(label.id);
-
-        // Published 값들 조회 (publishedVersion이 있는 경우)
-        let publishedValues: any[] = [];
-        if (label.publishedVersion !== null)
-        {
-            publishedValues = await cmsLabelValuesRepository.findByLabelIdAndVersion(
-                label.id,
-                label.publishedVersion
-            );
-        }
-
-        // 상태 계산 (실제 값 비교 포함)
-        const status = calculateStatus(
-            draftValues.length > 0,
-            publishedValues.length > 0,
-            draftValues,
-            publishedValues
-        );
-
-        return c.json({
-            label: {
-                id: label.id,
-                key: label.key,
-                section: label.section,
-                type: label.type,
-                description: label.description,
-                publishedVersion: label.publishedVersion,
-                createdBy: label.createdBy,
-                createdAt: label.createdAt.toISOString(),
-                updatedAt: label.updatedAt.toISOString()
-            },
-            draft: draftValues.map(v => ({
-                id: v.id,
-                labelId: v.labelId,
-                version: null,
-                locale: v.locale,
-                breakpoint: v.breakpoint,
-                value: v.value,
-                createdAt: v.createdAt.toISOString()
-            })),
-            published: publishedValues.map(v => ({
-                id: v.id,
-                labelId: v.labelId,
-                version: v.version as number,
-                locale: v.locale,
-                breakpoint: v.breakpoint,
-                value: v.value,
-                createdAt: v.createdAt.toISOString()
-            })),
-            status
-        });
+        throw new CMSNotFoundError('Label', labelId);
     }
-    catch (error)
+
+    // Draft 값들 조회 (version = null)
+    const draftValues = await cmsLabelValuesRepository.findDraftsByLabelId(label.id);
+
+    // Published 값들 조회 (publishedVersion이 있는 경우)
+    let publishedValues: any[] = [];
+    if (label.publishedVersion !== null)
     {
-        const err = error as Error;
-        return c.json(
-            { error: err.message },
-            500
+        publishedValues = await cmsLabelValuesRepository.findByLabelIdAndVersion(
+            label.id,
+            label.publishedVersion
         );
     }
+
+    // 상태 계산 (실제 값 비교 포함)
+    const status = calculateStatus(
+        draftValues.length > 0,
+        publishedValues.length > 0,
+        draftValues,
+        publishedValues
+    );
+
+    return c.success({
+        label: {
+            id: label.id,
+            key: label.key,
+            section: label.section,
+            type: label.type,
+            description: label.description,
+            publishedVersion: label.publishedVersion,
+            createdBy: label.createdBy,
+            createdAt: label.createdAt.toISOString(),
+            updatedAt: label.updatedAt.toISOString()
+        },
+        draft: draftValues.map(v => ({
+            id: v.id,
+            labelId: v.labelId,
+            version: null,
+            locale: v.locale,
+            breakpoint: v.breakpoint,
+            value: v.value,
+            createdAt: v.createdAt.toISOString()
+        })),
+        published: publishedValues.map(v => ({
+            id: v.id,
+            labelId: v.labelId,
+            version: v.version as number,
+            locale: v.locale,
+            breakpoint: v.breakpoint,
+            value: v.value,
+            createdAt: v.createdAt.toISOString()
+        })),
+        status
+    });
 });
 
 export default app;

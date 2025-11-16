@@ -8,12 +8,13 @@
  * - 발행 상태 (publishedVersion)
  */
 
-import { index, integer, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, integer, text } from 'drizzle-orm/pg-core';
+import { id, timestamps } from '@spfn/core/db';
 import { cmsSchema } from './cms-schema';
 
 export const cmsLabels = cmsSchema.table('labels', {
     // Primary Key
-    id: serial('id').primaryKey(),
+    id: id(),
 
     // 라벨 식별자
     key: text('key').notNull().unique(),
@@ -45,8 +46,7 @@ export const cmsLabels = cmsSchema.table('labels', {
     createdBy: text('created_by'),
 
     // 타임스탬프
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    ...timestamps(),
 }, (table) => [
     // 인덱스: 섹션별 조회 최적화
     index('cms_labels_section_idx').on(table.section),

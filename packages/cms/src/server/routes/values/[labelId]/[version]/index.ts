@@ -7,6 +7,7 @@
 import { createApp } from '@spfn/core/route';
 import { cmsLabelsRepository, cmsLabelValuesRepository } from '@/server/repositories';
 import { getValuesContract } from '@/lib/contracts/values';
+import { CMSNotFoundError } from '@/server/helpers/error';
 
 const app = createApp();
 
@@ -16,22 +17,14 @@ const app = createApp();
  */
 app.bind(getValuesContract, async (c) =>
 {
-    const { labelId: labelIdStr, version: versionStr } = c.params;
-    const labelId = parseInt(labelIdStr, 10);
-    const version = parseInt(versionStr, 10);
-
-    if (isNaN(labelId) || isNaN(version))
-    {
-        return c.json({ error: 'Invalid label ID or version' }, 400);
-    }
-
+    const { labelId, version } = c.params;
     const { locale, breakpoint } = c.query;
 
     // 라벨 존재 확인
     const label = await cmsLabelsRepository.findById(labelId);
     if (!label)
     {
-        return c.json({ error: 'Label not found' }, 404);
+        throw new CMSNotFoundError('Label', labelId);
     }
 
     // 값 조회
@@ -44,7 +37,7 @@ app.bind(getValuesContract, async (c) =>
         }
     );
 
-    return c.json({
+    return c.success({
         labelId,
         version,
         values: values.map((v) => ({

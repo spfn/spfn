@@ -16,11 +16,6 @@
       "import": "./dist/server.js",
       "require": "./dist/server.js"
     },
-    "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js",
-      "require": "./dist/client.js"
-    },
     "./api": {
       "types": "./dist/api.d.ts",
       "import": "./dist/api.js",
@@ -47,7 +42,7 @@
     "watch": "tsup --watch",
     "clean": "rm -rf dist migrations",
     "db:generate": "drizzle-kit generate",
-    "codegen": "spfn codegen run",
+    "codegen": "node ../cli/bin/spfn.js codegen run",
     "rebuild-cache": "tsx src/scripts/rebuild-published-cache.ts",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",

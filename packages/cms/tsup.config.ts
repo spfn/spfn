@@ -36,12 +36,8 @@ export default defineConfig({
     entry: {
         index: 'src/index.ts',
         server: 'src/server.ts',
-        client: 'src/client.ts',
         api: 'src/api/index.ts',
         actions: 'src/actions.ts',
-        'server/labels/index': 'src/server/labels/index.ts',
-        'server/generators/index': 'src/server/generators/index.ts',
-        'server/repositories/index': 'src/server/repositories/index.ts',
         ...entityEntries,
         ...contractEntries,
         ...routeEntries,

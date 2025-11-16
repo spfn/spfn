@@ -4,9 +4,9 @@
  * JSON 파일 기반 라벨 동기화
  */
 
+import { extractLabels } from "@/server/helpers/label.helper";
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, extname, join } from 'path';
-import { extractLabels } from '@/server/labels';
 import { cmsLabelsRepository, cmsPublishedCacheRepository } from '@/server/repositories';
 import { DEFAULT_LABELS_DIR } from '@/lib/constants';
 import type { NestedLabels, SectionDefinition, SyncOptions, SyncResult } from '@/lib/types';

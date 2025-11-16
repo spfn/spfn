@@ -11,15 +11,15 @@
  * - 캐시 테이블: 5ms (17배 빠름!)
  */
 
-import { serial, text, jsonb, integer, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { text, integer, index, unique } from 'drizzle-orm/pg-core';
+import { id, publishingFields, typedJsonb } from "@spfn/core/db";
 import { cmsSchema } from './cms-schema';
 
 // Create isolated schema for @spfn/cms
 // Schema imported from cms-schema.ts
-
 export const cmsPublishedCache = cmsSchema.table('published_cache', {
     // Primary Key
-    id: serial('id').primaryKey(),
+    id: id(),
 
     // 섹션 (페이지 단위)
     section: text('section').notNull(),
@@ -30,7 +30,7 @@ export const cmsPublishedCache = cmsSchema.table('published_cache', {
     // "ko" | "en" | "ja"
 
     // 캐시된 콘텐츠 (JSONB)
-    content: jsonb('content').notNull(),
+    content: typedJsonb<Record<string, any>>('content').notNull(),
     // Record<string, LabelValue>
     // {
     //   "home.hero.title": { type: "text", content: "..." },
@@ -39,8 +39,7 @@ export const cmsPublishedCache = cmsSchema.table('published_cache', {
     // }
 
     // 발행 정보
-    publishedAt: timestamp('published_at', { withTimezone: true }).notNull(),
-    publishedBy: text('published_by'),
+    ...publishingFields(),
 
     // 캐시 버전 (클라이언트 캐싱용)
     version: integer('version').notNull().default(1),

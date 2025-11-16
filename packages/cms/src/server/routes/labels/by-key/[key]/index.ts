@@ -7,6 +7,7 @@
 import { createApp } from '@spfn/core/route';
 import { cmsLabelsRepository } from '@/server/repositories';
 import { getLabelByKeyContract } from '@/lib/contracts/labels';
+import { CMSNotFoundError } from '@/server/helpers/error';
 
 const app = createApp();
 
@@ -22,10 +23,10 @@ app.bind(getLabelByKeyContract, async (c) =>
 
     if (!label)
     {
-        return c.json({ error: 'Label not found', key }, 404);
+        throw new CMSNotFoundError('Label', { key });
     }
 
-    return c.json({
+    return c.success({
         id: label.id,
         key: label.key,
         section: label.section,

@@ -14,6 +14,7 @@ import {
     updateLabelContract,
     deleteLabelContract,
 } from '@/lib/contracts/labels';
+import { CMSNotFoundError, CMSOperationError } from '@/server/helpers/error';
 
 const app = createApp();
 
@@ -23,22 +24,16 @@ const app = createApp();
  */
 app.bind(getLabelContract, async (c) =>
 {
-    const { id } = c.params;
-    const labelId = parseInt(id, 10);
-
-    if (isNaN(labelId))
-    {
-        return c.json({ error: 'Invalid label ID' }, 400);
-    }
+    const { id: labelId } = c.params;
 
     const label = await cmsLabelsRepository.findById(labelId);
 
     if (!label)
     {
-        return c.json({ error: 'Label not found' }, 404);
+        throw new CMSNotFoundError('Label', labelId);
     }
 
-    return c.json({
+    return c.success({
         id: label.id,
         key: label.key,
         section: label.section,
@@ -57,21 +52,14 @@ app.bind(getLabelContract, async (c) =>
  */
 app.bind(updateLabelContract, [Transactional()], async (c) =>
 {
-    const { id } = c.params;
-    const labelId = parseInt(id, 10);
-
-    if (isNaN(labelId))
-    {
-        return c.json({ error: 'Invalid label ID' }, 400);
-    }
-
+    const { id: labelId } = c.params;
     const body = await c.data();
 
     // 라벨 존재 확인
     const existing = await cmsLabelsRepository.findById(labelId);
     if (!existing)
     {
-        return c.json({ error: 'Label not found' }, 404);
+        throw new CMSNotFoundError('Label', labelId);
     }
 
     // 라벨 수정
@@ -79,10 +67,10 @@ app.bind(updateLabelContract, [Transactional()], async (c) =>
 
     if (!updated)
     {
-        return c.json({ error: 'Failed to update label' }, 500);
+        throw new CMSOperationError('update', 'label', { id: labelId });
     }
 
-    return c.json({
+    return c.success({
         id: updated.id,
         key: updated.key,
         section: updated.section,
@@ -101,19 +89,13 @@ app.bind(updateLabelContract, [Transactional()], async (c) =>
  */
 app.bind(deleteLabelContract, [Transactional()], async (c) =>
 {
-    const { id } = c.params;
-    const labelId = parseInt(id, 10);
-
-    if (isNaN(labelId))
-    {
-        return c.json({ error: 'Invalid label ID' }, 400);
-    }
+    const { id: labelId } = c.params;
 
     // 라벨 존재 확인
     const existing = await cmsLabelsRepository.findById(labelId);
     if (!existing)
     {
-        return c.json({ error: 'Label not found' }, 404);
+        throw new CMSNotFoundError('Label', labelId);
     }
 
     // 라벨 삭제 (CASCADE로 values도 함께 삭제됨)
@@ -121,10 +103,10 @@ app.bind(deleteLabelContract, [Transactional()], async (c) =>
 
     if (!deleted)
     {
-        return c.json({ error: 'Failed to delete label' }, 500);
+        throw new CMSOperationError('delete', 'label', { id: labelId });
     }
 
-    return c.json({
+    return c.success({
         success: true,
         id: deleted.id,
     });

@@ -8,7 +8,8 @@
  * - 왜 (metadata)
  */
 
-import { serial, integer, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
+import { integer, text, index } from 'drizzle-orm/pg-core';
+import { id, utcTimestamp, typedJsonb } from '@spfn/core/db';
 import { cmsSchema } from './cms-schema';
 import { cmsLabels } from '@/server/entities/cms-labels';
 
@@ -17,7 +18,7 @@ import { cmsLabels } from '@/server/entities/cms-labels';
 
 export const cmsAuditLogs = cmsSchema.table('audit_logs', {
     // Primary Key
-    id: serial('id').primaryKey(),
+    id: id(),
 
     // Foreign Key: cms_labels (nullable - 라벨 삭제 시 로그는 유지)
     labelId: integer('label_id')
@@ -32,15 +33,15 @@ export const cmsAuditLogs = cmsSchema.table('audit_logs', {
     userName: text('user_name'),
 
     // 변경 내용 (before/after)
-    changes: jsonb('changes'),
+    changes: typedJsonb<Record<string, any>>('changes'),
     // { before: {...}, after: {...} }
 
     // 추가 메타데이터
-    metadata: jsonb('metadata'),
+    metadata: typedJsonb<Record<string, any>>('metadata'),
     // { version: number, ip: string, userAgent: string, ... }
 
     // 작업 시각
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: utcTimestamp('created_at').defaultNow().notNull(),
 }, (table) => [
     // 인덱스: labelId로 이력 조회 최적화
     index('cms_audit_logs_label_id_idx').on(table.labelId),

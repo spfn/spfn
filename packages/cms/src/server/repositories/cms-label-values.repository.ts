@@ -2,145 +2,254 @@
  * CMS Label Values Repository
  *
  * 라벨 값 관리를 위한 Repository
+ * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { findOne, findMany, create, updateOne, deleteMany } from '@spfn/core/db';
-import { eq, and, SQL, isNull } from 'drizzle-orm';
+import { BaseRepository } from '@spfn/core/db';
+import { eq, and, SQL, isNull, gte, lte } from 'drizzle-orm';
 import { cmsLabelValues, type CmsLabelValue, type NewCmsLabelValue } from '@/server/entities';
 
 /**
- * 특정 라벨의 특정 버전 값들 조회
+ * 버전 히스토리 타입
  */
-export async function findByLabelIdAndVersion(
-    labelId: number,
-    version: number,
-    options?: {
-        locale?: string;
-        breakpoint?: string | null;
-    }
-): Promise<CmsLabelValue[]>
+export interface VersionHistory
 {
-    const { locale, breakpoint } = options || {};
-
-    const conditions: SQL[] = [
-        eq(cmsLabelValues.labelId, labelId),
-        eq(cmsLabelValues.version, version)
-    ];
-
-    if (locale)
-    {
-        conditions.push(eq(cmsLabelValues.locale, locale));
-    }
-
-    if (breakpoint !== undefined)
-    {
-        conditions.push(
-            breakpoint === null
-                ? isNull(cmsLabelValues.breakpoint)
-                : eq(cmsLabelValues.breakpoint, breakpoint)
-        );
-    }
-
-    return findMany(cmsLabelValues, {
-        where: and(...conditions)
-    });
+    version: number;
+    publishedAt: string;
+    publishedBy: null;
+    notes: null;
+    values: Array<{
+        id: number;
+        locale: string;
+        breakpoint: string | null;
+        value: any;
+        createdAt: string;
+    }>;
 }
 
 /**
- * 값 저장 (upsert)
- * - version: null → Draft 저장 (덮어쓰기)
- * - version: number → Published 버전 생성 (불변)
+ * CMS Label Values Repository 클래스
  */
-export async function upsert(data: NewCmsLabelValue): Promise<CmsLabelValue>
+export class CmsLabelValuesRepository extends BaseRepository
 {
-    // 기존 값이 있는지 확인
-    const versionCondition = data.version === null || data.version === undefined
-        ? isNull(cmsLabelValues.version)
-        : eq(cmsLabelValues.version, data.version as number);
-
-    const existing = await findOne(
-        cmsLabelValues,
-        and(
-            eq(cmsLabelValues.labelId, data.labelId),
-            versionCondition,
-            eq(cmsLabelValues.locale, data.locale || 'ko'),
-            data.breakpoint
-                ? eq(cmsLabelValues.breakpoint, data.breakpoint)
-                : isNull(cmsLabelValues.breakpoint)
-        )
-    );
-
-    if (existing)
+    /**
+     * 특정 라벨의 특정 버전 값들 조회
+     * Read replica 사용
+     */
+    async findByLabelIdAndVersion(
+        labelId: number,
+        version: number,
+        options?: {
+            locale?: string;
+            breakpoint?: string | null;
+        }
+    ): Promise<CmsLabelValue[]>
     {
-        // UPDATE (only for drafts with version: null)
-        if (data.version === null || data.version === undefined)
+        const { locale, breakpoint } = options || {};
+
+        const conditions: SQL[] = [
+            eq(cmsLabelValues.labelId, labelId),
+            eq(cmsLabelValues.version, version)
+        ];
+
+        if (locale)
         {
-            const updated = await updateOne(
-                cmsLabelValues,
-                { id: existing.id },
-                { value: data.value }
+            conditions.push(eq(cmsLabelValues.locale, locale));
+        }
+
+        if (breakpoint !== undefined)
+        {
+            conditions.push(
+                breakpoint === null
+                    ? isNull(cmsLabelValues.breakpoint)
+                    : eq(cmsLabelValues.breakpoint, breakpoint)
             );
-            return updated!;
+        }
+
+        return this.readDb
+            .select()
+            .from(cmsLabelValues)
+            .where(and(...conditions));
+    }
+
+    /**
+     * 값 저장 (upsert)
+     * - version: null → Draft 저장 (덮어쓰기)
+     * - version: number → Published 버전 생성 (불변)
+     * Write primary 사용
+     */
+    async upsert(data: NewCmsLabelValue): Promise<CmsLabelValue>
+    {
+        // 기존 값이 있는지 확인
+        const versionCondition = data.version === null || data.version === undefined
+            ? isNull(cmsLabelValues.version)
+            : eq(cmsLabelValues.version, data.version as number);
+
+        const existingResult = await this.db
+            .select()
+            .from(cmsLabelValues)
+            .where(
+                and(
+                    eq(cmsLabelValues.labelId, data.labelId),
+                    versionCondition,
+                    eq(cmsLabelValues.locale, data.locale || 'ko'),
+                    data.breakpoint
+                        ? eq(cmsLabelValues.breakpoint, data.breakpoint)
+                        : isNull(cmsLabelValues.breakpoint)
+                )
+            )
+            .limit(1);
+
+        const existing = existingResult[0];
+
+        if (existing)
+        {
+            // UPDATE (only for drafts with version: null)
+            if (data.version === null || data.version === undefined)
+            {
+                const updated = await this.db
+                    .update(cmsLabelValues)
+                    .set({ value: data.value })
+                    .where(eq(cmsLabelValues.id, existing.id))
+                    .returning();
+
+                return updated[0];
+            }
+            else
+            {
+                // Published versions are immutable - this shouldn't happen
+                throw new Error(`Published version ${data.version} already exists and cannot be overwritten`);
+            }
         }
         else
         {
-            // Published versions are immutable - this shouldn't happen
-            throw new Error(`Published version ${data.version} already exists and cannot be overwritten`);
+            // INSERT (both draft and new published versions)
+            const inserted = await this.db
+                .insert(cmsLabelValues)
+                .values(data)
+                .returning();
+
+            return inserted[0];
         }
     }
-    else
+
+    /**
+     * Draft 값들 조회 (version = null)
+     * Read replica 사용
+     */
+    async findDraftsByLabelId(labelId: number): Promise<CmsLabelValue[]>
     {
-        // INSERT (both draft and new published versions)
-        return create(cmsLabelValues, data);
+        return this.readDb
+            .select()
+            .from(cmsLabelValues)
+            .where(
+                and(
+                    eq(cmsLabelValues.labelId, labelId),
+                    isNull(cmsLabelValues.version)
+                )
+            );
+    }
+
+    /**
+     * 여러 값 일괄 저장
+     * Write primary 사용
+     */
+    async upsertMany(values: NewCmsLabelValue[]): Promise<CmsLabelValue[]>
+    {
+        const results = [];
+        for (const value of values)
+        {
+            const result = await this.upsert(value);
+            results.push(result);
+        }
+        return results;
+    }
+
+    /**
+     * 특정 버전의 모든 값 삭제
+     * Write primary 사용
+     */
+    async deleteByVersion(labelId: number, version: number): Promise<CmsLabelValue[]>
+    {
+        return this.db
+            .delete(cmsLabelValues)
+            .where(
+                and(
+                    eq(cmsLabelValues.labelId, labelId),
+                    eq(cmsLabelValues.version, version)
+                )
+            )
+            .returning();
+    }
+
+    /**
+     * 라벨의 버전 히스토리 조회 (1 ~ maxVersion)
+     * 한 번의 쿼리로 모든 버전을 조회하고 version별로 그룹화
+     * Read replica 사용
+     */
+    async findVersionHistoryByLabelId(
+        labelId: number,
+        maxVersion: number
+    ): Promise<VersionHistory[]>
+    {
+        // 모든 버전의 값을 한 번에 조회
+        const allValues = await this.readDb
+            .select()
+            .from(cmsLabelValues)
+            .where(
+                and(
+                    eq(cmsLabelValues.labelId, labelId),
+                    gte(cmsLabelValues.version, 1),
+                    lte(cmsLabelValues.version, maxVersion)
+                )
+            )
+            .orderBy(cmsLabelValues.version, cmsLabelValues.locale);
+
+        // version별로 그룹화
+        const versionMap = new Map<number, CmsLabelValue[]>();
+
+        for (const value of allValues)
+        {
+            if (value.version === null) continue; // null 버전은 제외
+
+            if (!versionMap.has(value.version))
+            {
+                versionMap.set(value.version, []);
+            }
+            versionMap.get(value.version)!.push(value);
+        }
+
+        // VersionHistory 형식으로 변환
+        const versions: VersionHistory[] = [];
+
+        for (let version = 1; version <= maxVersion; version++)
+        {
+            const values = versionMap.get(version);
+
+            if (values && values.length > 0)
+            {
+                versions.push({
+                    version,
+                    publishedAt: values[0].createdAt.toISOString(),
+                    publishedBy: null, // label_values에는 publishedBy 정보가 없음
+                    notes: null, // label_values에는 notes 정보가 없음
+                    values: values.map(v => ({
+                        id: v.id,
+                        locale: v.locale,
+                        breakpoint: v.breakpoint,
+                        value: v.value,
+                        createdAt: v.createdAt.toISOString()
+                    }))
+                });
+            }
+        }
+
+        // 버전 내림차순 정렬 (최신 버전이 먼저)
+        versions.sort((a, b) => b.version - a.version);
+
+        return versions;
     }
 }
 
-/**
- * Draft 값들 조회 (version = null)
- */
-export async function findDraftsByLabelId(labelId: number): Promise<CmsLabelValue[]>
-{
-    return findMany(cmsLabelValues, {
-        where: and(
-            eq(cmsLabelValues.labelId, labelId),
-            isNull(cmsLabelValues.version)
-        )
-    });
-}
-
-/**
- * 여러 값 일괄 저장
- */
-export async function upsertMany(values: NewCmsLabelValue[]): Promise<CmsLabelValue[]>
-{
-    const results = [];
-    for (const value of values)
-    {
-        const result = await upsert(value);
-        results.push(result);
-    }
-    return results;
-}
-
-/**
- * 특정 버전의 모든 값 삭제
- */
-export async function deleteByVersion(labelId: number, version: number): Promise<CmsLabelValue[]>
-{
-    return deleteMany(
-        cmsLabelValues,
-        and(
-            eq(cmsLabelValues.labelId, labelId),
-            eq(cmsLabelValues.version, version)
-        )
-    );
-}
-
-// Legacy export for backward compatibility
-export const cmsLabelValuesRepository = {
-    findByLabelIdAndVersion,
-    findDraftsByLabelId,
-    upsert,
-    upsertMany,
-    deleteByVersion
-};
+// Default instance export
+export const cmsLabelValuesRepository = new CmsLabelValuesRepository();

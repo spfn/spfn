@@ -8,6 +8,7 @@ import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
 import { cmsLabelsRepository, cmsLabelValuesRepository } from '@/server/repositories';
 import { saveValuesContract } from '@/lib/contracts/values';
+import { CMSNotFoundError } from '@/server/helpers/error';
 
 const app = createApp();
 
@@ -17,21 +18,14 @@ const app = createApp();
  */
 app.bind(saveValuesContract, [Transactional()], async (c) =>
 {
-    const { labelId: labelIdStr } = c.params;
-    const labelId = parseInt(labelIdStr, 10);
-
-    if (isNaN(labelId))
-    {
-        return c.json({ error: 'Invalid label ID' }, 400);
-    }
-
+    const { labelId } = c.params;
     const body = await c.data();
 
     // 라벨 존재 확인
     const label = await cmsLabelsRepository.findById(labelId);
     if (!label)
     {
-        return c.json({ error: 'Label not found' }, 404);
+        throw new CMSNotFoundError('Label', labelId);
     }
 
     // 값 저장
@@ -45,8 +39,7 @@ app.bind(saveValuesContract, [Transactional()], async (c) =>
         }))
     );
 
-    return c.json({
-        success: true,
+    return c.success({
         saved: savedValues.length,
         version: body.version,
     });

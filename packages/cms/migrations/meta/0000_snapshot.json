@@ -1,5 +1,5 @@
 {
-  "id": "ebe872ce-cc6b-43e4-b9fb-742d8c01bf72",
+  "id": "b3e29af6-fb12-4ca3-8357-b4aee5c1ed3b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -10,7 +10,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "bigserial",
           "primaryKey": true,
           "notNull": true
         },
@@ -148,7 +148,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "bigserial",
           "primaryKey": true,
           "notNull": true
         },
@@ -239,7 +239,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "bigserial",
           "primaryKey": true,
           "notNull": true
         },
@@ -260,7 +260,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'ko'"
+          "default": "'en'"
         },
         "breakpoint": {
           "name": "breakpoint",
@@ -359,7 +359,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "bigserial",
           "primaryKey": true,
           "notNull": true
         },
@@ -473,7 +473,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "bigserial",
           "primaryKey": true,
           "notNull": true
         },
@@ -499,7 +499,7 @@
           "name": "published_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "published_by": {
           "name": "published_by",

@@ -12,7 +12,8 @@
  * - 충돌 없이 안전하게 작업
  */
 
-import { serial, text, jsonb, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { text, index, unique } from 'drizzle-orm/pg-core';
+import { id, utcTimestamp, typedJsonb } from '@spfn/core/db';
 import { cmsSchema } from './cms-schema';
 
 // Create isolated schema for @spfn/cms
@@ -20,7 +21,7 @@ import { cmsSchema } from './cms-schema';
 
 export const cmsDraftCache = cmsSchema.table('draft_cache', {
     // Primary Key
-    id: serial('id').primaryKey(),
+    id: id(),
 
     // 섹션 (페이지 단위)
     section: text('section').notNull(),
@@ -35,7 +36,7 @@ export const cmsDraftCache = cmsSchema.table('draft_cache', {
     // 각 관리자의 독립적인 작업 공간
 
     // Draft 콘텐츠 (JSONB)
-    content: jsonb('content').notNull(),
+    content: typedJsonb<Record<string, any>>('content').notNull(),
     // Record<string, LabelValue>
     // {
     //   "home.hero.title": { type: "text", content: "수정 중..." },
@@ -44,7 +45,7 @@ export const cmsDraftCache = cmsSchema.table('draft_cache', {
     // }
 
     // 최종 수정 시각
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: utcTimestamp('updated_at').defaultNow().notNull(),
 }, (table) => [
     // UNIQUE 제약: section + locale + userId 조합은 유일
     unique('cms_draft_cache_unique')

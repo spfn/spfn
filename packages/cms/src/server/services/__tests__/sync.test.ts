@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb } from '@/__tests__/helpers/db';
-import { syncSection, syncAll } from '../sync';
+import { syncSection, syncAll } from '../sync.service';
 import { cmsLabelsRepository, cmsPublishedCacheRepository } from '@/server/repositories';
 import type { SectionDefinition } from '@/lib/types';
 

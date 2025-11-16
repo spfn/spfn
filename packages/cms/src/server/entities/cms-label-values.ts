@@ -8,7 +8,8 @@
  * - JSONB로 유연한 값 저장
  */
 
-import { serial, integer, text, jsonb, timestamp, index, unique } from 'drizzle-orm/pg-core';
+import { integer, text, index, unique } from 'drizzle-orm/pg-core';
+import { id, utcTimestamp, typedJsonb } from '@spfn/core/db';
 import { cmsSchema } from './cms-schema';
 import { cmsLabels } from '@/server/entities/cms-labels';
 
@@ -17,7 +18,7 @@ import { cmsLabels } from '@/server/entities/cms-labels';
 
 export const cmsLabelValues = cmsSchema.table('label_values', {
     // Primary Key
-    id: serial('id').primaryKey(),
+    id: id(),
 
     // Foreign Key: cms_labels
     labelId: integer('label_id')
@@ -28,7 +29,7 @@ export const cmsLabelValues = cmsSchema.table('label_values', {
     version: integer('version'),
 
     // 언어 코드
-    locale: text('locale').notNull().default('ko'),
+    locale: text('locale').notNull().default('en'),
     // "ko" | "en" | "ja"
 
     // 반응형 브레이크포인트
@@ -37,7 +38,7 @@ export const cmsLabelValues = cmsSchema.table('label_values', {
     // "sm" | "md" | "lg" | "xl" | "2xl"
 
     // 실제 값 (JSONB)
-    value: jsonb('value').notNull(),
+    value: typedJsonb<Record<string, any>>('value').notNull(),
     // LabelValue 타입:
     // - TextValue: { type: "text", content: string }
     // - ImageValue: { type: "image", url: string, alt?: string, width?: number, height?: number }
@@ -46,7 +47,7 @@ export const cmsLabelValues = cmsSchema.table('label_values', {
     // - ObjectValue: { type: "object", fields: Record<string, LabelValue> }
 
     // 생성 시각
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: utcTimestamp('created_at').defaultNow().notNull(),
 }, (table) => [
     // UNIQUE 제약: 같은 버전에서 locale + breakpoint 조합은 유일
     unique('cms_label_values_locale_breakpoint_unique')

@@ -9,6 +9,7 @@ import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
 import { cmsPublishedCacheRepository } from '@/server/repositories';
 import { getPublishedCacheContract, upsertPublishedCacheContract } from '@/lib/contracts/published-cache';
+import { CMSOperationError, CMSInvalidRequestError } from '@/server/helpers/error';
 
 const app = createApp();
 
@@ -18,7 +19,13 @@ const app = createApp();
  */
 app.bind(getPublishedCacheContract, async (c) =>
 {
-    const { sections: sectionsParam, locale = 'ko' } = c.query;
+    const { sections: sectionsParam, locale } = c.query;
+
+    // Validate sections parameter
+    if (!sectionsParam || (Array.isArray(sectionsParam) && sectionsParam.length === 0))
+    {
+        throw new CMSInvalidRequestError('Sections parameter is required', { sections: sectionsParam });
+    }
 
     // Normalize to array
     const sections = Array.isArray(sectionsParam) ? sectionsParam : [sectionsParam];
@@ -34,12 +41,12 @@ app.bind(getPublishedCacheContract, async (c) =>
         .map(cache => ({
             section: cache.section,
             locale: cache.locale,
-            content: cache.content as Record<string, any>,
+            content: cache.content, // ✅ No type assertion needed!
             version: cache.version,
             publishedAt: cache.publishedAt?.toISOString() || null,
         }));
 
-    return c.json(found);
+    return c.success(found);
 });
 
 /**
@@ -48,35 +55,29 @@ app.bind(getPublishedCacheContract, async (c) =>
  */
 app.bind(upsertPublishedCacheContract, [Transactional()], async (c) =>
 {
-    try
-    {
-        const { section, locale, content, version } = await c.data();
+    const { section, locale, content, version } = await c.data();
 
-        // Upsert cache
-        const result = await cmsPublishedCacheRepository.upsert({
-            section,
-            locale,
-            content,
-            version,
-            publishedAt: new Date(),
-        });
+    // Upsert cache
+    const result = await cmsPublishedCacheRepository.upsert({
+        section,
+        locale,
+        content,
+        version,
+        publishedAt: new Date(),
+    });
 
-        return c.json({
-            section: result.section,
-            locale: result.locale,
-            content: result.content as Record<string, any>,
-            version: result.version,
-            publishedAt: result.publishedAt?.toISOString() || null,
-        });
-    }
-    catch (error)
+    if (!result)
     {
-        console.error('[upsertPublishedCache] Error:', error);
-        return c.json(
-            { error: error instanceof Error ? error.message : 'Failed to upsert published cache' },
-            500
-        );
+        throw new CMSOperationError('upsert', 'published cache', { section, locale, version });
     }
+
+    return c.success({
+        section: result.section,
+        locale: result.locale,
+        content: result.content, // ✅ No type assertion needed!
+        version: result.version,
+        publishedAt: result.publishedAt?.toISOString() || null,
+    });
 });
 
 export default app;

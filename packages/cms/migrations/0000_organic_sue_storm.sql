@@ -1,7 +1,7 @@
 CREATE SCHEMA "spfn_cms";
 --> statement-breakpoint
 CREATE TABLE "spfn_cms"."audit_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" bigserial PRIMARY KEY NOT NULL,
 	"label_id" integer,
 	"action" text NOT NULL,
 	"user_id" text NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE "spfn_cms"."audit_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "spfn_cms"."draft_cache" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" bigserial PRIMARY KEY NOT NULL,
 	"section" text NOT NULL,
 	"locale" text NOT NULL,
 	"user_id" text NOT NULL,
@@ -22,10 +22,10 @@ CREATE TABLE "spfn_cms"."draft_cache" (
 );
 --> statement-breakpoint
 CREATE TABLE "spfn_cms"."label_values" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" bigserial PRIMARY KEY NOT NULL,
 	"label_id" integer NOT NULL,
 	"version" integer,
-	"locale" text DEFAULT 'ko' NOT NULL,
+	"locale" text DEFAULT 'en' NOT NULL,
 	"breakpoint" text,
 	"value" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE "spfn_cms"."label_values" (
 );
 --> statement-breakpoint
 CREATE TABLE "spfn_cms"."labels" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" bigserial PRIMARY KEY NOT NULL,
 	"key" text NOT NULL,
 	"section" text NOT NULL,
 	"type" text NOT NULL,
@@ -47,11 +47,11 @@ CREATE TABLE "spfn_cms"."labels" (
 );
 --> statement-breakpoint
 CREATE TABLE "spfn_cms"."published_cache" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" bigserial PRIMARY KEY NOT NULL,
 	"section" text NOT NULL,
 	"locale" text NOT NULL,
 	"content" jsonb NOT NULL,
-	"published_at" timestamp with time zone NOT NULL,
+	"published_at" timestamp with time zone,
 	"published_by" text,
 	"version" integer DEFAULT 1 NOT NULL,
 	CONSTRAINT "cms_published_cache_unique" UNIQUE("section","locale")

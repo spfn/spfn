@@ -1,9 +1,11 @@
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route/types';
+import { defineContract, ApiSuccessSchema } from '@spfn/core/route/types';
+
+// ===== Common Schema Definitions =====
 
 /**
- * Label Value 타입 정의
- * 모든 타입은 반드시 객체 형태로 저장되어야 함
+ * Label Value Type Definition
+ * All types must be stored as objects
  */
 const LabelValueSchema = Type.Object({
     type: Type.Union([
@@ -26,78 +28,80 @@ const LabelValueSchema = Type.Object({
 });
 
 /**
- * POST /_cms/values/:labelId - 라벨 값 저장
- * - version: null → Draft 저장 (덮어쓰기)
- * - version: number → Published 버전 생성 (불변)
+ * Responsive breakpoint enum
  */
-export const saveValuesContract = {
-    method: 'POST' as const,
+const BreakpointSchema = Type.Union([
+    Type.Literal('sm'),
+    Type.Literal('md'),
+    Type.Literal('lg'),
+    Type.Literal('xl'),
+    Type.Literal('2xl'),
+    Type.Null()
+], { description: 'Responsive breakpoint' });
+
+/**
+ * Value item schema (locale + breakpoint + value)
+ */
+const ValueItemSchema = Type.Object({
+    locale: Type.String({ description: 'Language code (ko, en, ja)', default: 'ko' }),
+    breakpoint: Type.Optional(BreakpointSchema),
+    value: LabelValueSchema
+});
+
+/**
+ * Saved value item schema (includes id + createdAt)
+ */
+const SavedValueItemSchema = Type.Object({
+    id: Type.Number(),
+    locale: Type.String(),
+    breakpoint: Type.Union([Type.String(), Type.Null()]),
+    value: Type.Any(),
+    createdAt: Type.String()
+});
+
+// ===== API Contracts =====
+
+/**
+ * POST /_cms/values/:labelId - Save label values
+ * - version: null → Save as draft (overwrite)
+ * - version: number → Create published version (immutable)
+ */
+export const saveValuesContract = defineContract({
+    method: 'POST',
     path: '/_cms/values/:labelId',
     params: Type.Object({
-        labelId: Type.String({ description: '라벨 ID' })
+        labelId: Type.Number({ description: 'Label ID' })
     }),
     body: Type.Object({
         version: Type.Union([
-            Type.Null({ description: 'Draft 저장 (덮어쓰기)' }),
-            Type.Number({ description: '버전 번호 (불변)', minimum: 1 })
+            Type.Null({ description: 'Save as draft (overwrite)' }),
+            Type.Number({ description: 'Version number (immutable)', minimum: 1 })
         ]),
-        values: Type.Array(
-            Type.Object({
-                locale: Type.String({ description: '언어 코드 (ko, en, ja)', default: 'ko' }),
-                breakpoint: Type.Optional(Type.Union([
-                    Type.Literal('sm'),
-                    Type.Literal('md'),
-                    Type.Literal('lg'),
-                    Type.Literal('xl'),
-                    Type.Literal('2xl'),
-                    Type.Null()
-                ], { description: '반응형 브레이크포인트' })),
-                value: LabelValueSchema  // 모든 라벨 값은 객체 형태 (type 필드 필수)
-            })
-        )
+        values: Type.Array(ValueItemSchema)
     }),
-    response: Type.Union([
-        Type.Object({
-            success: Type.Boolean(),
-            saved: Type.Number(),
-            version: Type.Union([Type.Null(), Type.Number()])
-        }),
-        Type.Object({
-            error: Type.String()
-        })
-    ])
-} as const satisfies RouteContract;
+    response: ApiSuccessSchema(Type.Object({
+        saved: Type.Number(),
+        version: Type.Union([Type.Null(), Type.Number()])
+    }))
+});
 
 /**
- * GET /_cms/values/:labelId/:version - 특정 버전의 값 조회
+ * GET /_cms/values/:labelId/:version - Get values for a specific version
  */
-export const getValuesContract = {
-    method: 'GET' as const,
+export const getValuesContract = defineContract({
+    method: 'GET',
     path: '/_cms/values/:labelId/:version',
     params: Type.Object({
-        labelId: Type.String({ description: '라벨 ID' }),
-        version: Type.String({ description: '버전 번호' })
+        labelId: Type.Number({ description: 'Label ID' }),
+        version: Type.Number({ description: 'Version number' })
     }),
     query: Type.Object({
-        locale: Type.Optional(Type.String({ description: '언어 코드 (ko, en, ja)' })),
-        breakpoint: Type.Optional(Type.String({ description: '반응형 브레이크포인트' }))
+        locale: Type.Optional(Type.String({ description: 'Language code (ko, en, ja)' })),
+        breakpoint: Type.Optional(Type.String({ description: 'Responsive breakpoint' }))
     }),
-    response: Type.Union([
-        Type.Object({
-            labelId: Type.Number(),
-            version: Type.Number(),
-            values: Type.Array(
-                Type.Object({
-                    id: Type.Number(),
-                    locale: Type.String(),
-                    breakpoint: Type.Union([Type.String(), Type.Null()]),
-                    value: Type.Any(),
-                    createdAt: Type.String()
-                })
-            )
-        }),
-        Type.Object({
-            error: Type.String()
-        })
-    ])
-} as const satisfies RouteContract;
+    response: ApiSuccessSchema(Type.Object({
+        labelId: Type.Number(),
+        version: Type.Number(),
+        values: Type.Array(SavedValueItemSchema)
+    }))
+});

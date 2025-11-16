@@ -7,35 +7,10 @@
  * - SPFN_CMS_DETECT_BROWSER_LANGUAGE: 브라우저 언어 자동 감지 (기본값: 'false')
  */
 
-/**
- * CMS 설정 타입
- */
-export interface CmsConfig
-{
-    /**
-     * 기본 언어 코드
-     * @example 'ko', 'en', 'ja'
-     */
-    defaultLocale: string;
+import type { CmsConfig } from '@/lib/types/config';
 
-    /**
-     * 프로젝트에서 사용할 언어 목록
-     * @example ['ko', 'en', 'ja']
-     */
-    locales: string[];
-
-    /**
-     * @deprecated Use 'locales' instead
-     * @internal For backward compatibility
-     */
-    supportedLocales: string[];
-
-    /**
-     * 브라우저 언어 자동 감지 여부
-     * @default true
-     */
-    detectBrowserLanguage: boolean;
-}
+// Re-export type for backward compatibility
+export type { CmsConfig } from '@/lib/types/config';
 
 /**
  * 환경변수 읽기 헬퍼

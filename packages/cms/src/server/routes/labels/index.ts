@@ -6,14 +6,15 @@
  * - POST /labels - 새 라벨 생성 (final: /_cms/labels)
  */
 
+import { extractLabels } from "@/server/helpers/label.helper";
+import { loadLabelsFromJson } from "@/server/services/sync.service";
 import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
 import { cmsLabelsRepository } from '@/server/repositories';
 import { getLabelsContract, createLabelContract } from '@/lib/contracts/labels';
-import { loadLabelsFromJson } from '@/server/helpers/sync';
-import { extractLabels } from '@/server/labels';
 import { DEFAULT_LABELS_DIR } from '@/lib/constants';
 import { join } from 'path';
+import { CMSConflictError } from '@/server/helpers/error';
 
 const app = createApp();
 
@@ -58,7 +59,7 @@ app.bind(getLabelsContract, async (c) =>
         }
     }
 
-    return c.json({
+    return c.success({
         labels: labels.map((label) => ({
             id: label.id,
             key: label.key,
@@ -87,10 +88,7 @@ app.bind(createLabelContract, [Transactional()], async (c) =>
     const existing = await cmsLabelsRepository.findByKey(body.key);
     if (existing)
     {
-        return c.json(
-            { error: 'Label with this key already exists', key: body.key },
-            409
-        );
+        throw new CMSConflictError('Label with this key already exists', { key: body.key });
     }
 
     // 라벨 생성
@@ -101,7 +99,7 @@ app.bind(createLabelContract, [Transactional()], async (c) =>
         createdBy: body.createdBy,
     });
 
-    return c.json(
+    return c.created(
         {
             id: label.id,
             key: label.key,
@@ -111,8 +109,7 @@ app.bind(createLabelContract, [Transactional()], async (c) =>
             createdBy: label.createdBy,
             createdAt: label.createdAt.toISOString(),
             updatedAt: label.updatedAt.toISOString(),
-        },
-        201
+        }
     );
 });
 

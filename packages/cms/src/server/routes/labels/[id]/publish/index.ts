@@ -8,7 +8,7 @@
 import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
 import { publishLabelContract } from '@/lib/contracts/labels';
-import { publishLabel } from '@/server/helpers/publish';
+import { publishLabel } from '@/server/services/publish.service';
 
 const app = createApp();
 
@@ -18,31 +18,19 @@ const app = createApp();
  */
 app.bind(publishLabelContract, [Transactional()], async (c) =>
 {
-    const { id } = c.params;
+    const { id: labelId } = c.params;
     const body = await c.data();
 
-    try
-    {
-        const result = await publishLabel(parseInt(id), {
-            notes: body.notes,
-            publishedBy: body.publishedBy
-        });
+    const result = await publishLabel(labelId, {
+        notes: body.notes,
+        publishedBy: body.publishedBy
+    });
 
-        return c.json({
-            success: true,
-            id: parseInt(id),
-            version: result.version,
-            message: result.message
-        });
-    }
-    catch (error)
-    {
-        const err = error as Error;
-        return c.json(
-            { error: err.message },
-            400
-        );
-    }
+    return c.success({
+        id: labelId,
+        version: result.version,
+        message: result.message
+    });
 });
 
 export default app;

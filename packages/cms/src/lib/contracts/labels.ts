@@ -1,299 +1,234 @@
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route/types';
+import { defineContract, ApiSuccessSchema } from '@spfn/core/route/types';
 
 /**
  * CMS Labels Contracts
  *
- * 라벨 메타데이터 관리 API
+ * Label metadata management API
  */
 
+// ===== Common Schema Definitions =====
+
 /**
- * GET /_cms/labels - 라벨 목록 조회
+ * Label type enum
  */
-export const getLabelsContract = {
-    method: 'GET' as const,
+const LabelTypeSchema = Type.Union([
+    Type.Literal('text'),
+    Type.Literal('image'),
+    Type.Literal('video'),
+    Type.Literal('file'),
+    Type.Literal('object')
+], { description: 'Value type' });
+
+/**
+ * Label base information schema
+ */
+const LabelBaseSchema = Type.Object({
+    id: Type.Number(),
+    key: Type.String(),
+    section: Type.String(),
+    type: Type.String(),
+    description: Type.Union([Type.String(), Type.Null()]),
+    publishedVersion: Type.Union([Type.Number(), Type.Null()]),
+    createdBy: Type.Union([Type.String(), Type.Null()]),
+    createdAt: Type.String(),
+    updatedAt: Type.String()
+});
+
+/**
+ * Label value schema (common for Draft/Published)
+ */
+const LabelValueSchema = Type.Object({
+    id: Type.Number(),
+    labelId: Type.Number(),
+    locale: Type.String(),
+    breakpoint: Type.Union([Type.String(), Type.Null()]),
+    value: Type.Any(),
+    createdAt: Type.String()
+});
+
+/**
+ * Draft label value schema
+ */
+const DraftLabelValueSchema = Type.Intersect([
+    LabelValueSchema,
+    Type.Object({
+        version: Type.Null()
+    })
+]);
+
+/**
+ * Published label value schema
+ */
+const PublishedLabelValueSchema = Type.Intersect([
+    LabelValueSchema,
+    Type.Object({
+        version: Type.Number()
+    })
+]);
+
+/**
+ * Label status enum
+ */
+const LabelStatusSchema = Type.Union([
+    Type.Literal('default-only'),
+    Type.Literal('unpublished'),
+    Type.Literal('published'),
+    Type.Literal('modified')
+]);
+
+/**
+ * ID parameter schema
+ */
+const LabelIdParamsSchema = Type.Object({
+    id: Type.Number({ description: 'Label ID' })
+});
+
+// ===== API Contracts =====
+
+/**
+ * GET /_cms/labels - Get label list
+ */
+export const getLabelsContract = defineContract({
+    method: 'GET',
     path: '/_cms/labels',
     query: Type.Object({
-        section: Type.Optional(Type.String({ description: '섹션으로 필터링 (예: home, why-futureplay)' })),
-        includeDefaultValues: Type.Optional(Type.Boolean({ description: '기본값 포함 여부' }))
+        section: Type.Optional(Type.String({ description: 'Filter by section (e.g., home, why-futureplay)' })),
+        includeDefaultValues: Type.Optional(Type.Boolean({ description: 'Include default values' }))
     }),
-    response: Type.Object({
-        labels: Type.Array(Type.Object({
-            id: Type.Number(),
-            key: Type.String(),
-            section: Type.String(),
-            type: Type.String(),
-            description: Type.Union([Type.String(), Type.Null()], { description: '라벨 설명' }),
-            publishedVersion: Type.Union([Type.Number(), Type.Null()]),
-            createdBy: Type.Union([Type.String(), Type.Null()]),
-            createdAt: Type.String(),
-            updatedAt: Type.String(),
-            defaultValue: Type.Optional(Type.Any({ description: '라벨 정의 파일의 기본값' }))
-        })),
+    response: ApiSuccessSchema(Type.Object({
+        labels: Type.Array(Type.Intersect([
+            LabelBaseSchema,
+            Type.Object({
+                defaultValue: Type.Optional(Type.Any({ description: 'Default value from label definition file' }))
+            })
+        ])),
         total: Type.Number()
-    })
-} as const satisfies RouteContract;
+    })),
+    meta: {
+        skipMiddlewares: ['auth']
+    }
+});
 
 /**
- * POST /_cms/labels - 새 라벨 생성
+ * POST /_cms/labels - Create a new label
  */
-export const createLabelContract = {
-    method: 'POST' as const,
+export const createLabelContract = defineContract({
+    method: 'POST',
     path: '/_cms/labels',
     body: Type.Object({
         key: Type.String({
-            description: '고유 키 (예: home.hero.title)',
+            description: 'Unique key (e.g., home.hero.title)',
             pattern: '^[a-z0-9-]+\\.[a-z0-9-]+\\.[a-z0-9-]+$'
         }),
         section: Type.String({
-            description: '섹션 이름 (예: home, why-futureplay)',
+            description: 'Section name (e.g., home, why-futureplay)',
             pattern: '^[a-z0-9-]+$'
         }),
-        type: Type.Union([
-            Type.Literal('text'),
-            Type.Literal('image'),
-            Type.Literal('video'),
-            Type.Literal('file'),
-            Type.Literal('object')
-        ], { description: '값 타입' }),
-        createdBy: Type.Optional(Type.String({ description: '생성자 ID' }))
+        type: LabelTypeSchema,
+        createdBy: Type.Optional(Type.String({ description: 'Creator ID' }))
     }),
-    response: Type.Union([
-        Type.Object({
-            id: Type.Number(),
-            key: Type.String(),
-            section: Type.String(),
-            type: Type.String(),
-            publishedVersion: Type.Union([Type.Number(), Type.Null()]),
-            createdBy: Type.Union([Type.String(), Type.Null()]),
-            createdAt: Type.String(),
-            updatedAt: Type.String()
-        }),
-        Type.Object({
-            error: Type.String(),
-            key: Type.Optional(Type.String())
-        })
-    ])
-} as const satisfies RouteContract;
+    response: ApiSuccessSchema(LabelBaseSchema)
+});
 
 /**
- * GET /_cms/labels/:id - 라벨 단건 조회
+ * GET /_cms/labels/:id - Get a single label
  */
-export const getLabelContract = {
-    method: 'GET' as const,
+export const getLabelContract = defineContract({
+    method: 'GET',
     path: '/_cms/labels/:id',
-    params: Type.Object({
-        id: Type.String({ description: '라벨 ID' })
-    }),
-    response: Type.Union([
-        Type.Object({
-            id: Type.Number(),
-            key: Type.String(),
-            section: Type.String(),
-            type: Type.String(),
-            description: Type.Union([Type.String(), Type.Null()]),
-            publishedVersion: Type.Union([Type.Number(), Type.Null()]),
-            createdBy: Type.Union([Type.String(), Type.Null()]),
-            createdAt: Type.String(),
-            updatedAt: Type.String()
-        }),
-        Type.Object({
-            error: Type.String()
-        })
-    ])
-} as const satisfies RouteContract;
+    params: LabelIdParamsSchema,
+    response: ApiSuccessSchema(LabelBaseSchema)
+});
 
 /**
- * PATCH /_cms/labels/:id - 라벨 메타데이터 수정
+ * PATCH /_cms/labels/:id - Update label metadata
  */
-export const updateLabelContract = {
-    method: 'PATCH' as const,
+export const updateLabelContract = defineContract({
+    method: 'PATCH',
     path: '/_cms/labels/:id',
-    params: Type.Object({
-        id: Type.String({ description: '라벨 ID' })
-    }),
+    params: LabelIdParamsSchema,
     body: Type.Object({
-        section: Type.Optional(Type.String({ description: '섹션 변경' })),
-        type: Type.Optional(Type.Union([
-            Type.Literal('text'),
-            Type.Literal('image'),
-            Type.Literal('video'),
-            Type.Literal('file'),
-            Type.Literal('object')
-        ]))
+        section: Type.Optional(Type.String({ description: 'Change section' })),
+        type: Type.Optional(LabelTypeSchema)
     }),
-    response: Type.Union([
-        Type.Object({
-            id: Type.Number(),
-            key: Type.String(),
-            section: Type.String(),
-            type: Type.String(),
-            description: Type.Union([Type.String(), Type.Null()]),
-            publishedVersion: Type.Union([Type.Number(), Type.Null()]),
-            createdBy: Type.Union([Type.String(), Type.Null()]),
-            createdAt: Type.String(),
-            updatedAt: Type.String()
-        }),
-        Type.Object({
-            error: Type.String()
-        })
-    ])
-} as const satisfies RouteContract;
+    response: ApiSuccessSchema(LabelBaseSchema)
+});
 
 /**
- * DELETE /_cms/labels/:id - 라벨 삭제
+ * DELETE /_cms/labels/:id - Delete a label
  */
-export const deleteLabelContract = {
-    method: 'DELETE' as const,
+export const deleteLabelContract = defineContract({
+    method: 'DELETE',
     path: '/_cms/labels/:id',
-    params: Type.Object({
-        id: Type.String({ description: '라벨 ID' })
-    }),
-    response: Type.Union([
-        Type.Object({
-            success: Type.Boolean(),
-            id: Type.Number()
-        }),
-        Type.Object({
-            error: Type.String()
-        })
-    ])
-} as const satisfies RouteContract;
+    params: LabelIdParamsSchema,
+    response: ApiSuccessSchema(Type.Object({
+        id: Type.Number()
+    }))
+});
 
 /**
- * GET /_cms/labels/by-key/:key - Key로 라벨 조회
+ * GET /_cms/labels/by-key/:key - Get label by key
  */
-export const getLabelByKeyContract = {
-    method: 'GET' as const,
+export const getLabelByKeyContract = defineContract({
+    method: 'GET',
     path: '/_cms/labels/by-key/:key',
     params: Type.Object({
-        key: Type.String({ description: '라벨 Key (예: home.hero.title)' })
+        key: Type.String({ description: 'Label key (e.g., home.hero.title)' })
     }),
-    response: Type.Union([
-        Type.Object({
-            id: Type.Number(),
-            key: Type.String(),
-            section: Type.String(),
-            type: Type.String(),
-            description: Type.Union([Type.String(), Type.Null()]),
-            publishedVersion: Type.Union([Type.Number(), Type.Null()]),
-            createdBy: Type.Union([Type.String(), Type.Null()]),
-            createdAt: Type.String(),
-            updatedAt: Type.String()
-        }),
-        Type.Object({
-            error: Type.String(),
-            key: Type.Optional(Type.String())
-        })
-    ])
-} as const satisfies RouteContract;
+    response: ApiSuccessSchema(LabelBaseSchema),
+    meta: {
+        skipMiddlewares: ['auth']
+    }
+});
 
 /**
- * POST /_cms/labels/:id/publish - 라벨 발행 (Draft → Published)
+ * POST /_cms/labels/:id/publish - Publish label (Draft → Published)
  */
-export const publishLabelContract = {
-    method: 'POST' as const,
+export const publishLabelContract = defineContract({
+    method: 'POST',
     path: '/_cms/labels/:id/publish',
-    params: Type.Object({
-        id: Type.String({ description: '라벨 ID' })
-    }),
+    params: LabelIdParamsSchema,
     body: Type.Object({
-        notes: Type.Optional(Type.String({ description: '발행 노트 (버전 설명)' })),
-        publishedBy: Type.Optional(Type.String({ description: '발행자 ID' }))
+        notes: Type.Optional(Type.String({ description: 'Publish notes (version description)' })),
+        publishedBy: Type.Optional(Type.String({ description: 'Publisher ID' }))
     }),
-    response: Type.Union([
-        Type.Object({
-            success: Type.Boolean(),
-            id: Type.Number(),
-            version: Type.Number(),
-            message: Type.String()
-        }),
-        Type.Object({
-            error: Type.String()
-        })
-    ])
-} as const satisfies RouteContract;
+    response: ApiSuccessSchema(Type.Object({
+        id: Type.Number(),
+        version: Type.Number(),
+        message: Type.String()
+    }))
+});
 
 /**
- * GET /_cms/labels/:id/admin - 관리자용 라벨 조회 (Draft + Published + Status)
+ * GET /_cms/labels/:id/admin - Get label for admin (Draft + Published + Status)
  */
-export const getAdminLabelContract = {
-    method: 'GET' as const,
+export const getAdminLabelContract = defineContract({
+    method: 'GET',
     path: '/_cms/labels/:id/admin',
-    params: Type.Object({
-        id: Type.String({ description: '라벨 ID' })
-    }),
-    response: Type.Union([
-        Type.Object({
-            label: Type.Object({
-                id: Type.Number(),
-                key: Type.String(),
-                section: Type.String(),
-                type: Type.String(),
-                description: Type.Union([Type.String(), Type.Null()]),
-                publishedVersion: Type.Union([Type.Number(), Type.Null()]),
-                createdBy: Type.Union([Type.String(), Type.Null()]),
-                createdAt: Type.String(),
-                updatedAt: Type.String()
-            }),
-            draft: Type.Array(Type.Object({
-                id: Type.Number(),
-                labelId: Type.Number(),
-                version: Type.Null(),
-                locale: Type.String(),
-                breakpoint: Type.Union([Type.String(), Type.Null()]),
-                value: Type.Any(),
-                createdAt: Type.String()
-            })),
-            published: Type.Array(Type.Object({
-                id: Type.Number(),
-                labelId: Type.Number(),
-                version: Type.Number(),
-                locale: Type.String(),
-                breakpoint: Type.Union([Type.String(), Type.Null()]),
-                value: Type.Any(),
-                createdAt: Type.String()
-            })),
-            status: Type.Union([
-                Type.Literal('default-only'),
-                Type.Literal('unpublished'),
-                Type.Literal('published'),
-                Type.Literal('modified')
-            ])
-        }),
-        Type.Object({
-            error: Type.String()
-        })
-    ])
-} as const satisfies RouteContract;
+    params: LabelIdParamsSchema,
+    response: ApiSuccessSchema(Type.Object({
+        label: LabelBaseSchema,
+        draft: Type.Array(DraftLabelValueSchema),
+        published: Type.Array(PublishedLabelValueSchema),
+        status: LabelStatusSchema
+    }))
+});
 
 /**
- * GET /_cms/labels/:id/versions - 라벨 버전 히스토리 조회
+ * GET /_cms/labels/:id/versions - Get label version history
  */
-export const getLabelVersionsContract = {
-    method: 'GET' as const,
+export const getLabelVersionsContract = defineContract({
+    method: 'GET',
     path: '/_cms/labels/:id/versions',
-    params: Type.Object({
-        id: Type.String({ description: '라벨 ID' })
-    }),
-    response: Type.Union([
-        Type.Object({
-            versions: Type.Array(Type.Object({
-                version: Type.Number({ description: '버전 번호' }),
-                publishedAt: Type.String({ description: '발행 시각 (ISO 8601)' }),
-                publishedBy: Type.Union([Type.String(), Type.Null()], { description: '발행자 ID' }),
-                notes: Type.Union([Type.String(), Type.Null()], { description: '발행 노트' }),
-                values: Type.Array(Type.Object({
-                    id: Type.Number(),
-                    locale: Type.String(),
-                    breakpoint: Type.Union([Type.String(), Type.Null()]),
-                    value: Type.Any(),
-                    createdAt: Type.String()
-                }))
-            }))
-        }),
-        Type.Object({
-            error: Type.String()
-        })
-    ])
-} as const satisfies RouteContract;
+    params: LabelIdParamsSchema,
+    response: ApiSuccessSchema(Type.Object({
+        versions: Type.Array(Type.Object({
+            version: Type.Number({ description: 'Version number' }),
+            publishedAt: Type.String({ description: 'Published time (ISO 8601)' }),
+            publishedBy: Type.Union([Type.String(), Type.Null()], { description: 'Publisher ID' }),
+            notes: Type.Union([Type.String(), Type.Null()], { description: 'Publish notes' }),
+            values: Type.Array(Type.Omit(LabelValueSchema, ['labelId']))
+        }))
+    }))
+});
