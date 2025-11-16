@@ -28,8 +28,7 @@ export { getDrizzleConfig, detectDialect, generateDrizzleConfigFile } from './ma
 export type { DrizzleConfigOptions } from './manager/config-generator';
 
 // Schema Helpers
-export { id, timestamps, foreignKey, optionalForeignKey } from './schema';
-export { createFunctionSchema, packageNameToSchema, getSchemaInfo } from './schema-helper';
+export * from './schema';
 
 // Transaction
 export { Transactional, getTransaction, runWithTransaction } from './transaction';

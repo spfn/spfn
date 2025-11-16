@@ -11,9 +11,11 @@ import {
   ApiSuccessSchema,
   ApiErrorSchema,
   ApiResponseSchema,
+  isErrorResponse,
+  isSuccessResponse,
 } from '../api-response';
-import type { RouteContract } from '../types';
-import type { ApiSuccessResponse, ApiErrorResponse } from '../api-response';
+import { defineContract } from '../types';
+import type { ApiSuccessResponse, ApiErrorResponse, ErrorResponse } from '../api-response';
 import {
   NotFoundError,
   BadRequestError,
@@ -23,15 +25,15 @@ import {
   ConflictError,
   UnprocessableEntityError,
   InternalServerError,
-} from '../../errors/index';
-import { ErrorHandler } from '../../middleware/error-handler';
+} from '../../errors';
+import { ErrorHandler } from '../../middleware';
 
 describe('API Response Helpers', () => {
   describe('c.success()', () => {
     it('should create success response with data', async () => {
       const app = createApp();
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/users/:id',
         params: Type.Object({ id: Type.String() }),
@@ -39,7 +41,7 @@ describe('API Response Helpers', () => {
           id: Type.String(),
           name: Type.String(),
         })),
-      };
+      });
 
       app.bind(contract, async (c) => {
         return c.success({
@@ -60,11 +62,11 @@ describe('API Response Helpers', () => {
     it('should create success response with metadata', async () => {
       const app = createApp();
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/test',
         response: ApiSuccessSchema(Type.Object({ message: Type.String() })),
-      };
+      });
 
       app.bind(contract, async (c) => {
         return c.success({ message: 'Hello' }, {
@@ -87,7 +89,7 @@ describe('API Response Helpers', () => {
     it('should create success response with custom status code', async () => {
       const app = createApp();
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'POST',
         path: '/users',
         body: Type.Object({ name: Type.String() }),
@@ -95,7 +97,7 @@ describe('API Response Helpers', () => {
           id: Type.String(),
           name: Type.String(),
         })),
-      };
+      });
 
       app.bind(contract, async (c) => {
         const body = await c.data();
@@ -124,7 +126,7 @@ describe('API Response Helpers', () => {
       const app = createApp();
       app.onError(ErrorHandler());
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/users/:id',
         params: Type.Object({ id: Type.String() }),
@@ -132,7 +134,7 @@ describe('API Response Helpers', () => {
           id: Type.String(),
           name: Type.String(),
         })),
-      };
+      });
 
       app.bind(contract, async (c) => {
         const userId = c.params.id;
@@ -156,12 +158,12 @@ describe('API Response Helpers', () => {
       const app = createApp();
       app.onError(ErrorHandler());
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'POST',
         path: '/users',
         body: Type.Object({ email: Type.String() }),
         response: ApiResponseSchema(Type.Object({ id: Type.String() })),
-      };
+      });
 
       app.bind(contract, async (c) => {
         const body = await c.data();
@@ -196,13 +198,13 @@ describe('API Response Helpers', () => {
       const app = createApp();
       app.onError(ErrorHandler());
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/test',
         response: ApiErrorSchema(),
-      };
+      });
 
-      app.bind(contract, async (c) => {
+      app.bind(contract, async (_c) => {
         throw new BadRequestError('Bad request');
       });
 
@@ -229,13 +231,13 @@ describe('API Response Helpers', () => {
         const app = createApp();
         app.onError(ErrorHandler());
 
-        const contract: RouteContract = {
+        const contract = defineContract({
           method: 'GET',
           path: '/error',
           response: ApiErrorSchema(),
-        };
+        });
 
-        app.bind(contract, async (c) => {
+        app.bind(contract, async (_c) => {
           throw new ErrorClass(`Error ${code}`);
         });
 
@@ -252,7 +254,7 @@ describe('API Response Helpers', () => {
     it('should create paginated response', async () => {
       const app = createApp();
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/users',
         query: Type.Object({
@@ -263,7 +265,7 @@ describe('API Response Helpers', () => {
           id: Type.String(),
           name: Type.String(),
         }))),
-      };
+      });
 
       app.bind(contract, async (c) => {
         const { page, limit } = c.query;
@@ -293,11 +295,11 @@ describe('API Response Helpers', () => {
     it('should calculate total pages correctly', async () => {
       const app = createApp();
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/items',
         response: ApiSuccessSchema(Type.Array(Type.Object({ id: Type.String() }))),
-      };
+      });
 
       app.bind(contract, async (c) => {
         const items = [{ id: '1' }, { id: '2' }, { id: '3' }];
@@ -313,11 +315,11 @@ describe('API Response Helpers', () => {
     it('should handle empty results', async () => {
       const app = createApp();
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/empty',
         response: ApiSuccessSchema(Type.Array(Type.Object({ id: Type.String() }))),
-      };
+      });
 
       app.bind(contract, async (c) => {
         return c.paginated([], 1, 10, 0);
@@ -346,11 +348,11 @@ describe('API Response Helpers', () => {
         name: Type.String(),
       });
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/user',
         response: ApiSuccessSchema(UserSchema),
-      };
+      });
 
       app.bind(contract, async (c) => {
         return c.success({
@@ -370,13 +372,13 @@ describe('API Response Helpers', () => {
       const app = createApp();
       app.onError(ErrorHandler());
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/error',
         response: ApiErrorSchema(),
-      };
+      });
 
-      app.bind(contract, async (c) => {
+      app.bind(contract, async (_c) => {
         throw new InternalServerError('Something went wrong');
       });
 
@@ -394,12 +396,12 @@ describe('API Response Helpers', () => {
 
       const DataSchema = Type.Object({ value: Type.String() });
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/test/:type',
         params: Type.Object({ type: Type.String() }),
         response: ApiResponseSchema(DataSchema),
-      };
+      });
 
       app.bind(contract, async (c) => {
         if (c.params.type === 'success') {
@@ -427,12 +429,12 @@ describe('API Response Helpers', () => {
       const app = createApp();
       app.onError(ErrorHandler());
 
-      const contract: RouteContract = {
+      const contract = defineContract({
         method: 'GET',
         path: '/users/:id',
         params: Type.Object({ id: Type.Number() }),
         response: ApiResponseSchema(Type.Object({ id: Type.Number() })),
-      };
+      });
 
       app.bind(contract, async (c) => {
         return c.success({ id: c.params.id });
@@ -446,6 +448,179 @@ describe('API Response Helpers', () => {
       expect(json.success).toBe(false);
       expect(json.error.message).toBe('Invalid path parameters');
       expect(json.error.statusCode).toBe(400);
+    });
+  });
+
+  describe('Type Guards', () => {
+    describe('isErrorResponse', () => {
+      it('should return true for valid ErrorResponse', () => {
+        const errorResponse: ErrorResponse = {
+          success: false,
+          error: {
+            message: 'Test error',
+            type: 'ProxyError',
+            statusCode: 502,
+            timestamp: new Date().toISOString(),
+          },
+        };
+
+        expect(isErrorResponse(errorResponse)).toBe(true);
+      });
+
+      it('should return true for ErrorResponse with optional fields', () => {
+        const errorResponse: ErrorResponse = {
+          success: false,
+          error: {
+            message: 'Test error',
+            type: 'ValidationError',
+            statusCode: 400,
+            timestamp: new Date().toISOString(),
+            stack: 'Error stack...',
+            causes: [{ message: 'Root cause' }],
+            details: { field: 'email' },
+          },
+        };
+
+        expect(isErrorResponse(errorResponse)).toBe(true);
+      });
+
+      it('should return false for ApiSuccessResponse', () => {
+        const successResponse: ApiSuccessResponse = {
+          success: true,
+          data: { id: '1' },
+        };
+
+        expect(isErrorResponse(successResponse)).toBe(false);
+      });
+
+      it('should return false for invalid objects', () => {
+        expect(isErrorResponse(null)).toBe(false);
+        expect(isErrorResponse(undefined)).toBe(false);
+        expect(isErrorResponse({})).toBe(false);
+        expect(isErrorResponse({ success: false })).toBe(false);
+        expect(isErrorResponse({ success: false, error: {} })).toBe(false);
+        expect(isErrorResponse({ success: false, error: { message: 'test' } })).toBe(false);
+      });
+
+      it('should return false for missing required fields', () => {
+        // Missing type
+        expect(isErrorResponse({
+          success: false,
+          error: {
+            message: 'test',
+            statusCode: 500,
+            timestamp: new Date().toISOString(),
+          },
+        })).toBe(false);
+
+        // Missing statusCode
+        expect(isErrorResponse({
+          success: false,
+          error: {
+            message: 'test',
+            type: 'Error',
+            timestamp: new Date().toISOString(),
+          },
+        })).toBe(false);
+
+        // Missing timestamp
+        expect(isErrorResponse({
+          success: false,
+          error: {
+            message: 'test',
+            type: 'Error',
+            statusCode: 500,
+          },
+        })).toBe(false);
+      });
+    });
+
+    describe('isSuccessResponse', () => {
+      it('should return true for valid ApiSuccessResponse', () => {
+        const successResponse: ApiSuccessResponse<{ id: string }> = {
+          success: true,
+          data: { id: '1' },
+        };
+
+        expect(isSuccessResponse(successResponse)).toBe(true);
+      });
+
+      it('should return true for ApiSuccessResponse with meta', () => {
+        const successResponse: ApiSuccessResponse = {
+          success: true,
+          data: [{ id: '1' }],
+          meta: {
+            timestamp: new Date().toISOString(),
+            pagination: {
+              page: 1,
+              limit: 10,
+              total: 100,
+              totalPages: 10,
+            },
+          },
+        };
+
+        expect(isSuccessResponse(successResponse)).toBe(true);
+      });
+
+      it('should return false for ErrorResponse', () => {
+        const errorResponse: ErrorResponse = {
+          success: false,
+          error: {
+            message: 'Error',
+            type: 'Error',
+            statusCode: 500,
+            timestamp: new Date().toISOString(),
+          },
+        };
+
+        expect(isSuccessResponse(errorResponse)).toBe(false);
+      });
+
+      it('should return false for invalid objects', () => {
+        expect(isSuccessResponse(null)).toBe(false);
+        expect(isSuccessResponse(undefined)).toBe(false);
+        expect(isSuccessResponse({})).toBe(false);
+        expect(isSuccessResponse({ success: true })).toBe(false);
+        expect(isSuccessResponse({ data: {} })).toBe(false);
+      });
+    });
+
+    describe('Type discrimination', () => {
+      it('should allow type narrowing with isErrorResponse', () => {
+        const response: ApiSuccessResponse<any> | ErrorResponse = {
+          success: false,
+          error: {
+            message: 'Test',
+            type: 'Error',
+            statusCode: 500,
+            timestamp: new Date().toISOString(),
+          },
+        };
+
+        if (isErrorResponse(response)) {
+          // TypeScript should narrow type to ErrorResponse
+          expect(response.error.message).toBe('Test');
+          expect(response.error.statusCode).toBe(500);
+          expect(response.error.timestamp).toBeDefined();
+        } else {
+          throw new Error('Should have been error response');
+        }
+      });
+
+      it('should allow type narrowing with isSuccessResponse', () => {
+        const response: ApiSuccessResponse<{ id: string }> | ErrorResponse = {
+          success: true,
+          data: { id: '123' },
+        };
+
+        if (isSuccessResponse(response)) {
+          // TypeScript should narrow type to ApiSuccessResponse
+          expect(response.data.id).toBe('123');
+        } else {
+          throw new Error('Should have been success response');
+        }
+      });
     });
   });
 });

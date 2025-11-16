@@ -14,7 +14,6 @@ export class DatabaseError<TDetails extends Record<string, unknown> = Record<str
 {
     public readonly statusCode: number;
     public readonly details?: TDetails;
-    public readonly timestamp: Date;
 
     constructor(
         message: string,
@@ -26,22 +25,7 @@ export class DatabaseError<TDetails extends Record<string, unknown> = Record<str
         this.name = 'DatabaseError';
         this.statusCode = statusCode;
         this.details = details;
-        this.timestamp = new Date();
         Error.captureStackTrace(this, this.constructor);
-    }
-
-    /**
-     * Serialize error for API response
-     */
-    toJSON()
-    {
-        return {
-            name: this.name,
-            message: this.message,
-            statusCode: this.statusCode,
-            details: this.details,
-            timestamp: this.timestamp.toISOString()
-        };
     }
 }
 

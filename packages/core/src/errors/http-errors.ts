@@ -14,7 +14,6 @@ export class HttpError<TDetails extends Record<string, unknown> = Record<string,
 {
     public readonly statusCode: number;
     public readonly details?: TDetails;
-    public readonly timestamp: Date;
 
     constructor(
         message: string,
@@ -26,22 +25,7 @@ export class HttpError<TDetails extends Record<string, unknown> = Record<string,
         this.name = 'HttpError';
         this.statusCode = statusCode;
         this.details = details;
-        this.timestamp = new Date();
         Error.captureStackTrace(this, this.constructor);
-    }
-
-    /**
-     * Serialize error for API response
-     */
-    toJSON()
-    {
-        return {
-            name: this.name,
-            message: this.message,
-            statusCode: this.statusCode,
-            details: this.details,
-            timestamp: this.timestamp.toISOString()
-        };
     }
 }
 

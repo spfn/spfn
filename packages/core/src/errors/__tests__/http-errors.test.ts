@@ -25,22 +25,7 @@ describe('HttpError', () =>
         expect(error.message).toBe('Test error');
         expect(error.statusCode).toBe(500);
         expect(error.details).toEqual({ test: 'data' });
-        expect(error.timestamp).toBeInstanceOf(Date);
         expect(error.stack).toBeDefined();
-    });
-
-    it('should serialize to JSON correctly', () =>
-    {
-        const error = new HttpError('Test error', 500, { test: 'data' });
-        const json = error.toJSON();
-
-        expect(json).toEqual({
-            name: 'HttpError',
-            message: 'Test error',
-            statusCode: 500,
-            details: { test: 'data' },
-            timestamp: expect.any(String)
-        });
     });
 });
 

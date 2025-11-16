@@ -15,9 +15,9 @@ import { pgSchema } from 'drizzle-orm/pg-core';
  * @example
  * ```typescript
  * // @spfn/cms → spfn_cms schema
- * import { createFunctionSchema } from '@spfn/core/db';
+ * import { createSchema } from '@spfn/core/db';
  *
- * const schema = createFunctionSchema('@spfn/cms');
+ * const schema = createSchema('@spfn/cms');
  *
  * export const labels = schema.table('labels', {
  *   id: id(),
@@ -26,7 +26,7 @@ import { pgSchema } from 'drizzle-orm/pg-core';
  * // Creates table: spfn_cms.labels
  * ```
  */
-export function createFunctionSchema(packageName: string)
+export function createSchema(packageName: string)
 {
     const schemaName = packageNameToSchema(packageName);
     return pgSchema(schemaName);

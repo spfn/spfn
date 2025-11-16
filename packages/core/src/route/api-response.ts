@@ -13,6 +13,26 @@ import { Type } from '@sinclair/typebox';
 // ============================================================================
 
 /**
+ * Error cause information
+ *
+ * Represents a single error in the error cause chain.
+ * Includes database-specific error information (PostgreSQL).
+ */
+export interface ErrorCause
+{
+    message: string;
+    name?: string;
+    code?: string;
+    detail?: string;
+    hint?: string;
+    constraint?: string;
+    table?: string;
+    column?: string;
+    schema?: string;
+    stack?: string;
+}
+
+/**
  * Standard error response format
  *
  * Used by ErrorHandler middleware for all error responses.
@@ -25,8 +45,10 @@ export interface ErrorResponse
         message: string;
         type: string;
         statusCode: number;
+        timestamp: string;
         stack?: string;
-        details?: any;
+        causes?: ErrorCause[];
+        details?: Record<string, unknown>;
     };
 }
 
@@ -59,6 +81,79 @@ export type ApiErrorResponse = ErrorResponse;
  * Unified API response type
  */
 export type ApiResponse<T = any> = ApiSuccessResponse<T> | ApiErrorResponse;
+
+// ============================================================================
+// Type Guards
+// ============================================================================
+
+/**
+ * Type guard for ErrorResponse
+ *
+ * Validates at runtime whether a value conforms to ErrorResponse structure.
+ * Useful for safely handling API responses and proxy errors.
+ *
+ * @param value - Value to check
+ * @returns true if value is ErrorResponse
+ *
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/users');
+ * const data = await response.json();
+ *
+ * if (isErrorResponse(data)) {
+ *   console.error('Error:', data.error.message);
+ *   console.log('Status:', data.error.statusCode);
+ *   console.log('Timestamp:', data.error.timestamp);
+ * }
+ * ```
+ */
+export function isErrorResponse(value: unknown): value is ErrorResponse
+{
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'success' in value &&
+        value.success === false &&
+        'error' in value &&
+        typeof (value as any).error === 'object' &&
+        'message' in (value as any).error &&
+        'type' in (value as any).error &&
+        'statusCode' in (value as any).error &&
+        'timestamp' in (value as any).error
+    );
+}
+
+/**
+ * Type guard for ApiSuccessResponse
+ *
+ * Validates at runtime whether a value conforms to ApiSuccessResponse structure.
+ *
+ * @param value - Value to check
+ * @returns true if value is ApiSuccessResponse
+ *
+ * @example
+ * ```typescript
+ * const response = await fetch('/api/users');
+ * const data = await response.json();
+ *
+ * if (isSuccessResponse(data)) {
+ *   console.log('Users:', data.data);
+ *   if (data.meta?.pagination) {
+ *     console.log('Page:', data.meta.pagination.page);
+ *   }
+ * }
+ * ```
+ */
+export function isSuccessResponse<T = any>(value: unknown): value is ApiSuccessResponse<T>
+{
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'success' in value &&
+        value.success === true &&
+        'data' in value
+    );
+}
 
 // ============================================================================
 // TypeBox Schema Helpers
@@ -98,6 +193,25 @@ export function ApiSuccessSchema<T extends TSchema>(dataSchema: T)
 }
 
 /**
+ * Creates a TypeBox schema for ErrorCause
+ */
+export function ErrorCauseSchema()
+{
+    return Type.Object({
+        message: Type.String(),
+        name: Type.Optional(Type.String()),
+        code: Type.Optional(Type.String()),
+        detail: Type.Optional(Type.String()),
+        hint: Type.Optional(Type.String()),
+        constraint: Type.Optional(Type.String()),
+        table: Type.Optional(Type.String()),
+        column: Type.Optional(Type.String()),
+        schema: Type.Optional(Type.String()),
+        stack: Type.Optional(Type.String()),
+    });
+}
+
+/**
  * Creates a TypeBox schema for ApiErrorResponse
  */
 export function ApiErrorSchema()
@@ -108,8 +222,10 @@ export function ApiErrorSchema()
             message: Type.String(),
             type: Type.String(),
             statusCode: Type.Number(),
+            timestamp: Type.String(),
             stack: Type.Optional(Type.String()),
-            details: Type.Optional(Type.Any()),
+            causes: Type.Optional(Type.Array(ErrorCauseSchema())),
+            details: Type.Optional(Type.Unknown()),
         }),
     });
 }

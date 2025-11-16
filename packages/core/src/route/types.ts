@@ -106,3 +106,6 @@ export {
 } from './api-response';
 
 export type * from './api-response';
+
+// Contract helper
+export { defineContract } from './define-contract';

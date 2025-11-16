@@ -7,7 +7,7 @@ import {
     DatabaseError,
     ConnectionError,
     QueryError,
-    NotFoundError,
+    EntityNotFoundError,
     ConstraintViolationError,
     TransactionError,
     DeadlockError,
@@ -24,7 +24,6 @@ describe('DatabaseError', () =>
         expect(error.message).toBe('Test error');
         expect(error.statusCode).toBe(500);
         expect(error.details).toEqual({ test: 'data' });
-        expect(error.timestamp).toBeInstanceOf(Date);
         expect(error.stack).toBeDefined();
     });
 
@@ -35,19 +34,6 @@ describe('DatabaseError', () =>
         expect(error.statusCode).toBe(500);
     });
 
-    it('should serialize to JSON correctly', () =>
-    {
-        const error = new DatabaseError('Test error', 500, { test: 'data' });
-        const json = error.toJSON();
-
-        expect(json).toEqual({
-            name: 'DatabaseError',
-            message: 'Test error',
-            statusCode: 500,
-            details: { test: 'data' },
-            timestamp: expect.any(String)
-        });
-    });
 });
 
 describe('ConnectionError', () =>
@@ -102,7 +88,7 @@ describe('NotFoundError', () =>
 {
     it('should create NotFoundError with correct message and details', () =>
     {
-        const error = new NotFoundError('User', 123);
+        const error = new EntityNotFoundError('User', 123);
 
         expect(error.name).toBe('NotFoundError');
         expect(error.message).toBe('User with id 123 not found');
@@ -112,7 +98,7 @@ describe('NotFoundError', () =>
 
     it('should handle string IDs', () =>
     {
-        const error = new NotFoundError('Post', 'abc-123');
+        const error = new EntityNotFoundError('Post', 'abc-123');
 
         expect(error.message).toBe('Post with id abc-123 not found');
         expect(error.details).toEqual({ resource: 'Post', id: 'abc-123' });
@@ -120,11 +106,11 @@ describe('NotFoundError', () =>
 
     it('should be instance of QueryError and DatabaseError', () =>
     {
-        const error = new NotFoundError('User', 123);
+        const error = new EntityNotFoundError('User', 123);
 
         expect(error).toBeInstanceOf(DatabaseError);
         expect(error).toBeInstanceOf(QueryError);
-        expect(error).toBeInstanceOf(NotFoundError);
+        expect(error).toBeInstanceOf(EntityNotFoundError);
     });
 });
 

@@ -9,7 +9,6 @@ import {
     id,
     uuid,
     timestamps,
-    autoUpdateTimestamp,
     foreignKey,
     optionalForeignKey,
     auditFields,
@@ -71,66 +70,6 @@ describe('Schema Helpers', () =>
             expect(testTable.updatedAt).toBeDefined();
         });
 
-        it('should not mark updatedAt for auto-update by default', () =>
-        {
-            const cols = timestamps();
-
-            expect((cols.updatedAt as any).__autoUpdate).toBeUndefined();
-        });
-
-        it('should mark updatedAt for auto-update when enabled', () =>
-        {
-            const cols = timestamps({ autoUpdate: true });
-
-            expect((cols.updatedAt as any).__autoUpdate).toBe(true);
-        });
-
-        it('should not mark createdAt for auto-update even when enabled', () =>
-        {
-            const cols = timestamps({ autoUpdate: true });
-
-            expect((cols.createdAt as any).__autoUpdate).toBeUndefined();
-        });
-    });
-
-    describe('autoUpdateTimestamp()', () =>
-    {
-        it('should create timestamp column with default field name', () =>
-        {
-            const col = autoUpdateTimestamp();
-
-            expect(col.updatedAt).toBeDefined();
-        });
-
-        it('should convert camelCase to snake_case', () =>
-        {
-            const col = autoUpdateTimestamp('modifiedAt');
-
-            expect(col.modifiedAt).toBeDefined();
-        });
-
-        it('should handle custom field names', () =>
-        {
-            const col = autoUpdateTimestamp('lastUpdated');
-
-            expect(col.lastUpdated).toBeDefined();
-        });
-
-        it('should mark column for auto-update', () =>
-        {
-            const col = autoUpdateTimestamp();
-
-            expect((col.updatedAt as any).__autoUpdate).toBe(true);
-        });
-
-        it('should work in table definition', () =>
-        {
-            const testTable = pgTable('test', {
-                ...autoUpdateTimestamp('publishedAt'),
-            });
-
-            expect(testTable.publishedAt).toBeDefined();// Note: __autoUpdate marker is lost when spread into pgTable
-        });
     });
 
     describe('foreignKey()', () =>
@@ -218,21 +157,6 @@ describe('Schema Helpers', () =>
             expect(users.updatedAt).toBeDefined();
         });
 
-        it('should create table with auto-updating timestamps', () =>
-        {
-            const posts = pgTable('posts', {
-                id: id(),
-                title: text('title').notNull(),
-                ...timestamps({ autoUpdate: true }),
-            });
-
-            expect(posts.id).toBeDefined();
-            expect(posts.title).toBeDefined();
-            expect(posts.createdAt).toBeDefined();
-            expect(posts.updatedAt).toBeDefined();
-            // Note: __autoUpdate marker is lost when spread into pgTable
-        });
-
         it('should create table with foreign keys', () =>
         {
             const users = pgTable('users', {
@@ -252,22 +176,6 @@ describe('Schema Helpers', () =>
             expect(posts.updatedAt).toBeDefined();
         });
 
-        it('should create table with custom timestamp field', () =>
-        {
-            const articles = pgTable('articles', {
-                id: id(),
-                title: text('title'),
-                ...timestamps(),
-                ...autoUpdateTimestamp('publishedAt'),
-            });
-
-            expect(articles.id).toBeDefined();
-            expect(articles.title).toBeDefined();
-            expect(articles.createdAt).toBeDefined();
-            expect(articles.updatedAt).toBeDefined();
-            expect(articles.publishedAt).toBeDefined();
-            // Note: __autoUpdate marker is lost when spread into pgTable
-        });
     });
 
     describe('uuid()', () =>

@@ -17,7 +17,7 @@
  */
 
 import type { PgColumn } from 'drizzle-orm/pg-core';
-import { bigserial, timestamp, text, uuid as pgUuid } from 'drizzle-orm/pg-core';
+import { bigserial, timestamp, text, uuid as pgUuid, jsonb } from 'drizzle-orm/pg-core';
 
 /**
  * Standard auto-incrementing primary key
@@ -41,88 +41,36 @@ export function id()
  * Standard timestamp fields (createdAt, updatedAt)
  *
  * Both fields are timezone-aware, auto-set to current time on creation.
- * When autoUpdate is enabled, updatedAt will be automatically updated on record updates.
+ * updatedAt must be manually updated in your application code.
  *
- * @param options - Optional configuration
- * @param options.autoUpdate - Automatically update updatedAt on record updates (default: false)
  * @returns Object with createdAt and updatedAt columns
  *
  * @example
  * ```typescript
- * // Without auto-update
  * export const users = pgTable('users', {
  *     id: id(),
  *     email: text('email'),
  *     ...timestamps(),
  * });
  *
- * // With auto-update
- * export const posts = pgTable('posts', {
- *     id: id(),
- *     title: text('title'),
- *     ...timestamps({ autoUpdate: true }),
- * });
+ * // Manual update
+ * await db.update(users)
+ *     .set({
+ *         email: 'new@example.com',
+ *         updatedAt: new Date()
+ *     })
+ *     .where(eq(users.id, userId));
  * ```
  */
-export function timestamps(options?: { autoUpdate?: boolean })
+export function timestamps()
 {
-    const updatedAtColumn = timestamp('updated_at', { withTimezone: true, mode: 'date' })
-        .defaultNow()
-        .notNull();
-
-    // Mark column for auto-update if enabled
-    if (options?.autoUpdate)
-    {
-        (updatedAtColumn as any).__autoUpdate = true;
-    }
-
     return {
         createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
             .defaultNow()
             .notNull(),
-        updatedAt: updatedAtColumn,
-    };
-}
-
-/**
- * Auto-updating timestamp field (for custom timestamp fields)
- *
- * Creates a timestamp field that automatically updates on record updates.
- * Useful when you need a custom name like 'modifiedAt', 'lastUpdated', etc.
- *
- * @param fieldName - Field name in camelCase (default: 'updatedAt')
- * @returns Object with the timestamp column (converts camelCase to snake_case)
- *
- * @example
- * ```typescript
- * // Custom field name
- * export const posts = pgTable('posts', {
- *     id: id(),
- *     title: text('title'),
- *     ...autoUpdateTimestamp('modifiedAt'),  // Creates 'modified_at' column
- * });
- *
- * // Default field name
- * export const articles = pgTable('articles', {
- *     id: id(),
- *     ...autoUpdateTimestamp(),  // Creates 'updatedAt' -> 'updated_at'
- * });
- * ```
- */
-export function autoUpdateTimestamp(fieldName: string = 'updatedAt')
-{
-    // Convert camelCase to snake_case for column name
-    const columnName = fieldName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
-
-    const column = timestamp(columnName, { withTimezone: true, mode: 'date' })
-        .defaultNow()
-        .notNull();
-
-    // Mark column for auto-update
-    (column as any).__autoUpdate = true;
-
-    return {
-        [fieldName]: column,
+        updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+            .defaultNow()
+            .notNull(),
     };
 }
 
@@ -354,43 +302,129 @@ export function softDelete()
 }
 
 /**
- * Type-safe status enum field
+ * UTC timestamp field
  *
- * Creates a status text column with enum constraint and default value.
- * Provides compile-time type safety for status values.
+ * Creates a timezone-aware timestamp column (TIMESTAMPTZ) that stores values in UTC.
+ * PostgreSQL automatically converts between client timezone and UTC.
+ * Chain with .notNull(), .defaultNow(), etc. for additional constraints.
  *
- * @param statuses - Array of status values (at least 2 required)
- * @param defaultStatus - Default status value (defaults to first status)
- * @returns Status column with enum constraint
+ * @param fieldName - Database column name (in snake_case)
+ * @param mode - Data type mode: 'date' (Date object) or 'string' (ISO string)
+ * @returns Timestamp column with timezone support
  *
  * @example
  * ```typescript
- * // Basic usage
- * export const posts = pgTable('posts', {
- *     id: id(),
- *     title: text('title'),
- *     status: statusEnum(['draft', 'published', 'archived'] as const),
- *     ...timestamps(),
- * });
- *
- * // With custom default
  * export const users = pgTable('users', {
  *     id: id(),
  *     email: text('email'),
- *     status: statusEnum(['active', 'inactive', 'suspended'] as const, 'active'),
+ *
+ *     // Nullable timestamp
+ *     emailVerifiedAt: utcTimestamp('email_verified_at'),
+ *
+ *     // Required with default
+ *     lastLoginAt: utcTimestamp('last_login_at').defaultNow().notNull(),
+ *
+ *     // String mode
+ *     processedAt: utcTimestamp('processed_at', 'string'),
+ *
+ *     ...timestamps(),
+ * });
+ * ```
+ */
+export function utcTimestamp(
+    fieldName: string,
+    mode: 'date' | 'string' = 'date'
+) {
+    return timestamp(fieldName, {
+        withTimezone: true,
+        mode
+    });
+}
+
+/**
+ * Type-safe enum text field
+ *
+ * Creates a text column with enum constraint.
+ * Chain with .notNull(), .default(), etc. for additional constraints.
+ *
+ * @param fieldName - Database column name (e.g., 'status', 'role', 'provider')
+ * @param values - Const array of allowed values
+ * @returns Text column with enum constraint
+ *
+ * @example
+ * ```typescript
+ * export const USER_STATUSES = ['active', 'inactive', 'suspended'] as const;
+ * export type UserStatus = typeof USER_STATUSES[number];
+ *
+ * export const SOCIAL_PROVIDERS = ['google', 'github', 'kakao'] as const;
+ * export type SocialProvider = typeof SOCIAL_PROVIDERS[number];
+ *
+ * export const users = pgTable('users', {
+ *     id: id(),
+ *     // Nullable
+ *     role: enumText('role', USER_STATUSES),
+ *
+ *     // Required
+ *     provider: enumText('provider', SOCIAL_PROVIDERS).notNull(),
+ *
+ *     // Required with default
+ *     status: enumText('status', USER_STATUSES).default('active').notNull(),
+ *
+ *     ...timestamps(),
+ * });
+ * ```
+ */
+export function enumText<T extends readonly [string, ...string[]]>(
+    fieldName: string,
+    values: T
+)
+{
+    return text(fieldName, { enum: [...values] as [string, ...string[]] });
+}
+
+/**
+ * Type-safe JSONB field
+ *
+ * Creates a JSONB column with required type parameter to ensure type safety.
+ * Prevents the common mistake of using jsonb without type annotation,
+ * which would result in `unknown` type and require type assertions.
+ *
+ * Chain with .notNull(), .default(), etc. for additional constraints.
+ *
+ * @param fieldName - Database column name (in snake_case)
+ * @returns JSONB column with specified type
+ *
+ * @example
+ * ```typescript
+ * // Define your types
+ * type LabelValue =
+ *   | { type: 'text'; content: string }
+ *   | { type: 'image'; url: string; alt?: string };
+ *
+ * type CachedContent = Record<string, LabelValue>;
+ *
+ * export const cmsPublishedCache = pgTable('published_cache', {
+ *     id: id(),
+ *     section: text('section').notNull(),
+ *
+ *     // Type-safe JSONB field - no more `as any` needed!
+ *     content: typedJsonb<CachedContent>('content').notNull(),
+ *
  *     ...timestamps(),
  * });
  *
- * // TypeScript infers the type
- * type PostStatus = 'draft' | 'published' | 'archived';
+ * // Usage in route - no type assertion needed
+ * const cache = await db.select().from(cmsPublishedCache)...;
+ * const labels = cache.content; // Type: CachedContent ✅
+ *
+ * // For simple objects
+ * metadata: typedJsonb<Record<string, any>>('metadata'),
+ *
+ * // For arrays
+ * tags: typedJsonb<string[]>('tags').notNull(),
  * ```
  */
-export function statusEnum<T extends readonly [string, ...string[]]>(
-    statuses: T,
-    defaultStatus?: T[number]
-)
+export function typedJsonb<T>(fieldName: string)
 {
-    return text('status', { enum: statuses as any })
-        .notNull()
-        .default((defaultStatus ?? statuses[0]) as any);
+    return jsonb(fieldName).$type<T>();
 }

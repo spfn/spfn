@@ -4,6 +4,19 @@
  * Type-safe HTTP client that works with RouteContract for full end-to-end type safety
  */
 import type { RouteContract, InferContract } from '../route/types';
+import { logger } from '../logger';
+
+const contractClientLogger = logger.child('@spfn/core:contract-client');
+
+/**
+ * Request context shared across helper methods
+ */
+interface RequestContext
+{
+    url: string;
+    urlPath: string;
+    method: string;
+}
 
 export type RequestInterceptor = (
     url: string,
@@ -116,99 +129,38 @@ export class ContractClient
         options?: CallOptions<TContract>
     ): Promise<InferContract<TContract>['response']>
     {
-        const baseUrl = options?.baseUrl || this.config.baseUrl;
-
-        // Use contract.path directly (contracts use absolute paths)
-        const urlPath = ContractClient.buildUrl(
-            contract.path,
-            options?.params as Record<string, string | number> | undefined
-        );
-
-        const queryString = ContractClient.buildQuery(
-            options?.query as Record<string, string | string[] | number | boolean> | undefined
-        );
-
-        const url = `${baseUrl}${urlPath}${queryString}`;
-
+        // 1. Build URL and create context
+        const { url, urlPath } = this.buildFullUrl(contract, options);
         const method = ContractClient.getHttpMethod(contract, options);
+        const context: RequestContext = { url, urlPath, method };
 
-        const headers: Record<string, string> = {
-            ...this.config.headers,
-            ...options?.headers,
-        };
+        contractClientLogger.debug('Making request', { method, url });
 
-        const isFormData = ContractClient.isFormData(options?.body);
+        // 2. Prepare request
+        const init = this.prepareRequestInit(contract, options);
 
-        if (options?.body !== undefined && !isFormData && !headers['Content-Type'])
+        // 3. Setup timeout
+        const { init: initWithTimeout, cleanup } = this.setupTimeout(init);
+
+        try
         {
-            headers['Content-Type'] = 'application/json';
+            // 4. Apply interceptors
+            const finalInit = await this.applyInterceptors(url, initWithTimeout);
+
+            // 5. Execute fetch
+            const response = await this.fetchWithErrorHandling(url, finalInit, cleanup);
+
+            // 6. Cleanup timeout
+            cleanup();
+
+            // 7. Parse and return response
+            return await this.parseResponse<TContract>(response, context);
         }
-
-        let init: RequestInit = {
-            method,
-            headers,
-            ...options?.fetchOptions, // Spread environment-specific options (e.g., Next.js cache/next)
-        };
-
-        if (options?.body !== undefined)
+        catch (error)
         {
-            init.body = isFormData ? (options.body as FormData) : JSON.stringify(options.body);
-        }
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
-        init.signal = controller.signal;
-
-        for (const interceptor of this.interceptors)
-        {
-            init = await interceptor(url, init);
-        }
-
-        const response = await this.config.fetch(url, init).catch((error) =>
-        {
-            clearTimeout(timeoutId);
-
-            if (error instanceof Error && error.name === 'AbortError')
-            {
-                throw new ApiClientError(
-                    `Request timed out after ${this.config.timeout}ms`,
-                    0,
-                    url,
-                    undefined,
-                    'timeout'
-                );
-            }
-
-            if (error instanceof Error)
-            {
-                throw new ApiClientError(
-                    `Network error: ${error.message}`,
-                    0,
-                    url,
-                    undefined,
-                    'network'
-                );
-            }
-
+            cleanup();
             throw error;
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok)
-        {
-            const errorBody = await response.json().catch(() => null);
-            throw new ApiClientError(
-                `${method} ${urlPath} failed: ${response.status} ${response.statusText}`,
-                response.status,
-                url,
-                errorBody,
-                'http'
-            );
         }
-
-        const data = await response.json();
-        return data as InferContract<TContract>['response'];
     }
 
     /**
@@ -222,6 +174,265 @@ export class ContractClient
             timeout: config.timeout || this.config.timeout,
             fetch: config.fetch || this.config.fetch,
         });
+    }
+
+    /**
+     * Build full URL from contract and options
+     */
+    private buildFullUrl<TContract extends RouteContract>(
+        contract: TContract,
+        options?: CallOptions<TContract>
+    ): { url: string; urlPath: string }
+    {
+        const baseUrl = options?.baseUrl || this.config.baseUrl;
+
+        const urlPath = ContractClient.buildUrl(
+            contract.path,
+            options?.params as Record<string, string | number> | undefined
+        );
+
+        const queryString = ContractClient.buildQuery(
+            options?.query as Record<string, string | string[] | number | boolean> | undefined
+        );
+
+        const url = `${baseUrl}${urlPath}${queryString}`;
+
+        return { url, urlPath };
+    }
+
+    /**
+     * Build headers with Content-Type handling
+     */
+    private buildHeaders<TContract extends RouteContract>(
+        options?: CallOptions<TContract>
+    ): Record<string, string>
+    {
+        const headers: Record<string, string> = {
+            ...this.config.headers,
+            ...options?.headers,
+        };
+
+        const isFormData = ContractClient.isFormData(options?.body);
+
+        // Check for Content-Type header (case-insensitive)
+        const hasContentType = Object.keys(headers).some(
+            key => key.toLowerCase() === 'content-type'
+        );
+
+        if (options?.body !== undefined && !isFormData && !hasContentType)
+        {
+            headers['Content-Type'] = 'application/json';
+        }
+
+        return headers;
+    }
+
+    /**
+     * Serialize request body
+     */
+    private serializeBody(body: unknown): string | FormData | undefined
+    {
+        if (body === undefined) return undefined;
+
+        const isFormData = ContractClient.isFormData(body);
+        return isFormData ? body : JSON.stringify(body);
+    }
+
+    /**
+     * Prepare RequestInit object
+     */
+    private prepareRequestInit<TContract extends RouteContract>(
+        contract: TContract,
+        options?: CallOptions<TContract>
+    ): RequestInit
+    {
+        const method = ContractClient.getHttpMethod(contract, options);
+        const headers = this.buildHeaders(options);
+        const body = this.serializeBody(options?.body);
+
+        return {
+            method,
+            headers,
+            body,
+            ...options?.fetchOptions,
+        };
+    }
+
+    /**
+     * Setup timeout for request
+     */
+    private setupTimeout(init: RequestInit): {
+        init: RequestInit;
+        cleanup: () => void;
+    }
+    {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+
+        const finalInit = init.signal ? init : { ...init, signal: controller.signal };
+
+        return {
+            init: finalInit,
+            cleanup: () => clearTimeout(timeoutId)
+        };
+    }
+
+    /**
+     * Apply all registered interceptors
+     */
+    private async applyInterceptors(url: string, init: RequestInit): Promise<RequestInit>
+    {
+        let finalInit = init;
+        for (const interceptor of this.interceptors)
+        {
+            finalInit = await interceptor(url, finalInit);
+        }
+        return finalInit;
+    }
+
+    /**
+     * Execute fetch with error handling
+     */
+    private async fetchWithErrorHandling(
+        url: string,
+        init: RequestInit,
+        cleanup: () => void
+    ): Promise<Response>
+    {
+        try
+        {
+            return await this.config.fetch(url, init);
+        }
+        catch (error)
+        {
+            cleanup();
+            throw this.createFetchError(error, url);
+        }
+    }
+
+    /**
+     * Create error from fetch exception
+     */
+    private createFetchError(error: unknown, url: string): ApiClientError
+    {
+        if (error instanceof Error && error.name === 'AbortError')
+        {
+            return new ApiClientError(
+                `Request timed out after ${this.config.timeout}ms`,
+                0,
+                url,
+                undefined,
+                'timeout'
+            );
+        }
+
+        if (error instanceof Error)
+        {
+            return new ApiClientError(
+                `Network error: ${error.message}`,
+                0,
+                url,
+                undefined,
+                'network'
+            );
+        }
+
+        throw error;
+    }
+
+    /**
+     * Parse JSON from response with error handling
+     *
+     * @param response - HTTP Response object to parse
+     * @param url - Request URL for error messages
+     * @param throwOnError - If true, throws ApiClientError on parse failure
+     *                       If false, returns null on parse failure
+     * @returns Parsed JSON data or null on failure (when throwOnError is false)
+     */
+    private async parseJson(
+        response: Response,
+        url: string,
+        throwOnError: boolean
+    ): Promise<any>
+    {
+        try
+        {
+            return await response.json();
+        }
+        catch (error)
+        {
+            if (throwOnError)
+            {
+                throw new ApiClientError(
+                    `Failed to parse response as JSON: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                    response.status,
+                    url,
+                    undefined,
+                    'http'
+                );
+            }
+
+            contractClientLogger.warn('Failed to parse response JSON', {
+                url,
+                status: response.status,
+                error: error instanceof Error ? error.message : String(error)
+            });
+
+            return null;
+        }
+    }
+
+    /**
+     * Parse response and handle errors
+     */
+    private async parseResponse<TContract extends RouteContract>(
+        response: Response,
+        context: RequestContext
+    ): Promise<InferContract<TContract>['response']>
+    {
+        if (!response.ok)
+        {
+            throw await this.createHttpError(response, context);
+        }
+
+        return await this.parseJsonResponse<TContract>(response, context.url);
+    }
+
+    /**
+     * Create HTTP error from response
+     *
+     * Parses ErrorResponse from server and wraps it in ApiClientError.
+     * Used for serializing error info across Next.js server/client boundary.
+     */
+    private async createHttpError(
+        response: Response,
+        context: RequestContext
+    ): Promise<ApiClientError>
+    {
+        // Parse ErrorResponse (don't throw on failure - might be HTML error page)
+        const errorBody = await this.parseJson(response, context.url, false);
+
+        return new ApiClientError(
+            `${context.method} ${context.urlPath} failed: ${response.status} ${response.statusText}`,
+            response.status,
+            context.url,
+            errorBody,  // Plain object - can be JSON.stringified for Next.js
+            'http'
+        );
+    }
+
+    /**
+     * Parse JSON response with strict error handling
+     *
+     * Contract responses must be valid JSON, so we throw on parse failure.
+     */
+    private async parseJsonResponse<TContract extends RouteContract>(
+        response: Response,
+        url: string
+    ): Promise<InferContract<TContract>['response']>
+    {
+        const data = await this.parseJson(response, url, true);
+        return data as InferContract<TContract>['response'];
     }
 
     private static buildUrl(path: string, params?: Record<string, string | number>): string
@@ -342,7 +553,8 @@ export function configureClient(config: ClientConfig): void
 export const client = new Proxy({} as ContractClient, {
     get(_target, prop)
     {
-        return _clientInstance[prop as keyof ContractClient];
+        const value = _clientInstance[prop as keyof ContractClient];
+        return typeof value === 'function' ? value.bind(_clientInstance) : value;
     }
 });
 

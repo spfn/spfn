@@ -6,7 +6,7 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { logger } from '../logger';
-import type { ErrorResponse } from '../route/types';
+import type { ErrorResponse, ErrorCause } from '../route/types';
 
 const errorLogger = logger.child('@spfn/core:error-handler');
 
@@ -19,6 +19,19 @@ export interface ErrorHandlerOptions
     includeStack?: boolean;
 
     /**
+     * Include error cause chain in response
+     * @default process.env.NODE_ENV !== 'production'
+     */
+    includeCauses?: boolean;
+
+    /**
+     * Include sensitive database info (table, column, schema, constraint)
+     * in logs and responses
+     * @default false
+     */
+    includeSensitiveInfo?: boolean;
+
+    /**
      * Enable error logging
      * @default true
      */
@@ -28,21 +41,7 @@ export interface ErrorHandlerOptions
 interface ErrorWithStatusCode extends Error
 {
     statusCode?: number;
-    details?: any;
-}
-
-interface ErrorCause
-{
-    message: string;
-    name?: string;
-    code?: string;
-    detail?: string;
-    hint?: string;
-    constraint?: string;
-    table?: string;
-    column?: string;
-    schema?: string;
-    stack?: string;
+    details?: Record<string, unknown>;
 }
 
 /**
@@ -84,6 +83,27 @@ function extractErrorCauses(error: Error, includeStack: boolean): ErrorCause[]
 }
 
 /**
+ * Remove sensitive database information from error cause
+ *
+ * Filters out database schema information (table, column, schema, constraint)
+ * to prevent information leakage in production environments.
+ */
+function sanitizeErrorCause(
+    cause: ErrorCause,
+    includeSensitiveInfo: boolean
+): ErrorCause
+{
+    if (includeSensitiveInfo)
+    {
+        return cause;
+    }
+
+    // Remove sensitive database information
+    const { constraint, table, column, schema, ...safeCause } = cause;
+    return safeCause;
+}
+
+/**
  * Standard error response format
  *
  * Re-exported from @spfn/core/types for convenience
@@ -99,6 +119,8 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
 {
     const {
         includeStack = process.env.NODE_ENV !== 'production',
+        includeCauses = process.env.NODE_ENV !== 'production',
+        includeSensitiveInfo = false,
         enableLogging = true,
     } = options;
 
@@ -107,6 +129,9 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
         const errorWithCode = err as ErrorWithStatusCode;
         const statusCode = errorWithCode.statusCode || 500;
         const errorType = err.name || 'Error';
+
+        // Extract error cause chain
+        const causes = extractErrorCauses(err, includeStack);
 
         if (enableLogging)
         {
@@ -126,11 +151,12 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                 logData.details = errorWithCode.details;
             }
 
-            // Extract and include error cause chain
-            const causes = extractErrorCauses(err, includeStack);
+            // Include error cause chain with sensitive info filtering
             if (causes.length > 0)
             {
-                logData.causes = causes;
+                logData.causes = includeSensitiveInfo
+                    ? causes
+                    : causes.map(c => sanitizeErrorCause(c, false));
             }
 
             // Pass Error object directly to logger for proper stack trace formatting
@@ -150,6 +176,7 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                 message: err.message || 'Internal Server Error',
                 type: errorType,
                 statusCode,
+                timestamp: new Date().toISOString(),
             },
         };
 
@@ -161,6 +188,14 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
         if (includeStack)
         {
             response.error.stack = err.stack;
+        }
+
+        // Include error cause chain in response with sensitive info filtering
+        if (includeCauses && causes.length > 0)
+        {
+            response.error.causes = causes.map(c =>
+                sanitizeErrorCause(c, includeSensitiveInfo)
+            );
         }
 
         return c.json(response, statusCode as ContentfulStatusCode);

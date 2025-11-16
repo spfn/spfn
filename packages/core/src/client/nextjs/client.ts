@@ -14,14 +14,70 @@
  */
 
 import type { RouteContract, InferContract } from '../../route/types';
-import { ContractClient, type CallOptions } from '../contract-client';
+import { ContractClient, type CallOptions, type RequestInterceptor } from '../contract-client';
+import { logger } from "../../logger";
 
 // Type declaration for window (available in browser)
 declare const window: unknown | undefined;
 
-// Simple debug logger for development
-const isDev = process.env.NODE_ENV === 'development';
-const debug = isDev ? (...args: any[]) => console.log('[nextjs-client]', ...args) : () => {};
+const nextjsClientLogger = logger.child('@spfn/core:nextjs-client');
+
+/**
+ * Create an interceptor that forwards cookies in server-side environment
+ *
+ * In Next.js Server Components, cookies need to be manually forwarded
+ * from the incoming request to outgoing API calls.
+ */
+function createCookieForwardingInterceptor(): RequestInterceptor
+{
+    return async (_url: string, init: RequestInit): Promise<RequestInit> =>
+    {
+        const isServer = typeof window === 'undefined';
+
+        if (!isServer)
+        {
+            // Client-side: browser handles cookies automatically
+            return init;
+        }
+
+        // Server-side: manually forward cookies
+        try
+        {
+            // Dynamic import to avoid issues in client-side
+            const { cookies } = await import('next/headers');
+            const cookieStore = await cookies();
+            const cookieHeader = cookieStore
+                .getAll()
+                .map(cookie => `${cookie.name}=${cookie.value}`)
+                .join('; ');
+
+            if (cookieHeader)
+            {
+                nextjsClientLogger.debug('Server-side: Forwarding cookies to API Route');
+
+                return {
+                    ...init,
+                    headers: {
+                        ...init.headers,
+                        'Cookie': cookieHeader,
+                    },
+                };
+            }
+            else
+            {
+                nextjsClientLogger.debug('Server-side: No cookies to forward');
+            }
+        }
+        catch (error)
+        {
+            nextjsClientLogger.warn('Failed to get cookies in server environment:', {
+                error: error instanceof Error ? error.message : String(error)
+            });
+        }
+
+        return init;
+    };
+}
 
 /**
  * Next.js Client Configuration
@@ -97,7 +153,7 @@ export class NextjsClient
         // Determine baseUrl based on environment
         const isServer = typeof window === 'undefined';
 
-        debug('🔧 Constructor - Environment:', {
+        nextjsClientLogger.debug('Constructor - Environment:', {
             isServer,
             configBaseUrl: config.baseUrl,
             SPFN_APP_URL: process.env.SPFN_APP_URL,
@@ -107,12 +163,12 @@ export class NextjsClient
         if (config.baseUrl)
         {
             this.baseUrl = config.baseUrl;
-            debug(`⚙️  Using config.baseUrl: ${this.baseUrl}`);
+            nextjsClientLogger.debug(`Using config.baseUrl: ${this.baseUrl}`);
         }
         else if (process.env.SPFN_APP_URL)
         {
             this.baseUrl = process.env.SPFN_APP_URL;
-            debug(`⚙️  Using SPFN_APP_URL: ${this.baseUrl}`);
+            nextjsClientLogger.debug(`Using SPFN_APP_URL: ${this.baseUrl}`);
         }
         else if (isServer)
         {
@@ -129,11 +185,11 @@ export class NextjsClient
         {
             // Client environment: use relative path
             this.baseUrl = '';
-            debug('⚙️  Using empty baseUrl (client-side relative)');
+            nextjsClientLogger.debug('Using empty baseUrl (client-side relative)');
         }
 
         const finalBaseUrl = this.baseUrl + this.proxyBasePath;
-        debug(`✅ Final baseUrl for ContractClient: ${finalBaseUrl}`);
+        nextjsClientLogger.debug(`Final baseUrl for ContractClient: ${finalBaseUrl}`);
 
         // Create contract client pointing to API Route
         this.contractClient = new ContractClient({
@@ -142,12 +198,16 @@ export class NextjsClient
             timeout: config.timeout,
             fetch: config.fetch,
         });
+
+        // Register cookie forwarding interceptor for server-side requests
+        this.contractClient.use(createCookieForwardingInterceptor());
     }
 
     /**
      * Make a type-safe API call using a contract
      *
      * All requests go through Next.js API Route proxy.
+     * Cookies are automatically forwarded by the interceptor.
      *
      * @param contract - Route contract with absolute path
      * @param options - Call options (params, query, body, headers)
@@ -157,51 +217,17 @@ export class NextjsClient
         options?: CallOptions<TContract>
     ): Promise<InferContract<TContract>['response']>
     {
-        const isServer = typeof window === 'undefined';
-        const headers: Record<string, string> = { ...options?.headers };
-
-        // In Server Components, manually forward cookies from original request
-        if (isServer)
-        {
-            try
-            {
-                // Dynamic import to avoid issues in client-side
-                const { cookies } = await import('next/headers');
-                const cookieStore = await cookies();
-                const cookieHeader = cookieStore
-                    .getAll()
-                    .map(cookie => `${cookie.name}=${cookie.value}`)
-                    .join('; ');
-
-                if (cookieHeader)
-                {
-                    headers['Cookie'] = cookieHeader;
-                    debug('🍪 Server-side: Forwarding cookies to API Route');
-                }
-                else
-                {
-                    debug('ℹ️  Server-side: No cookies to forward');
-                }
-            }
-            catch (error)
-            {
-                console.warn('[nextjs-client] ⚠️ Failed to get cookies in server environment:', {
-                    error: error instanceof Error ? error.message : String(error)
-                });
-            }
-        }
-
         // Ensure credentials: 'include' for cookie forwarding (client-side)
+        // Note: Server-side cookie forwarding is handled by interceptor
         const finalOptions: CallOptions<TContract> = {
             ...options,
-            headers,
             fetchOptions: {
                 credentials: 'include', // Important: Include cookies for session (client-side)
                 ...options?.fetchOptions,
             },
         };
 
-        // Route through API proxy
+        // Route through API proxy (interceptor handles cookie forwarding)
         return this.contractClient.call(contract, finalOptions);
     }
 
@@ -299,6 +325,7 @@ export const nextjsClient = new Proxy({} as NextjsClient, {
     get(_target, prop)
     {
         const instance = getNextjsClient();
-        return instance[prop as keyof NextjsClient];
+        const value = instance[prop as keyof NextjsClient];
+        return typeof value === 'function' ? value.bind(instance) : value;
     }
 });

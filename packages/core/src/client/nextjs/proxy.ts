@@ -5,6 +5,17 @@
  * - Cookie forwarding
  * - Request/Response interceptors
  * - Flexible header manipulation
+ * - JSON API requests (recommended)
+ *
+ * IMPORTANT: File Uploads
+ * - This proxy is designed for JSON APIs only
+ * - For file uploads, use S3 presigned URLs or direct upload
+ * - Proxying large files causes memory issues and doubles network traffic
+ *
+ * Recommended Pattern for File Uploads:
+ * 1. Request presigned URL from SPFN API via proxy
+ * 2. Upload file directly to S3 from client (bypass proxy)
+ * 3. Confirm upload completion via SPFN API
  *
  * Usage:
  * ```typescript
@@ -26,20 +37,61 @@
  *     }
  *   ]
  * });
+ *
+ * // File upload example (recommended)
+ * // 1. Get presigned URL
+ * const { data } = await fetch('/api/actions/files/upload-url', {
+ *   method: 'POST',
+ *   body: JSON.stringify({ filename: 'image.jpg', contentType: 'image/jpeg' })
+ * });
+ *
+ * // 2. Upload directly to S3 (no proxy)
+ * await fetch(data.presignedUrl, {
+ *   method: 'PUT',
+ *   body: file,
+ *   headers: { 'Content-Type': 'image/jpeg' }
+ * });
+ *
+ * // 3. Confirm upload
+ * await fetch('/api/actions/files/confirm', {
+ *   method: 'POST',
+ *   body: JSON.stringify({ key: data.key })
+ * });
  * ```
  */
 
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
-import type { ProxyConfig, RequestInterceptorContext, ResponseInterceptorContext, InterceptorRule } from './types';
-import {
-    filterMatchingInterceptors,
-    executeRequestInterceptors,
-    executeResponseInterceptors,
-} from './interceptor';
-import { interceptorRegistry } from './registry';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { logger } from '../../logger';
+import type { ErrorResponse } from '../../route/types';
+import { executeRequestInterceptors, executeResponseInterceptors, filterMatchingInterceptors } from './interceptor';
+import { interceptorRegistry } from './registry';
+import type { InterceptorRule, ProxyConfig, RequestInterceptorContext, ResponseInterceptorContext } from './types';
+
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
+/**
+ * Next.js 15+ route context with async params support
+ */
+type RouteContext = {
+    params: Promise<{ path: string[] }> | { path: string[] };
+};
+
+/**
+ * Next.js API route handler signature
+ */
+type RouteHandler = (
+    request: NextRequest,
+    context: RouteContext
+) => Promise<NextResponse>;
+
+/**
+ * Generic record type for unknown key-value pairs
+ */
+type UnknownRecord = Record<string, unknown>;
 
 // Logger for Next.js proxy
 const proxyLogger = logger.child('@spfn/core:nextjs-proxy');
@@ -58,11 +110,87 @@ function getApiUrl(config?: ProxyConfig): string
 }
 
 /**
+ * Create type-safe proxy error response
+ *
+ * Ensures proxy errors follow the same ErrorResponse format as SPFN API.
+ * This provides compile-time type safety and consistent error handling.
+ *
+ * @param error - Error object or unknown value
+ * @param errorContext - Additional error context (e.g., cause, code)
+ * @returns Type-safe ErrorResponse
+ *
+ * @example
+ * ```typescript
+ * const response = createProxyErrorResponse(
+ *   new Error('Connection failed'),
+ *   { code: 'ECONNREFUSED', address: 'localhost', port: 8790 }
+ * );
+ * ```
+ */
+function createProxyErrorResponse(
+    error: Error | unknown,
+    errorContext?: UnknownRecord
+): ErrorResponse
+{
+    let statusCode = 502;  // Bad Gateway (default for proxy errors)
+    let type = 'ProxyError';
+
+    if (error instanceof Error)
+    {
+        // Extract error cause for better detection
+        const cause = (error as any).cause;
+        const causeCode = cause?.code;
+
+        // Fetch failed / Connection refused = Backend server unavailable
+        if (
+            error.message?.includes('fetch failed') ||
+            causeCode === 'ECONNREFUSED' ||
+            causeCode === 'ENOTFOUND' ||
+            error.message?.includes('ECONNREFUSED')
+        )
+        {
+            statusCode = 503;  // Service Unavailable
+            type = 'ServiceUnavailableError';
+        }
+        // Timeout errors
+        else if (
+            error.message?.includes('timeout') ||
+            error.name === 'AbortError' ||
+            causeCode === 'ETIMEDOUT'
+        )
+        {
+            statusCode = 504;  // Gateway Timeout
+            type = 'GatewayTimeoutError';
+        }
+        // Connection reset
+        else if (
+            causeCode === 'ECONNRESET' ||
+            error.message?.includes('ECONNRESET')
+        )
+        {
+            statusCode = 503;  // Service Unavailable
+            type = 'ConnectionError';
+        }
+    }
+
+    return {
+        success: false,
+        error: {
+            message: error instanceof Error ? error.message : 'Unknown proxy error',
+            type,
+            statusCode,
+            timestamp: new Date().toISOString(),
+            details: errorContext,
+        },
+    };
+}
+
+/**
  * Generic proxy handler for all HTTP methods
  */
 async function handleProxy(
     request: NextRequest,
-    context: { params: Promise<{ path: string[] }> | { path: string[] } },
+    context: RouteContext,
     method: string,
     config?: ProxyConfig
 ): Promise<NextResponse>
@@ -90,18 +218,24 @@ async function handleProxy(
 
         // Get cookies
         const cookieStore = await cookies();
-        const cookieMap = new Map<string, string>();
-        cookieStore.getAll().forEach((cookie) => {
-            cookieMap.set(cookie.name, cookie.value);
-        });
+        const allCookies = cookieStore.getAll();
+        const cookieMap = new Map(allCookies.map(c => [c.name, c.value]));
 
-        // Prepare initial headers
+        // Prepare initial headers with cookie forwarding
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
         };
 
+        // Forward cookies to SPFN API
+        if (allCookies.length > 0)
+        {
+            headers['Cookie'] = allCookies
+                .map((cookie) => `${ cookie.name }=${ cookie.value }`)
+                .join('; ');
+        }
+
         // Get request body
-        let body: any = undefined;
+        let body: unknown = undefined;
         const contentType = request.headers.get('Content-Type');
 
         if (method === 'POST' || method === 'PUT' || method === 'PATCH')
@@ -123,7 +257,15 @@ async function handleProxy(
             }
             else if (contentType?.includes('multipart/form-data'))
             {
-                body = await request.formData();
+                // WARNING: Proxying multipart/form-data is not recommended
+                // For file uploads, use S3 presigned URLs or direct upload instead
+                // This loads entire file into memory and doubles network traffic
+                proxyLogger.warn('Multipart/form-data detected. Consider using presigned URLs for file uploads.', {
+                    path,
+                    method,
+                });
+
+                body = await request.blob();
             }
             else
             {
@@ -145,61 +287,68 @@ async function handleProxy(
 
         // Execute request interceptors
         const rules = config?.interceptors || [];
-        proxyLogger.debug('Handling request', { method, path });
-        proxyLogger.debug('Total available interceptor rules', { count: rules.length });
-
-        // Log all available rules
-        if (rules.length > 0)
-        {
-            rules.forEach((rule, index) => {
-                proxyLogger.debug('Rule configuration', {
-                    index,
-                    pathPattern: rule.pathPattern?.toString(),
-                    method: rule.method,
-                });
-            });
-        }
-
         const matchedRules = filterMatchingInterceptors(rules, path, method);
-        proxyLogger.debug('Matched interceptor rules', { count: matchedRules.length });
 
-        // Log matched rules
-        if (matchedRules.length > 0)
+        // Detailed logging only when debug mode is enabled
+        if (config?.debug)
         {
-            matchedRules.forEach((rule, index) => {
-                proxyLogger.debug('Matched rule details', {
-                    index,
-                    pathPattern: rule.pathPattern?.toString(),
-                    method: rule.method,
-                    hasRequestInterceptor: !!rule.request,
-                    hasResponseInterceptor: !!rule.response,
+            proxyLogger.debug('Handling request', { method, path });
+            proxyLogger.debug('Total available interceptor rules', { count: rules.length });
+
+            // Log all available rules
+            if (rules.length > 0)
+            {
+                rules.forEach((rule, index) => {
+                    proxyLogger.debug('Rule configuration', {
+                        index,
+                        pathPattern: rule.pathPattern?.toString(),
+                        method: rule.method,
+                    });
                 });
-            });
+            }
+
+            proxyLogger.debug('Matched interceptor rules', { count: matchedRules.length });
+
+            // Log matched rules
+            if (matchedRules.length > 0)
+            {
+                matchedRules.forEach((rule, index) => {
+                    proxyLogger.debug('Matched rule details', {
+                        index,
+                        pathPattern: rule.pathPattern?.toString(),
+                        method: rule.method,
+                        hasRequestInterceptor: !!rule.request,
+                        hasResponseInterceptor: !!rule.response,
+                    });
+                });
+            }
         }
 
         const requestInterceptors = matchedRules
             .map((rule) => rule.request)
             .filter((interceptor): interceptor is NonNullable<typeof interceptor> => !!interceptor);
 
-        proxyLogger.debug('Executing request interceptors', { count: requestInterceptors.length });
-        proxyLogger.debug('Headers before interceptors', { headers: requestContext.headers });
+        if (config?.debug)
+        {
+            proxyLogger.debug('Executing request interceptors', { count: requestInterceptors.length });
+            proxyLogger.debug('Headers before interceptors', { headers: requestContext.headers });
+        }
 
         await executeRequestInterceptors(requestContext, requestInterceptors);
 
-        proxyLogger.debug('Headers after interceptors', { headers: requestContext.headers });
+        if (config?.debug)
+        {
+            proxyLogger.debug('Headers after interceptors', { headers: requestContext.headers });
+        }
 
         // Build SPFN API URL
         const apiUrl = getApiUrl(config);
-        proxyLogger.debug('API base URL', { apiUrl });
-
         const queryString = Object.entries(query)
             .flatMap(([key, value]) =>
                 Array.isArray(value) ? value.map((v) => `${key}=${v}`) : [`${key}=${value}`]
             )
             .join('&');
         const url = `${apiUrl}${path}${queryString ? `?${queryString}` : ''}`;
-
-        proxyLogger.debug('Full URL to fetch', { url });
 
         // Build fetch options
         const init: RequestInit = {
@@ -210,8 +359,15 @@ async function handleProxy(
         // Add body for POST/PUT/PATCH
         if (requestContext.body !== undefined)
         {
-            if (requestContext.body instanceof FormData)
+            if (requestContext.body instanceof Blob)
             {
+                // Multipart/form-data or other binary data
+                init.body = requestContext.body;
+                // Keep original Content-Type header with boundary
+            }
+            else if (requestContext.body instanceof FormData)
+            {
+                // Legacy support (if still used by interceptors)
                 init.body = requestContext.body;
                 // Remove Content-Type to let fetch set it with boundary
                 delete requestContext.headers['Content-Type'];
@@ -228,27 +384,24 @@ async function handleProxy(
 
         if (config?.debug)
         {
-            proxyLogger.debug('Calling API', { url, headers: requestContext.headers });
+            proxyLogger.debug('Calling API', {
+                url,
+                method: init.method,
+                headers: init.headers,
+                hasBody: !!init.body,
+                bodyType: init.body ? typeof init.body : 'none',
+                bodySize: init.body instanceof FormData ? 'FormData' :
+                         typeof init.body === 'string' ? init.body.length :
+                         'unknown'
+            });
         }
-
-        // Log fetch details before calling
-        proxyLogger.debug('Fetch details', {
-            url,
-            method: init.method,
-            headers: init.headers,
-            hasBody: !!init.body,
-            bodyType: init.body ? typeof init.body : 'none',
-            bodySize: init.body instanceof FormData ? 'FormData' :
-                     typeof init.body === 'string' ? init.body.length :
-                     'unknown'
-        });
 
         // Call SPFN API
         const response = await fetch(url, init);
         const responseText = await response.text();
 
         // Parse response body
-        let responseBody: any;
+        let responseBody: unknown;
         try
         {
             responseBody = JSON.parse(responseText);
@@ -281,7 +434,10 @@ async function handleProxy(
             .map((rule) => rule.response)
             .filter((interceptor): interceptor is NonNullable<typeof interceptor> => !!interceptor);
 
-        proxyLogger.debug('Response interceptors', { count: responseInterceptors.length });
+        if (config?.debug)
+        {
+            proxyLogger.debug('Response interceptors', { count: responseInterceptors.length });
+        }
 
         await executeResponseInterceptors(responseContext, responseInterceptors);
 
@@ -331,15 +487,18 @@ async function handleProxy(
             nextResponse.headers.append('Set-Cookie', setCookieHeaders);
         }
 
-        proxyLogger.debug('Response completed', { status: responseContext.response.status });
+        if (config?.debug)
+        {
+            proxyLogger.debug('Response completed', { status: responseContext.response.status });
+        }
 
         return nextResponse;
     }
     catch (error)
     {
         // Extract detailed error information
-        const errorContext: Record<string, unknown> = {
-            type: error?.constructor?.name || 'Unknown',
+        const errorContext: UnknownRecord = {
+            originalErrorType: error?.constructor?.name || 'Unknown',
         };
 
         if (error instanceof Error)
@@ -362,8 +521,7 @@ async function handleProxy(
             {
                 try
                 {
-                    const apiUrl = getApiUrl(config);
-                    errorContext.attemptedUrl = apiUrl;
+                    errorContext.attemptedUrl = getApiUrl(config);
                     errorContext.envVars = {
                         SERVER_API_URL: process.env.SERVER_API_URL,
                         SPFN_API_URL: process.env.SPFN_API_URL,
@@ -382,16 +540,10 @@ async function handleProxy(
             proxyLogger.error('Proxy error (non-Error type)', errorContext);
         }
 
-        return NextResponse.json(
-            {
-                success: false,
-                error: {
-                    code: 'PROXY_ERROR',
-                    message: error instanceof Error ? error.message : 'Unknown proxy error',
-                },
-            },
-            { status: 500 }
-        );
+        // Create type-safe error response
+        const errorResponse = createProxyErrorResponse(error, errorContext);
+
+        return NextResponse.json(errorResponse, { status: errorResponse.error.statusCode });
     }
 }
 
@@ -484,31 +636,12 @@ export function createProxy(config?: ProxyConfig)
     proxyLogger.debug('Total interceptors loaded', { count: allInterceptors.length });
 
     return {
-        GET: async (
-            request: NextRequest,
-            context: { params: Promise<{ path: string[] }> | { path: string[] } }
-        ) => handleProxy(request, context, 'GET', proxyConfig),
-
-        POST: async (
-            request: NextRequest,
-            context: { params: Promise<{ path: string[] }> | { path: string[] } }
-        ) => handleProxy(request, context, 'POST', proxyConfig),
-
-        PUT: async (
-            request: NextRequest,
-            context: { params: Promise<{ path: string[] }> | { path: string[] } }
-        ) => handleProxy(request, context, 'PUT', proxyConfig),
-
-        PATCH: async (
-            request: NextRequest,
-            context: { params: Promise<{ path: string[] }> | { path: string[] } }
-        ) => handleProxy(request, context, 'PATCH', proxyConfig),
-
-        DELETE: async (
-            request: NextRequest,
-            context: { params: Promise<{ path: string[] }> | { path: string[] } }
-        ) => handleProxy(request, context, 'DELETE', proxyConfig),
-    };
+        GET: (request, context) => handleProxy(request, context, 'GET', proxyConfig),
+        POST: (request, context) => handleProxy(request, context, 'POST', proxyConfig),
+        PUT: (request, context) => handleProxy(request, context, 'PUT', proxyConfig),
+        PATCH: (request, context) => handleProxy(request, context, 'PATCH', proxyConfig),
+        DELETE: (request, context) => handleProxy(request, context, 'DELETE', proxyConfig),
+    } satisfies Record<string, RouteHandler>;
 }
 
 /**
@@ -535,27 +668,8 @@ function getDefaultProxy(): ReturnType<typeof createProxy>
     return defaultProxy;
 }
 
-export const GET = async (
-    request: NextRequest,
-    context: { params: Promise<{ path: string[] }> | { path: string[] } }
-) => getDefaultProxy().GET(request, context);
-
-export const POST = async (
-    request: NextRequest,
-    context: { params: Promise<{ path: string[] }> | { path: string[] } }
-) => getDefaultProxy().POST(request, context);
-
-export const PUT = async (
-    request: NextRequest,
-    context: { params: Promise<{ path: string[] }> | { path: string[] } }
-) => getDefaultProxy().PUT(request, context);
-
-export const PATCH = async (
-    request: NextRequest,
-    context: { params: Promise<{ path: string[] }> | { path: string[] } }
-) => getDefaultProxy().PATCH(request, context);
-
-export const DELETE = async (
-    request: NextRequest,
-    context: { params: Promise<{ path: string[] }> | { path: string[] } }
-) => getDefaultProxy().DELETE(request, context);
+export const GET: RouteHandler = (request, context) => getDefaultProxy().GET(request, context);
+export const POST: RouteHandler = (request, context) => getDefaultProxy().POST(request, context);
+export const PUT: RouteHandler = (request, context) => getDefaultProxy().PUT(request, context);
+export const PATCH: RouteHandler = (request, context) => getDefaultProxy().PATCH(request, context);
+export const DELETE: RouteHandler = (request, context) => getDefaultProxy().DELETE(request, context);

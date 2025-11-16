@@ -41,6 +41,8 @@ describe('ErrorHandler Middleware', () =>
                     statusCode: 400,
                 },
             });
+            expect(json.error.timestamp).toBeDefined();
+            expect(typeof json.error.timestamp).toBe('string');
         });
 
         it('should default to 500 for errors without statusCode', async () =>
@@ -64,6 +66,7 @@ describe('ErrorHandler Middleware', () =>
                     statusCode: 500,
                 },
             });
+            expect(json.error.timestamp).toBeDefined();
         });
 
         it('should handle custom error types', async () =>
@@ -421,6 +424,268 @@ describe('ErrorHandler Middleware', () =>
             const response = await app.request('/test');
 
             expect(response.headers.get('content-type')).toContain('application/json');
+        });
+
+        it('should always include timestamp field', async () =>
+        {
+            const error = new Error('Test error');
+            (error as any).statusCode = 400;
+
+            app.onError(ErrorHandler());
+            app.get('/test', () =>
+            {
+                throw error;
+            });
+
+            const response = await app.request('/test');
+            const json = await response.json();
+
+            expect(json.error.timestamp).toBeDefined();
+            expect(typeof json.error.timestamp).toBe('string');
+            // Verify it's a valid ISO timestamp
+            expect(new Date(json.error.timestamp).toISOString()).toBe(json.error.timestamp);
+        });
+    });
+
+    describe('Error Cause Chain Handling', () =>
+    {
+        it('should include error causes when includeCauses is true', async () =>
+        {
+            const rootCause = new Error('Root cause');
+            (rootCause as any).code = 'ECONNREFUSED';
+
+            const middleCause = new Error('Middle error');
+            (middleCause as any).cause = rootCause;
+
+            const topError = new Error('Top level error');
+            (topError as any).statusCode = 500;
+            (topError as any).cause = middleCause;
+
+            app.onError(ErrorHandler({ includeCauses: true, includeStack: false }));
+            app.get('/test', () =>
+            {
+                throw topError;
+            });
+
+            const response = await app.request('/test');
+            const json = await response.json();
+
+            expect(json.error.causes).toBeDefined();
+            expect(json.error.causes).toHaveLength(2);
+            expect(json.error.causes[0].message).toBe('Middle error');
+            expect(json.error.causes[1].message).toBe('Root cause');
+            expect(json.error.causes[1].code).toBe('ECONNREFUSED');
+        });
+
+        it('should not include causes when includeCauses is false', async () =>
+        {
+            const rootCause = new Error('Root cause');
+            const topError = new Error('Top level error');
+            (topError as any).statusCode = 500;
+            (topError as any).cause = rootCause;
+
+            app.onError(ErrorHandler({ includeCauses: false, includeStack: false }));
+            app.get('/test', () =>
+            {
+                throw topError;
+            });
+
+            const response = await app.request('/test');
+            const json = await response.json();
+
+            expect(json.error.causes).toBeUndefined();
+        });
+
+        it('should default to environment-based cause inclusion', async () =>
+        {
+            const rootCause = new Error('Root cause');
+            const topError = new Error('Top level error');
+            (topError as any).statusCode = 500;
+            (topError as any).cause = rootCause;
+
+            const originalEnv = process.env.NODE_ENV;
+
+            // Test production (no causes)
+            process.env.NODE_ENV = 'production';
+            app.onError(ErrorHandler());
+            app.get('/test', () =>
+            {
+                throw topError;
+            });
+
+            let response = await app.request('/test');
+            let json = await response.json();
+            expect(json.error.causes).toBeUndefined();
+
+            // Test development (with causes)
+            process.env.NODE_ENV = 'development';
+            app = new Hono();
+            app.onError(ErrorHandler());
+            app.get('/test', () =>
+            {
+                throw topError;
+            });
+
+            response = await app.request('/test');
+            json = await response.json();
+            expect(json.error.causes).toBeDefined();
+            expect(json.error.causes).toHaveLength(1);
+
+            // Restore
+            process.env.NODE_ENV = originalEnv;
+        });
+
+        it('should handle errors without causes', async () =>
+        {
+            const error = new Error('Simple error');
+            (error as any).statusCode = 400;
+
+            app.onError(ErrorHandler({ includeCauses: true }));
+            app.get('/test', () =>
+            {
+                throw error;
+            });
+
+            const response = await app.request('/test');
+            const json = await response.json();
+
+            expect(json.error.causes).toBeUndefined();
+        });
+
+        it('should extract database error info from causes', async () =>
+        {
+            const dbError = new Error('Database constraint violation');
+            (dbError as any).code = '23505';
+            (dbError as any).detail = 'Key (email) already exists';
+            (dbError as any).constraint = 'users_email_key';
+            (dbError as any).table = 'users';
+            (dbError as any).column = 'email';
+            (dbError as any).schema = 'public';
+
+            const topError = new Error('Failed to create user');
+            (topError as any).statusCode = 409;
+            (topError as any).cause = dbError;
+
+            app.onError(ErrorHandler({
+                includeCauses: true,
+                includeSensitiveInfo: true,
+                includeStack: false
+            }));
+            app.get('/test', () =>
+            {
+                throw topError;
+            });
+
+            const response = await app.request('/test');
+            const json = await response.json();
+
+            expect(json.error.causes).toBeDefined();
+            expect(json.error.causes[0].code).toBe('23505');
+            expect(json.error.causes[0].detail).toBe('Key (email) already exists');
+            expect(json.error.causes[0].constraint).toBe('users_email_key');
+            expect(json.error.causes[0].table).toBe('users');
+            expect(json.error.causes[0].column).toBe('email');
+            expect(json.error.causes[0].schema).toBe('public');
+        });
+    });
+
+    describe('Sensitive Information Filtering', () =>
+    {
+        it('should filter sensitive database info by default', async () =>
+        {
+            const dbError = new Error('Database error');
+            (dbError as any).code = '23505';
+            (dbError as any).constraint = 'users_email_key';
+            (dbError as any).table = 'users';
+            (dbError as any).column = 'email';
+            (dbError as any).schema = 'public';
+
+            const topError = new Error('Failed operation');
+            (topError as any).statusCode = 500;
+            (topError as any).cause = dbError;
+
+            app.onError(ErrorHandler({ includeCauses: true, includeStack: false }));
+            app.get('/test', () =>
+            {
+                throw topError;
+            });
+
+            const response = await app.request('/test');
+            const json = await response.json();
+
+            expect(json.error.causes).toBeDefined();
+            expect(json.error.causes[0].code).toBe('23505');
+            // Sensitive fields should be filtered
+            expect(json.error.causes[0].constraint).toBeUndefined();
+            expect(json.error.causes[0].table).toBeUndefined();
+            expect(json.error.causes[0].column).toBeUndefined();
+            expect(json.error.causes[0].schema).toBeUndefined();
+        });
+
+        it('should include sensitive info when includeSensitiveInfo is true', async () =>
+        {
+            const dbError = new Error('Database error');
+            (dbError as any).constraint = 'users_email_key';
+            (dbError as any).table = 'users';
+            (dbError as any).column = 'email';
+            (dbError as any).schema = 'public';
+
+            const topError = new Error('Failed operation');
+            (topError as any).statusCode = 500;
+            (topError as any).cause = dbError;
+
+            app.onError(ErrorHandler({
+                includeCauses: true,
+                includeSensitiveInfo: true,
+                includeStack: false
+            }));
+            app.get('/test', () =>
+            {
+                throw topError;
+            });
+
+            const response = await app.request('/test');
+            const json = await response.json();
+
+            expect(json.error.causes[0].constraint).toBe('users_email_key');
+            expect(json.error.causes[0].table).toBe('users');
+            expect(json.error.causes[0].column).toBe('email');
+            expect(json.error.causes[0].schema).toBe('public');
+        });
+
+        it('should preserve non-sensitive info when filtering', async () =>
+        {
+            const dbError = new Error('Database error');
+            (dbError as any).name = 'PostgresError';
+            (dbError as any).code = '23505';
+            (dbError as any).detail = 'Duplicate key value';
+            (dbError as any).hint = 'Try a different value';
+            (dbError as any).constraint = 'users_email_key';
+            (dbError as any).table = 'users';
+
+            const topError = new Error('Failed operation');
+            (topError as any).statusCode = 500;
+            (topError as any).cause = dbError;
+
+            app.onError(ErrorHandler({ includeCauses: true, includeStack: false }));
+            app.get('/test', () =>
+            {
+                throw topError;
+            });
+
+            const response = await app.request('/test');
+            const json = await response.json();
+
+            // Non-sensitive info should be preserved
+            expect(json.error.causes[0].message).toBe('Database error');
+            expect(json.error.causes[0].name).toBe('PostgresError');
+            expect(json.error.causes[0].code).toBe('23505');
+            expect(json.error.causes[0].detail).toBe('Duplicate key value');
+            expect(json.error.causes[0].hint).toBe('Try a different value');
+
+            // Sensitive info should be filtered
+            expect(json.error.causes[0].constraint).toBeUndefined();
+            expect(json.error.causes[0].table).toBeUndefined();
         });
     });
 });
