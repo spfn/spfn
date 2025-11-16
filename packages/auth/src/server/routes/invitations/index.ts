@@ -137,13 +137,7 @@ app.bind(listInvitationsContract, [authenticate, requirePermissions('user:read')
     });
 
     // Format dates to ISO strings
-    const formattedInvitations = result.invitations.map(inv => ({
-        ...inv,
-        createdAt: inv.createdAt.toISOString(),
-        expiresAt: inv.expiresAt.toISOString(),
-        acceptedAt: inv.acceptedAt ? inv.acceptedAt.toISOString() : undefined,
-        cancelledAt: inv.cancelledAt ? inv.cancelledAt.toISOString() : undefined,
-    }));
+    const formattedInvitations = result.invitations;
 
     return c.success({
         ...result,
@@ -167,7 +161,6 @@ app.bind(cancelInvitationContract, [authenticate, requirePermissions('user:invit
     );
 
     return c.success({
-        success: true,
         cancelledAt: new Date().toISOString(),
     });
 });
@@ -186,7 +179,6 @@ app.bind(resendInvitationContract, [authenticate, requirePermissions('user:invit
     );
 
     return c.success({
-        success: true,
         expiresAt: updated.expiresAt.toISOString(),
     });
 });
@@ -201,9 +193,7 @@ app.bind(deleteInvitationContract, [authenticate, requireRole('superadmin')], as
 
     await deleteInvitation(data.id);
 
-    return c.success({
-        success: true,
-    });
+    return c.noContent();
 });
 
 export default app;

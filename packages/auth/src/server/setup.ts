@@ -4,11 +4,10 @@
  * Initial setup and admin account creation
  */
 
-import { findOne, create } from '@spfn/core/db';
-import { users } from '@/server/entities';
 import { hashPassword } from '@/server/helpers';
 import { getRoleByName } from '@/server/services/role.service';
 import { authLogger } from '@/server/logger';
+import { usersRepository } from '@/server/repositories';
 
 /**
  * Admin account configuration
@@ -210,7 +209,7 @@ export async function ensureAdminExists(): Promise<void>
         try
         {
             // Check if account already exists
-            const existing = await findOne(users, { email: account.email });
+            const existing = await usersRepository.findByEmail(account.email);
 
             if (existing)
             {
@@ -234,7 +233,7 @@ export async function ensureAdminExists(): Promise<void>
             const passwordHash = await hashPassword(account.password);
 
             // Create admin account
-            await create(users, {
+            await usersRepository.create({
                 email: account.email,
                 phone: account.phone || null,
                 passwordHash,
