@@ -15,7 +15,7 @@ import {
     BUILTIN_ROLE_PERMISSIONS,
 } from '@/server/rbac';
 import type { AuthInitOptions, RoleConfig, PermissionConfig } from '@/server/rbac';
-import { configureAuth } from '@/lib/config';
+import { configureAuth } from '@/server/lib/config';
 import { authLogger } from '@/server/logger';
 
 /**
