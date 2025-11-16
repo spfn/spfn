@@ -55,7 +55,7 @@
     "clean": "rm -rf dist migrations",
     "db:generate": "drizzle-kit generate",
     "codegen": "spfn codegen run",
-    "test": "vitest",
+    "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:routes": "vitest src/server/routes",
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
