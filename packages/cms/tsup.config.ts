@@ -32,6 +32,15 @@ const contractEntries = Object.fromEntries(
     })
 );
 
+// Find all generator files
+const generatorFiles = glob.sync('src/server/generators/**/*.ts');
+const generatorEntries = Object.fromEntries(
+    generatorFiles.map((file) => {
+        const key = file.replace('src/', '').replace('.ts', '');
+        return [key, file];
+    })
+);
+
 export default defineConfig({
     entry: {
         index: 'src/index.ts',
@@ -40,6 +49,7 @@ export default defineConfig({
         actions: 'src/actions.ts',
         ...entityEntries,
         ...contractEntries,
+        ...generatorEntries,
         ...routeEntries,
     },
     format: ['esm'],
