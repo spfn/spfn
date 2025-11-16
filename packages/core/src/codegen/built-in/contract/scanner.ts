@@ -8,7 +8,8 @@ import { readFileSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
 import * as ts from 'typescript';
-import type { HttpMethod, RouteContractMapping } from '../../core/types';
+import type { RouteContractMapping } from '../../core/types';
+import type { HttpMethod } from '../../../route/types';
 import { logger } from '../../../logger';
 
 const scannerLogger = logger.child('@spfn/core:contract-scanner');
@@ -140,14 +141,18 @@ interface ContractExport
  * Extract contract exports from a TypeScript file
  *
  * Multi-layer detection:
- * 1. satisfies RouteContract (most explicit)
- * 2. Contract name pattern + method/path properties (fallback)
+ * 1. defineContract() function call (recommended)
+ * 2. satisfies RouteContract (legacy)
+ * 3. Contract name pattern + method/path properties (fallback)
  *
  * @example
- * // Layer 1: satisfies RouteContract
+ * // Layer 1: defineContract()
+ * export const myContract = defineContract({ ... });
+ *
+ * // Layer 2: satisfies RouteContract
  * export const myContract = { ... } satisfies RouteContract;
  *
- * // Layer 2: Name pattern + validation
+ * // Layer 3: Name pattern + validation
  * export const myContract = { method: 'GET', path: '/api' };
  */
 function extractContractExports(filePath: string): ContractExport[]
@@ -184,7 +189,28 @@ function extractContractExports(filePath: string): ContractExport[]
                 {
                     const name = declaration.name.text;
 
-                    // Layer 1: Check for satisfies RouteContract
+                    // Layer 1: Check for defineContract() function call
+                    const defineContractArg = checkDefineContractCall(declaration.initializer);
+
+                    if (defineContractArg)
+                    {
+                        const contractData = extractContractData(defineContractArg);
+
+                        if (contractData.method && contractData.path)
+                        {
+                            exports.push({
+                                name,
+                                method: contractData.method,
+                                path: contractData.path,
+                                hasQuery: contractData.hasQuery,
+                                hasBody: contractData.hasBody,
+                                hasParams: contractData.hasParams
+                            });
+                        }
+                        return; // Found via defineContract, skip other checks
+                    }
+
+                    // Layer 2: Check for satisfies RouteContract
                     const hasSatisfiesRouteContract = checkSatisfiesRouteContract(declaration.initializer);
 
                     if (hasSatisfiesRouteContract)
@@ -210,7 +236,7 @@ function extractContractExports(filePath: string): ContractExport[]
                         return; // Found via satisfies, skip fallback
                     }
 
-                    // Layer 2: Fallback to name pattern check
+                    // Layer 3: Fallback to name pattern check
                     if (isContractName(name))
                     {
                         const objectLiteral = extractObjectLiteral(declaration.initializer);
@@ -242,6 +268,45 @@ function extractContractExports(filePath: string): ContractExport[]
 
     visit(sourceFile);
     return exports;
+}
+
+/**
+ * Check if declaration uses defineContract() function call
+ *
+ * Returns the object literal argument if it's a defineContract call, undefined otherwise
+ *
+ * @example
+ * defineContract({ method: 'GET', path: '/api' })
+ */
+function checkDefineContractCall(initializer: ts.Expression): ts.ObjectLiteralExpression | undefined
+{
+    // Check if it's a call expression
+    if (!ts.isCallExpression(initializer))
+    {
+        return undefined;
+    }
+
+    // Check if the function being called is 'defineContract'
+    if (ts.isIdentifier(initializer.expression))
+    {
+        const functionName = initializer.expression.text;
+
+        if (functionName === 'defineContract')
+        {
+            // Get the first argument (should be an object literal)
+            if (initializer.arguments.length > 0)
+            {
+                const firstArg = initializer.arguments[0];
+
+                if (ts.isObjectLiteralExpression(firstArg))
+                {
+                    return firstArg;
+                }
+            }
+        }
+    }
+
+    return undefined;
 }
 
 /**

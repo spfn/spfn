@@ -24,11 +24,40 @@ Automatically generates type-safe API clients from your route contracts.
 
 **Features:**
 - Scans all contract files from your contracts directory
+- **Multi-layer contract detection:**
+  - Layer 1: `defineContract()` function (recommended)
+  - Layer 2: `satisfies RouteContract` (legacy)
+  - Layer 3: Name pattern + validation (fallback)
 - Groups routes by resource
 - Generates typed client methods with reusable type definitions
 - Resource-based file splitting (always enabled)
 - Includes JSDoc comments with usage examples
 - **Incremental updates**: Detects contract signature changes and skips regeneration if only formatting changed
+
+**Supported Contract Formats:**
+
+```typescript
+// ✅ Recommended: defineContract()
+export const getUserContract = defineContract({
+  method: 'GET',
+  path: '/users/:id',
+  // ...
+});
+
+// ✅ Legacy: satisfies RouteContract
+export const getUserContract = {
+  method: 'GET',
+  path: '/users/:id',
+  // ...
+} satisfies RouteContract;
+
+// ✅ Fallback: Name pattern (xxxContract)
+export const getUserContract = {
+  method: 'GET',
+  path: '/users/:id',
+  // ...
+};
+```
 
 **Configuration:**
 
@@ -818,9 +847,10 @@ pnpm vitest watch src/codegen/__tests__
 
 #### contract-scanner.test.ts (11 tests, 78.63% coverage)
 
-**Contract Detection:**
-- ✅ Extract contracts with `satisfies RouteContract` (Layer 1)
-- ✅ Extract contracts with name pattern (Layer 2)
+**Contract Detection (Multi-layer):**
+- ✅ Extract contracts with `defineContract()` function (Layer 1 - Recommended)
+- ✅ Extract contracts with `satisfies RouteContract` (Layer 2 - Legacy)
+- ✅ Extract contracts with name pattern (Layer 3 - Fallback)
 - ✅ Detect query property (hasQuery)
 - ✅ Detect body property (hasBody)
 - ✅ Detect params property (hasParams)

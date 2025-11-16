@@ -9,6 +9,45 @@ available: true
 
 RouteContract is the core type that defines type-safe API endpoints in Superfunction using TypeBox schemas.
 
+## defineContract Helper
+
+Helper function to define route contracts with better type inference and less boilerplate.
+
+```typescript
+import { defineContract } from '@spfn/core/route/types';
+import { Type } from '@sinclair/typebox';
+
+// ✅ Recommended: Using defineContract
+export const getUserContract = defineContract({
+  method: 'GET',
+  path: '/users/:id',
+  params: Type.Object({
+    id: Type.Number(),
+  }),
+  response: Type.Object({
+    id: Type.Number(),
+    email: Type.String({ format: 'email' }),
+    name: Type.String(),
+  }),
+});
+```
+
+**Benefits:**
+- ✅ No need for `as const satisfies RouteContract`
+- ✅ Better type inference
+- ✅ Cleaner syntax
+- ✅ Automatically detected by codegen
+
+**Legacy syntax (still supported):**
+```typescript
+// Still works, but defineContract is preferred
+export const getUserContract = {
+  method: 'GET',
+  path: '/users/:id',
+  // ...
+} satisfies RouteContract;
+```
+
 ## RouteContract Type
 
 Defines the complete shape of a route endpoint including method, path, and schemas.
