@@ -5,8 +5,8 @@
  */
 
 import { cookies } from 'next/headers.js';
-import { sealSession, unsealSession, type SessionData } from '@/lib/session';
-import { COOKIE_NAMES } from '@/lib/config';
+import { sealSession, unsealSession, type SessionData } from '@/server/lib/session';
+import { COOKIE_NAMES } from '@/server/lib/config';
 import { logger } from '@spfn/core/logger';
 
 export type { SessionData };

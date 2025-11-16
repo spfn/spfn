@@ -5,10 +5,10 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/client/nextjs';
-import { generateKeyPair } from '@/lib/crypto';
-import { unsealSession, sealSession } from '@/lib/session';
-import { generateClientToken } from '@/lib/crypto';
-import { getSessionTtl, COOKIE_NAMES } from '@/lib/config';
+import { generateKeyPair } from '@/server/lib/crypto';
+import { unsealSession, sealSession } from '@/server/lib/session';
+import { generateClientToken } from '@/server/lib/crypto';
+import { getSessionTtl, COOKIE_NAMES } from '@/server/lib/config';
 import { authLogger } from '@/server/logger';
 
 /**
@@ -53,7 +53,7 @@ export const keyRotationInterceptor: InterceptorRule =
             ctx.body.keySize = Buffer.from(newKeyPair.publicKey, 'base64').length;
 
             // Authenticate with CURRENT key
-            const token = await generateClientToken(
+            const token = generateClientToken(
                 {
                     userId: currentSession.userId,
                     keyId: currentSession.keyId,
@@ -62,7 +62,7 @@ export const keyRotationInterceptor: InterceptorRule =
                 },
                 currentSession.privateKey,
                 currentSession.algorithm,
-                { expiresIn: '15m' }
+                {expiresIn: '15m'}
             );
 
             ctx.headers['Authorization'] = `Bearer ${token}`;

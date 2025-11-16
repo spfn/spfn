@@ -5,8 +5,8 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/client/nextjs';
-import { unsealSession } from '@/lib/session';
-import { generateClientToken } from '@/lib/crypto';
+import { unsealSession } from '@/server/lib/session';
+import { generateClientToken } from '@/server/lib/crypto';
 
 /**
  * Authentication Interceptor
@@ -36,7 +36,7 @@ export const authenticationInterceptor: InterceptorRule =
             const session = await unsealSession(sessionCookie);
 
             // Generate JWT token
-            const token = await generateClientToken(
+            const token = generateClientToken(
                 {
                     userId: session.userId,
                     keyId: session.keyId,
@@ -44,7 +44,7 @@ export const authenticationInterceptor: InterceptorRule =
                 },
                 session.privateKey,
                 session.algorithm,
-                { expiresIn: '15m' }
+                {expiresIn: '15m'}
             );
 
             // Add authentication headers

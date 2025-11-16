@@ -10,9 +10,19 @@ import {
     PasswordSchema,
     CryptoKeyFieldsSchema
 } from '@/lib/contracts/schemas/base';
-import { INVITATION_STATUSES } from '@/server/entities/invitations';
 import { Type } from '@sinclair/typebox';
 import { ApiSuccessSchema, defineContract, Nullable } from '@spfn/core/route/types';
+
+/**
+ * Invitation status enum values
+ * Single source of truth for all invitation statuses
+ */
+export const INVITATION_STATUSES = ['pending', 'accepted', 'expired', 'cancelled'] as const;
+
+/**
+ * Invitation status type derived from the const array
+ */
+export type InvitationStatus = typeof INVITATION_STATUSES[number];
 
 /**
  * GET /_auth/invitations/:token - Get invitation details (public)

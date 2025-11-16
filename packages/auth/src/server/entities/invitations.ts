@@ -13,20 +13,13 @@
 
 import { text, bigint, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp, typedJsonb } from '@spfn/core/db';
+import { INVITATION_STATUSES, type InvitationStatus } from '@/lib/contracts/invitation';
 import { roles } from './roles';
 import { users } from './users';
 import { authSchema } from './schema';
 
-/**
- * Invitation status enum values
- * Single source of truth for all invitation statuses
- */
-export const INVITATION_STATUSES = ['pending', 'accepted', 'expired', 'cancelled'] as const;
-
-/**
- * Invitation status type derived from the const array
- */
-export type InvitationStatus = typeof INVITATION_STATUSES[number];
+// Re-export for convenience
+export { INVITATION_STATUSES, type InvitationStatus };
 
 export const invitations = authSchema.table('user_invitations',
     {
