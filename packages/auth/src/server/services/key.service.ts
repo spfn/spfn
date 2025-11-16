@@ -4,7 +4,7 @@
  * Handles public key registration, rotation, and revocation
  */
 
-import { verifyKeyFingerprint } from '@/server/helpers/jwt';
+import { type KeyAlgorithmType, verifyKeyFingerprint } from '@/server/helpers/jwt';
 import { InvalidKeyFingerprintError } from '@/server/errors';
 import { keysRepository } from '@/server/repositories';
 
@@ -14,7 +14,7 @@ export interface RegisterPublicKeyParams
     keyId: string;
     publicKey: string;
     fingerprint: string;
-    algorithm?: 'ES256' | 'RS256';
+    algorithm?: KeyAlgorithmType;
 }
 
 export interface RotateKeyParams
@@ -24,7 +24,7 @@ export interface RotateKeyParams
     newKeyId: string;
     newPublicKey: string;
     fingerprint: string;
-    algorithm?: 'ES256' | 'RS256';
+    algorithm?: KeyAlgorithmType;
 }
 
 export interface RotateKeyResult

@@ -4,13 +4,13 @@
  * Handles user CRUD operations
  */
 
-import { type User } from '@/server/entities';
+import { type NewUser } from "@/server/entities/users";
 import { usersRepository } from '@/server/repositories';
 
 /**
  * Get user by ID
  */
-export async function getUserByIdService(userId: number): Promise<User | null>
+export async function getUserByIdService(userId: number)
 {
     return await usersRepository.findById(userId);
 }
@@ -18,7 +18,7 @@ export async function getUserByIdService(userId: number): Promise<User | null>
 /**
  * Get user by email
  */
-export async function getUserByEmailService(email: string): Promise<User | null>
+export async function getUserByEmailService(email: string)
 {
     return await usersRepository.findByEmail(email);
 }
@@ -26,7 +26,7 @@ export async function getUserByEmailService(email: string): Promise<User | null>
 /**
  * Get user by phone
  */
-export async function getUserByPhoneService(phone: string): Promise<User | null>
+export async function getUserByPhoneService(phone: string)
 {
     return await usersRepository.findByPhone(phone);
 }
@@ -34,7 +34,7 @@ export async function getUserByPhoneService(phone: string): Promise<User | null>
 /**
  * Update user's last login timestamp
  */
-export async function updateLastLoginService(userId: number): Promise<void>
+export async function updateLastLoginService(userId: number)
 {
     await usersRepository.updateLastLogin(userId);
 }
@@ -44,7 +44,7 @@ export async function updateLastLoginService(userId: number): Promise<void>
  */
 export async function updateUserService(
     userId: number,
-    updates: Partial<Omit<User, 'id' | 'createdAt'>>
+    updates: Partial<NewUser>
 ): Promise<void>
 {
     await usersRepository.updateById(userId, updates);

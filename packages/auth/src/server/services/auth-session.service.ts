@@ -5,26 +5,8 @@
  * Returns minimal user info with role and permissions
  */
 
+import { AuthSession } from "@/lib/contracts/schemas";
 import { usersRepository } from '@/server/repositories';
-
-export interface AuthSessionResult {
-    userId: string;
-    email?: string | null;
-    emailVerified: boolean;
-    phoneVerified: boolean;
-    role: {
-        id: number;
-        name: string;
-        displayName: string;
-        priority: number;
-    };
-    permissions: Array<{
-        id: number;
-        name: string;
-        displayName: string;
-        category?: string;
-    }>;
-}
 
 /**
  * Get authentication session information
@@ -40,7 +22,7 @@ export interface AuthSessionResult {
  * console.log(session.permissions.length); // 15
  * ```
  */
-export async function getAuthSessionService(userId: string | number | bigint): Promise<AuthSessionResult>
+export async function getAuthSessionService(userId: string | number | bigint): Promise<AuthSession>
 {
     const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
 
@@ -53,9 +35,8 @@ export async function getAuthSessionService(userId: string | number | bigint): P
     return {
         userId: user.userId,
         email: user.email,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
-        role: roleAndPerms.role,
-        permissions: roleAndPerms.permissions,
+        emailVerified: user.isEmailVerified,
+        phoneVerified: user.isPhoneVerified,
+        ...roleAndPerms,
     };
 }

@@ -4,10 +4,10 @@
  * Core authentication logic: registration, login, logout, password management
  */
 
+import { type User } from "@/server/entities/users";
 import { ValidationError } from '@spfn/core/errors';
-import { type User } from '@/server/entities';
 import { usersRepository } from '@/server/repositories';
-import { hashPassword, verifyPassword } from '@/server/helpers';
+import { hashPassword, type KeyAlgorithmType, verifyPassword } from '@/server/helpers';
 import { validateVerificationToken } from './verification.service';
 import {
     InvalidCredentialsError,
@@ -42,7 +42,7 @@ export interface RegisterParams
     publicKey: string;
     keyId: string;
     fingerprint: string;
-    algorithm?: 'ES256' | 'RS256';
+    algorithm?: KeyAlgorithmType;
 }
 
 export interface RegisterResult
@@ -61,7 +61,7 @@ export interface LoginParams
     keyId: string;
     fingerprint: string;
     oldKeyId?: string;
-    algorithm?: 'ES256' | 'RS256';
+    algorithm?: KeyAlgorithmType;
 }
 
 export interface LoginResult

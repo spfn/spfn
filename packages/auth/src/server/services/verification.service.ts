@@ -107,14 +107,12 @@ async function storeVerificationCode(
  * Validate verification code
  *
  * @param target - Email or phone number
- * @param targetType - Type of target
  * @param code - 6-digit code to validate
  * @param purpose - Purpose of verification
  * @returns Validation result with code ID if valid
  */
 async function validateVerificationCode(
     target: string,
-    targetType: 'email' | 'phone',
     code: string,
     purpose: 'registration' | 'login' | 'password_reset'
 ): Promise<{ valid: boolean; codeId?: number; error?: string }>
@@ -335,14 +333,12 @@ export async function sendVerificationCodeService(
 /**
  * Verify OTP code and return verification token
  */
-export async function verifyCodeService(
-    params: VerifyCodeParams
-): Promise<VerifyCodeResult>
+export async function verifyCodeService(params: VerifyCodeParams)
 {
     const { target, targetType, code, purpose } = params;
 
     // Validate the verification code
-    const validation = await validateVerificationCode(target, targetType, code, purpose);
+    const validation = await validateVerificationCode(target, code, purpose);
 
     if (!validation.valid)
     {

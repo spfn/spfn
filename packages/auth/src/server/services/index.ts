@@ -104,11 +104,6 @@ export {
 
 // Auth Session Service (new)
 export { getAuthSessionService } from './auth-session.service';
-export type { AuthSessionResult } from './auth-session.service';
 
 // User Profile Service (new)
 export { getUserProfileService } from './user-profile.service';
-export type { UserProfileResult } from './user-profile.service';
-
-// Shared utilities
-export * from './shared';

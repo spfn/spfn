@@ -5,33 +5,8 @@
  * Returns full user info with profile data
  */
 
+import { UserProfileResponse } from "@/lib/contracts/schemas/user-profile-response";
 import { usersRepository, userProfilesRepository } from '@/server/repositories';
-
-export interface UserProfileResult {
-    userId: string;
-    email?: string | null;
-    emailVerified: boolean;
-    phoneVerified: boolean;
-    lastLoginAt?: string | null;
-    createdAt: string;
-    updatedAt: string;
-    profile?: {
-        profileId: number;
-        displayName: string;
-        firstName?: string | null;
-        lastName?: string | null;
-        avatarUrl?: string | null;
-        bio?: string | null;
-        locale: string;
-        timezone: string;
-        website?: string | null;
-        location?: string | null;
-        company?: string | null;
-        jobTitle?: string | null;
-        createdAt: string;
-        updatedAt: string;
-    } | null;
-}
 
 /**
  * Get user profile information
@@ -47,7 +22,8 @@ export interface UserProfileResult {
  * console.log(data.lastLoginAt); // '2024-01-01T00:00:00.000Z'
  * ```
  */
-export async function getUserProfileService(userId: string | number | bigint): Promise<UserProfileResult> {
+export async function getUserProfileService(userId: string | number | bigint): Promise<UserProfileResponse>
+{
     const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
 
     // Fetch user and profile in parallel
@@ -59,8 +35,8 @@ export async function getUserProfileService(userId: string | number | bigint): P
     return {
         userId: user.userId,
         email: user.email,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
+        emailVerified: user.isEmailVerified,
+        phoneVerified: user.isPhoneVerified,
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,

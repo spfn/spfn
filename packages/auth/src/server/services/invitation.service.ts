@@ -10,8 +10,8 @@ import {
     rolesRepository,
     keysRepository,
 } from '@/server/repositories';
-import type { Invitation, InvitationStatus, InvitationWithDetails } from '@/server/entities/invitations';
-import { hashPassword } from '@/server/helpers';
+import type { Invitation, InvitationStatus } from '@/server/entities/invitations';
+import { hashPassword, KeyAlgorithmType } from '@/server/helpers';
 import crypto from 'crypto';
 
 /**
@@ -128,7 +128,7 @@ export async function createInvitation(params: {
  * @param token - Invitation token (UUID)
  * @returns Invitation or null if not found
  */
-export async function getInvitationByToken(token: string): Promise<Invitation | null>
+export async function getInvitationByToken(token: string)
 {
     return await invitationsRepository.findByToken(token);
 }
@@ -139,7 +139,7 @@ export async function getInvitationByToken(token: string): Promise<Invitation | 
  * @param token - Invitation token
  * @returns Invitation with joined data or null
  */
-export async function getInvitationWithDetails(token: string): Promise<InvitationWithDetails | null>
+export async function getInvitationWithDetails(token: string)
 {
     return await invitationsRepository.findByTokenWithDetails(token);
 }
@@ -214,13 +214,8 @@ export async function acceptInvitation(params: {
     publicKey: string;
     keyId: string;
     fingerprint: string;
-    algorithm: 'ES256' | 'RS256';
-}): Promise<{
-    userId: number;
-    email: string;
-    role: string;
-}>
-{
+    algorithm: KeyAlgorithmType;
+}) {
     const { token, password, publicKey, keyId, fingerprint, algorithm } = params;
 
     // Validate invitation
@@ -302,14 +297,7 @@ export async function listInvitations(params: {
     invitedBy?: number;
     page?: number;
     limit?: number;
-}): Promise<{
-    invitations: InvitationWithDetails[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-}>
-{
+}) {
     return await invitationsRepository.list(params);
 }
 
@@ -327,8 +315,7 @@ export async function cancelInvitation(
     id: number,
     cancelledBy: number,
     reason?: string
-): Promise<void>
-{
+) {
     // Get invitation
     const invitation = await invitationsRepository.findById(id);
 
@@ -356,7 +343,7 @@ export async function cancelInvitation(
  *
  * @param id - Invitation ID
  */
-export async function deleteInvitation(id: number): Promise<void>
+export async function deleteInvitation(id: number)
 {
     await invitationsRepository.deleteById(id);
 
@@ -370,7 +357,7 @@ export async function deleteInvitation(id: number): Promise<void>
  *
  * @returns Number of invitations expired
  */
-export async function expireOldInvitations(): Promise<number>
+export async function expireOldInvitations()
 {
     const count = await invitationsRepository.updateExpiredInvitations();
 
@@ -395,8 +382,7 @@ export async function expireOldInvitations(): Promise<number>
 export async function resendInvitation(
     id: number,
     expiresInDays: number = 7
-): Promise<Invitation>
-{
+) {
     // Get invitation
     const invitation = await invitationsRepository.findById(id);
 
