@@ -21,9 +21,7 @@
  */
 
 import type { Context, Next } from 'hono';
-import { verifyClientToken } from '@/server/helpers/jwt';
-import { findOne, getDatabase } from '@spfn/core/db';
-import { users, userPublicKeys } from '@/server/entities';
+import { KeyAlgorithmType, verifyClientToken } from '@/server/helpers/jwt';
 import type { User } from '@/server/entities/users';
 import {
     InvalidTokenError,
@@ -32,8 +30,7 @@ import {
     AccountDisabledError,
 } from '@/server/errors';
 import { UnauthorizedError } from '@spfn/core/errors';
-import { eq, and } from 'drizzle-orm';
-import { authLogger } from '@/server/logger';
+import { keysRepository, usersRepository } from '@/server/repositories';
 
 // Auth context type
 export interface AuthContext
@@ -97,16 +94,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
     // Query conditions:
     // - keyId matches (UUID)
     // - isActive = true (not revoked)
-    const db = getDatabase()!;
-    const [keyRecord] = await db
-        .select()
-        .from(userPublicKeys)
-        .where(
-            and(
-                eq(userPublicKeys.keyId, keyId),
-                eq(userPublicKeys.isActive, true)
-            )
-        );
+    const keyRecord = await keysRepository.findActiveByKeyId(keyId);
 
     if (!keyRecord)
     {
@@ -130,7 +118,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
         verifyClientToken(
             token,
             keyRecord.publicKey,
-            keyRecord.algorithm as 'ES256' | 'RS256'
+            keyRecord.algorithm as KeyAlgorithmType // entity.algorithm is always defined
         );
     }
     catch (err)
@@ -156,7 +144,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
     }
 
     // 5. Get user from database
-    const user = await findOne(users, { id: keyRecord.userId });
+    const user = await usersRepository.findById(keyRecord.userId);
     if (!user)
     {
         throw new UnauthorizedError('User not found');
@@ -175,10 +163,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
     // - Security audits
     // - Detecting inactive keys
     // - Key rotation reminders
-    db.update(userPublicKeys)
-        .set({ lastUsedAt: new Date() })
-        .where(eq(userPublicKeys.id, keyRecord.id))
-        .execute()
+    keysRepository.updateLastUsedById(keyRecord.id)
         .catch((err: unknown) => console.error('Failed to update lastUsedAt:', err));
 
     // 8. Attach auth data to context
@@ -192,7 +177,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
     // Log API access
     const method = c.req.method;
     const path = c.req.path;
-    authLogger.middleware.info('API access', {
+    console.log('[Auth] API access', {
         userId: user.id,
         email: user.email,
         keyId,

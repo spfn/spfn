@@ -12,6 +12,9 @@
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 
+export const KEY_ALGORITHM = ['ES256', 'RS256'] as const;
+export type KeyAlgorithmType = typeof KEY_ALGORITHM[number];
+
 const JWT_SECRET =
     process.env.SPFN_AUTH_JWT_SECRET ||      // New prefixed version (recommended)
     process.env.JWT_SECRET ||                 // Legacy fallback
@@ -95,31 +98,25 @@ export function verifyToken(token: string): TokenPayload
 export function verifyClientToken(
     token: string,
     publicKeyB64: string,
-    algorithm: 'ES256' | 'RS256'
+    algorithm: KeyAlgorithmType
 ): TokenPayload
 {
+    // Convert Base64 DER to key object
+    const publicKeyDER = Buffer.from(publicKeyB64, 'base64');
+    const publicKeyObject = crypto.createPublicKey({
+        key: publicKeyDER,
+        format: 'der',
+        type: 'spki',
+    });
+
+    let decoded;
+
     try
     {
-        // Convert Base64 DER to key object
-        const publicKeyDER = Buffer.from(publicKeyB64, 'base64');
-        const publicKeyObject = crypto.createPublicKey({
-            key: publicKeyDER,
-            format: 'der',
-            type: 'spki',
-        });
-
-        const decoded = jwt.verify(token, publicKeyObject, {
+        decoded = jwt.verify(token, publicKeyObject, {
             algorithms: [algorithm],  // Prevent algorithm confusion attacks
             issuer: 'spfn-client',    // Validate token issuer
         });
-
-        // jwt.verify can return string, but we expect object payload
-        if (typeof decoded === 'string')
-        {
-            throw new Error('Invalid token format: expected object payload');
-        }
-
-        return decoded as TokenPayload;
     }
     catch (error)
     {
@@ -135,6 +132,14 @@ export function verifyClientToken(
 
         throw new Error(`Token verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+
+    // jwt.verify can return string, but we expect object payload
+    if (typeof decoded === 'string')
+    {
+        throw new Error('Invalid token format: expected object payload');
+    }
+
+    return decoded as TokenPayload;
 }
 
 /**
