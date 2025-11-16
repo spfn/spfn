@@ -4,12 +4,12 @@
  * JSON 파일 기반 라벨 동기화
  */
 
-import { extractLabels } from "@/server/helpers/label.helper";
-import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
-import { basename, extname, join } from 'path';
-import { cmsLabelsRepository, cmsPublishedCacheRepository } from '@/server/repositories';
 import { DEFAULT_LABELS_DIR } from '@/lib/constants';
 import type { NestedLabels, SectionDefinition, SyncOptions, SyncResult } from '@/lib/types';
+import { extractLabels } from "@/server/helpers/label.helper";
+import { cmsLabelsRepository, cmsLabelValuesRepository, cmsPublishedCacheRepository } from '@/server/repositories';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
+import { basename, extname, join } from 'path';
 
 /**
  * 여러 섹션 동기화
@@ -249,6 +249,7 @@ export async function syncSection(
                                 key: label.key,
                                 error: error instanceof Error ? error.message : String(error),
                             });
+
                             continue;
                         }
                     }
@@ -316,6 +317,9 @@ export async function syncSection(
 
 /**
  * Published Cache 업데이트
+ *
+ * 각 라벨의 publishedVersion이 있으면 해당 version의 값을 사용,
+ * 없으면 defaultValue를 fallback으로 사용
  */
 async function updatePublishedCache(section: string): Promise<void>
 {
@@ -324,9 +328,36 @@ async function updatePublishedCache(section: string): Promise<void>
     const labelsByLocale: Record<string, Record<string, any>> = {};
     const singleValueLabels: Array<{ key: string; value: any }> = [];
 
-    // First pass: 다국어 객체 처리 및 사용 중인 locale 수집
-    labels.forEach((label) =>
+    // Process each label
+    for (const label of labels)
     {
+        // publishedVersion이 있으면 해당 version의 값 사용
+        if (label.publishedVersion !== null && label.publishedVersion !== undefined)
+        {
+            const publishedValues = await cmsLabelValuesRepository.findByLabelIdAndVersion(
+                label.id,
+                label.publishedVersion
+            );
+
+            if (publishedValues.length > 0)
+            {
+                // Published values를 locale별로 분류
+                publishedValues.forEach((pv) =>
+                {
+                    localesSet.add(pv.locale);
+                    if (!labelsByLocale[pv.locale]) labelsByLocale[pv.locale] = {};
+
+                    // value는 이미 JSONB 객체이므로 그대로 사용
+                    // 만약 value.content가 있으면 (TextValue) content만 추출
+                    labelsByLocale[pv.locale][label.key] = pv.value?.type === 'text' && pv.value?.content !== undefined
+                        ? pv.value.content
+                        : pv.value;
+                });
+                continue; // 다음 라벨로
+            }
+        }
+
+        // publishedVersion이 없거나 값이 없으면 defaultValue fallback
         try
         {
             const parsed = JSON.parse(label.defaultValue || '{}');
@@ -352,7 +383,7 @@ async function updatePublishedCache(section: string): Promise<void>
             // Plain string (will be distributed to all locales in second pass)
             singleValueLabels.push({ key: label.key, value: label.defaultValue });
         }
-    });
+    }
 
     // 최소 기본 locale 보장 (ko, en)
     if (localesSet.size === 0)
@@ -382,6 +413,42 @@ async function updatePublishedCache(section: string): Promise<void>
             publishedBy: 'system',
         });
     }
+}
+
+/**
+ * Rebuild Published Cache
+ *
+ * 이미 생성된 publish cache를 publishedVersion 기준으로 재생성합니다.
+ * 기존에 defaultValue로 잘못 생성된 cache를 복구합니다.
+ *
+ * @example
+ * ```typescript
+ * import { rebuildPublishedCache } from '@spfn/cms';
+ *
+ * // 한 번만 실행
+ * await rebuildPublishedCache();
+ * ```
+ */
+export async function rebuildPublishedCache(): Promise<void>
+{
+    console.log('\n🔄 Rebuilding published cache from publishedVersion...\n');
+
+    // 모든 라벨 조회
+    const allLabels = await cmsLabelsRepository.findMany();
+
+    // 섹션별로 그룹화
+    const sectionsSet = new Set(allLabels.map(l => l.section));
+    const sections = Array.from(sectionsSet);
+
+    let rebuilt = 0;
+    for (const section of sections)
+    {
+        console.log(`  [REBUILD] Section: ${section}`);
+        await updatePublishedCache(section);
+        rebuilt++;
+    }
+
+    console.log(`\n✅ Rebuilt ${rebuilt} section(s)\n`);
 }
 
 /**
