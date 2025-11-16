@@ -1,57 +1,5 @@
-/**
- * @spfn/auth
- *
- * Common Module (Types, Entities, Plugin)
- * 공통 모듈 (타입, 엔티티, 플러그인)
- *
- * Import structure:
- * - @spfn/auth         - Common (types, entities)
- * - @spfn/auth/server  - Server-side (routes, repositories, helpers, middleware)
- * - @spfn/auth/client  - Client-side (hooks, store, components)
- */
-
 // ============================================================================
-// SPFN Plugin (Auto-discovered by @spfn/core)
+// RBAC (Roles, Permissions, Types)
 // ============================================================================
 
-export { spfnPlugin } from './plugin.js';
-
-// ============================================================================
-// Entities (for type reference)
-// ============================================================================
-
-// Export all entities
-export {
-    users,
-    userPublicKeys,
-    verificationCodes,
-    userSocialAccounts,
-    roles,
-    permissions,
-    rolePermissions,
-    userPermissions,
-} from './server/entities/index';
-
-// Export entity types with aliases to avoid conflicts
-export type {
-    User,
-    NewUser,
-    UserStatus,
-    UserWithVerification,
-    UserPublicKey,
-    NewUserPublicKey,
-    VerificationCode,
-    NewVerificationCode,
-    UserSocialAccount,
-    NewUserSocialAccount,
-    Role,
-    NewRole,
-    RoleEntity,
-    NewRoleEntity,
-    PermissionEntity,
-    NewPermissionEntity,
-    RolePermission,
-    NewRolePermission,
-    UserPermission,
-    NewUserPermission,
-} from './server/entities/index';
+export * from './server/rbac';
