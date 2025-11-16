@@ -9,6 +9,7 @@
  * - RS256 (RSA 2048):   ~294 bytes (Base64: ~392 chars)
  */
 
+import { type KeyAlgorithmType } from "@/server/helpers";
 import crypto from 'crypto';
 import jwt, { type Algorithm, type SignOptions } from 'jsonwebtoken';
 
@@ -58,7 +59,7 @@ export interface KeyPair
     publicKey: string;      // Base64 encoded DER
     keyId: string;          // UUID
     fingerprint: string;    // SHA-256 hash
-    algorithm: 'ES256' | 'RS256';
+    algorithm: KeyAlgorithmType;
 }
 
 export interface TokenPayload
@@ -152,7 +153,7 @@ export function generateKeyPairRS256(): KeyPair
  * Generate key pair (defaults to ES256)
  */
 export function generateKeyPair(
-    algorithm: 'ES256' | 'RS256' = 'ES256'
+    algorithm: KeyAlgorithmType = 'ES256'
 ): KeyPair
 {
     return algorithm === 'ES256'
@@ -216,7 +217,7 @@ export function generateClientToken(
 export function verifyClientToken(
     token: string,
     publicKeyB64: string,
-    algorithm: 'ES256' | 'RS256'
+    algorithm: KeyAlgorithmType
 ): TokenPayload
 {
     try

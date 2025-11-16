@@ -6,13 +6,14 @@
  */
 
 import * as jose from 'jose';
+import { type KeyAlgorithmType } from "@/server/helpers";
 
 export interface SessionData
 {
     userId: string;
     privateKey: string;     // Base64 encoded DER
     keyId: string;
-    algorithm: 'ES256' | 'RS256';
+    algorithm: KeyAlgorithmType;
 }
 
 /**

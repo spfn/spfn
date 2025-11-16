@@ -5,6 +5,7 @@
  */
 
 import { Type } from '@sinclair/typebox';
+import { Nullable } from "@spfn/core/route/types";
 
 /**
  * User Profile Schema
@@ -18,16 +19,16 @@ export const ProfileInfoSchema = Type.Object(
         displayName: Type.String({
             description: 'Display name'
         }),
-        firstName: Type.Optional(Type.String({
+        firstName: Nullable(Type.String({
             description: 'First name'
         })),
-        lastName: Type.Optional(Type.String({
+        lastName: Nullable(Type.String({
             description: 'Last name'
         })),
-        avatarUrl: Type.Optional(Type.String({
+        avatarUrl: Nullable(Type.String({
             description: 'Avatar URL'
         })),
-        bio: Type.Optional(Type.String({
+        bio: Nullable(Type.String({
             description: 'Bio/description'
         })),
         locale: Type.String({
@@ -38,23 +39,23 @@ export const ProfileInfoSchema = Type.Object(
             description: 'Timezone',
             default: 'UTC'
         }),
-        website: Type.Optional(Type.String({
+        website: Nullable(Type.String({
             description: 'Website URL'
         })),
-        location: Type.Optional(Type.String({
+        location: Nullable(Type.String({
             description: 'Location'
         })),
-        company: Type.Optional(Type.String({
+        company: Nullable(Type.String({
             description: 'Company name'
         })),
-        jobTitle: Type.Optional(Type.String({
+        jobTitle: Nullable(Type.String({
             description: 'Job title'
         })),
-        createdAt: Type.String({
+        createdAt: Type.Date({
             description: 'Profile creation timestamp (ISO 8601)',
             format: 'date-time'
         }),
-        updatedAt: Type.String({
+        updatedAt: Type.Date({
             description: 'Last update timestamp (ISO 8601)',
             format: 'date-time'
         }),

@@ -62,11 +62,11 @@ export const PublicUserProfileSchema = Type.Object(
         jobTitle: Type.Optional(Type.String({
             description: 'Job title'
         })),
-        createdAt: Type.String({
+        createdAt: Type.Date({
             description: 'Profile creation timestamp (ISO 8601)',
             format: 'date-time'
         }),
-        updatedAt: Type.String({
+        updatedAt: Type.Date({
             description: 'Last update timestamp (ISO 8601)',
             format: 'date-time'
         }),

@@ -38,11 +38,11 @@ export const PublicUserSchema = Type.Object(
             description: 'Email verification timestamp (ISO 8601)',
             format: 'date-time'
         })),
-        createdAt: Type.String({
+        createdAt: Type.Date({
             description: 'Account creation timestamp (ISO 8601)',
             format: 'date-time'
         }),
-        updatedAt: Type.String({
+        updatedAt: Type.Date({
             description: 'Last update timestamp (ISO 8601)',
             format: 'date-time'
         }),
@@ -69,7 +69,7 @@ export const UserSchema = Type.Object(
         passwordChangeRequired: Type.Boolean({
             description: 'Whether user must change password on next login'
         }),
-        lastLoginAt: Type.Optional(Type.String({
+        lastLoginAt: Type.Optional(Type.Date({
             description: 'Last successful login timestamp (ISO 8601)',
             format: 'date-time'
         })),

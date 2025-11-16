@@ -5,6 +5,7 @@
  */
 
 import { Type } from '@sinclair/typebox';
+import { Nullable } from "@spfn/core/route/types";
 
 /**
  * Minimal User Info Schema
@@ -15,7 +16,7 @@ export const MinimalUserInfoSchema = Type.Object(
         userId: Type.Number({
             description: 'User ID'
         }),
-        email: Type.Optional(Type.String({
+        email: Nullable(Type.String({
             description: 'Email address'
         })),
         emailVerified: Type.Boolean({
@@ -36,7 +37,7 @@ export const FullUserInfoSchema = Type.Object(
         userId: Type.Number({
             description: 'User ID'
         }),
-        email: Type.Optional(Type.String({
+        email: Nullable(Type.String({
             description: 'Email address'
         })),
         emailVerified: Type.Boolean({
@@ -45,15 +46,15 @@ export const FullUserInfoSchema = Type.Object(
         phoneVerified: Type.Boolean({
             description: 'Whether phone is verified'
         }),
-        lastLoginAt: Type.Optional(Type.String({
+        lastLoginAt: Nullable(Type.Date({
             description: 'Last login timestamp (ISO 8601)',
             format: 'date-time'
         })),
-        createdAt: Type.String({
+        createdAt: Type.Date({
             description: 'Account creation timestamp (ISO 8601)',
             format: 'date-time'
         }),
-        updatedAt: Type.String({
+        updatedAt: Type.Date({
             description: 'Last update timestamp (ISO 8601)',
             format: 'date-time'
         }),

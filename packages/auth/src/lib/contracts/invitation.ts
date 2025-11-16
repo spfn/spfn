@@ -6,14 +6,13 @@
 
 import {
     UUID_PATTERN,
-    EMAIL_PATTERN,
     EmailSchema,
     PasswordSchema,
     CryptoKeyFieldsSchema
 } from '@/lib/contracts/schemas/base';
 import { INVITATION_STATUSES } from '@/server/entities/invitations';
 import { Type } from '@sinclair/typebox';
-import { ApiResponseSchema, defineContract } from '@spfn/core/route/types';
+import { ApiSuccessSchema, defineContract, Nullable } from '@spfn/core/route/types';
 
 /**
  * GET /_auth/invitations/:token - Get invitation details (public)
@@ -29,7 +28,7 @@ export const getInvitationContract = defineContract({
             description: 'Invitation token (UUID v4)'
         }),
     }),
-    response: ApiResponseSchema(
+    response: ApiSuccessSchema(
         Type.Object({
             email: Type.String({
                 format: 'email',
@@ -74,7 +73,7 @@ export const acceptInvitationContract = defineContract({
         }),
         CryptoKeyFieldsSchema
     ]),
-    response: ApiResponseSchema(
+    response: ApiSuccessSchema(
         Type.Object({
             userId: Type.Number({
                 description: 'Created user ID'
@@ -113,7 +112,7 @@ export const createInvitationContract = defineContract({
             description: 'Custom metadata (welcome message, department, etc.)'
         })),
     }),
-    response: ApiResponseSchema(
+    response: ApiSuccessSchema(
         Type.Object({
             id: Type.Number(),
             email: Type.String({ format: 'email' }),
@@ -156,7 +155,7 @@ export const listInvitationsContract = defineContract({
             description: 'Items per page (default: 20)'
         })),
     }),
-    response: ApiResponseSchema(
+    response: ApiSuccessSchema(
         Type.Object({
             invitations: Type.Array(Type.Object({
                 id: Type.Number(),
@@ -169,12 +168,12 @@ export const listInvitationsContract = defineContract({
                 }),
                 inviter: Type.Object({
                     id: Type.Number(),
-                    email: Type.String({ format: 'email' }),
+                    email: Nullable(Type.String({ format: 'email' })),
                 }),
-                createdAt: Type.String({ format: 'date-time' }),
-                expiresAt: Type.String({ format: 'date-time' }),
-                acceptedAt: Type.Optional(Type.String({ format: 'date-time' })),
-                cancelledAt: Type.Optional(Type.String({ format: 'date-time' })),
+                createdAt: Type.Date({ format: 'date-time' }),
+                expiresAt: Type.Date({ format: 'date-time' }),
+                acceptedAt: Nullable(Type.Date({ format: 'date-time' })),
+                cancelledAt: Nullable(Type.Date({ format: 'date-time' })),
             })),
             total: Type.Number({ description: 'Total invitation count' }),
             page: Type.Number({ description: 'Current page' }),
@@ -201,9 +200,8 @@ export const cancelInvitationContract = defineContract({
             description: 'Cancellation reason'
         })),
     }),
-    response: ApiResponseSchema(
+    response: ApiSuccessSchema(
         Type.Object({
-            success: Type.Boolean(),
             cancelledAt: Type.String({
                 format: 'date-time',
                 description: 'Cancellation timestamp'
@@ -231,9 +229,8 @@ export const resendInvitationContract = defineContract({
             description: 'New expiration period (default: 7)'
         })),
     }),
-    response: ApiResponseSchema(
+    response: ApiSuccessSchema(
         Type.Object({
-            success: Type.Boolean(),
             expiresAt: Type.String({
                 format: 'date-time',
                 description: 'New expiration timestamp'
@@ -256,9 +253,5 @@ export const deleteInvitationContract = defineContract({
             description: 'Invitation ID'
         }),
     }),
-    response: ApiResponseSchema(
-        Type.Object({
-            success: Type.Boolean(),
-        })
-    ),
+    response: ApiSuccessSchema(Type.Object({}))
 });

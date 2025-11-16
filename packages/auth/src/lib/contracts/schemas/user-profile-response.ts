@@ -6,6 +6,7 @@
  */
 
 import { Type, Static } from '@sinclair/typebox';
+import { Nullable } from "@spfn/core/route/types";
 import { FullUserInfoSchema } from './base/user-base';
 import { ProfileInfoSchema } from './base/profile-base';
 
@@ -22,7 +23,7 @@ import { ProfileInfoSchema } from './base/profile-base';
 export const UserProfileResponseSchema = Type.Object(
     {
         ...FullUserInfoSchema.properties,
-        profile: Type.Optional(ProfileInfoSchema),
+        profile: Nullable(ProfileInfoSchema),
     }
 );
 
