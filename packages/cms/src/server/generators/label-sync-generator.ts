@@ -24,7 +24,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { syncAll, syncSection, loadLabelsFromJson } from '@/server/services/sync.service';
 import { cmsEnv } from '@/server/config/env.config';
 
-const syncLogger = logger.child('label-sync');
+const syncLogger = logger.child('@spfn/cms:label-sync');
 
 export interface LabelSyncGeneratorConfig
 {

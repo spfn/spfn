@@ -11,6 +11,9 @@
 
 import type { CmsConfig } from '@/lib/types/config';
 import { cmsEnv } from './env.config';
+import { logger } from '@spfn/core/logger';
+
+const configLogger = logger.child('@spfn/cms:config');
 
 // Re-export type for backward compatibility
 export type { CmsConfig } from '@/lib/types/config';
@@ -101,9 +104,8 @@ export function configureCms(config: Partial<CmsConfig>): void
     // 기본 언어가 지원 목록에 있는지 확인
     if (config.defaultLocale && !currentConfig.locales.includes(config.defaultLocale))
     {
-        console.warn(
-            `[CMS Config] Default locale '${config.defaultLocale}' not in locales, adding automatically.`,
-            `Locales: [${currentConfig.locales.join(', ')}]`
+        configLogger.warn(
+            `Default locale '${config.defaultLocale}' not in locales, adding automatically. Locales: [${currentConfig.locales.join(', ')}]`
         );
 
         currentConfig.locales.unshift(config.defaultLocale);

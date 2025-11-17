@@ -8,6 +8,9 @@
 import { client } from '@spfn/core/client';
 import { getPublishedCacheContract } from '@/lib/contracts/published-cache';
 import type { SectionData, SectionAPI, TranslationFunction } from '@/lib/types/section';
+import { logger } from '@spfn/core/logger';
+
+const localeLogger = logger.child('@spfn/cms:locale-api');
 
 /**
  * Fetch options type (extends RequestInit for Next.js compatibility)
@@ -141,7 +144,8 @@ export async function loadSection(
     }
     catch (error)
     {
-        console.error(`[CMS] Failed to fetch section "${section}":`, error);
+        const err = error instanceof Error ? error : new Error(String(error));
+        localeLogger.error(`Failed to fetch section "${section}"`, err);
         return createEmptySection(section, locale);
     }
 }
@@ -200,7 +204,8 @@ export async function loadSections(
     }
     catch (error)
     {
-        console.error(`[CMS] Failed to fetch sections:`, error);
+        const err = error instanceof Error ? error : new Error(String(error));
+        localeLogger.error('Failed to fetch sections', err);
 
         // Return empty sections on error
         const sectionsMap: Record<string, SectionAPI> = {};

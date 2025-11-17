@@ -13,6 +13,9 @@ import {
     envString,
     envBoolean,
 } from '@spfn/core/env';
+import { logger } from '@spfn/core/logger';
+
+const envLogger = logger.child('@spfn/cms:env');
 
 /**
  * CMS Environment Variable Schema
@@ -110,24 +113,24 @@ if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test')
     // Critical errors
     if (!validation.valid)
     {
-        console.error('\n❌ CMS Environment Validation Failed\n');
-        console.error('The following CMS environment variables are missing or invalid:\n');
+        envLogger.error('\n❌ CMS Environment Validation Failed\n');
+        envLogger.error('The following CMS environment variables are missing or invalid:\n');
 
         validation.errors.forEach((error) =>
         {
-            console.error(`  • ${error.key}`);
-            console.error(`    ${error.message}`);
+            envLogger.error(`  • ${error.key}`);
+            envLogger.error(`    ${error.message}`);
 
             if ('suggestion' in error && error.suggestion)
             {
-                console.error(`    💡 ${error.suggestion}`);
+                envLogger.error(`    💡 ${error.suggestion}`);
             }
 
-            console.error('');
+            envLogger.error('');
         });
 
-        console.error('Please check your .env files and ensure all required variables are set.');
-        console.error('See packages/cms/.env.example for reference.\n');
+        envLogger.error('Please check your .env files and ensure all required variables are set.');
+        envLogger.error('See packages/cms/.env.example for reference.\n');
 
         process.exit(1);
     }
@@ -135,19 +138,19 @@ if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test')
     // Non-critical warnings
     if (validation.warnings.length > 0)
     {
-        console.warn('\n⚠️  CMS Environment Warnings:\n');
+        envLogger.warn('\n⚠️  CMS Environment Warnings:\n');
 
         validation.warnings.forEach((warning) =>
         {
-            console.warn(`  • ${warning.key}: ${warning.message}`);
+            envLogger.warn(`  • ${warning.key}: ${warning.message}`);
 
             if ('suggestion' in warning && warning.suggestion)
             {
-                console.warn(`    💡 ${warning.suggestion}`);
+                envLogger.warn(`    💡 ${warning.suggestion}`);
             }
         });
 
-        console.warn('');
+        envLogger.warn('');
     }
 }
 

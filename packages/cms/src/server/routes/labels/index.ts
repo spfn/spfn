@@ -15,6 +15,9 @@ import { getLabelsContract, createLabelContract } from '@/lib/contracts/labels';
 import { cmsEnv } from '@/server/config/env.config';
 import { join } from 'path';
 import { CMSConflictError } from '@/server/helpers/error';
+import { logger } from '@spfn/core/logger';
+
+const labelsLogger = logger.child('@spfn/cms:labels-api');
 
 const app = createApp();
 
@@ -55,7 +58,8 @@ app.bind(getLabelsContract, async (c) =>
         }
         catch (error)
         {
-            console.warn('[getLabels] Failed to load default values:', error);
+            const err = error instanceof Error ? error : new Error(String(error));
+            labelsLogger.warn('Failed to load default values', err);
         }
     }
 
