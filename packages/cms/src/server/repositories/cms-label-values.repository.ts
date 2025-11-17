@@ -7,7 +7,7 @@
 
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, SQL, isNull, gte, lte, inArray } from 'drizzle-orm';
-import { cmsLabelValues, type CmsLabelValue, type NewCmsLabelValue } from '@/server/entities';
+import { cmsLabelValues, type CmsLabelValue, type NewCmsLabelValue } from '@/server/entities/config';
 
 /**
  * 버전 히스토리 타입
