@@ -159,6 +159,17 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
                 copySync(libTemplateDir, libTargetDir);
             }
 
+            // Copy environment configuration template
+            const envConfigTemplate = join(serverTemplateDir, 'config', 'env.config.ts');
+            const envConfigTarget = join(targetDir, 'config', 'env.config.ts');
+
+            if (existsSync(envConfigTemplate))
+            {
+                ensureDirSync(join(targetDir, 'config'));
+                copySync(envConfigTemplate, envConfigTarget);
+                logger.success('Created src/server/config/env.config.ts (environment management)');
+            }
+
             // Create API actions proxy route (app/api/actions/[...path]/route.ts)
             const actionsDir = join(cwd, 'app', 'api', 'actions', '[...path]');
             const actionsRoutePath = join(actionsDir, 'route.ts');
@@ -449,21 +460,86 @@ export default {
             process.exit(1);
         }
 
-        // 6. Create .env.local.example if not exists
-        const envExamplePath = join(cwd, '.env.local.example');
+        // 6. Generate comprehensive .env.example using schema
+        const envExamplePath = join(cwd, '.env.example');
         if (!existsSync(envExamplePath))
         {
-            writeFileSync(envExamplePath, `# Database (matches docker-compose.yml)
+            const envExampleContent = `#
+# Environment Variables
+# Auto-generated from schema (src/server/config/env.config.ts)
+#
+# Copy this file to .env.local and fill in the values:
+#   cp .env.example .env.local
+#
+# To regenerate this file:
+#   npm run docs:env
+#
+
+#
+# database
+#
+
+# PostgreSQL database connection string
+# Example: postgresql://user:password@localhost:5432/mydb
+# Type: url (required)
+# 🔒 Sensitive information
 DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
 
-# Redis (optional)
-REDIS_URL=redis://localhost:6379
+#
+# cache
+#
 
-# SPFN API URLs
-SERVER_API_URL=http://localhost:8790           # Internal (Server-side only)
-NEXT_PUBLIC_API_URL=http://localhost:8790      # Public (Client-side & fallback)
-`);
-            logger.success('Created .env.local.example');
+# Redis connection string for caching and sessions
+# Example: redis://localhost:6379
+# Type: url
+# REDIS_URL=redis://localhost:6379
+
+#
+# api
+#
+
+# Internal API URL for server-side requests (SSR, API Routes)
+# Example: http://localhost:8790
+# Type: url
+SERVER_API_URL=http://localhost:8790
+
+# Public API URL for client-side requests (browser)
+# Example: http://localhost:8790
+# Type: url
+NEXT_PUBLIC_API_URL=http://localhost:8790
+
+#
+# server
+#
+
+# SPFN API server port
+# Type: number
+PORT=8790
+
+# Server host address
+# Type: string
+HOST=0.0.0.0
+
+# Node.js environment mode
+# Example: development
+# Type: string
+NODE_ENV=development
+
+#
+# features
+#
+
+# Enable debug logging (verbose output)
+# Type: boolean
+# DEBUG=false
+
+# Logging level for application logs
+# Example: debug
+# Type: string
+LOG_LEVEL=info
+`;
+            writeFileSync(envExamplePath, envExampleContent);
+            logger.success('Created .env.example (comprehensive environment template)');
         }
 
         // 6.5. Create .spfnrc.json for codegen configuration
@@ -554,10 +630,12 @@ NEXT_PUBLIC_API_URL=http://localhost:8790      # Public (Client-side & fallback)
         console.log('  4. Visit:');
         console.log('     - Next.js: ' + chalk.cyan('http://localhost:3790'));
         console.log('     - API:     ' + chalk.cyan('http://localhost:8790/health'));
-        console.log('\nAvailable scripts:');
-        console.log('  • ' + chalk.cyan('spfn:dev') + '     - Start SPFN server (8790) + Next.js (3790)');
-        console.log('  • ' + chalk.cyan('spfn:server') + '  - Start SPFN server only (8790)');
-        console.log('  • ' + chalk.cyan('spfn:next') + '    - Start Next.js only (3790)');
+        console.log('\nAvailable commands:');
+        console.log('  • ' + chalk.cyan(pm === 'npm' ? 'npm run spfn:dev' : `${pm} spfn:dev`) + '       - Start SPFN + Next.js');
+        console.log('  • ' + chalk.cyan('spfn env:validate') + '   - Validate environment variables');
+        console.log('  • ' + chalk.cyan('spfn env:docs') + '       - Generate env documentation');
+        console.log('  • ' + chalk.cyan('spfn env:check') + '      - Check environment status');
+        console.log('\n' + chalk.blue('💡 Tip:') + ' Edit ' + chalk.cyan('src/server/config/env.config.ts') + ' to manage environment variables');
 }
 
 export const initCommand = new Command('init')
