@@ -22,12 +22,6 @@ export interface CmsConfig
     locales: string[];
 
     /**
-     * @deprecated Use 'locales' instead
-     * @internal For backward compatibility
-     */
-    supportedLocales: string[];
-
-    /**
      * 브라우저 언어 자동 감지 여부
      * @default true
      */

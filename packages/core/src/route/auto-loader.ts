@@ -292,11 +292,8 @@ export class AutoRouteLoader
                     priority: this.calculateContractPriority(path),
                 });
 
-                if (this.debug)
-                {
-                    const icon = path.includes('*') ? '⭐' : path.includes(':') ? '🔸' : '🔹';
-                    routeLogger.debug(`Registered route: ${path}`, { icon, file: relativePath });
-                }
+                const icon = path.includes('*') ? '⭐' : path.includes(':') ? '🔸' : '🔹';
+                routeLogger.info(`Registered route: ${path}`, { icon, file: relativePath });
             });
 
             return true;

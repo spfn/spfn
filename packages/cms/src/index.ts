@@ -15,7 +15,8 @@
 // Constants
 // ============================================================================
 
-export { DEFAULT_LABELS_DIR } from './lib/constants/index';
+// Note: DEFAULT_LABELS_DIR and DEFAULT_LOCALES have been moved to environment variable schema
+// See packages/cms/src/server/config/env.config.ts for configuration
 
 export {
     LOCALE_COOKIE_KEY,

@@ -4,11 +4,12 @@
  * JSON 파일 기반 라벨 동기화
  */
 
-import { DEFAULT_LABELS_DIR, DEFAULT_LOCALES } from '@/lib/constants';
 import type { NestedLabels, SectionDefinition, SyncOptions, SyncResult } from '@/lib/types';
 import { extractLabels } from "@/server/helpers/label.helper";
 import { cmsLabelsRepository, cmsLabelValuesRepository, cmsPublishedCacheRepository } from '@/server/repositories';
-import type { CmsLabelValue } from '@/server/entities';
+import type { CmsLabelValue } from '@/server/entities/cms-label-values';
+import { cmsEnv } from '@/server/config/env.config';
+import { getCmsConfig } from '@/server/config/cms.config';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, extname, join } from 'path';
 import { logger } from "@spfn/core/logger";
@@ -387,8 +388,9 @@ async function updatePublishedCache(section: string): Promise<void>
         const labelsByLocale: Record<string, Record<string, unknown>> = {};
         const singleValueLabels: Array<{ key: string; value: string | null }> = [];
 
-        // 기본 locale들을 미리 추가 (항상 ko, en cache 생성 보장)
-        DEFAULT_LOCALES.forEach(locale =>
+        // 기본 locale들을 미리 추가 (설정된 모든 locale에 대해 cache 생성 보장)
+        const { locales: configuredLocales } = getCmsConfig();
+        configuredLocales.forEach(locale =>
         {
             localesSet.add(locale);
             labelsByLocale[locale] = {};
@@ -437,9 +439,9 @@ async function updatePublishedCache(section: string): Promise<void>
                 {
                     // Multilingual object: locale별로 분리
 
-                    // Validation: DEFAULT_LOCALES가 모두 정의되어 있는지 확인
+                    // Validation: 설정된 locales가 모두 정의되어 있는지 확인
                     const definedLocales = Object.keys(parsed);
-                    const missingLocales = DEFAULT_LOCALES.filter(
+                    const missingLocales = configuredLocales.filter(
                         locale => !definedLocales.includes(locale) && !publishedLocales.has(locale)
                     );
 
@@ -613,7 +615,7 @@ export async function initLabelSync(options: SyncOptions & { labelsDir?: string 
 {
     const isDevelopment = process.env.NODE_ENV === 'development';
     const verbose = options.verbose ?? isDevelopment;
-    const labelsDir = options.labelsDir || process.env.SPFN_CMS_LABELS_DIR || DEFAULT_LABELS_DIR;
+    const labelsDir = options.labelsDir || cmsEnv.get('SPFN_CMS_LABELS_DIR') || 'src/lib/labels';
 
     if (verbose)
     {

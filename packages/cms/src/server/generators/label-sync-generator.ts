@@ -22,7 +22,7 @@ import { join, relative, extname } from 'path';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 
 import { syncAll, syncSection, loadLabelsFromJson } from '@/server/services/sync.service';
-import { DEFAULT_LABELS_DIR } from '@/lib/constants';
+import { cmsEnv } from '@/server/config/env.config';
 
 const syncLogger = logger.child('label-sync');
 
@@ -39,7 +39,7 @@ export interface LabelSyncGeneratorConfig
  */
 export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}): Generator
 {
-    const labelsDir = config.labelsDir ?? DEFAULT_LABELS_DIR;
+    const labelsDir = config.labelsDir ?? cmsEnv.get('SPFN_CMS_LABELS_DIR') ?? 'src/lib/labels';
     const runOn = config.runOn ?? ['watch', 'manual', 'build'];
 
     return {

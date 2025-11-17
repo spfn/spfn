@@ -132,10 +132,12 @@ The CMS automatically detects user locale with a priority system.
 
 ### Configuration
 
+The CMS uses schema-based environment variable management. See `packages/cms/src/server/config/env.config.ts` for full schema definition.
+
 ```bash
 # .env.local
-SPFN_CMS_DEFAULT_LOCALE=ko
-SPFN_CMS_SUPPORTED_LOCALES=en,ko,ja
+SPFN_CMS_DEFAULT_LOCALE=en
+SPFN_CMS_LOCALES=en,ko,ja
 SPFN_CMS_DETECT_BROWSER_LANGUAGE=true
 ```
 
@@ -146,7 +148,7 @@ import { configureCms } from '@spfn/cms';
 
 configureCms({
   defaultLocale: 'en',
-  supportedLocales: ['en', 'ko', 'ja'],
+  locales: ['en', 'ko', 'ja'],
   detectBrowserLanguage: true
 });
 ```

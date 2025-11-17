@@ -675,7 +675,7 @@ const config = getCmsConfig();
 // Update config
 configureCms({
   defaultLocale: 'en',
-  supportedLocales: ['en', 'ko', 'ja'],
+  locales: ['en', 'ko', 'ja'],
   detectBrowserLanguage: false
 });
 

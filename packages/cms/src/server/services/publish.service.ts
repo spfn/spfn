@@ -7,7 +7,7 @@
 import { cmsLabelsRepository } from '@/server/repositories/cms-labels.repository';
 import { cmsLabelValuesRepository } from '@/server/repositories/cms-label-values.repository';
 import { cmsPublishedCacheRepository } from '@/server/repositories/cms-published-cache.repository';
-import type { SupportedLocale } from '@/lib/constants/locale.constants';
+import { getCmsConfig } from '@/server/config/cms.config';
 
 /**
  * 라벨 발행 (Draft → Published)
@@ -83,8 +83,8 @@ export async function updatePublishedCache(
     // 섹션의 모든 라벨 조회
     const labels = await cmsLabelsRepository.findBySection(section);
 
-    // 지원하는 로케일 목록 (환경변수 또는 기본값)
-    const locales: SupportedLocale[] = (process.env.SPFN_CMS_SUPPORTED_LOCALES?.split(',') as SupportedLocale[]) || ['ko', 'en', 'ja'];
+    // 지원하는 로케일 목록 (CMS config에서 가져오기)
+    const { locales } = getCmsConfig();
 
     // 각 로케일별로 캐시 생성
     for (const locale of locales)

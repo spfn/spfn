@@ -1,45 +1,35 @@
 /**
  * CMS Configuration Module
  *
- * 환경변수 기반 CMS 설정 관리
- * - SPFN_CMS_DEFAULT_LOCALE: 기본 언어 (기본값: 'ko')
- * - SPFN_CMS_SUPPORTED_LOCALES: 지원 언어 목록, 쉼표로 구분 (기본값: 'ko,en')
- * - SPFN_CMS_DETECT_BROWSER_LANGUAGE: 브라우저 언어 자동 감지 (기본값: 'false')
+ * 환경변수 기반 CMS 설정 관리 (Schema-based)
+ * - SPFN_CMS_DEFAULT_LOCALE: 기본 언어 (기본값: 'en')
+ * - SPFN_CMS_LOCALES: 지원 언어 목록, 쉼표로 구분 (기본값: 'en,ko')
+ * - SPFN_CMS_DETECT_BROWSER_LANGUAGE: 브라우저 언어 자동 감지 (기본값: 'true')
+ *
+ * @see ./env.config.ts for environment variable schema
  */
 
 import type { CmsConfig } from '@/lib/types/config';
+import { cmsEnv } from './env.config';
 
 // Re-export type for backward compatibility
 export type { CmsConfig } from '@/lib/types/config';
 
 /**
- * 환경변수 읽기 헬퍼
- */
-function getEnvVar(key: string, defaultValue: string): string
-{
-    return process.env[key] || defaultValue;
-}
-
-/**
- * 환경변수에서 boolean 읽기
- */
-function getEnvBoolean(key: string, defaultValue: boolean): boolean
-{
-    const value = process.env[key];
-    if (value === undefined) return defaultValue;
-    return value === 'true' || value === '1';
-}
-
-/**
- * 환경변수에서 설정 로드
+ * 환경변수에서 설정 로드 (Schema-based)
  */
 function loadConfigFromEnv(): CmsConfig
 {
-    const defaultLocale = getEnvVar('SPFN_CMS_DEFAULT_LOCALE', 'en');
-    const supportedLocalesStr = getEnvVar('SPFN_CMS_SUPPORTED_LOCALES', 'en,ko');
-    const detectBrowserLanguage = getEnvBoolean('SPFN_CMS_DETECT_BROWSER_LANGUAGE', true);
+    const defaultLocale = cmsEnv.get('SPFN_CMS_DEFAULT_LOCALE') ?? 'en';
 
-    const locales = supportedLocalesStr
+    // Backward compatibility: SPFN_CMS_SUPPORTED_LOCALES → SPFN_CMS_LOCALES
+    const localesStr = cmsEnv.get('SPFN_CMS_LOCALES')
+        ?? cmsEnv.get('SPFN_CMS_SUPPORTED_LOCALES')
+        ?? 'en,ko';
+
+    const detectBrowserLanguage = cmsEnv.get('SPFN_CMS_DETECT_BROWSER_LANGUAGE') ?? true;
+
+    const locales = localesStr
         .split(',')
         .map(locale => locale.trim())
         .filter(locale => locale.length > 0);
@@ -53,7 +43,6 @@ function loadConfigFromEnv(): CmsConfig
     return {
         defaultLocale,
         locales,
-        supportedLocales: locales, // backward compatibility
         detectBrowserLanguage,
     };
 }
@@ -104,26 +93,10 @@ export function getCmsConfig(): Readonly<CmsConfig>
  */
 export function configureCms(config: Partial<CmsConfig>): void
 {
-    // Backward compatibility: supportedLocales → locales
-    if (config.supportedLocales && !config.locales)
-    {
-        config = { ...config, locales: config.supportedLocales };
-    }
-
     currentConfig = {
         ...currentConfig,
         ...config,
     };
-
-    // Sync locales ↔ supportedLocales
-    if (config.locales)
-    {
-        currentConfig.supportedLocales = config.locales;
-    }
-    else if (config.supportedLocales)
-    {
-        currentConfig.locales = config.supportedLocales;
-    }
 
     // 기본 언어가 지원 목록에 있는지 확인
     if (config.defaultLocale && !currentConfig.locales.includes(config.defaultLocale))
@@ -134,7 +107,6 @@ export function configureCms(config: Partial<CmsConfig>): void
         );
 
         currentConfig.locales.unshift(config.defaultLocale);
-        currentConfig.supportedLocales.unshift(config.defaultLocale);
     }
 }
 

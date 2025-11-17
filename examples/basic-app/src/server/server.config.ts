@@ -14,7 +14,7 @@ export default {
         // Configure CMS settings
         configureCms({
             defaultLocale: 'en',
-            supportedLocales: ['en', 'ko'],
+            locales: ['en', 'ko'],
             detectBrowserLanguage: true,
         });
 

@@ -180,16 +180,20 @@ JSON Files (src/lib/labels/**/*.json)
 
 ### Environment Variables
 
+The CMS uses schema-based environment variable management for type-safety and validation.
+
 ```bash
 # Default locale (default: 'en')
-SPFN_CMS_DEFAULT_LOCALE=ko
+SPFN_CMS_DEFAULT_LOCALE=en
 
 # Supported locales, comma-separated (default: 'en,ko')
-SPFN_CMS_SUPPORTED_LOCALES=en,ko,ja
+SPFN_CMS_LOCALES=en,ko,ja
 
 # Auto-detect browser language (default: true)
 SPFN_CMS_DETECT_BROWSER_LANGUAGE=true
 ```
+
+See `packages/cms/.env.example` for complete reference and `packages/cms/src/server/config/env.config.ts` for schema definition.
 
 ### Runtime Configuration
 
@@ -202,7 +206,7 @@ const config = getCmsConfig();
 // Update configuration
 configureCms({
   defaultLocale: 'en',
-  supportedLocales: ['en', 'ko', 'ja'],
+  locales: ['en', 'ko', 'ja'],
   detectBrowserLanguage: false
 });
 ```
