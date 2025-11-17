@@ -23,6 +23,34 @@ export class Logger
     }
 
     /**
+     * Convert unknown error to Error object
+     */
+    private toError(error: unknown): Error
+    {
+        if (error instanceof Error) return error;
+        if (typeof error === 'string') return new Error(error);
+        if (typeof error === 'object' && error !== null)
+        {
+            return new Error(JSON.stringify(error));
+        }
+
+        return new Error(String(error));
+    }
+
+    /**
+     * Check if value is a context object (not an error)
+     */
+    private isContext(value: unknown): value is Record<string, unknown>
+    {
+        if (typeof value !== 'object' || value === null) return false;
+        if (value instanceof Error) return false;
+
+        // Heuristic: if it has common Error properties, treat as error
+        const hasErrorProps = 'message' in value || 'stack' in value || 'name' in value;
+        return !hasErrorProps;
+    }
+
+    /**
      * Get current log level
      */
     get level(): LogLevel
@@ -44,33 +72,84 @@ export class Logger
     /**
      * Debug log
      */
-    debug(message: string, context?: Record<string, unknown>): void
+    debug(message: string, context?: Record<string, unknown>): void;
+    debug(message: string, error: Error | unknown, context?: Record<string, unknown>): void;
+    debug(message: string, errorOrContext?: Error | unknown | Record<string, unknown>, context?: Record<string, unknown>): void
     {
-        this.log('debug', message, undefined, context);
+        if (errorOrContext instanceof Error)
+        {
+            this.log('debug', message, errorOrContext, context);
+        }
+        else if (errorOrContext !== undefined && typeof errorOrContext === 'object' && !this.isContext(errorOrContext))
+        {
+            // unknown error object
+            this.log('debug', message, this.toError(errorOrContext), context);
+        }
+        else if (typeof errorOrContext === 'string' || typeof errorOrContext === 'number' || typeof errorOrContext === 'boolean')
+        {
+            // primitive types treated as errors
+            this.log('debug', message, this.toError(errorOrContext), context);
+        }
+        else
+        {
+            // treat as context
+            this.log('debug', message, undefined, errorOrContext as Record<string, unknown>);
+        }
     }
 
     /**
      * Info log
      */
-    info(message: string, context?: Record<string, unknown>): void
+    info(message: string, context?: Record<string, unknown>): void;
+    info(message: string, error: Error | unknown, context?: Record<string, unknown>): void;
+    info(message: string, errorOrContext?: Error | unknown | Record<string, unknown>, context?: Record<string, unknown>): void
     {
-        this.log('info', message, undefined, context);
+        if (errorOrContext instanceof Error)
+        {
+            this.log('info', message, errorOrContext, context);
+        }
+        else if (errorOrContext !== undefined && typeof errorOrContext === 'object' && !this.isContext(errorOrContext))
+        {
+            // unknown error object
+            this.log('info', message, this.toError(errorOrContext), context);
+        }
+        else if (typeof errorOrContext === 'string' || typeof errorOrContext === 'number' || typeof errorOrContext === 'boolean')
+        {
+            // primitive types treated as errors
+            this.log('info', message, this.toError(errorOrContext), context);
+        }
+        else
+        {
+            // treat as context
+            this.log('info', message, undefined, errorOrContext as Record<string, unknown>);
+        }
     }
 
     /**
      * Warn log
      */
     warn(message: string, context?: Record<string, unknown>): void;
-    warn(message: string, error: Error, context?: Record<string, unknown>): void;
-    warn(message: string, errorOrContext?: Error | Record<string, unknown>, context?: Record<string, unknown>): void
+    warn(message: string, error: Error | unknown, context?: Record<string, unknown>): void;
+    warn(message: string, errorOrContext?: Error | unknown | Record<string, unknown>, context?: Record<string, unknown>): void
     {
         if (errorOrContext instanceof Error)
         {
             this.log('warn', message, errorOrContext, context);
         }
+        else if (errorOrContext !== undefined && typeof errorOrContext === 'object' && !this.isContext(errorOrContext))
+        {
+            // unknown error object
+            this.log('warn', message, this.toError(errorOrContext), context);
+        }
+        else if (typeof errorOrContext === 'string' || typeof errorOrContext === 'number' || typeof errorOrContext === 'boolean')
+        {
+            // primitive types treated as errors
+            this.log('warn', message, this.toError(errorOrContext), context);
+        }
         else
         {
-            this.log('warn', message, undefined, errorOrContext);
+            // treat as context
+            this.log('warn', message, undefined, errorOrContext as Record<string, unknown>);
         }
     }
 
@@ -78,16 +157,27 @@ export class Logger
      * Error log
      */
     error(message: string, context?: Record<string, unknown>): void;
-    error(message: string, error: Error, context?: Record<string, unknown>): void;
-    error(message: string, errorOrContext?: Error | Record<string, unknown>, context?: Record<string, unknown>): void
+    error(message: string, error: Error | unknown, context?: Record<string, unknown>): void;
+    error(message: string, errorOrContext?: Error | unknown | Record<string, unknown>, context?: Record<string, unknown>): void
     {
         if (errorOrContext instanceof Error)
         {
             this.log('error', message, errorOrContext, context);
         }
+        else if (errorOrContext !== undefined && typeof errorOrContext === 'object' && !this.isContext(errorOrContext))
+        {
+            // unknown error object
+            this.log('error', message, this.toError(errorOrContext), context);
+        }
+        else if (typeof errorOrContext === 'string' || typeof errorOrContext === 'number' || typeof errorOrContext === 'boolean')
+        {
+            // primitive types treated as errors
+            this.log('error', message, this.toError(errorOrContext), context);
+        }
         else
         {
-            this.log('error', message, undefined, errorOrContext);
+            // treat as context
+            this.log('error', message, undefined, errorOrContext as Record<string, unknown>);
         }
     }
 
@@ -95,16 +185,27 @@ export class Logger
      * Fatal log
      */
     fatal(message: string, context?: Record<string, unknown>): void;
-    fatal(message: string, error: Error, context?: Record<string, unknown>): void;
-    fatal(message: string, errorOrContext?: Error | Record<string, unknown>, context?: Record<string, unknown>): void
+    fatal(message: string, error: Error | unknown, context?: Record<string, unknown>): void;
+    fatal(message: string, errorOrContext?: Error | unknown | Record<string, unknown>, context?: Record<string, unknown>): void
     {
         if (errorOrContext instanceof Error)
         {
             this.log('fatal', message, errorOrContext, context);
         }
+        else if (errorOrContext !== undefined && typeof errorOrContext === 'object' && !this.isContext(errorOrContext))
+        {
+            // unknown error object
+            this.log('fatal', message, this.toError(errorOrContext), context);
+        }
+        else if (typeof errorOrContext === 'string' || typeof errorOrContext === 'number' || typeof errorOrContext === 'boolean')
+        {
+            // primitive types treated as errors
+            this.log('fatal', message, this.toError(errorOrContext), context);
+        }
         else
         {
-            this.log('fatal', message, undefined, errorOrContext);
+            // treat as context
+            this.log('fatal', message, undefined, errorOrContext as Record<string, unknown>);
         }
     }
 

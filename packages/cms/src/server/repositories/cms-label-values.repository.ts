@@ -6,7 +6,7 @@
  */
 
 import { BaseRepository } from '@spfn/core/db';
-import { eq, and, SQL, isNull, gte, lte } from 'drizzle-orm';
+import { eq, and, SQL, isNull, gte, lte, inArray } from 'drizzle-orm';
 import { cmsLabelValues, type CmsLabelValue, type NewCmsLabelValue } from '@/server/entities';
 
 /**
@@ -180,6 +180,67 @@ export class CmsLabelValuesRepository extends BaseRepository
                 )
             )
             .returning();
+    }
+
+    /**
+     * 여러 라벨의 publishedVersion 값들을 한 번에 조회 (N+1 문제 해결)
+     * Read replica 사용
+     *
+     * @param labelVersions - { labelId, version } 배열
+     * @returns labelId를 키로 하는 Map<labelId, CmsLabelValue[]>
+     *
+     * @example
+     * ```typescript
+     * const result = await findByLabelVersions([
+     *   { labelId: 1, version: 5 },
+     *   { labelId: 2, version: 3 }
+     * ]);
+     * // result.get(1) -> label 1의 version 5 값들
+     * // result.get(2) -> label 2의 version 3 값들
+     * ```
+     */
+    async findByLabelVersions(
+        labelVersions: Array<{ labelId: number; version: number }>
+    ): Promise<Map<number, CmsLabelValue[]>>
+    {
+        if (labelVersions.length === 0)
+        {
+            return new Map();
+        }
+
+        // 모든 label의 publishedVersion 값들을 한 번에 조회
+        const allValues = await this.readDb
+            .select()
+            .from(cmsLabelValues)
+            .where(
+                and(
+                    inArray(
+                        cmsLabelValues.labelId,
+                        labelVersions.map(lv => lv.labelId)
+                    )
+                )
+            );
+
+        // labelId와 version으로 필터링하여 Map 생성
+        const versionMap = new Map(labelVersions.map(lv => [lv.labelId, lv.version]));
+        const resultMap = new Map<number, CmsLabelValue[]>();
+
+        for (const value of allValues)
+        {
+            const expectedVersion = versionMap.get(value.labelId);
+
+            // 해당 labelId의 version이 일치하는 경우만 포함
+            if (expectedVersion !== undefined && value.version === expectedVersion)
+            {
+                if (!resultMap.has(value.labelId))
+                {
+                    resultMap.set(value.labelId, []);
+                }
+                resultMap.get(value.labelId)!.push(value);
+            }
+        }
+
+        return resultMap;
     }
 
     /**

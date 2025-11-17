@@ -18,3 +18,8 @@
  * ```
  */
 export const DEFAULT_LABELS_DIR = 'src/lib/labels';
+
+/**
+ * 기본 locale 보장 (ko, en)
+ */
+export const DEFAULT_LOCALES = ['ko', 'en'] as const;
