@@ -52,4 +52,4 @@ export {
 } from './helpers';
 
 // Repository Pattern
-export { BaseRepository } from './repository';
+export { BaseRepository, RepositoryError } from './repository';

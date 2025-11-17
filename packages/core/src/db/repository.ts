@@ -9,6 +9,7 @@
  * - Read/Write connection separation (with replica support)
  * - Type-safe schema generics
  * - Consistent database access pattern across all repositories
+ * - Enhanced error tracking with repository context
  *
  * @example Basic Repository
  * ```typescript
@@ -56,11 +57,50 @@
  *     // Now this.db and this.readDb are typed with AppSchema
  * }
  * ```
+ *
+ * @example With Enhanced Error Tracking
+ * ```typescript
+ * export class UserRepository extends BaseRepository {
+ *     async updateStatus(id: string, status: string) {
+ *         // Errors will include repository context automatically
+ *         return await this.db
+ *             .update(users)
+ *             .set({ status })
+ *             .where(eq(users.id, id))
+ *             .returning();
+ *     }
+ * }
+ * // On error: logs will show "UserRepository" context
+ * ```
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { getDatabase } from './manager';
 import { getTransaction } from './transaction';
+
+/**
+ * Enhanced error class that includes repository context
+ */
+export class RepositoryError extends Error
+{
+    constructor(
+        message: string,
+        public readonly repository: string,
+        public readonly method?: string,
+        public readonly table?: string,
+        public readonly originalError?: Error
+    )
+    {
+        super(message);
+        this.name = 'RepositoryError';
+
+        // Preserve original stack trace if available
+        if (originalError?.stack)
+        {
+            this.stack = originalError.stack;
+        }
+    }
+}
 
 /**
  * Base Repository class for database operations
@@ -137,5 +177,55 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
 
         // Fall back to global read instance (uses replica if configured)
         return getDatabase('read') as PostgresJsDatabase<TSchema>;
+    }
+
+    /**
+     * Wrap query execution with repository context
+     *
+     * Enhances error messages with repository information to make debugging easier.
+     * When an error occurs, it will include:
+     * - Repository class name
+     * - Method name
+     * - Table name (if provided)
+     * - Original error details
+     *
+     * @param queryFn - Query function to execute
+     * @param context - Context information (operation name, table name, etc.)
+     * @returns Query result
+     * @throws RepositoryError with enhanced context
+     *
+     * @example
+     * ```typescript
+     * async findById(id: number) {
+     *     return await this.withContext(
+     *         () => this.readDb.select().from(users).where(eq(users.id, id)),
+     *         { method: 'findById', table: 'users' }
+     *     );
+     * }
+     * ```
+     */
+    protected async withContext<T>(
+        queryFn: () => Promise<T>,
+        context: { method?: string; table?: string } = {}
+    ): Promise<T>
+    {
+        try
+        {
+            return await queryFn();
+        }
+        catch (error)
+        {
+            const err = error instanceof Error ? error : new Error(String(error));
+            const repositoryName = this.constructor.name;
+
+            // Create enhanced error with repository context
+            throw new RepositoryError(
+                err.message,
+                repositoryName,
+                context.method,
+                context.table,
+                err
+            );
+        }
     }
 }

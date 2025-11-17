@@ -447,3 +447,193 @@ function getEmailColor(level: LogLevel): string
 
     return colors[level];
 }
+
+/**
+ * Drizzle ORM 에러에서 쿼리 정보 추출
+ *
+ * Drizzle ORM은 에러 메시지에 다음 형식으로 정보를 포함:
+ * - "Failed query: <QUERY>\nparams: <PARAMS>"
+ * - "Query: <QUERY>"
+ *
+ * @param error - Error 객체
+ * @returns 쿼리 정보 (query, params, table)
+ */
+export function extractQueryInfo(error: Error): {
+    query?: string;
+    params?: unknown;
+    table?: string;
+} | null
+{
+    const message = error.message;
+
+    if (!message) return null;
+
+    const result: {
+        query?: string;
+        params?: unknown;
+        table?: string;
+    } = {};
+
+    // Extract query from "Failed query: ..." or "Query: ..."
+    const queryMatch = message.match(/(?:Failed query:|Query:)\s*([^\n]+)/);
+    if (queryMatch)
+    {
+        result.query = queryMatch[1].trim();
+
+        // Extract table name from query (e.g., UPDATE "table_name" or INSERT INTO "table_name")
+        const tableMatch = result.query.match(/(?:UPDATE|INSERT INTO|DELETE FROM|FROM)\s+"?([a-zA-Z_][a-zA-Z0-9_]*)"?\."?([a-zA-Z_][a-zA-Z0-9_]*)"?|(?:UPDATE|INSERT INTO|DELETE FROM|FROM)\s+"?([a-zA-Z_][a-zA-Z0-9_]*)"?/i);
+        if (tableMatch)
+        {
+            // Schema.Table or just Table
+            result.table = tableMatch[2] || tableMatch[3] || tableMatch[1];
+        }
+    }
+
+    // Extract params from "params: ..."
+    const paramsMatch = message.match(/params:\s*(.+?)(?:\n|$)/);
+    if (paramsMatch)
+    {
+        const paramsStr = paramsMatch[1].trim();
+        try
+        {
+            // Try to parse as comma-separated values
+            result.params = paramsStr.split(',').map(p => p.trim());
+        }
+        catch (e)
+        {
+            result.params = paramsStr;
+        }
+    }
+
+    return Object.keys(result).length > 0 ? result : null;
+}
+
+/**
+ * Promise rejection의 호출 스택에서 실제 발생 위치 추출
+ *
+ * 스택 트레이스에서 다음 정보를 추출:
+ * - 실제 에러 발생 파일 경로
+ * - 라인 번호
+ * - 함수명/메서드명
+ * - Repository 정보 (있는 경우)
+ *
+ * @param error - Error 객체
+ * @returns Promise context 정보
+ */
+export function extractPromiseContext(error: Error): Record<string, unknown>
+{
+    const context: Record<string, unknown> = {};
+
+    if (!error.stack) return context;
+
+    const stackLines = error.stack.split('\n');
+
+    // Skip first line (error message) and find first meaningful stack frame
+    // Ignore node_modules and internal Node.js paths
+    for (let i = 1; i < stackLines.length; i++)
+    {
+        const line = stackLines[i].trim();
+
+        // Skip node_modules and node internals
+        if (line.includes('node_modules') || line.includes('node:internal')) continue;
+
+        // Extract file, line number, and function name
+        // Format: "at ClassName.methodName (file.ts:line:col)"
+        // or: "at functionName (file.ts:line:col)"
+        // or: "at file.ts:line:col"
+
+        const match = line.match(/at\s+(?:([a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*)*)\s+)?\(?([^)]+):(\d+):(\d+)\)?/);
+
+        if (match)
+        {
+            const [, functionName, filePath, lineNumber, columnNumber] = match;
+
+            // Extract just the filename from the full path
+            const fileNameMatch = filePath.match(/([^/\\]+)$/);
+            const fileName = fileNameMatch ? fileNameMatch[1] : filePath;
+
+            context.file = fileName;
+            context.line = parseInt(lineNumber, 10);
+            context.column = parseInt(columnNumber, 10);
+
+            if (functionName)
+            {
+                // Check if it's a class method (e.g., "ClassName.methodName")
+                const methodMatch = functionName.match(/^(.+)\.([^.]+)$/);
+                if (methodMatch)
+                {
+                    const [, className, methodName] = methodMatch;
+
+                    context.class = className;
+                    context.method = methodName;
+
+                    // Check if it's a Repository
+                    if (className.includes('Repository'))
+                    {
+                        context.repository = className;
+                    }
+                }
+                else
+                {
+                    context.function = functionName;
+                }
+            }
+
+            // Found first relevant frame, stop here
+            break;
+        }
+    }
+
+    return context;
+}
+
+/**
+ * Unhandled rejection 에러를 상세하게 포맷팅
+ *
+ * Promise context와 DB 쿼리 정보를 자동으로 추출하여
+ * 에러 발생 위치와 원인을 명확하게 파악할 수 있도록 함
+ *
+ * @param reason - Rejection 원인 (Error 또는 기타)
+ * @param promise - Promise 객체
+ * @returns 상세 context 정보
+ */
+export function formatUnhandledRejection(reason: unknown, promise: Promise<unknown>): {
+    error: Error;
+    context: Record<string, unknown>;
+}
+{
+    // Convert reason to Error if not already
+    let error: Error;
+    if (reason instanceof Error)
+    {
+        error = reason;
+    }
+    else if (typeof reason === 'string')
+    {
+        error = new Error(reason);
+    }
+    else
+    {
+        error = new Error(JSON.stringify(reason));
+    }
+
+    const context: Record<string, unknown> = {
+        promise: String(promise),
+    };
+
+    // Extract promise context (file, line, function, etc.)
+    const promiseContext = extractPromiseContext(error);
+    if (Object.keys(promiseContext).length > 0)
+    {
+        context.promiseContext = promiseContext;
+    }
+
+    // Extract DB query info if available
+    const queryInfo = extractQueryInfo(error);
+    if (queryInfo)
+    {
+        context.queryInfo = queryInfo;
+    }
+
+    return { error, context };
+}

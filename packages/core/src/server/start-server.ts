@@ -730,11 +730,21 @@ function registerProcessHandlers(
 
     process.on('unhandledRejection', (reason, promise) =>
     {
-        // If reason is an Error object, pass it as second parameter for proper stack trace
+        // Enhanced error logging with promise context extraction
         if (reason instanceof Error)
         {
-            serverLogger.error('Unhandled promise rejection', reason, {
-                promise,
+            // Import formatUnhandledRejection dynamically to avoid circular deps
+            import('../logger/formatters').then(({ formatUnhandledRejection }) =>
+            {
+                const { error, context } = formatUnhandledRejection(reason, promise);
+
+                serverLogger.error('Unhandled promise rejection', error, context);
+            }).catch(() =>
+            {
+                // Fallback if formatUnhandledRejection fails
+                serverLogger.error('Unhandled promise rejection', reason, {
+                    promise,
+                });
             });
         }
         else
