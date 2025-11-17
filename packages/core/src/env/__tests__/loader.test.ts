@@ -16,6 +16,14 @@ import {
     isEnvironmentLoaded,
     resetEnvironment,
 } from '../loader';
+import {
+    parseNumber,
+    createNumberParser,
+    parseUrl,
+    createUrlParser,
+    parseEnum,
+    createEnumParser,
+} from '../validator';
 
 describe('Environment Loader', () =>
 {
@@ -27,11 +35,19 @@ describe('Environment Loader', () =>
         // Backup original environment
         originalEnv = { ...process.env };
 
-        // Create test directory
-        if (!existsSync(TEST_DIR))
+        // Clean up test directory first (in case previous test failed)
+        const { rmSync } = require('fs');
+        try
         {
-            mkdirSync(TEST_DIR, { recursive: true });
+            rmSync(TEST_DIR, { recursive: true, force: true });
         }
+        catch (error)
+        {
+            // Ignore errors
+        }
+
+        // Create test directory
+        mkdirSync(TEST_DIR, { recursive: true });
 
         // Reset loader state
         resetEnvironment();
@@ -47,7 +63,7 @@ describe('Environment Loader', () =>
         // Restore original environment
         process.env = originalEnv;
 
-        // Clean up test files
+        // Clean up test files and directories
         const testFiles = [
             '.env',
             '.env.development',
@@ -55,15 +71,43 @@ describe('Environment Loader', () =>
             '.env.development.local',
             '.env.test',
             '.env.test.local',
+            '.env.auth',
+            '.env.auth.development',
+            '.env.auth.local',
+            '.env.payment',
+            '.env.api',
+            '.env.api.local',
+            '.env.worker',
+            '.env.worker.local',
+            'custom.env',
         ];
 
+        // Remove test files
         for (const file of testFiles)
         {
             const filePath = join(TEST_DIR, file);
             if (existsSync(filePath))
             {
-                unlinkSync(filePath);
+                try
+                {
+                    unlinkSync(filePath);
+                }
+                catch (error)
+                {
+                    // Ignore errors for files that don't exist or are directories
+                }
             }
+        }
+
+        // Clean up test directory recursively (for folder structure tests)
+        const { rmSync } = require('fs');
+        try
+        {
+            rmSync(TEST_DIR, { recursive: true, force: true });
+        }
+        catch (error)
+        {
+            // Ignore errors
         }
 
         // Reset loader state
@@ -378,7 +422,7 @@ describe('Environment Loader', () =>
             writeFileSync(join(TEST_DIR, '.env'), 'VAR1=base\n');
             writeFileSync(join(TEST_DIR, '.env.local'), 'VAR2=local\n');
 
-            const result = loadEnvironment({
+            loadEnvironment({
                 basePath: TEST_DIR,
                 nodeEnv: 'local',
             });
@@ -541,6 +585,280 @@ describe('Environment Loader', () =>
                     debug: true,
                 });
             }).not.toThrow();
+        });
+    });
+
+    describe('Parser Usage Examples', () =>
+    {
+        it('should use parseNumber with getEnvVar', () =>
+        {
+            process.env.PORT = '3000';
+
+            const port = getEnvVar<number>('PORT', {
+                default: 8080,
+                validator: createNumberParser({ min: 1, max: 65535, integer: true }),
+            });
+
+            expect(port).toBe(3000);
+            expect(typeof port).toBe('number');
+        });
+
+        it('should use parseUrl with getEnvVar', () =>
+        {
+            process.env.API_URL = 'https://api.example.com';
+
+            const apiUrl = getEnvVar<string>('API_URL', {
+                required: true,
+                validator: createUrlParser('https'),
+            });
+
+            expect(apiUrl).toBe('https://api.example.com');
+        });
+
+        it('should use parseEnum with getEnvVar', () =>
+        {
+            process.env.LOG_LEVEL = 'info';
+
+            const logLevel = getEnvVar<string>('LOG_LEVEL', {
+                default: 'warn',
+                validator: createEnumParser(['debug', 'info', 'warn', 'error']),
+            });
+
+            expect(logLevel).toBe('info');
+        });
+
+        it('should throw meaningful error on invalid number', () =>
+        {
+            process.env.INVALID_PORT = 'not-a-number';
+
+            expect(() =>
+            {
+                getEnvVar<number>('INVALID_PORT', {
+                    validator: createNumberParser({ min: 1, max: 65535 }),
+                });
+            }).toThrow('Invalid value for environment variable INVALID_PORT: Must be a valid number');
+        });
+
+        it('should throw meaningful error on invalid URL protocol', () =>
+        {
+            process.env.INSECURE_URL = 'http://example.com';
+
+            expect(() =>
+            {
+                getEnvVar<string>('INSECURE_URL', {
+                    required: true,
+                    validator: createUrlParser('https'),
+                });
+            }).toThrow('Invalid value for environment variable INSECURE_URL: URL must use HTTPS protocol');
+        });
+
+        it('should throw meaningful error on invalid enum value', () =>
+        {
+            process.env.INVALID_ENV = 'staging';
+
+            expect(() =>
+            {
+                getEnvVar<string>('INVALID_ENV', {
+                    validator: createEnumParser(['development', 'production', 'test']),
+                });
+            }).toThrow('Invalid value for environment variable INVALID_ENV: Must be one of [development, production, test]');
+        });
+
+        it('should work with inline parser functions', () =>
+        {
+            process.env.TIMEOUT = '5000';
+
+            const timeout = getEnvVar<number>('TIMEOUT', {
+                default: 3000,
+                validator: (val) => parseNumber(val, { min: 1000, max: 30000, integer: true }),
+            });
+
+            expect(timeout).toBe(5000);
+        });
+
+        it('should use parseUrl inline', () =>
+        {
+            process.env.API_ENDPOINT = 'https://example.com/api';
+
+            const apiEndpoint = getEnvVar<string>('API_ENDPOINT', {
+                required: true,
+                validator: (val) => parseUrl(val, { protocol: 'https' }),
+            });
+
+            expect(apiEndpoint).toBe('https://example.com/api');
+        });
+
+        it('should use parseEnum inline', () =>
+        {
+            process.env.NODE_ENV = 'production';
+
+            const env = getEnvVar<string>('NODE_ENV', {
+                required: true,
+                validator: (val) => parseEnum(val, ['development', 'production', 'test']),
+            });
+
+            expect(env).toBe('production');
+        });
+
+        it('should demonstrate both patterns work the same', () =>
+        {
+            process.env.PORT_A = '3000';
+            process.env.PORT_B = '4000';
+
+            // Pattern 1: Inline parser
+            const portA = getEnvVar<number>('PORT_A', {
+                validator: (val) => parseNumber(val, { min: 1, max: 65535 }),
+            });
+
+            // Pattern 2: Factory function
+            const portB = getEnvVar<number>('PORT_B', {
+                validator: createNumberParser({ min: 1, max: 65535 }),
+            });
+
+            expect(portA).toBe(3000);
+            expect(portB).toBe(4000);
+        });
+    });
+
+    describe('Namespace Support', () =>
+    {
+        it('should load namespaced files with flat structure', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env'), 'GLOBAL_VAR=global\n');
+            writeFileSync(join(TEST_DIR, '.env.auth'), 'AUTH_VAR=auth\n');
+            writeFileSync(join(TEST_DIR, '.env.auth.development'), 'AUTH_DEV_VAR=auth-dev\n');
+
+            const result = loadEnvironment({
+                basePath: TEST_DIR,
+                namespace: 'auth',
+                nodeEnv: 'development',
+            });
+
+            expect(process.env.GLOBAL_VAR).toBe('global');
+            expect(process.env.AUTH_VAR).toBe('auth');
+            expect(process.env.AUTH_DEV_VAR).toBe('auth-dev');
+            expect(result.loaded).toHaveLength(3);
+        });
+
+        it('should override global vars with namespaced vars', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env'), 'SHARED_VAR=global\n');
+            writeFileSync(join(TEST_DIR, '.env.payment'), 'SHARED_VAR=payment\n');
+
+            loadEnvironment({
+                basePath: TEST_DIR,
+                namespace: 'payment',
+            });
+
+            // Namespaced var should override global
+            expect(process.env.SHARED_VAR).toBe('payment');
+        });
+
+        it('should load namespaced files with folder structure', () =>
+        {
+            // Create folder structure
+            const globalDir = join(TEST_DIR, '.env', 'global');
+            const authDir = join(TEST_DIR, '.env', 'auth');
+
+            mkdirSync(globalDir, { recursive: true });
+            mkdirSync(authDir, { recursive: true });
+
+            writeFileSync(join(globalDir, '.env'), 'GLOBAL_VAR=global\n');
+            writeFileSync(join(authDir, '.env'), 'AUTH_VAR=auth\n');
+            writeFileSync(join(authDir, '.env.local'), 'AUTH_LOCAL_VAR=auth-local\n');
+
+            const result = loadEnvironment({
+                basePath: TEST_DIR,
+                namespace: 'auth',
+                useFolderStructure: true,
+            });
+
+            expect(process.env.GLOBAL_VAR).toBe('global');
+            expect(process.env.AUTH_VAR).toBe('auth');
+            expect(process.env.AUTH_LOCAL_VAR).toBe('auth-local');
+            expect(result.loaded).toHaveLength(3);
+        });
+
+        it('should work without namespace (backward compatibility)', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env'), 'VAR1=value1\n');
+            writeFileSync(join(TEST_DIR, '.env.development'), 'VAR2=value2\n');
+
+            const result = loadEnvironment({
+                basePath: TEST_DIR,
+                nodeEnv: 'development',
+            });
+
+            expect(process.env.VAR1).toBe('value1');
+            expect(process.env.VAR2).toBe('value2');
+            expect(result.loaded).toHaveLength(2);
+        });
+
+        it('should load namespaced local files correctly', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env'), 'VAR1=global\n');
+            writeFileSync(join(TEST_DIR, '.env.api'), 'VAR2=api\n');
+            writeFileSync(join(TEST_DIR, '.env.api.local'), 'VAR3=api-local\n');
+
+            const result = loadEnvironment({
+                basePath: TEST_DIR,
+                namespace: 'api',
+            });
+
+            expect(process.env.VAR1).toBe('global');
+            expect(process.env.VAR2).toBe('api');
+            expect(process.env.VAR3).toBe('api-local');
+            expect(result.loaded).toHaveLength(3);
+        });
+
+        it('should handle multiple namespaces in sequence', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env'), 'SHARED=global\n');
+            writeFileSync(join(TEST_DIR, '.env.auth'), 'SHARED=auth\nAUTH_ONLY=auth\n');
+            writeFileSync(join(TEST_DIR, '.env.payment'), 'SHARED=payment\nPAYMENT_ONLY=payment\n');
+
+            // Load auth namespace
+            loadEnvironment({
+                basePath: TEST_DIR,
+                namespace: 'auth',
+                useCache: false,
+            });
+
+            expect(process.env.SHARED).toBe('auth');
+            expect(process.env.AUTH_ONLY).toBe('auth');
+
+            // Reset and load payment namespace
+            resetEnvironment();
+            delete process.env.SHARED;
+            delete process.env.AUTH_ONLY;
+
+            loadEnvironment({
+                basePath: TEST_DIR,
+                namespace: 'payment',
+                useCache: false,
+            });
+
+            expect(process.env.SHARED).toBe('payment');
+            expect(process.env.PAYMENT_ONLY).toBe('payment');
+        });
+
+        it('should respect test environment behavior with namespace', () =>
+        {
+            writeFileSync(join(TEST_DIR, '.env'), 'VAR1=global\n');
+            writeFileSync(join(TEST_DIR, '.env.local'), 'VAR2=global-local\n');
+            writeFileSync(join(TEST_DIR, '.env.worker'), 'VAR3=worker\n');
+            writeFileSync(join(TEST_DIR, '.env.worker.local'), 'VAR4=worker-local\n');
+
+            loadEnvironment({
+                basePath: TEST_DIR,
+                namespace: 'worker',
+                nodeEnv: 'test',
+            });
+
+            expect(process.env.VAR1).toBe('global');
+            expect(process.env.VAR2).toBeUndefined(); // .env.local skipped in test
+            expect(process.env.VAR3).toBe('worker');
+            expect(process.env.VAR4).toBeUndefined(); // .env.worker.local skipped in test
         });
     });
 });

@@ -24,26 +24,68 @@ let environmentLoaded = false;
 let cachedLoadResult: LoadResult | undefined;
 
 /**
- * Build list of environment files to load based on NODE_ENV
+ * Build list of environment files to load based on NODE_ENV and namespace
  *
  * Next.js-style behavior:
  * - .env.local is excluded in test environment for test isolation
  * - Test files (.env.test*) are excluded in non-test environments
  * - If NODE_ENV is not set, .env and .env.local are loaded
  *
+ * With namespace:
+ * - Loads global files first, then namespaced files
+ * - Namespaced files override global files
+ *
  * @param basePath - Base directory for .env files
  * @param nodeEnv - Current NODE_ENV value (empty string if not set)
+ * @param namespace - Optional namespace for file separation
+ * @param useFolderStructure - Use folder-based structure instead of flat naming
  * @returns Array of absolute file paths to load in priority order
  */
-function buildFileList(basePath: string, nodeEnv: string): string[]
+function buildFileList(
+    basePath: string,
+    nodeEnv: string,
+    namespace?: string,
+    useFolderStructure = false
+): string[]
 {
     const files: string[] = [];
+
+    // Build global files list
+    const globalFiles = buildGlobalFileList(basePath, nodeEnv, useFolderStructure);
+    files.push(...globalFiles);
+
+    // Build namespaced files list if namespace is provided
+    if (namespace)
+    {
+        const namespacedFiles = buildNamespacedFileList(
+            basePath,
+            nodeEnv,
+            namespace,
+            useFolderStructure
+        );
+        files.push(...namespacedFiles);
+    }
+
+    return files;
+}
+
+/**
+ * Build list of global environment files
+ */
+function buildGlobalFileList(
+    basePath: string,
+    nodeEnv: string,
+    useFolderStructure: boolean
+): string[]
+{
+    const files: string[] = [];
+    const baseDir = useFolderStructure ? join(basePath, '.env', 'global') : basePath;
 
     // If NODE_ENV is not set, load .env and .env.local (Next.js style)
     if (!nodeEnv)
     {
-        files.push(join(basePath, '.env'));
-        files.push(join(basePath, '.env.local'));
+        files.push(join(baseDir, '.env'));
+        files.push(join(baseDir, '.env.local'));
         return files;
     }
 
@@ -58,7 +100,6 @@ function buildFileList(basePath: string, nodeEnv: string): string[]
         }
 
         // Skip duplicate .env.local when NODE_ENV=local
-        // (.env.{NODE_ENV} becomes .env.local, same as .env.local pattern)
         if (nodeEnv === 'local' && pattern === '.env.local')
         {
             continue;
@@ -70,7 +111,108 @@ function buildFileList(basePath: string, nodeEnv: string): string[]
             continue;
         }
 
-        files.push(join(basePath, fileName));
+        files.push(join(baseDir, fileName));
+    }
+
+    return files;
+}
+
+/**
+ * Build list of namespaced environment files
+ */
+function buildNamespacedFileList(
+    basePath: string,
+    nodeEnv: string,
+    namespace: string,
+    useFolderStructure: boolean
+): string[]
+{
+    const files: string[] = [];
+
+    if (useFolderStructure)
+    {
+        // Folder structure: .env/{namespace}/.env, .env/{namespace}/.env.{NODE_ENV}
+        const namespacedDir = join(basePath, '.env', namespace);
+
+        if (!nodeEnv)
+        {
+            files.push(join(namespacedDir, '.env'));
+            files.push(join(namespacedDir, '.env.local'));
+            return files;
+        }
+
+        for (const pattern of ENV_FILE_PRIORITY)
+        {
+            const fileName = pattern.replace('{NODE_ENV}', nodeEnv);
+
+            if (nodeEnv === 'test' && fileName === '.env.local')
+            {
+                continue;
+            }
+
+            if (nodeEnv === 'local' && pattern === '.env.local')
+            {
+                continue;
+            }
+
+            if (nodeEnv !== 'test' && TEST_ONLY_FILES.includes(fileName as any))
+            {
+                continue;
+            }
+
+            files.push(join(namespacedDir, fileName));
+        }
+    }
+    else
+    {
+        // Flat structure: .env.{namespace}, .env.{namespace}.{NODE_ENV}
+        if (!nodeEnv)
+        {
+            files.push(join(basePath, `.env.${namespace}`));
+            files.push(join(basePath, `.env.${namespace}.local`));
+            return files;
+        }
+
+        for (const pattern of ENV_FILE_PRIORITY)
+        {
+            let fileName = pattern.replace('{NODE_ENV}', nodeEnv);
+
+            // Convert to namespaced pattern
+            // .env → .env.{namespace}
+            // .env.{NODE_ENV} → .env.{namespace}.{NODE_ENV}
+            // .env.local → .env.{namespace}.local
+            // .env.{NODE_ENV}.local → .env.{namespace}.{NODE_ENV}.local
+            if (fileName === '.env')
+            {
+                fileName = `.env.${namespace}`;
+            }
+            else if (fileName === '.env.local')
+            {
+                fileName = `.env.${namespace}.local`;
+            }
+            else
+            {
+                // .env.{NODE_ENV} or .env.{NODE_ENV}.local
+                fileName = fileName.replace('.env.', `.env.${namespace}.`);
+            }
+
+            if (nodeEnv === 'test' && fileName.endsWith('.local') && !fileName.includes('.test.'))
+            {
+                continue;
+            }
+
+            if (nodeEnv === 'local' && pattern === '.env.local')
+            {
+                continue;
+            }
+
+            if (nodeEnv !== 'test' && TEST_ONLY_FILES.some((testFile) => fileName.includes(testFile)))
+            {
+                continue;
+            }
+
+            files.push(join(basePath, fileName));
+        }
     }
 
     return files;
@@ -218,6 +360,8 @@ export function loadEnvironment(options: LoadEnvironmentOptions = {}): LoadResul
 {
     const {
         basePath = process.cwd(),
+        namespace,
+        useFolderStructure = false,
         customPaths = [],
         debug = false,
         nodeEnv = process.env.NODE_ENV || '',
@@ -243,6 +387,8 @@ export function loadEnvironment(options: LoadEnvironmentOptions = {}): LoadResul
         envLogger.debug('Loading environment variables', {
             basePath,
             nodeEnv,
+            namespace,
+            useFolderStructure,
             customPaths,
             required,
         });
@@ -256,8 +402,8 @@ export function loadEnvironment(options: LoadEnvironmentOptions = {}): LoadResul
         warnings: [],
     };
 
-    // Build standard file list
-    const standardFiles = buildFileList(basePath, nodeEnv);
+    // Build standard file list (includes namespace files if provided)
+    const standardFiles = buildFileList(basePath, nodeEnv, namespace, useFolderStructure);
     const allFiles = [...standardFiles, ...customPaths];
 
     if (debug)
@@ -416,7 +562,23 @@ export function getEnvVar<T = string>(key: string, options: GetEnvOptions<T> = {
     {
         try
         {
-            return validator(value);
+            const result = validator(value);
+
+            // Handle boolean validators (deprecated, but still supported for backward compatibility)
+            if (typeof result === 'boolean')
+            {
+                if (!result)
+                {
+                    // Use custom validationError or generic message
+                    const errorMsg = options.validationError || 'Validation failed';
+                    throw new Error(errorMsg);
+                }
+                // Boolean validator passed, return original value
+                return value as unknown as T;
+            }
+
+            // Parser function returned transformed value
+            return result;
         }
         catch (error)
         {

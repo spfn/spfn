@@ -1,16 +1,21 @@
 # @spfn/core/env - Environment Variable Management
 
-Centralized environment variable loading with Next.js-style priority and comprehensive validation utilities.
+Centralized environment variable loading with Next.js-style priority, namespace support, and comprehensive type-safe validation utilities.
 
 ## Features
 
 - ✅ **Next.js-Style Loading**: Priority-based .env file loading
+- ✅ **Namespace Support**: Modular configuration for packages, features, or services
+- ✅ **Type-Safe Parsers**: Parse and validate with strong typing
 - ✅ **Test Isolation**: Automatic .env.local exclusion in test environment
 - ✅ **Singleton Pattern**: Load once, cache results
 - ✅ **Required Variables**: Validate required env vars on load
 - ✅ **Custom Paths**: Support for custom .env file locations
-- ✅ **Validation Utilities**: URL, number, boolean, enum, pattern validators
-- ✅ **Type-Safe**: Full TypeScript support
+- ✅ **Folder Structure**: Optional folder-based organization
+- ✅ **Full TypeScript Support**: Complete type safety
+- ✅ **Schema-Based Management** (NEW): Centralized schema definition with metadata
+- ✅ **Auto Documentation** (NEW): Generate docs and .env.example automatically
+- ✅ **Validation System** (NEW): Comprehensive validation with warnings
 
 ---
 
@@ -32,22 +37,96 @@ const dbUrl = getEnvVar('DATABASE_URL', { required: true });
 const port = getEnvVar('PORT', { default: '3000' });
 ```
 
-### With Validation
+### Schema-Based Usage (NEW)
 
 ```typescript
-import { getEnvVar, validateUrl, createNumberValidator } from '@spfn/core/env';
+import {
+  defineEnvSchema,
+  createEnvRegistry,
+  loadEnvironment,
+  envString,
+  envNumber,
+  parsePostgresUrl,
+  createNumberParser,
+} from '@spfn/core/env';
 
-// Validate URL
-const apiUrl = getEnvVar('API_URL', {
-  validator: validateUrl,
-  validationError: 'API_URL must be a valid URL',
+// 1. Define schema with metadata
+const schema = defineEnvSchema({
+  DATABASE_URL: {
+    ...envString({
+      description: 'PostgreSQL database connection',
+      required: true,
+      validator: parsePostgresUrl,
+      category: 'database',
+      sensitive: true,
+    }),
+    key: 'DATABASE_URL',
+  },
+  PORT: {
+    ...envNumber({
+      description: 'Server port number',
+      default: 3000,
+      validator: createNumberParser({ min: 1, max: 65535 }),
+      category: 'server',
+    }),
+    key: 'PORT',
+  },
 });
 
-// Validate number with constraints
-const port = getEnvVar('PORT', {
-  validator: createNumberValidator({ min: 1, max: 65535, integer: true }),
-  validationError: 'PORT must be between 1 and 65535',
+// 2. Create registry
+const env = createEnvRegistry(schema);
+
+// 3. Load and validate
+loadEnvironment();
+const validation = env.validate();
+
+if (!validation.valid) {
+  console.error('Environment errors:', validation.errors);
+  process.exit(1);
+}
+
+// 4. Type-safe access
+const dbUrl = env.require('DATABASE_URL');  // string
+const port = env.get('PORT');               // number | undefined
+```
+
+### With Type-Safe Parsers (Recommended)
+
+```typescript
+import {
+  getEnvVar,
+  createNumberParser,
+  createUrlParser,
+  parsePostgresUrl
+} from '@spfn/core/env';
+
+// Parse number with validation
+const port = getEnvVar<number>('PORT', {
+  default: 3000,
+  validator: createNumberParser({ min: 1, max: 65535, integer: true })
 });
+
+// Validate URL with protocol requirement
+const apiUrl = getEnvVar<string>('API_URL', {
+  required: true,
+  validator: createUrlParser('https')
+});
+
+// Validate database URL
+const dbUrl = getEnvVar<string>('DATABASE_URL', {
+  required: true,
+  validator: parsePostgresUrl
+});
+```
+
+### With Namespace Support
+
+```typescript
+// Load feature-specific config
+loadEnvironment({ namespace: 'auth' });
+
+// Or package-specific config
+loadEnvironment({ namespace: 'spfn-core' });
 ```
 
 ---
@@ -88,6 +167,86 @@ Next.js-style loading behavior with highest priority last:
 
 ---
 
+## Namespace Support
+
+Organize environment variables by package, feature, or service.
+
+### Flat Structure (Default)
+
+```bash
+# File structure
+.env                    # Global config
+.env.auth               # Auth module config
+.env.auth.development   # Auth dev environment
+.env.payment            # Payment module config
+```
+
+```typescript
+// Load auth module
+loadEnvironment({ namespace: 'auth' });
+
+// Files loaded:
+// 1. .env
+// 2. .env.development
+// 3. .env.auth
+// 4. .env.auth.development
+```
+
+### Folder Structure
+
+```bash
+# File structure
+.env/
+  global/
+    .env
+    .env.development
+  auth/
+    .env
+    .env.development
+  payment/
+    .env
+```
+
+```typescript
+loadEnvironment({
+  namespace: 'auth',
+  useFolderStructure: true
+});
+
+// Files loaded:
+// 1. .env/global/.env
+// 2. .env/global/.env.development
+// 3. .env/auth/.env
+// 4. .env/auth/.env.development
+```
+
+### Use Cases
+
+**Monorepo Packages:**
+```typescript
+// packages/core
+loadEnvironment({ namespace: 'spfn-core' });
+
+// packages/cms
+loadEnvironment({ namespace: 'spfn-cms' });
+```
+
+**Feature Modules:**
+```typescript
+loadEnvironment({ namespace: 'auth' });
+loadEnvironment({ namespace: 'payment' });
+loadEnvironment({ namespace: 'email' });
+```
+
+**Microservices:**
+```typescript
+loadEnvironment({ namespace: 'api' });
+loadEnvironment({ namespace: 'worker' });
+loadEnvironment({ namespace: 'admin' });
+```
+
+---
+
 ## Loading Environment Variables
 
 ### `loadEnvironment(options?)`
@@ -99,6 +258,8 @@ Load environment variables from .env files with priority support.
 ```typescript
 interface LoadEnvironmentOptions {
   basePath?: string;           // Base directory (default: process.cwd())
+  namespace?: string;          // Namespace for modular config
+  useFolderStructure?: boolean; // Use folder-based structure (default: false)
   customPaths?: string[];      // Additional custom paths
   debug?: boolean;             // Enable debug logging (default: false)
   nodeEnv?: string;            // Override NODE_ENV (default: process.env.NODE_ENV)
@@ -113,25 +274,35 @@ interface LoadEnvironmentOptions {
 // Simple usage
 loadEnvironment();
 
+// With namespace
+loadEnvironment({ namespace: 'auth' });
+
+// With folder structure
+loadEnvironment({
+  namespace: 'auth',
+  useFolderStructure: true
+});
+
 // With required variables
 loadEnvironment({
-  required: ['DATABASE_URL', 'API_KEY'],
+  namespace: 'api',
+  required: ['DATABASE_URL', 'API_KEY']
 });
 
 // With debug logging
 loadEnvironment({
   debug: true,
-  nodeEnv: 'staging',
+  nodeEnv: 'staging'
 });
 
 // With custom paths
 loadEnvironment({
-  customPaths: ['/path/to/custom.env'],
+  customPaths: ['/path/to/custom.env']
 });
 
 // Force reload (bypass cache)
 loadEnvironment({
-  useCache: false,
+  useCache: false
 });
 ```
 
@@ -152,18 +323,18 @@ interface LoadResult {
 
 ## Getting Environment Variables
 
-### `getEnvVar(key, options?)`
+### `getEnvVar<T>(key, options?)`
 
-Get an environment variable with optional validation.
+Get an environment variable with optional type-safe validation.
 
 **Options:**
 
 ```typescript
-interface GetEnvOptions {
-  required?: boolean;                    // Throw if not found (default: false)
-  default?: string;                      // Default value if not found
-  validator?: (value: string) => boolean; // Custom validation
-  validationError?: string;              // Custom error message
+interface GetEnvOptions<T> {
+  required?: boolean;                // Throw if not found (default: false)
+  default?: T;                       // Default value if not found
+  validator?: (value: string) => T;  // Parser function (recommended)
+  validationError?: string;          // Custom error message (deprecated)
 }
 ```
 
@@ -179,10 +350,10 @@ const port = getEnvVar('PORT', { default: '3000' });
 // Required variable
 const dbUrl = getEnvVar('DATABASE_URL', { required: true });
 
-// With validation
-const httpsUrl = getEnvVar('API_URL', {
-  validator: (val) => val.startsWith('https://'),
-  validationError: 'API_URL must use HTTPS',
+// With type-safe parser
+const port = getEnvVar<number>('PORT', {
+  default: 3000,
+  validator: createNumberParser({ min: 1, max: 65535 })
 });
 ```
 
@@ -228,198 +399,180 @@ if (!isEnvironmentLoaded()) {
 
 ---
 
-## Validation Utilities
+## Type-Safe Parser Functions
+
+Parser functions validate and transform values with strong typing.
+
+### Number Parsing
+
+**`parseNumber(value, options?)`**
+
+Parse and validate a number.
+
+```typescript
+const timeout = getEnvVar<number>('TIMEOUT', {
+  default: 3000,
+  validator: (val) => parseNumber(val, { min: 1000, max: 30000 })
+});
+```
+
+**`createNumberParser(options)`**
+
+Create a reusable number parser.
+
+```typescript
+const portParser = createNumberParser({
+  min: 1,
+  max: 65535,
+  integer: true
+});
+
+const port = getEnvVar<number>('PORT', {
+  default: 3000,
+  validator: portParser
+});
+```
+
+**Options:**
+- `min?: number` - Minimum value
+- `max?: number` - Maximum value
+- `integer?: boolean` - Require integer (default: false)
 
 ### URL Validation
 
-**`validateUrl(value, options?)`**
+**`parseUrl(value, options?)`**
 
-Validate that a value is a valid URL.
+Parse and validate a URL.
 
 ```typescript
-const apiUrl = getEnvVar('API_URL', {
-  validator: validateUrl,
-});
-
-// With protocol requirement
-const httpsUrl = getEnvVar('API_URL', {
-  validator: (val) => validateUrl(val, { protocol: 'https' }),
+const apiUrl = getEnvVar<string>('API_URL', {
+  required: true,
+  validator: (val) => parseUrl(val, { protocol: 'https' })
 });
 ```
 
-**`createUrlValidator(protocol)`**
+**`createUrlParser(protocol)`**
 
-Create a URL validator with specific protocol requirement.
+Create a URL parser with protocol requirement.
 
 ```typescript
-const apiUrl = getEnvVar('API_URL', {
-  validator: createUrlValidator('https'),
-  validationError: 'API_URL must use HTTPS',
+const httpsParser = createUrlParser('https');
+
+const apiUrl = getEnvVar<string>('API_URL', {
+  required: true,
+  validator: httpsParser
 });
 ```
 
-### Number Validation
-
-**`validateNumber(value, options?)`**
-
-Validate that a value is a valid number.
-
-```typescript
-const port = getEnvVar('PORT', {
-  validator: (val) => validateNumber(val, { min: 1, max: 65535, integer: true }),
-});
-```
-
-**`createNumberValidator(options)`**
-
-Create a number validator with specific constraints.
-
-```typescript
-const port = getEnvVar('PORT', {
-  validator: createNumberValidator({ min: 1, max: 65535, integer: true }),
-  validationError: 'PORT must be between 1 and 65535',
-});
-```
-
-### Boolean Validation
-
-**`validateBoolean(value)`**
-
-Validate that a value is a valid boolean string.
-
-```typescript
-const debug = getEnvVar('DEBUG', {
-  validator: validateBoolean,
-});
-```
-
-**`parseBoolean(value)`**
-
-Parse a boolean environment variable.
-
-```typescript
-const debug = parseBoolean(getEnvVar('DEBUG', { default: 'false' })!);
-// Accepts: 'true', '1', 'yes' → true
-//          'false', '0', 'no' → false
-```
+**Options:**
+- `protocol?: 'http' | 'https' | 'any'` - Required protocol (default: 'any')
 
 ### Enum Validation
 
-**`validateEnum(value, allowed, caseInsensitive?)`**
+**`parseEnum(value, allowed, caseInsensitive?)`**
 
-Validate that a value is one of allowed options.
+Parse and validate an enum value.
 
 ```typescript
-const env = getEnvVar('NODE_ENV', {
-  validator: (val) => validateEnum(val, ['development', 'production', 'test']),
+const env = getEnvVar<string>('NODE_ENV', {
+  required: true,
+  validator: (val) => parseEnum(val, ['development', 'production', 'test'])
 });
 ```
 
-**`createEnumValidator(allowed, caseInsensitive?)`**
+**`createEnumParser(allowed, caseInsensitive?)`**
 
-Create an enum validator with specific allowed values.
+Create an enum parser.
 
 ```typescript
-const logLevel = getEnvVar('LOG_LEVEL', {
-  validator: createEnumValidator(['debug', 'info', 'warn', 'error']),
-  validationError: 'LOG_LEVEL must be one of: debug, info, warn, error',
+const logLevelParser = createEnumParser(['debug', 'info', 'warn', 'error']);
+
+const logLevel = getEnvVar<string>('LOG_LEVEL', {
+  default: 'info',
+  validator: logLevelParser
 });
 ```
 
-### Pattern Validation
+### Database URLs
 
-**`validatePattern(value, pattern)`**
-
-Validate that a value matches a regular expression.
-
-```typescript
-const apiKey = getEnvVar('API_KEY', {
-  validator: (val) => validatePattern(val, /^[A-Za-z0-9_-]{32}$/),
-});
-```
-
-**`createPatternValidator(pattern)`**
-
-Create a pattern validator with specific regex.
-
-```typescript
-const apiKey = getEnvVar('API_KEY', {
-  validator: createPatternValidator(/^[A-Za-z0-9_-]{32}$/),
-  validationError: 'API_KEY must be 32 alphanumeric characters',
-});
-```
-
-### String Validation
-
-**`validateNotEmpty(value)`**
-
-Validate that a value is not empty.
-
-```typescript
-const name = getEnvVar('APP_NAME', {
-  validator: validateNotEmpty,
-});
-```
-
-**`validateMinLength(value, minLength)`**
-
-Validate that a value has minimum length.
-
-```typescript
-const password = getEnvVar('DB_PASSWORD', {
-  validator: (val) => validateMinLength(val, 8),
-});
-```
-
-**`createMinLengthValidator(minLength)`**
-
-Create a minimum length validator.
-
-```typescript
-const password = getEnvVar('DB_PASSWORD', {
-  validator: createMinLengthValidator(8),
-  validationError: 'DB_PASSWORD must be at least 8 characters',
-});
-```
-
-### Combined Validators
-
-**`combineValidators(validators)`**
-
-Combine multiple validators with AND logic.
-
-```typescript
-const port = getEnvVar('PORT', {
-  validator: combineValidators([
-    validateNotEmpty,
-    createNumberValidator({ min: 1, max: 65535, integer: true }),
-  ]),
-});
-```
-
-### Database URL Validation
-
-**`validatePostgresUrl(value)`**
+**`parsePostgresUrl(value)`**
 
 Validate PostgreSQL connection string.
 
 ```typescript
-const dbUrl = getEnvVar('DATABASE_URL', {
-  validator: validatePostgresUrl,
-  validationError: 'DATABASE_URL must be a valid PostgreSQL URL',
+const dbUrl = getEnvVar<string>('DATABASE_URL', {
+  required: true,
+  validator: parsePostgresUrl
 });
 ```
 
-**`validateRedisUrl(value)`**
+**`parseRedisUrl(value)`**
 
 Validate Redis connection string.
 
 ```typescript
-const redisUrl = getEnvVar('REDIS_URL', {
-  validator: validateRedisUrl,
-  validationError: 'REDIS_URL must be a valid Redis URL',
+const redisUrl = getEnvVar<string>('REDIS_URL', {
+  validator: parseRedisUrl
 });
 ```
+
+---
+
+## Deprecated Boolean Validators
+
+The old boolean-returning validators are deprecated. Use parser functions instead for better type safety and error messages.
+
+### URL Validation (Deprecated)
+
+**`validateUrl(value, options?)` - @deprecated**
+
+Use `parseUrl` or `createUrlParser` instead.
+
+```typescript
+// ❌ Deprecated
+const apiUrl = getEnvVar('API_URL', {
+  validator: validateUrl,
+  validationError: 'API_URL must be a valid URL'
+});
+
+// ✅ Recommended
+const apiUrl = getEnvVar<string>('API_URL', {
+  required: true,
+  validator: createUrlParser('https')
+});
+```
+
+### Number Validation (Deprecated)
+
+**`validateNumber(value, options?)` - @deprecated**
+
+Use `parseNumber` or `createNumberParser` instead.
+
+```typescript
+// ❌ Deprecated
+const port = getEnvVar('PORT', {
+  validator: (val) => validateNumber(val, { min: 1, max: 65535 }),
+  validationError: 'PORT must be between 1 and 65535'
+});
+
+// ✅ Recommended
+const port = getEnvVar<number>('PORT', {
+  default: 3000,
+  validator: createNumberParser({ min: 1, max: 65535, integer: true })
+});
+```
+
+### Other Validators
+
+The following validators are still available but return boolean:
+
+- `validateBoolean(value)` - Use with `validationError`
+- `parseBoolean(value)` - Parse boolean (still valid)
+- `validateEnum(value, allowed)` - Use `parseEnum` instead
+- `validatePattern(value, pattern)` - Still valid for custom patterns
+- `validateNotEmpty(value)` - Still valid
+- `validateMinLength(value, min)` - Still valid
+- `combineValidators(validators)` - Still valid
 
 ---
 
@@ -430,55 +583,60 @@ import {
   loadEnvironment,
   getEnvVar,
   requireEnvVar,
-  createNumberValidator,
-  createUrlValidator,
-  validatePostgresUrl,
+  createNumberParser,
+  createUrlParser,
+  createEnumParser,
+  parsePostgresUrl,
+  parseRedisUrl,
   parseBoolean,
 } from '@spfn/core/env';
 
-// Load environment with required variables
+// Load environment with namespace and validation
 const result = loadEnvironment({
+  namespace: 'api',
   debug: process.env.NODE_ENV !== 'production',
   required: ['DATABASE_URL', 'API_KEY'],
 });
 
 console.log(`Loaded ${result.loaded.length} environment files`);
 
-// Get validated variables
+// Get validated variables with type safety
 const config = {
   // Database
-  databaseUrl: requireEnvVar('DATABASE_URL'),
+  databaseUrl: getEnvVar<string>('DATABASE_URL', {
+    required: true,
+    validator: parsePostgresUrl
+  }),
+
+  // Redis (optional)
+  redisUrl: hasEnvVar('REDIS_URL')
+    ? getEnvVar<string>('REDIS_URL', { validator: parseRedisUrl })
+    : undefined,
 
   // Server
-  port: parseInt(
-    getEnvVar('PORT', {
-      default: '3000',
-      validator: createNumberValidator({ min: 1, max: 65535, integer: true }),
-    })!
-  ),
+  port: getEnvVar<number>('PORT', {
+    default: 3000,
+    validator: createNumberParser({ min: 1, max: 65535, integer: true })
+  }),
   host: getEnvVar('HOST', { default: '0.0.0.0' }),
 
   // API
-  apiUrl: getEnvVar('API_URL', {
+  apiUrl: getEnvVar<string>('API_URL', {
     required: true,
-    validator: createUrlValidator('https'),
-    validationError: 'API_URL must use HTTPS',
+    validator: createUrlParser('https')
   }),
   apiKey: requireEnvVar('API_KEY'),
+
+  // Logging
+  logLevel: getEnvVar<string>('LOG_LEVEL', {
+    default: 'info',
+    validator: createEnumParser(['debug', 'info', 'warn', 'error'])
+  }),
 
   // Features
   debug: parseBoolean(getEnvVar('DEBUG', { default: 'false' })!),
   enableRedis: parseBoolean(getEnvVar('ENABLE_REDIS', { default: 'false' })!),
 };
-
-// Conditional configuration
-if (config.enableRedis) {
-  const redisUrl = getEnvVar('REDIS_URL', {
-    required: true,
-    validator: validatePostgresUrl,
-  });
-  // Initialize Redis...
-}
 
 export default config;
 ```
@@ -494,14 +652,37 @@ export default config;
 import { loadEnvironment } from '@spfn/core/env';
 
 loadEnvironment({
-  required: ['DATABASE_URL', 'API_KEY'],
+  namespace: 'api',
+  required: ['DATABASE_URL', 'API_KEY']
 });
 
 // Then import other modules
 import { app } from './app';
 ```
 
-### 2. Use Required Variables
+### 2. Use Namespaces for Modularity
+
+```typescript
+// ✅ Separate configs for different modules
+loadEnvironment({ namespace: 'auth' });    // .env.auth
+loadEnvironment({ namespace: 'payment' }); // .env.payment
+loadEnvironment({ namespace: 'email' });   // .env.email
+```
+
+### 3. Use Type-Safe Parsers
+
+```typescript
+// ❌ No type safety, no validation
+const port = Number(process.env.PORT || '3000');
+
+// ✅ Type-safe with validation
+const port = getEnvVar<number>('PORT', {
+  default: 3000,
+  validator: createNumberParser({ min: 1, max: 65535 })
+});
+```
+
+### 4. Validate Required Variables
 
 ```typescript
 // ❌ Missing variables discovered at runtime
@@ -509,34 +690,20 @@ const dbUrl = process.env.DATABASE_URL!;
 
 // ✅ Fail fast on startup
 loadEnvironment({
-  required: ['DATABASE_URL', 'API_KEY'],
+  required: ['DATABASE_URL', 'API_KEY']
 });
 ```
 
-### 3. Validate Input
-
-```typescript
-// ❌ No validation
-const port = parseInt(process.env.PORT || '3000');
-
-// ✅ Validated and constrained
-const port = parseInt(
-  getEnvVar('PORT', {
-    default: '3000',
-    validator: createNumberValidator({ min: 1, max: 65535, integer: true }),
-  })!
-);
-```
-
-### 4. Don't Commit .env.local
+### 5. Don't Commit Secrets
 
 ```bash
 # .gitignore
 .env.local
 .env.*.local
+.env.production
 ```
 
-### 5. Use .env for Defaults
+### 6. Use .env for Defaults
 
 ```bash
 # .env (committed)
@@ -549,7 +716,7 @@ DATABASE_URL=postgresql://localhost/mydb
 API_KEY=my-secret-key
 ```
 
-### 6. Set NODE_ENV via CLI
+### 7. Set NODE_ENV via CLI
 
 ```json
 {
@@ -565,9 +732,9 @@ API_KEY=my-secret-key
 
 ## Test Coverage
 
-The env module has comprehensive test coverage with **68 tests** (all passing ✅).
+The env module has comprehensive test coverage with **104 tests** (all passing ✅).
 
-### Environment Loader Tests (38 tests)
+### Environment Loader Tests (55 tests)
 **File:** `src/env/__tests__/loader.test.ts`
 
 - **File Priority** (5 tests)
@@ -591,7 +758,8 @@ The env module has comprehensive test coverage with **68 tests** (all passing �
   - Load from custom paths
   - Custom paths respect priority (highest)
 
-- **Error Handling** (2 tests)
+- **Error Handling** (3 tests)
+  - Handle missing files gracefully
   - Handle invalid file syntax
   - Continue loading other files if one fails
 
@@ -605,6 +773,25 @@ The env module has comprehensive test coverage with **68 tests** (all passing �
   - Warn when NODE_ENV set in .env.local
   - Skip .env.local when NODE_ENV=local (avoid duplicates)
 
+- **Helper Functions** (12 tests)
+  - `getEnvVar()`: simple get, with default, required, with validation
+  - `requireEnvVar()`: throw on missing
+  - `hasEnvVar()`: check existence
+  - `getEnvVars()`: get multiple variables
+
+- **Parser Usage Examples** (10 tests)
+  - parseNumber, parseUrl, parseEnum usage
+  - Inline vs factory function patterns
+  - Error messages for invalid values
+
+- **Namespace Support** (7 tests) ⭐ NEW
+  - Flat structure loading
+  - Folder structure loading
+  - Variable override behavior
+  - Multiple namespaces in sequence
+  - Test environment compatibility
+  - Backward compatibility
+
 - **Load Result** (2 tests)
   - Return detailed load result
   - Track failed file loads with reasons
@@ -612,14 +799,7 @@ The env module has comprehensive test coverage with **68 tests** (all passing �
 - **Debug Logging** (1 test)
   - Log debug information when enabled
 
-- **Helper Functions** (14 tests)
-  - `getEnvVar()`: simple get, with default, required, with validation
-  - `requireEnvVar()`: throw on missing
-  - `hasEnvVar()`: check existence
-  - `getEnvVars()`: get multiple variables
-  - `isEnvironmentLoaded()`: check state
-
-### Validation Utilities Tests (30 tests)
+### Validation Utilities Tests (49 tests)
 **File:** `src/env/__tests__/validator.test.ts`
 
 - **URL Validation** (6 tests)
@@ -663,6 +843,15 @@ The env module has comprehensive test coverage with **68 tests** (all passing �
   - `validateRedisUrl()` (redis:// and rediss://)
   - Invalid database URLs
 
+- **Parser Functions** (19 tests) ⭐ NEW
+  - `parseUrl()` with protocol validation
+  - `parseNumber()` with constraints
+  - `parseEnum()` with case sensitivity
+  - `parsePostgresUrl()` validation
+  - `parseRedisUrl()` validation
+  - Factory function variants
+  - Error message quality
+
 ### Running Tests
 
 ```bash
@@ -692,6 +881,41 @@ loadEnvironment();
 
 // Then access variables
 const dbUrl = getEnvVar('DATABASE_URL');
+```
+
+### Namespace Files Not Found
+
+**Cause:** Namespace files don't exist or wrong naming
+
+**Solution:**
+```bash
+# Check file names
+# Flat: .env.{namespace}
+# Folder: .env/{namespace}/.env
+
+# Enable debug to see which files are loaded
+loadEnvironment({
+  namespace: 'auth',
+  debug: true
+});
+```
+
+### Type Errors with Parsers
+
+**Cause:** Missing generic type parameter
+
+**Solution:**
+```typescript
+// ❌ Type error
+const port = getEnvVar('PORT', {
+  validator: createNumberParser()
+});
+
+// ✅ Specify generic type
+const port = getEnvVar<number>('PORT', {
+  default: 3000,
+  validator: createNumberParser()
+});
 ```
 
 ### .env.local Not Working in Tests
@@ -726,8 +950,70 @@ NODE_ENV=development  # This will warn
 
 ---
 
+## API Summary
+
+### Loading
+- `loadEnvironment(options?)` - Load .env files
+- `resetEnvironment()` - Reset singleton state
+- `isEnvironmentLoaded()` - Check load state
+
+### Getting Variables
+- `getEnvVar<T>(key, options?)` - Get with validation
+- `requireEnvVar(key)` - Get required variable
+- `hasEnvVar(key)` - Check existence
+- `getEnvVars(keys)` - Get multiple variables
+
+### Type-Safe Parsers (Recommended)
+- `parseNumber(value, options)` / `createNumberParser(options)`
+- `parseUrl(value, options)` / `createUrlParser(protocol)`
+- `parseEnum(value, allowed, caseInsensitive)` / `createEnumParser(allowed, caseInsensitive)`
+- `parsePostgresUrl(value)`
+- `parseRedisUrl(value)`
+- `parseBoolean(value)`
+
+### Schema-Based API (NEW)
+- `defineEnvSchema(schema)` - Define environment schema
+- `envString(options)` - String schema helper
+- `envNumber(options)` - Number schema helper
+- `envBoolean(options)` - Boolean schema helper
+- `envUrl(options)` - URL schema helper
+- `envEnum(allowed, options)` - Enum schema helper
+- `envJson(options)` - JSON schema helper
+- `createEnvRegistry(schema)` - Create registry from schema
+- `EnvRegistry.get(key)` - Get variable from registry
+- `EnvRegistry.require(key)` - Get required variable from registry
+- `EnvRegistry.validate()` - Validate all variables
+- `EnvRegistry.getAllSchemas()` - Get all schemas
+- `EnvRegistry.getByCategory(category)` - Get schemas by category
+- `EnvRegistry.getRequired()` - Get required variables
+- `EnvRegistry.getSensitive()` - Get sensitive variables
+- `EnvRegistry.getServerOnly()` - Get server-only variables
+- `EnvRegistry.getClientAccessible()` - Get client-accessible variables
+- `generateMarkdownDocs(registry)` - Generate markdown documentation
+- `generateEnvExample(registry)` - Generate .env.example file
+- `generateJsonDocs(registry)` - Generate JSON documentation
+- `isClientAccessible(key)` - Check if variable is client-accessible
+- `isServerOnly(key)` - Check if variable is server-only
+
+### Boolean Validators (Deprecated)
+- `validateUrl()` - Use `parseUrl` instead
+- `validateNumber()` - Use `parseNumber` instead
+- `validateEnum()` - Use `parseEnum` instead
+- `validatePostgresUrl()` - Use `parsePostgresUrl` instead
+- `validateRedisUrl()` - Use `parseRedisUrl` instead
+
+### Other Validators (Still Valid)
+- `validateBoolean()`, `parseBoolean()`
+- `validatePattern()`, `createPatternValidator()`
+- `validateNotEmpty()`
+- `validateMinLength()`, `createMinLengthValidator()`
+- `combineValidators()`
+
+---
+
 ## Related
 
 - [dotenv](https://github.com/motdotla/dotenv) - Underlying .env parser
 - [Next.js Environment Variables](https://nextjs.org/docs/basic-features/environment-variables) - Inspiration for priority system
 - [@spfn/core](../../README.md) - Main package documentation
+- [Environment Guide](../../../docs/guides/environment.md) - User-facing documentation

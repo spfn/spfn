@@ -45,20 +45,71 @@ export {
 
 // Validation utilities
 export {
+    // Deprecated validators (use parsers instead)
     validateUrl,
     createUrlValidator,
     validateNumber,
     createNumberValidator,
     validateBoolean,
-    parseBoolean,
     validateEnum,
     createEnumValidator,
+    validatePostgresUrl,
+    validateRedisUrl,
+    // Parsers (recommended)
+    parseBoolean,
+    parseUrl,
+    createUrlParser,
+    parseNumber,
+    createNumberParser,
+    parseEnum,
+    createEnumParser,
+    parsePostgresUrl,
+    parseRedisUrl,
+    // Other validators
     validatePattern,
     createPatternValidator,
     validateNotEmpty,
     validateMinLength,
     createMinLengthValidator,
     combineValidators,
-    validatePostgresUrl,
-    validateRedisUrl,
 } from './validator';
+
+// === Schema-based Environment Management (NEW) ===
+
+// Schema definition
+export {
+    defineEnvSchema,
+    envString,
+    envNumber,
+    envBoolean,
+    envUrl,
+    envEnum,
+    envJson,
+    isClientAccessible,
+    isServerOnly,
+} from './schema';
+
+export type {
+    EnvVarSchema,
+    EnvSchemaCollection,
+    InferEnvType,
+} from './schema';
+
+// Registry
+export {
+    EnvRegistry,
+    createEnvRegistry,
+} from './registry';
+
+export type {
+    ValidationResult,
+    ValidationError,
+    ValidationWarning,
+} from './registry';
+
+// Documentation generators
+export {
+    generateMarkdownDocs,
+    generateEnvExample,
+    generateJsonDocs,
+} from './docs-generator';

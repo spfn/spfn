@@ -16,6 +16,52 @@ export interface LoadEnvironmentOptions
     basePath?: string;
 
     /**
+     * Namespace for environment file separation
+     *
+     * Can be used for:
+     * - Package-specific config (monorepo): 'spfn-core', 'my-package'
+     * - Feature/module-specific: 'auth', 'payment', 'email'
+     * - Service-specific: 'api', 'worker', 'admin'
+     * - Region-specific: 'us-east', 'eu-west'
+     *
+     * When specified, loads additional namespaced files after global files:
+     * - .env.{namespace}
+     * - .env.{namespace}.{NODE_ENV}
+     * - .env.{namespace}.local
+     * - .env.{namespace}.{NODE_ENV}.local
+     *
+     * @example
+     * ```typescript
+     * // Feature module
+     * loadEnvironment({ namespace: 'auth' });
+     * // Loads: .env, .env.dev, .env.auth, .env.auth.dev, etc.
+     *
+     * // Microservice
+     * loadEnvironment({ namespace: 'api' });
+     *
+     * // Monorepo package
+     * loadEnvironment({ namespace: 'spfn-core' });
+     * ```
+     */
+    namespace?: string;
+
+    /**
+     * Use folder-based structure instead of flat naming
+     * @default false
+     *
+     * When true with namespace 'auth':
+     *   .env/global/.env
+     *   .env/auth/.env
+     *   .env/auth/.env.{NODE_ENV}
+     *
+     * When false with namespace 'auth':
+     *   .env
+     *   .env.auth
+     *   .env.auth.{NODE_ENV}
+     */
+    useFolderStructure?: boolean;
+
+    /**
      * Additional custom paths to load
      * Loaded after standard files
      * @default []
@@ -121,6 +167,13 @@ export interface GetEnvOptions<T = string>
      * ```
      */
     validator?: (value: string) => T;
+
+    /**
+     * Custom error message for validation failures
+     * Only used with boolean-returning validators (deprecated)
+     * @deprecated Use parser functions that throw their own descriptive errors
+     */
+    validationError?: string;
 }
 
 /**

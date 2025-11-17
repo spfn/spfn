@@ -22,6 +22,15 @@ import {
     combineValidators,
     validatePostgresUrl,
     validateRedisUrl,
+    // New parser functions
+    parseUrl,
+    createUrlParser,
+    parseNumber,
+    createNumberParser,
+    parseEnum,
+    createEnumParser,
+    parsePostgresUrl,
+    parseRedisUrl,
 } from '../validator';
 
 describe('Environment Validators', () =>
@@ -296,6 +305,172 @@ describe('Environment Validators', () =>
             expect(validateRedisUrl('postgresql://localhost:5432/db')).toBe(false);
             expect(validateRedisUrl('https://example.com')).toBe(false);
             expect(validateRedisUrl('not a url')).toBe(false);
+        });
+    });
+});
+
+// ============================================================================
+// Parser Function Tests
+// ============================================================================
+
+describe('Environment Parsers', () =>
+{
+    describe('parseUrl', () =>
+    {
+        it('should parse valid URLs', () =>
+        {
+            expect(parseUrl('https://example.com')).toBe('https://example.com');
+            expect(parseUrl('http://localhost:3000')).toBe('http://localhost:3000');
+            expect(parseUrl('https://api.example.com/v1')).toBe('https://api.example.com/v1');
+        });
+
+        it('should throw on invalid URLs', () =>
+        {
+            expect(() => parseUrl('not a url')).toThrow('Invalid URL');
+            expect(() => parseUrl('')).toThrow('Invalid URL');
+            expect(() => parseUrl('example.com')).toThrow('Invalid URL');
+        });
+
+        it('should validate protocol-specific URLs', () =>
+        {
+            expect(() => parseUrl('https://example.com', { protocol: 'https' })).not.toThrow();
+            expect(() => parseUrl('http://example.com', { protocol: 'https' })).toThrow('URL must use HTTPS protocol');
+            expect(() => parseUrl('http://example.com', { protocol: 'http' })).not.toThrow();
+        });
+    });
+
+    describe('createUrlParser', () =>
+    {
+        it('should create HTTPS-only parser', () =>
+        {
+            const parser = createUrlParser('https');
+            expect(parser('https://example.com')).toBe('https://example.com');
+            expect(() => parser('http://example.com')).toThrow('URL must use HTTPS protocol');
+        });
+    });
+
+    describe('parseNumber', () =>
+    {
+        it('should parse valid numbers', () =>
+        {
+            expect(parseNumber('123')).toBe(123);
+            expect(parseNumber('123.45')).toBe(123.45);
+            expect(parseNumber('-10')).toBe(-10);
+            expect(parseNumber('0')).toBe(0);
+        });
+
+        it('should throw on invalid numbers', () =>
+        {
+            expect(() => parseNumber('not a number')).toThrow('Must be a valid number');
+            expect(() => parseNumber('')).toThrow('Value cannot be empty');
+            expect(() => parseNumber('12.34.56')).toThrow('Must be a valid number');
+        });
+
+        it('should validate with min constraint', () =>
+        {
+            expect(parseNumber('100', { min: 50 })).toBe(100);
+            expect(() => parseNumber('25', { min: 50 })).toThrow('Must be at least 50');
+        });
+
+        it('should validate with max constraint', () =>
+        {
+            expect(parseNumber('50', { max: 100 })).toBe(50);
+            expect(() => parseNumber('150', { max: 100 })).toThrow('Must be at most 100');
+        });
+
+        it('should validate integers', () =>
+        {
+            expect(parseNumber('123', { integer: true })).toBe(123);
+            expect(() => parseNumber('123.45', { integer: true })).toThrow('Must be an integer');
+        });
+
+        it('should validate with combined constraints', () =>
+        {
+            expect(parseNumber('8080', { min: 1, max: 65535, integer: true })).toBe(8080);
+            expect(() => parseNumber('8080.5', { min: 1, max: 65535, integer: true })).toThrow('Must be an integer');
+            expect(() => parseNumber('0', { min: 1, max: 65535, integer: true })).toThrow('Must be at least 1');
+            expect(() => parseNumber('70000', { min: 1, max: 65535, integer: true })).toThrow('Must be at most 65535');
+        });
+    });
+
+    describe('createNumberParser', () =>
+    {
+        it('should create port parser', () =>
+        {
+            const parser = createNumberParser({ min: 1, max: 65535, integer: true });
+            expect(parser('8080')).toBe(8080);
+            expect(() => parser('0')).toThrow('Must be at least 1');
+            expect(() => parser('70000')).toThrow('Must be at most 65535');
+        });
+    });
+
+    describe('parseEnum', () =>
+    {
+        it('should parse enum values', () =>
+        {
+            const allowed = ['development', 'production', 'test'];
+            expect(parseEnum('development', allowed)).toBe('development');
+            expect(parseEnum('production', allowed)).toBe('production');
+            expect(() => parseEnum('staging', allowed)).toThrow('Must be one of [development, production, test]');
+        });
+
+        it('should support case-insensitive comparison', () =>
+        {
+            const allowed = ['development', 'production', 'test'];
+            expect(parseEnum('DEVELOPMENT', allowed, true)).toBe('development');
+            expect(parseEnum('Production', allowed, true)).toBe('production');
+            expect(() => parseEnum('STAGING', allowed, true)).toThrow('Must be one of [development, production, test]');
+        });
+    });
+
+    describe('createEnumParser', () =>
+    {
+        it('should create enum parser', () =>
+        {
+            const parser = createEnumParser(['debug', 'info', 'warn', 'error']);
+            expect(parser('debug')).toBe('debug');
+            expect(() => parser('trace')).toThrow('Must be one of [debug, info, warn, error]');
+        });
+
+        it('should create case-insensitive enum parser', () =>
+        {
+            const parser = createEnumParser(['debug', 'info'], true);
+            expect(parser('DEBUG')).toBe('debug');
+            expect(parser('Info')).toBe('info');
+        });
+    });
+
+    describe('parsePostgresUrl', () =>
+    {
+        it('should parse PostgreSQL URLs', () =>
+        {
+            expect(parsePostgresUrl('postgresql://localhost:5432/mydb')).toBe('postgresql://localhost:5432/mydb');
+            expect(parsePostgresUrl('postgres://localhost:5432/mydb')).toBe('postgres://localhost:5432/mydb');
+            expect(parsePostgresUrl('postgresql://user:pass@host:5432/db')).toBe('postgresql://user:pass@host:5432/db');
+        });
+
+        it('should throw on non-PostgreSQL URLs', () =>
+        {
+            expect(() => parsePostgresUrl('mysql://localhost:3306/mydb')).toThrow('Must be a PostgreSQL URL');
+            expect(() => parsePostgresUrl('https://example.com')).toThrow('Must be a PostgreSQL URL');
+            expect(() => parsePostgresUrl('not a url')).toThrow('Invalid PostgreSQL URL');
+        });
+    });
+
+    describe('parseRedisUrl', () =>
+    {
+        it('should parse Redis URLs', () =>
+        {
+            expect(parseRedisUrl('redis://localhost:6379')).toBe('redis://localhost:6379');
+            expect(parseRedisUrl('rediss://localhost:6379')).toBe('rediss://localhost:6379');
+            expect(parseRedisUrl('redis://user:pass@host:6379/0')).toBe('redis://user:pass@host:6379/0');
+        });
+
+        it('should throw on non-Redis URLs', () =>
+        {
+            expect(() => parseRedisUrl('postgresql://localhost:5432/db')).toThrow('Must be a Redis URL');
+            expect(() => parseRedisUrl('https://example.com')).toThrow('Must be a Redis URL');
+            expect(() => parseRedisUrl('not a url')).toThrow('Invalid Redis URL');
         });
     });
 });
