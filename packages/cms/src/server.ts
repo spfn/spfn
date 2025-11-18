@@ -23,7 +23,7 @@ import type { SectionAPI } from '@/lib/types/section';
 // Configuration API (Server-only)
 // ============================================================================
 
-export { getCmsConfig, configureCms, resetCmsConfig } from './server/config/cms.config';
+export { getCmsConfig, configureCms, resetCmsConfig } from './config';
 export type { CmsConfig } from './lib/types/config';
 export { initLabelSync } from './server/services/sync.service';
 

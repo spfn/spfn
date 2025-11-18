@@ -12,7 +12,7 @@ import { createApp } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
 import { cmsLabelsRepository } from '@/server/repositories';
 import { getLabelsContract, createLabelContract } from '@/lib/contracts/labels';
-import { cmsEnv } from '@/server/config/env.config';
+import { env } from '@/config';
 import { join } from 'path';
 import { CMSConflictError } from '@/server/helpers/error';
 import { logger } from '@spfn/core/logger';
@@ -43,7 +43,7 @@ app.bind(getLabelsContract, async (c) =>
     {
         try
         {
-            const labelsDir = join(process.cwd(), cmsEnv.get('SPFN_CMS_LABELS_DIR') ?? 'src/lib/labels');
+            const labelsDir = join(process.cwd(), env.SPFN_CMS_LABELS_DIR ?? 'src/lib/labels');
             const sections = loadLabelsFromJson(labelsDir);
             const sectionDef = sections.find(s => s.section === section);
 

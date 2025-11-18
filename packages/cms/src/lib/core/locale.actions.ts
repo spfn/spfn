@@ -9,7 +9,7 @@
  */
 
 import { cookies, headers } from 'next/headers.js';
-import { getCmsConfig } from '@/server/config/cms.config';
+import { getCmsConfig } from '@/config';
 import {
     LOCALE_COOKIE_KEY,
     getLocaleInfo,

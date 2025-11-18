@@ -8,8 +8,7 @@ import type { NestedLabels, SectionDefinition, SyncOptions, SyncResult } from '@
 import { extractLabels } from "@/server/helpers/label.helper";
 import { cmsLabelsRepository, cmsLabelValuesRepository, cmsPublishedCacheRepository } from '@/server/repositories';
 import type { CmsLabelValue } from '@/server/entities/cms-label-values';
-import { cmsEnv } from '@/server/config/env.config';
-import { getCmsConfig } from '@/server/config/cms.config';
+import { env, getCmsConfig } from '@/config';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, extname, join } from 'path';
 import { logger } from "@spfn/core/logger";
@@ -615,7 +614,7 @@ export async function initLabelSync(options: SyncOptions & { labelsDir?: string 
 {
     const isDevelopment = process.env.NODE_ENV === 'development';
     const verbose = options.verbose ?? isDevelopment;
-    const labelsDir = options.labelsDir || cmsEnv.get('SPFN_CMS_LABELS_DIR') || 'src/lib/labels';
+    const labelsDir = options.labelsDir || env.SPFN_CMS_LABELS_DIR || 'src/lib/labels';
 
     if (verbose)
     {

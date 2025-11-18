@@ -7,7 +7,7 @@
 import { cmsLabelsRepository } from '@/server/repositories/cms-labels.repository';
 import { cmsLabelValuesRepository } from '@/server/repositories/cms-label-values.repository';
 import { cmsPublishedCacheRepository } from '@/server/repositories/cms-published-cache.repository';
-import { getCmsConfig } from '@/server/config/cms.config';
+import { getCmsConfig } from '@/config';
 
 /**
  * 라벨 발행 (Draft → Published)
