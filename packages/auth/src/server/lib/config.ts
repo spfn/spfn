@@ -114,7 +114,7 @@ export function getAuthConfig(): AuthConfig
  * Priority:
  * 1. Runtime override (remember parameter)
  * 2. Global config (configureAuth)
- * 3. Environment variable (SPFN_AUTH_SESSION_TTL)
+ * 3. Environment variable (SPFN_AUTH_SESSION_TTL) - via config module
  * 4. Default (7 days)
  */
 export function getSessionTtl(override?: string | number): number
@@ -131,7 +131,8 @@ export function getSessionTtl(override?: string | number): number
         return parseDuration(globalConfig.sessionTtl);
     }
 
-    // 3. Environment variable
+    // 3. Environment variable (handled by config module)
+    // Note: Config module provides default '7d' if not set
     const envTtl = process.env.SPFN_AUTH_SESSION_TTL;
     if (envTtl)
     {

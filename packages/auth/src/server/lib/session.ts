@@ -7,6 +7,7 @@
 
 import * as jose from 'jose';
 import { type KeyAlgorithmType } from "@/server/helpers";
+import { getSessionSecret } from '@/config';
 
 export interface SessionData
 {
@@ -46,26 +47,14 @@ function calculateEntropy(str: string): number
 }
 
 /**
- * Get session secret from environment
+ * Get session secret key derived from environment
  * Must be at least 32 characters (256-bit)
  *
  * Derives a 32-byte key using SHA-256 to ensure compatibility with Jose A256GCM
  */
-async function getSessionSecret(): Promise<Uint8Array>
+async function getSessionSecretKey(): Promise<Uint8Array>
 {
-    const secret =
-        process.env.SPFN_AUTH_SESSION_SECRET ||  // New prefixed version (recommended)
-        process.env.SESSION_SECRET;               // Legacy fallback
-
-    if (!secret)
-    {
-        throw new Error('SPFN_AUTH_SESSION_SECRET environment variable is not set');
-    }
-
-    if (secret.length < 32)
-    {
-        throw new Error('SPFN_AUTH_SESSION_SECRET must be at least 32 characters long');
-    }
+    const secret = getSessionSecret(); // From config module with validation
 
     // Derive a 32-byte key using SHA-256 for A256GCM compatibility
     // Use Web Crypto API for universal compatibility (browser + Node.js)
@@ -87,7 +76,7 @@ export async function sealSession(
     ttl: number = 60 * 60 * 24 * 7 // 7 days
 ): Promise<string>
 {
-    const secret = await getSessionSecret();
+    const secret = await getSessionSecretKey();
 
     return await new jose.EncryptJWT({ data })
         .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
@@ -107,7 +96,7 @@ export async function sealSession(
  */
 export async function unsealSession(jwt: string): Promise<SessionData>
 {
-    const secret = await getSessionSecret();
+    const secret = await getSessionSecretKey();
 
     try
     {
@@ -152,7 +141,7 @@ export async function getSessionInfo(jwt: string): Promise<{
     audience: string;
 } | null>
 {
-    const secret = await getSessionSecret();
+    const secret = await getSessionSecretKey();
 
     try
     {

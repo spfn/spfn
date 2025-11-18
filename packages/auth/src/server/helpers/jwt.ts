@@ -11,19 +11,10 @@
 
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
+import { getJwtSecret, getJwtExpiresIn } from '@/config';
 
 export const KEY_ALGORITHM = ['ES256', 'RS256'] as const;
 export type KeyAlgorithmType = typeof KEY_ALGORITHM[number];
-
-const JWT_SECRET =
-    process.env.SPFN_AUTH_JWT_SECRET ||      // New prefixed version (recommended)
-    process.env.JWT_SECRET ||                 // Legacy fallback
-    'dev-secret-key-change-in-production';
-
-const JWT_EXPIRES_IN =
-    process.env.SPFN_AUTH_JWT_EXPIRES_IN ||  // New prefixed version (recommended)
-    process.env.JWT_EXPIRES_IN ||             // Legacy fallback
-    '7d';
 
 export interface SessionPayload
 {
@@ -51,8 +42,8 @@ export interface TokenPayload extends SessionPayload
  */
 export function generateToken(payload: SessionPayload): string
 {
-    return jwt.sign(payload, JWT_SECRET, {
-        expiresIn: JWT_EXPIRES_IN,
+    return jwt.sign(payload, getJwtSecret(), {
+        expiresIn: getJwtExpiresIn(),
     } as SignOptions);
 }
 
@@ -68,7 +59,7 @@ export function generateToken(payload: SessionPayload): string
  */
 export function verifyToken(token: string): TokenPayload
 {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return jwt.verify(token, getJwtSecret()) as TokenPayload;
 }
 
 /**

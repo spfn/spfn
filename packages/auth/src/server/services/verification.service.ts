@@ -7,26 +7,7 @@
 import { verificationCodesRepository } from '@/server/repositories';
 import { InvalidVerificationCodeError } from '@/server/errors';
 import jwt from 'jsonwebtoken';
-
-/**
- * JWT secret for verification tokens
- * Must be at least 32 characters long
- */
-function getVerificationTokenSecret(): string
-{
-    const secret =
-        process.env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET ||  // New prefixed version (recommended)
-        process.env.VERIFICATION_TOKEN_SECRET ||            // Legacy fallback
-        process.env.SPFN_AUTH_JWT_SECRET ||                 // New JWT secret fallback
-        process.env.JWT_SECRET;                             // Legacy JWT secret fallback
-
-    if (!secret || secret.length < 32)
-    {
-        throw new Error('SPFN_AUTH_VERIFICATION_TOKEN_SECRET must be at least 32 characters long');
-    }
-
-    return secret;
-}
+import { getVerificationTokenSecret } from '@/config';
 
 /**
  * Verification token expiry (15 minutes)

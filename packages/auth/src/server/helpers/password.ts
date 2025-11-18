@@ -11,6 +11,7 @@
  */
 
 import bcrypt from 'bcrypt';
+import { getBcryptSaltRounds } from '@/config';
 
 /**
  * Bcrypt salt rounds (cost factor)
@@ -22,12 +23,10 @@ import bcrypt from 'bcrypt';
  *
  * Can be configured via SPFN_AUTH_BCRYPT_SALT_ROUNDS environment variable
  */
-const SALT_ROUNDS = parseInt(
-    process.env.SPFN_AUTH_BCRYPT_SALT_ROUNDS ||  // New prefixed version (recommended)
-    process.env.BCRYPT_SALT_ROUNDS ||             // Legacy fallback
-    '10',
-    10
-);
+function getSaltRounds(): number
+{
+    return getBcryptSaltRounds();
+}
 
 /**
  * Hash a plain text password using bcrypt
@@ -54,7 +53,7 @@ export async function hashPassword(password: string): Promise<string>
         throw new Error('Password cannot be empty');
     }
 
-    return bcrypt.hash(password, SALT_ROUNDS);
+    return bcrypt.hash(password, getSaltRounds());
 }
 
 /**
