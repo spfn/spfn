@@ -19,6 +19,7 @@
  * - @spfn/core/middleware  - Server middleware
  * - @spfn/core/logger      - Logging utilities
  * - @spfn/core/env         - Environment variable management
+ * - @spfn/core/config      - Environment configuration schema
  * - @spfn/core/events      - Event system
  *
  * ## Build-Time
@@ -33,6 +34,7 @@
  * import { createServer } from '@spfn/core/server';
  * import type { RouteContract } from '@spfn/core/types';
  * import { createClient } from '@spfn/core/client';
+ * import { env } from '@spfn/core/config';
  * ```
  */
 

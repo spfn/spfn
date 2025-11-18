@@ -78,6 +78,11 @@
       "types": "./dist/codegen/generators/index.d.ts",
       "import": "./dist/codegen/generators/index.js",
       "require": "./dist/codegen/generators/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js",
+      "require": "./dist/config/index.js"
     }
   },
   "scripts": {

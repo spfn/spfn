@@ -8,11 +8,7 @@ import { config as dotenvConfig } from 'dotenv';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../logger';
-import type {
-    LoadEnvironmentOptions,
-    LoadResult,
-    GetEnvOptions,
-} from './config';
+import type { GetEnvOptions, LoadEnvironmentOptions, LoadResult, } from './config';
 import { ENV_FILE_PRIORITY, TEST_ONLY_FILES } from './config';
 
 const envLogger = logger.child('@spfn/core:environment');
@@ -562,23 +558,7 @@ export function getEnvVar<T = string>(key: string, options: GetEnvOptions<T> = {
     {
         try
         {
-            const result = validator(value);
-
-            // Handle boolean validators (deprecated, but still supported for backward compatibility)
-            if (typeof result === 'boolean')
-            {
-                if (!result)
-                {
-                    // Use custom validationError or generic message
-                    const errorMsg = options.validationError || 'Validation failed';
-                    throw new Error(errorMsg);
-                }
-                // Boolean validator passed, return original value
-                return value as unknown as T;
-            }
-
-            // Parser function returned transformed value
-            return result;
+            return validator(value);
         }
         catch (error)
         {

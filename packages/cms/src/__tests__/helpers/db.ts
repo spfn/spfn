@@ -8,7 +8,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
 import { initDatabase, closeDatabase } from '@spfn/core/db';
-import * as schema from '@/server/entities';
+import * as schema from '@/server/entities/config';
 
 const TEST_DATABASE_URL = 'postgresql://cmstest:cmstest123@localhost:5436/spfn_cms_test';
 
