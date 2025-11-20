@@ -14,8 +14,40 @@ export {
 } from './client';
 export type { NextjsClientConfig } from './client';
 
-// Default proxy handlers (with auto-discovery enabled)
-export { GET, POST, PUT, PATCH, DELETE } from './proxy';
+// Type-Safe tRPC-Style Client (define-route based)
+export {
+    createApi,
+    configureApi,
+    getApi,
+    api,
+    ApiError,
+    isHttpError,
+    isNetworkError,
+    isTimeoutError,
+} from './typed-client';
+export type {
+    TypedClient,
+    RouteClient,
+    ApiConfig,
+    CallOptions,
+    InferRouteInput,
+    InferRouteOutput,
+    RequestInterceptor as TypedRequestInterceptor,
+    ResponseInterceptor as TypedResponseInterceptor,
+} from './typed-client';
+
+// Type-Safe Proxy (define-route based)
+export { createTypedProxy } from './typed-proxy';
+export type {
+    TypedProxyConfig,
+    ProxyRequestInterceptor,
+    ProxyResponseInterceptor,
+    RequestInterceptorResult,
+    ResponseInterceptorResult,
+} from './typed-proxy';
+
+// Default typed proxy handlers (define-route system with auto-discovery enabled)
+export { GET, POST, PUT, PATCH, DELETE } from './typed-proxy';
 
 // Proxy builder with interceptors
 export { createProxy } from './proxy';
