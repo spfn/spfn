@@ -379,7 +379,8 @@ export function enumText<T extends readonly [string, ...string[]]>(
     values: T
 )
 {
-    return text(fieldName, { enum: [...values] as [string, ...string[]] });
+    // readonly를 제거하되 타입 정보는 유지
+    return text(fieldName, { enum: values as T & [string, ...string[]] });
 }
 
 /**

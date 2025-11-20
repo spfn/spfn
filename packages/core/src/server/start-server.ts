@@ -6,26 +6,26 @@
 
 import { serve } from '@hono/node-server';
 import { existsSync } from 'fs';
-import { join } from 'path';
-import type { Server } from 'http';
 import type { Hono } from 'hono';
+import type { Server } from 'http';
+import { join } from 'path';
 
 import { closeCache, initCache } from '../cache';
-import { initDatabase, closeDatabase } from '../db';
+import { closeDatabase, initDatabase } from '../db';
 import { logger } from '../logger';
 import { printBanner } from './banner';
-import { validateServerConfig } from './validation';
 import { createServer } from './create-server';
-import { discoverPlugins, executePluginHooks } from './plugin-discovery';
 import {
     applyServerTimeouts,
-    getTimeoutConfig,
-    getShutdownTimeout,
     buildMiddlewareOrder,
     buildStartupConfig,
+    getShutdownTimeout,
+    getTimeoutConfig,
 } from './helpers';
+import { discoverPlugins, executePluginHooks } from './plugin-discovery';
 
 import type { ServerConfig, ServerInstance, ServerPlugin } from './types';
+import { validateServerConfig } from './validation';
 
 // ============================================================================
 // Constants
@@ -367,13 +367,11 @@ function startHttpServer(app: Hono, host: string, port: number): ReturnType<type
 {
     serverLogger.debug(`Starting server on ${host}:${port}...`);
 
-    const server = serve({
+    return serve({
         fetch: app.fetch,
         port,
         hostname: host,
     });
-
-    return server;
 }
 
 function logMiddlewareOrder(config: ServerConfig): void
