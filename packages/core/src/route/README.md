@@ -12,7 +12,6 @@ The route system provides a declarative, type-safe way to define API routes with
 route/
 ├── define-route.ts          # Route builder and types
 ├── register-routes.ts       # Hono integration layer
-├── auto-loader.ts          # Route discovery and registration
 └── index.ts                # Public API exports
 ```
 
@@ -415,19 +414,9 @@ export function defineServerConfig(): ServerConfigBuilder {
 ```typescript
 // server/create-server.ts
 async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void> {
-    // 1. Register define-route routes (if provided)
+    // Register define-route routes (if provided)
     if (config?.routes) {
         registerRoutes(app, config.routes, config.middlewares);
-    }
-
-    // 2. Load file-based routes (if directory exists)
-    const routesDir = config?.routesPath ?? join(process.cwd(), 'src', 'server', 'routes');
-    if (existsSync(routesDir)) {
-        await loadRoutes(app, {
-            routesDir,
-            debug: config?.debug,
-            middlewares: config?.middlewares
-        });
     }
 }
 ```
@@ -660,7 +649,7 @@ it('should handle request end-to-end', async () => {
 ### Breaking Changes Planned
 
 - Remove contract-based routing system (replaced by define-route)
-- Simplify auto-loader to only support define-route style
+- Remove file-based auto-loader system (use explicit import instead)
 
 ---
 

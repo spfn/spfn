@@ -9,7 +9,7 @@ import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { loadRoutes, registerRoutes } from '../route';
+import { registerRoutes, loadRoutes } from '../route';
 import { ErrorHandler, RequestLogger } from '../middleware';
 import { logger } from '../logger';
 import { createHealthCheckHandler } from './helpers';
@@ -74,9 +74,11 @@ async function loadCustomApp(
     // Execute beforeRoutes hooks from plugins
     await executePluginHooks(plugins, 'beforeRoutes', app);
 
-    // Only load routes, everything else is user's responsibility
-    const debug = isDebugMode(config);
-    await loadRoutes(app, { routesDir: config?.routesPath, debug });
+    // Register routes (if provided via config)
+    if (config?.routes)
+    {
+        registerRoutes(app, config.routes, config.middlewares);
+    }
 
     // Execute afterRoutes hooks from plugins
     await executePluginHooks(plugins, 'afterRoutes', app);
@@ -205,19 +207,29 @@ async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void>
         }
     }
 
-    // 2. Then load file-based routes (only if directory exists)
+    // 2. Load file-based routes (deprecated, but still supported for backward compatibility)
     const routesDir = config?.routesPath ?? join(process.cwd(), 'src', 'server', 'routes');
     if (existsSync(routesDir))
     {
+        // Show deprecation warning
+        if (config?.routesPath || (!config?.routes && existsSync(routesDir)))
+        {
+            serverLogger.warn(
+                '⚠️  DEPRECATED: File-based routing (routesPath) is deprecated and will be removed in a future version.\n' +
+                '   Use defineRouter() with explicit imports instead for full type safety.\n' +
+                '   See: https://github.com/your-org/spfn/docs/migration/define-route.md'
+            );
+        }
+
         await loadRoutes(app, {
             routesDir: config?.routesPath,
             debug,
             middlewares: config?.middlewares
         });
     }
-    else if (debug && !config?.routes)
+    else if (!config?.routes && debug)
     {
-        serverLogger.debug(`Routes directory not found: ${routesDir}`);
+        serverLogger.warn('⚠️  No routes configured. Use defineServerConfig().routes() to register routes.');
     }
 }
 

@@ -138,6 +138,11 @@ export interface ServerConfig
 
     /**
      * Routes directory path (default: src/server/routes)
+     *
+     * @deprecated File-based routing is deprecated. Use the `routes` field with define-route system instead.
+     * This field will be removed in a future version.
+     *
+     * @see routes - Use defineRouter() for full type safety
      */
     routesPath?: string;
 

@@ -10,6 +10,7 @@ import { join } from 'path';
 import { createServer, startServer } from '../server';
 import type { ServerConfig } from '../types';
 import type { Hono } from 'hono';
+import { route, defineRouter } from '../../route';
 
 // Create a temporary test routes directory
 const testRoutesDir = join(process.cwd(), 'src', 'server', '__test_routes__');
@@ -133,10 +134,16 @@ describe('Server Integration', () => {
 
     describe('Hooks Error Handling', () => {
         it('should catch and throw error from beforeRoutes hook', async () => {
+            // Create dummy route to ensure hooks are executed
+            const dummyRoute = route.get('/dummy').handler(async (c) => c.success({ ok: true }));
+            const router = defineRouter({ dummyRoute });
+
             const config: ServerConfig = {
-                routesPath: testRoutesDir,
-                beforeRoutes: async (app: Hono) => {
-                    throw new Error('beforeRoutes failed');
+                routes: router,
+                lifecycle: {
+                    beforeRoutes: async (app: Hono) => {
+                        throw new Error('beforeRoutes failed');
+                    },
                 },
             };
 
@@ -146,10 +153,16 @@ describe('Server Integration', () => {
         });
 
         it('should catch and throw error from afterRoutes hook', async () => {
+            // Create dummy route to ensure hooks are executed
+            const dummyRoute = route.get('/dummy').handler(async (c) => c.success({ ok: true }));
+            const router = defineRouter({ dummyRoute });
+
             const config: ServerConfig = {
-                routesPath: testRoutesDir,
-                afterRoutes: async (app: Hono) => {
-                    throw new Error('afterRoutes failed');
+                routes: router,
+                lifecycle: {
+                    afterRoutes: async (app: Hono) => {
+                        throw new Error('afterRoutes failed');
+                    },
                 },
             };
 
@@ -161,14 +174,20 @@ describe('Server Integration', () => {
         it('should execute beforeRoutes before routes are loaded', async () => {
             const executionOrder: string[] = [];
 
+            // Create dummy route to ensure hooks are executed
+            const dummyRoute = route.get('/dummy').handler(async (c) => c.success({ ok: true }));
+            const router = defineRouter({ dummyRoute });
+
             const config: ServerConfig = {
-                routesPath: testRoutesDir,
-                beforeRoutes: async (app: Hono) => {
-                    executionOrder.push('beforeRoutes');
-                    app.get('/test-before', (c) => c.text('before'));
-                },
-                afterRoutes: async (app: Hono) => {
-                    executionOrder.push('afterRoutes');
+                routes: router,
+                lifecycle: {
+                    beforeRoutes: async (app: Hono) => {
+                        executionOrder.push('beforeRoutes');
+                        app.get('/test-before', (c) => c.text('before'));
+                    },
+                    afterRoutes: async (app: Hono) => {
+                        executionOrder.push('afterRoutes');
+                    },
                 },
             };
 

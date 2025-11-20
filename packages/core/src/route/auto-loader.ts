@@ -1,3 +1,34 @@
+/**
+ * @deprecated This file-based routing system is deprecated and will be removed in a future version.
+ *
+ * Use the new define-route system instead:
+ *
+ * @example
+ * ```ts
+ * // Old (deprecated):
+ * await loadRoutes(app, { routesDir: './routes' });
+ *
+ * // New (recommended):
+ * import { route, defineRouter } from '@spfn/core/route';
+ * import { defineServerConfig } from '@spfn/core/server';
+ *
+ * const userRouter = defineRouter({
+ *   getUser: route.get('/users/:id').handler(...),
+ *   createUser: route.post('/users').handler(...),
+ * });
+ *
+ * export default defineServerConfig()
+ *   .routes(userRouter)
+ *   .build();
+ * ```
+ *
+ * Benefits of define-route:
+ * - Full TypeScript type inference (no type loss from dynamic imports)
+ * - Explicit route organization (no magic file scanning)
+ * - Better IDE support and refactoring
+ * - Tree-shaking friendly
+ */
+
 import { readdir, stat } from 'fs/promises';
 import { join, relative } from 'path';
 import { Hono } from 'hono';
@@ -9,6 +40,8 @@ const routeLogger = logger.child('@spfn/core:route');
 
 /**
  * AutoRouteLoader: Simplified File-based Routing System
+ *
+ * @deprecated Use define-route system instead for full type safety
  *
  * Features:
  * - Auto-discovery: Scans routes directory and auto-registers
@@ -478,6 +511,23 @@ export class AutoRouteLoader
     }
 }
 
+/**
+ * Load routes from file system using auto-discovery
+ *
+ * @deprecated Use define-route system instead for full type safety.
+ * This function will be removed in a future version.
+ *
+ * @example
+ * ```ts
+ * // Instead of:
+ * await loadRoutes(app, { routesDir: './routes' });
+ *
+ * // Use:
+ * import { route, defineRouter } from '@spfn/core/route';
+ * const router = defineRouter({...});
+ * registerRoutes(app, router);
+ * ```
+ */
 export async function loadRoutes(
     app: Hono,
     options?: {
