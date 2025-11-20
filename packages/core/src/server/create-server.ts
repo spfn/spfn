@@ -9,7 +9,7 @@ import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { loadRoutes } from '../route';
+import { loadRoutes, registerRoutes } from '../route';
 import { ErrorHandler, RequestLogger } from '../middleware';
 import { logger } from '../logger';
 import { createHealthCheckHandler } from './helpers';
@@ -194,11 +194,31 @@ async function executeBeforeRoutesHook(app: Hono, config?: ServerConfig): Promis
 async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void>
 {
     const debug = isDebugMode(config);
-    await loadRoutes(app, {
-        routesDir: config?.routesPath,
-        debug,
-        middlewares: config?.middlewares
-    });
+
+    // 1. Register define-route based routes first (if provided)
+    if (config?.routes)
+    {
+        registerRoutes(app, config.routes, config.middlewares);
+        if (debug)
+        {
+            serverLogger.info('✓ define-route routes registered');
+        }
+    }
+
+    // 2. Then load file-based routes (only if directory exists)
+    const routesDir = config?.routesPath ?? join(process.cwd(), 'src', 'server', 'routes');
+    if (existsSync(routesDir))
+    {
+        await loadRoutes(app, {
+            routesDir: config?.routesPath,
+            debug,
+            middlewares: config?.middlewares
+        });
+    }
+    else if (debug && !config?.routes)
+    {
+        serverLogger.debug(`Routes directory not found: ${routesDir}`);
+    }
 }
 
 async function executeAfterRoutesHook(app: Hono, config?: ServerConfig): Promise<void>

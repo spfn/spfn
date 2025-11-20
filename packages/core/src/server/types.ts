@@ -1,6 +1,8 @@
 import type { Hono, MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
+import type { Router } from '../route/define-route';
+import type { NamedMiddleware } from './define-middleware';
 
 /**
  * CORS configuration options - inferred from hono/cors
@@ -116,29 +118,49 @@ export interface ServerConfig
 
     /**
      * Global middlewares with names for route-level skip control
-     * Each middleware can be skipped per route using meta.skipMiddlewares
+     * Use defineMiddleware() for type-safe middleware definitions
      *
      * @example
      * ```typescript
-     * import { authMiddleware } from '@spfn/auth';
+     * import { defineMiddleware } from '@spfn/core/server';
      *
-     * export default {
-     *   middlewares: [
-     *     { name: 'auth', handler: authMiddleware() },
-     *     { name: 'rateLimit', handler: rateLimitMiddleware() },
-     *   ]
-     * } satisfies ServerConfig;
+     * const authMiddleware = defineMiddleware('auth', async (c, next) => {
+     *   // auth logic
+     *   await next();
+     * });
+     *
+     * export default defineServerConfig()
+     *   .middlewares([authMiddleware, rateLimitMiddleware])
+     *   .build();
      * ```
      */
-    middlewares?: Array<{
-        name: string;
-        handler: MiddlewareHandler;
-    }>;
+    middlewares?: readonly NamedMiddleware<string>[];
 
     /**
      * Routes directory path (default: src/server/routes)
      */
     routesPath?: string;
+
+    /**
+     * define-route based router
+     * Routes defined with route.get()...handler() style
+     * Will be automatically registered before file-based routes
+     *
+     * @example
+     * ```typescript
+     * import { defineRouter, route } from '@spfn/core/route';
+     *
+     * const appRouter = defineRouter({
+     *   getUser: route.get('/users/:id')...
+     *   createUser: route.post('/users')...
+     * });
+     *
+     * export default defineServerConfig()
+     *   .routes(appRouter)
+     *   .build();
+     * ```
+     */
+    routes?: Router<any>;
 
     /**
      * Enable debug mode (default: NODE_ENV === 'development')

@@ -62,12 +62,12 @@ export class AutoRouteLoader
 {
     private routes: RouteInfo[] = [];
     private readonly debug: boolean;
-    private readonly middlewares: Array<{ name: string; handler: MiddlewareHandler }>;
+    private readonly middlewares: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>;
 
     constructor(
         private routesDir: string,
         debug = false,
-        middlewares: Array<{ name: string; handler: MiddlewareHandler }> = []
+        middlewares: ReadonlyArray<{ name: string; handler: MiddlewareHandler }> = []
     ) {
         this.debug = debug;
         this.middlewares = middlewares;
@@ -483,7 +483,7 @@ export async function loadRoutes(
     options?: {
         routesDir?: string;
         debug?: boolean;
-        middlewares?: Array<{ name: string; handler: MiddlewareHandler }>;
+        middlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>;
         includeFunctionRoutes?: boolean;
     }
 ): Promise<RouteStats>

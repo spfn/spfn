@@ -13,7 +13,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Type } from '@sinclair/typebox';
 import type { ServerConfig, ServerInstance } from '../types';
+import { defineServerConfig } from '../config-builder';
+import { defineMiddleware } from '../define-middleware';
+import { route, defineRouter } from '../../route';
+import { createServer } from '../create-server';
 
 describe('Server Module', () => {
 
@@ -203,21 +208,16 @@ describe('Server Module', () => {
 
     describe('Middleware Configuration', () => {
         it('should support named middlewares', () => {
+            const authMiddleware = defineMiddleware('auth', async (c, next) => {
+                await next();
+            });
+
+            const rateLimitMiddleware = defineMiddleware('rateLimit', async (c, next) => {
+                await next();
+            });
+
             const config: ServerConfig = {
-                middlewares: [
-                    {
-                        name: 'auth',
-                        handler: async (c, next) => {
-                            await next();
-                        },
-                    },
-                    {
-                        name: 'rateLimit',
-                        handler: async (c, next) => {
-                            await next();
-                        },
-                    },
-                ],
+                middlewares: [authMiddleware, rateLimitMiddleware],
             };
 
             expect(config.middlewares).toBeDefined();
@@ -384,6 +384,408 @@ describe('Server Module', () => {
 
             await result;
             expect(closeCalled).toBe(true);
+        });
+    });
+
+    describe('defineServerConfig() Builder', () => {
+        it('should create config with fluent API', () => {
+            const config = defineServerConfig()
+                .port(3000)
+                .host('0.0.0.0')
+                .debug(true)
+                .build();
+
+            expect(config.port).toBe(3000);
+            expect(config.host).toBe('0.0.0.0');
+            expect(config.debug).toBe(true);
+        });
+
+        it('should support chaining multiple methods', () => {
+            const config = defineServerConfig()
+                .port(4000)
+                .middleware({ logger: true, cors: false })
+                .timeout({ request: 30000 })
+                .healthCheck({ enabled: true, path: '/health' })
+                .build();
+
+            expect(config.port).toBe(4000);
+            expect(config.middleware?.logger).toBe(true);
+            expect(config.middleware?.cors).toBe(false);
+            expect(config.timeout?.request).toBe(30000);
+            expect(config.healthCheck?.enabled).toBe(true);
+            expect(config.healthCheck?.path).toBe('/health');
+        });
+
+        it('should support routes configuration', () => {
+            const testRoute = route.get('/test')
+                .handler(async (c) => c.success({ message: 'test' }));
+
+            const router = defineRouter({ testRoute });
+
+            const config = defineServerConfig()
+                .routes(router)
+                .build();
+
+            expect(config.routes).toBeDefined();
+            expect(config.routes).toBe(router);
+        });
+    });
+
+    describe('define-route Integration', () => {
+        it('should register routes from config.routes', async () => {
+            // Define routes
+            const getUser = route.get('/users/:id')
+                .input({
+                    params: Type.Object({ id: Type.String() })
+                })
+                .handler(async (c) => {
+                    const { params } = await c.data();
+                    return c.success({ id: params.id, name: 'John Doe' });
+                });
+
+            const router = defineRouter({ getUser });
+
+            // Create server with routes
+            const config = defineServerConfig()
+                .routes(router)
+                .middleware({ logger: false, cors: false, errorHandler: false })
+                .healthCheck({ enabled: false })
+                .build();
+
+            const app = await createServer(config);
+
+            // Test HTTP request
+            const res = await app.request('/users/123');
+            const data = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(data).toEqual({
+                success: true,
+                data: { id: '123', name: 'John Doe' }
+            });
+        });
+
+        it('should return structured data with params, query, and body', async () => {
+            // Realistic scenario: POST with notification option in query
+            const testRoute = route.post('/items/:id')
+                .input({
+                    params: Type.Object({ id: Type.String() }),
+                    query: Type.Object({ notify: Type.Optional(Type.Boolean()) }),
+                    body: Type.Object({ name: Type.String() }),
+                })
+                .handler(async (c) => {
+                    const { params, query, body } = await c.data();
+                    return c.success({
+                        id: params.id,
+                        notify: query.notify,
+                        name: body.name,
+                    });
+                });
+
+            const router = defineRouter({ testRoute });
+
+            const config = defineServerConfig()
+                .routes(router)
+                .middleware({ logger: false, cors: false, errorHandler: false })
+                .healthCheck({ enabled: false })
+                .build();
+
+            const app = await createServer(config);
+
+            // POST with params, query, and body
+            const res = await app.request('/items/123?notify=true', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: 'Test Item' }),
+            });
+
+            const responseData = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(responseData.data).toEqual({
+                id: '123',          // from params
+                notify: true,       // from query (option)
+                name: 'Test Item',  // from body (resource data)
+            });
+        });
+
+        it('should validate input and return 400 on error', async () => {
+            const createUser = route.post('/users')
+                .input({
+                    body: Type.Object({
+                        name: Type.String(),
+                        email: Type.String({ format: 'email' }),
+                    })
+                })
+                .handler(async (c) => {
+                    const { body } = await c.data();
+                    return c.created(body);
+                });
+
+            const router = defineRouter({ createUser });
+
+            const config = defineServerConfig()
+                .routes(router)
+                .middleware({ logger: false, cors: false, errorHandler: true })
+                .healthCheck({ enabled: false })
+                .build();
+
+            const app = await createServer(config);
+
+            // Invalid request (missing email)
+            const res = await app.request('/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: 'John' }),
+            });
+
+            expect(res.status).toBe(400);
+            const data = await res.json();
+            expect(data.success).toBe(false);
+            expect(data.error).toBeDefined();
+        });
+
+        it('should support response helpers', async () => {
+            const routes = {
+                getSuccess: route.get('/success')
+                    .handler(async (c) => c.success({ message: 'ok' })),
+
+                postCreated: route.post('/created')
+                    .handler(async (c) => c.created({ id: 1 })),
+
+                getNoContent: route.get('/no-content')
+                    .handler(async (c) => c.noContent()),
+
+                getPaginated: route.get('/paginated')
+                    .handler(async (c) => c.paginated(
+                        [{ id: 1 }, { id: 2 }],
+                        1,
+                        10,
+                        100
+                    )),
+            };
+
+            const router = defineRouter(routes);
+
+            const config = defineServerConfig()
+                .routes(router)
+                .middleware({ logger: false, cors: false, errorHandler: false })
+                .healthCheck({ enabled: false })
+                .build();
+
+            const app = await createServer(config);
+
+            // Test success()
+            const res1 = await app.request('/success');
+            expect(res1.status).toBe(200);
+            const data1 = await res1.json();
+            expect(data1).toEqual({ success: true, data: { message: 'ok' } });
+
+            // Test created()
+            const res2 = await app.request('/created', { method: 'POST' });
+            expect(res2.status).toBe(201);
+            const data2 = await res2.json();
+            expect(data2).toEqual({ success: true, data: { id: 1 } });
+
+            // Test noContent()
+            const res3 = await app.request('/no-content');
+            expect(res3.status).toBe(204);
+
+            // Test paginated()
+            const res4 = await app.request('/paginated');
+            expect(res4.status).toBe(200);
+            const data4 = await res4.json();
+            expect(data4.success).toBe(true);
+            expect(data4.data).toEqual([{ id: 1 }, { id: 2 }]);
+            expect(data4.meta?.pagination).toEqual({
+                page: 1,
+                limit: 10,
+                total: 100,
+                totalPages: 10,
+            });
+        });
+
+        it('should support middleware in routes', async () => {
+            const authMiddleware = vi.fn(async (c, next) => {
+                c.set('user', { id: 1, name: 'Test User' });
+                await next();
+            });
+
+            const protectedRoute = route.get('/protected')
+                .use([authMiddleware])
+                .handler(async (c) => {
+                    const user = c.raw.get('user');
+                    return c.success({ user });
+                });
+
+            const router = defineRouter({ protectedRoute });
+
+            const config = defineServerConfig()
+                .routes(router)
+                .middleware({ logger: false, cors: false, errorHandler: false })
+                .healthCheck({ enabled: false })
+                .build();
+
+            const app = await createServer(config);
+
+            const res = await app.request('/protected');
+            const data = await res.json();
+
+            expect(authMiddleware).toHaveBeenCalled();
+            expect(res.status).toBe(200);
+            expect(data.data.user).toEqual({ id: 1, name: 'Test User' });
+        });
+
+        it('should apply server-level named middlewares to all routes', async () => {
+            const authMiddlewareFn = vi.fn(async (c, next) => {
+                c.set('authenticated', true);
+                await next();
+            });
+
+            const rateLimitMiddlewareFn = vi.fn(async (c, next) => {
+                c.set('rateLimited', true);
+                await next();
+            });
+
+            const authMiddleware = defineMiddleware('auth', authMiddlewareFn);
+            const rateLimitMiddleware = defineMiddleware('rateLimit', rateLimitMiddlewareFn);
+
+            const protectedRoute = route.get('/users')
+                .handler(async (c) => {
+                    const authenticated = c.raw.get('authenticated');
+                    const rateLimited = c.raw.get('rateLimited');
+                    return c.success({ authenticated, rateLimited });
+                });
+
+            const router = defineRouter({ protectedRoute });
+
+            const config = defineServerConfig()
+                .routes(router)
+                .middlewares([authMiddleware, rateLimitMiddleware])
+                .middleware({ logger: false, cors: false, errorHandler: false })
+                .healthCheck({ enabled: false })
+                .build();
+
+            const app = await createServer(config);
+
+            const res = await app.request('/users');
+            const data = await res.json();
+
+            expect(authMiddlewareFn).toHaveBeenCalled();
+            expect(rateLimitMiddlewareFn).toHaveBeenCalled();
+            expect(res.status).toBe(200);
+            expect(data.data).toEqual({ authenticated: true, rateLimited: true });
+        });
+
+        it('should skip specified middlewares for public routes', async () => {
+            const authMiddlewareFn = vi.fn(async (c, next) => {
+                c.set('authenticated', true);
+                await next();
+            });
+
+            const rateLimitMiddlewareFn = vi.fn(async (c, next) => {
+                c.set('rateLimited', true);
+                await next();
+            });
+
+            const authMiddleware = defineMiddleware('auth', authMiddlewareFn);
+            const rateLimitMiddleware = defineMiddleware('rateLimit', rateLimitMiddlewareFn);
+
+            const publicRoute = route.get('/health')
+                .skip(['auth', 'rateLimit'])
+                .handler(async (c) => {
+                    const authenticated = c.raw.get('authenticated');
+                    const rateLimited = c.raw.get('rateLimited');
+                    return c.success({
+                        authenticated: authenticated ?? false,
+                        rateLimited: rateLimited ?? false
+                    });
+                });
+
+            const protectedRoute = route.get('/users')
+                .handler(async (c) => {
+                    const authenticated = c.raw.get('authenticated');
+                    const rateLimited = c.raw.get('rateLimited');
+                    return c.success({ authenticated, rateLimited });
+                });
+
+            const router = defineRouter({ publicRoute, protectedRoute });
+
+            const config = defineServerConfig()
+                .routes(router)
+                .middlewares([authMiddleware, rateLimitMiddleware])
+                .middleware({ logger: false, cors: false, errorHandler: false })
+                .healthCheck({ enabled: false })
+                .build();
+
+            const app = await createServer(config);
+
+            // Public route - should skip middlewares
+            authMiddlewareFn.mockClear();
+            rateLimitMiddlewareFn.mockClear();
+            const res1 = await app.request('/health');
+            const data1 = await res1.json();
+
+            expect(authMiddlewareFn).not.toHaveBeenCalled();
+            expect(rateLimitMiddlewareFn).not.toHaveBeenCalled();
+            expect(res1.status).toBe(200);
+            expect(data1.data).toEqual({ authenticated: false, rateLimited: false });
+
+            // Protected route - should apply middlewares
+            authMiddlewareFn.mockClear();
+            rateLimitMiddlewareFn.mockClear();
+            const res2 = await app.request('/users');
+            const data2 = await res2.json();
+
+            expect(authMiddlewareFn).toHaveBeenCalled();
+            expect(rateLimitMiddlewareFn).toHaveBeenCalled();
+            expect(res2.status).toBe(200);
+            expect(data2.data).toEqual({ authenticated: true, rateLimited: true });
+        });
+
+        it('should partially skip middlewares (skip only auth)', async () => {
+            const authMiddlewareFn = vi.fn(async (c, next) => {
+                c.set('authenticated', true);
+                await next();
+            });
+
+            const rateLimitMiddlewareFn = vi.fn(async (c, next) => {
+                c.set('rateLimited', true);
+                await next();
+            });
+
+            const authMiddleware = defineMiddleware('auth', authMiddlewareFn);
+            const rateLimitMiddleware = defineMiddleware('rateLimit', rateLimitMiddlewareFn);
+
+            const publicDataRoute = route.get('/public-data')
+                .skip(['auth']) // Skip only auth, keep rateLimit
+                .handler(async (c) => {
+                    const authenticated = c.raw.get('authenticated');
+                    const rateLimited = c.raw.get('rateLimited');
+                    return c.success({
+                        authenticated: authenticated ?? false,
+                        rateLimited
+                    });
+                });
+
+            const router = defineRouter({ publicDataRoute });
+
+            const config = defineServerConfig()
+                .routes(router)
+                .middlewares([authMiddleware, rateLimitMiddleware])
+                .middleware({ logger: false, cors: false, errorHandler: false })
+                .healthCheck({ enabled: false })
+                .build();
+
+            const app = await createServer(config);
+
+            const res = await app.request('/public-data');
+            const data = await res.json();
+
+            expect(authMiddlewareFn).not.toHaveBeenCalled();
+            expect(rateLimitMiddlewareFn).toHaveBeenCalled();
+            expect(res.status).toBe(200);
+            expect(data.data).toEqual({ authenticated: false, rateLimited: true });
         });
     });
 });
