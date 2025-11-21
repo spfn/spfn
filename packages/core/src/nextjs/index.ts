@@ -12,12 +12,9 @@
 export {
     createApi,
     ApiError,
-    isHttpError,
-    isNetworkError,
-    isTimeoutError,
-} from './typed-client';
+} from './client';
 export type {
-    TypedClient,
+    Client,
     RouteClient,
     ApiConfig,
     CallOptions,
@@ -25,4 +22,4 @@ export type {
     InferRouteOutput,
     RequestInterceptor,
     ResponseInterceptor,
-} from './typed-client';
+} from './client';

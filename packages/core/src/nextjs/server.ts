@@ -6,34 +6,18 @@
  * ⚠️  DO NOT import this in Client Components - use '@spfn/core/nextjs' instead
  */
 
-// Legacy Next.js Client (uses next/headers - server only)
-export {
-    NextjsClient,
-    createNextjsClient,
-    configureNextjsClient,
-    getNextjsClient,
-    nextjsClient,
-} from './client';
-export type { NextjsClientConfig } from './client';
-
-// Proxy builder with interceptors (uses next/headers - server only)
-export { createProxy } from './proxy';
-
 // Default typed proxy handlers (define-route system with auto-discovery enabled)
-export { GET, POST, PUT, PATCH, DELETE } from './typed-proxy';
+export { GET, POST, PUT, PATCH, DELETE } from './proxy';
 
 // Typed proxy (uses next/headers - server only)
-export { createTypedProxy } from './typed-proxy';
+export { createTypedProxy } from './proxy';
 export type {
     TypedProxyConfig,
     ProxyRequestInterceptor,
     ProxyResponseInterceptor,
     RequestInterceptorResult,
     ResponseInterceptorResult,
-} from './typed-proxy';
-
-// Default typed proxy handlers
-export { GET as TypedGET, POST as TypedPOST, PUT as TypedPUT, PATCH as TypedPATCH, DELETE as TypedDELETE } from './typed-proxy';
+} from './proxy';
 
 // Interceptor registry
 export { registerInterceptors, interceptorRegistry } from './registry';

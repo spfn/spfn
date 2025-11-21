@@ -1,99 +1,134 @@
 /**
- * Next.js API Client
+ * Type-Safe tRPC-Style Client for define-route System
  *
- * Simplified client that always routes through Next.js API Route proxy.
- * Works consistently in all Next.js environments:
- * - Server Components
- * - Client Components
- * - Server Actions
+ * Provides full end-to-end type safety from server routes to client calls via RESTful HTTP.
+ * Supports browser caching (GET requests) while maintaining full type safety.
  *
- * All requests go through API Route → SPFN API, ensuring:
- * - Consistent cookie handling
- * - Unified interceptor logic
- * - Same behavior everywhere
+ * @example
+ * ```typescript
+ * // Server
+ * export const { router: appRouter, metadata: appMetadata } = defineRouter({
+ *   getUser: route.get('/users/:id')
+ *     .input({ params: Type.Object({ id: Type.String() }) })
+ *     .handler(async (c) => c.success({ id: '1', name: 'John' })),
+ * });
+ *
+ * export type AppRouter = typeof appRouter;
+ *
+ * // Client - metadata only (no server code bundled!)
+ * import { appMetadata } from '@/server/router';
+ *
+ * const api = createApi<AppRouter>({
+ *   baseUrl: '/api/actions',
+ *   metadata: appMetadata
+ * });
+ *
+ * // ✅ Simple call - GET /api/actions/users/1 (cached by browser!)
+ * const user = await api.getUser
+ *   .params({ id: '1' })
+ *   .call();
+ *
+ * // ✅ With query, headers, cookies, interceptors
+ * const user = await api.getUser
+ *   .params({ id: '1' })
+ *   .query({ include: 'posts' })
+ *   .headers({ 'X-Custom': 'value' })
+ *   .cookies({ session: 'xxx' })
+ *   .fetchOptions({ next: { revalidate: 60 } })
+ *   .onRequest((url, init) => { console.log('→', url); return init; })
+ *   .onResponse((res, body) => { console.log('←', body); return { response: res, body }; })
+ *   .call();
+ * ```
  */
 
-import type { RouteContract, InferContract } from '../../route/types';
-import { ContractClient, type CallOptions, type RequestInterceptor } from '../contract-client';
-import { logger } from "../../logger";
+import type { Static, TSchema } from '@sinclair/typebox';
+import { ErrorRegistry } from "../errors";
+import { logger } from '../logger';
+import type { RouteDef, RouteInput, Router } from '../route';
 
-// Type declaration for window (available in browser)
-declare const window: unknown | undefined;
+const apiLogger = logger.child('@spfn/core:api-client');
 
-const nextjsClientLogger = logger.child('@spfn/core:nextjs-client');
+// ============================================================================
+// Type Utilities
+// ============================================================================
 
 /**
- * Create an interceptor that forwards cookies in server-side environment
- *
- * In Next.js Server Components, cookies need to be manually forwarded
- * from the incoming request to outgoing API calls.
+ * Extract structured input from RouteInput
  */
-function createCookieForwardingInterceptor(): RequestInterceptor
-{
-    return async (_url: string, init: RequestInit): Promise<RequestInit> =>
-    {
-        const isServer = typeof window === 'undefined';
+type StructuredInput<TInput extends RouteInput> = {
+    params: TInput['params'] extends TSchema ? Static<TInput['params']> : {};
+    query: TInput['query'] extends TSchema ? Static<TInput['query']> : {};
+    body: TInput['body'] extends TSchema ? Static<TInput['body']> : {};
+    headers: TInput['headers'] extends TSchema ? Static<TInput['headers']> : {};
+    cookies: TInput['cookies'] extends TSchema ? Static<TInput['cookies']> : {};
+};
 
-        if (!isServer)
-        {
-            // Client-side: browser handles cookies automatically
-            return init;
-        }
+/**
+ * Infer route input type
+ */
+export type InferRouteInput<TRoute> =
+    TRoute extends RouteDef<infer TInput, any>
+        ? StructuredInput<TInput>
+        : never;
 
-        // Server-side: manually forward cookies
-        try
-        {
-            // Dynamic import to avoid issues in client-side
-            const { cookies } = await import('next/headers');
-            const cookieStore = await cookies();
-            const cookieHeader = cookieStore
-                .getAll()
-                .map(cookie => `${cookie.name}=${cookie.value}`)
-                .join('; ');
+/**
+ * Infer route output type
+ */
+export type InferRouteOutput<TRoute> =
+    TRoute extends RouteDef<any, infer TResponse>
+        ? TResponse
+        : never;
 
-            if (cookieHeader)
-            {
-                nextjsClientLogger.debug('Server-side: Forwarding cookies to API Route');
+// ============================================================================
+// Client Configuration
+// ============================================================================
 
-                return {
-                    ...init,
-                    headers: {
-                        ...init.headers,
-                        'Cookie': cookieHeader,
-                    },
-                };
-            }
-            else
-            {
-                nextjsClientLogger.debug('Server-side: No cookies to forward');
-            }
-        }
-        catch (error)
-        {
-            nextjsClientLogger.warn('Failed to get cookies in server environment:', {
-                error: error instanceof Error ? error.message : String(error)
-            });
-        }
+/**
+ * Request interceptor - called before fetch
+ */
+export type RequestInterceptor = (
+    url: string,
+    init: RequestInit
+) => Promise<RequestInit> | RequestInit;
 
-        return init;
-    };
+/**
+ * Response interceptor - called after fetch
+ */
+export type ResponseInterceptor = (
+    response: Response,
+    body: any
+) => Promise<{ response: Response; body: any }> | { response: Response; body: any };
+
+/**
+ * Route metadata for codegen
+ */
+export interface RouteMetadata {
+    method: string;
+    path: string;
 }
 
 /**
- * Next.js Client Configuration
+ * Client configuration
  */
-export interface NextjsClientConfig
-{
+export interface ApiConfig {
     /**
-     * Next.js API route base path
+     * Base URL for API calls
      *
      * @default '/api/actions'
-     * @example '/api/proxy'
+     * @example '/api/actions', 'http://localhost:3000/api/actions'
      */
-    proxyBasePath?: string;
+    baseUrl?: string;
 
     /**
-     * Additional headers to include in all requests
+     * Pre-extracted route metadata (from codegen)
+     *
+     * When provided, the client doesn't need the actual router object.
+     * This enables usage in Server Components without bundling server code.
+     */
+    metadata?: Record<string, RouteMetadata>;
+
+    /**
+     * Default headers for all requests
      */
     headers?: Record<string, string>;
 
@@ -110,222 +145,654 @@ export interface NextjsClientConfig
     fetch?: typeof fetch;
 
     /**
-     * Base URL for server-side API Route calls
-     *
-     * Only needed in Server Components/Actions when calling API routes
-     *
-     * @default process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'
-     * @example 'https://your-domain.com'
+     * Global request interceptor
      */
-    baseUrl?: string;
+    onRequest?: RequestInterceptor;
+
+    /**
+     * Global response interceptor
+     */
+    onResponse?: ResponseInterceptor;
+
+    /**
+     * Custom error registry for deserialization
+     *
+     * Core HTTP errors are automatically registered. Use this to add your custom application errors.
+     *
+     * @example
+     * ```typescript
+     * import { ErrorRegistry } from '@spfn/core/errors';
+     * import { PaymentFailedError, InventoryError } from '@/server/errors';
+     *
+     * const customRegistry = new ErrorRegistry()
+     *     .append([PaymentFailedError, InventoryError]);
+     *
+     * const api = createApi<AppRouter>({
+     *   metadata: appMetadata,
+     *   errorRegistry: customRegistry
+     * });
+     * ```
+     */
+    errorRegistry?: ErrorRegistry;
+
+    /**
+     * Enable debug logging
+     *
+     * @default false
+     */
+    debug?: boolean;
 }
 
 /**
- * Next.js API Client
- *
- * Always routes through Next.js API Route proxy for consistent behavior
- * across all environments.
- *
- * **Architecture:**
- * ```
- * All environments → API Route Proxy → Contract Client → SPFN API
- * ```
+ * Per-call options
+ */
+export interface CallOptions {
+    /**
+     * Additional headers for this request
+     */
+    headers?: Record<string, string>;
+
+    /**
+     * Override cookies for this request
+     *
+     * Note: Cookies are automatically forwarded by the proxy.
+     * Use this only when you need to override them.
+     */
+    cookies?: Record<string, string>;
+
+    /**
+     * Request-specific interceptor
+     */
+    onRequest?: RequestInterceptor;
+
+    /**
+     * Response-specific interceptor
+     */
+    onResponse?: ResponseInterceptor;
+
+    /**
+     * Next.js-specific fetch options
+     *
+     * @example
+     * // Time-based revalidation
+     * { next: { revalidate: 60 } }
+     *
+     * // Disable cache
+     * { cache: 'no-store' }
+     *
+     * // Tag-based revalidation
+     * { next: { tags: ['users'] } }
+     */
+    fetchOptions?: RequestInit & {
+        next?: {
+            revalidate?: number | false;
+            tags?: string[];
+        };
+    };
+}
+
+// ============================================================================
+// Route Call Builder (Chainable API)
+// ============================================================================
+
+/**
+ * Chainable route call builder
  *
  * @example
  * ```typescript
- * // Works everywhere (Server Components, Client Components, Server Actions)
- * import { createNextjsClient } from '@spfn/core/nextjs';
- *
- * const client = createNextjsClient();
- * const result = await client.call(loginContract, { body: {...} });
+ * const user = await api.getUser
+ *   .params({ id: '1' })
+ *   .query({ include: 'posts' })
+ *   .headers({ 'X-Custom': 'value' })
+ *   .cookies({ session: 'xxx' })
+ *   .fetchOptions({ next: { revalidate: 60 } })
+ *   .onRequest((url, init) => init)
+ *   .onResponse((res, body) => ({ response: res, body }))
+ *   .call();
  * ```
  */
-export class NextjsClient
+export class RouteCallBuilder<TInput, TOutput>
 {
-    private readonly contractClient: ContractClient;
-    private readonly proxyBasePath: string;
-    private readonly baseUrl: string;
+    private _params?: any;
+    private _query?: any;
+    private _body?: any;
+    private _headers?: Record<string, string>;
+    private _cookies?: Record<string, string>;
+    private _fetchOptions?: RequestInit;
+    private _onRequest?: RequestInterceptor;
+    private _onResponse?: ResponseInterceptor;
 
-    constructor(config: NextjsClientConfig = {})
+    constructor(
+        private readonly executor: (input: any, options: CallOptions) => Promise<TOutput>
+    )
     {
-        this.proxyBasePath = config.proxyBasePath || '/api/actions';
+    }
 
-        // Determine baseUrl based on environment
-        const isServer = typeof window === 'undefined';
+    /**
+     * Set path parameters
+     */
+    params(params: TInput extends { params: infer P } ? P : never): this
+    {
+        this._params = params;
+        return this;
+    }
 
-        nextjsClientLogger.debug('Constructor - Environment:', {
-            isServer,
-            configBaseUrl: config.baseUrl,
-            SPFN_APP_URL: process.env.SPFN_APP_URL,
-            proxyBasePath: this.proxyBasePath,
+    /**
+     * Set query parameters
+     */
+    query(query: TInput extends { query: infer Q } ? Q : never): this
+    {
+        this._query = query;
+        return this;
+    }
+
+    /**
+     * Set request body
+     */
+    body(body: TInput extends { body: infer B } ? B : never): this
+    {
+        this._body = body;
+        return this;
+    }
+
+    /**
+     * Set request headers
+     */
+    headers(headers: Record<string, string>): this
+    {
+        this._headers = { ...this._headers, ...headers };
+        return this;
+    }
+
+    /**
+     * Set cookies
+     */
+    cookies(cookies: Record<string, string>): this
+    {
+        this._cookies = { ...this._cookies, ...cookies };
+        return this;
+    }
+
+    /**
+     * Set Next.js fetch options
+     */
+    fetchOptions(options: RequestInit & { next?: { revalidate?: number | false; tags?: string[] } }): this
+    {
+        this._fetchOptions = { ...this._fetchOptions, ...options };
+        return this;
+    }
+
+    /**
+     * Set request interceptor
+     */
+    onRequest(interceptor: RequestInterceptor): this
+    {
+        this._onRequest = interceptor;
+        return this;
+    }
+
+    /**
+     * Set response interceptor
+     */
+    onResponse(interceptor: ResponseInterceptor): this
+    {
+        this._onResponse = interceptor;
+        return this;
+    }
+
+    /**
+     * Execute the API call
+     */
+    async call(): Promise<TOutput>
+    {
+        const input: any = {};
+        if (this._params)
+        {
+            input.params = this._params;
+        }
+        if (this._query)
+        {
+            input.query = this._query;
+        }
+        if (this._body)
+        {
+            input.body = this._body;
+        }
+
+        const options: CallOptions = {};
+        if (this._headers)
+        {
+            options.headers = this._headers;
+        }
+        if (this._cookies)
+        {
+            options.cookies = this._cookies;
+        }
+        if (this._fetchOptions)
+        {
+            options.fetchOptions = this._fetchOptions;
+        }
+        if (this._onRequest)
+        {
+            options.onRequest = this._onRequest;
+        }
+        if (this._onResponse)
+        {
+            options.onResponse = this._onResponse;
+        }
+
+        return this.executor(input, options);
+    }
+}
+
+/**
+ * Individual route client
+ */
+export type RouteClient<TRoute extends RouteDef<any, any>> = RouteCallBuilder<
+    InferRouteInput<TRoute>,
+    InferRouteOutput<TRoute>
+>;
+
+/**
+ * Typed client for entire router
+ */
+export type Client<TRouter extends Router<any>> = {
+    [K in keyof TRouter['routes']]: TRouter['routes'][K] extends RouteDef<any, any>
+        ? RouteClient<TRouter['routes'][K]>
+        : TRouter['routes'][K] extends Router<any>
+        ? Client<TRouter['routes'][K]>
+        : never;
+};
+
+// ============================================================================
+// Client Error
+// ============================================================================
+
+/**
+ * Typed client error
+ */
+export class ApiError extends Error
+{
+    constructor(
+        message: string,
+        public readonly status: number,
+        public readonly url: string,
+        public readonly response?: unknown,
+        public readonly errorType?: 'http' | 'network' | 'timeout'
+    )
+    {
+        super(message);
+        this.name = 'ApiError';
+    }
+}
+
+// ============================================================================
+// Client Implementation
+// ============================================================================
+
+/**
+ * Create type-safe client with runtime-extracted metadata
+ *
+ * **IMPORTANT:** This function requires metadata to avoid bundling server code.
+ * Metadata is automatically extracted by defineRouter() and can be safely imported.
+ *
+ * @example
+ * ```typescript
+ * // Server - defineRouter extracts metadata automatically
+ * export const { router: appRouter, metadata: appMetadata } = defineRouter({
+ *   getUser: route.get('/users/:id').handler(...),
+ *   createUser: route.post('/users').handler(...)
+ * });
+ *
+ * // Client - import metadata only (no server code!)
+ * import { appMetadata } from '@/server/router';
+ *
+ * const api = createApi<AppRouter>({
+ *   baseUrl: '/api/actions',
+ *   metadata: appMetadata  // Just method & path, no handler code!
+ * });
+ * ```
+ */
+export function createApi<TRouter extends Router<any>>(
+    config: ApiConfig
+): Client<TRouter>
+{
+    const {
+        baseUrl = '/api/actions',
+        metadata: preExtractedMetadata,
+        headers: defaultHeaders = {},
+        timeout = 30000,
+        fetch: customFetch = fetch,
+        onRequest: globalOnRequest,
+        onResponse: globalOnResponse,
+        errorRegistry,
+        debug = false,
+    } = config;
+
+    if (!preExtractedMetadata)
+    {
+        throw new Error(
+            'createApi() requires metadata. ' +
+            'Use defineRouter() to extract metadata from routes.'
+        );
+    }
+
+    // Use pre-extracted metadata from codegen
+    const routeMetadata = new Map<string, RouteMetadata>();
+    for (const [name, metadata] of Object.entries(preExtractedMetadata))
+    {
+        routeMetadata.set(name, metadata);
+        if (debug)
+        {
+            apiLogger.debug('Route registered', {
+                name,
+                method: metadata.method,
+                path: metadata.path,
+            });
+        }
+    }
+
+    if (debug)
+    {
+        apiLogger.debug('TypedClient initialized', {
+            baseUrl,
+            totalRoutes: routeMetadata.size,
         });
+    }
 
-        if (config.baseUrl)
+    /**
+     * Execute API call
+     */
+    async function executeCall(
+        routeName: string,
+        input: any = {},
+        options: CallOptions = {}
+    ): Promise<any>
+    {
+        const metadata = routeMetadata.get(routeName);
+        if (!metadata)
         {
-            this.baseUrl = config.baseUrl;
-            nextjsClientLogger.debug(`Using config.baseUrl: ${this.baseUrl}`);
-        }
-        else if (process.env.SPFN_APP_URL)
-        {
-            this.baseUrl = process.env.SPFN_APP_URL;
-            nextjsClientLogger.debug(`Using SPFN_APP_URL: ${this.baseUrl}`);
-        }
-        else if (isServer)
-        {
-            // Server environment requires SPFN_APP_URL to be set
-            throw new Error(
-                '❌ SPFN_APP_URL environment variable is required in server environment.\n' +
-                'Please set SPFN_APP_URL in your .env file:\n' +
-                '  SPFN_APP_URL=http://localhost:3000\n' +
-                'Or configure the client with baseUrl:\n' +
-                '  createNextjsClient({ baseUrl: "http://localhost:3000" })'
+            throw new ApiError(
+                `Route "${routeName}" not found in router`,
+                500,
+                '',
+                undefined,
+                'http'
             );
         }
-        else
+
+        const { method, path } = metadata;
+
+        // Build URL with path params
+        let url = path;
+        const params = input.params || {};
+        for (const [key, value] of Object.entries(params))
         {
-            // Client environment: use relative path
-            this.baseUrl = '';
-            nextjsClientLogger.debug('Using empty baseUrl (client-side relative)');
+            url = url.replace(`:${key}`, encodeURIComponent(String(value)));
         }
 
-        const finalBaseUrl = this.baseUrl + this.proxyBasePath;
-        nextjsClientLogger.debug(`Final baseUrl for ContractClient: ${finalBaseUrl}`);
+        // Add query params
+        const query = input.query || {};
+        if (Object.keys(query).length > 0)
+        {
+            const searchParams = new URLSearchParams();
+            for (const [key, value] of Object.entries(query))
+            {
+                if (Array.isArray(value))
+                {
+                    value.forEach((v) => searchParams.append(key, String(v)));
+                }
+                else
+                {
+                    searchParams.append(key, String(value));
+                }
+            }
 
-        // Create contract client pointing to API Route
-        this.contractClient = new ContractClient({
-            baseUrl: finalBaseUrl,
-            headers: config.headers,
-            timeout: config.timeout,
-            fetch: config.fetch,
-        });
+            url += `?${searchParams.toString()}`;
+        }
 
-        // Register cookie forwarding interceptor for server-side requests
-        this.contractClient.use(createCookieForwardingInterceptor());
-    }
+        // Full URL
+        const fullUrl = `${baseUrl}${url}`;
 
-    /**
-     * Make a type-safe API call using a contract
-     *
-     * All requests go through Next.js API Route proxy.
-     * Cookies are automatically forwarded by the interceptor.
-     *
-     * @param contract - Route contract with absolute path
-     * @param options - Call options (params, query, body, headers)
-     */
-    async call<TContract extends RouteContract>(
-        contract: TContract,
-        options?: CallOptions<TContract>
-    ): Promise<InferContract<TContract>['response']>
-    {
-        // Ensure credentials: 'include' for cookie forwarding (client-side)
-        // Note: Server-side cookie forwarding is handled by interceptor
-        const finalOptions: CallOptions<TContract> = {
-            ...options,
-            fetchOptions: {
-                credentials: 'include', // Important: Include cookies for session (client-side)
-                ...options?.fetchOptions,
+        // Build request init
+        let init: RequestInit = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                ...defaultHeaders,
+                ...options.headers,
             },
+            ...options.fetchOptions,
         };
 
-        // Route through API proxy (interceptor handles cookie forwarding)
-        return this.contractClient.call(contract, finalOptions);
+        // Add body for mutations
+        if (['POST', 'PUT', 'PATCH'].includes(method) && input.body)
+        {
+            init.body = JSON.stringify(input.body);
+        }
+
+        // Add cookies if provided
+        if (options.cookies)
+        {
+            (init.headers as Record<string, string>)['Cookie'] = Object.entries(options.cookies)
+                .map(([key, value]) => `${ key }=${ value }`)
+                .join('; ');
+        }
+
+        // Execute global + local request interceptors
+        if (globalOnRequest)
+        {
+            init = await globalOnRequest(fullUrl, init);
+        }
+        if (options.onRequest)
+        {
+            init = await options.onRequest(fullUrl, init);
+        }
+
+        if (debug)
+        {
+            apiLogger.debug('→ Request', {
+                route: routeName,
+                method,
+                url: fullUrl,
+                hasBody: !!init.body,
+            });
+        }
+
+        // Execute fetch with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        let response: Response;
+        let body: any;
+
+        try
+        {
+            response = await customFetch(fullUrl, {
+                ...init,
+                signal: controller.signal,
+            });
+
+            clearTimeout(timeoutId);
+
+            // Parse response
+            const contentType = response.headers.get('content-type');
+
+            if (contentType?.includes('application/json'))
+            {
+                const text = await response.text();
+                body = text ? JSON.parse(text) : null;
+            }
+            else
+            {
+                body = await response.text();
+            }
+
+            // Execute global + local response interceptors
+            if (globalOnResponse)
+            {
+                const result = await globalOnResponse(response, body);
+                response = result.response;
+                body = result.body;
+            }
+            if (options.onResponse)
+            {
+                const result = await options.onResponse(response, body);
+                response = result.response;
+                body = result.body;
+            }
+
+            if (debug)
+            {
+                apiLogger.debug('← Response', {
+                    route: routeName,
+                    status: response.status,
+                    hasBody: !!body,
+                });
+            }
+        }
+        catch (error)
+        {
+            clearTimeout(timeoutId);
+
+            // Handle timeout specifically
+            if (error instanceof Error && error.name === 'AbortError')
+            {
+                throw new ApiError(
+                    `Request timeout after ${timeout}ms`,
+                    408,
+                    fullUrl,
+                    undefined,
+                    'timeout'
+                );
+            }
+
+            // Network error
+            throw new ApiError(
+                error instanceof Error ? error.message : 'Network error',
+                0,
+                fullUrl,
+                undefined,
+                'network'
+            );
+        }
+
+        // Check for errors (after try-catch)
+        if (!response.ok)
+        {
+            if (debug)
+            {
+                apiLogger.debug('Error response received', {
+                    status: response.status,
+                    hasBody: !!body,
+                    bodyType: typeof body,
+                    hasTypeField: body && typeof body === 'object' && '__type' in body,
+                    typeValue: body?.__type,
+                });
+            }
+
+            // Try to deserialize error if registry is provided
+            let deserializedError: Error | null = null;
+
+            if (errorRegistry && body && typeof body === 'object' && '__type' in body)
+            {
+                if (debug)
+                {
+                    apiLogger.debug('Attempting error deserialization', {
+                        errorType: body.__type,
+                        hasRegistry: !!errorRegistry,
+                        registeredTypes: errorRegistry.getRegisteredTypes(),
+                    });
+                }
+
+                try
+                {
+                    deserializedError = errorRegistry.deserialize(body as any);
+
+                    if (debug)
+                    {
+                        apiLogger.debug('Error deserialized successfully', {
+                            errorName: deserializedError?.name,
+                            errorConstructor: deserializedError?.constructor.name,
+                            message: deserializedError?.message,
+                        });
+                    }
+                }
+                catch (deserializeError)
+                {
+                    // Deserialization itself failed (type not found, invalid data, etc.)
+                    if (debug)
+                    {
+                        apiLogger.debug('Deserialization failed', {
+                            errorName: deserializeError instanceof Error ? deserializeError.name : 'unknown',
+                            errorMessage: deserializeError instanceof Error ? deserializeError.message : String(deserializeError),
+                        });
+                    }
+                    // Fall through to ApiError below
+                }
+            }
+            else if (debug)
+            {
+                apiLogger.debug('Skipping error deserialization', {
+                    reason: !errorRegistry ? 'no registry' : !body ? 'no body' : !('__type' in body) ? 'no __type field' : 'unknown',
+                });
+            }
+
+            // If deserialization succeeded, throw the deserialized error
+            if (deserializedError)
+            {
+                if (debug)
+                {
+                    apiLogger.debug('Throwing deserialized error', {
+                        errorName: deserializedError.name,
+                        errorConstructorName: deserializedError.constructor.name,
+                        prototype: Object.getPrototypeOf(deserializedError).constructor.name,
+                    });
+                }
+
+                throw deserializedError;
+            }
+
+            // Fallback to generic ApiError
+            throw new ApiError(
+                body?.message || `HTTP ${response.status}: ${response.statusText}`,
+                response.status,
+                fullUrl,
+                body,
+                'http'
+            );
+        }
+
+        return body;
     }
 
     /**
-     * Create a new client with merged configuration
+     * Build client proxy
      */
-    withConfig(config: Partial<NextjsClientConfig>): NextjsClient
+    function buildProxy(prefix = ''): any
     {
-        return new NextjsClient({
-            baseUrl: config.baseUrl || this.baseUrl,
-            proxyBasePath: config.proxyBasePath || this.proxyBasePath,
-            headers: {
-                ...this.contractClient['config'].headers,
-                ...config.headers,
-            },
-            timeout: config.timeout || this.contractClient['config'].timeout,
-            fetch: config.fetch || this.contractClient['config'].fetch,
-        });
-    }
-}
+        return new Proxy(
+            {},
+            {
+                get(_target, prop: string)
+                {
+                    const currentPath = prefix ? `${prefix}.${prop}` : prop;
 
-/**
- * Create a new Next.js API client
- *
- * @example
- * ```typescript
- * // Default configuration
- * const client = createNextjsClient();
- *
- * // Custom configuration
- * const client = createNextjsClient({
- *   baseUrl: 'https://your-domain.com',
- *   proxyBasePath: '/api/spfn',
- *   headers: { 'X-App-Version': '1.0.0' },
- * });
- * ```
- */
-export function createNextjsClient(config?: NextjsClientConfig): NextjsClient
-{
-    return new NextjsClient(config);
-}
+                    // Check if this is a terminal route
+                    if (routeMetadata.has(currentPath))
+                    {
+                        // Return RouteCallBuilder instance for chainable API
+                        return new RouteCallBuilder((input: any, options: CallOptions) =>
+                            executeCall(currentPath, input, options)
+                        );
+                    }
 
-/**
- * Global Next.js client singleton instance
- */
-let _nextjsClientInstance: NextjsClient | null = null;
-
-/**
- * Configure the global Next.js client instance
- *
- * Call this in your app initialization to set default configuration
- * for all auto-generated API calls.
- *
- * @example
- * ```typescript
- * // In app initialization (layout.tsx, _app.tsx, etc)
- * import { configureNextjsClient } from '@spfn/core/nextjs';
- *
- * configureNextjsClient({
- *   baseUrl: process.env.NEXT_PUBLIC_URL || 'http://localhost:3000',
- *   proxyBasePath: '/api/actions',
- *   headers: {
- *     'X-App-Version': '1.0.0'
- *   }
- * });
- * ```
- */
-export function configureNextjsClient(config: NextjsClientConfig): void
-{
-    _nextjsClientInstance = new NextjsClient(config);
-}
-
-/**
- * Get the global Next.js client instance
- *
- * Creates a default instance if not configured
- */
-export function getNextjsClient(): NextjsClient
-{
-    if (!_nextjsClientInstance)
-    {
-        _nextjsClientInstance = new NextjsClient();
+                    // Otherwise, it might be a nested router - recurse
+                    return buildProxy(currentPath);
+                },
+            }
+        );
     }
 
-    return _nextjsClientInstance;
+    return buildProxy() as Client<TRouter>;
 }
-
-/**
- * Global Next.js client singleton with Proxy
- *
- * This client can be configured using configureNextjsClient() before use.
- * Used by auto-generated API client code.
- */
-export const nextjsClient = new Proxy({} as NextjsClient, {
-    get(_target, prop)
-    {
-        const instance = getNextjsClient();
-        const value = instance[prop as keyof NextjsClient];
-        return typeof value === 'function' ? value.bind(instance) : value;
-    }
-});
