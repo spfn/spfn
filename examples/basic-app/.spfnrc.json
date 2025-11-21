@@ -1,6 +1,10 @@
 {
   "codegen": {
     "generators": [
+      {
+        "name": "@spfn/core:router",
+        "enabled": true
+      }
     ]
   }
 }

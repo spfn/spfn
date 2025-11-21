@@ -6,17 +6,10 @@
  * Tests type-safe error deserialization with instanceof checks
  */
 
+import { InsufficientBalanceError } from "@/lib/errors/custom-errors";
+import { HttpErrors } from "@spfn/core/errors";
 import { useState } from 'react';
 import { api } from '@/lib/api-client';
-import {
-    NotFoundError,
-    UnauthorizedError,
-    ForbiddenError,
-    ConflictError,
-    UnprocessableEntityError,
-    ValidationError,
-} from '@spfn/core/errors';
-import { InsufficientBalanceError } from '@/lib/errors/custom-errors';
 
 export default function ErrorTestPage()
 {
@@ -40,28 +33,28 @@ export default function ErrorTestPage()
             results.push(`   Type: ${error instanceof Error ? error.constructor.name : typeof error}`);
             results.push(`   Message: ${error instanceof Error ? error.message : String(error)}`);
 
-            // Type checks
-            if (error instanceof NotFoundError)
+            // Type checks with instanceof (works because errors are imported from same module chain)
+            if (error instanceof HttpErrors.NotFoundError)
             {
                 results.push(`   ✅ instanceof NotFoundError: true`);
                 results.push(`   Details: ${JSON.stringify(error.details)}`);
             }
-            else if (error instanceof UnauthorizedError)
+            else if (error instanceof HttpErrors.UnauthorizedError)
             {
                 results.push(`   ✅ instanceof UnauthorizedError: true`);
                 results.push(`   Details: ${JSON.stringify(error.details)}`);
             }
-            else if (error instanceof ForbiddenError)
+            else if (error instanceof HttpErrors.ForbiddenError)
             {
                 results.push(`   ✅ instanceof ForbiddenError: true`);
                 results.push(`   Details: ${JSON.stringify(error.details)}`);
             }
-            else if (error instanceof ConflictError)
+            else if (error instanceof HttpErrors.ConflictError)
             {
                 results.push(`   ✅ instanceof ConflictError: true`);
                 results.push(`   Details: ${JSON.stringify(error.details)}`);
             }
-            else if (error instanceof UnprocessableEntityError)
+            else if (error instanceof HttpErrors.UnprocessableEntityError)
             {
                 results.push(`   ✅ instanceof UnprocessableEntityError: true`);
                 results.push(`   Details: ${JSON.stringify(error.details)}`);
@@ -73,7 +66,7 @@ export default function ErrorTestPage()
                 results.push(`   Requested: ${error.requestedAmount}`);
                 results.push(`   Available: ${error.availableBalance}`);
             }
-            else if (error instanceof ValidationError)
+            else if (error instanceof HttpErrors.ValidationError)
             {
                 results.push(`   ✅ instanceof ValidationError: true`);
                 results.push(`   Fields: ${JSON.stringify(error.fields)}`);
