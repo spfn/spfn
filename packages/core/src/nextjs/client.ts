@@ -134,7 +134,7 @@ export interface NextjsClientConfig
  * @example
  * ```typescript
  * // Works everywhere (Server Components, Client Components, Server Actions)
- * import { createNextjsClient } from '@spfn/core/client/nextjs';
+ * import { createNextjsClient } from '@spfn/core/nextjs';
  *
  * const client = createNextjsClient();
  * const result = await client.call(loginContract, { body: {...} });
@@ -284,7 +284,7 @@ let _nextjsClientInstance: NextjsClient | null = null;
  * @example
  * ```typescript
  * // In app initialization (layout.tsx, _app.tsx, etc)
- * import { configureNextjsClient } from '@spfn/core/client/nextjs';
+ * import { configureNextjsClient } from '@spfn/core/nextjs';
  *
  * configureNextjsClient({
  *   baseUrl: process.env.NEXT_PUBLIC_URL || 'http://localhost:3000',

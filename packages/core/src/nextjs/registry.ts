@@ -152,7 +152,7 @@ export const interceptorRegistry = new InterceptorRegistry();
  * @example
  * ```typescript
  * // packages/auth/src/adapters/nextjs/interceptors/index.ts
- * import { registerInterceptors } from '@spfn/core/client/nextjs';
+ * import { registerInterceptors } from '@spfn/core/nextjs';
  *
  * const authInterceptors = [
  *   {

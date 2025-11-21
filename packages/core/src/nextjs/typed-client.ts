@@ -837,7 +837,7 @@ export function isTimeoutError(error: unknown): error is ApiError
  *
  * @example
  * ```typescript
- * import { createApi, NotFoundError, ValidationError } from '@spfn/core/client/nextjs';
+ * import { createApi, NotFoundError, ValidationError } from '@spfn/core/nextjs';
  *
  * const api = createApi<AppRouter>({ metadata });
  *

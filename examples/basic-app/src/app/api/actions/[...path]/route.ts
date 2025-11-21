@@ -6,8 +6,8 @@
  * - Interceptor execution
  * - Header manipulation
  *
- * Note: Imports from '@spfn/core/client/nextjs/server' (server-only)
+ * Note: Imports from '@spfn/core/nextjs/server' (server-only)
  * Uses next/headers internally - do not import in Client Components
  */
 
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs/server';
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';

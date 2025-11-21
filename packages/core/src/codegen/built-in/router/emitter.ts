@@ -76,7 +76,7 @@ function generateMetadataCode(metadata: RouterMetadata): string
  *
  * Usage:
  * \`\`\`typescript
- * import { createApi } from '@spfn/core/client/nextjs';
+ * import { createApi } from '@spfn/core/nextjs';
  * import { appMetadata } from '@/server/router.metadata';
  * import type { AppRouter } from '@/server/router';
  *

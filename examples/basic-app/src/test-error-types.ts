@@ -14,7 +14,7 @@ import {
     UnprocessableEntityError,
     ValidationError,
 } from '@spfn/core/errors';
-import { ApiError } from '@spfn/core/client/nextjs';
+import { ApiError } from '@spfn/core/nextjs';
 import { InsufficientBalanceError } from '@/lib/errors/custom-errors';
 
 async function testErrorTypeChecking()

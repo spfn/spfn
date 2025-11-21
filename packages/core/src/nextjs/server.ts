@@ -3,7 +3,7 @@
  *
  * Server-only exports that use next/headers (for API routes and Server Components)
  *
- * ⚠️  DO NOT import this in Client Components - use '@spfn/core/client/nextjs' instead
+ * ⚠️  DO NOT import this in Client Components - use '@spfn/core/nextjs' instead
  */
 
 // Legacy Next.js Client (uses next/headers - server only)

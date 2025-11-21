@@ -7,7 +7,7 @@
  * @example
  * ```typescript
  * // app/api/actions/[...path]/route.ts
- * export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs/typed-proxy';
+ * export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/typed-proxy';
  * ```
  */
 
@@ -534,7 +534,7 @@ export function createTypedProxy(config: TypedProxyConfig = {})
  * @example
  * ```typescript
  * // app/api/actions/[...path]/route.ts
- * export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs/typed-proxy';
+ * export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/typed-proxy';
  * ```
  */
 const defaultProxy = createTypedProxy();

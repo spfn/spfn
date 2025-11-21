@@ -4,7 +4,7 @@
  * Type-safe client for accessing server routes
  */
 
-import { createApi } from '@spfn/core/client/nextjs';
+import { createApi } from '@spfn/core/nextjs';
 import type { AppRouter } from '@/server/router';
 import { appMetadata } from '@/server/router.metadata';
 import { errorRegistry } from "@spfn/core/errors";

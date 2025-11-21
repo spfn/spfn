@@ -1,4 +1,4 @@
-# @spfn/core/client/nextjs - Technical Documentation
+# @spfn/core/nextjs - Technical Documentation
 
 Type-safe Next.js client system with tRPC-style API for define-route integration.
 
@@ -208,7 +208,7 @@ export class RouteCallBuilder<TInput, TOutput>
 
 ```typescript
 // lib/api-client.ts
-import { configureApi } from '@spfn/core/client/nextjs';
+import { configureApi } from '@spfn/core/nextjs';
 import type { AppRouter } from '@/server/router';
 
 // Configure once during app initialization
@@ -220,7 +220,7 @@ configureApi<AppRouter>({
 });
 
 // components/UserProfile.tsx
-import { api } from '@spfn/core/client/nextjs';
+import { api } from '@spfn/core/nextjs';
 
 export async function UserProfile({ id }: { id: string })
 {
@@ -242,7 +242,7 @@ export async function UserProfile({ id }: { id: string })
 
 ```typescript
 // For specific use cases requiring different configs
-import { createApi } from '@spfn/core/client/nextjs';
+import { createApi } from '@spfn/core/nextjs';
 import type { AppRouter } from '@/server/router';
 
 const adminApi = createApi<AppRouter>({
@@ -334,7 +334,7 @@ const api = createApi<AppRouter>({
 
 ```typescript
 // app/users/[id]/page.tsx
-import { api } from '@spfn/core/client/nextjs';
+import { api } from '@spfn/core/nextjs';
 
 export default async function UserPage({ params }: { params: { id: string } })
 {
@@ -369,7 +369,7 @@ revalidateTag('posts');
 ```typescript
 'use client';
 
-import { api } from '@spfn/core/client/nextjs';
+import { api } from '@spfn/core/nextjs';
 import { useState } from 'react';
 
 export function CreateUserForm()
@@ -408,7 +408,7 @@ The simplest setup with sensible defaults:
 
 ```typescript
 // app/api/actions/[...path]/route.ts
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs';
 ```
 
 **Default Behavior:**
@@ -422,7 +422,7 @@ export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
 
 ```typescript
 // app/api/actions/[...path]/route.ts
-import { createTypedProxy } from '@spfn/core/client/nextjs';
+import { createTypedProxy } from '@spfn/core/nextjs';
 
 const { GET, POST, PUT, PATCH, DELETE } = createTypedProxy({
     apiUrl: process.env.SPFN_API_URL,
@@ -948,7 +948,7 @@ Packages can register interceptors automatically on import:
 
 ```typescript
 // @spfn/auth/src/adapters/nextjs/index.ts
-import { registerInterceptors } from '@spfn/core/client/nextjs';
+import { registerInterceptors } from '@spfn/core/nextjs';
 
 export const authInterceptors = [
     {
@@ -994,7 +994,7 @@ registerInterceptors('auth', authInterceptors);
 import '@spfn/auth/adapters/nextjs'; // Auto-registers interceptors
 
 // Default export with auto-discovery enabled
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs';
 ```
 
 **Auto-discovery is enabled by default.** The proxy will automatically:
@@ -1077,11 +1077,11 @@ export const appRouter = defineRouter({ getUser });
 
 // 2. Next.js API Route (Proxy)
 // app/api/actions/[...path]/route.ts
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs';
 
 // 3. Client-side API call
 // app/users/[id]/page.tsx
-import { api } from '@spfn/core/client/nextjs';
+import { api } from '@spfn/core/nextjs';
 
 export default async function UserPage({ params }: { params: { id: string } })
 {
@@ -1264,7 +1264,7 @@ export { handler as GET, handler as POST };
 **SPFN:**
 ```typescript
 // Separate proxy layer
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs';
 
 // Proxy forwards to independent SPFN server
 // Client -> Next.js API Route -> SPFN Backend
@@ -1294,7 +1294,7 @@ Add global request/response transformations:
 
 ```typescript
 // lib/api-client.ts
-import { configureApi } from '@spfn/core/client/nextjs';
+import { configureApi } from '@spfn/core/nextjs';
 import type { AppRouter } from '@/server/router';
 
 configureApi<AppRouter>({
@@ -1336,7 +1336,7 @@ Add advanced path-based logic:
 
 ```typescript
 // app/api/actions/[...path]/route.ts
-import { createTypedProxy } from '@spfn/core/client/nextjs';
+import { createTypedProxy } from '@spfn/core/nextjs';
 
 const { GET, POST, PUT, PATCH, DELETE } = createTypedProxy({
     interceptors: [
@@ -1398,7 +1398,7 @@ Create reusable interceptor packages:
 
 ```typescript
 // @spfn/analytics/src/adapters/nextjs/index.ts
-import { registerInterceptors } from '@spfn/core/client/nextjs';
+import { registerInterceptors } from '@spfn/core/nextjs';
 
 export const analyticsInterceptors = [
     {
@@ -1427,7 +1427,7 @@ registerInterceptors('analytics', analyticsInterceptors);
 // Usage in app:
 // app/api/actions/[...path]/route.ts
 import '@spfn/analytics/adapters/nextjs'; // Auto-registers
-export { GET, POST } from '@spfn/core/client/nextjs';
+export { GET, POST } from '@spfn/core/nextjs';
 ```
 
 ---
@@ -1618,14 +1618,14 @@ If you're migrating from the deprecated contract-based system:
 
 ```typescript
 // OLD: Contract-based
-import { createClient } from '@spfn/core/client/nextjs';
+import { createClient } from '@spfn/core/nextjs';
 import { userContract } from '@/contracts/user';
 
 const client = createClient(userContract);
 const user = await client.getUser({ id: '123' });
 
 // NEW: define-route based
-import { api } from '@spfn/core/client/nextjs';
+import { api } from '@spfn/core/nextjs';
 
 const user = await api.getUser
     .params({ id: '123' })

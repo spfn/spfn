@@ -9,15 +9,15 @@
       "import": "./dist/client/index.js",
       "require": "./dist/client/index.js"
     },
-    "./client/nextjs": {
-      "types": "./dist/client/nextjs/index.d.ts",
-      "import": "./dist/client/nextjs/index.js",
-      "require": "./dist/client/nextjs/index.js"
+    "./nextjs": {
+      "types": "./dist/nextjs/index.d.ts",
+      "import": "./dist/nextjs/index.js",
+      "require": "./dist/nextjs/index.js"
     },
-    "./client/nextjs/server": {
-      "types": "./dist/client/nextjs/server.d.ts",
-      "import": "./dist/client/nextjs/server.js",
-      "require": "./dist/client/nextjs/server.js"
+    "./nextjs/server": {
+      "types": "./dist/nextjs/server.d.ts",
+      "import": "./dist/nextjs/server.js",
+      "require": "./dist/nextjs/server.js"
     },
     "./route": {
       "types": "./dist/route/index.d.ts",
