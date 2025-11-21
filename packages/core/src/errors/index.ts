@@ -4,6 +4,23 @@
  * Entry point for error handling module with serialization support
  */
 
+// Core Error Registry
+// Pre-configured registry with all built-in HTTP errors
+import { ErrorRegistry } from './error-registry';
+import {
+    HttpError,
+    BadRequestError,
+    ValidationError,
+    UnauthorizedError,
+    ForbiddenError,
+    NotFoundError,
+    ConflictError,
+    TooManyRequestsError,
+    UnprocessableEntityError,
+    InternalServerError,
+    ServiceUnavailableError,
+} from './http-errors';
+
 // Base Classes
 export { SerializableError } from './serializable-error';
 export { ErrorRegistry } from './error-registry';
@@ -43,25 +60,8 @@ export {
     hasStatusCode,
 } from './error-utils';
 
-// Core Error Registry
-// Pre-configured registry with all built-in HTTP errors
-import { ErrorRegistry } from './error-registry';
-import {
-    HttpError,
-    BadRequestError,
-    ValidationError,
-    UnauthorizedError,
-    ForbiddenError,
-    NotFoundError,
-    ConflictError,
-    TooManyRequestsError,
-    UnprocessableEntityError,
-    InternalServerError,
-    ServiceUnavailableError,
-} from './http-errors';
-
-export const coreErrorRegistry = new ErrorRegistry();
-coreErrorRegistry.registerAll([
+export const errorRegistry = new ErrorRegistry();
+errorRegistry.append([
     HttpError,
     BadRequestError,
     ValidationError,
@@ -74,3 +74,6 @@ coreErrorRegistry.registerAll([
     InternalServerError,
     ServiceUnavailableError,
 ]);
+
+export * as HttpErrors from './http-errors';
+export * as DatabaseErrors from './database-errors';

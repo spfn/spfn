@@ -22,14 +22,14 @@ const routerLogger = logger.child('@spfn/core:router-gen');
 
 /** Default paths */
 const DEFAULT_ROUTER_PATH = 'src/server/router.ts';
-const DEFAULT_OUTPUT_PATH = 'src/lib/api-client.ts';
+const DEFAULT_OUTPUT_PATH = 'src/server/router.metadata.ts';
 
 export interface RouterGeneratorConfig
 {
     /** Router file path (default: src/server/router.ts) */
     routerPath?: string;
 
-    /** Output file path (default: src/lib/api-client.ts) */
+    /** Output file path (default: src/server/router.metadata.ts) */
     outputPath?: string;
 
     /** Base URL for API client (default: '/api/actions') */
@@ -73,7 +73,7 @@ export function createRouterGenerator(config: RouterGeneratorConfig = {}): Gener
                 }
 
                 // Scan router and extract metadata
-                const metadata = await scanRouter(fullRouterPath, cwd, options.debug);
+                const metadata = await scanRouter(cwd, options.debug);
 
                 if (!metadata || Object.keys(metadata.routes).length === 0)
                 {
@@ -94,7 +94,7 @@ export function createRouterGenerator(config: RouterGeneratorConfig = {}): Gener
 
                 if (options.debug)
                 {
-                    routerLogger.info('API client generated', {
+                    routerLogger.info('Router metadata generated', {
                         routes: Object.keys(metadata.routes).length,
                         outputPath,
                     });

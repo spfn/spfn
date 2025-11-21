@@ -24,12 +24,15 @@ export class HttpError extends SerializableError
     })
     {
         super(data.message);
+
         this.name = 'HttpError';
         this.statusCode = data.statusCode;
+
         if (data.details)
         {
             this.details = data.details;
         }
+
         Error.captureStackTrace(this, this.constructor);
     }
 }
@@ -48,6 +51,7 @@ export class BadRequestError extends HttpError
             statusCode: 400,
             details: data.details,
         });
+
         this.name = 'BadRequestError';
     }
 }
@@ -73,7 +77,9 @@ export class ValidationError extends HttpError
             statusCode: 400,
             details: data.details,
         });
+
         this.name = 'ValidationError';
+
         if (data.fields)
         {
             this.fields = data.fields;
@@ -95,6 +101,7 @@ export class UnauthorizedError extends HttpError
             statusCode: 401,
             details: data.details,
         });
+
         this.name = 'UnauthorizedError';
     }
 }
@@ -113,6 +120,7 @@ export class ForbiddenError extends HttpError
             statusCode: 403,
             details: data.details,
         });
+
         this.name = 'ForbiddenError';
     }
 }
@@ -133,7 +141,9 @@ export class NotFoundError extends HttpError
             statusCode: 404,
             details: data.details,
         });
+
         this.name = 'NotFoundError';
+
         if (data.resource)
         {
             this.resource = data.resource;
@@ -155,6 +165,7 @@ export class ConflictError extends HttpError
             statusCode: 409,
             details: data.details,
         });
+
         this.name = 'ConflictError';
     }
 }
@@ -179,7 +190,9 @@ export class TooManyRequestsError extends HttpError
             statusCode: 429,
             details: data.details,
         });
+
         this.name = 'TooManyRequestsError';
+
         if (data.retryAfter)
         {
             this.retryAfter = data.retryAfter;
@@ -201,6 +214,7 @@ export class InternalServerError extends HttpError
             statusCode: 500,
             details: data.details,
         });
+
         this.name = 'InternalServerError';
     }
 }
@@ -219,6 +233,7 @@ export class UnprocessableEntityError extends HttpError
             statusCode: 422,
             details: data.details,
         });
+
         this.name = 'UnprocessableEntityError';
     }
 }
@@ -243,7 +258,9 @@ export class ServiceUnavailableError extends HttpError
             statusCode: 503,
             details: data.details,
         });
+
         this.name = 'ServiceUnavailableError';
+
         if (data.retryAfter)
         {
             this.retryAfter = data.retryAfter;

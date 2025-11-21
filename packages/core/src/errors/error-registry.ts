@@ -20,9 +20,11 @@ export type SerializableErrorConstructor = new (data: any) => SerializableError;
  * // Create registry
  * const registry = new ErrorRegistry();
  *
- * // Register errors
- * registry.register(ValidationError);
- * registry.register(PaymentFailedError);
+ * // Append errors (chainable)
+ * registry
+ *     .append(ValidationError)
+ *     .append([PaymentFailedError, RefundError])
+ *     .append(CustomError);
  *
  * // Deserialize from JSON
  * const error = registry.deserialize({
@@ -40,26 +42,58 @@ export class ErrorRegistry
     private errors = new Map<string, SerializableErrorConstructor>();
 
     /**
-     * Register an error class
+     * Append error class(es) to the registry
      *
-     * @param ErrorClass - Error constructor to register
+     * @param ErrorClass - Single error constructor
+     * @returns This registry for chaining
      */
-    register(ErrorClass: SerializableErrorConstructor): void
+    append(ErrorClass: SerializableErrorConstructor): this;
+
+    /**
+     * Append error class(es) to the registry
+     *
+     * @param ErrorClasses - Array of error constructors
+     * @returns This registry for chaining
+     */
+    append(ErrorClasses: SerializableErrorConstructor[]): this;
+
+    /**
+     * Append error class(es) to the registry
+     *
+     * @param input - Error constructor or array of constructors
+     * @returns This registry for chaining
+     */
+    append(input: SerializableErrorConstructor | SerializableErrorConstructor[]): this
     {
-        this.errors.set(ErrorClass.name, ErrorClass);
+        if (Array.isArray(input))
+        {
+            for (const ErrorClass of input)
+            {
+                this.errors.set(ErrorClass.name, ErrorClass);
+            }
+        }
+        else
+        {
+            this.errors.set(input.name, input);
+        }
+
+        return this;
     }
 
     /**
-     * Register multiple error classes
+     * Concatenate another ErrorRegistry into this one
      *
-     * @param ErrorClasses - Array of error constructors
+     * @param registry - Another ErrorRegistry to merge
+     * @returns This registry for chaining
      */
-    registerAll(ErrorClasses: SerializableErrorConstructor[]): void
+    concat(registry: ErrorRegistry): this
     {
-        for (const ErrorClass of ErrorClasses)
+        for (const [name, ErrorClass] of registry.errors)
         {
-            this.register(ErrorClass);
+            this.errors.set(name, ErrorClass);
         }
+
+        return this;
     }
 
     /**

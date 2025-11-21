@@ -32,7 +32,6 @@ export interface RouterMetadata
  * Safer than executing router code at build time.
  */
 export async function scanRouter(
-    routerFilePath: string,
     cwd: string,
     debug?: boolean
 ): Promise<RouterMetadata | null>
@@ -241,16 +240,4 @@ function extractRouteChain(initializer: ts.Expression): { method: string; path: 
     }
 
     return null;
-}
-
-/**
- * Convert export name to type name
- *
- * @example
- * appRouter -> AppRouter
- * router -> Router
- */
-function toTypeName(exportName: string): string
-{
-    return exportName.charAt(0).toUpperCase() + exportName.slice(1);
 }

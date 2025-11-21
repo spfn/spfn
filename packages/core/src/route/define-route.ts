@@ -8,8 +8,8 @@
  * - Type inference from handler return value
  */
 
-import type { TSchema, Static } from '@sinclair/typebox';
-import type { MiddlewareHandler, Context } from 'hono';
+import type { Static, TSchema } from '@sinclair/typebox';
+import type { Context, MiddlewareHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 /**
@@ -427,19 +427,23 @@ export type Router<TRoutes extends Record<string, RouteDef<any> | Router<any>>> 
  * import * as users from './routes/users';
  * import * as teams from './routes/teams';
  *
- * export const appRouter = defineRouter({
+ * export const { router: appRouter } = defineRouter({
  *   ...users,  // Spread all user routes
  *   ...teams,  // Spread all team routes
  * });
  *
  * export type AppRouter = typeof appRouter;
+ *
+ * // Client usage - use codegen to generate metadata
+ * import { appMetadata } from '@/server/router.metadata';
+ * const api = createApi<AppRouter>({ metadata: appMetadata });
  * ```
  *
  * ## Pattern 2: Explicit (for fine-grained control)
  *
  * @example
  * ```ts
- * export const appRouter = defineRouter({
+ * export const { router: appRouter } = defineRouter({
  *   getUser: users.getUser,
  *   createUser: users.createUser,
  *   // Only include specific routes
@@ -450,9 +454,9 @@ export type Router<TRoutes extends Record<string, RouteDef<any> | Router<any>>> 
  *
  * @example
  * ```ts
- * export const appRouter = defineRouter({
- *   users: defineRouter({ ...users }),
- *   teams: defineRouter({ ...teams }),
+ * export const { router: appRouter } = defineRouter({
+ *   users: defineRouter({ ...users }).router,
+ *   teams: defineRouter({ ...teams }).router,
  * });
  *
  * // Access: appRouter.routes.users.routes.getUser
@@ -460,10 +464,10 @@ export type Router<TRoutes extends Record<string, RouteDef<any> | Router<any>>> 
  *
  * The router captures all route types, enabling:
  * - Full type inference on the client
- * - Automatic API client generation
+ * - Automatic metadata extraction via codegen
  * - Type-safe request/response handling
  */
-export function defineRouter<TRoutes extends Record<string, RouteDef<any, any> | Router<any>>>(
+export function defineRouter<TRoutes extends Record<string, RouteDef<any> | Router<any>>>(
     routes: TRoutes
 ): Router<TRoutes>
 {
