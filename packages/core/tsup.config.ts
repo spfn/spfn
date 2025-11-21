@@ -5,6 +5,7 @@ export default defineConfig({
         index: 'src/index.ts',
         'client/index': 'src/client/index.ts',
         'client/nextjs/index': 'src/client/nextjs/index.ts',
+        'client/nextjs/server': 'src/client/nextjs/server.ts',
         'route/index': 'src/route/index.ts',
         'route/types': 'src/route/types.ts',
         'db/index': 'src/db/index.ts',
@@ -41,5 +42,6 @@ export default defineConfig({
         '@sinclair/typebox',
         'next',
         'next/server',
+        'next/headers',
     ],
 });

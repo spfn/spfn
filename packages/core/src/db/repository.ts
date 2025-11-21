@@ -75,6 +75,9 @@
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { SQL } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
+import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 import { getDatabase } from './manager';
 import { getTransaction } from './transaction';
 
@@ -227,5 +230,386 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
                 err
             );
         }
+    }
+
+    // ============================================================================
+    // Helper Methods
+    // ============================================================================
+
+    /**
+     * Check if value is SQL wrapper
+     */
+    private isSQLWrapper(value: any): value is SQL
+    {
+        return value && typeof value === 'object' && 'queryChunks' in value;
+    }
+
+    /**
+     * Build SQL WHERE clause from object
+     */
+    private buildWhereFromObject<T extends PgTable>(
+        table: T,
+        where: Record<string, any>
+    ): SQL | undefined
+    {
+        const entries = Object.entries(where).filter(([_, value]) => value !== undefined);
+        if (entries.length === 0) return undefined;
+
+        const conditions = entries.map(([key, value]) =>
+            eq((table as any)[key], value)
+        );
+
+        return conditions.length === 1 ? conditions[0] : and(...conditions);
+    }
+
+    /**
+     * Find a single record
+     *
+     * @param table - Drizzle table schema
+     * @param where - Object or SQL condition
+     * @returns Single record or null
+     *
+     * @example
+     * ```typescript
+     * // Object-based
+     * const user = await this.findOne(users, { id: 1 });
+     *
+     * // SQL-based
+     * const user = await this.findOne(users, eq(users.id, 1));
+     * ```
+     */
+    protected async findOne<T extends PgTable>(
+        table: T,
+        where: Record<string, any> | SQL | undefined
+    ): Promise<T['$inferSelect'] | null>
+    {
+        const whereClause = this.isSQLWrapper(where)
+            ? where
+            : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+
+        if (!whereClause)
+        {
+            throw new Error('findOne requires at least one where condition');
+        }
+
+        const results = await this.readDb.select().from(table as PgTable).where(whereClause).limit(1);
+        return (results[0] as T['$inferSelect']) ?? null;
+    }
+
+    /**
+     * Find multiple records
+     *
+     * @param table - Drizzle table schema
+     * @param options - Query options
+     * @returns Array of records
+     *
+     * @example
+     * ```typescript
+     * const users = await this.findMany(users, {
+     *     where: { active: true },
+     *     orderBy: desc(users.createdAt),
+     *     limit: 10
+     * });
+     * ```
+     */
+    protected async findMany<T extends PgTable>(
+        table: T,
+        options?: {
+            where?: Record<string, any> | SQL | undefined;
+            orderBy?: SQL | SQL[];
+            limit?: number;
+            offset?: number;
+        }
+    ): Promise<T['$inferSelect'][]>
+    {
+        let query = this.readDb.select().from(table as PgTable);
+
+        // Apply where
+        if (options?.where)
+        {
+            const whereClause = this.isSQLWrapper(options.where)
+                ? options.where
+                : options.where ? this.buildWhereFromObject(table, options.where as Record<string, any>) : undefined;
+
+            if (whereClause)
+            {
+                query = query.where(whereClause) as any;
+            }
+        }
+
+        // Apply orderBy
+        if (options?.orderBy)
+        {
+            const orderByArray = Array.isArray(options.orderBy) ? options.orderBy : [options.orderBy];
+            query = query.orderBy(...orderByArray) as any;
+        }
+
+        // Apply limit
+        if (options?.limit)
+        {
+            query = query.limit(options.limit) as any;
+        }
+
+        // Apply offset
+        if (options?.offset)
+        {
+            query = query.offset(options.offset) as any;
+        }
+
+        return query as Promise<T['$inferSelect'][]>;
+    }
+
+    /**
+     * Create a new record
+     *
+     * @param table - Drizzle table schema
+     * @param data - Insert data
+     * @returns Created record
+     *
+     * @example
+     * ```typescript
+     * const user = await this.create(users, {
+     *     email: 'test@example.com',
+     *     name: 'Test User'
+     * });
+     * ```
+     */
+    protected async create<T extends PgTable>(
+        table: T,
+        data: T['$inferInsert']
+    ): Promise<T['$inferSelect']>
+    {
+        const [result] = await this.db.insert(table).values(data).returning();
+        return result as T['$inferSelect'];
+    }
+
+    /**
+     * Create multiple records
+     *
+     * @param table - Drizzle table schema
+     * @param data - Array of insert data
+     * @returns Array of created records
+     *
+     * @example
+     * ```typescript
+     * const users = await this.createMany(users, [
+     *     { email: 'user1@example.com', name: 'User 1' },
+     *     { email: 'user2@example.com', name: 'User 2' }
+     * ]);
+     * ```
+     */
+    protected async createMany<T extends PgTable>(
+        table: T,
+        data: T['$inferInsert'][]
+    ): Promise<T['$inferSelect'][]>
+    {
+        const results = await this.db.insert(table).values(data).returning();
+        return results as T['$inferSelect'][];
+    }
+
+    /**
+     * Upsert a record (INSERT or UPDATE on conflict)
+     *
+     * @param table - Drizzle table schema
+     * @param data - Insert data
+     * @param options - Conflict resolution options
+     * @returns Upserted record
+     *
+     * @example
+     * ```typescript
+     * const cache = await this.upsert(cache, {
+     *     key: 'config',
+     *     value: {...}
+     * }, {
+     *     target: [cache.key],
+     *     set: { value: data.value, updatedAt: new Date() }
+     * });
+     * ```
+     */
+    protected async upsert<T extends PgTable>(
+        table: T,
+        data: T['$inferInsert'],
+        options: {
+            target: PgColumn[];
+            set?: Partial<T['$inferInsert']> | Record<string, SQL | any>;
+        }
+    ): Promise<T['$inferSelect']>
+    {
+        const [result] = await this.db
+            .insert(table)
+            .values(data)
+            .onConflictDoUpdate({
+                target: options.target,
+                set: options.set || data,
+            })
+            .returning();
+
+        return result as T['$inferSelect'];
+    }
+
+    /**
+     * Update a single record
+     *
+     * @param table - Drizzle table schema
+     * @param where - Object or SQL condition
+     * @param data - Update data
+     * @returns Updated record or null
+     *
+     * @example
+     * ```typescript
+     * const user = await this.updateOne(users,
+     *     { id: 1 },
+     *     { name: 'Updated Name' }
+     * );
+     * ```
+     */
+    protected async updateOne<T extends PgTable>(
+        table: T,
+        where: Record<string, any> | SQL | undefined,
+        data: Partial<T['$inferInsert']>
+    ): Promise<T['$inferSelect'] | null>
+    {
+        const whereClause = this.isSQLWrapper(where)
+            ? where
+            : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+
+        if (!whereClause)
+        {
+            throw new Error('updateOne requires at least one where condition');
+        }
+
+        const [result] = await this.db.update(table).set(data).where(whereClause).returning();
+        return (result as T['$inferSelect']) ?? null;
+    }
+
+    /**
+     * Update multiple records
+     *
+     * @param table - Drizzle table schema
+     * @param where - Object or SQL condition
+     * @param data - Update data
+     * @returns Array of updated records
+     *
+     * @example
+     * ```typescript
+     * const users = await this.updateMany(users,
+     *     { role: 'user' },
+     *     { verified: true }
+     * );
+     * ```
+     */
+    protected async updateMany<T extends PgTable>(
+        table: T,
+        where: Record<string, any> | SQL | undefined,
+        data: Partial<T['$inferInsert']>
+    ): Promise<T['$inferSelect'][]>
+    {
+        const whereClause = this.isSQLWrapper(where)
+            ? where
+            : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+
+        if (!whereClause)
+        {
+            throw new Error('updateMany requires at least one where condition');
+        }
+
+        const results = await this.db.update(table).set(data).where(whereClause).returning();
+        return results as T['$inferSelect'][];
+    }
+
+    /**
+     * Delete a single record
+     *
+     * @param table - Drizzle table schema
+     * @param where - Object or SQL condition
+     * @returns Deleted record or null
+     *
+     * @example
+     * ```typescript
+     * const user = await this.deleteOne(users, { id: 1 });
+     * ```
+     */
+    protected async deleteOne<T extends PgTable>(
+        table: T,
+        where: Record<string, any> | SQL | undefined
+    ): Promise<T['$inferSelect'] | null>
+    {
+        const whereClause = this.isSQLWrapper(where)
+            ? where
+            : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+
+        if (!whereClause)
+        {
+            throw new Error('deleteOne requires at least one where condition');
+        }
+
+        const [result] = await this.db.delete(table).where(whereClause).returning();
+        return (result as T['$inferSelect']) ?? null;
+    }
+
+    /**
+     * Delete multiple records
+     *
+     * @param table - Drizzle table schema
+     * @param where - Object or SQL condition
+     * @returns Array of deleted records
+     *
+     * @example
+     * ```typescript
+     * const users = await this.deleteMany(users, { verified: false });
+     * ```
+     */
+    protected async deleteMany<T extends PgTable>(
+        table: T,
+        where: Record<string, any> | SQL | undefined
+    ): Promise<T['$inferSelect'][]>
+    {
+        const whereClause = this.isSQLWrapper(where)
+            ? where
+            : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+
+        if (!whereClause)
+        {
+            throw new Error('deleteMany requires at least one where condition');
+        }
+
+        const results = await this.db.delete(table).where(whereClause).returning();
+        return results as T['$inferSelect'][];
+    }
+
+    /**
+     * Count records
+     *
+     * @param table - Drizzle table schema
+     * @param where - Optional object or SQL condition
+     * @returns Number of records
+     *
+     * @example
+     * ```typescript
+     * const total = await this.count(users);
+     * const activeUsers = await this.count(users, { active: true });
+     * ```
+     */
+    protected async count<T extends PgTable>(
+        table: T,
+        where?: Record<string, any> | SQL | undefined
+    ): Promise<number>
+    {
+        let query = this.readDb.select().from(table as PgTable);
+
+        if (where)
+        {
+            const whereClause = this.isSQLWrapper(where)
+                ? where
+                : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+
+            if (whereClause)
+            {
+                query = query.where(whereClause) as any;
+            }
+        }
+
+        const results = await query;
+        return results.length;
     }
 }

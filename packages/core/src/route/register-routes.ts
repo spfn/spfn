@@ -121,8 +121,8 @@ function registerRoute(
                 return result;
             }
 
-            // Otherwise, wrap in success response
-            return context.success(result);
+            // Otherwise, return data as JSON directly (no wrapper)
+            return c.json(result);
         }
         catch (error)
         {
@@ -201,16 +201,14 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
         const errors = [...Value.Errors(input.params, params)];
         if (errors.length > 0)
         {
-            throw new ValidationError(
-                'Invalid path parameters',
-                {
-                    fields: errors.map(e => ({
-                        path: e.path,
-                        message: e.message,
-                        value: e.value,
-                    }))
-                }
-            );
+            throw new ValidationError({
+                message: 'Invalid path parameters',
+                fields: errors.map(e => ({
+                    path: e.path,
+                    message: e.message,
+                    value: e.value,
+                })),
+            });
         }
     }
 
@@ -239,16 +237,14 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
         const errors = [...Value.Errors(input.query, query)];
         if (errors.length > 0)
         {
-            throw new ValidationError(
-                'Invalid query parameters',
-                {
-                    fields: errors.map(e => ({
-                        path: e.path,
-                        message: e.message,
-                        value: e.value,
-                    }))
-                }
-            );
+            throw new ValidationError({
+                message: 'Invalid query parameters',
+                fields: errors.map(e => ({
+                    path: e.path,
+                    message: e.message,
+                    value: e.value,
+                })),
+            });
         }
     }
 
@@ -262,12 +258,13 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
         }
         catch (error)
         {
-            throw new ValidationError('Invalid JSON body', {
+            throw new ValidationError({
+                message: 'Invalid JSON body',
                 fields: [{
                     path: '/',
                     message: 'Failed to parse JSON',
                     value: error instanceof Error ? error.message : 'Unknown error',
-                }]
+                }],
             });
         }
 
@@ -276,16 +273,14 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
         const errors = [...Value.Errors(input.body, body)];
         if (errors.length > 0)
         {
-            throw new ValidationError(
-                'Invalid request body',
-                {
-                    fields: errors.map(e => ({
-                        path: e.path,
-                        message: e.message,
-                        value: e.value,
-                    }))
-                }
-            );
+            throw new ValidationError({
+                message: 'Invalid request body',
+                fields: errors.map(e => ({
+                    path: e.path,
+                    message: e.message,
+                    value: e.value,
+                })),
+            });
         }
     }
 
@@ -304,16 +299,14 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
         const errors = [...Value.Errors(input.headers, headers)];
         if (errors.length > 0)
         {
-            throw new ValidationError(
-                'Invalid headers',
-                {
-                    fields: errors.map(e => ({
-                        path: e.path,
-                        message: e.message,
-                        value: e.value,
-                    }))
-                }
-            );
+            throw new ValidationError({
+                message: 'Invalid headers',
+                fields: errors.map(e => ({
+                    path: e.path,
+                    message: e.message,
+                    value: e.value,
+                })),
+            });
         }
     }
 
@@ -342,16 +335,14 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
         const errors = [...Value.Errors(input.cookies, cookies)];
         if (errors.length > 0)
         {
-            throw new ValidationError(
-                'Invalid cookies',
-                {
-                    fields: errors.map(e => ({
-                        path: e.path,
-                        message: e.message,
-                        value: e.value,
-                    }))
-                }
-            );
+            throw new ValidationError({
+                message: 'Invalid cookies',
+                fields: errors.map(e => ({
+                    path: e.path,
+                    message: e.message,
+                    value: e.value,
+                })),
+            });
         }
     }
 

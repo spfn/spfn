@@ -1,494 +1,1047 @@
-# @spfn/core
+# @spfn/core - Technical Architecture Documentation
 
-> Core framework for building type-safe backend APIs with Next.js and Hono
+Full-stack type-safe framework for building Next.js + Node.js applications with end-to-end type inference.
 
 [![npm version](https://badge.fury.io/js/@spfn%2Fcore.svg)](https://www.npmjs.com/package/@spfn/core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
 
-> ⚠️ **Alpha Release**: SPFN is currently in alpha. APIs may change. Use `@alpha` tag for installation.
+> **Alpha Release**: SPFN is currently in alpha. APIs may change. Use `@alpha` tag for installation.
 
-## Installation
+---
 
-**Recommended: Create New Project**
-```bash
-npx spfn@alpha create my-app
-```
+## Table of Contents
 
-**Add to Existing Next.js Project**
-```bash
-cd your-nextjs-project
-npx spfn@alpha init
-```
+- [Overview & Philosophy](#overview--philosophy)
+- [System Architecture](#system-architecture)
+- [Module Architecture](#module-architecture)
+- [Type System](#type-system)
+- [Integration Points](#integration-points)
+- [Design Decisions](#design-decisions)
+- [Extension Points](#extension-points)
+- [Migration Guides](#migration-guides)
+- [Module Exports](#module-exports)
+- [Quick Reference](#quick-reference)
 
-**Manual Installation**
-```bash
-npm install @spfn/core hono drizzle-orm postgres @sinclair/typebox
-```
+---
 
-## Quick Start
+## Overview & Philosophy
 
-### 1. Define a Contract
+SPFN (Superfunction) is a full-stack TypeScript framework that provides **end-to-end type safety** from database to frontend with a **tRPC-inspired developer experience**.
 
-```typescript
-// src/server/routes/users/contract.ts
-import { Type } from '@sinclair/typebox';
+### Core Principles
 
-export const getUsersContract = {
-  method: 'GET' as const,
-  path: '/',
-  query: Type.Object({
-    page: Type.Optional(Type.Number()),
-    limit: Type.Optional(Type.Number()),
-  }),
-  response: Type.Object({
-    users: Type.Array(Type.Object({
-      id: Type.Number(),
-      name: Type.String(),
-      email: Type.String(),
-    })),
-    total: Type.Number(),
-  }),
-};
-```
+1. **Type Safety First**: Types flow from database schema → server routes → client API
+2. **Developer Experience**: tRPC-style API with method chaining (`.params().query().call()`)
+3. **Explicit over Magic**: No file-based routing, explicit imports for tree-shaking
+4. **Security by Default**: HttpOnly cookies, API Route Proxy, environment isolation
+5. **Production Ready**: Transaction management, read/write separation, graceful shutdown
 
-### 2. Create a Route
+### Design Philosophy
+
+**Inspired by tRPC, Built for Production:**
 
 ```typescript
-// src/server/routes/users/index.ts
-import { createApp } from '@spfn/core/route';
-import { getUsersContract } from './contract.js';
-import { findMany } from '@spfn/core/db';
-import { users } from '../../entities/users.js';
+// tRPC-style API calls
+const user = await api.getUser
+    .params({ id: '123' })
+    .query({ include: 'posts' })
+    .call();
+//    ^? { id: string; name: string; email: string; posts: Post[] }
+```
 
-const app = createApp();
+**But with production features:**
+- Cookie handling via API Route Proxy
+- Transaction management with AsyncLocalStorage
+- Read/Write database separation
+- Graceful shutdown and health checks
+- Plugin system with interceptors
 
-app.bind(getUsersContract, async (c) => {
-  const { page = 1, limit = 10 } = c.query;
+---
 
-  // Use helper function directly - no Repository needed
-  const offset = (page - 1) * limit;
-  const result = await findMany(users, { limit, offset });
+## System Architecture
 
-  return c.json({ users: result, total: result.length });
+### High-Level Overview
+
+```
++---------------------------------------------------------------+
+|                    Next.js Application                         |
+|  +----------------------------------------------------------+  |
+|  |  Frontend (React)                                        |  |
+|  |  - Server Components: SSR, ISR, Static                   |  |
+|  |  - Client Components: Interactive UI                     |  |
+|  +---------------------------+------------------------------+  |
+|                              |                                 |
+|                              | import { api } from '@spfn/...' |
+|                              | api.getUser.params().call()    |
+|                              v                                 |
+|  +----------------------------------------------------------+  |
+|  |  API Route Proxy (Edge/Node.js)                          |  |
+|  |  app/api/actions/[...path]/route.ts                      |  |
+|  |                                                           |  |
+|  |  1. Request Interceptors                                 |  |
+|  |     - Auth token injection                               |  |
+|  |     - Cookie forwarding                                  |  |
+|  |     - Header manipulation                                |  |
+|  |                                                           |  |
+|  |  2. Forward to SPFN Server                               |  |
+|  |     fetch(SPFN_API_URL + path)                           |  |
+|  |                                                           |  |
+|  |  3. Response Interceptors                                |  |
+|  |     - Set HttpOnly cookies                               |  |
+|  |     - Transform response                                 |  |
+|  |     - Error handling                                     |  |
+|  +---------------------------+------------------------------+  |
++-------------------------------+--------------------------------+
+                                |
+                                | HTTP Request
+                                v
++---------------------------------------------------------------+
+|                      SPFN API Server (Node.js)                 |
+|  +----------------------------------------------------------+  |
+|  |  Hono Web Framework                                      |  |
+|  |                                                           |  |
+|  |  12-Step Middleware Pipeline:                            |  |
+|  |  1. Logger                                               |  |
+|  |  2. CORS                                                 |  |
+|  |  3. Global Middlewares                                   |  |
+|  |  4. Route-specific Middlewares                           |  |
+|  |  5. Request Validation (TypeBox)                         |  |
+|  |  6. Route Handler                                        |  |
+|  |  7-12. Response processing, error handling               |  |
+|  +---------------------------+------------------------------+  |
+|                              |                                 |
+|                              | define-route System             |
+|                              v                                 |
+|  +----------------------------------------------------------+  |
+|  |  Route Handlers                                          |  |
+|  |  - Type-safe input validation                            |  |
+|  |  - Transaction middleware                                |  |
+|  |  - Business logic                                        |  |
+|  +---------------------------+------------------------------+  |
+|                              |                                 |
+|                              | Database Queries                |
+|                              v                                 |
+|  +----------------------------------------------------------+  |
+|  |  Database Layer (Drizzle ORM)                            |  |
+|  |  - Helper functions (findOne, create, etc.)              |  |
+|  |  - Transaction propagation (AsyncLocalStorage)           |  |
+|  |  - Read/Write separation                                 |  |
+|  +---------------------------+------------------------------+  |
++-------------------------------+--------------------------------+
+                                |
+                                | SQL Queries
+                                v
++---------------------------------------------------------------+
+|                    PostgreSQL Database                         |
+|  - Primary (Read/Write)                                        |
+|  - Replica (Read-only) [optional]                              |
++---------------------------------------------------------------+
+```
+
+### Request Flow Example
+
+```typescript
+// 1. Client Call (Next.js Server Component)
+// app/users/[id]/page.tsx
+import { api } from '@spfn/core/client/nextjs';
+
+const user = await api.getUser
+    .params({ id: params.id })
+    .call();
+
+// 2. API Route Proxy
+// app/api/actions/[...path]/route.ts
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+// - Forwards to http://localhost:8790/users/123
+// - Applies interceptors (auth, cookies)
+
+// 3. SPFN Server Route Handler
+// src/server/routes/users.ts
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() }),
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        const user = await findOne(users, { id: params.id });
+        return c.success(user);
+    });
+
+// 4. Database Query
+// Drizzle ORM with helper function
+// SELECT * FROM users WHERE id = $1
+
+// 5. Response flows back through interceptors → proxy → client
+```
+
+---
+
+## Module Architecture
+
+### 1. Route System (`src/route/`)
+
+**Purpose**: Type-safe routing with automatic validation
+
+**Architecture**:
+
+```
+route.get('/users/:id')
+    .input({ params, query, body })
+    .handler(async (c) => { ... })
+    |
+    |-- Type Inference: RouteDef<TInput, TResponse>
+    |-- Validation: TypeBox schema
+    |-- Middleware: Skip control per route
+    |-- Response: c.success() / c.error()
+```
+
+**Key Components**:
+
+- `defineRouter()`: Combines route definitions into typed router
+- `route.get/post/put/patch/delete()`: Route builder with method chaining
+- Input validation: Automatic TypeBox validation
+- Middleware control: Per-route middleware skip
+
+**Design Pattern**: Builder pattern with type inference
+
+**[→ Full Documentation](./src/route/README.md)**
+
+---
+
+### 2. Server System (`src/server/`)
+
+**Purpose**: HTTP server with lifecycle management
+
+**Architecture**:
+
+```
+Configuration Sources (Priority Order):
+1. Runtime config (startServer({ port: 3000 }))
+2. server.config.ts (defineServerConfig().build())
+3. Environment variables (PORT, DATABASE_URL)
+4. Defaults
+
+    |
+    v
+12-Step Middleware Pipeline:
+1. Request Logger
+2. CORS
+3. Global Middlewares (use)
+4. Named Middlewares (middlewares)
+5. Plugin beforeRoutes hooks
+6. Route Registration
+7. Plugin afterRoutes hooks
+8. Route-specific Middlewares
+9. Request Validation
+10. Route Handler Execution
+11. Response Serialization
+12. Error Handler
+
+    |
+    v
+Lifecycle Hooks:
+- beforeInfrastructure
+- afterInfrastructure (migrations)
+- beforeRoutes
+- afterRoutes
+- afterStart
+- beforeShutdown
+```
+
+**Key Components**:
+
+- `defineServerConfig()`: Fluent configuration builder
+- `createServer()`: Creates Hono app with routes
+- `startServer()`: Starts HTTP server with lifecycle
+- Plugin system: Auto-discovery from `@spfn/*` packages
+- Graceful shutdown: SIGTERM/SIGINT handling
+
+**Design Pattern**: Builder + Plugin system
+
+**[→ Full Documentation](./src/server/README.md)**
+
+---
+
+### 3. Database System (`src/db/`)
+
+**Purpose**: Type-safe database operations with transactions
+
+**Architecture**:
+
+```
+Application Code
+    |
+    | findOne(users, { id: 1 })
+    v
+Helper Functions (Facade)
+    |
+    | Check AsyncLocalStorage for transaction
+    v
+Transaction Context?
+    |-- Yes: Use transaction instance
+    |-- No: Use default database connection
+    |
+    v
+Drizzle ORM Query Builder
+    |
+    v
+PostgreSQL (Primary or Replica)
+```
+
+**Key Components**:
+
+- Helper functions: `findOne`, `findMany`, `create`, `update`, `delete`, `count`
+- Transaction middleware: `Transactional()` with AsyncLocalStorage propagation
+- Read/Write separation: Automatic routing based on operation
+- Schema helpers: `id()`, `timestamps()`, `foreignKey()`, `enumText()`
+
+**Design Pattern**: Facade + AsyncLocalStorage for transaction propagation
+
+**[→ Full Documentation](./src/db/README.md)**
+
+**Transaction Flow**:
+
+```typescript
+// Route with Transactional middleware
+app.bind(createUserContract, [Transactional()], async (c) => {
+    // All database operations use the same transaction
+    const user = await create(users, { name: 'John' });
+    const profile = await create(profiles, { userId: user.id });
+
+    // Auto-commit on success
+    // Auto-rollback on error
+    return c.json(user);
+});
+```
+
+---
+
+### 4. Client System (`src/client/nextjs/`)
+
+**Purpose**: Type-safe API client for Next.js with tRPC-style DX
+
+**Architecture**:
+
+```
+Client Code
+    |
+    | api.getUser.params({ id: '123' }).call()
+    v
+TypedClient (Proxy)
+    |
+    | Build URL: /api/actions/users/123
+    | Type check: params must match route input
+    v
+fetch() to Next.js API Route
+    |
+    v
+TypedProxy (API Route Handler)
+    |
+    | 1. Match interceptors by path/method
+    | 2. Execute request interceptors
+    | 3. Forward to SPFN_API_URL
+    | 4. Execute response interceptors
+    | 5. Set cookies from ctx.setCookies
+    v
+Return NextResponse
+```
+
+**Key Components**:
+
+- `createApi()` / `api`: tRPC-style client with type inference
+- `createTypedProxy()`: API Route handler with interceptors
+- `registerInterceptors()`: Registry for plugin interceptors
+- Path matching: Wildcard and param support (`/_auth/*`, `/users/:id`)
+- Cookie handling: `setCookies` array in response interceptors
+
+**Design Pattern**: Proxy for client, Middleware chain for proxy
+
+**[→ Full Documentation](./src/client/nextjs/README.md)**
+
+---
+
+### 5. Error System (`src/errors/`)
+
+**Purpose**: Structured error handling with HTTP status codes
+
+**Key Components**:
+
+- `ApiError`: Base error class
+- `ValidationError`: Input validation failures (400)
+- `NotFoundError`: Resource not found (404)
+- `ConflictError`: Duplicate resources (409)
+- `UnauthorizedError`: Authentication required (401)
+
+**[→ Full Documentation](./src/errors/README.md)**
+
+---
+
+### 6. Logger System (`src/logger/`)
+
+**Purpose**: Structured logging with transports and masking
+
+**Key Components**:
+
+- Adapter pattern: Pino (default) or custom
+- Sensitive data masking: Passwords, tokens, API keys
+- File rotation: Date and size-based with cleanup
+- Multiple transports: Console, File, Slack, Email
+
+**[→ Full Documentation](./src/logger/README.md)**
+
+---
+
+### 7. Cache System (`src/cache/`)
+
+**Purpose**: Redis integration with master-replica support
+
+**Key Components**:
+
+- `initRedis()`: Initialize connections
+- `getRedis()`: Write operations (master)
+- `getRedisRead()`: Read operations (replica or master)
+
+**[→ Full Documentation](./src/cache/README.md)**
+
+---
+
+### 8. Middleware System (`src/middleware/`)
+
+**Purpose**: Named middleware with skip control
+
+**Key Components**:
+
+- `defineMiddleware()`: Create named middleware
+- Skip control: Routes can skip specific middlewares
+- Built-in: Logger, CORS, Error handler
+
+**[→ Full Documentation](./src/middleware/README.md)**
+
+---
+
+## Type System
+
+### End-to-End Type Safety Flow
+
+```typescript
+// 1. Database Schema (Source of Truth)
+// src/server/entities/users.ts
+export const users = pgTable('users', {
+    id: id(),
+    name: text('name').notNull(),
+    email: text('email').notNull().unique(),
+    ...timestamps(),
 });
 
-export default app;
-```
+export type User = typeof users.$inferSelect;
+//   ^? { id: string; name: string; email: string; createdAt: Date; updatedAt: Date }
 
-### 3. Start Server
-
-```bash
-npm run spfn:dev
-# Server starts on http://localhost:8790
-```
-
-## Architecture Pattern
-
-Superfunction follows a **layered architecture** that separates concerns and keeps code maintainable:
-
-```
-┌─────────────────────────────────────────┐
-│            Routes Layer                  │  HTTP handlers, contracts
-│  - Define API contracts (TypeBox)       │
-│  - Handle requests/responses            │
-│  - Thin handlers                        │
-└──────────────┬──────────────────────────┘
-               │
-┌──────────────▼──────────────────────────┐
-│           Service Layer                  │  Business logic
-│  - Orchestrate operations               │
-│  - Implement business rules             │
-│  - Use helper functions or custom logic │
-└──────────────┬──────────────────────────┘
-               │
-┌──────────────▼──────────────────────────┐
-│         Data Access Layer                │  Database operations
-│  - Use helper functions (findOne, etc)  │
-│  - Custom queries with Drizzle          │
-│  - Domain-specific wrappers             │
-└──────────────┬──────────────────────────┘
-               │
-┌──────────────▼──────────────────────────┐
-│           Entity Layer                   │  Database schema
-│  - Table definitions (Drizzle)          │
-│  - Type inference                       │
-│  - Schema helpers                       │
-└─────────────────────────────────────────┘
-```
-
-### Complete Example: Blog Post System
-
-**1. Entity Layer** - Define database schema
-
-```typescript
-// src/server/entities/posts.ts
-import { pgTable, text } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
-
-export const posts = pgTable('posts', {
-  id: id(),
-  title: text('title').notNull(),
-  slug: text('slug').notNull().unique(),
-  content: text('content').notNull(),
-  status: text('status', {
-    enum: ['draft', 'published']
-  }).notNull().default('draft'),
-  ...timestamps(),
-});
-
-export type Post = typeof posts.$inferSelect;
-export type NewPost = typeof posts.$inferInsert;
-```
-
-**2. Data Access Layer** - Helper functions with domain-specific wrappers
-
-```typescript
-// src/server/repositories/posts.repository.ts
-import { findOne, findMany, create as createHelper } from '@spfn/core/db';
-import { eq, desc } from 'drizzle-orm';
-import { posts, type Post, type NewPost } from '../entities/posts';
-
-// Domain-specific wrappers using helper functions
-export async function findPostBySlug(slug: string): Promise<Post | null> {
-  return findOne(posts, { slug });
-}
-
-export async function findPublishedPosts(): Promise<Post[]> {
-  return findMany(posts, {
-    where: { status: 'published' },
-    orderBy: desc(posts.createdAt)
-  });
-}
-
-export async function createPost(data: NewPost): Promise<Post> {
-  return createHelper(posts, data);
-}
-
-// Or use helper functions directly in routes for simple cases
-// const post = await findOne(posts, { id: 1 });
-```
-
-**3. Routes Layer** - HTTP API
-
-```typescript
-// src/server/routes/posts/contracts.ts
+// 2. Server Route Definition
+// src/server/routes/users.ts
+import { route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
 
-export const createPostContract = {
-  method: 'POST' as const,
-  path: '/',
-  body: Type.Object({
-    title: Type.String(),
-    content: Type.String(),
-  }),
-  response: Type.Object({
-    id: Type.String(),
-    title: Type.String(),
-    slug: Type.String(),
-  }),
-};
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({
+            id: Type.String(),
+        }),
+        query: Type.Object({
+            include: Type.Optional(Type.String()),
+        }),
+    })
+    .handler(async (c) => {
+        const { params, query } = await c.data();
+        //      ^? { params: { id: string }, query: { include?: string } }
 
-export const listPostsContract = {
-  method: 'GET' as const,
-  path: '/',
-  response: Type.Array(Type.Object({
-    id: Type.String(),
-    title: Type.String(),
-    slug: Type.String(),
-  })),
+        const user = await findOne(users, { id: params.id });
+        //    ^? User | null
+
+        return c.success(user);
+        //       ^? Response inferred from return value
+    });
+
+// 3. Router Type Export
+// src/server/router.ts
+export const appRouter = defineRouter({
+    getUser,
+    // ... other routes
+});
+
+export type AppRouter = typeof appRouter;
+//   ^? Router<{ getUser: RouteDef<..., ...>, ... }>
+
+// 4. Client API Call (Next.js)
+// app/users/[id]/page.tsx
+import { api } from '@spfn/core/client/nextjs';
+
+const user = await api.getUser
+    .params({ id: '123' })    // Type-checked: must be { id: string }
+    .query({ include: 'posts' }) // Type-checked: { include?: string }
+    .call();
+//  ^? User (inferred from server handler return type)
+
+// Full type inference chain:
+// User type → RouteDef → Router → Client API → return type
+```
+
+### Type Inference Utilities
+
+```typescript
+// Extract input type from route
+type GetUserInput = InferRouteInput<typeof getUser>;
+//   ^? { params: { id: string }; query: { include?: string } }
+
+// Extract output type from route
+type GetUserOutput = InferRouteOutput<typeof getUser>;
+//   ^? User
+
+// Client type inference
+type ApiClient<TRouter> = {
+    [K in keyof TRouter['routes']]: TRouter['routes'][K] extends RouteDef<infer TInput, infer TOutput>
+        ? RouteClient<TInput, TOutput>
+        : never;
 };
 ```
 
+---
+
+## Integration Points
+
+### 1. Server ↔ Database: Transaction Context
+
+**Mechanism**: AsyncLocalStorage propagates transaction across async calls
+
 ```typescript
-// src/server/routes/posts/index.ts
-import { createApp } from '@spfn/core/route';
-import { Transactional } from '@spfn/core/db';
-import { ConflictError } from '@spfn/core/errors';
-import { findPostBySlug, createPost, findPublishedPosts } from '../../repositories/posts.repository';
-import { createPostContract, listPostsContract } from './contracts';
-
-const app = createApp();
-
-// POST /posts - Create new post (with transaction)
+// Route handler
 app.bind(createPostContract, [Transactional()], async (c) => {
-  const body = await c.data();
+    // AsyncLocalStorage stores transaction
+    const post = await create(posts, { title: 'Hello' });
 
-  // Generate slug from title
-  const slug = body.title.toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+    // Same transaction is used automatically
+    const tag = await create(tags, { postId: post.id, name: 'news' });
 
-  // Check if slug exists
-  const existing = await findPostBySlug(slug);
-  if (existing) {
-    throw new ConflictError('Post with this title already exists', { slug });
-  }
+    // Auto-commit on success, auto-rollback on error
+    return c.json(post);
+});
+```
 
-  // Create post
-  const post = await createPost({
-    ...body,
-    slug,
-    status: 'draft'
-  });
+**Why**: No need to pass transaction object through function calls
 
-  // ✅ Auto-commit on success, auto-rollback on error
-  return c.json(post, 201);
+---
+
+### 2. Server ↔ Client: Type Inference
+
+**Mechanism**: `typeof appRouter` captures all route types
+
+```typescript
+// Server: Export router type
+export const appRouter = defineRouter({ getUser, createUser });
+export type AppRouter = typeof appRouter;
+
+// Client: Import type (not value!)
+import type { AppRouter } from '@/server/router';
+const api = createApi<AppRouter>(/* ... */);
+
+// Automatic type inference for all routes
+const user = await api.getUser.params({ id: '123' }).call();
+//    ^? Full type safety without manual type definitions
+```
+
+**Why**: Single source of truth (server) → client types automatically sync
+
+---
+
+### 3. Next.js ↔ SPFN: API Route Proxy
+
+**Mechanism**: Next.js API Route forwards to SPFN server
+
+```typescript
+// app/api/actions/[...path]/route.ts
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+
+// Automatically:
+// 1. Forwards /api/actions/users/123 → http://localhost:8790/users/123
+// 2. Applies interceptors (auth, cookies)
+// 3. Returns NextResponse
+```
+
+**Why**:
+- HttpOnly cookie support (browser → Next.js includes cookies automatically)
+- Security (SPFN_API_URL hidden from browser)
+- No CORS (same-origin requests)
+
+---
+
+### 4. Packages: Registry System
+
+**Mechanism**: Packages register interceptors on import
+
+```typescript
+// @spfn/auth package
+import { registerInterceptors } from '@spfn/core/client/nextjs';
+
+registerInterceptors('auth', [
+    {
+        pathPattern: '/_auth/*',
+        response: async (ctx, next) => {
+            // Set session cookie
+            ctx.setCookies.push({ name: 'session', value: token });
+            await next();
+        },
+    },
+]);
+
+// App: Auto-discovery
+import '@spfn/auth/adapters/nextjs'; // Registers interceptors
+export { GET, POST } from '@spfn/core/client/nextjs'; // Uses registered interceptors
+```
+
+**Why**: Zero-config integration for plugin packages
+
+---
+
+## Design Decisions
+
+### 1. Why tRPC-Style API over REST Client?
+
+**Decision**: Method chaining with `.params().query().call()`
+
+**Reasons**:
+- Better DX: Fluent API guides usage
+- Type safety: Each method is type-checked
+- Flexibility: Optional parameters can be omitted
+- Discovery: IDE autocomplete shows available options
+
+**Example**:
+```typescript
+// tRPC-style (SPFN)
+const user = await api.getUser
+    .params({ id: '123' })
+    .query({ include: 'posts' })
+    .call();
+
+// vs Traditional REST client
+const user = await client.get('/users/123', {
+    params: { include: 'posts' } // No type safety
+});
+```
+
+---
+
+### 2. Why API Route Proxy Pattern?
+
+**Decision**: Next.js API Route forwards to SPFN server
+
+**Reasons**:
+- **HttpOnly Cookies**: Browser automatically sends cookies to same-origin
+- **Security**: SPFN API URL hidden from browser
+- **No CORS**: Same-origin requests (localhost:3000 → localhost:3000)
+- **Unified Path**: Server Components and Client Components use same API
+
+**Alternative Rejected**: Direct calls from browser to SPFN server
+- Would expose SPFN_API_URL to browser
+- CORS configuration required
+- Cannot use HttpOnly cookies from browser
+
+---
+
+### 3. Why define-route over File-Based Routing?
+
+**Decision**: Explicit route imports with `defineRouter()`
+
+**Reasons**:
+- **Explicit Imports**: Better tree-shaking, clear dependencies
+- **Type Safety**: `typeof appRouter` captures all routes
+- **Flexibility**: Routes can be defined anywhere
+- **No Magic**: No file system scanning at runtime
+
+**Alternative Rejected**: File-based routing (like Next.js)
+- Runtime file system scanning
+- Implicit route registration
+- Harder to trace route definitions
+- Less flexible for monorepo setups
+
+**Migration Path**: Deprecated contract-based and file-based routing systems
+
+---
+
+### 4. Why AsyncLocalStorage for Transactions?
+
+**Decision**: Transaction propagation without explicit passing
+
+**Reasons**:
+- **Clean API**: No need to pass `tx` object through all functions
+- **Automatic**: Works across async boundaries
+- **Safe**: Isolated per request
+- **Compatible**: Works with existing code
+
+**Example**:
+```typescript
+// With AsyncLocalStorage (SPFN)
+async function createPostWithTags(data) {
+    const post = await create(posts, data);
+    const tags = await createMany(tags, data.tags.map(t => ({ postId: post.id, ...t })));
+    // Same transaction automatically
+}
+
+// vs Explicit transaction passing
+async function createPostWithTags(tx, data) {
+    const post = await tx.insert(posts).values(data);
+    const tags = await tx.insert(tags).values(...);
+    // Must pass tx everywhere
+}
+```
+
+---
+
+### 5. Why Hono over Express?
+
+**Decision**: Hono as the underlying web framework
+
+**Reasons**:
+- **TypeScript First**: Better type inference
+- **Performance**: Faster than Express
+- **Modern**: Built for Edge/Serverless
+- **Lightweight**: Smaller bundle size
+
+---
+
+### 6. Why TypeBox over Zod?
+
+**Decision**: TypeBox for schema validation
+
+**Reasons**:
+- **JSON Schema**: Standard, interoperable
+- **Performance**: Faster validation (JIT compilation)
+- **OpenAPI**: Easy OpenAPI generation
+- **Smaller**: Smaller bundle size
+
+**Note**: Both are supported, TypeBox is the default
+
+---
+
+## Extension Points
+
+### 1. Custom Middleware
+
+Add global or route-specific middleware:
+
+```typescript
+// server.config.ts
+import { defineServerConfig, defineMiddleware } from '@spfn/core/server';
+
+const rateLimitMiddleware = defineMiddleware('rateLimit', async (c, next) => {
+    const ip = c.req.header('x-forwarded-for');
+    if (await isRateLimited(ip)) {
+        return c.json({ error: 'Rate limit exceeded' }, 429);
+    }
+    await next();
 });
 
-// GET /posts - List published posts (no transaction needed)
-app.bind(listPostsContract, async (c) => {
-  const posts = await findPublishedPosts();
-  return c.json(posts);
-});
+export default defineServerConfig()
+    .middlewares([rateLimitMiddleware])
+    .build();
 
+// Route can skip middleware
+export const publicRoute = route.get('/public')
+    .middleware({ skip: ['rateLimit'] })
+    .handler(async (c) => { ... });
+```
+
+---
+
+### 2. Custom Interceptors
+
+Add request/response interceptors:
+
+```typescript
+// app/api/actions/[...path]/route.ts
+import { createTypedProxy } from '@spfn/core/client/nextjs';
+
+export const { GET, POST } = createTypedProxy({
+    interceptors: [
+        {
+            pathPattern: '/admin/*',
+            request: async (ctx, next) => {
+                // Check admin role
+                const isAdmin = await checkAdminRole(ctx.cookies);
+                if (!isAdmin) {
+                    throw new Error('Unauthorized');
+                }
+                await next();
+            },
+        },
+    ],
+});
+```
+
+---
+
+### 3. Plugin System
+
+Create SPFN packages with auto-discovery:
+
+```typescript
+// @yourcompany/spfn-analytics package
+import { registerInterceptors } from '@spfn/core/client/nextjs';
+
+registerInterceptors('analytics', [
+    {
+        pathPattern: '*',
+        response: async (ctx, next) => {
+            await analytics.track({
+                path: ctx.path,
+                status: ctx.response.status,
+                duration: Date.now() - ctx.metadata.startTime,
+            });
+            await next();
+        },
+    },
+]);
+
+// App: Auto-discovery
+import '@yourcompany/spfn-analytics/adapters/nextjs';
+export { GET, POST } from '@spfn/core/client/nextjs';
+```
+
+---
+
+### 4. Custom Database Helpers
+
+Extend database layer with domain-specific functions:
+
+```typescript
+// src/server/repositories/users.repository.ts
+import { findOne, create } from '@spfn/core/db';
+import { users } from '../entities/users';
+
+export async function findUserByEmail(email: string) {
+    return findOne(users, { email });
+}
+
+export async function createUserWithProfile(data) {
+    const user = await create(users, data.user);
+    const profile = await create(profiles, {
+        ...data.profile,
+        userId: user.id,
+    });
+    return { user, profile };
+}
+```
+
+---
+
+## Migration Guides
+
+### From Contract-Based to define-route
+
+**Before** (Deprecated):
+```typescript
+// contract.ts
+export const getUserContract = {
+    method: 'GET' as const,
+    path: '/users/:id',
+    params: Type.Object({ id: Type.String() }),
+    response: Type.Object({ id: Type.String(), name: Type.String() }),
+} as const satisfies RouteContract;
+
+// route.ts
+import { createApp } from '@spfn/core/route';
+const app = createApp();
+app.bind(getUserContract, async (c) => { ... });
 export default app;
 ```
 
-### Why This Architecture?
-
-**✅ Separation of Concerns**
-- Each layer has a single responsibility
-- Easy to locate and modify code
-
-**✅ Testability**
-- Test each layer independently
-- Mock dependencies easily
-
-**✅ Reusability**
-- Services can be used by multiple routes
-- Data access functions can be shared across services
-
-**✅ Type Safety**
-- Types flow from Entity → Data Access → Service → Route
-- Full IDE autocomplete and error checking
-
-**✅ Maintainability**
-- Add features without breaking existing code
-- Clear boundaries prevent coupling
-
-### Layer Responsibilities
-
-| Layer | Responsibility | Examples |
-|-------|---------------|----------|
-| **Entity** | Define data structure | Schema, types, constraints |
-| **Data Access** | Database operations | Helper functions, custom queries, joins |
-| **Service** | Business logic | Validation, orchestration, rules |
-| **Routes** | HTTP interface | Contracts, request handling |
-
-### Best Practices
-
-**Entity Layer:**
-- ✅ Use schema helpers: `id()`, `timestamps()`
-- ✅ Export inferred types: `Post`, `NewPost`
-- ✅ Use TEXT with enum for status fields
-
-**Data Access Layer:**
-- ✅ Use helper functions for simple CRUD: `findOne()`, `create()`, etc.
-- ✅ Create domain-specific wrappers in `src/server/repositories/*.repository.ts`
-- ✅ Export functions (not classes): `export async function findPostBySlug()`
-- ✅ Use object-based where for simple queries: `{ id: 1 }`
-- ✅ Use SQL-based where for complex queries: `and(eq(...), gt(...))`
-- ✅ Full TypeScript type inference from table schemas
-
-**Routes Layer:**
-- ✅ Keep handlers thin (delegate to services/data access)
-- ✅ Define contracts with TypeBox
-- ✅ Use `Transactional()` middleware for write operations
-- ✅ Use `c.data()` for validated input
-- ✅ Return `c.json()` responses
-
-## Core Modules
-
-### 📁 Routing
-File-based routing with contract validation and type safety.
-
-**[→ Read Routing Documentation](./src/route/README.md)**
-
-**Key Features:**
-- Automatic route discovery (`index.ts`, `[id].ts`, `[...slug].ts`)
-- Contract-based validation with TypeBox
-- Type-safe request/response handling
-- Method-level middleware control (skip auth per HTTP method)
-
-### 🗄️ Database
-Drizzle ORM integration with type-safe helper functions and automatic transaction handling.
-
-**[→ Read Database Documentation](./src/db/README.md)**
-
-**Key Features:**
-- Helper functions for type-safe CRUD operations
-- Automatic transaction handling and read/write separation
-- Schema helpers: `id()`, `timestamps()`, `foreignKey()`
-- Hybrid where clause support (objects or SQL)
-- **Function schema auto-discovery** (see below)
-
-### 📦 Function Schema Discovery
-Automatic discovery of database schemas from Superfunction ecosystem functions.
-
-**[→ Read Database Manager Documentation](./src/db/manager/README.md)**
-
-**Key Features:**
-- Zero-config schema discovery from `@spfn/*` functions
-- Functions declare schemas via `package.json`
-- No hard dependencies between functions
-- Efficient scanning (direct dependencies only)
-- Function-specific migration support
-
-**How it works:**
-
-Functions declare their schemas in `package.json`:
-```json
-{
-  "name": "@spfn/cms",
-  "spfn": {
-    "schemas": ["./dist/entities/*.js"],
-    "setupMessage": "📚 Setup guide..."
-  }
-}
-```
-
-Superfunction automatically discovers and merges these schemas during migration generation:
+**After** (Current):
 ```typescript
-import { getDrizzleConfig } from '@spfn/core'
+// routes/users.ts
+import { route } from '@spfn/core/route';
 
-// Auto-discovers all function schemas
-const config = getDrizzleConfig()
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() }),
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        return c.success({ id: params.id, name: 'John' });
+    });
+
+// router.ts
+import { defineRouter } from '@spfn/core/route';
+export const appRouter = defineRouter({ getUser });
+export type AppRouter = typeof appRouter;
 ```
 
-**Install functions with automatic DB setup:**
-```bash
-pnpm spfn add @spfn/cms
-# ✅ Installs function
-# ✅ Generates migrations
-# ✅ Applies migrations
-# ✅ Shows setup guide
-```
+**Benefits**:
+- Better type inference
+- Explicit imports (tree-shaking)
+- No separate contract files
 
-**Create your own Superfunction packages:**
+---
+
+### From File-Based to define-route
+
+**Before** (Deprecated):
 ```typescript
-// 1. Define entities
-export const myTable = pgTable('my_table', { ... })
+// routes/users/[id].ts
+export default async function handler(c) { ... }
 
-// 2. Add to package.json
-{
-  "spfn": {
-    "schemas": ["./dist/entities/*.js"]
-  }
-}
-
-// 3. Users install with one command
-// pnpm spfn add @yourcompany/spfn-plugin
+// Automatic file system scanning
 ```
 
-### 🔄 Transactions
-Automatic transaction management with async context propagation.
+**After** (Current):
+```typescript
+// routes/users.ts
+export const getUser = route.get('/users/:id')...
 
-**[→ Read Transaction Documentation](./src/db/docs/transactions.md)**
+// router.ts
+export const appRouter = defineRouter({ getUser });
 
-**Key Features:**
-- Auto-commit on success, auto-rollback on error
-- AsyncLocalStorage-based context
-- Transaction logging
+// server.config.ts
+export default defineServerConfig()
+    .routes(appRouter)
+    .build();
+```
 
-### 💾 Cache
-Redis integration with master-replica support.
+**Benefits**:
+- Explicit route registration
+- Better IDE support
+- No runtime file system scanning
 
-**[→ Read Cache Documentation](./src/cache/README.md)**
+---
 
-### ⚠️ Error Handling
-Custom error classes with unified HTTP responses.
+### From ContractClient to tRPC-Style API
 
-**[→ Read Error Documentation](./src/errors/README.md)**
+**Before** (Old Client):
+```typescript
+import { ContractClient } from '@spfn/core/client';
+import { getUserContract } from '@/contracts/users';
 
-### 🔐 Middleware
-Request logging, CORS, and error handling middleware.
+const client = new ContractClient({ baseUrl: 'http://localhost:8790' });
+const user = await client.call(getUserContract, {
+    params: { id: '123' },
+});
+```
 
-**[→ Read Middleware Documentation](./src/middleware/README.md)**
+**After** (Current):
+```typescript
+import { api } from '@spfn/core/client/nextjs';
 
-### 🖥️ Server
-Server configuration and lifecycle management.
+const user = await api.getUser
+    .params({ id: '123' })
+    .call();
+```
 
-**[→ Read Server Documentation](./src/server/README.md)**
+**Benefits**:
+- tRPC-style DX
+- Method chaining
+- Better type inference
+- Automatic cookie handling
 
-### 📝 Logger
-High-performance logging with multiple transports, sensitive data masking, and automatic validation.
-
-**[→ Read Logger Documentation](./src/logger/README.md)**
-
-**Key Features:**
-- Adapter pattern (Pino for production, custom for full control)
-- Sensitive data masking (passwords, tokens, API keys)
-- File rotation (date and size-based) with automatic cleanup
-- Configuration validation with clear error messages
-- Multiple transports (Console, File, Slack, Email)
-
-### ⚙️ Code Generation
-Automatic code generation with pluggable generators and centralized file watching.
-
-**[→ Read Codegen Documentation](./src/codegen/README.md)**
-
-**Key Features:**
-- Orchestrator pattern for managing multiple generators
-- Built-in contract generator for type-safe API clients
-- Configuration-based setup (`.spfnrc.json` or `package.json`)
-- Watch mode integrated into `spfn dev`
-- Extensible with custom generators
+---
 
 ## Module Exports
 
-### Main Export
-```typescript
-import { startServer, createServer } from '@spfn/core';
-```
+### Main Server Exports
 
-### Routing
-```typescript
-import { createApp, bind, loadRoutes } from '@spfn/core/route';
-import type { RouteContext, RouteContract } from '@spfn/core/route';
-```
-
-### Database
 ```typescript
 import {
-  getDatabase,
-  findOne,
-  findMany,
-  create,
-  createMany,
-  updateOne,
-  updateMany,
-  deleteOne,
-  deleteMany,
-  count
+    startServer,
+    createServer,
+    defineServerConfig,
+} from '@spfn/core';
+```
+
+### Route System
+
+```typescript
+import {
+    route,
+    defineRouter,
+} from '@spfn/core/route';
+
+import type {
+    RouteDef,
+    Router,
+    RouteInput,
+} from '@spfn/core/route';
+```
+
+### Database System
+
+```typescript
+import {
+    getDatabase,
+    findOne,
+    findMany,
+    create,
+    createMany,
+    updateOne,
+    updateMany,
+    deleteOne,
+    deleteMany,
+    count,
+} from '@spfn/core/db';
+
+import {
+    Transactional,
+    getTransaction,
+    runWithTransaction,
 } from '@spfn/core/db';
 ```
 
-### Transactions
+### Client System
+
 ```typescript
 import {
-  Transactional,
-  getTransaction,
-  runWithTransaction
-} from '@spfn/core/db';
+    api,
+    createApi,
+    configureApi,
+} from '@spfn/core/client/nextjs';
+
+import {
+    createTypedProxy,
+    registerInterceptors,
+} from '@spfn/core/client/nextjs';
+
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
 ```
 
-### Cache
+### Error System
+
 ```typescript
-import { initRedis, getRedis, getRedisRead } from '@spfn/core';
+import {
+    ApiError,
+    ValidationError,
+    NotFoundError,
+    ConflictError,
+    UnauthorizedError,
+} from '@spfn/core/errors';
 ```
 
-### Logger
+### Logger System
+
 ```typescript
 import { logger } from '@spfn/core';
 ```
 
-### Client (for frontend)
+### Cache System
+
 ```typescript
-import { ContractClient, createClient } from '@spfn/core/client';
+import {
+    initRedis,
+    getRedis,
+    getRedisRead,
+} from '@spfn/core';
 ```
 
-## Environment Variables
+---
+
+## Quick Reference
+
+### Environment Variables
 
 ```bash
 # Database (required)
@@ -499,32 +1052,111 @@ DATABASE_READ_URL=postgresql://user:pass@replica:5432/db
 
 # Redis (optional)
 REDIS_URL=redis://localhost:6379
-REDIS_WRITE_URL=redis://master:6379  # Master-replica setup
+REDIS_WRITE_URL=redis://master:6379
 REDIS_READ_URL=redis://replica:6379
+
+# Next.js App URL (for Server Components calling API Routes)
+SPFN_APP_URL=http://localhost:3000
+
+# SPFN API Server URL (for API Route Proxy)
+SPFN_API_URL=http://localhost:8790
 
 # Server
 PORT=8790
 HOST=localhost
 NODE_ENV=development
 
-# Server Timeouts (optional, in milliseconds)
-SERVER_TIMEOUT=120000              # Request timeout (default: 120000)
-SERVER_KEEPALIVE_TIMEOUT=65000     # Keep-alive timeout (default: 65000)
-SERVER_HEADERS_TIMEOUT=60000       # Headers timeout (default: 60000)
-SHUTDOWN_TIMEOUT=30000             # Graceful shutdown timeout (default: 30000)
+# Server Timeouts (optional, milliseconds)
+SERVER_TIMEOUT=120000
+SERVER_KEEPALIVE_TIMEOUT=65000
+SERVER_HEADERS_TIMEOUT=60000
+SHUTDOWN_TIMEOUT=30000
 
 # Logger (optional)
-LOGGER_ADAPTER=pino               # pino | custom (default: pino)
-LOGGER_FILE_ENABLED=true          # Enable file logging (production only)
-LOG_DIR=/var/log/myapp           # Log directory (required when file logging enabled)
+LOGGER_ADAPTER=pino
+LOGGER_FILE_ENABLED=true
+LOG_DIR=/var/log/myapp
 ```
+
+---
+
+### Basic Setup
+
+**1. Install**
+```bash
+npm install @spfn/core hono drizzle-orm postgres @sinclair/typebox
+```
+
+**2. Define Routes**
+```typescript
+// src/server/routes/users.ts
+export const getUser = route.get('/users/:id')
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        return c.success({ id: params.id, name: 'John' });
+    });
+```
+
+**3. Create Router**
+```typescript
+// src/server/router.ts
+export const appRouter = defineRouter({ getUser });
+export type AppRouter = typeof appRouter;
+```
+
+**4. Configure Server**
+```typescript
+// src/server/server.config.ts
+export default defineServerConfig()
+    .port(8790)
+    .routes(appRouter)
+    .build();
+```
+
+**5. Create API Route Proxy (Next.js)**
+```typescript
+// app/api/actions/[...path]/route.ts
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+```
+
+**6. Use Client**
+```typescript
+// app/users/[id]/page.tsx
+import { api } from '@spfn/core/client/nextjs';
+
+const user = await api.getUser.params({ id: '123' }).call();
+```
+
+---
+
+## Documentation
+
+### Technical Architecture
+- [Route System](./src/route/README.md) - define-route system, type inference
+- [Server System](./src/server/README.md) - Configuration, middleware pipeline, lifecycle
+- [Database System](./src/db/README.md) - Helper functions, transactions, schema helpers
+- [Client System](./src/client/nextjs/README.md) - tRPC-style API, TypedProxy, interceptors
+
+### Guides
+- [Transaction Management](./src/db/docs/transactions.md)
+- [Error Handling](./src/errors/README.md)
+- [Logger](./src/logger/README.md)
+- [Cache](./src/cache/README.md)
+- [Middleware](./src/middleware/README.md)
+- [Code Generation](./src/codegen/README.md)
+
+---
 
 ## Requirements
 
 - Node.js >= 18
-- Next.js 15+ with App Router (when using with CLI)
+- Next.js 15+ with App Router (when using client integration)
 - PostgreSQL
 - Redis (optional)
+- TypeScript >= 5.0
+
+---
 
 ## Testing
 
@@ -534,23 +1166,9 @@ npm test -- route           # Run route tests only
 npm test -- --coverage      # With coverage
 ```
 
-**Test Coverage:** 120+ tests across all modules
+**Test Coverage**: 120+ tests across all modules
 
-## Documentation
-
-### Guides
-- [File-based Routing](./src/route/README.md)
-- [Database & Helper Functions](./src/db/README.md)
-- [Transaction Management](./src/db/docs/transactions.md)
-- [Redis Cache](./src/cache/README.md)
-- [Error Handling](./src/errors/README.md)
-- [Middleware](./src/middleware/README.md)
-- [Server Configuration](./src/server/README.md)
-- [Logger](./src/logger/README.md)
-- [Code Generation](./src/codegen/README.md)
-
-### API Reference
-- See module-specific README files linked above
+---
 
 ## License
 

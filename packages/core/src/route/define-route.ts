@@ -398,7 +398,7 @@ export const route = {
 /**
  * Router definition - holds all routes
  */
-export type Router<TRoutes extends Record<string, RouteDef<any, any> | Router<any>>> = {
+export type Router<TRoutes extends Record<string, RouteDef<any> | Router<any>>> = {
     routes: TRoutes;
     // Type inference helpers
     _routes: TRoutes;

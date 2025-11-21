@@ -224,6 +224,130 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
 
 ---
 
+## Response Patterns
+
+### Direct Return (Recommended)
+
+The simplest and most type-safe way to return data from handlers:
+
+```typescript
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        const user = await db.getUser(params.id);
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        // Direct return - perfect type inference!
+        return {
+            id: user.id,
+            name: user.name,
+            email: user.email
+        };
+    });
+
+// Response body: { id: '123', name: 'John', email: 'john@example.com' }
+// Client type: { id: string; name: string; email: string }
+```
+
+**Advantages:**
+- ✅ Perfect TypeScript inference
+- ✅ Clean, minimal code
+- ✅ tRPC-style developer experience
+- ✅ Automatic JSON serialization
+
+**How it works:**
+- Handler returns plain JavaScript object/array/primitive
+- Framework automatically wraps with `c.json(result)`
+- No response wrapper - client receives data directly
+
+### Response Helpers (Optional)
+
+For cases requiring custom status codes, headers, or response structure:
+
+```typescript
+export const createUser = route.post('/users')
+    .input({ body: Type.Object({ name: Type.String() }) })
+    .handler(async (c) => {
+        const { body } = await c.data();
+        const user = await db.createUser(body);
+
+        // Created with Location header
+        return c.created(user, `/users/${user.id}`);
+        // Response: 201 Created
+        // Header: Location: /users/123
+    });
+
+export const deleteUser = route.delete('/users/:id')
+    .handler(async (c) => {
+        await db.deleteUser((await c.data()).params.id);
+
+        // No content
+        return c.noContent();
+        // Response: 204 No Content (empty body)
+    });
+
+export const updateUser = route.put('/users/:id')
+    .handler(async (c) => {
+        // Custom status code
+        return c.json({ updated: true }, 202);
+        // Response: 202 Accepted
+    });
+```
+
+**Available Helpers:**
+- `c.json(data, status?, headers?)` - Custom JSON response
+- `c.created(data, location?)` - 201 with Location header
+- `c.accepted(data?)` - 202 Accepted
+- `c.noContent()` - 204 No Content
+- `c.notModified()` - 304 Not Modified
+
+**When to use helpers:**
+- Need specific HTTP status codes (201, 202, 204, 304, etc.)
+- Need custom headers (Location, Cache-Control, etc.)
+- Legacy API requiring `{ success: true, data }` wrapper (use `c.success()`)
+
+### Error Handling
+
+Errors are handled by throwing:
+
+```typescript
+export const getUser = route.get('/users/:id')
+    .handler(async (c) => {
+        const user = await db.getUser((await c.data()).params.id);
+
+        if (!user) {
+            // Throw standard Error
+            throw new Error('User not found');
+            // Framework converts to proper error response
+        }
+
+        return user;
+    });
+
+// For custom error codes:
+export const protectedRoute = route.get('/protected')
+    .handler(async (c) => {
+        const user = await authenticate(c);
+
+        if (!user) {
+            // Use ValidationError for 400-level errors
+            throw new ValidationError('Authentication required', {
+                fields: [{ path: '/auth', message: 'Missing token' }]
+            });
+        }
+
+        return { data: 'protected' };
+    });
+```
+
+---
+
 ## Middleware System
 
 ### Named Middleware Pattern
@@ -620,7 +744,7 @@ it('should handle request end-to-end', async () => {
         .input({ params: Type.Object({ id: Type.String() }) })
         .handler(async (c) => {
             const { params } = await c.data();
-            return c.success({ id: params.id, name: 'John' });
+            return { id: params.id, name: 'John' };
         });
 
     const router = defineRouter({ getUser });
@@ -630,7 +754,7 @@ it('should handle request end-to-end', async () => {
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data).toEqual({ success: true, data: { id: '123', name: 'John' } });
+    expect(data).toEqual({ id: '123', name: 'John' });
 });
 ```
 

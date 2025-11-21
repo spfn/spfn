@@ -1,25 +1,16 @@
 /**
- * SPFN Next.js Integration
+ * SPFN Next.js Integration (Client-safe exports only)
  *
- * Provides seamless integration with Next.js App Router with interceptor pattern
+ * ⚠️  Server-only exports (using next/headers) are in '@spfn/core/client/nextjs/server'
+ *
+ * This file ONLY exports code that works in Client Components.
+ * DO NOT add any server-only code here.
  */
 
-// Next.js Client (always routes through API proxy)
-export {
-    NextjsClient,
-    createNextjsClient,
-    configureNextjsClient,
-    getNextjsClient,
-    nextjsClient,
-} from './client';
-export type { NextjsClientConfig } from './client';
-
 // Type-Safe tRPC-Style Client (define-route based)
+// ✅ Client-safe: Does not use next/headers
 export {
     createApi,
-    configureApi,
-    getApi,
-    api,
     ApiError,
     isHttpError,
     isNetworkError,
@@ -32,44 +23,6 @@ export type {
     CallOptions,
     InferRouteInput,
     InferRouteOutput,
-    RequestInterceptor as TypedRequestInterceptor,
-    ResponseInterceptor as TypedResponseInterceptor,
-} from './typed-client';
-
-// Type-Safe Proxy (define-route based)
-export { createTypedProxy } from './typed-proxy';
-export type {
-    TypedProxyConfig,
-    ProxyRequestInterceptor,
-    ProxyResponseInterceptor,
-    RequestInterceptorResult,
-    ResponseInterceptorResult,
-} from './typed-proxy';
-
-// Default typed proxy handlers (define-route system with auto-discovery enabled)
-export { GET, POST, PUT, PATCH, DELETE } from './typed-proxy';
-
-// Proxy builder with interceptors
-export { createProxy } from './proxy';
-
-// Interceptor registry
-export { registerInterceptors, interceptorRegistry } from './registry';
-
-// Types
-export type {
-    RequestInterceptorContext,
-    ResponseInterceptorContext,
     RequestInterceptor,
     ResponseInterceptor,
-    InterceptorRule,
-    ProxyConfig,
-} from './types';
-
-// Interceptor utilities (for advanced use cases)
-export {
-    matchPath,
-    matchMethod,
-    filterMatchingInterceptors,
-    executeRequestInterceptors,
-    executeResponseInterceptors,
-} from './interceptor';
+} from './typed-client';

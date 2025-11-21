@@ -4,9 +4,10 @@ Type-safe PostgreSQL database layer built on Drizzle ORM with automatic transact
 
 ## Features
 
+- 🏛️ **Repository Pattern** - Base repository class with protected helper methods for clean architecture
 - 🔄 **Automatic Transaction Management** - AsyncLocalStorage-based transactions with middleware
 - 📊 **Read/Write Separation** - Automatic routing to read replicas when available
-- 🚀 **Helper Functions** - Type-safe CRUD operations with minimal boilerplate
+- 🚀 **Type-Safe CRUD Operations** - Protected helper methods with minimal boilerplate
 - 🛠️ **Schema Helpers** - Reusable column definitions (id, timestamps, foreign keys)
 - 🔌 **Connection Pooling** - Built-in connection pool with health checks
 - ⚡ **Type Safety** - Full TypeScript support with Drizzle ORM
@@ -14,9 +15,10 @@ Type-safe PostgreSQL database layer built on Drizzle ORM with automatic transact
 ## Quick Start
 
 ```typescript
-import { initDatabase, findOne, create, Transactional } from '@spfn/core/db';
+import { initDatabase, BaseRepository, Transactional } from '@spfn/core/db';
 import { pgTable, text } from 'drizzle-orm/pg-core';
 import { id, timestamps } from '@spfn/core/db';
+import { desc } from 'drizzle-orm';
 
 // 1. Define schema
 export const users = pgTable('users', {
@@ -26,30 +28,52 @@ export const users = pgTable('users', {
   ...timestamps()
 });
 
-// 2. Initialize database (once at app startup)
+// 2. Create domain-specific repository
+export class UserRepository extends BaseRepository
+{
+    async findByEmail(email: string)
+    {
+        // Use protected helper methods
+        return await this.findOne(users, { email });
+    }
+
+    async findActive(limit = 10)
+    {
+        return await this.findMany(users, {
+            where: { active: true },
+            orderBy: desc(users.createdAt),
+            limit
+        });
+    }
+
+    async createUser(data: { email: string; name: string })
+    {
+        return await this.create(users, data);
+    }
+
+    async updateUser(id: number, data: Partial<{ name: string }>)
+    {
+        return await this.updateOne(users, { id }, data);
+    }
+}
+
+// 3. Initialize database (once at app startup)
 await initDatabase();  // Reads DATABASE_URL from env
 
-// 3. Use helper functions directly - no Repository needed!
-// Simple object-based queries
-const user = await findOne(users, { email: 'test@example.com' });
+// 4. Use repository in routes with transactions
+const userRepo = new UserRepository();
 
-// Create records
-const newUser = await create(users, {
-  email: 'new@example.com',
-  name: 'New User'
-});
-
-// 4. Use in routes with transactions
 export const middlewares = [Transactional()];
 
-export async function POST(c: RouteContext) {
-  const data = await c.req.json();
+export async function POST(c: RouteContext)
+{
+    const data = await c.req.json();
 
-  // No Repository class needed - just use helper functions
-  const user = await create(users, data);
+    // Repository automatically uses transaction context
+    const user = await userRepo.createUser(data);
 
-  // Auto-commits on success, auto-rolls back on error
-  return c.json(user, 201);
+    // Auto-commits on success, auto-rolls back on error
+    return c.json(user, 201);
 }
 ```
 
@@ -57,27 +81,66 @@ export async function POST(c: RouteContext) {
 
 The database module is organized into focused sub-modules:
 
-### Helper Functions
+### Repository Pattern
 
-Type-safe CRUD operations with minimal boilerplate - the recommended way to interact with your database.
+The recommended way to interact with your database using domain-specific repositories that extend `BaseRepository`.
 
-**Key APIs:**
+**Base Repository:**
+- `BaseRepository<TSchema>` - Abstract class providing database access and CRUD operations
+- `db` getter - Write database instance (automatic transaction-aware)
+- `readDb` getter - Read database instance (uses replicas when available)
+- `withContext()` - Error tracking with repository context
+
+**Protected Helper Methods:**
 - `findOne(table, where)` - Find single record
 - `findMany(table, options)` - Find multiple records with filtering, ordering, pagination
 - `create(table, data)` - Insert single record
 - `createMany(table, data[])` - Insert multiple records
+- `upsert(table, data, options)` - Insert or update on conflict
 - `updateOne(table, where, data)` - Update single record
 - `updateMany(table, where, data)` - Update multiple records
 - `deleteOne(table, where)` - Delete single record
 - `deleteMany(table, where)` - Delete multiple records
 - `count(table, where)` - Count records
 
-**Features:**
+**Benefits:**
+- Clean architecture with domain-specific repositories
+- Encapsulated database operations
 - Automatic transaction context detection
 - Read/write database separation
-- Full TypeScript type inference from table schema
+- Full TypeScript type inference
 - Hybrid where clause support: objects (`{ id: 1 }`) or SQL (`eq(table.id, 1)`)
-- No Repository class needed - functions work directly with table schemas
+- Enhanced error tracking with repository context
+
+**Example:**
+```typescript
+import { BaseRepository } from '@spfn/core/db';
+import { users } from './schema';
+
+export class UserRepository extends BaseRepository
+{
+    async findByEmail(email: string)
+    {
+        return await this.findOne(users, { email });
+    }
+
+    async findActive()
+    {
+        return await this.findMany(users, {
+            where: { active: true }
+        });
+    }
+
+    async createUser(data: { email: string; name: string })
+    {
+        return await this.create(users, data);
+    }
+}
+
+// Usage
+const userRepo = new UserRepository();
+const user = await userRepo.findByEmail('test@example.com');
+```
 
 ### [Manager](./manager/README.md)
 
@@ -226,67 +289,147 @@ See [Manager Documentation](./manager/README.md#environment-variables) for compl
 
 ## Common Patterns
 
-### Basic CRUD with Helper Functions
+### Repository Pattern CRUD
 
 ```typescript
-import { findOne, findMany, create, updateOne, deleteOne, count } from '@spfn/core/db';
-import { desc, gt } from 'drizzle-orm';
+import { BaseRepository } from '@spfn/core/db';
+import { users, posts } from './schema';
+import { desc, gt, and, eq } from 'drizzle-orm';
 
-// Find single record (object-based where)
-const user = await findOne(users, { id: 1 });
-const userByEmail = await findOne(users, { email: 'test@example.com' });
+// Define domain-specific repositories
+export class UserRepository extends BaseRepository
+{
+    // Find single record (object-based where)
+    async findById(id: number)
+    {
+        return await this.findOne(users, { id });
+    }
 
-// Find single record (SQL-based where for complex queries)
-const adult = await findOne(users, gt(users.age, 18));
+    async findByEmail(email: string)
+    {
+        return await this.findOne(users, { email });
+    }
 
-// Find multiple records with options
-const allUsers = await findMany(users, {
-  orderBy: desc(users.createdAt)
-});
+    // Find single record (SQL-based where for complex queries)
+    async findAdult()
+    {
+        return await this.findOne(users, gt(users.age, 18));
+    }
 
-const activeUsers = await findMany(users, {
-  where: { active: true },
-  orderBy: desc(users.createdAt),
-  limit: 10,
-  offset: 0
-});
+    // Find multiple records with options
+    async findAll()
+    {
+        return await this.findMany(users, {
+            orderBy: desc(users.createdAt)
+        });
+    }
 
-// Create record
-const newUser = await create(users, {
-  email: 'new@example.com',
-  name: 'New User'
-});
+    async findActive(limit = 10, offset = 0)
+    {
+        return await this.findMany(users, {
+            where: { active: true },
+            orderBy: desc(users.createdAt),
+            limit,
+            offset
+        });
+    }
 
-// Update record
-const updated = await updateOne(users, { id: 1 }, {
-  name: 'Updated Name'
-});
+    // Create record
+    async createUser(data: { email: string; name: string })
+    {
+        return await this.create(users, data);
+    }
 
-// Delete record
-const deleted = await deleteOne(users, { id: 1 });
+    // Update record
+    async updateUser(id: number, data: Partial<{ name: string }>)
+    {
+        return await this.updateOne(users, { id }, data);
+    }
 
-// Count records
-const total = await count(users);
-const activeCount = await count(users, { active: true });
+    // Delete record
+    async deleteUser(id: number)
+    {
+        return await this.deleteOne(users, { id });
+    }
+
+    // Count records
+    async countAll()
+    {
+        return await this.count(users);
+    }
+
+    async countActive()
+    {
+        return await this.count(users, { active: true });
+    }
+}
+
+export class PostRepository extends BaseRepository
+{
+    async findByAuthor(authorId: number)
+    {
+        return await this.findMany(posts, {
+            where: { authorId },
+            orderBy: desc(posts.createdAt)
+        });
+    }
+
+    async createPost(data: { title: string; content: string; authorId: number })
+    {
+        return await this.create(posts, data);
+    }
+}
+
+// Usage
+const userRepo = new UserRepository();
+const user = await userRepo.findByEmail('test@example.com');
+const activeUsers = await userRepo.findActive(10);
 ```
 
-### Transactions
+### Repository with Transactions
 
 ```typescript
-import { Transactional } from '@spfn/core/db';
-import { create } from '@spfn/core/db';
+import { BaseRepository, Transactional } from '@spfn/core/db';
+import { users, profiles } from './schema';
+
+export class UserRepository extends BaseRepository
+{
+    async createUser(data: { email: string; name: string })
+    {
+        return await this.create(users, data);
+    }
+}
+
+export class ProfileRepository extends BaseRepository
+{
+    async createProfile(data: { userId: number; bio: string })
+    {
+        return await this.create(profiles, data);
+    }
+}
 
 // Apply middleware to route
 export const middlewares = [Transactional()];
 
-export async function POST(c: RouteContext) {
-  // Both operations run in same transaction
-  const user = await create(users, { email: 'test@example.com' });
-  const profile = await create(profiles, { userId: user.id });
+export async function POST(c: RouteContext)
+{
+    const userRepo = new UserRepository();
+    const profileRepo = new ProfileRepository();
 
-  // Success → Commit
-  // Error → Rollback
-  return c.json({ user, profile });
+    // Both operations run in same transaction automatically
+    const user = await userRepo.createUser({
+        email: 'test@example.com',
+        name: 'Test User'
+    });
+
+    const profile = await profileRepo.createProfile({
+        userId: user.id,
+        bio: 'Test bio'
+    });
+
+    // Success → Commit
+    // Error → Rollback
+    return c.json({ user, profile });
 }
 ```
 
@@ -416,18 +559,36 @@ await initDatabase();
 // 2. Use transactions for write operations
 export const middlewares = [Transactional()];
 
-// 3. Use helper functions for common operations
-import { findMany, create } from '@spfn/core/db';
+// 3. Use domain-specific repositories
+import { BaseRepository } from '@spfn/core/db';
+import { users } from './schema';
 
-const activeUsers = await findMany(users, {
-  where: { active: true }
-});  // Automatically uses read replica
+export class UserRepository extends BaseRepository
+{
+    async findActive()
+    {
+        return await this.findMany(users, {
+            where: { active: true }
+        });  // Automatically uses read replica
+    }
+}
 
 // 4. Use object-based where for simple queries
-const user = await findOne(users, { id: 1 });
+async findByEmail(email: string)
+{
+    return await this.findOne(users, { email });
+}
 
 // 5. Use SQL-based where for complex queries
-const adult = await findOne(users, and(gt(users.age, 18), eq(users.verified, true)));
+import { and, gt, eq } from 'drizzle-orm';
+
+async findVerifiedAdults()
+{
+    return await this.findOne(
+        users,
+        and(gt(users.age, 18), eq(users.verified, true))
+    );
+}
 
 // 6. Use schema helpers for consistency
 export const users = pgTable('users', {
@@ -437,6 +598,10 @@ export const users = pgTable('users', {
 
 // 7. Let TypeScript infer types
 export type User = typeof users.$inferSelect;
+
+// 8. Create repository instances once and reuse
+const userRepo = new UserRepository();
+const user = await userRepo.findByEmail('test@example.com');
 ```
 
 ### ❌ Don't
@@ -446,23 +611,43 @@ export type User = typeof users.$inferSelect;
 const db1 = drizzle(connection1);  // ❌ Bad
 const db2 = drizzle(connection2);  // ❌ Bad
 
-// Use getDatabase() or helper functions instead
-const db = getDatabase('write');   // ✅ Good
-await create(users, data);          // ✅ Better
+// Use repositories instead
+export class UserRepository extends BaseRepository {  // ✅ Good
+    // Uses this.db and this.readDb internally
+}
 
 // 2. Don't bypass transaction middleware
 export async function POST(c: RouteContext) {
   // Missing Transactional() - no automatic rollback
 }
 
-// 3. Don't use write db for reads
-const db = getDatabase('write');
-await db.select().from(users);  // ❌ Wastes primary db connection
+// 3. Don't use write db for reads in repositories
+async findUsers()
+{
+    // ❌ Bad - forces write db
+    return await this.db.select().from(users);
+}
 
-// Use helper functions instead
-await findMany(users);  // ✅ Automatically uses read replica
+async findUsers()
+{
+    // ✅ Good - uses read replica
+    return await this.readDb.select().from(users);
+    // Or better: use protected helper
+    return await this.findMany(users);
+}
 
-// 4. Don't forget to close in tests
+// 4. Don't access protected methods outside repositories
+const repo = new UserRepository();
+repo.findOne(users, { id: 1 });  // ❌ TypeScript error - protected method
+
+// Create proper public methods instead
+export class UserRepository extends BaseRepository {
+    async findById(id: number) {  // ✅ Public method
+        return await this.findOne(users, { id });
+    }
+}
+
+// 5. Don't forget to close in tests
 afterAll(async () => {
   await closeDatabase();  // ✅ Cleanup
 });
@@ -521,14 +706,26 @@ export async function POST(c: RouteContext) {
 | `closeDatabase()` | manager | Close all connections |
 | `Transactional()` | transaction | Transaction middleware |
 
-### Helper Functions
+### Base Repository
 
-| Function | Description |
-|----------|-------------|
+| Class/Method | Type | Description |
+|--------------|------|-------------|
+| `BaseRepository<TSchema>` | abstract class | Base repository class for database operations |
+| `db` | getter (protected) | Write database instance (transaction-aware) |
+| `readDb` | getter (protected) | Read database instance (uses replicas when available) |
+| `withContext(fn, ctx)` | method (protected) | Wrap query with repository error tracking context |
+
+### Protected Helper Methods
+
+Available inside repositories extending `BaseRepository`:
+
+| Method | Description |
+|--------|-------------|
 | `findOne(table, where)` | Find single record by object or SQL where |
 | `findMany(table, options)` | Find multiple records with filtering/ordering/pagination |
 | `create(table, data)` | Create single record |
 | `createMany(table, data[])` | Create multiple records |
+| `upsert(table, data, options)` | Insert or update on conflict |
 | `updateOne(table, where, data)` | Update single record |
 | `updateMany(table, where, data)` | Update multiple records |
 | `deleteOne(table, where)` | Delete single record |

@@ -33,16 +33,14 @@ export function bind<TContract extends RouteContract>(
             const errors = [...Value.Errors(contract.params, params)];
             if (errors.length > 0)
             {
-                throw new ValidationError(
-                    'Invalid path parameters',
-                    {
-                        fields: errors.map(e => ({
-                            path: e.path,
-                            message: e.message,
-                            value: e.value,
-                        }))
-                    }
-                );
+                throw new ValidationError({
+                    message: 'Invalid path parameters',
+                    fields: errors.map(e => ({
+                        path: e.path,
+                        message: e.message,
+                        value: e.value,
+                    })),
+                });
             }
         }
 
@@ -70,16 +68,14 @@ export function bind<TContract extends RouteContract>(
             const errors = [...Value.Errors(contract.query, query)];
             if (errors.length > 0)
             {
-                throw new ValidationError(
-                    'Invalid query parameters',
-                    {
-                        fields: errors.map(e => ({
-                            path: e.path,
-                            message: e.message,
-                            value: e.value,
-                        }))
-                    }
-                );
+                throw new ValidationError({
+                    message: 'Invalid query parameters',
+                    fields: errors.map(e => ({
+                        path: e.path,
+                        message: e.message,
+                        value: e.value,
+                    })),
+                });
             }
         }
 
@@ -100,16 +96,14 @@ export function bind<TContract extends RouteContract>(
                     const errors = [...Value.Errors(contract.body, body)];
                     if (errors.length > 0)
                     {
-                        throw new ValidationError(
-                            'Invalid request body',
-                            {
-                                fields: errors.map(e => ({
-                                    path: e.path,
-                                    message: e.message,
-                                    value: e.value,
-                                }))
-                            }
-                        );
+                        throw new ValidationError({
+                            message: 'Invalid request body',
+                            fields: errors.map(e => ({
+                                path: e.path,
+                                message: e.message,
+                                value: e.value,
+                            })),
+                        });
                     }
                 }
 
