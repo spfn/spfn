@@ -2,8 +2,11 @@
   "codegen": {
     "generators": [
       {
-        "name": "contract",
-        "enabled": true
+        "name": "@spfn/core:router",
+        "enabled": true,
+        "routerPath": "src/server/router.ts",
+        "outputPath": "src/lib/api-client.ts",
+        "baseUrl": "/api/actions"
       }
     ]
   }

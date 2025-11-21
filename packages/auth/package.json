@@ -101,9 +101,9 @@
     "@spfn/core": "workspace:*",
     "bcrypt": "^6.0.0",
     "drizzle-orm": "^0.44.7",
+    "jose": "^6.1.0",
     "jsonwebtoken": "^9.0.2",
-    "postgres": "^3.4.0",
-    "jose": "^6.1.0"
+    "postgres": "^3.4.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -115,7 +115,7 @@
     "drizzle-kit": "^0.31.6",
     "glob": "^11.0.3",
     "hono": "^4.9.0",
-    "next": "^16.0.1",
+    "next": "^16.0.3",
     "spfn": "workspace:*",
     "tsup": "^8.5.0",
     "tsx": "^4.20.6",
