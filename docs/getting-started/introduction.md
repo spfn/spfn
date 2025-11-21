@@ -38,54 +38,93 @@ Superfunction is an end-to-end type-safe backend architecture for Next.js that g
 - 💼 **SaaS products** - Complex business logic with transactions
 - 🔌 **Connection pools** - PostgreSQL, Redis without hitting limits
 - ⏰ **Background jobs** - Email sending, data processing, scheduled tasks
-- 🎯 **E2E type safety** - Contract → Backend → Client auto-sync
+- 🎯 **E2E type safety** - Route → Backend → Client auto-sync with codegen
 
 ## How It Works
 
-Superfunction uses a contract-based architecture:
+Superfunction uses a define-route system with end-to-end type safety:
 
-1. **Define contracts** - Shared TypeBox schemas that define your API shape
-2. **Implement routes** - Backend handlers with full type safety
-3. **Use in Next.js** - Auto-generated type-safe client for your frontend
+1. **Define routes** - Type-safe route definitions with input/output schemas
+2. **Generate client** - Auto-generate type-safe API client with one command
+3. **Use in Next.js** - tRPC-style chaining with full type safety
 
 ```typescript
-// 1. Define contract (src/lib/contracts/users.ts)
+// 1. Define routes (src/server/routes/users.ts)
+import { route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route';
-
-export const getUserContract = {
-  method: 'GET' as const,
-  path: '/users/:id',
-  params: Type.Object({ id: Type.String() }),
-  response: Type.Object({
-    id: Type.Number(),
-    name: Type.String()
-  })
-} as const satisfies RouteContract;
-
-// 2. Implement route (src/server/routes/users/[id]/index.ts)
-import { createApp } from '@spfn/core/route';
 import { NotFoundError } from '@spfn/core/errors';
-import { findOne } from '@spfn/core/db';
-import { getUserContract } from '@/lib/contracts/users';
-import { users } from '@/server/entities';
+import { UserRepository } from '../repositories/user.repository';
 
-const app = createApp();
+const userRepo = new UserRepository();
 
-app.bind(getUserContract, async (c) => {
-  const user = await findOne(users, { id: c.params.id });
-  if (!user) throw new NotFoundError('User', c.params.id);
-  return c.json(user);
+export const getUser = route.get('/users/:id')
+  .input({
+    params: Type.Object({
+      id: Type.String()
+    })
+  })
+  .handler(async (c) => {
+    const { params } = await c.data();
+    const user = await userRepo.findById(params.id);
+
+    if (!user) {
+      throw new NotFoundError('User', params.id);
+    }
+
+    return user;
+  });
+
+// Create router (src/server/router.ts)
+import { defineRouter } from '@spfn/core/route';
+import * as userRoutes from './routes/users';
+
+export const appRouter = defineRouter({
+  getUser: userRoutes.getUser,
+  // ... more routes
 });
 
-export default app;
+export type AppRouter = typeof appRouter;
 
-// 3. Use in Next.js (auto-generated src/lib/api.ts)
-import { api } from '@/lib/api'
+// 2. Generate client (run once)
+// $ pnpm spfn codegen router
+// Creates: src/lib/api-client.ts
 
-const user = await api.users.getById({ params: { id: '123' } });
-//    ^ Fully typed! No manual sync needed
+// 3. Use in Next.js (Client/Server Components, Server Actions)
+import { api } from '@/lib/api-client';
+
+// tRPC-style chaining with full type safety
+const user = await api.getUser
+  .params({ id: '123' })
+  .call();
+//    ^ Fully typed! Auto-synced from backend
+
+// Type-safe error handling
+try {
+  await api.getUser.params({ id: '999' }).call();
+} catch (error) {
+  if (error instanceof NotFoundError) {
+    console.log('User not found:', error.details);
+    //                             ^ Typed!
+  }
+}
 ```
+
+### Key Features
+
+**🔄 Auto-Generated Client**
+- Run `pnpm spfn codegen router` to generate type-safe client
+- Includes ErrorRegistry for proper error deserialization
+- No manual type sync needed
+
+**🎯 tRPC-Style API**
+- Chainable methods: `.params()`, `.query()`, `.body()`, `.call()`
+- Full IntelliSense support
+- Works in Client Components, Server Components, and Server Actions
+
+**⚡ Error Handling**
+- Server errors are automatically deserialized on client
+- Use `instanceof` checks for type-safe error handling
+- All HTTP errors (404, 401, etc.) + custom errors supported
 
 ## Next Steps
 
