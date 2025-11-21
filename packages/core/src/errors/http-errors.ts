@@ -2,29 +2,34 @@
  * HTTP Error Classes
  *
  * Standard HTTP error classes for API responses
- * Covers common HTTP status codes beyond database errors
+ * All errors are serializable for type-safe client-side error handling
  */
+
+import { SerializableError } from './serializable-error';
 
 /**
  * Base HTTP Error
  *
  * Base class for all HTTP-related errors
  */
-export class HttpError<TDetails extends Record<string, unknown> = Record<string, unknown>> extends Error
+export class HttpError extends SerializableError
 {
     public readonly statusCode: number;
-    public readonly details?: TDetails;
+    public details?: Record<string, unknown>;
 
-    constructor(
-        message: string,
-        statusCode: number,
-        details?: TDetails
-    )
+    constructor(data: {
+        message: string;
+        statusCode: number;
+        details?: Record<string, unknown>;
+    })
     {
-        super(message);
+        super(data.message);
         this.name = 'HttpError';
-        this.statusCode = statusCode;
-        this.details = details;
+        this.statusCode = data.statusCode;
+        if (data.details)
+        {
+            this.details = data.details;
+        }
         Error.captureStackTrace(this, this.constructor);
     }
 }
@@ -36,9 +41,13 @@ export class HttpError<TDetails extends Record<string, unknown> = Record<string,
  */
 export class BadRequestError extends HttpError
 {
-    constructor(message: string = 'Bad request', details?: Record<string, any>)
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
     {
-        super(message, 400, details);
+        super({
+            message: data.message || 'Bad request',
+            statusCode: 400,
+            details: data.details,
+        });
         this.name = 'BadRequestError';
     }
 }
@@ -47,14 +56,28 @@ export class BadRequestError extends HttpError
  * Validation Error (400)
  *
  * Input validation failure (request params, query, body)
- * Used by contract-based routing for automatic validation
+ * Used by define-route system for automatic validation
  */
 export class ValidationError extends HttpError
 {
-    constructor(message: string, details?: Record<string, any>)
+    fields?: Array<{ path: string; message: string; value?: any }>;
+
+    constructor(data: {
+        message: string;
+        fields?: Array<{ path: string; message: string; value?: any }>;
+        details?: Record<string, any>;
+    })
     {
-        super(message, 400, details);
+        super({
+            message: data.message,
+            statusCode: 400,
+            details: data.details,
+        });
         this.name = 'ValidationError';
+        if (data.fields)
+        {
+            this.fields = data.fields;
+        }
     }
 }
 
@@ -65,9 +88,13 @@ export class ValidationError extends HttpError
  */
 export class UnauthorizedError extends HttpError
 {
-    constructor(message: string = 'Authentication required', details?: Record<string, any>)
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
     {
-        super(message, 401, details);
+        super({
+            message: data.message || 'Authentication required',
+            statusCode: 401,
+            details: data.details,
+        });
         this.name = 'UnauthorizedError';
     }
 }
@@ -79,9 +106,13 @@ export class UnauthorizedError extends HttpError
  */
 export class ForbiddenError extends HttpError
 {
-    constructor(message: string = 'Access forbidden', details?: Record<string, any>)
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
     {
-        super(message, 403, details);
+        super({
+            message: data.message || 'Access forbidden',
+            statusCode: 403,
+            details: data.details,
+        });
         this.name = 'ForbiddenError';
     }
 }
@@ -90,14 +121,23 @@ export class ForbiddenError extends HttpError
  * Not Found Error (404)
  *
  * Requested resource does not exist
- * Generic HTTP 404 error (for database-specific NotFoundError, see database-errors.ts)
  */
 export class NotFoundError extends HttpError
 {
-    constructor(message: string = 'Resource not found', details?: Record<string, any>)
+    resource?: string;
+
+    constructor(data: { message?: string; resource?: string; details?: Record<string, any> } = {})
     {
-        super(message, 404, details);
+        super({
+            message: data.message || 'Resource not found',
+            statusCode: 404,
+            details: data.details,
+        });
         this.name = 'NotFoundError';
+        if (data.resource)
+        {
+            this.resource = data.resource;
+        }
     }
 }
 
@@ -105,13 +145,16 @@ export class NotFoundError extends HttpError
  * Conflict Error (409)
  *
  * Generic conflict - resource state conflict, concurrent modification, etc.
- * More general than DuplicateEntryError
  */
 export class ConflictError extends HttpError
 {
-    constructor(message: string = 'Resource conflict', details?: Record<string, any>)
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
     {
-        super(message, 409, details);
+        super({
+            message: data.message || 'Resource conflict',
+            statusCode: 409,
+            details: data.details,
+        });
         this.name = 'ConflictError';
     }
 }
@@ -123,18 +166,24 @@ export class ConflictError extends HttpError
  */
 export class TooManyRequestsError extends HttpError
 {
-    constructor(
-        message: string = 'Too many requests',
-        retryAfter?: number,
-        details?: Record<string, any>
-    )
-    {
-        const fullDetails = retryAfter
-            ? { ...details, retryAfter }
-            : details;
+    retryAfter?: number;
 
-        super(message, 429, fullDetails);
+    constructor(data: {
+        message?: string;
+        retryAfter?: number;
+        details?: Record<string, any>;
+    } = {})
+    {
+        super({
+            message: data.message || 'Too many requests',
+            statusCode: 429,
+            details: data.details,
+        });
         this.name = 'TooManyRequestsError';
+        if (data.retryAfter)
+        {
+            this.retryAfter = data.retryAfter;
+        }
     }
 }
 
@@ -145,9 +194,13 @@ export class TooManyRequestsError extends HttpError
  */
 export class InternalServerError extends HttpError
 {
-    constructor(message: string = 'Internal server error', details?: Record<string, any>)
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
     {
-        super(message, 500, details);
+        super({
+            message: data.message || 'Internal server error',
+            statusCode: 500,
+            details: data.details,
+        });
         this.name = 'InternalServerError';
     }
 }
@@ -159,9 +212,13 @@ export class InternalServerError extends HttpError
  */
 export class UnprocessableEntityError extends HttpError
 {
-    constructor(message: string = 'Unprocessable entity', details?: Record<string, any>)
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
     {
-        super(message, 422, details);
+        super({
+            message: data.message || 'Unprocessable entity',
+            statusCode: 422,
+            details: data.details,
+        });
         this.name = 'UnprocessableEntityError';
     }
 }
@@ -173,17 +230,23 @@ export class UnprocessableEntityError extends HttpError
  */
 export class ServiceUnavailableError extends HttpError
 {
-    constructor(
-        message: string = 'Service unavailable',
-        retryAfter?: number,
-        details?: Record<string, any>
-    )
-    {
-        const fullDetails = retryAfter
-            ? { ...details, retryAfter }
-            : details;
+    retryAfter?: number;
 
-        super(message, 503, fullDetails);
+    constructor(data: {
+        message?: string;
+        retryAfter?: number;
+        details?: Record<string, any>;
+    } = {})
+    {
+        super({
+            message: data.message || 'Service unavailable',
+            statusCode: 503,
+            details: data.details,
+        });
         this.name = 'ServiceUnavailableError';
+        if (data.retryAfter)
+        {
+            this.retryAfter = data.retryAfter;
+        }
     }
 }

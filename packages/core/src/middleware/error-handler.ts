@@ -1,12 +1,12 @@
 /**
  * Error Handler Middleware
  *
- * Generic middleware that converts errors with statusCode to HTTP responses
+ * Handles SerializableError with automatic serialization and standard errors
  */
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { SerializableError } from '../errors';
 import { logger } from '../logger';
-import type { ErrorResponse, ErrorCause } from '../route/types';
 
 const errorLogger = logger.child('@spfn/core:error-handler');
 
@@ -19,19 +19,6 @@ export interface ErrorHandlerOptions
     includeStack?: boolean;
 
     /**
-     * Include error cause chain in response
-     * @default process.env.NODE_ENV !== 'production'
-     */
-    includeCauses?: boolean;
-
-    /**
-     * Include sensitive database info (table, column, schema, constraint)
-     * in logs and responses
-     * @default false
-     */
-    includeSensitiveInfo?: boolean;
-
-    /**
      * Enable error logging
      * @default true
      */
@@ -42,65 +29,6 @@ interface ErrorWithStatusCode extends Error
 {
     statusCode?: number;
     details?: Record<string, unknown>;
-}
-
-/**
- * Extract error cause chain recursively
- */
-function extractErrorCauses(error: Error, includeStack: boolean): ErrorCause[]
-{
-    const causes: ErrorCause[] = [];
-    let currentError: any = error.cause;
-
-    while (currentError)
-    {
-        const cause: ErrorCause = {
-            message: currentError.message || String(currentError),
-            name: currentError.name,
-        };
-
-        // Extract PostgreSQL/Database specific error info
-        if (currentError.code) cause.code = currentError.code;
-        if (currentError.detail) cause.detail = currentError.detail;
-        if (currentError.hint) cause.hint = currentError.hint;
-        if (currentError.constraint) cause.constraint = currentError.constraint;
-        if (currentError.table) cause.table = currentError.table;
-        if (currentError.column) cause.column = currentError.column;
-        if (currentError.schema) cause.schema = currentError.schema;
-
-        if (includeStack && currentError.stack)
-        {
-            cause.stack = currentError.stack;
-        }
-
-        causes.push(cause);
-
-        // Move to next cause in chain
-        currentError = currentError.cause;
-    }
-
-    return causes;
-}
-
-/**
- * Remove sensitive database information from error cause
- *
- * Filters out database schema information (table, column, schema, constraint)
- * to prevent information leakage in production environments.
- */
-function sanitizeErrorCause(
-    cause: ErrorCause,
-    includeSensitiveInfo: boolean
-): ErrorCause
-{
-    if (includeSensitiveInfo)
-    {
-        return cause;
-    }
-
-    // Remove sensitive database information
-    const { constraint, table, column, schema, ...safeCause } = cause;
-    return safeCause;
 }
 
 /**
@@ -119,19 +47,59 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
 {
     const {
         includeStack = process.env.NODE_ENV !== 'production',
-        includeCauses = process.env.NODE_ENV !== 'production',
-        includeSensitiveInfo = false,
         enableLogging = true,
     } = options;
 
     return (err: Error, c: Context) =>
     {
+        // Handle SerializableError with automatic serialization
+        // Use duck typing to handle module duplication issues in dev mode (tsx)
+        const isSerializable = err instanceof SerializableError ||
+                              (typeof (err as any).toJSON === 'function' &&
+                               typeof (err as any).statusCode === 'number');
+
+        if (isSerializable)
+        {
+            const statusCode = (err as any).statusCode;
+
+            if (enableLogging)
+            {
+                const logLevel = statusCode >= 500 ? 'error' : 'warn';
+
+                const logData: Record<string, any> = {
+                    type: err.constructor.name,
+                    message: err.message,
+                    statusCode,
+                    path: c.req.path,
+                    method: c.req.method,
+                };
+
+                if (includeStack)
+                {
+                    errorLogger[logLevel]('Error occurred', err, logData);
+                }
+                else
+                {
+                    errorLogger[logLevel]('Error occurred', logData);
+                }
+            }
+
+            // Use toJSON() for automatic serialization
+            const serialized = (err as any).toJSON();
+
+            // Add stack trace in development
+            if (includeStack && err.stack)
+            {
+                serialized.stack = err.stack;
+            }
+
+            return c.json(serialized, statusCode as ContentfulStatusCode);
+        }
+
+        // Handle standard errors (fallback)
         const errorWithCode = err as ErrorWithStatusCode;
         const statusCode = errorWithCode.statusCode || 500;
         const errorType = err.name || 'Error';
-
-        // Extract error cause chain
-        const causes = extractErrorCauses(err, includeStack);
 
         if (enableLogging)
         {
@@ -145,21 +113,6 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                 method: c.req.method,
             };
 
-            // Include details if available
-            if (errorWithCode.details)
-            {
-                logData.details = errorWithCode.details;
-            }
-
-            // Include error cause chain with sensitive info filtering
-            if (causes.length > 0)
-            {
-                logData.causes = includeSensitiveInfo
-                    ? causes
-                    : causes.map(c => sanitizeErrorCause(c, false));
-            }
-
-            // Pass Error object directly to logger for proper stack trace formatting
             if (includeStack)
             {
                 errorLogger[logLevel]('Error occurred', err, logData);
@@ -170,32 +123,15 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
             }
         }
 
-        const response: ErrorResponse = {
-            success: false,
-            error: {
-                message: err.message || 'Internal Server Error',
-                type: errorType,
-                statusCode,
-                timestamp: new Date().toISOString(),
-            },
+        // Standard error response
+        const response: Record<string, any> = {
+            __type: 'Error',
+            message: err.message || 'Internal Server Error',
         };
 
-        if (errorWithCode.details)
+        if (includeStack && err.stack)
         {
-            response.error.details = errorWithCode.details;
-        }
-
-        if (includeStack)
-        {
-            response.error.stack = err.stack;
-        }
-
-        // Include error cause chain in response with sensitive info filtering
-        if (includeCauses && causes.length > 0)
-        {
-            response.error.causes = causes.map(c =>
-                sanitizeErrorCause(c, includeSensitiveInfo)
-            );
+            response.stack = err.stack;
         }
 
         return c.json(response, statusCode as ContentfulStatusCode);

@@ -174,7 +174,7 @@ export function createTypedProxy(config: TypedProxyConfig = {})
      */
     async function handleProxy(
         request: NextRequest,
-        context: { params: { path: string[] } }
+        context: { params: Promise<{ path: string[] }> }
     ): Promise<NextResponse>
     {
         const startTime = Date.now();
@@ -182,7 +182,8 @@ export function createTypedProxy(config: TypedProxyConfig = {})
         try
         {
             // Extract path from route params
-            const path = context.params.path.join('/');
+            const params = await context.params;
+            const path = params.path.join('/');
             const method = request.method;
 
             // Build target URL
@@ -272,7 +273,7 @@ export function createTypedProxy(config: TypedProxyConfig = {})
             let allInterceptors: InterceptorRule[] = [];
 
             // Auto-discover from registry
-            if (autoDiscoverInterceptors !== false)
+            if (autoDiscoverInterceptors)
             {
                 const registeredInterceptors = interceptorRegistry.getAll(disableAutoInterceptors || []);
                 allInterceptors.push(...registeredInterceptors);
@@ -510,15 +511,15 @@ export function createTypedProxy(config: TypedProxyConfig = {})
 
     // Return route handlers
     return {
-        GET: (req: NextRequest, context: { params: { path: string[] } }) =>
+        GET: (req: NextRequest, context: { params: Promise<{ path: string[] }> }) =>
             handleProxy(req, context),
-        POST: (req: NextRequest, context: { params: { path: string[] } }) =>
+        POST: (req: NextRequest, context: { params: Promise<{ path: string[] }> }) =>
             handleProxy(req, context),
-        PUT: (req: NextRequest, context: { params: { path: string[] } }) =>
+        PUT: (req: NextRequest, context: { params: Promise<{ path: string[] }> }) =>
             handleProxy(req, context),
-        PATCH: (req: NextRequest, context: { params: { path: string[] } }) =>
+        PATCH: (req: NextRequest, context: { params: Promise<{ path: string[] }> }) =>
             handleProxy(req, context),
-        DELETE: (req: NextRequest, context: { params: { path: string[] } }) =>
+        DELETE: (req: NextRequest, context: { params: Promise<{ path: string[] }> }) =>
             handleProxy(req, context),
     };
 }
