@@ -11,6 +11,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Installation](#installation)
 - [Architecture](#architecture)
 - [Package Structure](#package-structure)
 - [Module Exports](#module-exports)
@@ -43,6 +44,91 @@
 3. **Framework Integration** - Seamless SPFN plugin architecture
 4. **Extensibility** - Service layer for custom authentication flows
 5. **Developer Experience** - Clear separation of concerns, reusable components
+
+---
+
+## Installation
+
+### 1. Install Package
+
+```bash
+pnpm add @spfn/auth
+```
+
+### 2. Configure Server
+
+#### Add Lifecycle to `server.config.ts`
+
+```typescript
+import { defineServerConfig } from '@spfn/core/server';
+import { createAuthLifecycle } from '@spfn/auth/server';
+import { appRouter } from './router';
+
+export default defineServerConfig()
+    .port(8790)
+    .host('0.0.0.0')
+    .routes(appRouter)
+    .lifecycle(createAuthLifecycle())  // Add auth lifecycle
+    .build();
+```
+
+#### Register Router in `router.ts`
+
+```typescript
+import { defineRouter } from '@spfn/core/route';
+import { authRouter } from '@spfn/auth/server';
+
+export const appRouter = defineRouter({
+    // Auth routes (fixed namespace)
+    auth: authRouter,
+
+    // ... your other routes
+});
+```
+
+### 3. Configure Client (Next.js)
+
+#### Register Router Metadata and Errors in `api-client.ts`
+
+```typescript
+import { createApi } from '@spfn/core/nextjs';
+import type { AppRouter } from '@/server/router';
+import { appMetadata as authAppMetadata } from "@spfn/auth";
+import { authErrorRegistry } from "@spfn/auth/errors";
+import { appMetadata } from '@/server/router.metadata';
+import { errorRegistry } from "@spfn/core/errors";
+
+export const api = createApi<AppRouter>({
+    metadata: { ...appMetadata, ...authAppMetadata },
+    errorRegistry: errorRegistry.concat(authErrorRegistry),
+});
+```
+
+### 4. Environment Variables
+
+```bash
+# Required
+SPFN_AUTH_JWT_SECRET=your-secret-key
+DATABASE_URL=postgresql://...
+
+# Next.js (required)
+SPFN_AUTH_SESSION_SECRET=your-32-char-secret
+
+# Optional
+SPFN_AUTH_JWT_EXPIRES_IN=7d
+SPFN_AUTH_BCRYPT_SALT_ROUNDS=10
+SPFN_AUTH_SESSION_TTL=7d
+```
+
+### 5. Run Migrations
+
+```bash
+# Generate migrations (if needed)
+pnpm spfn db generate
+
+# Run migrations
+pnpm spfn db migrate
+```
 
 ---
 
