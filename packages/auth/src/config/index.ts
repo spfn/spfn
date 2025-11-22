@@ -16,7 +16,7 @@
  * @module config
  */
 
-import { getEnvVar, parseInt as parseIntSafe } from '@spfn/core/env';
+import { getEnvVar, parseNumber } from '@spfn/core/env';
 import { type AuthEnvKey, authEnvSchema } from './schema';
 import type { AuthEnvConfig } from './types';
 import { logger } from '@spfn/core/logger';
@@ -60,7 +60,7 @@ export function getEnvConfig(): AuthEnvConfig
         {
             if (schema.type === 'number')
             {
-                validator = parseIntSafe;
+                validator = parseNumber;
             }
         }
 
@@ -334,9 +334,7 @@ export function getCategories(): string[]
  */
 export function getSessionSecret(): string
 {
-    const secret =
-        process.env.SPFN_AUTH_SESSION_SECRET ||
-        process.env.SESSION_SECRET;
+    const secret = env.SPFN_AUTH_SESSION_SECRET;
 
     if (!secret)
     {
@@ -361,9 +359,7 @@ export function getSessionSecret(): string
  */
 export function getJwtSecret(): string
 {
-    return process.env.SPFN_AUTH_JWT_SECRET ||
-           process.env.JWT_SECRET ||
-           'dev-secret-key-change-in-production';
+    return env.SPFN_AUTH_JWT_SECRET || 'dev-secret-key-change-in-production';
 }
 
 /**
@@ -376,9 +372,7 @@ export function getJwtSecret(): string
  */
 export function getJwtExpiresIn(): string
 {
-    return process.env.SPFN_AUTH_JWT_EXPIRES_IN ||
-           process.env.JWT_EXPIRES_IN ||
-           '7d';
+    return env.SPFN_AUTH_JWT_EXPIRES_IN || '7d';
 }
 
 /**
@@ -391,11 +385,9 @@ export function getJwtExpiresIn(): string
  */
 export function getBcryptSaltRounds(): number
 {
-    const value = process.env.SPFN_AUTH_BCRYPT_SALT_ROUNDS ||
-                  process.env.BCRYPT_SALT_ROUNDS ||
-                  '10';
+    const value = env.SPFN_AUTH_BCRYPT_SALT_ROUNDS || 10;
 
-    return parseInt(value, 10);
+    return typeof value === 'number' ? value : parseInt(value, 10);
 }
 
 /**
@@ -408,9 +400,7 @@ export function getBcryptSaltRounds(): number
  */
 export function getVerificationTokenSecret(): string
 {
-    return process.env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET ||
-           process.env.VERIFICATION_TOKEN_SECRET ||
-           getJwtSecret();
+    return env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET || getJwtSecret();
 }
 
 // ============================================================================
@@ -420,9 +410,3 @@ export function getVerificationTokenSecret(): string
 // Re-export schema and types
 export { authEnvSchema, authEnvKeys, type AuthEnvKey } from './schema';
 export type { AuthEnvConfig } from './types';
-
-// Validate on module load (skip in test environment)
-if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test')
-{
-    validateEnvConfig();
-}

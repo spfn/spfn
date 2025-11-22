@@ -10,26 +10,10 @@
  * - Category grouping for organization
  */
 
+import { PERMISSION_CATEGORIES } from "@/server/rbac";
 import { text, boolean, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, typedJsonb } from '@spfn/core/db';
 import { authSchema } from './schema';
-
-/**
- * Permission category enum values
- * Single source of truth for permission categories
- */
-export const PERMISSION_CATEGORIES = [
-    'auth',      // Authentication & authorization
-    'user',      // User management
-    'rbac',      // Role & permission management
-    'system',    // System administration
-    'custom'     // App-specific categories
-] as const;
-
-/**
- * Permission category type derived from the const array
- */
-export type PermissionCategory = typeof PERMISSION_CATEGORIES[number];
 
 export const permissions = authSchema.table('permissions',
     {

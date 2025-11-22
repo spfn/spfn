@@ -6,6 +6,7 @@
  */
 
 import { NewPermissionEntity, PermissionEntity, permissions } from "@/server/entities/permissions";
+import type { PermissionCategory } from "@/server/rbac";
 import { BaseRepository } from '@spfn/core/db';
 import { asc, eq, inArray } from 'drizzle-orm';
 
@@ -81,7 +82,7 @@ export class PermissionsRepository extends BaseRepository
     /**
      * 카테고리별 권한 조회
      */
-    async findByCategory(category: string): Promise<PermissionEntity[]>
+    async findByCategory(category: PermissionCategory): Promise<PermissionEntity[]>
     {
         return this.readDb
             .select()
@@ -95,16 +96,11 @@ export class PermissionsRepository extends BaseRepository
      */
     async create(data: NewPermissionEntity): Promise<PermissionEntity>
     {
-        const result = await this.db
-            .insert(permissions)
-            .values({
-                ...data,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .returning();
-
-        return result[0];
+        return await this._create(permissions, {
+            ...data,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
     }
 
     /**
@@ -121,10 +117,7 @@ export class PermissionsRepository extends BaseRepository
             updatedAt: now,
         }));
 
-        return this.db
-            .insert(permissions)
-            .values(valuesWithTimestamps)
-            .returning();
+        return await this._createMany(permissions, valuesWithTimestamps);
     }
 
     /**

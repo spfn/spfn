@@ -7,7 +7,8 @@
 import { type User } from "@/server/entities/users";
 import { ValidationError } from '@spfn/core/errors';
 import { usersRepository } from '@/server/repositories';
-import { hashPassword, type KeyAlgorithmType, verifyPassword } from '@/server/helpers';
+import { type KeyAlgorithmType } from '@/server/types';
+import { hashPassword, verifyPassword } from '@/server/helpers';
 import { validateVerificationToken } from './verification.service';
 import {
     InvalidCredentialsError,
@@ -16,7 +17,7 @@ import {
     InvalidVerificationTokenError,
     VerificationTokenPurposeMismatchError,
     VerificationTokenTargetMismatchError,
-} from '@/server/errors';
+} from '@/errors';
 import { registerPublicKeyService, revokeKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
 
@@ -113,7 +114,7 @@ export async function checkAccountExistsService(
     }
     else
     {
-        throw new ValidationError('Either email or phone must be provided');
+        throw new ValidationError({ message: 'Either email or phone must be provided' });
     }
 
     return {
@@ -142,7 +143,7 @@ export async function registerService(
     // Verify that token purpose is registration
     if (tokenPayload.purpose !== 'registration')
     {
-        throw new VerificationTokenPurposeMismatchError('registration', tokenPayload.purpose);
+        throw new VerificationTokenPurposeMismatchError({ expected: 'registration', actual: tokenPayload.purpose });
     }
 
     // Verify that token target matches provided email/phone
@@ -165,7 +166,7 @@ export async function registerService(
     if (existingUser)
     {
         const identifierType = email ? 'email' : 'phone';
-        throw new AccountAlreadyExistsError(email || phone!, identifierType);
+        throw new AccountAlreadyExistsError({ identifier: email || phone!, identifierType });
     }
 
     // Hash password
@@ -220,7 +221,7 @@ export async function loginService(
 
     if (!email && !phone)
     {
-        throw new ValidationError('Either email or phone must be provided');
+        throw new ValidationError({ message: 'Either email or phone must be provided' });
     }
 
     if (!user || !user.passwordHash)
@@ -238,7 +239,7 @@ export async function loginService(
     // Check if user is active
     if (user.status !== 'active')
     {
-        throw new AccountDisabledError(user.status);
+        throw new AccountDisabledError({ status: user.status });
     }
 
     // Revoke old key if provided
@@ -307,7 +308,7 @@ export async function changePasswordService(
         const user = await usersRepository.findById(userId);
         if (!user)
         {
-            throw new ValidationError('User not found');
+            throw new ValidationError({ message: 'User not found' });
         }
         passwordHash = user.passwordHash;
     }
@@ -315,13 +316,13 @@ export async function changePasswordService(
     // Verify current password
     if (!passwordHash)
     {
-        throw new ValidationError('No password set for this account');
+        throw new ValidationError({ message: 'No password set for this account' });
     }
 
     const isValid = await verifyPassword(currentPassword, passwordHash);
     if (!isValid)
     {
-        throw new InvalidCredentialsError('Current password is incorrect');
+        throw new InvalidCredentialsError({ message: 'Current password is incorrect' });
     }
 
     // Hash new password

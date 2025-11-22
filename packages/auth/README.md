@@ -1,767 +1,578 @@
-# @spfn/auth
+# @spfn/auth - Technical Documentation
 
-![Coverage](https://img.shields.io/badge/coverage-85%2B%25-green)
-![Tests](https://img.shields.io/badge/tests-226%20passed-brightgreen)
+**Version:** 0.1.0-alpha.88
+**Status:** Alpha - Internal Development
 
-Authentication, authorization, and comprehensive RBAC module for SPFN.
+> **Note:** This is a technical documentation for developers working on the @spfn/auth package.
+> For user-facing documentation, see [SPFN Documentation](https://spfn.dev/docs).
 
-## Features
+---
 
-- **Asymmetric JWT Authentication** - Client-signed tokens with ES256/RS256
-- **User Management** - Email/phone-based identity with bcrypt password hashing
-- **Multi-Factor Authentication** - 6-digit OTP via email/SMS
-- **Session Management** - Public key rotation and revocation (90-day expiry)
-- **Role-Based Access Control (RBAC)** - superadmin, admin, user roles
-- **Account Status Management** - active, inactive, suspended states
-- **Verification Flow** - Temporary tokens (15min) for secure operations
-- **Type-Safe API Contracts** - Built with Typebox validation
+## Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Package Structure](#package-structure)
+- [Module Exports](#module-exports)
+- [Server-Side API](#server-side-api)
+- [Database Schema](#database-schema)
+- [RBAC System](#rbac-system)
+- [Next.js Adapter](#nextjs-adapter)
+- [Testing](#testing)
+- [Development Workflow](#development-workflow)
+- [Known Issues](#known-issues)
+- [Roadmap](#roadmap)
+
+---
+
+## Overview
+
+`@spfn/auth` is an authentication and authorization package for the SPFN framework, providing:
+
+- **Asymmetric JWT Authentication** - Client-signed tokens using ES256/RS256
+- **User Management** - Email/phone-based identity with bcrypt hashing
+- **Multi-Factor Authentication** - OTP verification via email/SMS
+- **Session Management** - Public key rotation with 90-day expiry
+- **Role-Based Access Control** - Flexible RBAC with runtime role/permission management
+- **Next.js Integration** - Session helpers and server-side guards
+
+### Design Principles
+
+1. **Security First** - Asymmetric cryptography, no shared secrets
+2. **Type Safety** - Full TypeScript support with Typebox validation
+3. **Framework Integration** - Seamless SPFN plugin architecture
+4. **Extensibility** - Service layer for custom authentication flows
+5. **Developer Experience** - Clear separation of concerns, reusable components
+
+---
 
 ## Architecture
 
-### Asymmetric JWT Authentication
-
-This package uses **client-signed JWT tokens** for enhanced security compared to traditional symmetric JWT:
+### High-Level Overview
 
 ```
-┌─────────────┐                           ┌─────────────┐
-│   Client    │                           │   Server    │
-│             │                           │             │
-│  1. Generate│                           │             │
-│     keypair │                           │             │
-│     (ES256) │                           │             │
-│             │                           │             │
-│  2. Register│──────────────────────────>│ 3. Store    │
-│     publicKey                           │    publicKey│
-│     + fingerprint                       │    (verify  │
-│                                         │    fingerprint)
-│             │                           │             │
-│  4. Sign JWT│                           │             │
-│     with    │                           │             │
-│     privateKey                          │             │
-│             │                           │             │
-│  5. Request │──────────────────────────>│ 6. Verify   │
-│     + JWT   │  Authorization: Bearer    │    signature│
-│     + keyId │  X-Key-Id: uuid           │    with     │
-│             │                           │    publicKey│
-│             │                           │             │
-│             │<──────────────────────────│ 7. Success  │
-│             │   { success: true }       │             │
-└─────────────┘                           └─────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                     @spfn/auth Package                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐   │
+│  │    Server     │  │    Next.js    │  │    Client     │   │
+│  │   (server.ts) │  │   (nextjs/*)  │  │  (client.ts)  │   │
+│  └───────┬───────┘  └───────┬───────┘  └───────┬───────┘   │
+│          │                   │                   │           │
+│  ┌───────▼───────────────────▼───────────────────▼───────┐  │
+│  │              Common Types & Entities                   │  │
+│  │                   (index.ts)                           │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Key Benefits:**
-- Server never knows the private key
-- No shared secrets (unlike HMAC)
-- Each client has unique key pair
-- Easy key rotation without global impact
-- Automatic 90-day key expiry
+### Module Separation
 
-**Supported Algorithms:**
-- **ES256** (ECDSA P-256) - Recommended, ~91 bytes, compact and fast
-- **RS256** (RSA 2048) - Fallback, ~294 bytes, wider compatibility
+The package is split into three distinct entry points to ensure proper code separation:
 
-## Installation
+1. **Common Module** (`@spfn/auth`)
+   - Database entities (users, roles, permissions)
+   - TypeScript types and interfaces
+   - RBAC type definitions
+   - Can be imported anywhere (server/client)
 
-```bash
-pnpm add @spfn/auth
+2. **Server Module** (`@spfn/auth/server`)
+   - Server-only code (marked with Node.js APIs)
+   - Routes, services, repositories
+   - Middleware, helpers (JWT, password)
+   - RBAC initialization
+   - **Never** import in client-side code
+
+3. **Client Module** (`@spfn/auth/client`)
+   - Client-only code (React hooks, components)
+   - Currently in development (placeholders only)
+   - **Never** import in server-side code
+
+4. **Next.js Adapter** (`@spfn/auth/nextjs/*`)
+   - Next.js-specific integrations
+   - `@spfn/auth/nextjs/api` - Interceptors for API routes
+   - `@spfn/auth/nextjs/server` - Server Components guards & session helpers
+
+### Asymmetric JWT Flow
+
+```
+┌──────────┐                                    ┌──────────┐
+│  Client  │                                    │  Server  │
+└────┬─────┘                                    └────┬─────┘
+     │                                               │
+     │ 1. Generate ES256 keypair                    │
+     │    (privateKey stored locally)               │
+     │                                               │
+     │ 2. POST /_auth/register                      │
+     │    { email, password, publicKey, keyId }     │
+     ├──────────────────────────────────────────────>│
+     │                                               │
+     │                            3. Store publicKey │
+     │                               (user_public_keys)
+     │                                               │
+     │ 4. Sign JWT with privateKey                  │
+     │    payload: { userId, keyId }                │
+     │                                               │
+     │ 5. Request with Authorization header         │
+     │    Authorization: Bearer <jwt>               │
+     ├──────────────────────────────────────────────>│
+     │                                               │
+     │                      6. Decode JWT → keyId   │
+     │                         Fetch publicKey      │
+     │                         Verify signature     │
+     │                                               │
+     │                                    7. Success │
+     │<──────────────────────────────────────────────┤
+     │                                               │
 ```
 
-## Quick Start
+**Key Points:**
+- Server **never** knows the private key
+- Each client has a unique keypair
+- JWT verification uses stored public key
+- No shared secrets (unlike HMAC-based JWT)
 
-### 1. Client-Side Key Generation
+---
 
+## Package Structure
+
+```
+packages/auth/
+├── dist/                      # Compiled output (tsup)
+│   ├── index.js              # Common exports
+│   ├── index.d.ts
+│   ├── server.js             # Server exports
+│   ├── server.d.ts
+│   ├── client.js             # Client exports (minimal)
+│   ├── client.d.ts
+│   ├── config/               # Configuration module
+│   ├── errors/               # Error classes
+│   ├── nextjs/               # Next.js adapter
+│   └── server/               # Server implementation
+│
+├── migrations/                # Drizzle database migrations
+│   └── *.sql
+│
+├── src/
+│   ├── index.ts              # Common entry point
+│   ├── server.ts             # Server entry point
+│   ├── client.ts             # Client entry point
+│   │
+│   ├── config/               # Configuration system
+│   │   ├── index.ts
+│   │   ├── schema.ts         # Env var schema
+│   │   └── types.ts
+│   │
+│   ├── errors/               # Error definitions
+│   │   ├── index.ts
+│   │   └── auth-errors.ts
+│   │
+│   ├── lib/                  # Shared code
+│   │   └── contracts/        # Typebox schemas
+│   │
+│   ├── server/               # Server-side implementation
+│   │   ├── entities/         # Drizzle ORM entities
+│   │   ├── services/         # Business logic layer
+│   │   ├── repositories/     # Database access layer
+│   │   ├── routes/           # HTTP route handlers
+│   │   ├── middleware/       # Auth middleware
+│   │   ├── helpers/          # JWT, password, context
+│   │   ├── rbac/             # RBAC types and builtins
+│   │   ├── lib/              # Server utilities
+│   │   ├── lifecycle.ts      # SPFN lifecycle hooks
+│   │   ├── setup.ts          # Initialization
+│   │   ├── logger.ts         # Logging
+│   │   └── types.ts          # Server types
+│   │
+│   ├── nextjs/               # Next.js adapter
+│   │   ├── api.ts            # Interceptor exports
+│   │   ├── server.ts         # Server Components guards
+│   │   ├── session-helpers.ts# Session management
+│   │   ├── interceptors/     # Request interceptors
+│   │   └── guards/           # Auth guards
+│   │
+│   └── client/               # Client-side (WIP)
+│       ├── hooks/            # React hooks (TODO)
+│       ├── store/            # Zustand store (TODO)
+│       └── components/       # UI components (TODO)
+│
+├── package.json              # Package configuration + SPFN plugin config
+├── tsup.config.ts            # Build configuration
+├── drizzle.config.ts         # Database migration config
+└── README.md                 # This file
+```
+
+### Layer Responsibilities
+
+#### 1. **Routes Layer** (`src/server/routes/`)
+- Thin HTTP handlers
+- Request validation (Typebox)
+- Delegates to services
+- Returns responses
+
+#### 2. **Services Layer** (`src/server/services/`)
+- Business logic
+- Transaction management
+- Reusable functions
+- Can be used outside of routes
+
+#### 3. **Repositories Layer** (`src/server/repositories/`)
+- Database access only
+- CRUD operations
+- No business logic
+- Drizzle ORM queries
+
+#### 4. **Helpers Layer** (`src/server/helpers/`)
+- Utility functions (JWT, password hashing)
+- Context accessors (getAuth, getUser)
+- Stateless operations
+
+---
+
+## Module Exports
+
+### Common Module (`@spfn/auth`)
+
+**Entities:**
 ```typescript
-import { generateKeyPair } from '@spfn/auth/client';
-
-// Generate ES256 key pair (recommended)
-const keyPair = generateKeyPair('ES256');
-
-console.log(keyPair);
-// {
-//   privateKey: 'MIG...',        // Base64 DER (store securely!)
-//   publicKey: 'MFkw...',        // Base64 DER (send to server)
-//   keyId: '550e8400-...',       // UUID v4
-//   fingerprint: 'a1b2c3...',   // SHA-256 (64 hex chars)
-//   algorithm: 'ES256'
-// }
-
-// Store privateKey securely in localStorage/sessionStorage
-localStorage.setItem('auth.privateKey', keyPair.privateKey);
-localStorage.setItem('auth.keyId', keyPair.keyId);
+import {
+  users,
+  userPublicKeys,
+  verificationCodes,
+  roles,
+  permissions,
+  rolePermissions,
+  userPermissions,
+  invitations,
+  userSocialAccounts,
+  userProfiles
+} from '@spfn/auth';
 ```
 
-### 2. User Registration
-
+**Types:**
 ```typescript
-import { authRegister } from '@spfn/auth/api';
-
-// Step 1: Send verification code
-await authSendCode({
-  target: 'user@example.com',
-  targetType: 'email',
-  purpose: 'registration'
-});
-
-// Step 2: Verify code and get temporary token
-const { verificationToken } = await authVerifyCode({
-  target: 'user@example.com',
-  targetType: 'email',
-  code: '123456',
-  purpose: 'registration'
-});
-
-// Step 3: Register with verification token
-const result = await authRegister({
-  email: 'user@example.com',
-  password: 'securePassword123',
-  verificationToken,
-  publicKey: keyPair.publicKey,
-  keyId: keyPair.keyId,
-  fingerprint: keyPair.fingerprint,
-  algorithm: 'ES256'
-});
-
-console.log(result);
-// { userId: '42', email: 'user@example.com' }
+import type {
+  User,
+  UserPublicKey,
+  VerificationCode,
+  Role,
+  Permission,
+  // ... etc
+} from '@spfn/auth';
 ```
 
-### 3. User Login
-
+**RBAC:**
 ```typescript
-import { authLogin } from '@spfn/auth/api';
+import {
+  BUILTIN_ROLES,
+  BUILTIN_PERMISSIONS,
+  PRESET_ROLES,
+  PRESET_PERMISSIONS
+} from '@spfn/auth';
 
-// Generate new key pair for this session
-const newKeyPair = generateKeyPair('ES256');
-
-const result = await authLogin({
-  email: 'user@example.com',
-  password: 'securePassword123',
-  publicKey: newKeyPair.publicKey,
-  keyId: newKeyPair.keyId,
-  fingerprint: newKeyPair.fingerprint,
-  oldKeyId: localStorage.getItem('auth.keyId'), // Revoke old key
-  algorithm: 'ES256'
-});
-
-// Store new credentials
-localStorage.setItem('auth.privateKey', newKeyPair.privateKey);
-localStorage.setItem('auth.keyId', newKeyPair.keyId);
-localStorage.setItem('auth.userId', result.userId);
-```
-
-### 4. Making Authenticated Requests
-
-```typescript
-import { generateClientToken } from '@spfn/auth/client';
-
-// Sign JWT with your private key
-const privateKey = localStorage.getItem('auth.privateKey');
-const keyId = localStorage.getItem('auth.keyId');
-const userId = localStorage.getItem('auth.userId');
-
-const token = generateClientToken(
-  { userId, keyId, timestamp: Date.now() },
-  privateKey,
-  'ES256',
-  { expiresIn: '15m', issuer: 'spfn-client' }
-);
-
-// Send request with Authorization header
-const response = await fetch('/_auth/logout', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${token}`,
-    'X-Key-Id': keyId,
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({})
-});
-```
-
-### 5. Server-Side Middleware
-
-```typescript
-import { createApp } from '@spfn/core/route';
-import { authenticate } from '@spfn/auth/server';
-import { getAuth, getUser } from '@spfn/auth/server';
-
-const app = createApp();
-
-// Apply authentication middleware
-app.bind(myProtectedRoute, [authenticate], async (c) => {
-  // Get authenticated user
-  const { user, userId, keyId } = getAuth(c);
-
-  // Or just get user directly
-  const user = getUser(c);
-
-  console.log(user.email, user.role, user.status);
-
-  return c.success({ message: 'Authenticated!' });
-});
+import type {
+  RoleConfig,
+  PermissionConfig,
+  InitializeAuthOptions
+} from '@spfn/auth';
 ```
 
 ---
 
-## Next.js Integration
+### Server Module (`@spfn/auth/server`)
 
-The `@spfn/auth/nextjs` adapter provides seamless authentication integration for Next.js applications with automatic JWT injection and session management.
-
-### Features
-
-- **Automatic JWT Generation** - Generates JWT from HttpOnly cookie sessions
-- **Server-Side Interceptor** - Auto-inject JWT in server components and API routes
-- **Client-Side Proxy** - Auto-inject JWT for browser requests via `/api/actions`
-- **High-Level Auth API** - Simple wrappers with automatic key generation
-- **Session Helpers** - Server-side session management utilities
-
-### Installation
-
+**Router:**
 ```typescript
-import { authApi } from '@spfn/auth/nextjs';
-```
+import { authRouter } from '@spfn/auth/server';
 
-### 1. High-Level Auth API
-
-The `authApi` object provides simplified authentication functions with automatic key generation and session management:
-
-```typescript
-import { authApi } from '@spfn/auth/nextjs';
-
-// ✅ Register (automatic key generation + session)
-const result = await authApi.register({
-  email: 'user@example.com',
-  password: 'SecurePass123!',
-  verificationToken: '...' // from verification code
+// Explicit registration in your app router
+export const appRouter = defineRouter({
+  auth: authRouter,  // Mounts at /_auth/*
 });
-// → Automatically generates keypair, stores in session cookie
-
-// ✅ Login (automatic key generation + rotation)
-const result = await authApi.login({
-  email: 'user@example.com',
-  password: 'SecurePass123!'
-});
-// → Automatically generates new keypair, rotates old key
-
-// ✅ Logout (revokes current key)
-await authApi.logout();
-
-// ✅ Rotate Key (before 90-day expiry)
-await authApi.rotateKey();
 ```
 
-**No manual key generation needed!** The `authApi` handles:
-- ES256 keypair generation
-- Public key registration with server
-- Private key storage in encrypted HttpOnly cookies
-- Automatic key rotation on login
-
-### 2. Server-Side JWT Injection
-
-For server components and API routes, use the `createAuthInterceptor`:
-
-```typescript
-// app/api/protected/route.ts
-import { UniversalClient } from '@spfn/core/client';
-import { createAuthInterceptor } from '@spfn/auth/nextjs';
-
-// Create client with auth interceptor
-const client = new UniversalClient({
-  baseURL: process.env.SPFN_API_URL!,
-  requestInterceptor: createAuthInterceptor()
-});
-
-export async function GET() {
-  // JWT is automatically injected from session cookie
-  const data = await client.call(someContract);
-  return Response.json(data);
-}
-```
-
-**How it works:**
-1. Reads `session` HttpOnly cookie
-2. Unseals session to get `privateKey`, `keyId`, `userId`
-3. Generates JWT signed with `privateKey`
-4. Adds `Authorization: Bearer <jwt>` header automatically
-
-### 3. Client-Side Proxy Setup
-
-For browser requests, set up the Next.js API Route proxy:
-
-```typescript
-// app/api/actions/[...path]/route.ts
-export {
-  GET,
-  POST,
-  PUT,
-  DELETE,
-  PATCH
-} from '@spfn/auth/nextjs/proxy';
-```
-
-Then use `UniversalClient` from browser:
-
-```typescript
-'use client';
-import { UniversalClient } from '@spfn/core/client';
-
-const client = new UniversalClient({
-  baseURL: '/api/actions' // Proxy endpoint
-});
-
-// Browser → /api/actions/user/profile → SPFN API (with JWT injected)
-const user = await client.call(getUserContract);
-```
-
-**How it works:**
-1. Browser makes request to `/api/actions/*`
-2. Proxy reads `session` cookie (server-side only)
-3. Generates JWT from session
-4. Forwards request to SPFN API with `Authorization` header
-5. Returns response to browser
-
-### 4. Session Helpers
-
-Direct session management utilities:
-
+**Services:**
 ```typescript
 import {
-  saveSession,
-  getSession,
-  clearSession
-} from '@spfn/auth/nextjs';
-
-// Save session data (encrypted HttpOnly cookie)
-await saveSession({
-  userId: '123',
-  privateKey: '...',
-  keyId: 'uuid',
-  algorithm: 'ES256'
-}, 60 * 60 * 24 * 7); // 7 days
-
-// Get current session
-const session = await getSession();
-console.log(session?.userId);
-
-// Clear session
-await clearSession();
-```
-
-### 5. JWT Helper (Manual Usage)
-
-Generate JWT from session manually if needed:
-
-```typescript
-import { generateJWTFromSession } from '@spfn/auth/nextjs';
-
-const jwt = await generateJWTFromSession();
-// → Returns signed JWT or null if no session
-```
-
-### Updated Middleware (No X-Key-Id Required)
-
-The authenticate middleware now extracts `keyId` from the JWT payload, so you **no longer need** to send the `X-Key-Id` header:
-
-```typescript
-// ❌ Old way (deprecated)
-fetch('/api/protected', {
-  headers: {
-    'Authorization': `Bearer ${jwt}`,
-    'X-Key-Id': keyId  // ← No longer needed!
-  }
-});
-
-// ✅ New way
-fetch('/api/protected', {
-  headers: {
-    'Authorization': `Bearer ${jwt}`  // keyId extracted from JWT
-  }
-});
-```
-
-The middleware flow:
-1. Decode JWT to extract `keyId` (without verification)
-2. Fetch public key from database using `keyId`
-3. Verify JWT signature with public key
-4. Validate user and attach to context
-
-### Complete Next.js Example
-
-```typescript
-// app/auth/login/route.ts
-import { authApi } from '@spfn/auth/nextjs';
-
-export async function POST(request: Request) {
-  const { email, password } = await request.json();
-
-  try {
-    const result = await authApi.login({ email, password });
-    return Response.json({ success: true, userId: result.userId });
-  } catch (error) {
-    return Response.json({ success: false, error: error.message }, { status: 401 });
-  }
-}
-
-// app/dashboard/page.tsx (Server Component)
-import { UniversalClient } from '@spfn/core/client';
-import { createAuthInterceptor } from '@spfn/auth/nextjs';
-
-const client = new UniversalClient({
-  baseURL: process.env.SPFN_API_URL!,
-  requestInterceptor: createAuthInterceptor()
-});
-
-export default async function Dashboard() {
-  // JWT automatically injected
-  const user = await client.call(getUserContract);
-
-  return <div>Welcome {user.email}</div>;
-}
-
-// app/profile/page.tsx (Client Component)
-'use client';
-import { UniversalClient } from '@spfn/core/client';
-
-const client = new UniversalClient({
-  baseURL: '/api/actions'
-});
-
-export default function Profile() {
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    // Browser → Proxy → SPFN API (JWT auto-injected)
-    client.call(getUserContract).then(setUser);
-  }, []);
-
-  return <div>{user?.email}</div>;
-}
-```
-
-### Environment Variables
-
-```bash
-# Required for session encryption
-SPFN_AUTH_SESSION_SECRET=your-32-char-secret-key
-
-# SPFN API URL (server-side)
-SPFN_API_URL=http://localhost:8790
-
-# Public API URL (optional, for client-side)
-NEXT_PUBLIC_API_URL=http://localhost:8790
-```
-
----
-
-## Service Layer (Reusable Business Logic)
-
-The `@spfn/auth` package provides **service functions** that encapsulate all business logic, making it easy to create custom authentication flows while reusing the same secure logic.
-
-### Why Service Layer?
-
-Instead of being locked into predefined API routes, you can:
-- **Create custom authentication flows** that match your app's UX
-- **Add custom logic** before/after authentication operations
-- **Integrate with external systems** (CRM, analytics, Slack notifications)
-- **Build complex workflows** combining multiple auth operations
-- **Maintain consistency** by reusing the same secure business logic
-
-### Available Services
-
-#### Authentication Services
-
-```typescript
-import {
+  // Auth
   checkAccountExistsService,
   registerService,
   loginService,
   logoutService,
   changePasswordService,
-} from '@spfn/auth/server';
-```
 
-#### Verification Services
-
-```typescript
-import {
+  // Verification
   sendVerificationCodeService,
   verifyCodeService,
-} from '@spfn/auth/server';
-```
 
-#### Key Management Services
-
-```typescript
-import {
+  // Key Management
   registerPublicKeyService,
   rotateKeyService,
   revokeKeyService,
-} from '@spfn/auth/server';
-```
 
-#### User Services
-
-```typescript
-import {
+  // User
   getUserByIdService,
   getUserByEmailService,
   getUserByPhoneService,
-  updateLastLoginService,
   updateUserService,
+
+  // RBAC
+  initializeAuth,
+
+  // Permission
+  getUserPermissions,
+  hasPermission,
+  hasAnyPermission,
+  hasAllPermissions,
+  hasRole,
+  hasAnyRole,
+
+  // Role
+  createRole,
+  updateRole,
+  deleteRole,
+  addPermissionToRole,
+  removePermissionFromRole,
+
+  // Invitation
+  createInvitation,
+  acceptInvitation,
+  listInvitations,
+  cancelInvitation,
+
+  // Session
+  getAuthSessionService,
+  getUserProfileService,
 } from '@spfn/auth/server';
 ```
 
----
-
-### Example 1: Custom Login with Slack Notification
-
+**Repositories:**
 ```typescript
-import { createApp } from '@spfn/core/route';
-import { loginService } from '@spfn/auth/server';
+import {
+  usersRepository,
+  keysRepository,
+  rolesRepository,
+  permissionsRepository,
+  verificationCodesRepository,
+  invitationsRepository,
+  // ... etc
+} from '@spfn/auth/server';
+```
 
-const app = createApp();
+**Middleware:**
+```typescript
+import {
+  authenticate,
+  requirePermissions,
+  requireRole,
+} from '@spfn/auth/server';
 
-app.post('/custom-login', async (c) => {
-  const body = await c.req.json();
-
-  // Log login attempt
-  console.log(`Login attempt: ${body.email}`);
-
-  try {
-    // Reuse auth service
-    const result = await loginService({
-      email: body.email,
-      password: body.password,
-      publicKey: body.publicKey,
-      keyId: body.keyId,
-      fingerprint: body.fingerprint,
-      algorithm: body.algorithm,
-    });
-
-    // Send Slack notification
-    await fetch('https://hooks.slack.com/services/YOUR/WEBHOOK/URL', {
-      method: 'POST',
-      body: JSON.stringify({
-        text: `✅ User ${result.email} logged in successfully!`,
-      }),
-    });
-
-    // Track analytics
-    await trackEvent('user_login', {
-      userId: result.userId,
-      email: result.email,
-    });
-
-    return c.json(result);
-  } catch (error) {
-    // Custom error handling
-    await trackEvent('login_failed', { email: body.email });
-    throw error;
+// Usage
+app.bind(
+  myContract,
+  [authenticate, requirePermissions('user:delete')],
+  async (c) => {
+    // Handler
   }
-});
+);
+```
+
+**Helpers:**
+```typescript
+import {
+  // Context
+  getAuth,
+  getUser,
+
+  // JWT
+  verifyJWT,
+  generateServerToken,
+
+  // Password
+  hashPassword,
+  verifyPassword,
+} from '@spfn/auth/server';
+```
+
+**Lifecycle:**
+```typescript
+import { createAuthLifecycle } from '@spfn/auth/server';
+
+// SPFN plugin lifecycle hooks
+const lifecycle = createAuthLifecycle();
 ```
 
 ---
 
-### Example 2: Custom Registration with CRM Integration
+### Client Module (`@spfn/auth/client`)
+
+> **Status:** Work in Progress - Placeholders only
+
+```typescript
+// Currently empty exports
+import {} from '@spfn/auth/client';
+```
+
+**Planned:**
+- React hooks (useAuth, useSession)
+- Zustand store
+- UI components (LoginForm, etc.)
+
+---
+
+### Configuration Module (`@spfn/auth/config`)
+
+```typescript
+import { configureAuth, getAuthConfig } from '@spfn/auth/config';
+
+// Global configuration
+configureAuth({
+  sessionTtl: '30d',
+  bcryptSaltRounds: 12,
+  jwtExpiresIn: '7d',
+});
+
+// Get current config
+const config = getAuthConfig();
+```
+
+---
+
+### Errors Module (`@spfn/auth/errors`)
 
 ```typescript
 import {
-  verifyCodeService,
-  registerService,
-} from '@spfn/auth/server';
-
-app.post('/custom-register', async (c) => {
-  const body = await c.req.json();
-
-  // Step 1: Verify OTP code
-  const { verificationToken } = await verifyCodeService({
-    target: body.email,
-    targetType: 'email',
-    code: body.otp,
-    purpose: 'registration',
-  });
-
-  // Step 2: Register user
-  const user = await registerService({
-    email: body.email,
-    password: body.password,
-    verificationToken,
-    publicKey: body.publicKey,
-    keyId: body.keyId,
-    fingerprint: body.fingerprint,
-    algorithm: 'ES256',
-  });
-
-  // Step 3: Add to CRM
-  await fetch('https://api.your-crm.com/contacts', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${process.env.CRM_API_KEY}` },
-    body: JSON.stringify({
-      email: user.email,
-      userId: user.userId,
-      source: 'registration',
-      createdAt: new Date().toISOString(),
-    }),
-  });
-
-  // Step 4: Send welcome email
-  await sendWelcomeEmail(user.email);
-
-  return c.json({
-    success: true,
-    userId: user.userId,
-    message: 'Registration complete! Check your email for next steps.',
-  });
-});
+  AuthError,
+  InvalidCredentialsError,
+  AccountNotFoundError,
+  AccountExistsError,
+  InvalidVerificationCodeError,
+  VerificationCodeExpiredError,
+  InvalidTokenError,
+  KeyNotFoundError,
+  PermissionDeniedError,
+  // ... etc
+} from '@spfn/auth/errors';
 ```
 
 ---
 
-### Example 3: Complex Multi-Step Flow
+### Next.js Adapter (`@spfn/auth/nextjs/*`)
+
+#### `@spfn/auth/nextjs/api`
 
 ```typescript
 import {
-  checkAccountExistsService,
-  sendVerificationCodeService,
-  verifyCodeService,
-  registerService,
-} from '@spfn/auth/server';
+  authInterceptors,
+  loginRegisterInterceptor,
+  generalAuthInterceptor,
+  keyRotationInterceptor,
+} from '@spfn/auth/nextjs/api';
 
-app.post('/signup-wizard', async (c) => {
-  const { step, email, code, password, publicKey, keyId, fingerprint } = await c.req.json();
-
-  if (step === 1) {
-    // Check if account already exists
-    const { exists } = await checkAccountExistsService({ email });
-
-    if (exists) {
-      return c.json({ error: 'Account already exists', suggestLogin: true }, 409);
-    }
-
-    // Send verification code
-    const result = await sendVerificationCodeService({
-      target: email,
-      targetType: 'email',
-      purpose: 'registration',
-    });
-
-    return c.json({ step: 2, expiresAt: result.expiresAt });
-  }
-
-  if (step === 2) {
-    // Verify code
-    const { verificationToken } = await verifyCodeService({
-      target: email,
-      targetType: 'email',
-      code,
-      purpose: 'registration',
-    });
-
-    // Store token temporarily
-    return c.json({ step: 3, verificationToken });
-  }
-
-  if (step === 3) {
-    // Complete registration
-    const user = await registerService({
-      email,
-      password,
-      verificationToken: body.verificationToken,
-      publicKey,
-      keyId,
-      fingerprint,
-      algorithm: 'ES256',
-    });
-
-    return c.json({ success: true, userId: user.userId });
-  }
-
-  return c.json({ error: 'Invalid step' }, 400);
-});
+// Auto-registers interceptors on import
+import '@spfn/auth/nextjs/api';
 ```
 
----
-
-### Example 4: Check User Without Creating Route
+#### `@spfn/auth/nextjs/server`
 
 ```typescript
-import { getUserByEmailService } from '@spfn/auth/server';
+import {
+  // Guards (Server Components)
+  RequireAuth,
+  RequireRole,
+  RequirePermission,
 
-// Use in any server code
-async function sendNotificationToAdmin(email: string) {
-  const user = await getUserByEmailService(email);
+  // Auth Utils
+  getUserRole,
+  getUserPermissions,
+  hasAnyRole,
+  hasAnyPermission,
 
-  if (user && user.role === 'admin') {
-    await sendEmail(user.email, 'Admin Notification', '...');
-  }
+  // Session Helpers
+  saveSession,
+  getSession,
+  clearSession,
+
+  // Types
+  type SessionData,
+  type PublicSession,
+  type SaveSessionOptions,
+} from '@spfn/auth/nextjs/server';
+```
+
+**Session Helpers Usage:**
+```typescript
+// Save session (Server Actions / Route Handlers)
+await saveSession({
+  userId: '123',
+  privateKey: '...',
+  keyId: 'uuid',
+  algorithm: 'ES256',
+});
+
+// Get session (read-only, safe in Server Components)
+const session = await getSession();
+
+// Clear session
+await clearSession();
+```
+
+**Guard Usage:**
+```typescript
+// app/dashboard/page.tsx
+import { RequireAuth } from '@spfn/auth/nextjs/server';
+
+export default async function DashboardPage()
+{
+  return (
+    <RequireAuth redirectTo="/login">
+      <div>Protected content</div>
+    </RequireAuth>
+  );
 }
 ```
 
 ---
 
-### Service Function Signatures
+## Server-Side API
 
-#### `loginService(params)`
+### Public Routes (No Authentication)
 
-```typescript
-await loginService({
-  email?: string;              // One of email or phone required
-  phone?: string;
-  password: string;
-  publicKey: string;
-  keyId: string;
-  fingerprint: string;
-  oldKeyId?: string;           // Optional: revoke old key
-  algorithm?: 'ES256' | 'RS256';
-});
+All routes are automatically registered at `/_auth/*` via SPFN plugin system.
 
-// Returns: { userId, email?, phone?, passwordChangeRequired }
-```
+#### `POST /_auth/exists`
 
-#### `registerService(params)`
-
-```typescript
-await registerService({
-  email?: string;
-  phone?: string;
-  verificationToken: string;   // From verifyCodeService
-  password: string;
-  publicKey: string;
-  keyId: string;
-  fingerprint: string;
-  algorithm?: 'ES256' | 'RS256';
-});
-
-// Returns: { userId, email?, phone? }
-```
-
-#### `verifyCodeService(params)`
-
-```typescript
-await verifyCodeService({
-  target: string;              // Email or phone
-  targetType: 'email' | 'phone';
-  code: string;                // 6-digit code
-  purpose: 'registration' | 'login' | 'password_reset';
-});
-
-// Returns: { valid: true, verificationToken: string }
-```
-
----
-
-## API Reference
-
-### Public Endpoints (No Authentication Required)
-
-#### `POST /_auth/codes`
-Send a 6-digit verification code to email or phone.
+Check if account exists.
 
 **Request:**
 ```typescript
 {
-  target: string;           // Email or phone number in E.164
+  email?: string;
+  phone?: string;  // E.164 format
+}
+```
+
+**Response:**
+```typescript
+{
+  exists: boolean;
+  identifier: string;
+  identifierType: 'email' | 'phone';
+}
+```
+
+---
+
+#### `POST /_auth/codes`
+
+Send verification code.
+
+**Request:**
+```typescript
+{
+  target: string;           // Email or phone
   targetType: 'email' | 'phone';
   purpose: 'registration' | 'login' | 'password_reset';
 }
@@ -771,14 +582,15 @@ Send a 6-digit verification code to email or phone.
 ```typescript
 {
   success: boolean;
-  expiresAt: string;        // ISO 8601 timestamp
+  expiresAt: string;        // ISO 8601
 }
 ```
 
 ---
 
 #### `POST /_auth/codes/verify`
-Verify the 6-digit code and receive a temporary token (15min validity).
+
+Verify OTP code.
 
 **Request:**
 ```typescript
@@ -794,49 +606,28 @@ Verify the 6-digit code and receive a temporary token (15min validity).
 ```typescript
 {
   valid: boolean;
-  verificationToken?: string;  // Use for registration/password reset
-}
-```
-
----
-
-#### `POST /_auth/exists`
-Check if an account with given email/phone already exists.
-
-**Request:**
-```typescript
-{
-  email?: string;           // Email address
-  phone?: string;           // E.164 format (e.g., +821012345678)
-}
-```
-
-**Response:**
-```typescript
-{
-  exists: boolean;
-  identifier: string;       // The checked value
-  identifierType: 'email' | 'phone';
+  verificationToken?: string;  // 15min JWT for registration
 }
 ```
 
 ---
 
 #### `POST /_auth/register`
-Register a new user account.
+
+Register new user.
 
 **Request:**
 ```typescript
 {
-  email?: string;           // One of email or phone required
-  phone?: string;           // E.164 format
+  email?: string;
+  phone?: string;
   verificationToken: string;  // From /codes/verify
-  password: string;         // Minimum 8 characters
-  publicKey: string;        // Base64 DER (SPKI format)
-  keyId: string;            // UUID v4
-  fingerprint: string;      // SHA-256 hex (64 chars)
+  password: string;           // Min 8 chars
+  publicKey: string;          // Base64 DER (SPKI)
+  keyId: string;              // UUID v4
+  fingerprint: string;        // SHA-256 hex (64 chars)
   algorithm: 'ES256' | 'RS256';
-  keySize?: number;         // Optional, for logging
+  keySize?: number;
 }
 ```
 
@@ -852,18 +643,19 @@ Register a new user account.
 ---
 
 #### `POST /_auth/login`
-Authenticate user and register new public key.
+
+User login.
 
 **Request:**
 ```typescript
 {
-  email?: string;           // One of email or phone required
+  email?: string;
   phone?: string;
   password: string;
-  publicKey: string;        // New key for this session
-  keyId: string;            // UUID v4
-  fingerprint: string;      // SHA-256 hex
-  oldKeyId?: string;        // Previous key to revoke
+  publicKey: string;          // New key for session
+  keyId: string;
+  fingerprint: string;
+  oldKeyId?: string;          // Revoke previous key
   algorithm: 'ES256' | 'RS256';
   keySize?: number;
 }
@@ -875,16 +667,24 @@ Authenticate user and register new public key.
   userId: string;
   email?: string;
   phone?: string;
-  passwordChangeRequired: boolean;  // If true, must change password
+  passwordChangeRequired: boolean;
 }
 ```
 
 ---
 
-### Authenticated Endpoints (Require JWT + X-Key-Id Headers)
+### Authenticated Routes (Require JWT)
+
+**Authentication:**
+- Header: `Authorization: Bearer <jwt>`
+- JWT payload must contain: `{ userId, keyId }`
+- Server extracts `keyId` from JWT, fetches public key, verifies signature
+
+---
 
 #### `POST /_auth/logout`
-Revoke current key and logout.
+
+Logout and revoke current key.
 
 **Request:**
 ```typescript
@@ -901,14 +701,15 @@ Revoke current key and logout.
 ---
 
 #### `POST /_auth/keys/rotate`
-Replace current key with a new one (before 90-day expiry).
+
+Rotate public key before expiry (90 days).
 
 **Request:**
 ```typescript
 {
-  publicKey: string;        // New public key
-  keyId: string;            // New UUID v4
-  fingerprint: string;      // New fingerprint
+  publicKey: string;          // New public key
+  keyId: string;              // New UUID
+  fingerprint: string;
   algorithm: 'ES256' | 'RS256';
   keySize?: number;
 }
@@ -918,20 +719,21 @@ Replace current key with a new one (before 90-day expiry).
 ```typescript
 {
   success: boolean;
-  keyId: string;            // New key ID
+  keyId: string;
 }
 ```
 
 ---
 
 #### `PUT /_auth/password`
-Change user password (requires current password).
+
+Change password.
 
 **Request:**
 ```typescript
 {
   currentPassword: string;
-  newPassword: string;      // Minimum 8 characters
+  newPassword: string;        // Min 8 chars
 }
 ```
 
@@ -946,239 +748,278 @@ Change user password (requires current password).
 
 ## Database Schema
 
-### Table: `users`
+### Core Tables
+
+#### `users`
 
 Main user identity table.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | bigserial | Primary key |
-| `email` | text | Email address (unique, nullable) |
-| `phone` | text | Phone in E.164 format (unique, nullable) |
-| `passwordHash` | text | bcrypt hash ($2b$10$..., 60 chars) |
-| `passwordChangeRequired` | boolean | Force password change on next login |
-| `roleId` | bigint | Foreign key to roles.id |
-| `status` | enum | `active`, `inactive`, `suspended` |
-| `emailVerifiedAt` | timestamp | Email verification time |
-| `phoneVerifiedAt` | timestamp | Phone verification time |
-| `lastLoginAt` | timestamp | Last successful login |
-| `createdAt` | timestamp | Account creation time |
-| `updatedAt` | timestamp | Last update time |
+```sql
+CREATE TABLE users (
+  id BIGSERIAL PRIMARY KEY,
+  email TEXT UNIQUE,
+  phone TEXT UNIQUE,
+  password_hash TEXT NOT NULL,
+  password_change_required BOOLEAN DEFAULT false,
+  role_id BIGINT REFERENCES roles(id) NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('active', 'inactive', 'suspended')),
+  email_verified_at TIMESTAMP,
+  phone_verified_at TIMESTAMP,
+  last_login_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
 
-**Constraints:**
-- At least one of `email` OR `phone` must be provided
-- Email and phone are unique when not null
-- `roleId` references roles.id (NOT NULL)
+  CONSTRAINT users_identifier_check CHECK (
+    (email IS NOT NULL) OR (phone IS NOT NULL)
+  )
+);
+```
+
+**Key Points:**
+- At least one of `email` OR `phone` required
+- `passwordHash` is bcrypt ($2b$10$..., 60 chars)
+- `roleId` references roles table (NOT NULL)
 
 ---
 
-### Table: `user_public_keys`
+#### `user_public_keys`
 
 Stores client public keys for JWT verification.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | bigserial | Primary key |
-| `userId` | bigint | Foreign key to users.id |
-| `keyId` | text | Client-generated UUID (unique) |
-| `publicKey` | text | Base64 DER encoded (SPKI) |
-| `algorithm` | enum | `ES256`, `RS256` |
-| `fingerprint` | text | SHA-256 hex (64 chars) |
-| `isActive` | boolean | Key status (true = active) |
-| `createdAt` | timestamp | Key creation time |
-| `lastUsedAt` | timestamp | Last authentication time |
-| `expiresAt` | timestamp | Expiry time (90 days default) |
-| `revokedAt` | timestamp | Revocation time |
-| `revokedReason` | text | Revocation reason |
+```sql
+CREATE TABLE user_public_keys (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  key_id TEXT UNIQUE NOT NULL,
+  public_key TEXT NOT NULL,
+  algorithm TEXT NOT NULL CHECK (algorithm IN ('ES256', 'RS256')),
+  fingerprint TEXT NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  last_used_at TIMESTAMP,
+  expires_at TIMESTAMP NOT NULL,
+  revoked_at TIMESTAMP,
+  revoked_reason TEXT
+);
 
-**Indexes:**
-- `userId`, `keyId`, `isActive`, `fingerprint`
+CREATE INDEX idx_user_public_keys_user_id ON user_public_keys(user_id);
+CREATE INDEX idx_user_public_keys_key_id ON user_public_keys(key_id);
+CREATE INDEX idx_user_public_keys_is_active ON user_public_keys(is_active);
+```
 
----
-
-### Table: `verification_codes`
-
-Stores OTP codes for email/SMS verification.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | bigserial | Primary key |
-| `target` | text | Email or phone number |
-| `targetType` | enum | `email`, `phone` |
-| `code` | text | 6-digit code |
-| `purpose` | enum | `registration`, `login`, `password_reset`, etc. |
-| `expiresAt` | timestamp | Code expiry (5-10 minutes) |
-| `usedAt` | timestamp | Time code was used |
-| `createdAt` | timestamp | Code creation time |
+**Key Points:**
+- `keyId` is client-generated UUID v4
+- `fingerprint` is SHA-256(publicKey) for verification
+- `expiresAt` defaults to 90 days from creation
+- `isActive` determines if key can be used
 
 ---
 
-### Table: `user_social_accounts`
+#### `verification_codes`
 
-OAuth provider accounts (future feature).
+OTP codes for email/SMS verification.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | bigserial | Primary key |
-| `userId` | bigint | Foreign key to users.id |
-| `provider` | text | OAuth provider (google, github, etc.) |
-| `providerId` | text | Provider's user ID |
-| `accessToken` | text | OAuth access token |
-| `refreshToken` | text | OAuth refresh token |
-| `expiresAt` | timestamp | Token expiry |
-| `createdAt` | timestamp | Account link time |
+```sql
+CREATE TABLE verification_codes (
+  id BIGSERIAL PRIMARY KEY,
+  target TEXT NOT NULL,
+  target_type TEXT NOT NULL CHECK (target_type IN ('email', 'phone')),
+  code TEXT NOT NULL,
+  purpose TEXT NOT NULL CHECK (purpose IN ('registration', 'login', 'password_reset')),
+  expires_at TIMESTAMP NOT NULL,
+  used_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_verification_codes_target ON verification_codes(target);
+```
+
+**Key Points:**
+- 6-digit numeric code
+- Expires in 5-10 minutes (configurable)
+- Single-use (marked via `usedAt`)
 
 ---
 
-### Table: `roles`
+### RBAC Tables
 
-Role definitions for RBAC system.
+#### `roles`
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | bigserial | Primary key |
-| `name` | text | Role name (unique, e.g., 'admin', 'user') |
-| `displayName` | text | Human-readable name |
-| `description` | text | Role description |
-| `isBuiltin` | boolean | Cannot be deleted (user, admin, superadmin) |
-| `isSystem` | boolean | System role (cannot be deleted) |
-| `isActive` | boolean | Role status |
-| `priority` | integer | Role hierarchy (higher = more privileged) |
-| `createdAt` | timestamp | Creation time |
-| `updatedAt` | timestamp | Last update time |
+```sql
+CREATE TABLE roles (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  display_name TEXT NOT NULL,
+  description TEXT,
+  is_builtin BOOLEAN DEFAULT false,
+  is_system BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  priority INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
 
-**Built-in roles:**
+**Built-in Roles:**
 - `user` (priority 10) - Default role
-- `admin` (priority 80) - Admin role
-- `superadmin` (priority 100) - Super admin
+- `admin` (priority 80)
+- `superadmin` (priority 100)
 
 ---
 
-### Table: `permissions`
+#### `permissions`
 
-Permission definitions for RBAC system.
+```sql
+CREATE TABLE permissions (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  display_name TEXT NOT NULL,
+  description TEXT,
+  category TEXT,
+  is_builtin BOOLEAN DEFAULT false,
+  is_system BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | bigserial | Primary key |
-| `name` | text | Permission name (unique, e.g., 'user:delete') |
-| `displayName` | text | Human-readable name |
-| `description` | text | Permission description |
-| `category` | text | Permission category (e.g., 'user', 'content') |
-| `isBuiltin` | boolean | Built-in permission |
-| `isSystem` | boolean | System permission |
-| `isActive` | boolean | Permission status |
-| `createdAt` | timestamp | Creation time |
-| `updatedAt` | timestamp | Last update time |
-
-**Built-in permissions:**
-- `auth:self:manage` - Self auth management
-- `user:read`, `user:write`, `user:delete` - User management
-- `rbac:role:manage`, `rbac:permission:manage` - RBAC management
-
----
-
-### Table: `role_permissions`
-
-Maps roles to permissions (many-to-many).
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | bigserial | Primary key |
-| `roleId` | bigint | Foreign key to roles.id |
-| `permissionId` | bigint | Foreign key to permissions.id |
-| `createdAt` | timestamp | Creation time |
-| `updatedAt` | timestamp | Last update time |
-
-**Constraints:**
-- `UNIQUE(roleId, permissionId)`
-- `ON DELETE CASCADE` for both foreign keys
+**Built-in Permissions:**
+- `auth:self:manage`
+- `user:read`, `user:write`, `user:delete`
+- `rbac:role:manage`, `rbac:permission:manage`
 
 ---
 
-### Table: `user_permissions`
+#### `role_permissions`
+
+Many-to-many mapping between roles and permissions.
+
+```sql
+CREATE TABLE role_permissions (
+  id BIGSERIAL PRIMARY KEY,
+  role_id BIGINT REFERENCES roles(id) ON DELETE CASCADE,
+  permission_id BIGINT REFERENCES permissions(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+
+  UNIQUE(role_id, permission_id)
+);
+```
+
+---
+
+#### `user_permissions`
 
 User-specific permission overrides.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | bigserial | Primary key |
-| `userId` | bigint | Foreign key to users.id |
-| `permissionId` | bigint | Foreign key to permissions.id |
-| `granted` | boolean | true = grant, false = revoke |
-| `reason` | text | Reason for override |
-| `expiresAt` | timestamp | Optional expiration time |
-| `createdAt` | timestamp | Creation time |
-| `updatedAt` | timestamp | Last update time |
+```sql
+CREATE TABLE user_permissions (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  permission_id BIGINT REFERENCES permissions(id) ON DELETE CASCADE,
+  granted BOOLEAN NOT NULL,
+  reason TEXT,
+  expires_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
 
-**Constraints:**
-- `UNIQUE(userId, permissionId)`
-- `ON DELETE CASCADE` for both foreign keys
+  UNIQUE(user_id, permission_id)
+);
+```
 
-**Use cases:**
-- Temporary admin access (with `expiresAt`)
-- Revoke specific permission (even if role has it)
+**Use Cases:**
+- `granted: true` - Grant permission temporarily
+- `granted: false` - Revoke permission (even if role has it)
+- `expiresAt` - Temporary access with expiration
 
 ---
 
-## Role-Based Access Control (RBAC)
+### Supporting Tables
 
-The `@spfn/auth` package provides a flexible, extensible RBAC system that combines **code-defined system roles** with **runtime-created custom roles** and **granular permissions**.
+#### `invitations`
 
-### Built-in Roles
+User invitation system.
 
-These roles are automatically created and cannot be deleted:
+```sql
+CREATE TABLE invitations (
+  id BIGSERIAL PRIMARY KEY,
+  email TEXT NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  role_id BIGINT REFERENCES roles(id),
+  invited_by BIGINT REFERENCES users(id),
+  status TEXT CHECK (status IN ('pending', 'accepted', 'cancelled', 'expired')),
+  expires_at TIMESTAMP NOT NULL,
+  accepted_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
 
-| Role | Priority | Built-in Permissions |
-|------|----------|---------------------|
-| `superadmin` | 100 | Full system access + RBAC management |
-| `admin` | 80 | User management |
-| `user` | 10 | Self auth management (default) |
+---
 
-### Built-in Permissions
+#### `user_profiles`
 
-Required permissions for auth package functionality:
+Extended user profile information.
 
-- `auth:self:manage` - Change own password, rotate keys
-- `user:read` - View user information
-- `user:write` - Create and update users
-- `user:delete` - Delete users
-- `rbac:role:manage` - Create, update, delete roles
-- `rbac:permission:manage` - Assign permissions
+```sql
+CREATE TABLE user_profiles (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+  first_name TEXT,
+  last_name TEXT,
+  display_name TEXT,
+  avatar_url TEXT,
+  bio TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+#### `user_social_accounts`
+
+OAuth provider accounts (future feature).
+
+```sql
+CREATE TABLE user_social_accounts (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  provider_id TEXT NOT NULL,
+  access_token TEXT,
+  refresh_token TEXT,
+  expires_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+
+  UNIQUE(provider, provider_id)
+);
+```
+
+---
+
+## RBAC System
 
 ### Initialization
-
-#### Minimal Setup (Built-in Only)
 
 ```typescript
 import { initializeAuth } from '@spfn/auth/server';
 
-// Only built-in roles: user, admin, superadmin
+// Minimal setup (built-in roles only)
 await initializeAuth();
-```
 
-#### With Presets
-
-```typescript
+// With presets
 await initializeAuth({
-  usePresets: true,  // Adds: moderator, editor, viewer + content permissions
+  usePresets: true,  // Adds moderator, editor, viewer roles
 });
-```
 
-#### Custom Roles & Permissions
-
-```typescript
+// Custom roles and permissions
 await initializeAuth({
   roles: [
     {
       name: 'content-creator',
       displayName: 'Content Creator',
       priority: 20,
-    },
-    {
-      name: 'subscriber',
-      displayName: 'Subscriber',
-      priority: 15,
     },
   ],
   permissions: [
@@ -1187,34 +1028,35 @@ await initializeAuth({
       displayName: 'Create Posts',
       category: 'content',
     },
-    {
-      name: 'post:publish',
-      displayName: 'Publish Posts',
-      category: 'content',
-    },
-    {
-      name: 'video:upload',
-      displayName: 'Upload Videos',
-      category: 'media',
-    },
   ],
   rolePermissions: {
-    // Extend built-in admin role
-    admin: ['post:create', 'post:publish', 'video:upload'],
-
-    // Custom role permissions
-    'content-creator': ['post:create', 'post:publish', 'video:upload'],
-    subscriber: ['post:create'],
+    'content-creator': ['post:create'],
   },
 });
 ```
 
-### Permission Middleware
+---
+
+### Built-in System
+
+**Roles:**
+- `superadmin` (priority 100) - Full access
+- `admin` (priority 80) - User management
+- `user` (priority 10) - Self management
+
+**Permissions:**
+- `auth:self:manage` - Change password, rotate keys
+- `user:read`, `user:write`, `user:delete`
+- `rbac:role:manage`, `rbac:permission:manage`
+
+---
+
+### Middleware Usage
 
 ```typescript
 import { authenticate, requirePermissions, requireRole } from '@spfn/auth/server';
 
-// Require specific permission
+// Single permission
 app.bind(
   deleteUserContract,
   [authenticate, requirePermissions('user:delete')],
@@ -1223,7 +1065,7 @@ app.bind(
   }
 );
 
-// Require multiple permissions (all)
+// Multiple permissions (all required)
 app.bind(
   publishPostContract,
   [authenticate, requirePermissions('post:write', 'post:publish')],
@@ -1232,490 +1074,320 @@ app.bind(
   }
 );
 
-// Require role
+// Role-based
 app.bind(
   adminDashboardContract,
   [authenticate, requireRole('admin', 'superadmin')],
   async (c) => {
-    // Only admin or superadmin
-  }
-);
-
-// Require any of these permissions
-import { requireAnyPermission } from '@spfn/auth/server';
-
-app.bind(
-  viewContentContract,
-  [authenticate, requireAnyPermission('content:read', 'admin:access')],
-  async (c) => {
-    // Has either permission
+    // Admin or superadmin only
   }
 );
 ```
 
-### Permission Checking in Code
+---
+
+### Programmatic Checks
 
 ```typescript
 import { hasPermission, hasRole, getUserPermissions } from '@spfn/auth/server';
 
-app.bind(createPostContract, [authenticate], async (c) => {
-  const { userId } = getAuth(c);
+const canPublish = await hasPermission(userId, 'post:publish');
+const isAdmin = await hasRole(userId, 'admin');
+const permissions = await getUserPermissions(userId);
 
-  // Check single permission
-  const canPublish = await hasPermission(userId, 'post:publish');
-
-  // Check role
-  const isAdmin = await hasRole(userId, 'admin');
-
-  // Get all permissions
-  const perms = await getUserPermissions(userId);
-
-  // Conditional logic
-  const post = await createPost({
-    ...body,
-    status: canPublish ? 'published' : 'draft',
-  });
-
-  return c.success(post);
-});
+if (canPublish)
+{
+  // Allow publish
+}
 ```
+
+---
 
 ### Runtime Role Management
 
 ```typescript
 import { createRole, addPermissionToRole } from '@spfn/auth/server';
 
-// Create custom role at runtime
+// Create role
 const role = await createRole({
   name: 'moderator',
-  displayName: 'Community Moderator',
-  description: 'Manages community content',
+  displayName: 'Moderator',
   priority: 40,
-  permissionIds: [1n, 2n, 3n],  // Permission IDs
+  permissionIds: [1n, 2n],
 });
 
-// Add permission to role
+// Add permission
 await addPermissionToRole(role.id, 5n);
 
-// Update role
-await updateRole(role.id, {
-  displayName: 'Senior Moderator',
-  priority: 45,
-});
-
-// Delete role (system roles protected)
+// Delete (system roles protected)
 await deleteRole(role.id);
 ```
 
-### Preset Roles & Permissions
-
-Available presets (opt-in):
-
-**Roles:**
-- `moderator` (priority 50) - Content moderation
-- `editor` (priority 30) - Content creation
-- `viewer` (priority 5) - Read-only access
-
-**Permissions:**
-- `content:read`, `content:write`, `content:delete`, `content:publish`
-- `comment:moderate`
-- `system:config`
-- `analytics:view`
-
-Use individually:
-
-```typescript
-import { PRESET_ROLES, PRESET_PERMISSIONS } from '@spfn/auth/server';
-
-await initializeAuth({
-  presetRoles: ['MODERATOR', 'EDITOR'],
-  presetPermissions: ['CONTENT_READ', 'CONTENT_WRITE', 'CONTENT_PUBLISH'],
-  rolePermissions: {
-    moderator: ['content:read', 'content:write', 'comment:moderate'],
-    editor: ['content:read', 'content:write', 'content:publish'],
-  },
-});
-```
-
-### User-Specific Permissions
-
-Grant or revoke permissions for individual users:
-
-```typescript
-import { userPermissions } from '@spfn/auth';
-import { getDatabase } from '@spfn/core/db';
-
-const db = getDatabase()!;
-
-// Grant temporary permission
-await db.insert(userPermissions).values({
-  userId: 123n,
-  permissionId: 5n,
-  granted: true,
-  reason: 'Temporary admin access for migration',
-  expiresAt: new Date('2025-12-31'),
-});
-
-// Revoke permission (even if role has it)
-await db.insert(userPermissions).values({
-  userId: 456n,
-  permissionId: 3n,
-  granted: false,
-  reason: 'Security violation',
-});
-```
-
-### Account Status
-
-| Status | Description | Login Allowed |
-|--------|-------------|---------------|
-| `active` | Normal operation | Yes |
-| `inactive` | User deactivated account | No |
-| `suspended` | Locked due to security/ToS violation | No |
-
 ---
 
-## Security
+## Next.js Adapter
 
-### Key Management Best Practices
+### Session Management
 
-1. **Store Private Keys Securely**
-   - Use `sessionStorage` for session-only keys
-   - Use `localStorage` for persistent keys
-   - Never send private keys to server
-   - Never expose in logs or error messages
+The Next.js adapter provides encrypted HttpOnly cookie-based sessions.
 
-2. **Rotate Keys Before Expiry**
-   - Keys expire after 90 days
-   - Rotate keys when `daysRemaining <= 7`
-   - Use `POST /_auth/keys/rotate` endpoint
+**Configuration:**
+```bash
+# .env
+SPFN_AUTH_SESSION_SECRET=your-32-char-secret
+SPFN_AUTH_SESSION_TTL=7d  # Optional, default 7d
+```
 
+**Session Data:**
 ```typescript
-import { shouldRotateKey } from '@spfn/auth/client';
-
-const createdAt = new Date(localStorage.getItem('auth.keyCreatedAt'));
-const { shouldRotate, daysRemaining } = shouldRotateKey(createdAt, 90);
-
-if (shouldRotate) {
-  console.warn(`Key expires in ${daysRemaining} days - rotate soon!`);
-  // Call rotation endpoint...
+interface SessionData {
+  userId: string;
+  privateKey: string;    // Encrypted in cookie
+  keyId: string;
+  algorithm: 'ES256' | 'RS256';
 }
 ```
 
-3. **Fingerprint Verification**
-   - Always send fingerprint with public key
-   - Server validates fingerprint = SHA-256(publicKey)
-   - Prevents key tampering during transmission
-
-4. **Token Expiry**
-   - JWT tokens expire after 15 minutes by default
-   - Use short expiry for sensitive operations
-   - Generate new token for each request or cache for <15min
-
-5. **Environment Variables**
-
-```bash
-# .env
-SPFN_AUTH_JWT_SECRET=your-secret-key-change-in-production  # For legacy tokens
-SPFN_AUTH_JWT_EXPIRES_IN=7d                                 # Token expiry
-```
-
 ---
 
-## Setup
-
-### 1. Run Database Migrations
-
-```bash
-npx spfn db migrate
-```
-
-This creates the auth schema with 8 tables:
-
-**Core Tables:**
-- `users` - User accounts and profiles
-- `user_public_keys` - Client public keys for JWT
-- `verification_codes` - OTP verification codes
-- `user_social_accounts` - OAuth provider accounts
-
-**RBAC Tables:**
-- `roles` - System and custom roles
-- `permissions` - System and custom permissions
-- `role_permissions` - Role-permission mappings
-- `user_permissions` - User-specific permission overrides
-
-### 2. Configure Environment Variables
-
-#### Core Settings (Required)
-
-```bash
-# .env
-
-# ========================================
-# Core Authentication Settings (Required)
-# ========================================
-
-# JWT Token Settings
-SPFN_AUTH_JWT_SECRET=your-secret-key-change-in-production  # JWT signing secret (REQUIRED)
-SPFN_AUTH_JWT_EXPIRES_IN=7d                                 # JWT token expiry (default: 7d)
-
-# Verification Token Settings
-SPFN_AUTH_VERIFICATION_TOKEN_SECRET=separate-secret-key     # Optional: separate secret for verification tokens
-                                                            # If not set, uses SPFN_AUTH_JWT_SECRET
-
-# Password Hashing
-SPFN_AUTH_BCRYPT_SALT_ROUNDS=10                            # bcrypt salt rounds (default: 10)
-                                                            # Higher = more secure but slower (10-12 recommended)
-
-# ========================================
-# Client-Side Settings (Optional)
-# ========================================
-
-# Session Management (for client-side session encryption)
-SPFN_AUTH_SESSION_SECRET=session-encryption-key             # Required if using client-side session features
-
-# API URL Configuration (for client-side API calls)
-SPFN_API_URL=http://localhost:8790                         # SPFN API server URL
-NEXT_PUBLIC_API_URL=http://localhost:8790                   # Next.js public API URL (takes precedence)
-
-# Environment
-NODE_ENV=production                               # production | development
-```
-
-#### Admin Account Creation (Optional)
-
-See [Section 3: Create Initial Admin Accounts](#3-create-initial-admin-accounts-optional) below for details.
-
-d---
-
-### Legacy Environment Variables (Backward Compatibility)
-
-For backward compatibility, the package also supports legacy environment variable names without the `SPFN_AUTH_` prefix. The new prefixed versions take precedence:
-
-```bash
-# Legacy (still supported, but deprecated)
-JWT_SECRET=...
-JWT_EXPIRES_IN=...
-VERIFICATION_TOKEN_SECRET=...
-BCRYPT_SALT_ROUNDS=...
-SESSION_SECRET=...
-
-ADMIN_ACCOUNTS=...
-ADMIN_EMAILS=...
-ADMIN_PASSWORDS=...
-ADMIN_ROLES=...
-ADMIN_EMAIL=...
-ADMIN_PASSWORD=...
-```
-
-**Recommendation:** Use the new `SPFN_AUTH_*` prefixed variables to avoid conflicts with other packages.
-
-### 3. Create Initial Admin Accounts (Optional)
-
-You can automatically create admin accounts on server startup using environment variables. Three formats are supported:
-
-#### Option 1: JSON Format (Most Flexible)
-
-Allows full control over each account's configuration.
-
-```bash
-# .env
-SPFN_AUTH_ADMIN_ACCOUNTS='[
-  {
-    "email": "super@example.com",
-    "password": "super-password",
-    "role": "superadmin",
-    "phone": "+821012345678",
-    "passwordChangeRequired": true
-  },
-  {
-    "email": "admin@example.com",
-    "password": "admin-password",
-    "role": "admin"
-  },
-  {
-    "email": "user@example.com",
-    "password": "user-password",
-    "role": "user",
-    "passwordChangeRequired": false
-  }
-]'
-```
-
-**JSON Fields:**
-- `email` (required): Email address
-- `password` (required): Initial password
-- `role` (optional): `superadmin`, `admin`, or `user` (default: `user`)
-- `phone` (optional): Phone number in E.164 format
-- `passwordChangeRequired` (optional): Force password change on first login (default: `true`)
-
----
-
-#### Option 2: Comma-Separated Format (Simple)
-
-Quick setup for multiple accounts with basic configuration.
-
-```bash
-# .env
-SPFN_AUTH_ADMIN_EMAILS=super@example.com,admin@example.com,user@example.com
-SPFN_AUTH_ADMIN_PASSWORDS=super-pass,admin-pass,user-pass
-SPFN_AUTH_ADMIN_ROLES=superadmin,admin,user  # Optional, defaults to 'user'
-```
-
-**Requirements:**
-- `SPFN_AUTH_ADMIN_EMAILS` and `SPFN_AUTH_ADMIN_PASSWORDS` must have the same number of items
-- `SPFN_AUTH_ADMIN_ROLES` is optional (defaults to `user` for each account)
-- All accounts will have `passwordChangeRequired: true`
-
----
-
-#### Option 3: Single Account (Legacy)
-
-For backward compatibility, you can create a single superadmin account.
-
-```bash
-# .env
-SPFN_AUTH_ADMIN_EMAIL=admin@example.com
-SPFN_AUTH_ADMIN_PASSWORD=secure-password
-```
-
-This creates a single account with:
-- `role: 'superadmin'`
-- `passwordChangeRequired: true`
-
----
-
-#### Usage in Server Code
-
-Call `ensureAdminExists()` in your server startup code:
+### Server Component Guards
 
 ```typescript
-// src/server/index.ts or app initialization
-import { ensureAdminExists } from '@spfn/auth/server';
+// app/admin/page.tsx
+import { RequireAuth, RequireRole } from '@spfn/auth/nextjs/server';
 
-// Call during server startup
-await ensureAdminExists();
+export default async function AdminPage()
+{
+  return (
+    <RequireAuth redirectTo="/login">
+      <RequireRole roles={['admin', 'superadmin']} redirectTo="/forbidden">
+        <div>Admin Dashboard</div>
+      </RequireRole>
+    </RequireAuth>
+  );
+}
 ```
-
-**Output Example:**
-```
-[Auth] Creating 3 admin account(s)...
-[Auth] ✅ Admin account created: super@example.com (superadmin)
-[Auth] ✅ Admin account created: admin@example.com (admin)
-[Auth] ⚠️  Account already exists: user@example.com (skipped)
-[Auth] 📊 Summary: 2 created, 1 skipped, 0 failed
-[Auth] ⚠️  Please change passwords on first login!
-```
-
-**Behavior:**
-- Accounts are only created if they don't already exist
-- All created accounts are auto-verified (`emailVerifiedAt` is set)
-- By default, password change is required on first login
-- If no environment variables are set, the function silently returns
 
 ---
 
-### 4. Import in Your SPFN Project
+### Interceptors (API Routes)
 
+**Setup:**
 ```typescript
-// Server-side only
-import { authenticate, getAuth, getUser } from '@spfn/auth/server';
-import { users, userPublicKeys } from '@spfn/auth'; // Entities
-
-// Client-side only
-import { generateKeyPair, generateClientToken } from '@spfn/auth/client';
-
-// Common (both sides)
-import type { User, UserRole, UserStatus } from '@spfn/auth';
+// Simply import to auto-register
+import '@spfn/auth/nextjs/api';
 ```
+
+**How It Works:**
+1. Reads `session` HttpOnly cookie
+2. Unseals session data
+3. Generates JWT signed with `privateKey`
+4. Injects `Authorization: Bearer <jwt>` header
+
+**Target Routes:**
+- `/_auth/login`, `/_auth/register` - Login/register interceptor
+- `/_auth/keys/rotate` - Key rotation interceptor
+- All other authenticated routes - General auth interceptor
 
 ---
 
 ## Testing
 
-### Run All Tests
+### Setup Test Environment
 
 ```bash
+# Start test database
+pnpm docker:test:up
+
+# Generate migrations
+pnpm db:generate
+
+# Run migrations (via @spfn/core)
+cd ../../
+pnpm spfn db migrate
+```
+
+---
+
+### Run Tests
+
+```bash
+# All tests
+pnpm test
+
+# With coverage
+pnpm test:coverage
+
+# Route tests only
+pnpm test:routes
+
+# Watch mode
+pnpm test --watch
+```
+
+---
+
+### Test Structure
+
+```
+src/
+├── __tests__/
+│   └── setup.ts              # Global test setup
+└── server/
+    ├── routes/
+    │   └── auth/
+    │       └── __tests__/
+    │           ├── login.test.ts
+    │           ├── register.test.ts
+    │           └── ...
+    └── services/
+        └── __tests__/
+            ├── auth.service.test.ts
+            └── ...
+```
+
+---
+
+### Writing Tests
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest';
+import { loginService } from '@/server/services';
+
+describe('loginService', () =>
+{
+  beforeEach(async () =>
+  {
+    // Setup test data
+  });
+
+  it('should login with valid credentials', async () =>
+  {
+    const result = await loginService({
+      email: 'test@example.com',
+      password: 'password123',
+      publicKey: '...',
+      keyId: '...',
+      fingerprint: '...',
+      algorithm: 'ES256',
+    });
+
+    expect(result.userId).toBeDefined();
+  });
+});
+```
+
+---
+
+### Test Database
+
+**docker-compose.test.yml:**
+```yaml
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: spfn_auth_test
+      POSTGRES_USER: spfn
+      POSTGRES_PASSWORD: spfn_dev_password
+    ports:
+      - "5433:5432"
+```
+
+**Test env variables:**
+```bash
+DATABASE_URL=postgresql://spfn:spfn_dev_password@localhost:5433/spfn_auth_test
+```
+
+---
+
+## Development Workflow
+
+### Initial Setup
+
+```bash
+# Install dependencies
+pnpm install
+
+# Generate migrations
+pnpm db:generate
+
+# Build package
+pnpm build
+```
+
+---
+
+### Development
+
+```bash
+# Watch mode (auto-rebuild on changes)
+pnpm dev
+
+# Type checking
+pnpm type-check
+
+# Run tests
 pnpm test
 ```
 
-### Run Tests with Coverage
+---
 
-```bash
-pnpm test:coverage
+### Build Process
+
+The package uses `tsup` for building:
+
+**tsup.config.ts:**
+```typescript
+export default defineConfig({
+  entry: {
+    index: 'src/index.ts',
+    server: 'src/server.ts',
+    client: 'src/client.ts',
+    // ... more entry points
+  },
+  format: ['esm'],
+  dts: true,
+  clean: true,
+  sourcemap: true,
+});
 ```
 
-Current coverage: **83.01%** (25 tests passing)
-
-### Run Route Tests Only
-
-```bash
-pnpm test:routes
-```
-
-### Start Test Database
-
-```bash
-pnpm docker:test:up
-```
-
-### Stop Test Database
-
-```bash
-pnpm docker:test:down
-```
+**Build outputs:**
+- `dist/index.js` + `dist/index.d.ts`
+- `dist/server.js` + `dist/server.d.ts`
+- `dist/client.js` + `dist/client.d.ts`
+- `dist/config/`, `dist/errors/`, `dist/nextjs/`
 
 ---
 
-## Package Structure
+### Database Migrations
 
+```bash
+# Generate new migration (after entity changes)
+pnpm db:generate
+
+# Apply migrations (via SPFN CLI)
+cd ../../
+pnpm spfn db migrate
+
+# View database
+pnpm spfn db studio
 ```
-@spfn/auth/
-├── dist/
-│   ├── index.js          # Common exports (types, entities)
-│   ├── server.js         # Server-only exports (routes, middleware, helpers, services)
-│   └── client.js         # Client-only exports (crypto, hooks, store)
-├── migrations/           # Drizzle database migrations
-└── src/
-    ├── index.ts          # Common entry point
-    ├── server.ts         # Server entry point
-    ├── client.ts         # Client entry point
-    ├── lib/              # Shared code
-    │   ├── api/          # API client functions
-    │   ├── contracts/    # Type-safe API contracts
-    │   └── types/        # Shared TypeScript types
-    ├── server/           # Server-only code
-    │   ├── entities/     # Drizzle ORM entities
-    │   ├── services/     # 🆕 Business logic layer (reusable functions)
-    │   │   ├── auth.service.ts
-    │   │   ├── verification.service.ts
-    │   │   ├── key.service.ts
-    │   │   ├── user.service.ts
-    │   │   └── index.ts
-    │   ├── routes/       # API route handlers (thin layer calling services)
-    │   ├── middleware/   # Authentication middleware
-    │   ├── helpers/      # JWT, password, verification utils
-    │   └── repositories/ # Database access layer
-    └── client/           # Client-only code
-        ├── lib/          # Crypto helpers (key generation, JWT signing)
-        ├── hooks/        # React hooks (TODO)
-        ├── store/        # Zustand state management (TODO)
-        └── components/   # React components (TODO)
-```
+
+**Migration files:** `migrations/*.sql`
 
 ---
 
-## SPFN Framework Integration
+### SPFN Plugin Integration
 
-This package automatically integrates with SPFN via `package.json`:
-
+**package.json:**
 ```json
 {
   "spfn": {
-    "prefix": "/_auth",
     "schemas": ["./dist/server/entities/*.js"],
     "routes": {
-      "basePath": "/auth",
+      "basePath": "/_auth",
       "dir": "./dist/server/routes"
     },
     "migrations": {
@@ -1725,52 +1397,295 @@ This package automatically integrates with SPFN via `package.json`:
 }
 ```
 
-Routes are automatically registered:
-- `/_auth/codes` → Send verification code
-- `/_auth/codes/verify` → Verify code
-- `/_auth/exists` → Check account existence
-- `/_auth/register` → Register user
-- `/_auth/login` → Login
-- `/_auth/logout` → Logout (authenticated)
-- `/_auth/keys/rotate` → Rotate key (authenticated)
-- `/_auth/password` → Change password (authenticated)
+**How it works:**
+1. SPFN CLI discovers packages with `spfn` field
+2. Auto-loads database schemas
+3. Auto-registers routes at `basePath`
+4. Includes migrations in `db migrate` command
 
 ---
 
-## Development Status
+### Code Style
 
-**Version:** 0.1.0-alpha.0 (Alpha)
+Follow the project's code style (see `/Users/launchscreen/PROJECTS/SPFN/workspaces/.claude/rules.md`):
 
-**Completed:**
-- Asymmetric JWT authentication (ES256/RS256)
-- User registration and login
-- OTP verification flow (email/SMS)
-- Session management with key rotation
-- Password change functionality
-- RBAC roles and account status
-- Comprehensive test coverage (83%)
+- **Brace placement:** Next line (Allman-style)
+- **Indentation:** 4 spaces
+- **Semicolons:** Always
+- **Type assertions:** Use `as`, not `<>`
 
-**In Progress:**
-- Client-side React hooks (useAuth, useSession)
-- Client-side Zustand store
-- React UI components (LoginForm, RegisterForm)
+**Example:**
+```typescript
+export async function myFunction(): Promise<void>
+{
+    if (condition)
+    {
+        await operation();
+    }
+    else
+    {
+        handleError();
+    }
+}
+```
 
-**Roadmap:**
-- OAuth provider integration (Google, GitHub)
-- Two-factor authentication (2FA)
-- Password reset flow
-- Email change flow
-- Phone change flow
-- Admin management APIs
+---
+
+### Environment Variables
+
+**Server-side:**
+```bash
+# Required
+SPFN_AUTH_JWT_SECRET=your-secret-key
+DATABASE_URL=postgresql://...
+
+# Optional
+SPFN_AUTH_JWT_EXPIRES_IN=7d
+SPFN_AUTH_BCRYPT_SALT_ROUNDS=10
+SPFN_AUTH_VERIFICATION_TOKEN_SECRET=separate-secret
+```
+
+**Next.js adapter:**
+```bash
+# Required
+SPFN_AUTH_SESSION_SECRET=your-32-char-secret
+
+# Optional
+SPFN_AUTH_SESSION_TTL=7d
+SPFN_API_URL=http://localhost:8790
+```
+
+---
+
+### Debugging
+
+**Enable logging:**
+```typescript
+import { serverLogger } from '@/server/logger';
+
+serverLogger.info('Debug message', { context });
+serverLogger.error('Error occurred', error);
+```
+
+**Inspect database:**
+```bash
+pnpm spfn db studio
+```
+
+**Check migrations:**
+```bash
+ls migrations/
+```
+
+---
+
+## Known Issues
+
+### 1. Client Crypto Functions Missing
+
+**Issue:** README documents `generateKeyPair` and `generateClientToken` in `@spfn/auth/client`, but they only exist in `@spfn/auth/server`.
+
+**Workaround:** Use server-side crypto functions or implement client-side crypto separately.
+
+**Status:** Needs design decision - keep server-only or implement browser-compatible version.
+
+---
+
+### 2. Next.js Proxy Route Not Implemented
+
+**Issue:** Documentation mentions `@spfn/auth/nextjs/proxy` for client-side API proxying, but it doesn't exist.
+
+**Status:** Feature planned but not implemented. Current alternative: use server-side `createAuthInterceptor`.
+
+---
+
+### 3. High-Level `authApi` Not Available
+
+**Issue:** Documentation shows `authApi.register()`, `authApi.login()`, etc., but these wrappers don't exist.
+
+**Workaround:** Use service functions directly or call HTTP routes.
+
+**Status:** Needs implementation or documentation removal.
+
+---
+
+### 4. `lib/api` Client Functions Removed
+
+**Issue:** Old `src/lib/api/` directory was deleted during refactoring.
+
+**Status:** Intentional removal. Use services or HTTP routes directly.
+
+---
+
+### 5. Test Coverage Below Target
+
+**Current:** ~83%
+**Target:** 90%+
+
+**Areas needing tests:**
+- Invitation service edge cases
+- RBAC permission checks
+- Key rotation scenarios
+- Session expiry handling
+
+---
+
+## Roadmap
+
+### Short-term (Alpha → Beta)
+
+- [ ] **Client-side crypto** - Browser-compatible key generation
+- [ ] **Next.js proxy route** - Implement or remove from docs
+- [ ] **High-level authApi** - Simplified Next.js auth functions
+- [ ] **Test coverage** - Reach 90%+ coverage
+- [ ] **Documentation** - Sync docs with actual code
+
+---
+
+### Mid-term (Beta → v1.0)
+
+- [ ] **React hooks** - useAuth, useSession, usePermissions
+- [ ] **UI components** - LoginForm, RegisterForm, AuthProvider
+- [ ] **OAuth integration** - Google, GitHub, etc.
+- [ ] **2FA support** - TOTP/authenticator apps
+- [ ] **Password reset flow** - Complete email-based reset
+- [ ] **Email change flow** - Verification for email updates
+- [ ] **Phone change flow** - SMS verification for phone updates
+
+---
+
+### Long-term (Post v1.0)
+
+- [ ] **Admin UI** - User/role/permission management dashboard
+- [ ] **Audit logging** - Track auth events
+- [ ] **Rate limiting** - Built-in protection against brute force
+- [ ] **Multi-tenancy** - Organization/workspace support
+- [ ] **SSO integration** - SAML, OIDC
+- [ ] **Biometric auth** - WebAuthn/FIDO2 support
 
 ---
 
 ## Contributing
 
-This is an internal SPFN package. Please follow the monorepo conventions when contributing.
+### Before Contributing
+
+1. Read this documentation thoroughly
+2. Check existing issues/PRs
+3. Understand the architecture
+4. Follow code style guidelines
+
+---
+
+### Pull Request Process
+
+1. **Create feature branch**
+   ```bash
+   git checkout -b feature/my-feature
+   ```
+
+2. **Make changes**
+   - Follow code style
+   - Add tests
+   - Update docs if needed
+
+3. **Run checks**
+   ```bash
+   pnpm type-check
+   pnpm test
+   pnpm build
+   ```
+
+4. **Commit with conventional commits**
+   ```bash
+   git commit -m "feat(auth): add password strength validation"
+   ```
+
+5. **Push and create PR**
+   ```bash
+   git push origin feature/my-feature
+   ```
+
+---
+
+### Commit Message Format
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+**Types:**
+- `feat` - New feature
+- `fix` - Bug fix
+- `refactor` - Code refactoring
+- `test` - Test changes
+- `docs` - Documentation
+- `chore` - Maintenance
+
+**Example:**
+```
+feat(rbac): add permission inheritance
+
+Implement hierarchical permission inheritance where child roles
+automatically inherit parent role permissions.
+
+Closes #123
+```
+
+---
+
+## Release Process
+
+### Version Naming
+
+- `0.1.0-alpha.x` - Alpha releases (current)
+- `0.1.0-beta.x` - Beta releases
+- `1.0.0` - Stable release
+
+---
+
+### Publishing
+
+```bash
+# Alpha release
+pnpm run publish:alpha
+
+# Beta release
+pnpm run publish:beta
+
+# Production release
+pnpm run publish:latest
+```
+
+**Pre-publish checklist:**
+- [ ] All tests pass
+- [ ] Type checking passes
+- [ ] Build succeeds
+- [ ] CHANGELOG updated
+- [ ] Version bumped
+- [ ] Docs updated
+
+---
+
+## Support
+
+### Internal Team
+
+- **Issues:** GitHub Issues
+- **Discussions:** GitHub Discussions
+- **Slack:** #spfn-auth channel
 
 ---
 
 ## License
 
-MIT
+MIT License - See LICENSE file for details.
+
+---
+
+**Last Updated:** 2025-01-22
+**Document Version:** 2.0.0 (Technical Documentation)
+**Package Version:** 0.1.0-alpha.88

@@ -6,7 +6,7 @@
  */
 
 import * as jose from 'jose';
-import { type KeyAlgorithmType } from "@/server/helpers";
+import { type KeyAlgorithmType } from '@/server/types';
 import { getSessionSecret } from '@/config';
 
 export interface SessionData

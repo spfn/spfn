@@ -92,16 +92,11 @@ export class UsersRepository extends BaseRepository
      */
     async create(data: NewUser)
     {
-        const result = await this.db
-            .insert(users)
-            .values({
-                ...data,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .returning();
-
-        return result[0];
+        return await this._create(users, {
+            ...data,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
     }
 
     /**
@@ -204,7 +199,7 @@ export class UsersRepository extends BaseRepository
 
         if (!userWithRole)
         {
-            throw new NotFoundError('[@spfn/auth] User or role not found');
+            throw new NotFoundError({ message: '[@spfn/auth] User or role not found' });
         }
 
         // 2. Get role permissions
@@ -263,7 +258,7 @@ export class UsersRepository extends BaseRepository
 
         if (!user)
         {
-            throw new NotFoundError('[@spfn/auth] User not found');
+            throw new NotFoundError({ message: '[@spfn/auth] User not found' });
         }
 
         return {
@@ -300,7 +295,7 @@ export class UsersRepository extends BaseRepository
 
         if (!user)
         {
-            throw new NotFoundError('[@spfn/auth] User not found');
+            throw new NotFoundError({ message: '[@spfn/auth] User not found' });
         }
 
         return {

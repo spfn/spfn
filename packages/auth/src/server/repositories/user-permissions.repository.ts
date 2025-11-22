@@ -74,16 +74,11 @@ export class UserPermissionsRepository extends BaseRepository
      */
     async create(data: NewUserPermission)
     {
-        const result = await this.db
-            .insert(userPermissions)
-            .values({
-                ...data,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .returning();
-
-        return result[0];
+        return await this._create(userPermissions, {
+            ...data,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
     }
 
     /**

@@ -12,9 +12,7 @@
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 import { getJwtSecret, getJwtExpiresIn } from '@/config';
-
-export const KEY_ALGORITHM = ['ES256', 'RS256'] as const;
-export type KeyAlgorithmType = typeof KEY_ALGORITHM[number];
+import { type KeyAlgorithmType } from '@/server/types';
 
 export interface SessionPayload
 {

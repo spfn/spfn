@@ -5,32 +5,11 @@
  * Codes expire after a configurable time period
  */
 
+import { VERIFICATION_PURPOSES, VERIFICATION_TARGET_TYPES } from "@/server/types";
 import { text, index, integer, check } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
 import { authSchema } from './schema';
-
-/**
- * Verification target type enum values
- * Single source of truth for verification target types
- */
-export const VERIFICATION_TARGET_TYPES = ['email', 'phone'] as const;
-
-/**
- * Verification target type derived from the const array
- */
-export type VerificationTargetType = typeof VERIFICATION_TARGET_TYPES[number];
-
-/**
- * Verification purpose enum values
- * Single source of truth for verification purposes
- */
-export const VERIFICATION_PURPOSES = ['registration', 'login', 'password_reset', 'email_change', 'phone_change'] as const;
-
-/**
- * Verification purpose type derived from the const array
- */
-export type VerificationPurpose = typeof VERIFICATION_PURPOSES[number];
 
 export const verificationCodes = authSchema.table('verification_codes',
     {
@@ -82,11 +61,3 @@ export const verificationCodes = authSchema.table('verification_codes',
 // Type exports
 export type VerificationCode = typeof verificationCodes.$inferSelect;
 export type NewVerificationCode = typeof verificationCodes.$inferInsert;
-
-// Helper type with computed status
-export type ActiveVerificationCode = VerificationCode & {
-    isExpired: boolean;
-    isUsed: boolean;
-    attemptsRemaining: number;
-    canRetry: boolean;
-};

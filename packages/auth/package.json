@@ -21,25 +21,25 @@
       "import": "./dist/client.js",
       "require": "./dist/client.js"
     },
-    "./lib": {
-      "types": "./dist/lib.d.ts",
-      "import": "./dist/lib.js",
-      "require": "./dist/lib.js"
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js",
+      "require": "./dist/config/index.js"
     },
-    "./adapters": {
-      "types": "./dist/adapters.d.ts",
-      "import": "./dist/adapters.js",
-      "require": "./dist/adapters.js"
+    "./errors": {
+      "types": "./dist/errors/index.d.ts",
+      "import": "./dist/errors/index.js",
+      "require": "./dist/errors/index.js"
     },
     "./nextjs/api": {
-      "types": "./dist/adapters/nextjs/api.d.ts",
-      "import": "./dist/adapters/nextjs/api.js",
-      "require": "./dist/adapters/nextjs/api.js"
+      "types": "./dist/nextjs/api.d.ts",
+      "import": "./dist/nextjs/api.js",
+      "require": "./dist/nextjs/api.js"
     },
     "./nextjs/server": {
-      "types": "./dist/adapters/nextjs/server.d.ts",
-      "import": "./dist/adapters/nextjs/server.js",
-      "require": "./dist/adapters/nextjs/server.js"
+      "types": "./dist/nextjs/server.d.ts",
+      "import": "./dist/nextjs/server.js",
+      "require": "./dist/nextjs/server.js"
     }
   },
   "files": [

@@ -96,7 +96,7 @@ export const authEnvSchema = defineEnvSchema({
             default: 10,
             required: false,
             category: 'security',
-            examples: [10, 12, 14],
+            examples: ['10', '12', '14'],
         }),
         key: 'SPFN_AUTH_BCRYPT_SALT_ROUNDS',
     },

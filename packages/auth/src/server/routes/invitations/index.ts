@@ -4,30 +4,27 @@
  * Thin route handlers for user invitation management
  */
 
-import { createApp } from '@spfn/core/route';
-import {
-    getInvitationContract,
-    acceptInvitationContract,
-    createInvitationContract,
-    listInvitationsContract,
-    cancelInvitationContract,
-    resendInvitationContract,
-    deleteInvitationContract,
-} from '@/lib/contracts';
-import { authenticate, requirePermissions, requireRole } from '@/server/middleware';
+import { EmailSchema, PasswordSchema, UUID_PATTERN } from '@/lib/contracts/schemas/base';
 import { getAuth } from '@/server/helpers';
+import { authenticate, requirePermissions, requireRole } from '@/server/middleware';
+import { KEY_ALGORITHM } from '@/server/types';
 import {
     getInvitationWithDetails,
     validateInvitation,
-    acceptInvitation,
-    createInvitation,
-    listInvitations,
-    cancelInvitation,
-    resendInvitation,
-    deleteInvitation,
-} from '@/server/services';
+    acceptInvitation as _acceptInvitation,
+    createInvitation as _createInvitation,
+    listInvitations as _listInvitations,
+    cancelInvitation as _cancelInvitation,
+    resendInvitation as _resendInvitation,
+    deleteInvitation as _deleteInvitation,
+} from "@/server/services";
+import { Type } from '@sinclair/typebox';
+import { defineRouter, route } from '@spfn/core/route';
 
-const app = createApp();
+/**
+ * Invitation status enum values
+ */
+const INVITATION_STATUSES = ['pending', 'accepted', 'expired', 'cancelled'] as const;
 
 // ==========================================
 // Public Routes (No Authentication Required)
@@ -37,55 +34,82 @@ const app = createApp();
  * GET /_auth/invitations/:token
  * Get invitation details for acceptance page
  */
-app.bind(getInvitationContract, async (c) =>
-{
-    const params = await c.data();
-    const token = params.token as string;
-
-    const validation = await validateInvitation(token);
-
-    if (!validation.valid || !validation.invitation)
+export const getInvitation = route.get('/_auth/invitations/:token')
+    .input({
+        params: Type.Object({
+            token: Type.String({
+                pattern: UUID_PATTERN,
+                description: 'Invitation token (UUID v4)'
+            }),
+        })
+    })
+    .skip(['auth'])
+    .handler(async (c) =>
     {
-        throw new Error(validation.error || 'Invalid invitation');
-    }
+        const { params } = await c.data();
+        const token = params.token;
 
-    // Get full details with role and inviter info
-    const invitation = await getInvitationWithDetails(token);
+        const validation = await validateInvitation(token);
 
-    if (!invitation)
-    {
-        throw new Error('Invitation not found');
-    }
+        if (!validation.valid || !validation.invitation)
+        {
+            throw new Error(validation.error || 'Invalid invitation');
+        }
 
-    return c.success({
-        email: invitation.email,
-        role: invitation.role.name,
-        roleDisplayName: invitation.role.displayName,
-        invitedBy: invitation.inviter.email || 'Unknown',
-        expiresAt: invitation.expiresAt.toISOString(),
-        metadata: invitation.metadata || undefined,
+        // Get full details with role and inviter info
+        const invitation = await getInvitationWithDetails(token);
+
+        if (!invitation)
+        {
+            throw new Error('Invitation not found');
+        }
+
+        return {
+            email: invitation.email,
+            role: invitation.role.name,
+            roleDisplayName: invitation.role.displayName,
+            invitedBy: invitation.inviter.email || 'Unknown',
+            expiresAt: invitation.expiresAt.toISOString(),
+            metadata: invitation.metadata || undefined,
+        };
     });
-});
 
 /**
  * POST /_auth/invitations/accept
  * Accept invitation and create user account
  */
-app.bind(acceptInvitationContract, async (c) =>
-{
-    const body = await c.data();
+export const acceptInvitation = route.post('/_auth/invitations/accept')
+    .input({
+        body: Type.Object({
+            token: Type.String({
+                pattern: UUID_PATTERN,
+                description: 'Invitation token'
+            }),
+            password: PasswordSchema,
+        })
+    })
+    .interceptor({
+        body: Type.Object({
+            publicKey: Type.String({ description: 'Client public key' }),
+            keyId: Type.String({ description: 'Key identifier' }),
+            fingerprint: Type.String({ description: 'Key fingerprint' }),
+            algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
+        })
+    })
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
 
-    const result = await acceptInvitation({
-        token: body.token,
-        password: body.password,
-        publicKey: body.publicKey,
-        keyId: body.keyId,
-        fingerprint: body.fingerprint,
-        algorithm: body.algorithm,
+        return await _acceptInvitation({
+            token: body.token,
+            password: body.password,
+            publicKey: body.publicKey,
+            keyId: body.keyId,
+            fingerprint: body.fingerprint,
+            algorithm: body.algorithm,
+        });
     });
-
-    return c.success(result);
-});
 
 // ==========================================
 // Protected Routes (Admin Only)
@@ -95,105 +119,189 @@ app.bind(acceptInvitationContract, async (c) =>
  * POST /_auth/invitations
  * Create new invitation (requires user:invite permission)
  */
-app.bind(createInvitationContract, [authenticate, requirePermissions('user:invite')], async (c) =>
-{
-    const body = await c.data();
-    const { userId } = getAuth(c);
+export const createInvitation = route.post('/_auth/invitations')
+    .input({
+        body: Type.Object({
+            email: EmailSchema,
+            roleId: Type.Number({
+                description: 'Role ID to assign'
+            }),
+            expiresInDays: Type.Optional(Type.Number({
+                minimum: 1,
+                maximum: 30,
+                description: 'Days until invitation expires (default: 7)'
+            })),
+            metadata: Type.Optional(Type.Any({
+                description: 'Custom metadata (welcome message, department, etc.)'
+            })),
+        })
+    })
+    .use([authenticate, requirePermissions('user:invite')])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const { userId } = getAuth(c);
 
-    const invitation = await createInvitation({
-        email: body.email,
-        roleId: body.roleId,
-        invitedBy: Number(userId),
-        expiresInDays: body.expiresInDays,
-        metadata: body.metadata,
+        const invitation = await _createInvitation({
+            email: body.email,
+            roleId: body.roleId,
+            invitedBy: Number(userId),
+            expiresInDays: body.expiresInDays,
+            metadata: body.metadata,
+        });
+
+        // Build invitation URL (use environment variable or default)
+        const baseUrl = process.env.SPFN_API_URL || 'http://localhost:8790';
+        const invitationUrl = `${baseUrl}/auth/invite/${invitation.token}`;
+
+        return {
+            id: invitation.id,
+            email: invitation.email,
+            token: invitation.token,
+            roleId: invitation.roleId,
+            expiresAt: invitation.expiresAt.toISOString(),
+            invitationUrl,
+        };
     });
-
-    // Build invitation URL (use environment variable or default)
-    const baseUrl = process.env.SPFN_API_URL || 'http://localhost:8790';
-    const invitationUrl = `${baseUrl}/auth/invite/${invitation.token}`;
-
-    return c.success({
-        id: invitation.id,
-        email: invitation.email,
-        token: invitation.token,
-        roleId: invitation.roleId,
-        expiresAt: invitation.expiresAt.toISOString(),
-        invitationUrl,
-    });
-});
 
 /**
  * GET /_auth/invitations
  * List invitations with filtering (requires user:read permission)
  */
-app.bind(listInvitationsContract, [authenticate, requirePermissions('user:read')], async (c) =>
-{
-    const query = await c.data();
+export const listInvitations = route.get('/_auth/invitations')
+    .input({
+        query: Type.Object({
+            status: Type.Optional(Type.Union(
+                INVITATION_STATUSES.map(s => Type.Literal(s)),
+                { description: 'Filter by status' }
+            )),
+            page: Type.Optional(Type.Number({
+                minimum: 1,
+                description: 'Page number (default: 1)'
+            })),
+            limit: Type.Optional(Type.Number({
+                minimum: 1,
+                maximum: 100,
+                description: 'Items per page (default: 20)'
+            })),
+        })
+    })
+    .use([authenticate, requirePermissions('user:read')])
+    .handler(async (c) =>
+    {
+        const { query } = await c.data();
 
-    const result = await listInvitations({
-        status: query.status as any,
-        page: query.page ? Number(query.page) : undefined,
-        limit: query.limit ? Number(query.limit) : undefined,
+        const result = await _listInvitations({
+            status: query.status as any,
+            page: query.page ? Number(query.page) : undefined,
+            limit: query.limit ? Number(query.limit) : undefined,
+        });
+
+        // Format dates to ISO strings
+        const formattedInvitations = result.invitations;
+
+        return {
+            ...result,
+            invitations: formattedInvitations,
+        };
     });
-
-    // Format dates to ISO strings
-    const formattedInvitations = result.invitations;
-
-    return c.success({
-        ...result,
-        invitations: formattedInvitations,
-    });
-});
 
 /**
  * POST /_auth/invitations/cancel
  * Cancel invitation (requires user:invite permission)
  */
-app.bind(cancelInvitationContract, [authenticate, requirePermissions('user:invite')], async (c) =>
-{
-    const data = await c.data();
-    const { userId } = getAuth(c);
+export const cancelInvitation = route.post('/_auth/invitations/cancel')
+    .input({
+        body: Type.Object({
+            id: Type.Number({
+                description: 'Invitation ID'
+            }),
+            reason: Type.Optional(Type.String({
+                description: 'Cancellation reason'
+            })),
+        })
+    })
+    .use([authenticate, requirePermissions('user:invite')])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const { userId } = getAuth(c);
 
-    await cancelInvitation(
-        data.id,
-        Number(userId),
-        data.reason
-    );
+        await _cancelInvitation(
+            body.id,
+            Number(userId),
+            body.reason
+        );
 
-    return c.success({
-        cancelledAt: new Date().toISOString(),
+        return {
+            cancelledAt: new Date().toISOString(),
+        };
     });
-});
 
 /**
  * POST /_auth/invitations/resend
  * Resend invitation email (requires user:invite permission)
  */
-app.bind(resendInvitationContract, [authenticate, requirePermissions('user:invite')], async (c) =>
-{
-    const data = await c.data();
+export const resendInvitation = route.post('/_auth/invitations/resend')
+    .input({
+        body: Type.Object({
+            id: Type.Number({
+                description: 'Invitation ID'
+            }),
+            expiresInDays: Type.Optional(Type.Number({
+                minimum: 1,
+                maximum: 30,
+                description: 'New expiration period (default: 7)'
+            })),
+        })
+    })
+    .use([authenticate, requirePermissions('user:invite')])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
 
-    const updated = await resendInvitation(
-        data.id,
-        data.expiresInDays
-    );
+        const updated = await _resendInvitation(
+            body.id,
+            body.expiresInDays
+        );
 
-    return c.success({
-        expiresAt: updated.expiresAt.toISOString(),
+        return {
+            expiresAt: updated.expiresAt.toISOString(),
+        };
     });
-});
 
 /**
  * POST /_auth/invitations/delete
  * Delete invitation permanently (requires superadmin role)
  */
-app.bind(deleteInvitationContract, [authenticate, requireRole('superadmin')], async (c) =>
-{
-    const data = await c.data();
+export const deleteInvitation = route.post('/_auth/invitations/delete')
+    .input({
+        body: Type.Object({
+            id: Type.Number({
+                description: 'Invitation ID'
+            }),
+        })
+    })
+    .use([authenticate, requireRole('superadmin')])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
 
-    await deleteInvitation(data.id);
+        await _deleteInvitation(body.id);
 
-    return c.noContent();
+        return c.noContent();
+    });
+
+// Export router
+export const invitationRouter = defineRouter({
+    getInvitation: getInvitation,
+    acceptInvitation: acceptInvitation,
+    createInvitation: createInvitation,
+    listInvitations: listInvitations,
+    cancelInvitation: cancelInvitation,
+    resendInvitation: resendInvitation,
+    deleteInvitation: deleteInvitation,
 });
 
-export default app;
+// For backward compatibility with file-based routing (temporary)
+export default invitationRouter;

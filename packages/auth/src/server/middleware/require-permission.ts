@@ -5,9 +5,12 @@
  */
 
 import type { Context, Next } from 'hono';
+import { defineMiddleware } from '@spfn/core/server';
 import { getAuth } from '@/server/helpers/context';
 import { hasAllPermissions, hasAnyPermission } from '@/server/services/permission.service';
 import { ForbiddenError } from '@spfn/core/errors';
+import { InsufficientPermissionsError } from '@/errors';
+import { authLogger } from '@/server/logger';
 
 /**
  * Require user to have all specified permissions
@@ -19,33 +22,41 @@ import { ForbiddenError } from '@spfn/core/errors';
  *
  * @example
  * ```typescript
- * app.bind(
- *   deleteUserContract,
- *   [authenticate, requirePermissions('user:delete')],
- *   async (c) => {
+ * // In route file
+ * import { authenticate, requirePermissions } from '@spfn/auth/server/middleware';
+ *
+ * export const deleteUserRoute = route.delete('/users/:id')
+ *   .use([authenticate, requirePermissions('user:delete')])
+ *   .handler(async (c) => {
  *     // Only users with user:delete permission
- *   }
- * );
+ *   });
  *
  * // Multiple permissions (all required)
- * app.bind(
- *   publishPostContract,
- *   [authenticate, requirePermissions('post:write', 'post:publish')],
- *   async (c) => {
+ * export const publishPostRoute = route.post('/posts/publish')
+ *   .use([authenticate, requirePermissions('post:write', 'post:publish')])
+ *   .handler(async (c) => {
  *     // Needs both permissions
- *   }
- * );
+ *   });
+ *
+ * // Skip permission check for specific route
+ * export const publicRoute = route.get('/posts')
+ *   .skip(['permission'])  // Type-safe skip
+ *   .handler(async (c) => { ... });
  * ```
  */
-export function requirePermissions(...permissionNames: string[])
-{
-    return async (c: Context, next: Next): Promise<void> =>
+export const requirePermissions = defineMiddleware('permission',
+    (...permissionNames: string[]) => async (c: Context, next: Next) =>
     {
         const auth = getAuth(c);
 
         if (!auth)
         {
-            throw new ForbiddenError('Authentication required');
+            authLogger.middleware.warn('Permission check failed: not authenticated', {
+                permissions: permissionNames,
+                path: c.req.path,
+            });
+
+            throw new ForbiddenError({ message: 'Authentication required' });
         }
 
         const { userId } = auth;
@@ -54,14 +65,23 @@ export function requirePermissions(...permissionNames: string[])
 
         if (!allowed)
         {
-            throw new ForbiddenError(
-                `Missing required permissions: ${permissionNames.join(', ')}`
-            );
+            authLogger.middleware.warn('Permission check failed', {
+                userId,
+                requiredPermissions: permissionNames,
+                path: c.req.path,
+            });
+
+            throw new InsufficientPermissionsError({ requiredPermissions: permissionNames });
         }
 
+        authLogger.middleware.debug('Permission check passed', {
+            userId,
+            permissions: permissionNames,
+        });
+
         await next();
-    };
-}
+    }
+);
 
 /**
  * Require user to have at least one of the specified permissions
@@ -73,37 +93,54 @@ export function requirePermissions(...permissionNames: string[])
  *
  * @example
  * ```typescript
- * app.bind(
- *   viewContentContract,
- *   [authenticate, requireAnyPermission('content:read', 'admin:access')],
- *   async (c) => {
+ * // In route file
+ * import { authenticate, requireAnyPermission } from '@spfn/auth/server/middleware';
+ *
+ * export const viewContentRoute = route.get('/content')
+ *   .use([authenticate, requireAnyPermission('content:read', 'admin:access')])
+ *   .handler(async (c) => {
  *     // User has either content:read OR admin:access
- *   }
- * );
+ *   });
+ *
+ * // Skip any permission check for specific route
+ * export const publicRoute = route.get('/public')
+ *   .skip(['anyPermission'])  // Type-safe skip
+ *   .handler(async (c) => { ... });
  * ```
  */
-export function requireAnyPermission(...permissionNames: string[])
-{
-    return async (c: Context, next: Next): Promise<void> =>
+export const requireAnyPermission = defineMiddleware('anyPermission',
+    (...permissionNames: string[]) => async (c: Context, next: Next) =>
     {
         const auth = getAuth(c);
 
         if (!auth)
         {
-            throw new ForbiddenError('Authentication required');
+            authLogger.middleware.warn('Any permission check failed: not authenticated', {
+                permissions: permissionNames,
+                path: c.req.path,
+            });
+
+            throw new ForbiddenError({ message: 'Authentication required' });
         }
 
         const { userId } = auth;
-
         const allowed = await hasAnyPermission(userId, permissionNames);
-
         if (!allowed)
         {
-            throw new ForbiddenError(
-                `Requires one of: ${permissionNames.join(', ')}`
-            );
+            authLogger.middleware.warn('Any permission check failed', {
+                userId,
+                requiredAnyOf: permissionNames,
+                path: c.req.path,
+            });
+
+            throw new InsufficientPermissionsError({ requiredPermissions: permissionNames });
         }
 
+        authLogger.middleware.debug('Any permission check passed', {
+            userId,
+            permissions: permissionNames,
+        });
+
         await next();
-    };
-}
+    }
+);

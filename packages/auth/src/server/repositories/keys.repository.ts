@@ -74,15 +74,10 @@ export class KeysRepository extends BaseRepository
      */
     async create(data: NewUserPublicKey)
     {
-        const result = await this.db
-            .insert(userPublicKeys)
-            .values({
-                ...data,
-                createdAt: data.createdAt || new Date(),
-            })
-            .returning();
-
-        return result[0];
+        return await this._create(userPublicKeys, {
+            ...data,
+            createdAt: data.createdAt || new Date(),
+        });
     }
 
     /**

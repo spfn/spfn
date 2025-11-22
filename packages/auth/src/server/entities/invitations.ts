@@ -11,15 +11,12 @@
  * - Metadata support for custom data
  */
 
+import { INVITATION_STATUSES } from "@/server/types";
 import { text, bigint, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp, typedJsonb } from '@spfn/core/db';
-import { INVITATION_STATUSES, type InvitationStatus } from '@/lib/contracts/invitation';
 import { roles } from './roles';
 import { users } from './users';
 import { authSchema } from './schema';
-
-// Re-export for convenience
-export { INVITATION_STATUSES, type InvitationStatus };
 
 export const invitations = authSchema.table('user_invitations',
     {

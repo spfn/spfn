@@ -7,9 +7,10 @@
 
 import { users } from "@/server/entities/users";
 import { roles } from "@/server/entities/roles";
+import type { InvitationStatus } from "@/server/types";
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, lt, desc, sql } from 'drizzle-orm';
-import { invitations, InvitationStatus, NewInvitation } from "../entities/invitations";
+import { invitations, NewInvitation } from "../entities/invitations";
 
 /**
  * Invitations Repository 클래스
@@ -90,16 +91,11 @@ export class InvitationsRepository extends BaseRepository
      */
     async create(data: NewInvitation)
     {
-        const result = await this.db
-            .insert(invitations)
-            .values({
-                ...data,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .returning();
-
-        return result[0];
+        return await this._create(invitations, {
+            ...data,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
     }
 
     /**

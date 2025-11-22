@@ -9,7 +9,7 @@
  * - RS256 (RSA 2048):   ~294 bytes (Base64: ~392 chars)
  */
 
-import { type KeyAlgorithmType } from "@/server/helpers";
+import { type KeyAlgorithmType } from '@/server/types';
 import crypto from 'crypto';
 import jwt, { type Algorithm, type SignOptions } from 'jsonwebtoken';
 
@@ -60,17 +60,6 @@ export interface KeyPair
     keyId: string;          // UUID
     fingerprint: string;    // SHA-256 hash
     algorithm: KeyAlgorithmType;
-}
-
-export interface TokenPayload
-{
-    userId?: string;
-    keyId?: string;
-    timestamp?: number;
-    exp?: number;
-    iat?: number;
-    iss?: string;
-    [key: string]: any;
 }
 
 /**
@@ -204,43 +193,6 @@ export function generateClientToken(
     {
         throw new Error(
             `Failed to generate client token: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-    }
-}
-
-/**
- * Verify JWT with public key (DER format)
- *
- * @internal Used for testing/validation only
- * For production verification, use server-side verifyClientToken
- */
-export function verifyClientToken(
-    token: string,
-    publicKeyB64: string,
-    algorithm: KeyAlgorithmType
-): TokenPayload
-{
-    try
-    {
-        // Convert Base64 to Buffer
-        const publicKeyDER = Buffer.from(publicKeyB64, 'base64');
-
-        // Create key object for verification
-        const publicKeyObject = crypto.createPublicKey({
-            key: publicKeyDER,
-            format: 'der',
-            type: 'spki',
-        });
-
-        return jwt.verify(token, publicKeyObject, {
-            algorithms: [algorithm],
-            issuer: 'spfn-client',
-        }) as TokenPayload;
-    }
-    catch (error)
-    {
-        throw new Error(
-            `Failed to verify token: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
     }
 }

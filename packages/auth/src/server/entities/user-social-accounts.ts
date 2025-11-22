@@ -4,21 +4,11 @@
  * Stores OAuth connections for social login providers
  */
 
+import { SOCIAL_PROVIDERS } from "@/server/types";
 import { text, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, foreignKey, enumText, utcTimestamp } from '@spfn/core/db';
 import { users } from './users';
 import { authSchema } from './schema';
-
-/**
- * Social provider enum values
- * Single source of truth for supported OAuth providers
- */
-export const SOCIAL_PROVIDERS = ['google', 'github', 'kakao', 'naver'] as const;
-
-/**
- * Social provider type derived from the const array
- */
-export type SocialProvider = typeof SOCIAL_PROVIDERS[number];
 
 export const userSocialAccounts = authSchema.table('user_social_accounts',
     {

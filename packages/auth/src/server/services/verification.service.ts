@@ -5,7 +5,7 @@
  */
 
 import { verificationCodesRepository } from '@/server/repositories';
-import { InvalidVerificationCodeError } from '@/server/errors';
+import { InvalidVerificationCodeError } from '@/errors';
 import jwt from 'jsonwebtoken';
 import { getVerificationTokenSecret } from '@/config';
 
@@ -323,7 +323,7 @@ export async function verifyCodeService(params: VerifyCodeParams)
 
     if (!validation.valid)
     {
-        throw new InvalidVerificationCodeError(validation.error || 'Invalid verification code');
+        throw new InvalidVerificationCodeError({ message: validation.error || 'Invalid verification code' });
     }
 
     // Mark code as used

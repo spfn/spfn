@@ -41,16 +41,11 @@ export class RolePermissionsRepository extends BaseRepository
      */
     async create(data: NewRolePermission): Promise<RolePermission>
     {
-        const result = await this.db
-            .insert(rolePermissions)
-            .values({
-                ...data,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .returning();
-
-        return result[0];
+        return await this._create(rolePermissions, {
+            ...data,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
     }
 
     /**
@@ -67,10 +62,7 @@ export class RolePermissionsRepository extends BaseRepository
             updatedAt: now,
         }));
 
-        return this.db
-            .insert(rolePermissions)
-            .values(valuesWithTimestamps)
-            .returning();
+        return await this._createMany(rolePermissions, valuesWithTimestamps);
     }
 
     /**

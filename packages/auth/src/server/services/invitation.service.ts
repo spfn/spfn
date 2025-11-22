@@ -4,14 +4,16 @@
  * User invitation management for invite-only registration
  */
 
+import { Invitation } from "@/server/entities/invitations";
 import {
     invitationsRepository,
     usersRepository,
     rolesRepository,
     keysRepository,
 } from '@/server/repositories';
-import type { Invitation, InvitationStatus } from '@/server/entities/invitations';
-import { hashPassword, KeyAlgorithmType } from '@/server/helpers';
+import type { InvitationStatus } from '@/server/types';
+import { type KeyAlgorithmType } from '@/server/types';
+import { hashPassword } from '@/server/helpers';
 import crypto from 'crypto';
 
 /**

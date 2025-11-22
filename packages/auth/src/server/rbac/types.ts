@@ -4,6 +4,23 @@
  * Type definitions for role and permission configuration
  */
 
+/**
+ * Permission category enum values
+ * Single source of truth for permission categories
+ */
+export const PERMISSION_CATEGORIES = [
+    'auth',      // Authentication & authorization
+    'user',      // User management
+    'rbac',      // Role & permission management
+    'system',    // System administration
+    'custom'     // App-specific categories
+] as const;
+
+/**
+ * Permission category type derived from the const array
+ */
+export type PermissionCategory = typeof PERMISSION_CATEGORIES[number];
+
 export interface RoleConfig
 {
     // Role identifier (e.g., 'admin', 'editor', 'content-creator')
@@ -39,8 +56,8 @@ export interface PermissionConfig
     // Permission description
     description?: string;
 
-    // Category for grouping (e.g., 'user', 'post', 'admin')
-    category?: string;
+    // Category for grouping (e.g., 'user', 'auth', 'rbac', 'custom', 'system')
+    category?: PermissionCategory;
 
     // System permission flag
     // Default: false for custom permissions

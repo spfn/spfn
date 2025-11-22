@@ -4,8 +4,9 @@
  * Handles public key registration, rotation, and revocation
  */
 
-import { type KeyAlgorithmType, verifyKeyFingerprint } from '@/server/helpers/jwt';
-import { InvalidKeyFingerprintError } from '@/server/errors';
+import { type KeyAlgorithmType } from '@/server/types';
+import { verifyKeyFingerprint } from '@/server/helpers/jwt';
+import { InvalidKeyFingerprintError } from '@/errors';
 import { keysRepository } from '@/server/repositories';
 
 export interface RegisterPublicKeyParams

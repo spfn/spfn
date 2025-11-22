@@ -5,7 +5,8 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewVerificationCode, verificationCodes, VerificationPurpose } from "@/server/entities/verification-codes";
+import { NewVerificationCode, verificationCodes } from "@/server/entities/verification-codes";
+import type { VerificationPurpose } from "@/server/types";
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
 
@@ -67,16 +68,11 @@ export class VerificationCodesRepository extends BaseRepository
      */
     async create(data: NewVerificationCode)
     {
-        const result = await this.db
-            .insert(verificationCodes)
-            .values({
-                ...data,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .returning();
-
-        return result[0];
+        return await this._create(verificationCodes, {
+            ...data,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
     }
 
     /**

@@ -7,13 +7,13 @@
 import { logger as rootLogger } from '@spfn/core/logger';
 
 export const authLogger = {
-    plugin: rootLogger.child({ module: '@spfn/auth:plugin' }),
-    middleware: rootLogger.child({ module: '@spfn/auth:middleware' }),
+    plugin: rootLogger.child('@spfn/auth:plugin'),
+    middleware: rootLogger.child('@spfn/auth:middleware'),
     interceptor: {
-        general: rootLogger.child({ module: '@spfn/auth:interceptor:general' }),
-        login: rootLogger.child({ module: '@spfn/auth:interceptor:login' }),
-        keyRotation: rootLogger.child({ module: '@spfn/auth:interceptor:key-rotation' }),
+        general: rootLogger.child('@spfn/auth:interceptor:general'),
+        login: rootLogger.child('@spfn/auth:interceptor:login'),
+        keyRotation: rootLogger.child('@spfn/auth:interceptor:key-rotation'),
     },
-    service: rootLogger.child({ module: '@spfn/auth:service' }),
-    setup: rootLogger.child({ module: '@spfn/auth:setup' }),
+    service: rootLogger.child('@spfn/auth:service'),
+    setup: rootLogger.child('@spfn/auth:setup'),
 };

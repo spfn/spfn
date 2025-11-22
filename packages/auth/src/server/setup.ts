@@ -8,6 +8,7 @@ import { hashPassword } from '@/server/helpers';
 import { getRoleByName } from '@/server/services/role.service';
 import { authLogger } from '@/server/logger';
 import { usersRepository } from '@/server/repositories';
+import { env } from '@/config';
 
 /**
  * Admin account configuration
@@ -51,15 +52,13 @@ function parseAdminAccounts(): AdminAccountConfig[]
     const accounts: AdminAccountConfig[] = [];
 
     // Method 1: JSON format (highest priority)
-    if (process.env.SPFN_AUTH_ADMIN_ACCOUNTS || process.env.ADMIN_ACCOUNTS)
+    if (env.SPFN_AUTH_ADMIN_ACCOUNTS)
     {
         try
         {
-            const accountsJson =
-                process.env.SPFN_AUTH_ADMIN_ACCOUNTS ||  // New prefixed version (recommended)
-                process.env.ADMIN_ACCOUNTS;               // Legacy fallback
+            const accountsJson = env.SPFN_AUTH_ADMIN_ACCOUNTS;
 
-            const parsed = JSON.parse(accountsJson!);
+            const parsed = JSON.parse(accountsJson);
 
             if (!Array.isArray(parsed))
             {
@@ -95,23 +94,13 @@ function parseAdminAccounts(): AdminAccountConfig[]
     }
 
     // Method 2: Comma-separated format
-    const adminEmails =
-        process.env.SPFN_AUTH_ADMIN_EMAILS ||  // New prefixed version (recommended)
-        process.env.ADMIN_EMAILS;               // Legacy fallback
+    const adminEmails = env.SPFN_AUTH_ADMIN_EMAILS;
 
     if (adminEmails)
     {
         const emails = adminEmails.split(',').map(s => s.trim());
-        const passwords = (
-            process.env.SPFN_AUTH_ADMIN_PASSWORDS ||  // New prefixed version (recommended)
-            process.env.ADMIN_PASSWORDS ||             // Legacy fallback
-            ''
-        ).split(',').map(s => s.trim());
-        const roles = (
-            process.env.SPFN_AUTH_ADMIN_ROLES ||  // New prefixed version (recommended)
-            process.env.ADMIN_ROLES ||             // Legacy fallback
-            ''
-        ).split(',').map(s => s.trim());
+        const passwords = (env.SPFN_AUTH_ADMIN_PASSWORDS || '').split(',').map(s => s.trim());
+        const roles = (env.SPFN_AUTH_ADMIN_ROLES || '').split(',').map(s => s.trim());
 
         // Validate lengths match
         if (passwords.length !== emails.length)
@@ -144,13 +133,8 @@ function parseAdminAccounts(): AdminAccountConfig[]
     }
 
     // Method 3: Single account (legacy format)
-    const adminEmail =
-        process.env.SPFN_AUTH_ADMIN_EMAIL ||  // New prefixed version (recommended)
-        process.env.ADMIN_EMAIL;               // Legacy fallback
-
-    const adminPassword =
-        process.env.SPFN_AUTH_ADMIN_PASSWORD ||  // New prefixed version (recommended)
-        process.env.ADMIN_PASSWORD;               // Legacy fallback
+    const adminEmail = env.SPFN_AUTH_ADMIN_EMAIL;
+    const adminPassword = env.SPFN_AUTH_ADMIN_PASSWORD;
 
     if (adminEmail && adminPassword)
     {

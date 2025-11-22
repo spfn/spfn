@@ -20,17 +20,19 @@
  * - Key revocation check (isActive flag)
  */
 
-import type { Context, Next } from 'hono';
-import { KeyAlgorithmType, verifyClientToken } from '@/server/helpers/jwt';
+import { defineMiddleware } from '@spfn/core/server';
+import { type KeyAlgorithmType } from '@/server/types';
+import { verifyClientToken } from '@/server/helpers/jwt';
 import type { User } from '@/server/entities/users';
 import {
     InvalidTokenError,
     TokenExpiredError,
     KeyExpiredError,
     AccountDisabledError,
-} from '@/server/errors';
+} from '@/errors';
 import { UnauthorizedError } from '@spfn/core/errors';
 import { keysRepository, usersRepository } from '@/server/repositories';
+import { authLogger } from '@/server/logger';
 
 // Auth context type
 export interface AuthContext
@@ -57,15 +59,29 @@ declare module 'hono'
  *
  * @example
  * ```typescript
- * // In route file
- * app.bind(logoutContract, [authenticate], async (c) => {
- *     const auth = c.raw.get('auth');  // Get auth context
+ * // In server.config.ts
+ * import { authenticate } from '@spfn/auth/server/middleware';
+ *
+ * export default defineServerConfig()
+ *   .middlewares([authenticate])
+ *   .routes(appRouter)
+ *   .build();
+ *
+ * // In route file - skip auth for public routes
+ * export const publicRoute = route.get('/health')
+ *   .skip(['auth'])  // Type-safe skip
+ *   .handler(async (c) => c.success({ status: 'ok' }));
+ *
+ * // Protected route - auth applied automatically
+ * export const protectedRoute = route.get('/profile')
+ *   .handler(async (c) => {
+ *     const auth = c.get('auth');  // Get auth context
  *     const { user, userId, keyId } = auth;
- *     // Or access directly: c.raw.get('auth').user
- * });
+ *     // Or access directly: c.get('auth').user
+ *   });
  * ```
  */
-export async function authenticate(c: Context, next: Next): Promise<Response | void>
+export const authenticate = defineMiddleware('auth', async (c, next) =>
 {
     // Extract Authorization header
     const authHeader = c.req.header('Authorization');
@@ -73,7 +89,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
     // Validate Authorization header format
     if (!authHeader || !authHeader.startsWith('Bearer '))
     {
-        throw new UnauthorizedError('Missing or invalid authorization header');
+        throw new UnauthorizedError({ message: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
@@ -85,7 +101,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
 
     if (!decoded || !decoded.keyId)
     {
-        throw new UnauthorizedError('Invalid token: missing keyId');
+        throw new UnauthorizedError({ message: 'Invalid token: missing keyId' });
     }
 
     const keyId = decoded.keyId as string;
@@ -98,7 +114,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
 
     if (!keyRecord)
     {
-        throw new UnauthorizedError('Invalid or revoked key');
+        throw new UnauthorizedError({ message: 'Invalid or revoked key' });
     }
 
     // 3. Check key expiration
@@ -135,26 +151,26 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
             // Invalid signature
             if (err.name === 'JsonWebTokenError')
             {
-                throw new InvalidTokenError('Invalid token signature');
+                throw new InvalidTokenError({ message: 'Invalid token signature' });
             }
         }
 
         // Generic authentication failure
-        throw new UnauthorizedError('Authentication failed');
+        throw new UnauthorizedError({ message: 'Authentication failed' });
     }
 
     // 5. Get user from database
     const user = await usersRepository.findById(keyRecord.userId);
     if (!user)
     {
-        throw new UnauthorizedError('User not found');
+        throw new UnauthorizedError({ message: 'User not found' });
     }
 
     // 6. Check if user account is active
     // Status can be: active, inactive, suspended
     if (user.status !== 'active')
     {
-        throw new AccountDisabledError(user.status);
+        throw new AccountDisabledError({ status: user.status });
     }
 
     // 7. Update last used timestamp (fire-and-forget)
@@ -164,7 +180,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
     // - Detecting inactive keys
     // - Key rotation reminders
     keysRepository.updateLastUsedById(keyRecord.id)
-        .catch((err: unknown) => console.error('Failed to update lastUsedAt:', err));
+        .catch((err: unknown) => authLogger.middleware.error('Failed to update lastUsedAt', err));
 
     // 8. Attach auth data to context
     // Available in downstream route handlers via c.get('auth')
@@ -177,7 +193,7 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
     // Log API access
     const method = c.req.method;
     const path = c.req.path;
-    console.log('[Auth] API access', {
+    authLogger.middleware.info('API access', {
         userId: user.id,
         email: user.email,
         keyId,
@@ -189,4 +205,4 @@ export async function authenticate(c: Context, next: Next): Promise<Response | v
 
     // Continue to route handler
     await next();
-}
+});

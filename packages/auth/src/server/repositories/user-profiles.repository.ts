@@ -47,16 +47,11 @@ export class UserProfilesRepository extends BaseRepository
      */
     async create(data: NewUserProfile)
     {
-        const result = await this.db
-            .insert(userProfiles)
-            .values({
-                ...data,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .returning();
-
-        return result[0];
+        return await this._create(userProfiles, {
+            ...data,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
     }
 
     /**

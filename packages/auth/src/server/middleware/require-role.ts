@@ -5,9 +5,12 @@
  */
 
 import type { Context, Next } from 'hono';
+import { defineMiddleware } from '@spfn/core/server';
 import { getAuth } from '@/server/helpers/context';
 import { hasAnyRole } from '@/server/services/permission.service';
 import { ForbiddenError } from '@spfn/core/errors';
+import { InsufficientRoleError } from '@/errors';
+import { authLogger } from '@/server/logger';
 
 /**
  * Require user to have one of the specified roles
@@ -19,33 +22,40 @@ import { ForbiddenError } from '@spfn/core/errors';
  *
  * @example
  * ```typescript
- * app.bind(
- *   adminDashboardContract,
- *   [authenticate, requireRole('admin', 'superadmin')],
- *   async (c) => {
+ * // In route file
+ * import { authenticate, requireRole } from '@spfn/auth/server/middleware';
+ *
+ * export const adminDashboardRoute = route.get('/admin/dashboard')
+ *   .use([authenticate, requireRole('admin', 'superadmin')])
+ *   .handler(async (c) => {
  *     // Only admin or superadmin
- *   }
- * );
+ *   });
  *
  * // Single role
- * app.bind(
- *   systemConfigContract,
- *   [authenticate, requireRole('superadmin')],
- *   async (c) => {
+ * export const systemConfigRoute = route.get('/admin/config')
+ *   .use([authenticate, requireRole('superadmin')])
+ *   .handler(async (c) => {
  *     // Only superadmin
- *   }
- * );
+ *   });
+ *
+ * // Skip role check for specific route
+ * export const publicAdminRoute = route.get('/admin/public')
+ *   .skip(['role'])  // Type-safe skip
+ *   .handler(async (c) => { ... });
  * ```
  */
-export function requireRole(...roleNames: string[])
-{
-    return async (c: Context, next: Next): Promise<void> =>
+export const requireRole = defineMiddleware('role',
+    (...roleNames: string[]) => async (c: Context, next: Next) =>
     {
         const auth = getAuth(c);
 
         if (!auth)
         {
-            throw new ForbiddenError('Authentication required');
+            authLogger.middleware.warn('Role check failed: not authenticated', {
+                roles: roleNames,
+                path: c.req.path,
+            });
+            throw new ForbiddenError({ message: 'Authentication required' });
         }
 
         const { userId } = auth;
@@ -54,11 +64,19 @@ export function requireRole(...roleNames: string[])
 
         if (!allowed)
         {
-            throw new ForbiddenError(
-                `Required roles: ${roleNames.join(', ')}`
-            );
+            authLogger.middleware.warn('Role check failed', {
+                userId,
+                requiredRoles: roleNames,
+                path: c.req.path,
+            });
+            throw new InsufficientRoleError({ requiredRoles: roleNames });
         }
 
+        authLogger.middleware.debug('Role check passed', {
+            userId,
+            roles: roleNames,
+        });
+
         await next();
-    };
-}
+    }
+);

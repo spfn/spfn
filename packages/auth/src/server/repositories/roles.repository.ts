@@ -70,16 +70,11 @@ export class RolesRepository extends BaseRepository
      */
     async create(data: NewRoleEntity)
     {
-        const result = await this.db
-            .insert(roles)
-            .values({
-                ...data,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .returning();
-
-        return result[0];
+        return await this._create(roles, {
+            ...data,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
     }
 
     /**

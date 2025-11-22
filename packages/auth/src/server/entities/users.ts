@@ -12,22 +12,12 @@
  * - Email/phone verification
  */
 
+import { USER_STATUSES } from "@/server/types";
 import { text, check, boolean, bigint, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
 import { roles } from './roles';
 import { authSchema } from './schema';
-
-/**
- * User status enum values
- * Single source of truth for all user statuses
- */
-export const USER_STATUSES = ['active', 'inactive', 'suspended'] as const;
-
-/**
- * User status type derived from the const array
- */
-export type UserStatus = typeof USER_STATUSES[number];
 
 export const users = authSchema.table('users',
     {

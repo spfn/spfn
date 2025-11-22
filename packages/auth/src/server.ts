@@ -17,8 +17,24 @@
  */
 
 // ============================================================================
-// Routes
+// Router
 // ============================================================================
+
+/**
+ * Auth router for explicit registration
+ *
+ * @example
+ * ```typescript
+ * import { authRouter } from '@spfn/auth';
+ * import { defineRouter } from '@spfn/core/route';
+ *
+ * export const appRouter = defineRouter({
+ *   auth: authRouter,  // Mounted at /_auth/*
+ *   // ... other routes
+ * });
+ * ```
+ */
+export { mainAuthRouter as authRouter } from './server/routes/index.js';
 
 // ============================================================================
 // Services (Business Logic)
@@ -45,13 +61,15 @@ export * from './server/helpers/index';
 export * from './server/middleware/index';
 
 // ============================================================================
-// Setup Functions
+// Types & Constants
 // ============================================================================
 
-export { ensureAdminExists } from './server/setup';
+export * from './server/types';
+
+export * from './server/lib';
 
 // ============================================================================
-// SPFN Plugin (Auto-discovered by @spfn/core)
+// Lifecycle Hooks
 // ============================================================================
 
-export { spfnPlugin } from './plugin.js';
+export { createAuthLifecycle } from './server/lifecycle';

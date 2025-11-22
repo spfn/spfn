@@ -68,6 +68,51 @@ const jwtSecret = getJwtSecret();
 |----------|------|---------|-------------|
 | `SPFN_API_URL` | `string` | `'http://localhost:8790'` | Base API URL |
 
+## Runtime Configuration
+
+### `configureAuth(config)`
+
+Configure global auth settings at runtime.
+
+```typescript
+import { configureAuth } from '@spfn/auth/server';
+
+configureAuth({
+  sessionTtl: '30d',  // Session TTL (supports duration strings or seconds)
+});
+```
+
+**Configuration Options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `sessionTtl` | `string \| number` | Session TTL ('30d', '12h', '45m') or seconds |
+
+**Usage Example:**
+
+```typescript
+// app/api/actions/[...path]/route.ts
+import { configureAuth } from '@spfn/auth/server';
+
+// Configure before creating proxy
+configureAuth({
+  sessionTtl: '30d'  // All sessions will use 30 days TTL
+});
+
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/proxy';
+```
+
+**Configuration Priority:**
+
+When determining session TTL, the following priority is used:
+
+1. **Runtime override** - Per-session `saveSession(data, { maxAge: '12h' })`
+2. **Global config** - `configureAuth({ sessionTtl: '30d' })`
+3. **Environment variable** - `SPFN_AUTH_SESSION_TTL=30d`
+4. **Default** - `7d` (7 days)
+
+---
+
 ## API Reference
 
 ### Helper Functions
