@@ -72,14 +72,19 @@ export class CodegenOrchestrator
      */
     async generateAll(trigger: GeneratorTrigger = 'manual'): Promise<void>
     {
-        if (this.debug)
+        // Always log generation start
+        const activeGenerators = this.generators.filter(g => this.shouldRun(g, trigger));
+
+        if (activeGenerators.length === 0)
         {
-            orchestratorLogger.info('Running all generators', {
-                count: this.generators.length,
-                names: this.generators.map(g => g.name),
-                trigger
-            });
+            orchestratorLogger.info('No generators to run for this trigger', { trigger });
+            return;
         }
+
+        orchestratorLogger.info(`Running ${activeGenerators.length} generator(s)`, {
+            generators: activeGenerators.map(g => g.name).join(', '),
+            trigger
+        });
 
         for (const generator of this.generators)
         {
@@ -96,6 +101,8 @@ export class CodegenOrchestrator
 
             try
             {
+                const startTime = Date.now();
+
                 const genOptions: GeneratorOptions = {
                     cwd: this.cwd,
                     debug: this.debug,
@@ -106,15 +113,13 @@ export class CodegenOrchestrator
 
                 await generator.generate(genOptions);
 
-                if (this.debug)
-                {
-                    orchestratorLogger.info(`[${generator.name}] Generated successfully`);
-                }
+                const duration = Date.now() - startTime;
+                orchestratorLogger.info(`[${generator.name}] ✓ Generated successfully (${duration}ms)`);
             }
             catch (error)
             {
                 const err = error instanceof Error ? error : new Error(String(error));
-                orchestratorLogger.error(`[${generator.name}] Generation failed`, err);
+                orchestratorLogger.error(`[${generator.name}] ✗ Generation failed`, err);
             }
         }
     }
@@ -148,9 +153,15 @@ export class CodegenOrchestrator
 
         const watchDirs = Array.from(dirsToWatch);
 
+        // Always log watch mode start
+        orchestratorLogger.info('Watch mode started', {
+            watching: watchDirs.length === 1 ? watchDirs[0] : `${watchDirs.length} directories`,
+            generators: this.generators.filter(g => this.shouldRun(g, 'watch')).map(g => g.name).join(', ')
+        });
+
         if (this.debug)
         {
-            orchestratorLogger.info('Starting watch mode', {
+            orchestratorLogger.info('Watch mode details', {
                 patterns: allPatterns,
                 watchDirs,
                 cwd: this.cwd
@@ -181,12 +192,12 @@ export class CodegenOrchestrator
             this.isGenerating = true;
             this.pendingRegenerations.clear();
 
-            if (this.debug)
-            {
-                orchestratorLogger.info(`File ${event}`, { file: filePath });
-            }
+            // Always log file changes
+            const eventIcon = event === 'add' ? '+' : event === 'unlink' ? '-' : '~';
+            orchestratorLogger.info(`File ${eventIcon} ${filePath}`);
 
             // Find matching generators
+            let regeneratedCount = 0;
             for (const generator of this.generators)
             {
                 // Check if generator should run for 'watch' trigger
@@ -203,6 +214,8 @@ export class CodegenOrchestrator
                 {
                     try
                     {
+                        const startTime = Date.now();
+
                         // Call generate() with trigger information
                         const genOptions: GeneratorOptions = {
                             cwd: this.cwd,
@@ -218,17 +231,21 @@ export class CodegenOrchestrator
 
                         await generator.generate(genOptions);
 
-                        if (this.debug)
-                        {
-                            orchestratorLogger.info(`[${generator.name}] Regenerated`);
-                        }
+                        const duration = Date.now() - startTime;
+                        orchestratorLogger.info(`[${generator.name}] ✓ Regenerated (${duration}ms)`);
+                        regeneratedCount++;
                     }
                     catch (error)
                     {
                         const err = error instanceof Error ? error : new Error(String(error));
-                        orchestratorLogger.error(`[${generator.name}] Regeneration failed`, err);
+                        orchestratorLogger.error(`[${generator.name}] ✗ Regeneration failed`, err);
                     }
                 }
+            }
+
+            if (regeneratedCount === 0 && this.debug)
+            {
+                orchestratorLogger.info('No generators matched this file');
             }
 
             this.isGenerating = false;

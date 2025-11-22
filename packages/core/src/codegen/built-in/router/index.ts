@@ -60,29 +60,36 @@ export function createRouterGenerator(config: RouterGeneratorConfig = {}): Gener
             const fullRouterPath = join(cwd, routerPath);
             const fullOutputPath = join(cwd, outputPath);
 
+            // Log generator start with configuration
+            routerLogger.info('Router generator started', {
+                routerPath,
+                outputPath,
+                baseUrl,
+                trigger: options.trigger?.type
+            });
+
             try
             {
                 // Check if router file exists
                 if (!existsSync(fullRouterPath))
                 {
-                    if (options.debug)
-                    {
-                        routerLogger.warn(`No router file found at ${routerPath}`);
-                    }
+                    routerLogger.warn(`No router file found at ${routerPath}`);
                     return;
                 }
 
                 // Scan router and extract metadata
+                routerLogger.info('Scanning router...');
+                const startTime = Date.now();
                 const metadata = await scanRouter(cwd, options.debug);
 
                 if (!metadata || Object.keys(metadata.routes).length === 0)
                 {
-                    if (options.debug)
-                    {
-                        routerLogger.warn('No routes found in router');
-                    }
+                    routerLogger.warn('No routes found in router');
                     return;
                 }
+
+                const routeCount = Object.keys(metadata.routes).length;
+                routerLogger.info(`Found ${routeCount} route(s), generating metadata...`);
 
                 // Generate API client with metadata
                 await generateApiClient({
@@ -92,13 +99,11 @@ export function createRouterGenerator(config: RouterGeneratorConfig = {}): Gener
                     routerImportPath: routerPath.replace(/\.ts$/, '').replace(/^src\//, '@/'),
                 });
 
-                if (options.debug)
-                {
-                    routerLogger.info('Router metadata generated', {
-                        routes: Object.keys(metadata.routes).length,
-                        outputPath,
-                    });
-                }
+                const duration = Date.now() - startTime;
+                routerLogger.info('✓ Router metadata generated', {
+                    routes: routeCount,
+                    duration: `${duration}ms`
+                });
             }
             catch (error)
             {

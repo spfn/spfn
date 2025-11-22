@@ -7,7 +7,13 @@
 // Orchestrator & Generator system
 export { CodegenOrchestrator } from './core/orchestrator';
 export { createContractGenerator } from './built-in/contract';
-export { loadCodegenConfig, createGeneratorsFromConfig } from './core/config-loader';
+export { createRouterGenerator } from './built-in/router';
+export {
+    loadCodegenConfig,
+    createGeneratorsFromConfig,
+    defineConfig,
+    defineGenerator
+} from './core/config-loader';
 
 export type {
     RouteContractMapping,
@@ -31,5 +37,10 @@ export type {
 } from './built-in/contract';
 
 export type {
-    CodegenConfig
+    RouterGeneratorConfig
+} from './built-in/router';
+
+export type {
+    CodegenConfig,
+    GeneratorConfig
 } from './core/config-loader';

@@ -2,7 +2,6 @@ import { defineConfig } from 'tsup';
 
 export default defineConfig({
     entry: {
-        index: 'src/index.ts',
         'nextjs/index': 'src/nextjs/index.ts',
         'nextjs/server': 'src/nextjs/server.ts',
         'route/index': 'src/route/index.ts',

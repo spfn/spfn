@@ -1,7 +1,7 @@
 /**
  * Codegen Configuration Loader
  *
- * Loads codegen configuration from .spfnrc.json or package.json
+ * Loads codegen configuration from .spfnrc.ts, .spfnrc.json or package.json
  */
 
 import { existsSync, readFileSync } from 'fs';
@@ -9,23 +9,141 @@ import { join } from 'path';
 import { createJiti } from 'jiti';
 import type { Generator } from './generator';
 import { logger } from '../../logger';
+import type { RouterGeneratorConfig } from '../built-in/router';
 
 const configLogger = logger.child('@spfn/core:config');
 
+/**
+ * Router generator configuration
+ */
+type RouterGeneratorDef = { name: '@spfn/core:router'; enabled?: boolean } & RouterGeneratorConfig;
+
+/**
+ * Custom generator via file path
+ */
+type CustomGeneratorByPath = { path: string };
+
+/**
+ * Any generator configuration
+ */
+export type GeneratorConfig = CustomGeneratorByPath | RouterGeneratorDef | Record<string, any>;
+
+/**
+ * Codegen configuration
+ */
 export interface CodegenConfig
 {
-    generators?: Array<
-        | { path: string }  // Custom generator via file path
-        | ({ name: string; enabled?: boolean } & Record<string, any>)  // Package-based generator: "package:name" or built-in "name"
-    >;
+    generators?: GeneratorConfig[];
 }
 
 /**
- * Load codegen configuration from .spfnrc.json or package.json
+ * Define a generator with type safety
+ *
+ * @example
+ * Router generator (strict typing):
+ * ```ts
+ * import { defineGenerator } from '@spfn/core/codegen';
+ *
+ * const routerGen = defineGenerator({
+ *   name: '@spfn/core:router',
+ *   routerPath: 'src/server/router.ts',
+ *   outputPath: 'src/server/router.metadata.ts',
+ * });
+ * ```
+ *
+ * @example
+ * Custom generator with type parameter:
+ * ```ts
+ * import { defineGenerator } from '@spfn/core/codegen';
+ * import type { MyGeneratorConfig } from 'my-package';
+ *
+ * const customGen = defineGenerator<MyGeneratorConfig>({
+ *   name: 'my-package:generator',
+ *   myOption: 'value',
+ * });
+ * ```
+ */
+export function defineGenerator<T extends Record<string, any>>(config: T): T;
+export function defineGenerator(config: RouterGeneratorDef): RouterGeneratorDef;
+export function defineGenerator(config: CustomGeneratorByPath): CustomGeneratorByPath;
+export function defineGenerator<T extends Record<string, any>>(config: T): T
+{
+    return config;
+}
+
+/**
+ * Helper function to define codegen configuration with type safety
+ *
+ * @example
+ * Basic usage with defineGenerator:
+ * ```ts
+ * import { defineConfig, defineGenerator } from '@spfn/core/codegen';
+ *
+ * const routerGen = defineGenerator({
+ *   name: '@spfn/core:router',
+ *   routerPath: 'src/server/router.ts',  // Type-safe!
+ *   outputPath: 'src/server/router.metadata.ts',
+ * });
+ *
+ * export default defineConfig({
+ *   generators: [routerGen]
+ * });
+ * ```
+ *
+ * @example
+ * With custom generator:
+ * ```ts
+ * import { defineConfig, defineGenerator } from '@spfn/core/codegen';
+ * import type { MyGeneratorConfig } from 'my-package';
+ *
+ * const customGen = defineGenerator<MyGeneratorConfig>({
+ *   name: 'my-package:custom',
+ *   myOption: 'value',  // Type-safe!
+ * });
+ *
+ * export default defineConfig({
+ *   generators: [customGen]
+ * });
+ * ```
+ */
+export function defineConfig(config: CodegenConfig): CodegenConfig
+{
+    return config;
+}
+
+/**
+ * Load codegen configuration from .spfnrc.ts, .spfnrc.json or package.json
  */
 export function loadCodegenConfig(cwd: string): CodegenConfig
 {
-    // 1. Check .spfnrc.json
+    // 1. Check .spfnrc.ts (highest priority)
+    const rcTsPath = join(cwd, '.spfnrc.ts');
+    if (existsSync(rcTsPath))
+    {
+        try
+        {
+            const jiti = createJiti(cwd, {
+                interopDefault: true,
+                moduleCache: false
+            });
+
+            const module = jiti(rcTsPath);
+            const config = module.default || module;
+
+            if (config && typeof config === 'object')
+            {
+                configLogger.info('Loaded config from .spfnrc.ts');
+                return config as CodegenConfig;
+            }
+        }
+        catch (error)
+        {
+            const err = error instanceof Error ? error : new Error(String(error));
+            configLogger.warn('Failed to load .spfnrc.ts', err);
+        }
+    }
+
+    // 2. Check .spfnrc.json
     const rcPath = join(cwd, '.spfnrc.json');
     if (existsSync(rcPath))
     {
@@ -46,7 +164,7 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
         }
     }
 
-    // 2. Check package.json
+    // 3. Check package.json
     const pkgPath = join(cwd, 'package.json');
     if (existsSync(pkgPath))
     {
@@ -67,12 +185,10 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
         }
     }
 
-    // 3. Default configuration
-    configLogger.info('Using default config');
+    // 4. Default configuration (empty - no generators by default)
+    configLogger.info('Using default config (no generators)');
     return {
-        generators: [
-            { name: '@spfn/core:contract', enabled: true }
-        ]
+        generators: []
     };
 }
 

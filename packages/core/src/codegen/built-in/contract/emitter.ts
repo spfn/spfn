@@ -23,7 +23,7 @@ export async function generateClient(
     const resourceNames = Object.keys(grouped);
 
     // Generate split files by resource
-    await generateSplitClient(mappings, grouped, options);
+    const filesGenerated = await generateSplitClient(mappings, grouped, options);
 
     // Calculate stats
     return {
@@ -32,6 +32,7 @@ export async function generateClient(
         contractFiles: countUniqueContractFiles(mappings),
         resourcesGenerated: resourceNames.length,
         methodsGenerated: mappings.length,
+        filesGenerated,
         duration: Date.now() - startTime
     };
 }
@@ -236,12 +237,14 @@ function toKebabCase(str: string): string
 
 /**
  * Generate split API client files by resource
+ *
+ * @returns Number of files generated
  */
 async function generateSplitClient(
     _mappings: RouteContractMapping[],
     grouped: Record<string, RouteContractMapping[]>,
     options: ClientGenerationOptions
-): Promise<void>
+): Promise<number>
 {
     // When splitting, outputPath should become a directory
     // e.g., /src/lib/api.ts -> /src/lib/api/
@@ -274,6 +277,9 @@ async function generateSplitClient(
     const indexPath = `${outputDir}/index.ts`;
 
     await writeFile(indexPath, indexCode, 'utf-8');
+
+    // Return total files generated (resource files + index.ts)
+    return resourceNames.length + 1;
 }
 
 /**

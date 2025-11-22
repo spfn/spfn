@@ -94,6 +94,9 @@ export interface GenerationStats
     /** Total methods generated */
     methodsGenerated: number;
 
+    /** Total files generated */
+    filesGenerated: number;
+
     /** Generation time in ms */
     duration: number;
 }

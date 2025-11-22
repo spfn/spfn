@@ -189,15 +189,20 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
             const prefix = readPrefixFromPackageJson(cwd);
             const apiName = generateApiName(prefix);
 
+            // Log generator start with configuration
+            contractLogger.info('Contract generator started', {
+                contractsDir,
+                outputPath,
+                apiName,
+                trigger: options.trigger?.type
+            });
+
             try
             {
                 // Check if contracts directory exists
                 if (!existsSync(fullContractsDir))
                 {
-                    if (options.debug)
-                    {
-                        contractLogger.warn(`No contracts directory found at ${contractsDir}`);
-                    }
+                    contractLogger.warn(`No contracts directory found at ${contractsDir}`);
                     return;
                 }
 
@@ -205,13 +210,7 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
                 const changedFile = options.trigger?.changedFile;
                 if (changedFile && !needsFullRegeneration(changedFile.event))
                 {
-                    if (options.debug)
-                    {
-                        contractLogger.info('Attempting incremental update', {
-                            file: changedFile.path,
-                            event: changedFile.event
-                        });
-                    }
+                    contractLogger.info('Attempting incremental update...');
 
                     // Try incremental update
                     const success = await attemptIncrementalUpdate({
@@ -226,32 +225,25 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
 
                     if (success)
                     {
-                        if (options.debug)
-                        {
-                            contractLogger.info('Incremental update successful');
-                        }
                         return;
                     }
 
                     // Fall through to full regeneration if incremental failed
-                    if (options.debug)
-                    {
-                        contractLogger.info('Incremental update failed, doing full regen');
-                    }
+                    contractLogger.info('Incremental update not possible, doing full regeneration');
                 }
 
                 // Full regeneration
+                contractLogger.info('Scanning contracts...');
                 const allContracts = await scanContracts(fullContractsDir, prefix);
+
                 if (allContracts.length === 0)
                 {
-                    if (options.debug)
-                    {
-                        contractLogger.warn('No contracts found');
-                    }
-
+                    contractLogger.warn('No contracts found');
                     contractCache = null;
                     return;
                 }
+
+                contractLogger.info(`Found ${allContracts.length} contract(s), generating client...`);
 
                 // Generate client (apiName already calculated at start of function)
                 const clientOptions = createClientOptions(fullContractsDir, fullOutputPath, config.baseUrl, apiName);
@@ -263,15 +255,15 @@ export function createContractGenerator(config: ContractGeneratorConfig = {}): G
                     lastScan: Date.now()
                 };
 
-                if (options.debug)
-                {
-                    contractLogger.info('Client generated', {
-                        endpoints: stats.methodsGenerated,
-                        resources: stats.resourcesGenerated,
-                        duration: stats.duration,
-                        mode: changedFile ? 'incremental-fallback' : 'full'
-                    });
-                }
+                // Always log generation results
+                const mode = changedFile ? 'incremental-fallback' : 'full';
+                contractLogger.info(`✓ Client generated (${mode})`, {
+                    contracts: allContracts.length,
+                    endpoints: stats.methodsGenerated,
+                    resources: stats.resourcesGenerated,
+                    files: stats.filesGenerated,
+                    duration: `${stats.duration}ms`
+                });
             }
             catch (error)
             {
@@ -346,12 +338,11 @@ async function attemptIncrementalUpdate(options: IncrementalUpdateOptions): Prom
 
         if (changedContracts.size === 0)
         {
-            if (debug)
-            {
-                contractLogger.info('No contract changes detected, skipping regeneration');
-            }
+            contractLogger.info('✓ No contract signature changes, skipping regeneration');
             return true;  // No changes, skip regen
         }
+
+        contractLogger.info(`Detected ${changedContracts.size} contract change(s), regenerating...`);
 
         // Regenerate everything since contracts are interconnected (apiName passed as parameter)
         // (A safer approach than trying to regenerate only affected resources)
@@ -364,15 +355,13 @@ async function attemptIncrementalUpdate(options: IncrementalUpdateOptions): Prom
             lastScan: Date.now()
         };
 
-        if (debug)
-        {
-            contractLogger.info('Incremental update successful', {
-                changedContracts: changedContracts.size,
-                endpoints: stats.methodsGenerated,
-                resources: stats.resourcesGenerated,
-                duration: stats.duration
-            });
-        }
+        contractLogger.info('✓ Client regenerated (incremental)', {
+            contracts: updatedContracts.length,
+            endpoints: stats.methodsGenerated,
+            resources: stats.resourcesGenerated,
+            files: stats.filesGenerated,
+            duration: `${stats.duration}ms`
+        });
 
         return true;
     }
