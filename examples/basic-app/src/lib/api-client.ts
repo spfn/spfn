@@ -6,6 +6,8 @@
 
 import { createApi } from '@spfn/core/nextjs';
 import type { AppRouter } from '@/server/router';
+import { appMetadata as authAppMetadata } from "@spfn/auth";
+import { authErrorRegistry } from "@spfn/auth/errors";
 import { appMetadata } from '@/server/router.metadata';
 import { errorRegistry } from "@spfn/core/errors";
 import { InsufficientBalanceError } from "@/lib/errors/custom-errors";
@@ -44,7 +46,9 @@ import { InsufficientBalanceError } from "@/lib/errors/custom-errors";
  * - Route Handlers
  */
 export const api = createApi<AppRouter>({
-    metadata: appMetadata,
-    errorRegistry: errorRegistry.append([InsufficientBalanceError]),  // Add custom errors here
+    metadata: { ...appMetadata, ...authAppMetadata },
+    errorRegistry: errorRegistry
+        .concat(authErrorRegistry)
+        .append([InsufficientBalanceError]),  // Add custom errors here
     debug: true
 });

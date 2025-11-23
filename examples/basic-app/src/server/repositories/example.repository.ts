@@ -6,7 +6,7 @@ export class ExampleRepository extends BaseRepository
 {
     async findAll(limit = 10, offset = 0)
     {
-        return await this.findMany(examples, {
+        return await this._findMany(examples, {
             orderBy: desc(examples.createdAt),
             limit,
             offset,
@@ -15,26 +15,26 @@ export class ExampleRepository extends BaseRepository
 
     async findById(id: string)
     {
-        return await this.findOne(examples, { id: BigInt(id) });
+        return await this._findOne(examples, { id: BigInt(id) });
     }
 
     async createExample(data: { name: string; description: string })
     {
-        return await this.create(examples, data);
+        return await this._create(examples, data);
     }
 
     async updateExample(id: string, data: Partial<{ name: string; description: string }>)
     {
-        return await this.updateOne(examples, { id: BigInt(id) }, data);
+        return await this._updateOne(examples, { id: BigInt(id) }, data);
     }
 
     async deleteExample(id: string)
     {
-        return await this.deleteOne(examples, { id: BigInt(id) });
+        return await this._deleteOne(examples, { id: BigInt(id) });
     }
 
     async countAll()
     {
-        return await this.count(examples);
+        return await this._count(examples);
     }
 }

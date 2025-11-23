@@ -11,11 +11,13 @@
     "spfn:server": "spfn dev --server-only",
     "spfn:next": "next dev --turbo --port 3790",
     "spfn:start": "spfn start",
-    "spfn:build": "spfn build"
+    "spfn:build": "spfn build",
+    "codegen": "spfn codegen run"
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.0",
     "@spfn/core": "workspace:*",
+    "@spfn/auth": "workspace:*",
     "concurrently": "^9.2.1",
     "drizzle-orm": "^0.44.6",
     "drizzle-typebox": "^0.1.0",

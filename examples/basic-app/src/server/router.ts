@@ -5,6 +5,7 @@
  */
 
 import { defineRouter } from '@spfn/core/route';
+import { authRouter } from '@spfn/auth/server';
 
 // Root routes
 import { getRoot } from './routes/root';
@@ -46,6 +47,9 @@ import {
  * Use codegen to generate router.metadata.ts for client-side usage.
  */
 export const appRouter = defineRouter({
+    // Auth routes (fixed namespace)
+    auth: authRouter,
+
     // Root routes
     getRoot,
     getHealth,
