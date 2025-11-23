@@ -5,6 +5,29 @@
 import type { NextRequest } from 'next/server';
 
 /**
+ * Cookie options for setCookie
+ */
+export interface CookieOptions
+{
+    httpOnly?: boolean;
+    secure?: boolean;
+    sameSite?: 'strict' | 'lax' | 'none';
+    maxAge?: number;
+    path?: string;
+    domain?: string;
+}
+
+/**
+ * Cookie to set in response
+ */
+export interface SetCookie
+{
+    name: string;
+    value: string;
+    options?: CookieOptions;
+}
+
+/**
  * Request Interceptor Context
  *
  * Available before calling SPFN API
@@ -99,18 +122,7 @@ export interface ResponseInterceptorContext
      * });
      * ```
      */
-    setCookies: Array<{
-        name: string;
-        value: string;
-        options?: {
-            httpOnly?: boolean;
-            secure?: boolean;
-            sameSite?: 'strict' | 'lax' | 'none';
-            maxAge?: number;
-            path?: string;
-            domain?: string;
-        };
-    }>;
+    setCookies: SetCookie[];
 
     /**
      * Metadata shared from request interceptors

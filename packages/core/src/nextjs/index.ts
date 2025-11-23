@@ -23,3 +23,20 @@ export type {
     RequestInterceptor,
     ResponseInterceptor,
 } from './client';
+
+// Interceptor Registry
+// ✅ Client-safe: Global registry for auto-discovery
+export {
+    interceptorRegistry,
+    registerInterceptors,
+} from './registry';
+
+// Interceptor Types
+// ✅ Client-safe: Type definitions only
+export type {
+    InterceptorRule,
+    RequestInterceptorContext,
+    ResponseInterceptorContext,
+    SetCookie,
+    CookieOptions,
+} from './types';
