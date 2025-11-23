@@ -1,7 +1,7 @@
 /**
  * Logger Formatters
  *
- * Log formatting utilities for console, JSON, Slack, and Email outputs with sensitive data masking.
+ * Log formatting utilities for console and JSON outputs with sensitive data masking.
  */
 
 import type { LogLevel, LogMetadata } from './types';
@@ -323,129 +323,6 @@ export function formatJSON(metadata: LogMetadata): string
     }
 
     return JSON.stringify(obj);
-}
-
-/**
- * Slack 메시지 포맷
- */
-export function formatSlack(metadata: LogMetadata): string
-{
-    const emoji = {
-        debug: ':bug:',
-        info: ':information_source:',
-        warn: ':warning:',
-        error: ':x:',
-        fatal: ':fire:',
-    };
-
-    const parts: string[] = [];
-
-    parts.push(`${emoji[metadata.level]} *${metadata.level.toUpperCase()}*`);
-
-    if (metadata.module)
-    {
-        parts.push(`\`[${metadata.module}]\``);
-    }
-
-    parts.push(metadata.message);
-
-    let message = parts.join(' ');
-
-    if (metadata.context)
-    {
-        message += '\n```\n' + JSON.stringify(metadata.context, null, 2) + '\n```';
-    }
-
-    if (metadata.error)
-    {
-        message += '\n```\n' + formatError(metadata.error) + '\n```';
-    }
-
-    return message;
-}
-
-/**
- * Email 제목 생성
- */
-export function formatEmailSubject(metadata: LogMetadata): string
-{
-    const prefix = `[${metadata.level.toUpperCase()}]`;
-    const module = metadata.module ? `[${metadata.module}]` : '';
-
-    return `${prefix}${module} ${metadata.message}`;
-}
-
-/**
- * Email 본문 생성 (HTML)
- */
-export function formatEmailBody(metadata: LogMetadata): string
-{
-    const parts: string[] = [];
-
-    parts.push('<html>');
-    parts.push('<body style="font-family: monospace; padding: 20px;">');
-
-    // 헤더
-    parts.push(`<h2 style="color: ${getEmailColor(metadata.level)};">`);
-    parts.push(`${metadata.level.toUpperCase()}`);
-    parts.push('</h2>');
-
-    // 시간
-    parts.push('<p>');
-    parts.push(`<strong>Timestamp:</strong> ${formatTimestamp(metadata.timestamp)}`);
-    parts.push('</p>');
-
-    // 모듈
-    if (metadata.module)
-    {
-        parts.push('<p>');
-        parts.push(`<strong>Module:</strong> ${metadata.module}`);
-        parts.push('</p>');
-    }
-
-    // 메시지
-    parts.push('<p>');
-    parts.push(`<strong>Message:</strong> ${metadata.message}`);
-    parts.push('</p>');
-
-    // Context
-    if (metadata.context)
-    {
-        parts.push('<h3>Context</h3>');
-        parts.push('<pre style="background: #f4f4f4; padding: 10px; border-radius: 4px;">');
-        parts.push(JSON.stringify(metadata.context, null, 2));
-        parts.push('</pre>');
-    }
-
-    // 에러
-    if (metadata.error)
-    {
-        parts.push('<h3>Error Stack Trace</h3>');
-        parts.push('<pre style="background: #fff0f0; padding: 10px; border-radius: 4px;">');
-        parts.push(formatError(metadata.error));
-        parts.push('</pre>');
-    }
-
-    parts.push('</body>');
-    parts.push('</html>');
-
-    return parts.join('\n');
-}
-
-/**
- * Email 레벨별 컬러
- */
-function getEmailColor(level: LogLevel): string
-{
-    const colors: Record<LogLevel, string> = {
-        debug: '#00BCD4',
-        info: '#4CAF50',
-        warn: '#FF9800',
-        error: '#F44336',
-        fatal: '#9C27B0',
-    };
-
-    return colors[level];
 }
 
 /**

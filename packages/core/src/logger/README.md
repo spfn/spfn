@@ -167,12 +167,6 @@ Logger validates configuration at startup and provides clear error messages:
 ```bash
 # Missing LOG_DIR when file logging is enabled
 Error: [Logger] Configuration validation failed: LOG_DIR environment variable is required when LOGGER_FILE_ENABLED=true
-
-# Invalid Slack webhook URL
-Error: [Logger] Configuration validation failed: Invalid SLACK_WEBHOOK_URL
-
-# Incomplete email configuration
-Error: [Logger] Configuration validation failed: Email transport configuration incomplete. Missing: SMTP_PORT, EMAIL_FROM
 ```
 
 ---
@@ -185,23 +179,6 @@ Error: [Logger] Configuration validation failed: Email transport configuration i
 NODE_ENV=production        # development | production | test
 LOGGER_ADAPTER=pino        # pino | custom (default: pino)
 LOG_LEVEL=info             # debug | info | warn | error | fatal
-```
-
-### External Services (Available)
-
-```bash
-# Slack (requires valid webhook URL)
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
-SLACK_CHANNEL=#errors
-SLACK_USERNAME=Logger Bot
-
-# Email (requires all fields)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-EMAIL_FROM=noreply@example.com
-EMAIL_TO=admin@example.com,admin2@example.com  # Comma-separated
-SMTP_USER=username  # Optional
-SMTP_PASSWORD=password  # Optional
 ```
 
 ---
@@ -220,20 +197,6 @@ SMTP_PASSWORD=password  # Optional
 - **Development**: Console with colors
 - **Docker/K8s**: Console (JSON) → Container logs → Centralized system (CloudWatch, Loki, etc.)
 - **Serverless**: Console (JSON) → Automatic capture by platform
-
-### Slack Transport
-
-- Error level and above
-- Production only
-- Requires `SLACK_WEBHOOK_URL`
-- **Status**: Configuration available, implementation in progress
-
-### Email Transport
-
-- Fatal level only
-- Production only
-- Requires SMTP configuration
-- **Status**: Configuration available, implementation in progress
 
 ---
 
@@ -403,15 +366,12 @@ npm test -- src/middleware/__tests__/request-logger.test.ts
 - ✅ Formatters (45 tests)
   - Console formatting
   - JSON formatting
-  - Slack formatting
-  - Email formatting
   - Timestamp formatting
   - Sensitive data masking (14 tests)
 - ✅ Configuration (36 tests)
   - Environment detection
   - Transport configuration
   - Configuration validation
-  - External services setup
 - ✅ Request Logger Middleware (29 tests)
   - HTTP request/response logging
   - Error handling

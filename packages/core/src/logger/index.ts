@@ -21,8 +21,6 @@
  *
  * 💡 Transports:
  * - Console: Colored output for development, JSON for production
- * - File: Automatic file logging in production (LOG_FILE_ENABLED=true)
- * - Future: Slack, Email, and custom transports
  */
 
 // Logger Instance

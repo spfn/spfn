@@ -114,26 +114,3 @@ export interface ConsoleTransportConfig extends TransportConfig
 {
     colorize?: boolean;
 }
-
-/**
- * Slack Transport 설정
- */
-export interface SlackTransportConfig extends TransportConfig
-{
-    webhookUrl: string;
-    channel?: string;
-    username?: string;
-}
-
-/**
- * Email Transport 설정
- */
-export interface EmailTransportConfig extends TransportConfig
-{
-    from: string;
-    to: string[];
-    smtpHost: string;
-    smtpPort: number;
-    smtpUser?: string;
-    smtpPassword?: string;
-}

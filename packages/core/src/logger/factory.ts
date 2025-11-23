@@ -6,7 +6,8 @@
 
 import { Logger } from './logger';
 import { ConsoleTransport } from './transports/console';
-import { getDefaultLogLevel, getConsoleConfig, validateConfig } from './config';
+import { getConsoleConfig, validateConfig } from './config';
+import { env } from '../config';
 import type { Transport } from './types';
 
 /**
@@ -38,7 +39,7 @@ function initializeLogger(): Logger
 
     // Create logger with configured transports
     return new Logger({
-        level: getDefaultLogLevel(),
+        level: env.LOG_LEVEL,
         transports: initializeTransports(),
     });
 }
