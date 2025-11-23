@@ -290,13 +290,3 @@ export const coreEnvSchema = defineEnvSchema({
         examples: ['http://localhost:3000', 'https://your-app.com'],
     }),
 });
-
-/**
- * Type-safe environment variable keys
- */
-export type CoreEnvKey = keyof typeof coreEnvSchema;
-
-/**
- * Get all environment variable keys
- */
-export const coreEnvKeys = Object.keys(coreEnvSchema) as CoreEnvKey[];

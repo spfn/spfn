@@ -649,6 +649,210 @@ export function createArrayParser<T>(
 }
 
 // ============================================================================
+// Secure Secret Parser
+// ============================================================================
+
+/**
+ * Calculate Shannon entropy of a string
+ * Returns entropy in bits per character
+ *
+ * @param str - String to calculate entropy for
+ * @returns Entropy value (0 to ~6.6 bits for printable ASCII)
+ *
+ * @example
+ * ```typescript
+ * const entropy = calculateEntropy('my-secret-key');
+ * // Higher entropy = more random
+ * // - Random lowercase: ~4.7 bits/char
+ * // - Random alphanumeric: ~5.2 bits/char
+ * // - Random printable ASCII: ~6.6 bits/char
+ * // - "aaaaaaa...": ~0 bits/char
+ * ```
+ */
+function calculateEntropy(str: string): number
+{
+    const len = str.length;
+    const frequencies = new Map<string, number>();
+
+    // Count character frequencies
+    for (const char of str)
+    {
+        frequencies.set(char, (frequencies.get(char) || 0) + 1);
+    }
+
+    // Calculate Shannon entropy
+    let entropy = 0;
+    for (const count of frequencies.values())
+    {
+        const probability = count / len;
+        entropy -= probability * Math.log2(probability);
+    }
+
+    return entropy;
+}
+
+/**
+ * Create a secure secret parser with entropy validation
+ *
+ * Validates cryptographic secrets for sufficient length, character diversity, and randomness.
+ * Uses Shannon entropy to measure randomness quality.
+ *
+ * @param options - Validation options
+ * @returns Parser function
+ *
+ * @example
+ * ```typescript
+ * const sessionSecret = getEnvVar('SESSION_SECRET', {
+ *   validator: createSecureSecretParser({
+ *     minLength: 32,        // Minimum 256-bit
+ *     minUniqueChars: 16,   // Character diversity
+ *     minEntropy: 3.5,      // Shannon entropy (bits/char)
+ *   }),
+ * });
+ * ```
+ */
+export function createSecureSecretParser(
+    options: {
+        minLength?: number;
+        minUniqueChars?: number;
+        minEntropy?: number;
+    } = {}
+): Parser<string>
+{
+    const {
+        minLength = 32,
+        minUniqueChars = 16,
+        minEntropy = 3.5,
+    } = options;
+
+    return (value: string): string =>
+    {
+        const length = value.length;
+        const uniqueChars = new Set(value).size;
+        const entropy = calculateEntropy(value);
+
+        // Check length (minimum for cryptographic strength)
+        if (length < minLength)
+        {
+            throw new Error(
+                `Secret too short: ${length} characters (minimum: ${minLength})`
+            );
+        }
+
+        // Check unique character diversity
+        if (uniqueChars < minUniqueChars)
+        {
+            throw new Error(
+                `Secret has low diversity: ${uniqueChars} unique characters (minimum: ${minUniqueChars})`
+            );
+        }
+
+        // Check Shannon entropy (randomness quality)
+        // Reference values:
+        // - Random lowercase: ~4.7 bits/char
+        // - Random alphanumeric: ~5.2 bits/char
+        // - Random printable ASCII: ~6.6 bits/char
+        // - "aaaaaaa...": ~0 bits/char
+        // - "abcabcabc...": ~1.58 bits/char
+        if (entropy < minEntropy)
+        {
+            throw new Error(
+                `Secret has low entropy: ${entropy.toFixed(2)} bits/char (minimum: ${minEntropy}). Use a more random secret.`
+            );
+        }
+
+        return value;
+    };
+}
+
+// ============================================================================
+// Password Parser
+// ============================================================================
+
+/**
+ * Create a password strength parser
+ *
+ * Validates password strength based on configurable requirements.
+ * Useful for enforcing password policies in environment variables or user input.
+ *
+ * @param options - Validation options
+ * @returns Parser function
+ *
+ * @example
+ * ```typescript
+ * const adminPassword = getEnvVar('ADMIN_PASSWORD', {
+ *   validator: createPasswordParser({
+ *     minLength: 12,
+ *     requireUppercase: true,
+ *     requireLowercase: true,
+ *     requireNumber: true,
+ *     requireSpecial: true,
+ *   }),
+ * });
+ * ```
+ */
+export function createPasswordParser(
+    options: {
+        minLength?: number;
+        requireUppercase?: boolean;
+        requireLowercase?: boolean;
+        requireNumber?: boolean;
+        requireSpecial?: boolean;
+    } = {}
+): Parser<string>
+{
+    const {
+        minLength = 8,
+        requireUppercase = true,
+        requireLowercase = true,
+        requireNumber = true,
+        requireSpecial = true,
+    } = options;
+
+    return (value: string): string =>
+    {
+        const errors: string[] = [];
+
+        // Length check
+        if (value.length < minLength)
+        {
+            errors.push(`Must be at least ${minLength} characters`);
+        }
+
+        // Uppercase check
+        if (requireUppercase && !/[A-Z]/.test(value))
+        {
+            errors.push('Must contain at least one uppercase letter');
+        }
+
+        // Lowercase check
+        if (requireLowercase && !/[a-z]/.test(value))
+        {
+            errors.push('Must contain at least one lowercase letter');
+        }
+
+        // Number check
+        if (requireNumber && !/[0-9]/.test(value))
+        {
+            errors.push('Must contain at least one number');
+        }
+
+        // Special character check
+        if (requireSpecial && !/[^A-Za-z0-9]/.test(value))
+        {
+            errors.push('Must contain at least one special character');
+        }
+
+        if (errors.length > 0)
+        {
+            throw new Error(`Password validation failed: ${errors.join(', ')}`);
+        }
+
+        return value;
+    };
+}
+
+// ============================================================================
 // Parser Composition
 // ============================================================================
 

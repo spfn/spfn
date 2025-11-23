@@ -52,6 +52,9 @@ export {
     chain,
     withFallback,
     optional,
+    //
+    createSecureSecretParser,
+    createPasswordParser
 } from './validator';
 
 // === Schema-based Environment Management (NEW) ===
