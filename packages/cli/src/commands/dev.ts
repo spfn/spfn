@@ -112,7 +112,8 @@ process.on('SIGINT', async () =>
     process.exit(0);
 });
 
-await orchestrator.watch();
+const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 
 // Keep process alive
 await new Promise(() => {});

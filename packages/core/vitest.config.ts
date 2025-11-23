@@ -21,8 +21,17 @@ export default defineConfig({
         maxConcurrency: 1,  // Run only 1 test file at a time
         pool: 'forks',  // Use forks for better isolation with global state
 
+        // Pool options for proper cleanup
+        poolOptions: {
+            forks: {
+                singleFork: true,  // Use single fork process (sequential)
+            },
+        },
+
         // Timeout for integration tests
         testTimeout: 30000,
+        hookTimeout: 30000,  // Timeout for beforeAll/afterAll hooks
+        teardownTimeout: 10000,  // Timeout for cleanup after tests
     },
     resolve: {
         alias: {

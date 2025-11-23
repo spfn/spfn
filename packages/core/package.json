@@ -59,6 +59,11 @@
       "import": "./dist/codegen/index.js",
       "require": "./dist/codegen/index.js"
     },
+    "./codegen/generators": {
+      "types": "./dist/codegen/generators/index.d.ts",
+      "import": "./dist/codegen/generators/index.js",
+      "require": "./dist/codegen/generators/index.js"
+    },
     "./env": {
       "types": "./dist/env/index.d.ts",
       "import": "./dist/env/index.js",
@@ -73,16 +78,6 @@
       "types": "./dist/events/index.d.ts",
       "import": "./dist/events/index.js",
       "require": "./dist/events/index.js"
-    },
-    "./generators": {
-      "types": "./dist/codegen/generators/index.d.ts",
-      "import": "./dist/codegen/generators/index.js",
-      "require": "./dist/codegen/generators/index.js"
-    },
-    "./codegen/generators": {
-      "types": "./dist/codegen/generators/index.d.ts",
-      "import": "./dist/codegen/generators/index.js",
-      "require": "./dist/codegen/generators/index.js"
     },
     "./config": {
       "types": "./dist/config/index.d.ts",
@@ -157,7 +152,7 @@
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.7",
     "drizzle-typebox": "^0.1.0",
-    "hono": "^4.9.0",
+    "hono": "^4.10.6",
     "jiti": "^2.6.1",
     "micromatch": "^4.0.8",
     "postgres": "^3.4.0",

@@ -51,6 +51,9 @@ importers:
       '@sinclair/typebox':
         specifier: ^0.34.0
         version: 0.34.41
+      '@spfn/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@spfn/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -309,7 +312,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.0.0
-        version: 1.19.5(hono@4.9.9)
+        version: 1.19.5(hono@4.10.6)
       '@sinclair/typebox':
         specifier: ^0.34.0
         version: 0.34.41
@@ -329,8 +332,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.44.7(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
       hono:
-        specifier: ^4.9.0
-        version: 4.9.9
+        specifier: ^4.10.6
+        version: 4.10.6
       jiti:
         specifier: ^2.6.1
         version: 2.6.1
@@ -2396,6 +2399,10 @@ packages:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
 
+  hono@4.10.6:
+    resolution: {integrity: sha512-BIdolzGpDO9MQ4nu3AUuDwHZZ+KViNm+EZ75Ae55eMXMqLVhDFqEMXxtUe9Qh8hjL+pIna/frs2j6Y2yD5Ua/g==}
+    engines: {node: '>=16.9.0'}
+
   hono@4.9.9:
     resolution: {integrity: sha512-Hxw4wT6zjJGZJdkJzAx9PyBdf7ZpxaTSA0NfxqjLghwMrLBX8p33hJBzoETRakF3UJu6OdNQBZAlNSkGqKFukw==}
     engines: {node: '>=16.9.0'}
@@ -4405,9 +4412,9 @@ snapshots:
   '@esbuild/win32-x64@0.25.11':
     optional: true
 
-  '@hono/node-server@1.19.5(hono@4.9.9)':
+  '@hono/node-server@1.19.5(hono@4.10.6)':
     dependencies:
-      hono: 4.9.9
+      hono: 4.10.6
 
   '@img/colour@1.0.0':
     optional: true
@@ -5442,6 +5449,8 @@ snapshots:
   hasown@2.0.2:
     dependencies:
       function-bind: 1.1.2
+
+  hono@4.10.6: {}
 
   hono@4.9.9: {}
 

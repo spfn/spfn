@@ -1048,7 +1048,8 @@ import { CodegenOrchestrator, loadCodegenConfig, createGeneratorsFromConfig } fr
 const config = loadCodegenConfig(process.cwd());
 const generators = createGeneratorsFromConfig(config);
 const orchestrator = new CodegenOrchestrator({ generators, cwd: process.cwd() });
-await orchestrator.watch();
+const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 ```
 
 ---
