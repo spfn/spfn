@@ -19,7 +19,11 @@ describe('HttpError', () =>
 {
     it('should create HttpError with correct properties', () =>
     {
-        const error = new HttpError('Test error', 500, { test: 'data' });
+        const error = new HttpError({
+            message: 'Test error',
+            statusCode: 500,
+            details: { test: 'data' }
+        });
 
         expect(error.name).toBe('HttpError');
         expect(error.message).toBe('Test error');
@@ -33,7 +37,7 @@ describe('BadRequestError', () =>
 {
     it('should create BadRequestError with status code 400', () =>
     {
-        const error = new BadRequestError('Invalid input');
+        const error = new BadRequestError({ message: 'Invalid input' });
 
         expect(error.name).toBe('BadRequestError');
         expect(error.message).toBe('Invalid input');
@@ -50,7 +54,7 @@ describe('BadRequestError', () =>
 
     it('should accept details', () =>
     {
-        const error = new BadRequestError('Invalid input', { fields: ['email'] });
+        const error = new BadRequestError({ message: 'Invalid input', details: { fields: ['email'] } });
 
         expect(error.details).toEqual({ fields: ['email'] });
     });
@@ -68,7 +72,7 @@ describe('ValidationError', () =>
 {
     it('should create ValidationError with status code 400', () =>
     {
-        const error = new ValidationError('Invalid input data');
+        const error = new ValidationError({ message: 'Invalid input data' });
 
         expect(error.name).toBe('ValidationError');
         expect(error.message).toBe('Invalid input data');
@@ -77,8 +81,11 @@ describe('ValidationError', () =>
 
     it('should accept details', () =>
     {
-        const error = new ValidationError('Validation failed', {
-            fields: { email: 'Invalid format', age: 'Must be >= 18' }
+        const error = new ValidationError({
+            message: 'Validation failed',
+            details: {
+                fields: { email: 'Invalid format', age: 'Must be >= 18' }
+            }
         });
 
         expect(error.details).toEqual({
@@ -88,7 +95,7 @@ describe('ValidationError', () =>
 
     it('should be instance of HttpError', () =>
     {
-        const error = new ValidationError('Validation failed');
+        const error = new ValidationError({ message: 'Validation failed' });
 
         expect(error).toBeInstanceOf(HttpError);
         expect(error).toBeInstanceOf(ValidationError);
@@ -99,7 +106,7 @@ describe('UnauthorizedError', () =>
 {
     it('should create UnauthorizedError with status code 401', () =>
     {
-        const error = new UnauthorizedError('Invalid token');
+        const error = new UnauthorizedError({ message: 'Invalid token' });
 
         expect(error.name).toBe('UnauthorizedError');
         expect(error.message).toBe('Invalid token');
@@ -116,7 +123,7 @@ describe('UnauthorizedError', () =>
 
     it('should accept details', () =>
     {
-        const error = new UnauthorizedError('Invalid token', { reason: 'expired' });
+        const error = new UnauthorizedError({ message: 'Invalid token', details: { reason: 'expired' } });
 
         expect(error.details).toEqual({ reason: 'expired' });
     });
@@ -134,7 +141,7 @@ describe('ForbiddenError', () =>
 {
     it('should create ForbiddenError with status code 403', () =>
     {
-        const error = new ForbiddenError('Insufficient permissions');
+        const error = new ForbiddenError({ message: 'Insufficient permissions' });
 
         expect(error.name).toBe('ForbiddenError');
         expect(error.message).toBe('Insufficient permissions');
@@ -151,7 +158,7 @@ describe('ForbiddenError', () =>
 
     it('should accept details', () =>
     {
-        const error = new ForbiddenError('Insufficient permissions', { required: 'admin' });
+        const error = new ForbiddenError({ message: 'Insufficient permissions', details: { required: 'admin' } });
 
         expect(error.details).toEqual({ required: 'admin' });
     });
@@ -169,7 +176,7 @@ describe('ConflictError', () =>
 {
     it('should create ConflictError with status code 409', () =>
     {
-        const error = new ConflictError('State conflict');
+        const error = new ConflictError({ message: 'State conflict' });
 
         expect(error.name).toBe('ConflictError');
         expect(error.message).toBe('State conflict');
@@ -186,7 +193,7 @@ describe('ConflictError', () =>
 
     it('should accept details', () =>
     {
-        const error = new ConflictError('State conflict', { resource: 'order' });
+        const error = new ConflictError({ message: 'State conflict', details: { resource: 'order' } });
 
         expect(error.details).toEqual({ resource: 'order' });
     });
@@ -204,7 +211,7 @@ describe('TooManyRequestsError', () =>
 {
     it('should create TooManyRequestsError with status code 429', () =>
     {
-        const error = new TooManyRequestsError('Rate limit exceeded');
+        const error = new TooManyRequestsError({ message: 'Rate limit exceeded' });
 
         expect(error.name).toBe('TooManyRequestsError');
         expect(error.message).toBe('Rate limit exceeded');
@@ -221,22 +228,24 @@ describe('TooManyRequestsError', () =>
 
     it('should include retryAfter in details', () =>
     {
-        const error = new TooManyRequestsError('Rate limit exceeded', 60);
+        const error = new TooManyRequestsError({ message: 'Rate limit exceeded', retryAfter: 60 });
 
-        expect(error.details).toEqual({ retryAfter: 60 });
+        expect(error.retryAfter).toBe(60);
     });
 
     it('should merge retryAfter with other details', () =>
     {
-        const error = new TooManyRequestsError('Rate limit exceeded', 60, { limit: 100 });
+        const error = new TooManyRequestsError({ message: 'Rate limit exceeded', retryAfter: 60, details: { limit: 100 } });
 
-        expect(error.details).toEqual({ retryAfter: 60, limit: 100 });
+        expect(error.retryAfter).toBe(60);
+        expect(error.details).toEqual({ limit: 100 });
     });
 
     it('should work without retryAfter', () =>
     {
-        const error = new TooManyRequestsError('Rate limit exceeded', undefined, { limit: 100 });
+        const error = new TooManyRequestsError({ message: 'Rate limit exceeded', details: { limit: 100 } });
 
+        expect(error.retryAfter).toBeUndefined();
         expect(error.details).toEqual({ limit: 100 });
     });
 
@@ -253,7 +262,7 @@ describe('InternalServerError', () =>
 {
     it('should create InternalServerError with status code 500', () =>
     {
-        const error = new InternalServerError('Something went wrong');
+        const error = new InternalServerError({ message: 'Something went wrong' });
 
         expect(error.name).toBe('InternalServerError');
         expect(error.message).toBe('Something went wrong');
@@ -270,7 +279,7 @@ describe('InternalServerError', () =>
 
     it('should accept details', () =>
     {
-        const error = new InternalServerError('Something went wrong', { component: 'auth' });
+        const error = new InternalServerError({ message: 'Something went wrong', details: { component: 'auth' } });
 
         expect(error.details).toEqual({ component: 'auth' });
     });
@@ -288,7 +297,7 @@ describe('ServiceUnavailableError', () =>
 {
     it('should create ServiceUnavailableError with status code 503', () =>
     {
-        const error = new ServiceUnavailableError('Service is down');
+        const error = new ServiceUnavailableError({ message: 'Service is down' });
 
         expect(error.name).toBe('ServiceUnavailableError');
         expect(error.message).toBe('Service is down');
@@ -305,22 +314,24 @@ describe('ServiceUnavailableError', () =>
 
     it('should include retryAfter in details', () =>
     {
-        const error = new ServiceUnavailableError('Service is down', 120);
+        const error = new ServiceUnavailableError({ message: 'Service is down', retryAfter: 120 });
 
-        expect(error.details).toEqual({ retryAfter: 120 });
+        expect(error.retryAfter).toBe(120);
     });
 
     it('should merge retryAfter with other details', () =>
     {
-        const error = new ServiceUnavailableError('Service is down', 120, { reason: 'maintenance' });
+        const error = new ServiceUnavailableError({ message: 'Service is down', retryAfter: 120, details: { reason: 'maintenance' } });
 
-        expect(error.details).toEqual({ retryAfter: 120, reason: 'maintenance' });
+        expect(error.retryAfter).toBe(120);
+        expect(error.details).toEqual({ reason: 'maintenance' });
     });
 
     it('should work without retryAfter', () =>
     {
-        const error = new ServiceUnavailableError('Service is down', undefined, { reason: 'maintenance' });
+        const error = new ServiceUnavailableError({ message: 'Service is down', details: { reason: 'maintenance' } });
 
+        expect(error.retryAfter).toBeUndefined();
         expect(error.details).toEqual({ reason: 'maintenance' });
     });
 
