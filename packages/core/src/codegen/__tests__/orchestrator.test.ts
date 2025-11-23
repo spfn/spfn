@@ -5,18 +5,18 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, rmSync } from 'fs';
 import { resolve, join } from 'path';
-import { CodegenOrchestrator } from '../orchestrator';
-import type { Generator, GeneratorOptions } from '../generator';
+import { CodegenOrchestrator } from '../core/orchestrator';
+import type { Generator, GeneratorOptions } from '../core/generator';
 
 const TEST_DIR = resolve(process.cwd(), '.test-tmp-orchestrator');
 
 // Mock chokidar
 vi.mock('chokidar', () => ({
     watch: vi.fn(() => ({
-        on: vi.fn((event, handler) => ({
-            on: vi.fn((event2, handler2) => ({
+        on: vi.fn((_event, _handler) => ({
+            on: vi.fn((_event2, _handler2) => ({
                 on: vi.fn()
             }))
         })),
@@ -46,7 +46,7 @@ describe('Orchestrator', () =>
             const mockGen: Generator = {
                 name: 'test-gen',
                 watchPatterns: ['**/*.test'],
-                async generate(options: GeneratorOptions)
+                async generate(_options: GeneratorOptions)
                 {
                     generated = true;
                 }
@@ -208,6 +208,7 @@ describe('Orchestrator', () =>
 
             // Start watch but don't await (it runs forever)
             const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 
             // Give it a moment to start
             await new Promise(resolve => setTimeout(resolve, 50));
@@ -232,7 +233,8 @@ describe('Orchestrator', () =>
                 debug: false
             });
 
-            await orchestrator.watch();
+            const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 
             // Should return early without starting watcher
         });
@@ -257,6 +259,7 @@ describe('Orchestrator', () =>
             });
 
             const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -300,13 +303,14 @@ describe('Orchestrator', () =>
             });
 
             const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
             // Simulate file add
             if (addHandler)
             {
-                await addHandler(join(TEST_DIR, 'test.ts'));
+                addHandler(join(TEST_DIR, 'test.ts'));
             }
 
             await new Promise(resolve => setTimeout(resolve, 50));
@@ -351,6 +355,7 @@ describe('Orchestrator', () =>
             });
 
             const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -377,8 +382,6 @@ describe('Orchestrator', () =>
 
         it('should handle multiple generators with different patterns', async () =>
         {
-            const { watch: chokidarWatch } = await import('chokidar');
-
             const gen1Changes: string[] = [];
             const gen2Changes: string[] = [];
 
@@ -407,6 +410,7 @@ describe('Orchestrator', () =>
             });
 
             const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -435,6 +439,7 @@ describe('Orchestrator', () =>
             });
 
             const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -479,6 +484,7 @@ describe('Orchestrator', () =>
 
             // Should not throw
             const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 

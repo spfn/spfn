@@ -5,18 +5,18 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, rmSync } from 'fs';
 import { resolve, join } from 'path';
-import { CodegenOrchestrator } from '../orchestrator';
-import type { Generator, GeneratorOptions } from '../generator';
+import type { GeneratorOptions, Generator } from "../core/generator";
+import { CodegenOrchestrator } from "../core/orchestrator";
 
 const TEST_DIR = resolve(process.cwd(), '.test-tmp-orchestrator-custom');
 
 // Mock chokidar
 vi.mock('chokidar', () => ({
     watch: vi.fn(() => ({
-        on: vi.fn((event, handler) => ({
-            on: vi.fn((event2, handler2) => ({
+        on: vi.fn((_event, _handler) => ({
+            on: vi.fn((_event2, _handler2) => ({
                 on: vi.fn()
             }))
         })),
@@ -81,6 +81,7 @@ describe('Orchestrator - Custom Generator (futureplay scenario)', () =>
 
             console.log('[TEST] Starting watch...');
             const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
             await new Promise(resolve => setTimeout(resolve, 50));
 
             console.log('[TEST] Initial generateCalls:', generateCalls.length);
@@ -169,6 +170,7 @@ describe('Orchestrator - Custom Generator (futureplay scenario)', () =>
             });
 
             const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
             await new Promise(resolve => setTimeout(resolve, 50));
 
             // Clear initial call

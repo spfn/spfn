@@ -220,7 +220,8 @@ await orchestrator.generateAll();
 
 ```typescript
 // Generate once, then watch for changes
-await orchestrator.watch();
+const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 ```
 
 ## Creating Custom Generators
@@ -404,7 +405,8 @@ const orchestrator = new CodegenOrchestrator({
   debug: true
 });
 
-await orchestrator.watch();
+const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 ```
 
 ### Generator Interface
@@ -679,7 +681,8 @@ const orchestrator = new CodegenOrchestrator({
   debug: true
 });
 
-await orchestrator.watch();
+const watchPromise = orchestrator.watch();
+            console.log(watchPromise);
 ```
 
 ## Troubleshooting
