@@ -7,7 +7,7 @@
 import { verificationCodesRepository } from '@/server/repositories';
 import { InvalidVerificationCodeError } from '@/errors';
 import jwt from 'jsonwebtoken';
-import { getVerificationTokenSecret } from '@/config';
+import { env } from '@/config';
 
 /**
  * Verification token expiry (15 minutes)
@@ -153,8 +153,7 @@ async function markCodeAsUsed(codeId: number): Promise<void>
  */
 export function createVerificationToken(payload: VerificationTokenPayload): string
 {
-    const secret = getVerificationTokenSecret();
-    return jwt.sign(payload, secret, {
+    return jwt.sign(payload, env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET, {
         expiresIn: VERIFICATION_TOKEN_EXPIRY,
         issuer: 'spfn-auth',
         audience: 'spfn-client',
@@ -171,8 +170,7 @@ export function validateVerificationToken(token: string): VerificationTokenPaylo
 {
     try
     {
-        const secret = getVerificationTokenSecret();
-        const decoded = jwt.verify(token, secret, {
+        const decoded = jwt.verify(token, env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET, {
             issuer: 'spfn-auth',
             audience: 'spfn-client',
         });

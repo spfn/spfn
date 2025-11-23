@@ -7,7 +7,8 @@
 
 import * as jose from 'jose';
 import { type KeyAlgorithmType } from '@/server/types';
-import { getSessionSecret } from '@/config';
+import { env } from '@/config';
+import { env as coreEnv } from '@spfn/core/config';
 
 export interface SessionData
 {
@@ -18,35 +19,6 @@ export interface SessionData
 }
 
 /**
- * Calculate Shannon entropy of a string
- * Returns entropy in bits per character
- *
- * @param str - String to calculate entropy for
- * @returns Entropy value (0 to ~6.6 bits for printable ASCII)
- */
-function calculateEntropy(str: string): number
-{
-    const len = str.length;
-    const frequencies = new Map<string, number>();
-
-    // Count character frequencies
-    for (const char of str)
-    {
-        frequencies.set(char, (frequencies.get(char) || 0) + 1);
-    }
-
-    // Calculate Shannon entropy
-    let entropy = 0;
-    for (const count of frequencies.values())
-    {
-        const probability = count / len;
-        entropy -= probability * Math.log2(probability);
-    }
-
-    return entropy;
-}
-
-/**
  * Get session secret key derived from environment
  * Must be at least 32 characters (256-bit)
  *
@@ -54,7 +26,7 @@ function calculateEntropy(str: string): number
  */
 async function getSessionSecretKey(): Promise<Uint8Array>
 {
-    const secret = getSessionSecret(); // From config module with validation
+    const secret = env.SPFN_AUTH_SESSION_SECRET;
 
     // Derive a 32-byte key using SHA-256 for A256GCM compatibility
     // Use Web Crypto API for universal compatibility (browser + Node.js)
@@ -157,10 +129,11 @@ export async function getSessionInfo(jwt: string): Promise<{
     catch (err)
     {
         // Log error for debugging but return null for graceful handling
-        if (process.env.NODE_ENV !== 'production')
+        if (coreEnv.NODE_ENV !== 'production')
         {
             console.warn('[Session] Failed to get session info:', err instanceof Error ? err.message : 'Unknown error');
         }
+
         return null;
     }
 }
@@ -187,85 +160,4 @@ export async function shouldRefreshSession(
     const hoursRemaining = (info.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60);
 
     return hoursRemaining < thresholdHours;
-}
-
-/**
- * Validate session secret strength
- * Call this at startup to ensure proper configuration
- *
- * Validation criteria:
- * - Minimum 32 characters (256-bit)
- * - Minimum 16 unique characters
- * - Minimum 3.5 bits/char Shannon entropy (good randomness)
- */
-export function validateSessionSecret(): {
-    valid: boolean;
-    error?: string;
-    details?: {
-        length: number;
-        uniqueChars: number;
-        entropy: number;
-    };
-}
-{
-    try
-    {
-        const secret =
-            process.env.SPFN_AUTH_SESSION_SECRET ||  // New prefixed version (recommended)
-            process.env.SESSION_SECRET;               // Legacy fallback
-
-        if (!secret)
-        {
-            return { valid: false, error: 'SPFN_AUTH_SESSION_SECRET is not set' };
-        }
-
-        const length = secret.length;
-        const uniqueChars = new Set(secret).size;
-        const entropy = calculateEntropy(secret);
-
-        // Check length (minimum 32 chars for 256-bit)
-        if (length < 32)
-        {
-            return {
-                valid: false,
-                error: `SPFN_AUTH_SESSION_SECRET too short (${length} chars, minimum 32)`,
-                details: { length, uniqueChars, entropy },
-            };
-        }
-
-        // Check unique character diversity
-        if (uniqueChars < 16)
-        {
-            return {
-                valid: false,
-                error: `SPFN_AUTH_SESSION_SECRET has low diversity (${uniqueChars} unique chars, minimum 16)`,
-                details: { length, uniqueChars, entropy },
-            };
-        }
-
-        // Check Shannon entropy (3.5 bits/char is good randomness)
-        // For reference:
-        // - Random lowercase: ~4.7 bits/char
-        // - Random alphanumeric: ~5.2 bits/char
-        // - Random printable ASCII: ~6.6 bits/char
-        // - "aaaaaaa...": ~0 bits/char
-        // - "abcabcabc...": ~1.58 bits/char
-        if (entropy < 3.5)
-        {
-            return {
-                valid: false,
-                error: `SPFN_AUTH_SESSION_SECRET has low entropy (${entropy.toFixed(2)} bits/char, minimum 3.5). Use a more random secret.`,
-                details: { length, uniqueChars, entropy },
-            };
-        }
-
-        return {
-            valid: true,
-            details: { length, uniqueChars, entropy },
-        };
-    }
-    catch (err)
-    {
-        return { valid: false, error: 'Failed to validate SPFN_AUTH_SESSION_SECRET' };
-    }
 }

@@ -4,7 +4,6 @@
  * Provides lifecycle hooks for SPFN server initialization
  */
 
-import { validateEnvConfig } from '@/config';
 import { ensureAdminExists } from './setup';
 import { initializeAuth } from '@/server/services';
 import type { AuthInitOptions } from './rbac/types';
@@ -86,20 +85,6 @@ export interface AuthLifecycleConfig
 export function createAuthLifecycle(options: AuthInitOptions = {}): AuthLifecycleConfig
 {
     return {
-        /**
-         * Validate auth environment variables before infrastructure initialization
-         *
-         * Checks:
-         * - SPFN_AUTH_SESSION_SECRET is set and valid (minimum 32 characters)
-         * - All required auth environment variables are configured
-         *
-         * Throws and exits if validation fails (except in test environment)
-         */
-        beforeInfrastructure: async () =>
-        {
-            validateEnvConfig();
-        },
-
         /**
          * Initialize auth system after database is ready
          *

@@ -11,6 +11,8 @@ import {
     defineEnvSchema,
     envString,
     envNumber,
+    createSecureSecretParser,
+    createPasswordParser,
 } from '@spfn/core/env';
 
 /**
@@ -40,7 +42,11 @@ export const authEnvSchema = defineEnvSchema({
             description: 'Session encryption secret (minimum 32 characters for AES-256)',
             required: true,
             fallbackKeys: ['SESSION_SECRET'],
-            minLength: 32,
+            validator: createSecureSecretParser({
+                minLength: 32,
+                minUniqueChars: 16,
+                minEntropy: 3.5,
+            }),
             sensitive: true,
             examples: [
                 'my-super-secret-session-key-at-least-32-chars-long',
@@ -165,7 +171,15 @@ export const authEnvSchema = defineEnvSchema({
         ...envString({
             description: 'Single admin password (simplest format)',
             required: false,
-            examples: ['secure-admin-password'],
+            validator: createPasswordParser({
+                minLength: 8,
+                requireUppercase: true,
+                requireLowercase: true,
+                requireNumber: true,
+                requireSpecial: true,
+            }),
+            sensitive: true,
+            examples: ['SecureAdmin123!'],
         }),
     },
 

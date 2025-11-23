@@ -10,6 +10,7 @@ import { generateKeyPair } from '@/server/lib/crypto';
 import { sealSession } from '@/server/lib/session';
 import { getSessionTtl, COOKIE_NAMES } from '@/server/lib/config';
 import { authLogger } from '@/server/logger';
+import { env } from '@spfn/core/config';
 
 /**
  * Login and Register Interceptor
@@ -103,7 +104,7 @@ export const loginRegisterInterceptor: InterceptorRule =
                 value: sealed,
                 options: {
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
+                    secure: env.NODE_ENV === 'production',
                     sameSite: 'strict',
                     maxAge: ttl,
                     path: '/',
@@ -116,7 +117,7 @@ export const loginRegisterInterceptor: InterceptorRule =
                 value: ctx.metadata.keyId,
                 options: {
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
+                    secure: env.NODE_ENV === 'production',
                     sameSite: 'strict',
                     maxAge: ttl,
                     path: '/',

@@ -11,7 +11,7 @@
 
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
-import { getJwtSecret, getJwtExpiresIn } from '@/config';
+import { env } from '@/config';
 import { type KeyAlgorithmType } from '@/server/types';
 
 export interface SessionPayload
@@ -40,8 +40,8 @@ export interface TokenPayload extends SessionPayload
  */
 export function generateToken(payload: SessionPayload): string
 {
-    return jwt.sign(payload, getJwtSecret(), {
-        expiresIn: getJwtExpiresIn(),
+    return jwt.sign(payload, env.SPFN_AUTH_JWT_SECRET, {
+        expiresIn: env.SPFN_AUTH_JWT_EXPIRES_IN,
     } as SignOptions);
 }
 
@@ -57,7 +57,7 @@ export function generateToken(payload: SessionPayload): string
  */
 export function verifyToken(token: string): TokenPayload
 {
-    return jwt.verify(token, getJwtSecret()) as TokenPayload;
+    return jwt.verify(token, env.SPFN_AUTH_JWT_SECRET) as TokenPayload;
 }
 
 /**

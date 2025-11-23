@@ -12,6 +12,7 @@ import { unsealSession, sealSession, shouldRefreshSession } from '@/server/lib/s
 import { generateClientToken } from '@/server/lib/crypto';
 import { getSessionTtl, COOKIE_NAMES } from '@/server/lib/config';
 import { authLogger } from '@/server/logger';
+import { env } from '@spfn/core/config';
 
 /**
  * Check if path requires authentication
@@ -186,7 +187,7 @@ export const generalAuthInterceptor: InterceptorRule =
                     value: sealed,
                     options: {
                         httpOnly: true,
-                        secure: process.env.NODE_ENV === 'production',
+                        secure: env.NODE_ENV === 'production',
                         sameSite: 'strict',
                         maxAge: ttl,
                         path: '/',

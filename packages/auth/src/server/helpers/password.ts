@@ -11,22 +11,8 @@
  */
 
 import bcrypt from 'bcrypt';
-import { getBcryptSaltRounds } from '@/config';
-
-/**
- * Bcrypt salt rounds (cost factor)
- *
- * Determines computational cost: 2^rounds iterations
- * - 10 rounds: ~100ms (default, balanced)
- * - 12 rounds: ~400ms (more secure, slower)
- * - 14 rounds: ~1600ms (very secure, too slow for most apps)
- *
- * Can be configured via SPFN_AUTH_BCRYPT_SALT_ROUNDS environment variable
- */
-function getSaltRounds(): number
-{
-    return getBcryptSaltRounds();
-}
+import { env } from '@/config';
+import { createPasswordParser } from '@spfn/core/env';
 
 /**
  * Hash a plain text password using bcrypt
@@ -35,6 +21,11 @@ function getSaltRounds(): number
  * 1. Generate random salt (128-bit)
  * 2. Apply bcrypt key derivation (2^rounds iterations)
  * 3. Return $2b$rounds$[salt][hash] (60 chars)
+ *
+ * Salt rounds are configured via SPFN_AUTH_BCRYPT_SALT_ROUNDS:
+ * - 10 rounds: ~100ms (default, balanced)
+ * - 12 rounds: ~400ms (more secure, slower)
+ * - 14 rounds: ~1600ms (very secure, too slow for most apps)
  *
  * @param password - Plain text password to hash
  * @returns Bcrypt hash string (includes salt)
@@ -53,7 +44,7 @@ export async function hashPassword(password: string): Promise<string>
         throw new Error('Password cannot be empty');
     }
 
-    return bcrypt.hash(password, getSaltRounds());
+    return bcrypt.hash(password, env.SPFN_AUTH_BCRYPT_SALT_ROUNDS);
 }
 
 /**
@@ -92,6 +83,19 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 /**
+ * Password strength validator (uses core validator internally)
+ *
+ * Uses @spfn/core/env/validator for consistent validation logic.
+ */
+const passwordValidator = createPasswordParser({
+    minLength: 8,
+    requireUppercase: true,
+    requireLowercase: true,
+    requireNumber: true,
+    requireSpecial: true,
+});
+
+/**
  * Validate password strength
  *
  * Requirements:
@@ -118,35 +122,45 @@ export function validatePasswordStrength(password: string): {
     errors: string[];
 }
 {
-    const errors: string[] = [];
-
-    if (password.length < 8)
+    try
     {
-        errors.push('Password must be at least 8 characters');
+        passwordValidator(password);
+        return {
+            valid: true,
+            errors: [],
+        };
     }
-
-    if (!/[A-Z]/.test(password))
+    catch (error)
     {
-        errors.push('Password must contain at least one uppercase letter');
-    }
+        const message = error instanceof Error ? error.message : String(error);
 
-    if (!/[a-z]/.test(password))
-    {
-        errors.push('Password must contain at least one lowercase letter');
-    }
+        // Parse error message from validator
+        // Format: "Password validation failed: error1, error2, error3"
+        const errorMatch = message.match(/Password validation failed: (.+)/);
 
-    if (!/[0-9]/.test(password))
-    {
-        errors.push('Password must contain at least one number');
-    }
+        if (errorMatch)
+        {
+            const errors = errorMatch[1].split(', ').map((err) =>
+            {
+                // Convert core validator messages to legacy format
+                return err
+                    .replace(/^Must be at least (\d+) characters$/, 'Password must be at least $1 characters')
+                    .replace(/^Must contain at least one uppercase letter$/, 'Password must contain at least one uppercase letter')
+                    .replace(/^Must contain at least one lowercase letter$/, 'Password must contain at least one lowercase letter')
+                    .replace(/^Must contain at least one number$/, 'Password must contain at least one number')
+                    .replace(/^Must contain at least one special character$/, 'Password must contain at least one special character');
+            });
 
-    if (!/[^A-Za-z0-9]/.test(password))
-    {
-        errors.push('Password must contain at least one special character');
-    }
+            return {
+                valid: false,
+                errors,
+            };
+        }
 
-    return {
-        valid: errors.length === 0,
-        errors,
-    };
+        // Fallback for unexpected error format
+        return {
+            valid: false,
+            errors: [message],
+        };
+    }
 }
