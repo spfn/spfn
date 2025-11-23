@@ -9,13 +9,12 @@ import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { registerRoutes, loadRoutes } from '../route';
+import { registerRoutes } from '../route';
 import { ErrorHandler, RequestLogger } from '../middleware';
 import { logger } from '../logger';
 import { createHealthCheckHandler } from './helpers';
-import { executePluginHooks } from './plugin-discovery';
 
-import type { ServerConfig, AppFactory, ServerPlugin } from './types';
+import type { ServerConfig, AppFactory } from './types';
 
 // Extend Hono context with error handler flag
 declare module 'hono'
@@ -36,7 +35,7 @@ const serverLogger = logger.child('@spfn/core:server');
  * 2. server.config.ts -> Partial customization
  * 3. app.ts -> Full control (no auto config)
  */
-export async function createServer(config?: ServerConfig, plugins: ServerPlugin[] = []): Promise<Hono>
+export async function createServer(config?: ServerConfig): Promise<Hono>
 {
     const cwd = process.cwd();
     const appPath = join(cwd, 'src', 'server', 'app.ts');
@@ -45,18 +44,17 @@ export async function createServer(config?: ServerConfig, plugins: ServerPlugin[
     // Level 3: Full control with app.ts
     if (existsSync(appPath) || existsSync(appJsPath))
     {
-        return await loadCustomApp(appPath, appJsPath, config, plugins);
+        return await loadCustomApp(appPath, appJsPath, config);
     }
 
     // Level 1 & 2: Auto config
-    return await createAutoConfiguredApp(config, plugins);
+    return await createAutoConfiguredApp(config);
 }
 
 async function loadCustomApp(
     appPath: string,
     appJsPath: string,
-    config?: ServerConfig,
-    plugins: ServerPlugin[] = []
+    config?: ServerConfig
 ): Promise<Hono>
 {
     // Determine which path exists to avoid duplicate checks
@@ -71,22 +69,16 @@ async function loadCustomApp(
 
     const app = await appFactory();
 
-    // Execute beforeRoutes hooks from plugins
-    await executePluginHooks(plugins, 'beforeRoutes', app);
-
     // Register routes (if provided via config)
     if (config?.routes)
     {
         registerRoutes(app, config.routes, config.middlewares);
     }
 
-    // Execute afterRoutes hooks from plugins
-    await executePluginHooks(plugins, 'afterRoutes', app);
-
     return app;
 }
 
-async function createAutoConfiguredApp(config?: ServerConfig, plugins: ServerPlugin[] = []): Promise<Hono>
+async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
 {
     const app = new Hono();
 
@@ -120,19 +112,13 @@ async function createAutoConfiguredApp(config?: ServerConfig, plugins: ServerPlu
     // 5. beforeRoutes hook from config
     await executeBeforeRoutesHook(app, config);
 
-    // 6. beforeRoutes hooks from plugins
-    await executePluginHooks(plugins, 'beforeRoutes', app);
-
-    // 7. Load routes
+    // 6. Load routes
     await loadAppRoutes(app, config);
 
-    // 8. afterRoutes hook from config
+    // 7. afterRoutes hook from config
     await executeAfterRoutesHook(app, config);
 
-    // 9. afterRoutes hooks from plugins
-    await executePluginHooks(plugins, 'afterRoutes', app);
-
-    // 10. Error handler
+    // 8. Error handler
     if (enableErrorHandler)
     {
         app.onError(ErrorHandler());
@@ -197,37 +183,16 @@ async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void>
 {
     const debug = isDebugMode(config);
 
-    // 1. Register define-route based routes first (if provided)
+    // Register define-route based routes (if provided)
     if (config?.routes)
     {
         registerRoutes(app, config.routes, config.middlewares);
         if (debug)
         {
-            serverLogger.info('✓ define-route routes registered');
+            serverLogger.info('✓ Routes registered');
         }
     }
-
-    // 2. Load file-based routes (deprecated, but still supported for backward compatibility)
-    const routesDir = config?.routesPath ?? join(process.cwd(), 'src', 'server', 'routes');
-    if (existsSync(routesDir))
-    {
-        // Show deprecation warning
-        if (config?.routesPath || (!config?.routes && existsSync(routesDir)))
-        {
-            serverLogger.warn(
-                '⚠️  DEPRECATED: File-based routing (routesPath) is deprecated and will be removed in a future version.\n' +
-                '   Use defineRouter() with explicit imports instead for full type safety.\n' +
-                '   See: https://github.com/your-org/spfn/docs/migration/define-route.md'
-            );
-        }
-
-        await loadRoutes(app, {
-            routesDir: config?.routesPath,
-            debug,
-            middlewares: config?.middlewares
-        });
-    }
-    else if (!config?.routes && debug)
+    else if (debug)
     {
         serverLogger.warn('⚠️  No routes configured. Use defineServerConfig().routes() to register routes.');
     }

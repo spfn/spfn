@@ -67,15 +67,6 @@ export class ServerConfigBuilder
     }
 
     /**
-     * Set routes directory path
-     */
-    routesPath(path: string): this
-    {
-        this.config.routesPath = path;
-        return this;
-    }
-
-    /**
      * Register define-route based router
      *
      * @example

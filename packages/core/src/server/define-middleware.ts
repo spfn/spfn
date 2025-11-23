@@ -30,10 +30,34 @@ export type NamedMiddleware<TName extends string = string> = {
 };
 
 /**
+ * Named middleware factory with type inference
+ *
+ * Factory function that creates middleware instances with parameters
+ *
+ * @example
+ * ```ts
+ * export const requirePermissions = defineMiddleware('permission',
+ *   (...permissions: string[]) => async (c, next) => {
+ *     // permission check logic
+ *     await next();
+ *   }
+ * );
+ * ```
+ */
+export type NamedMiddlewareFactory<TName extends string = string, TArgs extends any[] = any[]> = {
+    name: TName;
+    _name: TName;  // Type inference helper
+} & ((...args: TArgs) => MiddlewareHandler);
+
+/**
  * Define a named middleware
  *
  * Creates a middleware with a unique name that can be referenced
  * in route-level skip() calls with full type safety.
+ *
+ * Supports two patterns:
+ * 1. Regular middleware: Direct middleware handler
+ * 2. Factory middleware: Function that creates middleware with parameters
  *
  * @param name - Unique middleware name
  * @param handler - Middleware handler function
@@ -41,9 +65,7 @@ export type NamedMiddleware<TName extends string = string> = {
  *
  * @example
  * ```ts
- * // middlewares.ts
- * import { defineMiddleware } from '@spfn/core/server';
- *
+ * // Regular middleware
  * export const authMiddleware = defineMiddleware('auth', async (c, next) => {
  *   const token = c.req.header('authorization');
  *   if (!token) {
@@ -53,42 +75,95 @@ export type NamedMiddleware<TName extends string = string> = {
  *   await next();
  * });
  *
- * export const rateLimitMiddleware = defineMiddleware('rateLimit', async (c, next) => {
- *   const ip = c.req.header('x-forwarded-for') ?? 'unknown';
- *   if (await isRateLimited(ip)) {
- *     return c.json({ error: 'Too many requests' }, 429);
+ * // Factory middleware
+ * export const requirePermissions = defineMiddleware('permission',
+ *   (...permissions: string[]) => async (c, next) => {
+ *     const user = c.get('user');
+ *     if (!hasPermissions(user, permissions)) {
+ *       return c.json({ error: 'Forbidden' }, 403);
+ *     }
+ *     await next();
  *   }
- *   await next();
- * });
+ * );
  *
  * // server.config.ts
  * export default defineServerConfig()
- *   .middlewares([authMiddleware, rateLimitMiddleware])
+ *   .middlewares([authMiddleware])
  *   .routes(appRouter)
  *   .build();
  *
- * // routes.ts
+ * // routes.ts - skip by name
  * export const publicRoute = route.get('/health')
- *   .skip(['auth', 'rateLimit'])  // ✅ Type-safe! Autocomplete!
+ *   .skip(['auth'])  // ✅ Type-safe! Autocomplete!
  *   .handler(async (c) => c.success({ status: 'ok' }));
  *
- * export const publicData = route.get('/public-data')
- *   .skip(['auth'])  // ✅ Skip only auth, keep rateLimit
- *   .handler(async (c) => { ... });
- *
- * export const protectedRoute = route.get('/users')
- *   // No skip - all middlewares applied
+ * // Use factory middleware inline
+ * export const protectedRoute = route.get('/admin')
+ *   .use([requirePermissions('admin:write')])
  *   .handler(async (c) => { ... });
  * ```
  */
 export function defineMiddleware<TName extends string>(
     name: TName,
     handler: MiddlewareHandler
-): NamedMiddleware<TName>
+): NamedMiddleware<TName>;
+
+export function defineMiddleware<TName extends string, TArgs extends any[]>(
+    name: TName,
+    factory: (...args: TArgs) => MiddlewareHandler
+): NamedMiddlewareFactory<TName, TArgs>;
+
+export function defineMiddleware<TName extends string, TArgs extends any[] = []>(
+    name: TName,
+    handlerOrFactory: MiddlewareHandler | ((...args: TArgs) => MiddlewareHandler)
+): NamedMiddleware<TName> | NamedMiddlewareFactory<TName, TArgs>
 {
+    // Distinguish between regular middleware and factory by parameter count
+    // MiddlewareHandler always has exactly 2 parameters: (c, next)
+    // Factory has any other number of parameters
+    if (typeof handlerOrFactory === 'function')
+    {
+        const paramCount = handlerOrFactory.length;
+
+        // Regular middleware handler (c, next) => ...
+        if (paramCount === 2)
+        {
+            return {
+                name,
+                handler: handlerOrFactory as MiddlewareHandler,
+                _name: name as TName,
+            };
+        }
+        // Factory (...args) => (c, next) => ...
+        else
+        {
+            // Create a new wrapper function to avoid "Cannot assign to read only property 'name'" error
+            const factory = handlerOrFactory as (...args: TArgs) => MiddlewareHandler;
+            const wrapper = (...args: TArgs) => factory(...args);
+
+            // Use Object.defineProperty to set name property (which is read-only by default)
+            Object.defineProperty(wrapper, 'name', {
+                value: name,
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            });
+
+            Object.defineProperty(wrapper, '_name', {
+                value: name as TName,
+                writable: false,
+                enumerable: false,
+                configurable: true,
+            });
+
+            return wrapper as NamedMiddlewareFactory<TName, TArgs>;
+        }
+    }
+
+    // Fallback: treat as regular middleware
     return {
         name,
-        handler,
+        handler: handlerOrFactory as MiddlewareHandler,
         _name: name as TName,
     };
 }

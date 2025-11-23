@@ -31,4 +31,4 @@ export { defineMiddleware } from './define-middleware';
 export type { NamedMiddleware, ExtractMiddlewareNames } from './define-middleware';
 
 // Server types
-export type { ServerConfig, AppFactory, ServerInstance, ServerPlugin } from './types';
+export type { ServerConfig, AppFactory, ServerInstance } from './types';

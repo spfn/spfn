@@ -33,9 +33,9 @@ describe('Server Module', () => {
             };
 
             expect(config.timeout).toBeDefined();
-            expect(config.timeout.request).toBe(30000);
-            expect(config.timeout.keepAlive).toBe(45000);
-            expect(config.timeout.headers).toBe(20000);
+            expect(config.timeout!.request).toBe(30000);
+            expect(config.timeout!.keepAlive).toBe(45000);
+            expect(config.timeout!.headers).toBe(20000);
         });
 
         it('should support partial timeout configuration', () => {
@@ -46,8 +46,8 @@ describe('Server Module', () => {
             };
 
             expect(config.timeout).toBeDefined();
-            expect(config.timeout.request).toBe(60000);
-            expect(config.timeout.keepAlive).toBeUndefined();
+            expect(config.timeout!.request).toBe(60000);
+            expect(config.timeout!.keepAlive).toBeUndefined();
         });
 
         it('should support database configuration', () => {
@@ -69,9 +69,9 @@ describe('Server Module', () => {
             };
 
             expect(config.database).toBeDefined();
-            expect(config.database.pool?.max).toBe(20);
-            expect(config.database.healthCheck?.enabled).toBe(true);
-            expect(config.database.monitoring?.slowThreshold).toBe(1000);
+            expect(config.database!.pool?.max).toBe(20);
+            expect(config.database!.healthCheck?.enabled).toBe(true);
+            expect(config.database!.monitoring?.slowThreshold).toBe(1000);
         });
     });
 
@@ -122,8 +122,8 @@ describe('Server Module', () => {
                 },
             };
 
-            expect(config.timeout.request).toBe(60000);
-            expect(config.timeout.request).not.toBe(Number(process.env.SERVER_TIMEOUT));
+            expect(config.timeout!.request).toBe(60000);
+            expect(config.timeout!.request).not.toBe(Number(process.env.SERVER_TIMEOUT));
         });
     });
 
@@ -208,11 +208,11 @@ describe('Server Module', () => {
 
     describe('Middleware Configuration', () => {
         it('should support named middlewares', () => {
-            const authMiddleware = defineMiddleware('auth', async (c, next) => {
+            const authMiddleware = defineMiddleware('auth', async (_c, next) => {
                 await next();
             });
 
-            const rateLimitMiddleware = defineMiddleware('rateLimit', async (c, next) => {
+            const rateLimitMiddleware = defineMiddleware('rateLimit', async (_c, next) => {
                 await next();
             });
 
@@ -236,7 +236,7 @@ describe('Server Module', () => {
             };
 
             expect(config.shutdown).toBeDefined();
-            expect(config.shutdown.timeout).toBe(25000);
+            expect(config.shutdown!.timeout).toBe(25000);
         });
 
         it('should support partial shutdown configuration', () => {
@@ -245,7 +245,7 @@ describe('Server Module', () => {
             };
 
             expect(config.shutdown).toBeDefined();
-            expect(config.shutdown.timeout).toBeUndefined();
+            expect(config.shutdown!.timeout).toBeUndefined();
         });
 
         it('should support SHUTDOWN_TIMEOUT environment variable', () => {
@@ -269,9 +269,9 @@ describe('Server Module', () => {
             };
 
             expect(config.healthCheck).toBeDefined();
-            expect(config.healthCheck.enabled).toBe(true);
-            expect(config.healthCheck.path).toBe('/health');
-            expect(config.healthCheck.detailed).toBe(true);
+            expect(config.healthCheck!.enabled).toBe(true);
+            expect(config.healthCheck!.path).toBe('/health');
+            expect(config.healthCheck!.detailed).toBe(true);
         });
 
         it('should support partial health check configuration', () => {
@@ -282,8 +282,8 @@ describe('Server Module', () => {
             };
 
             expect(config.healthCheck).toBeDefined();
-            expect(config.healthCheck.enabled).toBe(false);
-            expect(config.healthCheck.path).toBeUndefined();
+            expect(config.healthCheck!.enabled).toBe(false);
+            expect(config.healthCheck!.path).toBeUndefined();
         });
 
         it('should support custom health check path', () => {
@@ -294,7 +294,7 @@ describe('Server Module', () => {
             };
 
             expect(config.healthCheck).toBeDefined();
-            expect(config.healthCheck.path).toBe('/api/health');
+            expect(config.healthCheck!.path).toBe('/api/health');
         });
 
         it('should support detailed health check mode', () => {
@@ -305,7 +305,7 @@ describe('Server Module', () => {
             };
 
             expect(config.healthCheck).toBeDefined();
-            expect(config.healthCheck.detailed).toBe(true);
+            expect(config.healthCheck!.detailed).toBe(true);
         });
 
         it('should support HEALTH_CHECK_ENABLED environment variable', () => {
@@ -418,7 +418,7 @@ describe('Server Module', () => {
 
         it('should support routes configuration', () => {
             const testRoute = route.get('/test')
-                .handler(async (c) => c.success({ message: 'test' }));
+                .handler(async (_c) => ({ message: 'test' }));
 
             const router = defineRouter({ testRoute });
 
@@ -440,7 +440,7 @@ describe('Server Module', () => {
                 })
                 .handler(async (c) => {
                     const { params } = await c.data();
-                    return c.success({ id: params.id, name: 'John Doe' });
+                    return { id: params.id, name: 'John Doe' }
                 });
 
             const router = defineRouter({ getUser });
@@ -475,11 +475,11 @@ describe('Server Module', () => {
                 })
                 .handler(async (c) => {
                     const { params, query, body } = await c.data();
-                    return c.success({
+                    return {
                         id: params.id,
                         notify: query.notify,
                         name: body.name,
-                    });
+                    }
                 });
 
             const router = defineRouter({ testRoute });
@@ -499,7 +499,7 @@ describe('Server Module', () => {
                 body: JSON.stringify({ name: 'Test Item' }),
             });
 
-            const responseData = await res.json();
+            const responseData = (await res.json()) as Record<string, any>;
 
             expect(res.status).toBe(200);
             expect(responseData.data).toEqual({
@@ -540,7 +540,7 @@ describe('Server Module', () => {
             });
 
             expect(res.status).toBe(400);
-            const data = await res.json();
+            const data = (await res.json()) as Record<string, any>;
             expect(data.success).toBe(false);
             expect(data.error).toBeDefined();
         });
@@ -548,7 +548,7 @@ describe('Server Module', () => {
         it('should support response helpers', async () => {
             const routes = {
                 getSuccess: route.get('/success')
-                    .handler(async (c) => c.success({ message: 'ok' })),
+                    .handler(async (_c) => ({ message: 'ok' })),
 
                 postCreated: route.post('/created')
                     .handler(async (c) => c.created({ id: 1 })),
@@ -594,7 +594,7 @@ describe('Server Module', () => {
             // Test paginated()
             const res4 = await app.request('/paginated');
             expect(res4.status).toBe(200);
-            const data4 = await res4.json();
+            const data4 = (await res4.json()) as Record<string, any>;
             expect(data4.success).toBe(true);
             expect(data4.data).toEqual([{ id: 1 }, { id: 2 }]);
             expect(data4.meta?.pagination).toEqual({
@@ -615,7 +615,7 @@ describe('Server Module', () => {
                 .use([authMiddleware])
                 .handler(async (c) => {
                     const user = c.raw.get('user');
-                    return c.success({ user });
+                    return { user }
                 });
 
             const router = defineRouter({ protectedRoute });
@@ -629,7 +629,7 @@ describe('Server Module', () => {
             const app = await createServer(config);
 
             const res = await app.request('/protected');
-            const data = await res.json();
+            const data = (await res.json()) as Record<string, any>;
 
             expect(authMiddleware).toHaveBeenCalled();
             expect(res.status).toBe(200);
@@ -654,7 +654,7 @@ describe('Server Module', () => {
                 .handler(async (c) => {
                     const authenticated = c.raw.get('authenticated');
                     const rateLimited = c.raw.get('rateLimited');
-                    return c.success({ authenticated, rateLimited });
+                    return { authenticated, rateLimited }
                 });
 
             const router = defineRouter({ protectedRoute });
@@ -669,7 +669,7 @@ describe('Server Module', () => {
             const app = await createServer(config);
 
             const res = await app.request('/users');
-            const data = await res.json();
+            const data = (await res.json()) as Record<string, any>;
 
             expect(authMiddlewareFn).toHaveBeenCalled();
             expect(rateLimitMiddlewareFn).toHaveBeenCalled();
@@ -696,17 +696,17 @@ describe('Server Module', () => {
                 .handler(async (c) => {
                     const authenticated = c.raw.get('authenticated');
                     const rateLimited = c.raw.get('rateLimited');
-                    return c.success({
+                    return {
                         authenticated: authenticated ?? false,
                         rateLimited: rateLimited ?? false
-                    });
+                    }
                 });
 
             const protectedRoute = route.get('/users')
                 .handler(async (c) => {
                     const authenticated = c.raw.get('authenticated');
                     const rateLimited = c.raw.get('rateLimited');
-                    return c.success({ authenticated, rateLimited });
+                    return { authenticated, rateLimited }
                 });
 
             const router = defineRouter({ publicRoute, protectedRoute });
@@ -724,7 +724,7 @@ describe('Server Module', () => {
             authMiddlewareFn.mockClear();
             rateLimitMiddlewareFn.mockClear();
             const res1 = await app.request('/health');
-            const data1 = await res1.json();
+            const data1 = (await res1.json()) as Record<string, any>;
 
             expect(authMiddlewareFn).not.toHaveBeenCalled();
             expect(rateLimitMiddlewareFn).not.toHaveBeenCalled();
@@ -735,7 +735,7 @@ describe('Server Module', () => {
             authMiddlewareFn.mockClear();
             rateLimitMiddlewareFn.mockClear();
             const res2 = await app.request('/users');
-            const data2 = await res2.json();
+            const data2 = (await res2.json()) as Record<string, any>;
 
             expect(authMiddlewareFn).toHaveBeenCalled();
             expect(rateLimitMiddlewareFn).toHaveBeenCalled();
@@ -762,10 +762,10 @@ describe('Server Module', () => {
                 .handler(async (c) => {
                     const authenticated = c.raw.get('authenticated');
                     const rateLimited = c.raw.get('rateLimited');
-                    return c.success({
+                    return {
                         authenticated: authenticated ?? false,
                         rateLimited
-                    });
+                    }
                 });
 
             const router = defineRouter({ publicDataRoute });
@@ -780,7 +780,7 @@ describe('Server Module', () => {
             const app = await createServer(config);
 
             const res = await app.request('/public-data');
-            const data = await res.json();
+            const data = (await res.json()) as Record<string, any>;
 
             expect(authMiddlewareFn).not.toHaveBeenCalled();
             expect(rateLimitMiddlewareFn).toHaveBeenCalled();

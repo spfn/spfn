@@ -22,9 +22,8 @@ import {
     getShutdownTimeout,
     getTimeoutConfig,
 } from './helpers';
-import { discoverPlugins, executePluginHooks } from './plugin-discovery';
 
-import type { ServerConfig, ServerInstance, ServerPlugin } from './types';
+import type { ServerConfig, ServerInstance } from './types';
 import { validateServerConfig } from './validation';
 
 // ============================================================================
@@ -134,18 +133,6 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
         logMiddlewareOrder(finalConfig);
     }
 
-    // Discover plugins from installed packages
-    serverLogger.debug('Discovering plugins...');
-    const plugins = await discoverPlugins();
-
-    if (plugins.length > 0)
-    {
-        serverLogger.info('Plugins discovered', {
-            count: plugins.length,
-            plugins: plugins.map(p => p.name),
-        });
-    }
-
     // Create shutdown state for this server instance
     const shutdownState: ShutdownState = {
         isShuttingDown: false,
@@ -153,9 +140,9 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
 
     try
     {
-        await initializeInfrastructure(finalConfig, plugins);
+        await initializeInfrastructure(finalConfig);
 
-        const app = await createServer(finalConfig, plugins);
+        const app = await createServer(finalConfig);
         const server = startHttpServer(app, host, port);
 
         const timeouts = getTimeoutConfig(finalConfig.timeout);
@@ -170,7 +157,7 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
 
         logServerStarted(debug, host, port, finalConfig, timeouts);
 
-        const shutdownServer = createShutdownHandler(server as Server, finalConfig, plugins, shutdownState);
+        const shutdownServer = createShutdownHandler(server as Server, finalConfig, shutdownState);
         const shutdown = createGracefulShutdown(shutdownServer, finalConfig, shutdownState);
 
         // Register process-level handlers
@@ -210,17 +197,6 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
                 // Don't throw - server is already running
                 // Just log the error and continue
             }
-        }
-
-        // Execute afterStart hooks from plugins
-        try
-        {
-            await executePluginHooks(plugins, 'afterStart', serverInstance);
-        }
-        catch (error)
-        {
-            serverLogger.error('Plugin afterStart hooks failed', error as Error);
-            // Don't throw - server is already running
         }
 
         return serverInstance;
@@ -299,7 +275,7 @@ function getInfrastructureConfig(config: ServerConfig): InfrastructureConfig
     };
 }
 
-async function initializeInfrastructure(config: ServerConfig, plugins: ServerPlugin[]): Promise<void>
+async function initializeInfrastructure(config: ServerConfig): Promise<void>
 {
     // Execute beforeInfrastructure hook
     if (config.lifecycle?.beforeInfrastructure)
@@ -354,9 +330,6 @@ async function initializeInfrastructure(config: ServerConfig, plugins: ServerPlu
             throw new Error('Server initialization failed in afterInfrastructure hook');
         }
     }
-
-    // Execute afterInfrastructure hooks from plugins
-    await executePluginHooks(plugins, 'afterInfrastructure');
 }
 
 // ============================================================================
@@ -420,7 +393,6 @@ function logServerStarted(
 function createShutdownHandler(
     server: Server,
     config: ServerConfig,
-    plugins: ServerPlugin[],
     shutdownState: ShutdownState
 ): () => Promise<void>
 {
@@ -485,17 +457,6 @@ function createShutdownHandler(
                 serverLogger.error('beforeShutdown hook failed', error as Error);
                 // Continue with shutdown even if hook fails
             }
-        }
-
-        // Execute beforeShutdown hooks from plugins
-        try
-        {
-            await executePluginHooks(plugins, 'beforeShutdown');
-        }
-        catch (error)
-        {
-            serverLogger.error('Plugin beforeShutdown hooks failed', error as Error);
-            // Continue with shutdown even if plugin hooks fail
         }
 
         // Only close resources that were enabled for initialization
