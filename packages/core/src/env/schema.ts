@@ -6,21 +6,19 @@
  * @example
  * ```typescript
  * const schema = defineEnvSchema({
- *   DATABASE_URL: {
- *     ...envUrl({
- *       description: 'Database connection',
- *       required: true,
- *       validator: parsePostgresUrl,
- *       category: 'database',
- *       sensitive: true,
- *     }),
- *     key: 'DATABASE_URL',
- *   }
+ *   DATABASE_URL: envUrl({
+ *     description: 'Database connection',
+ *     required: true,
+ *     validator: parsePostgresUrl,
+ *     sensitive: true,
+ *   })
  * });
  * ```
  *
  * @module env/schema
  */
+
+import { parseBoolean, parseNumber } from './validator';
 
 /**
  * 환경변수 스키마 정의
@@ -45,16 +43,21 @@ export interface EnvVarSchema<T = string>
     /** 검증/변환 함수 */
     validator?: (value: string) => T;
 
-    // === 메타데이터 ===
+    // === 검증 옵션 ===
 
-    /** 카테고리 (database, api, feature, auth 등) */
-    category?: string;
+    /** Fallback 환경변수 키들 (backward compatibility) */
+    fallbackKeys?: string[];
+
+    /** 최소 길이 (문자열 타입) */
+    minLength?: number;
+
+    // === 메타데이터 ===
 
     /** 민감정보 여부 (로깅 시 마스킹) */
     sensitive?: boolean;
 
-    /** 예시 값들 */
-    examples?: string[];
+    /** 예시 값들 (타입과 일치해야 함) */
+    examples?: T[];
 }
 
 /**
@@ -72,21 +75,31 @@ export type InferEnvType<T extends EnvSchemaCollection> = {
 /**
  * 스키마 정의 헬퍼 (타입 추론 지원)
  *
+ * Automatically fills in the `key` property from object keys.
+ *
  * @example
  * ```typescript
  * const schema = defineEnvSchema({
- *   DATABASE_URL: {
- *     ...envString({ description: 'Database URL', required: true }),
- *     key: 'DATABASE_URL',
- *   }
+ *   DATABASE_URL: envString({ description: 'Database URL', required: true })
  * });
+ * // Automatically adds key: 'DATABASE_URL'
  * ```
  */
-export function defineEnvSchema<T extends EnvSchemaCollection>(
+export function defineEnvSchema<T extends Record<string, Omit<EnvVarSchema<any>, 'key'>>>(
     schema: T
-): T
+): { [K in keyof T]: T[K] & { key: K } }
 {
-    return schema;
+    const result: any = {};
+
+    for (const key in schema)
+    {
+        result[key] = {
+            ...schema[key],
+            key,
+        };
+    }
+
+    return result;
 }
 
 /**
@@ -140,6 +153,7 @@ export function envNumber(
     return {
         ...options,
         type: 'number',
+        validator: options.validator || parseNumber,
     };
 }
 
@@ -166,6 +180,7 @@ export function envBoolean(
     return {
         ...options,
         type: 'boolean',
+        validator: options.validator || parseBoolean,
     };
 }
 
@@ -252,22 +267,25 @@ export function envJson<T = any>(
     options: Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'>
 ): Omit<EnvVarSchema<T>, 'key'>
 {
+    // Import parseJson directly here to avoid circular dependency
+    const parseJson = (val: string): T =>
+    {
+        try
+        {
+            return JSON.parse(val) as T;
+        }
+        catch (error)
+        {
+            throw new Error(
+                `Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    };
+
     return {
         ...options,
         type: 'json',
-        validator: (val: string): T =>
-        {
-            try
-            {
-                return JSON.parse(val) as T;
-            }
-            catch (error)
-            {
-                throw new Error(
-                    `Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`
-                );
-            }
-        },
+        validator: parseJson,
     };
 }
 

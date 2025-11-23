@@ -12,20 +12,10 @@ import {
     envEnum,
     envNumber,
     envBoolean,
-    envString,
     envUrl,
+    envString,
 } from '../env';
-import type { NodeEnv, LogLevel } from './types';
-
-/**
- * Check if running in development environment
- */
-const isDev = process.env.NODE_ENV === 'development';
-
-/**
- * Check if running in production environment
- */
-const isProd = process.env.NODE_ENV === 'production';
+import type { NodeEnv, LogLevel } from '../env';
 
 /**
  * Core package environment variable schema
@@ -50,300 +40,255 @@ export const coreEnvSchema = defineEnvSchema({
     // Core Environment
     // ========================================================================
 
-    NODE_ENV: {
-        ...envEnum(['development', 'production', 'test'] as const, {
-            description: 'Node.js runtime environment',
-            default: 'development' as NodeEnv,
-            category: 'core',
-        }),
-        key: 'NODE_ENV',
-    },
+    NODE_ENV: envEnum(['local', 'development', 'production', 'test'] as const, {
+        description: 'Node.js runtime environment',
+        default: 'local' as NodeEnv,
+    }),
+
+    // ========================================================================
+    // Database - Connection
+    // ========================================================================
+
+    DATABASE_URL: envString({
+        description: 'Primary database connection URL',
+        required: false,
+        sensitive: true,
+        examples: ['postgresql://user:password@localhost:5432/dbname'],
+    }),
+
+    DATABASE_WRITE_URL: envString({
+        description: 'Write database URL (master-replica pattern)',
+        required: false,
+        sensitive: true,
+        examples: ['postgresql://user:password@master:5432/dbname'],
+    }),
+
+    DATABASE_READ_URL: envString({
+        description: 'Read database URL (master-replica pattern)',
+        required: false,
+        sensitive: true,
+        examples: ['postgresql://user:password@replica:5432/dbname'],
+    }),
+
+    DATABASE_REPLICA_URL: envString({
+        description: 'Legacy replica database URL',
+        required: false,
+        sensitive: true,
+        examples: ['postgresql://user:password@replica:5432/dbname'],
+    }),
 
     // ========================================================================
     // Database - Connection Pool
     // ========================================================================
 
-    DB_POOL_MAX: {
-        ...envNumber({
-            description: 'Maximum number of database connections in pool',
-            default: isProd ? 20 : 10,
-            category: 'database',
-            examples: ['10', '20', '50'],
-        }),
-        key: 'DB_POOL_MAX',
-    },
+    DB_POOL_MAX: envNumber({
+        description: 'Maximum number of database connections in pool',
+        default: 10,
+        examples: [10, 20, 50],
+    }),
 
-    DB_POOL_IDLE_TIMEOUT: {
-        ...envNumber({
-            description: 'Database connection idle timeout in seconds',
-            default: isProd ? 30 : 20,
-            category: 'database',
-            examples: ['20', '30', '60'],
-        }),
-        key: 'DB_POOL_IDLE_TIMEOUT',
-    },
+    DB_POOL_IDLE_TIMEOUT: envNumber({
+        description: 'Database connection idle timeout in seconds',
+        default: 30,
+        examples: [20, 30, 60],
+    }),
 
     // ========================================================================
     // Database - Retry Configuration
     // ========================================================================
 
-    DB_RETRY_MAX: {
-        ...envNumber({
-            description: 'Maximum number of database connection retry attempts',
-            default: isProd ? 5 : 3,
-            category: 'database',
-            examples: ['3', '5', '10'],
-        }),
-        key: 'DB_RETRY_MAX',
-    },
+    DB_RETRY_MAX: envNumber({
+        description: 'Maximum number of database connection retry attempts',
+        default: 3,
+        examples: [3, 5, 10],
+    }),
 
-    DB_RETRY_INITIAL_DELAY: {
-        ...envNumber({
-            description: 'Initial delay between database retry attempts (milliseconds)',
-            default: isProd ? 100 : 50,
-            category: 'database',
-            examples: ['50', '100', '200'],
-        }),
-        key: 'DB_RETRY_INITIAL_DELAY',
-    },
+    DB_RETRY_INITIAL_DELAY: envNumber({
+        description: 'Initial delay between database retry attempts (milliseconds)',
+        default: 100,
+        examples: [50, 100, 200],
+    }),
 
-    DB_RETRY_MAX_DELAY: {
-        ...envNumber({
-            description: 'Maximum delay cap for database retry attempts (milliseconds)',
-            default: isProd ? 10000 : 5000,
-            category: 'database',
-            examples: ['5000', '10000', '30000'],
-        }),
-        key: 'DB_RETRY_MAX_DELAY',
-    },
+    DB_RETRY_MAX_DELAY: envNumber({
+        description: 'Maximum delay cap for database retry attempts (milliseconds)',
+        default: 10000,
+        examples: [5000, 10000, 30000],
+    }),
 
-    DB_RETRY_FACTOR: {
-        ...envNumber({
-            description: 'Exponential backoff factor for database retry delays',
-            default: 2,
-            category: 'database',
-            examples: ['2', '1.5', '3'],
-        }),
-        key: 'DB_RETRY_FACTOR',
-    },
+    DB_RETRY_FACTOR: envNumber({
+        description: 'Exponential backoff factor for database retry delays',
+        default: 2,
+        examples: [2, 1.5, 3],
+    }),
 
     // ========================================================================
     // Database - Health Check
     // ========================================================================
 
-    DB_HEALTH_CHECK_ENABLED: {
-        ...envBoolean({
-            description: 'Enable periodic database health checks',
-            default: true,
-            category: 'database',
-            examples: ['true', 'false'],
-        }),
-        key: 'DB_HEALTH_CHECK_ENABLED',
-    },
+    DB_HEALTH_CHECK_ENABLED: envBoolean({
+        description: 'Enable periodic database health checks',
+        default: true,
+        examples: [true, false],
+    }),
 
-    DB_HEALTH_CHECK_INTERVAL: {
-        ...envNumber({
-            description: 'Database health check interval (milliseconds)',
-            default: 60000,
-            category: 'database',
-            examples: ['30000', '60000', '120000'],
-        }),
-        key: 'DB_HEALTH_CHECK_INTERVAL',
-    },
+    DB_HEALTH_CHECK_INTERVAL: envNumber({
+        description: 'Database health check interval (milliseconds)',
+        default: 60000,
+        examples: [30000, 60000, 120000],
+    }),
 
-    DB_HEALTH_CHECK_RECONNECT: {
-        ...envBoolean({
-            description: 'Reconnect to database on health check failure',
-            default: true,
-            category: 'database',
-            examples: ['true', 'false'],
-        }),
-        key: 'DB_HEALTH_CHECK_RECONNECT',
-    },
+    DB_HEALTH_CHECK_RECONNECT: envBoolean({
+        description: 'Reconnect to database on health check failure',
+        default: true,
+        examples: [true, false],
+    }),
 
-    DB_HEALTH_CHECK_MAX_RETRIES: {
-        ...envNumber({
-            description: 'Maximum health check retry attempts before marking as failed',
-            default: 3,
-            category: 'database',
-            examples: ['3', '5', '10'],
-        }),
-        key: 'DB_HEALTH_CHECK_MAX_RETRIES',
-    },
+    DB_HEALTH_CHECK_MAX_RETRIES: envNumber({
+        description: 'Maximum health check retry attempts before marking as failed',
+        default: 3,
+        examples: [3, 5, 10],
+    }),
 
-    DB_HEALTH_CHECK_RETRY_INTERVAL: {
-        ...envNumber({
-            description: 'Interval between health check retry attempts (milliseconds)',
-            default: 5000,
-            category: 'database',
-            examples: ['5000', '10000', '15000'],
-        }),
-        key: 'DB_HEALTH_CHECK_RETRY_INTERVAL',
-    },
+    DB_HEALTH_CHECK_RETRY_INTERVAL: envNumber({
+        description: 'Interval between health check retry attempts (milliseconds)',
+        default: 5000,
+        examples: [5000, 10000, 15000],
+    }),
 
     // ========================================================================
     // Database - Monitoring
     // ========================================================================
 
-    DB_MONITORING_ENABLED: {
-        ...envBoolean({
-            description: 'Enable database query performance monitoring',
-            default: isDev,
-            category: 'database',
-            examples: ['true', 'false'],
-        }),
-        key: 'DB_MONITORING_ENABLED',
-    },
+    DB_MONITORING_ENABLED: envBoolean({
+        description: 'Enable database query performance monitoring',
+        default: false,
+        examples: [true, false],
+    }),
 
-    DB_MONITORING_SLOW_THRESHOLD: {
-        ...envNumber({
-            description: 'Slow query threshold for monitoring (milliseconds)',
-            default: 1000,
-            category: 'database',
-            examples: ['500', '1000', '2000'],
-        }),
-        key: 'DB_MONITORING_SLOW_THRESHOLD',
-    },
+    DB_MONITORING_SLOW_THRESHOLD: envNumber({
+        description: 'Slow query threshold for monitoring (milliseconds)',
+        default: 1000,
+        examples: [500, 1000, 2000],
+    }),
 
-    DB_MONITORING_LOG_QUERIES: {
-        ...envBoolean({
-            description: 'Log all database queries (not just slow queries)',
-            default: false,
-            category: 'database',
-            examples: ['true', 'false'],
-        }),
-        key: 'DB_MONITORING_LOG_QUERIES',
-    },
+    DB_MONITORING_LOG_QUERIES: envBoolean({
+        description: 'Log all database queries (not just slow queries)',
+        default: false,
+        examples: [true, false],
+    }),
+
+    // ========================================================================
+    // Database - Transaction
+    // ========================================================================
+
+    TRANSACTION_TIMEOUT: envNumber({
+        description: 'Transaction timeout in milliseconds',
+        default: 30000,
+        examples: [10000, 30000, 60000],
+    }),
+
+    // ========================================================================
+    // Database - Development
+    // ========================================================================
+
+    DB_DEBUG_TRACE: envBoolean({
+        description: 'Enable detailed debug tracing for database operations',
+        default: false,
+        examples: [true, false],
+    }),
+
+    // ========================================================================
+    // Drizzle ORM
+    // ========================================================================
+
+    DRIZZLE_SCHEMA_PATH: envString({
+        description: 'Path to Drizzle schema configuration',
+        required: false,
+        default: './src/server/entities/config.ts',
+        examples: ['./src/db/schema.ts', './src/server/entities/config.ts'],
+    }),
+
+    DRIZZLE_OUT_DIR: envString({
+        description: 'Output directory for Drizzle migrations',
+        required: false,
+        default: './drizzle',
+        examples: ['./drizzle', './migrations'],
+    }),
 
     // ========================================================================
     // Logger - Core
     // ========================================================================
 
-    LOG_LEVEL: {
-        ...envEnum(['debug', 'info', 'warn', 'error', 'fatal'] as const, {
-            description: 'Minimum log level to output',
-            default: (isDev ? 'debug' : isProd ? 'info' : 'warn') as LogLevel,
-            category: 'logger',
-            examples: ['debug', 'info', 'warn', 'error', 'fatal'],
-        }),
-        key: 'LOG_LEVEL',
-    },
+    LOG_LEVEL: envEnum(['debug', 'info', 'warn', 'error', 'fatal'] as const, {
+        description: 'Minimum log level to output',
+        default: 'info' as LogLevel
+    }),
 
     // ========================================================================
-    // Logger - Slack Transport
+    // Cache (Redis/Valkey)
     // ========================================================================
 
-    SLACK_WEBHOOK_URL: {
-        ...envUrl({
-            description: 'Slack webhook URL for error notifications',
-            required: false,
-            category: 'logger',
-            sensitive: true,
-            examples: ['https://hooks.slack.com/services/YOUR/WEBHOOK/URL'],
-        }),
-        key: 'SLACK_WEBHOOK_URL',
-    },
+    CACHE_URL: envString({
+        description: 'Single Redis/Valkey instance URL',
+        required: false,
+        examples: ['redis://localhost:6379', 'rediss://secure.cache.com:6380'],
+        sensitive: true,
+    }),
 
-    SLACK_CHANNEL: {
-        ...envString({
-            description: 'Slack channel for log notifications',
-            required: false,
-            category: 'logger',
-            examples: ['#errors', '#alerts', '#monitoring'],
-        }),
-        key: 'SLACK_CHANNEL',
-    },
+    CACHE_WRITE_URL: envString({
+        description: 'Master Redis/Valkey URL for writes (master-replica pattern)',
+        required: false,
+        examples: ['redis://master:6379'],
+        sensitive: true,
+    }),
 
-    SLACK_USERNAME: {
-        ...envString({
-            description: 'Slack bot username for log messages',
-            required: false,
-            default: 'Logger Bot',
-            category: 'logger',
-            examples: ['Logger Bot', 'Alert Bot', 'Monitor Bot'],
-        }),
-        key: 'SLACK_USERNAME',
-    },
+    CACHE_READ_URL: envString({
+        description: 'Replica Redis/Valkey URL for reads (master-replica pattern)',
+        required: false,
+        examples: ['redis://replica:6379'],
+        sensitive: true,
+    }),
 
-    // ========================================================================
-    // Logger - Email Transport
-    // ========================================================================
+    CACHE_SENTINEL_HOSTS: envString({
+        description: 'Comma-separated Redis Sentinel hosts',
+        required: false,
+        examples: ['sentinel1:26379,sentinel2:26379'],
+    }),
 
-    SMTP_HOST: {
-        ...envString({
-            description: 'SMTP server host for email notifications',
-            required: false,
-            category: 'logger',
-            examples: ['smtp.gmail.com', 'smtp.sendgrid.net', 'smtp.mailgun.org'],
-        }),
-        key: 'SMTP_HOST',
-    },
+    CACHE_CLUSTER_NODES: envString({
+        description: 'Comma-separated Redis Cluster nodes',
+        required: false,
+        examples: ['node1:6379,node2:6379,node3:6379'],
+    }),
 
-    SMTP_PORT: {
-        ...envNumber({
-            description: 'SMTP server port',
-            required: false,
-            category: 'logger',
-            examples: ['587', '465', '25'],
-        }),
-        key: 'SMTP_PORT',
-    },
+    CACHE_MASTER_NAME: envString({
+        description: 'Redis Sentinel master name',
+        required: false,
+        examples: ['mymaster'],
+    }),
 
-    SMTP_USER: {
-        ...envString({
-            description: 'SMTP authentication username',
-            required: false,
-            category: 'logger',
-            sensitive: true,
-            examples: ['user@example.com'],
-        }),
-        key: 'SMTP_USER',
-    },
+    CACHE_PASSWORD: envString({
+        description: 'Redis/Valkey authentication password',
+        required: false,
+        sensitive: true,
+        examples: ['your-redis-password'],
+    }),
 
-    SMTP_PASSWORD: {
-        ...envString({
-            description: 'SMTP authentication password',
-            required: false,
-            category: 'logger',
-            sensitive: true,
-            examples: ['your-smtp-password'],
-        }),
-        key: 'SMTP_PASSWORD',
-    },
-
-    EMAIL_FROM: {
-        ...envString({
-            description: 'Email sender address for log notifications',
-            required: false,
-            category: 'logger',
-            examples: ['alerts@example.com', 'noreply@example.com'],
-        }),
-        key: 'EMAIL_FROM',
-    },
-
-    EMAIL_TO: {
-        ...envString({
-            description: 'Email recipient addresses (comma-separated for multiple)',
-            required: false,
-            category: 'logger',
-            examples: ['admin@example.com', 'admin@example.com,dev@example.com'],
-        }),
-        key: 'EMAIL_TO',
-    },
+    CACHE_TLS_REJECT_UNAUTHORIZED: envBoolean({
+        description: 'Verify TLS certificates for secure Redis connections',
+        default: true,
+        examples: [true, false],
+    }),
 
     // ========================================================================
     // Next.js Client
     // ========================================================================
 
-    SPFN_APP_URL: {
-        ...envUrl({
-            description: 'Next.js application URL (required for server-side API calls)',
-            required: false,
-            category: 'nextjs',
-            examples: ['http://localhost:3000', 'https://your-app.com'],
-        }),
-        key: 'SPFN_APP_URL',
-    },
+    SPFN_APP_URL: envUrl({
+        description: 'Next.js application URL (required for server-side API calls)',
+        required: false,
+        examples: ['http://localhost:3000', 'https://your-app.com'],
+    }),
 });
 
 /**
