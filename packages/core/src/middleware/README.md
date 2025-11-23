@@ -382,7 +382,7 @@ app.use('/*', RequestLogger({
 }));
 
 app.onError(ErrorHandler({
-  includeStack: process.env.NODE_ENV !== 'production'
+  includeStack: env.NODE_ENV !== 'production'
 }));
 
 // Routes
@@ -512,7 +512,7 @@ app.use('/*', RequestLogger({
 ```typescript
 // ✅ Environment-aware configuration
 app.onError(ErrorHandler({
-  includeStack: process.env.NODE_ENV !== 'production'
+  includeStack: env.NODE_ENV !== 'production'
 }));
 ```
 
@@ -627,7 +627,7 @@ interface RequestLoggerConfig {
 **Example:**
 ```typescript
 app.onError(ErrorHandler({
-  includeStack: process.env.NODE_ENV !== 'production',
+  includeStack: env.NODE_ENV !== 'production',
   enableLogging: true
 }));
 ```

@@ -7,6 +7,7 @@ import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { SerializableError } from '../errors';
 import { logger } from '../logger';
+import { env } from '../config';
 
 const errorLogger = logger.child('@spfn/core:error-handler');
 
@@ -14,7 +15,7 @@ export interface ErrorHandlerOptions
 {
     /**
      * Include stack trace in response
-     * @default process.env.NODE_ENV !== 'production'
+     * @default env.NODE_ENV !== 'production'
      */
     includeStack?: boolean;
 
@@ -32,13 +33,6 @@ interface ErrorWithStatusCode extends Error
 }
 
 /**
- * Standard error response format
- *
- * Re-exported from @spfn/core/types for convenience
- */
-export type { ErrorResponse } from '../route/types';
-
-/**
  * Error handler middleware
  *
  * Used in Hono's onError hook
@@ -46,7 +40,7 @@ export type { ErrorResponse } from '../route/types';
 export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c: Context) => Response | Promise<Response>
 {
     const {
-        includeStack = process.env.NODE_ENV !== 'production',
+        includeStack = env.NODE_ENV !== 'production',
         enableLogging = true,
     } = options;
 
