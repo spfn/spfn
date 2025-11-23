@@ -66,10 +66,34 @@ export interface EnvVarSchema<T = string>
 export type EnvSchemaCollection = Record<string, EnvVarSchema<any>>;
 
 /**
+ * Helper type: Check if field has default value
+ */
+type HasDefault<T> = T extends { default: any } ? true : false;
+
+/**
+ * Helper type: Check if field is explicitly required
+ */
+type IsRequired<T> = T extends { required: true } ? true : false;
+
+/**
+ * Helper type: Check if field should be required (has default OR required: true)
+ */
+type ShouldBeRequired<T> = HasDefault<T> extends true ? true : IsRequired<T>;
+
+/**
  * 스키마로부터 타입 추출
+ *
+ * required: true 또는 default가 있는 필드 → 필수
+ * required: false 또는 미지정 → optional (| undefined)
  */
 export type InferEnvType<T extends EnvSchemaCollection> = {
-    [K in keyof T]: T[K] extends EnvVarSchema<infer U> ? U : string;
+    // Required fields (required: true OR has default)
+    [K in keyof T as ShouldBeRequired<T[K]> extends true ? K : never]:
+        T[K] extends EnvVarSchema<infer U> ? U : string;
+} & {
+    // Optional fields (required: false OR not specified)
+    [K in keyof T as ShouldBeRequired<T[K]> extends true ? never : K]?:
+        T[K] extends EnvVarSchema<infer U> ? U | undefined : string | undefined;
 };
 
 /**
@@ -119,9 +143,9 @@ export function defineEnvSchema<T extends Record<string, Omit<EnvVarSchema<any>,
  * };
  * ```
  */
-export function envString(
-    options: Omit<EnvVarSchema, 'key' | 'type'>
-): Omit<EnvVarSchema, 'key'>
+export function envString<T extends Omit<EnvVarSchema, 'key' | 'type'>>(
+    options: T
+): T & { type: 'string' }
 {
     return {
         ...options,
@@ -146,9 +170,9 @@ export function envString(
  * };
  * ```
  */
-export function envNumber(
-    options: Omit<EnvVarSchema<number>, 'key' | 'type'>
-): Omit<EnvVarSchema<number>, 'key'>
+export function envNumber<T extends Omit<EnvVarSchema<number>, 'key' | 'type'>>(
+    options: T
+): T & { type: 'number'; validator: (value: string) => number }
 {
     return {
         ...options,
@@ -173,9 +197,9 @@ export function envNumber(
  * };
  * ```
  */
-export function envBoolean(
-    options: Omit<EnvVarSchema<boolean>, 'key' | 'type'>
-): Omit<EnvVarSchema<boolean>, 'key'>
+export function envBoolean<T extends Omit<EnvVarSchema<boolean>, 'key' | 'type'>>(
+    options: T
+): T & { type: 'boolean'; validator: (value: string) => boolean }
 {
     return {
         ...options,
@@ -201,9 +225,9 @@ export function envBoolean(
  * };
  * ```
  */
-export function envUrl(
-    options: Omit<EnvVarSchema, 'key' | 'type'>
-): Omit<EnvVarSchema, 'key'>
+export function envUrl<T extends Omit<EnvVarSchema, 'key' | 'type'>>(
+    options: T
+): T & { type: 'url' }
 {
     return {
         ...options,
@@ -227,10 +251,13 @@ export function envUrl(
  * };
  * ```
  */
-export function envEnum<T extends string>(
+export function envEnum<
+    T extends string,
+    O extends Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'>
+>(
     allowed: readonly T[],
-    options: Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'>
-): Omit<EnvVarSchema<T>, 'key'>
+    options: O
+): O & { type: 'enum'; validator: (val: string) => T }
 {
     return {
         ...options,
@@ -263,9 +290,12 @@ export function envEnum<T extends string>(
  * };
  * ```
  */
-export function envJson<T = any>(
-    options: Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'>
-): Omit<EnvVarSchema<T>, 'key'>
+export function envJson<
+    T = any,
+    O extends Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'> = Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'>
+>(
+    options: O
+): O & { type: 'json'; validator: (val: string) => T }
 {
     // Import parseJson directly here to avoid circular dependency
     const parseJson = (val: string): T =>

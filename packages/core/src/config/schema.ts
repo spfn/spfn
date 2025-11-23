@@ -15,7 +15,6 @@ import {
     envUrl,
     envString,
 } from '../env';
-import type { NodeEnv, LogLevel } from '../env';
 
 /**
  * Core package environment variable schema
@@ -42,7 +41,7 @@ export const coreEnvSchema = defineEnvSchema({
 
     NODE_ENV: envEnum(['local', 'development', 'production', 'test'] as const, {
         description: 'Node.js runtime environment',
-        default: 'local' as NodeEnv,
+        default: 'local',
     }),
 
     // ========================================================================
@@ -221,7 +220,7 @@ export const coreEnvSchema = defineEnvSchema({
 
     LOG_LEVEL: envEnum(['debug', 'info', 'warn', 'error', 'fatal'] as const, {
         description: 'Minimum log level to output',
-        default: 'info' as LogLevel
+        default: 'info'
     }),
 
     // ========================================================================

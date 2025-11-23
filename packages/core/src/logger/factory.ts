@@ -39,7 +39,7 @@ function initializeLogger(): Logger
 
     // Create logger with configured transports
     return new Logger({
-        level: env.LOG_LEVEL,
+        level: env.LOG_LEVEL || 'info',  // Type inference not perfect yet, fallback needed
         transports: initializeTransports(),
     });
 }
