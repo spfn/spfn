@@ -481,22 +481,6 @@ const cache = getCache();
 await cache?.set('key', 'value');  // Same API!
 ```
 
-### Backward Compatibility
-
-Legacy `getRedis()` functions are still available:
-
-```typescript
-// All legacy functions work (deprecated but functional)
-import {
-  getRedis,           // → getCache()
-  getRedisRead,       // → getCacheRead()
-  setRedis,           // → setCache()
-  initRedis,          // → initCache()
-  closeRedis,         // → closeCache()
-  getRedisInfo,       // → getCacheInfo()
-} from '@spfn/core/cache';
-```
-
 ---
 
 ## Architecture

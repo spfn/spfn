@@ -25,17 +25,6 @@ export {
 
 export type { CacheClients } from './cache-factory';
 
-// Legacy exports (backward compatibility)
-// Manager functions - re-exported from cache-manager.js
-export {
-    getRedis,
-    getRedisRead,
-    setRedis,
-    initRedis,
-    closeRedis,
-    getRedisInfo,
-} from './cache-manager';
-
 // Factory functions - re-exported from cache-factory.js
 export {
     createCacheFromEnv as createRedisFromEnv,

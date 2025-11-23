@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { Redis, Cluster } from 'ioredis';
+import type { Redis } from 'ioredis';
 import {
     getCache,
     getCacheRead,
@@ -8,13 +8,6 @@ import {
     closeCache,
     getCacheInfo,
     isCacheDisabled,
-    // Legacy API (for backward compatibility tests)
-    getRedis,
-    getRedisRead,
-    setRedis,
-    initRedis,
-    closeRedis,
-    getRedisInfo,
 } from '../cache-manager';
 
 describe('cache-manager', () =>
@@ -497,30 +490,26 @@ describe('cache-manager', () =>
         });
     });
 
-    describe('Modern Cache API (getCache, getCacheRead)', () =>
+    describe('Cache API (getCache, getCacheRead)', () =>
     {
-        it('getCache should be alias for getRedis', () =>
+        it('getCache should return write instance', () =>
         {
             const mockWrite = createMockRedis('write');
             setCache(mockWrite);
 
             const cache = getCache();
-            const redis = getRedis();
 
-            expect(cache).toBe(redis);
             expect(cache).toBe(mockWrite);
         });
 
-        it('getCacheRead should be alias for getRedisRead', () =>
+        it('getCacheRead should return read instance', () =>
         {
             const mockWrite = createMockRedis('write');
             const mockRead = createMockRedis('read');
             setCache(mockWrite, mockRead);
 
             const cacheRead = getCacheRead();
-            const redisRead = getRedisRead();
 
-            expect(cacheRead).toBe(redisRead);
             expect(cacheRead).toBe(mockRead);
         });
 

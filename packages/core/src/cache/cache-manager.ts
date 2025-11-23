@@ -285,22 +285,3 @@ export function getCacheInfo(): {
         disabled: isDisabled,
     };
 }
-
-// Legacy exports (backward compatibility)
-/** @deprecated Use getCache() instead */
-export const getRedis = getCache;
-
-/** @deprecated Use getCacheRead() instead */
-export const getRedisRead = getCacheRead;
-
-/** @deprecated Use setCache() instead */
-export const setRedis = setCache;
-
-/** @deprecated Use initCache() instead */
-export const initRedis = initCache;
-
-/** @deprecated Use closeCache() instead */
-export const closeRedis = closeCache;
-
-/** @deprecated Use getCacheInfo() instead */
-export const getRedisInfo = getCacheInfo;

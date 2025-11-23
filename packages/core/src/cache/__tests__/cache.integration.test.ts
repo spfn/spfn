@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { createCacheFromEnv, createSingleCacheFromEnv } from '../cache-factory';
-import { initCache, getCache, getCacheRead, closeCache, setCache, getCacheInfo } from '../cache-manager';
+import { createCacheFromEnv } from '../cache-factory';
+import { initCache, getCache, getCacheRead, closeCache, getCacheInfo } from '../cache-manager';
 
 describe('Cache Integration Tests', () =>
 {

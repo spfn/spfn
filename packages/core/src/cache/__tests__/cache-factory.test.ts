@@ -22,19 +22,19 @@ describe('cache-factory', () =>
     {
         it('should return undefined when no cache config exists', async () =>
         {
-            delete process.env.VALKEY_URL;
             delete process.env.CACHE_URL;
-            delete process.env.REDIS_URL;
-            delete process.env.VALKEY_WRITE_URL;
+            delete process.env.CACHE_URL;
+            delete process.env.CACHE_URL;
             delete process.env.CACHE_WRITE_URL;
-            delete process.env.REDIS_WRITE_URL;
-            delete process.env.VALKEY_READ_URL;
+            delete process.env.CACHE_WRITE_URL;
+            delete process.env.CACHE_WRITE_URL;
             delete process.env.CACHE_READ_URL;
-            delete process.env.REDIS_READ_URL;
-            delete process.env.VALKEY_SENTINEL_HOSTS;
-            delete process.env.REDIS_SENTINEL_HOSTS;
-            delete process.env.VALKEY_CLUSTER_NODES;
-            delete process.env.REDIS_CLUSTER_NODES;
+            delete process.env.CACHE_READ_URL;
+            delete process.env.CACHE_READ_URL;
+            delete process.env.CACHE_SENTINEL_HOSTS;
+            delete process.env.CACHE_SENTINEL_HOSTS;
+            delete process.env.CACHE_CLUSTER_NODES;
+            delete process.env.CACHE_CLUSTER_NODES;
 
             const result = await createCacheFromEnv();
 
@@ -42,9 +42,9 @@ describe('cache-factory', () =>
             expect(result.read).toBeUndefined();
         });
 
-        it('should create single instance from REDIS_URL', async () =>
+        it('should create single instance from CACHE_URL', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6379';
 
             const result = await createCacheFromEnv();
 
@@ -53,10 +53,10 @@ describe('cache-factory', () =>
             expect(result.write).toBe(result.read); // Same instance
         });
 
-        it('should create master-replica from REDIS_WRITE_URL and REDIS_READ_URL', async () =>
+        it('should create master-replica from CACHE_WRITE_URL and CACHE_READ_URL', async () =>
         {
-            process.env.REDIS_WRITE_URL = 'redis://master:6379';
-            process.env.REDIS_READ_URL = 'redis://replica:6379';
+            process.env.CACHE_WRITE_URL = 'redis://master:6379';
+            process.env.CACHE_READ_URL = 'redis://replica:6379';
 
             const result = await createCacheFromEnv();
 
@@ -67,7 +67,7 @@ describe('cache-factory', () =>
 
         it('should support TLS with rediss:// protocol', async () =>
         {
-            process.env.REDIS_URL = 'rediss://secure.redis.com:6380';
+            process.env.CACHE_URL = 'rediss://secure.redis.com:6380';
 
             const result = await createCacheFromEnv();
 
@@ -75,20 +75,20 @@ describe('cache-factory', () =>
             // Note: Can't easily test TLS config without mocking ioredis constructor
         });
 
-        it('should support REDIS_TLS_REJECT_UNAUTHORIZED=false', async () =>
+        it('should support CACHE_TLS_REJECT_UNAUTHORIZED=false', async () =>
         {
-            process.env.REDIS_URL = 'rediss://localhost:6380';
-            process.env.REDIS_TLS_REJECT_UNAUTHORIZED = 'false';
+            process.env.CACHE_URL = 'rediss://localhost:6380';
+            process.env.CACHE_TLS_REJECT_UNAUTHORIZED = 'false';
 
             const result = await createCacheFromEnv();
 
             expect(result.write).toBeDefined();
         });
 
-        it('should prioritize single instance over master-replica when only REDIS_URL is set', async () =>
+        it('should prioritize single instance over master-replica when only CACHE_URL is set', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
-            // No REDIS_WRITE_URL or REDIS_READ_URL
+            process.env.CACHE_URL = 'redis://localhost:6379';
+            // No CACHE_WRITE_URL or CACHE_READ_URL
 
             const result = await createCacheFromEnv();
 
@@ -99,9 +99,9 @@ describe('cache-factory', () =>
 
         it('should handle sentinel configuration', async () =>
         {
-            process.env.REDIS_SENTINEL_HOSTS = 'sentinel1:26379,sentinel2:26379';
-            process.env.REDIS_MASTER_NAME = 'mymaster';
-            process.env.REDIS_PASSWORD = 'secret';
+            process.env.CACHE_SENTINEL_HOSTS = 'sentinel1:26379,sentinel2:26379';
+            process.env.CACHE_MASTER_NAME = 'mymaster';
+            process.env.CACHE_PASSWORD = 'secret';
 
             const result = await createCacheFromEnv();
 
@@ -112,8 +112,8 @@ describe('cache-factory', () =>
 
         it('should handle cluster configuration', async () =>
         {
-            process.env.REDIS_CLUSTER_NODES = 'node1:6379,node2:6379,node3:6379';
-            process.env.REDIS_PASSWORD = 'secret';
+            process.env.CACHE_CLUSTER_NODES = 'node1:6379,node2:6379,node3:6379';
+            process.env.CACHE_PASSWORD = 'secret';
 
             const result = await createCacheFromEnv();
 
@@ -122,16 +122,16 @@ describe('cache-factory', () =>
             expect(result.write).toBe(result.read);
         });
 
-        it('should fallback to REDIS_URL when other configs are present but incomplete', async () =>
+        it('should fallback to CACHE_URL when other configs are present but incomplete', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
-            process.env.REDIS_WRITE_URL = 'redis://master:6379';
-            // Missing REDIS_READ_URL
+            process.env.CACHE_URL = 'redis://localhost:6379';
+            process.env.CACHE_WRITE_URL = 'redis://master:6379';
+            // Missing CACHE_READ_URL
 
             const result = await createCacheFromEnv();
 
             expect(result.write).toBeDefined();
-            // Should use REDIS_URL as fallback
+            // Should use CACHE_URL as fallback
         });
 
         it('should handle ioredis import failure gracefully', async () =>
@@ -140,7 +140,7 @@ describe('cache-factory', () =>
             // For now, we'll test the behavior when ioredis is not installed
             // by checking the catch block logic
 
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6379';
 
             // If ioredis is installed, this will work
             // If not, it should return undefined and log warning
@@ -155,7 +155,7 @@ describe('cache-factory', () =>
     {
         it('should return only write instance', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6379';
 
             const result = await createSingleCacheFromEnv();
 
@@ -164,8 +164,8 @@ describe('cache-factory', () =>
 
         it('should return undefined when no config exists', async () =>
         {
-            delete process.env.REDIS_URL;
-            delete process.env.REDIS_WRITE_URL;
+            delete process.env.CACHE_URL;
+            delete process.env.CACHE_WRITE_URL;
 
             const result = await createSingleCacheFromEnv();
 
@@ -174,8 +174,8 @@ describe('cache-factory', () =>
 
         it('should return write instance from master-replica config', async () =>
         {
-            process.env.REDIS_WRITE_URL = 'redis://master:6379';
-            process.env.REDIS_READ_URL = 'redis://replica:6379';
+            process.env.CACHE_WRITE_URL = 'redis://master:6379';
+            process.env.CACHE_READ_URL = 'redis://replica:6379';
 
             const result = await createSingleCacheFromEnv();
 
@@ -185,9 +185,9 @@ describe('cache-factory', () =>
 
     describe('Valkey Support', () =>
     {
-        it('should create single instance from VALKEY_URL', async () =>
+        it('should create single instance from CACHE_URL', async () =>
         {
-            process.env.VALKEY_URL = 'valkey://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6379';
 
             const result = await createCacheFromEnv();
 
@@ -201,10 +201,10 @@ describe('cache-factory', () =>
             }
         });
 
-        it('should create master-replica from VALKEY_WRITE_URL and VALKEY_READ_URL', async () =>
+        it('should create master-replica from CACHE_WRITE_URL and CACHE_READ_URL', async () =>
         {
-            process.env.VALKEY_WRITE_URL = 'valkey://master:6379';
-            process.env.VALKEY_READ_URL = 'valkey://replica:6379';
+            process.env.CACHE_WRITE_URL = 'redis://master:6379';
+            process.env.CACHE_READ_URL = 'redis://replica:6379';
 
             const result = await createCacheFromEnv();
 
@@ -222,9 +222,9 @@ describe('cache-factory', () =>
             }
         });
 
-        it('should support TLS with valkeys:// protocol', async () =>
+        it('should support TLS with rediss:// protocol', async () =>
         {
-            process.env.VALKEY_URL = 'valkeys://secure.valkey.io:6380';
+            process.env.CACHE_URL = 'rediss://secure.valkey.io:6380';
 
             const result = await createCacheFromEnv();
 
@@ -236,10 +236,10 @@ describe('cache-factory', () =>
             }
         });
 
-        it('should support VALKEY_TLS_REJECT_UNAUTHORIZED=false', async () =>
+        it('should support CACHE_TLS_REJECT_UNAUTHORIZED=false', async () =>
         {
-            process.env.VALKEY_URL = 'valkeys://localhost:6380';
-            process.env.VALKEY_TLS_REJECT_UNAUTHORIZED = 'false';
+            process.env.CACHE_URL = 'rediss://localhost:6380';
+            process.env.CACHE_TLS_REJECT_UNAUTHORIZED = 'false';
 
             const result = await createCacheFromEnv();
 
@@ -251,11 +251,11 @@ describe('cache-factory', () =>
             }
         });
 
-        it('should handle VALKEY_SENTINEL_HOSTS', async () =>
+        it('should handle CACHE_SENTINEL_HOSTS', async () =>
         {
-            process.env.VALKEY_SENTINEL_HOSTS = 'sentinel1:26379,sentinel2:26379';
-            process.env.VALKEY_MASTER_NAME = 'mymaster';
-            process.env.VALKEY_PASSWORD = 'secret';
+            process.env.CACHE_SENTINEL_HOSTS = 'sentinel1:26379,sentinel2:26379';
+            process.env.CACHE_MASTER_NAME = 'mymaster';
+            process.env.CACHE_PASSWORD = 'secret';
 
             const result = await createCacheFromEnv();
 
@@ -267,10 +267,10 @@ describe('cache-factory', () =>
             }
         });
 
-        it('should handle VALKEY_CLUSTER_NODES', async () =>
+        it('should handle CACHE_CLUSTER_NODES', async () =>
         {
-            process.env.VALKEY_CLUSTER_NODES = 'node1:6379,node2:6379,node3:6379';
-            process.env.VALKEY_PASSWORD = 'secret';
+            process.env.CACHE_CLUSTER_NODES = 'node1:6379,node2:6379,node3:6379';
+            process.env.CACHE_PASSWORD = 'secret';
 
             const result = await createCacheFromEnv();
 
@@ -327,8 +327,8 @@ describe('cache-factory', () =>
     {
         it('should prioritize in correct order: Single > Master-Replica > Sentinel > Cluster', async () =>
         {
-            // Test 1: Only REDIS_URL (highest priority)
-            process.env.REDIS_URL = 'redis://single:6379';
+            // Test 1: Only CACHE_URL (highest priority)
+            process.env.CACHE_URL = 'redis://single:6379';
             let result = await createCacheFromEnv();
             expect(result.write).toBe(result.read);
 
@@ -338,10 +338,10 @@ describe('cache-factory', () =>
                 await result.write.quit();
             }
 
-            // Test 2: REDIS_WRITE_URL + REDIS_READ_URL (second priority)
-            delete process.env.REDIS_URL;
-            process.env.REDIS_WRITE_URL = 'redis://master:6379';
-            process.env.REDIS_READ_URL = 'redis://replica:6379';
+            // Test 2: CACHE_WRITE_URL + CACHE_READ_URL (second priority)
+            delete process.env.CACHE_URL;
+            process.env.CACHE_WRITE_URL = 'redis://master:6379';
+            process.env.CACHE_READ_URL = 'redis://replica:6379';
             result = await createCacheFromEnv();
             expect(result.write).not.toBe(result.read);
 
@@ -356,17 +356,17 @@ describe('cache-factory', () =>
             }
         });
 
-        it('should prioritize VALKEY_URL over CACHE_URL over REDIS_URL', async () =>
+        it('should prioritize CACHE_URL over CACHE_URL over CACHE_URL', async () =>
         {
-            // All three set - should use VALKEY_URL
-            process.env.VALKEY_URL = 'valkey://localhost:6379';
+            // All three set - should use CACHE_URL
+            process.env.CACHE_URL = 'redis://localhost:6379';
             process.env.CACHE_URL = 'redis://cache:6379';
-            process.env.REDIS_URL = 'redis://redis:6379';
+            process.env.CACHE_URL = 'redis://redis:6379';
 
             const result = await createCacheFromEnv();
 
             expect(result.write).toBeDefined();
-            // Connection will be to VALKEY_URL (can't easily verify host without mocking)
+            // Connection will be to CACHE_URL (can't easily verify host without mocking)
 
             if (result.write)
             {
@@ -374,27 +374,11 @@ describe('cache-factory', () =>
             }
         });
 
-        it('should prioritize CACHE_URL over REDIS_URL when VALKEY_URL is not set', async () =>
+        it('should prioritize CACHE_URL over CACHE_URL when CACHE_URL is not set', async () =>
         {
-            delete process.env.VALKEY_URL;
-            process.env.CACHE_URL = 'redis://cache:6379';
-            process.env.REDIS_URL = 'redis://redis:6379';
-
-            const result = await createCacheFromEnv();
-
-            expect(result.write).toBeDefined();
-
-            if (result.write)
-            {
-                await result.write.quit();
-            }
-        });
-
-        it('should use REDIS_URL when VALKEY_URL and CACHE_URL are not set', async () =>
-        {
-            delete process.env.VALKEY_URL;
             delete process.env.CACHE_URL;
-            process.env.REDIS_URL = 'redis://redis:6379';
+            process.env.CACHE_URL = 'redis://cache:6379';
+            process.env.CACHE_URL = 'redis://redis:6379';
 
             const result = await createCacheFromEnv();
 
@@ -406,14 +390,30 @@ describe('cache-factory', () =>
             }
         });
 
-        it('should prioritize VALKEY_WRITE_URL over CACHE_WRITE_URL over REDIS_WRITE_URL', async () =>
+        it('should use CACHE_URL when CACHE_URL and CACHE_URL are not set', async () =>
         {
-            process.env.VALKEY_WRITE_URL = 'valkey://master:6379';
+            delete process.env.CACHE_URL;
+            delete process.env.CACHE_URL;
+            process.env.CACHE_URL = 'redis://redis:6379';
+
+            const result = await createCacheFromEnv();
+
+            expect(result.write).toBeDefined();
+
+            if (result.write)
+            {
+                await result.write.quit();
+            }
+        });
+
+        it('should prioritize CACHE_WRITE_URL over CACHE_WRITE_URL over CACHE_WRITE_URL', async () =>
+        {
+            process.env.CACHE_WRITE_URL = 'redis://master:6379';
             process.env.CACHE_WRITE_URL = 'redis://cache-master:6379';
-            process.env.REDIS_WRITE_URL = 'redis://redis-master:6379';
-            process.env.VALKEY_READ_URL = 'valkey://replica:6379';
+            process.env.CACHE_WRITE_URL = 'redis://redis-master:6379';
+            process.env.CACHE_READ_URL = 'redis://replica:6379';
             process.env.CACHE_READ_URL = 'redis://cache-replica:6379';
-            process.env.REDIS_READ_URL = 'redis://redis-replica:6379';
+            process.env.CACHE_READ_URL = 'redis://redis-replica:6379';
 
             const result = await createCacheFromEnv();
 
@@ -434,9 +434,9 @@ describe('cache-factory', () =>
 
     describe('Edge Cases', () =>
     {
-        it('should handle empty REDIS_URL', async () =>
+        it('should handle empty CACHE_URL', async () =>
         {
-            process.env.REDIS_URL = '';
+            process.env.CACHE_URL = '';
 
             const result = await createCacheFromEnv();
 
@@ -444,9 +444,9 @@ describe('cache-factory', () =>
             expect(result.read).toBeUndefined();
         });
 
-        it('should handle whitespace in REDIS_URL', async () =>
+        it('should handle whitespace in CACHE_URL', async () =>
         {
-            process.env.REDIS_URL = '  redis://localhost:6379  ';
+            process.env.CACHE_URL = '  redis://localhost:6379  ';
 
             const result = await createCacheFromEnv();
 
@@ -454,9 +454,9 @@ describe('cache-factory', () =>
             expect(result).toBeDefined();
         });
 
-        it('should handle invalid REDIS_URL format', async () =>
+        it('should handle invalid CACHE_URL format', async () =>
         {
-            process.env.REDIS_URL = 'not-a-valid-url';
+            process.env.CACHE_URL = 'not-a-valid-url';
 
             const result = await createCacheFromEnv();
 
@@ -466,8 +466,8 @@ describe('cache-factory', () =>
 
         it('should handle sentinel hosts with varying port formats', async () =>
         {
-            process.env.REDIS_SENTINEL_HOSTS = 'sentinel1:26379,sentinel2,sentinel3:26380';
-            process.env.REDIS_MASTER_NAME = 'mymaster';
+            process.env.CACHE_SENTINEL_HOSTS = 'sentinel1:26379,sentinel2,sentinel3:26380';
+            process.env.CACHE_MASTER_NAME = 'mymaster';
 
             const result = await createCacheFromEnv();
 
@@ -476,7 +476,7 @@ describe('cache-factory', () =>
 
         it('should handle cluster nodes with varying formats', async () =>
         {
-            process.env.REDIS_CLUSTER_NODES = 'node1:6379,node2,node3:6380';
+            process.env.CACHE_CLUSTER_NODES = 'node1:6379,node2,node3:6380';
 
             const result = await createCacheFromEnv();
 

@@ -1,9 +1,5 @@
 /**
  * Cache factory with automatic environment variable detection
- * Supports Valkey and Redis with multiple deployment patterns
- *
- * Valkey is a Redis fork (7.2.4 base) with 100% protocol compatibility
- * https://valkey.io
  */
 
 import type { Redis, Cluster, RedisOptions, ClusterOptions } from 'ioredis';
@@ -20,44 +16,20 @@ export interface CacheClients {
 
 /**
  * Check if any cache configuration exists in environment
- *
- * Priority:
- * 1. VALKEY_* / CACHE_* (modern)
- * 2. REDIS_* (backward compatibility)
  */
 function hasCacheConfig(): boolean
 {
     return !!(
-        // Modern (Valkey/Cache)
-        process.env.VALKEY_URL ||
         process.env.CACHE_URL ||
-        process.env.VALKEY_WRITE_URL ||
-        process.env.VALKEY_READ_URL ||
         process.env.CACHE_WRITE_URL ||
         process.env.CACHE_READ_URL ||
-        process.env.VALKEY_SENTINEL_HOSTS ||
-        process.env.VALKEY_CLUSTER_NODES ||
-        // Legacy (Redis - backward compatibility)
-        process.env.REDIS_URL ||
-        process.env.REDIS_WRITE_URL ||
-        process.env.REDIS_READ_URL ||
-        process.env.REDIS_SENTINEL_HOSTS ||
-        process.env.REDIS_CLUSTER_NODES
+        process.env.CACHE_SENTINEL_HOSTS ||
+        process.env.CACHE_CLUSTER_NODES
     );
 }
 
 /**
- * Get environment variable with priority fallback
- * Valkey/Cache takes precedence over Redis (legacy)
- */
-function getEnv(valkeyKey: string, cacheKey: string, redisKey: string): string | undefined
-{
-    return process.env[valkeyKey] || process.env[cacheKey] || process.env[redisKey];
-}
-
-/**
  * Create cache client with TLS support
- * Supports both valkey:// and redis:// protocols
  */
 function createClient(
     RedisClient: new (url: string, options?: RedisOptions) => Redis,
@@ -67,16 +39,10 @@ function createClient(
     const options: RedisOptions = {};
 
     // TLS support for secure connections
-    if (url.startsWith('rediss://') || url.startsWith('valkeys://'))
+    if (url.startsWith('rediss://'))
     {
-        const rejectUnauthorized = getEnv(
-            'VALKEY_TLS_REJECT_UNAUTHORIZED',
-            'CACHE_TLS_REJECT_UNAUTHORIZED',
-            'REDIS_TLS_REJECT_UNAUTHORIZED'
-        );
-
         options.tls = {
-            rejectUnauthorized: rejectUnauthorized !== 'false',
+            rejectUnauthorized: process.env.CACHE_TLS_REJECT_UNAUTHORIZED !== 'false',
         };
     }
 
@@ -87,35 +53,31 @@ function createClient(
  * Create cache client(s) from environment variables
  *
  * Supported patterns (priority order):
- * 1. Single instance: VALKEY_URL or CACHE_URL or REDIS_URL
- * 2. Master-Replica: VALKEY_WRITE_URL + VALKEY_READ_URL (or CACHE_*, REDIS_*)
- * 3. Sentinel: VALKEY_SENTINEL_HOSTS + VALKEY_MASTER_NAME (or REDIS_*)
- * 4. Cluster: VALKEY_CLUSTER_NODES (or REDIS_*)
+ * 1. Single instance: CACHE_URL
+ * 2. Master-Replica: CACHE_WRITE_URL + CACHE_READ_URL
+ * 3. Sentinel: CACHE_SENTINEL_HOSTS + CACHE_MASTER_NAME
+ * 4. Cluster: CACHE_CLUSTER_NODES
  *
  * @returns Cache client(s) or undefined if no configuration found
  *
  * @example
  * ```bash
  * # Single (most common)
- * VALKEY_URL=valkey://localhost:6379
  * CACHE_URL=redis://localhost:6379
- *
- * # Legacy (still supported)
- * REDIS_URL=redis://localhost:6379
- * REDIS_URL=rediss://secure.redis.com:6380  # TLS
+ * CACHE_URL=rediss://secure.cache.com:6380  # TLS
  *
  * # Master-Replica
- * VALKEY_WRITE_URL=valkey://master:6379
- * VALKEY_READ_URL=valkey://replica:6379
+ * CACHE_WRITE_URL=redis://master:6379
+ * CACHE_READ_URL=redis://replica:6379
  *
  * # Sentinel
- * VALKEY_SENTINEL_HOSTS=sentinel1:26379,sentinel2:26379
- * VALKEY_MASTER_NAME=mymaster
- * VALKEY_PASSWORD=secret
+ * CACHE_SENTINEL_HOSTS=sentinel1:26379,sentinel2:26379
+ * CACHE_MASTER_NAME=mymaster
+ * CACHE_PASSWORD=secret
  *
  * # Cluster
- * VALKEY_CLUSTER_NODES=node1:6379,node2:6379,node3:6379
- * VALKEY_PASSWORD=secret
+ * CACHE_CLUSTER_NODES=node1:6379,node2:6379,node3:6379
+ * CACHE_PASSWORD=secret
  * ```
  */
 export async function createCacheFromEnv(): Promise<CacheClients>
@@ -133,14 +95,14 @@ export async function createCacheFromEnv(): Promise<CacheClients>
         const ioredis = await import('ioredis');
         const RedisClient = ioredis.default;
 
-        // Get URLs with priority fallback
-        const singleUrl = getEnv('VALKEY_URL', 'CACHE_URL', 'REDIS_URL');
-        const writeUrl = getEnv('VALKEY_WRITE_URL', 'CACHE_WRITE_URL', 'REDIS_WRITE_URL');
-        const readUrl = getEnv('VALKEY_READ_URL', 'CACHE_READ_URL', 'REDIS_READ_URL');
-        const clusterNodes = getEnv('VALKEY_CLUSTER_NODES', 'CACHE_CLUSTER_NODES', 'REDIS_CLUSTER_NODES');
-        const sentinelHosts = getEnv('VALKEY_SENTINEL_HOSTS', 'CACHE_SENTINEL_HOSTS', 'REDIS_SENTINEL_HOSTS');
-        const masterName = getEnv('VALKEY_MASTER_NAME', 'CACHE_MASTER_NAME', 'REDIS_MASTER_NAME');
-        const password = getEnv('VALKEY_PASSWORD', 'CACHE_PASSWORD', 'REDIS_PASSWORD');
+        // Get environment variables
+        const singleUrl = process.env.CACHE_URL;
+        const writeUrl = process.env.CACHE_WRITE_URL;
+        const readUrl = process.env.CACHE_READ_URL;
+        const clusterNodes = process.env.CACHE_CLUSTER_NODES;
+        const sentinelHosts = process.env.CACHE_SENTINEL_HOSTS;
+        const masterName = process.env.CACHE_MASTER_NAME;
+        const password = process.env.CACHE_PASSWORD;
 
         // 1. Single instance (most common - highest priority)
         if (singleUrl && !writeUrl && !readUrl && !clusterNodes)
