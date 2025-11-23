@@ -90,6 +90,7 @@ export function createDbTestFixture(): DbTestFixture
         {
             try
             {
+                process.env.DATABASE_URL='postgresql://testuser:testpass@localhost:5532/spfn_test';
                 await initDatabase();
                 _db = getDatabase();
                 _isAvailable = true;

@@ -11,6 +11,7 @@ import { logger } from '../../logger';
 import { createDatabaseFromEnv } from './factory';
 import type { DatabaseOptions, MonitoringConfig } from "./config.js";
 import { buildHealthCheckConfig, buildMonitoringConfig } from "./config.js";
+import { env } from '../../config';
 import {
     getWriteInstance,
     setWriteInstance,
@@ -249,7 +250,7 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
     const readInst = getReadInstance();
 
     // Detailed debug logging with caller info (only if DB_DEBUG_TRACE is enabled in non-production)
-    if (process.env.DB_DEBUG_TRACE === 'true' && process.env.NODE_ENV !== 'production')
+    if (env.DB_DEBUG_TRACE && env.NODE_ENV !== 'production')
     {
         const caller = getCallerInfo();
         dbLogger.debug('getDatabase() called', {
@@ -277,32 +278,6 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
     }
 
     return writeInst;
-}
-
-/**
- * Get global database instance or throw error if not initialized
- *
- * @deprecated Use getDatabase() instead - it now throws by default
- * @param type - Connection type ('read' or 'write', defaults to 'write')
- * @returns Database instance (never undefined)
- * @throws Error if database is not initialized
- *
- * @example
- * ```typescript
- * import { getDatabase } from '@spfn/core/db';
- *
- * // Use getDatabase() instead
- * const db = getDatabase('read');
- * const users = await db.select().from(usersTable);
- * ```
- */
-export function getDatabaseOrThrow(type?: DbConnectionType): PostgresJsDatabase<Record<string, unknown>>
-{
-    if (process.env.NODE_ENV !== 'production')
-    {
-        dbLogger.warn('getDatabaseOrThrow() is deprecated. Use getDatabase() instead, which now throws by default.');
-    }
-    return getDatabase(type);
 }
 
 /**

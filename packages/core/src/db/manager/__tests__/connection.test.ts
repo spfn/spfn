@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createDatabaseConnection, checkConnection } from '../connection';
 import { ConnectionError } from '../../../errors';
-import * as postgres from 'postgres';
+import postgres from 'postgres';
 
 // Mock postgres module (only mock needed to avoid real DB connections)
 vi.mock('postgres', () => ({
@@ -35,7 +35,7 @@ describe('Database Connection', () =>
     {
         it('should create connection successfully on first attempt', async () =>
         {
-            const mockClient: any = vi.fn((sql: TemplateStringsArray) =>
+            const mockClient: any = vi.fn((_sql: TemplateStringsArray) =>
                 Promise.resolve([{ test: 1 }])
             );
 
@@ -70,7 +70,7 @@ describe('Database Connection', () =>
         it('should retry on connection failure and succeed', async () =>
         {
             let callCount = 0;
-            const mockClient: any = vi.fn((sql: TemplateStringsArray) =>
+            const mockClient: any = vi.fn((_sql: TemplateStringsArray) =>
             {
                 callCount++;
                 if (callCount === 1)
@@ -149,10 +149,7 @@ describe('Database Connection', () =>
             const originalSetTimeout = global.setTimeout;
             global.setTimeout = ((fn: any, delay: number) =>
             {
-                if (typeof delay === 'number')
-                {
-                    delays.push(delay);
-                }
+                delays.push(delay);
                 fn();
                 return {} as any;
             }) as any;
@@ -203,10 +200,7 @@ describe('Database Connection', () =>
             const originalSetTimeout = global.setTimeout;
             global.setTimeout = ((fn: any, delay: number) =>
             {
-                if (typeof delay === 'number')
-                {
-                    delays.push(delay);
-                }
+                delays.push(delay);
                 fn();
                 return {} as any;
             }) as any;
@@ -273,7 +267,7 @@ describe('Database Connection', () =>
     {
         it('should return true for healthy connection', async () =>
         {
-            const mockClient: any = vi.fn((sql: TemplateStringsArray) =>
+            const mockClient: any = vi.fn((_sql: TemplateStringsArray) =>
                 Promise.resolve([{ health_check: 1 }])
             );
 

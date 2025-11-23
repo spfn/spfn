@@ -15,7 +15,6 @@
  */
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { Sql } from "postgres";
-import { getEnvVar } from "../../env";
 
 export interface DatabaseClients
 {
@@ -134,25 +133,26 @@ function parseEnvNumber(
     const isProduction = process.env.NODE_ENV === 'production';
     const defaultValue = isProduction ? prodDefault : devDefault;
 
-    return getEnvVar(key, {
-        default: defaultValue,
-        validator: (val) =>
-        {
-            const num = parseInt(val, 10);
+    const value = process.env[key];
 
-            if (isNaN(num))
-            {
-                throw new Error(`Must be a valid number (got: "${val}")`);
-            }
+    if (value === undefined)
+    {
+        return defaultValue;
+    }
 
-            if (num < 0)
-            {
-                throw new Error(`Must be a non-negative number (got: ${num})`);
-            }
+    const num = parseInt(value, 10);
 
-            return num;
-        }
-    });
+    if (isNaN(num))
+    {
+        throw new Error(`${key} must be a valid number (got: "${value}")`);
+    }
+
+    if (num < 0)
+    {
+        throw new Error(`${key} must be a non-negative number (got: ${num})`);
+    }
+
+    return num;
 }
 
 /**
@@ -174,22 +174,23 @@ function parseEnvNumber(
  */
 function parseEnvBoolean(key: string, defaultValue: boolean): boolean
 {
-    return getEnvVar(key, {
-        default: defaultValue,
-        validator: (val) =>
-        {
-            const truthyValues = ['true', '1', 'yes', 'on'];
-            const falsyValues = ['false', '0', 'no', 'off'];
-            const lowerVal = val.toLowerCase().trim();
+    const value = process.env[key];
 
-            if (truthyValues.includes(lowerVal)) return true;
-            if (falsyValues.includes(lowerVal)) return false;
+    if (value === undefined)
+    {
+        return defaultValue;
+    }
 
-            throw new Error(
-                `Must be one of: ${[...truthyValues, ...falsyValues].join(', ')} (got: "${val}")`
-            );
-        }
-    });
+    const truthyValues = ['true', '1', 'yes', 'on'];
+    const falsyValues = ['false', '0', 'no', 'off'];
+    const lowerVal = value.toLowerCase().trim();
+
+    if (truthyValues.includes(lowerVal)) return true;
+    if (falsyValues.includes(lowerVal)) return false;
+
+    throw new Error(
+        `${key} must be one of: ${[...truthyValues, ...falsyValues].join(', ')} (got: "${value}")`
+    );
 }
 
 // ============================================================================

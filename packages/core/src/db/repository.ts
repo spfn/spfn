@@ -272,13 +272,13 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      * @example
      * ```typescript
      * // Object-based
-     * const user = await this.findOne(users, { id: 1 });
+     * const user = await this._findOne(users, { id: 1 });
      *
      * // SQL-based
-     * const user = await this.findOne(users, eq(users.id, 1));
+     * const user = await this._findOne(users, eq(users.id, 1));
      * ```
      */
-    protected async findOne<T extends PgTable>(
+    protected async _findOne<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined
     ): Promise<T['$inferSelect'] | null>
@@ -305,14 +305,14 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      *
      * @example
      * ```typescript
-     * const users = await this.findMany(users, {
+     * const users = await this._findMany(users, {
      *     where: { active: true },
      *     orderBy: desc(users.createdAt),
      *     limit: 10
      * });
      * ```
      */
-    protected async findMany<T extends PgTable>(
+    protected async _findMany<T extends PgTable>(
         table: T,
         options?: {
             where?: Record<string, any> | SQL | undefined;
@@ -368,13 +368,13 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      *
      * @example
      * ```typescript
-     * const user = await this.create(users, {
+     * const user = await this._create(users, {
      *     email: 'test@example.com',
      *     name: 'Test User'
      * });
      * ```
      */
-    protected async create<T extends PgTable>(
+    protected async _create<T extends PgTable>(
         table: T,
         data: T['$inferInsert']
     ): Promise<T['$inferSelect']>
@@ -392,13 +392,13 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      *
      * @example
      * ```typescript
-     * const users = await this.createMany(users, [
+     * const users = await this._createMany(users, [
      *     { email: 'user1@example.com', name: 'User 1' },
      *     { email: 'user2@example.com', name: 'User 2' }
      * ]);
      * ```
      */
-    protected async createMany<T extends PgTable>(
+    protected async _createMany<T extends PgTable>(
         table: T,
         data: T['$inferInsert'][]
     ): Promise<T['$inferSelect'][]>
@@ -417,7 +417,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      *
      * @example
      * ```typescript
-     * const cache = await this.upsert(cache, {
+     * const cache = await this._upsert(cache, {
      *     key: 'config',
      *     value: {...}
      * }, {
@@ -426,7 +426,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      * });
      * ```
      */
-    protected async upsert<T extends PgTable>(
+    protected async _upsert<T extends PgTable>(
         table: T,
         data: T['$inferInsert'],
         options: {
@@ -457,13 +457,13 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      *
      * @example
      * ```typescript
-     * const user = await this.updateOne(users,
+     * const user = await this._updateOne(users,
      *     { id: 1 },
      *     { name: 'Updated Name' }
      * );
      * ```
      */
-    protected async updateOne<T extends PgTable>(
+    protected async _updateOne<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined,
         data: Partial<T['$inferInsert']>
@@ -492,13 +492,13 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      *
      * @example
      * ```typescript
-     * const users = await this.updateMany(users,
+     * const users = await this._updateMany(users,
      *     { role: 'user' },
      *     { verified: true }
      * );
      * ```
      */
-    protected async updateMany<T extends PgTable>(
+    protected async _updateMany<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined,
         data: Partial<T['$inferInsert']>
@@ -526,10 +526,10 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      *
      * @example
      * ```typescript
-     * const user = await this.deleteOne(users, { id: 1 });
+     * const user = await this._deleteOne(users, { id: 1 });
      * ```
      */
-    protected async deleteOne<T extends PgTable>(
+    protected async _deleteOne<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined
     ): Promise<T['$inferSelect'] | null>
@@ -556,10 +556,10 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      *
      * @example
      * ```typescript
-     * const users = await this.deleteMany(users, { verified: false });
+     * const users = await this._deleteMany(users, { verified: false });
      * ```
      */
-    protected async deleteMany<T extends PgTable>(
+    protected async _deleteMany<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined
     ): Promise<T['$inferSelect'][]>
@@ -586,11 +586,11 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      *
      * @example
      * ```typescript
-     * const total = await this.count(users);
-     * const activeUsers = await this.count(users, { active: true });
+     * const total = await this._count(users);
+     * const activeUsers = await this._count(users, { active: true });
      * ```
      */
-    protected async count<T extends PgTable>(
+    protected async _count<T extends PgTable>(
         table: T,
         where?: Record<string, any> | SQL | undefined
     ): Promise<number>

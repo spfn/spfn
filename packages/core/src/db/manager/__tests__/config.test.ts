@@ -99,7 +99,7 @@ describe('Configuration Builders', () =>
             process.env.DB_POOL_MAX = 'invalid';
 
             // Should throw error for invalid number
-            expect(() => getPoolConfig()).toThrow('Invalid value for environment variable DB_POOL_MAX');
+            expect(() => getPoolConfig()).toThrow('DB_POOL_MAX must be a valid number');
         });
 
         it('should handle partial option with only max', () =>
@@ -170,7 +170,7 @@ describe('Configuration Builders', () =>
             process.env.DB_RETRY_MAX = 'invalid';
 
             // Should throw error for invalid number
-            expect(() => getRetryConfig()).toThrow('Invalid value for environment variable DB_RETRY_MAX');
+            expect(() => getRetryConfig()).toThrow('DB_RETRY_MAX must be a valid number');
         });
 
         it('should handle partial environment variables', () =>
@@ -277,7 +277,7 @@ describe('Configuration Builders', () =>
             process.env.DB_HEALTH_CHECK_ENABLED = 'invalid';
 
             // Should throw error for invalid boolean
-            expect(() => buildHealthCheckConfig()).toThrow('Invalid value for environment variable DB_HEALTH_CHECK_ENABLED');
+            expect(() => buildHealthCheckConfig()).toThrow('DB_HEALTH_CHECK_ENABLED must be one of');
         });
 
         it('should throw error for invalid number environment variable values', () =>
@@ -285,7 +285,7 @@ describe('Configuration Builders', () =>
             process.env.DB_HEALTH_CHECK_INTERVAL = 'invalid';
 
             // Should throw error for invalid number
-            expect(() => buildHealthCheckConfig()).toThrow('Invalid value for environment variable DB_HEALTH_CHECK_INTERVAL');
+            expect(() => buildHealthCheckConfig()).toThrow('DB_HEALTH_CHECK_INTERVAL must be a valid number');
         });
     });
 
@@ -390,7 +390,7 @@ describe('Configuration Builders', () =>
             process.env.DB_MONITORING_SLOW_THRESHOLD = 'invalid';
 
             // Should throw error for invalid number
-            expect(() => buildMonitoringConfig()).toThrow('Invalid value for environment variable DB_MONITORING_SLOW_THRESHOLD');
+            expect(() => buildMonitoringConfig()).toThrow('DB_MONITORING_SLOW_THRESHOLD must be a valid number');
         });
     });
 

@@ -28,7 +28,6 @@ manager/
 Main entry point for database operations:
 - `initDatabase()` - Initialize database with auto-detection
 - `getDatabase()` - Get database instance (throws if not initialized)
-- `getDatabaseOrThrow()` - **Deprecated:** Use `getDatabase()` instead
 - `setDatabase()` - Set database instance (testing)
 - `closeDatabase()` - Gracefully close connections
 - `getDatabaseInfo()` - Get connection info (debugging)

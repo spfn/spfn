@@ -48,7 +48,7 @@ import { logger } from '../../logger';
 import { getDatabase } from '../manager';
 import { runWithTransaction, getTransactionContext, type TransactionDB } from './context';
 import { TransactionError } from '../../errors';
-import { getEnvVar } from '../../env';
+import { env } from '../../config';
 
 /**
  * PostgreSQL maximum timeout value (max int4)
@@ -136,20 +136,8 @@ export async function runInTransaction<T>(
     options: RunInTransactionOptions = {}
 ): Promise<T>
 {
-    // Get default timeout from environment variable with validation (default: 30 seconds)
-    const defaultTimeout = getEnvVar('TRANSACTION_TIMEOUT', {
-        default: 30000,
-        validator: (val) =>
-        {
-            const parsed = parseInt(val, 10);
-            if (Number.isNaN(parsed) || parsed < 0 || parsed > MAX_TIMEOUT_MS)
-            {
-                throw new Error(`TRANSACTION_TIMEOUT must be a non-negative integer between 0 and ${MAX_TIMEOUT_MS}`);
-            }
-
-            return parsed;
-        },
-    });
+    // Get default timeout from environment variable (default: 30 seconds)
+    const defaultTimeout = env.TRANSACTION_TIMEOUT;
 
     const {
         slowThreshold = 1000,

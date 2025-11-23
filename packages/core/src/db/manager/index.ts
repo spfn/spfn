@@ -10,7 +10,6 @@ export type { DatabaseClients } from './config';
 export {
     initDatabase,
     getDatabase,
-    getDatabaseOrThrow,
     setDatabase,
     closeDatabase,
     getDatabaseInfo,

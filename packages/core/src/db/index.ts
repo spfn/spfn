@@ -9,7 +9,6 @@ export {
     createDatabaseFromEnv,
     initDatabase,
     getDatabase,
-    getDatabaseOrThrow,
     setDatabase,
     closeDatabase,
     getDatabaseInfo,

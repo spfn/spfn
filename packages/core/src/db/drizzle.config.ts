@@ -30,14 +30,11 @@
  * - drizzle/ (생성된 마이그레이션 파일)
  */
 import { defineConfig } from 'drizzle-kit';
-import { loadEnvironment } from '../env';
+import { env } from '../config';
 
-// Load environment variables
-loadEnvironment();
-
-const DATABASE_URL = process.env.DATABASE_URL;
-const SCHEMA_PATH = process.env.DRIZZLE_SCHEMA_PATH || './src/server/entities/config.ts';
-const OUT_DIR = process.env.DRIZZLE_OUT_DIR || './drizzle';
+const DATABASE_URL = env.DATABASE_URL;
+const SCHEMA_PATH = env.DRIZZLE_SCHEMA_PATH;
+const OUT_DIR = env.DRIZZLE_OUT_DIR;
 
 if (!DATABASE_URL)
 {

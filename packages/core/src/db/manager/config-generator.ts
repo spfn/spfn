@@ -5,6 +5,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, dirname, basename } from 'path';
+import { env } from '../../config';
 
 // ============================================================================
 // Constants
@@ -419,7 +420,7 @@ export function detectDialect(url: string): 'postgresql' | 'mysql' | 'sqlite'
  */
 export function getDrizzleConfig(options: DrizzleConfigOptions = {})
 {
-    const databaseUrl = options.databaseUrl ?? process.env.DATABASE_URL;
+    const databaseUrl = options.databaseUrl ?? env.DATABASE_URL;
 
     if (!databaseUrl)
     {

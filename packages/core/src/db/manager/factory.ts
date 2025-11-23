@@ -7,7 +7,6 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 
 import { logger } from '../../logger';
-import { loadEnvironment, hasEnvVar, getEnvVars } from '../../env';
 import { createDatabaseConnection } from './connection';
 import { getPoolConfig, getRetryConfig, type DatabaseOptions, type DatabaseClients, type PoolConfig, type RetryConfig } from './config';
 
@@ -37,9 +36,9 @@ type DatabasePattern =
  */
 function hasDatabaseConfig(): boolean
 {
-    return hasEnvVar('DATABASE_URL') ||
-           hasEnvVar('DATABASE_WRITE_URL') ||
-           hasEnvVar('DATABASE_READ_URL');
+    return process.env.DATABASE_URL !== undefined ||
+           process.env.DATABASE_WRITE_URL !== undefined ||
+           process.env.DATABASE_READ_URL !== undefined;
 }
 
 /**
@@ -65,49 +64,48 @@ function hasDatabaseConfig(): boolean
  */
 function detectDatabasePattern(): DatabasePattern
 {
-    // Get all database-related environment variables at once
-    const vars = getEnvVars([
-        'DATABASE_WRITE_URL',
-        'DATABASE_READ_URL',
-        'DATABASE_URL',
-        'DATABASE_REPLICA_URL',
-    ]);
+    const {
+        DATABASE_WRITE_URL,
+        DATABASE_READ_URL,
+        DATABASE_URL,
+        DATABASE_REPLICA_URL,
+    } = process.env;
 
     // Priority 1: Explicit write/read separation (recommended)
-    if (vars.DATABASE_WRITE_URL && vars.DATABASE_READ_URL)
+    if (DATABASE_WRITE_URL && DATABASE_READ_URL)
     {
         return {
             type: 'write-read',
-            write: vars.DATABASE_WRITE_URL,
-            read: vars.DATABASE_READ_URL,
+            write: DATABASE_WRITE_URL,
+            read: DATABASE_READ_URL,
         };
     }
 
     // Priority 2: Legacy replica pattern (backward compatibility)
-    if (vars.DATABASE_URL && vars.DATABASE_REPLICA_URL)
+    if (DATABASE_URL && DATABASE_REPLICA_URL)
     {
         return {
             type: 'legacy',
-            primary: vars.DATABASE_URL,
-            replica: vars.DATABASE_REPLICA_URL,
+            primary: DATABASE_URL,
+            replica: DATABASE_REPLICA_URL,
         };
     }
 
     // Priority 3: Single primary (most common)
-    if (vars.DATABASE_URL)
+    if (DATABASE_URL)
     {
         return {
             type: 'single',
-            url: vars.DATABASE_URL,
+            url: DATABASE_URL,
         };
     }
 
     // Priority 4: Write-only (no replica)
-    if (vars.DATABASE_WRITE_URL)
+    if (DATABASE_WRITE_URL)
     {
         return {
             type: 'single',
-            url: vars.DATABASE_WRITE_URL,
+            url: DATABASE_WRITE_URL,
         };
     }
 
@@ -247,24 +245,6 @@ async function createSingleClient(
  */
 export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<DatabaseClients>
 {
-    // Load environment variables using centralized loader
-    if (!hasDatabaseConfig())
-    {
-        dbLogger.debug('No DATABASE_URL found, loading environment variables');
-
-        const result = loadEnvironment({
-            debug: process.env.NODE_ENV !== 'production',
-        });
-
-        dbLogger.debug('Environment variables loaded', {
-            success: result.success,
-            loaded: result.loaded.length,
-            hasDatabaseUrl: hasEnvVar('DATABASE_URL'),
-            hasWriteUrl: hasEnvVar('DATABASE_WRITE_URL'),
-            hasReadUrl: hasEnvVar('DATABASE_READ_URL'),
-        });
-    }
-
     // Quick exit if no database config
     if (!hasDatabaseConfig())
     {
@@ -323,10 +303,10 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
             errorObj,
             {
                 stage: 'initialization',
-                hasWriteUrl: hasEnvVar('DATABASE_WRITE_URL'),
-                hasReadUrl: hasEnvVar('DATABASE_READ_URL'),
-                hasUrl: hasEnvVar('DATABASE_URL'),
-                hasReplicaUrl: hasEnvVar('DATABASE_REPLICA_URL'),
+                hasWriteUrl: process.env.DATABASE_WRITE_URL !== undefined,
+                hasReadUrl: process.env.DATABASE_READ_URL !== undefined,
+                hasUrl: process.env.DATABASE_URL !== undefined,
+                hasReplicaUrl: process.env.DATABASE_REPLICA_URL !== undefined,
             }
         );
 
