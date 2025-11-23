@@ -9,7 +9,7 @@ import type { Context, Hono, MiddlewareHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { ValidationError } from '../errors';
 import { logger } from '../logger';
-import type { ApiSuccessResponse } from './api-response';
+import type { NamedMiddleware } from '../server';
 import type { HttpMethod, RouteBuilderContext, RouteDef, RouteInput, Router, } from './define-route';
 
 /**
@@ -31,6 +31,18 @@ function isRouteDef(value: unknown): value is RouteDef<any>
     return value !== null &&
         typeof value === 'object' &&
         'handler' in value;
+}
+
+/**
+ * Type guard to check if value is a NamedMiddleware
+ */
+function isNamedMiddleware(value: unknown): value is NamedMiddleware<any>
+{
+    return value !== null &&
+        typeof value === 'object' &&
+        'name' in value &&
+        'handler' in value &&
+        '_name' in value;
 }
 
 /**
@@ -134,6 +146,9 @@ function registerRoute(
     // Collect all middlewares: server-level (filtered) + route-level
     const allMiddlewares: MiddlewareHandler[] = [];
 
+    // Track global middleware handlers to prevent duplicates
+    const globalHandlers = new Set<MiddlewareHandler>();
+
     // Check if skipping all middlewares
     const skipAll = skipMiddlewares === '*';
 
@@ -152,6 +167,7 @@ function registerRoute(
                 if (!skipSet.has(middleware.name))
                 {
                     allMiddlewares.push(middleware.handler);
+                    globalHandlers.add(middleware.handler);
                 }
                 else
                 {
@@ -161,8 +177,22 @@ function registerRoute(
         }
     }
 
-    // Add route-level middlewares
-    allMiddlewares.push(...middlewares);
+    // Add route-level middlewares (with deduplication)
+    for (const mw of middlewares)
+    {
+        // Extract handler from NamedMiddleware or use directly
+        const handler = isNamedMiddleware(mw) ? mw.handler : mw;
+
+        // Check if already added from global middlewares
+        if (globalHandlers.has(handler))
+        {
+            const middlewareName = isNamedMiddleware(mw) ? mw.name : 'unknown';
+            logger.debug(`🔄 Skipping duplicate middleware '${middlewareName}' for route: ${method} ${path}`, { name });
+            continue;
+        }
+
+        allMiddlewares.push(handler);
+    }
 
     // Register to Hono with correct HTTP method
     const methodLower = method.toLowerCase() as Lowercase<HttpMethod>;
@@ -361,31 +391,14 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
             return c.json(data, status, headers);
         },
 
-        success: (data, meta, status = 200) => {
-            const response: ApiSuccessResponse<typeof data> = {
-                success: true,
-                data,
-            };
-
-            if (meta) {
-                response.meta = meta;
-            }
-
-            return c.json(response, status);
-        },
-
         created: (data, location) => {
-            const response: ApiSuccessResponse<typeof data> = {
-                success: true,
-                data,
-            };
-
+            // Return data directly with 201 status + Location header
             const headers: Record<string, string> = {};
             if (location) {
                 headers['Location'] = location;
             }
 
-            return c.json(response, 201 as ContentfulStatusCode, headers);
+            return c.json(data, 201 as ContentfulStatusCode, headers);
         },
 
         accepted: (data) => {
@@ -393,12 +406,8 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
                 return c.body(null, 202 as ContentfulStatusCode);
             }
 
-            const response: ApiSuccessResponse<typeof data> = {
-                success: true,
-                data,
-            };
-
-            return c.json(response, 202 as ContentfulStatusCode);
+            // Return data directly with 202 status
+            return c.json(data, 202 as ContentfulStatusCode);
         },
 
         noContent: () => {
@@ -410,20 +419,16 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
         },
 
         paginated: (data, page, limit, total) => {
-            const response: ApiSuccessResponse<typeof data> = {
-                success: true,
-                data,
-                meta: {
-                    pagination: {
-                        page,
-                        limit,
-                        total,
-                        totalPages: Math.ceil(total / limit),
-                    },
+            // Return data with pagination metadata directly (no wrapper)
+            return c.json({
+                items: data,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit),
                 },
-            };
-
-            return c.json(response, 200 as ContentfulStatusCode);
+            }, 200 as ContentfulStatusCode);
         },
 
         raw: c,

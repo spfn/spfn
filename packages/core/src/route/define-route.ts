@@ -11,6 +11,7 @@
 import type { Static, TSchema } from '@sinclair/typebox';
 import type { Context, MiddlewareHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { NamedMiddleware } from '../server';
 
 /**
  * Route input schemas
@@ -24,31 +25,27 @@ export type RouteInput = {
 };
 
 /**
- * Structured input - separates each input source
+ * Merge input with interceptor-injected fields
+ * Server receives both client input and interceptor-injected fields
  *
  * @example
  * ```ts
- * type Input = {
- *   params: Type.Object({ id: Type.String() }),
- *   query: Type.Object({ page: Type.Number() }),
- *   body: Type.Object({ name: Type.String() }),
- *   headers: Type.Object({ authorization: Type.String() })
- * };
- * // StructuredInput<Input> = {
- * //   params: { id: string },
- * //   query: { page: number },
- * //   body: { name: string },
- * //   headers: { authorization: string },
- * //   cookies: {}
- * // }
+ * type ClientInput = { body: { email: string, password: string } };
+ * type InterceptorInput = { body: { publicKey: string, keyId: string } };
+ * // MergedInput = { body: { email: string, password: string, publicKey: string, keyId: string } }
  * ```
  */
-type StructuredInput<TInput extends RouteInput> = {
-    params: TInput['params'] extends TSchema ? Static<TInput['params']> : {};
-    query: TInput['query'] extends TSchema ? Static<TInput['query']> : {};
-    body: TInput['body'] extends TSchema ? Static<TInput['body']> : {};
-    headers: TInput['headers'] extends TSchema ? Static<TInput['headers']> : {};
-    cookies: TInput['cookies'] extends TSchema ? Static<TInput['cookies']> : {};
+type MergedInput<TInput extends RouteInput, TInterceptor extends RouteInput> = {
+    params: (TInput['params'] extends TSchema ? Static<TInput['params']> : {}) &
+            (TInterceptor['params'] extends TSchema ? Static<TInterceptor['params']> : {});
+    query: (TInput['query'] extends TSchema ? Static<TInput['query']> : {}) &
+           (TInterceptor['query'] extends TSchema ? Static<TInterceptor['query']> : {});
+    body: (TInput['body'] extends TSchema ? Static<TInput['body']> : {}) &
+          (TInterceptor['body'] extends TSchema ? Static<TInterceptor['body']> : {});
+    headers: (TInput['headers'] extends TSchema ? Static<TInput['headers']> : {}) &
+             (TInterceptor['headers'] extends TSchema ? Static<TInterceptor['headers']> : {});
+    cookies: (TInput['cookies'] extends TSchema ? Static<TInput['cookies']> : {}) &
+             (TInterceptor['cookies'] extends TSchema ? Static<TInterceptor['cookies']> : {});
 };
 
 /**
@@ -56,11 +53,15 @@ type StructuredInput<TInput extends RouteInput> = {
  *
  * Provides structured input access through data() method
  */
-export type RouteBuilderContext<TInput extends RouteInput = RouteInput> = {
+export type RouteBuilderContext<
+    TInput extends RouteInput = RouteInput,
+    TInterceptor extends RouteInput = {}
+> = {
     /**
      * Get structured input data
      *
      * Returns an object with separate params, query, body, headers, cookies
+     * If interceptor fields are defined, they are merged with input fields
      *
      * @example
      * ```ts
@@ -73,23 +74,107 @@ export type RouteBuilderContext<TInput extends RouteInput = RouteInput> = {
      * const { body, headers } = await c.data();
      * // body = { name: string }
      * // headers = { authorization: string }
+     *
+     * // With interceptor-injected fields
+     * const { body } = await c.data();
+     * // body = { email: string, password: string, publicKey: string, keyId: string }
      * ```
      */
-    data(): Promise<StructuredInput<TInput>>;
+    data(): Promise<MergedInput<TInput, TInterceptor>>;
 
     // Response helpers
+
+    /**
+     * Return JSON response with custom status and headers
+     *
+     * @example
+     * ```ts
+     * return c.json({ message: 'Custom response' }, 200);
+     * ```
+     */
     json(
         data: any,
         status?: ContentfulStatusCode,
         headers?: Record<string, string | string[]>
     ): Response;
-    success(data: any, meta?: any, status?: ContentfulStatusCode): Response;
+
+    /**
+     * Return 201 Created response with optional Location header
+     * Returns data directly (no wrapper)
+     *
+     * @example
+     * ```ts
+     * const user = await createUser(body);
+     * return c.created(user, `/users/${user.id}`);
+     * // Response: 201 Created
+     * // Header: Location: /users/123
+     * // Body: { id: '123', name: 'John' }
+     * ```
+     */
     created(data: any, location?: string): Response;
+
+    /**
+     * Return 202 Accepted response
+     * Returns data directly (no wrapper), or empty body if no data
+     *
+     * @example
+     * ```ts
+     * // With data
+     * return c.accepted({ jobId: '123' });
+     * // Response: 202 Accepted, Body: { jobId: '123' }
+     *
+     * // Without data
+     * return c.accepted();
+     * // Response: 202 Accepted, Body: (empty)
+     * ```
+     */
     accepted(data?: any): Response;
+
+    /**
+     * Return 204 No Content response (empty body)
+     *
+     * @example
+     * ```ts
+     * await deleteUser(id);
+     * return c.noContent();
+     * // Response: 204 No Content, Body: (empty)
+     * ```
+     */
     noContent(): Response;
+
+    /**
+     * Return 304 Not Modified response (empty body)
+     *
+     * @example
+     * ```ts
+     * if (etag === requestEtag) {
+     *   return c.notModified();
+     * }
+     * // Response: 304 Not Modified, Body: (empty)
+     * ```
+     */
     notModified(): Response;
 
-    // Pagination helper
+    /**
+     * Return paginated response with metadata
+     * Returns `{ items: [...], pagination: {...} }` format
+     *
+     * @example
+     * ```ts
+     * const users = await getUsers(page, limit);
+     * const total = await countUsers();
+     * return c.paginated(users, page, limit, total);
+     * // Response: {
+     * //   items: [...],
+     * //   pagination: {
+     * //     page: 1,
+     * //     limit: 20,
+     * //     total: 100,
+     * //     totalPages: 5
+     * //   }
+     * // }
+     * ```
+     */
     paginated(
         data: any[],
         page: number,
@@ -106,8 +191,9 @@ export type RouteBuilderContext<TInput extends RouteInput = RouteInput> = {
  */
 export type RouteHandlerFn<
     TInput extends RouteInput = RouteInput,
+    TInterceptor extends RouteInput = {},
     TResponse = any
-> = (c: RouteBuilderContext<TInput>) => Response | Promise<Response> | TResponse | Promise<TResponse>;
+> = (c: RouteBuilderContext<TInput, TInterceptor>) => Response | Promise<Response> | TResponse | Promise<TResponse>;
 
 /**
  * Route definition result
@@ -116,17 +202,20 @@ export type RouteHandlerFn<
  */
 export type RouteDef<
     TInput extends RouteInput = RouteInput,
+    TInterceptor extends RouteInput = {},
     TResponse = any
 > = {
     method?: HttpMethod;
     path?: string;
     input?: TInput;
-    middlewares?: MiddlewareHandler[];
+    interceptor?: TInterceptor;
+    middlewares?: (MiddlewareHandler | NamedMiddleware<any>)[];
     skipMiddlewares?: string[] | '*';
-    handler: RouteHandlerFn<TInput, TResponse>;
+    handler: RouteHandlerFn<TInput, TInterceptor, TResponse>;
 
     // Type inference helpers
     _input: TInput;
+    _interceptor: TInterceptor;
     _response: TResponse;
 };
 
@@ -140,13 +229,15 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  */
 export class RouteBuilder<
     TInput extends RouteInput = {},
+    TInterceptor extends RouteInput = {},
     TResponse = never
 >
 {
     public _method?: HttpMethod;
     public _path?: string;
     public _input?: TInput;
-    public _middlewares?: MiddlewareHandler[];
+    public _interceptor?: TInterceptor;
+    public _middlewares?: (MiddlewareHandler | NamedMiddleware<any>)[];
     public _skipMiddlewares?: string[] | '*';
 
     /**
@@ -168,35 +259,123 @@ export class RouteBuilder<
      *   })
      * ```
      */
-    input<TNewInput extends RouteInput>(input: TNewInput): RouteBuilder<TNewInput, TResponse>
+    input<TNewInput extends RouteInput>(input: TNewInput): RouteBuilder<TNewInput, TInterceptor, TResponse>
     {
-        const builder = new RouteBuilder<TNewInput, TResponse>();
+        const builder = new RouteBuilder<TNewInput, TInterceptor, TResponse>();
         builder._method = this._method;
         builder._path = this._path;
         builder._middlewares = this._middlewares;
         builder._skipMiddlewares = this._skipMiddlewares;
+        builder._interceptor = this._interceptor;
         builder._input = input;
         return builder;
     }
 
     /**
-     * Add middlewares
+     * Define fields injected by interceptors
+     *
+     * These fields are:
+     * - Available in the handler (merged with input)
+     * - Excluded from client types (codegen uses only input)
+     * - Not validated by route input schema (injected by middleware)
+     *
+     * Use this when middleware/interceptors add fields to the request
+     * before it reaches the handler.
      *
      * @example
      * ```ts
+     * // Auth interceptor injects crypto key fields
+     * route.post('/_auth/login')
+     *   .input({
+     *     body: Type.Object({
+     *       email: Type.String(),
+     *       password: Type.String()
+     *     })
+     *   })
+     *   .interceptor({
+     *     body: Type.Object({
+     *       publicKey: Type.String(),
+     *       keyId: Type.String(),
+     *       fingerprint: Type.String()
+     *     })
+     *   })
+     *   .handler(async (c) => {
+     *     const { body } = await c.data();
+     *     // body type: { email, password, publicKey, keyId, fingerprint }
+     *     // Client only sees: { email, password }
+     *     return loginService(body);
+     *   });
+     * ```
+     */
+    interceptor<TNewInterceptor extends RouteInput>(
+        interceptor: TNewInterceptor
+    ): RouteBuilder<TInput, TNewInterceptor, TResponse>
+    {
+        const builder = new RouteBuilder<TInput, TNewInterceptor, TResponse>();
+        builder._method = this._method;
+        builder._path = this._path;
+        builder._input = this._input;
+        builder._middlewares = this._middlewares;
+        builder._skipMiddlewares = this._skipMiddlewares;
+        builder._interceptor = interceptor;
+        return builder;
+    }
+
+    /**
+     * Add middlewares to the route
+     *
+     * Accepts both regular middleware handlers and named middlewares (NamedMiddleware).
+     * Named middlewares that are already registered globally will be automatically
+     * deduplicated to prevent double execution.
+     *
+     * @example
+     * ```ts
+     * import { authenticate } from '@spfn/auth/server/middleware';
+     *
+     * // With NamedMiddleware (auto-deduped if registered globally)
+     * route.get('/users')
+     *   .use([authenticate, RateLimitMiddleware()])
+     *
+     * // With regular middleware handlers
      * route.get('/users')
      *   .use([AuthMiddleware(), RateLimitMiddleware()])
      * ```
      */
-    use(middlewares: MiddlewareHandler[]): RouteBuilder<TInput, TResponse>
+    middleware(middlewares: (MiddlewareHandler | NamedMiddleware<any>)[]): RouteBuilder<TInput, TInterceptor, TResponse>
     {
-        const builder = new RouteBuilder<TInput, TResponse>();
+        const builder = new RouteBuilder<TInput, TInterceptor, TResponse>();
         builder._method = this._method;
         builder._path = this._path;
         builder._input = this._input;
+        builder._interceptor = this._interceptor;
         builder._middlewares = middlewares;
         builder._skipMiddlewares = this._skipMiddlewares;
         return builder;
+    }
+
+    /**
+     * Add middlewares to the route (alias for `.middleware()`)
+     *
+     * Accepts both regular middleware handlers and named middlewares (NamedMiddleware).
+     * Named middlewares that are already registered globally will be automatically
+     * deduplicated to prevent double execution.
+     *
+     * @example
+     * ```ts
+     * import { authenticate } from '@spfn/auth/server/middleware';
+     *
+     * // With NamedMiddleware (auto-deduped if registered globally)
+     * route.get('/users')
+     *   .use([authenticate, RateLimitMiddleware()])
+     *
+     * // With regular middleware handlers
+     * route.get('/users')
+     *   .use([AuthMiddleware(), RateLimitMiddleware()])
+     * ```
+     */
+    use(middlewares: (MiddlewareHandler | NamedMiddleware<any>)[]): RouteBuilder<TInput, TInterceptor, TResponse>
+    {
+        return this.middleware(middlewares);
     }
 
     /**
@@ -224,12 +403,13 @@ export class RouteBuilder<
      *   .handler(async (c) => c.success({ status: 'ok' }));
      * ```
      */
-    skip(middlewareNames: string[] | '*'): RouteBuilder<TInput, TResponse>
+    skip(middlewareNames: string[] | '*'): RouteBuilder<TInput, TInterceptor, TResponse>
     {
-        const builder = new RouteBuilder<TInput, TResponse>();
+        const builder = new RouteBuilder<TInput, TInterceptor, TResponse>();
         builder._method = this._method;
         builder._path = this._path;
         builder._input = this._input;
+        builder._interceptor = this._interceptor;
         builder._middlewares = this._middlewares;
         builder._skipMiddlewares = middlewareNames;
         return builder;
@@ -250,17 +430,19 @@ export class RouteBuilder<
      * ```
      */
     handler<THandlerResponse>(
-        fn: RouteHandlerFn<TInput, THandlerResponse>
-    ): RouteDef<TInput, THandlerResponse>
+        fn: RouteHandlerFn<TInput, TInterceptor, THandlerResponse>
+    ): RouteDef<TInput, TInterceptor, THandlerResponse>
     {
         return {
             method: this._method,
             path: this._path,
             input: this._input,
+            interceptor: this._interceptor,
             middlewares: this._middlewares,
             skipMiddlewares: this._skipMiddlewares,
             handler: fn,
             _input: {} as TInput,
+            _interceptor: {} as TInterceptor,
             _response: {} as THandlerResponse,
         };
     }

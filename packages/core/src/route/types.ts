@@ -1,9 +1,5 @@
-import type { Context } from 'hono';
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import type { TSchema, Static } from '@sinclair/typebox';
+import type { TSchema } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-
-import type { ApiSuccessResponse } from './api-response';
 
 /**
  * File-based Routing System Type Definitions
@@ -20,41 +16,6 @@ export type RouteMeta = {
 };
 
 /**
- * Route Contract: TypeBox-based type-safe route definition
- *
- * Defines the shape of request/response for a route endpoint
- */
-export type RouteContract = {
-    method: HttpMethod;
-    path: string;
-    params?: TSchema;
-    query?: TSchema;
-    body?: TSchema;
-    response: TSchema;
-    meta?: RouteMeta;
-};
-
-/**
- * Infer types from RouteContract
- *
- * Extracts TypeScript types from TypeBox schemas
- */
-export type InferContract<TContract extends RouteContract> = {
-    params: TContract['params'] extends TSchema
-        ? Static<TContract['params']>
-        : Record<string, never>;
-    query: TContract['query'] extends TSchema
-        ? Static<TContract['query']>
-        : Record<string, never>;
-    body: TContract['body'] extends TSchema
-        ? Static<TContract['body']>
-        : Record<string, never>;
-    response: TContract['response'] extends TSchema
-        ? Static<TContract['response']>
-        : unknown;
-};
-
-/**
  * Extract data type from ApiSuccessResponse<T>
  *
  * If response type is ApiSuccessResponse<T>, extracts T (the data field type).
@@ -62,49 +23,7 @@ export type InferContract<TContract extends RouteContract> = {
  */
 export type InferResponseData<T> = T extends { success: true; data: infer D } ? D : T;
 
-/**
- * RouteContext: Route Handler Dedicated Context
- *
- * Generic version with contract-based type inference
- */
-export type RouteContext<TContract extends RouteContract = any> = {
-    params: InferContract<TContract>['params'];
-    query: InferContract<TContract>['query'];
-    data(): Promise<InferContract<TContract>['body']>;
-    json(
-        data: InferContract<TContract>['response'],
-        status?: ContentfulStatusCode,
-        headers?: HeaderRecord
-    ): Response;
-    success(
-        data: InferResponseData<InferContract<TContract>['response']>,
-        meta?: ApiSuccessResponse<InferResponseData<InferContract<TContract>['response']>>['meta'],
-        status?: ContentfulStatusCode
-    ): Response;
-    paginated(
-        data: InferResponseData<InferContract<TContract>['response']> extends Array<infer U>
-            ? U[]
-            : InferResponseData<InferContract<TContract>['response']>[],
-        page: number,
-        limit: number,
-        total: number
-    ): Response;
-    noContent(): Response;
-    created(
-        data: InferResponseData<InferContract<TContract>['response']>,
-        location?: string
-    ): Response;
-    accepted(
-        data?: InferResponseData<InferContract<TContract>['response']>
-    ): Response;
-    notModified(): Response;
-    raw: Context;
-};
-
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-
-export type RouteHandler<TContract extends RouteContract = any> =
-    (c: RouteContext<TContract>) => Response | Promise<Response>;
 
 export function isHttpMethod(value: unknown): value is HttpMethod
 {
@@ -138,15 +57,3 @@ export const Nullable = <T extends TSchema>(schema: T) =>
  */
 export const OptionalNullable = <T extends TSchema>(schema: T) =>
     Type.Optional(Type.Union([schema, Type.Null()]));
-
-// API Response helpers (optional)
-export {
-    ApiSuccessSchema,
-    ApiErrorSchema,
-    ApiResponseSchema,
-} from './api-response';
-
-export type * from './api-response';
-
-// Contract helper
-export { defineContract } from './define-contract';
