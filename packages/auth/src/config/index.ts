@@ -12,13 +12,8 @@
  * @module config
  */
 
-import { createEnvRegistry, type InferEnvType } from '@spfn/core/env';
+import { createEnvRegistry } from '@spfn/core/env';
 import { authEnvSchema } from './schema';
-
-/**
- * Environment configuration type
- */
-export type EnvConfig = InferEnvType<typeof authEnvSchema>;
 
 /**
  * Environment registry
