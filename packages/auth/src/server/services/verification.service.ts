@@ -4,10 +4,10 @@
  * Handles OTP code generation, validation, and delivery
  */
 
-import { verificationCodesRepository } from '@/server/repositories';
-import { InvalidVerificationCodeError } from '@/errors';
+import { env } from '@spfn/auth/config';
+import { InvalidVerificationCodeError } from '@spfn/auth/errors';
 import jwt from 'jsonwebtoken';
-import { env } from '@/config';
+import { verificationCodesRepository } from '../repositories';
 
 /**
  * Verification token expiry (15 minutes)
@@ -43,11 +43,9 @@ export interface VerificationTokenPayload
 export function generateVerificationCode(): string
 {
     // Generate random 6-digit number (000000 - 999999)
-    const code = Math.floor(Math.random() * 1000000)
+    return Math.floor(Math.random() * 1000000)
         .toString()
         .padStart(6, '0');
-
-    return code;
 }
 
 /**

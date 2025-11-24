@@ -5,7 +5,7 @@
  * Codes expire after a configurable time period
  */
 
-import { VERIFICATION_PURPOSES, VERIFICATION_TARGET_TYPES } from "@/server/types";
+import { VERIFICATION_PURPOSES, VERIFICATION_TARGET_TYPES } from "../types";
 import { text, index, integer, check } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';

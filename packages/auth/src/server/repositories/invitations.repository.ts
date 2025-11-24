@@ -5,11 +5,12 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { users } from "@/server/entities/users";
-import { roles } from "@/server/entities/roles";
-import type { InvitationStatus } from "@/server/types";
-import { BaseRepository } from '@spfn/core/db';
 import { eq, and, lt, desc, sql } from 'drizzle-orm';
+import { BaseRepository } from '@spfn/core/db';
+
+import { users } from "../entities/users";
+import { roles } from "../entities/roles";
+import type { InvitationStatus } from "../types";
 import { invitations, NewInvitation } from "../entities/invitations";
 
 /**

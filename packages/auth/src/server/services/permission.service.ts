@@ -10,7 +10,7 @@ import {
     permissionsRepository,
     rolePermissionsRepository,
     userPermissionsRepository,
-} from '@/server/repositories';
+} from '../repositories';
 
 /**
  * Get all permissions for a user

@@ -5,8 +5,7 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/nextjs';
-import { unsealSession } from '@/server/lib/session';
-import { generateClientToken } from '@/server/lib/crypto';
+import { unsealSession, generateClientToken } from '@spfn/auth/server';
 
 /**
  * Authentication Interceptor

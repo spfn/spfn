@@ -4,17 +4,16 @@
  * User invitation management for invite-only registration
  */
 
-import { Invitation } from "@/server/entities/invitations";
+import crypto from 'crypto';
+import { Invitation } from "../entities/invitations";
 import {
     invitationsRepository,
     usersRepository,
     rolesRepository,
     keysRepository,
-} from '@/server/repositories';
-import type { InvitationStatus } from '@/server/types';
-import { type KeyAlgorithmType } from '@/server/types';
-import { hashPassword } from '@/server/helpers';
-import crypto from 'crypto';
+} from '../repositories';
+import type { InvitationStatus, KeyAlgorithmType } from '../types';
+import { hashPassword } from '../helpers';
 
 /**
  * Generate unique invitation token (UUID v4)

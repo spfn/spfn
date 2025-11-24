@@ -4,10 +4,10 @@
  * Thin route handlers for user invitation management
  */
 
-import { EmailSchema, PasswordSchema, UUID_PATTERN } from '@/lib/contracts/schemas/base';
-import { getAuth } from '@/server/helpers';
-import { authenticate, requirePermissions, requireRole } from '@/server/middleware';
-import { KEY_ALGORITHM } from '@/server/types';
+import { EMAIL_PATTERN, UUID_PATTERN } from "@spfn/auth";
+import { getAuth } from '../../helpers';
+import { authenticate, requirePermissions, requireRole } from '../../middleware';
+import { KEY_ALGORITHM } from '../../types';
 import {
     getInvitationWithDetails,
     validateInvitation,
@@ -17,7 +17,7 @@ import {
     cancelInvitation as _cancelInvitation,
     resendInvitation as _resendInvitation,
     deleteInvitation as _deleteInvitation,
-} from "@/server/services";
+} from "../../services";
 import { Type } from '@sinclair/typebox';
 import { defineRouter, route } from '@spfn/core/route';
 
@@ -85,7 +85,10 @@ export const acceptInvitation = route.post('/_auth/invitations/accept')
                 pattern: UUID_PATTERN,
                 description: 'Invitation token'
             }),
-            password: PasswordSchema,
+            password: Type.String({
+                minLength: 8,
+                description: 'User password (minimum 8 characters)'
+            }),
         })
     })
     .interceptor({
@@ -122,7 +125,10 @@ export const acceptInvitation = route.post('/_auth/invitations/accept')
 export const createInvitation = route.post('/_auth/invitations')
     .input({
         body: Type.Object({
-            email: EmailSchema,
+            email: Type.String({
+                pattern: EMAIL_PATTERN,
+                description: 'Email address'
+            }),
             roleId: Type.Number({
                 description: 'Role ID to assign'
             }),

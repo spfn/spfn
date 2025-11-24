@@ -5,8 +5,8 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewVerificationCode, verificationCodes } from "@/server/entities/verification-codes";
-import type { VerificationPurpose } from "@/server/types";
+import { NewVerificationCode, verificationCodes } from "../entities/verification-codes";
+import type { VerificationPurpose } from "../types";
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
 

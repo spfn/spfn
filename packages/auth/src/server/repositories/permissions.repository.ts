@@ -5,8 +5,8 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewPermissionEntity, PermissionEntity, permissions } from "@/server/entities/permissions";
-import type { PermissionCategory } from "@/server/rbac";
+import { NewPermissionEntity, PermissionEntity, permissions } from "../entities/permissions";
+import type { PermissionCategory } from "../rbac";
 import { BaseRepository } from '@spfn/core/db';
 import { asc, eq, inArray } from 'drizzle-orm';
 

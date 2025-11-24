@@ -5,12 +5,10 @@
  */
 
 import type { Context, Next } from 'hono';
-import { defineMiddleware } from '@spfn/core/server';
-import { getAuth } from '@/server/helpers/context';
-import { hasAnyRole } from '@/server/services/permission.service';
+import { defineMiddleware } from '@spfn/core/route';
+import { getAuth, hasAnyRole, authLogger } from '@spfn/auth/server';
 import { ForbiddenError } from '@spfn/core/errors';
-import { InsufficientRoleError } from '@/errors';
-import { authLogger } from '@/server/logger';
+import { InsufficientRoleError } from '@spfn/auth/errors';
 
 /**
  * Require user to have one of the specified roles

@@ -4,12 +4,7 @@
  * Core authentication logic: registration, login, logout, password management
  */
 
-import { type User } from "@/server/entities/users";
 import { ValidationError } from '@spfn/core/errors';
-import { usersRepository } from '@/server/repositories';
-import { type KeyAlgorithmType } from '@/server/types';
-import { hashPassword, verifyPassword } from '@/server/helpers';
-import { validateVerificationToken } from './verification.service';
 import {
     InvalidCredentialsError,
     AccountDisabledError,
@@ -17,7 +12,13 @@ import {
     InvalidVerificationTokenError,
     VerificationTokenPurposeMismatchError,
     VerificationTokenTargetMismatchError,
-} from '@/errors';
+} from '@spfn/auth/errors';
+
+import { type User } from "../entities/users";
+import { usersRepository } from '../repositories';
+import { type KeyAlgorithmType } from '../types';
+import { hashPassword, verifyPassword } from '../helpers';
+import { validateVerificationToken } from './verification.service';
 import { registerPublicKeyService, revokeKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
 

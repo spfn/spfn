@@ -5,8 +5,8 @@
  * Returns full user info with profile data
  */
 
-import { UserProfileResponse } from "@/lib/contracts/schemas/user-profile-response";
-import { usersRepository, userProfilesRepository } from '@/server/repositories';
+import type { UserProfile } from '@spfn/auth';
+import { usersRepository, userProfilesRepository } from '../repositories';
 
 /**
  * Get user profile information
@@ -22,7 +22,7 @@ import { usersRepository, userProfilesRepository } from '@/server/repositories';
  * console.log(data.lastLoginAt); // '2024-01-01T00:00:00.000Z'
  * ```
  */
-export async function getUserProfileService(userId: string | number | bigint): Promise<UserProfileResponse>
+export async function getUserProfileService(userId: string | number | bigint): Promise<UserProfile>
 {
     const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
 

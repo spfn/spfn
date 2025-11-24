@@ -8,15 +8,15 @@ import {
     rolesRepository,
     permissionsRepository,
     rolePermissionsRepository,
-} from '@/server/repositories';
+} from '../repositories';
 import {
     BUILTIN_ROLES,
     BUILTIN_PERMISSIONS,
     BUILTIN_ROLE_PERMISSIONS,
-} from '@/server/rbac';
-import type { AuthInitOptions, RoleConfig, PermissionConfig } from '@/server/rbac';
-import { configureAuth } from '@/server/lib/config';
-import { authLogger } from '@/server/logger';
+} from '../rbac';
+import type { AuthInitOptions, RoleConfig, PermissionConfig } from '../rbac';
+import { configureAuth } from '../lib/config';
+import { authLogger } from '../logger';
 
 /**
  * Initialize auth package with RBAC system

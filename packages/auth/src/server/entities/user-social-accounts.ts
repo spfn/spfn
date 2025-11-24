@@ -4,7 +4,7 @@
  * Stores OAuth connections for social login providers
  */
 
-import { SOCIAL_PROVIDERS } from "@/server/types";
+import { SOCIAL_PROVIDERS } from "../types";
 import { text, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, foreignKey, enumText, utcTimestamp } from '@spfn/core/db';
 import { users } from './users';

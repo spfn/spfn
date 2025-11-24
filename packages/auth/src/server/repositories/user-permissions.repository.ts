@@ -5,7 +5,7 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewUserPermission, userPermissions } from "@/server/entities/user-permissions";
+import { NewUserPermission, userPermissions } from "../entities/user-permissions";
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, or, isNull, isNotNull, lt, gt } from 'drizzle-orm';
 

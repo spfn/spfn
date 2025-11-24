@@ -10,7 +10,7 @@
  * - Category grouping for organization
  */
 
-import { PERMISSION_CATEGORIES } from "@/server/rbac";
+import { PERMISSION_CATEGORIES } from "../rbac";
 import { text, boolean, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, typedJsonb } from '@spfn/core/db';
 import { authSchema } from './schema';

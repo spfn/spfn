@@ -4,9 +4,9 @@
  * Provides lifecycle hooks for SPFN server initialization
  */
 
+import type { AuthInitOptions } from './rbac';
 import { ensureAdminExists } from './setup';
-import { initializeAuth } from '@/server/services';
-import type { AuthInitOptions } from './rbac/types';
+import { initializeAuth } from './services';
 
 /**
  * Auth lifecycle configuration

@@ -20,19 +20,17 @@
  * - Key revocation check (isActive flag)
  */
 
-import { defineMiddleware } from '@spfn/core/server';
-import { type KeyAlgorithmType } from '@/server/types';
-import { verifyClientToken } from '@/server/helpers/jwt';
-import type { User } from '@/server/entities/users';
+import { defineMiddleware } from '@spfn/core/route';
+import { UnauthorizedError } from '@spfn/core/errors';
+
+import type { User, KeyAlgorithmType } from '@spfn/auth/server';
+import { verifyClientToken, decodeToken, authLogger, keysRepository, usersRepository } from '@spfn/auth/server';
 import {
     InvalidTokenError,
     TokenExpiredError,
     KeyExpiredError,
     AccountDisabledError,
-} from '@/errors';
-import { UnauthorizedError } from '@spfn/core/errors';
-import { keysRepository, usersRepository } from '@/server/repositories';
-import { authLogger } from '@/server/logger';
+} from '@spfn/auth/errors';
 
 // Auth context type
 export interface AuthContext
@@ -89,14 +87,18 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
     // Validate Authorization header format
     if (!authHeader || !authHeader.startsWith('Bearer '))
     {
-        throw new UnauthorizedError({ message: 'Missing or invalid authorization header' });
+        authLogger.middleware.error('Missing or invalid authorization header. If using Next.js API routes, ensure you have imported \'@spfn/auth/nextjs/api\' in your API route handler (e.g., src/app/api/actions/[[...path]]/route.ts) to enable automatic authentication header forwarding from client to backend.', {
+            headers: c.req.header(),
+            path: c.req.path,
+        });
+
+        throw new UnauthorizedError({ message: 'Authentication header missing or invalid: Bearer {token}' });
     }
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     // 1. Decode JWT to extract keyId (without verification)
     // We need keyId to fetch the public key for verification
-    const { decodeToken } = await import('@/server/helpers/jwt');
     const decoded = decodeToken(token);
 
     if (!decoded || !decoded.keyId)

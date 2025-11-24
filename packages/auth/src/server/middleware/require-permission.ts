@@ -5,12 +5,10 @@
  */
 
 import type { Context, Next } from 'hono';
-import { defineMiddleware } from '@spfn/core/server';
-import { getAuth } from '@/server/helpers/context';
-import { hasAllPermissions, hasAnyPermission } from '@/server/services/permission.service';
+import { defineMiddleware } from '@spfn/core/route';
 import { ForbiddenError } from '@spfn/core/errors';
-import { InsufficientPermissionsError } from '@/errors';
-import { authLogger } from '@/server/logger';
+import { InsufficientPermissionsError } from '@spfn/auth/errors';
+import { getAuth, hasAllPermissions, hasAnyPermission, authLogger } from '@spfn/auth/server';
 
 /**
  * Require user to have all specified permissions

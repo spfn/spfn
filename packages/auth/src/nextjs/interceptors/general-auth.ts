@@ -8,10 +8,7 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/nextjs';
-import { unsealSession, sealSession, shouldRefreshSession } from '@/server/lib/session';
-import { generateClientToken } from '@/server/lib/crypto';
-import { getSessionTtl, COOKIE_NAMES } from '@/server/lib/config';
-import { authLogger } from '@/server/logger';
+import { unsealSession, sealSession, shouldRefreshSession, generateClientToken, getSessionTtl, COOKIE_NAMES, authLogger } from '@spfn/auth/server';
 import { env } from '@spfn/core/config';
 
 /**

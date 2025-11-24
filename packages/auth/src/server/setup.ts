@@ -4,11 +4,12 @@
  * Initial setup and admin account creation
  */
 
-import { hashPassword } from '@/server/helpers';
-import { getRoleByName } from '@/server/services/role.service';
-import { authLogger } from '@/server/logger';
-import { usersRepository } from '@/server/repositories';
-import { env } from '@/config';
+import { env } from '@spfn/auth/config';
+import { getRoleByName } from '@spfn/auth/server';
+
+import { hashPassword } from './helpers';
+import { authLogger } from './logger';
+import { usersRepository } from './repositories';
 
 /**
  * Admin account configuration

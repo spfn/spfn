@@ -1,49 +1,5 @@
 import { defineConfig } from 'tsup';
-import { glob } from 'glob';
 import * as path from 'path';
-
-// Find all route handler files
-const routeFiles = glob.sync('src/server/routes/**/index.ts');
-const routeEntries = Object.fromEntries(
-    routeFiles.map((file) =>
-    {
-        const key = file
-            .replace('src/', '')
-            .replace('/index.ts', '/index')
-            .replace('.ts', '');
-        return [key, file];
-    })
-);
-
-// Find all entity files
-const entityFiles = glob.sync('src/server/entities/**/*.ts');
-const entityEntries = Object.fromEntries(
-    entityFiles.map((file) =>
-    {
-        const key = file.replace('src/', '').replace('.ts', '');
-        return [key, file];
-    })
-);
-
-// Find all contract files
-const contractFiles = glob.sync('src/lib/contracts/**/*.ts');
-const contractEntries = Object.fromEntries(
-    contractFiles.map((file) =>
-    {
-        const key = file.replace('src/', '').replace('.ts', '');
-        return [key, file];
-    })
-);
-
-// Find lib files
-const libFiles = glob.sync('src/lib/**/*.ts');
-const libEntries = Object.fromEntries(
-    libFiles.map((file) =>
-    {
-        const key = file.replace('src/', '').replace('.ts', '');
-        return [key, file];
-    })
-);
 
 export default defineConfig({
     entry: {
@@ -54,10 +10,6 @@ export default defineConfig({
         config: 'src/config/index.ts',
         'nextjs/api': 'src/nextjs/api.ts',
         'nextjs/server': 'src/nextjs/server.ts',
-        ...entityEntries,
-        ...contractEntries,
-        ...routeEntries,
-        ...libEntries,
     },
     format: ['esm'],
     dts: true,
@@ -72,10 +24,26 @@ export default defineConfig({
         };
     },
     external: [
+        // Internal entrypoints (prevent bundling into each other)
+        '@spfn/auth',
+        '@spfn/auth/server',
+        '@spfn/auth/client',
+        '@spfn/auth/config',
+        '@spfn/auth/errors',
+        '@spfn/auth/nextjs/api',
+        '@spfn/auth/nextjs/server',
+        // External dependencies
         '@spfn/core',
+        '@spfn/core/server',
+        '@spfn/core/db',
+        '@spfn/core/route',
+        '@spfn/core/errors',
+        '@spfn/core/logger',
+        '@spfn/core/config',
+        '@spfn/core/env',
         'drizzle-orm',
         'postgres',
-        'bcrypt',
+        'bcryptjs',
         'jsonwebtoken',
         'next',
         'next/headers',

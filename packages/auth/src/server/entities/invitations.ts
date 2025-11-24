@@ -11,7 +11,7 @@
  * - Metadata support for custom data
  */
 
-import { INVITATION_STATUSES } from "@/server/types";
+import { INVITATION_STATUSES } from "../types";
 import { text, bigint, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp, typedJsonb } from '@spfn/core/db';
 import { roles } from './roles';

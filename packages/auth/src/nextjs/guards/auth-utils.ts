@@ -4,10 +4,8 @@
  * Uses direct API calls to check permissions in real-time
  */
 
-import { COOKIE_NAMES } from '@/server/lib/config';
-import { generateClientToken } from '@/server/lib/crypto';
-import { unsealSession } from '@/server/lib/session';
-import { env } from '@/config';
+import { COOKIE_NAMES, generateClientToken, unsealSession } from '@spfn/auth/server';
+import { env } from '@spfn/auth/config';
 import { cookies } from 'next/headers';
 
 /**

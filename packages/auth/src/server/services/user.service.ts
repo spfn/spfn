@@ -4,8 +4,8 @@
  * Handles user CRUD operations
  */
 
-import { type NewUser } from "@/server/entities/users";
-import { usersRepository } from '@/server/repositories';
+import { type NewUser } from "../entities/users";
+import { usersRepository } from '../repositories';
 
 /**
  * Get user by ID

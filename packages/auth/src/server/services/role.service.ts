@@ -8,8 +8,8 @@ import {
     rolesRepository,
     permissionsRepository,
     rolePermissionsRepository,
-} from '@/server/repositories';
-import type { Role } from '@/server/entities/roles';
+} from '../repositories';
+import type { Role } from '../entities/roles';
 
 /**
  * Create a new custom role
@@ -305,6 +305,6 @@ export async function getRolePermissions(roleId: number): Promise<string[]>
 
     // Filter out nulls and return names
     return perms
-        .filter((p): p is NonNullable<typeof p> => p !== null)
+        .filter((p) => p !== null)
         .map(p => p.name);
 }

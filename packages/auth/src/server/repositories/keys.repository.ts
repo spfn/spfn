@@ -5,7 +5,7 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewUserPublicKey, userPublicKeys } from "@/server/entities/user-public-keys";
+import { NewUserPublicKey, userPublicKeys } from "../entities/user-public-keys";
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and } from 'drizzle-orm';
 

@@ -5,11 +5,18 @@
         "rootDir": "./src",
         "composite": false,
         "jsx": "react-jsx",
-        "lib": ["ES2022", "DOM"],
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "noEmit": false,
         "baseUrl": ".",
         "paths": {
-            "@/*": ["./src/*"]
+            "@spfn/auth/*": ["./src/*"],
+            "@spfn/auth": ["./src/index.ts"],
+            "@spfn/auth/server": ["./src/server.ts"],
+            "@spfn/auth/client": ["./src/client.ts"],
+            "@spfn/auth/config": ["./src/config/index.ts"],
+            "@spfn/auth/errors": ["./src/errors/index.ts"],
+            "@spfn/auth/nextjs/api": ["./src/nextjs/api.ts"],
+            "@spfn/auth/nextjs/server": ["./src/nextjs/server.ts"]
         }
     },
     "include": ["src/**/*", ".spfnrc.ts"],

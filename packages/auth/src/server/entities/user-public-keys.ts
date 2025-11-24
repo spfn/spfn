@@ -5,7 +5,7 @@
  * Supports key rotation and multi-key management per user
  */
 
-import { KEY_ALGORITHM } from '@/server/types';
+import { KEY_ALGORITHM } from '../types';
 import { text, boolean, index } from 'drizzle-orm/pg-core';
 import { id, foreignKey, enumText, utcTimestamp } from '@spfn/core/db';
 import { users } from './users';

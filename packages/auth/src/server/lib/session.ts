@@ -6,9 +6,10 @@
  */
 
 import * as jose from 'jose';
-import { type KeyAlgorithmType } from '@/server/types';
-import { env } from '@/config';
+import { env } from '@spfn/auth/config';
 import { env as coreEnv } from '@spfn/core/config';
+
+import { type KeyAlgorithmType } from '../types';
 
 export interface SessionData
 {

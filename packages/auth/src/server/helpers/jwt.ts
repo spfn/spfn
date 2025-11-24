@@ -11,8 +11,8 @@
 
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
-import { env } from '@/config';
-import { type KeyAlgorithmType } from '@/server/types';
+import { env } from '@spfn/auth/config';
+import { type KeyAlgorithmType } from '../types';
 
 export interface SessionPayload
 {

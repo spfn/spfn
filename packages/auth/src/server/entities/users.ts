@@ -12,7 +12,7 @@
  * - Email/phone verification
  */
 
-import { USER_STATUSES } from "@/server/types";
+import { USER_STATUSES } from "../types";
 import { text, check, boolean, bigint, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';

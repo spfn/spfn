@@ -4,9 +4,7 @@
  * Service for retrieving authentication session information
  * Returns minimal user info with role and permissions
  */
-
-import { AuthSession } from "@/lib/contracts/schemas";
-import { usersRepository } from '@/server/repositories';
+import { usersRepository } from '../repositories';
 
 /**
  * Get authentication session information
@@ -22,7 +20,7 @@ import { usersRepository } from '@/server/repositories';
  * console.log(session.permissions.length); // 15
  * ```
  */
-export async function getAuthSessionService(userId: string | number | bigint): Promise<AuthSession>
+export async function getAuthSessionService(userId: string | number | bigint)
 {
     const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
 

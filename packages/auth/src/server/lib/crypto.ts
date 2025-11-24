@@ -9,7 +9,7 @@
  * - RS256 (RSA 2048):   ~294 bytes (Base64: ~392 chars)
  */
 
-import { type KeyAlgorithmType } from '@/server/types';
+import { type KeyAlgorithmType } from '../types';
 import crypto from 'crypto';
 import jwt, { type Algorithm, type SignOptions } from 'jsonwebtoken';
 

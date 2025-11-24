@@ -4,7 +4,7 @@
  * Manages global auth configuration including session TTL
  */
 
-import { env } from '@/config';
+import { env } from '@spfn/auth/config';
 
 /**
  * Cookie names used by SPFN Auth

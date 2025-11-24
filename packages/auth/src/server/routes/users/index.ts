@@ -2,8 +2,8 @@
  * @spfn/auth - User Profile Routes
  */
 
-import { getAuth } from '@/server/helpers';
-import { getUserProfileService } from '@/server/services/user-profile.service';
+import { getAuth } from '../../helpers';
+import { getUserProfileService } from '../../services';
 import { defineRouter, route } from '@spfn/core/route';
 
 /**

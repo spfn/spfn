@@ -5,7 +5,7 @@
  */
 
 import type { Context } from 'hono';
-import type { AuthContext } from '@/server/middleware';
+import type { AuthContext } from '../middleware';
 
 /**
  * Get auth context from route context

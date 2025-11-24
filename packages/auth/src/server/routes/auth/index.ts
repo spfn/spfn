@@ -4,16 +4,9 @@
  * Thin route handlers that delegate to services
  */
 
-import {
-    EmailSchema,
-    PasswordSchema,
-    PhoneSchema,
-    TargetTypeSchema,
-    VerificationCodeSchema,
-    VerificationPurposeSchema
-} from '@/lib/contracts/schemas/base';
-import { getAuth, getUser } from '@/server/helpers';
-import { KEY_ALGORITHM } from '@/server/types';
+import { EmailSchema, PhoneSchema, PasswordSchema, TargetTypeSchema, VerificationPurposeSchema } from "../schema";
+import { getAuth, getUser } from '../../helpers';
+import { KEY_ALGORITHM } from '../../types';
 import {
     changePasswordService,
     checkAccountExistsService,
@@ -23,13 +16,11 @@ import {
     rotateKeyService,
     sendVerificationCodeService,
     verifyCodeService,
-} from '@/server/services';
-import { getAuthSessionService } from '@/server/services/auth-session.service';
+    getAuthSessionService
+} from '../../services';
 import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
 import { defineRouter, route } from '@spfn/core/route';
-
-// ===== Public Routes (No Authentication Required) =====
 
 /**
  * POST /_auth/exists - Check if account exists
@@ -87,7 +78,12 @@ export const verifyCode = route.post('/_auth/codes/verify')
                 description: 'Email address or phone number'
             }),
             targetType: TargetTypeSchema,
-            code: VerificationCodeSchema,
+            code: Type.String({
+                minLength: 6,
+                maxLength: 6,
+                pattern: '^[0-9]{6}$',
+                description: '6-digit verification code'
+            }),
             purpose: VerificationPurposeSchema,
         })
     })

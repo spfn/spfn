@@ -5,7 +5,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { getSession } from '@/nextjs/server';
+import { getSession } from '../session-helpers';
 import type { ReactNode } from 'react';
 
 export interface RequireAuthProps

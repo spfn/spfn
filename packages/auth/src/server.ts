@@ -59,14 +59,15 @@ export * from './server/helpers/index';
 // ============================================================================
 
 export * from './server/middleware/index';
+export * from './server/entities/config';
 
 // ============================================================================
 // Types & Constants
 // ============================================================================
 
 export * from './server/types';
-
 export * from './server/lib';
+export * from './server/logger';
 
 // ============================================================================
 // Lifecycle Hooks
