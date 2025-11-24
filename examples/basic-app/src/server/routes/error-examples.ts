@@ -20,6 +20,7 @@ import { InsufficientBalanceError } from '@/lib/errors/custom-errors';
  * GET /errors/not-found - NotFoundError example
  */
 export const errorNotFound = route.get('/errors/not-found')
+    .skip(['auth'])
     .input({
         query: Type.Object({
             resourceId: Type.Optional(Type.String()),

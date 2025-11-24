@@ -7,6 +7,7 @@
 import { route } from '@spfn/core/route';
 
 export const getRoot = route.get('/')
+    .skip(['auth'])
     .handler(async (c) =>
     {
         return {

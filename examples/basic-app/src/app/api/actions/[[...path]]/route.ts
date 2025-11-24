@@ -10,4 +10,5 @@
  * Uses next/headers internally - do not import in Client Components
  */
 
+import '@spfn/auth/nextjs/api';
 export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';

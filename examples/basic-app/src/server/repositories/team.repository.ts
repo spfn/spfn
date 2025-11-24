@@ -6,38 +6,38 @@ export class TeamRepository extends BaseRepository
 {
     async findAll()
     {
-        return await this.findMany(teams, {
+        return await this._findMany(teams, {
             orderBy: desc(teams.createdAt),
         });
     }
 
     async findById(id: number)
     {
-        return await this.findOne(teams, { id });
+        return await this._findOne(teams, { id });
     }
 
     async findBySlug(slug: string)
     {
-        return await this.findOne(teams, { slug });
+        return await this._findOne(teams, { slug });
     }
 
     async createTeam(data: { name: string; slug: string })
     {
-        return await this.create(teams, data);
+        return await this._create(teams, data);
     }
 
     async updateTeam(id: number, data: Partial<{ name: string; slug: string }>)
     {
-        return await this.updateOne(teams, { id }, data);
+        return await this._updateOne(teams, { id }, data);
     }
 
     async deleteTeam(id: number)
     {
-        return await this.deleteOne(teams, { id });
+        return await this._deleteOne(teams, { id });
     }
 
     async countAll()
     {
-        return await this.count(teams);
+        return await this._count(teams);
     }
 }

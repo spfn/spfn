@@ -14,6 +14,7 @@ const exampleRepo = new ExampleRepository();
  * GET /examples - List examples with pagination
  */
 export const listExamples = route.get('/examples')
+    .skip(['auth'])
     .input({
         query: Type.Object({
             limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
