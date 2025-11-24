@@ -209,6 +209,17 @@ export function formatConsole(metadata: LogMetadata, colorize = true): string
         parts.push(`[${timestamp}]`);
     }
 
+    // [pid=12345]
+    const pid = process.pid;
+    if (colorize)
+    {
+        parts.push(`${COLORS.dim}[pid=${pid}]${COLORS.reset}`);
+    }
+    else
+    {
+        parts.push(`[pid=${pid}]`);
+    }
+
     // [module=value]
     if (metadata.module)
     {
