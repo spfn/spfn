@@ -126,7 +126,7 @@ export interface ApiConfig {
      * When provided, the client doesn't need the actual router object.
      * This enables usage in Server Components without bundling server code.
      */
-    metadata?: Record<string, RouteMetadata>;
+    metadata?: Record<string, RouteMetadata | Record<string, RouteMetadata>>;
 
     /**
      * Default headers for all requests
@@ -478,12 +478,54 @@ export function createApi<TRouter extends Router<any>>(
         );
     }
 
-    // Use pre-extracted metadata from codegen
-    const routeMetadata = new Map<string, RouteMetadata>();
-    for (const [name, metadata] of Object.entries(preExtractedMetadata))
+    /**
+     * Flatten nested metadata structure into flat Map
+     *
+     * @example
+     * Input:  { user: { getUser: {...}, createUser: {...} }, getPost: {...} }
+     * Output: Map { 'user.getUser' => {...}, 'user.createUser' => {...}, 'getPost' => {...} }
+     */
+    function flattenMetadata(
+        metadata: Record<string, RouteMetadata | Record<string, RouteMetadata>>,
+        prefix = ''
+    ): Map<string, RouteMetadata>
     {
-        routeMetadata.set(name, metadata);
-        if (debug)
+        const result = new Map<string, RouteMetadata>();
+
+        for (const [key, value] of Object.entries(metadata))
+        {
+            const currentPath = prefix ? `${prefix}.${key}` : key;
+
+            // Check if value is RouteMetadata (has method and path)
+            if ('method' in value && 'path' in value)
+            {
+                result.set(currentPath, value as RouteMetadata);
+            }
+            else
+            {
+                // Nested structure - recurse
+                const nested = flattenMetadata(value as Record<string, RouteMetadata>, currentPath);
+                for (const [nestedKey, nestedValue] of nested.entries())
+                {
+                    result.set(nestedKey, nestedValue);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    // Flatten pre-extracted metadata
+    const routeMetadata = flattenMetadata(preExtractedMetadata);
+
+    if (debug)
+    {
+        apiLogger.debug('Superfunction API initialized', {
+            baseUrl,
+            totalRoutes: routeMetadata.size,
+        });
+
+        for (const [name, metadata] of routeMetadata.entries())
         {
             apiLogger.debug('Route registered', {
                 name,
@@ -491,14 +533,6 @@ export function createApi<TRouter extends Router<any>>(
                 path: metadata.path,
             });
         }
-    }
-
-    if (debug)
-    {
-        apiLogger.debug('TypedClient initialized', {
-            baseUrl,
-            totalRoutes: routeMetadata.size,
-        });
     }
 
     /**
@@ -794,6 +828,8 @@ export function createApi<TRouter extends Router<any>>(
                 get(_target, prop: string)
                 {
                     const currentPath = prefix ? `${prefix}.${prop}` : prop;
+
+                    console.log('현재 패스: ', currentPath);
 
                     // Check if this is a terminal route
                     if (routeMetadata.has(currentPath))

@@ -3,14 +3,25 @@
  *
  * Allows packages to automatically register their interceptors
  * for Next.js proxy without manual configuration.
+ *
+ * Uses globalThis for persistence across module reloads (HMR).
  */
 
 import type { InterceptorRule } from './types';
+// ============================================================================
+// Global Type Declarations
+// ============================================================================
 
-// Simple debug logger for development
-const isDev = process.env.NODE_ENV === 'development';
-const debug = isDev ? (...args: any[]) => console.log('[interceptor-registry]', ...args) : () => {};
-const warn = (...args: any[]) => console.warn('[interceptor-registry]', ...args);
+/**
+ * Extend globalThis with interceptor registry
+ *
+ * Using globalThis allows the registry to persist across module reloads (HMR).
+ * preventing duplicate registrations during development with HMR.
+ */
+declare global
+{
+    var __SPFN_INTERCEPTOR_REGISTRY__: InterceptorRegistry | undefined;
+}
 
 /**
  * Global interceptor registry
@@ -40,17 +51,10 @@ class InterceptorRegistry
      */
     register(packageName: string, interceptors: InterceptorRule[]): void
     {
-        debug(`📝 Registering ${interceptors.length} interceptors for package "${packageName}"`);
-
-        if (this.interceptors.has(packageName))
+        if (!this.interceptors.has(packageName))
         {
-            warn(
-                `⚠️ Interceptors for "${packageName}" already registered. Overwriting.`
-            );
+            this.interceptors.set(packageName, interceptors);
         }
-
-        this.interceptors.set(packageName, interceptors);
-        debug(`✅ Successfully registered interceptors for "${packageName}". Total packages: ${this.getPackageNames().length}`);
     }
 
     /**
@@ -137,8 +141,19 @@ class InterceptorRegistry
 
 /**
  * Global singleton registry instance
+ *
+ * Uses globalThis to persist across module reloads (HMR).
+ * This prevents duplicate registrations during development.
  */
-export const interceptorRegistry = new InterceptorRegistry();
+export const interceptorRegistry = (() =>
+{
+    if (!globalThis.__SPFN_INTERCEPTOR_REGISTRY__)
+    {
+        globalThis.__SPFN_INTERCEPTOR_REGISTRY__ = new InterceptorRegistry();
+    }
+
+    return globalThis.__SPFN_INTERCEPTOR_REGISTRY__;
+})();
 
 /**
  * Register interceptors for a package

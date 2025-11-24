@@ -289,6 +289,8 @@ export function createTypedProxy(config: TypedProxyConfig = {})
             // Filter matching interceptors
             const matchingInterceptors = filterMatchingInterceptors(allInterceptors, `/${path}`, method);
 
+            proxyLogger.debug(`🎯 Found ${matchingInterceptors.length} matching interceptors for ${method} /${path}`);
+
             // Create RequestInterceptorContext
             const requestBody = fetchOptions.body ? JSON.parse(fetchOptions.body as string) : undefined;
             const requestCtx: RequestInterceptorContext = {
@@ -302,8 +304,14 @@ export function createTypedProxy(config: TypedProxyConfig = {})
                 metadata: {},
             };
 
+            proxyLogger.debug(`📦 Request body before interceptors:`, requestCtx.body);
+
             // Execute request interceptors
-            await executeRequestInterceptors(requestCtx, matchingInterceptors.map(r => r.request).filter((i): i is NonNullable<typeof i> => !!i));
+            const requestInterceptorsToRun = matchingInterceptors.map(r => r.request).filter((i): i is NonNullable<typeof i> => !!i);
+            proxyLogger.debug(`🔄 Executing ${requestInterceptorsToRun.length} request interceptors`);
+            await executeRequestInterceptors(requestCtx, requestInterceptorsToRun);
+
+            proxyLogger.debug(`📦 Request body after interceptors:`, requestCtx.body);
 
             // Apply modified headers
             for (const [key, value] of Object.entries(requestCtx.headers))
