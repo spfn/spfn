@@ -15,7 +15,6 @@ import { dbBackup } from './backup.js';
 import { dbRestore } from './restore.js';
 import { dbBackupList } from './list.js';
 import { dbBackupClean } from './clean.js';
-import { dbSync } from './sync.js';
 
 /**
  * Database command group
@@ -89,16 +88,3 @@ dbCommand
 	.option('-k, --keep <number>', 'Keep N most recent backups', parseInt)
 	.option('-o, --older-than <days>', 'Delete backups older than N days', parseInt)
 	.action((options) => dbBackupClean(options));
-
-dbCommand
-	.command('sync <target>')
-	.description('Sync database between environments')
-	.option('--pull', 'Pull from target to local (reverse direction)')
-	.option('--tables <tables>', 'Sync only specific tables (comma-separated)')
-	.option('--exclude-tables <tables>', 'Exclude specific tables (comma-separated)')
-	.option('--data-only', 'Sync data only (schema unchanged)')
-	.option('--schema-only', 'Sync schema only (data unchanged)')
-	.option('--force', 'Allow syncing to production-like environments')
-	.option('--dry-run', 'Show sync plan without making changes')
-	.option('-y, --yes', 'Skip confirmation prompt')
-	.action((target, options) => dbSync(target, options));

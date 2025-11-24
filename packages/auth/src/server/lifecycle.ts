@@ -64,18 +64,14 @@ export interface AuthLifecycleConfig
  *
  * @example With custom lifecycle hooks
  * ```typescript
- * const authLifecycle = createAuthLifecycle();
- *
+ * // You can call lifecycle() multiple times - all hooks will be executed in order
  * export default defineServerConfig()
  *   .port(8790)
  *   .routes(appRouter)
+ *   .lifecycle(createAuthLifecycle())  // Auth initialization runs first
  *   .lifecycle({
- *     ...authLifecycle,
  *     afterInfrastructure: async () => {
- *       // Run auth initialization first
- *       await authLifecycle.afterInfrastructure?.();
- *
- *       // Then run custom logic
+ *       // This runs after auth initialization
  *       await myCustomSetup();
  *     }
  *   })

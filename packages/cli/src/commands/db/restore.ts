@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
 import prompts from 'prompts';
-import { loadEnvironment } from "@spfn/core/env";
+import { env } from '@spfn/core/config';
 import { parseDatabaseUrl } from './utils/database.js';
 import { listBackupFiles } from './utils/backup-files.js';
 import {
@@ -19,11 +19,7 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 {
 	console.log(chalk.blue('♻️  Restoring database from backup...\n'));
 
-	// Load environment variables
-	loadEnvironment({ debug: false });
-
-	const dbUrl = process.env.DATABASE_URL;
-
+	const dbUrl = env.DATABASE_URL;
 	if (!dbUrl)
 	{
 		console.error(chalk.red('❌ DATABASE_URL not found in environment'));

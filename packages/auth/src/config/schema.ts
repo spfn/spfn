@@ -104,7 +104,7 @@ export const authEnvSchema = defineEnvSchema({
     SPFN_AUTH_VERIFICATION_TOKEN_SECRET: {
         ...envString({
             description: 'Verification token secret for email verification, password reset, etc.',
-            required: false,
+            required: true,
             examples: [
                 'your-verification-token-secret',
                 'can-be-different-from-jwt-secret',

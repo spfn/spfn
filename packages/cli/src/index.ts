@@ -7,10 +7,9 @@ import { startCommand } from './commands/start.js';
 import { codegenCommand } from './commands/codegen.js';
 import { keyCommand } from './commands/key.js';
 import { setupCommand } from './commands/setup.js';
-import { dbCommand } from './commands/db/index.js';
+import { dbCommand } from './commands/db';
 import { addCommand } from './commands/add.js';
 import { generateCommand } from './commands/generate.js';
-import { envCommand } from './commands/env.js';
 
 // Export types
 export type {
@@ -41,7 +40,6 @@ program.addCommand(codegenCommand);
 program.addCommand(keyCommand);
 program.addCommand(setupCommand);
 program.addCommand(dbCommand);
-program.addCommand(envCommand);
 
 export async function run(): Promise<void>
 {

@@ -1,7 +1,8 @@
 import chalk from 'chalk';
-import { loadEnvironment } from "@spfn/core/env";
 import { runWithSpinner } from './utils/drizzle.js';
 import { dbBackup } from './backup.js';
+
+import "@spfn/core/config";
 
 /**
  * Run pending migrations
@@ -12,9 +13,6 @@ import { dbBackup } from './backup.js';
  */
 export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise<void>
 {
-    // Load environment variables first (required for DATABASE_URL)
-    loadEnvironment({ debug: false });
-
     // Create backup before migration if requested
     if (options.withBackup)
     {

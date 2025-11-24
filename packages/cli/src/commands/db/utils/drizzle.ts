@@ -2,7 +2,8 @@ import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { spawn } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadEnvironment } from "@spfn/core/env";
+
+import { env } from "@spfn/core/config";
 
 /**
  * Generate temporary drizzle.config.ts and run drizzle-kit command
@@ -10,9 +11,6 @@ import { loadEnvironment } from "@spfn/core/env";
  */
 export async function runDrizzleCommand(command: string): Promise<void>
 {
-    // Load environment variables first
-    loadEnvironment({ debug: false });
-
     const hasUserConfig = existsSync('./drizzle.config.ts');
     const tempConfigPath = `./drizzle.config.${process.pid}.${Date.now()}.temp.ts`;
 
@@ -20,7 +18,7 @@ export async function runDrizzleCommand(command: string): Promise<void>
 
     if (!hasUserConfig)
     {
-        if (!process.env.DATABASE_URL)
+        if (!env.DATABASE_URL)
         {
             console.error(chalk.red('❌ DATABASE_URL not found in environment'));
             console.log(chalk.yellow('\n💡 Tip: Add DATABASE_URL to your .env file'));

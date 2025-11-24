@@ -72,10 +72,8 @@ async function addPackage(packageName: string): Promise<void>
             console.log(chalk.blue(`\n🗄️  Setting up database for ${packageName}...\n`))
 
             // Load environment first
-            const { loadEnvironment } = await import('@spfn/core/env')
-            loadEnvironment({ debug: false })
-
-            if (!process.env.DATABASE_URL)
+            const { env } = await import('@spfn/core/config')
+            if (!env.DATABASE_URL)
             {
                 console.log(chalk.yellow('⚠️  DATABASE_URL not found'))
                 console.log(chalk.gray('Skipping database setup. Run migrations manually when ready:\n'))

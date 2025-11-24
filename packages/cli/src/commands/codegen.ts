@@ -10,12 +10,12 @@ import { logger } from '../utils/logger.js';
 async function initCodegen(options: { withExample?: boolean }): Promise<void>
 {
     const cwd = process.cwd();
-    const rcPath = join(cwd, '.spfnrc.json');
+    const rcPath = join(cwd, '.spfnrc.ts');
 
-    // Check if .spfnrc.json already exists
+    // Check if .spfnrc.ts already exists
     if (existsSync(rcPath))
     {
-        logger.warn('.spfnrc.json already exists');
+        logger.warn('.spfnrc.ts already exists');
         logger.info('Edit manually to add custom generators');
         process.exit(0);
     }
@@ -32,10 +32,10 @@ async function initCodegen(options: { withExample?: boolean }): Promise<void>
         }
     };
 
-    // Write .spfnrc.json
+    // Write .spfnrc.ts
     writeFileSync(rcPath, JSON.stringify(config, null, 2) + '\n');
 
-    console.log('\n' + chalk.green.bold('✓ Created .spfnrc.json\n'));
+    console.log('\n' + chalk.green.bold('✓ Created .spfnrc.ts\n'));
     console.log('Configuration:');
     console.log(chalk.gray(JSON.stringify(config, null, 2)));
 
@@ -43,7 +43,7 @@ async function initCodegen(options: { withExample?: boolean }): Promise<void>
     {
         console.log('\n' + chalk.yellow('📝 To add custom generators:'));
         console.log('  1. Create your generator file (e.g., src/generators/my-generator.ts)');
-        console.log('  2. Add to .spfnrc.json:');
+        console.log('  2. Add to .spfnrc.ts:');
         console.log(chalk.gray(`
 {
   "codegen": {
@@ -59,7 +59,7 @@ async function initCodegen(options: { withExample?: boolean }): Promise<void>
     else
     {
         console.log('\n' + chalk.yellow('📝 Next steps:'));
-        console.log('  • Add custom generators to .spfnrc.json');
+        console.log('  • Add custom generators to .spfnrc.ts');
         console.log('  • Run: ' + chalk.cyan('spfn dev') + ' to start development with code generation');
     }
 }
@@ -132,7 +132,7 @@ export const codegenCommand = new Command('codegen')
 // codegen init
 codegenCommand
     .command('init')
-    .description('Initialize .spfnrc.json with codegen configuration')
+    .description('Initialize .spfnrc.ts with codegen configuration')
     .option('--with-example', 'Show example custom generator usage')
     .action(initCodegen);
 

@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { loadEnvironment } from "@spfn/core/env";
+import '@spfn/core/config';
 import { runWithSpinner } from './utils/drizzle.js';
 
 /**
@@ -8,9 +8,6 @@ import { runWithSpinner } from './utils/drizzle.js';
  */
 export async function dbPush(): Promise<void>
 {
-    // Load environment variables first (required for DATABASE_URL)
-    loadEnvironment({ debug: false });
-
     // First, push schema changes
     await runWithSpinner(
         'Pushing schema changes to database...',

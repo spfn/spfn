@@ -246,10 +246,13 @@ async function loadAndMergeConfig(config?: ServerConfig): Promise<ServerConfig>
     if (loadedConfigPath)
     {
         serverLogger.debug(`Loaded configuration from ${loadedConfigPath}`);
+        console.log(`[loadAndMergeConfig] Loaded from: ${loadedConfigPath}`);
+        console.log(`[loadAndMergeConfig] fileConfig.lifecycle exists:`, !!fileConfig.lifecycle);
     }
     else
     {
         serverLogger.debug('No configuration file found, using defaults');
+        console.log('[loadAndMergeConfig] No config file found');
     }
 
     return {
@@ -320,15 +323,22 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
     if (config.lifecycle?.afterInfrastructure)
     {
         serverLogger.debug('Executing afterInfrastructure hook...');
+        console.log('[start-server] Calling afterInfrastructure hook');
         try
         {
             await config.lifecycle.afterInfrastructure();
+            console.log('[start-server] afterInfrastructure hook completed');
         }
         catch (error)
         {
+            console.log('[start-server] afterInfrastructure hook failed:', error);
             serverLogger.error('afterInfrastructure hook failed', error as Error);
             throw new Error('Server initialization failed in afterInfrastructure hook');
         }
+    }
+    else
+    {
+        console.log('[start-server] No afterInfrastructure hook found');
     }
 }
 

@@ -153,8 +153,7 @@ async function buildProject(options: BuildOptions): Promise<void>
             const prodServerPath = join(cwd, '.spfn', 'prod-server.mjs');
             const prodServerContent = `// Load environment variables FIRST (before any imports that depend on them)
 // Use centralized environment loader for standard dotenv priority
-const { loadEnvironment } = await import('@spfn/core/env');
-loadEnvironment({ debug: false });
+const { env } = await import('@spfn/core/config');
 
 // Now import server (logger singleton will be created with correct NODE_ENV)
 const { startServer } = await import('@spfn/core/server');
@@ -165,8 +164,8 @@ import { dirname } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Environment variables: from .env files OR injected by container/kubernetes
-const port = process.env.SPFN_PORT || process.env.PORT || '8790';
-const host = process.env.SPFN_HOST || process.env.HOST || '0.0.0.0';
+const port = env.SPFN_PORT || '8790';
+const host = env.SPFN_HOST || '0.0.0.0';
 
 await startServer({
     port: Number(port),

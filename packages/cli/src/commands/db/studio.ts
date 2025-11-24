@@ -1,8 +1,9 @@
+import chalk from 'chalk';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { spawn } from 'child_process';
-import chalk from 'chalk';
-import { loadEnvironment } from "@spfn/core/env";
 import { findAvailablePort } from './utils/database.js';
+
+import "@spfn/core/config";
 
 /**
  * Open Drizzle Studio (database GUI)
@@ -11,9 +12,6 @@ import { findAvailablePort } from './utils/database.js';
 export async function dbStudio(requestedPort?: number): Promise<void>
 {
     console.log(chalk.blue('🎨 Opening Drizzle Studio...\n'));
-
-    // Load environment variables first
-    loadEnvironment({ debug: false });
 
     // Find available port
     const defaultPort = 4983;

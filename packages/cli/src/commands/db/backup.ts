@@ -3,7 +3,6 @@ import path from 'path';
 import { spawn } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
-import { loadEnvironment } from "@spfn/core/env";
 import { parseDatabaseUrl } from './utils/database.js';
 import { formatBytes, formatTimestamp } from './utils/formatters.js';
 import { ensureBackupDir } from './utils/backup-files.js';
@@ -13,6 +12,7 @@ import {
 	saveBackupMetadata,
 	type BackupMetadata
 } from './utils/metadata.js';
+import { env } from '@spfn/core/config';
 
 /**
  * Backup database to file
@@ -29,11 +29,7 @@ export async function dbBackup(options: {
 {
 	console.log(chalk.blue('💾 Creating database backup...\n'));
 
-	// Load environment variables
-	loadEnvironment({ debug: false });
-
-	const dbUrl = process.env.DATABASE_URL;
-
+	const dbUrl = env.DATABASE_URL;
 	if (!dbUrl)
 	{
 		console.error(chalk.red('❌ DATABASE_URL not found in environment'));

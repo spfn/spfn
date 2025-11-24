@@ -6,6 +6,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 
+import { env } from '../../config';
 import { logger } from '../../logger';
 import { createDatabaseConnection } from './connection';
 import { getPoolConfig, getRetryConfig, type DatabaseOptions, type DatabaseClients, type PoolConfig, type RetryConfig } from './config';
@@ -36,9 +37,9 @@ type DatabasePattern =
  */
 function hasDatabaseConfig(): boolean
 {
-    return process.env.DATABASE_URL !== undefined ||
-           process.env.DATABASE_WRITE_URL !== undefined ||
-           process.env.DATABASE_READ_URL !== undefined;
+    return env.DATABASE_URL !== undefined ||
+           env.DATABASE_WRITE_URL !== undefined ||
+           env.DATABASE_READ_URL !== undefined;
 }
 
 /**
@@ -64,12 +65,10 @@ function hasDatabaseConfig(): boolean
  */
 function detectDatabasePattern(): DatabasePattern
 {
-    const {
-        DATABASE_WRITE_URL,
-        DATABASE_READ_URL,
-        DATABASE_URL,
-        DATABASE_REPLICA_URL,
-    } = process.env;
+    const DATABASE_WRITE_URL = env.DATABASE_WRITE_URL;
+    const DATABASE_READ_URL = env.DATABASE_READ_URL;
+    const DATABASE_URL = env.DATABASE_URL;
+    const DATABASE_REPLICA_URL = env.DATABASE_REPLICA_URL;
 
     // Priority 1: Explicit write/read separation (recommended)
     if (DATABASE_WRITE_URL && DATABASE_READ_URL)
@@ -254,7 +253,7 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
 
         dbLogger.error('No database configuration found', {
             cwd: process.cwd(),
-            nodeEnv: process.env.NODE_ENV,
+            nodeEnv: env.NODE_ENV,
             checkedVars: ['DATABASE_URL', 'DATABASE_WRITE_URL', 'DATABASE_READ_URL'],
         });
 
@@ -288,11 +287,6 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
 
             case 'single':
                 return await createSingleClient(pattern.url, poolConfig, retryConfig);
-
-            case 'none':
-                // This should never happen if hasDatabaseConfig() passed
-                // But throw for defensive programming
-                throw new Error('No database pattern detected despite passing config check');
         }
     }
     catch (error)
@@ -314,4 +308,6 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
         // This prevents the server from starting without a database connection
         throw new Error(`Database connection failed: ${errorObj.message}`, { cause: error });
     }
+
+    throw new Error('No database pattern detected despite passing config check');
 }

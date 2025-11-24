@@ -211,7 +211,7 @@ async function loadGeneratorFromPackage(
             moduleCache: false
         });
 
-        const generatorsModule = jiti(`${packageName}/generators`);
+        const generatorsModule = jiti(`${packageName}/codegen/generators`);
 
         // Look for generator by name in registry
         if (generatorsModule.generators?.[generatorName])
@@ -233,7 +233,7 @@ async function loadGeneratorFromPackage(
         }
 
         configLogger.warn(
-            `Generator "${generatorName}" not found in ${packageName}/generators. ` +
+            `Generator "${generatorName}" not found in ${packageName}/codegen/generators. ` +
             `Expected: generators.${generatorName} or ${conventionalName}`
         );
         return null;

@@ -57,8 +57,7 @@ export const devCommand = new Command('dev')
         writeFileSync(serverEntry, `
 // Load environment variables FIRST (before any imports that depend on them)
 // Use centralized environment loader for standard dotenv priority
-const { loadEnvironment } = await import('@spfn/core/env');
-loadEnvironment({ debug: true });
+await import('@spfn/core/config');
 
 // Import and start server
 const { startServer } = await import('@spfn/core/server');
@@ -73,8 +72,7 @@ await startServer({
         // Codegen orchestrator entry
         writeFileSync(watcherEntry, `
 // Load environment variables
-const { loadEnvironment } = await import('@spfn/core/env');
-loadEnvironment({ debug: false });
+await import('@spfn/core/config');
 
 // Initialize database for generators that need it
 const { initDatabase, closeDatabase } = await import('@spfn/core/db');

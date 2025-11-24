@@ -170,8 +170,12 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
                 logger.success('Created src/server/config/env.config.ts (environment management)');
             }
 
-            // Create API actions proxy route (app/api/actions/[...path]/route.ts)
-            const actionsDir = join(cwd, 'app', 'api', 'actions', '[...path]');
+            // Create API actions proxy route (src/app or app)
+            // Check if src directory exists (created by create-next-app --src-dir)
+            const appDir = existsSync(join(cwd, 'src', 'app'))
+                ? join(cwd, 'src', 'app')
+                : join(cwd, 'app');
+            const actionsDir = join(appDir, 'api', 'actions', '[...path]');
             const actionsRoutePath = join(actionsDir, 'route.ts');
 
             if (!existsSync(actionsRoutePath))
@@ -187,7 +191,8 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
 export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
 `;
                 writeFileSync(actionsRoutePath, routeContent);
-                logger.success('Created app/api/actions/[...path]/route.ts (API proxy)');
+                const relativePath = actionsRoutePath.replace(cwd + '/', '');
+                logger.success(`Created ${relativePath} (API proxy)`);
             }
 
             spinner.succeed('Server structure created');
@@ -434,6 +439,7 @@ export default {
         packageJson.scripts['spfn:next'] = 'next dev --turbo --port 3790';
         packageJson.scripts['spfn:start'] = 'spfn start';
         packageJson.scripts['spfn:build'] = 'spfn build';
+        packageJson.scripts['codegen'] = 'spfn codegen run';
 
         // Write updated package.json
         writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
@@ -460,104 +466,40 @@ export default {
             process.exit(1);
         }
 
-        // 6. Generate comprehensive .env.example using schema
-        const envExamplePath = join(cwd, '.env.example');
+        // 6. Generate .env.local.example (simplified)
+        const envExamplePath = join(cwd, '.env.local.example');
         if (!existsSync(envExamplePath))
         {
-            const envExampleContent = `#
-# Environment Variables
-# Auto-generated from schema (src/server/config/env.config.ts)
-#
-# Copy this file to .env.local and fill in the values:
-#   cp .env.example .env.local
-#
-# To regenerate this file:
-#   npm run docs:env
-#
-
-#
-# database
-#
-
-# PostgreSQL database connection string
-# Example: postgresql://user:password@localhost:5432/mydb
-# Type: url (required)
-# 🔒 Sensitive information
+            const envExampleContent = `# Database (matches docker-compose.yml)
 DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
 
-#
-# cache
-#
+# Redis (optional)
+REDIS_URL=redis://localhost:6379
 
-# Redis connection string for caching and sessions
-# Example: redis://localhost:6379
-# Type: url
-# REDIS_URL=redis://localhost:6379
-
-#
-# api
-#
-
-# Internal API URL for server-side requests (SSR, API Routes)
-# Example: http://localhost:8790
-# Type: url
-SERVER_API_URL=http://localhost:8790
-
-# Public API URL for client-side requests (browser)
-# Example: http://localhost:8790
-# Type: url
-NEXT_PUBLIC_API_URL=http://localhost:8790
-
-#
-# server
-#
-
-# SPFN API server port
-# Type: number
-PORT=8790
-
-# Server host address
-# Type: string
-HOST=0.0.0.0
-
-# Node.js environment mode
-# Example: development
-# Type: string
-NODE_ENV=development
-
-#
-# features
-#
-
-# Enable debug logging (verbose output)
-# Type: boolean
-# DEBUG=false
-
-# Logging level for application logs
-# Example: debug
-# Type: string
-LOG_LEVEL=info
+# SPFN API Server URL (for API Route Proxy and SSR)
+SPFN_API_URL=http://localhost:8790
 `;
             writeFileSync(envExamplePath, envExampleContent);
-            logger.success('Created .env.example (comprehensive environment template)');
+            logger.success('Created .env.local.example');
         }
 
-        // 6.5. Create .spfnrc.json for codegen configuration
-        const spfnrcPath = join(cwd, '.spfnrc.json');
+        // 6.5. Create .spfnrc.ts for codegen configuration
+        const spfnrcPath = join(cwd, '.spfnrc.ts');
         if (!existsSync(spfnrcPath))
         {
-            const spfnrcConfig = {
-                codegen: {
-                    generators: [
-                        {
-                            name: '@spfn/core:contract',
-                            enabled: true
-                        }
-                    ]
-                }
-            };
-            writeFileSync(spfnrcPath, JSON.stringify(spfnrcConfig, null, 2) + '\n');
-            logger.success('Created .spfnrc.json (codegen configuration)');
+            const spfnrcContent = `import { defineConfig, defineGenerator } from '@spfn/core/codegen';
+
+const routerGen = defineGenerator({
+    name: '@spfn/core:router',
+    enabled: true,
+});
+
+export default defineConfig({
+    generators: [routerGen]
+});
+`;
+            writeFileSync(spfnrcPath, spfnrcContent);
+            logger.success('Created .spfnrc.ts (codegen configuration)');
         }
 
         // 7. Update .gitignore to include .spfn directory
