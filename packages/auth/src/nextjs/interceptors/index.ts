@@ -9,7 +9,6 @@
  * 3. generalAuthInterceptor - General (all authenticated requests)
  */
 
-import { registerInterceptors } from '@spfn/core/nextjs';
 import { loginRegisterInterceptor } from './login-register';
 import { generalAuthInterceptor } from './general-auth';
 import { keyRotationInterceptor } from './key-rotation';
@@ -28,10 +27,6 @@ export const authInterceptors = [
     generalAuthInterceptor,
 ];
 
-// Auto-register interceptors on import
-registerInterceptors('auth', authInterceptors);
-
-// Re-export individual interceptors for advanced usage
 export { loginRegisterInterceptor } from './login-register';
 export { generalAuthInterceptor } from './general-auth';
 export { keyRotationInterceptor } from './key-rotation';

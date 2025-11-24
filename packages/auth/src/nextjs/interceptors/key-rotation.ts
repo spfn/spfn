@@ -48,6 +48,11 @@ export const keyRotationInterceptor: InterceptorRule =
             ctx.body.algorithm = newKeyPair.algorithm;
             ctx.body.keySize = Buffer.from(newKeyPair.publicKey, 'base64').length;
 
+            console.log('New key generated:', newKeyPair);
+            console.log('publicKey:', newKeyPair.publicKey);
+            console.log('keyId:', newKeyPair.keyId);
+            console.log('fingerprint:', newKeyPair.fingerprint);
+
             // Authenticate with CURRENT key
             const token = generateClientToken(
                 {
