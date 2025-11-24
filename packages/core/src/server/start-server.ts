@@ -323,13 +323,13 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
         }
         catch (error)
         {
-            console.log('[start-server] afterInfrastructure hook failed:', error);
+            serverLogger.debug('[start-server] afterInfrastructure hook failed:', error);
             throw new Error('Server initialization failed in afterInfrastructure hook');
         }
     }
     else
     {
-        console.log('[start-server] No afterInfrastructure hook found');
+        serverLogger.debug('[start-server] No afterInfrastructure hook found');
     }
 }
 

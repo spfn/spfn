@@ -38,7 +38,7 @@ function initializeLogger(): Logger
 
     // Create logger with configured transports
     return new Logger({
-        level: (process.env.LOG_LEVEL || 'info') as LogLevel,  // Type inference not perfect yet, fallback needed
+        level: (process.env.SPFN_LOG_LEVEL || process.env.NEXT_PUBLIC_SPFN_LOG_LEVEL || 'info') as LogLevel,  // Type inference not perfect yet, fallback needed
         transports: initializeTransports(),
     });
 }

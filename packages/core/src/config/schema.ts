@@ -218,7 +218,7 @@ export const coreEnvSchema = defineEnvSchema({
     // Logger - Core
     // ========================================================================
 
-    LOG_LEVEL: envEnum(['debug', 'info', 'warn', 'error', 'fatal'] as const, {
+    SPFN_LOG_LEVEL: envEnum(['debug', 'info', 'warn', 'error', 'fatal'] as const, {
         description: 'Minimum log level to output',
         default: 'info'
     }),
@@ -290,7 +290,7 @@ export const coreEnvSchema = defineEnvSchema({
 
     SPFN_APP_URL: envUrl({
         description: 'Next.js application URL (required for server-side API calls)',
-        required: true,
+        required: false,
         examples: ['http://localhost:3000', 'https://your-app.com'],
     }),
 });

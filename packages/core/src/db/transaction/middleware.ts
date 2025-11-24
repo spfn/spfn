@@ -15,7 +15,7 @@
  * - PostgreSQL error conversion to custom errors
  */
 import { createMiddleware } from 'hono/factory';
-import { TransactionError } from '@spfn/core/errors';
+import { TransactionError, DatabaseError } from '@spfn/core/errors';
 import { fromPostgresError } from '../postgres-errors';
 import { runInTransaction } from './runner';
 
@@ -133,9 +133,26 @@ export function Transactional(options: TransactionalOptions = {})
         }
         catch (error)
         {
-            // Convert PostgreSQL error to custom error (unless it's already TransactionError)
-            // Re-throw for Hono's error handler
-            throw error instanceof TransactionError ? error : fromPostgresError(error);
+            // DatabaseError 계열 (비즈니스 로직 에러)는 그대로 throw
+            if (error instanceof DatabaseError)
+            {
+                throw error;
+            }
+
+            // TransactionError는 그대로 throw
+            if (error instanceof TransactionError)
+            {
+                throw error;
+            }
+
+            // PostgreSQL 에러 코드가 있으면 변환
+            if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string')
+            {
+                throw fromPostgresError(error);
+            }
+
+            // 그 외 모든 에러는 그대로 throw (InvalidCredentialsError 등 비즈니스 로직 에러)
+            throw error;
         }
     });
 }
