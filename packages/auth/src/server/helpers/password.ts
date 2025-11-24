@@ -10,8 +10,8 @@
  * - Rainbow table protection
  */
 
-import bcrypt from 'bcrypt';
-import { env } from '@/config';
+import bcrypt from 'bcryptjs';
+import { env } from '@spfn/auth/config';
 import { createPasswordParser } from '@spfn/core/env';
 
 /**
