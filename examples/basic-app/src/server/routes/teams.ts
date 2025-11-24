@@ -14,6 +14,7 @@ const teamRepo = new TeamRepository();
  * GET /teams - List teams
  */
 export const listTeams = route.get('/teams')
+    .skip(['auth'])
     .handler(async (c) =>
     {
         const teams = await teamRepo.findAll();
@@ -29,6 +30,7 @@ export const listTeams = route.get('/teams')
  * GET /teams/:id - Get single team
  */
 export const getTeam = route.get('/teams/:id')
+    .skip(['auth'])
     .input({
         params: Type.Object({
             id: Type.Number(),
@@ -51,6 +53,7 @@ export const getTeam = route.get('/teams/:id')
  * POST /teams - Create team
  */
 export const createTeam = route.post('/teams')
+    .skip(['auth'])
     .input({
         body: Type.Object({
             name: Type.String(),
@@ -69,6 +72,7 @@ export const createTeam = route.post('/teams')
  * PUT /teams/:id - Update team
  */
 export const updateTeam = route.put('/teams/:id')
+    .skip(['auth'])
     .input({
         params: Type.Object({
             id: Type.Number(),
@@ -95,6 +99,7 @@ export const updateTeam = route.put('/teams/:id')
  * DELETE /teams/:id - Delete team
  */
 export const deleteTeam = route.delete('/teams/:id')
+    .skip(['auth'])
     .input({
         params: Type.Object({
             id: Type.Number(),

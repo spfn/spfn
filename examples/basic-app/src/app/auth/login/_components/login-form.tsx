@@ -1,5 +1,7 @@
 "use client";
 
+import { AuthError } from "@spfn/auth/errors";
+import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -8,7 +10,6 @@ import {
     FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { authApi } from "@spfn/auth/nextjs/api";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 
@@ -28,29 +29,21 @@ export function LoginForm({ className }: React.ComponentProps<"div">)
 
         try
         {
-            // Call auto-generated API with interceptor handling
-            const result = await authApi.login({
-                body: {
-                    email,
-                    password,
-                }
-            });
-
-            if (!result.success)
-            {
-                setError(result.error.message || "Login failed");
-                setIsLoading(false);
-                return;
-            }
-
-            // Login successful - redirect to dashboard or home
-            router.push("/admin");
-            router.refresh();
+            const response = await api.auth.login.body({ email, password }).call();
+            console.log(response);
         }
         catch (err)
         {
-            const error = err as Error;
-            setError(error.message);
+            if(err instanceof AuthError.InvalidCredentialsError)
+            {
+                console.error('아이디 불일치');
+            }
+            else
+            {
+                console.error(err);
+                const error = err as Error;
+                setError(error.message);
+            }
         }
         finally
         {

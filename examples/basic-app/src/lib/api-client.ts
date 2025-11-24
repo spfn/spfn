@@ -46,7 +46,7 @@ import { InsufficientBalanceError } from "@/lib/errors/custom-errors";
  * - Route Handlers
  */
 export const api = createApi<AppRouter>({
-    metadata: { ...appMetadata, ...authAppMetadata },
+    metadata: { ...appMetadata, ...{ auth: authAppMetadata } },
     errorRegistry: errorRegistry
         .concat(authErrorRegistry)
         .append([InsufficientBalanceError]),  // Add custom errors here
