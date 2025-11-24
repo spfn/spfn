@@ -7,9 +7,9 @@
 import { Value } from '@sinclair/typebox/value';
 import type { Context, Hono, MiddlewareHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { ValidationError } from '../errors';
-import { logger } from '../logger';
-import type { NamedMiddleware } from '../server';
+import { ValidationError } from '@spfn/core/errors';
+import { logger } from '@spfn/core/logger';
+import type { NamedMiddleware } from './define-middleware';
 import type { HttpMethod, RouteBuilderContext, RouteDef, RouteInput, Router, } from './define-route';
 
 /**

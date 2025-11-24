@@ -7,7 +7,7 @@
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
-import { logger } from '../../logger';
+import { logger } from '@spfn/core/logger';
 import { createDatabaseFromEnv } from './factory';
 import type { DatabaseOptions, HealthCheckConfig } from './config';
 import { buildMonitoringConfig } from './config';
@@ -20,7 +20,7 @@ import {
     setReadClient,
     setMonitoringConfig,
 } from './global-state';
-import type { GetDatabaseFn } from './manager';
+import type { GetDatabaseFn } from './types';
 
 const dbLogger = logger.child('@spfn/core:database');
 

@@ -12,7 +12,7 @@
  */
 import { AsyncLocalStorage } from 'async_hooks';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { logger } from '../../logger'; // Assuming logger is accessible
+import { logger } from '@spfn/core/logger'; // Assuming logger is accessible
 
 /**
  * Transaction database type

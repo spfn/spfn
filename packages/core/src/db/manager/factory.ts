@@ -6,8 +6,8 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 
-import { env } from '../../config';
-import { logger } from '../../logger';
+import { env } from '@spfn/core/config';
+import { logger } from '@spfn/core/logger';
 import { createDatabaseConnection } from './connection';
 import { getPoolConfig, getRetryConfig, type DatabaseOptions, type DatabaseClients, type PoolConfig, type RetryConfig } from './config';
 

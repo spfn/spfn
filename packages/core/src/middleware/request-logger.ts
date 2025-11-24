@@ -5,7 +5,7 @@
  */
 import { randomBytes } from 'crypto';
 import type { Context, Next } from 'hono';
-import { logger } from '../logger';
+import { logger } from '@spfn/core/logger';
 
 export interface RequestLoggerConfig
 {

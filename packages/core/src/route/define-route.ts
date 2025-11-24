@@ -11,7 +11,7 @@
 import type { Static, TSchema } from '@sinclair/typebox';
 import type { Context, MiddlewareHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import type { NamedMiddleware } from '../server';
+import type { NamedMiddleware } from './define-middleware';
 
 /**
  * Route input schemas

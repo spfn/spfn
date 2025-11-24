@@ -6,7 +6,7 @@
 
 import type { MiddlewareHandler } from 'hono';
 import type { ServerConfig } from './types';
-import type { Router } from '../route';
+import type { Router } from '@spfn/core/route';
 
 export class ServerConfigBuilder
 {

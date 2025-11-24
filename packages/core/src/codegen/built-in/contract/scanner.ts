@@ -10,7 +10,7 @@ import { join } from 'path';
 import * as ts from 'typescript';
 import type { RouteContractMapping } from '../../core/types';
 import type { HttpMethod } from '../../../route/types';
-import { logger } from '../../../logger';
+import { logger } from '@spfn/core/logger';
 
 const scannerLogger = logger.child('@spfn/core:contract-scanner');
 

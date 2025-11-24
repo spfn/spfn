@@ -1,8 +1,8 @@
 import postgres from 'postgres';
 import type { Sql } from 'postgres';
 
-import { logger } from '../../logger';
-import { ConnectionError } from '../../errors';
+import { logger } from '@spfn/core/logger';
+import { ConnectionError } from '@spfn/core/errors';
 import { fromPostgresError } from '../postgres-errors';
 import type { PoolConfig, RetryConfig } from './config';
 

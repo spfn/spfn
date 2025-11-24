@@ -9,7 +9,7 @@
 import type { Redis, Cluster } from 'ioredis';
 
 import { createCacheFromEnv } from './cache-factory';
-import { logger } from '../logger';
+import { logger } from '@spfn/core/logger';
 
 const cacheLogger = logger.child('@spfn/core:cache');
 

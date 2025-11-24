@@ -13,7 +13,7 @@ import {
     ConstraintViolationError,
     QueryError,
     TransactionError,
-} from '../errors';
+} from '@spfn/core/errors';
 
 /**
  * Extract field and value from PostgreSQL unique violation message

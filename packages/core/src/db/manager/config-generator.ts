@@ -5,7 +5,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, dirname, basename } from 'path';
-import { env } from '../../config';
+import { env } from '@spfn/core/config';
 
 // ============================================================================
 // Constants

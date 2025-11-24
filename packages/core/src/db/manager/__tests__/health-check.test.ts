@@ -419,7 +419,7 @@ describe('Database Health Check', () =>
         it('should do nothing when not running', async () =>
         {
             const { getHealthCheckInterval, setHealthCheckInterval } = await import('../global-state');
-            vi.mocked(getHealthCheckInterval).mockReturnValue(null);
+            vi.mocked(getHealthCheckInterval).mockReturnValue(undefined);
 
             stopHealthCheck();
 

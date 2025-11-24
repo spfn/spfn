@@ -26,9 +26,5 @@ export { createServer, startServer } from './server';
 // Config builder
 export { defineServerConfig } from './config-builder';
 
-// Middleware definition
-export { defineMiddleware } from './define-middleware';
-export type { NamedMiddleware, ExtractMiddlewareNames } from './define-middleware';
-
 // Server types
 export type { ServerConfig, AppFactory, ServerInstance } from './types';

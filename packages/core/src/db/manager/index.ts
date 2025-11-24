@@ -21,3 +21,4 @@ export { createDatabaseConnection, checkConnection } from './connection';
 
 // Configuration Types
 export type { PoolConfig, RetryConfig } from './config';
+export type { DbConnectionType, GetDatabaseFn } from './types';

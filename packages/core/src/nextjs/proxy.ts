@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { logger } from '../logger';
+import { logger } from '@spfn/core/logger';
 import { executeRequestInterceptors, executeResponseInterceptors, filterMatchingInterceptors } from './interceptor';
 import { interceptorRegistry } from './registry';
 import type { InterceptorRule, RequestInterceptorContext, ResponseInterceptorContext } from './types';

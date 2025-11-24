@@ -44,3 +44,5 @@ export type {
     CodegenConfig,
     GeneratorConfig
 } from './core/config-loader';
+
+export * from './generators';

@@ -5,9 +5,9 @@
  */
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { SerializableError } from '../errors';
-import { logger } from '../logger';
-import { env } from '../config';
+import { SerializableError } from '@spfn/core/errors';
+import { logger } from '@spfn/core/logger';
+import { env } from '@spfn/core/config';
 
 const errorLogger = logger.child('@spfn/core:error-handler');
 

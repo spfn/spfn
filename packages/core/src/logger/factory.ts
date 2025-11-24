@@ -7,7 +7,7 @@
 import { Logger } from './logger';
 import { ConsoleTransport } from './transports/console';
 import { getConsoleConfig, validateConfig } from './config';
-import { env } from '../config';
+import { env } from '@spfn/core/config';
 import type { Transport } from './types';
 
 /**

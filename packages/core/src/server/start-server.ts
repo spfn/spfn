@@ -10,9 +10,9 @@ import type { Hono } from 'hono';
 import type { Server } from 'http';
 import { join } from 'path';
 
-import { closeCache, initCache } from '../cache';
-import { closeDatabase, initDatabase } from '../db';
-import { logger } from '../logger';
+import { closeCache, initCache } from '@spfn/core/cache';
+import { closeDatabase, initDatabase } from '@spfn/core/db';
+import { logger } from '@spfn/core/logger';
 import { printBanner } from './banner';
 import { createServer } from './create-server';
 import {

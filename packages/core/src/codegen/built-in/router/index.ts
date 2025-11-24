@@ -16,7 +16,7 @@ import { existsSync } from 'fs';
 import type { Generator, GeneratorOptions, GeneratorTrigger } from '../../core/generator';
 import { scanRouter } from './scanner';
 import { generateApiClient } from './emitter';
-import { logger } from '../../../logger';
+import { logger } from '@spfn/core/logger';
 
 const routerLogger = logger.child('@spfn/core:router-gen');
 

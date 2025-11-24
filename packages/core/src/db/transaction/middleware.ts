@@ -15,7 +15,7 @@
  * - PostgreSQL error conversion to custom errors
  */
 import { createMiddleware } from 'hono/factory';
-import { TransactionError } from '../../errors';
+import { TransactionError } from '@spfn/core/errors';
 import { fromPostgresError } from '../postgres-errors';
 import { runInTransaction } from './runner';
 

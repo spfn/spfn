@@ -1,8 +1,7 @@
 import type { Hono, MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
-import type { Router } from '../route';
-import type { NamedMiddleware } from './define-middleware';
+import type { Router, NamedMiddleware } from '@spfn/core/route';
 
 /**
  * CORS configuration options - inferred from hono/cors

@@ -8,7 +8,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { createJiti } from 'jiti';
 import type { Generator } from './generator';
-import { logger } from '../../logger';
+import { logger } from '@spfn/core/logger';
 import type { RouterGeneratorConfig } from '../built-in/router';
 
 const configLogger = logger.child('@spfn/core:config');
@@ -211,7 +211,7 @@ async function loadGeneratorFromPackage(
             moduleCache: false
         });
 
-        const generatorsModule = jiti(`${packageName}/codegen/generators`);
+        const generatorsModule = jiti(`${packageName}/codegen`);
 
         // Look for generator by name in registry
         if (generatorsModule.generators?.[generatorName])
@@ -233,9 +233,10 @@ async function loadGeneratorFromPackage(
         }
 
         configLogger.warn(
-            `Generator "${generatorName}" not found in ${packageName}/codegen/generators. ` +
+            `Generator "${generatorName}" not found in ${packageName}/codegen. ` +
             `Expected: generators.${generatorName} or ${conventionalName}`
         );
+
         return null;
     }
     catch (error)

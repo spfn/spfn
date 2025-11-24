@@ -1,7 +1,7 @@
 import type { Hono, Handler } from 'hono';
 import type { Server } from 'http';
-import { getDatabase } from '../db';
-import { getCache } from '../cache';
+import { getDatabase } from '@spfn/core/db';
+import { getCache } from '@spfn/core/cache';
 
 export function createHealthCheckHandler(detailed: boolean): Handler
 {

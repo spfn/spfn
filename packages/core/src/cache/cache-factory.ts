@@ -3,7 +3,7 @@
  */
 
 import type { Redis, Cluster, RedisOptions, ClusterOptions } from 'ioredis';
-import { logger } from '../logger';
+import { logger } from '@spfn/core/logger';
 
 const cacheLogger = logger.child('@spfn/core:cache');
 

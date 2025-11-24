@@ -9,7 +9,7 @@ import { readFileSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
 import * as ts from 'typescript';
-import { logger } from '../../../logger';
+import { logger } from '@spfn/core/logger';
 
 const scannerLogger = logger.child('@spfn/core:router-scanner');
 

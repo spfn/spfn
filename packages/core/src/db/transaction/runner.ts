@@ -44,11 +44,11 @@
  */
 import { randomUUID } from 'crypto';
 import { sql } from 'drizzle-orm';
-import { logger } from '../../logger';
+import { logger } from '@spfn/core/logger';
 import { getDatabase } from '../manager';
 import { runWithTransaction, getTransactionContext, type TransactionDB } from './context';
-import { TransactionError } from '../../errors';
-import { env } from '../../config';
+import { TransactionError } from '@spfn/core/errors';
+import { env } from '@spfn/core/config';
 
 /**
  * PostgreSQL maximum timeout value (max int4)

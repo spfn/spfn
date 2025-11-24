@@ -1,9 +1,31 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "composite": false
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "**/drizzle.config.ts"]
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "composite": false,
+        "jsx": "react-jsx",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "noEmit": false,
+        "baseUrl": ".",
+        "paths": {
+            "@spfn/core/client": ["./src/client/index.ts"],
+            "@spfn/core/nextjs": ["./src/nextjs/index.ts"],
+            "@spfn/core/nextjs/server": ["./src/nextjs/server.ts"],
+            "@spfn/core/route": ["./src/route/index.ts"],
+            "@spfn/core/route/types": ["./src/route/types.ts"],
+            "@spfn/core/db": ["./src/db/index.ts"],
+            "@spfn/core/server": ["./src/server/index.ts"],
+            "@spfn/core/errors": ["./src/errors/index.ts"],
+            "@spfn/core/middleware": ["./src/middleware/index.ts"],
+            "@spfn/core/cache": ["./src/cache/index.ts"],
+            "@spfn/core/codegen": ["./src/codegen/index.ts"],
+            "@spfn/core/env": ["./src/env/index.ts"],
+            "@spfn/core/logger": ["./src/logger/index.ts"],
+            "@spfn/core/events": ["./src/events/index.ts"],
+            "@spfn/core/config": ["./src/config/index.ts"]
+        }
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist"]
 }

@@ -14,7 +14,7 @@ import {
     envBoolean,
     envUrl,
     envString,
-} from '../env';
+} from '@spfn/core/env';
 
 /**
  * Core package environment variable schema

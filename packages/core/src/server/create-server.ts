@@ -9,9 +9,9 @@ import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { registerRoutes } from '../route';
-import { ErrorHandler, RequestLogger } from '../middleware';
-import { logger } from '../logger';
+import { registerRoutes } from '@spfn/core/route';
+import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
+import { logger } from '@spfn/core/logger';
 import { createHealthCheckHandler } from './helpers';
 
 import type { ServerConfig, AppFactory } from './types';

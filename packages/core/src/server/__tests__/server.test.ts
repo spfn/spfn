@@ -16,8 +16,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Type } from '@sinclair/typebox';
 import type { ServerConfig, ServerInstance } from '../types';
 import { defineServerConfig } from '../config-builder';
-import { defineMiddleware } from '../define-middleware';
-import { route, defineRouter } from '../../route';
+import { defineMiddleware } from '@spfn/core/server';
+import { route, defineRouter } from '@spfn/core/route';
 import { createServer } from '../create-server';
 
 describe('Server Module', () => {

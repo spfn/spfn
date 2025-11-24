@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from 'fs';
 import type { Generator, GeneratorOptions, GeneratorTrigger } from '../../core/generator';
 import { scanContracts } from './scanner';
 import { generateClient } from './emitter';
-import { logger } from '../../../logger';
+import { logger } from '@spfn/core/logger';
 import type { RouteContractMapping, ClientGenerationOptions } from '../../core/types';
 
 const contractLogger = logger.child('@spfn/core:contract-gen');

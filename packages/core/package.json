@@ -59,11 +59,6 @@
       "import": "./dist/codegen/index.js",
       "require": "./dist/codegen/index.js"
     },
-    "./codegen/generators": {
-      "types": "./dist/codegen/generators/index.d.ts",
-      "import": "./dist/codegen/generators/index.js",
-      "require": "./dist/codegen/generators/index.js"
-    },
     "./env": {
       "types": "./dist/env/index.d.ts",
       "import": "./dist/env/index.js",
@@ -86,7 +81,7 @@
     }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "pnpm check:circular && tsup",
     "dev": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -104,6 +99,7 @@
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
     "docker:test:down": "docker compose -f docker-compose.test.yml down",
     "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f",
+    "check:circular": "madge --circular --extensions ts src/",
     "type-check": "tsc --noEmit"
   },
   "keywords": [
@@ -167,6 +163,7 @@
     "@types/node": "^20.11.0",
     "@vitest/coverage-v8": "^4.0.6",
     "drizzle-kit": "^0.31.6",
+    "madge": "^8.0.0",
     "next": "^16.0.3",
     "tsup": "^8.5.0",
     "vitest": "^4.0.6"

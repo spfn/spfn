@@ -42,9 +42,9 @@
  */
 
 import type { Static, TSchema } from '@sinclair/typebox';
-import { ErrorRegistry } from "../errors";
-import { logger } from '../logger';
-import type { RouteDef, RouteInput, Router } from '../route';
+import { ErrorRegistry } from "@spfn/core/errors";
+import { logger } from '@spfn/core/logger';
+import type { RouteDef, RouteInput, Router } from '@spfn/core/route';
 
 const apiLogger = logger.child('@spfn/core:api-client');
 
@@ -67,7 +67,7 @@ type StructuredInput<TInput extends RouteInput> = {
  * Infer route input type
  */
 export type InferRouteInput<TRoute> =
-    TRoute extends RouteDef<infer TInput, any>
+    TRoute extends RouteDef<infer TInput, any, any>
         ? StructuredInput<TInput>
         : never;
 
@@ -75,7 +75,7 @@ export type InferRouteInput<TRoute> =
  * Infer route output type
  */
 export type InferRouteOutput<TRoute> =
-    TRoute extends RouteDef<any, infer TResponse>
+    TRoute extends RouteDef<any, any, infer TResponse>
         ? TResponse
         : never;
 
@@ -388,7 +388,7 @@ export class RouteCallBuilder<TInput, TOutput>
 /**
  * Individual route client
  */
-export type RouteClient<TRoute extends RouteDef<any, any>> = RouteCallBuilder<
+export type RouteClient<TRoute extends RouteDef<any, any, any>> = RouteCallBuilder<
     InferRouteInput<TRoute>,
     InferRouteOutput<TRoute>
 >;
@@ -397,7 +397,7 @@ export type RouteClient<TRoute extends RouteDef<any, any>> = RouteCallBuilder<
  * Typed client for entire router
  */
 export type Client<TRouter extends Router<any>> = {
-    [K in keyof TRouter['routes']]: TRouter['routes'][K] extends RouteDef<any, any>
+    [K in keyof TRouter['routes']]: TRouter['routes'][K] extends RouteDef<any, any, any>
         ? RouteClient<TRouter['routes'][K]>
         : TRouter['routes'][K] extends Router<any>
         ? Client<TRouter['routes'][K]>

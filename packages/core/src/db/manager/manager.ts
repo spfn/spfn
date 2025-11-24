@@ -7,11 +7,11 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 
-import { logger } from '../../logger';
+import { logger } from '@spfn/core/logger';
 import { createDatabaseFromEnv } from './factory';
 import type { DatabaseOptions, MonitoringConfig } from "./config.js";
 import { buildHealthCheckConfig, buildMonitoringConfig } from "./config.js";
-import { env } from '../../config';
+import { env } from '@spfn/core/config';
 import {
     getWriteInstance,
     setWriteInstance,
@@ -25,6 +25,7 @@ import {
     setMonitoringConfig,
 } from './global-state';
 import { startHealthCheck, stopHealthCheck } from './health-check';
+import type { DbConnectionType } from './types';
 
 const dbLogger = logger.child('@spfn/core:database');
 
@@ -58,16 +59,6 @@ let initPromise: Promise<{
  * Close in progress flag to prevent concurrent closeDatabase calls
  */
 let isClosing = false;
-
-/**
- * DB connection type
- */
-export type DbConnectionType = 'read' | 'write';
-
-/**
- * GetDatabase function type
- */
-export type GetDatabaseFn = (type?: DbConnectionType) => PostgresJsDatabase<Record<string, unknown>>;
 
 // ============================================================================
 // Helper Functions (Private)
