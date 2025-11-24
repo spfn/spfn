@@ -21,6 +21,7 @@
  */
 
 // Server functions
+export { loadEnvFiles } from './dotenv-loader';
 export { createServer, startServer } from './server';
 
 // Config builder
