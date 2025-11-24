@@ -82,7 +82,13 @@ function copyToClipboard(text: string): boolean
  */
 function generateSecret(bytes: number, preset?: PresetName, envVarName?: string, copy?: boolean): void
 {
-    const key = randomBytes(bytes).toString('hex');
+    // Use base64url encoding for higher character diversity (satisfies minUniqueChars >= 16)
+    // base64url uses: A-Z, a-z, 0-9, -, _ (64 chars) vs hex: 0-9, a-f (16 chars)
+    const key = randomBytes(bytes)
+        .toString('base64')
+        .replace(/\+/g, '-')    // Replace + with - (URL-safe)
+        .replace(/\//g, '_')    // Replace / with _ (URL-safe)
+        .replace(/=/g, '');     // Remove padding
     const config = preset ? PRESETS[preset] : null;
 
     console.log('\n' + chalk.green.bold('✓ Generated secret key:'));
@@ -163,7 +169,12 @@ const generateValueCommand = new Command('generate')
             process.exit(1);
         }
 
-        const value = randomBytes(bytes).toString('hex');
+        // Use base64url encoding for higher character diversity
+        const value = randomBytes(bytes)
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=/g, '');
 
         // Simple output - just the value
         console.log(value);

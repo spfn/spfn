@@ -47,7 +47,7 @@ export const devCommand = new Command('dev')
         }
 
         // Create temporary entry files
-        const tempDir = join(cwd, 'node_modules', '.spfn');
+        const tempDir = join(cwd, '.spfn');
         const serverEntry = join(tempDir, 'server.mjs');
         const watcherEntry = join(tempDir, 'watcher.mjs');
 
@@ -72,13 +72,15 @@ await startServer({
         // Codegen orchestrator entry
         writeFileSync(watcherEntry, `
 // Load environment variables
-await import('@spfn/core/config');
-
-// Initialize database for generators that need it
-const { initDatabase, closeDatabase } = await import('@spfn/core/db');
-await initDatabase({
-    pool: { max: 3 }  // Watcher needs fewer connections than server
-});
+// const { loadEnvFiles } = await import('@spfn/core/server');
+// loadEnvFiles();
+// await import('@spfn/core/config');
+//
+// // Initialize database for generators that need it
+// const { initDatabase, closeDatabase } = await import('@spfn/core/db');
+// await initDatabase({
+//     pool: { max: 3 }  // Watcher needs fewer connections than server
+// });
 
 import { CodegenOrchestrator, loadCodegenConfig, createGeneratorsFromConfig } from '@spfn/core/codegen';
 
@@ -110,8 +112,7 @@ process.on('SIGINT', async () =>
     process.exit(0);
 });
 
-const watchPromise = orchestrator.watch();
-            console.log(watchPromise);
+orchestrator.watch();
 
 // Keep process alive
 await new Promise(() => {});
