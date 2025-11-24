@@ -78,6 +78,7 @@ export async function scanRouter(
             {
                 scannerLogger.warn('No routes found');
             }
+
             return null;
         }
 

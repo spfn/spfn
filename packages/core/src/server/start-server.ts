@@ -12,9 +12,10 @@ import { join } from 'path';
 
 import { closeCache, initCache } from '@spfn/core/cache';
 import { closeDatabase, initDatabase } from '@spfn/core/db';
-import { logger } from '@spfn/core/logger';
+import { serverLogger } from './logger';
 import { printBanner } from './banner';
 import { createServer } from './create-server';
+import { loadEnvFiles } from "./dotenv-loader";
 import {
     applyServerTimeouts,
     buildMiddlewareOrder,
@@ -69,12 +70,6 @@ const CONFIG_FILE_PATHS = [
 ] as const;
 
 // ============================================================================
-// Logger
-// ============================================================================
-
-const serverLogger = logger.child('@spfn/core:server');
-
-// ============================================================================
 // Types
 // ============================================================================
 
@@ -117,6 +112,8 @@ let processHandlersRegistered = false;
  */
 export async function startServer(config?: ServerConfig): Promise<ServerInstance>
 {
+    loadEnvFiles();
+
     const finalConfig = await loadAndMergeConfig(config);
     const { host, port, debug } = finalConfig;
 
@@ -246,13 +243,10 @@ async function loadAndMergeConfig(config?: ServerConfig): Promise<ServerConfig>
     if (loadedConfigPath)
     {
         serverLogger.debug(`Loaded configuration from ${loadedConfigPath}`);
-        console.log(`[loadAndMergeConfig] Loaded from: ${loadedConfigPath}`);
-        console.log(`[loadAndMergeConfig] fileConfig.lifecycle exists:`, !!fileConfig.lifecycle);
     }
     else
     {
         serverLogger.debug('No configuration file found, using defaults');
-        console.log('[loadAndMergeConfig] No config file found');
     }
 
     return {
@@ -323,16 +317,13 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
     if (config.lifecycle?.afterInfrastructure)
     {
         serverLogger.debug('Executing afterInfrastructure hook...');
-        console.log('[start-server] Calling afterInfrastructure hook');
         try
         {
             await config.lifecycle.afterInfrastructure();
-            console.log('[start-server] afterInfrastructure hook completed');
         }
         catch (error)
         {
             console.log('[start-server] afterInfrastructure hook failed:', error);
-            serverLogger.error('afterInfrastructure hook failed', error as Error);
             throw new Error('Server initialization failed in afterInfrastructure hook');
         }
     }

@@ -17,7 +17,7 @@ import { executeRequestInterceptors, executeResponseInterceptors, filterMatching
 import { interceptorRegistry } from './registry';
 import type { InterceptorRule, RequestInterceptorContext, ResponseInterceptorContext } from './types';
 
-const proxyLogger = logger.child('@spfn/core:typed-proxy');
+const proxyLogger = logger.child('@spfn/core:proxy');
 
 // ============================================================================
 // Configuration
@@ -183,7 +183,8 @@ export function createTypedProxy(config: TypedProxyConfig = {})
         {
             // Extract path from route params
             const params = await context.params;
-            const path = params.path.join('/');
+            const pathArray = params.path || [];
+            const path = pathArray.join('/');
             const method = request.method;
 
             // Build target URL
@@ -463,28 +464,34 @@ export function createTypedProxy(config: TypedProxyConfig = {})
                         method,
                         path: `/${path}`,
                         timeout,
+                        error: error.message,
+                        stack: error.stack,
                     });
 
                     return NextResponse.json(
                         {
                             error: 'Request Timeout',
                             message: `Request to SPFN API timed out after ${timeout}ms`,
+                            ...(debug && { stack: error.stack }),
                         },
                         { status: 504 }
                     );
                 }
 
                 // Handle other fetch errors with 502
+                const fetchErr = error as Error;
                 proxyLogger.error('Fetch error', {
                     method,
                     path: `/${path}`,
-                    error: error instanceof Error ? error.message : 'Unknown error',
+                    error: fetchErr.message,
+                    stack: fetchErr.stack,
                 });
 
                 return NextResponse.json(
                     {
                         error: 'Bad Gateway',
-                        message: error instanceof Error ? error.message : 'Failed to connect to backend',
+                        message: fetchErr.message || 'Failed to connect to backend',
+                        ...(debug && { stack: fetchErr.stack }),
                     },
                     { status: 502 }
                 );
@@ -493,16 +500,20 @@ export function createTypedProxy(config: TypedProxyConfig = {})
         catch (error)
         {
             const duration = Date.now() - startTime;
+            const err = error as Error;
 
             proxyLogger.error('Proxy error', {
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: err.message,
+                stack: err.stack,
+                params: await context.params,
                 duration: `${duration}ms`,
             });
 
             return NextResponse.json(
                 {
                     error: 'Proxy Error',
-                    message: error instanceof Error ? error.message : 'Unknown error',
+                    message: err.message || 'Unknown error',
+                    ...(debug && { stack: err.stack }),
                 },
                 { status: 500 }
             );

@@ -89,7 +89,15 @@ export function createRouterGenerator(config: RouterGeneratorConfig = {}): Gener
                 }
 
                 const routeCount = Object.keys(metadata.routes).length;
-                routerLogger.info(`Found ${routeCount} route(s), generating metadata...`);
+                routerLogger.info(`Found ${routeCount} route(s):`);
+
+                // List all discovered routes
+                for (const [name, route] of Object.entries(metadata.routes))
+                {
+                    routerLogger.info(`  - ${name}: ${route.method} ${route.path}`);
+                }
+
+                routerLogger.info('Generating metadata...');
 
                 // Generate API client with metadata
                 await generateApiClient({

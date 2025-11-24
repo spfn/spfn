@@ -7,8 +7,7 @@
 import { Logger } from './logger';
 import { ConsoleTransport } from './transports/console';
 import { getConsoleConfig, validateConfig } from './config';
-import { env } from '@spfn/core/config';
-import type { Transport } from './types';
+import type { LogLevel, Transport } from './types';
 
 /**
  * Initialize transports based on environment and configuration
@@ -39,7 +38,7 @@ function initializeLogger(): Logger
 
     // Create logger with configured transports
     return new Logger({
-        level: env.LOG_LEVEL || 'info',  // Type inference not perfect yet, fallback needed
+        level: (process.env.LOG_LEVEL || 'info') as LogLevel,  // Type inference not perfect yet, fallback needed
         transports: initializeTransports(),
     });
 }

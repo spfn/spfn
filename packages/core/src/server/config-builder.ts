@@ -7,6 +7,7 @@
 import type { MiddlewareHandler } from 'hono';
 import type { ServerConfig } from './types';
 import type { Router } from '@spfn/core/route';
+import { serverLogger } from './logger';
 
 export class ServerConfigBuilder
 {
@@ -162,7 +163,7 @@ export class ServerConfigBuilder
         // Merge all lifecycle hooks if any were registered
         if (this.lifecycles.length > 0)
         {
-            console.log(`[ServerConfigBuilder] Merging ${this.lifecycles.length} lifecycle(s)`);
+            serverLogger.info('Merging lifecycles', { count: this.lifecycles.length });
             const mergedLifecycle: ServerConfig['lifecycle'] = {};
 
             // Collect all beforeInfrastructure hooks

@@ -282,10 +282,15 @@ export const coreEnvSchema = defineEnvSchema({
     // ========================================================================
     // Next.js Client
     // ========================================================================
+    SPFN_API_URL: envUrl({
+        description: 'Next.js API URL (required for client-side API calls)',
+        required: true,
+        examples: ['http://localhost:3000', 'https://your-app.com'],
+    }),
 
     SPFN_APP_URL: envUrl({
         description: 'Next.js application URL (required for server-side API calls)',
-        required: false,
+        required: true,
         examples: ['http://localhost:3000', 'https://your-app.com'],
     }),
 });

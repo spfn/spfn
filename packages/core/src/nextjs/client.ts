@@ -44,6 +44,7 @@
 import type { Static, TSchema } from '@sinclair/typebox';
 import { ErrorRegistry } from "@spfn/core/errors";
 import { logger } from '@spfn/core/logger';
+import { env } from '@spfn/core/config';
 import type { RouteDef, RouteInput, Router } from '@spfn/core/route';
 
 const apiLogger = logger.child('@spfn/core:api-client');
@@ -552,7 +553,7 @@ export function createApi<TRouter extends Router<any>>(
         }
 
         // Full URL
-        const fullUrl = `${baseUrl}${url}`;
+        const fullUrl = `${env.SPFN_APP_URL || ''}${baseUrl}${url}`;
 
         // Build request init
         let init: RequestInit = {
@@ -658,6 +659,13 @@ export function createApi<TRouter extends Router<any>>(
             // Handle timeout specifically
             if (error instanceof Error && error.name === 'AbortError')
             {
+                apiLogger.error('Request timeout', {
+                    route: routeName,
+                    method,
+                    url: fullUrl,
+                    timeout,
+                });
+
                 throw new ApiError(
                     `Request timeout after ${timeout}ms`,
                     408,
@@ -668,8 +676,17 @@ export function createApi<TRouter extends Router<any>>(
             }
 
             // Network error
+            const errorMessage = error instanceof Error ? error.message : 'Network error';
+            apiLogger.error('Network error', {
+                route: routeName,
+                method,
+                url: fullUrl,
+                error: errorMessage,
+                errorName: error instanceof Error ? error.name : 'unknown',
+            });
+
             throw new ApiError(
-                error instanceof Error ? error.message : 'Network error',
+                errorMessage,
                 0,
                 fullUrl,
                 undefined,
@@ -734,7 +751,7 @@ export function createApi<TRouter extends Router<any>>(
             else if (debug)
             {
                 apiLogger.debug('Skipping error deserialization', {
-                    reason: !errorRegistry ? 'no registry' : !body ? 'no body' : !('__type' in body) ? 'no __type field' : 'unknown',
+                    reason: !errorRegistry ? 'no registry' : !body ? 'no body' : typeof body !== 'object' ? 'body not object' : !('__type' in body) ? 'no __type field' : 'unknown',
                 });
             }
 

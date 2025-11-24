@@ -16,12 +16,12 @@
  *
  * @module env/registry
  */
-
-import { config } from "dotenv";
-import { existsSync } from "fs";
-import { resolve } from "path";
 import type { EnvVarSchema, EnvSchemaCollection, InferEnvType } from './schema';
 import { isClientAccessible } from './schema';
+import { logger } from '@spfn/core/logger';
+
+const envLogger = logger.child('@spfn/core:env-registry')
+
 
 /**
  * 환경변수 레지스트리
@@ -31,8 +31,8 @@ import { isClientAccessible } from './schema';
 export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
 {
     private schemas = new Map<string, EnvVarSchema>();
-    private validatedCache: InferEnvType<T> | null = null;
     private hasValidated = false;
+    private valueCache = new Map<string, any>();
 
     constructor(schemas?: T)
     {
@@ -108,128 +108,21 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
     }
 
     /**
-     * 모든 환경변수를 타입 안전하게 가져오기 (내부 헬퍼)
+     * 스키마 검증 수행 (값 읽기 없이)
+     *
+     * @internal
      */
-    private getAll(): InferEnvType<T>
+    private validateSchemas(): void
     {
-        const result: any = {};
-
-        for (const [key, schema] of this.schemas)
+        // Skip if already validated
+        if (this.hasValidated)
         {
-            try
-            {
-                result[key] = this.getBySchema(schema);
-            }
-            catch (error)
-            {
-                if (schema.required)
-                {
-                    throw error;
-                }
-            }
+            return;
         }
 
-        return result;
-    }
-
-    /**
-     * 환경변수 검증 및 타입 안전한 env 객체 반환
-     *
-     * 에러 발견 시 예외를 던지고, 경고가 있으면 콘솔에 출력합니다.
-     * 검증 통과 시 모든 환경변수를 포함한 타입 안전한 객체를 반환합니다.
-     *
-     * 같은 레지스트리 인스턴스에서 여러 번 호출되어도 실제 검증은 한 번만 수행됩니다.
-     *
-     * @returns 검증된 환경변수 객체
-     * @throws {Error} 필수 변수 누락 또는 검증 실패 시
-     *
-     * @example
-     * ```typescript
-     * const registry = createEnvRegistry(schema);
-     * const env = registry.validate(); // 검증 + env 반환
-     * console.log(env.DATABASE_URL);
-     * ```
-     */
-    validate(): InferEnvType<T>
-    {
-        this.loadEnvFiles();
-
-        // Return cached result if already validated
-        if (this.hasValidated && this.validatedCache)
-        {
-            return this.validatedCache;
-        }
-
-        const errors: string[] = [];
         const warnings: string[] = [];
 
-        console.log("validate 호출이다: ", this.schemas.size);
-
-        // 1. 필수 변수 및 값 검증
-        for (const [key, schema] of this.schemas)
-        {
-            // Get value (with fallback support)
-            let value = process.env[key];
-
-            console.log('스키마 검증: ', key);
-
-            // Try fallback keys
-            if (!value && schema.fallbackKeys)
-            {
-                for (const fallbackKey of schema.fallbackKeys)
-                {
-                    value = process.env[fallbackKey];
-                    if (value)
-                    {
-                        break;
-                    }
-                }
-            }
-
-            // Check if required
-            if (schema.required && !value)
-            {
-                const fallbackHint = schema.fallbackKeys
-                    ? ` (or ${schema.fallbackKeys.join(', ')})`
-                    : '';
-
-                const errorMsg = `${key}${fallbackHint} is required but not set. ${schema.description || ''}`;
-                errors.push(errorMsg);
-
-                continue; // Skip further validation if missing
-            }
-
-            // Skip validation if no value and not required
-            if (!value)
-            {
-                continue;
-            }
-
-            // Check minLength
-            if (schema.minLength !== undefined && value.length < schema.minLength)
-            {
-                errors.push(
-                    `${key} must be at least ${schema.minLength} characters long (current: ${value.length})`
-                );
-            }
-
-            // Run validator if provided
-            if (schema.validator)
-            {
-                try
-                {
-                    schema.validator(value);
-                }
-                catch (error)
-                {
-                    errors.push(
-                        `${key} validation failed: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                }
-            }
-        }
-
-        // 2. 클라이언트 변수 중 민감정보 경고
+        // 클라이언트 변수 중 민감정보 경고
         for (const [key, schema] of this.schemas)
         {
             if (isClientAccessible(key) && schema.sensitive)
@@ -240,53 +133,147 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
             }
         }
 
-        // Throw if errors
-        if (errors.length > 0)
-        {
-            console.log('에러에 다 들어있겠지: ', errors);
-            throw new Error(
-                `Environment validation failed:\n${errors.map(e => `  - ${e}`).join('\n')}`
-            );
-        }
-
         // Log warnings
         if (warnings.length > 0)
         {
-            console.warn('Environment validation warnings:');
-            warnings.forEach(w => console.warn(`  - ${w}`));
+            envLogger.warn('Environment validation warnings:');
+            warnings.forEach(w => envLogger.warn(`  - ${w}`));
         }
 
-        // Get and cache validated environment variables
-        const result = this.getAll();
-        this.validatedCache = result;
         this.hasValidated = true;
-
-        return result;
     }
 
-    private loadEnvFiles()
+    /**
+     * 실제 접근 시점에 환경변수 값 가져오기 및 검증
+     *
+     * @internal
+     */
+    private getAndValidate(key: string): any
     {
-        const cwd = process.cwd();
-        const nodeEnv = process.env.NODE_ENV || 'development';
-
-        // Build list of .env files to load (in priority order)
-        const envFiles: string[] = [
-            `.env.${nodeEnv}.local`,
-            nodeEnv !== 'test' ? '.env.local' : null,
-            `.env.${nodeEnv}`,
-            '.env',
-        ].filter((file): file is string => file !== null);
-
-        // Load each file if it exists
-        // dotenv won't override existing vars, so loading high-priority files first works
-        for (const file of envFiles)
+        // Check cache first
+        if (this.valueCache.has(key))
         {
-            const filePath = resolve(cwd, file);
-            if (existsSync(filePath))
+            return this.valueCache.get(key);
+        }
+
+        const schema = this.schemas.get(key);
+        if (!schema)
+        {
+            return undefined;
+        }
+
+        // Get value (with fallback support)
+        let value = process.env[key];
+
+        // Try fallback keys
+        if (!value && schema.fallbackKeys)
+        {
+            for (const fallbackKey of schema.fallbackKeys)
             {
-                config({ path: filePath });
+                value = process.env[fallbackKey];
+                if (value)
+                {
+                    break;
+                }
             }
         }
+
+        // Check if required
+        if (schema.required && !value)
+        {
+            const fallbackHint = schema.fallbackKeys
+                ? ` (or ${schema.fallbackKeys.join(', ')})`
+                : '';
+
+            const errorMsg = `${key}${fallbackHint} is required but not set. ${schema.description || ''}`;
+            envLogger.error(`Environment validation failed:\n  - ${errorMsg}`);
+            throw new Error('Environment validation failed');
+        }
+
+        // If no value and not required, use default
+        if (!value)
+        {
+            const result = schema.default;
+            this.valueCache.set(key, result);
+            return result;
+        }
+
+        // Check minLength
+        if (schema.minLength !== undefined && value.length < schema.minLength)
+        {
+            const errorMsg = `${key} must be at least ${schema.minLength} characters long (current: ${value.length})`;
+            envLogger.error(`Environment validation failed:\n  - ${errorMsg}`);
+            throw new Error('Environment validation failed');
+        }
+
+        // Run validator and get typed value
+        try
+        {
+            const result = this.getBySchema(schema);
+            this.valueCache.set(key, result);
+            return result;
+        }
+        catch (error)
+        {
+            const errorMsg = `${key} validation failed: ${error instanceof Error ? error.message : String(error)}`;
+            envLogger.error(`Environment validation failed:\n  - ${errorMsg}`);
+            throw new Error('Environment validation failed');
+        }
+    }
+
+    /**
+     * 환경변수 검증 및 타입 안전한 env 객체 반환
+     *
+     * Proxy 기반으로 구현되어 실제 환경변수 접근 시점에 값을 읽고 검증합니다.
+     * 이를 통해 dotenv 로딩 타이밍과 무관하게 최신 환경변수 값을 가져올 수 있습니다.
+     *
+     * @returns 검증된 환경변수 객체 (Proxy)
+     * @throws {Error} 필수 변수 누락 또는 검증 실패 시
+     *
+     * @example
+     * ```typescript
+     * const registry = createEnvRegistry(schema);
+     * const env = registry.validate(); // 스키마만 검증
+     * // ... dotenv 로딩 ...
+     * console.log(env.DATABASE_URL); // 이 시점에 실제 값 읽기
+     * ```
+     */
+    validate(): InferEnvType<T>
+    {
+        // Perform schema-level validation (without reading values)
+        this.validateSchemas();
+
+        // Return Proxy that lazily reads and validates on access
+        return new Proxy({} as InferEnvType<T>, {
+            get: (_target, prop: string) =>
+            {
+                return this.getAndValidate(prop);
+            },
+
+            ownKeys: () =>
+            {
+                return Array.from(this.schemas.keys());
+            },
+
+            getOwnPropertyDescriptor: (_target, prop: string) =>
+            {
+                if (this.schemas.has(prop))
+                {
+                    return {
+                        enumerable: true,
+                        configurable: true,
+                        get: () => this.getAndValidate(prop)
+                    };
+                }
+
+                return undefined;
+            },
+
+            has: (_target, prop: string) =>
+            {
+                return this.schemas.has(prop);
+            }
+        });
     }
 }
 

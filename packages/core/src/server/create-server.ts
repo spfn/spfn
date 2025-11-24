@@ -11,8 +11,8 @@ import { join } from 'path';
 
 import { registerRoutes } from '@spfn/core/route';
 import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
-import { logger } from '@spfn/core/logger';
 import { createHealthCheckHandler } from './helpers';
+import { serverLogger } from './logger';
 
 import type { ServerConfig, AppFactory } from './types';
 
@@ -24,8 +24,6 @@ declare module 'hono'
         errorHandlerEnabled?: boolean;
     }
 }
-
-const serverLogger = logger.child('@spfn/core:server');
 
 /**
  * Create Hono app with automatic configuration
