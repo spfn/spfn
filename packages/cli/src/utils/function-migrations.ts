@@ -4,9 +4,12 @@
  * Discovers and manages migrations from SPFN function packages (e.g., @spfn/cms)
  */
 
-import { existsSync, readdirSync, readFileSync } from 'fs';
-import { join } from 'path';
 import chalk from 'chalk';
+import { join } from 'path';
+
+import { env } from "@spfn/core/config";
+import { loadEnvFiles } from "@spfn/core/server";
+import { existsSync, readdirSync, readFileSync } from 'fs';
 
 export type FunctionMigrationInfo = {
     packageName: string;
@@ -97,12 +100,13 @@ export async function executeFunctionMigrations(
     const { migrate } = await import('drizzle-orm/postgres-js/migrator');
     const postgres = await import('postgres');
 
-    if (!process.env.DATABASE_URL)
+    loadEnvFiles();
+    if (!env.DATABASE_URL)
     {
         throw new Error('DATABASE_URL not found in environment');
     }
 
-    const connection = postgres.default(process.env.DATABASE_URL, { max: 1 });
+    const connection = postgres.default(env.DATABASE_URL, { max: 1 });
     const db = drizzle(connection);
 
     try

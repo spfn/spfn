@@ -5,9 +5,13 @@
  */
 
 import { api } from '@/lib/api-client';
+import { getSession } from "@spfn/auth/nextjs/server";
 
 export default async function Home()
 {
+    const response = await getSession();
+    console.log('세션 체크: ', response);
+
     // Fetch data from SPFN API through TypedProxy
     const health = await api.getHealth.call();
     const root = await api.getRoot.call();

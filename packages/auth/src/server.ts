@@ -59,7 +59,7 @@ export * from './server/helpers/index';
 // ============================================================================
 
 export * from './server/middleware/index';
-export * from './server/entities/config';
+export * from './server/entities';
 
 // ============================================================================
 // Types & Constants

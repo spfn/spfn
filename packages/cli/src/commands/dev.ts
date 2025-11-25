@@ -98,7 +98,6 @@ const orchestrator = new CodegenOrchestrator({
 const cleanup = async () =>
 {
     await orchestrator.close();
-    await closeDatabase();
 };
 
 process.on('SIGTERM', async () =>

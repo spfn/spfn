@@ -8,8 +8,8 @@
  * - Cascade delete when role or permission is deleted
  */
 
-import { bigint, index, unique } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
+import { index, unique } from 'drizzle-orm/pg-core';
+import { id, timestamps, foreignKey } from '@spfn/core/db';
 import { roles } from './roles';
 import { permissions } from './permissions';
 import { authSchema } from './schema';
@@ -24,18 +24,14 @@ export const rolePermissions = authSchema.table('role_permissions',
         // Cascade delete: when role is deleted, all role-permission mappings are removed
         // Used for: defining which permissions each role has
         // Example: Admin role → [user:create, user:delete, user:update]
-        roleId: bigint('role_id', { mode: 'number' })
-            .notNull()
-            .references(() => roles.id, { onDelete: 'cascade' }),
+        roleId: foreignKey('role', () => roles.id, { onDelete: 'cascade' }),
 
         // Permission reference
         // Foreign key to permissions table
         // Cascade delete: when permission is deleted, all role-permission mappings are removed
         // Used for: granting permissions to roles
         // Example: user:delete permission → [Admin, Superadmin]
-        permissionId: bigint('permission_id', { mode: 'number' })
-            .notNull()
-            .references(() => permissions.id, { onDelete: 'cascade' }),
+        permissionId: foreignKey('permission', () => permissions.id, { onDelete: 'cascade' }),
 
         ...timestamps(),
     },

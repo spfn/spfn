@@ -13,7 +13,7 @@ export * from './user-profiles';
 export * from './user-public-keys';
 export * from './user-social-accounts';
 export * from './verification-codes';
-export * from './invitations';
+export * from './user-invitations';
 
 // RBAC entities
 export * from './roles';

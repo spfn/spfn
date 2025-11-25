@@ -11,7 +11,7 @@ import { BaseRepository } from '@spfn/core/db';
 import { users } from "../entities/users";
 import { roles } from "../entities/roles";
 import type { InvitationStatus } from "../types";
-import { invitations, NewInvitation } from "../entities/invitations";
+import { userInvitations, NewInvitation } from "../entities/user-invitations";
 
 /**
  * Invitations Repository 클래스
@@ -25,8 +25,8 @@ export class InvitationsRepository extends BaseRepository
     {
         const result = await this.readDb
             .select()
-            .from(invitations)
-            .where(eq(invitations.id, id))
+            .from(userInvitations)
+            .where(eq(userInvitations.id, id))
             .limit(1);
 
         return result[0] ?? null;
@@ -39,8 +39,8 @@ export class InvitationsRepository extends BaseRepository
     {
         const result = await this.readDb
             .select()
-            .from(invitations)
-            .where(eq(invitations.token, token))
+            .from(userInvitations)
+            .where(eq(userInvitations.token, token))
             .limit(1);
 
         return result[0] ?? null;
@@ -53,11 +53,11 @@ export class InvitationsRepository extends BaseRepository
     {
         const result = await this.readDb
             .select()
-            .from(invitations)
+            .from(userInvitations)
             .where(
                 and(
-                    eq(invitations.email, email),
-                    eq(invitations.status, 'pending')
+                    eq(userInvitations.email, email),
+                    eq(userInvitations.status, 'pending')
                 )
             )
             .limit(1);
@@ -72,8 +72,8 @@ export class InvitationsRepository extends BaseRepository
     {
         return this.readDb
             .select()
-            .from(invitations)
-            .where(eq(invitations.invitedBy, invitedBy));
+            .from(userInvitations)
+            .where(eq(userInvitations.invitedBy, invitedBy));
     }
 
     /**
@@ -83,8 +83,8 @@ export class InvitationsRepository extends BaseRepository
     {
         return this.readDb
             .select()
-            .from(invitations)
-            .where(eq(invitations.status, status));
+            .from(userInvitations)
+            .where(eq(userInvitations.status, status));
     }
 
     /**
@@ -92,7 +92,7 @@ export class InvitationsRepository extends BaseRepository
      */
     async create(data: NewInvitation)
     {
-        return await this._create(invitations, {
+        return await this._create(userInvitations, {
             ...data,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -125,9 +125,9 @@ export class InvitationsRepository extends BaseRepository
         }
 
         const result = await this.db
-            .update(invitations)
+            .update(userInvitations)
             .set(updates)
-            .where(eq(invitations.id, id))
+            .where(eq(userInvitations.id, id))
             .returning();
 
         return result[0] ?? null;
@@ -139,8 +139,8 @@ export class InvitationsRepository extends BaseRepository
     async deleteById(id: number)
     {
         const result = await this.db
-            .delete(invitations)
-            .where(eq(invitations.id, id))
+            .delete(userInvitations)
+            .where(eq(userInvitations.id, id))
             .returning();
 
         return result[0] ?? null;
@@ -154,15 +154,15 @@ export class InvitationsRepository extends BaseRepository
         const now = new Date();
 
         const result = await this.db
-            .update(invitations)
+            .update(userInvitations)
             .set({
                 status: 'expired',
                 updatedAt: now,
             })
             .where(
                 and(
-                    eq(invitations.status, 'pending'),
-                    lt(invitations.expiresAt, now)
+                    eq(userInvitations.status, 'pending'),
+                    lt(userInvitations.expiresAt, now)
                 )
             )
             .returning();
@@ -177,18 +177,18 @@ export class InvitationsRepository extends BaseRepository
     {
         const result = await this.readDb
             .select({
-                id: invitations.id,
-                email: invitations.email,
-                token: invitations.token,
-                roleId: invitations.roleId,
-                invitedBy: invitations.invitedBy,
-                status: invitations.status,
-                expiresAt: invitations.expiresAt,
-                acceptedAt: invitations.acceptedAt,
-                cancelledAt: invitations.cancelledAt,
-                metadata: invitations.metadata,
-                createdAt: invitations.createdAt,
-                updatedAt: invitations.updatedAt,
+                id: userInvitations.id,
+                email: userInvitations.email,
+                token: userInvitations.token,
+                roleId: userInvitations.roleId,
+                invitedBy: userInvitations.invitedBy,
+                status: userInvitations.status,
+                expiresAt: userInvitations.expiresAt,
+                acceptedAt: userInvitations.acceptedAt,
+                cancelledAt: userInvitations.cancelledAt,
+                metadata: userInvitations.metadata,
+                createdAt: userInvitations.createdAt,
+                updatedAt: userInvitations.updatedAt,
                 role: {
                     id: roles.id,
                     name: roles.name,
@@ -199,10 +199,10 @@ export class InvitationsRepository extends BaseRepository
                     email: users.email,
                 },
             })
-            .from(invitations)
-            .innerJoin(roles, eq(invitations.roleId, roles.id))
-            .innerJoin(users, eq(invitations.invitedBy, users.id))
-            .where(eq(invitations.token, token))
+            .from(userInvitations)
+            .innerJoin(roles, eq(userInvitations.roleId, roles.id))
+            .innerJoin(users, eq(userInvitations.invitedBy, users.id))
+            .where(eq(userInvitations.token, token))
             .limit(1);
 
         return result[0] ?? null;
@@ -224,11 +224,11 @@ export class InvitationsRepository extends BaseRepository
         const conditions = [];
         if (status)
         {
-            conditions.push(eq(invitations.status, status));
+            conditions.push(eq(userInvitations.status, status));
         }
         if (invitedBy)
         {
-            conditions.push(eq(invitations.invitedBy, invitedBy));
+            conditions.push(eq(userInvitations.invitedBy, invitedBy));
         }
 
         const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -236,7 +236,7 @@ export class InvitationsRepository extends BaseRepository
         // Get total count
         const countResult = await this.readDb
             .select({ count: sql<number>`count(*)` })
-            .from(invitations)
+            .from(userInvitations)
             .where(whereClause);
 
         const total = Number(countResult[0]?.count || 0);
@@ -244,18 +244,18 @@ export class InvitationsRepository extends BaseRepository
         // Get paginated results with joins
         const results = await this.readDb
             .select({
-                id: invitations.id,
-                email: invitations.email,
-                token: invitations.token,
-                roleId: invitations.roleId,
-                invitedBy: invitations.invitedBy,
-                status: invitations.status,
-                expiresAt: invitations.expiresAt,
-                acceptedAt: invitations.acceptedAt,
-                cancelledAt: invitations.cancelledAt,
-                metadata: invitations.metadata,
-                createdAt: invitations.createdAt,
-                updatedAt: invitations.updatedAt,
+                id: userInvitations.id,
+                email: userInvitations.email,
+                token: userInvitations.token,
+                roleId: userInvitations.roleId,
+                invitedBy: userInvitations.invitedBy,
+                status: userInvitations.status,
+                expiresAt: userInvitations.expiresAt,
+                acceptedAt: userInvitations.acceptedAt,
+                cancelledAt: userInvitations.cancelledAt,
+                metadata: userInvitations.metadata,
+                createdAt: userInvitations.createdAt,
+                updatedAt: userInvitations.updatedAt,
                 role: {
                     id: roles.id,
                     name: roles.name,
@@ -266,11 +266,11 @@ export class InvitationsRepository extends BaseRepository
                     email: users.email,
                 },
             })
-            .from(invitations)
-            .innerJoin(roles, eq(invitations.roleId, roles.id))
-            .innerJoin(users, eq(invitations.invitedBy, users.id))
+            .from(userInvitations)
+            .innerJoin(roles, eq(userInvitations.roleId, roles.id))
+            .innerJoin(users, eq(userInvitations.invitedBy, users.id))
             .where(whereClause)
-            .orderBy(desc(invitations.createdAt))
+            .orderBy(desc(userInvitations.createdAt))
             .limit(limit)
             .offset(offset);
 
@@ -289,12 +289,12 @@ export class InvitationsRepository extends BaseRepository
     async updateById(id: number, data: Partial<NewInvitation>)
     {
         const result = await this.db
-            .update(invitations)
+            .update(userInvitations)
             .set({
                 ...data,
                 updatedAt: new Date(),
             })
-            .where(eq(invitations.id, id))
+            .where(eq(userInvitations.id, id))
             .returning();
 
         return result[0] ?? null;
@@ -306,13 +306,13 @@ export class InvitationsRepository extends BaseRepository
     async resend(id: number, newExpiresAt: Date)
     {
         const result = await this.db
-            .update(invitations)
+            .update(userInvitations)
             .set({
                 status: 'pending',
                 expiresAt: newExpiresAt,
                 updatedAt: new Date(),
             })
-            .where(eq(invitations.id, id))
+            .where(eq(userInvitations.id, id))
             .returning();
 
         return result[0] ?? null;
@@ -332,14 +332,14 @@ export class InvitationsRepository extends BaseRepository
             : { cancelReason: reason, cancelledBy };
 
         const result = await this.db
-            .update(invitations)
+            .update(userInvitations)
             .set({
                 status: 'cancelled',
                 cancelledAt: new Date(),
                 metadata: newMetadata,
                 updatedAt: new Date(),
             })
-            .where(eq(invitations.id, id))
+            .where(eq(userInvitations.id, id))
             .returning();
 
         return result[0] ?? null;

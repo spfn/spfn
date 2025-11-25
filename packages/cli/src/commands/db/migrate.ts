@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { runWithSpinner } from './utils/drizzle.js';
+import { runWithSpinner, validateDatabasePrerequisites } from './utils/drizzle.js';
 import { dbBackup } from './backup.js';
 
 import "@spfn/core/config";
@@ -13,6 +13,17 @@ import "@spfn/core/config";
  */
 export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise<void>
 {
+    // Validate prerequisites before starting any migrations
+    try
+    {
+        validateDatabasePrerequisites();
+    }
+    catch (error)
+    {
+        // Error already logged in validateDatabasePrerequisites
+        process.exit(1);
+    }
+
     // Create backup before migration if requested
     if (options.withBackup)
     {
@@ -29,7 +40,6 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
     const { discoverFunctionMigrations, executeFunctionMigrations } = await import('../../utils/function-migrations.js');
 
     const functions = discoverFunctionMigrations(process.cwd());
-
     if (functions.length > 0)
     {
         console.log(chalk.blue('📦 Applying function package migrations:'));

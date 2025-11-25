@@ -18,7 +18,7 @@ import { roles } from './roles';
 import { users } from './users';
 import { authSchema } from './schema';
 
-export const invitations = authSchema.table('user_invitations',
+export const userInvitations = authSchema.table('user_invitations',
     {
         // Primary key
         id: id(),
@@ -86,5 +86,5 @@ export const invitations = authSchema.table('user_invitations',
 );
 
 // Type exports
-export type Invitation = typeof invitations.$inferSelect;
-export type NewInvitation = typeof invitations.$inferInsert;
+export type Invitation = typeof userInvitations.$inferSelect;
+export type NewInvitation = typeof userInvitations.$inferInsert;

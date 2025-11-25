@@ -9,7 +9,7 @@
  */
 
 import { integer, text, index, unique } from 'drizzle-orm/pg-core';
-import { id, utcTimestamp, typedJsonb } from '@spfn/core/db';
+import { id, utcTimestamp, typedJsonb, foreignKey } from '@spfn/core/db';
 import { cmsSchema } from './cms-schema';
 import { cmsLabels } from '@/server/entities/cms-labels';
 
@@ -21,9 +21,7 @@ export const cmsLabelValues = cmsSchema.table('label_values', {
     id: id(),
 
     // Foreign Key: cms_labels
-    labelId: integer('label_id')
-        .notNull()
-        .references(() => cmsLabels.id, { onDelete: 'cascade' }),
+    labelId: foreignKey('label', () => cmsLabels.id, { onDelete: 'cascade' }),
 
     // 버전 번호 (null = draft, number = published version)
     version: integer('version'),

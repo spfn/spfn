@@ -5,7 +5,7 @@
  */
 
 import crypto from 'crypto';
-import { Invitation } from "../entities/invitations";
+import { Invitation } from "../entities/user-invitations";
 import {
     invitationsRepository,
     usersRepository,

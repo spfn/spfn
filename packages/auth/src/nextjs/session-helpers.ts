@@ -117,6 +117,7 @@ export async function getSession(): Promise<PublicSession | null>
 
     try
     {
+        logger.debug('Validating session cookie', { cookie: sessionCookie.value });
         const session = await unsealSession(sessionCookie.value);
         // Return only public information
         return {
@@ -125,6 +126,8 @@ export async function getSession(): Promise<PublicSession | null>
     }
     catch (error)
     {
+        console.error(error);
+
         // Session expired or invalid - log in dev mode
         // Note: Cannot delete cookies in Server Components (read-only)
         // Invalid cookies will be cleaned up on next login/logout via Route Handler or Server Action

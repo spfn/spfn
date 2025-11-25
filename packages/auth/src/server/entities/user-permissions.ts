@@ -13,8 +13,8 @@
  * User permissions override role permissions
  */
 
-import { bigint, boolean, text, index, unique } from 'drizzle-orm/pg-core';
-import { id, timestamps, utcTimestamp } from '@spfn/core/db';
+import { boolean, text, index, unique } from 'drizzle-orm/pg-core';
+import { id, timestamps, utcTimestamp, foreignKey } from '@spfn/core/db';
 import { users } from './users';
 import { permissions } from './permissions';
 import { authSchema } from './schema';
@@ -27,16 +27,12 @@ export const userPermissions = authSchema.table('user_permissions',
         // User reference
         // Foreign key to users table
         // Cascade delete: when user is deleted, all overrides are removed
-        userId: bigint('user_id', { mode: 'number' })
-            .notNull()
-            .references(() => users.id, { onDelete: 'cascade' }),
+        userId: foreignKey('user', () => users.id, { onDelete: 'cascade' }),
 
         // Permission reference
         // Foreign key to permissions table
         // Cascade delete: when permission is deleted, all overrides are removed
-        permissionId: bigint('permission_id', { mode: 'number' })
-            .notNull()
-            .references(() => permissions.id, { onDelete: 'cascade' }),
+        permissionId: foreignKey('permission', () => permissions.id, { onDelete: 'cascade' }),
 
         // Grant or revoke flag
         // true: GRANT this permission to the user (additive override)

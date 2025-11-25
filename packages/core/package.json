@@ -69,11 +69,6 @@
       "import": "./dist/logger/index.js",
       "require": "./dist/logger/index.js"
     },
-    "./events": {
-      "types": "./dist/events/index.d.ts",
-      "import": "./dist/events/index.js",
-      "require": "./dist/events/index.js"
-    },
     "./config": {
       "types": "./dist/config/index.d.ts",
       "import": "./dist/config/index.js",

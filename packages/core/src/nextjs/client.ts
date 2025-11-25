@@ -805,6 +805,15 @@ export function createApi<TRouter extends Router<any>>(
             }
 
             // Fallback to generic ApiError
+            if (response.status === 404 && process.env.NODE_ENV !== 'production')
+            {
+                apiLogger.warn(
+                    '\n⚠️  404 Not Found\n\n' +
+                    'Check if routes are registered in server.config.ts:\n' +
+                    '  → defineServerConfig().routes(appRouter)\n'
+                );
+            }
+
             throw new ApiError(
                 body?.message || `HTTP ${response.status}: ${response.statusText}`,
                 response.status,
@@ -828,8 +837,6 @@ export function createApi<TRouter extends Router<any>>(
                 get(_target, prop: string)
                 {
                     const currentPath = prefix ? `${prefix}.${prop}` : prop;
-
-                    console.log('현재 패스: ', currentPath);
 
                     // Check if this is a terminal route
                     if (routeMetadata.has(currentPath))

@@ -3,6 +3,8 @@ import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { spawn } from 'child_process';
 import { findAvailablePort } from './utils/database.js';
 
+import { env } from "@spfn/core/config";
+
 import "@spfn/core/config";
 
 /**
@@ -42,7 +44,7 @@ export async function dbStudio(requestedPort?: number): Promise<void>
 
         if (!hasUserConfig)
         {
-            if (!process.env.DATABASE_URL)
+            if (!env.DATABASE_URL)
             {
                 console.error(chalk.red('❌ DATABASE_URL not found in environment'));
                 console.log(chalk.yellow('\n💡 Tip: Add DATABASE_URL to your .env file'));

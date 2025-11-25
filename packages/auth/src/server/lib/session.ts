@@ -69,10 +69,10 @@ export async function sealSession(
  */
 export async function unsealSession(jwt: string): Promise<SessionData>
 {
-    const secret = await getSessionSecretKey();
-
     try
     {
+        const secret = await getSessionSecretKey();
+
         const { payload } = await jose.jwtDecrypt(jwt, secret, {
             issuer: 'spfn-auth',
             audience: 'spfn-client',

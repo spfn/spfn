@@ -4,6 +4,23 @@ import chalk from 'chalk';
 import ora from 'ora';
 
 import { env } from "@spfn/core/config";
+import { loadEnvFiles } from "@spfn/core/server";
+
+/**
+ * Validate prerequisites for database operations
+ * Ensures DATABASE_URL is available
+ * @throws Error if DATABASE_URL is not found
+ */
+export function validateDatabasePrerequisites(): void
+{
+    loadEnvFiles();
+    if (!env.DATABASE_URL)
+    {
+        console.error(chalk.red('❌ DATABASE_URL not found in environment'));
+        console.log(chalk.yellow('\n💡 Tip: Add DATABASE_URL to your .env file'));
+        throw new Error('DATABASE_URL is required for database operations');
+    }
+}
 
 /**
  * Generate temporary drizzle.config.ts and run drizzle-kit command
@@ -18,6 +35,7 @@ export async function runDrizzleCommand(command: string): Promise<void>
 
     if (!hasUserConfig)
     {
+        loadEnvFiles();
         if (!env.DATABASE_URL)
         {
             console.error(chalk.red('❌ DATABASE_URL not found in environment'));

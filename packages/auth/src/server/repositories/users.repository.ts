@@ -5,13 +5,11 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { permissions } from "../entities/permissions";
-import { rolePermissions } from "../entities/role-permissions";
-import { roles } from "../entities/roles";
-import { BaseRepository } from '@spfn/core/db';
-import { NotFoundError } from "@spfn/core/errors";
 import { eq, and } from 'drizzle-orm';
-import { NewUser, users } from "../entities/users";
+import { BaseRepository } from '@spfn/core/db';
+import { EntityNotFoundError, NotFoundError } from "@spfn/core/errors";
+
+import { rolePermissions, roles, NewUser, users, permissions } from "../entities";
 
 /**
  * Users Repository 클래스
@@ -295,7 +293,7 @@ export class UsersRepository extends BaseRepository
 
         if (!user)
         {
-            throw new NotFoundError({ message: '[@spfn/auth] User not found' });
+            throw new EntityNotFoundError('users', userId);
         }
 
         return {

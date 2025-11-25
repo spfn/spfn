@@ -8,8 +8,8 @@
  * - 왜 (metadata)
  */
 
-import { integer, text, index } from 'drizzle-orm/pg-core';
-import { id, utcTimestamp, typedJsonb } from '@spfn/core/db';
+import { text, index } from 'drizzle-orm/pg-core';
+import { id, utcTimestamp, typedJsonb, optionalForeignKey } from '@spfn/core/db';
 import { cmsSchema } from './cms-schema';
 import { cmsLabels } from '@/server/entities/cms-labels';
 
@@ -21,8 +21,7 @@ export const cmsAuditLogs = cmsSchema.table('audit_logs', {
     id: id(),
 
     // Foreign Key: cms_labels (nullable - 라벨 삭제 시 로그는 유지)
-    labelId: integer('label_id')
-    .references(() => cmsLabels.id, { onDelete: 'set null' }),
+    labelId: optionalForeignKey('label', () => cmsLabels.id, { onDelete: 'set null' }),
 
     // 작업 유형
     action: text('action').notNull(),

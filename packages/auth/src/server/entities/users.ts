@@ -13,8 +13,8 @@
  */
 
 import { USER_STATUSES } from "../types";
-import { text, check, boolean, bigint, index } from 'drizzle-orm/pg-core';
-import { id, timestamps, enumText, utcTimestamp } from '@spfn/core/db';
+import { text, check, boolean, index } from 'drizzle-orm/pg-core';
+import { id, timestamps, enumText, utcTimestamp, foreignKey } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
 import { roles } from './roles';
 import { authSchema } from './schema';
@@ -46,9 +46,7 @@ export const users = authSchema.table('users',
         // Foreign key to roles table
         // References built-in roles: user (default), admin, superadmin
         // Can also reference custom roles created at runtime
-        roleId: bigint('role_id', { mode: 'number' })
-            .references(() => roles.id)
-            .notNull(),
+        roleId: foreignKey('role', () => roles.id),
 
         // Account status
         // - active: Normal operation (default)
