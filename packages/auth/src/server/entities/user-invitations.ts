@@ -12,8 +12,8 @@
  */
 
 import { INVITATION_STATUSES } from "../types";
-import { text, bigint, index } from 'drizzle-orm/pg-core';
-import { id, timestamps, enumText, utcTimestamp, typedJsonb } from '@spfn/core/db';
+import { text, index } from 'drizzle-orm/pg-core';
+import { id, timestamps, enumText, utcTimestamp, typedJsonb, foreignKey } from '@spfn/core/db';
 import { roles } from './roles';
 import { users } from './users';
 import { authSchema } from './schema';
@@ -34,16 +34,12 @@ export const invitations = authSchema.table('user_invitations',
 
         // Role to be assigned when invitation is accepted
         // Foreign key to roles table
-        roleId: bigint('role_id', { mode: 'number' })
-            .references(() => roles.id)
-            .notNull(),
+        roleId: foreignKey('role', () => roles.id),
 
         // User who created this invitation
         // Foreign key to users table
         // Used for: audit trail, permission checks
-        invitedBy: bigint('invited_by', { mode: 'number' })
-            .references(() => users.id)
-            .notNull(),
+        invitedBy: foreignKey('invited_by', () => users.id, { onDelete: 'cascade' }),
 
         // Invitation status
         // - pending: Invitation sent, awaiting acceptance

@@ -70,9 +70,9 @@ export const loginRegisterInterceptor: InterceptorRule =
                 return;
             }
 
-            const { data } = ctx.response.body;
-
-            if (!data?.userId)
+            // Handle both wrapped ({ data: { userId } }) and direct ({ userId }) responses
+            const userData = ctx.response.body?.data || ctx.response.body;
+            if (!userData?.userId)
             {
                 authLogger.interceptor.login.error('No userId in response');
                 await next();
@@ -87,7 +87,7 @@ export const loginRegisterInterceptor: InterceptorRule =
                 // Encrypt session data
                 const sessionData =
                     {
-                        userId: data.userId,
+                        userId: userData.userId,
                         privateKey: ctx.metadata.privateKey,
                         keyId: ctx.metadata.keyId,
                         algorithm: ctx.metadata.algorithm,

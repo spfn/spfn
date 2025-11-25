@@ -10,11 +10,13 @@
  * export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/typed-proxy';
  * ```
  */
-
 import { NextRequest, NextResponse } from 'next/server';
+
+import { env } from '@spfn/core/config';
 import { logger } from '@spfn/core/logger';
-import { executeRequestInterceptors, executeResponseInterceptors, filterMatchingInterceptors } from './interceptor';
+
 import { interceptorRegistry } from './registry';
+import { executeRequestInterceptors, executeResponseInterceptors, filterMatchingInterceptors } from './interceptor';
 import type { InterceptorRule, RequestInterceptorContext, ResponseInterceptorContext } from './types';
 
 const proxyLogger = logger.child('@spfn/core:proxy');
@@ -158,8 +160,8 @@ export interface TypedProxyConfig
 export function createTypedProxy(config: TypedProxyConfig = {})
 {
     const {
-        apiUrl = process.env.SPFN_API_URL || 'http://localhost:8790',
-        debug = process.env.NODE_ENV === 'development',
+        apiUrl = env.SPFN_API_URL || 'http://localhost:8790',
+        debug = env.NODE_ENV === 'development',
         timeout = 30000,
         headers: defaultHeaders = {},
         onRequest,
@@ -424,7 +426,13 @@ export function createTypedProxy(config: TypedProxyConfig = {})
                     }
                 }
 
+
                 // Apply setCookies from interceptors
+                if (responseCtx.setCookies.length > 0)
+                {
+                    proxyLogger.debug(`🍪 Setting ${responseCtx.setCookies.length} cookie(s) from interceptors`);
+                }
+
                 for (const cookie of responseCtx.setCookies)
                 {
                     const cookieStr = `${cookie.name}=${cookie.value}`;
@@ -456,7 +464,25 @@ export function createTypedProxy(config: TypedProxyConfig = {})
                         parts.push(`Domain=${options.domain}`);
                     }
 
-                    nextResponse.headers.append('Set-Cookie', parts.join('; '));
+                    const setCookieHeader = parts.join('; ');
+                    nextResponse.headers.append('Set-Cookie', setCookieHeader);
+
+                    if (debug)
+                    {
+                        proxyLogger.debug('🍪 Set-Cookie header added', {
+                            name: cookie.name,
+                            valueLength: cookie.value.length,
+                            options: {
+                                httpOnly: options.httpOnly,
+                                secure: options.secure,
+                                sameSite: options.sameSite,
+                                maxAge: options.maxAge,
+                                path: options.path,
+                                domain: options.domain,
+                            },
+                            headerPreview: setCookieHeader.substring(0, 100) + (setCookieHeader.length > 100 ? '...' : ''),
+                        });
+                    }
                 }
 
                 return nextResponse;
