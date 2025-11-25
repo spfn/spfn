@@ -606,10 +606,43 @@ export function createApi<TRouter extends Router<any>>(
             init.body = JSON.stringify(input.body);
         }
 
-        // Add cookies if provided
-        if (options.cookies)
+        // Add cookies - auto-detect from server environment or use provided
+        let cookiesToSend = options.cookies || {};
+
+        // Auto-detect server environment and extract cookies
+        if (Object.keys(cookiesToSend).length === 0)
         {
-            (init.headers as Record<string, string>)['Cookie'] = Object.entries(options.cookies)
+            try
+            {
+                // Next.js cookies() API is only available in server environment
+                const { cookies } = await import('next/headers');
+                const cookieStore = await cookies();
+                const allCookies = cookieStore.getAll();
+
+                // Convert to object
+                cookiesToSend = Object.fromEntries(
+                    allCookies.map(cookie => [cookie.name, cookie.value])
+                );
+
+                if (debug && Object.keys(cookiesToSend).length > 0)
+                {
+                    apiLogger.debug('Auto-detected server environment, forwarding cookies', {
+                        cookieCount: allCookies.length,
+                        cookieNames: allCookies.map(c => c.name),
+                    });
+                }
+            }
+            catch (error)
+            {
+                // Client environment or cookies not accessible - ignore
+                // Browser automatically sends cookies in client components
+            }
+        }
+
+        // Add Cookie header if we have cookies to send
+        if (Object.keys(cookiesToSend).length > 0)
+        {
+            (init.headers as Record<string, string>)['Cookie'] = Object.entries(cookiesToSend)
                 .map(([key, value]) => `${ key }=${ value }`)
                 .join('; ');
         }

@@ -295,16 +295,54 @@ export function createTypedProxy(config: TypedProxyConfig = {})
 
             // Create RequestInterceptorContext
             const requestBody = fetchOptions.body ? JSON.parse(fetchOptions.body as string) : undefined;
+
+            // Parse cookies from both NextRequest.cookies and Cookie header
+            // NextRequest.cookies contains browser cookies from client components
+            // Cookie header may contain additional cookies from server components
+            const cookiesMap = new Map<string, string>();
+
+            // Add cookies from NextRequest (browser cookies)
+            for (const cookie of request.cookies.getAll())
+            {
+                cookiesMap.set(cookie.name, cookie.value);
+            }
+
+            // Add cookies from Cookie header (server-side forwarded cookies)
+            const cookieHeader = request.headers.get('cookie');
+            if (cookieHeader)
+            {
+                const cookiePairs = cookieHeader.split(';').map(c => c.trim());
+                for (const pair of cookiePairs)
+                {
+                    const [name, ...valueParts] = pair.split('=');
+                    if (name && valueParts.length > 0)
+                    {
+                        const value = valueParts.join('='); // Handle = in cookie value
+                        cookiesMap.set(name.trim(), value.trim());
+                    }
+                }
+            }
+
             const requestCtx: RequestInterceptorContext = {
                 path: `/${path}`,
                 method,
                 headers: Object.fromEntries(headers.entries()),
                 body: requestBody,
                 query: Object.fromEntries(searchParams.entries()),
-                cookies: new Map(request.cookies.getAll().map(c => [c.name, c.value])),
+                cookies: cookiesMap,
                 request,
                 metadata: {},
             };
+
+            if (debug)
+            {
+                proxyLogger.debug(`🍪 Parsed cookies for interceptors`, {
+                    fromNextRequest: request.cookies.getAll().length,
+                    fromCookieHeader: cookieHeader ? 'present' : 'absent',
+                    totalCookies: cookiesMap.size,
+                    cookieNames: Array.from(cookiesMap.keys()),
+                });
+            }
 
             proxyLogger.debug(`📦 Request body before interceptors:`, requestCtx.body);
 
