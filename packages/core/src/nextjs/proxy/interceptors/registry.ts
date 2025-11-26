@@ -6,8 +6,8 @@
  *
  * Uses globalThis for persistence across module reloads (HMR).
  */
-
 import type { InterceptorRule } from './types';
+
 // ============================================================================
 // Global Type Declarations
 // ============================================================================

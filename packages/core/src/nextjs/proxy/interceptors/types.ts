@@ -1,30 +1,54 @@
-/**
- * SPFN Next.js Proxy Interceptor Types
- */
-
-import type { NextRequest } from 'next/server';
+import { NextRequest } from "next/server";
+import { SetCookie } from "../../client";
 
 /**
- * Cookie options for setCookie
+ * Interceptor Rule
+ *
+ * Defines when and how to intercept requests/responses
  */
-export interface CookieOptions
+export interface InterceptorRule
 {
-    httpOnly?: boolean;
-    secure?: boolean;
-    sameSite?: 'strict' | 'lax' | 'none';
-    maxAge?: number;
-    path?: string;
-    domain?: string;
-}
+    /**
+     * Path pattern to match
+     *
+     * - String with wildcards: '/_auth/*', '/users/:id'
+     * - RegExp: /^\/_auth\/.+$/
+     * - '*' matches all paths
+     *
+     * @example
+     * ```typescript
+     * pathPattern: '/_auth/*'      // matches /_auth/login, /_auth/register
+     * pathPattern: '/users/:id'    // matches /users/123, /users/456
+     * pathPattern: /^\/_auth\/.+$/ // regex match
+     * pathPattern: '*'             // matches all paths
+     * ```
+     */
+    pathPattern: string | RegExp;
 
-/**
- * Cookie to set in response
- */
-export interface SetCookie
-{
-    name: string;
-    value: string;
-    options?: CookieOptions;
+    /**
+     * HTTP method(s) to match (optional)
+     *
+     * - Single method: 'POST'
+     * - Multiple methods: ['POST', 'PUT']
+     * - Omit to match all methods
+     *
+     * @default undefined (matches all methods)
+     */
+    method?: string | string[];
+
+    /**
+     * Request interceptor
+     *
+     * Called before SPFN API request
+     */
+    request?: RequestInterceptor;
+
+    /**
+     * Response interceptor
+     *
+     * Called after SPFN API response
+     */
+    response?: ResponseInterceptor;
 }
 
 /**
@@ -183,56 +207,6 @@ export type ResponseInterceptor = (
     context: ResponseInterceptorContext,
     next: () => Promise<void>
 ) => Promise<void>;
-
-/**
- * Interceptor Rule
- *
- * Defines when and how to intercept requests/responses
- */
-export interface InterceptorRule
-{
-    /**
-     * Path pattern to match
-     *
-     * - String with wildcards: '/_auth/*', '/users/:id'
-     * - RegExp: /^\/_auth\/.+$/
-     * - '*' matches all paths
-     *
-     * @example
-     * ```typescript
-     * pathPattern: '/_auth/*'      // matches /_auth/login, /_auth/register
-     * pathPattern: '/users/:id'    // matches /users/123, /users/456
-     * pathPattern: /^\/_auth\/.+$/ // regex match
-     * pathPattern: '*'             // matches all paths
-     * ```
-     */
-    pathPattern: string | RegExp;
-
-    /**
-     * HTTP method(s) to match (optional)
-     *
-     * - Single method: 'POST'
-     * - Multiple methods: ['POST', 'PUT']
-     * - Omit to match all methods
-     *
-     * @default undefined (matches all methods)
-     */
-    method?: string | string[];
-
-    /**
-     * Request interceptor
-     *
-     * Called before SPFN API request
-     */
-    request?: RequestInterceptor;
-
-    /**
-     * Response interceptor
-     *
-     * Called after SPFN API response
-     */
-    response?: ResponseInterceptor;
-}
 
 /**
  * Proxy Configuration

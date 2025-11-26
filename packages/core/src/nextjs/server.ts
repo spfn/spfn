@@ -10,17 +10,26 @@
 export { GET, POST, PUT, PATCH, DELETE } from './proxy';
 
 // Typed proxy (uses next/headers - server only)
-export { createTypedProxy } from './proxy';
+export { createTypedProxy } from './proxy/core';
+
 export type {
     TypedProxyConfig,
     ProxyRequestInterceptor,
     ProxyResponseInterceptor,
     RequestInterceptorResult,
     ResponseInterceptorResult,
-} from './proxy';
+} from './proxy/types';
 
 // Interceptor registry
-export { registerInterceptors, interceptorRegistry } from './registry';
+export {
+    registerInterceptors,
+    interceptorRegistry,
+    matchPath,
+    matchMethod,
+    filterMatchingInterceptors,
+    executeRequestInterceptors,
+    executeResponseInterceptors,
+} from './proxy/interceptors';
 
 // Types
 export type {
@@ -30,13 +39,4 @@ export type {
     ResponseInterceptor,
     InterceptorRule,
     ProxyConfig,
-} from './types';
-
-// Interceptor utilities (for advanced use cases)
-export {
-    matchPath,
-    matchMethod,
-    filterMatchingInterceptors,
-    executeRequestInterceptors,
-    executeResponseInterceptors,
-} from './interceptor';
+} from './proxy/interceptors/types';

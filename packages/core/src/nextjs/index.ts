@@ -7,12 +7,11 @@
  * DO NOT add any server-only code here.
  */
 
-// Type-Safe tRPC-Style Client (define-route based)
-// ✅ Client-safe: Does not use next/headers
 export {
     createApi,
     ApiError,
 } from './client';
+
 export type {
     Client,
     RouteClient,
@@ -23,20 +22,3 @@ export type {
     RequestInterceptor,
     ResponseInterceptor,
 } from './client';
-
-// Interceptor Registry
-// ✅ Client-safe: Global registry for auto-discovery
-export {
-    interceptorRegistry,
-    registerInterceptors,
-} from './registry';
-
-// Interceptor Types
-// ✅ Client-safe: Type definitions only
-export type {
-    InterceptorRule,
-    RequestInterceptorContext,
-    ResponseInterceptorContext,
-    SetCookie,
-    CookieOptions,
-} from './types';
