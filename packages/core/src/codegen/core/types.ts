@@ -4,7 +4,7 @@
  * Types for contract detection and client code generation
  */
 
-import type { HttpMethod } from '../../route/types';
+import type { HttpMethod } from '@spfn/core/route';
 
 /**
  * Route-Contract mapping extracted from contract files

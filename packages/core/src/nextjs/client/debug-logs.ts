@@ -103,7 +103,7 @@ export function logErrorDeserializationAttempt(
 
 export function logErrorDeserializationSuccess(
     logger: Logger,
-    error: Error
+    error: Error | null
 ): void
 {
     logger.debug('Error deserialized successfully', {

@@ -4,7 +4,7 @@
 
 import type { Static, TSchema } from "@sinclair/typebox";
 import { ErrorRegistry } from "@spfn/core/errors";
-import type { RouteDef, RouteInput } from "@spfn/core/route";
+import type { RouteDef, RouteInput, RouteMetadata } from "@spfn/core/route";
 
 /**
  * Extract structured input from RouteInput
@@ -75,14 +75,6 @@ export type ResponseInterceptor = (
     response: Response,
     body: any
 ) => Promise<{ response: Response; body: any }> | { response: Response; body: any };
-
-/**
- * Route metadata for codegen
- */
-export interface RouteMetadata {
-    method: string;
-    path: string;
-}
 
 /**
  * Client configuration

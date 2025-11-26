@@ -57,3 +57,24 @@ export const Nullable = <T extends TSchema>(schema: T) =>
  */
 export const OptionalNullable = <T extends TSchema>(schema: T) =>
     Type.Optional(Type.Union([schema, Type.Null()]));
+
+
+/**
+ * Route metadata for codegen
+ */
+export interface RouteMetadata {
+    method: string;
+    path: string;
+}
+
+export interface RouteMetadata
+{
+    method: string;
+    path: string;
+}
+
+export interface RouterMetadata
+{
+    routes: Record<string, RouteMetadata>;
+    routerTypeName: string;
+}

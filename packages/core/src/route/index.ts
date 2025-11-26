@@ -16,3 +16,4 @@ export type {
 export { registerRoutes } from './register-routes';
 export { defineMiddleware } from './define-middleware';
 export type { ExtractMiddlewareNames, NamedMiddlewareFactory, NamedMiddleware } from './define-middleware';
+export type * from './types';

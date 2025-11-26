@@ -10,20 +10,9 @@ import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
 import * as ts from 'typescript';
 import { logger } from '@spfn/core/logger';
+import type { RouteMetadata, RouterMetadata } from "@spfn/core/route";
 
 const scannerLogger = logger.child('@spfn/core:router-scanner');
-
-export interface RouteMetadata
-{
-    method: string;
-    path: string;
-}
-
-export interface RouterMetadata
-{
-    routes: Record<string, RouteMetadata>;
-    routerTypeName: string;
-}
 
 /**
  * Scan routes directory and extract metadata using AST parsing
