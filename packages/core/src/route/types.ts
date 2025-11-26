@@ -62,17 +62,15 @@ export const OptionalNullable = <T extends TSchema>(schema: T) =>
 /**
  * Route metadata for codegen
  */
-export interface RouteMetadata {
-    method: string;
-    path: string;
-}
-
 export interface RouteMetadata
 {
     method: string;
     path: string;
 }
 
+/**
+ * Router metadata containing all routes
+ */
 export interface RouterMetadata
 {
     routes: Record<string, RouteMetadata>;
