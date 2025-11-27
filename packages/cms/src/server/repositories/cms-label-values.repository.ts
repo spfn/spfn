@@ -7,7 +7,7 @@
 
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, SQL, isNull, gte, lte, inArray } from 'drizzle-orm';
-import { cmsLabelValues, type CmsLabelValue, type NewCmsLabelValue } from '@/server/entities/config';
+import { cmsLabelValues, type CmsLabelValue, type NewCmsLabelValue } from '@/server/entities';
 
 /**
  * 버전 히스토리 타입
@@ -78,7 +78,7 @@ export class CmsLabelValuesRepository extends BaseRepository
      * - version: number → Published 버전 생성 (불변)
      * Write primary 사용
      */
-    async upsert(data: NewCmsLabelValue): Promise<CmsLabelValue>
+    async upsert(data: NewCmsLabelValue & { labelId: number }): Promise<CmsLabelValue>
     {
         // 기존 값이 있는지 확인
         const versionCondition = data.version === null || data.version === undefined
@@ -154,7 +154,7 @@ export class CmsLabelValuesRepository extends BaseRepository
      * 여러 값 일괄 저장
      * Write primary 사용
      */
-    async upsertMany(values: NewCmsLabelValue[]): Promise<CmsLabelValue[]>
+    async upsertMany(values: (NewCmsLabelValue & { labelId: number })[]): Promise<CmsLabelValue[]>
     {
         const results = [];
         for (const value of values)

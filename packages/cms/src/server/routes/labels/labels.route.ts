@@ -6,7 +6,7 @@
  */
 
 import { Type } from '@sinclair/typebox';
-import { defineRouter, route } from '@spfn/core/route';
+import { route } from '@spfn/core/route';
 import { Transactional } from '@spfn/core/db';
 import {
     getLabelsWithDefaults,
@@ -193,22 +193,3 @@ export const getLabelVersions = route.get('/_cms/labels/:id/versions')
         const { params } = await c.data();
         return await getLabelVersionHistory(params.id);
     });
-
-/**
- * Labels Router
- * 모든 라벨 관련 라우트를 포함
- */
-export const labelsRouter = defineRouter({
-    getLabels: getLabels,
-    createLabel: createLabel,
-    getLabel: getLabel,
-    updateLabel: updateLabel,
-    deleteLabel: deleteLabel,
-    getLabelByKey: getLabelByKeyRoute,
-    publishLabel: publishLabel,
-    getAdminLabel: getAdminLabel,
-    getLabelVersions: getLabelVersions,
-});
-
-// For backward compatibility
-export default labelsRouter;

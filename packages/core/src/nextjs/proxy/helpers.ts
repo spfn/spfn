@@ -3,8 +3,8 @@
  * Separates utility logic from main proxy handler for better maintainability
  */
 import { NextRequest } from 'next/server';
+import type { CookieOptions, SetCookie } from "../client";
 import type { InterceptorRule, RequestInterceptorContext, ResponseInterceptorContext } from './interceptors/types';
-import { CookieOptions, SetCookie } from "./types";
 
 /**
  * Build request headers for proxying

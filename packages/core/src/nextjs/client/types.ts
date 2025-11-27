@@ -7,6 +7,28 @@ import { ErrorRegistry } from "@spfn/core/errors";
 import type { RouteDef, RouteInput, RouteMetadata } from "@spfn/core/route";
 
 /**
+ * Check if a type is exactly an empty object `{}`
+ *
+ * Uses tuple wrapping to accurately detect never type from keyof.
+ * - `keyof {}` → never, so `[never] extends [never]` → true
+ * - `keyof {id: string}` → 'id', so `['id'] extends [never]` → false
+ */
+type IsEmptyObject<T> = [keyof T] extends [never] ? true : false;
+
+/**
+ * Check if a type has required fields
+ *
+ * For our use case:
+ * - `{}` → false (no required fields)
+ * - `{ id: string }` → true (has required fields)
+ * - `{ id?: string }` → true (has optional fields, but still counts as having fields)
+ *
+ * Note: Optional fields are still considered "fields" for our purposes.
+ * If you need params, you must call .params() even if all fields are optional.
+ */
+export type HasRequiredFields<T> = IsEmptyObject<T> extends true ? false : true;
+
+/**
  * Extract structured input from RouteInput
  */
 export type StructuredInput<TInput extends RouteInput> = {

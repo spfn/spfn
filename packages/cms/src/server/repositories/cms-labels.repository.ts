@@ -7,7 +7,7 @@
 
 import { BaseRepository } from '@spfn/core/db';
 import { asc, eq, count as drizzleCount } from 'drizzle-orm';
-import { cmsLabels, type CmsLabel, type NewCmsLabel } from '@/server/entities/config';
+import { cmsLabels, type CmsLabel, type NewCmsLabel } from '@/server/entities';
 
 /**
  * CMS Labels Repository 클래스

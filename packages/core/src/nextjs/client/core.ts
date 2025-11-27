@@ -1,7 +1,8 @@
 /**
- * Type-Safe tRPC-Style Client for define-route System
+ * Type-Safe tRPC-Style Client with Flat API
  *
  * Provides full end-to-end type safety from server routes to client calls via RESTful HTTP.
+ * All params, query, and body fields are passed as a single flat object.
  * Supports browser caching (GET requests) while maintaining full type safety.
  *
  * @example
@@ -11,6 +12,15 @@
  *   getUser: route.get('/users/:id')
  *     .input({ params: Type.Object({ id: Type.String() }) })
  *     .handler(async (c) => c.success({ id: '1', name: 'John' })),
+ *   createUser: route.post('/users')
+ *     .input({ body: Type.Object({ name: Type.String() }) })
+ *     .handler(async (c) => c.success({ id: '2', name: c.input.body.name })),
+ *   updateUser: route.put('/users/:id')
+ *     .input({
+ *       params: Type.Object({ id: Type.String() }),
+ *       body: Type.Object({ name: Type.String() })
+ *     })
+ *     .handler(async (c) => c.success({ id: c.input.params.id, name: c.input.body.name })),
  * });
  *
  * export type AppRouter = typeof appRouter;
@@ -23,21 +33,23 @@
  *   metadata: appMetadata
  * });
  *
- * // ✅ Simple call - GET /api/actions/users/1 (cached by browser!)
- * const user = await api.getUser
- *   .params({ id: '1' })
- *   .call();
+ * // ✅ GET with params - GET /api/actions/users/1 (cached by browser!)
+ * const user = await api.getUser.call({ id: '1' });
  *
- * // ✅ With query, headers, cookies, interceptors
+ * // ✅ POST with body
+ * const newUser = await api.createUser.call({ name: 'John' });
+ *
+ * // ✅ PUT with params + body (flat!)
+ * const updatedUser = await api.updateUser.call({ id: '1', name: 'Jane' });
+ *
+ * // ✅ With options (headers, cookies, interceptors)
  * const user = await api.getUser
- *   .params({ id: '1' })
- *   .query({ include: 'posts' })
  *   .headers({ 'X-Custom': 'value' })
  *   .cookies({ session: 'xxx' })
  *   .fetchOptions({ next: { revalidate: 60 } })
  *   .onRequest((url, init) => { console.log('→', url); return init; })
  *   .onResponse((res, body) => { console.log('←', body); return { response: res, body }; })
- *   .call();
+ *   .call({ id: '1' });
  * ```
  */
 import { env } from '@spfn/core/config';
@@ -275,9 +287,11 @@ export function createApi<TRouter extends Router<any>>(
                     // Check if this is a terminal route
                     if (routeMetadata.has(currentPath))
                     {
-                        // Return RouteCallBuilder instance for chainable API
-                        return new RouteCallBuilder((input: any, options: CallOptions) =>
-                            executeCall(currentPath, input, options)
+                        // Return RouteCallBuilder instance with flat API
+                        return new RouteCallBuilder(
+                            (input: any, options: CallOptions) => executeCall(currentPath, input, options),
+                            currentPath,
+                            routeMetadata
                         );
                     }
 

@@ -5,7 +5,6 @@
  * React cache는 여기서 사용하지 않음 (server.ts에서 래핑)
  */
 
-import { client } from '@spfn/core/client';
 import { getPublishedCacheContract } from '@/lib/contracts/published-cache';
 import type { SectionData, SectionAPI, TranslationFunction } from '@/lib/types/section';
 import { logger } from '@spfn/core/logger';

@@ -7,7 +7,7 @@
 
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, lt } from 'drizzle-orm';
-import { cmsDraftCache, type CmsDraftCache, type NewCmsDraftCache } from '@/server/entities/config';
+import { cmsDraftCache, type CmsDraftCache, type NewCmsDraftCache } from '@/server/entities';
 
 /**
  * CMS Draft Cache Repository 클래스

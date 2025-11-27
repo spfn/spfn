@@ -27,24 +27,95 @@ async function ensureLabelExists(id: number): Promise<CmsLabel>
     {
         throw new CMSNotFoundError('Label', id);
     }
+
     return label;
 }
 
 /**
- * 라벨 상태 계산
+ * Draft와 Published 값들을 비교하여 실제 변경이 있는지 확인
+ *
+ * @param draftValues - Draft 값 목록
+ * @param publishedValues - Published 값 목록
+ * @returns 변경 사항이 있으면 true, 없으면 false
  */
-function calculateLabelStatus(label: CmsLabel, draftCount: number): LabelStatus
+function compareValues(
+    draftValues: CmsLabelValue[],
+    publishedValues: CmsLabelValue[]
+): boolean
 {
-    if (label.publishedVersion === null)
+    // locale + breakpoint 조합별로 값 매핑
+    const draftMap = new Map(
+        draftValues.map(v => [
+            `${v.locale}:${v.breakpoint || 'default'}`,
+            v.value
+        ])
+    );
+
+    const publishedMap = new Map(
+        publishedValues.map(v => [
+            `${v.locale}:${v.breakpoint || 'default'}`,
+            v.value
+        ])
+    );
+
+    // 개수가 다르면 변경됨
+    if (draftMap.size !== publishedMap.size)
     {
-        // 발행 이력 없음
-        return draftCount > 0 ? 'unpublished' : 'default-only';
+        return true;
     }
-    else
+
+    // 각 값 깊은 비교 (JSON 직렬화로 비교)
+    for (const [key, draftValue] of draftMap.entries())
     {
-        // 발행 이력 있음
-        return draftCount > 0 ? 'modified' : 'published';
+        const publishedValue = publishedMap.get(key);
+
+        // Published에 해당 키가 없거나 값이 다르면 변경됨
+        if (!publishedValue || JSON.stringify(draftValue) !== JSON.stringify(publishedValue))
+        {
+            return true;
+        }
     }
+
+    // 모든 값이 동일함
+    return false;
+}
+
+/**
+ * 라벨 상태 계산
+ *
+ * @param label - 라벨 메타데이터
+ * @param draftValues - Draft 값 목록
+ * @param publishedValues - Published 값 목록
+ * @returns 상태 ('default-only' | 'unpublished' | 'published' | 'modified')
+ */
+function calculateLabelStatus(
+    label: CmsLabel,
+    draftValues: CmsLabelValue[],
+    publishedValues: CmsLabelValue[]
+): LabelStatus
+{
+    const hasDraft = draftValues.length > 0;
+    const hasPublished = label.publishedVersion !== null && publishedValues.length > 0;
+
+    if (!hasPublished && !hasDraft)
+    {
+        return 'default-only';
+    }
+
+    if (!hasPublished && hasDraft)
+    {
+        return 'unpublished';
+    }
+
+    if (hasPublished && !hasDraft)
+    {
+        return 'published';
+    }
+
+    // hasPublished && hasDraft
+    // Draft와 Published 내용을 실제로 비교하여 변경 여부 확인
+    const hasActualChanges = compareValues(draftValues, publishedValues);
+    return hasActualChanges ? 'modified' : 'published';
 }
 
 /**
@@ -188,6 +259,7 @@ export async function getLabelByKey(key: string): Promise<CmsLabel>
     {
         throw new CMSNotFoundError('Label', { key });
     }
+
     return label;
 }
 
@@ -245,8 +317,8 @@ export async function getAdminLabelData(id: number): Promise<{
         );
     }
 
-    // Status 계산
-    const status = calculateLabelStatus(label, draft.length);
+    // Status 계산 (실제 값 비교)
+    const status = calculateLabelStatus(label, draft, published);
 
     return {
         label,

@@ -29,7 +29,7 @@ export function LoginForm({ className }: React.ComponentProps<"div">)
 
         try
         {
-            const response = await api.auth.login.body({ email, password }).call();
+            const response = await api.auth.login.call({ email, password });
             console.log(response);
         }
         catch (err)
