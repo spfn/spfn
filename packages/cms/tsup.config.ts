@@ -1,12 +1,9 @@
 import { defineConfig } from 'tsup';
-import { glob } from 'glob';
-import * as path from 'path';
 
 export default defineConfig({
     entry: {
         index: 'src/index.ts',
-        server: 'src/server/index.ts',
-        api: 'src/api/index.ts',
+        server: 'src/index.ts',
         actions: 'src/actions.ts',
     },
     format: ['esm'],
@@ -14,18 +11,13 @@ export default defineConfig({
     sourcemap: true,
     clean: true,
     splitting: false,
-    esbuildOptions(options) {
-        // Add path alias support
-        options.alias = {
-            '@': path.resolve(__dirname, './src'),
-        };
-    },
     external: [
         // Internal entrypoints (prevent bundling into each other)
         '@spfn/cms',
+        '@spfn/cms/lib',
         '@spfn/cms/server',
-        '@spfn/cms/api',
-        '@spfn/cms/actions',
+        '@spfn/cms/config',
+        '@spfn/cms/errors',
         // External dependencies
         '@spfn/core',
         '@spfn/core/server',

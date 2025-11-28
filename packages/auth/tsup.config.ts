@@ -1,37 +1,29 @@
 import { defineConfig } from 'tsup';
-import * as path from 'path';
 
 export default defineConfig({
     entry: {
         index: 'src/index.ts',
-        server: 'src/server.ts',
         client: 'src/client.ts',
-        errors: 'src/errors/index.ts',
         config: 'src/config/index.ts',
+        errors: 'src/errors/index.ts',
         'nextjs/api': 'src/nextjs/api.ts',
         'nextjs/server': 'src/nextjs/server.ts',
+        server: 'src/server.ts',
     },
     format: ['esm'],
     dts: true,
     sourcemap: true,
     clean: true,
     splitting: false,
-    esbuildOptions(options)
-    {
-        // Add path alias support
-        options.alias = {
-            '@': path.resolve(__dirname, './src'),
-        };
-    },
     external: [
         // Internal entrypoints (prevent bundling into each other)
         '@spfn/auth',
-        '@spfn/auth/server',
         '@spfn/auth/client',
         '@spfn/auth/config',
         '@spfn/auth/errors',
         '@spfn/auth/nextjs/api',
         '@spfn/auth/nextjs/server',
+        '@spfn/auth/server',
         // External dependencies
         '@spfn/core',
         '@spfn/core/server',
