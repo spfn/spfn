@@ -172,7 +172,7 @@ async function createProject(projectName: string, options: CreateOptions): Promi
     try
     {
         // Run spfn init programmatically
-        const { initializeSpfn } = await import('./init.js');
+        const { initializeSpfn } = await import('./init/index.js');
         await initializeSpfn({ yes: true });
 
         initSpinner.succeed('SPFN initialized');

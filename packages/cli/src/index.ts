@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { createCommand } from './commands/create.js';
-import { initCommand } from './commands/init.js';
+import { initCommand } from './commands/init/index.js';
 import { devCommand } from './commands/dev.js';
 import { buildCommand } from './commands/build.js';
 import { startCommand } from './commands/start.js';
