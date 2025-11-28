@@ -7,7 +7,7 @@
 
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, sql } from 'drizzle-orm';
-import { cmsPublishedCache, type CmsPublishedCache, type NewCmsPublishedCache } from '@/server/entities';
+import { cmsPublishedCache, type CmsPublishedCache, type NewCmsPublishedCache } from '../entities';
 
 /**
  * CMS Published Cache Repository 클래스

@@ -11,7 +11,7 @@
 import { text, index } from 'drizzle-orm/pg-core';
 import { id, utcTimestamp, typedJsonb, optionalForeignKey } from '@spfn/core/db';
 import { cmsSchema } from './cms-schema';
-import { cmsLabels } from '@/server/entities/cms-labels';
+import { cmsLabels } from './cms-labels';
 
 // Create isolated schema for @spfn/cms
 // Schema imported from cms-schema.ts

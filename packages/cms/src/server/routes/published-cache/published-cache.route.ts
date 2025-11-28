@@ -10,7 +10,7 @@ import { Transactional } from '@spfn/core/db';
 import {
     getPublishedCacheBySections,
     upsertPublishedCache,
-} from '@/server/services/published-cache.service';
+} from '../../services';
 import { SectionsQuerySchema, UpsertCacheBodySchema } from './schema';
 
 /**

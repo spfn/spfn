@@ -4,7 +4,7 @@
  * Utilities for processing label definitions from JSON files
  */
 
-import type { SectionDefinition, NestedLabels, FlatLabel, LabelDefinition } from '@/lib/types';
+import type { SectionDefinition, NestedLabels, FlatLabel, LabelDefinition } from '@spfn/cms/lib';
 
 /**
  * 중첩된 라벨을 플랫화

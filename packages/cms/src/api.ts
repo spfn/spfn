@@ -1,1 +1,0 @@
-export { localeApi } from './lib/core/locale.api';
