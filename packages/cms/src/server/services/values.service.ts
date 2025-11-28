@@ -4,8 +4,8 @@
  * 라벨 값 관리 비즈니스 로직을 담당하는 서비스 레이어
  */
 
-import { cmsLabelsRepository, cmsLabelValuesRepository } from '@/server/repositories';
-import { CMSNotFoundError } from '@/server/helpers/error';
+import { LabelNotFoundError } from '@spfn/cms/errors';
+import { cmsLabelsRepository, cmsLabelValuesRepository } from '../repositories';
 
 /**
  * 라벨 존재 확인 (없으면 에러)
@@ -15,7 +15,7 @@ async function ensureLabelExists(labelId: number): Promise<void>
     const label = await cmsLabelsRepository.findById(labelId);
     if (!label)
     {
-        throw new CMSNotFoundError('Label', labelId);
+        throw new LabelNotFoundError({ labelId });
     }
 }
 

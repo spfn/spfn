@@ -4,16 +4,16 @@
  * 라벨 관리 비즈니스 로직을 담당하는 서비스 레이어
  */
 
-import { env } from '@/config';
-import { CmsLabel, CmsLabelValue } from '@/server/entities';
-import { CMSConflictError, CMSNotFoundError } from '@/server/helpers/error';
-import { extractLabels } from '@/server/helpers/label.helper';
-import { cmsLabelsRepository, cmsLabelValuesRepository } from '@/server/repositories';
-import { publishLabel as publishLabelService } from '@/server/services/publish.service';
-import { loadLabelsFromJson } from '@/server/services/sync.service';
-import { LabelStatus } from '@/server/routes/labels/schema';
-import { logger } from '@spfn/core/logger';
 import { join } from 'path';
+import { logger } from '@spfn/core/logger';
+import { env } from '@spfn/cms/config';
+import { DuplicateLabelError, LabelNotFoundError } from '@spfn/cms/errors';
+
+import { type LabelStatus } from "../routes/labels/schema";
+import { CmsLabel, CmsLabelValue } from '../entities';
+import { extractLabels } from '../helpers/label.helper';
+import { cmsLabelsRepository, cmsLabelValuesRepository } from '../repositories';
+import { loadLabelsFromJson, publishLabel as publishLabelService } from '../services';
 
 const labelsLogger = logger.child('@spfn/cms:labels-service');
 
@@ -25,7 +25,7 @@ async function ensureLabelExists(id: number): Promise<CmsLabel>
     const label = await cmsLabelsRepository.findById(id);
     if (!label)
     {
-        throw new CMSNotFoundError('Label', id);
+        throw new LabelNotFoundError({ labelId: id });
     }
 
     return label;
@@ -202,7 +202,7 @@ export async function createLabelWithValidation(data: {
     const existing = await cmsLabelsRepository.findByKey(data.key);
     if (existing)
     {
-        throw new CMSConflictError('Label with this key already exists', { key: data.key });
+        throw new DuplicateLabelError({ labelKey: data.key });
     }
 
     // 라벨 생성
@@ -257,7 +257,7 @@ export async function getLabelByKey(key: string): Promise<CmsLabel>
     const label = await cmsLabelsRepository.findByKey(key);
     if (!label)
     {
-        throw new CMSNotFoundError('Label', { key });
+        throw new LabelNotFoundError({ labelKey: key });
     }
 
     return label;

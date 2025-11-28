@@ -1,119 +1,243 @@
 /**
  * CMS Error Classes
  *
- * Type-safe error handling with custom error class hierarchy
- * Mapped to HTTP status codes for API responses
+ * Custom error classes for CMS-specific scenarios
  */
+
+import {
+    ValidationError,
+    NotFoundError,
+    ConflictError,
+    ForbiddenError,
+    InternalServerError
+} from '@spfn/core/errors';
 
 /**
- * Base CMS Error
+ * Label Not Found Error (404)
  *
- * Base class for all CMS-related errors
+ * Thrown when a CMS label does not exist
  */
-export class CMSError<TDetails extends Record<string, unknown> = Record<string, unknown>> extends Error
+export class LabelNotFoundError extends NotFoundError
 {
-    public readonly statusCode: number;
-    public readonly details?: TDetails;
-    public readonly timestamp: Date;
-
-    constructor(
-        message: string,
-        statusCode: number = 500,
-        details?: TDetails
-    )
+    constructor(data: { labelKey?: string; labelId?: number; message?: string; details?: Record<string, any> } = {})
     {
-        super(message);
-        this.name = 'CMSError';
-        this.statusCode = statusCode;
-        this.details = details;
-        this.timestamp = new Date();
-        Error.captureStackTrace(this, this.constructor);
-    }
-
-    /**
-     * Serialize error for API response
-     */
-    toJSON()
-    {
-        return {
-            error: this.message,
-            name: this.name,
-            statusCode: this.statusCode,
-            details: this.details,
-            timestamp: this.timestamp.toISOString()
-        };
+        super({
+            message: data.message || 'Label not found',
+            details: {
+                labelKey: data.labelKey,
+                labelId: data.labelId,
+                ...data.details
+            }
+        });
+        this.name = 'LabelNotFoundError';
     }
 }
 
 /**
- * Invalid Request Error (400 Bad Request)
+ * Label Value Not Found Error (404)
  *
- * Invalid input parameters, malformed data, etc.
+ * Thrown when a CMS label value does not exist
  */
-export class CMSInvalidRequestError extends CMSError
+export class LabelValueNotFoundError extends NotFoundError
 {
-    constructor(message: string, details?: Record<string, any>)
+    constructor(data: { labelKey?: string; locale?: string; valueId?: number; message?: string; details?: Record<string, any> } = {})
     {
-        super(message, 400, details);
-        this.name = 'CMSInvalidRequestError';
+        super({
+            message: data.message || 'Label value not found',
+            details: {
+                labelKey: data.labelKey,
+                locale: data.locale,
+                valueId: data.valueId,
+                ...data.details
+            }
+        });
+        this.name = 'LabelValueNotFoundError';
     }
 }
 
 /**
- * Resource Not Found Error (404 Not Found)
+ * Locale Not Found Error (404)
  *
- * CMS resource does not exist (label, value, etc.)
+ * Thrown when requested locale does not exist in the system
  */
-export class CMSNotFoundError extends CMSError
+export class LocaleNotFoundError extends NotFoundError
 {
-    constructor(resource: string, identifier: string | number | Record<string, any>)
+    constructor(data: { locale?: string; message?: string; details?: Record<string, any> } = {})
     {
-        const details = typeof identifier === 'object'
-            ? { resource, ...identifier }
-            : { resource, id: identifier };
-        super(`${resource} not found`, 404, details);
-        this.name = 'CMSNotFoundError';
+        super({
+            message: data.message || 'Locale not found',
+            details: {
+                locale: data.locale,
+                ...data.details
+            }
+        });
+        this.name = 'LocaleNotFoundError';
     }
 }
 
 /**
- * Operation Failed Error (500 Internal Server Error)
+ * Published Cache Not Found Error (404)
  *
- * CMS operation failure (create, update, delete, etc.)
+ * Thrown when published cache does not exist
  */
-export class CMSOperationError extends CMSError
+export class PublishedCacheNotFoundError extends NotFoundError
 {
-    constructor(operation: string, resource: string, details?: Record<string, any>)
+    constructor(data: { locale?: string; message?: string; details?: Record<string, any> } = {})
     {
-        super(`Failed to ${operation} ${resource}`, 500, { operation, resource, ...details });
-        this.name = 'CMSOperationError';
+        super({
+            message: data.message || 'Published cache not found',
+            details: {
+                locale: data.locale,
+                ...data.details
+            }
+        });
+        this.name = 'PublishedCacheNotFoundError';
     }
 }
 
 /**
- * Conflict Error (409 Conflict)
+ * Duplicate Label Error (409)
  *
- * Resource already exists or state conflict
+ * Thrown when trying to create a label with existing key
  */
-export class CMSConflictError extends CMSError
+export class DuplicateLabelError extends ConflictError
 {
-    constructor(message: string, details?: Record<string, any>)
+    constructor(data: { labelKey?: string; message?: string; details?: Record<string, any> } = {})
     {
-        super(message, 409, details);
-        this.name = 'CMSConflictError';
+        super({
+            message: data.message || 'Label already exists',
+            details: {
+                labelKey: data.labelKey,
+                ...data.details
+            }
+        });
+        this.name = 'DuplicateLabelError';
     }
 }
 
 /**
- * Forbidden Error (403 Forbidden)
+ * Duplicate Label Value Error (409)
  *
- * Insufficient permissions for the operation
+ * Thrown when trying to create a label value that already exists
  */
-export class CMSForbiddenError extends CMSError
+export class DuplicateLabelValueError extends ConflictError
 {
-    constructor(message: string, details?: Record<string, any>)
+    constructor(data: { labelKey?: string; locale?: string; message?: string; details?: Record<string, any> } = {})
     {
-        super(message, 403, details);
-        this.name = 'CMSForbiddenError';
+        super({
+            message: data.message || 'Label value already exists for this locale',
+            details: {
+                labelKey: data.labelKey,
+                locale: data.locale,
+                ...data.details
+            }
+        });
+        this.name = 'DuplicateLabelValueError';
+    }
+}
+
+/**
+ * Invalid Locale Error (400)
+ *
+ * Thrown when locale format is invalid or not supported
+ */
+export class InvalidLocaleError extends ValidationError
+{
+    constructor(data: { locale?: string; message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'Invalid locale',
+            details: {
+                locale: data.locale,
+                ...data.details
+            }
+        });
+        this.name = 'InvalidLocaleError';
+    }
+}
+
+/**
+ * Invalid Label Key Error (400)
+ *
+ * Thrown when label key format is invalid
+ */
+export class InvalidLabelKeyError extends ValidationError
+{
+    constructor(data: { labelKey?: string; message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'Invalid label key format',
+            details: {
+                labelKey: data.labelKey,
+                ...data.details
+            }
+        });
+        this.name = 'InvalidLabelKeyError';
+    }
+}
+
+/**
+ * Invalid Published Cache Error (400)
+ *
+ * Thrown when published cache data is malformed or corrupted
+ */
+export class InvalidPublishedCacheError extends ValidationError
+{
+    constructor(data: { locale?: string; reason?: string; message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'Invalid published cache data',
+            details: {
+                locale: data.locale,
+                reason: data.reason,
+                ...data.details
+            }
+        });
+        this.name = 'InvalidPublishedCacheError';
+    }
+}
+
+/**
+ * CMS Operation Failed Error (500)
+ *
+ * Thrown when CMS operation fails unexpectedly
+ */
+export class CMSOperationFailedError extends InternalServerError
+{
+    constructor(data: { operation?: string; resource?: string; message?: string; details?: Record<string, any> } = {})
+    {
+        const operation = data.operation || 'operation';
+        const resource = data.resource || 'resource';
+        super({
+            message: data.message || `Failed to ${operation} ${resource}`,
+            details: {
+                operation,
+                resource,
+                ...data.details
+            }
+        });
+        this.name = 'CMSOperationFailedError';
+    }
+}
+
+/**
+ * Insufficient CMS Permissions Error (403)
+ *
+ * Thrown when user lacks required CMS permissions
+ */
+export class InsufficientCMSPermissionsError extends ForbiddenError
+{
+    constructor(data: { requiredPermissions?: string[]; resource?: string; message?: string; details?: Record<string, any> } = {})
+    {
+        const requiredPermissions = data.requiredPermissions || [];
+        super({
+            message: data.message || `Missing required CMS permissions: ${requiredPermissions.join(', ')}`,
+            details: {
+                requiredPermissions,
+                resource: data.resource,
+                ...data.details
+            }
+        });
+        this.name = 'InsufficientCMSPermissionsError';
     }
 }
