@@ -5,8 +5,8 @@
  * React cache는 여기서 사용하지 않음 (server.ts에서 래핑)
  */
 
-import { getPublishedCacheContract } from '@/lib/contracts/published-cache';
-import type { SectionData, SectionAPI, TranslationFunction } from '@/lib/types/section';
+import { api } from "@spfn/cms/lib/api";
+import type { SectionAPI, SectionData, TranslationFunction } from "../types";
 import { logger } from '@spfn/core/logger';
 
 const localeLogger = logger.child('@spfn/cms:locale-api');
@@ -88,7 +88,6 @@ function createEmptySection(section: string, locale: string): SectionAPI
     };
 
     const t: TranslationFunction = (_key, defaultValue) => defaultValue ?? '';
-
     return { t, data: sectionData };
 }
 
@@ -108,6 +107,7 @@ export async function loadSection(
 {
     try
     {
+        api.getPublishedCache.call({ locale, sections: section });
         // Call SPFN API via contract (uses singleton client)
         const response = await client.call(
             getPublishedCacheContract,

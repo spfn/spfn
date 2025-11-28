@@ -1,17 +1,18 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "composite": false,
-    "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM"],
-    "noEmit": false,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "composite": false,
+        "jsx": "react-jsx",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "noEmit": false,
+        "baseUrl": ".",
+        "paths": {
+            "@spfn/cms": ["./src/index.ts"],
+            "@spfn/cms/*": ["./src/*"]
+        }
+    },
+    "include": ["src/**/*", ".spfnrc.ts"],
+    "exclude": ["node_modules", "dist"]
 }

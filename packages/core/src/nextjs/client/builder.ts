@@ -1,12 +1,21 @@
 // ============================================================================
-// Route Call Builder (Flat API)
+// Route Call Builder (Hybrid API)
 // ============================================================================
 
 import type { RouteDef, Router } from "@spfn/core/route";
-import type { CallOptions, InferRouteInput, InferRouteOutput, RequestInterceptor, ResponseInterceptor } from "./types";
+import type {
+    CallOptions,
+    InferRouteInput,
+    InferRouteOutput,
+    RequestInterceptor,
+    ResponseInterceptor,
+    HasRequiredHeaders,
+    ExtractHeaders,
+    MustProvideHeaders
+} from "./types";
 
 /**
- * Merge all input fields into a single flat object
+ * Merge all input fields into a single flat object (params, query, body)
  */
 type FlatInput<TInput> =
     (TInput extends { params: infer P } ? P : {}) &
@@ -14,10 +23,15 @@ type FlatInput<TInput> =
     (TInput extends { body: infer B } ? B : {});
 
 /**
- * Route call builder with flat input API
+ * Check if flat input has any required fields
+ */
+type HasAnyRequiredFields<TInput> = keyof FlatInput<TInput> extends never ? false : true;
+
+/**
+ * Route call builder with hybrid API
  *
- * All params, query, and body fields are passed as a single flat object.
- * The runtime will automatically separate them based on route metadata.
+ * - Headers: Method chaining with validation
+ * - Params, Query, Body: Flat input (merged into single object)
  *
  * @example
  * ```typescript
@@ -27,11 +41,20 @@ type FlatInput<TInput> =
  * // POST /users - body only
  * const user = await api.createUser.call({ name: 'John', email: 'john@example.com' });
  *
- * // PUT /users/:id - params + body
+ * // PUT /users/:id - params + body (flat)
  * const user = await api.updateUser.call({ id: '1', name: 'John' });
+ *
+ * // With required headers
+ * const data = await api.protected
+ *   .headers({ authorization: 'Bearer token' })
+ *   .call({ id: '1' });
  * ```
  */
-export class RouteCallBuilder<TInput, TOutput>
+export class RouteCallBuilder<
+    TInput,
+    TOutput,
+    THeadersProvided extends boolean = false
+>
 {
     private _headers?: Record<string, string>;
     private _cookies?: Record<string, string>;
@@ -46,48 +69,71 @@ export class RouteCallBuilder<TInput, TOutput>
     ) {}
 
     /**
+     * Clone builder with new generic parameters
+     */
+    private clone<TNewHeadersProvided extends boolean = THeadersProvided>(): RouteCallBuilder<TInput, TOutput, TNewHeadersProvided>
+    {
+        const builder = new RouteCallBuilder<TInput, TOutput, TNewHeadersProvided>(
+            this.executor,
+            this.routeName,
+            this.routeMetadata
+        );
+        builder._headers = this._headers;
+        builder._cookies = this._cookies;
+        builder._fetchOptions = this._fetchOptions;
+        builder._onRequest = this._onRequest;
+        builder._onResponse = this._onResponse;
+        return builder;
+    }
+
+    /**
      * Set request headers
      */
-    headers(headers: Record<string, string>): this
+    headers(headers: Record<string, string>): RouteCallBuilder<TInput, TOutput, true>
     {
-        this._headers = { ...this._headers, ...headers };
-        return this;
+        const builder = this.clone<true>();
+        builder._headers = { ...this._headers, ...headers };
+        return builder;
     }
 
     /**
      * Set cookies
      */
-    cookies(cookies: Record<string, string>): this
+    cookies(cookies: Record<string, string>): RouteCallBuilder<TInput, TOutput, THeadersProvided>
     {
-        this._cookies = { ...this._cookies, ...cookies };
-        return this;
+        const builder = this.clone();
+        builder._cookies = { ...this._cookies, ...cookies };
+        return builder;
     }
 
     /**
      * Set Next.js fetch options
      */
-    fetchOptions(options: RequestInit & { next?: { revalidate?: number | false; tags?: string[] } }): this
+    fetchOptions(options: RequestInit & { next?: { revalidate?: number | false; tags?: string[] } }): RouteCallBuilder<TInput, TOutput, THeadersProvided>
     {
-        this._fetchOptions = { ...this._fetchOptions, ...options };
-        return this;
+        const builder = this.clone();
+        builder._fetchOptions = { ...this._fetchOptions, ...options };
+        return builder;
     }
 
     /**
      * Set request interceptor
      */
-    onRequest(interceptor: RequestInterceptor): this
+    onRequest(interceptor: RequestInterceptor): RouteCallBuilder<TInput, TOutput, THeadersProvided>
     {
-        this._onRequest = interceptor;
-        return this;
+        const builder = this.clone();
+        builder._onRequest = interceptor;
+        return builder;
     }
 
     /**
      * Set response interceptor
      */
-    onResponse(interceptor: ResponseInterceptor): this
+    onResponse(interceptor: ResponseInterceptor): RouteCallBuilder<TInput, TOutput, THeadersProvided>
     {
-        this._onResponse = interceptor;
-        return this;
+        const builder = this.clone();
+        builder._onResponse = interceptor;
+        return builder;
     }
 
     /**
@@ -95,8 +141,19 @@ export class RouteCallBuilder<TInput, TOutput>
      *
      * All params, query, and body fields are passed as a single flat object.
      * The runtime automatically separates them based on route metadata.
+     *
+     * If the route requires headers, you must call .headers() before .call().
+     * This is enforced at compile-time with a clear error message.
      */
-    call(flatInput?: FlatInput<TInput>): Promise<TOutput>
+    call(
+        flatInput?: FlatInput<TInput> & (
+            HasRequiredHeaders<TInput> extends true
+                ? THeadersProvided extends true
+                    ? {}
+                    : MustProvideHeaders<ExtractHeaders<TInput>>
+                : {}
+        )
+    ): Promise<TOutput>
     {
         const metadata = this.routeMetadata.get(this.routeName);
         if (!metadata)
@@ -179,18 +236,21 @@ export class RouteCallBuilder<TInput, TOutput>
 }
 
 /**
- * Check if flat input has any required fields
- */
-type HasAnyRequiredFields<TInput> = keyof FlatInput<TInput> extends never ? false : true;
-
-/**
- * Individual route client with flat input API
+ * Individual route client with hybrid API
  */
 export type RouteClient<TRoute extends RouteDef<any, any>> =
-    Omit<RouteCallBuilder<InferRouteInput<TRoute>, InferRouteOutput<TRoute>>, 'call'> & {
+    Omit<RouteCallBuilder<InferRouteInput<TRoute>, InferRouteOutput<TRoute>, false>, 'call'> & {
         call: HasAnyRequiredFields<InferRouteInput<TRoute>> extends true
-            ? (input: FlatInput<InferRouteInput<TRoute>>) => Promise<InferRouteOutput<TRoute>>
-            : (input?: FlatInput<InferRouteInput<TRoute>>) => Promise<InferRouteOutput<TRoute>>;
+            ? (input: FlatInput<InferRouteInput<TRoute>> & (
+                HasRequiredHeaders<InferRouteInput<TRoute>> extends true
+                    ? MustProvideHeaders<ExtractHeaders<InferRouteInput<TRoute>>>
+                    : {}
+            )) => Promise<InferRouteOutput<TRoute>>
+            : (input?: FlatInput<InferRouteInput<TRoute>> & (
+                HasRequiredHeaders<InferRouteInput<TRoute>> extends true
+                    ? MustProvideHeaders<ExtractHeaders<InferRouteInput<TRoute>>>
+                    : {}
+            )) => Promise<InferRouteOutput<TRoute>>;
     };
 
 /**

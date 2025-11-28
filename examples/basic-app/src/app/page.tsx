@@ -15,6 +15,7 @@ export default async function Home()
     // Fetch data from SPFN API through TypedProxy
     const health = await api.getHealth.call();
     const root = await api.getRoot.call();
+    api.getExample.call({ id: '1' });
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">

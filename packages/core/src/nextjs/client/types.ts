@@ -16,17 +16,38 @@ import type { RouteDef, RouteInput, RouteMetadata } from "@spfn/core/route";
 type IsEmptyObject<T> = [keyof T] extends [never] ? true : false;
 
 /**
- * Check if a type has required fields
- *
- * For our use case:
- * - `{}` → false (no required fields)
- * - `{ id: string }` → true (has required fields)
- * - `{ id?: string }` → true (has optional fields, but still counts as having fields)
- *
- * Note: Optional fields are still considered "fields" for our purposes.
- * If you need params, you must call .params() even if all fields are optional.
+ * Extract headers type from StructuredInput
  */
-export type HasRequiredFields<T> = IsEmptyObject<T> extends true ? false : true;
+export type ExtractHeaders<TInput> =
+    TInput extends { headers: infer H } ? H : {};
+
+/**
+ * Check if headers are required
+ */
+export type HasRequiredHeaders<TInput> =
+    IsEmptyObject<ExtractHeaders<TInput>> extends true ? false : true;
+
+/**
+ * Branded type to enforce .headers() call with clear error message
+ *
+ * When a route requires headers but .headers() wasn't called,
+ * this type intersection forces a compile error with helpful message.
+ */
+export type MustProvideHeaders<THeaders> = {
+    /**
+     * ⚠️ ERROR: This route requires headers
+     *
+     * Required headers: THeaders
+     *
+     * Fix: Call .headers() before .call()
+     *
+     * @example
+     * api.protected
+     *   .headers({ authorization: 'Bearer token' })
+     *   .call({ ... })
+     */
+    __CALL_HEADERS_FIRST__: THeaders;
+};
 
 /**
  * Extract structured input from RouteInput

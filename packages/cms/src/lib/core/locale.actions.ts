@@ -9,12 +9,12 @@
  */
 
 import { cookies, headers } from 'next/headers.js';
-import { getCmsConfig } from '@/config';
+import { env } from '@spfn/cms/config';
 import {
     LOCALE_COOKIE_KEY,
     getLocaleInfo,
     type LocaleInfo,
-} from '@/lib/constants/locale.constants';
+} from '../constants/locale.constants';
 
 /**
  * 브라우저 언어 감지
@@ -44,12 +44,10 @@ async function detectBrowserLanguage(): Promise<string | null>
                 return code.split('-')[0].trim();
             });
 
-        const config = getCmsConfig();
-
         // 지원하는 언어 중 첫 번째 매칭되는 언어 반환
         for (const lang of languages)
         {
-            if (config.locales.includes(lang))
+            if (env.SPFN_CMS_LOCALES.includes(lang))
             {
                 return lang;
             }
@@ -108,19 +106,17 @@ async function detectBrowserLanguage(): Promise<string | null>
  */
 export async function getLocale(): Promise<string>
 {
-    const config = getCmsConfig();
-
     // 1순위: 쿠키 (사용자가 명시적으로 선택한 언어)
     const cookieStore = await cookies();
     const cookieLocale = cookieStore.get(LOCALE_COOKIE_KEY)?.value;
 
-    if (cookieLocale && config.locales.includes(cookieLocale))
+    if (cookieLocale && env.SPFN_CMS_LOCALES.includes(cookieLocale))
     {
         return cookieLocale;
     }
 
     // 2순위: 브라우저 언어 감지 (설정에서 활성화된 경우)
-    if (config.detectBrowserLanguage)
+    if (env.SPFN_CMS_DETECT_BROWSER_LANGUAGE)
     {
         const browserLang = await detectBrowserLanguage();
         if (browserLang)
@@ -130,7 +126,7 @@ export async function getLocale(): Promise<string>
     }
 
     // 3순위: 시스템 기본 언어
-    return config.defaultLocale;
+    return env.SPFN_CMS_DEFAULT_LOCALE;
 }
 
 /**
@@ -178,13 +174,11 @@ export async function getLocale(): Promise<string>
  */
 export async function setLocale(locale: string): Promise<void>
 {
-    const config = getCmsConfig();
-
     // 유효성 검사
-    if (!config.locales.includes(locale))
+    if (!env.SPFN_CMS_LOCALES.includes(locale))
     {
         throw new Error(
-            `Unsupported locale: ${locale}. Supported locales: ${config.locales.join(', ')}`
+            `Unsupported locale: ${locale}. Supported locales: ${env.SPFN_CMS_LOCALES}`
         );
     }
 
@@ -240,38 +234,11 @@ export async function setLocale(locale: string): Promise<void>
  * }
  * ```
  */
-export async function getLocales(): Promise<string[]>
+export function getLocales(): string[]
 {
-    const config = getCmsConfig();
-    return config.locales;
+    return env.SPFN_CMS_LOCALES.split(',');
 }
 
-/**
- * 현재 locale과 상세 정보 함께 가져오기 (Server Action)
- *
- * locale 코드와 함께 국가 코드, 국기, 전화번호 코드 등의 상세 정보를 반환합니다.
- *
- * @returns Locale 코드와 LocaleInfo 객체
- *
- * @example
- * ```tsx
- * // Server Component
- * import { getLocaleWithInfo } from '@spfn/cms/actions';
- *
- * export default async function Page()
- * {
- *     const { locale, info } = await getLocaleWithInfo();
- *
- *     return (
- *         <div>
- *             <span>{info?.flag}</span>
- *             <span>{info?.nativeName}</span>
- *             <span>{info?.dialCode}</span>
- *         </div>
- *     );
- * }
- * ```
- */
 export async function getLocaleWithInfo(): Promise<{
     locale: string;
     info: LocaleInfo | undefined;
@@ -283,41 +250,9 @@ export async function getLocaleWithInfo(): Promise<{
     return { locale, info };
 }
 
-/**
- * 지원하는 모든 locale과 상세 정보 가져오기 (Server Action)
- *
- * 시스템이 지원하는 모든 locale의 상세 정보를 배열로 반환합니다.
- * 언어 선택 UI를 만들 때 유용합니다.
- *
- * @returns LocaleInfo 배열
- *
- * @example
- * ```tsx
- * // Server Component
- * import { getLocalesWithInfo } from '@spfn/cms/actions';
- *
- * export default async function LanguageSelector()
- * {
- *     const locales = await getLocalesWithInfo();
- *
- *     return (
- *         <select>
- *             {locales.map(info => (
- *                 <option key={info.locale} value={info.locale}>
- *                     {info.flag} {info.nativeName}
- *                 </option>
- *             ))}
- *         </select>
- *     );
- * }
- * ```
- */
-export async function getLocalesWithInfo(): Promise<LocaleInfo[]>
+export function getLocalesWithInfo(): LocaleInfo[]
 {
-    const config = getCmsConfig();
-    const locales = config.locales;
-
-    return locales
+    return env.SPFN_CMS_LOCALES.split(',')
         .map(locale => getLocaleInfo(locale))
         .filter((info): info is LocaleInfo => info !== undefined);
 }

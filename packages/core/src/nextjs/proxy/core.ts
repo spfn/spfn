@@ -58,7 +58,7 @@ export function createTypedProxy(config: TypedProxyConfig = {})
      */
     async function handleProxy(
         request: NextRequest,
-        context: { params: Promise<{ path: string[] }> }
+        context: { params: Promise<{ path?: string[] }> }
     ): Promise<NextResponse>
     {
         const startTime = Date.now();
@@ -309,15 +309,15 @@ export function createTypedProxy(config: TypedProxyConfig = {})
 
     // Return route handlers
     return {
-        GET: (req: NextRequest, context: { params: Promise<{ path: string[] }> }) =>
+        GET: (req: NextRequest, context: { params: Promise<{ path?: string[] }> }) =>
             handleProxy(req, context),
-        POST: (req: NextRequest, context: { params: Promise<{ path: string[] }> }) =>
+        POST: (req: NextRequest, context: { params: Promise<{ path?: string[] }> }) =>
             handleProxy(req, context),
-        PUT: (req: NextRequest, context: { params: Promise<{ path: string[] }> }) =>
+        PUT: (req: NextRequest, context: { params: Promise<{ path?: string[] }> }) =>
             handleProxy(req, context),
-        PATCH: (req: NextRequest, context: { params: Promise<{ path: string[] }> }) =>
+        PATCH: (req: NextRequest, context: { params: Promise<{ path?: string[] }> }) =>
             handleProxy(req, context),
-        DELETE: (req: NextRequest, context: { params: Promise<{ path: string[] }> }) =>
+        DELETE: (req: NextRequest, context: { params: Promise<{ path?: string[] }> }) =>
             handleProxy(req, context),
     };
 }

@@ -12,25 +12,6 @@
  */
 
 // ============================================================================
-// Constants
-// ============================================================================
-
-// Note: DEFAULT_LABELS_DIR and DEFAULT_LOCALES have been moved to environment variable schema
-// See packages/cms/src/server/config/env.config.ts for configuration
-
-export {
-    LOCALE_COOKIE_KEY,
-    getLocaleInfo,
-    getAllLocales,
-    getFlag,
-    getDialCode,
-    isRTL,
-    LOCALE_INFO_MAP,
-    type LocaleInfo,
-    type SupportedLocale,
-} from './lib/constants/locale.constants';
-
-// ============================================================================
 // Common Types
 // ============================================================================
 

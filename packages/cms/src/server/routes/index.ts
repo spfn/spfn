@@ -5,9 +5,9 @@
  */
 
 import { defineRouter } from '@spfn/core/route';
-import * as labelsRouter from './routes/labels/labels.route';
-import * as publishedCacheRouter from './routes/published-cache/published-cache.route';
-import * as valuesRouter from './routes/values/values.route';
+import * as labelsRouter from './labels/labels.route';
+import * as publishedCacheRouter from './published-cache/published-cache.route';
+import * as valuesRouter from './values/values.route';
 
 /**
  * 통합 CMS 라우터

@@ -32,75 +32,69 @@ import {
  * ```
  */
 export const cmsEnvSchema = defineEnvSchema({
-    // ==========================================
+    // ============================================================================
     // Locale Configuration
-    // ==========================================
+    // ============================================================================
     SPFN_CMS_DEFAULT_LOCALE: {
         ...envString({
-            description: 'Default language for CMS content',
+            description: 'Default language for CMS content (ISO 639-1 language code)',
             default: 'en',
+            required: false,
             category: 'cms',
-            examples: ['en', 'ko', 'ja', 'zh'],
+            examples: ['en', 'ko', 'ja', 'zh', 'es', 'fr', 'de'],
         }),
-        key: 'SPFN_CMS_DEFAULT_LOCALE',
     },
 
     SPFN_CMS_LOCALES: {
         ...envString({
-            description: 'Comma-separated list of supported languages',
+            description: 'Comma-separated list of supported languages for multi-language content',
             default: 'en,ko',
+            required: false,
             category: 'cms',
             examples: [
                 'en,ko',
                 'en,ko,ja',
                 'en,ko,ja,zh,es,fr',
+                'en,es,fr,de,it',
             ],
         }),
-        key: 'SPFN_CMS_LOCALES',
     },
 
     SPFN_CMS_DETECT_BROWSER_LANGUAGE: {
         ...envBoolean({
-            description: 'Automatically detect and use browser language',
+            description: 'Automatically detect and use browser language for content localization',
             default: true,
+            required: false,
             category: 'cms',
         }),
-        key: 'SPFN_CMS_DETECT_BROWSER_LANGUAGE',
     },
 
+    // ============================================================================
+    // Content Management Configuration
+    // ============================================================================
     SPFN_CMS_LABELS_DIR: {
         ...envString({
             description: 'Directory path for JSON label files (relative to project root)',
             default: 'src/lib/labels',
+            required: false,
             category: 'cms',
             examples: [
                 'src/lib/labels',
                 'src/content/labels',
                 'labels',
+                'content/i18n',
             ],
         }),
-        key: 'SPFN_CMS_LABELS_DIR',
     },
 
-    // ==========================================
+    // ============================================================================
     // Backward Compatibility (Deprecated)
-    // ==========================================
+    // ============================================================================
     SPFN_CMS_SUPPORTED_LOCALES: {
         ...envString({
             description: '[DEPRECATED] Use SPFN_CMS_LOCALES instead. Comma-separated list of supported languages',
             required: false,
             category: 'cms',
         }),
-        key: 'SPFN_CMS_SUPPORTED_LOCALES',
     },
 });
-
-/**
- * Type-safe CMS environment variable keys
- */
-export type CmsEnvKey = keyof typeof cmsEnvSchema;
-
-/**
- * Get all CMS environment variable keys
- */
-export const cmsEnvKeys = Object.keys(cmsEnvSchema) as CmsEnvKey[];
