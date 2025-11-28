@@ -38,31 +38,42 @@ export type RouteInput = {
     cookies?: TSchema;
 };
 
-// Structured input after validation
-type StructuredInput<TInput extends RouteInput> = {
-    params: TInput['params'] extends TSchema ? Static<TInput['params']> : {};
-    query: TInput['query'] extends TSchema ? Static<TInput['query']> : {};
-    body: TInput['body'] extends TSchema ? Static<TInput['body']> : {};
-    headers: TInput['headers'] extends TSchema ? Static<TInput['headers']> : {};
-    cookies: TInput['cookies'] extends TSchema ? Static<TInput['cookies']> : {};
+// Merged input with interceptor-injected fields
+type MergedInput<TInput extends RouteInput, TInterceptor extends RouteInput> = {
+    params: (TInput['params'] extends TSchema ? Static<TInput['params']> : {}) &
+            (TInterceptor['params'] extends TSchema ? Static<TInterceptor['params']> : {});
+    query: (TInput['query'] extends TSchema ? Static<TInput['query']> : {}) &
+           (TInterceptor['query'] extends TSchema ? Static<TInterceptor['query']> : {});
+    body: (TInput['body'] extends TSchema ? Static<TInput['body']> : {}) &
+          (TInterceptor['body'] extends TSchema ? Static<TInterceptor['body']> : {});
+    headers: (TInput['headers'] extends TSchema ? Static<TInput['headers']> : {}) &
+             (TInterceptor['headers'] extends TSchema ? Static<TInterceptor['headers']> : {});
+    cookies: (TInput['cookies'] extends TSchema ? Static<TInput['cookies']> : {}) &
+             (TInterceptor['cookies'] extends TSchema ? Static<TInterceptor['cookies']> : {});
 };
 
 // Route definition result
-export type RouteDef<TInput extends RouteInput = RouteInput, TResponse = any> = {
+export type RouteDef<
+    TInput extends RouteInput = RouteInput,
+    TInterceptor extends RouteInput = {},
+    TResponse = any
+> = {
     method?: HttpMethod;
     path?: string;
     input?: TInput;
-    middlewares?: MiddlewareHandler[];
+    interceptor?: TInterceptor;
+    middlewares?: (MiddlewareHandler | NamedMiddleware<any>)[];
     skipMiddlewares?: string[] | '*';
-    handler: RouteHandlerFn<TInput, TResponse>;
+    handler: RouteHandlerFn<TInput, TInterceptor, TResponse>;
 
     // Type inference helpers
     _input: TInput;
+    _interceptor: TInterceptor;
     _response: TResponse;
 };
 
 // Router composition
-export type Router<TRoutes extends Record<string, RouteDef<any, any> | Router<any>>> = {
+export type Router<TRoutes extends Record<string, RouteDef<any> | Router<any>>> = {
     routes: TRoutes;
     _routes: TRoutes;  // Type inference helper
 };
@@ -78,7 +89,7 @@ const input = {
 };
 
 // 2. Type inference at compile time
-type InferredInput = StructuredInput<typeof input>;
+type InferredInput = MergedInput<typeof input, {}>;
 // Result: {
 //   params: { id: string },
 //   query: { page: number },
@@ -95,6 +106,28 @@ route.get('/users/:id')
         // params: { id: string }
         // query: { page: number }
     });
+
+// 4. With interceptor-injected fields
+const interceptor = {
+    body: Type.Object({
+        publicKey: Type.String(),
+        keyId: Type.String()
+    })
+};
+
+route.post('/auth/login')
+    .input({
+        body: Type.Object({
+            email: Type.String(),
+            password: Type.String()
+        })
+    })
+    .interceptor(interceptor)
+    .handler(async (c) => {
+        const { body } = await c.data();
+        // body type: { email: string, password: string, publicKey: string, keyId: string }
+        // Client only sees: { email: string, password: string }
+    });
 ```
 
 ---
@@ -106,20 +139,27 @@ route.get('/users/:id')
 The `RouteBuilder` implements a fluent API for route construction:
 
 ```typescript
-export class RouteBuilder<TInput extends RouteInput = {}, TResponse = never> {
+export class RouteBuilder<
+    TInput extends RouteInput = {},
+    TInterceptor extends RouteInput = {},
+    TResponse = never
+> {
     public _method?: HttpMethod;
     public _path?: string;
     public _input?: TInput;
-    public _middlewares?: MiddlewareHandler[];
+    public _interceptor?: TInterceptor;
+    public _middlewares?: (MiddlewareHandler | NamedMiddleware<any>)[];
     public _skipMiddlewares?: string[] | '*';
 
     // Chainable methods that return new builder instances
-    input<TNewInput extends RouteInput>(input: TNewInput): RouteBuilder<TNewInput, TResponse>
-    use(middlewares: MiddlewareHandler[]): RouteBuilder<TInput, TResponse>
-    skip(middlewareNames: string[] | '*'): RouteBuilder<TInput, TResponse>
+    input<TNewInput extends RouteInput>(input: TNewInput): RouteBuilder<TNewInput, TInterceptor, TResponse>
+    interceptor<TNewInterceptor extends RouteInput>(interceptor: TNewInterceptor): RouteBuilder<TInput, TNewInterceptor, TResponse>
+    middleware(middlewares: (MiddlewareHandler | NamedMiddleware<any>)[]): RouteBuilder<TInput, TInterceptor, TResponse>
+    use(middlewares: (MiddlewareHandler | NamedMiddleware<any>)[]): RouteBuilder<TInput, TInterceptor, TResponse>
+    skip(middlewareNames: string[] | '*'): RouteBuilder<TInput, TInterceptor, TResponse>
 
     // Terminal method that produces RouteDef
-    handler<THandlerResponse>(fn: RouteHandlerFn<TInput, THandlerResponse>): RouteDef<TInput, THandlerResponse>
+    handler<THandlerResponse>(fn: RouteHandlerFn<TInput, TInterceptor, THandlerResponse>): RouteDef<TInput, TInterceptor, THandlerResponse>
 }
 ```
 
@@ -186,7 +226,8 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
 
         const errors = [...Value.Errors(input.params, params)];
         if (errors.length > 0) {
-            throw new ValidationError('Invalid path parameters', {
+            throw new ValidationError({
+                message: 'Invalid path parameters',
                 fields: errors.map(e => ({
                     path: e.path,
                     message: e.message,
@@ -203,8 +244,11 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
     return {
         data: async () => ({ params, query, body, headers, cookies }),
         json: (data, status, headers) => c.json(data, status, headers),
-        success: (data, meta, status) => { /* ... */ },
-        // ... other helpers
+        created: (data, location) => { /* ... */ },
+        accepted: (data) => { /* ... */ },
+        noContent: () => { /* ... */ },
+        notModified: () => { /* ... */ },
+        paginated: (data, page, limit, total) => { /* ... */ },
         raw: c
     };
 }
@@ -310,7 +354,7 @@ export const updateUser = route.put('/users/:id')
 **When to use helpers:**
 - Need specific HTTP status codes (201, 202, 204, 304, etc.)
 - Need custom headers (Location, Cache-Control, etc.)
-- Legacy API requiring `{ success: true, data }` wrapper (use `c.success()`)
+- Paginated responses (`c.paginated()`)
 
 ### Error Handling
 
@@ -337,7 +381,8 @@ export const protectedRoute = route.get('/protected')
 
         if (!user) {
             // Use ValidationError for 400-level errors
-            throw new ValidationError('Authentication required', {
+            throw new ValidationError({
+                message: 'Authentication required',
                 fields: [{ path: '/auth', message: 'Missing token' }]
             });
         }
@@ -387,7 +432,7 @@ Request
 Route handler
 ```
 
-### Skip Control Implementation
+### Skip Control and Deduplication
 
 ```typescript
 // In registerRoute()
@@ -397,23 +442,45 @@ function registerRoute(
     routeDef: RouteDef<any>,
     namedMiddlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>
 ): void {
-    const { skipMiddlewares } = routeDef;
+    const { skipMiddlewares, middlewares = [] } = routeDef;
     const skipAll = skipMiddlewares === '*';
 
     const allMiddlewares: MiddlewareHandler[] = [];
 
-    // Add server-level middlewares (filtered)
-    if (namedMiddlewares && !skipAll) {
-        const skipSet = new Set(Array.isArray(skipMiddlewares) ? skipMiddlewares : []);
-        for (const middleware of namedMiddlewares) {
-            if (!skipSet.has(middleware.name)) {
-                allMiddlewares.push(middleware.handler);
+    // Track global middleware handlers to prevent duplicates
+    const globalHandlers = new Set<MiddlewareHandler>();
+
+    // Add server-level middlewares (filtered by skip)
+    if (namedMiddlewares && namedMiddlewares.length > 0) {
+        if (skipAll) {
+            logger.debug(`Skipping all middlewares (*) for route: ${method} ${path}`);
+        } else {
+            const skipSet = new Set(Array.isArray(skipMiddlewares) ? skipMiddlewares : []);
+            for (const middleware of namedMiddlewares) {
+                if (!skipSet.has(middleware.name)) {
+                    allMiddlewares.push(middleware.handler);
+                    globalHandlers.add(middleware.handler);
+                } else {
+                    logger.debug(`Skipping middleware '${middleware.name}' for route: ${method} ${path}`);
+                }
             }
         }
     }
 
-    // Add route-level middlewares (never skipped)
-    allMiddlewares.push(...middlewares);
+    // Add route-level middlewares (with deduplication)
+    for (const mw of middlewares) {
+        // Extract handler from NamedMiddleware or use directly
+        const handler = isNamedMiddleware(mw) ? mw.handler : mw;
+
+        // Check if already added from global middlewares
+        if (globalHandlers.has(handler)) {
+            const middlewareName = isNamedMiddleware(mw) ? mw.name : 'unknown';
+            logger.debug(`Skipping duplicate middleware '${middlewareName}' for route: ${method} ${path}`);
+            continue;
+        }
+
+        allMiddlewares.push(handler);
+    }
 
     // Register to Hono
     app[methodLower](path, ...allMiddlewares, wrappedHandler);
@@ -425,6 +492,12 @@ function registerRoute(
 - `skip('*')` - Skip all server-level middlewares
 - Route-level middlewares (`.use()`) are never skipped
 - Validation middleware is never skipped
+
+**Middleware Deduplication:**
+- When a NamedMiddleware is registered both globally and route-level, it's automatically deduplicated
+- Deduplication is based on handler reference equality
+- Only the global instance is used (route-level duplicate is skipped)
+- Debug logs indicate when deduplication occurs
 
 ---
 
@@ -552,13 +625,15 @@ async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void> {
 ### RouteBuilderContext
 
 ```typescript
-export type RouteBuilderContext<TInput extends RouteInput = RouteInput> = {
-    // Structured input accessor
-    data(): Promise<StructuredInput<TInput>>;
+export type RouteBuilderContext<
+    TInput extends RouteInput = RouteInput,
+    TInterceptor extends RouteInput = {}
+> = {
+    // Structured input accessor (returns merged input + interceptor fields)
+    data(): Promise<MergedInput<TInput, TInterceptor>>;
 
     // Response helpers
     json(data: any, status?: ContentfulStatusCode, headers?: Record<string, string | string[]>): Response;
-    success(data: any, meta?: any, status?: ContentfulStatusCode): Response;
     created(data: any, location?: string): Response;
     accepted(data?: any): Response;
     noContent(): Response;
@@ -580,34 +655,39 @@ export type RouteBuilderContext<TInput extends RouteInput = RouteInput> = {
 ### Response Helper Implementation
 
 ```typescript
-success: (data, meta, status = 200) => {
-    const response: ApiSuccessResponse<typeof data> = {
-        success: true,
-        data,
-    };
-
-    if (meta) {
-        response.meta = meta;
+created: (data, location) => {
+    const headers: Record<string, string> = {};
+    if (location) {
+        headers['Location'] = location;
     }
+    return c.json(data, 201, headers);
+},
 
-    return c.json(response, status);
+accepted: (data) => {
+    if (data === undefined) {
+        return c.body(null, 202);
+    }
+    return c.json(data, 202);
+},
+
+noContent: () => {
+    return c.body(null, 204);
+},
+
+notModified: () => {
+    return c.body(null, 304);
 },
 
 paginated: (data, page, limit, total) => {
-    const response: ApiSuccessResponse<typeof data> = {
-        success: true,
-        data,
-        meta: {
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
+    return c.json({
+        items: data,
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
         },
-    };
-
-    return c.json(response, 200);
+    }, 200);
 },
 ```
 

@@ -7,8 +7,7 @@ Type-safe custom error classes with HTTP status codes and metadata for API respo
 - ✅ **Type-Safe**: Full TypeScript support with error hierarchy
 - ✅ **HTTP Status Codes**: Automatic mapping to appropriate status codes
 - ✅ **Error Metadata**: Additional context via `details` field
-- ✅ **Timestamps**: Automatic error occurrence tracking
-- ✅ **JSON Serialization**: Built-in `toJSON()` for API responses
+- ✅ **JSON Serialization**: HTTP errors (SerializableError) have built-in `toJSON()`
 - ✅ **PostgreSQL Integration**: Auto-convert Postgres error codes
 - ✅ **Stack Traces**: Preserved for debugging
 
@@ -20,55 +19,59 @@ Type-safe custom error classes with HTTP status codes and metadata for API respo
 
 ```typescript
 import {
-  NotFoundError,
+  EntityNotFoundError,
   ValidationError,
   DuplicateEntryError,
   UnauthorizedError,
-  ForbiddenError
+  ForbiddenError,
+  NotFoundError
 } from '@spfn/core';
 
 // Database errors
-throw new NotFoundError('User', 123);
+throw new EntityNotFoundError('User', 123);
 // NotFoundError: User with id 123 not found (404)
 
-throw new ValidationError('Email is required');
-// ValidationError: Email is required (400)
+throw new ValidationError({
+  message: 'Invalid input',
+  fields: [{ path: '/email', message: 'Email is required' }]
+});
+// ValidationError: Invalid input (400)
 
 throw new DuplicateEntryError('email', 'john@example.com');
 // DuplicateEntryError: email 'john@example.com' already exists (409)
 
 // HTTP errors
-throw new UnauthorizedError('Invalid token');
+throw new UnauthorizedError({ message: 'Invalid token' });
 // UnauthorizedError: Invalid token (401)
 
-throw new ForbiddenError('Insufficient permissions');
+throw new ForbiddenError({ message: 'Insufficient permissions' });
 // ForbiddenError: Insufficient permissions (403)
+
+throw new NotFoundError({ message: 'User not found', resource: 'User' });
+// NotFoundError: User not found (404)
 ```
 
 ### With Error Handler Middleware
 
 ```typescript
-import { errorHandler } from '@spfn/core';
+import { ErrorHandler } from '@spfn/core';
 import { app } from './app';
 
 // Automatically converts errors to JSON responses
-app.onError(errorHandler());
+app.onError(ErrorHandler());
 ```
 
-### API Response Example
+### API Response Example (SerializableError)
 
 ```json
 {
-  "name": "NotFoundError",
-  "message": "User with id 123 not found",
-  "statusCode": 404,
-  "details": {
-    "resource": "User",
-    "id": 123
-  },
-  "timestamp": "2024-01-15T10:30:00.000Z"
+  "__type": "NotFoundError",
+  "message": "User not found",
+  "resource": "User"
 }
 ```
+
+**Note:** SerializableError automatically serializes all public fields via `toJSON()`. The response format varies based on error type and fields.
 
 ---
 
@@ -91,11 +94,7 @@ throw new DatabaseError('Something went wrong', 500, {
 - `message: string` - Error message
 - `statusCode: number` - HTTP status code (default: 500)
 - `details?: Record<string, any>` - Additional context
-- `timestamp: Date` - When error occurred
-- `stack?: string` - Stack trace
-
-**Methods:**
-- `toJSON()` - Serialize for API response
+- `stack?: string` - Stack trace (automatically captured)
 
 ---
 
@@ -693,9 +692,9 @@ The errors module has comprehensive test coverage with **70 tests** (all passing
 **File:** `src/errors/__tests__/database-errors.test.ts`
 
 - **DatabaseError** (3 tests)
-  - Properties validation (message, statusCode, details, timestamp, stack)
+  - Properties validation (message, statusCode, details, stack)
   - Default status code (500)
-  - JSON serialization
+  - Inheritance chain
 
 - **ConnectionError** (2 tests)
   - Status code 503

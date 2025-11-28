@@ -15,7 +15,7 @@ SPFN's codegen system uses an **orchestrator pattern** that manages multiple cod
 
 ## Built-in Generators
 
-### Contract Generator
+### 1. Contract Generator (`@spfn/core:contract`)
 
 Automatically generates type-safe API clients from your route contracts.
 
@@ -34,7 +34,54 @@ Automatically generates type-safe API clients from your route contracts.
 - Includes JSDoc comments with usage examples
 - **Incremental updates**: Detects contract signature changes and skips regeneration if only formatting changed
 
-**Supported Contract Formats:**
+### 2. Router Generator (`@spfn/core:router`)
+
+Generates type-safe API client from define-route router with pre-extracted metadata. This eliminates the need to import the actual router object on the client side.
+
+**Input:** Router file (default: `src/server/router.ts`)
+**Output:** Router metadata file (default: `src/server/router.metadata.ts`)
+
+**Features:**
+- Automatic scanning of router files
+- Route metadata extraction (method, path)
+- Pre-configured API client with `configureApi()`
+- Works in Server Components without router import
+- Watches router file and route definitions for changes
+
+**Configuration:**
+
+```json
+{
+  "codegen": {
+    "generators": [
+      {
+        "name": "@spfn/core:router",
+        "enabled": true,
+        "routerPath": "src/server/router.ts",
+        "outputPath": "src/server/router.metadata.ts",
+        "baseUrl": "/api/actions"
+      }
+    ]
+  }
+}
+```
+
+**Output Format:**
+
+```typescript
+// src/server/router.metadata.ts
+export const routerMetadata = {
+  routes: {
+    'users.list': { method: 'GET', path: '/users' },
+    'users.get': { method: 'GET', path: '/users/:id' },
+    'users.create': { method: 'POST', path: '/users' }
+  }
+};
+```
+
+---
+
+**Supported Contract Formats (Contract Generator):**
 
 ```typescript
 // ✅ Recommended: defineContract()
@@ -59,7 +106,7 @@ export const getUserContract = {
 };
 ```
 
-**Configuration:**
+**Configuration (Contract Generator):**
 
 ```json
 {
@@ -591,13 +638,24 @@ interface CodegenConfig {
 ### Built-in Generators
 
 ```typescript
-// Contract generator (API client generation)
+// Contract generator (API client from contracts)
 function createContractGenerator(config?: ContractGeneratorConfig): Generator;
 
 interface ContractGeneratorConfig {
   contractsDir?: string;    // Default: 'src/lib/contracts'
   outputPath?: string;      // Default: 'src/lib/api' (directory, not file)
   baseUrl?: string;         // Base URL for API client
+  runOn?: GeneratorTrigger[]; // Default: ['watch', 'manual', 'build']
+}
+
+// Router generator (API client from define-route router)
+function createRouterGenerator(config?: RouterGeneratorConfig): Generator;
+
+interface RouterGeneratorConfig {
+  routerPath?: string;      // Default: 'src/server/router.ts'
+  outputPath?: string;      // Default: 'src/server/router.metadata.ts'
+  baseUrl?: string;         // Default: '/api/actions'
+  runOn?: GeneratorTrigger[]; // Default: ['watch', 'manual', 'build']
 }
 ```
 

@@ -26,33 +26,24 @@ import { env } from '@spfn/core/config';
 
 // 타입 안전한 환경변수 접근
 const poolMax: number = env.DB_POOL_MAX;
-const logLevel: LogLevel = env.LOG_LEVEL;
+const logLevel: 'debug' | 'info' | 'warn' | 'error' | 'fatal' = env.SPFN_LOG_LEVEL;
 const appUrl: string | undefined = env.SPFN_APP_URL;
+const apiUrl: string = env.SPFN_API_URL; // Required
 ```
 
-### 설정 가져오기
+### 스키마와 Registry 접근
 
 ```typescript
-import { getEnvConfig } from '@spfn/core/config';
+import { registry } from '@spfn/core/config';
+import { coreEnvSchema } from '@spfn/core/config/schema';
 
-// 새로운 설정 객체 가져오기
-const config = getEnvConfig();
+// 환경변수 검증 및 가져오기
+const config = registry.validate();
 console.log(config.DB_POOL_MAX);
-```
 
-### 환경변수 검증
-
-```typescript
-import { validateEnvConfig } from '@spfn/core/config';
-
-// 애플리케이션 시작 시 검증
-try {
-  validateEnvConfig();
-  console.log('✅ Environment configuration is valid');
-} catch (error) {
-  console.error('❌ Invalid environment configuration:', error);
-  process.exit(1);
-}
+// 스키마 정보 접근
+console.log(coreEnvSchema.DB_POOL_MAX.description);
+console.log(coreEnvSchema.DB_POOL_MAX.default);
 ```
 
 ## Environment Variables
@@ -61,22 +52,30 @@ try {
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `NODE_ENV` | `'development' \| 'production' \| 'test'` | `'development'` | Node.js runtime environment |
+| `NODE_ENV` | `'local' \| 'development' \| 'production' \| 'test'` | `'local'` | Node.js runtime environment |
 
 ### Database
 
+#### Connection URLs
+| Variable | Type | Required | Description |
+|----------|------|----------|-------------|
+| `DATABASE_URL` | `string` | No | Primary database connection URL |
+| `DATABASE_WRITE_URL` | `string` | No | Write database URL (master-replica) |
+| `DATABASE_READ_URL` | `string` | No | Read database URL (master-replica) |
+| `DATABASE_REPLICA_URL` | `string` | No | Legacy replica database URL |
+
 #### Connection Pool
-| Variable | Type | Default (Dev/Prod) | Description |
-|----------|------|-------------------|-------------|
-| `DB_POOL_MAX` | `number` | `10` / `20` | Maximum connections in pool |
-| `DB_POOL_IDLE_TIMEOUT` | `number` | `20` / `30` | Idle timeout in seconds |
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DB_POOL_MAX` | `number` | `10` | Maximum connections in pool |
+| `DB_POOL_IDLE_TIMEOUT` | `number` | `30` | Idle timeout in seconds |
 
 #### Retry Configuration
-| Variable | Type | Default (Dev/Prod) | Description |
-|----------|------|-------------------|-------------|
-| `DB_RETRY_MAX` | `number` | `3` / `5` | Maximum retry attempts |
-| `DB_RETRY_INITIAL_DELAY` | `number` | `50` / `100` | Initial delay (ms) |
-| `DB_RETRY_MAX_DELAY` | `number` | `5000` / `10000` | Maximum delay (ms) |
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DB_RETRY_MAX` | `number` | `3` | Maximum retry attempts |
+| `DB_RETRY_INITIAL_DELAY` | `number` | `100` | Initial delay (ms) |
+| `DB_RETRY_MAX_DELAY` | `number` | `10000` | Maximum delay (ms) |
 | `DB_RETRY_FACTOR` | `number` | `2` | Backoff factor |
 
 #### Health Check
@@ -91,121 +90,107 @@ try {
 #### Monitoring
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `DB_MONITORING_ENABLED` | `boolean` | `true` (dev) / `false` (prod) | Enable query monitoring |
+| `DB_MONITORING_ENABLED` | `boolean` | `false` | Enable query monitoring |
 | `DB_MONITORING_SLOW_THRESHOLD` | `number` | `1000` | Slow query threshold (ms) |
 | `DB_MONITORING_LOG_QUERIES` | `boolean` | `false` | Log all queries |
 
-### Logger
-
-#### Core
+#### Transaction
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `LOG_LEVEL` | `'debug' \| 'info' \| 'warn' \| 'error' \| 'fatal'` | `'debug'` (dev) / `'info'` (prod) | Minimum log level |
+| `TRANSACTION_TIMEOUT` | `number` | `30000` | Transaction timeout (ms) |
 
-#### Slack Transport (Optional)
+#### Development
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DB_DEBUG_TRACE` | `boolean` | `false` | Enable detailed debug tracing |
+
+### Drizzle ORM
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DRIZZLE_SCHEMA_PATH` | `string` | `'./src/server/entities/config.ts'` | Path to Drizzle schema |
+| `DRIZZLE_OUT_DIR` | `string` | `'./drizzle'` | Output directory for migrations |
+
+### Logger
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SPFN_LOG_LEVEL` | `'debug' \| 'info' \| 'warn' \| 'error' \| 'fatal'` | `'info'` | Minimum log level |
+
+### Cache (Redis/Valkey)
+
+#### Single Instance
 | Variable | Type | Required | Description |
 |----------|------|----------|-------------|
-| `SLACK_WEBHOOK_URL` | `string` | No | Slack webhook URL |
-| `SLACK_CHANNEL` | `string` | No | Slack channel |
-| `SLACK_USERNAME` | `string` | No | Bot username (default: `'Logger Bot'`) |
+| `CACHE_URL` | `string` | No | Single Redis/Valkey instance URL |
+| `CACHE_PASSWORD` | `string` | No | Authentication password |
 
-#### Email Transport (Optional)
+#### Master-Replica Pattern
 | Variable | Type | Required | Description |
 |----------|------|----------|-------------|
-| `SMTP_HOST` | `string` | No | SMTP server host |
-| `SMTP_PORT` | `number` | No | SMTP server port |
-| `SMTP_USER` | `string` | No | SMTP username |
-| `SMTP_PASSWORD` | `string` | No | SMTP password |
-| `EMAIL_FROM` | `string` | No | Sender email |
-| `EMAIL_TO` | `string` | No | Recipient email(s) |
+| `CACHE_WRITE_URL` | `string` | No | Master Redis URL for writes |
+| `CACHE_READ_URL` | `string` | No | Replica Redis URL for reads |
+
+#### Sentinel Pattern
+| Variable | Type | Required | Description |
+|----------|------|----------|-------------|
+| `CACHE_SENTINEL_HOSTS` | `string` | No | Comma-separated Sentinel hosts |
+| `CACHE_MASTER_NAME` | `string` | No | Sentinel master name |
+
+#### Cluster Pattern
+| Variable | Type | Required | Description |
+|----------|------|----------|-------------|
+| `CACHE_CLUSTER_NODES` | `string` | No | Comma-separated cluster nodes |
+
+#### Security
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CACHE_TLS_REJECT_UNAUTHORIZED` | `boolean` | `true` | Verify TLS certificates |
 
 ### Next.js
 
 | Variable | Type | Required | Description |
 |----------|------|----------|-------------|
-| `SPFN_APP_URL` | `string` | No (Yes for SSR) | Application URL |
+| `SPFN_API_URL` | `string` | **Yes** | Next.js API URL (client-side calls) |
+| `SPFN_APP_URL` | `string` | No | Application URL (server-side calls) |
 
 ## API Reference
 
 ### `env`
 
-전역 환경변수 설정 객체 (지연 로드됨)
+전역 환경변수 설정 객체 - `registry.validate()`의 결과
 
 ```typescript
 import { env } from '@spfn/core/config';
 
 console.log(env.DB_POOL_MAX); // number
-console.log(env.LOG_LEVEL);   // LogLevel
+console.log(env.SPFN_LOG_LEVEL); // 'debug' | 'info' | 'warn' | 'error' | 'fatal'
+console.log(env.SPFN_API_URL); // string (required)
 ```
 
-### `getEnvConfig()`
+### `registry`
 
-새로운 환경변수 설정 객체를 반환합니다.
+환경변수 레지스트리 객체
 
 ```typescript
-import { getEnvConfig } from '@spfn/core/config';
+import { registry } from '@spfn/core/config';
 
-const config = getEnvConfig();
+// 환경변수 검증 및 가져오기
+const config = registry.validate();
+console.log(config.DB_POOL_MAX);
 ```
 
-### `validateEnvConfig()`
+### `coreEnvSchema`
 
-필수 환경변수 검증
-
-```typescript
-import { validateEnvConfig } from '@spfn/core/config';
-
-validateEnvConfig(); // Throws if validation fails
-```
-
-### `resetEnvConfig()`
-
-전역 설정 캐시 초기화 (테스트용)
+Core 패키지의 환경변수 스키마 정의
 
 ```typescript
-import { resetEnvConfig } from '@spfn/core/config';
+import { coreEnvSchema } from '@spfn/core/config/schema';
 
-beforeEach(() => {
-  process.env.DB_POOL_MAX = '50';
-  resetEnvConfig();
-});
-```
-
-### `getSchemaByCategory(category: string)`
-
-카테고리별 스키마 조회
-
-```typescript
-import { getSchemaByCategory } from '@spfn/core/config';
-
-const dbVars = getSchemaByCategory('database');
-console.log(dbVars.map(v => v.key));
-// ['DB_POOL_MAX', 'DB_POOL_IDLE_TIMEOUT', ...]
-```
-
-### `getCategories()`
-
-모든 카테고리 목록 반환
-
-```typescript
-import { getCategories } from '@spfn/core/config';
-
-const categories = getCategories();
-// ['core', 'database', 'logger', 'nextjs']
-```
-
-## Types
-
-```typescript
-import type {
-  EnvConfig,
-  CoreEnvConfig,
-  DatabaseEnvConfig,
-  LoggerEnvConfig,
-  NextjsEnvConfig,
-  NodeEnv,
-  LogLevel,
-} from '@spfn/core/config';
+// 스키마 정보 접근
+console.log(coreEnvSchema.DB_POOL_MAX.description);
+console.log(coreEnvSchema.DB_POOL_MAX.default);
+console.log(coreEnvSchema.DB_POOL_MAX.examples);
 ```
 
 ## Example .env File
@@ -215,44 +200,60 @@ import type {
 NODE_ENV=development
 
 # Database
+DATABASE_URL=postgresql://user:password@localhost:5432/mydb
 DB_POOL_MAX=20
 DB_POOL_IDLE_TIMEOUT=30
 DB_MONITORING_ENABLED=true
+TRANSACTION_TIMEOUT=30000
+
+# Drizzle ORM
+DRIZZLE_SCHEMA_PATH=./src/server/entities/config.ts
+DRIZZLE_OUT_DIR=./drizzle
 
 # Logger
-LOG_LEVEL=debug
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+SPFN_LOG_LEVEL=debug
 
-# Next.js
+# Cache (Redis/Valkey)
+CACHE_URL=redis://localhost:6379
+CACHE_PASSWORD=your-redis-password
+
+# Next.js (Required)
+SPFN_API_URL=http://localhost:3000
 SPFN_APP_URL=http://localhost:3000
 ```
 
 ## Best Practices
 
-1. **애플리케이션 시작 시 검증**
-   ```typescript
-   import { validateEnvConfig } from '@spfn/core/config';
-
-   validateEnvConfig();
-   ```
-
-2. **전역 `env` 객체 사용**
+1. **전역 `env` 객체 사용**
    ```typescript
    import { env } from '@spfn/core/config';
 
-   // 어디서든 접근 가능
+   // 타입 안전한 환경변수 접근
    if (env.DB_MONITORING_ENABLED) {
-     // ...
+     console.log(`Pool size: ${env.DB_POOL_MAX}`);
    }
    ```
 
-3. **테스트에서 초기화**
+2. **스키마 정보 활용**
    ```typescript
-   import { resetEnvConfig } from '@spfn/core/config';
+   import { coreEnvSchema } from '@spfn/core/config/schema';
 
-   afterEach(() => {
-     resetEnvConfig();
-   });
+   // 환경변수 설명 및 기본값 확인
+   console.log(coreEnvSchema.DB_POOL_MAX.description);
+   console.log(coreEnvSchema.DB_POOL_MAX.default); // 10
+   ```
+
+3. **Registry로 검증**
+   ```typescript
+   import { registry } from '@spfn/core/config';
+
+   try {
+     const config = registry.validate();
+     console.log('✅ Environment configuration is valid');
+   } catch (error) {
+     console.error('❌ Invalid configuration:', error);
+     process.exit(1);
+   }
    ```
 
 ## Related

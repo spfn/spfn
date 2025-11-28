@@ -15,12 +15,10 @@ import * as valuesRouter from './routes/values/values.route';
  * - publishedCache: 발행된 콘텐츠 캐시
  * - values: 라벨 값 관리
  */
-export const appRouter = defineRouter({
+export const cmsAppRouter = defineRouter({
     ...labelsRouter,
     ...publishedCacheRouter,
     ...valuesRouter,
 });
 
-export type AppRouter = typeof appRouter;
-
-export default appRouter;
+export type AppRouter = typeof cmsAppRouter;

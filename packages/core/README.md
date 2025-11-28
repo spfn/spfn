@@ -55,7 +55,7 @@ const user = await api.getUser
 - Transaction management with AsyncLocalStorage
 - Read/Write database separation
 - Graceful shutdown and health checks
-- Plugin system with interceptors
+- Lifecycle hooks for extensibility
 
 ---
 
@@ -164,8 +164,8 @@ export const getUser = route.get('/users/:id')
     })
     .handler(async (c) => {
         const { params } = await c.data();
-        const user = await findOne(users, { id: params.id });
-        return c.success(user);
+        const user = await userRepo.findById(params.id);
+        return user;
     });
 
 // 4. Database Query
@@ -224,14 +224,14 @@ Configuration Sources (Priority Order):
 
     |
     v
-12-Step Middleware Pipeline:
+Middleware Pipeline:
 1. Request Logger
 2. CORS
-3. Global Middlewares (use)
-4. Named Middlewares (middlewares)
-5. Plugin beforeRoutes hooks
+3. Global Middlewares
+4. Named Middlewares
+5. beforeRoutes hook
 6. Route Registration
-7. Plugin afterRoutes hooks
+7. afterRoutes hook
 8. Route-specific Middlewares
 9. Request Validation
 10. Route Handler Execution
@@ -242,7 +242,7 @@ Configuration Sources (Priority Order):
     v
 Lifecycle Hooks:
 - beforeInfrastructure
-- afterInfrastructure (migrations)
+- afterInfrastructure
 - beforeRoutes
 - afterRoutes
 - afterStart
@@ -254,10 +254,10 @@ Lifecycle Hooks:
 - `defineServerConfig()`: Fluent configuration builder
 - `createServer()`: Creates Hono app with routes
 - `startServer()`: Starts HTTP server with lifecycle
-- Plugin system: Auto-discovery from `@spfn/*` packages
+- Lifecycle hooks: beforeInfrastructure, afterInfrastructure, beforeRoutes, afterRoutes, afterStart, beforeShutdown
 - Graceful shutdown: SIGTERM/SIGINT handling
 
-**Design Pattern**: Builder + Plugin system
+**Design Pattern**: Builder + Lifecycle hooks
 
 **[→ Full Documentation](./src/server/README.md)**
 

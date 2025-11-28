@@ -1,12 +1,11 @@
 # @spfn/core/logger - Logging Infrastructure
 
-Universal logging module with Adapter pattern for swappable implementations.
+Universal logging module with transport-based architecture.
 
 ## Features
 
-- ✅ **Adapter Pattern**: Switch between Pino and custom implementations
-- ✅ **Zero Dependencies** (Custom adapter): No required logging library
-- ✅ **High Performance** (Pino adapter): 5-10x faster than Winston
+- ✅ **Transport System**: Console transport with extensible architecture
+- ✅ **Zero Dependencies**: No external logging library required
 - ✅ **Browser Compatible**: Works in Next.js client/server components
 - ✅ **Console Transport**: Stdout/stderr logging for Docker/K8s
 - ✅ **Child Loggers**: Module-specific loggers with context
@@ -59,25 +58,6 @@ try {
 
 ---
 
-## Adapter Pattern
-
-Switch logging implementation via environment variable without changing code.
-
-```bash
-# .env
-LOGGER_ADAPTER=pino    # Use Pino (default, high performance)
-LOGGER_ADAPTER=custom  # Use custom implementation (no dependencies)
-```
-
-### Supported Adapters
-
-| Adapter | Performance | Use Case | Dependencies |
-|---------|-------------|----------|--------------|
-| **Pino** | ⚡⚡⚡⚡⚡ | Production (default) | pino, pino-pretty |
-| **Custom** | ⚡⚡⚡ | Full control needed | None (self-implemented) |
-
----
-
 ## Log Levels
 
 Five log levels with priority order:
@@ -98,10 +78,10 @@ Five log levels with priority order:
 
 ```bash
 NODE_ENV=development
-LOGGER_ADAPTER=pino
+SPFN_LOG_LEVEL=debug
 ```
 
-**Output:** Pretty-printed, colored console output (single line)
+**Output:** Colored console output
 
 ```
 [2025-10-21 15:39:06] [module=database] INFO: Request received userId=123
@@ -111,13 +91,13 @@ LOGGER_ADAPTER=pino
 
 ```bash
 NODE_ENV=production
-LOGGER_ADAPTER=pino
+SPFN_LOG_LEVEL=info
 ```
 
-**Output:** JSON to stdout/stderr (Docker collects logs automatically)
+**Output:** Plain text to stdout/stderr (Docker collects logs automatically)
 
-```json
-{"level":30,"time":1759539501259,"module":"api","msg":"Request received","method":"POST","path":"/users"}
+```
+[2025-10-21 15:39:06] [module=api] INFO: Request received method=POST path=/users
 ```
 
 **Docker Logging:** Logs written to stdout/stderr are automatically captured by Docker and can be:
@@ -144,8 +124,8 @@ logger.info('User login', {
   token: 'abc123'          // Automatically masked
 });
 
-// Output
-{"level":30,"msg":"User login","username":"john","password":"***MASKED***","token":"***MASKED***"}
+// Output (production)
+[2025-10-21 15:39:06] [module=auth] INFO: User login username=john password=***MASKED*** token=***MASKED***
 ```
 
 **Automatically masked fields:**
@@ -160,25 +140,12 @@ logger.info('User login', {
 
 ---
 
-## Configuration Validation
-
-Logger validates configuration at startup and provides clear error messages:
-
-```bash
-# Missing LOG_DIR when file logging is enabled
-Error: [Logger] Configuration validation failed: LOG_DIR environment variable is required when LOGGER_FILE_ENABLED=true
-```
-
----
-
 ## Environment Variables
 
-### Basic
-
 ```bash
-NODE_ENV=production        # development | production | test
-LOGGER_ADAPTER=pino        # pino | custom (default: pino)
-LOG_LEVEL=info             # debug | info | warn | error | fatal
+NODE_ENV=production                       # development | production | test (affects colorization)
+SPFN_LOG_LEVEL=info                       # debug | info | warn | error | fatal (default: info)
+NEXT_PUBLIC_SPFN_LOG_LEVEL=info          # Client-side log level for Next.js (default: info)
 ```
 
 ---
@@ -189,47 +156,30 @@ LOG_LEVEL=info             # debug | info | warn | error | fatal
 
 - Always enabled
 - stdout (debug, info) / stderr (warn, error, fatal)
-- Colored in development, plain JSON in production
-- Single-line format with pino-pretty in development
+- Colored in development, plain text in production
 - **Docker/K8s Compatible**: Logs to stdout/stderr for container log collection
 
 **Recommended Logging Strategy:**
 - **Development**: Console with colors
-- **Docker/K8s**: Console (JSON) → Container logs → Centralized system (CloudWatch, Loki, etc.)
-- **Serverless**: Console (JSON) → Automatic capture by platform
+- **Docker/K8s**: Console (plain text) → Container logs → Centralized system (CloudWatch, Loki, etc.)
+- **Serverless**: Console (plain text) → Automatic capture by platform
 
 ---
 
 ## Log Formats
 
-### Console (Development)
+### Development (Colored)
 
 ```
 [2025-10-21 15:39:06] [module=database] INFO: Connection established
 [2025-10-21 15:39:06] [module=api] ERROR: Request failed userId=123
 ```
 
-### JSON (Production)
+### Production (Plain Text)
 
-```json
-{
-  "level": 30,
-  "time": 1729512546000,
-  "module": "database",
-  "msg": "Connection established"
-}
-{
-  "level": 50,
-  "time": 1729512546001,
-  "module": "api",
-  "msg": "Request failed",
-  "userId": 123,
-  "err": {
-    "type": "Error",
-    "message": "Connection timeout",
-    "stack": "..."
-  }
-}
+```
+[2025-10-21 15:39:06] [module=database] INFO: Connection established
+[2025-10-21 15:39:06] [module=api] ERROR: Request failed userId=123 error=[Error: Connection timeout]
 ```
 
 ---
@@ -365,7 +315,7 @@ npm test -- src/middleware/__tests__/request-logger.test.ts
   - Colorization
 - ✅ Formatters (45 tests)
   - Console formatting
-  - JSON formatting
+  - Plain text formatting
   - Timestamp formatting
   - Sensitive data masking (14 tests)
 - ✅ Configuration (36 tests)
@@ -385,16 +335,10 @@ npm test -- src/middleware/__tests__/request-logger.test.ts
 
 **Cause:** Log level too high
 
-**Solution:** Check `LOG_LEVEL` or `NODE_ENV`
+**Solution:** Check `SPFN_LOG_LEVEL` environment variable
 ```bash
-LOG_LEVEL=debug  # Show all logs
+SPFN_LOG_LEVEL=debug  # Show all logs
 ```
-
-### Configuration validation errors
-
-**Cause:** Missing or invalid environment variables
-
-**Solution:** Read the error message - it tells you exactly what's wrong
 
 ### Docker/K8s Logging
 
@@ -415,5 +359,4 @@ kubectl logs <pod-name>
 
 ## Related
 
-- [Pino Documentation](https://getpino.io/) - High-performance logger
 - [@spfn/core](../../README.md) - Main package documentation

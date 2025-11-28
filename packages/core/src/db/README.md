@@ -34,12 +34,12 @@ export class UserRepository extends BaseRepository
     async findByEmail(email: string)
     {
         // Use protected helper methods
-        return await this.findOne(users, { email });
+        return await this._findOne(users, { email });
     }
 
     async findActive(limit = 10)
     {
-        return await this.findMany(users, {
+        return await this._findMany(users, {
             where: { active: true },
             orderBy: desc(users.createdAt),
             limit
@@ -48,12 +48,12 @@ export class UserRepository extends BaseRepository
 
     async createUser(data: { email: string; name: string })
     {
-        return await this.create(users, data);
+        return await this._create(users, data);
     }
 
     async updateUser(id: number, data: Partial<{ name: string }>)
     {
-        return await this.updateOne(users, { id }, data);
+        return await this._updateOne(users, { id }, data);
     }
 }
 
@@ -92,16 +92,16 @@ The recommended way to interact with your database using domain-specific reposit
 - `withContext()` - Error tracking with repository context
 
 **Protected Helper Methods:**
-- `findOne(table, where)` - Find single record
-- `findMany(table, options)` - Find multiple records with filtering, ordering, pagination
-- `create(table, data)` - Insert single record
-- `createMany(table, data[])` - Insert multiple records
-- `upsert(table, data, options)` - Insert or update on conflict
-- `updateOne(table, where, data)` - Update single record
-- `updateMany(table, where, data)` - Update multiple records
-- `deleteOne(table, where)` - Delete single record
-- `deleteMany(table, where)` - Delete multiple records
-- `count(table, where)` - Count records
+- `_findOne(table, where)` - Find single record
+- `_findMany(table, options)` - Find multiple records with filtering, ordering, pagination
+- `_create(table, data)` - Insert single record
+- `_createMany(table, data[])` - Insert multiple records
+- `_upsert(table, data, options)` - Insert or update on conflict
+- `_updateOne(table, where, data)` - Update single record
+- `_updateMany(table, where, data)` - Update multiple records
+- `_deleteOne(table, where)` - Delete single record
+- `_deleteMany(table, where)` - Delete multiple records
+- `_count(table, where)` - Count records
 
 **Benefits:**
 - Clean architecture with domain-specific repositories
@@ -121,19 +121,19 @@ export class UserRepository extends BaseRepository
 {
     async findByEmail(email: string)
     {
-        return await this.findOne(users, { email });
+        return await this._findOne(users, { email });
     }
 
     async findActive()
     {
-        return await this.findMany(users, {
+        return await this._findMany(users, {
             where: { active: true }
         });
     }
 
     async createUser(data: { email: string; name: string })
     {
-        return await this.create(users, data);
+        return await this._create(users, data);
     }
 }
 
@@ -302,31 +302,31 @@ export class UserRepository extends BaseRepository
     // Find single record (object-based where)
     async findById(id: number)
     {
-        return await this.findOne(users, { id });
+        return await this._findOne(users, { id });
     }
 
     async findByEmail(email: string)
     {
-        return await this.findOne(users, { email });
+        return await this._findOne(users, { email });
     }
 
     // Find single record (SQL-based where for complex queries)
     async findAdult()
     {
-        return await this.findOne(users, gt(users.age, 18));
+        return await this._findOne(users, gt(users.age, 18));
     }
 
     // Find multiple records with options
     async findAll()
     {
-        return await this.findMany(users, {
+        return await this._findMany(users, {
             orderBy: desc(users.createdAt)
         });
     }
 
     async findActive(limit = 10, offset = 0)
     {
-        return await this.findMany(users, {
+        return await this._findMany(users, {
             where: { active: true },
             orderBy: desc(users.createdAt),
             limit,
@@ -337,30 +337,30 @@ export class UserRepository extends BaseRepository
     // Create record
     async createUser(data: { email: string; name: string })
     {
-        return await this.create(users, data);
+        return await this._create(users, data);
     }
 
     // Update record
     async updateUser(id: number, data: Partial<{ name: string }>)
     {
-        return await this.updateOne(users, { id }, data);
+        return await this._updateOne(users, { id }, data);
     }
 
     // Delete record
     async deleteUser(id: number)
     {
-        return await this.deleteOne(users, { id });
+        return await this._deleteOne(users, { id });
     }
 
     // Count records
     async countAll()
     {
-        return await this.count(users);
+        return await this._count(users);
     }
 
     async countActive()
     {
-        return await this.count(users, { active: true });
+        return await this._count(users, { active: true });
     }
 }
 
@@ -368,7 +368,7 @@ export class PostRepository extends BaseRepository
 {
     async findByAuthor(authorId: number)
     {
-        return await this.findMany(posts, {
+        return await this._findMany(posts, {
             where: { authorId },
             orderBy: desc(posts.createdAt)
         });
@@ -376,7 +376,7 @@ export class PostRepository extends BaseRepository
 
     async createPost(data: { title: string; content: string; authorId: number })
     {
-        return await this.create(posts, data);
+        return await this._create(posts, data);
     }
 }
 
@@ -396,7 +396,7 @@ export class UserRepository extends BaseRepository
 {
     async createUser(data: { email: string; name: string })
     {
-        return await this.create(users, data);
+        return await this._create(users, data);
     }
 }
 
@@ -404,7 +404,7 @@ export class ProfileRepository extends BaseRepository
 {
     async createProfile(data: { userId: number; bio: string })
     {
-        return await this.create(profiles, data);
+        return await this._create(profiles, data);
     }
 }
 
@@ -567,7 +567,7 @@ export class UserRepository extends BaseRepository
 {
     async findActive()
     {
-        return await this.findMany(users, {
+        return await this._findMany(users, {
             where: { active: true }
         });  // Automatically uses read replica
     }
@@ -576,7 +576,7 @@ export class UserRepository extends BaseRepository
 // 4. Use object-based where for simple queries
 async findByEmail(email: string)
 {
-    return await this.findOne(users, { email });
+    return await this._findOne(users, { email });
 }
 
 // 5. Use SQL-based where for complex queries
@@ -584,7 +584,7 @@ import { and, gt, eq } from 'drizzle-orm';
 
 async findVerifiedAdults()
 {
-    return await this.findOne(
+    return await this._findOne(
         users,
         and(gt(users.age, 18), eq(users.verified, true))
     );
@@ -633,17 +633,17 @@ async findUsers()
     // ✅ Good - uses read replica
     return await this.readDb.select().from(users);
     // Or better: use protected helper
-    return await this.findMany(users);
+    return await this._findMany(users);
 }
 
 // 4. Don't access protected methods outside repositories
 const repo = new UserRepository();
-repo.findOne(users, { id: 1 });  // ❌ TypeScript error - protected method
+repo._findOne(users, { id: 1 });  // ❌ TypeScript error - protected method
 
 // Create proper public methods instead
 export class UserRepository extends BaseRepository {
     async findById(id: number) {  // ✅ Public method
-        return await this.findOne(users, { id });
+        return await this._findOne(users, { id });
     }
 }
 
@@ -721,16 +721,16 @@ Available inside repositories extending `BaseRepository`:
 
 | Method | Description |
 |--------|-------------|
-| `findOne(table, where)` | Find single record by object or SQL where |
-| `findMany(table, options)` | Find multiple records with filtering/ordering/pagination |
-| `create(table, data)` | Create single record |
-| `createMany(table, data[])` | Create multiple records |
-| `upsert(table, data, options)` | Insert or update on conflict |
-| `updateOne(table, where, data)` | Update single record |
-| `updateMany(table, where, data)` | Update multiple records |
-| `deleteOne(table, where)` | Delete single record |
-| `deleteMany(table, where)` | Delete multiple records |
-| `count(table, where?)` | Count records |
+| `_findOne(table, where)` | Find single record by object or SQL where |
+| `_findMany(table, options)` | Find multiple records with filtering/ordering/pagination |
+| `_create(table, data)` | Create single record |
+| `_createMany(table, data[])` | Create multiple records |
+| `_upsert(table, data, options)` | Insert or update on conflict |
+| `_updateOne(table, where, data)` | Update single record |
+| `_updateMany(table, where, data)` | Update multiple records |
+| `_deleteOne(table, where)` | Delete single record |
+| `_deleteMany(table, where)` | Delete multiple records |
+| `_count(table, where?)` | Count records |
 
 ### Schema Helpers
 

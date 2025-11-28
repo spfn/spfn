@@ -43,14 +43,11 @@ pnpm install ioredis
 ### 2. Configure Environment
 
 ```bash
-# .env - Modern (Valkey)
-VALKEY_URL=valkey://localhost:6379
+# .env
+CACHE_URL=redis://localhost:6379
 
-# Or use generic cache naming
-CACHE_URL=valkey://localhost:6379
-
-# Or legacy (Redis - still supported)
-REDIS_URL=redis://localhost:6379
+# Or with Valkey (100% compatible, same protocol)
+CACHE_URL=redis://localhost:6379
 ```
 
 ### 3. Auto-initialization
@@ -93,53 +90,42 @@ if (isCacheDisabled()) {
 
 ## Environment Variables
 
-### Modern (Valkey - Recommended)
+All environment variables use the `CACHE_*` prefix. Both Valkey and Redis use the same `redis://` or `rediss://` protocol.
+
+### Single Instance (Most Common)
 
 ```bash
-# Single instance
-VALKEY_URL=valkey://localhost:6379
-VALKEY_URL=valkey://:password@localhost:6379  # With auth
-VALKEY_URL=valkeys://secure.valkey.io:6380    # TLS
-VALKEY_TLS_REJECT_UNAUTHORIZED=false          # Self-signed certs
-
-# Master-Replica (read/write separation)
-VALKEY_WRITE_URL=valkey://master:6379
-VALKEY_READ_URL=valkey://replica:6379
-
-# Sentinel (high availability)
-VALKEY_SENTINEL_HOSTS=sentinel1:26379,sentinel2:26379
-VALKEY_MASTER_NAME=mymaster
-VALKEY_PASSWORD=secret
-
-# Cluster (horizontal scaling)
-VALKEY_CLUSTER_NODES=node1:6379,node2:6379,node3:6379
-VALKEY_PASSWORD=secret
+# Single cache instance (Valkey or Redis)
+CACHE_URL=redis://localhost:6379
+CACHE_URL=redis://:password@localhost:6379  # With auth
+CACHE_URL=rediss://secure.cache.com:6380    # TLS
+CACHE_TLS_REJECT_UNAUTHORIZED=false         # Self-signed certs
 ```
 
-### Generic Cache Naming
+### Master-Replica Pattern
 
 ```bash
-# Works with both Valkey and Redis
-CACHE_URL=valkey://localhost:6379
-CACHE_WRITE_URL=valkey://master:6379
-CACHE_READ_URL=valkey://replica:6379
+# Read/write separation
+CACHE_WRITE_URL=redis://master:6379
+CACHE_READ_URL=redis://replica:6379
 ```
 
-### Legacy (Redis - Backward Compatibility)
+### Sentinel Pattern (High Availability)
 
 ```bash
-# Still supported for existing deployments
-REDIS_URL=redis://localhost:6379
-REDIS_WRITE_URL=redis://master:6379
-REDIS_READ_URL=redis://replica:6379
+CACHE_SENTINEL_HOSTS=sentinel1:26379,sentinel2:26379
+CACHE_MASTER_NAME=mymaster
+CACHE_PASSWORD=secret
 ```
 
-### Priority Order
+### Cluster Pattern (Horizontal Scaling)
 
-When multiple configurations exist:
-1. **VALKEY_\*** (highest priority)
-2. **CACHE_\***
-3. **REDIS_\*** (legacy, lowest priority)
+```bash
+CACHE_CLUSTER_NODES=node1:6379,node2:6379,node3:6379
+CACHE_PASSWORD=secret
+```
+
+**Note:** Valkey and Redis both use the `redis://` protocol. They are 100% compatible at the protocol level.
 
 ---
 
@@ -307,7 +293,7 @@ The cache module is designed to never break your application. When cache is unav
 
 ### Automatic Disabled Mode Triggers
 
-1. **No Configuration**: No `VALKEY_URL` or `REDIS_URL` set
+1. **No Configuration**: No `CACHE_URL` environment variable set
 2. **Library Missing**: ioredis not installed
 3. **Connection Failed**: Cannot connect to cache server
 4. **Ping Failed**: Cache server not responding
@@ -449,37 +435,23 @@ setCache(cache);
 
 ---
 
-## Migration from Redis to Valkey
+## Using Valkey
 
-Valkey is 100% compatible with Redis. No code changes needed!
-
-### Before (Redis)
+Valkey is 100% compatible with Redis. Simply point to your Valkey server:
 
 ```bash
 # .env
-REDIS_URL=redis://localhost:6379
+CACHE_URL=redis://your-valkey-server:6379
 ```
 
 ```typescript
-import { getRedis } from '@spfn/core/cache';  // Still works!
-
-const redis = getRedis();
-await redis?.set('key', 'value');
-```
-
-### After (Valkey)
-
-```bash
-# .env
-VALKEY_URL=valkey://localhost:6379
-```
-
-```typescript
-import { getCache } from '@spfn/core/cache';  // Modern
+import { getCache } from '@spfn/core/cache';
 
 const cache = getCache();
-await cache?.set('key', 'value');  // Same API!
+await cache?.set('key', 'value');  // Same API as Redis!
 ```
+
+No code changes needed - Valkey uses the same protocol as Redis.
 
 ---
 
@@ -508,8 +480,8 @@ const cache = getCache();  // Same instance
 Cache library is loaded only when needed:
 
 ```typescript
-// No VALKEY_URL → ioredis never imported, disabled mode
-// With VALKEY_URL → ioredis dynamically loaded at runtime
+// No CACHE_URL → ioredis never imported, disabled mode
+// With CACHE_URL → ioredis dynamically loaded at runtime
 ```
 
 ### Optional Dependency
@@ -538,19 +510,6 @@ pnpm install @spfn/core ioredis  # Cache enabled
 
 ## Troubleshooting
 
-### Configuration Not Working
-
-**Check Priority Order:**
-1. `VALKEY_URL` > `CACHE_URL` > `REDIS_URL`
-2. `VALKEY_WRITE_URL` > `CACHE_WRITE_URL` > `REDIS_WRITE_URL`
-
-**Example:**
-```bash
-# This will use VALKEY_URL (higher priority)
-VALKEY_URL=valkey://localhost:6379
-REDIS_URL=redis://localhost:6380  # Ignored
-```
-
 ### ⚠️ Warning: "Cache client library not installed"
 
 **Cause:** ioredis not installed.
@@ -578,7 +537,7 @@ pnpm install ioredis
 
 ```bash
 # For self-signed certificates
-VALKEY_TLS_REJECT_UNAUTHORIZED=false
+CACHE_TLS_REJECT_UNAUTHORIZED=false
 ```
 
 ---
@@ -589,8 +548,8 @@ VALKEY_TLS_REJECT_UNAUTHORIZED=false
 
 ```bash
 # Separate read/write workloads
-VALKEY_WRITE_URL=valkey://master:6379
-VALKEY_READ_URL=valkey://replica:6379
+CACHE_WRITE_URL=redis://master:6379
+CACHE_READ_URL=redis://replica:6379
 ```
 
 ```typescript

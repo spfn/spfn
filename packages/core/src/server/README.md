@@ -1,6 +1,6 @@
 # @spfn/core/server - Technical Documentation
 
-HTTP server infrastructure with 3-level configuration system, automatic initialization, and extensible plugin architecture.
+HTTP server infrastructure with 3-level configuration system and automatic initialization.
 
 ## Architecture Overview
 
@@ -13,11 +13,11 @@ server/
 ├── start-server.ts          # Server lifecycle and initialization
 ├── create-server.ts         # Hono app creation and configuration
 ├── config-builder.ts        # Configuration builder pattern
-├── define-middleware.ts     # Named middleware system
 ├── helpers.ts              # Utility functions (timeouts, health checks)
 ├── validation.ts           # Configuration validation logic
-├── plugin-discovery.ts     # Auto-discovery of @spfn/* plugins
 ├── banner.ts              # Startup banner rendering
+├── logger.ts              # Server logger instance
+├── dotenv-loader.ts       # Environment variable loading
 └── types.ts               # TypeScript type definitions
 ```
 
@@ -25,7 +25,7 @@ server/
 
 1. **Progressive Configuration**: Three levels from zero-config to full control
 2. **Infrastructure Abstraction**: Automatic initialization of database and Redis
-3. **Plugin Architecture**: Extensibility via auto-discovered lifecycle hooks
+3. **Lifecycle Hooks**: Extensibility via config-based lifecycle hooks
 4. **Graceful Degradation**: Health monitoring with fallback behaviors
 5. **Type Safety**: Full TypeScript types with runtime validation
 
@@ -79,7 +79,7 @@ const appRouter = defineRouter({
         })
         .handler(async (c) => {
             const { params } = await c.data();
-            return c.success({ id: params.id, name: 'John' });
+            return { id: params.id, name: 'John' };
         }),
 });
 
@@ -236,24 +236,18 @@ HTTP Request
     ↓
 [6] beforeRoutes hook (config.lifecycle.beforeRoutes)
     ↓
-[7] beforeRoutes hooks (plugins)
+[7] Routes (define-route based)
     ↓
-[8] Routes (define-route based)
+[8] afterRoutes hook (config.lifecycle.afterRoutes)
     ↓
-[9] ~~Routes (file-based)~~ - DEPRECATED
-    ↓
-[10] afterRoutes hook (config.lifecycle.afterRoutes)
-    ↓
-[11] afterRoutes hooks (plugins)
-    ↓
-[12] ErrorHandler (if enabled)
+[9] ErrorHandler (if enabled)
 ```
 
 ### Implementation
 
 ```typescript
 // create-server.ts
-async function createAutoConfiguredApp(config?: ServerConfig, plugins: ServerPlugin[] = []): Promise<Hono> {
+async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono> {
     const app = new Hono();
 
     // 1. Set error handler flag
@@ -278,19 +272,13 @@ async function createAutoConfiguredApp(config?: ServerConfig, plugins: ServerPlu
     // 6. beforeRoutes hook from config
     await executeBeforeRoutesHook(app, config);
 
-    // 7. beforeRoutes hooks from plugins
-    await executePluginHooks(plugins, 'beforeRoutes', app);
-
-    // 8-9. Load routes
+    // 7. Load routes
     await loadAppRoutes(app, config);
 
-    // 10. afterRoutes hook from config
+    // 8. afterRoutes hook from config
     await executeAfterRoutesHook(app, config);
 
-    // 11. afterRoutes hooks from plugins
-    await executePluginHooks(plugins, 'afterRoutes', app);
-
-    // 12. Error handler
+    // 9. Error handler
     if (enableErrorHandler) {
         app.onError(ErrorHandler());
     }
@@ -348,7 +336,7 @@ export default defineServerConfig()
 // 3. Skip per route
 export const publicRoute = route.get('/health')
     .skip(['auth', 'rateLimit'])  // ✅ Type-safe autocomplete!
-    .handler(async (c) => c.success({ status: 'ok' }));
+    .handler(async (c) => ({ status: 'ok' }));
 ```
 
 ### Type System
@@ -442,7 +430,7 @@ const appRouter = defineRouter({
         })
         .handler(async (c) => {
             const { params, query } = await c.data();
-            return c.success({ id: params.id, page: query.page });
+            return { id: params.id, page: query.page };
         }),
 
     createUser: route.post('/users')
@@ -554,8 +542,8 @@ export default defineServerConfig()
 The server automatically initializes database and Redis when credentials are present:
 
 ```typescript
-// start-server.ts:302-360
-async function initializeInfrastructure(config: ServerConfig, plugins: ServerPlugin[]): Promise<void> {
+// start-server.ts implementation
+async function initializeInfrastructure(config: ServerConfig): Promise<void> {
     // 1. Execute beforeInfrastructure hook
     if (config.lifecycle?.beforeInfrastructure) {
         await config.lifecycle.beforeInfrastructure(config);
@@ -577,9 +565,6 @@ async function initializeInfrastructure(config: ServerConfig, plugins: ServerPlu
     if (config.lifecycle?.afterInfrastructure) {
         await config.lifecycle.afterInfrastructure();
     }
-
-    // 5. Execute afterInfrastructure hooks from plugins
-    await executePluginHooks(plugins, 'afterInfrastructure');
 }
 ```
 
@@ -719,39 +704,31 @@ export default defineServerConfig()
     ↓
 [3] Validate configuration
     ↓
-[4] Discover plugins from node_modules/@spfn/*
+[4] Execute lifecycle.beforeInfrastructure()
     ↓
-[5] Execute lifecycle.beforeInfrastructure()
+[5] Initialize database (if enabled)
     ↓
-[6] Initialize database (if enabled)
+[6] Initialize Redis (if enabled)
     ↓
-[7] Initialize Redis (if enabled)
+[7] Execute lifecycle.afterInfrastructure()
     ↓
-[8] Execute lifecycle.afterInfrastructure()
-    ↓
-[9] Execute plugins.afterInfrastructure()
-    ↓
-[10] Create Hono app (via createServer)
+[8] Create Hono app (via createServer)
      ├─ Apply middleware pipeline
      ├─ Execute lifecycle.beforeRoutes()
-     ├─ Execute plugins.beforeRoutes()
      ├─ Register routes
-     ├─ Execute lifecycle.afterRoutes()
-     └─ Execute plugins.afterRoutes()
+     └─ Execute lifecycle.afterRoutes()
     ↓
-[11] Start HTTP server
+[9] Start HTTP server
     ↓
-[12] Apply server timeouts
+[10] Apply server timeouts
     ↓
-[13] Print startup banner
+[11] Print startup banner
     ↓
-[14] Register shutdown handlers (SIGTERM, SIGINT, uncaughtException, unhandledRejection)
+[12] Register shutdown handlers (SIGTERM, SIGINT, uncaughtException, unhandledRejection)
     ↓
-[15] Execute lifecycle.afterStart()
+[13] Execute lifecycle.afterStart()
     ↓
-[16] Execute plugins.afterStart()
-    ↓
-[17] Server ready ✓
+[14] Server ready ✓
 ```
 
 ### Lifecycle Hooks
@@ -798,11 +775,10 @@ export default defineServerConfig()
 The server handles termination signals gracefully:
 
 ```typescript
-// start-server.ts:420-518
+// start-server.ts implementation
 function createShutdownHandler(
     server: Server,
     config: ServerConfig,
-    plugins: ServerPlugin[],
     shutdownState: ShutdownState
 ): () => Promise<void> {
     return async () => {
@@ -826,10 +802,7 @@ function createShutdownHandler(
             await config.lifecycle.beforeShutdown();
         }
 
-        // 3. Execute plugin beforeShutdown hooks
-        await executePluginHooks(plugins, 'beforeShutdown');
-
-        // 4. Close infrastructure (only what was initialized)
+        // 3. Close infrastructure (only what was initialized)
         const infraConfig = getInfrastructureConfig(config);
 
         if (infraConfig.database) {
@@ -854,13 +827,11 @@ Signal Received (SIGTERM/SIGINT)
     ↓
 [3] Execute lifecycle.beforeShutdown()
     ↓
-[4] Execute plugins.beforeShutdown()
+[4] Close database connections (5s timeout)
     ↓
-[5] Close database connections (5s timeout)
+[5] Close Redis connections (5s timeout)
     ↓
-[6] Close Redis connections (5s timeout)
-    ↓
-[7] Exit process
+[6] Exit process
 ```
 
 **Supported Signals:**
@@ -993,230 +964,6 @@ SERVER_HEADERS_TIMEOUT=60000       # Headers timeout
 
 ---
 
-## Plugin System
-
-### Auto-Discovery Mechanism
-
-Plugins are automatically discovered from installed `@spfn/*` packages:
-
-```typescript
-// plugin-discovery.ts:29-89
-export async function discoverPlugins(cwd: string = process.cwd()): Promise<ServerPlugin[]> {
-    const plugins: ServerPlugin[] = [];
-
-    // 1. Read project package.json
-    const projectPkg = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf-8'));
-    const dependencies = {
-        ...projectPkg.dependencies,
-        ...projectPkg.devDependencies,
-    };
-
-    // 2. Scan each @spfn/* package
-    for (const [packageName] of Object.entries(dependencies)) {
-        if (!packageName.startsWith('@spfn/')) continue;
-
-        try {
-            const plugin = await loadPluginFromPackage(packageName, nodeModulesPath);
-            if (plugin) {
-                plugins.push(plugin);
-            }
-        } catch (error) {
-            // Silently skip packages without plugins
-        }
-    }
-
-    return plugins;
-}
-
-async function loadPluginFromPackage(
-    packageName: string,
-    nodeModulesPath: string
-): Promise<ServerPlugin | null> {
-    // Read package.json to get main entry
-    const pkgPath = join(nodeModulesPath, ...packageName.split('/'), 'package.json');
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-
-    const mainEntry = pkg.main || 'dist/index';
-    const mainPath = join(dirname(pkgPath), mainEntry);
-
-    // Dynamic import from main entry
-    const module = await import(mainPath);
-
-    // Check for spfnPlugin export
-    if (module.spfnPlugin && isValidPlugin(module.spfnPlugin)) {
-        return module.spfnPlugin;
-    }
-
-    return null;
-}
-```
-
-**Discovery Flow:**
-
-```
-Read package.json
-    ↓
-Find @spfn/* dependencies
-    ↓
-For each @spfn/* package:
-    ├─ Read package.json → get main entry
-    ├─ Import main file
-    ├─ Check for `spfnPlugin` export
-    └─ Validate plugin interface
-    ↓
-Return discovered plugins
-```
-
-### Plugin Interface
-
-```typescript
-// types.ts:32-68
-export interface ServerPlugin {
-    /**
-     * Plugin name (should match package name)
-     */
-    name: string;
-
-    /**
-     * Hook: Run after infrastructure (DB/Redis) initialization
-     * Use for: migrations, seeding, RBAC setup
-     */
-    afterInfrastructure?: () => Promise<void>;
-
-    /**
-     * Hook: Run before routes are loaded
-     * Use for: mounting plugin routes, adding middleware
-     */
-    beforeRoutes?: (app: Hono) => Promise<void>;
-
-    /**
-     * Hook: Run after all routes are loaded
-     * Use for: final setup, fallback handlers
-     */
-    afterRoutes?: (app: Hono) => Promise<void>;
-
-    /**
-     * Hook: Run after server starts successfully
-     * Use for: notifications, health checks
-     */
-    afterStart?: (instance: ServerInstance) => Promise<void>;
-
-    /**
-     * Hook: Run before graceful shutdown
-     * Use for: cleanup plugin resources
-     */
-    beforeShutdown?: () => Promise<void>;
-}
-```
-
-### Plugin Example
-
-```typescript
-// packages/auth/src/plugin.ts
-import type { ServerPlugin } from '@spfn/core/server';
-import { authRoutes } from './routes';
-import { runAuthMigrations } from './migrations';
-
-export const spfnPlugin: ServerPlugin = {
-    name: '@spfn/auth',
-
-    afterInfrastructure: async () => {
-        // Run migrations after DB is ready
-        await runAuthMigrations();
-    },
-
-    beforeRoutes: async (app) => {
-        // Mount auth routes at /_auth
-        app.route('/_auth', authRoutes);
-    },
-
-    afterStart: async (instance) => {
-        // Log auth system ready
-        console.log('Auth system initialized');
-    },
-
-    beforeShutdown: async () => {
-        // Cleanup auth resources
-        await closeAuthConnections();
-    },
-};
-```
-
-**Package Structure:**
-
-```
-@spfn/auth/
-├── package.json
-│   {
-│     "name": "@spfn/auth",
-│     "main": "./dist/index.js"
-│   }
-└── dist/
-    ├── index.js       # exports { spfnPlugin }
-    ├── plugin.js
-    ├── routes.js
-    └── migrations.js
-```
-
-### Hook Execution
-
-```typescript
-// plugin-discovery.ts:168-206
-export async function executePluginHooks<T extends keyof ServerPlugin>(
-    plugins: ServerPlugin[],
-    hookName: T,
-    ...args: any[]
-): Promise<void> {
-    for (const plugin of plugins) {
-        const hook = plugin[hookName];
-
-        if (typeof hook === 'function') {
-            try {
-                await (hook as any)(...args);
-            } catch (error) {
-                pluginLogger.error('Plugin hook failed', {
-                    plugin: plugin.name,
-                    hook: hookName,
-                    error: error.message,
-                });
-
-                // Re-throw to stop server initialization
-                throw new Error(
-                    `Plugin ${plugin.name} failed in ${hookName} hook: ${error.message}`
-                );
-            }
-        }
-    }
-}
-```
-
-**Execution Behavior:**
-- Hooks execute **sequentially** (not parallel)
-- First failing hook stops server initialization
-- Errors are logged with plugin name and hook name
-- Critical for maintaining plugin initialization order
-
-### Plugin vs Config Hooks
-
-|  | Config Hooks | Plugin Hooks |
-|---|---|---|
-| **Definition** | `server.config.ts` | `@spfn/*/dist/index.js` |
-| **Discovery** | Explicit file load | Auto-discovery from node_modules |
-| **Execution Order** | Before plugin hooks | After config hooks |
-| **Use Case** | App-specific setup | Reusable package functionality |
-| **Failure Handling** | Logs + stops startup | Logs + stops startup |
-
-**Example Flow:**
-
-```
-afterInfrastructure:
-    1. config.lifecycle.afterInfrastructure()
-    2. @spfn/auth.afterInfrastructure()
-    3. @spfn/rbac.afterInfrastructure()
-```
-
----
-
 ## Configuration Builder Pattern
 
 ### Design
@@ -1299,13 +1046,11 @@ export default defineServerConfig()
 **Optimization Strategies:**
 
 1. **Config File Priority**: Built files (`.spfn/`) loaded before source files
-2. **Lazy Plugin Discovery**: Only scans `@spfn/*` packages, not all dependencies
-3. **Parallel Infrastructure Init**: Database and Redis can init concurrently
-4. **Conditional Route Loading**: Skip file-based scanning if `config.routes` provided
+2. **Parallel Infrastructure Init**: Database and Redis can init concurrently
+3. **Conditional Route Loading**: Skip file-based scanning if `config.routes` provided
 
 **Typical Startup Time:**
-- Without plugins: ~50-100ms
-- With 3-5 plugins: ~150-300ms
+- Base startup: ~50-100ms
 - File-based route scanning: +50-200ms (deprecated)
 
 ### Memory Usage
@@ -1458,7 +1203,6 @@ describe('startServer', () => {
 - `banner.ts`: 100%
 - `start-server.ts`: ~85% (some error paths hard to test)
 - `create-server.ts`: ~80%
-- `plugin-discovery.ts`: ~75%
 
 **Run Tests:**
 
@@ -1519,40 +1263,6 @@ export default defineServerConfig()
         },
     })
     .build();
-```
-
-### Custom Plugins
-
-Create reusable packages with plugin exports:
-
-```typescript
-// packages/analytics/src/plugin.ts
-import type { ServerPlugin } from '@spfn/core/server';
-
-export const spfnPlugin: ServerPlugin = {
-    name: '@spfn/analytics',
-
-    afterInfrastructure: async () => {
-        await initAnalyticsDatabase();
-    },
-
-    beforeRoutes: async (app) => {
-        // Add analytics middleware to all routes
-        app.use('*', analyticsMiddleware());
-
-        // Mount analytics dashboard
-        app.route('/_analytics', analyticsDashboard);
-    },
-
-    beforeShutdown: async () => {
-        await flushAnalytics();
-    },
-};
-
-// packages/analytics/src/index.ts
-export { spfnPlugin } from './plugin';
-export { analyticsMiddleware } from './middleware';
-export { analyticsDashboard } from './dashboard';
 ```
 
 ### Custom Health Checks
@@ -1626,7 +1336,6 @@ export default defineServerConfig()
 | Configuration | 3-level progressive | Manual | Manual |
 | Infrastructure | Auto-init DB/Redis | Manual | Manual |
 | Type Safety | Full TypeScript | Partial | None |
-| Plugins | Auto-discovery | Manual | Manual |
 | Graceful Shutdown | Built-in | Manual | Manual |
 | Health Checks | Built-in | Manual | Manual |
 

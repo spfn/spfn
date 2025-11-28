@@ -74,28 +74,33 @@ app.onError(ErrorHandler({
 
 ### Error Response Format
 
-**Development:**
+**Development (SerializableError):**
 ```json
 {
-  "error": {
-    "message": "User not found",
-    "type": "NotFoundError",
-    "statusCode": 404,
-    "stack": "Error: User not found\n    at /app/routes/users.ts:45:11"
-  }
+  "__type": "NotFoundError",
+  "message": "User not found",
+  "stack": "Error: User not found\n    at /app/routes/users.ts:45:11"
 }
 ```
 
-**Production:**
+**Production (SerializableError):**
 ```json
 {
-  "error": {
-    "message": "User not found",
-    "type": "NotFoundError",
-    "statusCode": 404
-  }
+  "__type": "NotFoundError",
+  "message": "User not found"
 }
 ```
+
+**Standard Error (fallback):**
+```json
+{
+  "__type": "Error",
+  "message": "Internal Server Error",
+  "stack": "Error: Internal Server Error..."
+}
+```
+
+Note: `stack` field is only included in development mode.
 
 ### Error Logging
 
@@ -106,7 +111,7 @@ The error handler automatically logs errors based on status code:
 {
   "level": "warn",
   "module": "error-handler",
-  "msg": "Client error occurred",
+  "msg": "Error occurred",
   "type": "NotFoundError",
   "message": "User not found",
   "statusCode": 404,
@@ -120,7 +125,7 @@ The error handler automatically logs errors based on status code:
 {
   "level": "error",
   "module": "error-handler",
-  "msg": "Database error occurred",
+  "msg": "Error occurred",
   "type": "DatabaseConnectionError",
   "message": "Connection pool exhausted",
   "statusCode": 500,
@@ -416,7 +421,7 @@ export default app;
 ```json
 {"level":"info","module":"api","msg":"Request received","requestId":"req_123","method":"GET","path":"/users/999"}
 {"level":"error","module":"api","msg":"Request failed","requestId":"req_123","duration":12,"error":"User not found"}
-{"level":"warn","module":"error-handler","msg":"Client error occurred","type":"NotFoundError","statusCode":404}
+{"level":"warn","module":"error-handler","msg":"Error occurred","type":"NotFoundError","statusCode":404}
 ```
 
 ---
@@ -572,25 +577,6 @@ Configuration options for ErrorHandler middleware.
 interface ErrorHandlerOptions {
   includeStack?: boolean;  // Include stack trace (default: dev only)
   enableLogging?: boolean; // Enable error logging (default: true)
-}
-```
-
----
-
-#### `ErrorResponse`
-
-Standard error response format returned by ErrorHandler middleware.
-
-```typescript
-interface ErrorResponse {
-  success: false;
-  error: {
-    message: string;
-    type: string;
-    statusCode: number;
-    stack?: string;      // Only in development
-    details?: any;       // Additional error details
-  };
 }
 ```
 
