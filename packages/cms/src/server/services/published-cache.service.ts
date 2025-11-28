@@ -4,29 +4,58 @@
  * 발행된 콘텐츠 캐시 관리 비즈니스 로직을 담당하는 서비스 레이어
  */
 
-import { cmsPublishedCacheRepository } from '@/server/repositories';
-import { CMSInvalidRequestError, CMSOperationError } from '@/server/helpers/error';
+import { cmsPublishedCacheRepository } from '../repositories';
+import { CMSOperationFailedError } from '@spfn/cms/errors';
+import { ValidationError } from '@spfn/core/errors';
 
 /**
- * 섹션별 발행된 캐시 조회 (배치 조회 지원)
+ * 발행된 캐시 응답 타입
  */
-export async function getPublishedCacheBySections(options: {
-    sections: string[];
-    locale: string;
-}): Promise<Array<{
+export interface PublishedCacheResponse
+{
     section: string;
     locale: string;
     content: Record<string, any>;
     version: number;
     publishedAt: string | null;
-}>>
+}
+
+/**
+ * 섹션별 캐시 조회 입력 타입
+ */
+export interface GetPublishedCacheBySectionsInput
+{
+    sections: string[];
+    locale: string;
+}
+
+/**
+ * 캐시 업데이트/생성 입력 타입
+ */
+export interface UpsertPublishedCacheInput
+{
+    section: string;
+    locale: string;
+    content: Record<string, any>;
+    version: number;
+}
+
+/**
+ * 섹션별 발행된 캐시 조회 (배치 조회 지원)
+ */
+export async function getPublishedCacheBySections(
+    options: GetPublishedCacheBySectionsInput
+): Promise<PublishedCacheResponse[]>
 {
     const { sections, locale } = options;
 
     // Validate sections
     if (!sections || sections.length === 0)
     {
-        throw new CMSInvalidRequestError('Sections parameter is required', { sections });
+        throw new ValidationError({
+            message: 'Sections parameter is required',
+            details: { sections }
+        });
     }
 
     // Fetch all sections in parallel
@@ -36,7 +65,7 @@ export async function getPublishedCacheBySections(options: {
 
     // Map to response format (only include found sections)
     return results
-        .filter((cache): cache is NonNullable<typeof cache> => cache !== null)
+        .filter((cache) => cache !== null)
         .map(cache => ({
             section: cache.section,
             locale: cache.locale,
@@ -49,18 +78,9 @@ export async function getPublishedCacheBySections(options: {
 /**
  * 발행된 캐시 업데이트/생성 (upsert)
  */
-export async function upsertPublishedCache(data: {
-    section: string;
-    locale: string;
-    content: Record<string, any>;
-    version: number;
-}): Promise<{
-    section: string;
-    locale: string;
-    content: Record<string, any>;
-    version: number;
-    publishedAt: string | null;
-}>
+export async function upsertPublishedCache(
+    data: UpsertPublishedCacheInput
+): Promise<PublishedCacheResponse>
 {
     const { section, locale, content, version } = data;
 
@@ -75,7 +95,11 @@ export async function upsertPublishedCache(data: {
 
     if (!result)
     {
-        throw new CMSOperationError('upsert', 'published cache', { section, locale, version });
+        throw new CMSOperationFailedError({
+            operation: 'upsert',
+            resource: 'published cache',
+            details: { section, locale, version }
+        });
     }
 
     return {
