@@ -15,6 +15,8 @@
 import { createEnvRegistry } from '@spfn/core/env';
 import { authEnvSchema } from './schema';
 
+export { authEnvSchema as envSchema } from './schema';
+
 /**
  * Environment registry
  */

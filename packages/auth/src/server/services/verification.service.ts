@@ -151,7 +151,7 @@ async function markCodeAsUsed(codeId: number): Promise<void>
  */
 export function createVerificationToken(payload: VerificationTokenPayload): string
 {
-    return jwt.sign(payload, env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET, {
+    return jwt.sign(payload, env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET!, {
         expiresIn: VERIFICATION_TOKEN_EXPIRY,
         issuer: 'spfn-auth',
         audience: 'spfn-client',
@@ -168,7 +168,7 @@ export function validateVerificationToken(token: string): VerificationTokenPaylo
 {
     try
     {
-        const decoded = jwt.verify(token, env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET, {
+        const decoded = jwt.verify(token, env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET!, {
             issuer: 'spfn-auth',
             audience: 'spfn-client',
         });

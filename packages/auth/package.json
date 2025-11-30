@@ -89,10 +89,6 @@
     "schemas": [
       "./dist/server/entities/*.js"
     ],
-    "routes": {
-      "basePath": "/_auth",
-      "dir": "./dist/server/routes"
-    },
     "migrations": {
       "dir": "./migrations"
     },
