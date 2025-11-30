@@ -10,11 +10,7 @@
 
 import { cookies, headers } from 'next/headers.js';
 import { env } from '@spfn/cms/config';
-import {
-    LOCALE_COOKIE_KEY,
-    getLocaleInfo,
-    type LocaleInfo,
-} from '@spfn/cms/lib';
+import { getLocaleInfo, LOCALE_COOKIE_KEY, type LocaleInfo } from "./lib/constants/locale.constants";
 
 /**
  * 브라우저 언어 감지

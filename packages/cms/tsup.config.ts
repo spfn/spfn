@@ -3,8 +3,10 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
     entry: {
         index: 'src/index.ts',
-        server: 'src/index.ts',
+        server: 'src/server.ts',
         actions: 'src/actions.ts',
+        config: 'src/config/index.ts',
+        errors: 'src/errors/index.ts'
     },
     format: ['esm'],
     dts: true,
@@ -14,7 +16,6 @@ export default defineConfig({
     external: [
         // Internal entrypoints (prevent bundling into each other)
         '@spfn/cms',
-        '@spfn/cms/lib',
         '@spfn/cms/server',
         '@spfn/cms/config',
         '@spfn/cms/errors',

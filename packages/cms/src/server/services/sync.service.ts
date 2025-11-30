@@ -4,13 +4,16 @@
  * JSON 파일 기반 라벨 동기화
  */
 
-import type { NestedLabels, SectionDefinition, SyncOptions, SyncResult } from '@/lib/types';
-import { extractLabels } from "@/server/helpers/label.helper";
-import { cmsLabelsRepository, cmsLabelValuesRepository, cmsPublishedCacheRepository } from '@/server/repositories';
-import type { CmsLabelValue } from '@/server/entities/cms-label-values';
-import { env, getCmsConfig } from '@/config';
-import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, extname, join } from 'path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
+
+import { env } from "@spfn/cms/config";
+
+import type { SectionDefinition, SyncOptions, SyncResult, NestedLabels } from "../../lib/types";
+import { extractLabels } from "../../lib/helper";
+import { cmsLabelsRepository, cmsLabelValuesRepository, cmsPublishedCacheRepository } from "../repositories";
+import { CmsLabelValue } from "../entities";
+
 import { logger } from "@spfn/core/logger";
 
 const cmsLogger = logger.child('@spfn/cms:label-sync');
@@ -102,8 +105,9 @@ export function loadLabelsFromJson(labelsDir: string): SectionDefinition[]
     }
     catch (error)
     {
+        const err = error as Error;
         cmsLogger.warn(`Could not scan labels directory: ${labelsDir}`);
-        cmsLogger.error(`Error:`, error);
+        cmsLogger.error(`Error:`, err);
     }
 
     return sections;
@@ -131,14 +135,16 @@ function loadSectionLabels(sectionPath: string): NestedLabels
                 }
                 catch (error)
                 {
-                    cmsLogger.warn(`Failed to parse ${filePath}`, error);
+                    const err = error as Error;
+                    cmsLogger.warn(`Failed to parse ${filePath}`, err);
                 }
             }
         }
     }
     catch (error)
     {
-        cmsLogger.warn(`Could not read section directory: ${sectionPath}`, error);
+        const err = error as Error;
+        cmsLogger.warn(`Could not read section directory: ${sectionPath}`, err);
     }
 
     return labels;
@@ -388,8 +394,8 @@ async function updatePublishedCache(section: string): Promise<void>
         const singleValueLabels: Array<{ key: string; value: string | null }> = [];
 
         // 기본 locale들을 미리 추가 (설정된 모든 locale에 대해 cache 생성 보장)
-        const { locales: configuredLocales } = getCmsConfig();
-        configuredLocales.forEach(locale =>
+        const locales = env.SPFN_CMS_LOCALES.split(',');
+        locales.forEach(locale =>
         {
             localesSet.add(locale);
             labelsByLocale[locale] = {};
@@ -440,7 +446,7 @@ async function updatePublishedCache(section: string): Promise<void>
 
                     // Validation: 설정된 locales가 모두 정의되어 있는지 확인
                     const definedLocales = Object.keys(parsed);
-                    const missingLocales = configuredLocales.filter(
+                    const missingLocales = locales.filter(
                         locale => !definedLocales.includes(locale) && !publishedLocales.has(locale)
                     );
 
@@ -481,9 +487,10 @@ async function updatePublishedCache(section: string): Promise<void>
             }
             catch (error)
             {
+                const err = error as Error;
                 // Plain string: fallback으로 사용
                 // published 안 된 locale들에 복사될 예정
-                cmsLogger.debug(`Failed to parse defaultValue for label ${label.key}, treating as plain string`, error);
+                cmsLogger.debug(`Failed to parse defaultValue for label ${label.key}, treating as plain string`, err);
                 singleValueLabels.push({ key: label.key, value: label.defaultValue });
             }
         }
@@ -517,10 +524,11 @@ async function updatePublishedCache(section: string): Promise<void>
                 publishedAt: timestamp,
                 publishedBy: 'system',
             }).then(() => ({ locale, status: 'success' as const }))
-              .catch(error =>
+              .catch((error: unknown) =>
               {
-                  cmsLogger.error(`Failed to upsert cache for section ${section}, locale ${locale}`, error);
-                  return { locale, status: 'failed' as const, error };
+                  const err = error as Error;
+                  cmsLogger.error(`Failed to upsert cache for section ${section}, locale ${locale}`, err);
+                  return { locale, status: 'failed' as const, error: err };
               })
         );
 
@@ -550,8 +558,9 @@ async function updatePublishedCache(section: string): Promise<void>
     }
     catch (error)
     {
-        cmsLogger.error(`Failed to update published cache for section ${section}`, error);
-        throw error;
+        const err = error as Error;
+        cmsLogger.error(`Failed to update published cache for section ${section}`, err);
+        throw err;
     }
 }
 
@@ -598,17 +607,6 @@ export async function rebuildPublishedCache(): Promise<void>
  *
  * @param options - Sync options
  * @param options.labelsDir - Path to labels directory (default: 'src/lib/labels')
- *
- * @example
- * ```typescript
- * import { initLabelSync } from '@spfn/cms';
- *
- * export default {
- *   beforeRoutes: async (app) => {
- *     await initLabelSync({ verbose: true });
- *   },
- * } satisfies ServerConfig;
- * ```
  */
 export async function initLabelSync(options: SyncOptions & { labelsDir?: string } = {}): Promise<void>
 {
@@ -663,9 +661,9 @@ export async function initLabelSync(options: SyncOptions & { labelsDir?: string 
     {
         results.forEach((result) =>
         {
-            result.errors.forEach((error) =>
+            result.errors.forEach((err) =>
             {
-                cmsLogger.error(`[${result.section}] ${error.key}: ${error.error}`);
+                cmsLogger.error(`[${result.section}] ${err.key}: ${err.error}`);
             });
         });
     }

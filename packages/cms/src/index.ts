@@ -6,8 +6,8 @@
  */
 
 import { logger } from '@spfn/core/logger';
-import { api } from "@spfn/cms/lib";
-import type { SectionAPI, SectionData, TranslationFunction } from "@spfn/cms/lib";
+import { api } from "./lib/api-client";
+import type { SectionAPI, SectionData, TranslationFunction } from "./lib/types";
 
 const localeLogger = logger.child('@spfn/cms:locale-api');
 

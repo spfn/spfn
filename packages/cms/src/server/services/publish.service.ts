@@ -4,10 +4,8 @@
  * Draft → Published 워크플로우 헬퍼 함수
  */
 
-import { cmsLabelsRepository } from '@/server/repositories/cms-labels.repository';
-import { cmsLabelValuesRepository } from '@/server/repositories/cms-label-values.repository';
-import { cmsPublishedCacheRepository } from '@/server/repositories/cms-published-cache.repository';
-import { getCmsConfig } from '@/config';
+import { env } from "@spfn/cms/config";
+import { cmsLabelsRepository, cmsLabelValuesRepository, cmsPublishedCacheRepository } from "../repositories";
 
 /**
  * 라벨 발행 (Draft → Published)
@@ -83,8 +81,7 @@ export async function updatePublishedCache(
     // 섹션의 모든 라벨 조회
     const labels = await cmsLabelsRepository.findBySection(section);
 
-    // 지원하는 로케일 목록 (CMS config에서 가져오기)
-    const { locales } = getCmsConfig();
+    const locales = env.SPFN_CMS_LOCALES;
 
     // 각 로케일별로 캐시 생성
     for (const locale of locales)

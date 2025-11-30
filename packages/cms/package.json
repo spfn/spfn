@@ -12,9 +12,9 @@
       "require": "./dist/index.js"
     },
     "./config": {
-      "types": "./dist/config/index.d.ts",
-      "import": "./dist/config/index.js",
-      "require": "./dist/config/index.js"
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js",
+      "require": "./dist/config.js"
     },
     "./actions": {
       "types": "./dist/actions.d.ts",
@@ -27,9 +27,9 @@
       "require": "./dist/server.js"
     },
     "./errors": {
-      "types": "./dist/errors/index.d.ts",
-      "import": "./dist/errors/index.js",
-      "require": "./dist/errors/index.js"
+      "types": "./dist/errors.d.ts",
+      "import": "./dist/errors.js",
+      "require": "./dist/errors.js"
     }
   },
   "files": [
@@ -38,7 +38,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "npm run db:generate && tsup",
+    "build": "pnpm check:circular && tsup",
     "watch": "tsup --watch",
     "clean": "rm -rf dist migrations",
     "db:generate": "drizzle-kit generate",
@@ -49,7 +49,8 @@
     "test:routes": "vitest src/server/routes",
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
     "docker:test:down": "docker compose -f docker-compose.test.yml down",
-    "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f"
+    "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f",
+    "check:circular": "madge --circular --extensions ts src/"
   },
   "keywords": [
     "spfn",
@@ -106,6 +107,7 @@
     "drizzle-kit": "^0.31.6",
     "drizzle-typebox": "^0.1.0",
     "glob": "^11.0.3",
+    "madge": "^8.0.0",
     "postgres": "^3.4.0",
     "spfn": "workspace:*",
     "tsup": "^8.5.0",

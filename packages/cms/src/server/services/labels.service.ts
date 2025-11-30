@@ -9,11 +9,11 @@ import { logger } from '@spfn/core/logger';
 import { env } from '@spfn/cms/config';
 import { DuplicateLabelError, LabelNotFoundError } from '@spfn/cms/errors';
 
+import { loadLabelsFromJson } from "./sync.service";
+import { extractLabels } from "../../lib/helper";
 import { type LabelStatus } from "../routes/labels/schema";
 import { CmsLabel, CmsLabelValue } from '../entities';
-import { extractLabels } from '../helpers/label.helper';
 import { cmsLabelsRepository, cmsLabelValuesRepository } from '../repositories';
-import { loadLabelsFromJson, publishLabel as publishLabelService } from '../services';
 
 const labelsLogger = logger.child('@spfn/cms:labels-service');
 
@@ -263,33 +263,33 @@ export async function getLabelByKey(key: string): Promise<CmsLabel>
     return label;
 }
 
-/**
- * 라벨 발행
- */
-export async function publishLabelById(
-    id: number,
-    options?: {
-        notes?: string;
-        publishedBy?: string;
-    }
-): Promise<{
-    id: number;
-    version: number;
-    message: string;
-}>
-{
-    // 라벨 존재 확인
-    await ensureLabelExists(id);
-
-    // 발행 서비스 호출
-    const result = await publishLabelService(id, options);
-
-    return {
-        id,
-        version: result.version,
-        message: result.message,
-    };
-}
+// /**
+//  * 라벨 발행
+//  */
+// export async function publishLabelById(
+//     id: number,
+//     options?: {
+//         notes?: string;
+//         publishedBy?: string;
+//     }
+// ): Promise<{
+//     id: number;
+//     version: number;
+//     message: string;
+// }>
+// {
+//     // 라벨 존재 확인
+//     await ensureLabelExists(id);
+//
+//     // 발행 서비스 호출
+//     const result = await publishLabelService(id, options);
+//
+//     return {
+//         id,
+//         version: result.version,
+//         message: result.message,
+//     };
+// }
 
 /**
  * Admin용 라벨 상세 데이터 조회 (Draft + Published + Status)
