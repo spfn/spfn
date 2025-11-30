@@ -109,7 +109,7 @@ export type InferEnvType<T extends EnvSchemaCollection> = {
  * // Automatically adds key: 'DATABASE_URL'
  * ```
  */
-export function defineEnvSchema<T extends Record<string, Omit<EnvVarSchema<any>, 'key'>>>(
+export function defineEnvSchema<T extends Record<string, any>>(
     schema: T
 ): { [K in keyof T]: T[K] & { key: K } }
 {

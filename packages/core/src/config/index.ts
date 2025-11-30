@@ -16,6 +16,11 @@ import { createEnvRegistry } from '@spfn/core/env';
 import { coreEnvSchema } from './schema';
 
 /**
+ * Core environment schema
+ */
+export { coreEnvSchema as envSchema } from './schema';
+
+/**
  * Environment registry
  */
 const registry = createEnvRegistry(coreEnvSchema);
