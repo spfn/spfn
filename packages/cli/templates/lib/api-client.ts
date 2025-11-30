@@ -1,0 +1,49 @@
+/**
+ * API Client Configuration
+ *
+ * Type-safe client for accessing server routes
+ */
+
+import { createApi } from '@spfn/core/nextjs';
+import { errorRegistry } from "@spfn/core/errors";
+
+import type { AppRouter } from '@/server/router';
+import { appMetadata } from "@/server/router.metadata";
+
+/**
+ * Pre-configured type-safe API client
+ *
+ * Core HTTP errors are automatically registered.
+ * Add custom application errors via the errors field if needed.
+ *
+ * @example
+ * ```typescript
+ * import { api } from '@/lib/api-client';
+ *
+ * // Basic call
+ * const user = await api.getUser
+ *     .call({ id: '123' });
+ *
+ * // Error handling with instanceof
+ * try {
+ *     await api.someRoute.call();
+ * } catch (error) {
+ *     if (error instanceof NotFoundError) {
+ *         console.log('Resource not found');
+ *     } else if (error instanceof ValidationError) {
+ *         console.log('Validation failed:', error.fields);
+ *     }
+ * }
+ * ```
+ *
+ * Works in:
+ * - Server Components (no router import needed)
+ * - Client Components (proxied through /api/actions)
+ * - Server Actions
+ * - Route Handlers
+ */
+export const api = createApi<AppRouter>({
+    metadata: { ...appMetadata },
+    errorRegistry: errorRegistry,
+    debug: true
+});
