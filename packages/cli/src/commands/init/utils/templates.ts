@@ -6,19 +6,26 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Find templates directory - works in both npm package and monorepo dev mode
- * - npm package: dist/templates/
- * - monorepo dev: ../templates/ (relative to dist/)
+ * After tsup bundling, this code ends up in dist/chunk-*.js
+ * So __dirname will be the dist/ directory
  */
 export function findTemplatesPath(): string
 {
-    // Case 1: npm package - templates are in dist/templates/
+    // Case 1: Bundled in dist/ - templates are in dist/templates/
+    const bundledPath = join(__dirname, 'templates');
+    if (existsSync(bundledPath))
+    {
+        return bundledPath;
+    }
+
+    // Case 2: npm package - templates are in dist/templates/ (when running from subdirectory)
     const npmPath = join(__dirname, '..', '..', 'templates');
     if (existsSync(npmPath))
     {
         return npmPath;
     }
 
-    // Case 2: monorepo dev - templates are in ../templates/ (parent of dist/)
+    // Case 3: monorepo dev - templates are in ../templates/ (parent of dist/)
     const devPath = join(__dirname, '..', '..', '..', 'templates');
     if (existsSync(devPath))
     {

@@ -18,11 +18,13 @@
     "sourceMap": true,
     "outDir": "../../.spfn/server",
     "rootDir": "..",
-    "baseUrl": "..",
+    "baseUrl": "../..",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"]
     }
   },
-  "include": ["./**/*", "../lib/**/*"],
+  "include": [
+    "./**/*",
+  ],
   "exclude": ["../../node_modules"]
 }

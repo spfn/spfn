@@ -18,11 +18,17 @@ export async function setupConfigFiles(cwd: string): Promise<void>
     const envExamplePath = join(cwd, '.env.local.example');
     if (!existsSync(envExamplePath))
     {
-        const envExampleContent = `# Database (matches docker-compose.yml)
+        const envExampleContent = `# Environment
+NODE_ENV=local
+
+# Logging
+SPFN_LOG_LEVEL=info
+
+# Database (matches docker-compose.yml)
 DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
 
-# Redis (optional)
-REDIS_URL=redis://localhost:6379
+# Cache - Redis/Valkey (optional)
+CACHE_URL=redis://localhost:6379
 
 # SPFN API Server URL (for API Route Proxy and SSR)
 SPFN_API_URL=http://localhost:8790
