@@ -1,6 +1,34 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { envSchema } from '@spfn/core/config';
+
+/**
+ * Load envSchema from a package
+ */
+async function loadEnvSchema(packageName: string): Promise<Record<string, any>>
+{
+    try
+    {
+        const schemaPath = `${packageName}/config`;
+        const module = await import(schemaPath);
+
+        if (!module.envSchema)
+        {
+            throw new Error(`Package ${packageName} does not export envSchema from config`);
+        }
+
+        return module.envSchema;
+    }
+    catch (error)
+    {
+        if (error instanceof Error && error.message.includes('does not export envSchema'))
+        {
+            throw error;
+        }
+
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to load package ${packageName}: ${errorMessage}`);
+    }
+}
 
 /**
  * Format type with color
@@ -47,11 +75,17 @@ function formatDefault(value: any, type: string): string
 /**
  * List all environment variables from schema
  */
-async function listEnvVars(): Promise<void>
+async function listEnvVars(options: { package?: string }): Promise<void>
 {
-    console.log(chalk.blue.bold('\n📋 Environment Variables\n'));
+    const packageName = options.package || '@spfn/core';
 
-    const allVars = Object.entries(envSchema as Record<string, any>);
+    try
+    {
+        const envSchema = await loadEnvSchema(packageName);
+
+        console.log(chalk.blue.bold(`\n📋 Environment Variables (${packageName})\n`));
+
+        const allVars = Object.entries(envSchema as Record<string, any>);
 
     for (const [key, schema] of allVars)
     {
@@ -85,17 +119,29 @@ async function listEnvVars(): Promise<void>
         console.log(); // Empty line between vars
     }
 
-    console.log(chalk.dim('\n💡 Tip: Use these variable names in your .env files\n'));
+        console.log(chalk.dim('\n💡 Tip: Use these variable names in your .env files\n'));
+    }
+    catch (error)
+    {
+        console.error(chalk.red(`\n❌ ${error instanceof Error ? error.message : 'Unknown error'}\n`));
+        process.exit(1);
+    }
 }
 
 /**
  * Show environment variable statistics
  */
-async function showEnvStats(): Promise<void>
+async function showEnvStats(options: { package?: string }): Promise<void>
 {
-    console.log(chalk.blue.bold('\n📊 Environment Variable Statistics\n'));
+    const packageName = options.package || '@spfn/core';
 
-    const allVars = Object.entries(envSchema as Record<string, any>);
+    try
+    {
+        const envSchema = await loadEnvSchema(packageName);
+
+        console.log(chalk.blue.bold(`\n📊 Environment Variable Statistics (${packageName})\n`));
+
+        const allVars = Object.entries(envSchema as Record<string, any>);
     const required = allVars.filter(([_, schema]) => schema.required || schema.default !== undefined);
     const optional = allVars.filter(([_, schema]) => !schema.required && schema.default === undefined);
     const sensitive = allVars.filter(([_, schema]) => schema.sensitive);
@@ -107,30 +153,42 @@ async function showEnvStats(): Promise<void>
         return acc;
     }, {} as Record<string, number>);
 
-    console.log(`${chalk.bold('Total variables:')} ${chalk.cyan(allVars.length)}`);
-    console.log(`${chalk.bold('Required:')} ${chalk.red(required.length)}`);
-    console.log(`${chalk.bold('Optional:')} ${chalk.dim(optional.length)}`);
-    console.log(`${chalk.bold('Sensitive:')} ${chalk.yellow(sensitive.length)}`);
+        console.log(`${chalk.bold('Total variables:')} ${chalk.cyan(allVars.length)}`);
+        console.log(`${chalk.bold('Required:')} ${chalk.red(required.length)}`);
+        console.log(`${chalk.bold('Optional:')} ${chalk.dim(optional.length)}`);
+        console.log(`${chalk.bold('Sensitive:')} ${chalk.yellow(sensitive.length)}`);
 
-    console.log(chalk.bold('\nBy Type:'));
+        console.log(chalk.bold('\nBy Type:'));
 
-    for (const [type, count] of Object.entries(typeCount))
-    {
-        console.log(`  ${formatType(type)}: ${chalk.cyan(count)}`);
+        for (const [type, count] of Object.entries(typeCount))
+        {
+            console.log(`  ${formatType(type)}: ${chalk.cyan(count)}`);
+        }
+
+        console.log();
     }
-
-    console.log();
+    catch (error)
+    {
+        console.error(chalk.red(`\n❌ ${error instanceof Error ? error.message : 'Unknown error'}\n`));
+        process.exit(1);
+    }
 }
 
 /**
  * Search for environment variables
  */
-async function searchEnvVars(query: string): Promise<void>
+async function searchEnvVars(query: string, options: { package?: string }): Promise<void>
 {
-    const normalizedQuery = query.toLowerCase();
-    const results: [string, any][] = [];
+    const packageName = options.package || '@spfn/core';
 
-    for (const [key, schema] of Object.entries(envSchema as Record<string, any>))
+    try
+    {
+        const envSchema = await loadEnvSchema(packageName);
+
+        const normalizedQuery = query.toLowerCase();
+        const results: [string, any][] = [];
+
+        for (const [key, schema] of Object.entries(envSchema as Record<string, any>))
     {
         const matchesKey = key.toLowerCase().includes(normalizedQuery);
         const matchesDescription = schema.description.toLowerCase().includes(normalizedQuery);
@@ -167,6 +225,12 @@ async function searchEnvVars(query: string): Promise<void>
 
         console.log();
     }
+    }
+    catch (error)
+    {
+        console.error(chalk.red(`\n❌ ${error instanceof Error ? error.message : 'Unknown error'}\n`));
+        process.exit(1);
+    }
 }
 
 // Create env command with subcommands
@@ -177,12 +241,14 @@ export const envCommand = new Command('env')
 envCommand
     .command('list')
     .description('List all environment variables from schema')
+    .option('-p, --package <package>', 'Package name to read env schema from', '@spfn/core')
     .action(listEnvVars);
 
 // env:stats - Show statistics
 envCommand
     .command('stats')
     .description('Show environment variable statistics')
+    .option('-p, --package <package>', 'Package name to read env schema from', '@spfn/core')
     .action(showEnvStats);
 
 // env:search - Search environment variables
@@ -190,4 +256,5 @@ envCommand
     .command('search')
     .description('Search environment variables')
     .argument('<query>', 'Search query (matches key or description)')
+    .option('-p, --package <package>', 'Package name to read env schema from', '@spfn/core')
     .action(searchEnvVars);
