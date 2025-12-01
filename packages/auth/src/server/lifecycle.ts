@@ -90,8 +90,8 @@ export function createAuthLifecycle(options: AuthInitOptions = {}): AuthLifecycl
          */
         afterInfrastructure: async () =>
         {
-            await ensureAdminExists();
             await initializeAuth(options);
+            await ensureAdminExists();
         }
     };
 }
