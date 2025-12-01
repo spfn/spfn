@@ -1,10 +1,13 @@
 import { createApi } from "@spfn/core/nextjs";
 import { errorRegistry } from "@spfn/core/errors";
+import { logger } from "@spfn/core/logger";
 import { type AppRouter, appMetadata } from './server/routes/index';
 import { bindLocale, type BoundLabels } from './lib/bind-locale';
 import { getLocale } from './actions';
 import { setNestedValue } from './lib/helpers';
 import { format, defineLabelConfig, defineLabels } from './lib/define-labels';
+
+const cmsLogger = logger.child('@spfn/cms');
 
 /**
  * Default API client (for backward compatibility or when not using labels)
@@ -55,10 +58,29 @@ export function createCmsClient<T>(
         // Normalize sections to array
         const sectionArray = Array.isArray(sections) ? sections : [sections];
 
+        cmsLogger.debug('getLabels called', {
+            sections: sectionArray,
+            locale,
+            defaultLocale: config.defaultLocale,
+            fallbackLocale: config.fallbackLocale,
+            availableDefinitionKeys: Object.keys(labelsDefinition as any),
+        });
+
         // 1. Fetch from published_cache
         const cache = await api.getLabelCache.call({
             sections: sectionArray,
             locale
+        });
+
+        cmsLogger.debug('Fetched from cache', {
+            cacheKeys: Object.keys(cache),
+            cacheEntryCount: Object.keys(cache).length,
+            cacheStructure: Object.entries(cache).map(([key, value]) => ({
+                section: key,
+                isObject: typeof value === 'object',
+                isNull: value === null,
+                contentKeys: value && typeof value === 'object' ? Object.keys(value) : [],
+            })),
         });
 
         // 2. Filter only requested sections (performance optimization)
@@ -71,11 +93,30 @@ export function createCmsClient<T>(
             }
         }
 
+        cmsLogger.debug('Filtered sections', {
+            requestedSections: sectionArray,
+            filteredSections: Object.keys(filteredLabels),
+            filteredLabelsStructure: Object.entries(filteredLabels).map(([key, value]) => ({
+                section: key,
+                hasValue: !!value,
+                isObject: typeof value === 'object',
+                nestedKeys: value && typeof value === 'object' ? Object.keys(value) : [],
+            })),
+        });
+
         // 3. Generate defaults with locale binding (only for requested sections)
         const defaults = bindLocale(filteredLabels, locale, config.fallbackLocale);
 
+        cmsLogger.debug('Generated defaults with locale binding', {
+            defaultsKeys: Object.keys(defaults),
+        });
+
         // 4. Merge: cache takes priority, fallback to defaults
         const merged = deepMergeCache(defaults, cache, locale);
+
+        cmsLogger.debug('Merged cache and defaults', {
+            mergedKeys: Object.keys(merged),
+        });
 
         return merged as BoundLabels<T>;
     }
@@ -90,12 +131,24 @@ function deepMergeCache(defaults: any, cache: Record<string, any>, locale: strin
 {
     const result = { ...defaults };
 
-    for (const [, content] of Object.entries(cache))
+    cmsLogger.debug('deepMergeCache: Starting merge', {
+        cacheEntries: Object.keys(cache).length,
+        locale,
+    });
+
+    for (const [section, content] of Object.entries(cache))
     {
         if (!content || typeof content !== 'object')
         {
+            cmsLogger.debug('deepMergeCache: Skipping invalid content', { section });
             continue;
         }
+
+        const contentKeys = Object.keys(content);
+        cmsLogger.debug('deepMergeCache: Processing section', {
+            section,
+            labelCount: contentKeys.length,
+        });
 
         for (const [flatKey, value] of Object.entries(content))
         {
@@ -105,20 +158,36 @@ function deepMergeCache(defaults: any, cache: Record<string, any>, locale: strin
             if (value && typeof value === 'object' && 'content' in value)
             {
                 extractedValue = (value as any).content;
+                cmsLogger.debug('deepMergeCache: Extracted from content field', {
+                    flatKey,
+                    hasContent: true,
+                });
             }
             else if (value && typeof value === 'object' && locale in value)
             {
                 extractedValue = (value as any)[locale];
+                cmsLogger.debug('deepMergeCache: Extracted from locale field', {
+                    flatKey,
+                    locale,
+                });
             }
             else
             {
                 extractedValue = value;
+                cmsLogger.debug('deepMergeCache: Using raw value', {
+                    flatKey,
+                    valueType: typeof value,
+                });
             }
 
             // Set value using helper function
             setNestedValue(result, flatKey, extractedValue);
         }
     }
+
+    cmsLogger.debug('deepMergeCache: Merge completed', {
+        resultKeys: Object.keys(result),
+    });
 
     return result;
 }
