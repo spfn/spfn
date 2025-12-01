@@ -111,7 +111,13 @@ process.on('SIGINT', async () =>
     process.exit(0);
 });
 
-orchestrator.watch();
+// Start watching - should run indefinitely
+// Only catch errors, don't handle normal completion
+orchestrator.watch().catch((error) =>
+{
+    console.error('[SPFN] Codegen watcher error:', error);
+    process.exit(1);
+});
 
 // Keep process alive
 await new Promise(() => {});
