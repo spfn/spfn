@@ -6,8 +6,8 @@
  */
 
 import { BaseRepository } from '@spfn/core/db';
-import { asc, eq, count as drizzleCount } from 'drizzle-orm';
-import { cmsLabels, type CmsLabel, type NewCmsLabel } from '@/server/entities';
+import { asc, count as drizzleCount, eq, inArray } from 'drizzle-orm';
+import { type CmsLabel, cmsLabels, type NewCmsLabel } from '../entities';
 
 /**
  * CMS Labels Repository 클래스
@@ -143,6 +143,81 @@ export class CmsLabelsRepository extends BaseRepository
             .returning();
 
         return result[0] ?? null;
+    }
+
+    /**
+     * 여러 key로 라벨 조회
+     * Read replica 사용
+     */
+    async findByKeys(keys: string[]): Promise<CmsLabel[]>
+    {
+        if (keys.length === 0)
+        {
+            return [];
+        }
+
+        return this.readDb
+            .select()
+            .from(cmsLabels)
+            .where(inArray(cmsLabels.key, keys));
+    }
+
+    /**
+     * 여러 라벨 한번에 생성
+     * Write primary 사용
+     */
+    async bulkCreate(data: NewCmsLabel[]): Promise<CmsLabel[]>
+    {
+        if (data.length === 0)
+        {
+            return [];
+        }
+
+        return this.db
+            .insert(cmsLabels)
+            .values(data)
+            .returning();
+    }
+
+    /**
+     * 여러 라벨 한번에 수정 (key 기준)
+     * Write primary 사용
+     *
+     * @param updates - Array of { key, data } objects
+     */
+    async bulkUpdateByKeys(updates: Array<{ key: string; data: Partial<NewCmsLabel> }>): Promise<void>
+    {
+        if (updates.length === 0)
+        {
+            return;
+        }
+
+        // Drizzle doesn't support bulk update directly, so we need to do it one by one
+        // But we can do it in a single transaction context (handled by BaseRepository)
+        for (const { key, data } of updates)
+        {
+            await this.db
+                .update(cmsLabels)
+                .set({ ...data, updatedAt: new Date() })
+                .where(eq(cmsLabels.key, key));
+        }
+    }
+
+    /**
+     * 여러 라벨 한번에 삭제 (key 기준)
+     * Write primary 사용
+     */
+    async bulkDeleteByKeys(keys: string[]): Promise<CmsLabel[]>
+    {
+        if (keys.length === 0)
+        {
+            return [];
+        }
+
+        return this.db
+            .delete(cmsLabels)
+            .where(inArray(cmsLabels.key, keys))
+            .returning();
     }
 }
 

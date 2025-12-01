@@ -98,9 +98,11 @@
   "dependencies": {
     "@sinclair/typebox": "^0.34.0",
     "jiti": "^2.6.1",
+    "lodash": "^4.17.21",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@types/lodash": "^4.17.21",
     "@types/node": "^20.11.0",
     "@types/react": "^19",
     "@vitest/coverage-v8": "^4.0.6",

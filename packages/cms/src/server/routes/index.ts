@@ -4,21 +4,37 @@
  * 모든 CMS 라우트를 통합하는 메인 라우터
  */
 
-import { defineRouter } from '@spfn/core/route';
-import * as labelsRouter from './labels/labels.route';
-import * as publishedCacheRouter from './published-cache/published-cache.route';
-import * as valuesRouter from './values/values.route';
+import { Type } from '@sinclair/typebox';
+import { defineRouter, route } from '@spfn/core/route';
+import { cmsPublishedCacheRepository } from '../repositories';
 
-/**
- * 통합 CMS 라우터
- * - labels: 라벨 메타데이터 관리
- * - publishedCache: 발행된 콘텐츠 캐시
- * - values: 라벨 값 관리
- */
+export const getLabelCache = route.get('/_cms/labels/cache')
+    .skip(['auth'])
+    .input({
+        query: Type.Object({
+            sections: Type.Array(Type.String()),
+            locale: Type.Optional(Type.String())
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { query } = await c.data();
+        const { sections, locale = 'en' } = query;
+
+        // 단일 쿼리로 모든 섹션 조회 (N+1 방지)
+        const results = await cmsPublishedCacheRepository.findBySections(sections, locale);
+
+        // Record<section, content> 형태로 변환
+        return results.reduce((acc, item) => {
+            acc[item.section] = item.content;
+            return acc;
+        }, {} as Record<string, any>);
+    });
+
 export const cmsAppRouter = defineRouter({
-    ...labelsRouter,
-    ...publishedCacheRouter,
-    ...valuesRouter,
+    getLabelCache
 });
 
 export type AppRouter = typeof cmsAppRouter;
+
+export { appMetadata } from './router.metadata';

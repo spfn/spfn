@@ -21,8 +21,8 @@ import type { Generator, GeneratorOptions, GeneratorTrigger } from '@spfn/core/c
 import { join, relative, extname } from 'path';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 
-import { syncAll, syncSection, loadLabelsFromJson } from '@/server/services/sync.service';
-import { env } from '@/config';
+import { syncAll, syncSection, loadLabelsFromJson } from '../services/sync.service';
+import { env } from '@spfn/cms/config';
 
 const syncLogger = logger.child('@spfn/cms:label-sync');
 

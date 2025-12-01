@@ -1,4 +1,3 @@
-export type { AppRouter } from './server/routes/index';
-export { appMetadata } from './server/routes/router.metadata';
+import '@spfn/cms/config';
 
-export { initLabelSync } from './server/services/sync.service';
+export { syncLabels } from './server/services';

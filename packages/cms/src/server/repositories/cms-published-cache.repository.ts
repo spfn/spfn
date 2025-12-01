@@ -6,7 +6,7 @@
  */
 
 import { BaseRepository } from '@spfn/core/db';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { cmsPublishedCache, type CmsPublishedCache, type NewCmsPublishedCache } from '../entities';
 
 /**
@@ -18,7 +18,7 @@ export class CmsPublishedCacheRepository extends BaseRepository
      * 섹션 + 언어로 발행된 캐시 조회
      * Read replica 사용
      */
-    async findBySection(section: string, locale: string = 'ko'): Promise<CmsPublishedCache | null>
+    async findBySection(section: string, locale: string = 'en'): Promise<CmsPublishedCache | null>
     {
         const result = await this.readDb
             .select()
@@ -55,6 +55,28 @@ export class CmsPublishedCacheRepository extends BaseRepository
             .returning();
 
         return result[0];
+    }
+
+    /**
+     * 여러 섹션의 캐시를 한 번에 조회 (N+1 방지)
+     * Read replica 사용
+     */
+    async findBySections(sections: string[], locale: string = 'en'): Promise<CmsPublishedCache[]>
+    {
+        if (sections.length === 0)
+        {
+            return [];
+        }
+
+        return this.readDb
+            .select()
+            .from(cmsPublishedCache)
+            .where(
+                and(
+                    inArray(cmsPublishedCache.section, sections),
+                    eq(cmsPublishedCache.locale, locale)
+                )
+            );
     }
 
     /**

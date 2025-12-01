@@ -9,7 +9,7 @@
  */
 
 import { index, integer, text } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
+import { id, timestamps, typedJsonb } from '@spfn/core/db';
 import { cmsSchema } from './cms-schema';
 
 export const cmsLabels = cmsSchema.table('labels', {
@@ -30,8 +30,9 @@ export const cmsLabels = cmsSchema.table('labels', {
     // "text" | "image" | "video" | "file" | "object"
 
     // 기본값
-    defaultValue: text('default_value'),
+    defaultValue: typedJsonb<Record<string, any>>('default_value'),
     // 라벨의 기본값 (sync 시 설정)
+    // 예: { en: "Welcome", ko: "환영합니다" } 또는 단일 값
 
     // 설명
     description: text('description'),

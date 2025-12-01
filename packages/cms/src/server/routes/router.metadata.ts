@@ -26,17 +26,5 @@
  * ```
  */
 export const appMetadata = {
-    "getLabels": { method: "GET", path: "/_cms/labels" },
-    "createLabel": { method: "POST", path: "/_cms/labels" },
-    "getLabel": { method: "GET", path: "/_cms/labels/:id" },
-    "updateLabel": { method: "PATCH", path: "/_cms/labels/:id" },
-    "deleteLabel": { method: "DELETE", path: "/_cms/labels/:id" },
-    "getLabelByKeyRoute": { method: "GET", path: "/_cms/labels/by-key/:key" },
-    "publishLabel": { method: "POST", path: "/_cms/labels/:id/publish" },
-    "getAdminLabel": { method: "GET", path: "/_cms/labels/:id/admin" },
-    "getLabelVersions": { method: "GET", path: "/_cms/labels/:id/versions" },
-    "getPublishedCache": { method: "GET", path: "/_cms/published-cache" },
-    "upsertCache": { method: "POST", path: "/_cms/published-cache" },
-    "saveValues": { method: "POST", path: "/_cms/values/:labelId" },
-    "getValues": { method: "GET", path: "/_cms/values/:labelId/:version" },
+    "getLabelCache": { method: "GET", path: "/_cms/labels/cache" },
 } as const;

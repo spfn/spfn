@@ -1,0 +1,1 @@
+DROP TABLE "spfn_cms"."user_locales" CASCADE;

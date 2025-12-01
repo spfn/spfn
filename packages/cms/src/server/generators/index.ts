@@ -5,7 +5,7 @@
  * e.g., @spfn/cms:label-sync
  */
 
-import { createLabelSyncGenerator } from '@/server/generators/label-sync-generator';
+import { createLabelSyncGenerator } from './label-sync-generator';
 
 /**
  * Generators registry
@@ -18,4 +18,4 @@ export const generators = {
 /**
  * Re-export individual generator factories
  */
-export { createLabelSyncGenerator } from '@/server/generators/label-sync-generator';
+export { createLabelSyncGenerator } from './label-sync-generator';

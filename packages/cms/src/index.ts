@@ -1,201 +1,138 @@
+import { createApi } from "@spfn/core/nextjs";
+import { errorRegistry } from "@spfn/core/errors";
+import { type AppRouter, appMetadata } from './server/routes/index';
+import { bindLocale, type BoundLabels } from './lib/bind-locale';
+import { getLocale } from './actions';
+import { setNestedValue } from './lib/helpers';
+import { format, defineLabelConfig, defineLabels } from './lib/define-labels';
+
 /**
- * CMS Section Loader - Common Logic
+ * Default API client (for backward compatibility or when not using labels)
+ */
+const api = createApi<AppRouter>({
+    metadata: appMetadata,
+    errorRegistry: errorRegistry
+});
+
+/**
+ * Create CMS client with API, label getter, and format utility
  *
- * 서버/클라이언트 공통 로직
- * React cache는 여기서 사용하지 않음 (server.ts에서 래핑)
- */
-
-import { logger } from '@spfn/core/logger';
-import { api } from "./lib/api-client";
-import type { SectionAPI, SectionData, TranslationFunction } from "./lib/types";
-
-const localeLogger = logger.child('@spfn/cms:locale-api');
-
-/**
- * Fetch options type (extends RequestInit for Next.js compatibility)
- */
-export type FetchOptions = RequestInit & {
-    next?: {
-        revalidate?: number | false;
-        tags?: string[];
-    };
-};
-
-/**
- * 변수 치환 헬퍼
+ * @param labelsDefinition - Labels defined using defineLabels()
+ * @param config - Label config from defineLabelConfig()
+ * @returns API client, getLabels function, and format utility
  *
- * @param text - 치환할 텍스트 (예: 'Hello {name}!')
- * @param replace - 치환 맵 (예: { name: 'World' })
- * @returns 치환된 텍스트 (예: 'Hello World!')
+ * @example
+ * ```typescript
+ * // labels.ts - Setup once
+ * export const { api, getLabels, format } = createCmsClient(labelsDefinition, labelConfig);
+ *
+ * // Use anywhere
+ * const labels = await getLabels('home');
+ * labels.home.hero.title // "Hello"
+ *
+ * // With template variables
+ * const greeting = labels.home.hero.greeting; // "Hello {name}"
+ * format(greeting, { name: "John" }); // "Hello John"
+ *
+ * // Multiple variables
+ * const message = labels.notification.text; // "You have {count} new messages"
+ * format(message, { count: 5 }); // "You have 5 new messages"
+ *
+ * // API routes
+ * await api.someRoute.call();
+ * ```
  */
-export function replaceVariables(text: string, replace: Record<string, string | number>): string
+export function createCmsClient<T>(
+    labelsDefinition: T,
+    config: { defaultLocale: string; fallbackLocale?: string }
+)
 {
-    return text.replace(/\{(\w+)}/g, (match, key) =>
+    async function getLabels(sections: string | string[]): Promise<BoundLabels<T>>
     {
-        const value = replace[key];
-        return value !== undefined ? String(value) : match;
-    });
+        // Auto-detect locale from cookie, fallback to config.defaultLocale
+        const locale = await getLocale(config.defaultLocale);
+
+        // Normalize sections to array
+        const sectionArray = Array.isArray(sections) ? sections : [sections];
+
+        // 1. Fetch from published_cache
+        const cache = await api.getLabelCache.call({
+            sections: sectionArray,
+            locale
+        });
+
+        // 2. Filter only requested sections (performance optimization)
+        const filteredLabels: any = {};
+        for (const section of sectionArray)
+        {
+            if (section in (labelsDefinition as any))
+            {
+                filteredLabels[section] = (labelsDefinition as any)[section];
+            }
+        }
+
+        // 3. Generate defaults with locale binding (only for requested sections)
+        const defaults = bindLocale(filteredLabels, locale, config.fallbackLocale);
+
+        // 4. Merge: cache takes priority, fallback to defaults
+        const merged = deepMergeCache(defaults, cache, locale);
+
+        return merged as BoundLabels<T>;
+    }
+
+    return { api, getLabels, format };
 }
 
 /**
- * Translation 함수 생성 헬퍼
+ * Deep merge cache into defaults
  */
-function createTranslationFn(section: string, content: Record<string, any>): TranslationFunction
+function deepMergeCache(defaults: any, cache: Record<string, any>, locale: string): any
 {
-    return (key, defaultValue, replace) =>
+    const result = { ...defaults };
+
+    for (const [, content] of Object.entries(cache))
     {
-        const fullKey = `${section}.${key}`;
-        let value = content[fullKey];
-
-        if (value === undefined || value === null)
+        if (!content || typeof content !== 'object')
         {
-            value = defaultValue ?? '';
+            continue;
         }
 
-        // text 타입 객체이면 content 필드 추출
-        if (typeof value === 'object' && value !== null && value.type === 'text' && 'content' in value)
+        for (const [flatKey, value] of Object.entries(content))
         {
-            value = value.content;
-        }
+            // Extract locale-specific value from LabelValue format
+            let extractedValue: any;
 
-        // 문자열인 경우 변수 치환 처리
-        if (typeof value === 'string')
-        {
-            if (replace)
+            if (value && typeof value === 'object' && 'content' in value)
             {
-                value = replaceVariables(value, replace);
+                extractedValue = (value as any).content;
+            }
+            else if (value && typeof value === 'object' && locale in value)
+            {
+                extractedValue = (value as any)[locale];
+            }
+            else
+            {
+                extractedValue = value;
             }
 
-            return value;
+            // Set value using helper function
+            setNestedValue(result, flatKey, extractedValue);
         }
+    }
 
-        // 문자열이 아니면 원본 값 반환 (객체 타입: image, video, file, object 등)
-        return value;
-    };
+    return result;
 }
 
 /**
- * 빈 섹션 데이터 생성 헬퍼
- */
-function createEmptySection(section: string, locale: string): SectionAPI
-{
-    const sectionData: SectionData = {
-        section,
-        locale,
-        content: {},
-        version: 0,
-        publishedAt: null,
-    };
-
-    const t: TranslationFunction = (_key, defaultValue) => defaultValue ?? '';
-    return { t, data: sectionData };
-}
-
-/**
- * 섹션 데이터 로드 (공용 로직)
+ * Re-export format utility for standalone use
  *
- * @param section - 섹션 이름 (예: 'home', 'why-futureplay')
- * @param locale - 언어 코드
- * @param fetchOptions - fetch 옵션 (Next.js revalidate 등)
- * @returns Section API ({ t, data })
- */
-export async function getSection(
-    section: string,
-    locale: string,
-    fetchOptions?: FetchOptions
-): Promise<SectionAPI>
-{
-    try
-    {
-        const response = await api.getPublishedCache
-            .fetchOptions(fetchOptions ? fetchOptions : { next: { revalidate: 60 }})
-            .call({ locale, sections: section });
-
-        const data = response[0];
-
-        // Success response
-        const sectionData: SectionData = {
-            section: data.section,
-            locale: data.locale,
-            content: data.content || {},
-            version: data.version,
-            publishedAt: data.publishedAt,
-        };
-
-        // Translation function
-        const t = createTranslationFn(section, sectionData.content);
-        return {
-            t,
-            data: sectionData,
-        };
-    }
-    catch (error)
-    {
-        const err = error instanceof Error ? error : new Error(String(error));
-        localeLogger.error(`Failed to fetch section "${section}"`, err);
-        return createEmptySection(section, locale);
-    }
-}
-
-/**
- * 여러 섹션 한번에 로드 (공용 로직)
- * 단일 API 호출로 여러 섹션을 효율적으로 가져옵니다
+ * @example
+ * ```typescript
+ * import { format } from '@spfn/cms/api-client';
  *
- * @param sections - 섹션 이름 배열
- * @param locale - 언어 코드
- * @param fetchOptions - fetch 옵션 (Next.js revalidate 등)
- * @returns Section API 맵 ({ home: { t, data }, ... })
+ * const text = "Hello {name}, you have {count} messages";
+ * format(text, { name: "John", count: 5 });
+ * // "Hello John, you have 5 messages"
+ * ```
  */
-export async function getSections(
-    sections: string[],
-    locale: string,
-    fetchOptions?: FetchOptions
-): Promise<Record<string, SectionAPI>>
-{
-    try
-    {
-        const response = await api.getPublishedCache
-            .fetchOptions(fetchOptions ? fetchOptions : { next: { revalidate: 60 }})
-            .call({ locale, sections });
-
-        // Build sections map from response
-        const sectionsMap: Record<string, SectionAPI> = {};
-
-        // First, create empty entries for all requested sections
-        sections.forEach(section =>
-        {
-            sectionsMap[section] = createEmptySection(section, locale);
-        });
-
-        // Then, fill in data for found sections
-        response.forEach((sectionData: SectionData) =>
-        {
-            sectionsMap[sectionData.section] = {
-                t: createTranslationFn(sectionData.section, sectionData.content),
-                data: {
-                    section: sectionData.section,
-                    locale: sectionData.locale,
-                    content: sectionData.content,
-                    version: sectionData.version,
-                    publishedAt: sectionData.publishedAt,
-                }
-            };
-        });
-
-        return sectionsMap;
-    }
-    catch (error)
-    {
-        const err = error instanceof Error ? error : new Error(String(error));
-        localeLogger.error('Failed to fetch sections', err);
-
-        // Return empty sections on error
-        const sectionsMap: Record<string, SectionAPI> = {};
-        sections.forEach(section =>
-        {
-            sectionsMap[section] = createEmptySection(section, locale);
-        });
-
-        return sectionsMap;
-    }
-}
+export { format, defineLabelConfig, defineLabels };
