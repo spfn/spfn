@@ -158,7 +158,33 @@ export function createApi<TRouter extends Router<any>>(
         const params = input.params || {};
         const query = input.query || {};
         const url = buildUrlWithParams(path, params) + buildQueryString(query);
-        const fullUrl = `${env.SPFN_APP_URL || ''}${baseUrl}${url}`;
+
+        // Build full URL - handle SSR case where SPFN_APP_URL might not be set
+        let appUrl = env.SPFN_APP_URL || '';
+
+        // In SSR environment, if SPFN_APP_URL is not set, try to get host from request headers
+        if (!appUrl && typeof window === 'undefined') {
+            try {
+                const { headers } = await import('next/headers');
+                const headersList = await headers();
+                const host = headersList.get('host');
+                const protocol = headersList.get('x-forwarded-proto') || 'http';
+                if (host) {
+                    appUrl = `${protocol}://${host}`;
+                    if (debug) {
+                        apiLogger.debug(`Auto-detected app URL from headers: ${appUrl}`);
+                    }
+                }
+            } catch (error) {
+                // Fallback: use relative URL and let fetch handle it
+                // This might fail in some SSR scenarios but will work in client-side
+                if (debug) {
+                    apiLogger.warn('Could not determine app URL in SSR environment, using relative URL');
+                }
+            }
+        }
+
+        const fullUrl = `${appUrl}${baseUrl}${url}`;
 
         // Prepare request init (headers, body, cookies)
         const { init: requestInit, autoDetectedCookies } = await prepareRequestInit(

@@ -6,7 +6,7 @@
 
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'fs';
 import { dirname } from 'path';
-import type { RouterMetadata } from './scanner';
+import type { RouterMetadata } from "@spfn/core/route";
 
 export interface EmitterOptions
 {
