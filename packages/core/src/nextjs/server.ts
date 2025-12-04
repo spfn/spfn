@@ -6,11 +6,9 @@
  * ⚠️  DO NOT import this in Client Components - use '@spfn/core/nextjs' instead
  */
 
-// Default typed proxy handlers (define-route system with auto-discovery enabled)
-export { GET, POST, PUT, PATCH, DELETE } from './proxy';
-
-// Typed proxy (uses next/headers - server only)
-export { createTypedProxy } from './proxy/core';
+// RPC proxy (routeName → method/path resolution)
+export { createRpcProxy } from './proxy/rpc';
+export type { RpcProxyConfig } from './proxy/rpc';
 
 export type {
     TypedProxyConfig,

@@ -42,11 +42,11 @@ SPFN (Superfunction) is a full-stack TypeScript framework that provides **end-to
 **Inspired by tRPC, Built for Production:**
 
 ```typescript
-// tRPC-style API calls
-const user = await api.getUser
-    .params({ id: '123' })
-    .query({ include: 'posts' })
-    .call();
+// tRPC-style API calls with structured input
+const user = await api.getUser.call({
+    params: { id: '123' },
+    query: { include: 'posts' }
+});
 //    ^? { id: string; name: string; email: string; posts: Post[] }
 ```
 
@@ -73,21 +73,23 @@ const user = await api.getUser
 |  +---------------------------+------------------------------+  |
 |                              |                                 |
 |                              | import { api } from '@spfn/...' |
-|                              | api.getUser.params().call()    |
+|                              | api.getUser.call({ params })   |
 |                              v                                 |
 |  +----------------------------------------------------------+  |
-|  |  API Route Proxy (Edge/Node.js)                          |  |
-|  |  app/api/actions/[...path]/route.ts                      |  |
+|  |  RPC Proxy (Edge/Node.js)                                |  |
+|  |  app/api/rpc/[routeName]/route.ts                        |  |
 |  |                                                           |  |
-|  |  1. Request Interceptors                                 |  |
+|  |  1. Resolve routeName → method/path from router          |  |
+|  |                                                           |  |
+|  |  2. Request Interceptors                                 |  |
 |  |     - Auth token injection                               |  |
 |  |     - Cookie forwarding                                  |  |
 |  |     - Header manipulation                                |  |
 |  |                                                           |  |
-|  |  2. Forward to SPFN Server                               |  |
-|  |     fetch(SPFN_API_URL + path)                           |  |
+|  |  3. Forward to SPFN Server                               |  |
+|  |     fetch(SPFN_API_URL + resolvedPath)                   |  |
 |  |                                                           |  |
-|  |  3. Response Interceptors                                |  |
+|  |  4. Response Interceptors                                |  |
 |  |     - Set HttpOnly cookies                               |  |
 |  |     - Transform response                                 |  |
 |  |     - Error handling                                     |  |
@@ -144,15 +146,20 @@ const user = await api.getUser
 ```typescript
 // 1. Client Call (Next.js Server Component)
 // app/users/[id]/page.tsx
-import { api } from '@spfn/core/nextjs/server';
+import { createApi } from '@spfn/core/nextjs';
+import type { AppRouter } from '@/server/router';
 
-const user = await api.getUser
-    .params({ id: params.id })
-    .call();
+const api = createApi<AppRouter>();
+const user = await api.getUser.call({ params: { id: params.id } });
+// → GET /api/rpc/getUser?input={"params":{"id":"123"}}
 
-// 2. API Route Proxy
-// app/api/actions/[...path]/route.ts
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';
+// 2. RPC Proxy
+// app/api/rpc/[routeName]/route.ts
+import { appRouter } from '@/server/router';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+
+export const { GET, POST } = createRpcProxy({ router: appRouter });
+// - Resolves routeName → method/path from router
 // - Forwards to http://localhost:8790/users/123
 // - Applies interceptors (auth, cookies)
 
@@ -326,36 +333,38 @@ app.bind(createUserContract, [Transactional()], async (c) => {
 ```
 Client Code
     |
-    | api.getUser.params({ id: '123' }).call()
+    | api.getUser.call({ params: { id: '123' } })
     v
-TypedClient (Proxy)
+ApiClient (Proxy)
     |
-    | Build URL: /api/actions/users/123
-    | Type check: params must match route input
+    | body 유무로 GET/POST 결정
+    | GET /api/rpc/getUser?input={...}
+    | POST /api/rpc/createUser body: {...}
     v
 fetch() to Next.js API Route
     |
     v
-TypedProxy (API Route Handler)
+RpcProxy (API Route Handler)
     |
-    | 1. Match interceptors by path/method
-    | 2. Execute request interceptors
-    | 3. Forward to SPFN_API_URL
-    | 4. Execute response interceptors
-    | 5. Set cookies from ctx.setCookies
+    | 1. Extract routeName from URL
+    | 2. Lookup method/path from appRouter
+    | 3. Execute request interceptors
+    | 4. Forward to SPFN_API_URL with resolved path
+    | 5. Execute response interceptors
+    | 6. Set cookies from ctx.setCookies
     v
 Return NextResponse
 ```
 
 **Key Components**:
 
-- `createApi()` / `api`: tRPC-style client with type inference
-- `createTypedProxy()`: API Route handler with interceptors
+- `createApi()`: tRPC-style client with type inference (no metadata needed)
+- `createRpcProxy()`: RPC-style API Route handler with route resolution
 - `registerInterceptors()`: Registry for plugin interceptors
 - Path matching: Wildcard and param support (`/_auth/*`, `/users/:id`)
 - Cookie handling: `setCookies` array in response interceptors
 
-**Design Pattern**: Proxy for client, Middleware chain for proxy
+**Design Pattern**: Proxy for client, RPC resolution for proxy
 
 **[→ Full Documentation](./src/nextjs/README.md)**
 
@@ -555,24 +564,29 @@ const user = await api.getUser.params({ id: '123' }).call();
 
 ---
 
-### 3. Next.js ↔ SPFN: API Route Proxy
+### 3. Next.js ↔ SPFN: RPC Proxy
 
-**Mechanism**: Next.js API Route forwards to SPFN server
+**Mechanism**: Next.js API Route resolves routeName and forwards to SPFN server
 
 ```typescript
-// app/api/actions/[...path]/route.ts
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';
+// app/api/rpc/[routeName]/route.ts
+import { appRouter } from '@/server/router';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+
+export const { GET, POST } = createRpcProxy({ router: appRouter });
 
 // Automatically:
-// 1. Forwards /api/actions/users/123 → http://localhost:8790/users/123
-// 2. Applies interceptors (auth, cookies)
-// 3. Returns NextResponse
+// 1. Resolves routeName → method/path from router
+// 2. Forwards to http://localhost:8790/{resolved-path}
+// 3. Applies interceptors (auth, cookies)
+// 4. Returns NextResponse
 ```
 
 **Why**:
 - HttpOnly cookie support (browser → Next.js includes cookies automatically)
 - Security (SPFN_API_URL hidden from browser)
 - No CORS (same-origin requests)
+- No metadata codegen required
 
 ---
 
@@ -760,10 +774,12 @@ export const publicRoute = route.get('/public')
 Add request/response interceptors:
 
 ```typescript
-// app/api/actions/[...path]/route.ts
-import { createTypedProxy } from '@spfn/core/nextjs/server';
+// app/api/rpc/[routeName]/route.ts
+import { appRouter } from '@/server/router';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
 
-export const { GET, POST } = createTypedProxy({
+export const { GET, POST } = createRpcProxy({
+    router: appRouter,
     interceptors: [
         {
             pathPattern: '/admin/*',
@@ -1004,14 +1020,11 @@ import {
     ApiError,
 } from '@spfn/core/nextjs';
 
-// Server-only exports (API Routes, Server Components)
+// Server-only exports (API Routes)
 import {
-    createTypedProxy,
+    createRpcProxy,
     registerInterceptors,
 } from '@spfn/core/nextjs/server';
-
-// API Route handlers
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';
 ```
 
 ### Error System
@@ -1140,18 +1153,23 @@ export default defineServerConfig()
     .build();
 ```
 
-**5. Create API Route Proxy (Next.js)**
+**5. Create RPC Proxy (Next.js)**
 ```typescript
-// app/api/actions/[...path]/route.ts
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';
+// app/api/rpc/[routeName]/route.ts
+import { appRouter } from '@/server/router';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+
+export const { GET, POST } = createRpcProxy({ router: appRouter });
 ```
 
 **6. Use Client**
 ```typescript
 // app/users/[id]/page.tsx
-import { api } from '@spfn/core/nextjs/server';
+import { createApi } from '@spfn/core/nextjs';
+import type { AppRouter } from '@/server/router';
 
-const user = await api.getUser.params({ id: '123' }).call();
+const api = createApi<AppRouter>();
+const user = await api.getUser.call({ params: { id: '123' } });
 ```
 
 ---

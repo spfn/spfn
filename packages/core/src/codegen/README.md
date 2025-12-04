@@ -12,11 +12,6 @@ codegen/
 │   ├── config-loader.ts        # Configuration loading
 │   ├── generator.ts            # Generator interface
 │   └── types.ts                # Type definitions
-├── built-in/
-│   └── router/                 # Router generator
-│       ├── index.ts
-│       ├── scanner.ts          # Router file scanning
-│       └── emitter.ts          # Metadata code emitter
 ├── generators/
 │   └── index.ts                # Generators registry
 └── __tests__/
@@ -37,55 +32,6 @@ codegen/
 
 ---
 
-## Built-in Generators
-
-### Router Generator (`@spfn/core:router`)
-
-Generates type-safe API client metadata from define-route router.
-
-**Input:** Router file (default: `src/server/router.ts`)
-**Output:** Router metadata file (default: `src/server/router.metadata.ts`)
-
-**Features:**
-- Automatic scanning of router files
-- Route metadata extraction (method, path)
-- Pre-configured API client with `configureApi()`
-- Works in Server Components without router import
-- Watches router file and route definitions for changes
-
-**Configuration:**
-
-```json
-{
-  "codegen": {
-    "generators": [
-      {
-        "name": "@spfn/core:router",
-        "enabled": true,
-        "routerPath": "src/server/router.ts",
-        "outputPath": "src/server/router.metadata.ts",
-        "baseUrl": "/api/actions"
-      }
-    ]
-  }
-}
-```
-
-**Output Format:**
-
-```typescript
-// src/server/router.metadata.ts
-export const routerMetadata = {
-  routes: {
-    'users.list': { method: 'GET', path: '/users' },
-    'users.get': { method: 'GET', path: '/users/:id' },
-    'users.create': { method: 'POST', path: '/users' }
-  }
-};
-```
-
----
-
 ## Configuration
 
 Configure codegen in `.spfnrc.ts`, `.spfnrc.json`, or `package.json` (priority order).
@@ -94,16 +40,15 @@ Configure codegen in `.spfnrc.ts`, `.spfnrc.json`, or `package.json` (priority o
 
 ```typescript
 import { defineConfig, defineGenerator } from '@spfn/core/codegen';
+import type { MyGeneratorConfig } from 'my-package';
 
-const routerGen = defineGenerator({
-  name: '@spfn/core:router',
-  routerPath: 'src/server/router.ts',
-  outputPath: 'src/server/router.metadata.ts',
-  baseUrl: '/api/actions'
+const customGen = defineGenerator<MyGeneratorConfig>({
+  name: 'my-package:generator',
+  myOption: 'value',
 });
 
 export default defineConfig({
-  generators: [routerGen]
+  generators: [customGen]
 });
 ```
 
@@ -114,10 +59,9 @@ export default defineConfig({
   "codegen": {
     "generators": [
       {
-        "name": "@spfn/core:router",
+        "name": "my-package:generator",
         "enabled": true,
-        "routerPath": "src/server/router.ts",
-        "outputPath": "src/server/router.metadata.ts"
+        "myOption": "value"
       },
       {
         "path": "./src/generators/my-generator.ts"
@@ -134,7 +78,7 @@ export default defineConfig({
   "spfn": {
     "codegen": {
       "generators": [
-        { "name": "@spfn/core:router", "enabled": true },
+        { "name": "my-package:generator", "enabled": true },
         { "path": "./src/generators/my-generator.ts" }
       ]
     }
@@ -145,7 +89,7 @@ export default defineConfig({
 ### Generator Types
 
 **Package-based generators** use `package:name` format:
-- `{ "name": "@spfn/core:router", "enabled": true, ...config }`
+- `{ "name": "my-package:generator", "enabled": true, ...config }`
 - Automatically discovers generators from `${packageName}/codegen`
 
 **Custom generators** use `path` field:
@@ -297,7 +241,6 @@ export { createMyGenerator } from './my-generator';
 ```typescript
 // Core
 export { CodegenOrchestrator } from './core/orchestrator';
-export { createRouterGenerator } from './built-in/router';
 export {
   loadCodegenConfig,
   createGeneratorsFromConfig,
@@ -308,7 +251,6 @@ export {
 // Types
 export type { Generator, GeneratorOptions, GeneratorTrigger } from './core/generator';
 export type { OrchestratorOptions } from './core/orchestrator';
-export type { RouterGeneratorConfig } from './built-in/router';
 export type { CodegenConfig, GeneratorConfig } from './core/config-loader';
 export type {
   RouteContractMapping,
@@ -366,28 +308,16 @@ Type-safe helper functions for configuration:
 
 ```typescript
 import { defineConfig, defineGenerator } from '@spfn/core/codegen';
+import type { MyGeneratorConfig } from 'my-package';
 
-const routerGen = defineGenerator({
-  name: '@spfn/core:router',
-  routerPath: 'src/server/router.ts',  // Type-safe!
+const customGen = defineGenerator<MyGeneratorConfig>({
+  name: 'my-package:generator',
+  myOption: 'value',  // Type-safe!
 });
 
 export default defineConfig({
-  generators: [routerGen]
+  generators: [customGen]
 });
-```
-
-### `createRouterGenerator`
-
-```typescript
-function createRouterGenerator(config?: RouterGeneratorConfig): Generator;
-
-interface RouterGeneratorConfig {
-  routerPath?: string;      // Default: 'src/server/router.ts'
-  outputPath?: string;      // Default: 'src/server/router.metadata.ts'
-  baseUrl?: string;         // Default: '/api/actions'
-  runOn?: GeneratorTrigger[];
-}
 ```
 
 ---
@@ -427,14 +357,14 @@ interface RouterGeneratorConfig {
 
 ## Test Coverage
 
-The codegen module has **33 tests** across all components:
+The codegen module has tests across all components:
 
-| File | Tests | Description |
-|------|-------|-------------|
-| helpers.test.ts | 9 | Helper utilities |
-| client-generator.test.ts | 9 | Client code generation |
-| orchestrator.test.ts | 13 | Orchestrator functionality |
-| orchestrator-custom-generator.test.ts | 2 | Custom generator loading |
+| File | Description |
+|------|-------------|
+| helpers.test.ts | Helper utilities |
+| client-generator.test.ts | Client code generation |
+| orchestrator.test.ts | Orchestrator functionality |
+| orchestrator-custom-generator.test.ts | Custom generator loading |
 
 ### Running Tests
 

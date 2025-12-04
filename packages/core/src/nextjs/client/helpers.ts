@@ -1,44 +1,6 @@
-import type { RouteMetadata } from '@spfn/core/route';
 import type { Logger } from '@spfn/core/logger';
 import { ApiError } from './errors';
 import * as debugLogs from './debug-logs';
-
-/**
- * Flatten nested metadata structure into flat Map
- *
- * @example
- * Input:  { user: { getUser: {...}, createUser: {...} }, getPost: {...} }
- * Output: Map { 'user.getUser' => {...}, 'user.createUser' => {...}, 'getPost' => {...} }
- */
-export function flattenMetadata(
-    metadata: Record<string, RouteMetadata | Record<string, RouteMetadata>>,
-    prefix = ''
-): Map<string, RouteMetadata>
-{
-    const result = new Map<string, RouteMetadata>();
-
-    for (const [key, value] of Object.entries(metadata))
-    {
-        const currentPath = prefix ? `${prefix}.${key}` : key;
-
-        // Check if value is RouteMetadata (has method and path)
-        if ('method' in value && 'path' in value)
-        {
-            result.set(currentPath, value as RouteMetadata);
-        }
-        else
-        {
-            // Nested structure - recurse
-            const nested = flattenMetadata(value as Record<string, RouteMetadata>, currentPath);
-            for (const [nestedKey, nestedValue] of nested.entries())
-            {
-                result.set(nestedKey, nestedValue);
-            }
-        }
-    }
-
-    return result;
-}
 
 /**
  * Build URL with path parameters replaced

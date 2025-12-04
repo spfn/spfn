@@ -99,7 +99,7 @@ export type InferResponseData<T> = T extends { success: true; data: infer D } ? 
 // HTTP method type guard
 export function isHttpMethod(value: unknown): value is HttpMethod;
 
-// Codegen metadata types
+// Route metadata types (used by RPC proxy for route resolution)
 export interface RouteMetadata {
     method: string;
     path: string;

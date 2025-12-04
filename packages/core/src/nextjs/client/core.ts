@@ -1,55 +1,38 @@
 /**
- * Type-Safe tRPC-Style Client with Flat API
+ * Type-Safe RPC-Style Client with Structured Input API
  *
- * Provides full end-to-end type safety from server routes to client calls via RESTful HTTP.
- * All params, query, and body fields are passed as a single flat object.
- * Supports browser caching (GET requests) while maintaining full type safety.
+ * Provides full end-to-end type safety from server routes to client calls.
+ * No metadata codegen required - method/path resolution happens at the proxy layer.
  *
  * @example
  * ```typescript
  * // Server
- * export const { router: appRouter, metadata: appMetadata } = defineRouter({
+ * export const appRouter = defineRouter({
  *   getUser: route.get('/users/:id')
  *     .input({ params: Type.Object({ id: Type.String() }) })
- *     .handler(async (c) => c.success({ id: '1', name: 'John' })),
+ *     .handler(async (c) => { ... }),
  *   createUser: route.post('/users')
  *     .input({ body: Type.Object({ name: Type.String() }) })
- *     .handler(async (c) => c.success({ id: '2', name: c.input.body.name })),
- *   updateUser: route.put('/users/:id')
- *     .input({
- *       params: Type.Object({ id: Type.String() }),
- *       body: Type.Object({ name: Type.String() })
- *     })
- *     .handler(async (c) => c.success({ id: c.input.params.id, name: c.input.body.name })),
+ *     .handler(async (c) => { ... }),
  * });
  *
  * export type AppRouter = typeof appRouter;
  *
- * // Client - metadata only (no server code bundled!)
- * import { appMetadata } from '@/server/router';
+ * // Client - no metadata needed!
+ * const api = createApi<AppRouter>();
  *
- * const api = createApi<AppRouter>({
- *   baseUrl: '/api/actions',
- *   metadata: appMetadata
- * });
+ * // ✅ GET (no body) - becomes GET /api/rpc/getUser?input={...}
+ * const user = await api.getUser.call({ params: { id: '1' } });
  *
- * // ✅ GET with params - GET /api/actions/users/1 (cached by browser!)
- * const user = await api.getUser.call({ id: '1' });
- *
- * // ✅ POST with body
- * const newUser = await api.createUser.call({ name: 'John' });
- *
- * // ✅ PUT with params + body (flat!)
- * const updatedUser = await api.updateUser.call({ id: '1', name: 'Jane' });
+ * // ✅ POST (has body) - becomes POST /api/rpc/createUser
+ * const newUser = await api.createUser.call({ body: { name: 'John' } });
  *
  * // ✅ With options (headers, cookies, interceptors)
  * const user = await api.getUser
  *   .headers({ 'X-Custom': 'value' })
  *   .cookies({ session: 'xxx' })
  *   .fetchOptions({ next: { revalidate: 60 } })
- *   .onRequest((url, init) => { console.log('→', url); return init; })
- *   .onResponse((res, body) => { console.log('←', body); return { response: res, body }; })
- *   .call({ id: '1' });
+ *   .call({ params: { id: '1' } });
  * ```
  */
 import { env } from '@spfn/core/config';
@@ -58,13 +41,11 @@ import type { Router } from '@spfn/core/route';
 import * as debugLogs from './debug-logs';
 import { ApiError } from "./errors";
 import {
-    flattenMetadata,
-    buildUrlWithParams,
-    buildQueryString,
     parseResponseBody,
-    prepareRequestInit,
     executeFetchWithTimeout,
     handleErrorResponse,
+    buildCookieHeader,
+    autoDetectServerCookies,
 } from './helpers';
 import { RouteCallBuilder } from './builder';
 import type { ApiConfig, CallOptions } from "./types";
@@ -77,35 +58,29 @@ const apiLogger = logger.child('@spfn/core:api-client');
 // ============================================================================
 
 /**
- * Create type-safe client with runtime-extracted metadata
+ * Create type-safe RPC client
  *
- * **IMPORTANT:** This function requires metadata to avoid bundling server code.
- * Metadata is automatically extracted by defineRouter() and can be safely imported.
+ * No metadata required - the client sends routeName + input to the proxy,
+ * and the proxy resolves the actual HTTP method and path from the router.
  *
  * @example
  * ```typescript
- * // Server - defineRouter extracts metadata automatically
- * export const { router: appRouter, metadata: appMetadata } = defineRouter({
- *   getUser: route.get('/users/:id').handler(...),
- *   createUser: route.post('/users').handler(...)
- * });
+ * // Client - no metadata needed!
+ * const api = createApi<AppRouter>();
  *
- * // Client - import metadata only (no server code!)
- * import { appMetadata } from '@/server/router';
+ * // GET request (no body) - browser cacheable
+ * const user = await api.getUser.call({ params: { id: '1' } });
  *
- * const api = createApi<AppRouter>({
- *   baseUrl: '/api/actions',
- *   metadata: appMetadata  // Just method & path, no handler code!
- * });
+ * // POST request (has body)
+ * const newUser = await api.createUser.call({ body: { name: 'John' } });
  * ```
  */
 export function createApi<TRouter extends Router<any>>(
-    config: ApiConfig
+    config: ApiConfig = {}
 ): Client<TRouter>
 {
     const {
-        baseUrl = '/api/actions',
-        metadata: preExtractedMetadata,
+        baseUrl = '/api/rpc',
         headers: defaultHeaders = {},
         timeout = 30000,
         fetch: customFetch = fetch,
@@ -115,24 +90,17 @@ export function createApi<TRouter extends Router<any>>(
         debug = false,
     } = config;
 
-    if (!preExtractedMetadata)
-    {
-        throw new Error(
-            'createApi() requires metadata. ' +
-            'Use defineRouter() to extract metadata from routes.'
-        );
-    }
-
-    // Flatten pre-extracted metadata
-    const routeMetadata = flattenMetadata(preExtractedMetadata);
     if (debug)
     {
-        debugLogs.logApiInitialization(apiLogger, baseUrl, routeMetadata.size);
-        debugLogs.logRouteRegistration(apiLogger, routeMetadata);
+        apiLogger.debug('API client initialized', { baseUrl });
     }
 
     /**
      * Execute API call
+     *
+     * Determines GET vs POST based on body presence:
+     * - No body → GET /api/rpc/{routeName}?input={...}
+     * - Has body → POST /api/rpc/{routeName} with body
      */
     async function executeCall(
         routeName: string,
@@ -140,67 +108,92 @@ export function createApi<TRouter extends Router<any>>(
         options: CallOptions = {}
     ): Promise<any>
     {
-        const metadata = routeMetadata.get(routeName);
-        if (!metadata)
-        {
-            throw new ApiError(
-                `Route "${routeName}" not found in router`,
-                500,
-                '',
-                undefined,
-                'http'
-            );
-        }
-
-        const { method, path } = metadata;
-
-        // Build URL with path params and query string
-        const params = input.params || {};
-        const query = input.query || {};
-        const url = buildUrlWithParams(path, params) + buildQueryString(query);
+        const hasBody = input.body !== undefined;
+        const method = hasBody ? 'POST' : 'GET';
 
         // Build full URL - handle SSR case where SPFN_APP_URL might not be set
         let appUrl = env.SPFN_APP_URL || '';
 
         // In SSR environment, if SPFN_APP_URL is not set, try to get host from request headers
-        if (!appUrl && typeof window === 'undefined') {
-            try {
+        if (!appUrl && typeof window === 'undefined')
+        {
+            try
+            {
                 const { headers } = await import('next/headers');
                 const headersList = await headers();
                 const host = headersList.get('host');
                 const protocol = headersList.get('x-forwarded-proto') || 'http';
-                if (host) {
+                if (host)
+                {
                     appUrl = `${protocol}://${host}`;
-                    if (debug) {
+                    if (debug)
+                    {
                         apiLogger.debug(`Auto-detected app URL from headers: ${appUrl}`);
                     }
                 }
-            } catch (error) {
+            }
+            catch
+            {
                 // Fallback: use relative URL and let fetch handle it
-                // This might fail in some SSR scenarios but will work in client-side
-                if (debug) {
+                if (debug)
+                {
                     apiLogger.warn('Could not determine app URL in SSR environment, using relative URL');
                 }
             }
         }
 
-        const fullUrl = `${appUrl}${baseUrl}${url}`;
+        // Build URL based on method
+        let fullUrl: string;
+        if (method === 'GET')
+        {
+            // GET: encode input in query string
+            const inputParam = encodeURIComponent(JSON.stringify(input));
+            fullUrl = `${appUrl}${baseUrl}/${routeName}?input=${inputParam}`;
+        }
+        else
+        {
+            // POST: input goes in body
+            fullUrl = `${appUrl}${baseUrl}/${routeName}`;
+        }
 
-        // Prepare request init (headers, body, cookies)
-        const { init: requestInit, autoDetectedCookies } = await prepareRequestInit(
-            method,
-            input.body,
-            defaultHeaders,
-            options.headers,
-            options.cookies,
-            options.fetchOptions
-        );
+        // Prepare headers
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            ...defaultHeaders,
+            ...options.headers,
+        };
+
+        // Auto-detect server cookies and merge with user-provided cookies
+        const autoDetectedCookies = await autoDetectServerCookies();
+        const cookiesToSend = {
+            ...autoDetectedCookies,
+            ...(options.cookies || {}),
+        };
+
+        // Add Cookie header if we have cookies to send
+        if (Object.keys(cookiesToSend).length > 0)
+        {
+            headers['Cookie'] = buildCookieHeader(cookiesToSend);
+        }
 
         // Log cookie auto-detection if debug enabled
         if (debug && Object.keys(autoDetectedCookies).length > 0)
         {
             const cookieArray = Object.entries(autoDetectedCookies).map(([name, value]) => ({ name, value }));
             debugLogs.logCookieAutoDetection(apiLogger, cookieArray);
+        }
+
+        // Build request init
+        const requestInit: RequestInit = {
+            method,
+            headers,
+            ...options.fetchOptions,
+        };
+
+        // Add body for POST
+        if (method === 'POST')
+        {
+            requestInit.body = JSON.stringify(input);
         }
 
         // Execute request interceptors
@@ -300,6 +293,9 @@ export function createApi<TRouter extends Router<any>>(
 
     /**
      * Build client proxy
+     *
+     * Every property access returns a RouteCallBuilder.
+     * Nested routers are supported via dot notation in routeName.
      */
     function buildProxy(prefix = ''): any
     {
@@ -310,19 +306,11 @@ export function createApi<TRouter extends Router<any>>(
                 {
                     const currentPath = prefix ? `${prefix}.${prop}` : prop;
 
-                    // Check if this is a terminal route
-                    if (routeMetadata.has(currentPath))
-                    {
-                        // Return RouteCallBuilder instance with flat API
-                        return new RouteCallBuilder(
-                            (input: any, options: CallOptions) => executeCall(currentPath, input, options),
-                            currentPath,
-                            routeMetadata
-                        );
-                    }
-
-                    // Otherwise, it might be a nested router - recurse
-                    return buildProxy(currentPath);
+                    // Return RouteCallBuilder that can either be called or chained
+                    return new RouteCallBuilder(
+                        (input: any, options: CallOptions) => executeCall(currentPath, input, options),
+                        currentPath
+                    );
                 },
             }
         );

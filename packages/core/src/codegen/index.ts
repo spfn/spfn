@@ -6,7 +6,6 @@
 
 // Orchestrator & Generator system
 export { CodegenOrchestrator } from './core/orchestrator';
-export { createRouterGenerator } from './built-in/router';
 export {
     loadCodegenConfig,
     createGeneratorsFromConfig,
@@ -30,10 +29,6 @@ export type {
 export type {
     OrchestratorOptions
 } from './core/orchestrator';
-
-export type {
-    RouterGeneratorConfig
-} from './built-in/router';
 
 export type {
     CodegenConfig,

@@ -9,14 +9,8 @@ import { join } from 'path';
 import { createJiti } from 'jiti';
 import type { Generator } from './generator';
 import { logger } from '@spfn/core/logger';
-import type { RouterGeneratorConfig } from '../built-in/router';
 
 const configLogger = logger.child('@spfn/core:config');
-
-/**
- * Router generator configuration
- */
-type RouterGeneratorDef = { name: '@spfn/core:router'; enabled?: boolean } & RouterGeneratorConfig;
 
 /**
  * Custom generator via file path
@@ -24,9 +18,14 @@ type RouterGeneratorDef = { name: '@spfn/core:router'; enabled?: boolean } & Rou
 type CustomGeneratorByPath = { path: string };
 
 /**
+ * Package-based generator configuration
+ */
+type PackageGeneratorDef = { name: string; enabled?: boolean } & Record<string, any>;
+
+/**
  * Any generator configuration
  */
-export type GeneratorConfig = CustomGeneratorByPath | RouterGeneratorDef | Record<string, any>;
+export type GeneratorConfig = CustomGeneratorByPath | PackageGeneratorDef;
 
 /**
  * Codegen configuration
@@ -38,18 +37,6 @@ export interface CodegenConfig
 
 /**
  * Define a generator with type safety
- *
- * @example
- * Router generator (strict typing):
- * ```ts
- * import { defineGenerator } from '@spfn/core/codegen';
- *
- * const routerGen = defineGenerator({
- *   name: '@spfn/core:router',
- *   routerPath: 'src/server/router.ts',
- *   outputPath: 'src/server/router.metadata.ts',
- * });
- * ```
  *
  * @example
  * Custom generator with type parameter:
@@ -64,7 +51,7 @@ export interface CodegenConfig
  * ```
  */
 export function defineGenerator<T extends Record<string, any>>(config: T): T;
-export function defineGenerator(config: RouterGeneratorDef): RouterGeneratorDef;
+export function defineGenerator(config: PackageGeneratorDef): PackageGeneratorDef;
 export function defineGenerator(config: CustomGeneratorByPath): CustomGeneratorByPath;
 export function defineGenerator<T extends Record<string, any>>(config: T): T
 {
@@ -73,22 +60,6 @@ export function defineGenerator<T extends Record<string, any>>(config: T): T
 
 /**
  * Helper function to define codegen configuration with type safety
- *
- * @example
- * Basic usage with defineGenerator:
- * ```ts
- * import { defineConfig, defineGenerator } from '@spfn/core/codegen';
- *
- * const routerGen = defineGenerator({
- *   name: '@spfn/core:router',
- *   routerPath: 'src/server/router.ts',  // Type-safe!
- *   outputPath: 'src/server/router.metadata.ts',
- * });
- *
- * export default defineConfig({
- *   generators: [routerGen]
- * });
- * ```
  *
  * @example
  * With custom generator:

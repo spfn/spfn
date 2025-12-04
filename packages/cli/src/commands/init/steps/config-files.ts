@@ -43,13 +43,31 @@ SPFN_API_URL=http://localhost:8790
     {
         const spfnrcContent = `import { defineConfig, defineGenerator } from '@spfn/core/codegen';
 
-const routerGen = defineGenerator({
-    name: '@spfn/core:router',
-    enabled: true,
-});
+/**
+ * SPFN Codegen Configuration
+ *
+ * Configure code generators here. Generators run during \`spfn dev\` and \`spfn codegen run\`.
+ *
+ * Example: Custom generator
+ * @example
+ * const myGenerator = defineGenerator({
+ *     name: 'my-package:generator',
+ *     enabled: true,
+ *     // ... generator-specific options
+ * });
+ *
+ * Example: File-based generator
+ * @example
+ * const customGen = defineGenerator({
+ *     path: './src/generators/my-generator.ts',
+ * });
+ */
 
 export default defineConfig({
-    generators: [routerGen]
+    generators: [
+        // Add your generators here
+        // myGenerator,
+    ]
 });
 `;
         writeFileSync(spfnrcPath, spfnrcContent);

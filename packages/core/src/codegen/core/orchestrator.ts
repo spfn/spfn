@@ -32,6 +32,7 @@ export class CodegenOrchestrator
     private isGenerating = false;
     private pendingRegenerations = new Set<string>();
     private watcher?: ReturnType<typeof chokidarWatch>;
+    private watcherClosePromise?: { resolve: () => void; reject: (error: Error) => void };
 
     constructor(options: OrchestratorOptions)
     {
@@ -53,6 +54,13 @@ export class CodegenOrchestrator
             }
             await this.watcher.close();
             this.watcher = undefined;
+        }
+
+        // Resolve the watch promise if it exists
+        if (this.watcherClosePromise)
+        {
+            this.watcherClosePromise.resolve();
+            this.watcherClosePromise = undefined;
         }
     }
 
@@ -263,7 +271,11 @@ export class CodegenOrchestrator
             .on('change', (path) => handleChange(path, 'change'))
             .on('unlink', (path) => handleChange(path, 'unlink'));
 
-        // Note: Graceful shutdown should be handled by caller (e.g., watcher.mjs)
-        // This allows proper cleanup order: orchestrator.close() -> closeDatabase() -> exit
+        // Return a promise that resolves when the watcher is closed
+        // This allows the caller to await the watch() method and keep the process alive
+        return new Promise<void>((resolve, reject) =>
+        {
+            this.watcherClosePromise = { resolve, reject };
+        });
     }
 }

@@ -6,7 +6,7 @@ import { logger } from '../../../utils/logger.js';
 const { ensureDirSync, writeFileSync } = fse;
 
 /**
- * Create API actions proxy route in Next.js app directory
+ * Create RPC proxy route in Next.js app directory
  * Enables HttpOnly session cookies to work in client components
  */
 export async function setupApiProxy(cwd: string, includeAuth: boolean): Promise<void>
@@ -15,19 +15,20 @@ export async function setupApiProxy(cwd: string, includeAuth: boolean): Promise<
     const appDir = existsSync(join(cwd, 'src', 'app'))
         ? join(cwd, 'src', 'app')
         : join(cwd, 'app');
-    const actionsDir = join(appDir, 'api', 'actions', '[[...path]]');
-    const actionsRoutePath = join(actionsDir, 'route.ts');
+    const rpcDir = join(appDir, 'api', 'rpc', '[routeName]');
+    const rpcRoutePath = join(rpcDir, 'route.ts');
 
-    if (!existsSync(actionsRoutePath))
+    if (!existsSync(rpcRoutePath))
     {
-        ensureDirSync(actionsDir);
+        ensureDirSync(rpcDir);
 
         const authImport = includeAuth ? `import '@spfn/auth/nextjs/api';\n` : '';
 
         const routeContent = `/**
- * SPFN API Route Proxy
+ * SPFN RPC Proxy
  *
- * Forwards all requests to SPFN API server with automatic:
+ * Resolves routeName to actual HTTP method and path from router,
+ * then forwards requests to SPFN API server with automatic:
  * - Cookie forwarding
  * - Interceptor execution
  * - Header manipulation
@@ -36,10 +37,13 @@ export async function setupApiProxy(cwd: string, includeAuth: boolean): Promise<
  * Uses next/headers internally - do not import in Client Components
  */
 
-${authImport}export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';
+${authImport}import { appRouter } from '@/server/router';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+
+export const { GET, POST } = createRpcProxy({ router: appRouter });
 `;
-        writeFileSync(actionsRoutePath, routeContent);
-        const relativePath = actionsRoutePath.replace(cwd + '/', '');
-        logger.success(`Created ${relativePath} (API proxy)`);
+        writeFileSync(rpcRoutePath, routeContent);
+        const relativePath = rpcRoutePath.replace(cwd + '/', '');
+        logger.success(`Created ${relativePath} (RPC proxy)`);
     }
 }

@@ -1,5 +1,5 @@
 // ============================================================================
-// Route Call Builder (Hybrid API)
+// Route Call Builder (Structured Input API)
 // ============================================================================
 
 import type { RouteDef, Router } from "@spfn/core/route";
@@ -9,51 +9,66 @@ import type {
     InferRouteOutput,
     RequestInterceptor,
     ResponseInterceptor,
-    HasRequiredHeaders,
-    ExtractHeaders,
-    MustProvideHeaders
 } from "./types";
 
 /**
- * Merge all input fields into a single flat object (params, query, body)
- */
-type FlatInput<TInput> =
-    (TInput extends { params: infer P } ? P : {}) &
-    (TInput extends { query: infer Q } ? Q : {}) &
-    (TInput extends { body: infer B } ? B : {});
-
-/**
- * Check if flat input has any required fields
- */
-type HasAnyRequiredFields<TInput> = keyof FlatInput<TInput> extends never ? false : true;
-
-/**
- * Route call builder with hybrid API
+ * Pick only non-empty fields from StructuredInput
  *
- * - Headers: Method chaining with validation
- * - Params, Query, Body: Flat input (merged into single object)
+ * This removes fields that are empty objects `{}` from the input type,
+ * so users only need to provide fields that are actually defined in the route.
+ */
+type PickNonEmpty<T> = {
+    [K in keyof T as T[K] extends Record<string, never> ? never : K]: T[K];
+};
+
+/**
+ * Clean structured input - only include fields that have actual schema
+ */
+type CleanStructuredInput<TInput> = PickNonEmpty<TInput>;
+
+/**
+ * Check if input has any required fields
+ */
+type HasAnyRequiredFields<TInput> = keyof CleanStructuredInput<TInput> extends never ? false : true;
+
+/**
+ * Route call builder with structured input API
+ *
+ * Input is structured with explicit params, query, body fields
+ * that match the server-side route definition.
  *
  * @example
  * ```typescript
  * // GET /users/:id - params only
- * const user = await api.getUser.call({ id: '1' });
+ * const user = await api.getUser.call({ params: { id: '1' } });
+ *
+ * // GET /users/:id?include=posts - params + query
+ * const user = await api.getUser.call({
+ *     params: { id: '1' },
+ *     query: { include: 'posts' }
+ * });
  *
  * // POST /users - body only
- * const user = await api.createUser.call({ name: 'John', email: 'john@example.com' });
+ * const user = await api.createUser.call({
+ *     body: { name: 'John', email: 'john@example.com' }
+ * });
  *
- * // PUT /users/:id - params + body (flat)
- * const user = await api.updateUser.call({ id: '1', name: 'John' });
+ * // PUT /users/:id - params + body
+ * const user = await api.updateUser.call({
+ *     params: { id: '1' },
+ *     body: { name: 'Jane' }
+ * });
  *
- * // With required headers
- * const data = await api.protected
- *   .headers({ authorization: 'Bearer token' })
- *   .call({ id: '1' });
+ * // With options (headers, cookies, Next.js caching)
+ * const user = await api.getUser
+ *     .headers({ 'X-Custom': 'value' })
+ *     .fetchOptions({ next: { revalidate: 60 } })
+ *     .call({ params: { id: '1' } });
  * ```
  */
 export class RouteCallBuilder<
     TInput,
-    TOutput,
-    THeadersProvided extends boolean = false
+    TOutput
 >
 {
     private _headers?: Record<string, string>;
@@ -64,19 +79,17 @@ export class RouteCallBuilder<
 
     constructor(
         private readonly executor: (input: any, options: CallOptions) => Promise<TOutput>,
-        private readonly routeName: string,
-        private readonly routeMetadata: Map<string, { method: string; path: string }>
+        private readonly routeName: string
     ) {}
 
     /**
-     * Clone builder with new generic parameters
+     * Clone builder
      */
-    private clone<TNewHeadersProvided extends boolean = THeadersProvided>(): RouteCallBuilder<TInput, TOutput, TNewHeadersProvided>
+    private clone(): RouteCallBuilder<TInput, TOutput>
     {
-        const builder = new RouteCallBuilder<TInput, TOutput, TNewHeadersProvided>(
+        const builder = new RouteCallBuilder<TInput, TOutput>(
             this.executor,
-            this.routeName,
-            this.routeMetadata
+            this.routeName
         );
         builder._headers = this._headers;
         builder._cookies = this._cookies;
@@ -89,9 +102,9 @@ export class RouteCallBuilder<
     /**
      * Set request headers
      */
-    headers(headers: Record<string, string>): RouteCallBuilder<TInput, TOutput, true>
+    headers(headers: Record<string, string>): RouteCallBuilder<TInput, TOutput>
     {
-        const builder = this.clone<true>();
+        const builder = this.clone();
         builder._headers = { ...this._headers, ...headers };
         return builder;
     }
@@ -99,7 +112,7 @@ export class RouteCallBuilder<
     /**
      * Set cookies
      */
-    cookies(cookies: Record<string, string>): RouteCallBuilder<TInput, TOutput, THeadersProvided>
+    cookies(cookies: Record<string, string>): RouteCallBuilder<TInput, TOutput>
     {
         const builder = this.clone();
         builder._cookies = { ...this._cookies, ...cookies };
@@ -109,7 +122,7 @@ export class RouteCallBuilder<
     /**
      * Set Next.js fetch options
      */
-    fetchOptions(options: RequestInit & { next?: { revalidate?: number | false; tags?: string[] } }): RouteCallBuilder<TInput, TOutput, THeadersProvided>
+    fetchOptions(options: RequestInit & { next?: { revalidate?: number | false; tags?: string[] } }): RouteCallBuilder<TInput, TOutput>
     {
         const builder = this.clone();
         builder._fetchOptions = { ...this._fetchOptions, ...options };
@@ -119,7 +132,7 @@ export class RouteCallBuilder<
     /**
      * Set request interceptor
      */
-    onRequest(interceptor: RequestInterceptor): RouteCallBuilder<TInput, TOutput, THeadersProvided>
+    onRequest(interceptor: RequestInterceptor): RouteCallBuilder<TInput, TOutput>
     {
         const builder = this.clone();
         builder._onRequest = interceptor;
@@ -129,7 +142,7 @@ export class RouteCallBuilder<
     /**
      * Set response interceptor
      */
-    onResponse(interceptor: ResponseInterceptor): RouteCallBuilder<TInput, TOutput, THeadersProvided>
+    onResponse(interceptor: ResponseInterceptor): RouteCallBuilder<TInput, TOutput>
     {
         const builder = this.clone();
         builder._onResponse = interceptor;
@@ -137,75 +150,17 @@ export class RouteCallBuilder<
     }
 
     /**
-     * Execute the API call with flat input
+     * Execute the API call with structured input
      *
-     * All params, query, and body fields are passed as a single flat object.
-     * The runtime automatically separates them based on route metadata.
-     *
-     * If the route requires headers, you must call .headers() before .call().
-     * This is enforced at compile-time with a clear error message.
+     * Input structure matches the server-side route definition:
+     * - params: Path parameters (e.g., { id: '123' } for /users/:id)
+     * - query: Query string parameters
+     * - body: Request body (for POST, PUT, PATCH)
      */
-    call(
-        flatInput?: FlatInput<TInput> & (
-            HasRequiredHeaders<TInput> extends true
-                ? THeadersProvided extends true
-                    ? {}
-                    : MustProvideHeaders<ExtractHeaders<TInput>>
-                : {}
-        )
-    ): Promise<TOutput>
+    call(input?: CleanStructuredInput<TInput>): Promise<TOutput>
     {
-        const metadata = this.routeMetadata.get(this.routeName);
-        if (!metadata)
-        {
-            throw new Error(`Route "${this.routeName}" not found`);
-        }
-
-        const { method, path } = metadata;
-        const input: any = {};
-
-        if (flatInput)
-        {
-            // Extract path parameter names from route path
-            const paramNames = path.match(/:(\w+)/g)?.map(p => p.slice(1)) || [];
-
-            // Separate params, query, and body
-            const params: any = {};
-            const remaining: any = {};
-
-            for (const [key, value] of Object.entries(flatInput))
-            {
-                if (paramNames.includes(key))
-                {
-                    params[key] = value;
-                }
-                else
-                {
-                    remaining[key] = value;
-                }
-            }
-
-            // Assign params if any
-            if (Object.keys(params).length > 0)
-            {
-                input.params = params;
-            }
-
-            // Assign remaining to query or body based on method
-            if (Object.keys(remaining).length > 0)
-            {
-                if (method === 'GET' || method === 'DELETE')
-                {
-                    input.query = remaining;
-                }
-                else
-                {
-                    input.body = remaining;
-                }
-            }
-        }
-
         const options: CallOptions = {};
+
         if (this._headers)
         {
             options.headers = this._headers;
@@ -231,27 +186,55 @@ export class RouteCallBuilder<
             options.onResponse = this._onResponse;
         }
 
-        return this.executor(input, options) as any;
+        return this.executor(input || {}, options);
     }
 }
 
 /**
- * Individual route client with hybrid API
+ * Individual route client with structured input API
  */
-export type RouteClient<TRoute extends RouteDef<any, any>> =
-    Omit<RouteCallBuilder<InferRouteInput<TRoute>, InferRouteOutput<TRoute>, false>, 'call'> & {
-        call: HasAnyRequiredFields<InferRouteInput<TRoute>> extends true
-            ? (input: FlatInput<InferRouteInput<TRoute>> & (
-                HasRequiredHeaders<InferRouteInput<TRoute>> extends true
-                    ? MustProvideHeaders<ExtractHeaders<InferRouteInput<TRoute>>>
-                    : {}
-            )) => Promise<InferRouteOutput<TRoute>>
-            : (input?: FlatInput<InferRouteInput<TRoute>> & (
-                HasRequiredHeaders<InferRouteInput<TRoute>> extends true
-                    ? MustProvideHeaders<ExtractHeaders<InferRouteInput<TRoute>>>
-                    : {}
-            )) => Promise<InferRouteOutput<TRoute>>;
-    };
+export type RouteClient<TRoute extends RouteDef<any, any>> = {
+    /**
+     * Set request headers
+     */
+    headers(headers: Record<string, string>): RouteClient<TRoute>;
+
+    /**
+     * Set cookies
+     */
+    cookies(cookies: Record<string, string>): RouteClient<TRoute>;
+
+    /**
+     * Set Next.js fetch options
+     */
+    fetchOptions(options: RequestInit & { next?: { revalidate?: number | false; tags?: string[] } }): RouteClient<TRoute>;
+
+    /**
+     * Set request interceptor
+     */
+    onRequest(interceptor: RequestInterceptor): RouteClient<TRoute>;
+
+    /**
+     * Set response interceptor
+     */
+    onResponse(interceptor: ResponseInterceptor): RouteClient<TRoute>;
+
+    /**
+     * Execute the API call with structured input
+     *
+     * @example
+     * ```typescript
+     * // GET /users/:id
+     * api.getUser.call({ params: { id: '123' } });
+     *
+     * // PUT /users/:id
+     * api.updateUser.call({ params: { id: '123' }, body: { name: 'Jane' } });
+     * ```
+     */
+    call: HasAnyRequiredFields<InferRouteInput<TRoute>> extends true
+        ? (input: CleanStructuredInput<InferRouteInput<TRoute>>) => Promise<InferRouteOutput<TRoute>>
+        : (input?: CleanStructuredInput<InferRouteInput<TRoute>>) => Promise<InferRouteOutput<TRoute>>;
+};
 
 /**
  * Typed client for entire router

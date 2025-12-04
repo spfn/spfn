@@ -4,16 +4,11 @@
  * Provides a registry of all built-in generators
  */
 
-import { createRouterGenerator } from '../built-in/router';
-
 /**
  * Registry of available generators
  *
- * Used by package-based generator loading (e.g., "@spfn/core:router")
+ * Used by package-based generator loading (e.g., "@spfn/core:env")
  */
 export const generators = {
-    router: createRouterGenerator,
+    // Router generator removed - no longer needed with RPC proxy
 };
-
-export { createRouterGenerator } from '../built-in/router';
-export type { RouterGeneratorConfig } from '../built-in/router';

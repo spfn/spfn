@@ -4,7 +4,7 @@
 
 import type { Static, TSchema } from "@sinclair/typebox";
 import { ErrorRegistry } from "@spfn/core/errors";
-import type { RouteDef, RouteInput, RouteMetadata } from "@spfn/core/route";
+import type { RouteDef, RouteInput } from "@spfn/core/route";
 
 /**
  * Check if a type is exactly an empty object `{}`
@@ -124,20 +124,12 @@ export type ResponseInterceptor = (
  */
 export interface ApiConfig {
     /**
-     * Base URL for API calls
+     * Base URL for RPC endpoint
      *
-     * @default '/api/actions'
-     * @example '/api/actions', 'http://localhost:3000/api/actions'
+     * @default '/api/rpc'
+     * @example '/api/rpc', 'http://localhost:3000/api/rpc'
      */
     baseUrl?: string;
-
-    /**
-     * Pre-extracted route metadata (from codegen)
-     *
-     * When provided, the client doesn't need the actual router object.
-     * This enables usage in Server Components without bundling server code.
-     */
-    metadata?: Record<string, RouteMetadata | Record<string, RouteMetadata>>;
 
     /**
      * Default headers for all requests
@@ -180,7 +172,6 @@ export interface ApiConfig {
      *     .append([PaymentFailedError, InventoryError]);
      *
      * const api = createApi<AppRouter>({
-     *   metadata: appMetadata,
      *   errorRegistry: customRegistry
      * });
      * ```
