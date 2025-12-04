@@ -111,16 +111,16 @@ process.on('SIGINT', async () =>
     process.exit(0);
 });
 
-// Start watching - should run indefinitely
-// Only catch errors, don't handle normal completion
-orchestrator.watch().catch((error) =>
+// Start watching - this will run indefinitely until the watcher is closed
+try
+{
+    await orchestrator.watch();
+}
+catch (error)
 {
     console.error('[SPFN] Codegen watcher error:', error);
     process.exit(1);
-});
-
-// Keep process alive
-await new Promise(() => {});
+}
 `);
 
         const pm = detectPackageManager(cwd);
@@ -257,7 +257,16 @@ await new Promise(() => {});
             startServer();
 
             // Keep process alive - let cleanup handlers manage exit
-            await new Promise(() => {});
+            // Use setInterval to keep the event loop active without unsettled promises
+            await new Promise<void>((resolve) =>
+            {
+                const keepAlive = setInterval(() => {}, 1000000);
+                // Cleanup will handle exit, but just in case:
+                process.once('beforeExit', () => {
+                    clearInterval(keepAlive);
+                    resolve();
+                });
+            });
 
             return;
         }
@@ -424,5 +433,14 @@ await new Promise(() => {});
         startNext();
 
         // Keep process alive - let cleanup handlers manage exit
-        await new Promise(() => {});
+        // Use setInterval to keep the event loop active without unsettled promises
+        await new Promise<void>((resolve) =>
+        {
+            const keepAlive = setInterval(() => {}, 1000000);
+            // Cleanup will handle exit, but just in case:
+            process.once('beforeExit', () => {
+                clearInterval(keepAlive);
+                resolve();
+            });
+        });
     });

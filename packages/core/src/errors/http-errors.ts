@@ -171,6 +171,32 @@ export class ConflictError extends HttpError
 }
 
 /**
+ * Gone Error (410)
+ *
+ * Resource permanently deleted and no longer available
+ */
+export class GoneError extends HttpError
+{
+    resource?: string;
+
+    constructor(data: { message?: string; resource?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'Resource permanently deleted',
+            statusCode: 410,
+            details: data.details,
+        });
+
+        this.name = 'GoneError';
+
+        if (data.resource)
+        {
+            this.resource = data.resource;
+        }
+    }
+}
+
+/**
  * Too Many Requests Error (429)
  *
  * Rate limit exceeded
@@ -216,6 +242,43 @@ export class InternalServerError extends HttpError
         });
 
         this.name = 'InternalServerError';
+    }
+}
+
+/**
+ * Unsupported Media Type Error (415)
+ *
+ * Media type not supported - invalid file type, content type, etc.
+ */
+export class UnsupportedMediaTypeError extends HttpError
+{
+    mediaType?: string;
+    supportedTypes?: string[];
+
+    constructor(data: {
+        message?: string;
+        mediaType?: string;
+        supportedTypes?: string[];
+        details?: Record<string, any>;
+    } = {})
+    {
+        super({
+            message: data.message || 'Unsupported media type',
+            statusCode: 415,
+            details: data.details,
+        });
+
+        this.name = 'UnsupportedMediaTypeError';
+
+        if (data.mediaType)
+        {
+            this.mediaType = data.mediaType;
+        }
+
+        if (data.supportedTypes)
+        {
+            this.supportedTypes = data.supportedTypes;
+        }
     }
 }
 
