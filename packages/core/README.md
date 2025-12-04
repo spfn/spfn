@@ -144,7 +144,7 @@ const user = await api.getUser
 ```typescript
 // 1. Client Call (Next.js Server Component)
 // app/users/[id]/page.tsx
-import { api } from '@spfn/core/client/nextjs';
+import { api } from '@spfn/core/nextjs/server';
 
 const user = await api.getUser
     .params({ id: params.id })
@@ -152,7 +152,7 @@ const user = await api.getUser
 
 // 2. API Route Proxy
 // app/api/actions/[...path]/route.ts
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';
 // - Forwards to http://localhost:8790/users/123
 // - Applies interceptors (auth, cookies)
 
@@ -317,7 +317,7 @@ app.bind(createUserContract, [Transactional()], async (c) => {
 
 ---
 
-### 4. Client System (`src/client/nextjs/`)
+### 4. Client System (`src/nextjs/`)
 
 **Purpose**: Type-safe API client for Next.js with tRPC-style DX
 
@@ -357,7 +357,7 @@ Return NextResponse
 
 **Design Pattern**: Proxy for client, Middleware chain for proxy
 
-**[→ Full Documentation](./src/client/nextjs/README.md)**
+**[→ Full Documentation](./src/nextjs/README.md)**
 
 ---
 
@@ -394,13 +394,15 @@ Return NextResponse
 
 ### 7. Cache System (`src/cache/`)
 
-**Purpose**: Redis integration with master-replica support
+**Purpose**: Valkey/Redis integration with master-replica support
 
 **Key Components**:
 
-- `initRedis()`: Initialize connections
-- `getRedis()`: Write operations (master)
-- `getRedisRead()`: Read operations (replica or master)
+- `initCache()`: Initialize connections
+- `getCache()`: Write operations (master)
+- `getCacheRead()`: Read operations (replica or master)
+- `isCacheDisabled()`: Check if cache is disabled
+- Graceful degradation when cache unavailable
 
 **[→ Full Documentation](./src/cache/README.md)**
 
@@ -474,7 +476,7 @@ export type AppRouter = typeof appRouter;
 
 // 4. Client API Call (Next.js)
 // app/users/[id]/page.tsx
-import { api } from '@spfn/core/client/nextjs';
+import { api } from '@spfn/core/nextjs/server';
 
 const user = await api.getUser
     .params({ id: '123' })    // Type-checked: must be { id: string }
@@ -559,7 +561,7 @@ const user = await api.getUser.params({ id: '123' }).call();
 
 ```typescript
 // app/api/actions/[...path]/route.ts
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';
 
 // Automatically:
 // 1. Forwards /api/actions/users/123 → http://localhost:8790/users/123
@@ -580,7 +582,7 @@ export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
 
 ```typescript
 // @spfn/auth package
-import { registerInterceptors } from '@spfn/core/client/nextjs';
+import { registerInterceptors } from '@spfn/core/nextjs/server';
 
 registerInterceptors('auth', [
     {
@@ -595,7 +597,7 @@ registerInterceptors('auth', [
 
 // App: Auto-discovery
 import '@spfn/auth/adapters/nextjs'; // Registers interceptors
-export { GET, POST } from '@spfn/core/client/nextjs'; // Uses registered interceptors
+export { GET, POST } from '@spfn/core/nextjs/server'; // Uses registered interceptors
 ```
 
 **Why**: Zero-config integration for plugin packages
@@ -730,7 +732,8 @@ Add global or route-specific middleware:
 
 ```typescript
 // server.config.ts
-import { defineServerConfig, defineMiddleware } from '@spfn/core/server';
+import { defineServerConfig } from '@spfn/core/server';
+import { defineMiddleware } from '@spfn/core/route';
 
 const rateLimitMiddleware = defineMiddleware('rateLimit', async (c, next) => {
     const ip = c.req.header('x-forwarded-for');
@@ -758,7 +761,7 @@ Add request/response interceptors:
 
 ```typescript
 // app/api/actions/[...path]/route.ts
-import { createTypedProxy } from '@spfn/core/client/nextjs';
+import { createTypedProxy } from '@spfn/core/nextjs/server';
 
 export const { GET, POST } = createTypedProxy({
     interceptors: [
@@ -785,7 +788,7 @@ Create SPFN packages with auto-discovery:
 
 ```typescript
 // @yourcompany/spfn-analytics package
-import { registerInterceptors } from '@spfn/core/client/nextjs';
+import { registerInterceptors } from '@spfn/core/nextjs/server';
 
 registerInterceptors('analytics', [
     {
@@ -803,7 +806,7 @@ registerInterceptors('analytics', [
 
 // App: Auto-discovery
 import '@yourcompany/spfn-analytics/adapters/nextjs';
-export { GET, POST } from '@spfn/core/client/nextjs';
+export { GET, POST } from '@spfn/core/nextjs/server';
 ```
 
 ---
@@ -927,7 +930,7 @@ const user = await client.call(getUserContract, {
 
 **After** (Current):
 ```typescript
-import { api } from '@spfn/core/client/nextjs';
+import { api } from '@spfn/core/nextjs/server';
 
 const user = await api.getUser
     .params({ id: '123' })
@@ -995,18 +998,20 @@ import {
 ### Client System
 
 ```typescript
+// Client-safe exports (works in Client Components)
 import {
-    api,
     createApi,
-    configureApi,
-} from '@spfn/core/client/nextjs';
+    ApiError,
+} from '@spfn/core/nextjs';
 
+// Server-only exports (API Routes, Server Components)
 import {
     createTypedProxy,
     registerInterceptors,
-} from '@spfn/core/client/nextjs';
+} from '@spfn/core/nextjs/server';
 
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+// API Route handlers
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';
 ```
 
 ### Error System
@@ -1031,10 +1036,31 @@ import { logger } from '@spfn/core';
 
 ```typescript
 import {
-    initRedis,
-    getRedis,
-    getRedisRead,
-} from '@spfn/core';
+    initCache,
+    getCache,
+    getCacheRead,
+    isCacheDisabled,
+    closeCache,
+} from '@spfn/core/cache';
+```
+
+### Environment System
+
+```typescript
+import {
+    defineEnvSchema,
+    createEnvRegistry,
+    envString,
+    envNumber,
+    envBoolean,
+    envEnum,
+} from '@spfn/core/env';
+```
+
+### Configuration System
+
+```typescript
+import { env, envSchema } from '@spfn/core/config';
 ```
 
 ---
@@ -1050,10 +1076,10 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/db
 # Database Read Replica (optional)
 DATABASE_READ_URL=postgresql://user:pass@replica:5432/db
 
-# Redis (optional)
-REDIS_URL=redis://localhost:6379
-REDIS_WRITE_URL=redis://master:6379
-REDIS_READ_URL=redis://replica:6379
+# Cache - Valkey/Redis (optional)
+CACHE_URL=redis://localhost:6379
+CACHE_WRITE_URL=redis://master:6379
+CACHE_READ_URL=redis://replica:6379
 
 # Next.js App URL (for Server Components calling API Routes)
 SPFN_APP_URL=http://localhost:3000
@@ -1117,13 +1143,13 @@ export default defineServerConfig()
 **5. Create API Route Proxy (Next.js)**
 ```typescript
 // app/api/actions/[...path]/route.ts
-export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/client/nextjs';
+export { GET, POST, PUT, PATCH, DELETE } from '@spfn/core/nextjs/server';
 ```
 
 **6. Use Client**
 ```typescript
 // app/users/[id]/page.tsx
-import { api } from '@spfn/core/client/nextjs';
+import { api } from '@spfn/core/nextjs/server';
 
 const user = await api.getUser.params({ id: '123' }).call();
 ```
@@ -1136,7 +1162,7 @@ const user = await api.getUser.params({ id: '123' }).call();
 - [Route System](./src/route/README.md) - define-route system, type inference
 - [Server System](./src/server/README.md) - Configuration, middleware pipeline, lifecycle
 - [Database System](./src/db/README.md) - Helper functions, transactions, schema helpers
-- [Client System](./src/client/nextjs/README.md) - tRPC-style API, TypedProxy, interceptors
+- [Client System](./src/nextjs/README.md) - tRPC-style API, TypedProxy, interceptors
 
 ### Guides
 - [Transaction Management](./src/db/docs/transactions.md)
@@ -1153,7 +1179,7 @@ const user = await api.getUser.params({ id: '123' }).call();
 - Node.js >= 18
 - Next.js 15+ with App Router (when using client integration)
 - PostgreSQL
-- Redis (optional)
+- Valkey/Redis (optional)
 - TypeScript >= 5.0
 
 ---
@@ -1166,7 +1192,7 @@ npm test -- route           # Run route tests only
 npm test -- --coverage      # With coverage
 ```
 
-**Test Coverage**: 120+ tests across all modules
+**Test Coverage**: 650+ tests across all modules
 
 ---
 

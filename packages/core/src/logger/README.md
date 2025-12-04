@@ -2,6 +2,27 @@
 
 Universal logging module with transport-based architecture.
 
+## Core Components
+
+```
+logger/
+├── index.ts              # Module exports
+├── logger.ts             # Logger class
+├── types.ts              # Type definitions
+├── config.ts             # Configuration
+├── factory.ts            # Logger factory
+├── formatters.ts         # Log formatters & sensitive masking
+├── transports/
+│   └── console.ts        # Console transport
+└── __tests__/
+    ├── logger.test.ts
+    ├── console-transport.test.ts
+    ├── formatters.test.ts
+    ├── config.test.ts
+    ├── logger-context.test.ts
+    └── promise-context.test.ts
+```
+
 ## Features
 
 - ✅ **Transport System**: Console transport with extensible architecture
@@ -84,7 +105,7 @@ SPFN_LOG_LEVEL=debug
 **Output:** Colored console output
 
 ```
-[2025-10-21 15:39:06] [module=database] INFO: Request received userId=123
+[2025-10-21 15:39:06.123] [pid=12345] [module=database] [userId=123] (INFO): Request received
 ```
 
 ### Production (Docker/K8s)
@@ -97,7 +118,7 @@ SPFN_LOG_LEVEL=info
 **Output:** Plain text to stdout/stderr (Docker collects logs automatically)
 
 ```
-[2025-10-21 15:39:06] [module=api] INFO: Request received method=POST path=/users
+[2025-10-21 15:39:06.123] [pid=12345] [module=api] [method=POST] [path=/users] (INFO): Request received
 ```
 
 **Docker Logging:** Logs written to stdout/stderr are automatically captured by Docker and can be:
@@ -124,8 +145,8 @@ logger.info('User login', {
   token: 'abc123'          // Automatically masked
 });
 
-// Output (production)
-[2025-10-21 15:39:06] [module=auth] INFO: User login username=john password=***MASKED*** token=***MASKED***
+// Output
+[2025-10-21 15:39:06.123] [pid=12345] [module=auth] [username=john] [password=***MASKED***] [token=***MASKED***] (INFO): User login
 ```
 
 **Automatically masked fields:**
@@ -136,7 +157,7 @@ logger.info('User login', {
 - authorization, auth
 - cookie, session, sessionId
 - creditCard, cardNumber, cvv
-- And 10+ more patterns
+- ssn, pin
 
 ---
 
@@ -168,18 +189,18 @@ NEXT_PUBLIC_SPFN_LOG_LEVEL=info          # Client-side log level for Next.js (de
 
 ## Log Formats
 
-### Development (Colored)
+### Console Output Format
 
 ```
-[2025-10-21 15:39:06] [module=database] INFO: Connection established
-[2025-10-21 15:39:06] [module=api] ERROR: Request failed userId=123
+[timestamp] [pid=N] [module=name] [key=value]... (LEVEL): message
 ```
 
-### Production (Plain Text)
-
+**Example:**
 ```
-[2025-10-21 15:39:06] [module=database] INFO: Connection established
-[2025-10-21 15:39:06] [module=api] ERROR: Request failed userId=123 error=[Error: Connection timeout]
+[2025-10-21 15:39:06.123] [pid=12345] [module=database] (INFO): Connection established
+[2025-10-21 15:39:06.456] [pid=12345] [module=api] [userId=123] (ERROR): Request failed
+Error: Connection timeout
+    at processRequest (/app/src/api.ts:45:11)
 ```
 
 ---
@@ -289,18 +310,19 @@ logger.info('Login attempt', { username: 'john', password: userInput });
 ## Testing
 
 ```bash
-# Run all logger tests (152 tests)
-npm test -- logger
+# Run all logger tests (103 tests)
+pnpm test src/logger
 
 # Run specific test files
-npm test -- src/logger/__tests__/logger.test.ts
-npm test -- src/logger/__tests__/console-transport.test.ts
-npm test -- src/logger/__tests__/formatters.test.ts
-npm test -- src/logger/__tests__/config.test.ts
-npm test -- src/middleware/__tests__/request-logger.test.ts
+pnpm test src/logger/__tests__/logger.test.ts
+pnpm test src/logger/__tests__/console-transport.test.ts
+pnpm test src/logger/__tests__/formatters.test.ts
+pnpm test src/logger/__tests__/config.test.ts
+pnpm test src/logger/__tests__/logger-context.test.ts
+pnpm test src/logger/__tests__/promise-context.test.ts
 ```
 
-**Test Coverage (152 tests):**
+**Test Coverage (103 tests):**
 - ✅ Logger core (26 tests)
   - Basic logging (all levels)
   - Context logging
@@ -313,19 +335,20 @@ npm test -- src/middleware/__tests__/request-logger.test.ts
   - Log level filtering
   - Stream separation (stdout/stderr)
   - Colorization
-- ✅ Formatters (45 tests)
+- ✅ Formatters (35 tests)
   - Console formatting
   - Plain text formatting
   - Timestamp formatting
-  - Sensitive data masking (14 tests)
-- ✅ Configuration (36 tests)
+  - Sensitive data masking
+- ✅ Configuration (7 tests)
   - Environment detection
-  - Transport configuration
-  - Configuration validation
-- ✅ Request Logger Middleware (29 tests)
-  - HTTP request/response logging
-  - Error handling
-  - Context injection
+  - Log level configuration
+- ✅ Logger Context (6 tests)
+  - Context propagation
+  - Nested context handling
+- ✅ Promise Context (13 tests)
+  - Async context tracking
+  - Promise chain context propagation
 
 ---
 

@@ -2,6 +2,19 @@
 
 Global cache instance management with automatic environment variable detection and graceful degradation.
 
+## Core Components
+
+```
+cache/
+├── index.ts                    # Module exports
+├── cache-factory.ts            # Cache client factory with env detection
+├── cache-manager.ts            # Singleton cache instance manager
+└── __tests__/
+    ├── cache-factory.test.ts   # Factory tests (31 tests)
+    ├── cache-manager.test.ts   # Manager tests (48 tests)
+    └── cache.integration.test.ts # Integration tests (20 tests)
+```
+
 ## What is Valkey?
 
 **Valkey** is a high-performance, open-source key-value store forked from Redis 7.2.4. It maintains **100% protocol compatibility** with Redis, allowing seamless migration.
@@ -21,7 +34,7 @@ Global cache instance management with automatic environment variable detection a
 - ✅ **Singleton Pattern**: One connection shared across all modules
 - ✅ **Master-Replica Support**: Automatic read/write separation
 - ✅ **Multiple Patterns**: Single, Master-Replica, Sentinel, Cluster
-- ✅ **TLS/SSL Support**: `valkeys://` and `rediss://` protocols
+- ✅ **TLS/SSL Support**: `rediss://` protocol (Valkey uses same protocol as Redis)
 - ✅ **Optional Dependency**: Works without cache library installed
 - ✅ **Connection Testing**: Automatic `ping()` before accepting instances
 - ✅ **Auto-initialization**: Called by `startServer()`
@@ -255,8 +268,8 @@ Set global cache instances manually (for testing or custom configuration).
 import { setCache } from '@spfn/core/cache';
 import Redis from 'ioredis';
 
-const write = new Redis('valkey://master:6379');
-const read = new Redis('valkey://replica:6379');
+const write = new Redis('redis://master:6379');
+const read = new Redis('redis://replica:6379');
 setCache(write, read);
 ```
 
@@ -284,6 +297,82 @@ console.log(info);
 ```
 
 **Returns:** `{ hasWrite: boolean; hasRead: boolean; isReplica: boolean; disabled: boolean }`
+
+---
+
+### `createCacheFromEnv()`
+
+Create cache client(s) from environment variables. Low-level factory function.
+
+```typescript
+import { createCacheFromEnv } from '@spfn/core/cache';
+
+const { write, read } = await createCacheFromEnv();
+if (write) {
+  await write.ping();
+  console.log('Cache connected');
+}
+```
+
+**Returns:** `Promise<CacheClients>` (`{ write?: Redis | Cluster; read?: Redis | Cluster }`)
+
+**Supported Patterns (Priority Order):**
+1. Single instance: `CACHE_URL`
+2. Master-Replica: `CACHE_WRITE_URL` + `CACHE_READ_URL`
+3. Sentinel: `CACHE_SENTINEL_HOSTS` + `CACHE_MASTER_NAME`
+4. Cluster: `CACHE_CLUSTER_NODES`
+
+---
+
+### `createSingleCacheFromEnv()`
+
+Create single cache client from environment variables. Only returns write instance.
+
+```typescript
+import { createSingleCacheFromEnv } from '@spfn/core/cache';
+
+const cache = await createSingleCacheFromEnv();
+if (cache) {
+  await cache.set('key', 'value');
+}
+```
+
+**Returns:** `Promise<Redis | Cluster | undefined>`
+
+---
+
+### Backward Compatibility Aliases
+
+For projects migrating from Redis-specific naming:
+
+```typescript
+import {
+  createRedisFromEnv,      // Alias for createCacheFromEnv
+  createSingleRedisFromEnv // Alias for createSingleCacheFromEnv
+} from '@spfn/core/cache';
+
+import type {
+  RedisClients             // Alias for CacheClients
+} from '@spfn/core/cache';
+```
+
+---
+
+## Type Exports
+
+```typescript
+import type { CacheClients, RedisClients } from '@spfn/core/cache';
+
+interface CacheClients {
+  /** Primary cache for writes (or both read/write if no replica) */
+  write?: Redis | Cluster;
+  /** Replica cache for reads (optional, falls back to write) */
+  read?: Redis | Cluster;
+}
+
+// RedisClients is an alias for CacheClients (backward compatibility)
+type RedisClients = CacheClients;
+```
 
 ---
 

@@ -1,50 +1,60 @@
-# @spfn/core/config
+# @spfn/core/config - Configuration Module
 
-중앙화된 환경변수 설정 관리 모듈입니다. 타입 안전성, 검증, 문서화를 제공합니다.
+Centralized environment variable configuration with type safety, validation, and documentation.
+
+## Core Components
+
+```
+config/
+├── index.ts        # Module exports (env, envSchema)
+└── schema.ts       # Environment variable schema definition
+```
 
 ## Features
 
-- ✅ **타입 안전**: TypeScript를 통한 완전한 타입 추론
-- ✅ **중앙 관리**: 모든 환경변수를 한 곳에서 정의
-- ✅ **기본값 지원**: 환경별 스마트 기본값
-- ✅ **검증**: 자동 타입 변환 및 유효성 검사
-- ✅ **문서화**: 각 변수에 대한 설명, 예시, 카테고리
-- ✅ **카테고리화**: 논리적 그룹으로 환경변수 구조화
+- **Type-Safe**: Full TypeScript inference from schema
+- **Centralized**: All environment variables defined in one place
+- **Default Values**: Smart defaults per environment
+- **Validation**: Automatic type conversion and validation
+- **Documentation**: Description, examples, and categories for each variable
 
-## Installation
-
-```bash
-npm install @spfn/core
-```
+---
 
 ## Quick Start
 
-### 기본 사용법
+### Basic Usage
 
 ```typescript
 import { env } from '@spfn/core/config';
 
-// 타입 안전한 환경변수 접근
+// Type-safe environment variable access
 const poolMax: number = env.DB_POOL_MAX;
 const logLevel: 'debug' | 'info' | 'warn' | 'error' | 'fatal' = env.SPFN_LOG_LEVEL;
 const appUrl: string | undefined = env.SPFN_APP_URL;
 const apiUrl: string = env.SPFN_API_URL; // Required
 ```
 
-### 스키마와 Registry 접근
+### Accessing Schema Information
 
 ```typescript
-import { registry } from '@spfn/core/config';
-import { coreEnvSchema } from '@spfn/core/config/schema';
+import { envSchema } from '@spfn/core/config';
 
-// 환경변수 검증 및 가져오기
-const config = registry.validate();
-console.log(config.DB_POOL_MAX);
-
-// 스키마 정보 접근
-console.log(coreEnvSchema.DB_POOL_MAX.description);
-console.log(coreEnvSchema.DB_POOL_MAX.default);
+// Access schema metadata
+console.log(envSchema.DB_POOL_MAX.description);
+console.log(envSchema.DB_POOL_MAX.default);
+console.log(envSchema.DB_POOL_MAX.examples);
 ```
+
+---
+
+## Exports
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `env` | `object` | Validated environment configuration object |
+| `envSchema` | `object` | Environment variable schema definition |
+
+---
 
 ## Environment Variables
 
@@ -54,9 +64,8 @@ console.log(coreEnvSchema.DB_POOL_MAX.default);
 |----------|------|---------|-------------|
 | `NODE_ENV` | `'local' \| 'development' \| 'production' \| 'test'` | `'local'` | Node.js runtime environment |
 
-### Database
+### Database - Connection URLs
 
-#### Connection URLs
 | Variable | Type | Required | Description |
 |----------|------|----------|-------------|
 | `DATABASE_URL` | `string` | No | Primary database connection URL |
@@ -64,13 +73,15 @@ console.log(coreEnvSchema.DB_POOL_MAX.default);
 | `DATABASE_READ_URL` | `string` | No | Read database URL (master-replica) |
 | `DATABASE_REPLICA_URL` | `string` | No | Legacy replica database URL |
 
-#### Connection Pool
+### Database - Connection Pool
+
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `DB_POOL_MAX` | `number` | `10` | Maximum connections in pool |
 | `DB_POOL_IDLE_TIMEOUT` | `number` | `30` | Idle timeout in seconds |
 
-#### Retry Configuration
+### Database - Retry Configuration
+
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `DB_RETRY_MAX` | `number` | `3` | Maximum retry attempts |
@@ -78,7 +89,8 @@ console.log(coreEnvSchema.DB_POOL_MAX.default);
 | `DB_RETRY_MAX_DELAY` | `number` | `10000` | Maximum delay (ms) |
 | `DB_RETRY_FACTOR` | `number` | `2` | Backoff factor |
 
-#### Health Check
+### Database - Health Check
+
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `DB_HEALTH_CHECK_ENABLED` | `boolean` | `true` | Enable health checks |
@@ -87,19 +99,22 @@ console.log(coreEnvSchema.DB_POOL_MAX.default);
 | `DB_HEALTH_CHECK_MAX_RETRIES` | `number` | `3` | Max retry attempts |
 | `DB_HEALTH_CHECK_RETRY_INTERVAL` | `number` | `5000` | Retry interval (ms) |
 
-#### Monitoring
+### Database - Monitoring
+
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `DB_MONITORING_ENABLED` | `boolean` | `false` | Enable query monitoring |
 | `DB_MONITORING_SLOW_THRESHOLD` | `number` | `1000` | Slow query threshold (ms) |
 | `DB_MONITORING_LOG_QUERIES` | `boolean` | `false` | Log all queries |
 
-#### Transaction
+### Database - Transaction
+
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `TRANSACTION_TIMEOUT` | `number` | `30000` | Transaction timeout (ms) |
 
-#### Development
+### Database - Development
+
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `DB_DEBUG_TRACE` | `boolean` | `false` | Enable detailed debug tracing |
@@ -120,29 +135,34 @@ console.log(coreEnvSchema.DB_POOL_MAX.default);
 ### Cache (Redis/Valkey)
 
 #### Single Instance
+
 | Variable | Type | Required | Description |
 |----------|------|----------|-------------|
 | `CACHE_URL` | `string` | No | Single Redis/Valkey instance URL |
 | `CACHE_PASSWORD` | `string` | No | Authentication password |
 
 #### Master-Replica Pattern
+
 | Variable | Type | Required | Description |
 |----------|------|----------|-------------|
 | `CACHE_WRITE_URL` | `string` | No | Master Redis URL for writes |
 | `CACHE_READ_URL` | `string` | No | Replica Redis URL for reads |
 
 #### Sentinel Pattern
+
 | Variable | Type | Required | Description |
 |----------|------|----------|-------------|
 | `CACHE_SENTINEL_HOSTS` | `string` | No | Comma-separated Sentinel hosts |
 | `CACHE_MASTER_NAME` | `string` | No | Sentinel master name |
 
 #### Cluster Pattern
+
 | Variable | Type | Required | Description |
 |----------|------|----------|-------------|
 | `CACHE_CLUSTER_NODES` | `string` | No | Comma-separated cluster nodes |
 
 #### Security
+
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `CACHE_TLS_REJECT_UNAUTHORIZED` | `boolean` | `true` | Verify TLS certificates |
@@ -154,48 +174,11 @@ console.log(coreEnvSchema.DB_POOL_MAX.default);
 | `SPFN_API_URL` | `string` | **Yes** | Next.js API URL (client-side calls) |
 | `SPFN_APP_URL` | `string` | No | Application URL (server-side calls) |
 
-## API Reference
-
-### `env`
-
-전역 환경변수 설정 객체 - `registry.validate()`의 결과
-
-```typescript
-import { env } from '@spfn/core/config';
-
-console.log(env.DB_POOL_MAX); // number
-console.log(env.SPFN_LOG_LEVEL); // 'debug' | 'info' | 'warn' | 'error' | 'fatal'
-console.log(env.SPFN_API_URL); // string (required)
-```
-
-### `registry`
-
-환경변수 레지스트리 객체
-
-```typescript
-import { registry } from '@spfn/core/config';
-
-// 환경변수 검증 및 가져오기
-const config = registry.validate();
-console.log(config.DB_POOL_MAX);
-```
-
-### `coreEnvSchema`
-
-Core 패키지의 환경변수 스키마 정의
-
-```typescript
-import { coreEnvSchema } from '@spfn/core/config/schema';
-
-// 스키마 정보 접근
-console.log(coreEnvSchema.DB_POOL_MAX.description);
-console.log(coreEnvSchema.DB_POOL_MAX.default);
-console.log(coreEnvSchema.DB_POOL_MAX.examples);
-```
+---
 
 ## Example .env File
 
-```env
+```bash
 # Core
 NODE_ENV=development
 
@@ -222,46 +205,47 @@ SPFN_API_URL=http://localhost:3000
 SPFN_APP_URL=http://localhost:3000
 ```
 
+---
+
 ## Best Practices
 
-1. **전역 `env` 객체 사용**
-   ```typescript
-   import { env } from '@spfn/core/config';
+### 1. Use the Global `env` Object
 
-   // 타입 안전한 환경변수 접근
-   if (env.DB_MONITORING_ENABLED) {
-     console.log(`Pool size: ${env.DB_POOL_MAX}`);
-   }
-   ```
+```typescript
+import { env } from '@spfn/core/config';
 
-2. **스키마 정보 활용**
-   ```typescript
-   import { coreEnvSchema } from '@spfn/core/config/schema';
+// Type-safe environment variable access
+if (env.DB_MONITORING_ENABLED) {
+    console.log(`Pool size: ${env.DB_POOL_MAX}`);
+}
+```
 
-   // 환경변수 설명 및 기본값 확인
-   console.log(coreEnvSchema.DB_POOL_MAX.description);
-   console.log(coreEnvSchema.DB_POOL_MAX.default); // 10
-   ```
+### 2. Access Schema Information
 
-3. **Registry로 검증**
-   ```typescript
-   import { registry } from '@spfn/core/config';
+```typescript
+import { envSchema } from '@spfn/core/config';
 
-   try {
-     const config = registry.validate();
-     console.log('✅ Environment configuration is valid');
-   } catch (error) {
-     console.error('❌ Invalid configuration:', error);
-     process.exit(1);
-   }
-   ```
+// View environment variable description and defaults
+console.log(envSchema.DB_POOL_MAX.description);
+console.log(envSchema.DB_POOL_MAX.default); // 10
+```
+
+### 3. Validate at Startup
+
+The `env` export automatically validates environment variables on import. If validation fails, an error will be thrown at startup.
+
+```typescript
+// This will throw if required variables are missing
+import { env } from '@spfn/core/config';
+
+// If we reach here, all required variables are valid
+console.log('Environment configuration is valid');
+```
+
+---
 
 ## Related
 
-- [@spfn/core/env](../env/README.md) - 환경변수 로더 및 유틸리티
-- [@spfn/core/logger](../logger/README.md) - 로깅 시스템
-- [@spfn/core/db](../db/README.md) - 데이터베이스 관리
-
-## License
-
-MIT
+- [@spfn/core/env](../env/README.md) - Environment variable loader and utilities
+- [@spfn/core/logger](../logger/README.md) - Logging system
+- [@spfn/core/db](../db/README.md) - Database management

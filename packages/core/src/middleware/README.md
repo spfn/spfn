@@ -2,6 +2,17 @@
 
 HTTP middleware collection for API request/response handling and error management.
 
+## Core Components
+
+```
+middleware/
+├── index.ts              # Module exports
+├── error-handler.ts      # Error handler middleware
+├── request-logger.ts     # Request logger middleware
+└── __tests__/
+    └── request-logger.test.ts
+```
+
 ## Features
 
 - ✅ **Error Handler**: Automatic error-to-HTTP response conversion
@@ -531,16 +542,7 @@ No environment variables required. Configuration is code-based.
 
 ## Test Coverage
 
-The middleware module has comprehensive test coverage:
-
-### Error Handler Tests (17 tests)
-- Basic error handling (3 tests)
-- Error details validation (2 tests)
-- Stack trace handling (3 tests)
-- HTTP status code mapping (2 tests)
-- Logging options (2 tests)
-- Edge cases (3 tests)
-- Response format validation (2 tests)
+The middleware module has test coverage for RequestLogger:
 
 ### Request Logger Tests (29 tests)
 - Basic logging (3 tests)
@@ -549,14 +551,12 @@ The middleware module has comprehensive test coverage:
 - Excluded paths (3 tests)
 - Slow request detection (2 tests)
 - Integration with other middleware (1 test)
-- **maskSensitiveData tests (20 tests)**:
+- **maskSensitiveData tests (16 tests)**:
   - Basic masking (4 tests): password fields, multiple fields, case-insensitive, partial matches
   - Nested objects (2 tests): shallow and deep nesting
   - Arrays (2 tests): array elements, nested arrays
   - Circular references (2 tests): simple and nested circular references
   - Edge cases (6 tests): null, undefined, primitives, empty objects/arrays, immutability
-
-**Total: 46 tests** covering all middleware functionality
 
 Run tests:
 ```bash
@@ -682,13 +682,10 @@ interface TransactionalOptions {
 }
 ```
 
-**[→ Read Transaction Documentation](../db/docs/transactions.md)**
-
 ---
 
 ## Related
 
 - [Error Module](../errors/README.md) - Custom error classes
 - [Logger Module](../logger/README.md) - Logging infrastructure
-- [Transaction Module](../db/docs/transactions.md) - Transaction management
 - [@spfn/core](../../README.md) - Main package documentation

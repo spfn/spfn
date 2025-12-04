@@ -10,9 +10,11 @@ The route system provides a declarative, type-safe way to define API routes with
 
 ```
 route/
+├── index.ts                 # Public API exports
 ├── define-route.ts          # Route builder and types
+├── define-middleware.ts     # Named middleware definition
 ├── register-routes.ts       # Hono integration layer
-└── index.ts                # Public API exports
+└── types.ts                 # TypeBox helpers and codegen types
 ```
 
 ### Design Principles
@@ -77,6 +79,64 @@ export type Router<TRoutes extends Record<string, RouteDef<any> | Router<any>>> 
     routes: TRoutes;
     _routes: TRoutes;  // Type inference helper
 };
+```
+
+### Utility Types (types.ts)
+
+```typescript
+// Route metadata for codegen
+export type RouteMeta = {
+    public?: boolean;
+    skipMiddlewares?: string[];
+    tags?: string[];
+    description?: string;
+    deprecated?: boolean;
+};
+
+// Extract data type from ApiSuccessResponse<T>
+export type InferResponseData<T> = T extends { success: true; data: infer D } ? D : T;
+
+// HTTP method type guard
+export function isHttpMethod(value: unknown): value is HttpMethod;
+
+// Codegen metadata types
+export interface RouteMetadata {
+    method: string;
+    path: string;
+}
+
+export interface RouterMetadata {
+    routes: Record<string, RouteMetadata>;
+    routerTypeName: string;
+}
+```
+
+### TypeBox Helpers (types.ts)
+
+```typescript
+import { Type } from '@sinclair/typebox';
+
+// Nullable - Creates a union of T | null
+export const Nullable = <T extends TSchema>(schema: T) =>
+    Type.Union([schema, Type.Null()]);
+
+// OptionalNullable - Creates a union of T | null | undefined
+export const OptionalNullable = <T extends TSchema>(schema: T) =>
+    Type.Optional(Type.Union([schema, Type.Null()]));
+```
+
+**Usage Examples:**
+
+```typescript
+import { Type } from '@sinclair/typebox';
+import { Nullable, OptionalNullable } from '@spfn/core/route';
+
+const UserSchema = Type.Object({
+    id: Type.String(),
+    name: Type.String(),
+    nickname: Nullable(Type.String()),        // string | null
+    bio: OptionalNullable(Type.String()),     // string | null | undefined
+});
 ```
 
 ### Type Inference Flow
@@ -395,28 +455,82 @@ export const protectedRoute = route.get('/protected')
 
 ## Middleware System
 
-### Named Middleware Pattern
+### Named Middleware Types
 
 ```typescript
 // define-middleware.ts
+
+// Regular named middleware
 export type NamedMiddleware<TName extends string = string> = {
     name: TName;
     handler: MiddlewareHandler;
     _name: TName;  // Type inference helper
 };
 
+// Factory middleware with parameters
+export type NamedMiddlewareFactory<TName extends string, TArgs extends any[]> = {
+    name: TName;
+    _name: TName;  // Type inference helper
+} & ((...args: TArgs) => MiddlewareHandler);
+```
+
+### defineMiddleware Function
+
+Supports two patterns via function overloading:
+
+```typescript
+// Overload 1: Regular middleware
 export function defineMiddleware<TName extends string>(
     name: TName,
     handler: MiddlewareHandler
-): NamedMiddleware<TName> {
-    return { name, handler, _name: name as TName };
-}
+): NamedMiddleware<TName>;
+
+// Overload 2: Factory middleware
+export function defineMiddleware<TName extends string, TArgs extends any[]>(
+    name: TName,
+    factory: (...args: TArgs) => MiddlewareHandler
+): NamedMiddlewareFactory<TName, TArgs>;
+```
+
+**Usage Examples:**
+
+```typescript
+// Regular middleware - handler with (c, next) signature
+export const authMiddleware = defineMiddleware('auth', async (c, next) => {
+    const token = c.req.header('authorization');
+    if (!token) {
+        return c.json({ error: 'Unauthorized' }, 401);
+    }
+    c.set('user', await verifyToken(token));
+    await next();
+});
+
+// Factory middleware - returns handler based on parameters
+export const requirePermissions = defineMiddleware('permission',
+    (...permissions: string[]) => async (c, next) => {
+        const user = c.get('user');
+        if (!hasPermissions(user, permissions)) {
+            return c.json({ error: 'Forbidden' }, 403);
+        }
+        await next();
+    }
+);
+
+// Usage in routes
+route.get('/admin')
+    .use([requirePermissions('admin:write')])  // Factory called with args
+    .handler(async (c) => { ... });
+
+route.get('/profile')
+    .use([authMiddleware])  // Regular middleware used directly
+    .handler(async (c) => { ... });
 ```
 
 **Design Rationale:**
 - `_name` field enables TypeScript literal type inference
 - Type parameter `TName` captured for compile-time checking
 - Name used for runtime middleware filtering
+- Factory pattern distinguishes by parameter count (2 = regular, other = factory)
 
 ### Middleware Application Order
 
@@ -850,25 +964,9 @@ it('should handle request end-to-end', async () => {
 4. **Client Generation**: Auto-generate type-safe API clients
 5. **Rate Limiting**: Built-in rate limiting with `.rateLimit()` method
 
-### Breaking Changes Planned
-
-- Remove contract-based routing system (replaced by define-route)
-- Remove file-based auto-loader system (use explicit import instead)
-
 ---
 
 ## Related Systems
-
-### Comparison with Contract-Based Routing
-
-| Feature | define-route | contract-based |
-|---------|-------------|----------------|
-| Type Safety | ✅ Full | ✅ Full |
-| Middleware Control | ✅ skip() method | ✅ meta.skipMiddlewares |
-| Input Separation | ✅ Explicit | ❌ Merged |
-| Builder Pattern | ✅ Yes | ❌ No |
-| Response Helpers | ✅ Built-in | ✅ Built-in |
-| **Status** | **Active** | **Deprecated** |
 
 ### Integration with Other Modules
 

@@ -10,15 +10,17 @@ The server module provides a production-ready HTTP server with progressive confi
 
 ```
 server/
+├── index.ts                 # Module entry point and exports
+├── server.ts                # Re-exports for internal use
 ├── start-server.ts          # Server lifecycle and initialization
 ├── create-server.ts         # Hono app creation and configuration
-├── config-builder.ts        # Configuration builder pattern
-├── helpers.ts              # Utility functions (timeouts, health checks)
-├── validation.ts           # Configuration validation logic
-├── banner.ts              # Startup banner rendering
-├── logger.ts              # Server logger instance
-├── dotenv-loader.ts       # Environment variable loading
-└── types.ts               # TypeScript type definitions
+├── config-builder.ts        # Configuration builder with lifecycle merging
+├── helpers.ts               # Utility functions (timeouts, health checks)
+├── validation.ts            # Configuration validation logic
+├── banner.ts                # Startup banner rendering
+├── logger.ts                # Server logger instance
+├── dotenv-loader.ts         # Environment variable loading
+└── types.ts                 # TypeScript type definitions
 ```
 
 ### Design Principles
@@ -93,8 +95,7 @@ export default defineServerConfig()
 **What You Control:**
 - Port, host, CORS settings
 - Named middlewares (for route-level skip control)
-- Routes via `defineRouter()` (**recommended**)
-- ~~File-based routes~~ (deprecated)
+- Routes via `defineRouter()`
 - Lifecycle hooks (beforeRoutes, afterRoutes, etc.)
 - Infrastructure toggles
 
@@ -318,6 +319,8 @@ In debug mode, server logs the full middleware execution order:
 Named middlewares enable **route-level skip control** with full type safety:
 
 ```typescript
+import { defineMiddleware } from '@spfn/core/route';
+
 // 1. Define middlewares with names
 export const authMiddleware = defineMiddleware('auth', async (c, next) => {
     const token = c.req.header('authorization');
@@ -413,12 +416,11 @@ function registerRoute(
 
 ## Route Registration System
 
-### Primary System: define-route
+### define-route Based Routing
 
-The server **prefers define-route based routing** for full type safety:
+The server uses **define-route based routing** for full type safety:
 
 ```typescript
-// Recommended approach
 import { defineRouter, route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
 
@@ -454,83 +456,21 @@ export default defineServerConfig()
 ### Registration Flow
 
 ```typescript
-// create-server.ts:196-234
+// create-server.ts
 async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void> {
     const debug = isDebugMode(config);
 
-    // 1. Register define-route routes FIRST (if provided)
+    // Register define-route based routes (if provided)
     if (config?.routes) {
         registerRoutes(app, config.routes, config.middlewares);
         if (debug) {
-            serverLogger.info('✓ define-route routes registered');
+            serverLogger.info('✓ Routes registered');
         }
     }
-
-    // 2. Load file-based routes (deprecated, backward compatibility only)
-    const routesDir = config?.routesPath ?? join(process.cwd(), 'src', 'server', 'routes');
-    if (existsSync(routesDir)) {
-        // Show deprecation warning
-        if (config?.routesPath || (!config?.routes && existsSync(routesDir))) {
-            serverLogger.warn(
-                '⚠️  DEPRECATED: File-based routing (routesPath) is deprecated.\n' +
-                '   Use defineRouter() with explicit imports instead.\n' +
-                '   See: https://github.com/your-org/spfn/docs/migration/define-route.md'
-            );
-        }
-
-        await loadRoutes(app, {
-            routesDir: config?.routesPath,
-            debug,
-            middlewares: config?.middlewares
-        });
-    }
-    else if (!config?.routes && debug) {
+    else if (debug) {
         serverLogger.warn('⚠️  No routes configured. Use defineServerConfig().routes() to register routes.');
     }
 }
-```
-
-**Registration Order:**
-1. **define-route routes** - Explicitly imported and type-safe
-2. ~~File-based routes~~ - Auto-loaded from directory (deprecated)
-
-**Why This Order?**
-- Explicit routes take precedence over auto-discovered
-- Enables gradual migration from file-based to define-route
-- Warns users to migrate when file-based routes detected
-
-### Deprecation of File-Based Routing
-
-**Status:** Deprecated in current version, will be removed in future version.
-
-**Problems with File-Based Routing:**
-- Magic file discovery breaks in production builds
-- No type safety between files
-- Difficult to trace route registration
-- Slower startup due to filesystem scanning
-
-**Migration Path:**
-
-```typescript
-// ❌ OLD: File-based (deprecated)
-// src/server/routes/users/[id].ts
-export const GET = createRoute({
-    handler: async (c) => { ... }
-});
-
-// ✅ NEW: define-route (recommended)
-// src/server/routes.ts
-import { defineRouter, route } from '@spfn/core/route';
-
-export const appRouter = defineRouter({
-    getUser: route.get('/users/:id')
-        .handler(async (c) => { ... }),
-});
-
-// src/server/server.config.ts
-export default defineServerConfig()
-    .routes(appRouter)
-    .build();
 ```
 
 ---
@@ -644,6 +584,12 @@ export function createHealthCheckHandler(detailed: boolean): Handler {
 }
 ```
 
+**Service Status Values:**
+- `connected` - Service is healthy and responding
+- `error` - Service connection failed
+- `not_initialized` - Service instance not yet created
+- `unknown` - Status could not be determined
+
 **Response Examples:**
 
 ```bash
@@ -675,6 +621,16 @@ $ curl http://localhost:4000/health
       "error": "Connection refused"
     },
     "redis": { "status": "connected" }
+  }
+}
+
+# Not initialized (503 Service Unavailable)
+{
+  "status": "degraded",
+  "timestamp": "2025-01-21T10:00:00.000Z",
+  "services": {
+    "database": { "status": "not_initialized" },
+    "redis": { "status": "not_initialized" }
   }
 }
 ```
@@ -971,9 +927,10 @@ SERVER_HEADERS_TIMEOUT=60000       # Headers timeout
 The configuration builder provides a fluent API for type-safe configuration:
 
 ```typescript
-// config-builder.ts:11-168
+// config-builder.ts
 export class ServerConfigBuilder {
     private config: ServerConfig = {};
+    private lifecycles: Array<ServerConfig['lifecycle']> = [];
 
     port(port: number): this {
         this.config.port = port;
@@ -995,12 +952,19 @@ export class ServerConfigBuilder {
         return this;
     }
 
+    // Multiple lifecycle() calls are merged, not overwritten
     lifecycle(lifecycle: ServerConfig['lifecycle']): this {
-        this.config.lifecycle = lifecycle;
+        if (lifecycle) {
+            this.lifecycles.push(lifecycle);
+        }
         return this;
     }
 
     build(): ServerConfig {
+        // Merge all lifecycle hooks in registration order
+        if (this.lifecycles.length > 0) {
+            this.config.lifecycle = this.mergeLifecycles();
+        }
         return this.config;
     }
 }
@@ -1015,6 +979,29 @@ export function defineServerConfig(): ServerConfigBuilder {
 2. **Type Safety**: TypeScript infers types from method parameters
 3. **Terminal Method**: `.build()` returns final config
 4. **No Validation**: Validation happens at `startServer()` time
+5. **Lifecycle Merging**: Multiple `lifecycle()` calls are merged, hooks execute in registration order
+
+### Lifecycle Merging
+
+Multiple `lifecycle()` calls are supported - hooks are executed sequentially in registration order:
+
+```typescript
+// Example: Composing lifecycles from different modules
+export default defineServerConfig()
+    .lifecycle({
+        afterInfrastructure: async () => {
+            await runMigrations();
+        },
+    })
+    .lifecycle({
+        afterInfrastructure: async () => {
+            await seedDatabase();  // Runs AFTER migrations
+        },
+    })
+    .build();
+```
+
+This enables modular composition of server setup logic.
 
 ### Usage Example
 
@@ -1047,11 +1034,11 @@ export default defineServerConfig()
 
 1. **Config File Priority**: Built files (`.spfn/`) loaded before source files
 2. **Parallel Infrastructure Init**: Database and Redis can init concurrently
-3. **Conditional Route Loading**: Skip file-based scanning if `config.routes` provided
+3. **Direct Route Registration**: No filesystem scanning required
 
 **Typical Startup Time:**
 - Base startup: ~50-100ms
-- File-based route scanning: +50-200ms (deprecated)
+- Route registration: ~1-5ms for 50 routes
 
 ### Memory Usage
 
@@ -1064,19 +1051,6 @@ export default defineServerConfig()
 **Connection Pools:**
 - Database: Configured via `config.database.pool.max`
 - Redis: 1 connection per instance (write/read)
-
-### Route Registration
-
-**define-route vs File-Based:**
-
-| Metric | define-route | File-Based |
-|--------|--------------|------------|
-| Registration Time | ~1-5ms for 50 routes | ~50-200ms for 50 files |
-| Memory Overhead | Minimal (direct refs) | Higher (module cache) |
-| Type Safety | Full | None |
-| Build Impact | None | Requires file scanning |
-
-**Recommendation:** Use define-route for production applications.
 
 ### Connection Pooling
 
@@ -1312,17 +1286,12 @@ export default defineServerConfig()
 
 ### Breaking Changes Planned
 
-1. **Remove File-Based Routing** (v3.0.0)
-   - Remove `routesPath` option
-   - Remove `loadRoutes()` function
-   - Force migration to define-route system
-
-2. **Require Explicit Infrastructure Init** (v3.0.0)
+1. **Require Explicit Infrastructure Init** (v3.0.0)
    - Make `infrastructure.database` and `infrastructure.redis` required
    - Remove automatic env var detection
    - Force explicit opt-in/out
 
-3. **Change Default Port** (v3.0.0)
+2. **Change Default Port** (v3.0.0)
    - Change default from 4000 to 8790 (align with CLI)
 
 ---
