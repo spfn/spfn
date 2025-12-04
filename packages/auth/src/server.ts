@@ -63,10 +63,11 @@ export * from './server/middleware/index';
 export * from './server/entities';
 
 // ============================================================================
-// Types & Constants
+// Types, Constants & Schemas
 // ============================================================================
 
 export * from './server/types';
+export * from './server/routes/schema';  // TypeBox schemas for validation
 export * from './server/lib';
 export * from './server/logger';
 

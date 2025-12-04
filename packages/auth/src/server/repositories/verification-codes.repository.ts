@@ -6,7 +6,7 @@
  */
 
 import { NewVerificationCode, verificationCodes } from "../entities/verification-codes";
-import type { VerificationPurpose } from "../types";
+import type { VerificationPurpose } from "../routes/schema";
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
 

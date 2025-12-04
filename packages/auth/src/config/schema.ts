@@ -197,4 +197,42 @@ export const authEnvSchema = defineEnvSchema({
             ],
         }),
     },
+
+    // ============================================================================
+    // AWS SNS Configuration (SMS)
+    // ============================================================================
+    SPFN_AUTH_AWS_REGION: {
+        ...envString({
+            description: 'AWS region for SNS service',
+            default: 'ap-northeast-2',
+            required: false,
+            examples: ['ap-northeast-2', 'us-east-1', 'eu-west-1'],
+        }),
+    },
+
+    SPFN_AUTH_AWS_SNS_ACCESS_KEY_ID: {
+        ...envString({
+            description: 'AWS SNS access key ID (optional, uses default credentials chain if not provided)',
+            required: false,
+            sensitive: true,
+            examples: ['AKIAIOSFODNN7EXAMPLE'],
+        }),
+    },
+
+    SPFN_AUTH_AWS_SNS_SECRET_ACCESS_KEY: {
+        ...envString({
+            description: 'AWS SNS secret access key (optional, uses default credentials chain if not provided)',
+            required: false,
+            sensitive: true,
+            examples: ['wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'],
+        }),
+    },
+
+    SPFN_AUTH_AWS_SNS_SENDER_ID: {
+        ...envString({
+            description: 'SMS sender ID displayed to recipients (max 11 characters, alphanumeric)',
+            required: false,
+            examples: ['MyApp', 'YourBrand'],
+        }),
+    },
 });

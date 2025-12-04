@@ -8,6 +8,8 @@ import { env } from '@spfn/auth/config';
 import { InvalidVerificationCodeError } from '@spfn/auth/errors';
 import jwt from 'jsonwebtoken';
 import { verificationCodesRepository } from '../repositories';
+import type { VerificationTargetType, VerificationPurpose } from '../routes/schema';
+import { sendSMS } from './sms';
 
 /**
  * Verification token expiry (15 minutes)
@@ -30,8 +32,8 @@ const MAX_VERIFICATION_ATTEMPTS = 5;
 export interface VerificationTokenPayload
 {
     target: string;
-    targetType: 'email' | 'phone';
-    purpose: 'registration' | 'login' | 'password_reset';
+    targetType: VerificationTargetType;
+    purpose: VerificationPurpose;
     codeId: number;
 }
 
@@ -59,9 +61,9 @@ export function generateVerificationCode(): string
  */
 async function storeVerificationCode(
     target: string,
-    targetType: 'email' | 'phone',
+    targetType: VerificationTargetType,
     code: string,
-    purpose: 'registration' | 'login' | 'password_reset'
+    purpose: VerificationPurpose
 )
 {
     // Calculate expiry time
@@ -93,7 +95,7 @@ async function storeVerificationCode(
 async function validateVerificationCode(
     target: string,
     code: string,
-    purpose: 'registration' | 'login' | 'password_reset'
+    purpose: VerificationPurpose
 ): Promise<{ valid: boolean; codeId?: number; error?: string }>
 {
     // Find the verification code
@@ -236,24 +238,25 @@ async function sendVerificationSMS(
     purpose: string
 ): Promise<void>
 {
-    // TODO: Implement SMS sending with your SMS service (Twilio, AWS SNS, etc.)
-    // For now, just log to console (development only)
-    console.log(`[VERIFICATION SMS] To: ${phone}, Code: ${code}, Purpose: ${purpose}`);
+    const message = `Your verification code is: ${code}`;
 
-    // Example implementation with Twilio:
-    // const client = twilio(accountSid, authToken);
-    // await client.messages.create({
-    //     body: `Your verification code is: ${code}`,
-    //     from: '+1234567890',
-    //     to: phone,
-    // });
+    const result = await sendSMS({
+        phone,
+        message,
+        purpose,
+    });
+
+    if (!result.success)
+    {
+        console.error(`[VERIFICATION SMS] Failed to send SMS:`, result.error);
+    }
 }
 
 export interface SendVerificationCodeParams
 {
     target: string;
-    targetType: 'email' | 'phone';
-    purpose: 'registration' | 'login' | 'password_reset';
+    targetType: VerificationTargetType;
+    purpose: VerificationPurpose;
 }
 
 export interface SendVerificationCodeResult
@@ -265,9 +268,9 @@ export interface SendVerificationCodeResult
 export interface VerifyCodeParams
 {
     target: string;
-    targetType: 'email' | 'phone';
+    targetType: VerificationTargetType;
     code: string;
-    purpose: 'registration' | 'login' | 'password_reset';
+    purpose: VerificationPurpose;
 }
 
 export interface VerifyCodeResult

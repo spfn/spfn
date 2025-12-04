@@ -28,27 +28,6 @@ export const INVITATION_STATUSES = ['pending', 'accepted', 'expired', 'cancelled
  */
 export type InvitationStatus = typeof INVITATION_STATUSES[number];
 
-/**
- * Verification target type enum values
- * Single source of truth for verification target types
- */
-export const VERIFICATION_TARGET_TYPES = ['email', 'phone'] as const;
-
-/**
- * Verification target type derived from the const array
- */
-export type VerificationTargetType = typeof VERIFICATION_TARGET_TYPES[number];
-
-/**
- * Verification purpose enum values
- * Single source of truth for verification purposes
- */
-export const VERIFICATION_PURPOSES = ['registration', 'login', 'password_reset', 'email_change', 'phone_change'] as const;
-
-/**
- * Verification purpose type derived from the const array
- */
-export type VerificationPurpose = typeof VERIFICATION_PURPOSES[number];
 
 /**
  * User status enum values

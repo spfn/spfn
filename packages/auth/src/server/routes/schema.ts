@@ -1,5 +1,16 @@
-import { Type } from "@sinclair/typebox";
+/**
+ * TypeBox Schemas - Single Source of Truth
+ *
+ * All validation schemas, types, and runtime constants are defined here.
+ * Other modules import from this file to ensure consistency.
+ */
+
+import { Type, Static } from "@sinclair/typebox";
 import { EMAIL_PATTERN, PHONE_PATTERN } from "@spfn/auth";
+
+// ============================================================================
+// Basic Schemas
+// ============================================================================
 
 export const EmailSchema = Type.String({
     pattern: EMAIL_PATTERN,
@@ -16,17 +27,35 @@ export const PasswordSchema = Type.String({
     description: 'User password (minimum 8 characters)'
 });
 
+// ============================================================================
+// Verification Target Type
+// ============================================================================
+
 export const TargetTypeSchema = Type.Union([
     Type.Literal('email'),
     Type.Literal('phone')
 ], {
     description: 'Type of target (email or phone)'
-})
+});
+
+export type VerificationTargetType = Static<typeof TargetTypeSchema>;
+
+export const VERIFICATION_TARGET_TYPES = ['email', 'phone'] as const;
+
+// ============================================================================
+// Verification Purpose
+// ============================================================================
 
 export const VerificationPurposeSchema = Type.Union([
     Type.Literal('registration'),
     Type.Literal('login'),
-    Type.Literal('password_reset')
+    Type.Literal('password_reset'),
+    Type.Literal('email_change'),
+    Type.Literal('phone_change')
 ], {
     description: 'Purpose of verification'
 });
+
+export type VerificationPurpose = Static<typeof VerificationPurposeSchema>;
+
+export const VERIFICATION_PURPOSES = ['registration', 'login', 'password_reset', 'email_change', 'phone_change'] as const;
