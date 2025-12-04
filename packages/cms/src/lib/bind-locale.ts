@@ -26,6 +26,21 @@ export type BoundLabels<T> = {
 };
 
 /**
+ * Extract section keys from label definition
+ */
+export type SectionKeys<T> = Extract<keyof T, string>;
+
+/**
+ * Get content of a single section (without section name wrapper)
+ */
+export type BoundLabelSection<T, K extends SectionKeys<T>> = BoundLabels<T>[K];
+
+/**
+ * Pick specific sections from bound labels (for multiple sections)
+ */
+export type BoundLabelsSections<T, K extends SectionKeys<T>> = Pick<BoundLabels<T>, K>;
+
+/**
  * Check if object is a locale record (has string values only)
  */
 type IsLocaleRecord<T> = T extends Record<string, string> ? true : false;

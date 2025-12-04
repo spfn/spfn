@@ -2,7 +2,7 @@ import { createApi } from "@spfn/core/nextjs";
 import { errorRegistry } from "@spfn/core/errors";
 import { logger } from "@spfn/core/logger";
 import { type AppRouter, appMetadata } from './server/routes/index';
-import { bindLocale, type BoundLabels } from './lib/bind-locale';
+import { bindLocale, type SectionKeys, type BoundLabelSection, type BoundLabelsSections } from './lib/bind-locale';
 import { getLocale } from './actions';
 import { setNestedValue } from './lib/helpers';
 import { format, defineLabelConfig, defineLabels } from './lib/define-labels';
@@ -18,31 +18,29 @@ const api = createApi<AppRouter>({
 });
 
 /**
- * Create CMS client with API, label getter, and format utility
+ * Create CMS client with API, label getters, and format utility
  *
  * @param labelsDefinition - Labels defined using defineLabels()
  * @param config - Label config from defineLabelConfig()
- * @returns API client, getLabels function, and format utility
+ * @returns API client, getLabel (single), getLabels (multiple), and format utility
  *
  * @example
  * ```typescript
  * // labels.ts - Setup once
- * export const { api, getLabels, format } = createCmsClient(labelsDefinition, labelConfig);
+ * export const { api, getLabel, getLabels, format } = createCmsClient(labelsDefinition, labelConfig);
  *
- * // Use anywhere
- * const labels = await getLabels('home');
+ * // Single section - direct access
+ * const label = await getLabel('home');
+ * label.hero.title // "Hello" (no section name!)
+ *
+ * // Multiple sections - with section names
+ * const labels = await getLabels(['home', 'about']);
  * labels.home.hero.title // "Hello"
+ * labels.about.title // "About Us"
  *
  * // With template variables
- * const greeting = labels.home.hero.greeting; // "Hello {name}"
+ * const greeting = label.hero.greeting; // "Hello {name}"
  * format(greeting, { name: "John" }); // "Hello John"
- *
- * // Multiple variables
- * const message = labels.notification.text; // "You have {count} new messages"
- * format(message, { count: 5 }); // "You have 5 new messages"
- *
- * // API routes
- * await api.someRoute.call();
  * ```
  */
 export function createCmsClient<T>(
@@ -50,16 +48,74 @@ export function createCmsClient<T>(
     config: { defaultLocale: string; fallbackLocale?: string }
 )
 {
-    async function getLabels(sections: string | string[]): Promise<BoundLabels<T>>
+    /**
+     * Get a single section's labels (without section name wrapper)
+     *
+     * @param section - Section name to fetch
+     * @returns Labels for the section, directly accessible
+     *
+     * @example
+     * ```typescript
+     * const label = await getLabel('signup');
+     * label.title // Direct access
+     * label.userName
+     * ```
+     */
+    async function getLabel<K extends SectionKeys<T>>(section: K): Promise<BoundLabelSection<T, K>>
     {
         // Auto-detect locale from cookie, fallback to config.defaultLocale
         const locale = await getLocale(config.defaultLocale);
 
-        // Normalize sections to array
-        const sectionArray = Array.isArray(sections) ? sections : [sections];
+        cmsLogger.debug('getLabel called', {
+            section,
+            locale,
+            defaultLocale: config.defaultLocale,
+            fallbackLocale: config.fallbackLocale,
+        });
+
+        // 1. Fetch from published_cache
+        const cache = await api.getLabelCache.call({
+            sections: [section as string],
+            locale
+        });
+
+        // 2. Filter only requested section
+        const filteredLabels: any = {};
+        if (section in (labelsDefinition as any))
+        {
+            filteredLabels[section] = (labelsDefinition as any)[section];
+        }
+
+        // 3. Generate defaults with locale binding
+        const defaults = bindLocale(filteredLabels, locale, config.fallbackLocale);
+
+        // 4. Merge: cache takes priority, fallback to defaults
+        const merged = deepMergeCache(defaults, cache, locale);
+
+        // 5. Return only the section content (without section name)
+        return merged[section] as BoundLabelSection<T, K>;
+    }
+
+    /**
+     * Get multiple sections' labels (with section names as keys)
+     *
+     * @param sections - Array of section names to fetch
+     * @returns Object with section names as keys
+     *
+     * @example
+     * ```typescript
+     * const labels = await getLabels(['home', 'about']);
+     * labels.home.title
+     * labels.about.description
+     * ```
+     */
+    async function getLabels<K extends SectionKeys<T>>(sections: readonly K[]): Promise<BoundLabelsSections<T, K>>
+    {
+        // Auto-detect locale from cookie, fallback to config.defaultLocale
+        const locale = await getLocale(config.defaultLocale);
 
         cmsLogger.debug('getLabels called', {
-            sections: sectionArray,
+            sections,
             locale,
             defaultLocale: config.defaultLocale,
             fallbackLocale: config.fallbackLocale,
@@ -68,7 +124,7 @@ export function createCmsClient<T>(
 
         // 1. Fetch from published_cache
         const cache = await api.getLabelCache.call({
-            sections: sectionArray,
+            sections: [...sections] as unknown as string[],
             locale
         });
 
@@ -85,7 +141,7 @@ export function createCmsClient<T>(
 
         // 2. Filter only requested sections (performance optimization)
         const filteredLabels: any = {};
-        for (const section of sectionArray)
+        for (const section of sections)
         {
             if (section in (labelsDefinition as any))
             {
@@ -94,7 +150,7 @@ export function createCmsClient<T>(
         }
 
         cmsLogger.debug('Filtered sections', {
-            requestedSections: sectionArray,
+            requestedSections: sections,
             filteredSections: Object.keys(filteredLabels),
             filteredLabelsStructure: Object.entries(filteredLabels).map(([key, value]) => ({
                 section: key,
@@ -118,10 +174,10 @@ export function createCmsClient<T>(
             mergedKeys: Object.keys(merged),
         });
 
-        return merged as BoundLabels<T>;
+        return merged as BoundLabelsSections<T, K>;
     }
 
-    return { api, getLabels, format };
+    return { api, getLabel, getLabels, format };
 }
 
 /**
@@ -205,3 +261,8 @@ function deepMergeCache(defaults: any, cache: Record<string, any>, locale: strin
  * ```
  */
 export { format, defineLabelConfig, defineLabels };
+
+/**
+ * Re-export types for external use
+ */
+export type { BoundLabels, SectionKeys, BoundLabelSection, BoundLabelsSections } from './lib/bind-locale';

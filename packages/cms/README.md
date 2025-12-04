@@ -49,8 +49,8 @@ export const labelsDefinition = defineLabels({
     }
 });
 
-// Create client with API, getLabels, and format
-export const { api, getLabels, format } = createCmsClient(
+// Create client with API, getLabel, getLabels, and format
+export const { api, getLabel, getLabels, format } = createCmsClient(
     labelsDefinition,
     labelConfig
 );
@@ -89,27 +89,42 @@ export default defineServerConfig()
 
 ### 3. Use in Your App
 
-**Server Component:**
+**Server Component (Single Section):**
 
 ```typescript
-import { getLabels, format } from '@/labels';
+import { getLabel, format } from '@/labels';
 
 export default async function HomePage() {
-    // Single section
-    const labels = await getLabels('home');
+    // Single section - direct access without section name
+    const label = await getLabel('home');
 
-    // Multiple sections
+    return (
+        <div>
+            <h1>{label.hero.title}</h1>
+            <p>{label.hero.subtitle}</p>
+            <button>{label.cta}</button>
+
+            {/* Template variables */}
+            <p>{format(label.hero.greeting, { name: 'John' })}</p>
+            {/* Output: "John님 안녕하세요!" */}
+        </div>
+    );
+}
+```
+
+**Server Component (Multiple Sections):**
+
+```typescript
+import { getLabels } from '@/labels';
+
+export default async function MultiSectionPage() {
+    // Multiple sections - with section names as keys
     const labels = await getLabels(['home', 'about']);
 
     return (
         <div>
             <h1>{labels.home.hero.title}</h1>
-            <p>{labels.home.hero.subtitle}</p>
-            <button>{labels.home.cta}</button>
-
-            {/* Template variables */}
-            <p>{format(labels.home.hero.greeting, { name: 'John' })}</p>
-            {/* Output: "John님 안녕하세요!" */}
+            <p>{labels.about.title}</p>
         </div>
     );
 }
@@ -135,16 +150,57 @@ export function LanguageSwitcher() {
 
 ### 🎯 Type Safety
 
+**Section Name Validation:**
+
 ```typescript
-const labels = await getLabels('home');
+// ✅ Valid section names are enforced at compile time
+const label = await getLabel('home'); // OK
+await getLabel('homee'); // ❌ Compile error: 'homee' is not a valid section
 
-// ✅ IDE autocomplete works!
+// ✅ getLabel returns direct access (no section wrapper)
+const homeLabel = await getLabel('home');
+homeLabel.hero.title; // OK - direct access
+homeLabel.cta; // OK
+
+// ✅ getLabels requires array and returns sections with names
+const labels = await getLabels(['home', 'about']);
 labels.home.hero.title; // OK
-labels.home.hero.titlee; // ❌ Compile error
+labels.about.title; // OK
+labels.contact.email; // ❌ Compile error: 'contact' was not requested
+```
 
-// ✅ Section names are type-checked
-await getLabels('home'); // OK
-await getLabels('homee'); // ❌ Compile error
+**Property Access Validation:**
+
+```typescript
+// Single section - direct access
+const label = await getLabel('signup');
+
+// ✅ IDE autocomplete works perfectly
+label.title; // OK - direct access
+label.userName; // OK
+label.email; // OK
+
+// ❌ Typos are caught at compile time
+label.titlee; // ❌ Compile error
+label.userName; // ❌ Compile error (typo)
+
+// Multiple sections - with section names
+const labels = await getLabels(['home', 'about']);
+labels.home.hero.title; // OK
+labels.about.title; // OK
+```
+
+**API Distinction:**
+
+```typescript
+// getLabel: Single section, direct access
+const signup = await getLabel('signup');
+signup.title; // ✅ Direct access (cleaner!)
+
+// getLabels: Multiple sections, section names as keys
+const multi = await getLabels(['home', 'signup']);
+multi.home.title; // ✅ With section name
+multi.signup.userName; // ✅ With section name
 ```
 
 ### 🎨 Nested Structure
@@ -162,10 +218,11 @@ defineLabels({
     }
 });
 
-// Access with object notation
-const labels = await getLabels('features');
-labels.features.analytics.title; // "분석" (auto locale)
-labels.features.analytics.description; // "지표 추적"
+// Single section - direct access with nesting
+const label = await getLabel('features');
+label.analytics.title; // "분석" (auto locale, direct access!)
+label.analytics.description; // "지표 추적"
+label.security.title; // "보안"
 ```
 
 ### 🔧 Template Variables
@@ -180,8 +237,8 @@ defineLabels({
     }
 });
 
-const labels = await getLabels('home');
-const text = labels.home.welcome;
+const label = await getLabel('home');
+const text = label.welcome; // Direct access!
 
 format(text, { name: "John", count: 5 });
 // Output: "John님, 5개의 메시지가 있습니다"
@@ -199,13 +256,13 @@ Automatic locale detection with priority:
 await setLocale('ko');
 
 // Automatically uses 'ko' locale
-const labels = await getLabels('home');
-labels.home.hero.title; // "환영합니다" (Korean)
+const label = await getLabel('home');
+label.hero.title; // "환영합니다" (Korean)
 
 // Switch to English
 await setLocale('en');
-const labels2 = await getLabels('home');
-labels2.home.hero.title; // "Welcome" (English)
+const label2 = await getLabel('home');
+label2.hero.title; // "Welcome" (English)
 ```
 
 ### 🔄 Auto-Sync
@@ -221,38 +278,68 @@ Labels synchronize automatically on server startup:
 
 ### createCmsClient()
 
-Factory function to create CMS client with API, getLabels, and format utilities.
+Factory function to create CMS client with API, getLabel, getLabels, and format utilities.
 
 ```typescript
-const { api, getLabels, format } = createCmsClient(labelsDefinition, labelConfig);
+const { api, getLabel, getLabels, format } = createCmsClient(labelsDefinition, labelConfig);
 ```
 
 **Returns:**
 - `api` - API client for CMS routes
-- `getLabels(sections)` - Fetch labels by section(s)
+- `getLabel(section)` - Fetch a single section (direct access)
+- `getLabels(sections)` - Fetch multiple sections (with section names)
 - `format(template, vars)` - Template variable substitution
+
+### getLabel()
+
+Fetch a **single section** from published cache with direct access (no section name wrapper).
+
+```typescript
+// Single section - direct access
+const label = await getLabel('home');
+label.hero.title; // Direct access without 'home.' prefix
+label.cta;
+```
+
+**Use when:**
+- You need labels from only ONE section
+- You want cleaner, direct access to properties
+- Most common use case for individual pages
+
+**Returns:** Labels directly without section name wrapper
+
+**Features:**
+- Auto locale detection (cookie → defaultLocale → 'en')
+- Direct property access (no section name)
+- Type-safe with IDE autocomplete
+- Merges published cache with defaults
 
 ### getLabels()
 
-Fetch labels from published cache with automatic locale detection.
+Fetch **multiple sections** from published cache with section names as keys.
 
 ```typescript
-// Single section
-const labels = await getLabels('home');
-
-// Multiple sections
+// Multiple sections - with section names
 const labels = await getLabels(['home', 'about']);
+labels.home.hero.title; // Access via section name
+labels.about.title;
 ```
+
+**Use when:**
+- You need labels from MULTIPLE sections
+- You're building a page that uses multiple label groups
+
+**Returns:** Object with section names as keys
 
 **Features:**
 - Auto locale detection (cookie → defaultLocale → 'en')
 - Section filtering (only processes requested sections)
+- Type-safe: only requested sections available
 - Merges published cache with defaults
-- Returns type-safe nested object
 
 **Performance:**
 - Only requested sections are processed (not entire labelsDefinition)
-- 10x faster when requesting 1 section out of 10
+- 10x faster when requesting specific sections
 - Reduces CPU and memory usage proportionally
 
 ### format()
@@ -343,8 +430,8 @@ const labelsDefinition = {
     // ... 7 more sections
 };
 
-// Only request 'home'
-const labels = await getLabels('home');
+// Only request 'home' - direct access
+const label = await getLabel('home');
 
 // ✅ Performance: Processes only 100 labels (10% of total)
 // ❌ Without filtering: Would process all 1,000 labels
