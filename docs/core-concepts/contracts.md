@@ -1,108 +1,206 @@
 ---
-title: "Contracts"
-description: "Learn how to define type-safe API contracts with TypeBox"
+title: "Route Definition"
+description: "Learn how to define type-safe API routes with the define-route system"
 order: 2
 available: true
 ---
 
-# Contracts
+# Route Definition
 
-Contracts are the foundation of Superfunction's type safety. They define your API shape using TypeBox schemas.
+The define-route system is the foundation of Superfunction's type safety. It provides a tRPC-style chainable API for defining routes with automatic validation.
 
-## What is a Contract?
+## Basic Route
 
-A contract is a TypeScript object that describes an API endpoint:
-
-- HTTP method (GET, POST, PUT, DELETE, etc.)
-- URL path with optional parameters
-- Request body, query, and header schemas
-- Response schema
-
-## Basic Contract
+Define routes using the `route` helper with HTTP method shortcuts:
 
 ```typescript
+import { route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core';
 
-export const getUserContract = {
-  method: 'GET',
-  path: '/users/:id',
-  params: Type.Object({
-    id: Type.String()
-  }),
-  response: Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    email: Type.String()
-  })
-} satisfies RouteContract;
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({
+            id: Type.String()
+        })
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        const user = await userRepo.findById(params.id);
+        return user;
+    });
 ```
 
-## Full Contract Example
+## HTTP Methods
 
-Contracts can include body, query parameters, and more:
+All standard HTTP methods are supported:
 
 ```typescript
-export const createPostContract = {
-  method: 'POST',
-  path: '/posts',
+route.get('/path')      // GET request
+route.post('/path')     // POST request
+route.put('/path')      // PUT request
+route.patch('/path')    // PATCH request
+route.delete('/path')   // DELETE request
+```
 
-  // Request body schema
-  body: Type.Object({
-    title: Type.String({ minLength: 1, maxLength: 200 }),
-    content: Type.String(),
-    tags: Type.Optional(Type.Array(Type.String()))
-  }),
+## Input Validation
 
-  // Query parameters
-  query: Type.Object({
-    draft: Type.Optional(Type.Boolean())
-  }),
+The `.input()` method accepts TypeBox schemas for validation:
 
-  // Response schema
-  response: Type.Object({
-    id: Type.String(),
-    title: Type.String(),
-    content: Type.String(),
-    tags: Type.Array(Type.String()),
-    createdAt: Type.String()
-  })
-} satisfies RouteContract;
+### Path Parameters
+
+```typescript
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({
+            id: Type.String()
+        })
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        // params.id is typed as string
+    });
+```
+
+### Query Parameters
+
+```typescript
+export const listUsers = route.get('/users')
+    .input({
+        query: Type.Object({
+            limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
+            offset: Type.Optional(Type.Number({ minimum: 0 })),
+            search: Type.Optional(Type.String())
+        })
+    })
+    .handler(async (c) => {
+        const { query } = await c.data();
+        // query.limit, query.offset, query.search are typed
+    });
+```
+
+### Request Body
+
+```typescript
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({
+            name: Type.String({ minLength: 1, maxLength: 100 }),
+            email: Type.String({ format: 'email' }),
+            role: Type.Optional(Type.Union([
+                Type.Literal('admin'),
+                Type.Literal('user')
+            ]))
+        })
+    })
+    .handler(async (c) => {
+        const { body } = await c.data();
+        // body.name, body.email, body.role are typed
+    });
+```
+
+### Headers
+
+```typescript
+export const protectedRoute = route.get('/protected')
+    .input({
+        headers: Type.Object({
+            authorization: Type.String()
+        })
+    })
+    .handler(async (c) => {
+        const { headers } = await c.data();
+        // headers.authorization is typed
+    });
+```
+
+### Combined Input
+
+```typescript
+export const updateUser = route.put('/users/:id')
+    .input({
+        params: Type.Object({
+            id: Type.String()
+        }),
+        query: Type.Object({
+            notify: Type.Optional(Type.Boolean())
+        }),
+        body: Type.Object({
+            name: Type.Optional(Type.String()),
+            email: Type.Optional(Type.String({ format: 'email' }))
+        })
+    })
+    .handler(async (c) => {
+        const { params, query, body } = await c.data();
+        // All inputs are typed
+    });
 ```
 
 ## TypeBox Schemas
 
 Superfunction uses TypeBox for schema definitions. Common types:
 
-- `Type.String()` - String with optional constraints (minLength, maxLength, format)
-- `Type.Number()` - Numeric values (integer, minimum, maximum)
-- `Type.Boolean()` - Boolean values
-- `Type.Array(T)` - Array of type T
-- `Type.Object()` - Object with typed properties
-- `Type.Optional(T)` - Make a field optional
-- `Type.Union([T1, T2])` - Union types
+| Type | Description | Example |
+|------|-------------|---------|
+| `Type.String()` | String with optional constraints | `Type.String({ minLength: 1 })` |
+| `Type.Number()` | Numeric values | `Type.Number({ minimum: 0 })` |
+| `Type.Boolean()` | Boolean values | `Type.Boolean()` |
+| `Type.Array(T)` | Array of type T | `Type.Array(Type.String())` |
+| `Type.Object()` | Object with typed properties | `Type.Object({ name: Type.String() })` |
+| `Type.Optional(T)` | Make a field optional | `Type.Optional(Type.String())` |
+| `Type.Union([])` | Union types | `Type.Union([Type.Literal('a'), Type.Literal('b')])` |
+| `Type.Literal(v)` | Exact value | `Type.Literal('active')` |
 
 ## Why TypeBox?
 
-Superfunction uses TypeBox for schema validation instead of alternatives like Zod or Yup:
+Superfunction uses TypeBox for schema validation:
 
 - **JSON Schema Standard** - Universal format for OpenAPI, tooling, and cross-language support
 - **Performance** - 10x faster than Zod, 20x faster than Yup
 - **Type Inference** - Full TypeScript type inference from schemas
-- **Single Source of Truth** - One schema for runtime validation, TypeScript types, and API docs
+- **Single Source of Truth** - One schema for runtime validation and TypeScript types
 
-> **Note:** For detailed performance benchmarks and technical comparisons, see [Architecture: Why TypeBox?](/docs/architecture/why-typebox)
+> **Note:** For detailed performance benchmarks, see [Philosophy: Why TypeBox?](/docs/philosophy/why-typebox)
 
-## Contract Organization
+## Route Registration
 
-Organize contracts by domain or feature:
+Routes are registered in a router using `defineRouter`:
 
-```bash
-src/lib/contracts/
-├── users.ts        # User-related contracts
-├── posts.ts        # Post-related contracts
-├── auth.ts         # Authentication contracts
-└── common.ts       # Shared schemas
+```typescript
+// src/server/router.ts
+import { defineRouter } from '@spfn/core/route';
+import { getUser, createUser, updateUser } from './routes/users';
+import { listPosts, getPost } from './routes/posts';
+
+export const appRouter = defineRouter({
+    // User routes
+    getUser,
+    createUser,
+    updateUser,
+
+    // Post routes
+    listPosts,
+    getPost,
+});
+
+export type AppRouter = typeof appRouter;
 ```
 
-> **Next:** Learn how to bind contracts to route handlers in your backend. [Route Binding →](/docs/core-concepts/route-binding)
+## Route Organization
+
+Organize routes by domain or feature:
+
+```bash
+src/server/
+├── routes/
+│   ├── users.ts        # User routes (getUser, createUser, ...)
+│   ├── posts.ts        # Post routes (listPosts, getPost, ...)
+│   ├── auth.ts         # Auth routes (login, logout, ...)
+│   └── health.ts       # Health check route
+├── router.ts           # Main router (defineRouter)
+└── repositories/
+    └── user.repository.ts
+```
+
+> **Next:** Learn about middleware and response helpers in route handlers.
+>
+> [How It Works →](/docs/core-concepts/how-it-works)

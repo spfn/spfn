@@ -50,21 +50,20 @@ npm run spfn:dev
 After initialization, you'll have:
 
 ### ✅ Server Structure (`src/server/`)
-- Contract-based routing with type safety
-- Example routes with contracts
-- Database entities and migrations
+- Define-route system with full type safety
+- Example routes with CRUD operations
+- Database entities and repositories
 - Development and production configs
 
-### ✅ Contracts (`src/lib/contracts/`)
-- Centralized API contract definitions
-- Shared between server and client
-- Full type safety and validation
+### ✅ Router (`src/server/router.ts`)
+- Centralized route definitions
+- Type exports for client generation
+- Automatic metadata extraction
 
-### ✅ Auto-Generated Client (`src/lib/api/`)
+### ✅ Auto-Generated Client
 - Type-safe API client for Next.js
-- Resource-based file splitting for scalability
-- Auto-updated on contract changes (dev mode)
-- Full TypeScript autocomplete
+- tRPC-style chaining API
+- Auto-updated via codegen
 
 ### ✅ Infrastructure (via Docker)
 - PostgreSQL database
@@ -75,20 +74,61 @@ After initialization, you'll have:
 
 ### 1. Create your first route
 
-```bash
-# 1. Define contract (centralized)
-src/lib/contracts/
-  users.ts       # API contracts for users
+```typescript
+// src/server/routes/users.ts
+import { route } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
 
-# 2. Implement routes
-src/server/routes/
-  users/
-    index.ts     # GET /users (implements getUsersContract)
-    [id]/
-      index.ts   # GET /users/:id (implements getUserContract)
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({
+            id: Type.String()
+        })
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        // Fetch user from database
+        return { id: params.id, name: 'John Doe' };
+    });
 ```
 
-### 2. Define database schema
+### 2. Register route in router
+
+```typescript
+// src/server/router.ts
+import { defineRouter } from '@spfn/core/route';
+import { getUser } from './routes/users';
+
+export const appRouter = defineRouter({
+    getUser,
+    // ... other routes
+});
+
+export type AppRouter = typeof appRouter;
+```
+
+### 3. Generate client and use in Next.js
+
+```bash
+# Generate type-safe client
+pnpm spfn codegen router
+```
+
+```typescript
+// app/page.tsx
+import { api } from '@/lib/api-client';
+
+export default async function Page() {
+    const user = await api.getUser
+        .params({ id: '123' })
+        .call();
+
+    return <div>{user.name}</div>;
+    //           ^ Fully typed!
+}
+```
+
+### 4. Define database schema
 
 ```bash
 # Create/edit entity
@@ -101,21 +141,7 @@ npx spfn@alpha db generate
 npx spfn@alpha db migrate
 ```
 
-### 3. Use in Next.js
-
-```typescript
-// app/page.tsx
-import { api } from '@/lib/api'
-
-export default async function Page() {
-  const examples = await api.examples.list()
-
-  return <div>{examples.length} examples</div>
-  //           ^ Fully typed!
-}
-```
-
-### 4. Install functions (optional)
+### 5. Install functions (optional)
 
 ```bash
 # Install CMS with automatic migration setup (recommended)

@@ -1,294 +1,330 @@
 ---
 title: "Type Safety"
-description: "Learn how Superfunction ensures end-to-end type safety from contracts to frontend"
+description: "Learn how Superfunction ensures end-to-end type safety from routes to frontend"
 order: 4
 available: true
 ---
 
 # Type Safety
 
-Superfunction provides end-to-end type safety from contract definition to frontend usage, with zero manual type definitions.
+Superfunction provides end-to-end type safety from route definition to frontend usage, with zero manual type definitions.
 
 ## How Type Safety Works
 
-Type safety flows through your entire application in four stages:
+Type safety flows through your entire application:
 
-1. **Contract Definition** - Define API shape with TypeBox schemas
-2. **Handler Types** - Backend handlers automatically infer types from contracts
-3. **Code Generation** - CLI generates type-safe client with extracted types
+1. **Route Definition** - Define API with TypeBox schemas
+2. **Handler Types** - Context automatically infers types from input
+3. **Code Generation** - CLI generates type-safe client
 4. **Frontend Usage** - Import and use with full TypeScript autocomplete
 
-## InferContract Utility
+## Backend Type Inference
 
-The `InferContract` utility extracts TypeScript types from your contracts:
+### Input Types
 
-```typescript
-import type { InferContract } from '@spfn/core';
-import { createTeamContract } from '@/lib/contracts/teams';
-
-// Extract types from contract
-type CreateTeamBody = InferContract<typeof createTeamContract>['body'];
-// { name: string; slug: string; description?: string }
-
-type CreateTeamResponse = InferContract<typeof createTeamContract>['response'];
-// { id: number; name: string; slug: string; createdAt: string }
-
-// Available properties:
-// - InferContract<Contract>['params']   - Path parameters
-// - InferContract<Contract>['query']    - Query parameters
-// - InferContract<Contract>['body']     - Request body
-// - InferContract<Contract>['response'] - Response data
-```
-
-## Auto-Generated Types
-
-When you run `npm run spfn:dev`, Superfunction automatically generates `src/lib/api.ts` with all types extracted:
+Handler context automatically infers types from `.input()`:
 
 ```typescript
-/**
- * Auto-generated API Client
- * DO NOT EDIT MANUALLY
- */
-import { client } from '@spfn/core/client';
-import type { InferContract } from '@spfn/core';
-import { getTeamsContract, createTeamContract, updateTeamContract } from '@/lib/contracts/teams';
+export const updateUser = route.put('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() }),
+        body: Type.Object({
+            name: Type.String(),
+            email: Type.Optional(Type.String())
+        })
+    })
+    .handler(async (c) => {
+        const { params, body } = await c.data();
 
-// ============================================
-// Auto-generated Types
-// ============================================
+        // params.id: string (inferred)
+        // body.name: string (inferred)
+        // body.email: string | undefined (inferred)
 
-export type GetTeamsResponse = InferContract<typeof getTeamsContract>['response'];
-export type GetTeamsQuery = InferContract<typeof getTeamsContract>['query'];
-
-export type CreateTeamResponse = InferContract<typeof createTeamContract>['response'];
-export type CreateTeamBody = InferContract<typeof createTeamContract>['body'];
-
-export type UpdateTeamResponse = InferContract<typeof updateTeamContract>['response'];
-export type UpdateTeamParams = InferContract<typeof updateTeamContract>['params'];
-export type UpdateTeamBody = InferContract<typeof updateTeamContract>['body'];
-
-/**
- * Type-safe API client
- */
-export const api = {
-    teams: {
-        list: (options: { query?: GetTeamsQuery }) =>
-            client.call(getTeamsContract, options),
-        create: (options: { body: CreateTeamBody }) =>
-            client.call(createTeamContract, options),
-        update: (options: { params: UpdateTeamParams; body: UpdateTeamBody }) =>
-            client.call(updateTeamContract, options),
-    }
-} as const;
+        const user = await userRepo.update(params.id, body);
+        return user;
+    });
 ```
 
-## Using Types in Frontend
+### Response Types
 
-Import auto-generated types directly from `@/lib/api`:
-
-### Type-Safe API Calls
+Return type is inferred from the handler:
 
 ```typescript
-'use client';
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        const user = await userRepo.findById(params.id);
 
-import { api } from '@/lib/api';
-import type { CreateTeamBody } from '@/lib/api';
-
-export function CreateTeamForm() {
-  const handleSubmit = async (data: CreateTeamBody) => {
-    // ✅ body is type-checked
-    const team = await api.teams.create({ body: data });
-
-    // ✅ Response is fully typed
-    console.log(team.id);      // number
-    console.log(team.name);    // string
-    console.log(team.invalid); // ❌ TypeScript error!
-  };
-
-  return <form onSubmit={...} />;
-}
+        // Return type is inferred: { id: string, name: string, email: string }
+        return user;
+    });
 ```
 
-### Type-Safe Form State
+### Explicit Response Type
+
+For complex types, you can explicitly type the handler:
 
 ```typescript
-'use client';
+type UserResponse =
+    | { status: 'found'; user: User }
+    | { status: 'not_found' };
 
-import { useState } from 'react';
-import { api } from '@/lib/api';
-import type { CreateTeamBody } from '@/lib/api';
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler<UserResponse>(async (c) => {
+        const { params } = await c.data();
+        const user = await userRepo.findById(params.id);
 
-export function TeamForm() {
-  // ✅ Form state uses contract type
-  const [formData, setFormData] = useState<CreateTeamBody>({
-    name: '',
-    slug: '',
-    description: undefined
-  });
+        if (!user) {
+            return { status: 'not_found' };
+        }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // ✅ TypeScript ensures all required fields are present
-    const team = await api.teams.create({ body: formData });
-    console.log('Created:', team.id);
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        value={formData.name}
-        onChange={(e) => setFormData({
-          ...formData,
-          name: e.target.value
-        })}
-      />
-      {/* TypeScript autocomplete works! */}
-    </form>
-  );
-}
+        return { status: 'found', user };
+    });
 ```
 
-### Type-Safe React Hooks
+## Client Type Safety
+
+### Generated Client
+
+The generated client provides full type safety:
 
 ```typescript
-'use client';
+// Generated: src/lib/api-client.ts
+import { api } from '@/lib/api-client';
 
-import { api } from '@/lib/api';
-import type { GetTeamsResponse, UpdateTeamParams, UpdateTeamBody } from '@/lib/api';
-import { useCrudManager } from '@/hooks/useCrudManager';
+// Params are type-checked
+const user = await api.getUser
+    .params({ id: '123' })  // Must be { id: string }
+    .call();
 
-export function TeamManagement() {
-  const {
-    items,
-    handleSave,
-    handleDelete
-  } = useCrudManager<
-    GetTeamsResponse['items'][0],  // Item type
-    CreateTeamBody,                 // Create input type
-    UpdateTeamParams,               // Update params type
-    UpdateTeamBody,                 // Update body type
-    DeleteTeamResponse              // Delete response type
-  >({
-    list: () => api.teams.list({ query: {} }),
-    create: (data) => api.teams.create({ body: data }),
-    update: (id, data) => api.teams.update({
-      params: { id },
-      body: data
-    }),
-    delete: (id) => api.teams.delete({ params: { id } })
-  });
-
-  // ✅ All CRUD operations are fully typed!
-  return <div>{/* ... */}</div>;
-}
+// Response is fully typed
+console.log(user.name);   // string
+console.log(user.invalid); // ❌ TypeScript error!
 ```
 
-## Compile-Time Type Checking
+### tRPC-Style Chaining
 
-TypeScript catches errors at compile time, not runtime:
+The client uses chainable methods for different input types:
+
+```typescript
+// GET with params
+await api.getUser
+    .params({ id: '123' })
+    .call();
+
+// GET with query
+await api.listUsers
+    .query({ limit: 10, offset: 0 })
+    .call();
+
+// POST with body
+await api.createUser
+    .body({ name: 'John', email: 'john@example.com' })
+    .call();
+
+// PUT with params and body
+await api.updateUser
+    .params({ id: '123' })
+    .body({ name: 'John Updated' })
+    .call();
+
+// With headers
+await api.protectedRoute
+    .headers({ authorization: 'Bearer token' })
+    .call();
+```
+
+## Compile-Time Error Checking
+
+TypeScript catches errors at compile time:
 
 ### Missing Required Fields
 
 ```typescript
-// ❌ TypeScript Error: Property 'name' is missing
-await api.teams.create({
-  body: {
-    slug: 'my-team'
-    // Missing required 'name' field!
-  }
-});
+// ❌ TypeScript Error: Property 'email' is missing
+await api.createUser
+    .body({
+        name: 'John'
+        // Missing required 'email' field!
+    })
+    .call();
 
-// ✅ Correct: All required fields present
-await api.teams.create({
-  body: {
-    name: 'My Team',
-    slug: 'my-team'
-  }
-});
+// ✅ Correct
+await api.createUser
+    .body({
+        name: 'John',
+        email: 'john@example.com'
+    })
+    .call();
 ```
 
 ### Wrong Field Types
 
 ```typescript
 // ❌ TypeScript Error: Type 'number' is not assignable to type 'string'
-await api.teams.create({
-  body: {
-    name: 123,  // Should be string!
-    slug: 'my-team'
-  }
-});
-
-// ✅ Correct: Proper types
-await api.teams.create({
-  body: {
-    name: 'My Team',
-    slug: 'my-team'
-  }
-});
+await api.createUser
+    .body({
+        name: 123,  // Should be string!
+        email: 'john@example.com'
+    })
+    .call();
 ```
 
-### Invalid Field Names
+### Invalid Response Access
 
 ```typescript
-// ❌ TypeScript Error: Object literal may only specify known properties
-await api.teams.create({
-  body: {
-    name: 'My Team',
-    slug: 'my-team',
-    invalid: 'field'  // This field doesn't exist in contract!
-  }
-});
+const user = await api.getUser.params({ id: '123' }).call();
 
-// ✅ Correct: Only contract fields
-await api.teams.create({
-  body: {
-    name: 'My Team',
-    slug: 'my-team'
-  }
-});
+user.name;     // ✅ OK - property exists
+user.invalid;  // ❌ TypeScript Error: Property 'invalid' does not exist
 ```
 
-## Backend Type Safety
+## Type-Safe Error Handling
 
-Backend handlers automatically infer types from contracts:
+### Error Instance Checks
 
 ```typescript
-// src/server/routes/teams/index.ts
-import { createApp } from '@spfn/core/route';
-import { createTeamContract } from '@/lib/contracts/teams';
+import { NotFoundError, ValidationError } from '@spfn/core/errors';
 
-const app = createApp();
+try {
+    const user = await api.getUser.params({ id: '999' }).call();
+} catch (error) {
+    if (error instanceof NotFoundError) {
+        // error.resource is typed
+        console.log('Not found:', error.resource);
+    }
 
-app.bind(createTeamContract, async (c) => {
-  // ✅ c.data() return type is inferred from contract.body
-  const data = await c.data();
-  // data: { name: string; slug: string; description?: string }
+    if (error instanceof ValidationError) {
+        // error.fields is typed
+        error.fields?.forEach(field => {
+            console.log(`${field.path}: ${field.message}`);
+        });
+    }
+}
+```
 
-  // ❌ TypeScript Error: Return type doesn't match contract.response
-  return c.json({
-    id: 1,
-    name: data.name
-    // Missing required fields: slug, createdAt
-  });
+### Error Properties
 
-  // ✅ Correct: Matches contract.response
-  return c.json({
-    id: 1,
-    name: data.name,
-    slug: data.slug,
-    createdAt: new Date().toISOString()
-  });
-});
+Each error type has typed properties:
+
+```typescript
+// NotFoundError
+error.resource    // string | undefined
+error.statusCode  // 404
+
+// ValidationError
+error.fields      // Array<{ path: string, message: string, value?: any }>
+error.statusCode  // 400
+
+// TooManyRequestsError
+error.retryAfter  // number | undefined
+error.statusCode  // 429
+```
+
+## Frontend Integration
+
+### React Components
+
+```typescript
+'use client';
+
+import { api } from '@/lib/api-client';
+import { useState, useEffect } from 'react';
+
+// Type is inferred from api.getUser response
+type User = Awaited<ReturnType<typeof api.getUser.call>>;
+
+export function UserProfile({ id }: { id: string }) {
+    const [user, setUser] = useState<User | null>(null);
+
+    useEffect(() => {
+        api.getUser.params({ id }).call()
+            .then(setUser);
+    }, [id]);
+
+    if (!user) return <div>Loading...</div>;
+
+    return (
+        <div>
+            <h1>{user.name}</h1>      {/* ✅ Typed */}
+            <p>{user.email}</p>       {/* ✅ Typed */}
+        </div>
+    );
+}
+```
+
+### Form Handling
+
+```typescript
+'use client';
+
+import { api } from '@/lib/api-client';
+import { useState } from 'react';
+
+// Extract body type from route
+type CreateUserInput = Parameters<typeof api.createUser.body>[0];
+
+export function CreateUserForm() {
+    const [formData, setFormData] = useState<CreateUserInput>({
+        name: '',
+        email: ''
+    });
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // TypeScript ensures formData matches expected type
+        const user = await api.createUser.body(formData).call();
+        console.log('Created:', user.id);
+    };
+
+    return (
+        <form onSubmit={handleSubmit}>
+            <input
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+            />
+            <input
+                value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
+            />
+            <button type="submit">Create</button>
+        </form>
+    );
+}
+```
+
+### Server Components
+
+```typescript
+// app/users/[id]/page.tsx
+import { api } from '@/lib/api-client';
+
+export default async function UserPage({ params }: { params: { id: string } }) {
+    const user = await api.getUser.params({ id: params.id }).call();
+
+    return (
+        <div>
+            <h1>{user.name}</h1>
+            <p>{user.email}</p>
+        </div>
+    );
+}
 ```
 
 ## Runtime vs Compile-Time
 
-Superfunction provides both runtime and compile-time safety:
+Superfunction provides both:
 
 **Runtime Safety:**
 - Request validation with TypeBox
-- Automatic type conversion (String → Number)
+- Automatic type conversion
 - Structured error responses
 - Schema constraints (minLength, pattern, etc.)
 
@@ -298,49 +334,52 @@ Superfunction provides both runtime and compile-time safety:
 - Refactoring support
 - Catch errors before deployment
 
-> **Note:** Your contract is the single source of truth. TypeScript types, runtime validation, and API documentation all derive from the same source—ensuring consistency across your entire stack.
-
 ## Best Practices
 
-### 1. Always Import Types from @/lib/api
+### 1. Let TypeScript Infer
+
+Don't manually define types - let TypeScript infer from routes:
 
 ```typescript
-// ✅ Good: Use auto-generated types
-import type { CreateTeamBody, GetTeamsResponse } from '@/lib/api';
+// ✅ Good - Type inferred from api
+type User = Awaited<ReturnType<typeof api.getUser.call>>;
 
-// ❌ Bad: Manual type definitions
-type CreateTeamBody = {
-  name: string;
-  slug: string;
+// ❌ Bad - Manual type definition that can drift
+type User = {
+    id: string;
+    name: string;
 };
 ```
 
-### 2. Use InferContract for Custom Types
+### 2. Use Strict TypeScript
 
-```typescript
-import type { InferContract } from '@spfn/core';
-import { getTeamsContract } from '@/lib/contracts/teams';
+Enable strict mode in `tsconfig.json`:
 
-// Extract single item type from array response
-type Team = InferContract<typeof getTeamsContract>['response']['items'][0];
-
-// Use in component
-function TeamCard({ team }: { team: Team }) {
-  return <div>{team.name}</div>;
+```json
+{
+    "compilerOptions": {
+        "strict": true,
+        "noUncheckedIndexedAccess": true
+    }
 }
 ```
 
-### 3. Keep Contracts Updated
+### 3. Handle Errors Type-Safely
 
-When you modify a contract:
+```typescript
+import { NotFoundError } from '@spfn/core/errors';
 
-1. Update the contract schema in `src/lib/contracts/`
-2. Codegen automatically runs in dev mode
-3. TypeScript will show errors in frontend code that needs updating
-4. Fix all TypeScript errors before deploying
+try {
+    const user = await api.getUser.params({ id }).call();
+    return user;
+} catch (error) {
+    if (error instanceof NotFoundError) {
+        return null;  // Handle gracefully
+    }
+    throw error;  // Re-throw unexpected errors
+}
+```
 
-> **Next: Client Generation**
->
-> Learn how Superfunction's code generation works and how to customize the generated client.
+> **Next:** Learn how client generation works.
 >
 > [Client Generation →](/docs/core-concepts/client-generation)

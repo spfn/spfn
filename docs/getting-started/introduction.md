@@ -68,7 +68,7 @@ export const getUser = route.get('/users/:id')
     const user = await userRepo.findById(params.id);
 
     if (!user) {
-      throw new NotFoundError('User', params.id);
+      throw new NotFoundError({ resource: 'User' });
     }
 
     return user;
@@ -103,8 +103,8 @@ try {
   await api.getUser.params({ id: '999' }).call();
 } catch (error) {
   if (error instanceof NotFoundError) {
-    console.log('User not found:', error.details);
-    //                             ^ Typed!
+    console.log('User not found:', error.resource);
+    //                             ^ Typed: 'User'
   }
 }
 ```

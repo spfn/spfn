@@ -1,11 +1,13 @@
 ---
-title: "Route Binding"
-description: "Learn how to bind contracts to handlers with middleware, validation, and error handling"
+title: "Route Context & Middleware"
+description: "Learn about route handler context, response helpers, and middleware"
 order: 3
 available: true
 ---
 
-Route binding connects your contracts to handler functions with automatic validation, middleware support, and type-safe context.
+# Route Context & Middleware
+
+Route handlers receive a context object with type-safe access to request data and response helpers.
 
 ## Built on Hono
 
@@ -16,123 +18,113 @@ Superfunction is built on top of Hono, a lightweight and ultrafast web framework
 - **Web Standards** - Built on Web Standard APIs (Request/Response)
 - **Lightweight** - Zero dependencies, small bundle size
 
-> **Note:** For detailed technical reasons and runtime comparisons, see [Architecture: Why Hono?](/docs/architecture/why-hono)
+> **Note:** For detailed technical reasons, see [Philosophy: Why Hono?](/docs/philosophy/why-hono)
 
-## Basic Binding
+## Route Context
 
-Use `app.bind()` to connect a contract to its handler:
-
-```typescript
-// src/server/routes/teams/index.ts
-import { createApp } from '@spfn/core/route';
-import { getTeamsContract } from '@/lib/contracts/teams';
-
-const app = createApp();
-
-// Bind contract to handler
-app.bind(getTeamsContract, async (c) => {
-  // Handler implementation
-  const teams = await findMany(teamsTable);
-  return c.json({ teams, total: teams.length });
-});
-
-export default app;
-```
-
-## Route Context API
-
-The route context (`c`) provides type-safe access to request data:
-
-### Path Parameters
-
-Path parameters are automatically validated and type-converted:
+The handler receives a context object (`c`) with type-safe data access:
 
 ```typescript
-// Contract with path parameter
-export const getTeamContract = {
-  method: 'GET' as const,
-  path: '/teams/:id',
-  params: Type.Object({
-    id: Type.Integer()  // String "123" → Number 123
-  }),
-  response: TeamSchema
-} as const satisfies RouteContract;
+export const updateUser = route.put('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() }),
+        query: Type.Object({ notify: Type.Optional(Type.Boolean()) }),
+        body: Type.Object({ name: Type.String() })
+    })
+    .handler(async (c) => {
+        // Get all validated input data
+        const { params, query, body } = await c.data();
 
-// Handler - c.params is typed!
-app.bind(getTeamContract, async (c) => {
-  const { id } = c.params;  // Type: number
-  const team = await findOne(teamsTable, { id });
+        // params.id is string
+        // query.notify is boolean | undefined
+        // body.name is string
 
-  if (!team) {
-    throw new NotFoundError('Team not found');
-  }
-
-  return c.json(team);
-});
-```
-
-### Query Parameters
-
-Query parameters support arrays and automatic type conversion:
-
-```typescript
-// Contract with query parameters
-export const searchPostsContract = {
-  method: 'GET' as const,
-  path: '/posts/search',
-  query: Type.Object({
-    tags: Type.Array(Type.String()),  // Support for multiple values
-    limit: Type.Optional(Type.Number()),
-    offset: Type.Optional(Type.Number())
-  }),
-  response: PostsResponseSchema
-} as const satisfies RouteContract;
-
-// Request: GET /posts/search?tags=javascript&tags=typescript&limit=10
-app.bind(searchPostsContract, async (c) => {
-  const { tags, limit = 10, offset = 0 } = c.query;
-  // tags: string[] = ['javascript', 'typescript']
-  // limit: number = 10
-
-  const posts = await searchPosts({ tags, limit, offset });
-  return c.json({ posts, total: posts.length });
-});
-```
-
-### Request Body
-
-Use `await c.data()` to get validated request body:
-
-```typescript
-export const createTeamContract = {
-  method: 'POST' as const,
-  path: '/teams',
-  body: Type.Object({
-    name: Type.String({ minLength: 1, maxLength: 100 }),
-    slug: Type.String({ pattern: '^[a-z0-9-]+$' })
-  }),
-  response: TeamSchema
-} as const satisfies RouteContract;
-
-app.bind(createTeamContract, async (c) => {
-  // Body is automatically validated
-  const data = await c.data();
-  // data: { name: string; slug: string }
-
-  // Business logic validation
-  const existing = await findOne(teamsTable, { slug: data.slug });
-  if (existing) {
-    throw new ValidationError('Slug already exists', {
-      fields: [{
-        path: '/slug',
-        message: 'This slug is already taken',
-        value: data.slug
-      }]
+        return { success: true };
     });
-  }
+```
 
-  const team = await create(teamsTable, data);
-  return c.json(team);
+### The `data()` Method
+
+`await c.data()` returns all validated input in a single object:
+
+```typescript
+const {
+    params,   // Path parameters
+    query,    // Query string parameters
+    body,     // Request body
+    headers,  // Validated headers
+    cookies   // Validated cookies
+} = await c.data();
+```
+
+## Response Helpers
+
+The context provides convenient response helpers:
+
+### Return Data Directly
+
+Return data directly for 200 OK response:
+
+```typescript
+.handler(async (c) => {
+    const user = await userRepo.findById(params.id);
+    return user;  // 200 OK with JSON body
+});
+```
+
+### Created (201)
+
+```typescript
+.handler(async (c) => {
+    const { body } = await c.data();
+    const user = await userRepo.create(body);
+    return c.created(user);  // 201 Created
+    // Optionally: return c.created(user, `/users/${user.id}`);
+});
+```
+
+### Accepted (202)
+
+```typescript
+.handler(async (c) => {
+    const job = await queue.enqueue(task);
+    return c.accepted({ jobId: job.id });  // 202 Accepted
+});
+```
+
+### No Content (204)
+
+```typescript
+.handler(async (c) => {
+    const { params } = await c.data();
+    await userRepo.delete(params.id);
+    return c.noContent();  // 204 No Content
+});
+```
+
+### Paginated Response
+
+```typescript
+.handler(async (c) => {
+    const { query } = await c.data();
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+
+    const users = await userRepo.findAll(limit, (page - 1) * limit);
+    const total = await userRepo.count();
+
+    return c.paginated(users, page, limit, total);
+    // Response: { items: [...], pagination: { page, limit, total, totalPages } }
+});
+```
+
+### Custom JSON Response
+
+```typescript
+.handler(async (c) => {
+    return c.json({ custom: 'data' }, 200, {
+        'X-Custom-Header': 'value'
+    });
 });
 ```
 
@@ -141,307 +133,195 @@ app.bind(createTeamContract, async (c) => {
 Access the underlying Hono context for advanced usage:
 
 ```typescript
-app.bind(updateTeamContract, async (c) => {
-  // Access raw Hono context
-  const token = c.raw.req.header('Authorization');
-  const userAgent = c.raw.req.header('User-Agent');
+.handler(async (c) => {
+    // Access raw Hono context
+    const userAgent = c.raw.req.header('User-Agent');
+    const ip = c.raw.req.header('X-Forwarded-For');
 
-  // Set custom headers
-  return c.json(data, 200, {
-    'X-Custom-Header': 'value'
-  });
+    return { userAgent, ip };
 });
 ```
 
-## Automatic Validation
+## Middleware
 
-Superfunction automatically validates all incoming requests against your contract schemas:
+### Route-Level Middleware
 
-### Type Conversion
-
-URL strings are automatically converted to schema types:
+Add middleware to specific routes using `.use()` or `.middleware()`:
 
 ```typescript
-params: Type.Object({
-  id: Type.Integer(),        // "123" → 123
-  active: Type.Boolean()     // "true" → true
-})
+import { route } from '@spfn/core/route';
+import { authenticate } from '@spfn/auth/server/middleware';
+import { rateLimit } from './middlewares/rate-limit';
 
-query: Type.Object({
-  limit: Type.Number(),      // "10" → 10
-  tags: Type.Array(Type.String())  // ?tags=a&tags=b → ['a', 'b']
-})
+export const createPost = route.post('/posts')
+    .input({
+        body: Type.Object({
+            title: Type.String(),
+            content: Type.String()
+        })
+    })
+    .use([authenticate, rateLimit({ limit: 10 })])  // Route-specific middleware
+    .handler(async (c) => {
+        const { body } = await c.data();
+        const post = await postRepo.create(body);
+        return c.created(post);
+    });
 ```
 
-### Validation Error Response
+### Skip Global Middleware
 
-When validation fails, Superfunction returns a structured error response:
-
-```json
-// Request: GET /teams/abc (id should be integer)
-// Response: 400 Bad Request
-{
-  "error": {
-    "message": "Invalid path parameters",
-    "type": "ValidationError",
-    "statusCode": 400,
-    "details": {
-      "fields": [
-        {
-          "path": "/id",
-          "message": "Expected integer",
-          "value": "abc"
-        }
-      ]
-    }
-  }
-}
-```
-
-## Middleware Management
-
-Superfunction provides flexible middleware management at both global and method levels.
-
-### Global Middlewares
-
-Configure global middlewares in `server.config.ts`:
+Skip specific global middlewares for public endpoints:
 
 ```typescript
-// src/server/server.config.ts
-import type { ServerConfig } from '@spfn/core';
-import { authMiddleware } from '@spfn/auth';
-import { rateLimitMiddleware } from './middlewares/rate-limit';
-import { loggingMiddleware } from './middlewares/logging';
+// Skip auth middleware for public health check
+export const healthCheck = route.get('/health')
+    .skip(['auth'])
+    .handler(async (c) => {
+        return { status: 'ok' };
+    });
 
-export default {
-  middlewares: [
-    { name: 'logging', handler: loggingMiddleware() },
-    { name: 'auth', handler: authMiddleware() },
-    { name: 'rateLimit', handler: rateLimitMiddleware() }
-  ]
-} satisfies ServerConfig;
+// Skip all middlewares
+export const publicEndpoint = route.get('/public')
+    .skip('*')
+    .handler(async (c) => {
+        return { public: true };
+    });
 ```
 
-### Method-Level Middleware Control
+### Named Middleware
 
-Skip specific middlewares per contract using `meta.skipMiddlewares`:
-
-```typescript
-// GET - Public endpoint (no auth required)
-export const getTeamsContract = {
-  method: 'GET' as const,
-  path: '/teams',
-  response: TeamsResponseSchema,
-  meta: {
-    skipMiddlewares: ['auth']  // ← Skip auth for this endpoint
-  }
-} as const satisfies RouteContract;
-
-// POST - Protected endpoint (auth required)
-export const createTeamContract = {
-  method: 'POST' as const,
-  path: '/teams',
-  body: CreateTeamSchema,
-  response: TeamSchema
-  // No skipMiddlewares → auth will run
-} as const satisfies RouteContract;
-
-// PUT - Protected endpoint (auth required)
-export const updateTeamContract = {
-  method: 'PUT' as const,
-  path: '/teams/:id',
-  params: Type.Object({ id: Type.Integer() }),
-  body: UpdateTeamSchema,
-  response: TeamSchema
-  // No skipMiddlewares → auth will run
-} as const satisfies RouteContract;
-```
-
-> **ℹ️ Info:** Method-Level Control Benefits
->
-> - Same path, different policies per HTTP method
-> - Policy is part of the contract definition (single source of truth)
-> - Full TypeScript support
-> - Minimal runtime overhead
-
-### Route-Specific Middlewares
-
-Add middlewares to specific routes using the three-argument `bind()`:
+Define named middleware using `defineMiddleware`:
 
 ```typescript
-import { createApp } from '@spfn/core/route';
-import { adminOnlyMiddleware } from '@/server/middlewares/admin';
+// src/server/middlewares/rate-limit.ts
+import { defineMiddleware } from '@spfn/core/route';
 
-const app = createApp();
-
-// Add route-specific middleware
-app.bind(
-  deleteTeamContract,
-  [adminOnlyMiddleware],  // ← Only for this route
-  async (c) => {
-    const { id } = c.params;
-    await deleteOne(teamsTable, { id });
-    return c.json({ success: true });
-  }
-);
+export const rateLimit = defineMiddleware('rateLimit', (options: { limit: number }) => {
+    return async (c, next) => {
+        // Rate limiting logic
+        await next();
+    };
+});
 ```
 
 ## Error Handling
 
-Superfunction provides built-in error types for common HTTP errors:
-
 ### Built-in Error Types
+
+Throw built-in errors for HTTP responses:
 
 ```typescript
 import {
-  ValidationError,    // 400 Bad Request
-  UnauthorizedError,  // 401 Unauthorized
-  ForbiddenError,     // 403 Forbidden
-  NotFoundError,      // 404 Not Found
-  ConflictError,      // 409 Conflict
-  InternalServerError // 500 Internal Server Error
-} from '@spfn/core';
+    NotFoundError,
+    ValidationError,
+    UnauthorizedError,
+    ForbiddenError,
+    ConflictError
+} from '@spfn/core/errors';
 
-app.bind(getTeamContract, async (c) => {
-  const { id } = c.params;
-  const team = await findOne(teamsTable, { id });
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        const user = await userRepo.findById(params.id);
 
-  if (!team) {
-    // Automatically returns 404 with proper error structure
-    throw new NotFoundError('Team not found');
-  }
+        if (!user) {
+            throw new NotFoundError({ resource: 'User' });
+        }
 
-  return c.json(team);
-});
+        return user;
+    });
 ```
+
+### Error Types Reference
+
+| Error Class | Status | Use Case |
+|-------------|--------|----------|
+| `BadRequestError` | 400 | Malformed request |
+| `ValidationError` | 400 | Input validation failure |
+| `UnauthorizedError` | 401 | Authentication required |
+| `ForbiddenError` | 403 | Permission denied |
+| `NotFoundError` | 404 | Resource not found |
+| `ConflictError` | 409 | Resource conflict |
+| `TooManyRequestsError` | 429 | Rate limit exceeded |
+| `InternalServerError` | 500 | Server error |
 
 ### Custom Validation Errors
 
-Throw `ValidationError` for business logic validation:
-
 ```typescript
-app.bind(createTeamContract, async (c) => {
-  const data = await c.data();
+.handler(async (c) => {
+    const { body } = await c.data();
 
-  // Check for duplicate slug
-  const existing = await findOne(teamsTable, { slug: data.slug });
+    const existing = await userRepo.findByEmail(body.email);
+    if (existing) {
+        throw new ValidationError({
+            message: 'Email already exists',
+            fields: [{
+                path: '/email',
+                message: 'This email is already registered',
+                value: body.email
+            }]
+        });
+    }
 
-  if (existing) {
-    throw new ValidationError('Validation failed', {
-      fields: [
-        {
-          path: '/slug',
-          message: 'This slug is already taken',
-          value: data.slug
-        }
-      ]
-    });
-  }
-
-  const team = await create(teamsTable, data);
-  return c.json(team);
+    return await userRepo.create(body);
 });
 ```
 
 ### Error Response Format
 
-All errors follow a consistent response format:
+All errors follow a consistent format:
 
 ```json
 {
-  "error": {
-    "message": "Validation failed",
-    "type": "ValidationError",
-    "statusCode": 400,
-    "details": {
-      "fields": [
-        {
-          "path": "/slug",
-          "message": "This slug is already taken",
-          "value": "my-team"
-        }
-      ]
+    "error": {
+        "name": "NotFoundError",
+        "message": "Resource not found",
+        "statusCode": 404,
+        "resource": "User"
     }
-  }
 }
 ```
 
-## Advanced Patterns
+## Type Conversion
 
-### Multiple Response Types
-
-Use `Type.Union()` for success/error responses:
+URL strings are automatically converted to schema types:
 
 ```typescript
-export const getTeamContract = {
-  method: 'GET' as const,
-  path: '/teams/:id',
-  params: Type.Object({ id: Type.Integer() }),
-  response: Type.Union([
-    // Success (200)
-    Type.Object({
-      id: Type.Number(),
-      name: Type.String(),
-      slug: Type.String()
+.input({
+    params: Type.Object({
+        id: Type.Number()      // "123" → 123
     }),
-    // Error (404)
-    Type.Object({
-      error: Type.String(),
-      code: Type.String()
+    query: Type.Object({
+        active: Type.Boolean(), // "true" → true
+        limit: Type.Number()    // "10" → 10
     })
-  ])
-} as const satisfies RouteContract;
-
-app.bind(getTeamContract, async (c) => {
-  const { id } = c.params;
-  const team = await findOne(teamsTable, { id });
-
-  if (!team) {
-    return c.json(
-      { error: 'Team not found', code: 'NOT_FOUND' },
-      404
-    );
-  }
-
-  return c.json(team, 200);
-});
+})
 ```
 
-### Reusable Schemas
+## Validation Error Response
 
-Define shared schemas to reduce duplication:
+When validation fails:
 
-```typescript
-// src/lib/contracts/teams.ts
-import { Type } from '@sinclair/typebox';
-
-// Shared schema
-const TeamSchema = Type.Object({
-  id: Type.Number(),
-  name: Type.String(),
-  slug: Type.String(),
-  createdAt: Type.String()
-});
-
-// Reuse in multiple contracts
-export const getTeamContract = {
-  method: 'GET' as const,
-  path: '/teams/:id',
-  params: Type.Object({ id: Type.Integer() }),
-  response: TeamSchema  // ← Reuse
-} as const satisfies RouteContract;
-
-export const updateTeamContract = {
-  method: 'PUT' as const,
-  path: '/teams/:id',
-  params: Type.Object({ id: Type.Integer() }),
-  body: Type.Pick(TeamSchema, ['name', 'slug']),
-  response: TeamSchema  // ← Reuse
-} as const satisfies RouteContract;
+```json
+{
+    "error": {
+        "name": "ValidationError",
+        "message": "Invalid path parameters",
+        "statusCode": 400,
+        "fields": [
+            {
+                "path": "/id",
+                "message": "Expected number",
+                "value": "abc"
+            }
+        ]
+    }
+}
 ```
 
-> **✅ Success:** Next: Type Safety
->
-> Learn how Superfunction ensures end-to-end type safety from contracts to frontend.
+> **Next:** Learn how Superfunction ensures end-to-end type safety.
 >
 > [Type Safety →](/docs/core-concepts/type-safety)

@@ -7,111 +7,188 @@ available: true
 
 # Your First API
 
-Learn how to create a fully type-safe API endpoint in three steps: define a contract, implement the route, and use it in your Next.js app.
+Learn how to create a fully type-safe API endpoint in three steps: define a route, register it, and use it in your Next.js app.
 
-## Step 1: Define the Contract
+## Step 1: Define the Route
 
-Contracts define the shape of your API using TypeBox schemas. They're shared between backend and frontend.
+Routes are defined using the `route` helper with TypeBox schemas for validation.
 
 ```typescript
-// src/lib/contracts/users.ts
+// src/server/routes/users.ts
+import { route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core';
+import { NotFoundError } from '@spfn/core/errors';
+import { UserRepository } from '../repositories/user.repository';
 
-export const createUserContract = {
-  method: 'POST',
-  path: '/users',
-  body: Type.Object({
-    name: Type.String(),
-    email: Type.String({ format: 'email' })
-  }),
-  response: Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    email: Type.String(),
-    createdAt: Type.String()
-  })
-} satisfies RouteContract; // ⚠️ Always add this for type safety!
-```
+const userRepo = new UserRepository();
 
-## Step 2: Implement the Route
+/**
+ * POST /users - Create a new user
+ */
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({
+            name: Type.String(),
+            email: Type.String({ format: 'email' })
+        })
+    })
+    .handler(async (c) => {
+        const { body } = await c.data();
 
-Bind the contract to a handler in your backend. The handler is fully type-safe based on the contract.
+        const user = await userRepo.create({
+            name: body.name,
+            email: body.email
+        });
 
-```typescript
-// src/server/routes/users/index.ts  ⚠️ Must be [route]/index.ts
-import { createApp } from '@spfn/core/route';
-import { createUserContract } from '@/lib/contracts/users';
-import { create } from '@spfn/core/db';
-import { users } from '@/server/entities/users';
-
-const app = createApp();
-
-// POST /users - Create user
-app.bind(createUserContract, async (c) => {
-  const data = await c.data();
-
-  // Use Superfunction helper functions
-  const user = await create(users, {
-    name: data.name,
-    email: data.email
-  });
-
-  return c.json(user);
-});
-
-export default app;
-```
-
-## Step 3: Use in Next.js
-
-The Superfunction CLI automatically generates a type-safe client. Just import and use it!
-
-```typescript
-// src/app/page.tsx
-'use client';
-
-import { api } from '@/lib/api'; // Auto-generated client
-
-export default function Home() {
-  const handleCreateUser = async () => {
-    const user = await api.users.create({
-      body: {
-        name: 'John Doe',
-        email: 'john@example.com'
-      }
+        return c.created(user);
     });
 
-    // ✅ user is fully typed!
-    console.log(user.id);
-  };
+/**
+ * GET /users/:id - Get user by ID
+ */
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({
+            id: Type.String()
+        })
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
 
-  return (
-    <button onClick={handleCreateUser}>
-      Create User
-    </button>
-  );
+        const user = await userRepo.findById(params.id);
+
+        if (!user) {
+            throw new NotFoundError({ resource: 'User' });
+        }
+
+        return user;
+    });
+```
+
+## Step 2: Register Routes
+
+Add your routes to the application router for type inference and client generation.
+
+```typescript
+// src/server/router.ts
+import { defineRouter } from '@spfn/core/route';
+import { createUser, getUser } from './routes/users';
+
+export const appRouter = defineRouter({
+    createUser,
+    getUser,
+    // ... other routes
+});
+
+export type AppRouter = typeof appRouter;
+```
+
+## Step 3: Generate Client & Use in Next.js
+
+Generate a type-safe client and use it anywhere in your Next.js app.
+
+```bash
+# Generate type-safe client
+pnpm spfn codegen router
+```
+
+```typescript
+// app/page.tsx
+'use client';
+
+import { api } from '@/lib/api-client';
+import { NotFoundError } from '@spfn/core/errors';
+
+export default function Home() {
+    const handleCreateUser = async () => {
+        // Create user - fully typed!
+        const user = await api.createUser
+            .body({
+                name: 'John Doe',
+                email: 'john@example.com'
+            })
+            .call();
+
+        console.log(user.id);  // ✅ Typed!
+    };
+
+    const handleGetUser = async (id: string) => {
+        try {
+            const user = await api.getUser
+                .params({ id })
+                .call();
+
+            console.log(user.name);  // ✅ Typed!
+        } catch (error) {
+            if (error instanceof NotFoundError) {
+                console.log('User not found:', error.resource);
+            }
+        }
+    };
+
+    return (
+        <button onClick={handleCreateUser}>
+            Create User
+        </button>
+    );
 }
 ```
 
 > **That's it!**
 >
-> You've created your first type-safe API with Superfunction. The types flow automatically from contract to implementation to client usage.
+> You've created your first type-safe API with Superfunction. The types flow automatically from route definition to client usage.
 
 ## What Happens Behind the Scenes?
 
-1. Superfunction validates request body against the contract schema
+1. Superfunction validates request body against the TypeBox schema
 2. TypeScript ensures your handler returns the correct response type
 3. The CLI generates a type-safe client with full autocomplete
 4. All types are inferred—no manual type definitions needed!
+
+## Route Builder API
+
+The route builder provides a chainable API:
+
+```typescript
+route.get('/path/:id')      // HTTP method + path
+    .input({                // Input validation
+        params: Type.Object({ id: Type.String() }),
+        query: Type.Object({ limit: Type.Number() }),
+        body: Type.Object({ name: Type.String() }),
+        headers: Type.Object({ authorization: Type.String() }),
+    })
+    .middleware([auth])     // Route-specific middleware
+    .skip(['rateLimit'])    // Skip global middleware
+    .handler(async (c) => { // Handler function
+        const { params, query, body, headers } = await c.data();
+        return { ... };
+    });
+```
+
+## Response Helpers
+
+The context provides convenient response helpers:
+
+```typescript
+.handler(async (c) => {
+    // Return data directly (200 OK)
+    return { id: '123', name: 'John' };
+
+    // Or use response helpers:
+    return c.created(user);           // 201 Created
+    return c.accepted({ jobId });     // 202 Accepted
+    return c.noContent();             // 204 No Content
+    return c.paginated(items, page, limit, total);  // Paginated response
+});
+```
 
 ## Next Steps
 
 ### Core Concepts
 
-Dive deeper into contracts, route binding, and type safety.
+Dive deeper into routes, middleware, and type safety.
 
-[Learn Core Concepts →](/docs/core-concepts/contracts)
+[Learn Core Concepts →](/docs/core-concepts/how-it-works)
 
 ### Guides
 

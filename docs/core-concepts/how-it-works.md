@@ -7,168 +7,116 @@ available: true
 
 # How It Works
 
-Superfunction provides end-to-end type safety by connecting contracts, server routes, and frontend API calls through automatic code generation and TypeScript type inference.
+Superfunction provides end-to-end type safety by connecting route definitions, server handlers, and frontend API calls through automatic code generation and TypeScript type inference.
 
 ## The Three-Step Flow
 
-### Step 1: Define Contract
+### Step 1: Define Route
 
-**File:** `src/lib/contracts/users.ts`
+**File:** `src/server/routes/users.ts`
 
-Define your API shape once with full type safety:
+Define your API with full type safety using the define-route system:
 
 ```typescript
-export const getUserContract = {
-  method: 'GET',
-  path: '/users/:id',
-  params: Type.Object({
-    id: Type.String()
-  }),
-  response: Type.Object({
-    id: Type.Number(),
-    name: Type.String()
-  })
-};
+import { route } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
+
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({
+            id: Type.String()
+        })
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        const user = await userRepo.findById(params.id);
+        return user;
+    });
 ```
 
 **What happens:**
-- TypeBox schemas define the shape of params, query, body, and response
+- TypeBox schemas define the shape of params, query, body
 - These schemas provide both runtime validation and compile-time types
-- Contracts are the single source of truth for your API
+- Handler return type is automatically inferred
 
-### Step 2: Implement Route
+### Step 2: Register in Router
 
-**File:** `src/server/routes/users/[id]/index.ts`
+**File:** `src/server/router.ts`
 
-Bind contract to handler with automatic validation:
+Combine all routes in a router for type inference:
 
 ```typescript
-import { bind } from '@spfn/core';
-import { getUserContract } from '@/lib/contracts/users';
+import { defineRouter } from '@spfn/core/route';
+import { getUser, createUser } from './routes/users';
 
-export const GET = bind(
-  getUserContract,
-  async (c) => {
-    const user = await repo
-      .findById(c.params.id);
-    return c.json(user);
-  }
-);
+export const appRouter = defineRouter({
+    getUser,
+    createUser,
+});
+
+export type AppRouter = typeof appRouter;
 ```
 
 **What happens:**
-- The `bind` function connects your contract to the handler
-- Request validation happens automatically before your handler runs
-- TypeScript knows the exact types of `c.params`, `c.query`, and `c.body`
-- Response type is validated against the contract schema
+- `defineRouter` captures all route types
+- `AppRouter` type contains full type information for all routes
+- This enables client code generation
 
-### Step 3: Use in Next.js
+### Step 3: Generate & Use Client
 
-**File:** Auto-generated `src/lib/api.ts`
+**Command:** `pnpm spfn codegen router`
 
 Type-safe client generated automatically - no manual sync!
 
 ```typescript
-import { api } from '@/lib/api'
+// app/page.tsx
+import { api } from '@/lib/api-client';
 
-const user = await api.users.getById({
-  params: { id: '123' }
-});
-//    ^ Fully typed!
-//    No manual sync needed
+export default async function Page() {
+    const user = await api.getUser
+        .params({ id: '123' })
+        .call();
+    //    ^ Fully typed! No manual sync needed
+
+    return <div>{user.name}</div>;
+}
 ```
 
 **What happens:**
-- Superfunction scans all contracts and generates a typed client
+- Superfunction generates a typed client from the router
 - The client provides full IntelliSense and type checking
-- Frontend code breaks at compile-time if contracts change
-- No need to manually update API call types
+- Frontend code breaks at compile-time if routes change
 
-## Auto-Sync Magic
+## Auto-Sync Flow
 
-Between each step, Superfunction automatically synchronizes types:
-
-1. **Contract → Server**: TypeScript inference provides typed context
-2. **Server → Build**: Code generation creates typed client
-3. **Client → Frontend**: Import and use with full type safety
+Between each step, types flow automatically:
 
 ```
-┌─────────────────┐
-│ Define Contract │
-└────────┬────────┘
-         │ Auto-sync
-         ▼
-┌─────────────────┐
-│ Implement Route │
-└────────┬────────┘
-         │ Auto-sync
-         ▼
-┌─────────────────┐
-│  Use in Next.js │
-└─────────────────┘
+┌─────────────────────┐
+│  Define Route       │  route.get('/users/:id').input({...}).handler(...)
+└──────────┬──────────┘
+           │ Type inference
+           ▼
+┌─────────────────────┐
+│  Register Router    │  defineRouter({ getUser, ... })
+└──────────┬──────────┘
+           │ Code generation
+           ▼
+┌─────────────────────┐
+│  Use in Next.js     │  api.getUser.params({ id }).call()
+└─────────────────────┘
 ```
 
-## Compile-time Type Safety
+## Compile-Time Type Safety
 
-The magic: Change the contract? TypeScript immediately shows errors in your frontend code.
+Change a route? TypeScript immediately shows errors in your frontend code.
 
 **Example:**
 
-1. You change the contract response from `name: string` to `fullName: string`
+1. You change the handler to return `fullName` instead of `name`
 2. TypeScript immediately flags all usages of `user.name` in your frontend
 3. You update the frontend to use `user.fullName`
 4. Everything is type-safe again!
-
-**Benefits:**
-- No runtime surprises
-- No manual API documentation needed
-- Just pure type safety from contract to UI
-
-## Under the Hood
-
-### Contract Validation
-
-When a request comes in:
-
-1. Extract params from URL path
-2. Parse query string
-3. Parse request body (if present)
-4. Validate against contract schemas using TypeBox
-5. Convert types automatically (e.g., string `"123"` → number `123`)
-6. Pass validated data to handler
-7. Validate response before sending
-
-### Code Generation
-
-During build:
-
-1. Scan `src/lib/contracts/` for all exported contracts
-2. Group contracts by resource (e.g., all `/users/*` endpoints)
-3. Generate typed client methods for each contract
-4. Output to `src/lib/api.ts`
-5. Frontend imports and uses the generated client
-
-### Type Inference
-
-TypeScript magic:
-
-```typescript
-// Contract defines the shape
-const contract = {
-  params: Type.Object({ id: Type.Number() }),
-  response: Type.Object({ name: Type.String() })
-};
-
-// Handler gets typed context automatically
-const handler = (c: RouteContext<typeof contract>) => {
-  c.params.id    // TypeScript knows this is number
-  return c.json({ name: 'John' })  // Must match response schema
-};
-
-// Client call is fully typed
-const result = await api.get({ params: { id: 123 } });
-result.name  // TypeScript knows this exists and is string
-```
 
 ## The Complete Request Flow
 
@@ -177,45 +125,36 @@ result.name  // TypeScript knows this exists and is string
    ↓
 2. Route Matching (Hono)
    ↓
-3. Middleware Stack
+3. Global Middleware Stack
    ↓
-4. Contract Validation
+4. Route Middleware (if any)
+   ↓
+5. Input Validation
    │ • Validate params
    │ • Validate query
    │ • Validate body
    │ • Type conversion
    ↓
-5. Handler Execution
+6. Handler Execution
    │ • Fully typed context
    │ • Business logic
    │ • Database operations
    ↓
-6. Response Validation
-   │ • Validate against response schema
-   │ • Type checking
-   ↓
-7. JSON Response
+7. Response Serialization
    ↓
 8. Client receives typed data
 ```
 
-## Key Principles
+## Why This Works
 
-1. **Single Source of Truth**: Contracts define everything
-2. **Automatic Validation**: No manual validation code needed
-3. **Type Safety**: TypeScript catches errors at compile-time
-4. **Zero Overhead**: Validation only in development, optional in production
-5. **Developer Experience**: IntelliSense, autocomplete, and refactoring support
+### Without Superfunction
 
-## Why This Matters
-
-**Without Superfunction:**
 ```typescript
 // Backend
 app.get('/users/:id', async (req, res) => {
-  const id = req.params.id;  // string? number? who knows
-  const user = await db.users.find(id);
-  res.json(user);  // any shape
+    const id = req.params.id;  // string? number? unknown
+    const user = await db.users.find(id);
+    res.json(user);  // any shape
 });
 
 // Frontend
@@ -224,37 +163,81 @@ const user = await response.json();  // type: any
 console.log(user.name);  // Hope this exists!
 ```
 
-**With Superfunction:**
-```typescript
-// Contract (single source of truth)
-export const getUserContract = {
-  method: 'GET',
-  path: '/users/:id',
-  params: Type.Object({ id: Type.Number() }),
-  response: Type.Object({
-    id: Type.Number(),
-    name: Type.String(),
-    email: Type.String()
-  })
-};
+### With Superfunction
 
-// Backend (typed automatically)
-export const GET = bind(getUserContract, async (c) => {
-  const id = c.params.id;  // Type: number ✓
-  const user = await db.users.find(id);
-  return c.json(user);  // Must match contract schema ✓
-});
+```typescript
+// Route (single source of truth)
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        const user = await db.users.find(params.id);
+        return user;  // Type inferred from return
+    });
 
 // Frontend (typed automatically)
-const user = await api.users.getById({ params: { id: 123 } });
-console.log(user.name);  // Type: string ✓
-console.log(user.age);   // Error: Property 'age' does not exist ✓
+const user = await api.getUser.params({ id: '123' }).call();
+console.log(user.name);   // Type: string (if exists)
+console.log(user.age);    // Error: Property 'age' does not exist
+```
+
+## Key Principles
+
+1. **Single Source of Truth** - Route definitions define everything
+2. **Automatic Validation** - No manual validation code needed
+3. **Type Safety** - TypeScript catches errors at compile-time
+4. **tRPC-Style API** - Chainable, intuitive client API
+5. **Developer Experience** - IntelliSense, autocomplete, and refactoring support
+
+## Under the Hood
+
+### Input Validation
+
+When a request comes in:
+
+1. Match route path and extract params
+2. Parse query string
+3. Parse request body (if present)
+4. Validate against TypeBox schemas
+5. Convert types automatically (e.g., string `"123"` → number `123`)
+6. Pass validated data to handler via `c.data()`
+
+### Code Generation
+
+When you run `pnpm spfn codegen router`:
+
+1. Load the router definition
+2. Extract route metadata (method, path, input types)
+3. Generate type-safe client methods
+4. Output to `src/lib/api-client.ts`
+
+### Type Inference
+
+TypeScript magic makes it work:
+
+```typescript
+// Route defines the shape
+const route = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        // params.id is typed as string
+        return { id: params.id, name: 'John' };
+    });
+
+// Client call is fully typed
+const result = await api.getUser.params({ id: '123' }).call();
+result.name;  // TypeScript knows this is string
 ```
 
 ## Next Steps
 
-Now that you understand how Superfunction works, explore:
+Now that you understand how Superfunction works:
 
-- [Testing](/docs/guides/testing) - Learn how to test your Superfunction application
-- [Deployment](/docs/guides/deployment) - Deploy to production
-- [API Reference](/docs/api-reference/route-contract) - Deep dive into contracts
+- [Route Definition](/docs/core-concepts/contracts) - Deep dive into defining routes
+- [Route Context](/docs/core-concepts/route-binding) - Handler context and middleware
+- [Type Safety](/docs/core-concepts/type-safety) - End-to-end type safety details
