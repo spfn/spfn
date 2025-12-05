@@ -8,6 +8,16 @@
  * - Header manipulation
  *
  * Note: Uses createRpcProxy from '@spfn/core/nextjs/server'
+ *
+ * @example With package routers:
+ * ```typescript
+ * import { cmsAppRouter } from '@spfn/cms/server';
+ *
+ * export const { GET, POST } = createRpcProxy({
+ *     router: appRouter,
+ *     packages: [cmsAppRouter],  // Searched when route not in main router
+ * });
+ * ```
  */
 
 import '@spfn/auth/nextjs/api';

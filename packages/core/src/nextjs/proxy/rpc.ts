@@ -46,6 +46,25 @@ export interface RpcProxyConfig<TRouter extends Router<any>> extends Omit<TypedP
      * The router containing all route definitions
      */
     router: TRouter;
+
+    /**
+     * Additional routers from packages (e.g., @spfn/cms, @spfn/auth)
+     *
+     * These routers will be searched when the main router doesn't have the route.
+     * Useful for packages that export their own routers and API clients.
+     *
+     * @example
+     * ```typescript
+     * import { cmsAppRouter } from '@spfn/cms/server';
+     * import { authRouter } from '@spfn/auth/server';
+     *
+     * export const { GET, POST } = createRpcProxy({
+     *     router: appRouter,
+     *     packages: [cmsAppRouter, authRouter],
+     * });
+     * ```
+     */
+    packages?: Router<any>[];
 }
 
 // ============================================================================
@@ -175,6 +194,7 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
 {
     const {
         router,
+        packages = [],
         apiUrl = env.SPFN_API_URL || 'http://localhost:8790',
         debug = env.NODE_ENV === 'development',
         timeout = 30000,
@@ -248,8 +268,25 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
                 }
             }
 
-            // Get route definition from router
-            const routeDef = getRouteByPath(router, routeName);
+            // Get route definition from router (try main router first, then packages)
+            let routeDef = getRouteByPath(router, routeName);
+
+            // If not found in main router, search in package routers
+            if (!routeDef && packages.length > 0)
+            {
+                for (const pkgRouter of packages)
+                {
+                    routeDef = getRouteByPath(pkgRouter, routeName);
+                    if (routeDef)
+                    {
+                        if (debug)
+                        {
+                            rpcLogger.debug(`Route "${routeName}" found in package router`);
+                        }
+                        break;
+                    }
+                }
+            }
 
             if (!routeDef)
             {
