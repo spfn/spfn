@@ -36,5 +36,3 @@ export const cmsAppRouter = defineRouter({
 });
 
 export type AppRouter = typeof cmsAppRouter;
-
-export { appMetadata } from './router.metadata';

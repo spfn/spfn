@@ -1,7 +1,6 @@
 import { createApi } from "@spfn/core/nextjs";
-import { errorRegistry } from "@spfn/core/errors";
 import { logger } from "@spfn/core/logger";
-import { type AppRouter, appMetadata } from './server/routes/index';
+import { type AppRouter } from './server/routes/index';
 import { bindLocale, type SectionKeys, type BoundLabelSection, type BoundLabelsSections } from './lib/bind-locale';
 import { getLocale } from './actions';
 import { setNestedValue } from './lib/helpers';
@@ -12,10 +11,7 @@ const cmsLogger = logger.child('@spfn/cms');
 /**
  * Default API client (for backward compatibility or when not using labels)
  */
-const api = createApi<AppRouter>({
-    metadata: appMetadata,
-    errorRegistry: errorRegistry
-});
+const api = createApi<AppRouter>();
 
 /**
  * Create CMS client with API, label getters, and format utility
@@ -75,8 +71,10 @@ export function createCmsClient<T>(
 
         // 1. Fetch from published_cache
         const cache = await api.getLabelCache.call({
-            sections: [section as string],
-            locale
+            query: {
+                sections: [section as string],
+                locale
+            }
         });
 
         // 2. Filter only requested section
@@ -124,8 +122,10 @@ export function createCmsClient<T>(
 
         // 1. Fetch from published_cache
         const cache = await api.getLabelCache.call({
-            sections: [...sections] as unknown as string[],
-            locale
+            query: {
+                sections: [...sections] as unknown as string[],
+                locale
+            }
         });
 
         cmsLogger.debug('Fetched from cache', {
