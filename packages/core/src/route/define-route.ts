@@ -580,81 +580,138 @@ export const route = {
 /**
  * Router definition - holds all routes
  */
-export type Router<TRoutes extends Record<string, RouteDef<any> | Router<any>>> = {
+export interface Router<TRoutes extends Record<string, RouteDef<any> | Router<any>>> {
     routes: TRoutes;
-    // Type inference helpers
     _routes: TRoutes;
-};
+    _packageRouters: Router<any>[];
+    _globalMiddlewares: NamedMiddleware<any>[];
+
+    /**
+     * Register package routers (type-hidden)
+     *
+     * Package routes are:
+     * - Recognized by RPC proxy and backend
+     * - NOT exposed in client types (use package's own API like authApi, cmsApi)
+     *
+     * @example
+     * ```ts
+     * import { authRouter } from '@spfn/auth/server';
+     * import { cmsAppRouter } from '@spfn/cms/server';
+     *
+     * export const appRouter = defineRouter({
+     *     getRoot,
+     *     getHealth,
+     * })
+     * .packages([authRouter, cmsAppRouter]);
+     *
+     * // Client usage:
+     * // api.getRoot.call({})     ✅ app routes
+     * // api.auth.login.call()    ❌ type error (use authApi instead)
+     * // authApi.login.call({})   ✅ package API
+     * ```
+     */
+    packages(routers: Router<any>[]): Router<TRoutes>;
+
+    /**
+     * Register global middlewares
+     *
+     * Applied to all routes unless explicitly skipped via .skip()
+     *
+     * @example
+     * ```ts
+     * import { authMiddleware, loggingMiddleware } from './middlewares';
+     *
+     * export const appRouter = defineRouter({
+     *     getRoot,
+     *     getHealth,
+     * })
+     * .packages([authRouter])
+     * .use([authMiddleware, loggingMiddleware]);
+     * ```
+     */
+    use(middlewares: NamedMiddleware<any>[]): Router<TRoutes>;
+}
+
+/**
+ * Create a Router instance with chainable methods
+ */
+function createRouterInstance<TRoutes extends Record<string, RouteDef<any> | Router<any>>>(
+    routes: TRoutes,
+    packageRouters: Router<any>[] = [],
+    globalMiddlewares: NamedMiddleware<any>[] = []
+): Router<TRoutes>
+{
+    const router: Router<TRoutes> = {
+        routes,
+        _routes: routes,
+        _packageRouters: packageRouters,
+        _globalMiddlewares: globalMiddlewares,
+
+        packages(routers: Router<any>[]): Router<TRoutes>
+        {
+            const newPackageRouters = [...this._packageRouters, ...routers];
+
+            // Also include nested package routers if any
+            for (const pkgRouter of routers)
+            {
+                if (pkgRouter._packageRouters?.length > 0)
+                {
+                    newPackageRouters.push(...pkgRouter._packageRouters);
+                }
+            }
+
+            return createRouterInstance(this.routes, newPackageRouters, this._globalMiddlewares);
+        },
+
+        use(middlewares: NamedMiddleware<any>[]): Router<TRoutes>
+        {
+            return createRouterInstance(this.routes, this._packageRouters, [...this._globalMiddlewares, ...middlewares]);
+        },
+    };
+
+    return router;
+}
 
 /**
  * Define a router with multiple routes (tRPC-style)
  *
- * Supports multiple patterns for convenience:
- *
- * ## Pattern 1: Spread (recommended for simplicity)
+ * Supports chainable API for packages and middlewares:
  *
  * @example
  * ```ts
- * // src/server/routes/users.ts
- * export const getUser = route.get('/users/:id')...;
- * export const createUser = route.post('/users')...;
- * export const updateUser = route.put('/users/:id')...;
- * export const deleteUser = route.delete('/users/:id')...;
- *
- * // src/server/routes/teams.ts
- * export const getTeam = route.get('/teams/:id')...;
- * export const createTeam = route.post('/teams')...;
- *
- * // src/server/router.ts
- * import * as users from './routes/users';
- * import * as teams from './routes/teams';
- *
- * export const { router: appRouter } = defineRouter({
- *   ...users,  // Spread all user routes
- *   ...teams,  // Spread all team routes
+ * // Basic usage
+ * export const appRouter = defineRouter({
+ *     getRoot,
+ *     getHealth,
+ *     listExamples,
  * });
+ *
+ * // With package routers (type-hidden)
+ * export const appRouter = defineRouter({
+ *     getRoot,
+ *     getHealth,
+ * })
+ * .packages([authRouter, cmsAppRouter]);
+ *
+ * // With global middlewares
+ * export const appRouter = defineRouter({
+ *     getRoot,
+ *     getHealth,
+ * })
+ * .packages([authRouter])
+ * .use([authMiddleware, loggingMiddleware]);
  *
  * export type AppRouter = typeof appRouter;
- *
- * // Client usage - use codegen to generate metadata
- * import { appMetadata } from '@/server/router.metadata';
- * const api = createApi<AppRouter>({ metadata: appMetadata });
  * ```
  *
- * ## Pattern 2: Explicit (for fine-grained control)
- *
- * @example
- * ```ts
- * export const { router: appRouter } = defineRouter({
- *   getUser: users.getUser,
- *   createUser: users.createUser,
- *   // Only include specific routes
- * });
- * ```
- *
- * ## Pattern 3: Nested (for namespacing)
- *
- * @example
- * ```ts
- * export const { router: appRouter } = defineRouter({
- *   users: defineRouter({ ...users }).router,
- *   teams: defineRouter({ ...teams }).router,
- * });
- *
- * // Access: appRouter.routes.users.routes.getUser
- * ```
- *
- * The router captures all route types, enabling:
- * - Full type inference on the client
- * - Automatic metadata extraction via codegen
- * - Type-safe request/response handling
+ * Package routes:
+ * - Recognized by RPC proxy and backend for routing
+ * - NOT included in AppRouter type (use authApi, cmsApi instead)
+ * - Prevents confusion between app API and package APIs
  */
 export function defineRouter<TRoutes extends Record<string, RouteDef<any> | Router<any>>>(
     routes: TRoutes
 ): Router<TRoutes>
 {
-    return {
-        routes,
-        _routes: routes,
-    };
+    return createRouterInstance(routes);
 }

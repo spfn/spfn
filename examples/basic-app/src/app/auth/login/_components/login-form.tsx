@@ -1,7 +1,7 @@
 "use client";
 
 import { AuthError } from "@spfn/auth/errors";
-import { api } from "@/lib/api-client";
+import { authApi } from "@spfn/auth";
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,7 +29,7 @@ export function LoginForm({ className }: React.ComponentProps<"div">)
 
         try
         {
-            const response = await api.auth.login.call({ body: { email, password } });
+            const response = await authApi.login.call({ body: { email, password } });
             console.log(response);
         }
         catch (err)

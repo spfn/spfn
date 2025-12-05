@@ -6,6 +6,7 @@
 
 import { defineRouter } from '@spfn/core/route';
 import { authRouter } from '@spfn/auth/server';
+import { cmsAppRouter } from '@spfn/cms/server';
 
 // Root routes
 import { getRoot } from './routes/root';
@@ -45,11 +46,12 @@ import {
  *
  * defineRouter creates a type-safe router.
  * RPC proxy resolves routes automatically - no codegen needed.
+ *
+ * Package routers (auth, cms) are registered via .packages()
+ * - NOT included in AppRouter type (use authApi, cmsApi instead)
+ * - Recognized by RPC proxy and backend for routing
  */
 export const appRouter = defineRouter({
-    // Auth routes (fixed namespace)
-    auth: authRouter,
-
     // Root routes
     getRoot,
     getHealth,
@@ -76,7 +78,11 @@ export const appRouter = defineRouter({
     errorConflict,
     errorUnprocessable,
     errorCustom,
-});
+})
+.packages([
+    authRouter,
+    cmsAppRouter,
+]);
 
 /**
  * Router type for client usage
