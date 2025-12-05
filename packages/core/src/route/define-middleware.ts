@@ -169,6 +169,56 @@ export function defineMiddleware<TName extends string, TArgs extends any[] = []>
 }
 
 /**
+ * Define a middleware factory explicitly
+ *
+ * Use this when your factory function has exactly 2 parameters,
+ * which would be incorrectly detected as a regular middleware handler.
+ *
+ * @param name - Unique middleware name
+ * @param factory - Factory function that returns a middleware handler
+ * @returns Named middleware factory with type inference
+ *
+ * @example
+ * ```ts
+ * // Factory with 2 params (would be misdetected by defineMiddleware)
+ * export const rateLimiter = defineMiddlewareFactory('rateLimit',
+ *   (limit: number, window: number) => async (c, next) => {
+ *     // rate limit logic using limit and window
+ *     await next();
+ *   }
+ * );
+ *
+ * // Usage
+ * route.get('/api')
+ *   .use([rateLimiter(100, 60000)])  // 100 requests per minute
+ *   .handler(...)
+ * ```
+ */
+export function defineMiddlewareFactory<TName extends string, TArgs extends unknown[]>(
+    name: TName,
+    factory: (...args: TArgs) => MiddlewareHandler
+): NamedMiddlewareFactory<TName, TArgs>
+{
+    const wrapper = (...args: TArgs) => factory(...args);
+
+    Object.defineProperty(wrapper, 'name', {
+        value: name,
+        writable: false,
+        enumerable: false,
+        configurable: true,
+    });
+
+    Object.defineProperty(wrapper, '_name', {
+        value: name as TName,
+        writable: false,
+        enumerable: false,
+        configurable: true,
+    });
+
+    return wrapper as NamedMiddlewareFactory<TName, TArgs>;
+}
+
+/**
  * Extract middleware names from an array of named middlewares
  *
  * @example
@@ -180,5 +230,5 @@ export function defineMiddleware<TName extends string, TArgs extends any[] = []>
  * type Names = ExtractMiddlewareNames<Middlewares>;  // 'auth' | 'rateLimit'
  * ```
  */
-export type ExtractMiddlewareNames<T extends readonly NamedMiddleware<any>[]> =
+export type ExtractMiddlewareNames<T extends readonly NamedMiddleware<string>[]> =
     T[number]['_name'];

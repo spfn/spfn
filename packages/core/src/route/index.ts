@@ -1,19 +1,30 @@
 /**
  * @spfn/core - Route module exports
  */
-// tRPC-style route definition
-export { route, defineRouter } from './define-route';
-export type {
-    RouteInput,
-    RouteBuilderContext,
-    RouteHandlerFn,
-    RouteDef,
-    HttpMethod,
-    Router,
-} from './define-route';
 
-// Route registration for define-route
+// Route input types
+export type { RouteInput } from './route-input';
+
+// Context types
+export type { RouteBuilderContext, MergedInput } from './context';
+
+// Route builder
+export { RouteBuilder, route } from './route-builder';
+export type { RouteDef, RouteHandlerFn } from './route-builder';
+
+// Router
+export { defineRouter } from './router';
+export type { Router } from './router';
+
+// Route registration
 export { registerRoutes } from './register-routes';
-export { defineMiddleware } from './define-middleware';
+
+// Middleware
+export { defineMiddleware, defineMiddlewareFactory } from './define-middleware';
 export type { ExtractMiddlewareNames, NamedMiddlewareFactory, NamedMiddleware } from './define-middleware';
+
+// Types
 export type * from './types';
+
+// Helpers
+export { isHttpMethod, Nullable, OptionalNullable } from './helpers';

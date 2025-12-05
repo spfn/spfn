@@ -280,6 +280,51 @@ export const coreEnvSchema = defineEnvSchema({
     }),
 
     // ========================================================================
+    // Server - Core
+    // ========================================================================
+
+    PORT: envNumber({
+        description: 'Server port number',
+        default: 4000,
+        examples: [3000, 4000, 8080],
+    }),
+
+    HOST: envString({
+        description: 'Server hostname',
+        default: 'localhost',
+        required: false,
+        examples: ['localhost', '0.0.0.0', '127.0.0.1'],
+    }),
+
+    // ========================================================================
+    // Server - Timeout
+    // ========================================================================
+
+    SERVER_TIMEOUT: envNumber({
+        description: 'Request timeout in milliseconds',
+        default: 120000,
+        examples: [60000, 120000, 300000],
+    }),
+
+    SERVER_KEEPALIVE_TIMEOUT: envNumber({
+        description: 'Keep-alive timeout in milliseconds',
+        default: 65000,
+        examples: [30000, 65000, 120000],
+    }),
+
+    SERVER_HEADERS_TIMEOUT: envNumber({
+        description: 'Headers timeout in milliseconds',
+        default: 60000,
+        examples: [30000, 60000, 120000],
+    }),
+
+    SHUTDOWN_TIMEOUT: envNumber({
+        description: 'Graceful shutdown timeout in milliseconds',
+        default: 30000,
+        examples: [10000, 30000, 60000],
+    }),
+
+    // ========================================================================
     // Next.js Client
     // ========================================================================
     SPFN_API_URL: envUrl({

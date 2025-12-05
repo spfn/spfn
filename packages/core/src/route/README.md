@@ -11,10 +11,15 @@ The route system provides a declarative, type-safe way to define API routes with
 ```
 route/
 ├── index.ts                 # Public API exports
-├── define-route.ts          # Route builder and types
+├── types.ts                 # Type definitions (HttpMethod, RouteMeta, etc.)
+├── helpers.ts               # Type guards and TypeBox utilities
+├── route-input.ts           # RouteInput type definition
+├── context.ts               # RouteBuilderContext and MergedInput types
+├── route-builder.ts         # RouteBuilder class and route object
+├── router.ts                # Router interface and defineRouter
 ├── define-middleware.ts     # Named middleware definition
 ├── register-routes.ts       # Hono integration layer
-└── types.ts                 # TypeBox helpers and codegen types
+└── validation.ts            # Input validation utilities
 ```
 
 ### Design Principles
@@ -96,9 +101,6 @@ export type RouteMeta = {
 // Extract data type from ApiSuccessResponse<T>
 export type InferResponseData<T> = T extends { success: true; data: infer D } ? D : T;
 
-// HTTP method type guard
-export function isHttpMethod(value: unknown): value is HttpMethod;
-
 // Route metadata types (used by RPC proxy for route resolution)
 export interface RouteMetadata {
     method: string;
@@ -111,7 +113,7 @@ export interface RouterMetadata {
 }
 ```
 
-### TypeBox Helpers (types.ts)
+### Helper Functions (helpers.ts)
 
 ```typescript
 import { Type } from '@sinclair/typebox';
@@ -532,6 +534,26 @@ route.get('/profile')
 - Name used for runtime middleware filtering
 - Factory pattern distinguishes by parameter count (2 = regular, other = factory)
 
+### defineMiddlewareFactory Function
+
+For factory middlewares with exactly 2 parameters (which would be misdetected by `defineMiddleware`):
+
+```typescript
+// Factory with 2 params would be incorrectly detected as regular middleware
+// Use defineMiddlewareFactory explicitly
+export const rateLimiter = defineMiddlewareFactory('rateLimit',
+    (limit: number, window: number) => async (c, next) => {
+        // rate limit logic using limit and window
+        await next();
+    }
+);
+
+// Usage
+route.get('/api')
+    .use([rateLimiter(100, 60000)])  // 100 requests per minute
+    .handler(...)
+```
+
 ### Middleware Application Order
 
 ```
@@ -609,8 +631,9 @@ function registerRoute(
 
 **Middleware Deduplication:**
 - When a NamedMiddleware is registered both globally and route-level, it's automatically deduplicated
-- Deduplication is based on handler reference equality
-- Only the global instance is used (route-level duplicate is skipped)
+- NamedMiddleware: deduplicated by name (same name = duplicate)
+- Regular middleware: deduplicated by handler reference equality
+- Only the first instance is used (duplicate is skipped)
 - Debug logs indicate when deduplication occurs
 
 ---

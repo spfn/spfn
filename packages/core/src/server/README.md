@@ -319,7 +319,7 @@ In debug mode, server logs the full middleware execution order:
 Named middlewares enable **route-level skip control** with full type safety:
 
 ```typescript
-import { defineMiddleware } from '@spfn/core/route';
+import { defineMiddleware, defineRouter, route } from '@spfn/core/route';
 
 // 1. Define middlewares with names
 export const authMiddleware = defineMiddleware('auth', async (c, next) => {
@@ -331,9 +331,15 @@ export const authMiddleware = defineMiddleware('auth', async (c, next) => {
     await next();
 });
 
-// 2. Register globally
+// 2. Register via router's .use() - auto-applied to server config
+const appRouter = defineRouter({
+    getUser,
+    createUser,
+})
+.use([authMiddleware, rateLimitMiddleware]);  // Global middlewares
+
 export default defineServerConfig()
-    .middlewares([authMiddleware, rateLimitMiddleware])
+    .routes(appRouter)  // middlewares auto-applied from router
     .build();
 
 // 3. Skip per route
@@ -341,6 +347,33 @@ export const publicRoute = route.get('/health')
     .skip(['auth', 'rateLimit'])  // ✅ Type-safe autocomplete!
     .handler(async (c) => ({ status: 'ok' }));
 ```
+
+### Router Global Middlewares Auto-Application
+
+When calling `.routes(appRouter)`, middlewares registered via `router.use()` are automatically merged into server config:
+
+```typescript
+// These two are equivalent:
+
+// Option 1: Explicit middlewares
+defineServerConfig()
+    .routes(appRouter)
+    .middlewares([authMiddleware, rateLimitMiddleware])
+    .build();
+
+// Option 2: Via router's .use() (recommended)
+const appRouter = defineRouter({ ... })
+    .use([authMiddleware, rateLimitMiddleware]);
+
+defineServerConfig()
+    .routes(appRouter)  // middlewares auto-merged
+    .build();
+```
+
+**Benefits:**
+- Keep middleware registration close to route definitions
+- Single source of truth for global middlewares
+- Works with package routers (`.packages([authRouter])`) too
 
 ### Type System
 

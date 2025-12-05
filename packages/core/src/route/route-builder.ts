@@ -1,0 +1,309 @@
+/**
+ * Route Builder
+ *
+ * Provides tRPC-style chainable API for route definition
+ */
+
+import type { MiddlewareHandler } from 'hono';
+import type { NamedMiddleware } from './define-middleware';
+import type { RouteInput } from './route-input';
+import type { RouteBuilderContext } from './context';
+import type { HttpMethod } from './types';
+
+/**
+ * Route handler function
+ */
+export type RouteHandlerFn<
+    TInput extends RouteInput = RouteInput,
+    TInterceptor extends RouteInput = {},
+    TResponse = unknown
+> = (c: RouteBuilderContext<TInput, TInterceptor>) => Response | Promise<Response> | TResponse | Promise<TResponse>;
+
+/**
+ * Route definition result
+ *
+ * Contains all information needed for type inference and registration
+ */
+export type RouteDef<
+    TInput extends RouteInput = RouteInput,
+    TInterceptor extends RouteInput = {},
+    TResponse = unknown
+> = {
+    method?: HttpMethod;
+    path?: string;
+    input?: TInput;
+    interceptor?: TInterceptor;
+    middlewares?: (MiddlewareHandler | NamedMiddleware<string>)[];
+    skipMiddlewares?: string[] | '*';
+    handler: RouteHandlerFn<TInput, TInterceptor, TResponse>;
+
+    // Type inference helpers
+    _input: TInput;
+    _interceptor: TInterceptor;
+    _response: TResponse;
+};
+
+/**
+ * Route builder with chainable API (tRPC-style)
+ */
+export class RouteBuilder<
+    TInput extends RouteInput = {},
+    TInterceptor extends RouteInput = {},
+    TResponse = never
+>
+{
+    public _method?: HttpMethod;
+    public _path?: string;
+    public _input?: TInput;
+    public _interceptor?: TInterceptor;
+    public _middlewares?: (MiddlewareHandler | NamedMiddleware<string>)[];
+    public _skipMiddlewares?: string[] | '*';
+
+    /**
+     * Create a new RouteBuilder with copied properties and optional overrides
+     */
+    private clone<
+        TNewInput extends RouteInput = TInput,
+        TNewInterceptor extends RouteInput = TInterceptor
+    >(
+        overrides?: Partial<{
+            input: TNewInput;
+            interceptor: TNewInterceptor;
+            middlewares: (MiddlewareHandler | NamedMiddleware<string>)[];
+            skipMiddlewares: string[] | '*';
+        }>
+    ): RouteBuilder<TNewInput, TNewInterceptor, TResponse>
+    {
+        const builder = new RouteBuilder<TNewInput, TNewInterceptor, TResponse>();
+        builder._method = this._method;
+        builder._path = this._path;
+        builder._input = (overrides?.input ?? this._input) as TNewInput | undefined;
+        builder._interceptor = (overrides?.interceptor ?? this._interceptor) as TNewInterceptor | undefined;
+        builder._middlewares = overrides?.middlewares ?? this._middlewares;
+        builder._skipMiddlewares = overrides?.skipMiddlewares ?? this._skipMiddlewares;
+        return builder;
+    }
+
+    /**
+     * Define input schemas
+     *
+     * @example
+     * ```ts
+     * route.get('/users/:id')
+     *   .input({
+     *     params: Type.Object({ id: Type.String() }),
+     *     query: Type.Object({ page: Type.Number() }),
+     *     headers: Type.Object({ authorization: Type.String() })
+     *   })
+     *   .handler(async (c) => {
+     *     const { params, query, headers } = await c.data();
+     *     // params = { id: string }
+     *     // query = { page: number }
+     *     // headers = { authorization: string }
+     *   })
+     * ```
+     */
+    input<TNewInput extends RouteInput>(input: TNewInput): RouteBuilder<TNewInput, TInterceptor, TResponse>
+    {
+        return this.clone({ input });
+    }
+
+    /**
+     * Define fields injected by interceptors
+     *
+     * These fields are:
+     * - Available in the handler (merged with input)
+     * - Excluded from client types (codegen uses only input)
+     * - Not validated by route input schema (injected by middleware)
+     *
+     * Use this when middleware/interceptors add fields to the request
+     * before it reaches the handler.
+     *
+     * @example
+     * ```ts
+     * // Auth interceptor injects crypto key fields
+     * route.post('/_auth/login')
+     *   .input({
+     *     body: Type.Object({
+     *       email: Type.String(),
+     *       password: Type.String()
+     *     })
+     *   })
+     *   .interceptor({
+     *     body: Type.Object({
+     *       publicKey: Type.String(),
+     *       keyId: Type.String(),
+     *       fingerprint: Type.String()
+     *     })
+     *   })
+     *   .handler(async (c) => {
+     *     const { body } = await c.data();
+     *     // body type: { email, password, publicKey, keyId, fingerprint }
+     *     // Client only sees: { email, password }
+     *     return loginService(body);
+     *   });
+     * ```
+     */
+    interceptor<TNewInterceptor extends RouteInput>(
+        interceptor: TNewInterceptor
+    ): RouteBuilder<TInput, TNewInterceptor, TResponse>
+    {
+        return this.clone({ interceptor });
+    }
+
+    /**
+     * Add middlewares to the route
+     *
+     * Accepts both regular middleware handlers and named middlewares (NamedMiddleware).
+     * Named middlewares that are already registered globally will be automatically
+     * deduplicated to prevent double execution.
+     *
+     * @example
+     * ```ts
+     * import { authenticate } from '@spfn/auth/server/middleware';
+     *
+     * // With NamedMiddleware (auto-deduped if registered globally)
+     * route.get('/users')
+     *   .use([authenticate, RateLimitMiddleware()])
+     *
+     * // With regular middleware handlers
+     * route.get('/users')
+     *   .use([AuthMiddleware(), RateLimitMiddleware()])
+     * ```
+     */
+    middleware(middlewares: (MiddlewareHandler | NamedMiddleware<string>)[]): RouteBuilder<TInput, TInterceptor, TResponse>
+    {
+        return this.clone({ middlewares });
+    }
+
+    /**
+     * Add middlewares to the route (alias for `.middleware()`)
+     *
+     * Accepts both regular middleware handlers and named middlewares (NamedMiddleware).
+     * Named middlewares that are already registered globally will be automatically
+     * deduplicated to prevent double execution.
+     *
+     * @example
+     * ```ts
+     * import { authenticate } from '@spfn/auth/server/middleware';
+     *
+     * // With NamedMiddleware (auto-deduped if registered globally)
+     * route.get('/users')
+     *   .use([authenticate, RateLimitMiddleware()])
+     *
+     * // With regular middleware handlers
+     * route.get('/users')
+     *   .use([AuthMiddleware(), RateLimitMiddleware()])
+     * ```
+     */
+    use(middlewares: (MiddlewareHandler | NamedMiddleware<string>)[]): RouteBuilder<TInput, TInterceptor, TResponse>
+    {
+        return this.middleware(middlewares);
+    }
+
+    /**
+     * Skip server-level named middlewares
+     *
+     * Useful for public endpoints that should bypass auth or rate limiting
+     *
+     * @param middlewareNames - Array of middleware names to skip, or '*' to skip all
+     *
+     * @example
+     * ```ts
+     * // Skip specific middlewares
+     * route.get('/health')
+     *   .skip(['auth', 'rateLimit'])
+     *   .handler(async (c) => c.json({ status: 'ok' }));
+     *
+     * // Skip only auth (still apply rate limiting)
+     * route.get('/public-data')
+     *   .skip(['auth'])
+     *   .handler(async (c) => { ... });
+     *
+     * // Skip all middlewares
+     * route.get('/public-health')
+     *   .skip('*')
+     *   .handler(async (c) => c.json({ status: 'ok' }));
+     * ```
+     */
+    skip(middlewareNames: string[] | '*'): RouteBuilder<TInput, TInterceptor, TResponse>
+    {
+        return this.clone({ skipMiddlewares: middlewareNames });
+    }
+
+    /**
+     * Define handler function
+     *
+     * @example
+     * ```ts
+     * route.get('/users/:id')
+     *   .input({ params: Type.Object({ id: Type.String() }) })
+     *   .handler(async (c) => {
+     *     const { params } = await c.data();
+     *     const user = await getUser(params.id);
+     *     return user; // Type inferred!
+     *   })
+     * ```
+     */
+    handler<THandlerResponse>(
+        fn: RouteHandlerFn<TInput, TInterceptor, THandlerResponse>
+    ): RouteDef<TInput, TInterceptor, THandlerResponse>
+    {
+        return {
+            method: this._method,
+            path: this._path,
+            input: this._input,
+            interceptor: this._interceptor,
+            middlewares: this._middlewares,
+            skipMiddlewares: this._skipMiddlewares,
+            handler: fn,
+            _input: {} as TInput,
+            _interceptor: {} as TInterceptor,
+            _response: {} as THandlerResponse,
+        };
+    }
+}
+
+/**
+ * Create a route definition with HTTP method shortcuts
+ */
+function createMethodRoute(method: HttpMethod): (path: string) => RouteBuilder
+{
+    return (path: string) =>
+    {
+        const builder = new RouteBuilder();
+        builder._method = method;
+        builder._path = path;
+        return builder;
+    };
+}
+
+/**
+ * Route builder entry point
+ *
+ * @example
+ * ```ts
+ * // GET request
+ * export const getUser = route.get('/users/:id')
+ *   .input({ params: Type.Object({ id: Type.String() }) })
+ *   .handler(async (c) => {
+ *     const { params } = await c.data();
+ *     return await db.user.findUnique({ where: { id: params.id } });
+ *   });
+ *
+ * // POST request
+ * export const createUser = route.post('/users')
+ *   .input({ body: Type.Object({ name: Type.String(), email: Type.String() }) })
+ *   .handler(async (c) => {
+ *     const { body } = await c.data();
+ *     return c.created(await db.user.create({ data: body }));
+ *   });
+ * ```
+ */
+export const route = {
+    get: createMethodRoute('GET'),
+    post: createMethodRoute('POST'),
+    put: createMethodRoute('PUT'),
+    patch: createMethodRoute('PATCH'),
+    delete: createMethodRoute('DELETE'),
+};

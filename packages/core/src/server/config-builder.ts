@@ -5,9 +5,8 @@
  */
 
 import type { MiddlewareHandler } from 'hono';
-import type { ServerConfig, ServerInstance } from './types';
-import type { Router } from '@spfn/core/route';
-import type { Hono } from 'hono';
+import type { ServerConfig } from './types';
+import type { Router, NamedMiddleware } from '@spfn/core/route';
 import { serverLogger } from './logger';
 
 // ============================================================================
@@ -31,7 +30,7 @@ function collectHooks<K extends LifecycleKey>(
         .filter((hook): hook is NonNullable<Lifecycle[K]> => hook !== undefined);
 }
 
-function createMergedHook<T extends (...args: any[]) => Promise<void>>(
+function createMergedHook<T extends (...args: any[]) => void | Promise<void>>(
     hooks: T[]
 ): T | undefined
 {
@@ -132,12 +131,33 @@ export class ServerConfigBuilder
     {
         this.config.routes = router;
 
-        // Auto-merge global middlewares from router
+        // Collect all global middlewares from router and package routers
+        const allGlobalMiddlewares: NamedMiddleware[] = [];
+
+        // Add main router's global middlewares
         if (router._globalMiddlewares?.length > 0)
+        {
+            allGlobalMiddlewares.push(...router._globalMiddlewares);
+        }
+
+        // Add package routers' global middlewares
+        if (router._packageRouters?.length > 0)
+        {
+            for (const pkgRouter of router._packageRouters)
+            {
+                if (pkgRouter._globalMiddlewares?.length > 0)
+                {
+                    allGlobalMiddlewares.push(...pkgRouter._globalMiddlewares);
+                }
+            }
+        }
+
+        // Merge with existing middlewares
+        if (allGlobalMiddlewares.length > 0)
         {
             this.config.middlewares = [
                 ...(this.config.middlewares || []),
-                ...router._globalMiddlewares,
+                ...allGlobalMiddlewares,
             ];
         }
 
