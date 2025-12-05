@@ -3,34 +3,6 @@
  * Separates debug logging logic from main client code for better maintainability
  */
 import type { Logger } from '@spfn/core/logger';
-import type { RouteMetadata } from '@spfn/core/route';
-
-export function logApiInitialization(
-    logger: Logger,
-    baseUrl: string,
-    totalRoutes: number
-): void
-{
-    logger.debug('Superfunction API initialized', {
-        baseUrl,
-        totalRoutes,
-    });
-}
-
-export function logRouteRegistration(
-    logger: Logger,
-    routeMetadata: Map<string, RouteMetadata>
-): void
-{
-    for (const [name, metadata] of routeMetadata.entries())
-    {
-        logger.debug('Route registered', {
-            name,
-            method: metadata.method,
-            path: metadata.path,
-        });
-    }
-}
 
 export function logCookieAutoDetection(
     logger: Logger,

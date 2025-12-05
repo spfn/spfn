@@ -49,6 +49,7 @@ The Next.js client system provides end-to-end type safety from server-side route
 nextjs/
 ├── index.ts                    # Client-safe exports only
 ├── server.ts                   # Server-only exports (next/headers)
+├── shared.ts                   # Shared utilities (client & proxy)
 ├── client/
 │   ├── index.ts
 │   ├── core.ts                 # createApi implementation
@@ -584,10 +585,10 @@ export function CreateUserForm()
 class ApiError extends Error {
     constructor(
         message: string,
-        public statusCode: number,
-        public url: string,
-        public body?: any,
-        public type: 'http' | 'network' | 'timeout' = 'http'
+        public readonly status: number,
+        public readonly url: string,
+        public readonly response?: unknown,
+        public readonly errorType?: 'http' | 'network' | 'timeout'
     ) {}
 }
 ```
@@ -605,17 +606,17 @@ catch (error)
 {
     if (error instanceof ApiError)
     {
-        if (error.type === 'timeout')
+        if (error.errorType === 'timeout')
         {
             console.error('Request timed out');
         }
-        else if (error.type === 'network')
+        else if (error.errorType === 'network')
         {
             console.error('Network error:', error.message);
         }
         else
         {
-            console.error(`HTTP ${error.statusCode}:`, error.body);
+            console.error(`HTTP ${error.status}:`, error.response);
         }
     }
 }

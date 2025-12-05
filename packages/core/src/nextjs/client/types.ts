@@ -3,51 +3,8 @@
 // ============================================================================
 
 import type { Static, TSchema } from "@sinclair/typebox";
-import { ErrorRegistry } from "@spfn/core/errors";
+import type { ErrorRegistry } from "@spfn/core/errors";
 import type { RouteDef, RouteInput } from "@spfn/core/route";
-
-/**
- * Check if a type is exactly an empty object `{}`
- *
- * Uses tuple wrapping to accurately detect never type from keyof.
- * - `keyof {}` → never, so `[never] extends [never]` → true
- * - `keyof {id: string}` → 'id', so `['id'] extends [never]` → false
- */
-type IsEmptyObject<T> = [keyof T] extends [never] ? true : false;
-
-/**
- * Extract headers type from StructuredInput
- */
-export type ExtractHeaders<TInput> =
-    TInput extends { headers: infer H } ? H : {};
-
-/**
- * Check if headers are required
- */
-export type HasRequiredHeaders<TInput> =
-    IsEmptyObject<ExtractHeaders<TInput>> extends true ? false : true;
-
-/**
- * Branded type to enforce .headers() call with clear error message
- *
- * When a route requires headers but .headers() wasn't called,
- * this type intersection forces a compile error with helpful message.
- */
-export type MustProvideHeaders<THeaders> = {
-    /**
-     * ⚠️ ERROR: This route requires headers
-     *
-     * Required headers: THeaders
-     *
-     * Fix: Call .headers() before .call()
-     *
-     * @example
-     * api.protected
-     *   .headers({ authorization: 'Bearer token' })
-     *   .call({ ... })
-     */
-    __CALL_HEADERS_FIRST__: THeaders;
-};
 
 /**
  * Extract structured input from RouteInput

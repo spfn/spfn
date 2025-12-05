@@ -19,6 +19,7 @@ import { env } from '@spfn/core/config';
 import { logger } from '@spfn/core/logger';
 import type { Router, RouteDef } from '@spfn/core/route';
 
+import { buildUrlWithParams, buildQueryString } from '../shared';
 import { interceptorRegistry } from './interceptors';
 import { executeRequestInterceptors, executeResponseInterceptors, filterMatchingInterceptors } from './interceptors';
 import {
@@ -133,45 +134,6 @@ function getRouteByPath(router: Router<any>, routePath: string): RouteDef<any> |
     }
 
     return null;
-}
-
-/**
- * Build URL with path parameters replaced
- */
-function buildUrlWithParams(path: string, params: Record<string, any>): string
-{
-    let url = path;
-    for (const [key, value] of Object.entries(params))
-    {
-        url = url.replace(`:${key}`, encodeURIComponent(String(value)));
-    }
-    return url;
-}
-
-/**
- * Build query string from object
- */
-function buildQueryString(query: Record<string, any>): string
-{
-    if (Object.keys(query).length === 0)
-    {
-        return '';
-    }
-
-    const searchParams = new URLSearchParams();
-    for (const [key, value] of Object.entries(query))
-    {
-        if (Array.isArray(value))
-        {
-            value.forEach((v) => searchParams.append(key, String(v)));
-        }
-        else
-        {
-            searchParams.append(key, String(value));
-        }
-    }
-
-    return `?${searchParams.toString()}`;
 }
 
 // ============================================================================

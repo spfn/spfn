@@ -1,85 +1,10 @@
 import type { Logger } from '@spfn/core/logger';
+import type { ErrorRegistry } from '@spfn/core/errors';
 import { ApiError } from './errors';
 import * as debugLogs from './debug-logs';
 
-/**
- * Build URL with path parameters replaced
- *
- * @example
- * buildUrlWithParams('/users/:id/posts/:postId', { id: '123', postId: '456' })
- * // Returns: '/users/123/posts/456'
- */
-export function buildUrlWithParams(path: string, params: Record<string, any>): string
-{
-    let url = path;
-    for (const [key, value] of Object.entries(params))
-    {
-        url = url.replace(`:${key}`, encodeURIComponent(String(value)));
-    }
-    return url;
-}
-
-/**
- * Build query string from object
- *
- * @example
- * buildQueryString({ page: '1', limit: '10', tags: ['foo', 'bar'] })
- * // Returns: '?page=1&limit=10&tags=foo&tags=bar'
- */
-export function buildQueryString(query: Record<string, any>): string
-{
-    if (Object.keys(query).length === 0)
-    {
-        return '';
-    }
-
-    const searchParams = new URLSearchParams();
-    for (const [key, value] of Object.entries(query))
-    {
-        if (Array.isArray(value))
-        {
-            value.forEach((v) => searchParams.append(key, String(v)));
-        }
-        else
-        {
-            searchParams.append(key, String(value));
-        }
-    }
-
-    return `?${searchParams.toString()}`;
-}
-
-/**
- * Build Cookie header string from cookies object
- *
- * @example
- * buildCookieHeader({ session: 'abc123', theme: 'dark' })
- * // Returns: 'session=abc123; theme=dark'
- */
-export function buildCookieHeader(cookies: Record<string, string>): string
-{
-    return Object.entries(cookies)
-        .map(([key, value]) => `${key}=${value}`)
-        .join('; ');
-}
-
-/**
- * Parse response body based on content type
- */
-export async function parseResponseBody(response: Response): Promise<any>
-{
-    const contentType = response.headers.get('content-type');
-
-    if (contentType?.includes('application/json'))
-    {
-        const text = await response.text();
-        return text ? JSON.parse(text) : null;
-    }
-    else
-    {
-        return await response.text();
-    }
-}
+// Re-export shared utilities
+export { buildCookieHeader, parseResponseBody } from '../shared';
 
 /**
  * Auto-detect cookies from Next.js server environment
@@ -104,52 +29,6 @@ export async function autoDetectServerCookies(): Promise<Record<string, string>>
         // Browser automatically sends cookies in client components
         return {};
     }
-}
-
-/**
- * Prepare RequestInit object with headers, body, and cookies
- * Returns both the init object and auto-detected cookies for logging
- */
-export async function prepareRequestInit(
-    method: string,
-    inputBody: any,
-    defaultHeaders: Record<string, string>,
-    optionHeaders?: Record<string, string>,
-    optionCookies?: Record<string, string>,
-    fetchOptions?: RequestInit
-): Promise<{ init: RequestInit; autoDetectedCookies: Record<string, string> }>
-{
-    // Build request init
-    const init: RequestInit = {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-            ...defaultHeaders,
-            ...optionHeaders,
-        },
-        ...fetchOptions,
-    };
-
-    // Add body for mutations
-    if (['POST', 'PUT', 'PATCH'].includes(method) && inputBody)
-    {
-        init.body = JSON.stringify(inputBody);
-    }
-
-    // Auto-detect server cookies and merge with user-provided cookies
-    const autoDetectedCookies = await autoDetectServerCookies();
-    const cookiesToSend = {
-        ...autoDetectedCookies,
-        ...(optionCookies || {}),
-    };
-
-    // Add Cookie header if we have cookies to send
-    if (Object.keys(cookiesToSend).length > 0)
-    {
-        (init.headers as Record<string, string>)['Cookie'] = buildCookieHeader(cookiesToSend);
-    }
-
-    return { init, autoDetectedCookies };
 }
 
 /**
@@ -191,7 +70,7 @@ export async function handleErrorResponse(
     response: Response,
     body: any,
     fullUrl: string,
-    errorRegistry: any,
+    errorRegistry: ErrorRegistry | undefined,
     debug: boolean,
     logger: Logger
 ): Promise<never>

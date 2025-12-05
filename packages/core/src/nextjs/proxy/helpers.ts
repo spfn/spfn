@@ -5,6 +5,10 @@
 import { NextRequest } from 'next/server';
 import type { CookieOptions, SetCookie } from "../client";
 import type { InterceptorRule, RequestInterceptorContext, ResponseInterceptorContext } from './interceptors/types';
+import type { InterceptorRegistry } from './interceptors/registry';
+
+// Re-export from shared
+export { parseResponseBody } from '../shared';
 
 /**
  * Build request headers for proxying
@@ -108,24 +112,6 @@ export function parseCookiesFromNextRequest(request: NextRequest): Map<string, s
     return cookiesMap;
 }
 
-/**
- * Parse response body based on content type
- */
-export async function parseResponseBody(response: Response): Promise<any>
-{
-    const contentType = response.headers.get('content-type');
-
-    if (contentType?.includes('application/json'))
-    {
-        const text = await response.text();
-        return text ? JSON.parse(text) : null;
-    }
-    else
-    {
-        return await response.text();
-    }
-}
-
 // Mapping of option names to Set-Cookie attribute formats
 const optionMappings: Array<{
     key: keyof CookieOptions;
@@ -213,7 +199,7 @@ export function collectInterceptors(
     autoDiscoverInterceptors: boolean,
     disableAutoInterceptors: string[] | undefined,
     configInterceptors: InterceptorRule[] | undefined,
-    interceptorRegistry: any
+    registry: InterceptorRegistry
 ): InterceptorRule[]
 {
     const allInterceptors: InterceptorRule[] = [];
@@ -221,7 +207,7 @@ export function collectInterceptors(
     // Auto-discover from registry
     if (autoDiscoverInterceptors)
     {
-        const registeredInterceptors = interceptorRegistry.getAll(disableAutoInterceptors || []);
+        const registeredInterceptors = registry.getAll(disableAutoInterceptors || []);
         allInterceptors.push(...registeredInterceptors);
     }
 

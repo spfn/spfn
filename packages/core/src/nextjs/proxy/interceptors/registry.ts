@@ -29,7 +29,7 @@ declare global
  * Packages register their interceptors on import,
  * and proxy automatically discovers and applies them.
  */
-class InterceptorRegistry
+export class InterceptorRegistry
 {
     private interceptors = new Map<string, InterceptorRule[]>();
 
