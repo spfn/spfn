@@ -12,10 +12,9 @@ export default async function Home()
     const response = await getSession();
     console.log('세션 체크: ', response);
 
-    // Fetch data from SPFN API through TypedProxy
-    const health = await api.getHealth.call();
-    const root = await api.getRoot.call();
-    api.getExample.call({ id: '1' });
+    // Fetch data from SPFN API through RPC Proxy
+    const health = await api.getHealth.call({});
+    const root = await api.getRoot.call({});
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">

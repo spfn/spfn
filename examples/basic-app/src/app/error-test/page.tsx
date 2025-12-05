@@ -89,27 +89,27 @@ export default function ErrorTestPage()
     const tests = [
         {
             name: 'NotFoundError',
-            fn: () => api.errorNotFound.query({ resourceId: 'test-123' }).call(),
+            fn: () => api.errorNotFound.call({ query: { resourceId: 'test-123' } }),
         },
         {
             name: 'UnauthorizedError',
-            fn: () => api.errorUnauthorized.call(),
+            fn: () => api.errorUnauthorized.call({}),
         },
         {
             name: 'ForbiddenError',
-            fn: () => api.errorForbidden.query({ resource: 'admin' }).call(),
+            fn: () => api.errorForbidden.call({ query: { resource: 'admin' } }),
         },
         {
             name: 'ConflictError',
-            fn: () => api.errorConflict.body({ email: 'test@example.com' }).call(),
+            fn: () => api.errorConflict.call({ body: { email: 'test@example.com' } }),
         },
         {
             name: 'UnprocessableEntityError',
-            fn: () => api.errorUnprocessable.body({ password: 'weak' }).call(),
+            fn: () => api.errorUnprocessable.call({ body: { password: 'weak' } }),
         },
         {
             name: 'InsufficientBalanceError (Custom)',
-            fn: () => api.errorCustom.body({ accountId: 'acc_123', amount: 999.99 }).call(),
+            fn: () => api.errorCustom.call({ body: { accountId: 'acc_123', amount: 999.99 } }),
         },
     ];
 
