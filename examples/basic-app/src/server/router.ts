@@ -5,7 +5,7 @@
  */
 
 import { defineRouter } from '@spfn/core/route';
-import { authRouter } from '@spfn/auth/server';
+import { authRouter, authenticate } from '@spfn/auth/server';
 import { cmsAppRouter } from '@spfn/cms/server';
 
 // Root routes
@@ -82,7 +82,8 @@ export const appRouter = defineRouter({
 .packages([
     authRouter,
     cmsAppRouter,
-]);
+])
+.use([authenticate]);
 
 /**
  * Router type for client usage
