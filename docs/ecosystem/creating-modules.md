@@ -67,12 +67,12 @@ Generated modules follow Superfunction's 3-layer architecture:
 my-module/
 ├── src/
 │   ├── lib/                    # Shared layer
-│   │   ├── contracts/          # API contract definitions
 │   │   └── types/              # Shared TypeScript types
 │   ├── server/                 # Server layer
 │   │   ├── entities/           # Drizzle ORM entities
 │   │   ├── repositories/       # Data access layer
-│   │   ├── routes/             # API route handlers
+│   │   ├── routes/             # Route definitions (define-route pattern)
+│   │   ├── router.ts           # defineRouter with all routes
 │   │   ├── helpers/            # Server utilities
 │   │   └── generators/         # Custom code generators
 │   ├── client/                 # Client layer
@@ -179,62 +179,51 @@ export class PostRepository {
 }
 ```
 
-### Step 4: Define API Contracts
+### Step 4: Define Routes
 
-Create type-safe API contracts:
+Create type-safe routes using the define-route pattern:
 
 ```typescript
-// src/lib/contracts/posts.ts
-import { contract } from '@spfn/core';
+// src/server/routes/posts.ts
+import { route } from '@spfn/core/route';
 import { Type as t } from '@sinclair/typebox';
-
-export const getPostsContract = contract({
-  method: 'GET',
-  path: '/_my-module/posts',
-  responses: {
-    200: t.Array(t.Object({
-      id: t.String(),
-      title: t.String(),
-      content: t.String(),
-      createdAt: t.String(),
-    })),
-  },
-});
-
-export const createPostContract = contract({
-  method: 'POST',
-  path: '/_my-module/posts',
-  body: t.Object({
-    title: t.String(),
-    content: t.String(),
-  }),
-  responses: {
-    201: t.Object({
-      id: t.String(),
-      title: t.String(),
-      content: t.String(),
-    }),
-  },
-});
-```
-
-### Step 5: Implement Route Handlers
-
-```typescript
-// src/server/routes/posts/index.ts
-import { route } from '@spfn/core';
-import { getPostsContract, createPostContract } from '@/lib/contracts/posts';
 import { PostRepository } from '@/server/repositories/post-repository';
 
-export const GET = route(getPostsContract, async () => {
-  const posts = await PostRepository.findAll();
-  return { status: 200, body: posts };
+export const getPosts = route.get('/_my-module/posts')
+    .handler(async (c) => {
+        const posts = await PostRepository.findAll();
+        return c.json(posts);
+    });
+
+export const createPost = route.post('/_my-module/posts')
+    .input({
+        body: t.Object({
+            title: t.String(),
+            content: t.String(),
+        })
+    })
+    .handler(async (c) => {
+        const { body } = await c.data();
+        const post = await PostRepository.create(body);
+        return c.created(post);
+    });
+```
+
+### Step 5: Create Router
+
+```typescript
+// src/server/router.ts
+import { defineRouter } from '@spfn/core/route';
+import * as posts from './routes/posts';
+
+export const myModuleRouter = defineRouter({
+    posts: {
+        list: posts.getPosts,
+        create: posts.createPost,
+    }
 });
 
-export const POST = route(createPostContract, async ({ body }) => {
-  const post = await PostRepository.create(body);
-  return { status: 201, body: post };
-});
+export type MyModuleRouter = typeof myModuleRouter;
 ```
 
 ### Step 6: Generate API Client
@@ -313,17 +302,8 @@ The `spfn` field in `package.json` configures your module:
     "prefix": "/_my-module",
     "schemas": ["./dist/server/entities/*.js"],
     "routes": { "dir": "./dist/server/routes" },
-    "migrations": { "dir": "./migrations" },
-    "codegen": {
-      "generators": [
-        {
-          "name": "@spfn/core:contract",
-          "contractsDir": "src/lib/contracts",
-          "outputPath": "src/api",
-          "runOn": ["build", "manual"]
-        }
-      ]
-    }
+    "router": "./dist/server/router.js",
+    "migrations": { "dir": "./migrations" }
   }
 }
 ```
@@ -333,8 +313,8 @@ The `spfn` field in `package.json` configures your module:
 | `prefix` | URL prefix for all routes (e.g., `/_my-module`) |
 | `schemas` | Glob patterns for entity files |
 | `routes.dir` | Directory containing route handlers |
+| `router` | Router file path (exports defineRouter result) |
 | `migrations.dir` | Migration files directory |
-| `codegen.generators` | Code generators to run |
 
 ### API Name Generation
 
@@ -557,7 +537,7 @@ export const posts = mySchema.table('posts', { /* ... */ });
 
 ### Type Errors in Generated Client
 
-Regenerate the client after updating contracts:
+Regenerate the client after updating routes:
 
 ```bash
 pnpm codegen
@@ -572,5 +552,5 @@ pnpm codegen
 ## Resources
 
 - [Superfunction CLI Reference](../api-reference/cli.md)
-- [Contract System](../core-concepts/contracts.md)
-- [Code Generators](../guides/code-generation.md)
+- [Route Definition](../core-concepts/contracts.md) - How to define routes
+- [Custom Generators](../guides/custom-generators.md) - Build custom code generators

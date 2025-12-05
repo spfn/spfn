@@ -13,72 +13,47 @@ Middleware allows you to run code before and after route handlers, enabling feat
 
 Superfunction supports three types of middleware:
 
-- **Global**: Runs on all routes
-- **Route-Specific**: Runs on specific routes only
-- **Contract-Level**: Controlled via meta.skipMiddlewares
+- **Global**: Runs on all routes (defined in server config)
+- **Route-Specific**: Runs on specific routes only (using `.use()`)
+- **Skip Control**: Routes can skip global middlewares (using `.skip()`)
 
-## Global Middleware
+## Defining Named Middleware
 
-Configure global middlewares in `src/server/server.config.ts`:
-
-```typescript
-// src/server/server.config.ts
-import type { ServerConfig } from '@spfn/core';
-import { loggingMiddleware } from './middlewares/logging';
-import { authMiddleware } from './middlewares/auth';
-import { rateLimitMiddleware } from './middlewares/rate-limit';
-
-export default {
-  middlewares: [
-    { name: 'logging', handler: loggingMiddleware() },
-    { name: 'auth', handler: authMiddleware() },
-    { name: 'rateLimit', handler: rateLimitMiddleware() }
-  ]
-} satisfies ServerConfig;
-```
-
-> **Execution Order**
->
-> Middlewares run in the order they are defined. In this example: logging → auth → rateLimit → route handler → rateLimit → auth → logging
-
-## Writing Middleware
-
-Middleware receives the raw Hono context and a `next` function. Unlike route handlers, middleware does not have access to contract-typed context.
-
-> **Important: Raw Context Only**
->
-> Middleware receives the raw Hono `Context`, not the type-safe contract context. You cannot use `c.data()`, `c.params`, or `c.query` with contract types in middleware. These are only available in route handlers.
-
-### Basic Structure
+Use `defineMiddleware` to create named middlewares that can be referenced in `.skip()` calls:
 
 ```typescript
-// src/server/middlewares/example.ts
-import type { Context, Next } from 'hono';
+// src/server/middlewares/auth.ts
+import { defineMiddleware } from '@spfn/core/route';
+import { UnauthorizedError } from '@spfn/core/errors';
 
-export function exampleMiddleware() {
-  return async (c: Context, next: Next) => {
-    // ⚠️ c is raw Hono Context, not contract-typed context
+export const authMiddleware = defineMiddleware('auth', async (c, next) =>
+{
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
 
-    // 1. Code before route handler
-    console.log('Before handler');
+    if (!token)
+    {
+        throw new UnauthorizedError({ message: 'No token provided' });
+    }
 
-    // 2. Call next middleware or route handler
-    await next();
-
-    // 3. Code after route handler
-    console.log('After handler');
-  };
-}
+    try
+    {
+        const user = await verifyToken(token);
+        c.set('user', user);
+        await next();
+    }
+    catch (error)
+    {
+        throw new UnauthorizedError({ message: 'Invalid token' });
+    }
+});
 ```
-
-### Logging Middleware
 
 ```typescript
 // src/server/middlewares/logging.ts
-import type { Context, Next } from 'hono';
+import { defineMiddleware } from '@spfn/core/route';
 
-export function loggingMiddleware() {
-  return async (c: Context, next: Next) => {
+export const loggingMiddleware = defineMiddleware('logging', async (c, next) =>
+{
     const start = Date.now();
     const { method, url } = c.req;
 
@@ -88,155 +63,245 @@ export function loggingMiddleware() {
 
     const duration = Date.now() - start;
     console.log(`← ${method} ${url} ${c.res.status} (${duration}ms)`);
-  };
-}
+});
 ```
 
-### Authentication Middleware
+## Global Middleware
+
+Configure global middlewares in server config:
 
 ```typescript
-// src/server/middlewares/auth.ts
-import type { Context, Next } from 'hono';
-import { UnauthorizedError } from '@spfn/core';
+// src/server/server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { appRouter } from './router';
+import { loggingMiddleware } from './middlewares/logging';
+import { authMiddleware } from './middlewares/auth';
+import { rateLimitMiddleware } from './middlewares/rate-limit';
 
-export function authMiddleware() {
-  return async (c: Context, next: Next) => {
-    const token = c.req.header('Authorization')?.replace('Bearer ', '');
-
-    if (!token) {
-      throw new UnauthorizedError('No token provided');
-    }
-
-    try {
-      // Verify token and attach user to context
-      const user = await verifyToken(token);
-      c.set('user', user);
-
-      await next();
-    } catch (error) {
-      throw new UnauthorizedError('Invalid token');
-    }
-  };
-}
-
-async function verifyToken(token: string) {
-  // Implement token verification logic
-  // Return user object or throw error
-  return { id: 1, email: 'user@example.com' };
-}
+export default defineServerConfig()
+    .middlewares([
+        loggingMiddleware,
+        authMiddleware,
+        rateLimitMiddleware,
+    ])
+    .routes(appRouter)
+    .build();
 ```
 
-### Rate Limiting Middleware
+> **Execution Order**
+>
+> Middlewares run in the order they are defined. In this example: logging → auth → rateLimit → route handler → rateLimit → auth → logging
+
+## Route-Specific Middleware
+
+Apply middleware to specific routes using `.use()`:
+
+```typescript
+// src/server/routes/admin.ts
+import { route } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
+import { adminOnlyMiddleware } from '../middlewares/admin-only';
+import { auditLogMiddleware } from '../middlewares/audit-log';
+
+// Route with specific middleware
+export const deleteUser = route.delete('/admin/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .use([adminOnlyMiddleware, auditLogMiddleware])  // ← Only runs for this route
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        await deleteUserById(params.id);
+        return c.noContent();
+    });
+```
+
+## Skipping Global Middleware
+
+Routes can skip specific global middlewares using `.skip()`:
+
+```typescript
+// src/server/routes/public.ts
+import { route } from '@spfn/core/route';
+
+// Public endpoint - skip auth middleware
+export const healthCheck = route.get('/health')
+    .skip(['auth'])  // ← Auth middleware won't run
+    .handler(async (c) =>
+    {
+        return { status: 'ok' };
+    });
+
+// Public data - skip auth but keep rate limiting
+export const getPublicStats = route.get('/stats')
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        return { users: 1000, posts: 5000 };
+    });
+
+// Skip all global middlewares
+export const internalHealthCheck = route.get('/_internal/health')
+    .skip('*')  // ← Skip all middlewares
+    .handler(async (c) =>
+    {
+        return { status: 'ok', timestamp: Date.now() };
+    });
+```
+
+> **Type-Safe Skip**
+>
+> When using `defineMiddleware`, the middleware name is preserved for type safety. Your IDE will provide autocomplete for middleware names in `.skip()` calls.
+
+## Factory Middleware
+
+Create parameterized middleware using factory pattern:
+
+```typescript
+// src/server/middlewares/permissions.ts
+import { defineMiddleware } from '@spfn/core/route';
+import { ForbiddenError } from '@spfn/core/errors';
+
+export const requirePermissions = defineMiddleware('permission',
+    (...permissions: string[]) => async (c, next) =>
+    {
+        const user = c.get('user');
+
+        const hasAll = permissions.every(p => user.permissions.includes(p));
+        if (!hasAll)
+        {
+            throw new ForbiddenError({ message: 'Insufficient permissions' });
+        }
+
+        await next();
+    }
+);
+```
+
+```typescript
+// Usage in routes
+export const deletePost = route.delete('/posts/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .use([requirePermissions('posts:delete', 'admin:write')])
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        await deletePostById(params.id);
+        return c.noContent();
+    });
+```
+
+## Middleware Examples
+
+### Rate Limiting
 
 ```typescript
 // src/server/middlewares/rate-limit.ts
-import type { Context, Next } from 'hono';
-import { TooManyRequestsError } from '@spfn/core';
+import { defineMiddleware } from '@spfn/core/route';
+import { TooManyRequestsError } from '@spfn/core/errors';
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-export function rateLimitMiddleware(options = { max: 100, windowMs: 60000 }) {
-  return async (c: Context, next: Next) => {
+export const rateLimitMiddleware = defineMiddleware('rateLimit', async (c, next) =>
+{
     const ip = c.req.header('x-forwarded-for') || 'unknown';
     const now = Date.now();
+    const windowMs = 60000;  // 1 minute
+    const max = 100;
 
     let record = rateLimitMap.get(ip);
 
-    // Reset if window expired
-    if (!record || now > record.resetAt) {
-      record = { count: 0, resetAt: now + options.windowMs };
-      rateLimitMap.set(ip, record);
+    if (!record || now > record.resetAt)
+    {
+        record = { count: 0, resetAt: now + windowMs };
+        rateLimitMap.set(ip, record);
     }
 
     record.count++;
 
-    if (record.count > options.max) {
-      throw new TooManyRequestsError('Rate limit exceeded');
+    if (record.count > max)
+    {
+        throw new TooManyRequestsError({ message: 'Rate limit exceeded' });
     }
 
-    // Add rate limit headers
-    c.header('X-RateLimit-Limit', options.max.toString());
-    c.header('X-RateLimit-Remaining', (options.max - record.count).toString());
+    c.header('X-RateLimit-Limit', max.toString());
+    c.header('X-RateLimit-Remaining', (max - record.count).toString());
 
     await next();
-  };
-}
-```
-
-## Route-Specific Middleware
-
-Apply middleware to specific routes using the three-argument `bind()`:
-
-```typescript
-// src/server/routes/admin/users/index.ts
-import { createApp } from '@spfn/core/route';
-import { getAdminUsersContract, deleteAdminUserContract } from '@/lib/contracts/admin/users';
-import { adminOnlyMiddleware } from '@/server/middlewares/admin-only';
-
-const app = createApp();
-
-// Regular route - no extra middleware
-app.bind(getAdminUsersContract, async (c) => {
-  // Handler implementation
 });
-
-// Route with specific middleware
-app.bind(
-  deleteAdminUserContract,
-  [adminOnlyMiddleware],  // ← Only runs for this route
-  async (c) => {
-    const { id } = c.params;
-    await deleteUser(id);
-    return c.json({ success: true });
-  }
-);
-
-export default app;
 ```
 
-## Contract-Level Control
-
-Skip specific global middlewares using `meta.skipMiddlewares`:
+### CORS
 
 ```typescript
-// src/lib/contracts/teams.ts
-import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core/route';
+// src/server/middlewares/cors.ts
+import { defineMiddleware } from '@spfn/core/route';
 
-// Public endpoint - skip auth
-export const getTeamsContract = {
-  method: 'GET' as const,
-  path: '/teams',
-  response: TeamsResponseSchema,
-  meta: {
-    skipMiddlewares: ['auth']  // ← Auth middleware won't run
-  }
-} as const satisfies RouteContract;
+export const corsMiddleware = defineMiddleware('cors', async (c, next) =>
+{
+    c.header('Access-Control-Allow-Origin', '*');
+    c.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    c.header('Access-Control-Allow-Credentials', 'true');
 
-// Protected endpoint - auth required
-export const createTeamContract = {
-  method: 'POST' as const,
-  path: '/teams',
-  body: CreateTeamSchema,
-  response: TeamSchema
-  // No skipMiddlewares → all global middlewares run
-} as const satisfies RouteContract;
+    // Handle preflight
+    if (c.req.method === 'OPTIONS')
+    {
+        return c.text('', 204);
+    }
+
+    await next();
+});
 ```
 
-> **Method-Level Control**
->
-> This allows different HTTP methods on the same path to have different middleware policies. For example, GET /teams can be public while POST /teams requires authentication.
+### Request ID
 
-## Accessing Context in Middleware
+```typescript
+// src/server/middlewares/request-id.ts
+import { defineMiddleware } from '@spfn/core/route';
+import { randomUUID } from 'crypto';
 
-Store data in context to share between middleware and handlers:
+export const requestIdMiddleware = defineMiddleware('requestId', async (c, next) =>
+{
+    const requestId = c.req.header('X-Request-ID') || randomUUID();
+
+    c.set('requestId', requestId);
+    c.header('X-Request-ID', requestId);
+
+    await next();
+});
+```
+
+### Timing
+
+```typescript
+// src/server/middlewares/timing.ts
+import { defineMiddleware } from '@spfn/core/route';
+
+export const timingMiddleware = defineMiddleware('timing', async (c, next) =>
+{
+    const start = performance.now();
+
+    await next();
+
+    const duration = performance.now() - start;
+    c.header('X-Response-Time', `${duration.toFixed(2)}ms`);
+});
+```
+
+## Accessing Context in Handlers
+
+Middleware can store data in context for handlers to use:
 
 ### Setting Context Variables
 
 ```typescript
 // src/server/middlewares/auth.ts
-export function authMiddleware() {
-  return async (c: Context, next: Next) => {
+export const authMiddleware = defineMiddleware('auth', async (c, next) =>
+{
     const user = await authenticateUser(c);
 
     // Store user in context
@@ -244,28 +309,35 @@ export function authMiddleware() {
     c.set('userId', user.id);
 
     await next();
-  };
-}
+});
 ```
 
 ### Reading Context in Handlers
 
 ```typescript
-// src/server/routes/teams/index.ts
-app.bind(createTeamContract, async (c) => {
-  // Access user from context (set by auth middleware)
-  const user = c.raw.get('user');
-  const userId = c.raw.get('userId');
+// src/server/routes/teams.ts
+export const createTeam = route.post('/teams')
+    .input({
+        body: Type.Object({
+            name: Type.String(),
+            slug: Type.String()
+        })
+    })
+    .handler(async (c) =>
+    {
+        // Access user from context (set by auth middleware)
+        const user = c.raw.get('user');
+        const userId = c.raw.get('userId');
 
-  const data = await c.data();
+        const { body } = await c.data();
 
-  const team = await create(teamsTable, {
-    ...data,
-    createdBy: userId
-  });
+        const team = await createTeamInDb({
+            ...body,
+            createdBy: userId
+        });
 
-  return c.json(team);
-});
+        return c.created(team, `/teams/${team.id}`);
+    });
 ```
 
 ## Error Handling in Middleware
@@ -273,135 +345,82 @@ app.bind(createTeamContract, async (c) => {
 Throw errors in middleware to stop request processing:
 
 ```typescript
-import { UnauthorizedError, ForbiddenError } from '@spfn/core';
+import { UnauthorizedError, ForbiddenError } from '@spfn/core/errors';
 
-export function authMiddleware() {
-  return async (c: Context, next: Next) => {
+export const authMiddleware = defineMiddleware('auth', async (c, next) =>
+{
     const token = c.req.header('Authorization')?.replace('Bearer ', '');
 
     // No token → 401 Unauthorized
-    if (!token) {
-      throw new UnauthorizedError('Authentication required');
+    if (!token)
+    {
+        throw new UnauthorizedError({ message: 'Authentication required' });
     }
 
-    try {
-      const user = await verifyToken(token);
+    try
+    {
+        const user = await verifyToken(token);
 
-      // Token valid but user inactive → 403 Forbidden
-      if (!user.isActive) {
-        throw new ForbiddenError('Account is inactive');
-      }
+        // Token valid but user inactive → 403 Forbidden
+        if (!user.isActive)
+        {
+            throw new ForbiddenError({ message: 'Account is inactive' });
+        }
 
-      c.set('user', user);
-      await next();
-    } catch (error) {
-      // Invalid token → 401 Unauthorized
-      throw new UnauthorizedError('Invalid token');
+        c.set('user', user);
+        await next();
     }
-  };
-}
-```
-
-## Common Middleware Patterns
-
-### CORS Middleware
-
-```typescript
-// src/server/middlewares/cors.ts
-import type { Context, Next } from 'hono';
-
-export function corsMiddleware(options = {
-  origin: '*',
-  methods: 'GET,POST,PUT,DELETE,OPTIONS',
-  credentials: true
-}) {
-  return async (c: Context, next: Next) => {
-    c.header('Access-Control-Allow-Origin', options.origin);
-    c.header('Access-Control-Allow-Methods', options.methods);
-    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-    if (options.credentials) {
-      c.header('Access-Control-Allow-Credentials', 'true');
+    catch (error)
+    {
+        // Invalid token → 401 Unauthorized
+        throw new UnauthorizedError({ message: 'Invalid token' });
     }
-
-    // Handle preflight
-    if (c.req.method === 'OPTIONS') {
-      return c.text('', 204);
-    }
-
-    await next();
-  };
-}
-```
-
-### Request ID Middleware
-
-```typescript
-// src/server/middlewares/request-id.ts
-import type { Context, Next } from 'hono';
-import { randomUUID } from 'crypto';
-
-export function requestIdMiddleware() {
-  return async (c: Context, next: Next) => {
-    const requestId = c.req.header('X-Request-ID') || randomUUID();
-
-    c.set('requestId', requestId);
-    c.header('X-Request-ID', requestId);
-
-    await next();
-  };
-}
-```
-
-### Timing Middleware
-
-```typescript
-// src/server/middlewares/timing.ts
-import type { Context, Next } from 'hono';
-
-export function timingMiddleware() {
-  return async (c: Context, next: Next) => {
-    const start = performance.now();
-
-    await next();
-
-    const duration = performance.now() - start;
-    c.header('X-Response-Time', `${duration.toFixed(2)}ms`);
-  };
-}
+});
 ```
 
 ## Conditional Middleware
 
-Create middleware that conditionally executes based on environment or configuration:
+Create middleware that conditionally executes:
 
 ```typescript
 // src/server/middlewares/conditional-logger.ts
-export function conditionalLogger() {
-  return async (c: Context, next: Next) => {
+export const conditionalLogger = defineMiddleware('devLogger', async (c, next) =>
+{
     // Only log in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`${c.req.method} ${c.req.url}`);
+    if (process.env.NODE_ENV === 'development')
+    {
+        console.log(`${c.req.method} ${c.req.url}`);
     }
 
     await next();
-  };
-}
+});
+```
 
+```typescript
 // src/server/middlewares/feature-flag.ts
 import { NotFoundError } from '@spfn/core/errors';
 
-export function featureFlagMiddleware(flagName: string) {
-  return async (c: Context, next: Next) => {
-    const isEnabled = await checkFeatureFlag(flagName);
+export const featureFlagMiddleware = defineMiddleware('featureFlag',
+    (flagName: string) => async (c, next) =>
+    {
+        const isEnabled = await checkFeatureFlag(flagName);
 
-    if (!isEnabled) {
-      throw new NotFoundError('Feature not available');
+        if (!isEnabled)
+        {
+            throw new NotFoundError({ resource: 'Feature' });
+        }
+
+        await next();
     }
+);
 
-    await next();
-  };
-}
+// Usage
+export const betaFeature = route.get('/beta/new-feature')
+    .use([featureFlagMiddleware('new-feature')])
+    .handler(async (c) =>
+    {
+        return { feature: 'enabled' };
+    });
 ```
 
 ## Best Practices
@@ -412,13 +431,16 @@ Place logging first and auth/rate-limit after:
 
 ```typescript
 // ✅ Good order
-middlewares: [
-  { name: 'logging', handler: loggingMiddleware() },      // First
-  { name: 'timing', handler: timingMiddleware() },
-  { name: 'cors', handler: corsMiddleware() },
-  { name: 'auth', handler: authMiddleware() },            // Before protected logic
-  { name: 'rateLimit', handler: rateLimitMiddleware() }   // Last check
-]
+export default defineServerConfig()
+    .middlewares([
+        loggingMiddleware,       // First - logs all requests
+        timingMiddleware,        // Timing for all requests
+        corsMiddleware,          // CORS before other checks
+        authMiddleware,          // Authentication
+        rateLimitMiddleware,     // Rate limiting last
+    ])
+    .routes(appRouter)
+    .build();
 ```
 
 ### 2. Always Call next()
@@ -427,38 +449,34 @@ Unless you're returning early, always call `await next()`:
 
 ```typescript
 // ✅ Good: Call next()
-export function middleware() {
-  return async (c: Context, next: Next) => {
+export const middleware = defineMiddleware('example', async (c, next) =>
+{
     console.log('Before');
     await next();
     console.log('After');
-  };
-}
+});
 
 // ❌ Bad: Forgot to call next()
-export function middleware() {
-  return async (c: Context, next: Next) => {
+export const badMiddleware = defineMiddleware('bad', async (c, next) =>
+{
     console.log('Before');
     // Request hangs! Handler never runs
-  };
-}
+});
 ```
 
 ### 3. Use Named Middlewares
 
-Give middlewares clear names for `skipMiddlewares`:
+Give middlewares clear names for `.skip()`:
 
 ```typescript
 // ✅ Good: Clear names
-middlewares: [
-  { name: 'auth', handler: authMiddleware() },
-  { name: 'rateLimit', handler: rateLimitMiddleware() }
-]
+export const authMiddleware = defineMiddleware('auth', ...);
+export const rateLimitMiddleware = defineMiddleware('rateLimit', ...);
 
-// In contract
-meta: {
-  skipMiddlewares: ['auth']  // Clear what's being skipped
-}
+// In routes
+export const publicRoute = route.get('/public')
+    .skip(['auth'])  // Clear what's being skipped
+    .handler(...);
 ```
 
 ### 4. Keep Middleware Focused
@@ -467,12 +485,43 @@ Each middleware should do one thing well:
 
 ```typescript
 // ✅ Good: Separate concerns
-loggingMiddleware()     // Just logs requests
-authMiddleware()        // Just handles auth
-rateLimitMiddleware()   // Just rate limits
+loggingMiddleware     // Just logs requests
+authMiddleware        // Just handles auth
+rateLimitMiddleware   // Just rate limits
 
 // ❌ Bad: Does too much
-monolithicMiddleware()  // Logs, auth, rate limit, and more
+monolithicMiddleware  // Logs, auth, rate limit, and more
+```
+
+### 5. Handle Errors Properly
+
+Don't swallow errors in middleware:
+
+```typescript
+// ✅ Good: Let errors propagate
+export const middleware = defineMiddleware('example', async (c, next) =>
+{
+    // Validation
+    if (!isValid(c))
+    {
+        throw new ValidationError({ message: 'Invalid request' });
+    }
+
+    await next();  // Errors from handler will propagate
+});
+
+// ❌ Bad: Swallowing errors
+export const badMiddleware = defineMiddleware('bad', async (c, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (e)
+    {
+        // Silent failure - bad!
+    }
+});
 ```
 
 > **Core Concepts Complete!**

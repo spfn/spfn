@@ -7,15 +7,15 @@ available: true
 
 # Build Process
 
-Superfunction's build process orchestrates Next.js and Hono server builds, generates type-safe client code, and optimizes your application for production deployment.
+Superfunction's build process orchestrates Next.js and Hono server builds, registers routes from your router definition, and optimizes your application for production deployment.
 
 ## Build Architecture
 
 ```bash
 spfn build
 │
-├─ Step 1: Contract Code Generation
-│  └─ Output: src/lib/api/ (Generated client)
+├─ Step 1: Route Registration
+│  └─ Output: Routes registered from defineRouter()
 │
 ├─ Step 2: Server Build
 │  └─ Output: dist/server/ (Compiled Hono server)
@@ -24,83 +24,82 @@ spfn build
    └─ Output: .next/ (Optimized frontend)
 ```
 
-## Step 1: Contract Code Generation
+## Step 1: Route Registration
 
-Superfunction scans all contracts in `src/lib/contracts/` and generates a type-safe API client with resource-based file splitting in `src/lib/api/`.
+Superfunction registers all routes defined in your router using `defineRouter()`. No separate contract files needed.
 
-### Contract Discovery
-
-```typescript
-// 1. Scan contracts directory
-const contractFiles = await glob('src/lib/contracts/**/*.{ts,js}');
-// Result: ['src/lib/contracts/users.ts', 'src/lib/contracts/posts.ts', ...]
-
-// 2. Import and extract contracts
-for (const file of contractFiles) {
-  const module = await import(file);
-
-  // Find all exported RouteContracts
-  for (const [name, value] of Object.entries(module)) {
-    if (isRouteContract(value)) {
-      contracts.push({
-        name,
-        contract: value,
-        path: value.path,
-        method: value.method
-      });
-    }
-  }
-}
-
-// 3. Group by resource
-// /users/:id     → users.get
-// /users         → users.list
-// POST /users    → users.create
-```
-
-### Client Code Generation
+### Router Definition
 
 ```typescript
-// Input: Contract definitions
-export const getUserContract = {
-  method: 'GET',
-  path: '/users/:id',
-  params: Type.Object({ id: Type.Integer() }),
-  response: Type.Object({
-    id: Type.Number(),
-    name: Type.String(),
-    email: Type.String()
-  })
-} satisfies RouteContract;
+// src/server/router.ts
+import { route, defineRouter } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
 
-// Output: Generated API client (src/lib/api/users.ts)
-import { client } from '@spfn/core/client';
-import type { InferContract } from '@spfn/core';
-import { getUserContract } from '@/lib/contracts/users';
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        return { id: params.id, name: 'John Doe' };
+    });
 
-// Reusable types
-export type GetUserParams = InferContract<typeof getUserContract>['params'];
-export type GetUserResponse = InferContract<typeof getUserContract>['response'];
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({
+            name: Type.String(),
+            email: Type.String()
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        return { id: '1', ...body };
+    });
 
-// API methods
-export const users = {
-  get: (options: { params: GetUserParams }) =>
-    client.call(getUserContract, options)
-} as const;
+// Define router with all routes
+export const appRouter = defineRouter({
+    getUser,
+    createUser,
+});
 
-// Usage in frontend (fully type-safe!)
-import { api } from '@/lib/api';
-const user = await api.users.get({ params: { id: 123 } });
-//    ^? { id: number; name: string; email: string }
+export type AppRouter = typeof appRouter;
 ```
 
-### Generated Client Features
+### Route Registration Process
 
-- **Type inference** - Parameters and responses are fully typed
-- **Error handling** - Automatic HTTP error detection
-- **Path interpolation** - Dynamic URL generation from params
-- **Query string building** - Automatic query param serialization
-- **JSON serialization** - Automatic request/response parsing
+```typescript
+// At build/runtime, routes are registered automatically:
+// 1. Server config loads router
+// 2. registerRoutes() walks the router tree
+// 3. Each route is registered with Hono
+
+// src/server/server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { appRouter } from './router';
+
+export default defineServerConfig()
+    .routes(appRouter)  // ← Routes registered here
+    .build();
+```
+
+### Type Inference
+
+Types flow directly from your route definitions—no code generation step:
+
+```typescript
+// Types are inferred from route definitions
+import type { AppRouter } from '@/server/router';
+import { createApi } from '@spfn/core/client';
+
+// Full type safety without codegen
+const api = createApi<AppRouter>();
+
+// Types inferred:
+// api.getUser.call({ params: { id: string } }) → { id: string; name: string }
+// api.createUser.call({ body: { name: string; email: string } }) → { id: string; ... }
+```
 
 ## Step 2: Server Build
 
@@ -124,49 +123,31 @@ The Hono server is compiled from TypeScript to JavaScript with optimizations.
   "include": ["src/server/**/*", "src/lib/**/*"],
   "exclude": ["src/app/**/*", "src/components/**/*"]
 }
-
-// Compilation process
-// 1. TypeScript compiler (tsc)
-//    src/server/ → dist/server/
-// 2. Bundle routes
-//    dist/server/routes/*.js
-// 3. Generate server entry
-//    dist/server/index.js
 ```
 
-### Route Discovery at Build Time
+### Server Entry Generation
 
 ```typescript
-// Build-time route discovery
-const routeFiles = await glob('src/server/routes/**/*.{ts,js}');
-
-// Generate server entry point
-const entryCode = `
+// dist/server/index.js (generated)
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
+import { registerRoutes } from '@spfn/core/route';
+import serverConfig from './server.config.js';
 
 const app = new Hono();
 
-// Import all route modules
-${routeFiles.map((file, i) =>
-  `import route${i} from '${file}';`
-).join('\n')}
-
-// Mount all routes
-${routeFiles.map((file, i) =>
-  `app.route('/', route${i});`
-).join('\n')}
+// Register all routes from router
+registerRoutes(app, serverConfig.routes, {
+    middlewares: serverConfig.middlewares,
+});
 
 // Start server
 serve({
-  fetch: app.fetch,
-  port: process.env.PORT || 8790
+    fetch: app.fetch,
+    port: process.env.PORT || 8790
 });
 
-console.log('🚀 Server running on http://localhost:8790');
-`;
-
-await writeFile('dist/server/index.js', entryCode);
+console.log('Server running on http://localhost:8790');
 ```
 
 ### Build Output
@@ -175,17 +156,15 @@ await writeFile('dist/server/index.js', entryCode);
 dist/
 └─ server/
    ├─ index.js              # Server entry point
+   ├─ server.config.js      # Compiled config
+   ├─ router.js             # Compiled router
    ├─ routes/
-   │  ├─ users.js           # Compiled user routes
-   │  ├─ posts.js           # Compiled post routes
+   │  ├─ users.js           # Route handlers
+   │  ├─ teams.js
    │  └─ ...
-   ├─ middleware/
-   │  ├─ auth.js
-   │  └─ logger.js
-   └─ lib/
-      └─ contracts/
-         ├─ users.js
-         └─ posts.js
+   └─ middlewares/
+      ├─ auth.js
+      └─ logging.js
 ```
 
 ## Step 3: Next.js Build
@@ -217,30 +196,30 @@ Next.js frontend is built with optimizations for production.
 
 ### API Client Integration
 
-The generated API client (`src/lib/api/`) is imported and tree-shaken by Next.js:
+The type-safe API client imports types from your router:
 
 ```typescript
 // Frontend page
-import { api } from '@/lib/api';  // Generated client
+import { api } from '@/lib/api';  // Type-safe client
 
-export default async function UsersPage() {
-  // Type-safe API call
-  const users = await api.users.list();
+export default async function UsersPage()
+{
+    // Type-safe API call
+    const users = await api.getUsers.call({ query: { page: 1 } });
 
-  return (
-    <div>
-      {users.map(user => (
-        <div key={user.id}>{user.name}</div>
-      ))}
-    </div>
-  );
+    return (
+        <div>
+            {users.items.map(user => (
+                <div key={user.id}>{user.name}</div>
+            ))}
+        </div>
+    );
 }
 
 // Next.js build optimizations:
-// 1. Only used API methods are bundled
-// 2. Tree-shaking removes unused contracts
+// 1. Types are stripped (zero runtime cost)
+// 2. Tree-shaking removes unused code
 // 3. Code splitting per route
-// 4. TypeScript types stripped (zero runtime cost)
 ```
 
 ## Development vs Production
@@ -250,22 +229,22 @@ export default async function UsersPage() {
 - **Hot reload** - Both Next.js and Hono server reload on changes
 - **Source maps** - Full debugging support
 - **No optimization** - Fast compilation, readable code
-- **Watch mode** - Auto-regenerate API client on contract changes
+- **Watch mode** - Routes automatically re-register on changes
 - **Error overlay** - Detailed error messages in browser
 
 ```bash
 # spfn dev starts:
 spfn dev
 │
-├─ Contract watcher (regenerate API client on change)
+├─ Route watcher (re-register routes on change)
 ├─ Next.js dev server (port 3790)
 ├─ Hono dev server (port 8790)
 └─ File watcher for routes
 
 # When file changes:
 File Change
-├─ Contract change? → Regenerate API client
-├─ Route change? → Reload Hono server
+├─ Route file change? → Re-register routes
+├─ Server file change? → Reload Hono server
 └─ Frontend change? → Next.js HMR
 ```
 
@@ -281,42 +260,23 @@ File Change
 # spfn build output
 
 Build Summary:
-  API Client        src/lib/api/        25 KB
   Server Bundle     dist/server/        450 KB
   Next.js Build     .next/               2.8 MB
 
-  Routes:           42 routes discovered
-  Contracts:        38 contracts processed
-  Pages:            12 pages generated
-  Build Time:       18.3s
+  Routes:           42 routes registered
+  Build Time:       15.2s
 ```
 
 ## Build Optimizations
 
-### 1. Contract Caching
+### 1. Incremental Builds
 
-Superfunction caches contract parsing to speed up builds:
+Superfunction caches build outputs for faster incremental builds:
 
-```json
-// .spfn/cache/contracts.json
-{
-  "version": "1.0.0",
-  "timestamp": "2025-01-15T10:30:00Z",
-  "contracts": [
-    {
-      "file": "src/lib/contracts/users.ts",
-      "hash": "a1b2c3d4",
-      "exports": ["getUserContract", "createUserContract"],
-      "lastModified": "2025-01-15T10:25:00Z"
-    }
-  ]
-}
-
-// Build process checks cache:
-// 1. Compare file hash
-// 2. Skip if unchanged
-// 3. Only regenerate modified contracts
-// Result: 5-10x faster incremental builds
+```bash
+# First build: 25s
+# Second build (no changes): 3s
+# Third build (1 file changed): 8s
 ```
 
 ### 2. Parallel Builds
@@ -325,29 +285,29 @@ Server and Next.js builds run in parallel:
 
 ```bash
 # Sequential (slow): 45s total
-Contract generation → 3s
+Route registration  → 1s
 Server build        → 12s
 Next.js build       → 30s
 
-# Parallel (fast): 33s total
-Contract generation → 3s
+# Parallel (fast): 31s total
+Route registration  → 1s
   ├─ Server build   → 12s  (in parallel)
   └─ Next.js build  → 30s  (in parallel)
 
-Total: 3s + max(12s, 30s) = 33s
+Total: 1s + max(12s, 30s) = 31s
 ```
 
 ### 3. Tree Shaking
 
-Unused contracts and routes are eliminated:
+Unused routes and handlers are eliminated:
 
 ```typescript
-// Contracts defined: 50
-// Contracts used in frontend: 12
-// Result: Only 12 contracts bundled
+// Routes defined: 50
+// Routes used by client: All (RPC-style)
+// TypeScript types: Stripped at build time
 
 // Before tree shaking: 150 KB
-// After tree shaking:   35 KB (77% reduction)
+// After tree shaking:   80 KB (47% reduction)
 ```
 
 ## Build Configuration
@@ -359,30 +319,44 @@ Unused contracts and routes are eliminated:
 import { defineConfig } from 'spfn';
 
 export default defineConfig({
-  // Contract generation
-  contracts: {
-    input: 'src/lib/contracts',
-    output: 'src/lib/api',  // Directory, not file
-    watch: true,  // Auto-regenerate in dev mode
-    incremental: true  // Smart regeneration (skip if only formatting changed)
-  },
+    // Server build
+    server: {
+        entry: 'src/server/index.ts',
+        output: 'dist/server',
+        sourcemap: true,
+        minify: process.env.NODE_ENV === 'production'
+    },
 
-  // Server build
-  server: {
-    entry: 'src/server/index.ts',
-    output: 'dist/server',
-    sourcemap: true,
-    minify: process.env.NODE_ENV === 'production'
-  },
-
-  // Next.js integration
-  nextjs: {
-    dir: '.',
-    experimental: {
-      serverActions: true
+    // Next.js integration
+    nextjs: {
+        dir: '.',
+        experimental: {
+            serverActions: true
+        }
     }
-  }
 });
+```
+
+### Server Config
+
+```typescript
+// src/server/server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { appRouter } from './router';
+import { authMiddleware, loggingMiddleware } from './middlewares';
+
+export default defineServerConfig()
+    .port(8790)
+    .middlewares([
+        loggingMiddleware,
+        authMiddleware,
+    ])
+    .routes(appRouter)
+    .cors({
+        origin: '*',
+        credentials: true,
+    })
+    .build();
 ```
 
 ## Build Commands
@@ -392,18 +366,17 @@ export default defineConfig({
 | `spfn dev` | Start dev servers with hot reload |
 | `spfn build` | Build for production |
 | `spfn start` | Start production servers |
-| `spfn codegen` | Regenerate API client only |
 | `spfn build --server-only` | Build server only (skip Next.js) |
 
 ## Build Performance
 
 ### Typical Build Times
 
-| Project Size | Contract Gen | Server Build | Next.js Build | Total |
-|--------------|--------------|--------------|---------------|-------|
-| Small (10 routes) | 1s | 3s | 12s | 16s |
-| Medium (50 routes) | 3s | 8s | 25s | 36s |
-| Large (200 routes) | 8s | 18s | 45s | 71s |
+| Project Size | Route Registration | Server Build | Next.js Build | Total |
+|--------------|-------------------|--------------|---------------|-------|
+| Small (10 routes) | <1s | 3s | 12s | 15s |
+| Medium (50 routes) | <1s | 8s | 25s | 33s |
+| Large (200 routes) | 1s | 18s | 45s | 64s |
 
 *Times are approximate, measured on M1 MacBook Pro*
 
@@ -411,26 +384,48 @@ export default defineConfig({
 
 ### Slow Builds
 
-```bash
-// 1. Enable build cache
+```typescript
+// 1. Enable build cache (default: enabled)
 // spfn.config.ts
 export default defineConfig({
-  cache: {
-    enabled: true,
-    directory: '.spfn/cache'
-  }
+    cache: {
+        enabled: true,
+        directory: '.spfn/cache'
+    }
 });
 
 // 2. Use --server-only when frontend unchanged
 spfn build --server-only
 
-// 3. Incremental builds (dev mode)
-spfn dev --no-clear  // Keep cache between restarts
+// 3. Check for circular dependencies
+// Circular imports significantly slow down builds
 ```
 
 ### Build Errors
 
-- **Contract validation errors** - Check contract syntax, ensure all required fields present
+- **Route registration errors** - Check route definitions have valid paths and methods
 - **TypeScript errors** - Run `tsc --noEmit` to see detailed errors
-- **Import errors** - Verify contract imports use correct paths
+- **Import errors** - Verify imports use correct paths
 - **Memory errors** - Increase Node.js memory: `NODE_OPTIONS=--max-old-space-size=4096`
+
+### Common Issues
+
+```typescript
+// ❌ Invalid route path
+export const badRoute = route.get('users/:id')  // Missing leading slash
+    .handler(...);
+
+// ✅ Valid route path
+export const goodRoute = route.get('/users/:id')
+    .handler(...);
+
+// ❌ Missing handler
+export const incomplete = route.get('/users')
+    .input({ query: Type.Object({ page: Type.Number() }) });
+    // No .handler() call
+
+// ✅ Complete route
+export const complete = route.get('/users')
+    .input({ query: Type.Object({ page: Type.Number() }) })
+    .handler(async (c) => { ... });
+```

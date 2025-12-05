@@ -277,46 +277,49 @@ Superfunction provides automatic transaction management with the `Transactional(
 ### Using Transactional Middleware
 
 ```typescript
-// src/server/routes/users/index.ts
-import { createApp } from '@spfn/core/route';
+// src/server/routes/users.ts
+import { route } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
 import { create, updateOne } from '@spfn/core/db';
 import { users, profiles } from '@/server/entities';
 
-const app = createApp();
-
 // Apply transaction middleware to specific route
-app.bind(
-  createUserContract,
-  [Transactional()],  // ← All operations in same transaction
-  async (c) => {
-    const data = await c.data();
+export const createUserWithProfile = route.post('/users')
+    .input({
+        body: Type.Object({
+            email: Type.String(),
+            name: Type.String(),
+            bio: Type.Optional(Type.String())
+        })
+    })
+    .use([Transactional()])  // ← All operations in same transaction
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
 
-    // 1. Create user
-    const user = await create(users, {
-      email: data.email,
-      name: data.name
+        // 1. Create user
+        const user = await create(users, {
+            email: body.email,
+            name: body.name
+        });
+
+        // 2. Create profile
+        const profile = await create(profiles, {
+            userId: user.id,
+            bio: body.bio
+        });
+
+        // 3. Update user with profile ID
+        await updateOne(users, { id: user.id }, {
+            profileId: profile.id
+        });
+
+        // ✅ If any operation fails → automatic rollback
+        // ✅ If all succeed → automatic commit
+
+        return c.created({ user, profile });
     });
-
-    // 2. Create profile
-    const profile = await create(profiles, {
-      userId: user.id,
-      bio: data.bio
-    });
-
-    // 3. Update user with profile ID
-    await updateOne(users, { id: user.id }, {
-      profileId: profile.id
-    });
-
-    // ✅ If any operation fails → automatic rollback
-    // ✅ If all succeed → automatic commit
-
-    return c.json({ user, profile });
-  }
-);
-
-export default app;
 ```
 
 > **How Transactions Work**
@@ -444,35 +447,46 @@ try {
 
 
 ```typescript
-app.bind(
-  transferMoneyContract,
-  [Transactional()],
-  async (c) => {
-    const { fromUserId, toUserId, amount } = await c.data();
+export const transferMoney = route.post('/transfer')
+    .input({
+        body: Type.Object({
+            fromUserId: Type.String(),
+            toUserId: Type.String(),
+            amount: Type.Number()
+        })
+    })
+    .use([Transactional()])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const { fromUserId, toUserId, amount } = body;
 
-    try {
-      // Withdraw from sender
-      const sender = await updateOne(users, { id: fromUserId }, {
-        balance: sql`balance - ${amount}`
-      });
+        try
+        {
+            // Withdraw from sender
+            const sender = await updateOne(users, { id: fromUserId }, {
+                balance: sql`balance - ${amount}`
+            });
 
-      if (!sender || sender.balance < 0) {
-        throw new Error('Insufficient funds');
-      }
+            if (!sender || sender.balance < 0)
+            {
+                throw new ValidationError({ message: 'Insufficient funds' });
+            }
 
-      // Deposit to receiver
-      await updateOne(users, { id: toUserId }, {
-        balance: sql`balance + ${amount}`
-      });
+            // Deposit to receiver
+            await updateOne(users, { id: toUserId }, {
+                balance: sql`balance + ${amount}`
+            });
 
-      return c.json({ success: true });
-    } catch (error) {
-      // ⚠️ Must re-throw to trigger rollback
-      console.error('Transfer failed:', error);
-      throw error;  // ← This triggers rollback
-    }
-  }
-);
+            return c.success({ success: true });
+        }
+        catch (error)
+        {
+            // ⚠️ Must re-throw to trigger rollback
+            console.error('Transfer failed:', error);
+            throw error;  // ← This triggers rollback
+        }
+    });
 ```
 
 ## Complex Queries
@@ -652,34 +666,47 @@ export class UserRepository extends BaseRepository {
 ### Using Repositories in Routes
 
 ```typescript
-// src/server/routes/users/index.ts
-import { createApp } from '@spfn/core/route';
+// src/server/routes/users.ts
+import { route } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
+import { NotFoundError } from '@spfn/core/errors';
 import { UserRepository } from '@/server/repositories/users';
 
-const app = createApp();
 const userRepo = new UserRepository();
 
-app.bind(getUserContract, async (c) => {
-  const { id } = await c.params();
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
 
-  const user = await userRepo.findById(id);
+        const user = await userRepo.findById(params.id);
 
-  if (!user) {
-    return c.notFound({ message: 'User not found' });
-  }
+        if (!user)
+        {
+            throw new NotFoundError({ resource: 'User' });
+        }
 
-  return c.json({ user });
-});
+        return user;
+    });
 
-app.bind(createUserContract, async (c) => {
-  const data = await c.data();
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({
+            email: Type.String(),
+            name: Type.String()
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
 
-  const user = await userRepo.create(data);
+        const user = await userRepo.create(body);
 
-  return c.json({ user });
-});
-
-export default app;
+        return c.created(user);
+    });
 ```
 
 ### Automatic Transaction Support
@@ -687,41 +714,45 @@ export default app;
 BaseRepository automatically detects transaction context and uses the appropriate database instance:
 
 ```typescript
-// src/server/routes/users/index.ts
-import { createApp } from '@spfn/core/route';
+// src/server/routes/users.ts
+import { route } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
 import { UserRepository } from '@/server/repositories/users';
 import { ProfileRepository } from '@/server/repositories/profiles';
 
-const app = createApp();
 const userRepo = new UserRepository();
 const profileRepo = new ProfileRepository();
 
-app.bind(
-  createUserWithProfileContract,
-  [Transactional()],  // ← Wraps entire operation in transaction
-  async (c) => {
-    const data = await c.data();
+export const createUserWithProfile = route.post('/users')
+    .input({
+        body: Type.Object({
+            email: Type.String(),
+            name: Type.String(),
+            bio: Type.Optional(Type.String())
+        })
+    })
+    .use([Transactional()])  // ← Wraps entire operation in transaction
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
 
-    // Both repositories automatically use the same transaction
-    const user = await userRepo.create({
-      email: data.email,
-      name: data.name
+        // Both repositories automatically use the same transaction
+        const user = await userRepo.create({
+            email: body.email,
+            name: body.name
+        });
+
+        const profile = await profileRepo.create({
+            userId: user.id,
+            bio: body.bio
+        });
+
+        // ✅ If any operation fails → automatic rollback
+        // ✅ If all succeed → automatic commit
+
+        return c.created({ user, profile });
     });
-
-    const profile = await profileRepo.create({
-      userId: user.id,
-      bio: data.bio
-    });
-
-    // ✅ If any operation fails → automatic rollback
-    // ✅ If all succeed → automatic commit
-
-    return c.json({ user, profile });
-  }
-);
-
-export default app;
 ```
 
 ### Read/Write Separation
@@ -852,17 +883,25 @@ export class UserRepository extends BaseRepository {
 const userRepo = new UserRepository();
 
 // Use in routes
-app.bind(getUserContract, async (c) => {
-  const user = await userRepo.findById(c.req.param('id'));
-  return c.json({ user });
-});
+export const getUser = route.get('/users/:id')
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        const user = await userRepo.findById(params.id);
+        return user;
+    });
 
 // ❌ Bad: Creating new instances in every request
-app.bind(getUserContract, async (c) => {
-  const userRepo = new UserRepository(); // Unnecessary overhead
-  const user = await userRepo.findById(c.req.param('id'));
-  return c.json({ user });
-});
+export const badGetUser = route.get('/users/:id')
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) =>
+    {
+        const userRepo = new UserRepository(); // Unnecessary overhead
+        const { params } = await c.data();
+        const user = await userRepo.findById(params.id);
+        return user;
+    });
 ```
 
 ## Database Migrations
@@ -1034,22 +1073,27 @@ const [user] = await db.select().from(users).where(eq(users.id, 1)).limit(1);
 
 ```typescript
 // ✅ Good: Use Transactional middleware
-app.bind(
-  createUserContract,
-  [Transactional()],
-  async (c) => {
-    const user = await create(users, data);
-    const profile = await create(profiles, { userId: user.id });
-    return c.json({ user, profile });
-  }
-);
+export const createUserWithProfile = route.post('/users')
+    .input({ body: Type.Object({ email: Type.String(), name: Type.String() }) })
+    .use([Transactional()])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const user = await create(users, body);
+        const profile = await create(profiles, { userId: user.id });
+        return c.created({ user, profile });
+    });
 
 // ❌ Bad: No transaction - partial data on error
-app.bind(createUserContract, async (c) => {
-  const user = await create(users, data);
-  const profile = await create(profiles, { userId: user.id });  // If this fails, user is orphaned!
-  return c.json({ user, profile });
-});
+export const badCreate = route.post('/users')
+    .input({ body: Type.Object({ email: Type.String(), name: Type.String() }) })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const user = await create(users, body);
+        const profile = await create(profiles, { userId: user.id });  // If this fails, user is orphaned!
+        return c.created({ user, profile });
+    });
 ```
 
 ### 3. Use Schema Helpers for Consistency

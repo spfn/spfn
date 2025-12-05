@@ -25,15 +25,16 @@ class PostsController < ApplicationController
 end
 ```
 
-**Superfunction:** File-based routing, contract-driven generation
+**Superfunction:** File-based routing, type-safe route definitions
 ```typescript
-// src/server/routes/posts/index.ts
-import { getPostsContract } from '@/lib/contracts/posts';
+// src/server/routes/posts.ts
+import { route } from '@spfn/core/route';
 
-app.bind(getPostsContract, async (c) => {
-  const posts = await db.query.posts.findMany();
-  return c.json({ posts });
-});
+export const getPosts = route.get('/posts')
+    .handler(async (c) => {
+        const posts = await db.query.posts.findMany();
+        return c.json({ posts });
+    });
 ```
 
 ### Don't Repeat Yourself (DRY)
@@ -47,24 +48,27 @@ end
 # Validation, types, and database schema all from one definition
 ```
 
-**Superfunction:** Contract as Single Source of Truth
+**Superfunction:** Route Definition as Single Source of Truth
 ```typescript
+import { route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core';
 
 // Define once
-export const createUserContract = {
-  method: 'POST' as const,
-  path: '/users',
-  body: Type.Object({
-    email: Type.String({ format: 'email' })
-  }),
-  response: UserSchema
-} satisfies RouteContract;
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({
+            email: Type.String({ format: 'email' })
+        })
+    })
+    .handler(async (c) => {
+        const { body } = await c.data();
+        const user = await create(users, body);
+        return c.created(user);
+    });
 
-// ✅ TypeScript types generated
+// ✅ TypeScript types inferred
 // ✅ Runtime validation automatic
-// ✅ API client created
+// ✅ API client generated (RPC-style)
 // ✅ OpenAPI docs generated
 ```
 
@@ -87,7 +91,7 @@ async function createUser(body: CreateUserBody): Promise<CreateUserResponse> {
   return response.json();
 }
 
-// ✅ After: Contract → Everything automatic
+// ✅ After: Route definition → Everything automatic
 const user = await api.users.create({ body: { email: 'user@example.com' } });
 // Fully typed, validated, generated
 ```
@@ -112,45 +116,47 @@ const user = await api.users.create({ body: { email: 'user@example.com' } });
 
 ### 1. Single Source of Truth
 
-One contract definition powers your entire stack:
+One route definition powers your entire stack:
 
 ```typescript
-// src/lib/contracts/posts.ts
+// src/server/routes/posts.ts
+import { route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
-import type { RouteContract } from '@spfn/core';
 
-export const createPostContract = {
-  method: 'POST' as const,
-  path: '/posts',
-  body: Type.Object({
-    title: Type.String({ minLength: 1, maxLength: 200 }),
-    content: Type.String()
-  }),
-  response: PostSchema
-} satisfies RouteContract;
+export const createPost = route.post('/posts')
+    .input({
+        body: Type.Object({
+            title: Type.String({ minLength: 1, maxLength: 200 }),
+            content: Type.String()
+        })
+    })
+    .handler(async (c) => {
+        const { body } = await c.data();
+        const post = await create(posts, body);
+        return c.created(post);
+    });
 ```
 
 **From this one definition:**
-- ✅ TypeScript types extracted
+- ✅ TypeScript types inferred
 - ✅ Runtime validation applied
-- ✅ API client generated
+- ✅ API client generated (RPC-style)
 - ✅ OpenAPI documentation created
 - ✅ Backend handler typed
 - ✅ Frontend calls typed
 - ✅ Component props typed
 
-**Contract types flow everywhere:**
+**Types flow everywhere:**
 ```typescript
-// 1. Extract types from contract
-import type { InferContract } from '@spfn/core';
-import { getPostsContract } from '@/lib/contracts/posts';
+// 1. Extract types from route (using AppRouter)
+import type { AppRouter } from '@/server/router';
+import type { InferRouteOutput } from '@spfn/core/route';
 
-export type GetPostsResponse = InferContract<typeof getPostsContract>['response'];
-export type Post = GetPostsResponse['items'][number];
+export type Post = InferRouteOutput<AppRouter['posts']['create']>;
 
 // 2. Use in API calls
-const { items: posts } = await api.posts.list();
-// posts is fully typed
+const post = await api.posts.create({ title: 'Hello', content: '...' });
+// post is fully typed
 
 // 3. Use in component props
 interface PostListProps {
@@ -165,7 +171,7 @@ function PostList({ posts }: PostListProps) {
 
 // 4. Use in nested components
 interface PostCardProps {
-  post: Post; // Same type from contract!
+  post: Post; // Same type from route!
 }
 
 function PostCard({ post }: PostCardProps) {
@@ -231,17 +237,20 @@ app.post('/users',
 );
 
 // ✅ Superfunction: Convention-based
-app.bind(createUserContract, async (c) => {
-  // Validation automatic
-  // Types automatic
-  // Just write logic
-});
+export const createUser = route.post('/users')
+    .input({ body: CreateUserSchema })
+    .use([Authenticated()])
+    .handler(async (c) => {
+        // Validation automatic
+        // Types automatic
+        // Just write logic
+    });
 ```
 
 **Conventions:**
-- Organize routes by domain: `src/server/routes/users/index.ts` (contains user-related contracts)
-- Contract naming: `getUserContract` → `api.users.get()`
-- Automatic pluralization: `users.ts` → `api.users`
+- Organize routes by domain: `src/server/routes/users.ts`
+- Route naming: `getUser` → `api.users.get()`
+- Router structure: `defineRouter({ users: { get: getUser } })`
 
 ### 5. No Trade-offs
 
@@ -258,7 +267,7 @@ You shouldn't choose between performance and productivity:
 - Code generation at build time
 
 **Simplicity AND Power:**
-- Simple contract syntax
+- Simple route definition syntax
 - Powerful middleware system
 - Advanced features available when needed
 
@@ -270,15 +279,16 @@ Everything works together seamlessly:
 my-app/
 ├── src/
 │   ├── app/              # Next.js frontend
-│   ├── server/           # Superfunction backend
+│   ├── server/
+│   │   ├── routes/       # Route definitions
+│   │   └── router.ts     # defineRouter
 │   └── lib/
-│       ├── contracts/    # Shared contracts
 │       └── api/          # Generated client
 ```
 
 **One project, complete stack:**
 - Frontend calls backend with type safety
-- Backend validates with contracts
+- Backend validates with route input schemas
 - Database queries with Drizzle ORM
 - All TypeScript, all type-safe
 
@@ -294,15 +304,18 @@ Provide powerful tools, trust developers to use them responsibly:
 #### Break Conventions When Needed
 
 ```typescript
-// ✅ Recommended: Use contracts and generated API
-app.bind(getUserContract, async (c) => {
-  const user = await db.query.users.findFirst(...);
-  return c.json(user);
-});
+// ✅ Recommended: Use define-route pattern
+export const getUser = route.get('/users/:id')
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) => {
+        const { params } = await c.data();
+        const user = await db.query.users.findFirst(...);
+        return c.json(user);
+    });
 
 // ✅ Also allowed: Write raw Hono routes
 app.get('/custom-endpoint', async (c) => {
-  // No contract, no validation, full Hono control
+  // No validation, full Hono control
   return c.json({ custom: 'response' });
 });
 ```
@@ -402,15 +415,12 @@ railway up             # Superfunction backend
 #### Skip Safety When Needed
 
 ```typescript
-// Skip middleware for specific endpoints
-export const publicContract = {
-  method: 'GET' as const,
-  path: '/public',
-  response: Schema,
-  meta: {
-    skipMiddlewares: ['auth'] // Bypass auth for this endpoint
-  }
-};
+// Skip middleware for specific endpoints (no .use() call)
+export const publicRoute = route.get('/public')
+    .handler(async (c) => {
+        // No authentication middleware applied
+        return c.json({ public: true });
+    });
 
 // Use any type when you need to
 const data: any = await externalAPI.fetch(); // Escape hatch
@@ -429,50 +439,45 @@ const data: any = await externalAPI.fetch(); // Escape hatch
 
 **Rails convention:** File location determines URL
 
-**Superfunction:** Different approach - contract determines URL, file structure is for organization
+**Superfunction:** Route definition determines URL, file structure is for organization
 
 ```typescript
-// src/server/routes/users/index.ts
-export const getUserContract = {
-  method: 'GET' as const,
-  path: '/users',  // ← This defines the actual API route
-  response: UserSchema
-} satisfies RouteContract;
+// src/server/routes/users.ts
+export const getUsers = route.get('/users')  // ← This defines the API route
+    .handler(async (c) => {
+        const users = await findMany(users);
+        return c.json(users);
+    });
 
 // File location doesn't affect the route!
-// This file could be anywhere, contract.path determines the URL
+// This file could be anywhere, route path determines the URL
 ```
 
 **Recommended file structure** (for clarity, not enforcement):
 
 ```bash
 src/server/routes/
-├── users/
-│   ├── index.ts          # Contains /users contracts
-│   └── [id]/
-│       └── index.ts      # Contains /users/:id contracts
-└── posts/
-    ├── index.ts          # Contains /posts contracts
-    └── [slug]/
-        └── index.ts      # Contains /posts/:slug contracts
+├── users.ts              # Contains /users routes
+├── posts.ts              # Contains /posts routes
+└── router.ts             # defineRouter({ users, posts })
 ```
 
 **Key difference:**
 - **Rails:** File location → URL (enforced)
-- **Superfunction:** Contract path → URL (enforced), File structure → Organization (recommended)
+- **Superfunction:** Route path → URL (enforced), File structure → Organization (recommended)
 
 **Why this matters:**
-- Contract is the single source of truth for routing
+- Route definition is the single source of truth for routing
 - File structure helps developers find related routes quickly
 - No magic file-to-URL mapping to remember
 - Freedom to organize files however you want
 
-### Why Contract-First?
+### Why Route-Definition-First?
 
 **API-first design:**
-1. Define contract
+1. Define route with input schemas
 2. Frontend/backend implement independently
-3. Contract ensures compatibility
+3. Type inference ensures compatibility
 
 **Benefits:**
 - Parallel development
@@ -489,13 +494,13 @@ src/server/routes/
 **Superfunction:** Two servers, one project
 - One `package.json`
 - Two separate server processes (Next.js + Hono)
-- Shared contracts and types
+- Shared route definitions and types
 
 **Advantages:**
 - **Lower cognitive load:** Feels like one project, not three
   - Traditional monorepo: `frontend/` + `backend/` + `shared/` = 3 projects to think about
   - Superfunction: Just write code
-- **Type sharing:** Natural via contracts (no package publishing)
+- **Type sharing:** Natural via route definitions (no package publishing)
 - **Single deployment:** One build, one deployment
 - **Next.js-like DX:** We're building tools to make backend development as easy as Next.js frontend
   - Simple commands (`spfn dev`, `spfn build`)
@@ -528,7 +533,7 @@ Superfunction is a **tool** built on existing frameworks:
 ### Not Opinionated About Everything
 
 **Opinionated:**
-- Contract definition (TypeBox)
+- Schema validation (TypeBox)
 - Database (PostgreSQL + Drizzle)
 - Frontend (Next.js)
 

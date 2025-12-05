@@ -7,7 +7,71 @@ available: true
 
 # Middleware
 
-Superfunction provides built-in middleware for common patterns and supports custom middleware creation for cross-cutting concerns.
+Superfunction provides built-in middleware for common patterns and supports custom middleware creation using `defineMiddleware`.
+
+## defineMiddleware
+
+Create named middleware that can be referenced in `.skip()` calls.
+
+```typescript
+import { defineMiddleware } from '@spfn/core/route';
+
+export const authMiddleware = defineMiddleware('auth', async (c, next) =>
+{
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
+
+    if (!token)
+    {
+        throw new UnauthorizedError({ message: 'No token provided' });
+    }
+
+    const user = await verifyToken(token);
+    c.set('user', user);
+
+    await next();
+});
+```
+
+### Signature
+
+```typescript
+function defineMiddleware<TName extends string>(
+    name: TName,
+    handler: MiddlewareHandler
+): NamedMiddleware<TName>;
+
+// Factory pattern for parameterized middleware
+function defineMiddleware<TName extends string, TArgs extends any[]>(
+    name: TName,
+    factory: (...args: TArgs) => MiddlewareHandler
+): (...args: TArgs) => NamedMiddleware<TName>;
+```
+
+### Factory Middleware
+
+Create parameterized middleware:
+
+```typescript
+export const requirePermissions = defineMiddleware('permission',
+    (...permissions: string[]) => async (c, next) =>
+    {
+        const user = c.get('user');
+
+        const hasAll = permissions.every(p => user.permissions.includes(p));
+        if (!hasAll)
+        {
+            throw new ForbiddenError({ message: 'Insufficient permissions' });
+        }
+
+        await next();
+    }
+);
+
+// Usage
+export const deletePost = route.delete('/posts/:id')
+    .use([requirePermissions('posts:delete', 'admin:write')])
+    .handler(async (c) => { /* ... */ });
+```
 
 ## Built-in Middleware
 
@@ -18,31 +82,29 @@ Automatic API request/response logging with performance monitoring.
 ```typescript
 import { RequestLogger } from '@spfn/core';
 
-// Global middleware (server.config.ts)
-export default {
-  use: [RequestLogger()],
-} satisfies ServerConfig;
-
-// Route-specific middleware
-export const middleware = [RequestLogger()];
+// In server config
+export default defineServerConfig()
+    .middlewares([
+        RequestLogger()
+    ])
+    .routes(appRouter)
+    .build();
 
 // With configuration
-export const middleware = [
-  RequestLogger({
+RequestLogger({
     excludePaths: ['/health', '/ping'],
     sensitiveFields: ['password', 'token', 'apiKey'],
     slowRequestThreshold: 1000, // ms
-  }),
-];
+})
 ```
 
 #### Configuration Options
 
 | Option | Type | Default |
 |--------|------|---------|
-| `excludePaths` | `string[]` | ['/health', '/ping'] |
-| `sensitiveFields` | `string[]` | ['password', 'token', ...] |
-| `slowRequestThreshold` | `number` | 1000 (1 second) |
+| `excludePaths` | `string[]` | `['/health', '/ping']` |
+| `sensitiveFields` | `string[]` | `['password', 'token', ...]` |
+| `slowRequestThreshold` | `number` | `1000` (1 second) |
 
 #### Log Output
 
@@ -54,28 +116,16 @@ export const middleware = [
   "requestId": "req_1705315800000_abc123",
   "method": "POST",
   "path": "/users",
-  "query": {},
   "body": { "email": "user@example.com", "password": "***" }
 }
 
 // Response log
 {
   "level": "info",
-  "timestamp": "2024-01-15T10:30:00.123Z",
   "requestId": "req_1705315800000_abc123",
-  "method": "POST",
-  "path": "/users",
   "status": 201,
   "duration": 123,
   "message": "Request completed"
-}
-
-// Slow request warning
-{
-  "level": "warn",
-  "requestId": "req_1705315800000_abc123",
-  "duration": 2500,
-  "message": "Slow request detected"
 }
 ```
 
@@ -86,17 +136,14 @@ Global error handler for consistent error responses.
 ```typescript
 import { ErrorHandler } from '@spfn/core';
 
-// Global middleware (server.config.ts)
-export default {
-  use: [ErrorHandler()],
-} satisfies ServerConfig;
-
-// With configuration
-export const middleware = [
-  ErrorHandler({
-    includeStack: process.env.NODE_ENV === 'development',
-  }),
-];
+export default defineServerConfig()
+    .middlewares([
+        ErrorHandler({
+            includeStack: process.env.NODE_ENV === 'development'
+        })
+    ])
+    .routes(appRouter)
+    .build();
 ```
 
 #### Error Response Format
@@ -107,10 +154,7 @@ export const middleware = [
   "error": "ValidationError",
   "message": "Invalid email format",
   "statusCode": 400,
-  "details": {
-    "field": "email",
-    "value": "invalid-email"
-  }
+  "details": { "field": "email" }
 }
 
 // Not found error (404)
@@ -136,32 +180,34 @@ Wraps route handler in a database transaction using AsyncLocalStorage.
 ```typescript
 import { Transactional, getTransaction } from '@spfn/core';
 
-// Route middleware
-export const middleware = [Transactional()];
+export const createOrder = route.post('/orders')
+    .input({
+        body: OrderSchema
+    })
+    .use([Transactional()])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
 
-export const handler = async (c: RouteContext<typeof contract>) => {
-  // Get transaction from context
-  const tx = getTransaction();
+        // Get transaction from context
+        const tx = getTransaction();
 
-  // All operations use same transaction
-  const order = await create(orders, orderData, { tx });
-  await create(orderItems, itemsData, { tx });
-  await update(inventory, { id: productId }, { stock: newStock }, { tx });
+        // All operations use same transaction
+        const order = await create(orders, body, { tx });
+        await create(orderItems, body.items, { tx });
 
-  // Automatic commit on success, rollback on error
-  return c.json(order);
-};
+        // Automatic commit on success, rollback on error
+        return c.created(order);
+    });
 ```
 
 #### Configuration Options
 
 ```typescript
-export const middleware = [
-  Transactional({
+Transactional({
     isolationLevel: 'read committed', // Transaction isolation level
     timeout: 5000,                    // Transaction timeout (ms)
-  }),
-];
+})
 ```
 
 ## Custom Middleware
@@ -169,244 +215,197 @@ export const middleware = [
 ### Basic Middleware
 
 ```typescript
-import type { Context, Next } from 'hono';
+import { defineMiddleware } from '@spfn/core/route';
 
-// Simple middleware
-export function customMiddleware() {
-  return async (c: Context, next: Next) => {
-    // Before handler
-    console.log('Before:', c.req.path);
-
-    await next(); // Call next middleware/handler
-
-    // After handler
-    console.log('After:', c.res.status);
-  };
-}
-
-// Usage
-export const middleware = [customMiddleware()];
-```
-
-### Authentication Middleware
-
-```typescript
-import type { Context, Next } from 'hono';
-import { UnauthorizedError } from '@spfn/core';
-
-export function auth() {
-  return async (c: Context, next: Next) => {
-    const token = c.req.header('Authorization')?.replace('Bearer ', '');
-
-    if (!token) {
-      throw new UnauthorizedError('Missing authentication token');
-    }
-
-    // Verify token
-    const user = await verifyToken(token);
-
-    if (!user) {
-      throw new UnauthorizedError('Invalid token');
-    }
-
-    // Store user in context
-    c.set('user', user);
-
-    await next();
-  };
-}
-
-// Usage
-export const middleware = [auth()];
-
-export const handler = async (c: RouteContext<typeof contract>) => {
-  // Access user from context
-  const user = c.raw.get('user');
-  return c.json({ userId: user.id });
-};
-```
-
-### Rate Limiting Middleware
-
-```typescript
-import type { Context, Next } from 'hono';
-import { TooManyRequestsError } from '@spfn/core';
-import { getRedis } from '@spfn/core';
-
-export function rateLimit(options: { limit: number; window: number }) {
-  return async (c: Context, next: Next) => {
-    const redis = getRedis();
-    const ip = c.req.header('x-forwarded-for') || 'unknown';
-    const key = `ratelimit:${ip}`;
-
-    const current = await redis.incr(key);
-
-    if (current === 1) {
-      await redis.expire(key, options.window);
-    }
-
-    if (current > options.limit) {
-      throw new TooManyRequestsError('Rate limit exceeded');
-    }
-
-    c.header('X-RateLimit-Limit', String(options.limit));
-    c.header('X-RateLimit-Remaining', String(options.limit - current));
-
-    await next();
-  };
-}
-
-// Usage
-export const middleware = [
-  rateLimit({ limit: 100, window: 60 }), // 100 requests per minute
-];
-```
-
-### Request ID Middleware
-
-```typescript
-import type { Context, Next } from 'hono';
-import { randomUUID } from 'crypto';
-
-export function requestId() {
-  return async (c: Context, next: Next) => {
-    const requestId = c.req.header('X-Request-ID') || randomUUID();
-
-    // Store in context
-    c.set('requestId', requestId);
-
-    // Add to response headers
-    c.header('X-Request-ID', requestId);
-
-    await next();
-  };
-}
-
-// Usage
-export const middleware = [requestId()];
-```
-
-### Timing Middleware
-
-```typescript
-import type { Context, Next } from 'hono';
-
-export function timing() {
-  return async (c: Context, next: Next) => {
+export const timingMiddleware = defineMiddleware('timing', async (c, next) =>
+{
     const start = Date.now();
 
     await next();
 
     const duration = Date.now() - start;
     c.header('X-Response-Time', `${duration}ms`);
-  };
-}
+});
+```
 
-// Usage
-export const middleware = [timing()];
+### Authentication Middleware
+
+```typescript
+import { defineMiddleware } from '@spfn/core/route';
+import { UnauthorizedError } from '@spfn/core/errors';
+
+export const authMiddleware = defineMiddleware('auth', async (c, next) =>
+{
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
+
+    if (!token)
+    {
+        throw new UnauthorizedError({ message: 'Missing authentication token' });
+    }
+
+    const user = await verifyToken(token);
+
+    if (!user)
+    {
+        throw new UnauthorizedError({ message: 'Invalid token' });
+    }
+
+    c.set('user', user);
+    await next();
+});
+```
+
+### Rate Limiting Middleware
+
+```typescript
+import { defineMiddleware } from '@spfn/core/route';
+import { TooManyRequestsError } from '@spfn/core/errors';
+
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+export const rateLimitMiddleware = defineMiddleware('rateLimit', async (c, next) =>
+{
+    const ip = c.req.header('x-forwarded-for') || 'unknown';
+    const now = Date.now();
+    const windowMs = 60000;  // 1 minute
+    const max = 100;
+
+    let record = rateLimitMap.get(ip);
+
+    if (!record || now > record.resetAt)
+    {
+        record = { count: 0, resetAt: now + windowMs };
+        rateLimitMap.set(ip, record);
+    }
+
+    record.count++;
+
+    if (record.count > max)
+    {
+        throw new TooManyRequestsError({ message: 'Rate limit exceeded' });
+    }
+
+    c.header('X-RateLimit-Limit', max.toString());
+    c.header('X-RateLimit-Remaining', (max - record.count).toString());
+
+    await next();
+});
+```
+
+### Request ID Middleware
+
+```typescript
+import { defineMiddleware } from '@spfn/core/route';
+import { randomUUID } from 'crypto';
+
+export const requestIdMiddleware = defineMiddleware('requestId', async (c, next) =>
+{
+    const requestId = c.req.header('X-Request-ID') || randomUUID();
+
+    c.set('requestId', requestId);
+    c.header('X-Request-ID', requestId);
+
+    await next();
+});
 ```
 
 ## Middleware Application
 
-### Global Middleware
+### Global Middleware (Server Config)
 
 ```typescript
 // src/server/server.config.ts
-import { RequestLogger, ErrorHandler } from '@spfn/core';
+import { defineServerConfig } from '@spfn/core/server';
+import { appRouter } from './router';
+import { loggingMiddleware, authMiddleware, rateLimitMiddleware } from './middlewares';
 
-export default {
-  use: [
-    RequestLogger(),
-    ErrorHandler(),
-  ],
-} satisfies ServerConfig;
-```
-
-### Named Global Middleware
-
-```typescript
-// src/server/server.config.ts
-import { auth, rateLimit } from '@/middleware';
-
-export default {
-  middlewares: [
-    { name: 'auth', handler: auth() },
-    { name: 'rateLimit', handler: rateLimit({ limit: 100, window: 60 }) },
-  ],
-} satisfies ServerConfig;
-
-// Skip in route with meta
-export const contract: RouteContract = {
-  method: 'POST',
-  path: '/login',
-  meta: {
-    skipMiddlewares: ['auth'], // Skip auth for login route
-  },
-  // ...
-};
+export default defineServerConfig()
+    .middlewares([
+        loggingMiddleware,
+        authMiddleware,
+        rateLimitMiddleware,
+    ])
+    .routes(appRouter)
+    .build();
 ```
 
 ### Route-Specific Middleware
 
 ```typescript
-// src/server/routes/users/[id]/delete.ts
-import { auth } from '@/middleware';
-
-export const middleware = [auth()];
-
-export const handler = async (c: RouteContext<typeof contract>) => {
-  // Only authenticated users can access
-  const user = c.raw.get('user');
-  // ...
-};
+// Apply middleware to specific routes using .use()
+export const deleteUser = route.delete('/admin/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .use([adminOnlyMiddleware, auditLogMiddleware])
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        await deleteUserById(params.id);
+        return c.noContent();
+    });
 ```
 
-### Contract-Level Middleware
+### Skipping Global Middleware
 
 ```typescript
-// Apply middleware via contract meta
-export const contract: RouteContract = {
-  method: 'POST',
-  path: '/orders',
-  body: OrderSchema,
-  response: OrderResponseSchema,
-  meta: {
-    public: true, // Skip auth
-    skipMiddlewares: ['rateLimit'], // Skip rate limiting
-  },
-};
+// Skip specific global middlewares using .skip()
+export const healthCheck = route.get('/health')
+    .skip(['auth'])  // Skip auth middleware
+    .handler(async (c) =>
+    {
+        return { status: 'ok' };
+    });
+
+// Skip all global middlewares
+export const internalHealthCheck = route.get('/_internal/health')
+    .skip('*')  // Skip all middlewares
+    .handler(async (c) =>
+    {
+        return { status: 'ok', timestamp: Date.now() };
+    });
 ```
 
-## Middleware Order
+## Middleware Execution Order
 
-Middleware execution order matters. They are executed in this order:
+Middleware executes in this order:
 
 ```typescript
-// 1. Global middleware (server.config.ts - use)
-export default {
-  use: [timing(), requestId()],
-};
+// 1. Global middleware (from server config)
+export default defineServerConfig()
+    .middlewares([
+        loggingMiddleware,    // First
+        authMiddleware,       // Second
+        rateLimitMiddleware,  // Third
+    ])
 
-// 2. Named global middleware (server.config.ts - middlewares)
-export default {
-  middlewares: [
-    { name: 'auth', handler: auth() },
-  ],
-};
+// 2. Route-specific middleware (.use())
+export const route = route.post('/orders')
+    .use([validateOrderMiddleware])  // Fourth
+    .handler(async (c) => { ... });  // Fifth (handler)
 
-// 3. Route-specific middleware
-export const middleware = [Transactional()];
-
-// 4. Handler
-export const handler = async (c) => { /* ... */ };
+// Response flows back through middleware in reverse order
 ```
 
-> **Note:** Execution Flow
-> 1. Global middleware (use)
-> 2. Named global middleware (middlewares)
-> 3. Route-specific middleware
-> 4. Route handler
-> 5. Response (back through middleware chain)
+## Middleware Types
+
+### MiddlewareHandler
+
+```typescript
+type MiddlewareHandler = (
+    c: Context,
+    next: () => Promise<void>
+) => Promise<void | Response>;
+```
+
+### NamedMiddleware
+
+```typescript
+interface NamedMiddleware<TName extends string = string> {
+    name: TName;
+    handler: MiddlewareHandler;
+}
+```
 
 ## Best Practices
 
@@ -414,59 +413,95 @@ export const handler = async (c) => { /* ... */ };
 
 ```typescript
 // ✅ Good: Single responsibility
-export function auth() { /* only authentication */ }
-export function rateLimit() { /* only rate limiting */ }
+export const authMiddleware = defineMiddleware('auth', ...);
+export const rateLimitMiddleware = defineMiddleware('rateLimit', ...);
 
 // ❌ Bad: Multiple responsibilities
-export function authAndRateLimit() { /* authentication + rate limiting */ }
+export const authAndRateLimitMiddleware = defineMiddleware('authAndRateLimit', ...);
 ```
 
-### 2. Use c.set() for Context Sharing
+### 2. Always Call next()
+
+```typescript
+// ✅ Good: Call next()
+export const middleware = defineMiddleware('example', async (c, next) =>
+{
+    // Before handler
+    console.log('Before');
+
+    await next();  // Continue to next middleware/handler
+
+    // After handler
+    console.log('After');
+});
+
+// ❌ Bad: Missing next()
+export const badMiddleware = defineMiddleware('bad', async (c, next) =>
+{
+    console.log('Before');
+    // Forgot to call next() - request hangs!
+});
+```
+
+### 3. Use c.set() for Context Sharing
 
 ```typescript
 // ✅ Good: Store in context
 c.set('user', user);
+c.set('requestId', requestId);
 
-// Handler access
+// Handler access via c.raw.get()
 const user = c.raw.get('user');
 ```
 
-### 3. Always Call next()
+### 4. Handle Errors with Typed Errors
 
 ```typescript
-// ✅ Good: Call next()
-export function middleware() {
-  return async (c, next) => {
-    // do work
-    await next(); // Continue to next middleware
-    // cleanup work
-  };
-}
+import { UnauthorizedError, ForbiddenError } from '@spfn/core/errors';
 
-// ❌ Bad: Missing next()
-export function middleware() {
-  return async (c, next) => {
-    // do work
-    // Forgot to call next() - request hangs!
-  };
-}
-```
-
-### 4. Handle Errors Properly
-
-```typescript
 // ✅ Good: Throw typed errors
-if (!token) {
-  throw new UnauthorizedError('Missing token');
+if (!token)
+{
+    throw new UnauthorizedError({ message: 'Missing token' });
 }
 
 // ❌ Bad: Generic error
-if (!token) {
-  throw new Error('Missing token');
+if (!token)
+{
+    throw new Error('Missing token');
 }
 ```
 
-> **✅ Success:** Next: CLI Commands
+### 5. Use Named Middleware for Skip Support
+
+```typescript
+// ✅ Good: Named middleware can be skipped
+export const authMiddleware = defineMiddleware('auth', ...);
+
+// Routes can skip by name
+export const publicRoute = route.get('/public')
+    .skip(['auth'])
+    .handler(...);
+```
+
+### 6. Order Matters
+
+Place logging first, then auth, then rate limiting:
+
+```typescript
+export default defineServerConfig()
+    .middlewares([
+        loggingMiddleware,       // First - logs all requests
+        timingMiddleware,        // Timing for all requests
+        corsMiddleware,          // CORS before auth
+        authMiddleware,          // Authentication
+        rateLimitMiddleware,     // Rate limiting last
+    ])
+    .routes(appRouter)
+    .build();
+```
+
+> **Next: CLI Commands**
 >
 > Learn about Superfunction CLI commands for development and deployment.
 >

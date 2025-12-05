@@ -1,146 +1,74 @@
 ---
 title: "Context"
-description: "Complete API reference for RouteContext and request handling"
+description: "Complete API reference for route handler context and request handling"
 order: 3
 available: true
 ---
 
 # Context
 
-RouteContext provides type-safe access to request data, validated against your contract schemas.
+The route handler context provides type-safe access to request data, validated against your input schemas defined with `.input()`.
 
-## RouteContext Type
+## Handler Context
 
-Generic context type with contract-based type inference.
-
-```typescript
-type RouteContext<TContract extends RouteContract = any> = {
-  params: InferContract<TContract>['params'];
-  query: InferContract<TContract>['query'];
-  data(): Promise<InferContract<TContract>['body']>;
-  json(
-    data: InferContract<TContract>['response'],
-    status?: ContentfulStatusCode,
-    headers?: HeaderRecord
-  ): Response;
-  success<T>(
-    data: T,
-    meta?: ApiSuccessResponse<T>['meta'],
-    status?: number
-  ): Response;
-  paginated<T>(
-    data: T[],
-    page: number,
-    limit: number,
-    total: number
-  ): Response;
-  noContent(): Response;
-  created<T>(data: T, location?: string): Response;
-  accepted<T>(data?: T): Response;
-  notModified(): Response;
-  raw: Context; // Hono Context
-};
-```
-
-> **⚠️ Warning:** Important: Type Safety
->
-> RouteContext provides type-safe access to validated request data. All params, query, and body are automatically validated against your contract schemas before reaching your handler.
-
-## Context Properties
-
-### c.params
-
-Type-safe access to URL path parameters.
+When you define a route with `.handler()`, you receive a context object with access to validated request data and response helpers.
 
 ```typescript
-// Contract
-export const getUserContract: RouteContract = {
-  method: 'GET',
-  path: '/users/:id',
-  params: Type.Object({
-    id: Type.Number(),
-  }),
-  response: UserSchema,
-};
+import { route } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
 
-// Handler
-export const handler = async (c: RouteContext<typeof getUserContract>) => {
-  const { id } = c.params; // Type: number
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) =>
+    {
+        // c provides type-safe access to request data
+        const { params } = await c.data();
+        //      ^? { id: string }
 
-  const user = await findOne(users, { id });
-  return c.json(user);
-};
+        return { id: params.id, name: 'John Doe' };
+    });
 ```
 
-### c.query
-
-Type-safe access to query parameters.
-
-```typescript
-// Contract
-export const getUsersContract: RouteContract = {
-  method: 'GET',
-  path: '/users',
-  query: Type.Object({
-    limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
-    offset: Type.Optional(Type.Number({ minimum: 0 })),
-    search: Type.Optional(Type.String()),
-  }),
-  response: PaginatedUsersSchema,
-};
-
-// Handler
-export const handler = async (c: RouteContext<typeof getUsersContract>) => {
-  const { limit = 10, offset = 0, search } = c.query;
-  // Type: { limit?: number; offset?: number; search?: string; }
-
-  const users = await findMany(users, {
-    where: search ? { name: { like: `%${search}%` } } : undefined,
-    limit,
-    offset,
-  });
-
-  return c.json({ items: users, total: users.length, limit, offset });
-};
-```
+## Context Methods
 
 ### c.data()
 
-Type-safe access to request body (async).
+Type-safe access to all validated request data (params, query, body, headers).
 
 ```typescript
-// Contract
-export const createUserContract: RouteContract = {
-  method: 'POST',
-  path: '/users',
-  body: Type.Object({
-    email: Type.String({ format: 'email' }),
-    name: Type.String(),
-    password: Type.String({ minLength: 8 }),
-  }),
-  response: UserSchema,
-};
+export const updateUser = route.put('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() }),
+        body: Type.Object({
+            name: Type.String(),
+            email: Type.String()
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { params, body } = await c.data();
+        // params: { id: string }
+        // body: { name: string; email: string }
 
-// Handler
-export const handler = async (c: RouteContext<typeof createUserContract>) => {
-  const body = await c.data();
-  // Type: { email: string; name: string; password: string; }
-
-  const hashedPassword = await hashPassword(body.password);
-
-  const user = await create(users, {
-    email: body.email,
-    name: body.name,
-    password: hashedPassword,
-  });
-
-  return c.json(user, 201);
-};
+        const user = await updateUserById(params.id, body);
+        return user;
+    });
 ```
+
+#### Data Properties
+
+| Property | Description |
+|----------|-------------|
+| `params` | URL path parameters (e.g., `/users/:id`) |
+| `query` | Query string parameters (e.g., `?page=1`) |
+| `body` | Request body (POST, PUT, PATCH) |
+| `headers` | Request headers (when defined in input) |
 
 ### c.json()
 
-Type-safe JSON response with status and headers.
+Return JSON response with optional status code and headers.
 
 ```typescript
 // Basic usage
@@ -151,52 +79,90 @@ return c.json({ id: 1, name: 'John' }, 201);
 
 // With custom headers
 return c.json(
-  { id: 1, name: 'John' },
-  200,
-  { 'X-Custom-Header': 'value' }
+    { id: 1, name: 'John' },
+    200,
+    { 'X-Custom-Header': 'value' }
 );
 ```
 
-## Response Helpers
+### c.created()
 
-SPFN provides convenient response helpers for common HTTP patterns with standardized formats.
+Return 201 Created response with optional Location header.
+
+```typescript
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({
+            name: Type.String(),
+            email: Type.String()
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const user = await createUserInDb(body);
+
+        // Returns 201 with Location header
+        return c.created(user, `/users/${user.id}`);
+    });
+```
+
+### c.noContent()
+
+Return 204 No Content response (typically for DELETE operations).
+
+```typescript
+export const deleteUser = route.delete('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        await deleteUserById(params.id);
+
+        return c.noContent();
+    });
+```
 
 ### c.success()
 
-Return successful response with standard format (200 OK).
+Return standardized success response format.
 
 ```typescript
-// Basic success
 return c.success({ id: 1, name: 'John' });
 // Response: { success: true, data: { id: 1, name: 'John' } }
 
 // With metadata
 return c.success(
-  { id: 1, name: 'John' },
-  { timestamp: Date.now() }
+    { id: 1, name: 'John' },
+    { timestamp: Date.now() }
 );
 // Response: { success: true, data: {...}, meta: { timestamp: ... } }
-
-// With custom status
-return c.success({ message: 'Updated' }, undefined, 200);
 ```
 
 ### c.paginated()
 
-Return paginated list with pagination metadata (200 OK).
+Return paginated list with pagination metadata.
 
 ```typescript
-export const handler = async (c: RouteContext<typeof getUsersContract>) => {
-  const { page = 1, limit = 10 } = c.query;
+export const getUsers = route.get('/users')
+    .input({
+        query: Type.Object({
+            page: Type.Optional(Type.Number({ default: 1 })),
+            limit: Type.Optional(Type.Number({ default: 10 }))
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { query } = await c.data();
+        const { page = 1, limit = 10 } = query;
 
-  const users = await findMany(users, {
-    limit,
-    offset: (page - 1) * limit
-  });
-  const total = await count(users);
+        const users = await findUsers({ page, limit });
+        const total = await countUsers();
 
-  return c.paginated(users, page, limit, total);
-};
+        return c.paginated(users, page, limit, total);
+    });
 
 // Response format:
 // {
@@ -213,319 +179,322 @@ export const handler = async (c: RouteContext<typeof getUsersContract>) => {
 // }
 ```
 
-### c.created()
-
-Return created resource with Location header (201 Created).
-
-```typescript
-export const handler = async (c: RouteContext<typeof createUserContract>) => {
-  const body = await c.data();
-  const user = await create(users, body);
-
-  // With Location header
-  return c.created(user, `/users/${user.id}`);
-};
-
-// Response: 201 Created
-// Headers: Location: /users/123
-// Body: { success: true, data: { id: 123, ... } }
-```
-
-### c.noContent()
-
-Return empty response for successful DELETE operations (204 No Content).
-
-```typescript
-export const handler = async (c: RouteContext<typeof deleteUserContract>) => {
-  const { id } = c.params;
-  await deleteOne(users, { id });
-
-  return c.noContent();
-};
-
-// Response: 204 No Content (no body)
-```
-
 ### c.accepted()
 
-Return accepted response for async operations (202 Accepted).
+Return 202 Accepted for async operations.
 
 ```typescript
-// With job data
-export const handler = async (c: RouteContext<typeof processJobContract>) => {
-  const body = await c.data();
-  const job = await queueJob(body);
+export const processJob = route.post('/jobs')
+    .input({
+        body: Type.Object({ type: Type.String() })
+    })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const job = await queueJob(body);
 
-  return c.accepted({ jobId: job.id, status: 'queued' });
-};
-// Response: 202 Accepted
-// Body: { success: true, data: { jobId: '...', status: 'queued' } }
-
-// Without data (fire-and-forget)
-return c.accepted();
-// Response: 202 Accepted (no body)
+        return c.accepted({ jobId: job.id, status: 'queued' });
+    });
 ```
 
 ### c.notModified()
 
-Return not modified response for cache validation (304 Not Modified).
+Return 304 Not Modified for cache validation.
 
 ```typescript
-export const handler = async (c: RouteContext<typeof getUserContract>) => {
-  const { id } = c.params;
-  const etag = c.raw.req.header('If-None-Match');
+export const getResource = route.get('/resources/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) =>
+    {
+        const etag = c.raw.req.header('If-None-Match');
+        const resource = await findResource();
+        const currentEtag = generateEtag(resource);
 
-  const user = await findOne(users, { id });
-  const currentEtag = generateEtag(user);
+        if (etag === currentEtag)
+        {
+            return c.notModified();
+        }
 
-  if (etag === currentEtag) {
-    return c.notModified();
-  }
-
-  c.raw.header('ETag', currentEtag);
-  return c.success(user);
-};
-
-// Response: 304 Not Modified (no body)
+        c.raw.header('ETag', currentEtag);
+        return c.success(resource);
+    });
 ```
 
-### c.raw
+## c.raw - Hono Context
 
-Access to underlying Hono Context for advanced use cases.
+Access the underlying Hono context for advanced use cases.
 
 ```typescript
-export const handler = async (c: RouteContext<typeof contract>) => {
-  // Access raw Hono context
-  const honoContext = c.raw;
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) =>
+    {
+        // Access raw Hono context
+        const honoContext = c.raw;
 
-  // Get request headers
-  const auth = honoContext.req.header('Authorization');
+        // Get request headers
+        const auth = honoContext.req.header('Authorization');
 
-  // Set response headers
-  honoContext.header('X-Request-ID', requestId);
+        // Set response headers
+        honoContext.header('X-Request-ID', 'req-123');
 
-  // Access middleware-set values
-  const user = honoContext.get('user');
+        // Access middleware-set values
+        const user = honoContext.get('user');
 
-  // Use Hono utilities
-  const ip = honoContext.req.header('x-forwarded-for');
+        // Get client IP
+        const ip = honoContext.req.header('x-forwarded-for');
 
-  return c.json({ success: true });
-};
+        const { params } = await c.data();
+        return { id: params.id };
+    });
 ```
-
-> **⚠️ Warning:** Important: Middleware Context
->
-> Middleware receives raw Hono Context, not RouteContext. You cannot access `c.data()`, `c.params`, or `c.query` with contract types in middleware.
->
-> To pass data from middleware to handlers, use `c.set()` in middleware and `c.raw.get()` in handlers.
 
 ## Common Patterns
 
-### Destructuring Request Data
+### GET with Query Parameters
 
 ```typescript
-export const handler = async (c: RouteContext<typeof updateUserContract>) => {
-  // Destructure params and body
-  const { id } = c.params;
-  const body = await c.data();
+export const searchUsers = route.get('/users/search')
+    .input({
+        query: Type.Object({
+            q: Type.String(),
+            limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
+            offset: Type.Optional(Type.Number({ minimum: 0 }))
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { query } = await c.data();
+        const { q, limit = 10, offset = 0 } = query;
 
-  const user = await update(users, { id }, body);
-  return c.json(user);
-};
+        const results = await searchUsers(q, { limit, offset });
+        return { items: results, query: q };
+    });
+```
+
+### POST with Body
+
+```typescript
+export const createTeam = route.post('/teams')
+    .input({
+        body: Type.Object({
+            name: Type.String({ minLength: 1 }),
+            slug: Type.String({ pattern: '^[a-z0-9-]+$' }),
+            description: Type.Optional(Type.String())
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+
+        const team = await createTeamInDb(body);
+        return c.created(team, `/teams/${team.id}`);
+    });
+```
+
+### PUT with Params and Body
+
+```typescript
+export const updateTeam = route.put('/teams/:id')
+    .input({
+        params: Type.Object({ id: Type.String() }),
+        body: Type.Object({
+            name: Type.Optional(Type.String()),
+            description: Type.Optional(Type.String())
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { params, body } = await c.data();
+
+        const team = await updateTeamById(params.id, body);
+        return team;
+    });
 ```
 
 ### Accessing Middleware Data
 
+Middleware can store data in Hono context for handlers to access:
+
 ```typescript
 // Middleware sets user
-app.use('*', async (c, next) => {
-  const token = c.req.header('Authorization')?.replace('Bearer ', '');
-  const user = await verifyToken(token);
-  c.set('user', user); // Set in Hono context
-  await next();
+export const authMiddleware = defineMiddleware('auth', async (c, next) =>
+{
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
+    const user = await verifyToken(token);
+    c.set('user', user);
+    await next();
 });
 
-// Handler accesses user
-export const handler = async (c: RouteContext<typeof contract>) => {
-  // Access via c.raw.get()
-  const user = c.raw.get('user');
-
-  return c.json({ userId: user.id });
-};
+// Handler accesses user via c.raw.get()
+export const getProfile = route.get('/profile')
+    .handler(async (c) =>
+    {
+        const user = c.raw.get('user');
+        return { id: user.id, email: user.email };
+    });
 ```
 
 ### Custom Response Headers
 
 ```typescript
-export const handler = async (c: RouteContext<typeof getUsersContract>) => {
-  const { limit, offset } = c.query;
-  const users = await findMany(users, { limit, offset });
-  const total = await count(users);
-
-  // Add pagination headers
-  return c.json(
-    { items: users, total },
-    200,
+export const getUsers = route.get('/users')
+    .input({
+        query: Type.Object({
+            limit: Type.Optional(Type.Number()),
+            offset: Type.Optional(Type.Number())
+        })
+    })
+    .handler(async (c) =>
     {
-      'X-Total-Count': String(total),
-      'X-Page-Size': String(limit),
-      'X-Page-Offset': String(offset),
-    }
-  );
-};
+        const { query } = await c.data();
+        const { limit = 10, offset = 0 } = query;
+
+        const users = await findUsers({ limit, offset });
+        const total = await countUsers();
+
+        // Add pagination headers
+        return c.json(
+            { items: users, total },
+            200,
+            {
+                'X-Total-Count': String(total),
+                'X-Page-Size': String(limit),
+                'X-Page-Offset': String(offset)
+            }
+        );
+    });
 ```
 
 ### Error Responses
 
 ```typescript
-import { NotFoundError, ValidationError } from '@spfn/core';
+import { NotFoundError, ValidationError } from '@spfn/core/errors';
 
-export const handler = async (c: RouteContext<typeof getUserContract>) => {
-  const { id } = c.params;
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
 
-  const user = await findOne(users, { id });
+        const user = await findUserById(params.id);
 
-  if (!user) {
-    throw new NotFoundError('User not found');
-  }
+        if (!user)
+        {
+            throw new NotFoundError({ resource: 'User' });
+        }
 
-  return c.json(user);
-};
+        return user;
+    });
 ```
 
-## Transaction Context
+## Type Inference
 
-Access database transactions via AsyncLocalStorage.
+Types are automatically inferred from your `.input()` definition:
 
 ```typescript
-import { Transactional, getTransaction } from '@spfn/core';
+export const createPost = route.post('/posts')
+    .input({
+        body: Type.Object({
+            title: Type.String(),
+            content: Type.String(),
+            published: Type.Boolean()
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        // body is typed as: { title: string; content: string; published: boolean }
 
-export const contract: RouteContract = {
-  method: 'POST',
-  path: '/orders',
-  body: OrderCreateSchema,
-  response: OrderSchema,
-};
-
-export const middleware = [Transactional()];
-
-export const handler = async (c: RouteContext<typeof contract>) => {
-  const body = await c.data();
-
-  // Get transaction from context
-  const tx = getTransaction();
-
-  // All operations use same transaction
-  const order = await create(orders, body, { tx });
-  await create(orderItems, { orderId: order.id, ...body.items }, { tx });
-
-  return c.json(order);
-};
+        return { id: '1', ...body };
+        // Return type is inferred for client-side type safety
+    });
 ```
 
-## Type Inference Examples
-
-### Extract Types from Contract
+### Extracting Types
 
 ```typescript
-import type { InferContract } from '@spfn/core';
+import type { InferRouteTypes } from '@spfn/core/route';
 
-// Extract specific types
-type CreateUserBody = InferContract<typeof createUserContract>['body'];
-type UserResponse = InferContract<typeof getUserContract>['response'];
-
-// Use in functions
-async function validateUserData(data: CreateUserBody) {
-  // data is fully typed
-  console.log(data.email, data.name, data.password);
-}
-
-// Use in state (frontend)
-const [user, setUser] = useState<UserResponse | null>(null);
-```
-
-### Generic Handler Helper
-
-```typescript
-import type { RouteContext, RouteContract } from '@spfn/core';
-
-// Generic handler wrapper
-export function createHandler<TContract extends RouteContract>(
-  handler: (c: RouteContext<TContract>) => Promise<Response>
-) {
-  return handler;
-}
-
-// Usage
-export const handler = createHandler<typeof getUserContract>(
-  async (c) => {
-    const { id } = c.params; // Fully typed!
-    // ...
-    return c.json(user);
-  }
-);
+// Extract input and output types from a route
+type CreatePostTypes = InferRouteTypes<typeof createPost>;
+type CreatePostInput = CreatePostTypes['input'];   // { body: { title: string; ... } }
+type CreatePostOutput = CreatePostTypes['output']; // { id: string; title: string; ... }
 ```
 
 ## Best Practices
 
-### 1. Always Type Your Context
+### 1. Always Use c.data()
 
 ```typescript
-// ✅ Good: Typed context
-export const handler = async (c: RouteContext<typeof contract>) => {
-  const { id } = c.params; // Type-safe!
-};
+// ✅ Good: Use c.data() for validated data
+const { params, body } = await c.data();
 
-// ❌ Bad: Untyped context
-export const handler = async (c: any) => {
-  const { id } = c.params; // No type safety
-};
-```
-
-### 2. Use c.data() for Body Access
-
-```typescript
-// ✅ Good: Use c.data()
-const body = await c.data();
-
-// ❌ Bad: Access raw request
+// ❌ Bad: Access raw request directly (bypasses validation)
 const body = await c.raw.req.json();
 ```
 
-### 3. Return with c.json()
+### 2. Use Response Helpers
 
 ```typescript
-// ✅ Good: Use c.json()
-return c.json({ success: true });
+// ✅ Good: Use appropriate response helpers
+return c.created(user, `/users/${user.id}`);  // 201 Created
+return c.noContent();                          // 204 No Content
+return c.paginated(items, page, limit, total); // Paginated response
 
-// ❌ Bad: Manual Response
-return new Response(JSON.stringify({ success: true }), {
-  headers: { 'Content-Type': 'application/json' },
+// ❌ Bad: Manual response construction
+return new Response(JSON.stringify(user), {
+    status: 201,
+    headers: { 'Content-Type': 'application/json' }
 });
 ```
 
-### 4. Use c.raw Only When Necessary
+### 3. Use c.raw Only When Necessary
 
 ```typescript
 // ✅ Good: Use c.raw for Hono-specific features
 const requestId = c.raw.get('requestId');
 const ip = c.raw.req.header('x-forwarded-for');
 
-// ✅ Good: Use c.params/query/data() for request data
-const { id } = c.params;
-const { search } = c.query;
-const body = await c.data();
+// ✅ Good: Use c.data() for request data
+const { params, query, body } = await c.data();
+```
+
+### 4. Handle Errors with SPFN Error Classes
+
+```typescript
+import { NotFoundError, ForbiddenError } from '@spfn/core/errors';
+
+// ✅ Good: Throw typed errors
+if (!user)
+{
+    throw new NotFoundError({ resource: 'User' });
+}
+
+if (!hasPermission)
+{
+    throw new ForbiddenError({ message: 'Access denied' });
+}
+
+// ❌ Bad: Generic errors
+throw new Error('User not found');
 ```
 
 > **Note:** Type Safety Benefits
+>
 > - **Compile-time checks**: TypeScript catches type errors before runtime
 > - **IntelliSense**: Full autocomplete for params, query, and body
-> - **Refactoring safety**: Changes to contracts propagate automatically
+> - **Refactoring safety**: Changes to input schemas propagate automatically
 > - **Runtime validation**: TypeBox validates all input data
 
-> **✅ Success:** Next: Decorators (Middleware)
+> **Next: Middleware**
 >
-> Learn about built-in middleware decorators and how to create custom ones.
+> Learn about built-in middleware and how to create custom middleware.
 >
-> [Decorators →](/docs/api-reference/decorators)
+> [Middleware →](/docs/api-reference/middleware)

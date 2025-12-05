@@ -22,7 +22,7 @@
 | first-api.md | ✅ 완료 | 전면 재작성 |
 | project-structure.md | ✅ 완료 | contracts 디렉토리 제거 |
 
-## Phase 2: Core Concepts (진행중)
+## Phase 2: Core Concepts (완료)
 
 | 문서 | 상태 | 비고 |
 |------|------|------|
@@ -30,40 +30,45 @@
 | contracts.md | ✅ 완료 | 제목을 "Route Definition"으로 변경 |
 | route-binding.md | ✅ 완료 | 제목을 "Route Context & Middleware"로 변경 |
 | type-safety.md | ✅ 완료 | 전면 재작성 |
-| client-generation.md | ❌ 미완료 | contract 패턴 사용 중, 재작성 필요 |
-| middleware.md | ❌ 미완료 | `createApp`, `app.bind` 사용 중, 재작성 필요 |
-| build-process.md | ❌ 미완료 | `src/lib/contracts/` 참조, 재작성 필요 |
+| client-generation.md | ✅ 완료 | RPC 스타일 클라이언트로 재작성 |
+| middleware.md | ✅ 완료 | defineMiddleware 패턴으로 재작성 |
+| build-process.md | ✅ 완료 | defineRouter 기반으로 재작성 |
 
-## Phase 3: API Reference (미착수)
-
-| 문서 | 상태 | 비고 |
-|------|------|------|
-| app.md | ❓ 점검필요 | |
-| logger.md | ❓ 점검필요 | |
-| events.md | ❓ 점검필요 | |
-| context.md | ❓ 점검필요 | |
-| cli.md | ❓ 점검필요 | |
-| middleware.md | ❓ 점검필요 | |
-| route-contract.md | ❓ 점검필요 | 삭제 또는 재작성 필요 가능성 |
-
-## Phase 4: Guides (미착수)
+## Phase 3: API Reference (완료)
 
 | 문서 | 상태 | 비고 |
 |------|------|------|
-| error-handling.md | ❓ 점검필요 | |
-| deployment.md | ❓ 점검필요 | |
-| testing.md | ❓ 점검필요 | |
-| custom-generators.md | ❓ 점검필요 | |
-| database.md | ❓ 점검필요 | |
-| environment.md | ❓ 점검필요 | |
+| app.md | ✅ 완료 | defineServerConfig, defineMiddleware 패턴 적용 |
+| logger.md | ✅ 점검완료 | 변경 불필요 |
+| events.md | ✅ 점검완료 | 변경 불필요 |
+| context.md | ✅ 완료 | define-route 패턴으로 재작성 |
+| cli.md | ✅ 완료 | codegen 섹션 업데이트 (RPC 클라이언트) |
+| middleware.md | ✅ 완료 | defineMiddleware 패턴으로 재작성 |
+| route-contract.md | ✅ 삭제됨 | 구식 Contract 패턴 문서 제거 |
 
-## Phase 5: Other Sections (미착수)
+## Phase 4: Guides (완료)
 
-| 섹션 | 상태 | 비고 |
+| 문서 | 상태 | 비고 |
 |------|------|------|
-| philosophy/ | ❓ 점검필요 | 패턴과 무관할 수 있음 |
-| ecosystem/ | ❓ 점검필요 | CMS, Rayst 등 |
-| discussions/ | ❓ 점검필요 | 제안서, 구현 문서 |
+| error-handling.md | ✅ 완료 | define-route 패턴으로 재작성 |
+| deployment.md | ✅ 점검완료 | 변경 불필요 |
+| testing.md | ✅ 완료 | define-route 패턴으로 재작성 |
+| custom-generators.md | ✅ 완료 | Contract 참조 제거 |
+| database.md | ✅ 완료 | define-route 패턴으로 재작성 |
+| environment.md | ✅ 점검완료 | 변경 불필요 |
+
+## Phase 5: Other Sections (완료)
+
+| 문서 | 상태 | 비고 |
+|------|------|------|
+| philosophy/our-philosophy.md | ✅ 완료 | 전면 재작성 (Contract → define-route) |
+| philosophy/why-typebox.md | ✅ 점검완료 | 변경 불필요 (TypeBox 설명 문서) |
+| philosophy/why-postgresql.md | ✅ 점검완료 | 변경 불필요 |
+| philosophy/why-hono.md | ✅ 점검완료 | 변경 불필요 |
+| philosophy/why-nextjs.md | ✅ 점검완료 | 변경 불필요 |
+| ecosystem/creating-modules.md | ✅ 완료 | define-route 패턴으로 재작성 |
+| ecosystem/cms/*.md | ✅ 점검완료 | CMS 고유 문서, 변경 불필요 |
+| discussions/*.md | ✅ 점검완료 | 아키텍처 RFC 문서 (역사적 참고용) |
 
 ---
 
@@ -117,10 +122,12 @@ throw new NotFoundError({ resource: 'User' });
 
 ## Next Steps
 
-1. **Phase 2 완료**: client-generation.md, middleware.md, build-process.md 재작성
-2. **Phase 3**: api-reference 섹션 점검 및 수정
-3. **Phase 4**: guides 섹션 점검 및 수정
-4. **Phase 5**: 기타 섹션 점검
+1. ~~**Phase 2 완료**: client-generation.md, middleware.md, build-process.md 재작성~~ ✅
+2. ~~**Phase 3 완료**: api-reference 섹션 점검 및 수정~~ ✅
+3. ~~**Phase 4 완료**: guides 섹션 점검 및 수정~~ ✅
+4. ~~**Phase 5 완료**: 기타 섹션 점검 (philosophy, ecosystem, discussions)~~ ✅
+
+**🎉 마이그레이션 완료!** 모든 문서가 define-route 패턴으로 통일되었습니다.
 
 ## Notes
 

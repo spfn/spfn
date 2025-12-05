@@ -701,10 +701,10 @@ spfn db check
 
 ## spfn codegen
 
-Generate type-safe API client from contracts. Uses configured generators from `codegen.config.ts`.
+Generate route metadata for RPC client. This step is optional as the define-route pattern provides type safety without code generation.
 
 ```bash
-# Generate API client
+# Generate route metadata (optional)
 spfn codegen
 
 # Output
@@ -712,32 +712,43 @@ spfn codegen
 ✓ Generated files successfully
 ```
 
-### Generated Client
+### Type-Safe Client (No Codegen Required)
+
+With the define-route pattern, types are inferred directly from your router:
 
 ```typescript
-// src/lib/api.ts (Auto-generated - Do not edit)
-import { client } from '@spfn/core/client';
-import type { InferContract } from '@spfn/core';
+// src/server/router.ts
+import { route, defineRouter } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
 
-// Contracts
-import { getUserContract, getUsersContract } from '@/lib/contracts/users';
+export const getUser = route.get('/users/:id')
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        return { id: params.id, name: 'John Doe' };
+    });
 
-// Types
-export type GetUserResponse = InferContract<typeof getUserContract>['response'];
-export type GetUsersResponse = InferContract<typeof getUsersContract>['response'];
-
-// API client
-export const api = {
-  users: {
-    getById: (options) => client.call(getUserContract, options),
-    list: (options) => client.call(getUsersContract, options),
-  },
-} as const;
+export const appRouter = defineRouter({ getUser });
+export type AppRouter = typeof appRouter;
 ```
 
-> **Note:** Automatic Codegen
+```typescript
+// src/lib/api.ts
+import { createApi } from '@spfn/core/client';
+import type { AppRouter } from '@/server/router';
+
+// Type-safe client - no codegen step needed
+export const api = createApi<AppRouter>();
+
+// Usage with full type safety
+const user = await api.getUser.call({ params: { id: '123' } });
+//    ^? { id: string; name: string }
+```
+
+> **Note:** Types Update Instantly
 >
-> The `spfn dev` command automatically runs codegen when contracts change. You don't need to manually run `spfn codegen` during development.
+> With the define-route pattern, types are inferred at compile time. When you modify a route, TypeScript immediately reflects the changes—no code generation step required.
 
 ## Environment Variables
 

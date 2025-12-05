@@ -94,34 +94,31 @@ export default {
 ### Middleware Configuration
 
 ```typescript
-export default {
-  // Disable built-in middleware
-  middleware: {
-    logger: false,
-    cors: true,
-    errorHandler: true,
-  },
+import { defineServerConfig } from '@spfn/core/server';
+import { defineMiddleware } from '@spfn/core/route';
+import { appRouter } from './router';
 
-  // Add custom middleware
-  use: [
-    async (c, next) => {
-      c.header('X-Custom-Header', 'value');
-      await next();
-    },
-  ],
+// Define named middleware using defineMiddleware
+const authMiddleware = defineMiddleware('auth', async (c, next) =>
+{
+    const token = c.req.header('Authorization');
+    if (!token) throw new UnauthorizedError({ message: 'No token' });
+    await next();
+});
 
-  // Named middleware (can be skipped per route)
-  middlewares: [
-    {
-      name: 'auth',
-      handler: authMiddleware(),
-    },
-    {
-      name: 'rateLimit',
-      handler: rateLimitMiddleware(),
-    },
-  ],
-} satisfies ServerConfig;
+const rateLimitMiddleware = defineMiddleware('rateLimit', async (c, next) =>
+{
+    // Rate limiting logic
+    await next();
+});
+
+export default defineServerConfig()
+    .middlewares([
+        authMiddleware,
+        rateLimitMiddleware,
+    ])
+    .routes(appRouter)
+    .build();
 ```
 
 ### Database Configuration

@@ -1,104 +1,86 @@
 ---
 title: "Client Generation"
-description: "Learn how to use the auto-generated type-safe API client"
+description: "Learn how to use the type-safe RPC-style API client"
 order: 5
 available: true
 ---
 
 # Client Generation
 
-Superfunction automatically generates a fully type-safe API client from your contracts, providing autocomplete and type checking for all API calls.
+Superfunction provides a fully type-safe RPC-style API client that infers types directly from your router definition—no code generation required.
 
-## Auto-Generated Client
+## Type-Safe Client
 
-When you run `npm run spfn:dev`, Superfunction scans all contracts in `src/lib/contracts/` and generates `src/lib/api/` with resource-based file splitting:
+The client is created from your router type, providing full end-to-end type safety:
 
 ```typescript
-// File structure (auto-generated)
-src/lib/api/
-├─ index.ts       # Unified exports + api object
-├─ teams.ts       # Teams API + types
-├─ users.ts       # Users API + types
-└─ examples.ts    # Examples API + types
+// src/server/router.ts
+import { route, defineRouter } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
 
-// src/lib/api/teams.ts (Auto-generated)
-import { client } from '@spfn/core/client';
-import type { InferContract } from '@spfn/core';
-import { getTeamsContract, createTeamContract } from '@/lib/contracts/teams';
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() })
+    })
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        return { id: params.id, name: 'John Doe' };
+    });
 
-// Types extracted automatically (reusable)
-export type GetTeamsResponse = InferContract<typeof getTeamsContract>['response'];
-export type GetTeamsQuery = InferContract<typeof getTeamsContract>['query'];
-export type CreateTeamBody = InferContract<typeof createTeamContract>['body'];
-export type CreateTeamResponse = InferContract<typeof createTeamContract>['response'];
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({
+            name: Type.String(),
+            email: Type.String()
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        return { id: '1', ...body };
+    });
 
-// Individual function exports with full type safety
-export const getTeams = (options: { query?: GetTeamsQuery }) =>
-    client.call(getTeamsContract, options);
+export const appRouter = defineRouter({
+    getUser,
+    createUser,
+});
 
-export const createTeam = (options: { body: CreateTeamBody }) =>
-    client.call(createTeamContract, options);
-
-// src/lib/api/index.ts (Auto-generated)
-export { client } from '@spfn/core/client';
-
-// Re-export types from resource modules
-export type { GetTeamsResponse, GetTeamsQuery, CreateTeamBody, CreateTeamResponse } from './teams.js';
-export type { GetUsersResponse, CreateUserBody, CreateUserResponse } from './users.js';
-
-// Import functions from resource modules
-import { getTeams, createTeam } from './teams.js';
-import { getUsers, createUser } from './users.js';
-
-// Flat API object with all functions
-export const api = {
-    getTeams,
-    createTeam,
-    getUsers,
-    createUser
-} as const;
+export type AppRouter = typeof appRouter;
 ```
 
-> **Resource-Based Splitting**
->
-> Each resource gets its own file, making the codebase more scalable and enabling better tree-shaking:
->
-> - File size stays manageable as your API grows
-> - Types and APIs are co-located by resource
-> - Import only what you need for better performance
-> - Team members can work on different resources in parallel
+```typescript
+// src/lib/api.ts
+import { createApi } from '@spfn/core/client';
+import type { AppRouter } from '@/server/router';
 
-> **Automatic Updates with Smart Regeneration**
+export const api = createApi<AppRouter>();
+```
+
+> **No Code Generation Required**
 >
-> The client regenerates automatically when contracts change, with intelligent optimizations:
+> Unlike contract-based approaches, the RPC client:
 >
-> - **Incremental updates**: Only regenerates when contract signatures actually change
-> - **Smart detection**: Skips regeneration if only formatting or comments changed
-> - **Fast rebuilds**: Contract signature comparison ensures minimal rebuild times
-> - **No manual steps**: Everything happens automatically in watch mode
+> - Infers types directly from router definition
+> - No `spfn codegen` step needed
+> - Types update instantly when routes change
+> - Zero runtime overhead for type resolution
 
 ## Client Structure
 
-The generated client provides flat function exports organized by resource files:
+The generated client provides a simple RPC-style API:
 
 ```typescript
 import { api } from '@/lib/api';
 
-// Flat API object with camelCase function names
-api.getTeams()          // GET /teams
-api.getTeam()           // GET /teams/:id
-api.createTeam()        // POST /teams
-api.updateTeam()        // PUT /teams/:id
-api.deleteTeam()        // DELETE /teams/:id
+// GET requests (no body) - params, query, headers
+await api.getUser.call({ params: { id: '123' } });
+await api.getUsers.call({ query: { page: 1, limit: 10 } });
 
-api.getUsers()          // GET /users
-api.createUser()        // POST /users
-// ... and so on
-
-// Function names are derived from contract names
-// getTeamsContract → getTeams
-// createTeamContract → createTeam
-// updateTeamContract → updateTeam
+// POST/PUT/DELETE requests - body, params, etc.
+await api.createUser.call({ body: { name: 'John', email: 'john@example.com' } });
+await api.updateUser.call({ params: { id: '123' }, body: { name: 'Jane' } });
+await api.deleteUser.call({ params: { id: '123' } });
 ```
 
 ## Using the Client
@@ -108,26 +90,22 @@ api.createUser()        // POST /users
 Use the client directly in Next.js Server Components:
 
 ```typescript
-// app/teams/page.tsx (Server Component)
+// app/users/[id]/page.tsx (Server Component)
 import { api } from '@/lib/api';
 
-export default async function TeamsPage() {
-  // Direct API call - no useState, no useEffect
-  const { items: teams, total } = await api.getTeams({
-    query: { published: true }
-  });
+export default async function UserPage({ params }: { params: { id: string } })
+{
+    // Direct API call - no useState, no useEffect
+    const user = await api.getUser.call({
+        params: { id: params.id }
+    });
 
-  return (
-    <div>
-      <h1>{total} Teams</h1>
-      {teams.map((team) => (
-        <div key={team.id}>
-          <h2>{team.name}</h2>
-          <p>{team.description}</p>
+    return (
+        <div>
+            <h1>{user.name}</h1>
+            <p>{user.email}</p>
         </div>
-      ))}
-    </div>
-  );
+    );
 }
 ```
 
@@ -140,257 +118,348 @@ Use with React hooks for interactive features:
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import type { CreateTeamBody } from '@/lib/api';
 
-export function CreateTeamForm() {
-  const [formData, setFormData] = useState<CreateTeamBody>({
-    name: '',
-    slug: ''
-  });
-  const [loading, setLoading] = useState(false);
+export function CreateUserForm()
+{
+    const [formData, setFormData] = useState({
+        name: '',
+        email: ''
+    });
+    const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+    const handleSubmit = async (e: React.FormEvent) =>
+    {
+        e.preventDefault();
+        setLoading(true);
 
-    try {
-      const team = await api.createTeam({ body: formData });
-      console.log('Created team:', team.id);
-    } catch (error) {
-      console.error('Failed to create team:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+        try
+        {
+            const user = await api.createUser.call({ body: formData });
+            console.log('Created user:', user.id);
+        }
+        catch (error)
+        {
+            console.error('Failed to create user:', error);
+        }
+        finally
+        {
+            setLoading(false);
+        }
+    };
 
-  return <form onSubmit={handleSubmit}>{/* ... */}</form>;
+    return <form onSubmit={handleSubmit}>{/* ... */}</form>;
 }
 ```
 
 ## API Method Patterns
 
-The generated client follows consistent patterns for different HTTP methods:
-
-### GET Requests (List)
+### GET Requests
 
 ```typescript
-// GET /teams with query parameters
-const result = await api.getTeams({
-  query: {
-    published: true,
-    limit: 10,
-    offset: 0
-  }
+// GET /users/:id - path params only
+const user = await api.getUser.call({
+    params: { id: '123' }
 });
 
-// GET /teams (no query parameters - if query is optional)
-const result = await api.getTeams();
-```
-
-### GET Requests (Single Item)
-
-```typescript
-// GET /teams/:id
-const team = await api.getTeam({
-  params: { id: 123 }
+// GET /users - query params only
+const users = await api.getUsers.call({
+    query: { page: 1, limit: 20, published: true }
 });
 
-console.log(team.name); // Fully typed!
+// GET /users/:id/posts - both params and query
+const posts = await api.getUserPosts.call({
+    params: { userId: '123' },
+    query: { status: 'published' }
+});
+
+// GET request without any input
+const health = await api.healthCheck.call({});
 ```
 
 ### POST Requests
 
 ```typescript
-// POST /teams with body
-const team = await api.createTeam({
-  body: {
-    name: 'Engineering',
-    slug: 'engineering',
-    description: 'Engineering team'
-  }
+// POST /users - body only
+const user = await api.createUser.call({
+    body: {
+        name: 'Engineering',
+        email: 'eng@example.com'
+    }
+});
+
+// POST /teams/:id/members - params + body
+const member = await api.addTeamMember.call({
+    params: { teamId: '123' },
+    body: { userId: '456', role: 'member' }
 });
 ```
 
-### PUT Requests
+### PUT/PATCH Requests
 
 ```typescript
-// PUT /teams/:id with params and body
-const team = await api.updateTeam({
-  params: { id: 123 },
-  body: {
-    name: 'Engineering Team',
-    slug: 'engineering'
-  }
+// PUT /users/:id - params + body
+const user = await api.updateUser.call({
+    params: { id: '123' },
+    body: {
+        name: 'Updated Name',
+        email: 'new@example.com'
+    }
 });
 ```
 
 ### DELETE Requests
 
 ```typescript
-// DELETE /teams/:id
-const result = await api.deleteTeam({
-  params: { id: 123 }
+// DELETE /users/:id - params only
+const result = await api.deleteUser.call({
+    params: { id: '123' }
 });
 ```
 
-## Customizing the Client
+## Request Options
 
-The generated client exports the underlying `client` instance for customization:
-
-### Adding Interceptors
-
-Add request/response interceptors for authentication, logging, etc.:
+### Adding Headers
 
 ```typescript
-// src/lib/api-config.ts
-import { client } from '@/lib/api';
+const user = await api.getUser
+    .headers({ 'X-Custom-Header': 'value' })
+    .call({ params: { id: '123' } });
+```
 
-// Add authentication interceptor
-client.use(async (request, next) => {
-  // Add auth token to all requests
-  const token = getAuthToken();
-  if (token) {
-    request.headers.set('Authorization', `Bearer ${token}`);
-  }
+### Adding Cookies
 
-  const response = await next(request);
-  return response;
-});
+```typescript
+const user = await api.getUser
+    .cookies({ session: 'abc123' })
+    .call({ params: { id: '123' } });
+```
 
-// Add logging interceptor
-client.use(async (request, next) => {
-  console.log('Request:', request.method, request.url);
+### Fetch Options (Next.js)
 
-  const response = await next(request);
+```typescript
+// With Next.js caching options
+const user = await api.getUser
+    .fetchOptions({ next: { revalidate: 60 } })
+    .call({ params: { id: '123' } });
 
-  console.log('Response:', response.status);
-  return response;
+// Disable caching
+const freshUser = await api.getUser
+    .fetchOptions({ cache: 'no-store' })
+    .call({ params: { id: '123' } });
+```
+
+### Chaining Options
+
+```typescript
+const user = await api.getUser
+    .headers({ 'X-Request-ID': 'req-123' })
+    .cookies({ session: 'abc' })
+    .fetchOptions({ next: { revalidate: 60 } })
+    .call({ params: { id: '123' } });
+```
+
+## Client Configuration
+
+### Creating the Client
+
+```typescript
+// src/lib/api.ts
+import { createApi } from '@spfn/core/client';
+import type { AppRouter } from '@/server/router';
+
+export const api = createApi<AppRouter>({
+    // Base URL for RPC endpoints (default: '/api/rpc')
+    baseUrl: '/api/rpc',
+
+    // Default headers for all requests
+    headers: {
+        'X-App-Version': '1.0.0'
+    },
+
+    // Request timeout in milliseconds (default: 30000)
+    timeout: 30000,
+
+    // Enable debug logging
+    debug: process.env.NODE_ENV === 'development',
 });
 ```
 
-### Setting Base URL
-
-Configure the API base URL (useful for different environments):
+### Request/Response Interceptors
 
 ```typescript
-// src/lib/api-config.ts
-import { client } from '@/lib/api';
+export const api = createApi<AppRouter>({
+    // Intercept all requests
+    onRequest: async (url, init) =>
+    {
+        // Add auth token
+        const token = await getAuthToken();
+        if (token)
+        {
+            init.headers = {
+                ...init.headers,
+                Authorization: `Bearer ${token}`
+            };
+        }
+        return init;
+    },
 
-// Set base URL
-client.setBaseURL(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8790');
-
-// Now all API calls use this base URL
-await api.getTeams(); // → http://localhost:8790/teams
+    // Intercept all responses
+    onResponse: async (response, body) =>
+    {
+        // Log all responses
+        console.log(`${response.status}: ${response.url}`);
+        return { response, body };
+    },
+});
 ```
 
 ## Error Handling
 
-The client throws errors that you can catch and handle:
+The client throws `ApiError` for non-2xx responses:
 
 ```typescript
-try {
-  const team = await api.createTeam({
-    body: { name: 'Team', slug: 'team' }
-  });
-} catch (error) {
-  if (error instanceof Error) {
-    // Validation error (400)
-    if (error.message.includes('ValidationError')) {
-      console.error('Invalid data:', error);
+import { ApiError } from '@spfn/core/client';
+
+try
+{
+    const user = await api.createUser.call({
+        body: { name: 'John', email: 'invalid' }
+    });
+}
+catch (error)
+{
+    if (error instanceof ApiError)
+    {
+        console.error('Status:', error.status);      // 400
+        console.error('Message:', error.message);    // "Validation failed"
+        console.error('Details:', error.data);       // { field: 'email', ... }
+
+        // Handle specific error types
+        switch (error.status)
+        {
+            case 400:
+                console.error('Validation error');
+                break;
+            case 401:
+                console.error('Unauthorized');
+                break;
+            case 404:
+                console.error('Not found');
+                break;
+            default:
+                console.error('Server error');
+        }
     }
-    // Not found error (404)
-    else if (error.message.includes('NotFoundError')) {
-      console.error('Team not found:', error);
-    }
-    // Other errors
-    else {
-      console.error('Failed to create team:', error);
-    }
-  }
 }
 ```
 
-## Method Naming Convention
+### Custom Error Classes
 
-Function names are derived from contract variable names by removing the "Contract" suffix:
+Register custom error classes to receive typed errors:
 
 ```typescript
-// src/lib/contracts/teams.ts
-export const getTeamsContract = { /* ... */ };         // → api.getTeams()
-export const getTeamContract = { /* ... */ };          // → api.getTeam()
-export const createTeamContract = { /* ... */ };       // → api.createTeam()
-export const updateTeamContract = { /* ... */ };       // → api.updateTeam()
-export const deleteTeamContract = { /* ... */ };       // → api.deleteTeam()
+import { NotFoundError, ValidationError } from '@spfn/core/errors';
 
-// Special naming examples:
-export const getTeamBySlugContract = { /* ... */ };    // → api.getTeamBySlug()
-export const publishTeamContract = { /* ... */ };      // → api.publishTeam()
+export const api = createApi<AppRouter>({
+    errorRegistry: {
+        NotFoundError,
+        ValidationError,
+    },
+});
+
+// Now errors are typed correctly
+try
+{
+    await api.getUser.call({ params: { id: 'invalid' } });
+}
+catch (error)
+{
+    if (error instanceof NotFoundError)
+    {
+        console.error('User not found:', error.resource);
+    }
+}
 ```
 
 ## Best Practices
 
-### 1. Always Use the Generated Client
+### 1. Create a Single API Instance
 
 ```typescript
-// ✅ Good: Use generated client
-import { api } from '@/lib/api';
-const teams = await api.getTeams();
+// src/lib/api.ts
+import { createApi } from '@spfn/core/client';
+import type { AppRouter } from '@/server/router';
 
-// ❌ Bad: Manual fetch
-const response = await fetch('/teams');
-const teams = await response.json();
+// Single instance for the entire app
+export const api = createApi<AppRouter>({
+    debug: process.env.NODE_ENV === 'development',
+});
 ```
 
-### 2. Initialize Client Configuration Early
+### 2. Use Server Components When Possible
 
 ```typescript
-// src/lib/api-config.ts
-import { client } from '@/lib/api';
+// ✅ Good: Server Component - no client JS
+export default async function UsersPage()
+{
+    const users = await api.getUsers.call({ query: { page: 1 } });
+    return <UserList users={users} />;
+}
 
-// Set up once at app initialization
-client.setBaseURL(process.env.NEXT_PUBLIC_API_URL!);
-client.use(authInterceptor);
-client.use(loggingInterceptor);
-
-// Then import in app/layout.tsx
-import '@/lib/api-config';
+// ⚠️ Avoid: Client-side fetching when not needed
+'use client';
+export default function UsersPage()
+{
+    const [users, setUsers] = useState([]);
+    useEffect(() => { /* fetch... */ }, []);
+    return <UserList users={users} />;
+}
 ```
 
-### 3. Handle Errors Consistently
+### 3. Type the Response
+
+```typescript
+// Types are automatically inferred
+const user = await api.getUser.call({ params: { id: '1' } });
+//    ^? { id: string; name: string; email: string }
+
+// Use in components with full type safety
+function UserCard({ userId }: { userId: string })
+{
+    const [user, setUser] = useState<Awaited<ReturnType<typeof api.getUser.call>>>();
+    // ...
+}
+```
+
+### 4. Handle Errors Consistently
 
 ```typescript
 // Create a wrapper for consistent error handling
-export async function apiCall<T>(
-  fn: () => Promise<T>,
-  errorMessage: string
-): Promise<T | null> {
-  try {
-    return await fn();
-  } catch (error) {
-    console.error(errorMessage, error);
-    toast.error(errorMessage);
-    return null;
-  }
+export async function safeApiCall<T>(
+    fn: () => Promise<T>,
+    fallback: T
+): Promise<T>
+{
+    try
+    {
+        return await fn();
+    }
+    catch (error)
+    {
+        console.error('API call failed:', error);
+        return fallback;
+    }
 }
 
 // Usage
-const team = await apiCall(
-  () => api.createTeam({ body: data }),
-  'Failed to create team'
+const users = await safeApiCall(
+    () => api.getUsers.call({ query: { page: 1 } }),
+    { items: [], total: 0 }
 );
 ```
 
-### 4. Use Server Components When Possible
-
-Prefer Server Components for data fetching:
-
-- No client-side JavaScript overhead
-- Direct database access (faster)
-- No loading states needed
-- Better SEO
-
 > **Next: Middleware**
 >
-> Learn how to create custom middlewares for authentication, logging, and more.
+> Learn how to create and manage middleware for authentication, logging, and more.
 >
 > [Middleware →](/docs/core-concepts/middleware)

@@ -13,7 +13,7 @@ Superfunction's code generation system is extensible, allowing you to create cus
 
 Generators are automated tools that scan your codebase and generate code based on patterns or conventions. Common use cases include:
 
-- Generating API clients from contracts (built-in)
+- Generating route metadata for RPC clients (built-in)
 - Creating navigation menus from route configurations
 - Building database migrations from schema definitions
 - Generating type definitions from external APIs
@@ -180,9 +180,6 @@ export type AdminNavItem = typeof adminNavItems[number];
 {
   "codegen": {
     "generators": [
-      {
-        "name": "@spfn/core:contract"
-      },
       {
         "path": "./src/generators/admin-nav-generator.ts"
       }
