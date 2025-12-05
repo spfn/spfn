@@ -5,7 +5,7 @@
  * middleware ordering, and configuration building.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Server } from 'http';
 import {
     applyServerTimeouts,
@@ -56,45 +56,19 @@ describe('Server Helpers', () => {
     });
 
     describe('getTimeoutConfig()', () => {
-        let originalEnv: NodeJS.ProcessEnv;
+        // Note: env object is initialized at module load time with schema defaults
+        // Environment variable tests are not applicable as env values are fixed
 
-        beforeEach(() => {
-            originalEnv = { ...process.env };
-        });
-
-        afterEach(() => {
-            process.env = originalEnv;
-        });
-
-        it('should return default timeout values when no config provided', () => {
-            delete process.env.SERVER_TIMEOUT;
-            delete process.env.SERVER_KEEPALIVE_TIMEOUT;
-            delete process.env.SERVER_HEADERS_TIMEOUT;
-
+        it('should return schema default timeout values when no config provided', () => {
             const timeouts = getTimeoutConfig();
 
+            // Values come from coreEnvSchema defaults
             expect(timeouts.request).toBe(120000); // 2 minutes
             expect(timeouts.keepAlive).toBe(65000); // 65 seconds
             expect(timeouts.headers).toBe(60000); // 60 seconds
         });
 
-        it('should read timeout values from environment variables', () => {
-            process.env.SERVER_TIMEOUT = '30000';
-            process.env.SERVER_KEEPALIVE_TIMEOUT = '45000';
-            process.env.SERVER_HEADERS_TIMEOUT = '20000';
-
-            const timeouts = getTimeoutConfig();
-
-            expect(timeouts.request).toBe(30000);
-            expect(timeouts.keepAlive).toBe(45000);
-            expect(timeouts.headers).toBe(20000);
-        });
-
-        it('should prioritize config over environment variables', () => {
-            process.env.SERVER_TIMEOUT = '30000';
-            process.env.SERVER_KEEPALIVE_TIMEOUT = '45000';
-            process.env.SERVER_HEADERS_TIMEOUT = '20000';
-
+        it('should prioritize config over env defaults', () => {
             const config = {
                 request: 60000,
                 keepAlive: 70000,
@@ -108,10 +82,7 @@ describe('Server Helpers', () => {
             expect(timeouts.headers).toBe(50000);
         });
 
-        it('should handle partial config with environment fallback', () => {
-            process.env.SERVER_TIMEOUT = '30000';
-            process.env.SERVER_KEEPALIVE_TIMEOUT = '45000';
-
+        it('should handle partial config with env fallback', () => {
             const config = {
                 request: 60000,
             };
@@ -119,64 +90,25 @@ describe('Server Helpers', () => {
             const timeouts = getTimeoutConfig(config);
 
             expect(timeouts.request).toBe(60000); // From config
-            expect(timeouts.keepAlive).toBe(45000); // From env
-            expect(timeouts.headers).toBe(60000); // Default
-        });
-
-        it('should handle invalid environment variable values', () => {
-            process.env.SERVER_TIMEOUT = 'invalid';
-            process.env.SERVER_KEEPALIVE_TIMEOUT = 'NaN';
-
-            const timeouts = getTimeoutConfig();
-
-            // Should fall back to defaults when parsing fails
-            expect(timeouts.request).toBe(120000);
-            expect(timeouts.keepAlive).toBe(65000);
+            expect(timeouts.keepAlive).toBe(65000); // From env schema default
+            expect(timeouts.headers).toBe(60000); // From env schema default
         });
     });
 
     describe('getShutdownTimeout()', () => {
-        let originalEnv: NodeJS.ProcessEnv;
+        // Note: env object is initialized at module load time with schema defaults
 
-        beforeEach(() => {
-            originalEnv = { ...process.env };
-        });
-
-        afterEach(() => {
-            process.env = originalEnv;
-        });
-
-        it('should return default shutdown timeout when no config provided', () => {
-            delete process.env.SHUTDOWN_TIMEOUT;
-
+        it('should return schema default shutdown timeout when no config provided', () => {
             const timeout = getShutdownTimeout();
 
-            expect(timeout).toBe(30000); // 30 seconds
+            expect(timeout).toBe(30000); // 30 seconds from schema default
         });
 
-        it('should read shutdown timeout from environment variable', () => {
-            process.env.SHUTDOWN_TIMEOUT = '60000';
-
-            const timeout = getShutdownTimeout();
-
-            expect(timeout).toBe(60000);
-        });
-
-        it('should prioritize config over environment variable', () => {
-            process.env.SHUTDOWN_TIMEOUT = '60000';
-
+        it('should prioritize config over env defaults', () => {
             const config = { timeout: 90000 };
             const timeout = getShutdownTimeout(config);
 
             expect(timeout).toBe(90000);
-        });
-
-        it('should handle invalid environment variable', () => {
-            process.env.SHUTDOWN_TIMEOUT = 'invalid';
-
-            const timeout = getShutdownTimeout();
-
-            expect(timeout).toBe(30000); // Default
         });
     });
 
@@ -211,8 +143,8 @@ describe('Server Helpers', () => {
         it('should include custom middleware', () => {
             const config: ServerConfig = {
                 use: [
-                    async (c, next) => next(),
-                    async (c, next) => next(),
+                    async (_c, next) => next(),
+                    async (_c, next) => next(),
                 ],
             };
 
@@ -229,8 +161,8 @@ describe('Server Helpers', () => {
         });
 
         it('should include beforeRoutes hook', () => {
-            const config: ServerConfig = {
-                beforeRoutes: async (app) => {},
+            const config = {
+                beforeRoutes: async () => {},
             };
 
             const order = buildMiddlewareOrder(config);
@@ -245,8 +177,8 @@ describe('Server Helpers', () => {
         });
 
         it('should include afterRoutes hook', () => {
-            const config: ServerConfig = {
-                afterRoutes: async (app) => {},
+            const config = {
+                afterRoutes: async () => {},
             };
 
             const order = buildMiddlewareOrder(config);
@@ -261,10 +193,10 @@ describe('Server Helpers', () => {
         });
 
         it('should build complete order with all features', () => {
-            const config: ServerConfig = {
-                use: [async (c, next) => next()],
-                beforeRoutes: async (app) => {},
-                afterRoutes: async (app) => {},
+            const config = {
+                use: [async (_c: any, next: any) => next()],
+                beforeRoutes: async () => {},
+                afterRoutes: async () => {},
             };
 
             const order = buildMiddlewareOrder(config);
@@ -346,9 +278,9 @@ describe('Server Helpers', () => {
         it('should reflect custom middleware count', () => {
             const config: ServerConfig = {
                 use: [
-                    async (c, next) => next(),
-                    async (c, next) => next(),
-                    async (c, next) => next(),
+                    async (_c, next) => next(),
+                    async (_c, next) => next(),
+                    async (_c, next) => next(),
                 ],
             };
             const timeouts = {
@@ -363,9 +295,9 @@ describe('Server Helpers', () => {
         });
 
         it('should reflect hooks configuration', () => {
-            const config: ServerConfig = {
-                beforeRoutes: async (app) => {},
-                afterRoutes: async (app) => {},
+            const config = {
+                beforeRoutes: async () => {},
+                afterRoutes: async () => {},
             };
             const timeouts = {
                 request: 120000,

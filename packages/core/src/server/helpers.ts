@@ -1,13 +1,65 @@
-import type { Hono, Handler } from 'hono';
+import type { Hono, Handler, MiddlewareHandler } from 'hono';
 import type { Server } from 'http';
 import { getDatabase } from '@spfn/core/db';
 import { getCache } from '@spfn/core/cache';
+import { env } from '@spfn/core/config';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface ServiceStatus
+{
+    status: string;
+    error?: string;
+}
+
+interface HealthCheckResponse
+{
+    status: 'ok' | 'degraded';
+    timestamp: string;
+    services?: {
+        database: ServiceStatus;
+        redis: ServiceStatus;
+    };
+}
+
+interface StartupConfig
+{
+    middleware: {
+        logger: boolean;
+        cors: boolean;
+        errorHandler: boolean;
+        custom: number;
+    };
+    healthCheck: {
+        enabled: boolean;
+        path?: string;
+        detailed?: boolean;
+    };
+    hooks: {
+        beforeRoutes: boolean;
+        afterRoutes: boolean;
+    };
+    timeout: {
+        request: string;
+        keepAlive: string;
+        headers: string;
+    };
+    shutdown: {
+        timeout: string;
+    };
+}
+
+// ============================================================================
+// Functions
+// ============================================================================
 
 export function createHealthCheckHandler(detailed: boolean): Handler
 {
     return async (c) =>
     {
-        const response: any = {
+        const response: HealthCheckResponse = {
             status: 'ok',
             timestamp: new Date().toISOString(),
         };
@@ -106,15 +158,15 @@ export function getTimeoutConfig(config?: {
 }
 {
     return {
-        request: config?.request ?? (parseInt(process.env.SERVER_TIMEOUT || '', 10) || 120000),
-        keepAlive: config?.keepAlive ?? (parseInt(process.env.SERVER_KEEPALIVE_TIMEOUT || '', 10) || 65000),
-        headers: config?.headers ?? (parseInt(process.env.SERVER_HEADERS_TIMEOUT || '', 10) || 60000),
+        request: config?.request ?? env.SERVER_TIMEOUT,
+        keepAlive: config?.keepAlive ?? env.SERVER_KEEPALIVE_TIMEOUT,
+        headers: config?.headers ?? env.SERVER_HEADERS_TIMEOUT,
     };
 }
 
 export function getShutdownTimeout(config?: { timeout?: number }): number
 {
-    return config?.timeout ?? (parseInt(process.env.SHUTDOWN_TIMEOUT || '', 10) || 30000);
+    return config?.timeout ?? env.SHUTDOWN_TIMEOUT;
 }
 
 export function buildMiddlewareOrder(config: {
@@ -123,7 +175,7 @@ export function buildMiddlewareOrder(config: {
         cors?: boolean;
         errorHandler?: boolean;
     };
-    use?: any[];
+    use?: MiddlewareHandler[];
     beforeRoutes?: (app: Hono) => void | Promise<void>;
     afterRoutes?: (app: Hono) => void | Promise<void>;
 }): string[]
@@ -152,7 +204,7 @@ export function buildStartupConfig(
             cors?: boolean;
             errorHandler?: boolean;
         };
-        use?: any[];
+        use?: MiddlewareHandler[];
         healthCheck?: {
             enabled?: boolean;
             path?: string;
@@ -169,13 +221,13 @@ export function buildStartupConfig(
         keepAlive: number;
         headers: number;
     }
-): any
+): StartupConfig
 {
     const middlewareConfig = config.middleware ?? {};
     const healthCheckConfig = config.healthCheck ?? {};
     const healthCheckEnabled = healthCheckConfig.enabled !== false;
     const healthCheckPath = healthCheckConfig.path ?? '/health';
-    const healthCheckDetailed = healthCheckConfig.detailed ?? (process.env.NODE_ENV === 'development');
+    const healthCheckDetailed = healthCheckConfig.detailed ?? (env.NODE_ENV === 'development');
 
     return {
         middleware: {
@@ -199,7 +251,7 @@ export function buildStartupConfig(
             headers: `${timeouts.headers}ms`,
         },
         shutdown: {
-            timeout: `${config.shutdown?.timeout ?? 30000}ms`,
+            timeout: `${config.shutdown?.timeout ?? env.SHUTDOWN_TIMEOUT}ms`,
         },
     };
 }

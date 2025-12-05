@@ -165,15 +165,7 @@ async function executeBeforeRoutesHook(app: Hono, config?: ServerConfig): Promis
 {
     if (config?.lifecycle?.beforeRoutes)
     {
-        try
-        {
-            await config.lifecycle.beforeRoutes(app);
-        }
-        catch (error)
-        {
-            serverLogger.error('beforeRoutes hook failed', error as Error);
-            throw new Error('Server initialization failed in beforeRoutes hook');
-        }
+        await config.lifecycle.beforeRoutes(app);
     }
 }
 
@@ -200,15 +192,7 @@ async function executeAfterRoutesHook(app: Hono, config?: ServerConfig): Promise
 {
     if (config?.lifecycle?.afterRoutes)
     {
-        try
-        {
-            await config.lifecycle.afterRoutes(app);
-        }
-        catch (error)
-        {
-            serverLogger.error('afterRoutes hook failed', error as Error);
-            throw new Error('Server initialization failed in afterRoutes hook');
-        }
+        await config.lifecycle.afterRoutes(app);
     }
 }
 

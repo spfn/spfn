@@ -5,9 +5,49 @@
  */
 
 import type { MiddlewareHandler } from 'hono';
-import type { ServerConfig } from './types';
+import type { ServerConfig, ServerInstance } from './types';
 import type { Router } from '@spfn/core/route';
+import type { Hono } from 'hono';
 import { serverLogger } from './logger';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+type Lifecycle = NonNullable<ServerConfig['lifecycle']>;
+type LifecycleKey = keyof Lifecycle;
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function collectHooks<K extends LifecycleKey>(
+    lifecycles: Lifecycle[],
+    key: K
+): NonNullable<Lifecycle[K]>[]
+{
+    return lifecycles
+        .map(lc => lc[key])
+        .filter((hook): hook is NonNullable<Lifecycle[K]> => hook !== undefined);
+}
+
+function createMergedHook<T extends (...args: any[]) => Promise<void>>(
+    hooks: T[]
+): T | undefined
+{
+    if (hooks.length === 0)
+    {
+        return undefined;
+    }
+
+    return (async (...args: Parameters<T>) =>
+    {
+        for (const hook of hooks)
+        {
+            await hook(...args);
+        }
+    }) as T;
+}
 
 export class ServerConfigBuilder
 {
@@ -176,112 +216,37 @@ export class ServerConfigBuilder
      */
     build(): ServerConfig
     {
-        // Merge all lifecycle hooks if any were registered
         if (this.lifecycles.length > 0)
         {
             serverLogger.info('Merging lifecycles', { count: this.lifecycles.length });
-            const mergedLifecycle: ServerConfig['lifecycle'] = {};
-
-            // Collect all beforeInfrastructure hooks
-            const beforeInfraHooks = this.lifecycles
-                .map(lc => lc.beforeInfrastructure)
-                .filter((hook): hook is NonNullable<typeof hook> => hook !== undefined);
-
-            if (beforeInfraHooks.length > 0)
-            {
-                mergedLifecycle.beforeInfrastructure = async (config) =>
-                {
-                    for (const hook of beforeInfraHooks)
-                    {
-                        await hook(config);
-                    }
-                };
-            }
-
-            // Collect all afterInfrastructure hooks
-            const afterInfraHooks = this.lifecycles
-                .map(lc => lc.afterInfrastructure)
-                .filter((hook): hook is NonNullable<typeof hook> => hook !== undefined);
-
-            if (afterInfraHooks.length > 0)
-            {
-                mergedLifecycle.afterInfrastructure = async () =>
-                {
-                    for (const hook of afterInfraHooks)
-                    {
-                        await hook();
-                    }
-                };
-            }
-
-            // Collect all beforeRoutes hooks
-            const beforeRoutesHooks = this.lifecycles
-                .map(lc => lc.beforeRoutes)
-                .filter((hook): hook is NonNullable<typeof hook> => hook !== undefined);
-
-            if (beforeRoutesHooks.length > 0)
-            {
-                mergedLifecycle.beforeRoutes = async (app) =>
-                {
-                    for (const hook of beforeRoutesHooks)
-                    {
-                        await hook(app);
-                    }
-                };
-            }
-
-            // Collect all afterRoutes hooks
-            const afterRoutesHooks = this.lifecycles
-                .map(lc => lc.afterRoutes)
-                .filter((hook): hook is NonNullable<typeof hook> => hook !== undefined);
-
-            if (afterRoutesHooks.length > 0)
-            {
-                mergedLifecycle.afterRoutes = async (app) =>
-                {
-                    for (const hook of afterRoutesHooks)
-                    {
-                        await hook(app);
-                    }
-                };
-            }
-
-            // Collect all afterStart hooks
-            const afterStartHooks = this.lifecycles
-                .map(lc => lc.afterStart)
-                .filter((hook): hook is NonNullable<typeof hook> => hook !== undefined);
-
-            if (afterStartHooks.length > 0)
-            {
-                mergedLifecycle.afterStart = async (instance) =>
-                {
-                    for (const hook of afterStartHooks)
-                    {
-                        await hook(instance);
-                    }
-                };
-            }
-
-            // Collect all beforeShutdown hooks
-            const beforeShutdownHooks = this.lifecycles
-                .map(lc => lc.beforeShutdown)
-                .filter((hook): hook is NonNullable<typeof hook> => hook !== undefined);
-
-            if (beforeShutdownHooks.length > 0)
-            {
-                mergedLifecycle.beforeShutdown = async () =>
-                {
-                    for (const hook of beforeShutdownHooks)
-                    {
-                        await hook();
-                    }
-                };
-            }
-
-            this.config.lifecycle = mergedLifecycle;
+            this.config.lifecycle = this.mergeLifecycles();
         }
 
         return this.config;
+    }
+
+    private mergeLifecycles(): Lifecycle
+    {
+        return {
+            beforeInfrastructure: createMergedHook(
+                collectHooks(this.lifecycles, 'beforeInfrastructure')
+            ),
+            afterInfrastructure: createMergedHook(
+                collectHooks(this.lifecycles, 'afterInfrastructure')
+            ),
+            beforeRoutes: createMergedHook(
+                collectHooks(this.lifecycles, 'beforeRoutes')
+            ),
+            afterRoutes: createMergedHook(
+                collectHooks(this.lifecycles, 'afterRoutes')
+            ),
+            afterStart: createMergedHook(
+                collectHooks(this.lifecycles, 'afterStart')
+            ),
+            beforeShutdown: createMergedHook(
+                collectHooks(this.lifecycles, 'beforeShutdown')
+            ),
+        };
     }
 }
 

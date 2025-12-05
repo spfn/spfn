@@ -26,47 +26,26 @@ import {
 
 import type { ServerConfig, ServerInstance } from './types';
 import { validateServerConfig } from './validation';
+import { env } from '@spfn/core/config';
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-/**
- * Maximum number of event listeners for process signals
- * Increased to prevent warnings in development with hot reload
- */
 const DEFAULT_MAX_LISTENERS = 15;
 
-/**
- * Timeout for HTTP server.close() operation in milliseconds
- * Prevents hanging on server shutdown
- */
-const SERVER_CLOSE_TIMEOUT = 5000;
+const TIMEOUTS = {
+    SERVER_CLOSE: 5000,
+    DATABASE_CLOSE: 5000,
+    REDIS_CLOSE: 5000,
+    PRODUCTION_ERROR_SHUTDOWN: 10000,
+} as const;
 
-/**
- * Timeout for database close operation in milliseconds
- */
-const DATABASE_CLOSE_TIMEOUT = 5000;
-
-/**
- * Timeout for Redis close operation in milliseconds
- */
-const REDIS_CLOSE_TIMEOUT = 5000;
-
-/**
- * Timeout for graceful shutdown in production error handlers (milliseconds)
- */
-const PRODUCTION_ERROR_SHUTDOWN_TIMEOUT = 10000;
-
-/**
- * Priority order for server config file loading
- * First found file will be used
- */
 const CONFIG_FILE_PATHS = [
-    '.spfn/server/server.config.mjs',  // Built .mjs (highest priority)
-    '.spfn/server/server.config',      // Built .js
-    'src/server/server.config',        // Source .js
-    'src/server/server.config.ts',     // Source .ts (lowest priority)
+    '.spfn/server/server.config.mjs',
+    '.spfn/server/server.config',
+    'src/server/server.config',
+    'src/server/server.config.ts',
 ] as const;
 
 // ============================================================================
@@ -252,8 +231,8 @@ async function loadAndMergeConfig(config?: ServerConfig): Promise<ServerConfig>
     return {
         ...fileConfig,
         ...config,
-        port: config?.port ?? fileConfig?.port ?? (parseInt(process.env.PORT || '', 10) || 4000),
-        host: config?.host ?? fileConfig?.host ?? (process.env.HOST || 'localhost'),
+        port: config?.port ?? fileConfig?.port ?? env.PORT,
+        host: config?.host ?? fileConfig?.host ?? env.HOST,
     };
 }
 
@@ -274,24 +253,14 @@ function getInfrastructureConfig(config: ServerConfig): InfrastructureConfig
 
 async function initializeInfrastructure(config: ServerConfig): Promise<void>
 {
-    // Execute beforeInfrastructure hook
     if (config.lifecycle?.beforeInfrastructure)
     {
         serverLogger.debug('Executing beforeInfrastructure hook...');
-        try
-        {
-            await config.lifecycle.beforeInfrastructure(config);
-        }
-        catch (error)
-        {
-            serverLogger.error('beforeInfrastructure hook failed', error as Error);
-            throw new Error('Server initialization failed in beforeInfrastructure hook');
-        }
+        await config.lifecycle.beforeInfrastructure(config);
     }
 
     const infraConfig = getInfrastructureConfig(config);
 
-    // Initialize database if not explicitly disabled
     if (infraConfig.database)
     {
         serverLogger.debug('Initializing database...');
@@ -302,7 +271,6 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
         serverLogger.debug('Database initialization disabled');
     }
 
-    // Initialize Redis if not explicitly disabled
     if (infraConfig.redis)
     {
         serverLogger.debug('Initializing Redis...');
@@ -313,23 +281,10 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
         serverLogger.debug('Redis initialization disabled');
     }
 
-    // Execute afterInfrastructure hook from config
     if (config.lifecycle?.afterInfrastructure)
     {
         serverLogger.debug('Executing afterInfrastructure hook...');
-        try
-        {
-            await config.lifecycle.afterInfrastructure();
-        }
-        catch (error)
-        {
-            serverLogger.debug('[start-server] afterInfrastructure hook failed:', error);
-            throw new Error('Server initialization failed in afterInfrastructure hook');
-        }
-    }
-    else
-    {
-        serverLogger.debug('[start-server] No afterInfrastructure hook found');
+        await config.lifecycle.afterInfrastructure();
     }
 }
 
@@ -435,8 +390,8 @@ function createShutdownHandler(
             {
                 timeoutId = setTimeout(() =>
                 {
-                    reject(new Error(`HTTP server close timeout after ${SERVER_CLOSE_TIMEOUT}ms`));
-                }, SERVER_CLOSE_TIMEOUT);
+                    reject(new Error(`HTTP server close timeout after ${TIMEOUTS.SERVER_CLOSE}ms`));
+                }, TIMEOUTS.SERVER_CLOSE);
             }),
         ]).catch((error) =>
         {
@@ -466,13 +421,13 @@ function createShutdownHandler(
         if (infraConfig.database)
         {
             serverLogger.debug('Closing database connections...');
-            await closeInfrastructure(closeDatabase, 'Database', DATABASE_CLOSE_TIMEOUT);
+            await closeInfrastructure(closeDatabase, 'Database', TIMEOUTS.DATABASE_CLOSE);
         }
 
         if (infraConfig.redis)
         {
             serverLogger.debug('Closing Redis connections...');
-            await closeInfrastructure(closeCache, 'Redis', REDIS_CLOSE_TIMEOUT);
+            await closeInfrastructure(closeCache, 'Redis', TIMEOUTS.REDIS_CLOSE);
         }
 
         serverLogger.info('Server shutdown completed');
@@ -586,8 +541,8 @@ function handleProcessError(
     shutdown: (signal: string) => Promise<void>
 ): void
 {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isProduction = env.NODE_ENV === 'production';
+    const isDevelopment = env.NODE_ENV === 'development';
 
     // In development/watch mode, exit immediately for clean restart
     // In production, attempt graceful shutdown
@@ -603,9 +558,9 @@ function handleProcessError(
         // Set a timeout to force exit if shutdown hangs
         const forceExitTimer = setTimeout(() =>
         {
-            serverLogger.error(`Forced exit after ${PRODUCTION_ERROR_SHUTDOWN_TIMEOUT}ms - graceful shutdown did not complete`);
+            serverLogger.error(`Forced exit after ${TIMEOUTS.PRODUCTION_ERROR_SHUTDOWN}ms - graceful shutdown did not complete`);
             process.exit(1);
-        }, PRODUCTION_ERROR_SHUTDOWN_TIMEOUT);
+        }, TIMEOUTS.PRODUCTION_ERROR_SHUTDOWN);
 
         // Don't use await in event handler - handle promise explicitly
         shutdown(errorType)
@@ -736,12 +691,12 @@ async function cleanupOnFailure(config: ServerConfig): Promise<void>
 
         if (infraConfig.database)
         {
-            await closeInfrastructure(closeDatabase, 'Database', DATABASE_CLOSE_TIMEOUT);
+            await closeInfrastructure(closeDatabase, 'Database', TIMEOUTS.DATABASE_CLOSE);
         }
 
         if (infraConfig.redis)
         {
-            await closeInfrastructure(closeCache, 'Redis', REDIS_CLOSE_TIMEOUT);
+            await closeInfrastructure(closeCache, 'Redis', TIMEOUTS.REDIS_CLOSE);
         }
 
         serverLogger.debug('Cleanup completed');
