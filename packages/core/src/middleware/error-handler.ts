@@ -32,6 +32,24 @@ interface ErrorWithStatusCode extends Error
     details?: Record<string, unknown>;
 }
 
+interface SerializableErrorLike extends Error
+{
+    statusCode: number;
+    toJSON(): Record<string, unknown>;
+}
+
+/**
+ * Type guard for SerializableError
+ *
+ * Uses duck typing to handle module duplication issues in dev mode (tsx)
+ */
+function isSerializableError(err: Error): err is SerializableErrorLike
+{
+    return err instanceof SerializableError ||
+        (typeof (err as any).toJSON === 'function' &&
+         typeof (err as any).statusCode === 'number');
+}
+
 /**
  * Error handler middleware
  *
@@ -47,20 +65,15 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
     return (err: Error, c: Context) =>
     {
         // Handle SerializableError with automatic serialization
-        // Use duck typing to handle module duplication issues in dev mode (tsx)
-        const isSerializable = err instanceof SerializableError ||
-                              (typeof (err as any).toJSON === 'function' &&
-                               typeof (err as any).statusCode === 'number');
-
-        if (isSerializable)
+        if (isSerializableError(err))
         {
-            const statusCode = (err as any).statusCode;
+            const { statusCode } = err;
 
             if (enableLogging)
             {
                 const logLevel = statusCode >= 500 ? 'error' : 'warn';
 
-                const logData: Record<string, any> = {
+                const logData = {
                     type: err.constructor.name,
                     message: err.message,
                     statusCode,
@@ -79,7 +92,7 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
             }
 
             // Use toJSON() for automatic serialization
-            const serialized = (err as any).toJSON();
+            const serialized = err.toJSON();
 
             // Add stack trace in development
             if (includeStack && err.stack)
