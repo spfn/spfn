@@ -71,20 +71,36 @@ export class ServerConfigBuilder
     /**
      * Register define-route based router
      *
+     * Automatically applies:
+     * - Global middlewares from router._globalMiddlewares (via .use())
+     * - Package routers from router._packageRouters (via .packages())
+     *
      * @example
      * ```typescript
      * const appRouter = defineRouter({
      *   getUser: route.get('/users/:id')...
-     * });
+     * })
+     * .packages([authRouter, cmsAppRouter])
+     * .use([authMiddleware]);
      *
      * export default defineServerConfig()
-     *   .routes(appRouter)
+     *   .routes(appRouter)  // middlewares auto-applied
      *   .build();
      * ```
      */
     routes(router: Router<any>): this
     {
         this.config.routes = router;
+
+        // Auto-merge global middlewares from router
+        if (router._globalMiddlewares?.length > 0)
+        {
+            this.config.middlewares = [
+                ...(this.config.middlewares || []),
+                ...router._globalMiddlewares,
+            ];
+        }
+
         return this;
     }
 
