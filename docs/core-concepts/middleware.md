@@ -68,7 +68,31 @@ export const loggingMiddleware = defineMiddleware('logging', async (c, next) =>
 
 ## Global Middleware
 
-Configure global middlewares in server config:
+Configure global middlewares via router's `.use()` method (recommended):
+
+```typescript
+// src/server/router.ts
+import { defineRouter } from '@spfn/core/route';
+import { loggingMiddleware } from './middlewares/logging';
+import { authMiddleware } from './middlewares/auth';
+import { rateLimitMiddleware } from './middlewares/rate-limit';
+
+export const appRouter = defineRouter({
+    createUser,
+    getUser,
+})
+.use([loggingMiddleware, authMiddleware, rateLimitMiddleware]);
+
+// src/server/server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { appRouter } from './router';
+
+export default defineServerConfig()
+    .routes(appRouter)  // middlewares auto-applied from router
+    .build();
+```
+
+Or configure explicitly in server config:
 
 ```typescript
 // src/server/server.config.ts
@@ -193,6 +217,34 @@ export const deletePost = route.delete('/posts/:id')
         return c.noContent();
     });
 ```
+
+### Factory with Exactly 2 Parameters
+
+When your factory has exactly 2 parameters, use `defineMiddlewareFactory` to avoid misdetection:
+
+```typescript
+// src/server/middlewares/rate-limit.ts
+import { defineMiddlewareFactory } from '@spfn/core/route';
+import { TooManyRequestsError } from '@spfn/core/errors';
+
+// Factory with 2 params needs defineMiddlewareFactory
+export const rateLimiter = defineMiddlewareFactory('rateLimit',
+    (limit: number, windowMs: number) => async (c, next) =>
+    {
+        // Rate limiting logic using limit and windowMs
+        await next();
+    }
+);
+
+// Usage
+route.get('/api')
+    .use([rateLimiter(100, 60000)])  // 100 requests per minute
+    .handler(...);
+```
+
+> **Why defineMiddlewareFactory?**
+>
+> `defineMiddleware` detects factory vs regular middleware by checking parameter count. A 2-parameter function is assumed to be a regular middleware handler `(c, next) => ...`. Use `defineMiddlewareFactory` when your factory explicitly takes 2 parameters.
 
 ## Middleware Examples
 
