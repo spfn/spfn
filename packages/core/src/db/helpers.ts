@@ -23,9 +23,10 @@
  */
 
 import type { SQL } from 'drizzle-orm';
-import { eq, and } from 'drizzle-orm';
+import { count as sqlCount } from 'drizzle-orm';
 import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 import { getDatabase } from './manager';
+import { isSQLWrapper, buildWhereFromObject } from './query-utils';
 
 /**
  * Infer SELECT model from PgTable
@@ -43,32 +44,6 @@ type InferInsertModel<T extends PgTable> = T['$inferInsert'];
 type WhereObject<T> = {
     [K in keyof T]?: T[K];
 };
-
-/**
- * Check if value is SQL wrapper
- */
-function isSQLWrapper(value: any): value is SQL
-{
-    return value && typeof value === 'object' && 'queryChunks' in value;
-}
-
-/**
- * Build SQL WHERE clause from object
- */
-function buildWhereFromObject<T extends PgTable>(
-    table: T,
-    where: WhereObject<InferSelectModel<T>>
-): SQL | undefined
-{
-    const entries = Object.entries(where).filter(([_, value]) => value !== undefined);
-    if (entries.length === 0) return undefined;
-
-    const conditions = entries.map(([key, value]) =>
-        eq((table as any)[key], value)
-    );
-
-    return conditions.length === 1 ? conditions[0] : and(...conditions);
-}
 
 /**
  * Find a single record
@@ -508,7 +483,7 @@ export async function count<T extends PgTable>(
         throw new Error('Database not initialized. Call initDatabase() first.');
     }
 
-    let query = db.select().from(table as PgTable);
+    let query = db.select({ count: sqlCount() }).from(table as PgTable);
 
     if (where)
     {
@@ -522,6 +497,6 @@ export async function count<T extends PgTable>(
         }
     }
 
-    const results = await query;
-    return results.length;
+    const [result] = await query;
+    return Number(result?.count ?? 0);
 }

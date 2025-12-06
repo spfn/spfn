@@ -16,8 +16,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Type } from '@sinclair/typebox';
 import type { ServerConfig, ServerInstance } from '../types';
 import { defineServerConfig } from '../config-builder';
-import { defineMiddleware } from '@spfn/core/server';
-import { route, defineRouter } from '@spfn/core/route';
+import { route, defineRouter, defineMiddleware } from '@spfn/core/route';
 import { createServer } from '../create-server';
 
 describe('Server Module', () => {
@@ -459,10 +458,7 @@ describe('Server Module', () => {
             const data = await res.json();
 
             expect(res.status).toBe(200);
-            expect(data).toEqual({
-                success: true,
-                data: { id: '123', name: 'John Doe' }
-            });
+            expect(data).toEqual({ id: '123', name: 'John Doe' });
         });
 
         it('should return structured data with params, query, and body', async () => {
@@ -502,7 +498,7 @@ describe('Server Module', () => {
             const responseData = (await res.json()) as Record<string, any>;
 
             expect(res.status).toBe(200);
-            expect(responseData.data).toEqual({
+            expect(responseData).toEqual({
                 id: '123',          // from params
                 notify: true,       // from query (option)
                 name: 'Test Item',  // from body (resource data)
@@ -541,8 +537,9 @@ describe('Server Module', () => {
 
             expect(res.status).toBe(400);
             const data = (await res.json()) as Record<string, any>;
-            expect(data.success).toBe(false);
-            expect(data.error).toBeDefined();
+            // ErrorHandler returns { __type, message, ... } format (statusCode is in HTTP status)
+            expect(data.__type).toBe('ValidationError');
+            expect(data.message).toBeDefined();
         });
 
         it('should support response helpers', async () => {
@@ -575,29 +572,28 @@ describe('Server Module', () => {
 
             const app = await createServer(config);
 
-            // Test success()
+            // Test success - returns data directly
             const res1 = await app.request('/success');
             expect(res1.status).toBe(200);
             const data1 = await res1.json();
-            expect(data1).toEqual({ success: true, data: { message: 'ok' } });
+            expect(data1).toEqual({ message: 'ok' });
 
-            // Test created()
+            // Test created() - returns data with 201 status
             const res2 = await app.request('/created', { method: 'POST' });
             expect(res2.status).toBe(201);
             const data2 = await res2.json();
-            expect(data2).toEqual({ success: true, data: { id: 1 } });
+            expect(data2).toEqual({ id: 1 });
 
             // Test noContent()
             const res3 = await app.request('/no-content');
             expect(res3.status).toBe(204);
 
-            // Test paginated()
+            // Test paginated() - returns { items, pagination } format
             const res4 = await app.request('/paginated');
             expect(res4.status).toBe(200);
             const data4 = (await res4.json()) as Record<string, any>;
-            expect(data4.success).toBe(true);
-            expect(data4.data).toEqual([{ id: 1 }, { id: 2 }]);
-            expect(data4.meta?.pagination).toEqual({
+            expect(data4.items).toEqual([{ id: 1 }, { id: 2 }]);
+            expect(data4.pagination).toEqual({
                 page: 1,
                 limit: 10,
                 total: 100,
@@ -633,7 +629,7 @@ describe('Server Module', () => {
 
             expect(authMiddleware).toHaveBeenCalled();
             expect(res.status).toBe(200);
-            expect(data.data.user).toEqual({ id: 1, name: 'Test User' });
+            expect(data.user).toEqual({ id: 1, name: 'Test User' });
         });
 
         it('should apply server-level named middlewares to all routes', async () => {
@@ -674,7 +670,7 @@ describe('Server Module', () => {
             expect(authMiddlewareFn).toHaveBeenCalled();
             expect(rateLimitMiddlewareFn).toHaveBeenCalled();
             expect(res.status).toBe(200);
-            expect(data.data).toEqual({ authenticated: true, rateLimited: true });
+            expect(data).toEqual({ authenticated: true, rateLimited: true });
         });
 
         it('should skip specified middlewares for public routes', async () => {
@@ -729,7 +725,7 @@ describe('Server Module', () => {
             expect(authMiddlewareFn).not.toHaveBeenCalled();
             expect(rateLimitMiddlewareFn).not.toHaveBeenCalled();
             expect(res1.status).toBe(200);
-            expect(data1.data).toEqual({ authenticated: false, rateLimited: false });
+            expect(data1).toEqual({ authenticated: false, rateLimited: false });
 
             // Protected route - should apply middlewares
             authMiddlewareFn.mockClear();
@@ -740,7 +736,7 @@ describe('Server Module', () => {
             expect(authMiddlewareFn).toHaveBeenCalled();
             expect(rateLimitMiddlewareFn).toHaveBeenCalled();
             expect(res2.status).toBe(200);
-            expect(data2.data).toEqual({ authenticated: true, rateLimited: true });
+            expect(data2).toEqual({ authenticated: true, rateLimited: true });
         });
 
         it('should partially skip middlewares (skip only auth)', async () => {
@@ -785,7 +781,7 @@ describe('Server Module', () => {
             expect(authMiddlewareFn).not.toHaveBeenCalled();
             expect(rateLimitMiddlewareFn).toHaveBeenCalled();
             expect(res.status).toBe(200);
-            expect(data.data).toEqual({ authenticated: false, rateLimited: true });
+            expect(data).toEqual({ authenticated: false, rateLimited: true });
         });
     });
 });

@@ -163,7 +163,7 @@ export async function runInTransaction<T>(
     {
         if (condition)
         {
-            const error = new TransactionError(message, 400, metadata);
+            const error = new TransactionError({ message, statusCode: 400, details: metadata });
 
             if (enableLogging)
             {
@@ -218,11 +218,11 @@ export async function runInTransaction<T>(
     const writeDb = getDatabase('write');
     if (!writeDb)
     {
-        const error = new TransactionError(
-            'Database not initialized. Cannot start transaction.',
-            500,
-            { txId, context }
-        );
+        const error = new TransactionError({
+            message: 'Database not initialized. Cannot start transaction.',
+            statusCode: 500,
+            details: { txId, context }
+        });
 
         if (enableLogging)
         {

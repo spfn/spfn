@@ -14,6 +14,8 @@ import {
     envBoolean,
     envUrl,
     envString,
+    parsePostgresUrl,
+    parseRedisUrl,
 } from '@spfn/core/env';
 
 /**
@@ -52,6 +54,7 @@ export const coreEnvSchema = defineEnvSchema({
         description: 'Primary database connection URL',
         required: false,
         sensitive: true,
+        validator: parsePostgresUrl,
         examples: ['postgresql://user:password@localhost:5432/dbname'],
     }),
 
@@ -59,6 +62,7 @@ export const coreEnvSchema = defineEnvSchema({
         description: 'Write database URL (master-replica pattern)',
         required: false,
         sensitive: true,
+        validator: parsePostgresUrl,
         examples: ['postgresql://user:password@master:5432/dbname'],
     }),
 
@@ -66,15 +70,10 @@ export const coreEnvSchema = defineEnvSchema({
         description: 'Read database URL (master-replica pattern)',
         required: false,
         sensitive: true,
+        validator: parsePostgresUrl,
         examples: ['postgresql://user:password@replica:5432/dbname'],
     }),
 
-    DATABASE_REPLICA_URL: envString({
-        description: 'Legacy replica database URL',
-        required: false,
-        sensitive: true,
-        examples: ['postgresql://user:password@replica:5432/dbname'],
-    }),
 
     // ========================================================================
     // Database - Connection Pool
@@ -230,22 +229,25 @@ export const coreEnvSchema = defineEnvSchema({
     CACHE_URL: envString({
         description: 'Single Redis/Valkey instance URL',
         required: false,
-        examples: ['redis://localhost:6379', 'rediss://secure.cache.com:6380'],
         sensitive: true,
+        validator: parseRedisUrl,
+        examples: ['redis://localhost:6379', 'rediss://secure.cache.com:6380'],
     }),
 
     CACHE_WRITE_URL: envString({
         description: 'Master Redis/Valkey URL for writes (master-replica pattern)',
         required: false,
-        examples: ['redis://master:6379'],
         sensitive: true,
+        validator: parseRedisUrl,
+        examples: ['redis://master:6379'],
     }),
 
     CACHE_READ_URL: envString({
         description: 'Replica Redis/Valkey URL for reads (master-replica pattern)',
         required: false,
-        examples: ['redis://replica:6379'],
         sensitive: true,
+        validator: parseRedisUrl,
+        examples: ['redis://replica:6379'],
     }),
 
     CACHE_SENTINEL_HOSTS: envString({

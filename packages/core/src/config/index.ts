@@ -22,6 +22,16 @@ export { coreEnvSchema as envSchema } from './schema';
 
 /**
  * Environment registry
+ *
+ * @example
+ * ```typescript
+ * // Reset for testing
+ * registry.reset();
+ * ```
  */
-const registry = createEnvRegistry(coreEnvSchema);
+export const registry = createEnvRegistry(coreEnvSchema);
+
+/**
+ * Validated environment configuration
+ */
 export const env = registry.validate();

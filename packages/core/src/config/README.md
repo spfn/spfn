@@ -71,7 +71,6 @@ console.log(envSchema.DB_POOL_MAX.examples);
 | `DATABASE_URL` | `string` | No | Primary database connection URL |
 | `DATABASE_WRITE_URL` | `string` | No | Write database URL (master-replica) |
 | `DATABASE_READ_URL` | `string` | No | Read database URL (master-replica) |
-| `DATABASE_REPLICA_URL` | `string` | No | Legacy replica database URL |
 
 ### Database - Connection Pool
 

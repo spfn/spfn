@@ -4,9 +4,10 @@
  * Tests for reproducing futureplay project setup with custom generators
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { mkdirSync, rmSync } from 'fs';
 import { resolve, join } from 'path';
+import { watch as chokidarWatch } from 'chokidar';
 import type { GeneratorOptions, Generator } from "../core/generator";
 import { CodegenOrchestrator } from "../core/orchestrator";
 
@@ -23,6 +24,8 @@ vi.mock('chokidar', () => ({
         close: vi.fn()
     }))
 }));
+
+const mockedChokidarWatch = chokidarWatch as Mock;
 
 describe('Orchestrator - Custom Generator (futureplay scenario)', () =>
 {
@@ -41,8 +44,7 @@ describe('Orchestrator - Custom Generator (futureplay scenario)', () =>
     {
         it('should call generate() on file change when onFileChange is not provided', async () =>
         {
-            const { watch: chokidarWatch } = await import('chokidar');
-            const generateCalls: Array<{ cwd: string; debug?: boolean }> = [];
+                        const generateCalls: Array<{ cwd: string; debug?: boolean }> = [];
 
             // Simulate admin-nav-generator WITHOUT onFileChange
             const adminNavGen: Generator = {
@@ -71,7 +73,7 @@ describe('Orchestrator - Custom Generator (futureplay scenario)', () =>
                 close: vi.fn()
             };
 
-            vi.mocked(chokidarWatch).mockReturnValue(mockWatcher as any);
+            mockedChokidarWatch.mockReturnValue(mockWatcher as any);
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [adminNavGen],
@@ -105,7 +107,7 @@ describe('Orchestrator - Custom Generator (futureplay scenario)', () =>
             if (changeHandler)
             {
                 console.log('[TEST] Calling changeHandler...');
-                await changeHandler(testFilePath);
+                await (changeHandler as (path: string) => void)(testFilePath);
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
             else
@@ -126,8 +128,7 @@ describe('Orchestrator - Custom Generator (futureplay scenario)', () =>
     {
         it('should pass trigger information for smart regeneration', async () =>
         {
-            const { watch: chokidarWatch } = await import('chokidar');
-            const generateCalls: Array<{ trigger?: any }> = [];
+                        const generateCalls: Array<{ trigger?: any }> = [];
 
             // Simulate smart generator that checks trigger info
             const smartGen: Generator = {
@@ -161,7 +162,7 @@ describe('Orchestrator - Custom Generator (futureplay scenario)', () =>
                 close: vi.fn()
             };
 
-            vi.mocked(chokidarWatch).mockReturnValue(mockWatcher as any);
+            mockedChokidarWatch.mockReturnValue(mockWatcher as any);
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [smartGen],
@@ -180,7 +181,7 @@ describe('Orchestrator - Custom Generator (futureplay scenario)', () =>
             const testFile = join(TEST_DIR, 'src/api/users.contract.ts');
             if (changeHandler)
             {
-                await changeHandler(testFile);
+                await (changeHandler as (path: string) => void)(testFile);
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
 

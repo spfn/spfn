@@ -24,7 +24,6 @@ const dbLogger = logger.child('@spfn/core:database');
  */
 type DatabasePattern =
     | { type: 'write-read'; write: string; read: string }     // Explicit write/read separation
-    | { type: 'legacy'; primary: string; replica: string }    // Legacy replica pattern
     | { type: 'single'; url: string }                         // Single database
     | { type: 'none' };                                        // No configuration
 
@@ -47,10 +46,9 @@ function hasDatabaseConfig(): boolean
  *
  * Priority order (highest to lowest):
  * 1. write-read: DATABASE_WRITE_URL + DATABASE_READ_URL (explicit separation)
- * 2. legacy: DATABASE_URL + DATABASE_REPLICA_URL (backward compatibility)
- * 3. single: DATABASE_URL (most common)
- * 4. single: DATABASE_WRITE_URL (write-only, no replica)
- * 5. none: No configuration found
+ * 2. single: DATABASE_URL (most common)
+ * 3. single: DATABASE_WRITE_URL (write-only, no replica)
+ * 4. none: No configuration found
  *
  * @returns Detected database configuration pattern
  *
@@ -68,7 +66,6 @@ function detectDatabasePattern(): DatabasePattern
     const DATABASE_WRITE_URL = env.DATABASE_WRITE_URL;
     const DATABASE_READ_URL = env.DATABASE_READ_URL;
     const DATABASE_URL = env.DATABASE_URL;
-    const DATABASE_REPLICA_URL = env.DATABASE_REPLICA_URL;
 
     // Priority 1: Explicit write/read separation (recommended)
     if (DATABASE_WRITE_URL && DATABASE_READ_URL)
@@ -80,17 +77,7 @@ function detectDatabasePattern(): DatabasePattern
         };
     }
 
-    // Priority 2: Legacy replica pattern (backward compatibility)
-    if (DATABASE_URL && DATABASE_REPLICA_URL)
-    {
-        return {
-            type: 'legacy',
-            primary: DATABASE_URL,
-            replica: DATABASE_REPLICA_URL,
-        };
-    }
-
-    // Priority 3: Single primary (most common)
+    // Priority 2: Single primary (most common)
     if (DATABASE_URL)
     {
         return {
@@ -99,7 +86,7 @@ function detectDatabasePattern(): DatabasePattern
         };
     }
 
-    // Priority 4: Write-only (no replica)
+    // Priority 3: Write-only (no replica)
     if (DATABASE_WRITE_URL)
     {
         return {
@@ -212,9 +199,8 @@ async function createSingleClient(
  * Create database client(s) from environment variables
  *
  * Supported patterns (priority order):
- * 1. Single primary: DATABASE_URL
- * 2. Primary + Replica: DATABASE_WRITE_URL + DATABASE_READ_URL
- * 3. Legacy replica: DATABASE_URL + DATABASE_REPLICA_URL
+ * 1. Primary + Replica: DATABASE_WRITE_URL + DATABASE_READ_URL
+ * 2. Single primary: DATABASE_URL
  *
  * @param options - Optional database configuration (pool settings, etc.)
  * @returns Database client(s)
@@ -228,10 +214,6 @@ async function createSingleClient(
  * # Primary + Replica
  * DATABASE_WRITE_URL=postgresql://primary:5432/mydb
  * DATABASE_READ_URL=postgresql://replica:5432/mydb
- *
- * # Legacy (backward compatibility)
- * DATABASE_URL=postgresql://primary:5432/mydb
- * DATABASE_REPLICA_URL=postgresql://replica:5432/mydb
  * ```
  *
  * @example
@@ -277,14 +259,6 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
                     retryConfig
                 );
 
-            case 'legacy':
-                return await createWriteReadClients(
-                    pattern.primary,
-                    pattern.replica,
-                    poolConfig,
-                    retryConfig
-                );
-
             case 'single':
                 return await createSingleClient(pattern.url, poolConfig, retryConfig);
         }
@@ -300,12 +274,9 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
                 hasWriteUrl: process.env.DATABASE_WRITE_URL !== undefined,
                 hasReadUrl: process.env.DATABASE_READ_URL !== undefined,
                 hasUrl: process.env.DATABASE_URL !== undefined,
-                hasReplicaUrl: process.env.DATABASE_REPLICA_URL !== undefined,
             }
         );
 
-        // If DATABASE_URL is configured, connection failure should be fatal
-        // This prevents the server from starting without a database connection
         throw new Error(`Database connection failed: ${errorObj.message}`, { cause: error });
     }
 

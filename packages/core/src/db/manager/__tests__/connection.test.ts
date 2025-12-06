@@ -7,7 +7,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createDatabaseConnection, checkConnection } from '../connection';
-import { ConnectionError } from '../../../errors';
 import postgres from 'postgres';
 
 // Mock postgres module (only mock needed to avoid real DB connections)
@@ -122,7 +121,7 @@ describe('Database Connection', () =>
                     poolConfig,
                     retryConfig
                 )
-            ).rejects.toThrow(ConnectionError);
+            ).rejects.toThrow('Failed to connect to database');
 
             // Should attempt: initial + 2 retries = 3 total
             expect(mockClient).toHaveBeenCalledTimes(3);

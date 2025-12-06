@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { logger } from '@spfn/core/logger';
-import type { Transport, LogMetadata } from '../types';
+import { Logger } from '../logger';
+import type { Transport } from '../types';
 
 describe('Logger Context Detection', () => {
     it('should treat {name, method, path} as context, not error', () => {

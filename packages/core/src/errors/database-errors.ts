@@ -3,28 +3,32 @@
  *
  * Type-safe error handling with custom error class hierarchy
  * Mapped to HTTP status codes for API responses
+ * All errors extend SerializableError for consistent JSON serialization
  */
+
+import { SerializableError } from './serializable-error';
 
 /**
  * Base Database Error
  *
  * Base class for all database-related errors
  */
-export class DatabaseError<TDetails extends Record<string, unknown> = Record<string, unknown>> extends Error
+export class DatabaseError<TDetails extends Record<string, unknown> = Record<string, unknown>>
+    extends SerializableError
 {
     public readonly statusCode: number;
     public readonly details?: TDetails;
 
-    constructor(
-        message: string,
-        statusCode: number = 500,
-        details?: TDetails
-    )
+    constructor(data: {
+        message: string;
+        statusCode?: number;
+        details?: TDetails;
+    })
     {
-        super(message);
+        super(data.message);
         this.name = 'DatabaseError';
-        this.statusCode = statusCode;
-        this.details = details;
+        this.statusCode = data.statusCode ?? 500;
+        this.details = data.details;
         Error.captureStackTrace(this, this.constructor);
     }
 }
@@ -36,9 +40,9 @@ export class DatabaseError<TDetails extends Record<string, unknown> = Record<str
  */
 export class ConnectionError extends DatabaseError
 {
-    constructor(message: string, details?: Record<string, any>)
+    constructor(data: { message: string; details?: Record<string, unknown> })
     {
-        super(message, 503, details);
+        super({ message: data.message, statusCode: 503, details: data.details });
         this.name = 'ConnectionError';
     }
 }
@@ -50,9 +54,17 @@ export class ConnectionError extends DatabaseError
  */
 export class QueryError extends DatabaseError
 {
-    constructor(message: string, statusCode: number = 500, details?: Record<string, any>)
+    constructor(data: {
+        message: string;
+        statusCode?: number;
+        details?: Record<string, unknown>;
+    })
     {
-        super(message, statusCode, details);
+        super({
+            message: data.message,
+            statusCode: data.statusCode ?? 500,
+            details: data.details,
+        });
         this.name = 'QueryError';
     }
 }
@@ -64,10 +76,19 @@ export class QueryError extends DatabaseError
  */
 export class EntityNotFoundError extends QueryError
 {
-    constructor(resource: string, id: string | number)
+    public readonly resource: string;
+    public readonly id: string | number;
+
+    constructor(data: { resource: string; id: string | number })
     {
-        super(`${resource} with id ${id} not found`, 404, { resource, id });
-        this.name = 'NotFoundError';
+        super({
+            message: `${data.resource} with id ${data.id} not found`,
+            statusCode: 404,
+            details: { resource: data.resource, id: data.id },
+        });
+        this.name = 'EntityNotFoundError';
+        this.resource = data.resource;
+        this.id = data.id;
     }
 }
 
@@ -79,9 +100,9 @@ export class EntityNotFoundError extends QueryError
  */
 export class ConstraintViolationError extends QueryError
 {
-    constructor(message: string, details?: Record<string, any>)
+    constructor(data: { message: string; details?: Record<string, unknown> })
     {
-        super(message, 400, details);
+        super({ message: data.message, statusCode: 400, details: data.details });
         this.name = 'ConstraintViolationError';
     }
 }
@@ -93,9 +114,17 @@ export class ConstraintViolationError extends QueryError
  */
 export class TransactionError extends DatabaseError
 {
-    constructor(message: string, statusCode: number = 500, details?: Record<string, any>)
+    constructor(data: {
+        message: string;
+        statusCode?: number;
+        details?: Record<string, unknown>;
+    })
     {
-        super(message, statusCode, details);
+        super({
+            message: data.message,
+            statusCode: data.statusCode ?? 500,
+            details: data.details,
+        });
         this.name = 'TransactionError';
     }
 }
@@ -107,9 +136,9 @@ export class TransactionError extends DatabaseError
  */
 export class DeadlockError extends TransactionError
 {
-    constructor(message: string, details?: Record<string, any>)
+    constructor(data: { message: string; details?: Record<string, unknown> })
     {
-        super(message, 409, details);
+        super({ message: data.message, statusCode: 409, details: data.details });
         this.name = 'DeadlockError';
     }
 }
@@ -121,9 +150,18 @@ export class DeadlockError extends TransactionError
  */
 export class DuplicateEntryError extends QueryError
 {
-    constructor(field: string, value: string | number)
+    public readonly field: string;
+    public readonly value: string | number;
+
+    constructor(data: { field: string; value: string | number })
     {
-        super(`${field} '${value}' already exists`, 409, { field, value });
+        super({
+            message: `${data.field} '${data.value}' already exists`,
+            statusCode: 409,
+            details: { field: data.field, value: data.value },
+        });
         this.name = 'DuplicateEntryError';
+        this.field = data.field;
+        this.value = data.value;
     }
 }

@@ -252,18 +252,18 @@ export function parseInteger(
  *
  * @param value - Value to parse
  * @param options - Min/max constraints
- * @returns Parsed float
+ * @returns Parsed decimal number
  * @throws Error if invalid or out of range
  *
  * @example
  * ```typescript
  * const ratio = getEnvVar('CACHE_RATIO', {
  *   default: '0.75',
- *   validator: (val) => parseFloat(val, { min: 0, max: 1 }),
+ *   validator: (val) => parseDecimal(val, { min: 0, max: 1 }),
  * });
  * ```
  */
-export function parseFloat(
+export function parseDecimal(
     value: string,
     options: { min?: number; max?: number } = {}
 ): number

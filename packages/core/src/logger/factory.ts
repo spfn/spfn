@@ -8,6 +8,7 @@ import { Logger } from './logger';
 import { ConsoleTransport } from './transports/console';
 import { getConsoleConfig, validateConfig } from './config';
 import type { LogLevel, Transport } from './types';
+import { LOG_LEVEL_PRIORITY } from './types';
 
 /**
  * Initialize transports based on environment and configuration
@@ -29,6 +30,26 @@ function initializeTransports(): Transport[]
 }
 
 /**
+ * Get validated log level from environment variables
+ */
+function getLogLevel(): LogLevel
+{
+    const envLevel = process.env.SPFN_LOG_LEVEL
+        || process.env.NEXT_PUBLIC_SPFN_LOG_LEVEL
+        || 'info';
+
+    if (envLevel in LOG_LEVEL_PRIORITY)
+    {
+        return envLevel as LogLevel;
+    }
+
+    process.stderr.write(
+        `[Logger] Invalid log level "${envLevel}", defaulting to "info"\n`
+    );
+    return 'info';
+}
+
+/**
  * Initialize logger with configuration validation
  */
 function initializeLogger(): Logger
@@ -38,7 +59,7 @@ function initializeLogger(): Logger
 
     // Create logger with configured transports
     return new Logger({
-        level: (process.env.SPFN_LOG_LEVEL || process.env.NEXT_PUBLIC_SPFN_LOG_LEVEL || 'info') as LogLevel,  // Type inference not perfect yet, fallback needed
+        level: getLogLevel(),
         transports: initializeTransports(),
     });
 }

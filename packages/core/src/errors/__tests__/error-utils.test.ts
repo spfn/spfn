@@ -20,7 +20,7 @@ describe('isDatabaseError', () =>
 {
     it('should return true for DatabaseError instances', () =>
     {
-        const error = new DatabaseError('Test error');
+        const error = new DatabaseError({ message: 'Test error' });
 
         expect(isDatabaseError(error)).toBe(true);
     });
@@ -28,7 +28,7 @@ describe('isDatabaseError', () =>
     it('should return false for non-DatabaseError errors', () =>
     {
         const error = new Error('Regular error');
-        const httpError = new HttpError('HTTP error', 500);
+        const httpError = new HttpError({ message: 'HTTP error', statusCode: 500 });
 
         expect(isDatabaseError(error)).toBe(false);
         expect(isDatabaseError(httpError)).toBe(false);
@@ -52,14 +52,14 @@ describe('isHttpError', () =>
 {
     it('should return true for HttpError instances', () =>
     {
-        const error = new HttpError('Test error', 500);
+        const error = new HttpError({ message: 'Test error', statusCode: 500 });
 
         expect(isHttpError(error)).toBe(true);
     });
 
     it('should return true for HttpError subclasses', () =>
     {
-        const unauthorizedError = new UnauthorizedError('Not authenticated');
+        const unauthorizedError = new UnauthorizedError({ message: 'Not authenticated' });
 
         expect(isHttpError(unauthorizedError)).toBe(true);
     });
@@ -67,7 +67,7 @@ describe('isHttpError', () =>
     it('should return false for non-HttpError errors', () =>
     {
         const error = new Error('Regular error');
-        const dbError = new DatabaseError('DB error');
+        const dbError = new DatabaseError({ message: 'DB error' });
 
         expect(isHttpError(error)).toBe(false);
         expect(isHttpError(dbError)).toBe(false);
@@ -91,7 +91,7 @@ describe('hasStatusCode', () =>
 {
     it('should return true for objects with numeric statusCode', () =>
     {
-        const error = new DatabaseError('Test error');
+        const error = new DatabaseError({ message: 'Test error' });
 
         expect(hasStatusCode(error)).toBe(true);
     });

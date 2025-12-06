@@ -5,7 +5,7 @@
  */
 
 // Core Error Registry
-// Pre-configured registry with all built-in HTTP errors
+// Pre-configured registry with all built-in HTTP and Database errors
 import { ErrorRegistry } from './error-registry';
 import {
     HttpError,
@@ -22,9 +22,20 @@ import {
     InternalServerError,
     ServiceUnavailableError,
 } from './http-errors';
+import {
+    DatabaseError,
+    ConnectionError,
+    QueryError,
+    EntityNotFoundError,
+    ConstraintViolationError,
+    TransactionError,
+    DeadlockError,
+    DuplicateEntryError,
+} from './database-errors';
 
 // Base Classes
 export { SerializableError } from './serializable-error';
+export type { SerializedError } from './serializable-error';
 export { ErrorRegistry } from './error-registry';
 export type { SerializableErrorConstructor } from './error-registry';
 
@@ -65,6 +76,8 @@ export {
 } from './error-utils';
 
 export const errorRegistry = new ErrorRegistry();
+
+// HTTP Errors
 errorRegistry.append([
     HttpError,
     BadRequestError,
@@ -79,6 +92,18 @@ errorRegistry.append([
     UnprocessableEntityError,
     InternalServerError,
     ServiceUnavailableError,
+]);
+
+// Database Errors
+errorRegistry.append([
+    DatabaseError,
+    ConnectionError,
+    QueryError,
+    EntityNotFoundError,
+    ConstraintViolationError,
+    TransactionError,
+    DeadlockError,
+    DuplicateEntryError,
 ]);
 
 export * as HttpErrors from './http-errors';

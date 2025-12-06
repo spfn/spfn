@@ -482,5 +482,51 @@ describe('Formatters', () =>
             expect(result.level1.level2.level3.password).toBe('***MASKED***');
             expect(result.level1.level2.level3.normalField).toBe('normal-value');
         });
+
+        it('should handle circular references', () =>
+        {
+            const data: any = {
+                name: 'parent',
+                password: 'secret',
+            };
+            data.self = data; // Circular reference
+
+            const result = maskSensitiveData(data) as any;
+
+            expect(result.name).toBe('parent');
+            expect(result.password).toBe('***MASKED***');
+            expect(result.self).toBe('[Circular]');
+        });
+
+        it('should handle nested circular references', () =>
+        {
+            const parent: any = { name: 'parent', password: 'secret1' };
+            const child: any = { name: 'child', token: 'token123' };
+            parent.child = child;
+            child.parent = parent;
+
+            const result = maskSensitiveData(parent) as any;
+
+            expect(result.name).toBe('parent');
+            expect(result.password).toBe('***MASKED***');
+            expect(result.child.name).toBe('child');
+            expect(result.child.token).toBe('***MASKED***');
+            expect(result.child.parent).toBe('[Circular]');
+        });
+
+        it('should handle arrays with circular references', () =>
+        {
+            const item: any = { id: 1, password: 'secret' };
+            const data: any = {
+                items: [item],
+            };
+            item.container = data;
+
+            const result = maskSensitiveData(data) as any;
+
+            expect(result.items[0].id).toBe(1);
+            expect(result.items[0].password).toBe('***MASKED***');
+            expect(result.items[0].container).toBe('[Circular]');
+        });
     });
 });

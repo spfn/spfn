@@ -4,9 +4,10 @@
  * Tests for the codegen orchestrator system
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { mkdirSync, rmSync } from 'fs';
 import { resolve, join } from 'path';
+import { watch as chokidarWatch } from 'chokidar';
 import { CodegenOrchestrator } from '../core/orchestrator';
 import type { Generator, GeneratorOptions } from '../core/generator';
 
@@ -23,6 +24,8 @@ vi.mock('chokidar', () => ({
         close: vi.fn()
     }))
 }));
+
+const mockedChokidarWatch = chokidarWatch as Mock;
 
 describe('Orchestrator', () =>
 {
@@ -241,8 +244,7 @@ describe('Orchestrator', () =>
 
         it('should setup chokidar watcher with correct patterns', async () =>
         {
-            const { watch: chokidarWatch } = await import('chokidar');
-
+            
             const mockGen: Generator = {
                 name: 'test-gen',
                 watchPatterns: ['src/**/*.ts', 'lib/**/*'],
@@ -268,8 +270,7 @@ describe('Orchestrator', () =>
 
         it('should handle file changes', async () =>
         {
-            const { watch: chokidarWatch } = await import('chokidar');
-
+            
             const changes: string[] = [];
 
             const mockGen: Generator = {
@@ -294,7 +295,7 @@ describe('Orchestrator', () =>
                 close: vi.fn()
             };
 
-            vi.mocked(chokidarWatch).mockReturnValue(mockWatcher as any);
+            mockedChokidarWatch.mockReturnValue(mockWatcher as any);
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
@@ -310,7 +311,7 @@ describe('Orchestrator', () =>
             // Simulate file add
             if (addHandler)
             {
-                addHandler(join(TEST_DIR, 'test.ts'));
+                (addHandler as (path: string) => void)(join(TEST_DIR, 'test.ts'));
             }
 
             await new Promise(resolve => setTimeout(resolve, 50));
@@ -321,8 +322,7 @@ describe('Orchestrator', () =>
 
         it('should pass trigger information on file change', async () =>
         {
-            const { watch: chokidarWatch } = await import('chokidar');
-
+            
             const receivedTriggers: Array<any> = [];
 
             const mockGen: Generator = {
@@ -346,7 +346,7 @@ describe('Orchestrator', () =>
                 close: vi.fn()
             };
 
-            vi.mocked(chokidarWatch).mockReturnValue(mockWatcher as any);
+            mockedChokidarWatch.mockReturnValue(mockWatcher as any);
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
@@ -365,7 +365,7 @@ describe('Orchestrator', () =>
             // Simulate file change
             if (changeHandler)
             {
-                await changeHandler(join(TEST_DIR, 'test.ts'));
+                await (changeHandler as (path: string) => void)(join(TEST_DIR, 'test.ts'));
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
 
@@ -421,8 +421,7 @@ describe('Orchestrator', () =>
 
         it('should extract base directories from patterns correctly', async () =>
         {
-            const { watch: chokidarWatch } = await import('chokidar');
-
+            
             const mockGen: Generator = {
                 name: 'test-gen',
                 watchPatterns: ['src/**/*.ts', 'lib/**/*', './**/*.config'],
@@ -445,14 +444,13 @@ describe('Orchestrator', () =>
 
             // Should have called watch with extracted directories
             expect(chokidarWatch).toHaveBeenCalled();
-            const callArgs = vi.mocked(chokidarWatch).mock.calls[0];
+            const callArgs = mockedChokidarWatch.mock.calls[0];
             expect(Array.isArray(callArgs[0])).toBe(true);
         });
 
         it('should handle errors in generators during watch', async () =>
         {
-            const { watch: chokidarWatch } = await import('chokidar');
-
+            
             const failingGen: Generator = {
                 name: 'failing',
                 watchPatterns: ['**/*.ts'],
@@ -474,7 +472,7 @@ describe('Orchestrator', () =>
                 close: vi.fn()
             };
 
-            vi.mocked(chokidarWatch).mockReturnValue(mockWatcher as any);
+            mockedChokidarWatch.mockReturnValue(mockWatcher as any);
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [failingGen],
@@ -492,7 +490,7 @@ describe('Orchestrator', () =>
             if (addHandler)
             {
                 // Should not throw despite generator error
-                await addHandler(join(TEST_DIR, 'test.ts'));
+                await (addHandler as (path: string) => void)(join(TEST_DIR, 'test.ts'));
                 await new Promise(resolve => setTimeout(resolve, 50));
 
                 // Test passed if we reach here without throwing

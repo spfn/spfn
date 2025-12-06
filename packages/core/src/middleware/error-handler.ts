@@ -38,6 +38,43 @@ interface SerializableErrorLike extends Error
     toJSON(): Record<string, unknown>;
 }
 
+interface ErrorLogData extends Record<string, unknown>
+{
+    type: string;
+    message: string;
+    statusCode: number;
+    path: string;
+    method: string;
+}
+
+interface StandardErrorResponse
+{
+    __type: string;
+    message: string;
+    stack?: string;
+}
+
+/**
+ * Log error with appropriate level based on status code
+ */
+function logError(
+    err: Error,
+    logData: ErrorLogData,
+    includeStack: boolean
+): void
+{
+    const logLevel = logData.statusCode >= 500 ? 'error' : 'warn';
+
+    if (includeStack)
+    {
+        errorLogger[logLevel]('Error occurred', err, logData);
+    }
+    else
+    {
+        errorLogger[logLevel]('Error occurred', logData);
+    }
+}
+
 /**
  * Type guard for SerializableError
  *
@@ -71,24 +108,13 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
 
             if (enableLogging)
             {
-                const logLevel = statusCode >= 500 ? 'error' : 'warn';
-
-                const logData = {
+                logError(err, {
                     type: err.constructor.name,
                     message: err.message,
                     statusCode,
                     path: c.req.path,
                     method: c.req.method,
-                };
-
-                if (includeStack)
-                {
-                    errorLogger[logLevel]('Error occurred', err, logData);
-                }
-                else
-                {
-                    errorLogger[logLevel]('Error occurred', logData);
-                }
+                }, includeStack);
             }
 
             // Use toJSON() for automatic serialization
@@ -106,32 +132,20 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
         // Handle standard errors (fallback)
         const errorWithCode = err as ErrorWithStatusCode;
         const statusCode = errorWithCode.statusCode || 500;
-        const errorType = err.name || 'Error';
 
         if (enableLogging)
         {
-            const logLevel = statusCode >= 500 ? 'error' : 'warn';
-
-            const logData: Record<string, any> = {
-                type: errorType,
+            logError(err, {
+                type: err.name || 'Error',
                 message: err.message,
                 statusCode,
                 path: c.req.path,
                 method: c.req.method,
-            };
-
-            if (includeStack)
-            {
-                errorLogger[logLevel]('Error occurred', err, logData);
-            }
-            else
-            {
-                errorLogger[logLevel]('Error occurred', logData);
-            }
+            }, includeStack);
         }
 
         // Standard error response
-        const response: Record<string, any> = {
+        const response: StandardErrorResponse = {
             __type: 'Error',
             message: err.message || 'Internal Server Error',
         };

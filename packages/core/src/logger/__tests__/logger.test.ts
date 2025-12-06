@@ -17,8 +17,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { logger } from '../index';
-import { logger } from '@spfn/core/logger';
+import { logger, Logger } from '../index';
 import type { Transport, LogMetadata } from '../types';
 
 describe('Logger', () => {

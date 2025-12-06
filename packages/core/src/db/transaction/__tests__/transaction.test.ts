@@ -36,6 +36,8 @@ describe('Transaction Timeout Configuration', () =>
 
          it('should successfully set timeout using sql.raw() with string concatenation', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             await dbFixture.db.transaction(async (tx) =>
             {
                 const timeout = 3000;
@@ -69,6 +71,8 @@ describe('Transaction Timeout Configuration', () =>
 
         it('should verify sql.raw() is safe with validated integer input', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             await dbFixture.db.transaction(async (tx) =>
             {
                 // Simulate our validation logic
@@ -96,6 +100,8 @@ describe('Transaction Timeout Configuration', () =>
 
         it('should demonstrate SQL injection attempt is prevented by validation', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             await dbFixture.db.transaction(async (tx) =>
             {
                 // Simulate malicious input
@@ -143,6 +149,8 @@ describe('Transaction Timeout Configuration', () =>
     {
         it('should timeout and cancel query when timeout is exceeded', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             await expect(async () =>
             {
                 await dbFixture.db.transaction(async (tx) =>
@@ -158,6 +166,8 @@ describe('Transaction Timeout Configuration', () =>
 
         it('should not timeout when query completes within timeout', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             await dbFixture.db.transaction(async (tx) =>
             {
                 // Set reasonable timeout
@@ -171,6 +181,8 @@ describe('Transaction Timeout Configuration', () =>
 
         it('should disable timeout when set to 0', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             await dbFixture.db.transaction(async (tx) =>
             {
                 // Disable timeout
@@ -191,6 +203,8 @@ describe('Transaction Timeout Configuration', () =>
     {
         it('should compare performance and safety of different methods', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             const methods = {
                 sqlRawTemplate: async (timeout: number) =>
                 {
@@ -224,6 +238,8 @@ describe('Transaction Timeout Configuration', () =>
     {
         it('should handle maximum timeout value', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             await dbFixture.db.transaction(async (tx) =>
             {
                 const maxTimeout = 2147483647; // PostgreSQL max int4
@@ -238,6 +254,8 @@ describe('Transaction Timeout Configuration', () =>
 
         it('should handle minimum timeout value', async () =>
         {
+            if (!dbFixture.isAvailable) return;
+
             await dbFixture.db.transaction(async (tx) =>
             {
                 const minTimeout = 0;

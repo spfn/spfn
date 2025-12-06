@@ -18,7 +18,7 @@
  * @module env/schema
  */
 
-import { parseBoolean, parseNumber } from './validator';
+import { parseBoolean, parseNumber, parseJson } from './validator';
 
 /**
  * 환경변수 스키마 정의
@@ -297,25 +297,10 @@ export function envJson<
     options: O
 ): O & { type: 'json'; validator: (val: string) => T }
 {
-    // Import parseJson directly here to avoid circular dependency
-    const parseJson = (val: string): T =>
-    {
-        try
-        {
-            return JSON.parse(val) as T;
-        }
-        catch (error)
-        {
-            throw new Error(
-                `Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-        }
-    };
-
     return {
         ...options,
         type: 'json',
-        validator: parseJson,
+        validator: (val: string) => parseJson<T>(val),
     };
 }
 

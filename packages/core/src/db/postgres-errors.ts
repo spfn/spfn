@@ -84,39 +84,39 @@ export function fromPostgresError(error: any): DatabaseError
         case '08006': // connection_failure
         case '08007': // transaction_resolution_unknown
         case '08P01': // protocol_violation
-            return new ConnectionError(message, { code });
+            return new ConnectionError({ message, details: { code } });
 
         // Class 23 — Integrity Constraint Violation
         case '23000': // integrity_constraint_violation
         case '23001': // restrict_violation
-            return new ConstraintViolationError(message, { code, constraint: 'integrity' });
+            return new ConstraintViolationError({ message, details: { code, constraint: 'integrity' } });
 
         case '23502': // not_null_violation
-            return new ConstraintViolationError(message, { code, constraint: 'not_null' });
+            return new ConstraintViolationError({ message, details: { code, constraint: 'not_null' } });
 
         case '23503': // foreign_key_violation
-            return new ConstraintViolationError(message, { code, constraint: 'foreign_key' });
+            return new ConstraintViolationError({ message, details: { code, constraint: 'foreign_key' } });
 
         case '23505': // unique_violation
             const parsed = parseUniqueViolation(message);
             if (parsed)
             {
-                return new DuplicateEntryError(parsed.field, parsed.value);
+                return new DuplicateEntryError({ field: parsed.field, value: parsed.value });
             }
-            return new DuplicateEntryError('field', 'value');
+            return new DuplicateEntryError({ field: 'field', value: 'value' });
 
         case '23514': // check_violation
-            return new ConstraintViolationError(message, { code, constraint: 'check' });
+            return new ConstraintViolationError({ message, details: { code, constraint: 'check' } });
 
         // Class 40 — Transaction Rollback
         case '40000': // transaction_rollback
         case '40001': // serialization_failure
         case '40002': // transaction_integrity_constraint_violation
         case '40003': // statement_completion_unknown
-            return new TransactionError(message, 500, { code });
+            return new TransactionError({ message, statusCode: 500, details: { code } });
 
         case '40P01': // deadlock_detected
-            return new DeadlockError(message, { code });
+            return new DeadlockError({ message, details: { code } });
 
         // Class 42 — Syntax Error or Access Rule Violation
         case '42000': // syntax_error_or_access_rule_violation
@@ -130,14 +130,14 @@ export function fromPostgresError(error: any): DatabaseError
         case '42704': // undefined_object
         case '42P01': // undefined_table
         case '42P02': // undefined_parameter
-            return new QueryError(message, 400, { code });
+            return new QueryError({ message, statusCode: 400, details: { code } });
 
         // Class 53 — Insufficient Resources
         case '53000': // insufficient_resources
         case '53100': // disk_full
         case '53200': // out_of_memory
         case '53300': // too_many_connections
-            return new ConnectionError(message, { code });
+            return new ConnectionError({ message, details: { code } });
 
         // Class 57 — Operator Intervention
         case '57000': // operator_intervention
@@ -145,10 +145,10 @@ export function fromPostgresError(error: any): DatabaseError
         case '57P01': // admin_shutdown
         case '57P02': // crash_shutdown
         case '57P03': // cannot_connect_now
-            return new ConnectionError(message, { code });
+            return new ConnectionError({ message, details: { code } });
 
         // Default: Unknown error
         default:
-            return new QueryError(message, 500, { code });
+            return new QueryError({ message, statusCode: 500, details: { code } });
     }
 }

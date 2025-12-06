@@ -1,9 +1,13 @@
 /**
+ * Environment Types
+ */
+
+/**
  * Node.js environment types
  */
 export type NodeEnv = 'local' | 'development' | 'staging' | 'production' | 'test';
 
 /**
- * Log level types
+ * Re-export LogLevel from logger module to avoid duplication
  */
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+export type { LogLevel } from '../logger/types';

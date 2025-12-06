@@ -1,0 +1,7 @@
+{
+    "title": "Discussions",
+    "description": "Architecture proposals and technical discussions",
+    "icon": "chat",
+    "order": 99,
+    "hidden": true
+}

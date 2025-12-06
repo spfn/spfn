@@ -56,11 +56,13 @@ function isSensitiveKey(key: string): boolean
 /**
  * 민감 정보 마스킹
  * Context 객체에서 민감한 정보(비밀번호, 토큰 등)를 마스킹
+ * Circular reference를 안전하게 처리
  *
  * @param data - 원본 데이터
+ * @param seen - 순환 참조 감지용 WeakSet (내부 사용)
  * @returns 마스킹된 데이터
  */
-export function maskSensitiveData(data: unknown): unknown
+export function maskSensitiveData(data: unknown, seen = new WeakSet<object>()): unknown
 {
     // null, undefined 처리
     if (data === null || data === undefined)
@@ -68,41 +70,48 @@ export function maskSensitiveData(data: unknown): unknown
         return data;
     }
 
+    // 기본 타입은 그대로 반환
+    if (typeof data !== 'object')
+    {
+        return data;
+    }
+
+    // Circular reference 감지
+    if (seen.has(data as object))
+    {
+        return '[Circular]';
+    }
+    seen.add(data as object);
+
     // 배열 처리
     if (Array.isArray(data))
     {
-        return data.map(item => maskSensitiveData(item));
+        return data.map(item => maskSensitiveData(item, seen));
     }
 
     // 객체 처리
-    if (typeof data === 'object')
+    const masked: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(data))
     {
-        const masked: Record<string, unknown> = {};
-
-        for (const [key, value] of Object.entries(data))
+        if (isSensitiveKey(key))
         {
-            if (isSensitiveKey(key))
-            {
-                // 민감 정보 키는 마스킹
-                masked[key] = MASKED_VALUE;
-            }
-            else if (typeof value === 'object' && value !== null)
-            {
-                // 중첩된 객체는 재귀 처리
-                masked[key] = maskSensitiveData(value);
-            }
-            else
-            {
-                // 일반 값은 그대로 유지
-                masked[key] = value;
-            }
+            // 민감 정보 키는 마스킹
+            masked[key] = MASKED_VALUE;
         }
-
-        return masked;
+        else if (typeof value === 'object' && value !== null)
+        {
+            // 중첩된 객체는 재귀 처리 (seen 전달)
+            masked[key] = maskSensitiveData(value, seen);
+        }
+        else
+        {
+            // 일반 값은 그대로 유지
+            masked[key] = value;
+        }
     }
 
-    // 기본 타입은 그대로 반환
-    return data;
+    return masked;
 }
 
 /**

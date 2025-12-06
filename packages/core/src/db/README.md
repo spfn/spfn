@@ -565,13 +565,6 @@ DATABASE_WRITE_URL=postgresql://primary:5432/mydb
 DATABASE_READ_URL=postgresql://replica:5432/mydb
 ```
 
-### Legacy Pattern
-
-```bash
-DATABASE_URL=postgresql://primary:5432/mydb
-DATABASE_REPLICA_URL=postgresql://replica:5432/mydb
-```
-
 See [Manager Documentation](./manager/README.md) for complete configuration options.
 
 ---

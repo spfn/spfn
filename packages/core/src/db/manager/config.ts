@@ -15,6 +15,7 @@
  */
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { Sql } from "postgres";
+import { parseNumber, parseBoolean } from '@spfn/core/env';
 
 export interface DatabaseClients
 {
@@ -111,7 +112,7 @@ export interface RetryConfig
 /**
  * Parse environment variable as number with production/development defaults
  *
- * Uses getEnvVar with validator for better error messages and validation.
+ * Uses @spfn/core/env parseNumber for consistent parsing across the codebase.
  *
  * @param key - Environment variable name
  * @param prodDefault - Default value for production
@@ -140,26 +141,22 @@ function parseEnvNumber(
         return defaultValue;
     }
 
-    const num = parseInt(value, 10);
-
-    if (isNaN(num))
+    try
     {
-        throw new Error(`${key} must be a valid number (got: "${value}")`);
+        return parseNumber(value, { min: 0, integer: true });
     }
-
-    if (num < 0)
+    catch (error)
     {
-        throw new Error(`${key} must be a non-negative number (got: ${num})`);
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`${key}: ${message}`);
     }
-
-    return num;
 }
 
 /**
  * Parse environment variable as boolean with enhanced format support
  *
- * Uses getEnvVar with validator for better error messages.
- * Supports multiple truthy/falsy formats: true/false, 1/0, yes/no, on/off.
+ * Uses @spfn/core/env parseBoolean for consistent parsing across the codebase.
+ * Supports multiple truthy/falsy formats: true/false, 1/0, yes/no.
  *
  * @param key - Environment variable name
  * @param defaultValue - Default value if not set
@@ -168,8 +165,8 @@ function parseEnvNumber(
  * @example
  * ```typescript
  * const enabled = parseEnvBoolean('DB_HEALTH_CHECK_ENABLED', true);
- * // Accepts: 'true', '1', 'yes', 'on' → true
- * // Accepts: 'false', '0', 'no', 'off' → false
+ * // Accepts: 'true', '1', 'yes' → true
+ * // Accepts: 'false', '0', 'no' → false
  * ```
  */
 function parseEnvBoolean(key: string, defaultValue: boolean): boolean
@@ -181,16 +178,15 @@ function parseEnvBoolean(key: string, defaultValue: boolean): boolean
         return defaultValue;
     }
 
-    const truthyValues = ['true', '1', 'yes', 'on'];
-    const falsyValues = ['false', '0', 'no', 'off'];
-    const lowerVal = value.toLowerCase().trim();
-
-    if (truthyValues.includes(lowerVal)) return true;
-    if (falsyValues.includes(lowerVal)) return false;
-
-    throw new Error(
-        `${key} must be one of: ${[...truthyValues, ...falsyValues].join(', ')} (got: "${value}")`
-    );
+    try
+    {
+        return parseBoolean(value);
+    }
+    catch (error)
+    {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`${key}: ${message}`);
+    }
 }
 
 // ============================================================================

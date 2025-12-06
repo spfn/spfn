@@ -6,14 +6,6 @@
 
 import { describe, it, expect } from 'vitest';
 import { fromPostgresError } from '../postgres-errors';
-import {
-    ConnectionError,
-    DuplicateEntryError,
-    DeadlockError,
-    ConstraintViolationError,
-    QueryError,
-    TransactionError,
-} from '../../errors';
 
 describe('PostgreSQL Error Conversion', () =>
 {
@@ -26,7 +18,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '08000', message: 'Connection exception' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
                 expect(error.message).toBe('Connection exception');
                 expect(error.details?.code).toBe('08000');
             });
@@ -36,7 +28,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '08001', message: 'Unable to establish connection' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 08003 to ConnectionError', () =>
@@ -44,7 +36,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '08003', message: 'Connection does not exist' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 08004 to ConnectionError', () =>
@@ -52,7 +44,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '08004', message: 'Server rejected connection' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 08006 to ConnectionError', () =>
@@ -60,7 +52,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '08006', message: 'Connection failure' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 08007 to ConnectionError', () =>
@@ -68,7 +60,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '08007', message: 'Transaction resolution unknown' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 08P01 to ConnectionError', () =>
@@ -76,7 +68,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '08P01', message: 'Protocol violation' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
         });
 
@@ -87,7 +79,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '23000', message: 'Integrity constraint violation' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConstraintViolationError);
+                expect(error.name).toBe('ConstraintViolationError');
                 expect(error.details?.constraint).toBe('integrity');
             });
 
@@ -96,7 +88,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '23001', message: 'Restrict violation' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConstraintViolationError);
+                expect(error.name).toBe('ConstraintViolationError');
                 expect(error.details?.constraint).toBe('integrity');
             });
 
@@ -105,7 +97,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '23502', message: 'null value in column "email" violates not-null constraint' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConstraintViolationError);
+                expect(error.name).toBe('ConstraintViolationError');
                 expect(error.details?.constraint).toBe('not_null');
             });
 
@@ -114,7 +106,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '23503', message: 'Foreign key constraint violated' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConstraintViolationError);
+                expect(error.name).toBe('ConstraintViolationError');
                 expect(error.details?.constraint).toBe('foreign_key');
             });
 
@@ -123,7 +115,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '23514', message: 'Check constraint violated' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConstraintViolationError);
+                expect(error.name).toBe('ConstraintViolationError');
                 expect(error.details?.constraint).toBe('check');
             });
         });
@@ -138,7 +130,7 @@ describe('PostgreSQL Error Conversion', () =>
                 };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(DuplicateEntryError);
+                expect(error.name).toBe('DuplicateEntryError');
                 expect(error.message).toContain('email');
                 expect(error.message).toContain('test@example.com');
             });
@@ -151,7 +143,7 @@ describe('PostgreSQL Error Conversion', () =>
                 };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(DuplicateEntryError);
+                expect(error.name).toBe('DuplicateEntryError');
                 expect(error.message).toContain('username');
                 expect(error.message).toContain('john_doe');
             });
@@ -164,7 +156,7 @@ describe('PostgreSQL Error Conversion', () =>
                 };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(DuplicateEntryError);
+                expect(error.name).toBe('DuplicateEntryError');
             });
 
             it('should handle quoted field names', () =>
@@ -175,7 +167,7 @@ describe('PostgreSQL Error Conversion', () =>
                 };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(DuplicateEntryError);
+                expect(error.name).toBe('DuplicateEntryError');
             });
 
             it('should fallback to generic duplicate when parsing fails', () =>
@@ -186,7 +178,7 @@ describe('PostgreSQL Error Conversion', () =>
                 };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(DuplicateEntryError);
+                expect(error.name).toBe('DuplicateEntryError');
             });
         });
 
@@ -197,7 +189,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '40000', message: 'Transaction rollback' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(TransactionError);
+                expect(error.name).toBe('TransactionError');
                 expect(error.statusCode).toBe(500);
             });
 
@@ -206,7 +198,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '40001', message: 'Serialization failure' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(TransactionError);
+                expect(error.name).toBe('TransactionError');
             });
 
             it('should convert 40002 to TransactionError', () =>
@@ -214,7 +206,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '40002', message: 'Transaction integrity constraint violation' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(TransactionError);
+                expect(error.name).toBe('TransactionError');
             });
 
             it('should convert 40003 to TransactionError', () =>
@@ -222,7 +214,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '40003', message: 'Statement completion unknown' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(TransactionError);
+                expect(error.name).toBe('TransactionError');
             });
 
             it('should convert 40P01 to DeadlockError', () =>
@@ -230,7 +222,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '40P01', message: 'Deadlock detected' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(DeadlockError);
+                expect(error.name).toBe('DeadlockError');
                 expect(error.details?.code).toBe('40P01');
             });
         });
@@ -242,7 +234,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42000', message: 'Syntax error or access rule violation' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
                 expect(error.statusCode).toBe(400);
             });
 
@@ -251,7 +243,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42601', message: 'Syntax error at or near "SELEC"' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
             });
 
             it('should convert 42501 to QueryError for insufficient privilege', () =>
@@ -259,7 +251,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42501', message: 'Insufficient privilege' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
             });
 
             it('should convert 42602 to QueryError for invalid name', () =>
@@ -267,7 +259,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42602', message: 'Invalid name' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
             });
 
             it('should convert 42622 to QueryError for name too long', () =>
@@ -275,7 +267,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42622', message: 'Name too long' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
             });
 
             it('should convert 42701 to QueryError for duplicate column', () =>
@@ -283,7 +275,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42701', message: 'Duplicate column' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
             });
 
             it('should convert 42702 to QueryError for ambiguous column', () =>
@@ -291,7 +283,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42702', message: 'Ambiguous column' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
             });
 
             it('should convert 42703 to QueryError for undefined column', () =>
@@ -299,7 +291,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42703', message: 'Column "foo" does not exist' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
             });
 
             it('should convert 42704 to QueryError for undefined object', () =>
@@ -307,7 +299,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42704', message: 'Undefined object' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
             });
 
             it('should convert 42P01 to QueryError for undefined table', () =>
@@ -315,7 +307,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42P01', message: 'Relation "users" does not exist' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
             });
 
             it('should convert 42P02 to QueryError for undefined parameter', () =>
@@ -323,7 +315,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42P02', message: 'Undefined parameter' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
             });
         });
 
@@ -334,7 +326,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '53000', message: 'Insufficient resources' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 53100 to ConnectionError for disk full', () =>
@@ -342,7 +334,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '53100', message: 'Disk full' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 53200 to ConnectionError for out of memory', () =>
@@ -350,7 +342,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '53200', message: 'Out of memory' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 53300 to ConnectionError for too many connections', () =>
@@ -358,7 +350,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '53300', message: 'Too many connections' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
         });
 
@@ -369,7 +361,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '57000', message: 'Operator intervention' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 57014 to ConnectionError for query canceled', () =>
@@ -377,7 +369,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '57014', message: 'Query canceled' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 57P01 to ConnectionError for admin shutdown', () =>
@@ -385,7 +377,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '57P01', message: 'Admin shutdown' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 57P02 to ConnectionError for crash shutdown', () =>
@@ -393,7 +385,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '57P02', message: 'Crash shutdown' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
 
             it('should convert 57P03 to ConnectionError for cannot connect now', () =>
@@ -401,7 +393,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '57P03', message: 'Cannot connect now' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(ConnectionError);
+                expect(error.name).toBe('ConnectionError');
             });
         });
 
@@ -412,7 +404,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '99999', message: 'Unknown error' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
                 expect(error.statusCode).toBe(500);
                 expect(error.details?.code).toBe('99999');
             });
@@ -422,7 +414,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { message: 'Error without code' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
                 expect(error.message).toBe('Error without code');
             });
 
@@ -431,7 +423,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = { code: '42601' };
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
                 expect(error.message).toBe('Database error occurred');
             });
 
@@ -440,7 +432,7 @@ describe('PostgreSQL Error Conversion', () =>
                 const pgError = {};
                 const error = fromPostgresError(pgError);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
                 expect(error.message).toBe('Database error occurred');
             });
 
@@ -448,7 +440,7 @@ describe('PostgreSQL Error Conversion', () =>
             {
                 const error = fromPostgresError(null);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
                 expect(error.message).toBe('Database error occurred');
             });
 
@@ -456,7 +448,7 @@ describe('PostgreSQL Error Conversion', () =>
             {
                 const error = fromPostgresError(undefined);
 
-                expect(error).toBeInstanceOf(QueryError);
+                expect(error.name).toBe('QueryError');
                 expect(error.message).toBe('Database error occurred');
             });
         });

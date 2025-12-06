@@ -112,12 +112,6 @@ DATABASE_WRITE_URL=postgresql://primary:5432/mydb
 DATABASE_READ_URL=postgresql://replica:5432/mydb
 ```
 
-**Legacy Format** (backward compatibility):
-```bash
-DATABASE_URL=postgresql://primary:5432/mydb
-DATABASE_REPLICA_URL=postgresql://replica:5432/mydb
-```
-
 ### Advanced Configuration
 
 ```typescript
@@ -407,10 +401,9 @@ The factory automatically detects database configuration patterns:
 
 ### Priority Order
 1. **write-read**: `DATABASE_WRITE_URL` + `DATABASE_READ_URL` (recommended)
-2. **legacy**: `DATABASE_URL` + `DATABASE_REPLICA_URL` (backward compatibility)
-3. **single**: `DATABASE_URL` (most common)
-4. **single**: `DATABASE_WRITE_URL` (write-only)
-5. **none**: No configuration
+2. **single**: `DATABASE_URL` (most common)
+3. **single**: `DATABASE_WRITE_URL` (write-only)
+4. **none**: No configuration
 
 ### Example
 
@@ -421,9 +414,6 @@ const pattern = detectDatabasePattern();
 switch (pattern.type) {
   case 'write-read':
     console.log(`Write: ${pattern.write}, Read: ${pattern.read}`);
-    break;
-  case 'legacy':
-    console.log(`Primary: ${pattern.primary}, Replica: ${pattern.replica}`);
     break;
   case 'single':
     console.log(`Single: ${pattern.url}`);

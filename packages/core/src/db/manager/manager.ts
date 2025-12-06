@@ -316,7 +316,6 @@ export function setDatabase(
  * Supported environment variables:
  * - DATABASE_URL (single primary)
  * - DATABASE_WRITE_URL + DATABASE_READ_URL (primary + replica)
- * - DATABASE_URL + DATABASE_REPLICA_URL (legacy replica)
  * - DB_POOL_MAX (connection pool max size)
  * - DB_POOL_IDLE_TIMEOUT (connection idle timeout in seconds)
  * - DB_HEALTH_CHECK_ENABLED (enable health checks, default: true)

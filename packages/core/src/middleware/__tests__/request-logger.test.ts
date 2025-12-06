@@ -167,6 +167,48 @@ describe('RequestLogger Middleware', () => {
 
       expect(res.status).toBe(200);
     });
+
+    it('should exclude sub-paths with prefix matching', async () => {
+      const app = new Hono();
+
+      app.use(RequestLogger({
+        excludePaths: ['/health'],
+      }));
+
+      // These should all be excluded
+      app.get('/health', (c) => c.json({ status: 'ok' }));
+      app.get('/health/deep', (c) => c.json({ status: 'ok' }));
+      app.get('/health/check/db', (c) => c.json({ status: 'ok' }));
+
+      const res1 = await app.request('/health');
+      const res2 = await app.request('/health/deep');
+      const res3 = await app.request('/health/check/db');
+
+      expect(res1.status).toBe(200);
+      expect(res2.status).toBe(200);
+      expect(res3.status).toBe(200);
+    });
+
+    it('should not exclude paths that only start with same characters', async () => {
+      const app = new Hono<Env>();
+
+      app.use(RequestLogger({
+        excludePaths: ['/health'],
+      }));
+
+      // /healthcheck should NOT be excluded (different path, not a sub-path)
+      app.get('/healthcheck', (c) => {
+        // If requestId exists, logging was applied
+        const requestId = c.get('requestId');
+        return c.json({ requestId });
+      });
+
+      const res = await app.request('/healthcheck');
+      const json: any = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.requestId).toMatch(/^req_/);
+    });
   });
 
   describe('Slow Request Detection', () => {

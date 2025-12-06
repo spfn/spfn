@@ -135,7 +135,7 @@ describe('Database Helper Functions', () =>
 
         it('should throw error when database not initialized', async () =>
         {
-            vi.spyOn(managerModule, 'getDatabase').mockReturnValue(null);
+            vi.spyOn(managerModule, 'getDatabase').mockReturnValue(null as any);
 
             await expect(findOne(testUsers, { id: 1 }))
                 .rejects.toThrow('Database not initialized');
@@ -232,7 +232,7 @@ describe('Database Helper Functions', () =>
 
         it('should throw error when database not initialized', async () =>
         {
-            vi.spyOn(managerModule, 'getDatabase').mockReturnValue(null);
+            vi.spyOn(managerModule, 'getDatabase').mockReturnValue(null as any);
 
             await expect(create(testUsers, { name: 'Test', email: 'test@example.com' }))
                 .rejects.toThrow('Database not initialized');
@@ -382,11 +382,8 @@ describe('Database Helper Functions', () =>
     {
         it('should count all records', async () =>
         {
-            const mockUsers = [
-                { id: 1, name: 'User1', email: 'user1@example.com', age: 25 },
-                { id: 2, name: 'User2', email: 'user2@example.com', age: 30 },
-            ];
-            mockFrom.mockReturnValue({ then: (cb: any) => cb(mockUsers) });
+            // SQL COUNT returns { count: N } format
+            mockFrom.mockReturnValue({ then: (cb: any) => cb([{ count: 2 }]) });
 
             const result = await count(testUsers);
 
@@ -396,8 +393,7 @@ describe('Database Helper Functions', () =>
 
         it('should count records with object-based where', async () =>
         {
-            const mockUsers = [{ id: 1, name: 'User1', email: 'user1@example.com', age: 25 }];
-            mockWhere.mockReturnValue({ then: (cb: any) => cb(mockUsers) });
+            mockWhere.mockReturnValue({ then: (cb: any) => cb([{ count: 1 }]) });
 
             const result = await count(testUsers, { age: 25 });
 
@@ -406,8 +402,7 @@ describe('Database Helper Functions', () =>
 
         it('should count records with SQL-based where', async () =>
         {
-            const mockUsers = [{ id: 1, name: 'User1', email: 'user1@example.com', age: 25 }];
-            mockWhere.mockReturnValue({ then: (cb: any) => cb(mockUsers) });
+            mockWhere.mockReturnValue({ then: (cb: any) => cb([{ count: 1 }]) });
 
             const result = await count(testUsers, gt(testUsers.age, 20));
 
@@ -416,7 +411,7 @@ describe('Database Helper Functions', () =>
 
         it('should return 0 when no records found', async () =>
         {
-            mockFrom.mockReturnValue({ then: (cb: any) => cb([]) });
+            mockFrom.mockReturnValue({ then: (cb: any) => cb([{ count: 0 }]) });
 
             const result = await count(testUsers);
 

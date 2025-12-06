@@ -10,7 +10,7 @@ import { createJiti } from 'jiti';
 import type { Generator } from './generator';
 import { logger } from '@spfn/core/logger';
 
-const configLogger = logger.child('@spfn/core:config');
+const configLogger = logger.child('@spfn/core:codegen-config');
 
 /**
  * Custom generator via file path

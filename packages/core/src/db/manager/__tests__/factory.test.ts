@@ -2,7 +2,7 @@
  * Factory Unit Tests
  *
  * Tests database factory functions for environment detection and client creation.
- * Tests all database configuration patterns: single, write-read, legacy.
+ * Tests database configuration patterns: single, write-read.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -21,6 +21,16 @@ vi.mock('../connection', () => ({
     })),
 }));
 
+// Mock config module to use process.env directly
+vi.mock('@spfn/core/config', () => ({
+    env: new Proxy({}, {
+        get: (_target, prop: string) => process.env[prop],
+    }),
+    registry: {
+        reset: vi.fn(),
+    },
+}));
+
 describe('Database Factory', () =>
 {
     const originalEnv = { ...process.env };
@@ -33,7 +43,6 @@ describe('Database Factory', () =>
         delete process.env.DATABASE_URL;
         delete process.env.DATABASE_WRITE_URL;
         delete process.env.DATABASE_READ_URL;
-        delete process.env.DATABASE_REPLICA_URL;
     });
 
     afterEach(() =>
@@ -71,29 +80,6 @@ describe('Database Factory', () =>
                 expect(result.readClient).toBeDefined();
             });
 
-            it('should detect legacy pattern (second priority)', async () =>
-            {
-                process.env.DATABASE_URL = 'postgresql://primary:5432/db';
-                process.env.DATABASE_REPLICA_URL = 'postgresql://replica:5432/db';
-
-                const result = await createDatabaseFromEnv();
-
-                expect(createDatabaseConnection).toHaveBeenCalledTimes(2);
-                expect(createDatabaseConnection).toHaveBeenCalledWith(
-                    'postgresql://primary:5432/db',
-                    expect.any(Object),
-                    expect.any(Object)
-                );
-                expect(createDatabaseConnection).toHaveBeenCalledWith(
-                    'postgresql://replica:5432/db',
-                    expect.any(Object),
-                    expect.any(Object)
-                );
-
-                expect(result.write).toBeDefined();
-                expect(result.read).toBeDefined();
-            });
-
             it('should detect single pattern with DATABASE_URL', async () =>
             {
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
@@ -129,17 +115,16 @@ describe('Database Factory', () =>
                 expect(result.write).toBe(result.read);
             });
 
-            it('should prioritize write-read over legacy pattern', async () =>
+            it('should prioritize write-read over single pattern', async () =>
             {
-                // Set all env vars - write-read should win
+                // Set both env vars - write-read should win
                 process.env.DATABASE_URL = 'postgresql://primary:5432/db';
-                process.env.DATABASE_REPLICA_URL = 'postgresql://replica:5432/db';
                 process.env.DATABASE_WRITE_URL = 'postgresql://write:5432/db';
                 process.env.DATABASE_READ_URL = 'postgresql://read:5432/db';
 
                 await createDatabaseFromEnv();
 
-                // Should use write-read pattern, not legacy
+                // Should use write-read pattern
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://write:5432/db',
                     expect.any(Object),
@@ -150,17 +135,6 @@ describe('Database Factory', () =>
                     expect.any(Object),
                     expect.any(Object)
                 );
-            });
-
-            it('should prioritize legacy over single pattern', async () =>
-            {
-                process.env.DATABASE_URL = 'postgresql://primary:5432/db';
-                process.env.DATABASE_REPLICA_URL = 'postgresql://replica:5432/db';
-
-                await createDatabaseFromEnv();
-
-                // Should use legacy pattern (2 connections)
-                expect(createDatabaseConnection).toHaveBeenCalledTimes(2);
             });
         });
 

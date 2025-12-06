@@ -76,10 +76,11 @@
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { SQL } from 'drizzle-orm';
-import { eq, and } from 'drizzle-orm';
+import { count as sqlCount } from 'drizzle-orm';
 import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 import { getDatabase } from './manager';
 import { getTransaction } from './transaction';
+import { isSQLWrapper, buildWhereFromObject } from './query-utils';
 
 /**
  * Enhanced error class that includes repository context
@@ -233,34 +234,8 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
     }
 
     // ============================================================================
-    // Helper Methods
+    // CRUD Methods
     // ============================================================================
-
-    /**
-     * Check if value is SQL wrapper
-     */
-    private isSQLWrapper(value: any): value is SQL
-    {
-        return value && typeof value === 'object' && 'queryChunks' in value;
-    }
-
-    /**
-     * Build SQL WHERE clause from object
-     */
-    private buildWhereFromObject<T extends PgTable>(
-        table: T,
-        where: Record<string, any>
-    ): SQL | undefined
-    {
-        const entries = Object.entries(where).filter(([_, value]) => value !== undefined);
-        if (entries.length === 0) return undefined;
-
-        const conditions = entries.map(([key, value]) =>
-            eq((table as any)[key], value)
-        );
-
-        return conditions.length === 1 ? conditions[0] : and(...conditions);
-    }
 
     /**
      * Find a single record
@@ -283,9 +258,9 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         where: Record<string, any> | SQL | undefined
     ): Promise<T['$inferSelect'] | null>
     {
-        const whereClause = this.isSQLWrapper(where)
+        const whereClause = isSQLWrapper(where)
             ? where
-            : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+            : where ? buildWhereFromObject(table, where as Record<string, any>) : undefined;
 
         if (!whereClause)
         {
@@ -327,9 +302,9 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         // Apply where
         if (options?.where)
         {
-            const whereClause = this.isSQLWrapper(options.where)
+            const whereClause = isSQLWrapper(options.where)
                 ? options.where
-                : options.where ? this.buildWhereFromObject(table, options.where as Record<string, any>) : undefined;
+                : options.where ? buildWhereFromObject(table, options.where as Record<string, any>) : undefined;
 
             if (whereClause)
             {
@@ -469,9 +444,9 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         data: Partial<T['$inferInsert']>
     ): Promise<T['$inferSelect'] | null>
     {
-        const whereClause = this.isSQLWrapper(where)
+        const whereClause = isSQLWrapper(where)
             ? where
-            : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+            : where ? buildWhereFromObject(table, where as Record<string, any>) : undefined;
 
         if (!whereClause)
         {
@@ -504,9 +479,9 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         data: Partial<T['$inferInsert']>
     ): Promise<T['$inferSelect'][]>
     {
-        const whereClause = this.isSQLWrapper(where)
+        const whereClause = isSQLWrapper(where)
             ? where
-            : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+            : where ? buildWhereFromObject(table, where as Record<string, any>) : undefined;
 
         if (!whereClause)
         {
@@ -534,9 +509,9 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         where: Record<string, any> | SQL | undefined
     ): Promise<T['$inferSelect'] | null>
     {
-        const whereClause = this.isSQLWrapper(where)
+        const whereClause = isSQLWrapper(where)
             ? where
-            : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+            : where ? buildWhereFromObject(table, where as Record<string, any>) : undefined;
 
         if (!whereClause)
         {
@@ -564,9 +539,9 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         where: Record<string, any> | SQL | undefined
     ): Promise<T['$inferSelect'][]>
     {
-        const whereClause = this.isSQLWrapper(where)
+        const whereClause = isSQLWrapper(where)
             ? where
-            : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+            : where ? buildWhereFromObject(table, where as Record<string, any>) : undefined;
 
         if (!whereClause)
         {
@@ -595,13 +570,13 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         where?: Record<string, any> | SQL | undefined
     ): Promise<number>
     {
-        let query = this.readDb.select().from(table as PgTable);
+        let query = this.readDb.select({ count: sqlCount() }).from(table as PgTable);
 
         if (where)
         {
-            const whereClause = this.isSQLWrapper(where)
+            const whereClause = isSQLWrapper(where)
                 ? where
-                : where ? this.buildWhereFromObject(table, where as Record<string, any>) : undefined;
+                : where ? buildWhereFromObject(table, where as Record<string, any>) : undefined;
 
             if (whereClause)
             {
@@ -609,7 +584,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
             }
         }
 
-        const results = await query;
-        return results.length;
+        const [result] = await query;
+        return Number(result?.count ?? 0);
     }
 }

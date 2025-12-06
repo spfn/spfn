@@ -142,22 +142,22 @@ function validateRetryConfig(retryConfig: RetryConfig): void
 {
     if (retryConfig.maxRetries < 0)
     {
-        throw new ConnectionError(`maxRetries must be non-negative, got ${retryConfig.maxRetries}`);
+        throw new ConnectionError({ message: `maxRetries must be non-negative, got ${retryConfig.maxRetries}` });
     }
 
     if (retryConfig.initialDelay <= 0)
     {
-        throw new ConnectionError(`initialDelay must be positive, got ${retryConfig.initialDelay}`);
+        throw new ConnectionError({ message: `initialDelay must be positive, got ${retryConfig.initialDelay}` });
     }
 
     if (retryConfig.factor <= 0)
     {
-        throw new ConnectionError(`factor must be positive, got ${retryConfig.factor}`);
+        throw new ConnectionError({ message: `factor must be positive, got ${retryConfig.factor}` });
     }
 
     if (retryConfig.maxDelay <= 0)
     {
-        throw new ConnectionError(`maxDelay must be positive, got ${retryConfig.maxDelay}`);
+        throw new ConnectionError({ message: `maxDelay must be positive, got ${retryConfig.maxDelay}` });
     }
 }
 
@@ -173,7 +173,7 @@ function validatePoolConfig(poolConfig: PoolConfig): void
 {
     if (poolConfig.max <= 0)
     {
-        throw new ConnectionError(`pool max must be positive, got ${poolConfig.max}`);
+        throw new ConnectionError({ message: `pool max must be positive, got ${poolConfig.max}` });
     }
 }
 
@@ -212,7 +212,7 @@ export async function createDatabaseConnection(
     // Validate input parameters
     if (!connectionString)
     {
-        throw new ConnectionError('Connection string must be a non-empty string');
+        throw new ConnectionError({ message: 'Connection string must be a non-empty string' });
     }
 
     validateRetryConfig(retryConfig);
@@ -291,9 +291,9 @@ export async function createDatabaseConnection(
                     }
                 );
 
-                throw new ConnectionError(
-                    `Cannot connect to database: ${lastError.message}`
-                );
+                throw new ConnectionError({
+                    message: `Cannot connect to database: ${lastError.message}`
+                });
             }
 
             // Retry if not last attempt
@@ -333,9 +333,9 @@ export async function createDatabaseConnection(
     // lastError is assigned at least once in the loop, so it cannot be undefined
     if (!lastError)
     {
-        throw new ConnectionError(
-            'Unexpected error: no error recorded after failed connection attempts'
-        );
+        throw new ConnectionError({
+            message: 'Unexpected error: no error recorded after failed connection attempts'
+        });
     }
 
     dbLogger.error(
@@ -358,9 +358,9 @@ export async function createDatabaseConnection(
         }
     );
 
-    throw new ConnectionError(
-        `Failed to connect to database after ${retryConfig.maxRetries + 1} attempts: ${lastError.message}`
-    );
+    throw new ConnectionError({
+        message: `Failed to connect to database after ${retryConfig.maxRetries + 1} attempts: ${lastError.message}`
+    });
 }
 
 /**

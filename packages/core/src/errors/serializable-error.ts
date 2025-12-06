@@ -6,6 +6,16 @@
  */
 
 /**
+ * Serialized error format for JSON transmission
+ */
+export interface SerializedError
+{
+    __type: string;
+    message: string;
+    [key: string]: unknown;
+}
+
+/**
  * Base class for all serializable errors
  *
  * Features:
@@ -49,9 +59,9 @@ export abstract class SerializableError extends Error
      * - message: Error message
      * - All public instance properties (except name, stack)
      */
-    toJSON(): Record<string, any>
+    toJSON(): SerializedError
     {
-        const json: Record<string, any> = {
+        const json: SerializedError = {
             __type: this.constructor.name,
             message: this.message,
         };
@@ -62,7 +72,7 @@ export abstract class SerializableError extends Error
             // Skip Error built-ins and statusCode (inferred from type)
             if (key !== 'name' && key !== 'message' && key !== 'stack' && key !== 'statusCode')
             {
-                json[key] = (this as any)[key];
+                json[key] = (this as unknown as Record<string, unknown>)[key];
             }
         }
 

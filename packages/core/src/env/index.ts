@@ -33,7 +33,7 @@ export {
     parseNumber,
     createNumberParser,
     parseInteger,
-    parseFloat,
+    parseDecimal,
     // URL parsers
     parseUrl,
     createUrlParser,

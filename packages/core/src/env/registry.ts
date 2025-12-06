@@ -62,17 +62,24 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
     }
 
     /**
-     * 스키마 기반으로 값 가져오기 (내부 헬퍼)
+     * 캐시 및 검증 상태 리셋 (테스트용)
      */
-    private getBySchema<U>(schema: EnvVarSchema<U>): U | undefined
+    reset(): void
     {
-        // Try primary key first
-        let value = process.env[schema.key];
+        this.valueCache.clear();
+        this.hasValidated = false;
+    }
 
-        // Try fallback keys if primary not found
-        if (!value && schema.fallbackKeys)
+    /**
+     * 환경변수 원시값 가져오기 (fallback 지원)
+     */
+    private getRawValue(key: string, fallbackKeys?: string[]): string | undefined
+    {
+        let value = process.env[key];
+
+        if (!value && fallbackKeys)
         {
-            for (const fallbackKey of schema.fallbackKeys)
+            for (const fallbackKey of fallbackKeys)
             {
                 value = process.env[fallbackKey];
                 if (value)
@@ -82,28 +89,22 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
             }
         }
 
-        // If still no value, use default or return undefined
-        if (!value)
-        {
-            return schema.default;
-        }
+        return value;
+    }
 
-        // Apply validator if provided
+    /**
+     * 값에 validator 적용
+     */
+    private applyValidator<U>(
+        value: string,
+        schema: EnvVarSchema<U>
+    ): U
+    {
         if (schema.validator)
         {
-            try
-            {
-                return schema.validator(value) as U;
-            }
-            catch (error)
-            {
-                throw new Error(
-                    `Validation failed for ${schema.key}: ${error instanceof Error ? error.message : String(error)}`
-                );
-            }
+            return schema.validator(value) as U;
         }
 
-        // No validator - return as-is (string)
         return value as U;
     }
 
@@ -162,21 +163,8 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
             return undefined;
         }
 
-        // Get value (with fallback support)
-        let value = process.env[key];
-
-        // Try fallback keys
-        if (!value && schema.fallbackKeys)
-        {
-            for (const fallbackKey of schema.fallbackKeys)
-            {
-                value = process.env[fallbackKey];
-                if (value)
-                {
-                    break;
-                }
-            }
-        }
+        // Get raw value using common helper
+        const value = this.getRawValue(key, schema.fallbackKeys);
 
         // Check if required
         if (schema.required && !value)
@@ -206,10 +194,10 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
             throw new Error('Environment validation failed');
         }
 
-        // Run validator and get typed value
+        // Apply validator and cache result
         try
         {
-            const result = this.getBySchema(schema);
+            const result = this.applyValidator(value, schema);
             this.valueCache.set(key, result);
             return result;
         }

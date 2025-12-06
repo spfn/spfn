@@ -87,7 +87,12 @@ export function RequestLogger(config?: RequestLoggerConfig)
     {
         const path = new URL(c.req.url).pathname;
 
-        if (cfg.excludePaths.includes(path))
+        // Support both exact match and prefix match for excluded paths
+        const isExcluded = cfg.excludePaths.some(excludePath =>
+            path === excludePath || path.startsWith(excludePath + '/')
+        );
+
+        if (isExcluded)
         {
             return next();
         }
@@ -97,7 +102,12 @@ export function RequestLogger(config?: RequestLoggerConfig)
 
         const method = c.req.method;
         const userAgent = c.req.header('user-agent');
-        const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
+
+        // Extract client IP from proxy chain (first IP is the original client)
+        const forwardedFor = c.req.header('x-forwarded-for');
+        const ip = forwardedFor?.split(',')[0]?.trim()
+            || c.req.header('x-real-ip')
+            || 'unknown';
 
         const startTime = Date.now();
 

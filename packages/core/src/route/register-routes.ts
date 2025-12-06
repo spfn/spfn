@@ -82,23 +82,39 @@ export function registerRoutes<TRoutes extends Record<string, RouteDef<any> | Ro
     namedMiddlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>
 ): void
 {
+    // Merge router's global middlewares with provided named middlewares
+    const allNamedMiddlewares = [
+        ...(namedMiddlewares ?? []),
+        ...router._globalMiddlewares.map(mw => ({ name: mw.name, handler: mw.handler })),
+    ];
+
+    // 1. Register routes from router.routes
     for (const [name, routeOrRouter] of Object.entries(router.routes))
     {
         if (isRouter(routeOrRouter))
         {
             // Nested router - recursively register
-            registerRoutes(app, routeOrRouter, namedMiddlewares);
+            registerRoutes(app, routeOrRouter, allNamedMiddlewares);
         }
         else if (isRouteDef(routeOrRouter))
         {
             // Single route - register
-            registerRoute(app, name, routeOrRouter, namedMiddlewares);
+            registerRoute(app, name, routeOrRouter, allNamedMiddlewares);
         }
         else
         {
             logger.warn(`Unknown route type for "${name}" - skipping`, {
                 type: typeof routeOrRouter,
             });
+        }
+    }
+
+    // 2. Register routes from package routers (_packageRouters)
+    if (router._packageRouters && router._packageRouters.length > 0)
+    {
+        for (const pkgRouter of router._packageRouters)
+        {
+            registerRoutes(app, pkgRouter, allNamedMiddlewares);
         }
     }
 }

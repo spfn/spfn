@@ -41,21 +41,8 @@ function validateEnvironment(): void
 
 /**
  * Validate all logger configuration
- * Throws an error if configuration is invalid
  */
 export function validateConfig(): void
 {
-    try
-    {
-        validateEnvironment();
-    }
-    catch (error)
-    {
-        if (error instanceof Error)
-        {
-            throw new Error(`[Logger] Configuration validation failed: ${error.message}`);
-        }
-
-        throw error;
-    }
+    validateEnvironment();
 }
