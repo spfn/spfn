@@ -107,3 +107,26 @@ export { getAuthSessionService } from './auth-session.service';
 
 // User Profile Service (new)
 export { getUserProfileService } from './user-profile.service';
+
+// Email Templates
+export {
+    registerEmailTemplates,
+    getVerificationCodeTemplate,
+    getWelcomeTemplate,
+    getPasswordResetTemplate,
+    getInvitationTemplate,
+} from './email/templates';
+
+export type {
+    EmailTemplateProvider,
+    EmailTemplateResult,
+    VerificationCodeParams,
+} from './email/templates';
+
+// Email Service
+export { sendEmail, registerEmailProvider } from './email';
+export type { SendEmailParams, SendEmailResult, EmailProvider } from './email';
+
+// SMS Service
+export { sendSMS, registerSMSProvider } from './sms';
+export type { SendSMSParams, SendSMSResult, SMSProvider } from './sms';

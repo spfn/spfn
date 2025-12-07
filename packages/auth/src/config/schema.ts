@@ -235,4 +235,41 @@ export const authEnvSchema = defineEnvSchema({
             examples: ['MyApp', 'YourBrand'],
         }),
     },
+
+    // ============================================================================
+    // AWS SES Configuration (Email)
+    // ============================================================================
+    SPFN_AUTH_AWS_SES_ACCESS_KEY_ID: {
+        ...envString({
+            description: 'AWS SES access key ID (optional, uses default credentials chain if not provided)',
+            required: false,
+            sensitive: true,
+            examples: ['AKIAIOSFODNN7EXAMPLE'],
+        }),
+    },
+
+    SPFN_AUTH_AWS_SES_SECRET_ACCESS_KEY: {
+        ...envString({
+            description: 'AWS SES secret access key (optional, uses default credentials chain if not provided)',
+            required: false,
+            sensitive: true,
+            examples: ['wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'],
+        }),
+    },
+
+    SPFN_AUTH_AWS_SES_FROM_EMAIL: {
+        ...envString({
+            description: 'Sender email address (must be verified in AWS SES)',
+            required: false,
+            examples: ['noreply@example.com', 'auth@yourdomain.com'],
+        }),
+    },
+
+    SPFN_AUTH_AWS_SES_FROM_NAME: {
+        ...envString({
+            description: 'Sender display name',
+            required: false,
+            examples: ['MyApp', 'Your Company'],
+        }),
+    },
 });

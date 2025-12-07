@@ -10,6 +10,8 @@ import jwt from 'jsonwebtoken';
 import { verificationCodesRepository } from '../repositories';
 import type { VerificationTargetType, VerificationPurpose } from '../routes/schema';
 import { sendSMS } from './sms';
+import { sendEmail } from './email';
+import { getVerificationCodeTemplate } from './email/templates';
 
 /**
  * Verification token expiry (15 minutes)
@@ -210,19 +212,24 @@ async function sendVerificationEmail(
     purpose: string
 ): Promise<void>
 {
-    // TODO: Implement email sending with your email service
-    // For now, just log to console (development only)
-    console.log(`[VERIFICATION EMAIL] To: ${email}, Code: ${code}, Purpose: ${purpose}`);
+    const { subject, text, html } = getVerificationCodeTemplate({
+        code,
+        purpose,
+        expiresInMinutes: VERIFICATION_CODE_EXPIRY_MINUTES,
+    });
 
-    // Example implementation with nodemailer:
-    // const transporter = nodemailer.createTransport({...});
-    // await transporter.sendMail({
-    //     from: 'noreply@yourapp.com',
-    //     to: email,
-    //     subject: 'Your Verification Code',
-    //     text: `Your verification code is: ${code}`,
-    //     html: `<p>Your verification code is: <strong>${code}</strong></p>`,
-    // });
+    const result = await sendEmail({
+        to: email,
+        subject,
+        text,
+        html,
+        purpose,
+    });
+
+    if (!result.success)
+    {
+        console.error(`[VERIFICATION EMAIL] Failed to send email:`, result.error);
+    }
 }
 
 /**

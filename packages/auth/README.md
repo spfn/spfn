@@ -15,6 +15,8 @@
 - [Architecture](#architecture)
 - [Package Structure](#package-structure)
 - [Module Exports](#module-exports)
+- [Email & SMS Services](#email--sms-services)
+- [Email Templates](#email-templates)
 - [Server-Side API](#server-side-api)
 - [Database Schema](#database-schema)
 - [RBAC System](#rbac-system)
@@ -109,6 +111,7 @@ export const api = createApi<AppRouter>({
 ```bash
 # Required
 SPFN_AUTH_JWT_SECRET=your-secret-key
+SPFN_AUTH_VERIFICATION_TOKEN_SECRET=your-verification-secret
 DATABASE_URL=postgresql://...
 
 # Next.js (required)
@@ -118,6 +121,17 @@ SPFN_AUTH_SESSION_SECRET=your-32-char-secret
 SPFN_AUTH_JWT_EXPIRES_IN=7d
 SPFN_AUTH_BCRYPT_SALT_ROUNDS=10
 SPFN_AUTH_SESSION_TTL=7d
+
+# AWS SES (Email)
+SPFN_AUTH_AWS_REGION=ap-northeast-2
+SPFN_AUTH_AWS_SES_ACCESS_KEY_ID=AKIA...
+SPFN_AUTH_AWS_SES_SECRET_ACCESS_KEY=...
+SPFN_AUTH_AWS_SES_FROM_EMAIL=noreply@yourdomain.com
+
+# AWS SNS (SMS)
+SPFN_AUTH_AWS_SNS_ACCESS_KEY_ID=AKIA...
+SPFN_AUTH_AWS_SNS_SECRET_ACCESS_KEY=...
+SPFN_AUTH_AWS_SNS_SENDER_ID=MyApp
 ```
 
 ### 5. Run Migrations
@@ -331,7 +345,7 @@ import {
   permissions,
   rolePermissions,
   userPermissions,
-  invitations,
+  userInvitations,
   userSocialAccounts,
   userProfiles
 } from '@spfn/auth';
@@ -354,14 +368,15 @@ import type {
 import {
   BUILTIN_ROLES,
   BUILTIN_PERMISSIONS,
-  PRESET_ROLES,
-  PRESET_PERMISSIONS
+  BUILTIN_ROLE_PERMISSIONS
 } from '@spfn/auth';
 
 import type {
   RoleConfig,
   PermissionConfig,
-  InitializeAuthOptions
+  InitializeAuthOptions,
+  BuiltinRoleName,
+  BuiltinPermissionName
 } from '@spfn/auth';
 ```
 
@@ -403,6 +418,7 @@ import {
   getUserByEmailService,
   getUserByPhoneService,
   updateUserService,
+  updateLastLoginService,
 
   // RBAC
   initializeAuth,
@@ -421,16 +437,41 @@ import {
   deleteRole,
   addPermissionToRole,
   removePermissionFromRole,
+  setRolePermissions,
+  getAllRoles,
+  getRoleByName,
+  getRolePermissions,
 
   // Invitation
   createInvitation,
+  getInvitationByToken,
+  getInvitationWithDetails,
+  validateInvitation,
   acceptInvitation,
   listInvitations,
   cancelInvitation,
+  deleteInvitation,
+  expireOldInvitations,
+  resendInvitation,
 
   // Session
   getAuthSessionService,
   getUserProfileService,
+
+  // Email
+  sendEmail,
+  registerEmailProvider,
+
+  // SMS
+  sendSMS,
+  registerSMSProvider,
+
+  // Email Templates
+  registerEmailTemplates,
+  getVerificationCodeTemplate,
+  getWelcomeTemplate,
+  getPasswordResetTemplate,
+  getInvitationTemplate,
 } from '@spfn/auth/server';
 ```
 
@@ -443,7 +484,9 @@ import {
   permissionsRepository,
   verificationCodesRepository,
   invitationsRepository,
-  // ... etc
+  rolePermissionsRepository,
+  userPermissionsRepository,
+  userProfilesRepository,
 } from '@spfn/auth/server';
 ```
 
@@ -471,10 +514,15 @@ import {
   // Context
   getAuth,
   getUser,
+  getUserId,
+  getKeyId,
 
   // JWT
-  verifyJWT,
-  generateServerToken,
+  generateToken,       // Legacy server-signed (deprecated)
+  verifyToken,         // Legacy server-signed (deprecated)
+  verifyClientToken,   // Client-signed asymmetric JWT
+  decodeToken,         // Decode without verification (debugging)
+  verifyKeyFingerprint,
 
   // Password
   hashPassword,
@@ -511,17 +559,14 @@ import {} from '@spfn/auth/client';
 ### Configuration Module (`@spfn/auth/config`)
 
 ```typescript
-import { configureAuth, getAuthConfig } from '@spfn/auth/config';
+import { env, envSchema } from '@spfn/auth/config';
 
-// Global configuration
-configureAuth({
-  sessionTtl: '30d',
-  bcryptSaltRounds: 12,
-  jwtExpiresIn: '7d',
-});
+// Access environment variables (validated at startup)
+console.log(env.SPFN_AUTH_JWT_SECRET);
+console.log(env.SPFN_AUTH_JWT_EXPIRES_IN);
+console.log(env.SPFN_AUTH_BCRYPT_SALT_ROUNDS);
 
-// Get current config
-const config = getAuthConfig();
+// envSchema can be used for custom validation
 ```
 
 ---
@@ -530,16 +575,26 @@ const config = getAuthConfig();
 
 ```typescript
 import {
+  // Auth namespace (contains all error classes)
   AuthError,
+
+  // Individual error classes
   InvalidCredentialsError,
-  AccountNotFoundError,
-  AccountExistsError,
-  InvalidVerificationCodeError,
-  VerificationCodeExpiredError,
   InvalidTokenError,
-  KeyNotFoundError,
-  PermissionDeniedError,
-  // ... etc
+  TokenExpiredError,
+  KeyExpiredError,
+  AccountDisabledError,
+  AccountAlreadyExistsError,
+  InvalidVerificationCodeError,
+  InvalidVerificationTokenError,
+  InvalidKeyFingerprintError,
+  VerificationTokenPurposeMismatchError,
+  VerificationTokenTargetMismatchError,
+  InsufficientPermissionsError,
+  InsufficientRoleError,
+
+  // Error registry for client-side error handling
+  authErrorRegistry,
 } from '@spfn/auth/errors';
 ```
 
@@ -619,6 +674,146 @@ export default async function DashboardPage()
   );
 }
 ```
+
+---
+
+## Email & SMS Services
+
+### Email Service
+
+The email service uses AWS SES by default, with fallback to console logging in development.
+
+**Send Email:**
+```typescript
+import { sendEmail } from '@spfn/auth/server';
+
+await sendEmail({
+  to: 'user@example.com',
+  subject: 'Welcome!',
+  text: 'Plain text content',
+  html: '<h1>HTML content</h1>',
+  purpose: 'welcome',  // for logging
+});
+```
+
+**Custom Email Provider:**
+```typescript
+import { registerEmailProvider } from '@spfn/auth/server';
+
+// Register SendGrid provider
+registerEmailProvider({
+  name: 'sendgrid',
+  sendEmail: async ({ to, subject, text, html }) => {
+    // Your SendGrid implementation
+    return { success: true, messageId: '...' };
+  },
+});
+```
+
+---
+
+### SMS Service
+
+The SMS service uses AWS SNS by default.
+
+**Send SMS:**
+```typescript
+import { sendSMS } from '@spfn/auth/server';
+
+await sendSMS({
+  phone: '+821012345678',  // E.164 format
+  message: 'Your code is: 123456',
+  purpose: 'verification',
+});
+```
+
+**Custom SMS Provider:**
+```typescript
+import { registerSMSProvider } from '@spfn/auth/server';
+
+// Register Twilio provider
+registerSMSProvider({
+  name: 'twilio',
+  sendSMS: async ({ phone, message }) => {
+    // Your Twilio implementation
+    return { success: true, messageId: '...' };
+  },
+});
+```
+
+---
+
+## Email Templates
+
+### Built-in Templates
+
+| Template | Function | Purpose |
+|----------|----------|---------|
+| `verificationCode` | `getVerificationCodeTemplate` | Verification codes (registration, login, password reset) |
+| `welcome` | `getWelcomeTemplate` | Welcome email after registration |
+| `passwordReset` | `getPasswordResetTemplate` | Password reset link |
+| `invitation` | `getInvitationTemplate` | User invitation |
+
+**Usage:**
+```typescript
+import { getVerificationCodeTemplate, sendEmail } from '@spfn/auth/server';
+
+const { subject, text, html } = getVerificationCodeTemplate({
+  code: '123456',
+  purpose: 'registration',
+  expiresInMinutes: 5,
+  appName: 'MyApp',
+});
+
+await sendEmail({ to: 'user@example.com', subject, text, html });
+```
+
+---
+
+### Custom Templates
+
+Register custom templates to override defaults with your brand design:
+
+```typescript
+import { registerEmailTemplates } from '@spfn/auth/server';
+
+// Register at app initialization (e.g., server.config.ts)
+registerEmailTemplates({
+  // Override verification code template
+  verificationCode: ({ code, purpose, expiresInMinutes, appName }) => ({
+    subject: `[${appName}] Your verification code`,
+    text: `Your code: ${code}\nExpires in ${expiresInMinutes} minutes.`,
+    html: `
+      <div style="font-family: Arial, sans-serif;">
+        <img src="https://myapp.com/logo.png" alt="Logo" />
+        <h1>Verification Code</h1>
+        <div style="font-size: 32px; font-weight: bold;">${code}</div>
+        <p>This code expires in ${expiresInMinutes} minutes.</p>
+      </div>
+    `,
+  }),
+
+  // Override invitation template
+  invitation: ({ inviteLink, inviterName, roleName, appName }) => ({
+    subject: `${inviterName} invited you to ${appName}`,
+    text: `Accept invitation: ${inviteLink}`,
+    html: `
+      <h1>You're Invited!</h1>
+      <p>${inviterName} invited you to join ${appName} as ${roleName}.</p>
+      <a href="${inviteLink}">Accept Invitation</a>
+    `,
+  }),
+});
+```
+
+**Template Parameters:**
+
+| Template | Parameters |
+|----------|------------|
+| `verificationCode` | `code`, `purpose`, `expiresInMinutes?`, `appName?` |
+| `welcome` | `email`, `appName?` |
+| `passwordReset` | `resetLink`, `expiresInMinutes?`, `appName?` |
+| `invitation` | `inviteLink`, `inviterName?`, `roleName?`, `appName?` |
 
 ---
 
@@ -1585,17 +1780,7 @@ ls migrations/
 
 ---
 
-### 3. High-Level `authApi` Not Available
-
-**Issue:** Documentation shows `authApi.register()`, `authApi.login()`, etc., but these wrappers don't exist.
-
-**Workaround:** Use service functions directly or call HTTP routes.
-
-**Status:** Needs implementation or documentation removal.
-
----
-
-### 4. `lib/api` Client Functions Removed
+### 3. `lib/api` Client Functions Removed
 
 **Issue:** Old `src/lib/api/` directory was deleted during refactoring.
 
@@ -1603,7 +1788,7 @@ ls migrations/
 
 ---
 
-### 5. Test Coverage Below Target
+### 4. Test Coverage Below Target
 
 **Current:** ~83%
 **Target:** 90%+
@@ -1622,9 +1807,9 @@ ls migrations/
 
 - [ ] **Client-side crypto** - Browser-compatible key generation
 - [ ] **Next.js proxy route** - Implement or remove from docs
-- [ ] **High-level authApi** - Simplified Next.js auth functions
+- [x] **High-level authApi** - Simplified Next.js auth functions (implemented in `@spfn/auth`)
 - [ ] **Test coverage** - Reach 90%+ coverage
-- [ ] **Documentation** - Sync docs with actual code
+- [x] **Documentation** - Sync docs with actual code
 
 ---
 
@@ -1772,6 +1957,6 @@ MIT License - See LICENSE file for details.
 
 ---
 
-**Last Updated:** 2025-01-22
-**Document Version:** 2.0.0 (Technical Documentation)
+**Last Updated:** 2025-12-07
+**Document Version:** 2.2.0 (Technical Documentation)
 **Package Version:** 0.1.0-alpha.88
