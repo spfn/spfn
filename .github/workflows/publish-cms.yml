@@ -1,0 +1,122 @@
+name: Publish @spfn/cms
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'packages/cms/package.json'
+  workflow_dispatch:
+    inputs:
+      create_tag:
+        description: 'Create git tag for this version'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run (skip actual publish)'
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Update npm to latest
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Get version from package.json
+        id: pkg
+        working-directory: packages/cms
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          if [[ "$VERSION" == *"-alpha"* ]]; then
+            echo "tag=alpha" >> $GITHUB_OUTPUT
+          elif [[ "$VERSION" == *"-beta"* ]]; then
+            echo "tag=beta" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if version already published
+        id: check-npm
+        run: |
+          if npm view @spfn/cms@${{ steps.pkg.outputs.version }} version 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "::notice::Version ${{ steps.pkg.outputs.version }} already published, skipping"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if tag exists
+        if: ${{ inputs.create_tag && steps.check-npm.outputs.exists == 'false' }}
+        run: |
+          TAG="@spfn/cms@${{ steps.pkg.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists"
+            exit 1
+          fi
+
+      - name: Build @spfn/cms (with core dependency)
+        if: ${{ steps.check-npm.outputs.exists == 'false' }}
+        run: pnpm --filter @spfn/core --filter @spfn/cms build
+
+      - name: Create git tag
+        if: ${{ inputs.create_tag && steps.check-npm.outputs.exists == 'false' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "@spfn/cms@${{ steps.pkg.outputs.version }}"
+          git push origin "@spfn/cms@${{ steps.pkg.outputs.version }}"
+
+      - name: Publish @spfn/cms to npm
+        if: ${{ !inputs.dry_run && steps.check-npm.outputs.exists == 'false' }}
+        working-directory: packages/cms
+        run: pnpm publish --access public --tag ${{ steps.pkg.outputs.tag }} --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Add latest tag (stable releases only)
+        if: ${{ !inputs.dry_run && steps.pkg.outputs.tag == 'latest' && steps.check-npm.outputs.exists == 'false' }}
+        run: npm dist-tag add @spfn/cms@${{ steps.pkg.outputs.version }} latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Summary
+        run: |
+          if [[ "${{ steps.check-npm.outputs.exists }}" == "true" ]]; then
+            echo "## Skipped @spfn/cms (already published)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Published @spfn/cms" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${{ steps.pkg.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| npm tag | \`${{ steps.pkg.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| git tag | ${{ inputs.create_tag && format('`@spfn/cms@{0}`', steps.pkg.outputs.version) || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Already published | ${{ steps.check-npm.outputs.exists }} |" >> $GITHUB_STEP_SUMMARY
