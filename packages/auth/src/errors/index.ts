@@ -18,7 +18,7 @@ import {
     VerificationTokenTargetMismatchError,
     InsufficientPermissionsError,
     InsufficientRoleError,
-} from './auth-errors.js';
+} from './auth-errors';
 
 export {
     InvalidCredentialsError,
@@ -29,12 +29,12 @@ export {
     AccountAlreadyExistsError,
     InvalidVerificationCodeError,
     InvalidVerificationTokenError,
-    InvalidKeyFingerprintError,  // 이 클래스가 export되지 않아서 오류 발생
+    InvalidKeyFingerprintError,
     VerificationTokenPurposeMismatchError,
     VerificationTokenTargetMismatchError,
     InsufficientPermissionsError,
     InsufficientRoleError,
-} from './auth-errors.js';
+} from './auth-errors';
 
 export const authErrorRegistry = new ErrorRegistry();
 authErrorRegistry.append([
@@ -53,4 +53,4 @@ authErrorRegistry.append([
     InsufficientRoleError,
 ]);
 
-export * as AuthError from './auth-errors.js';
+export * as AuthError from './auth-errors';

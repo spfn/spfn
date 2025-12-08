@@ -7,6 +7,7 @@
 import { env } from '@spfn/auth/config';
 import { InvalidVerificationCodeError } from '@spfn/auth/errors';
 import jwt from 'jsonwebtoken';
+import { authLogger } from '../logger';
 import { verificationCodesRepository } from '../repositories';
 import type { VerificationTargetType, VerificationPurpose } from '../routes/schema';
 import { sendSMS } from './sms';
@@ -194,7 +195,7 @@ export function validateVerificationToken(token: string): VerificationTokenPaylo
     }
     catch (error)
     {
-        console.error('[validateVerificationToken] Error:', error);
+        authLogger.service.error('Failed to validate verification token', { error });
         return null;
     }
 }
@@ -228,7 +229,11 @@ async function sendVerificationEmail(
 
     if (!result.success)
     {
-        console.error(`[VERIFICATION EMAIL] Failed to send email:`, result.error);
+        authLogger.email.error('Failed to send verification email', {
+            email,
+            purpose,
+            error: result.error,
+        });
     }
 }
 
@@ -255,7 +260,11 @@ async function sendVerificationSMS(
 
     if (!result.success)
     {
-        console.error(`[VERIFICATION SMS] Failed to send SMS:`, result.error);
+        authLogger.sms.error('Failed to send verification SMS', {
+            phone,
+            purpose,
+            error: result.error,
+        });
     }
 }
 

@@ -4,6 +4,7 @@
 
 import { createApi } from '@spfn/core/nextjs';
 import { mainAuthRouter } from './server/routes';
+import { authErrorRegistry } from './errors';
 
 /**
  * Type-safe API client for auth routes
@@ -21,7 +22,9 @@ import { mainAuthRouter } from './server/routes';
  * });
  * ```
  */
-export const authApi = createApi<typeof mainAuthRouter>();
+export const authApi = createApi<typeof mainAuthRouter>({
+    errorRegistry: [authErrorRegistry],
+});
 
 // Router type for external use
 export type AuthRouter = typeof mainAuthRouter;

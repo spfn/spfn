@@ -293,7 +293,7 @@ export class UsersRepository extends BaseRepository
 
         if (!user)
         {
-            throw new EntityNotFoundError('users', userId);
+            throw new EntityNotFoundError({ resource: 'users', id: userId });
         }
 
         return {

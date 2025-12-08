@@ -4,6 +4,7 @@
  * Manages custom email template registration and fallback to defaults
  */
 
+import { authLogger } from '../../../logger';
 import type { EmailTemplateProvider, VerificationCodeParams, EmailTemplateResult } from './types';
 import * as defaultTemplates from './verification-code';
 
@@ -41,7 +42,9 @@ let customTemplates: Partial<EmailTemplateProvider> = {};
 export function registerEmailTemplates(templates: Partial<EmailTemplateProvider>): void
 {
     customTemplates = { ...customTemplates, ...templates };
-    console.log(`[EMAIL TEMPLATES] Registered custom templates:`, Object.keys(templates).join(', '));
+    authLogger.email.info('Registered custom email templates', {
+        templates: Object.keys(templates),
+    });
 }
 
 /**

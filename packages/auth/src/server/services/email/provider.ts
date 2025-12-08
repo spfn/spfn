@@ -4,6 +4,7 @@
  * Manages email provider registration and fallback behavior
  */
 
+import { authLogger } from '../../logger';
 import type { EmailProvider, SendEmailParams, SendEmailResult } from './types';
 
 /**
@@ -18,8 +19,12 @@ const fallbackProvider: EmailProvider = {
     name: 'fallback',
     sendEmail: async (params: SendEmailParams): Promise<SendEmailResult> =>
     {
-        console.log(`[EMAIL - DEV MODE] To: ${params.to}, Subject: ${params.subject}, Purpose: ${params.purpose || 'N/A'}`);
-        console.log(`[EMAIL - DEV MODE] Text: ${params.text?.substring(0, 100) || 'N/A'}...`);
+        authLogger.email.debug('DEV MODE - Email not actually sent', {
+            to: params.to,
+            subject: params.subject,
+            purpose: params.purpose || 'N/A',
+            textPreview: params.text?.substring(0, 100) || 'N/A',
+        });
         return {
             success: true,
             messageId: 'dev-mode-no-actual-email',
@@ -50,7 +55,7 @@ const fallbackProvider: EmailProvider = {
 export function registerEmailProvider(provider: EmailProvider): void
 {
     currentProvider = provider;
-    console.log(`[EMAIL] Registered provider: ${provider.name}`);
+    authLogger.email.info('Registered email provider', { name: provider.name });
 }
 
 /**

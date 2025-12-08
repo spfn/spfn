@@ -8,7 +8,7 @@
 import { NewVerificationCode, verificationCodes } from "../entities/verification-codes";
 import type { VerificationPurpose } from "../routes/schema";
 import { BaseRepository } from '@spfn/core/db';
-import { eq, and, lt, isNull } from 'drizzle-orm';
+import { eq, and, lt, gt, isNull } from 'drizzle-orm';
 
 /**
  * Verification Codes Repository 클래스
@@ -39,7 +39,7 @@ export class VerificationCodesRepository extends BaseRepository
                     eq(verificationCodes.target, target),
                     eq(verificationCodes.purpose, purpose),
                     isNull(verificationCodes.usedAt),
-                    lt(verificationCodes.expiresAt, now)
+                    gt(verificationCodes.expiresAt, now)
                 )
             )
             .limit(1);

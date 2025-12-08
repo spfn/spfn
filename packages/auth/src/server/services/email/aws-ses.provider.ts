@@ -7,6 +7,7 @@
  */
 
 import { env } from '@spfn/auth/config';
+import { authLogger } from '../../logger';
 import type { EmailProvider, SendEmailParams, SendEmailResult } from './types';
 
 /**
@@ -120,7 +121,11 @@ export function createAWSSESProvider(): EmailProvider | null
                     // Send email
                     const response = await client.send(command);
 
-                    console.log(`[EMAIL - AWS SES] To: ${to}, MessageId: ${response.MessageId}, Purpose: ${purpose || 'N/A'}`);
+                    authLogger.email.info('Email sent via AWS SES', {
+                        to,
+                        messageId: response.MessageId,
+                        purpose: purpose || 'N/A',
+                    });
 
                     return {
                         success: true,
@@ -130,7 +135,10 @@ export function createAWSSESProvider(): EmailProvider | null
                 catch (error)
                 {
                     const err = error as Error;
-                    console.error(`[EMAIL - AWS SES] Failed to send email to ${to}:`, err);
+                    authLogger.email.error('Failed to send email via AWS SES', {
+                        to,
+                        error: err.message,
+                    });
 
                     return {
                         success: false,

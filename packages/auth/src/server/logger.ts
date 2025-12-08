@@ -16,4 +16,6 @@ export const authLogger = {
     },
     service: rootLogger.child('@spfn/auth:service'),
     setup: rootLogger.child('@spfn/auth:setup'),
+    email: rootLogger.child('@spfn/auth:email'),
+    sms: rootLogger.child('@spfn/auth:sms'),
 };

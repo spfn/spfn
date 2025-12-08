@@ -28,16 +28,10 @@ import { defineRouter, route } from '@spfn/core/route';
  */
 export const checkAccountExists = route.post('/_auth/exists')
     .input({
-        body: Type.Object(
-            {
-                email: Type.Optional(EmailSchema),
-                phone: Type.Optional(PhoneSchema),
-            },
-            {
-                minProperties: 1,
-                description: 'At least one of email or phone must be provided'
-            }
-        )
+        body: Type.Union([
+            Type.Object({ email: EmailSchema }),
+            Type.Object({ phone: PhoneSchema }),
+        ])
     })
     .skip(['auth'])
     .handler(async (c) =>

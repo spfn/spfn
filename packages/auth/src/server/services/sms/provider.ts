@@ -4,6 +4,7 @@
  * Manages SMS provider registration and fallback behavior
  */
 
+import { authLogger } from '../../logger';
 import type { SMSProvider, SendSMSParams, SendSMSResult } from './types';
 
 /**
@@ -18,7 +19,11 @@ const fallbackProvider: SMSProvider = {
     name: 'fallback',
     sendSMS: async (params: SendSMSParams): Promise<SendSMSResult> =>
     {
-        console.log(`[SMS - DEV MODE] To: ${params.phone}, Message: ${params.message}, Purpose: ${params.purpose || 'N/A'}`);
+        authLogger.sms.debug('DEV MODE - SMS not actually sent', {
+            phone: params.phone,
+            message: params.message,
+            purpose: params.purpose || 'N/A',
+        });
         return {
             success: true,
             messageId: 'dev-mode-no-actual-sms',
@@ -49,7 +54,7 @@ const fallbackProvider: SMSProvider = {
 export function registerSMSProvider(provider: SMSProvider): void
 {
     currentProvider = provider;
-    console.log(`[SMS] Registered provider: ${provider.name}`);
+    authLogger.sms.info('Registered SMS provider', { name: provider.name });
 }
 
 /**

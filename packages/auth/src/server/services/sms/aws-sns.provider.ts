@@ -7,6 +7,7 @@
  */
 
 import { env } from '@spfn/auth/config';
+import { authLogger } from '../../logger';
 import type { SMSProvider, SendSMSParams, SendSMSResult } from './types';
 
 /**
@@ -97,7 +98,11 @@ export function createAWSSNSProvider(): SMSProvider | null
                     // Send SMS
                     const response = await client.send(command);
 
-                    console.log(`[SMS - AWS SNS] To: ${phone}, MessageId: ${response.MessageId}, Purpose: ${purpose || 'N/A'}`);
+                    authLogger.sms.info('SMS sent via AWS SNS', {
+                        phone,
+                        messageId: response.MessageId,
+                        purpose: purpose || 'N/A',
+                    });
 
                     return {
                         success: true,
@@ -107,7 +112,10 @@ export function createAWSSNSProvider(): SMSProvider | null
                 catch (error)
                 {
                     const err = error as Error;
-                    console.error(`[SMS - AWS SNS] Failed to send SMS to ${phone}:`, err);
+                    authLogger.sms.error('Failed to send SMS via AWS SNS', {
+                        phone,
+                        error: err.message,
+                    });
 
                     return {
                         success: false,
