@@ -1,0 +1,162 @@
+/**
+ * Job System Types
+ *
+ * Type definitions for the pg-boss based job system
+ */
+
+import type { TSchema } from '@sinclair/typebox';
+
+/**
+ * Job options passed to pg-boss
+ */
+export interface JobOptions
+{
+    /**
+     * Maximum retry attempts
+     * @default 3
+     */
+    retryLimit?: number;
+
+    /**
+     * Delay between retries in milliseconds
+     * @default 1000
+     */
+    retryDelay?: number;
+
+    /**
+     * Job expiration in seconds
+     * @default 300 (5 minutes)
+     */
+    expireInSeconds?: number;
+
+    /**
+     * Job priority (higher = more important)
+     * @default 0
+     */
+    priority?: number;
+
+    /**
+     * Singleton key - only one job with this key can exist
+     */
+    singletonKey?: string;
+
+    /**
+     * Keep completed jobs for this many seconds
+     * @default 604800 (7 days)
+     */
+    retentionSeconds?: number;
+}
+
+/**
+ * Send options for individual job dispatch
+ */
+export interface JobSendOptions
+{
+    /**
+     * Delay execution by this many seconds
+     */
+    startAfter?: number | Date;
+
+    /**
+     * Singleton key for this specific job instance
+     */
+    singletonKey?: string;
+
+    /**
+     * Priority override
+     */
+    priority?: number;
+}
+
+/**
+ * Job handler function type
+ */
+export type JobHandler<TInput> = TInput extends void
+    ? () => Promise<void>
+    : (input: TInput) => Promise<void>;
+
+/**
+ * Job definition interface
+ */
+export interface JobDef<TInput = void>
+{
+    /**
+     * Unique job name
+     */
+    readonly name: string;
+
+    /**
+     * TypeBox input schema (optional)
+     */
+    readonly inputSchema?: TSchema;
+
+    /**
+     * Cron expression for scheduled jobs
+     */
+    readonly cronExpression?: string;
+
+    /**
+     * Run once on server start
+     */
+    readonly runOnce?: boolean;
+
+    /**
+     * Event name this job subscribes to
+     */
+    readonly subscribedEvent?: string;
+
+    /**
+     * Event definition this job subscribes to (internal use)
+     */
+    readonly _subscribedEventDef?: unknown;
+
+    /**
+     * Job options
+     */
+    readonly options?: JobOptions;
+
+    /**
+     * Job handler
+     */
+    readonly handler: JobHandler<TInput>;
+
+    /**
+     * Send job to queue (returns immediately, executes in background)
+     */
+    send: TInput extends void
+        ? (options?: JobSendOptions) => Promise<string | null>
+        : (input: TInput, options?: JobSendOptions) => Promise<string | null>;
+
+    /**
+     * Run job synchronously (for testing/debugging)
+     */
+    run: TInput extends void
+        ? () => Promise<void>
+        : (input: TInput) => Promise<void>;
+
+    /**
+     * Type inference helpers
+     */
+    _input: TInput;
+}
+
+/**
+ * Job router entry - can be a job or nested router
+ */
+export type JobRouterEntry = JobDef<any> | JobRouter<any>;
+
+/**
+ * Job router interface
+ */
+export interface JobRouter<TJobs extends Record<string, JobRouterEntry> = Record<string, JobRouterEntry>>
+{
+    readonly jobs: TJobs;
+    readonly _jobs: TJobs;
+}
+
+/**
+ * Infer input type from JobDef
+ */
+export type InferJobInput<TJob> = TJob extends JobDef<infer TInput>
+    ? TInput
+    : never;

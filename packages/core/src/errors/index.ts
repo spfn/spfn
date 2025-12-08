@@ -37,7 +37,7 @@ import {
 export { SerializableError } from './serializable-error';
 export type { SerializedError } from './serializable-error';
 export { ErrorRegistry } from './error-registry';
-export type { SerializableErrorConstructor } from './error-registry';
+export type { SerializableErrorConstructor, ErrorRegistryInput } from './error-registry';
 
 // Database Error Classes
 export {

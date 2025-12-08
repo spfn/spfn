@@ -22,14 +22,30 @@ type PickNonEmpty<T> = {
 };
 
 /**
- * Clean structured input - only include fields that have actual schema
+ * Make fields that can be undefined into optional fields
+ *
+ * When a field is defined as `Type.Optional(Type.Object({...}))`,
+ * the resulting type is `T | undefined`. This utility converts such fields
+ * into proper optional fields (`field?: T`) so users don't need to pass them.
  */
-type CleanStructuredInput<TInput> = PickNonEmpty<TInput>;
+type MakeOptionalIfUndefinable<T> =
+    // Required fields (undefined is not assignable)
+    { [K in keyof T as undefined extends T[K] ? never : K]: T[K] }
+    // Optional fields (undefined is assignable)
+    & { [K in keyof T as undefined extends T[K] ? K : never]?: Exclude<T[K], undefined> };
+
+/**
+ * Clean structured input - only include fields that have actual schema,
+ * and make fields optional if they accept undefined
+ */
+type CleanStructuredInput<TInput> = MakeOptionalIfUndefinable<PickNonEmpty<TInput>>;
 
 /**
  * Check if input has any required fields
+ *
+ * Returns false if all fields are optional (i.e., {} is assignable to the input type)
  */
-type HasAnyRequiredFields<TInput> = keyof CleanStructuredInput<TInput> extends never ? false : true;
+type HasAnyRequiredFields<TInput> = {} extends CleanStructuredInput<TInput> ? false : true;
 
 /**
  * Route call builder with structured input API

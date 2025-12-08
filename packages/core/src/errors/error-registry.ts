@@ -13,18 +13,30 @@ import type { SerializableError } from './serializable-error';
 export type SerializableErrorConstructor = new (data: any) => SerializableError;
 
 /**
+ * Input type for ErrorRegistry constructor
+ */
+export type ErrorRegistryInput =
+    | SerializableErrorConstructor
+    | SerializableErrorConstructor[]
+    | ErrorRegistry;
+
+/**
  * Error registry for serialization/deserialization
  *
  * @example
  * ```typescript
- * // Create registry
- * const registry = new ErrorRegistry();
+ * // Create registry with initial errors
+ * const registry = new ErrorRegistry([
+ *     errorRegistry,           // Another ErrorRegistry
+ *     PaymentFailedError,      // Single error class
+ *     [RefundError, OrderError], // Array of error classes
+ * ]);
  *
- * // Append errors (chainable)
+ * // Or create empty and append
+ * const registry = new ErrorRegistry();
  * registry
  *     .append(ValidationError)
- *     .append([PaymentFailedError, RefundError])
- *     .append(CustomError);
+ *     .append([PaymentFailedError, RefundError]);
  *
  * // Deserialize from JSON
  * const error = registry.deserialize({
@@ -40,6 +52,28 @@ export type SerializableErrorConstructor = new (data: any) => SerializableError;
 export class ErrorRegistry
 {
     private errors = new Map<string, SerializableErrorConstructor>();
+
+    constructor(initialErrors?: ErrorRegistryInput[])
+    {
+        if (initialErrors)
+        {
+            for (const input of initialErrors)
+            {
+                if (input instanceof ErrorRegistry)
+                {
+                    this.concat(input);
+                }
+                else if (Array.isArray(input))
+                {
+                    this.append(input);
+                }
+                else
+                {
+                    this.append(input);
+                }
+            }
+        }
+    }
 
     /**
      * Append error class(es) to the registry

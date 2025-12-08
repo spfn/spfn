@@ -22,8 +22,9 @@
             "@spfn/core/codegen": ["./src/codegen/index.ts"],
             "@spfn/core/env": ["./src/env/index.ts"],
             "@spfn/core/logger": ["./src/logger/index.ts"],
-            "@spfn/core/events": ["./src/events/index.ts"],
-            "@spfn/core/config": ["./src/config/index.ts"]
+            "@spfn/core/config": ["./src/config/index.ts"],
+            "@spfn/core/job": ["./src/job/index.ts"],
+            "@spfn/core/event": ["./src/event/index.ts"]
         }
     },
     "include": ["src/**/*"],

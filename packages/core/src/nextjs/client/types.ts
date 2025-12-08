@@ -3,7 +3,7 @@
 // ============================================================================
 
 import type { Static, TSchema } from "@sinclair/typebox";
-import type { ErrorRegistry } from "@spfn/core/errors";
+import type { ErrorRegistry, ErrorRegistryInput } from "@spfn/core/errors";
 import type { RouteDef, RouteInput } from "@spfn/core/route";
 
 /**
@@ -122,18 +122,16 @@ export interface ApiConfig {
      *
      * @example
      * ```typescript
-     * import { ErrorRegistry } from '@spfn/core/errors';
-     * import { PaymentFailedError, InventoryError } from '@/server/errors';
-     *
-     * const customRegistry = new ErrorRegistry()
-     *     .append([PaymentFailedError, InventoryError]);
+     * import { errorRegistry } from '@spfn/core/errors';
+     * import { authErrorRegistry } from '@myapp/auth/errors';
+     * import { PaymentFailedError } from '@/server/errors';
      *
      * const api = createApi<AppRouter>({
-     *   errorRegistry: customRegistry
+     *   errorRegistry: [errorRegistry, authErrorRegistry, PaymentFailedError]
      * });
      * ```
      */
-    errorRegistry?: ErrorRegistry;
+    errorRegistry?: ErrorRegistry | ErrorRegistryInput[];
 
     /**
      * Enable debug logging

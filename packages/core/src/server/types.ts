@@ -2,6 +2,7 @@ import type { Hono, MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
+import type { JobRouter, BossConfig } from '../job';
 
 /**
  * CORS configuration options - inferred from hono/cors
@@ -97,6 +98,35 @@ export interface ServerConfig
      * ```
      */
     routes?: Router<any>;
+
+    /**
+     * Background jobs router
+     * Jobs defined with job()...handler() style
+     * Uses pg-boss for PostgreSQL-based job queue
+     *
+     * @example
+     * ```typescript
+     * import { job, defineJobRouter } from '@spfn/core/job';
+     *
+     * const sendEmail = job('send-email')
+     *   .input(Type.Object({ to: Type.String() }))
+     *   .handler(async (input) => { ... });
+     *
+     * const jobRouter = defineJobRouter({ sendEmail });
+     *
+     * export default defineServerConfig()
+     *   .routes(appRouter)
+     *   .jobs(jobRouter)
+     *   .build();
+     * ```
+     */
+    jobs?: JobRouter<any>;
+
+    /**
+     * pg-boss configuration options
+     * Only used if jobs router is provided
+     */
+    jobsConfig?: Omit<BossConfig, 'connectionString'>;
 
     /**
      * Enable debug mode (default: NODE_ENV === 'development')

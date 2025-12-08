@@ -7,6 +7,7 @@
 import type { MiddlewareHandler } from 'hono';
 import type { ServerConfig } from './types';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
+import type { JobRouter, BossConfig } from '../job';
 import { serverLogger } from './logger';
 
 // ============================================================================
@@ -161,6 +162,35 @@ export class ServerConfigBuilder
             ];
         }
 
+        return this;
+    }
+
+    /**
+     * Register background jobs router
+     *
+     * @example
+     * ```typescript
+     * import { job, defineJobRouter } from '@spfn/core/job';
+     *
+     * const sendEmail = job('send-email')
+     *   .input(Type.Object({ to: Type.String() }))
+     *   .handler(async (input) => { ... });
+     *
+     * const jobRouter = defineJobRouter({ sendEmail });
+     *
+     * export default defineServerConfig()
+     *   .routes(appRouter)
+     *   .jobs(jobRouter)
+     *   .build();
+     * ```
+     */
+    jobs(router: JobRouter<any>, config?: Omit<BossConfig, 'connectionString'>): this
+    {
+        this.config.jobs = router;
+        if (config)
+        {
+            this.config.jobsConfig = config;
+        }
         return this;
     }
 

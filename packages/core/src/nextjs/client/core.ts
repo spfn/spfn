@@ -36,6 +36,7 @@
  * ```
  */
 import { env } from '@spfn/core/config';
+import { ErrorRegistry, errorRegistry as coreErrorRegistry } from '@spfn/core/errors';
 import { logger } from '@spfn/core/logger';
 import type { Router } from '@spfn/core/route';
 import * as debugLogs from './debug-logs';
@@ -86,9 +87,14 @@ export function createApi<TRouter extends Router<any>>(
         fetch: customFetch = fetch,
         onRequest: globalOnRequest,
         onResponse: globalOnResponse,
-        errorRegistry,
+        errorRegistry: errorRegistryConfig,
         debug = false,
     } = config;
+
+    // Normalize errorRegistry: always include coreErrorRegistry
+    const errorRegistry = Array.isArray(errorRegistryConfig)
+        ? new ErrorRegistry([coreErrorRegistry, ...errorRegistryConfig])
+        : errorRegistryConfig ?? coreErrorRegistry;
 
     if (debug)
     {

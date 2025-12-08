@@ -12,6 +12,7 @@ import { join } from 'path';
 
 import { closeCache, initCache } from '@spfn/core/cache';
 import { closeDatabase, initDatabase } from '@spfn/core/db';
+import { initBoss, stopBoss, registerJobs } from '../job';
 import { serverLogger } from './logger';
 import { printBanner } from './banner';
 import { createServer } from './create-server';
@@ -286,6 +287,28 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
         serverLogger.debug('Executing afterInfrastructure hook...');
         await config.lifecycle.afterInfrastructure();
     }
+
+    // Initialize jobs if configured
+    if (config.jobs)
+    {
+        const dbUrl = env.DATABASE_URL;
+        if (!dbUrl)
+        {
+            throw new Error(
+                'Jobs require database connection. ' +
+                'Ensure DATABASE_URL is set or database is enabled.'
+            );
+        }
+
+        serverLogger.debug('Initializing pg-boss...');
+        await initBoss({
+            connectionString: dbUrl,
+            ...config.jobsConfig,
+        });
+
+        serverLogger.debug('Registering jobs...');
+        await registerJobs(config.jobs);
+    }
 }
 
 // ============================================================================
@@ -399,6 +422,21 @@ function createShutdownHandler(
             serverLogger.warn('HTTP server close timeout, forcing shutdown', error as Error);
             // Continue with cleanup even if server.close() times out
         });
+
+        // Stop pg-boss if jobs were configured
+        if (config.jobs)
+        {
+            serverLogger.debug('Stopping pg-boss...');
+            try
+            {
+                await stopBoss();
+            }
+            catch (error)
+            {
+                serverLogger.error('pg-boss stop failed', error as Error);
+                // Continue with shutdown even if stop fails
+            }
+        }
 
         // Execute beforeShutdown hook from config
         if (config.lifecycle?.beforeShutdown)
