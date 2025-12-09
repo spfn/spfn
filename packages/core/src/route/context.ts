@@ -6,7 +6,7 @@
 
 import type { Static, TSchema } from '@sinclair/typebox';
 import type { Context } from 'hono';
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { ContentfulStatusCode, RedirectStatusCode } from 'hono/utils/http-status';
 import type { RouteInput } from './route-input';
 
 /**
@@ -166,6 +166,26 @@ export type RouteBuilderContext<
         limit: number,
         total: number
     ): Response;
+
+    /**
+     * Redirect to another URL
+     *
+     * @param url - Target URL to redirect to
+     * @param status - HTTP status code (301, 302, 303, 307, 308). Default: 302
+     *
+     * @example
+     * ```ts
+     * // Temporary redirect (302)
+     * return c.redirect('/login');
+     *
+     * // Permanent redirect (301)
+     * return c.redirect('/new-path', 301);
+     *
+     * // See Other (303) - useful after POST
+     * return c.redirect('/success', 303);
+     * ```
+     */
+    redirect(url: string, status?: RedirectStatusCode): Response;
 
     // Raw Hono context for advanced usage
     raw: Context;

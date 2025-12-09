@@ -5,7 +5,7 @@
  */
 
 import type { Context, Hono, MiddlewareHandler } from 'hono';
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { ContentfulStatusCode, RedirectStatusCode } from 'hono/utils/http-status';
 import { logger } from '@spfn/core/logger';
 import type { NamedMiddleware } from './define-middleware';
 import type { RouteInput } from './route-input';
@@ -321,6 +321,11 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
                     totalPages: Math.ceil(total / limit),
                 },
             }, 200 as ContentfulStatusCode);
+        },
+
+        redirect: (url, status) =>
+        {
+            return c.redirect(url, status as RedirectStatusCode);
         },
 
         raw: c,
