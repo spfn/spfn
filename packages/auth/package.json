@@ -1,6 +1,6 @@
 {
   "name": "@spfn/auth",
-  "version": "0.2.0-beta.2",
+  "version": "0.2.0-beta.3",
   "type": "module",
   "description": "Authentication, authorization, and RBAC module for SPFN",
   "main": "./dist/index.js",
@@ -48,11 +48,11 @@
     "README.md"
   ],
   "scripts": {
-    "build": "pnpm check:circular && npm run db:generate && tsup",
+    "build": "pnpm check:circular && tsup",
     "watch": "tsup --watch",
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist migrations",
+    "clean": "rm -rf dist",
     "db:generate": "drizzle-kit generate",
     "codegen": "spfn codegen run",
     "test": "vitest run",
