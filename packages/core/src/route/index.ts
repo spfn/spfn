@@ -6,10 +6,10 @@
 export type { RouteInput } from './route-input';
 
 // Context types
-export type { RouteBuilderContext, MergedInput } from './context';
+export type { RouteBuilderContext, MergedInput, PaginatedResult } from './context';
 
 // Route builder
-export { RouteBuilder, route } from './route-builder';
+export { route } from './route-builder';
 export type { RouteDef, RouteHandlerFn } from './route-builder';
 
 // Router
@@ -24,7 +24,7 @@ export { defineMiddleware, defineMiddlewareFactory } from './define-middleware';
 export type { ExtractMiddlewareNames, NamedMiddlewareFactory, NamedMiddleware } from './define-middleware';
 
 // Types
-export type * from './types';
+export type { HttpMethod } from './types';
 
 // Helpers
 export { isHttpMethod, Nullable, OptionalNullable } from './helpers';

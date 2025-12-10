@@ -234,14 +234,46 @@ export class RouteBuilder<
     /**
      * Define handler function
      *
+     * Response type is automatically inferred from the return value.
+     * Use helper methods like `c.created()`, `c.paginated()` for proper type inference.
+     *
      * @example
      * ```ts
+     * // Direct return - type inferred from data
      * route.get('/users/:id')
      *   .input({ params: Type.Object({ id: Type.String() }) })
      *   .handler(async (c) => {
      *     const { params } = await c.data();
-     *     const user = await getUser(params.id);
-     *     return user; // Type inferred!
+     *     return await getUser(params.id); // Type: User
+     *   })
+     *
+     * // Using c.created() - returns data with 201 status, type preserved
+     * route.post('/users')
+     *   .input({ body: Type.Object({ name: Type.String() }) })
+     *   .handler(async (c) => {
+     *     const { body } = await c.data();
+     *     return c.created(await createUser(body)); // Type: User
+     *   })
+     *
+     * // Using c.paginated() - returns PaginatedResult<T>
+     * route.get('/users')
+     *   .handler(async (c) => {
+     *     const users = await getUsers();
+     *     return c.paginated(users, 1, 20, 100); // Type: PaginatedResult<User>
+     *   })
+     *
+     * // Using c.noContent() - returns void
+     * route.delete('/users/:id')
+     *   .handler(async (c) => {
+     *     await deleteUser(params.id);
+     *     return c.noContent(); // Type: void
+     *   })
+     *
+     * // Using c.json() - returns Response (type inference lost)
+     * // Use only when you need custom status codes not covered by helpers
+     * route.get('/custom')
+     *   .handler(async (c) => {
+     *     return c.json({ data }, 418); // Type: Response
      *   })
      * ```
      */

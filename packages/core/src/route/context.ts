@@ -10,6 +10,19 @@ import type { ContentfulStatusCode, RedirectStatusCode } from 'hono/utils/http-s
 import type { RouteInput } from './route-input';
 
 /**
+ * Paginated response structure
+ */
+export type PaginatedResult<T> = {
+    items: T[];
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
+};
+
+/**
  * Merge input with interceptor-injected fields
  * Server receives both client input and interceptor-injected fields
  *
@@ -85,7 +98,7 @@ export type RouteBuilderContext<
 
     /**
      * Return 201 Created response with optional Location header
-     * Returns data directly (no wrapper)
+     * Returns data directly for type inference
      *
      * @example
      * ```ts
@@ -94,26 +107,30 @@ export type RouteBuilderContext<
      * // Response: 201 Created
      * // Header: Location: /users/123
      * // Body: { id: '123', name: 'John' }
+     * // Type: User (inferred from data)
      * ```
      */
-    created(data: unknown, location?: string): Response;
+    created<T>(data: T, location?: string): T;
 
     /**
      * Return 202 Accepted response
-     * Returns data directly (no wrapper), or empty body if no data
+     * Returns data directly for type inference
      *
      * @example
      * ```ts
      * // With data
      * return c.accepted({ jobId: '123' });
      * // Response: 202 Accepted, Body: { jobId: '123' }
+     * // Type: { jobId: string }
      *
      * // Without data
      * return c.accepted();
      * // Response: 202 Accepted, Body: (empty)
+     * // Type: void
      * ```
      */
-    accepted(data?: unknown): Response;
+    accepted(): void;
+    accepted<T>(data: T): T;
 
     /**
      * Return 204 No Content response (empty body)
@@ -123,9 +140,10 @@ export type RouteBuilderContext<
      * await deleteUser(id);
      * return c.noContent();
      * // Response: 204 No Content, Body: (empty)
+     * // Type: void
      * ```
      */
-    noContent(): Response;
+    noContent(): void;
 
     /**
      * Return 304 Not Modified response (empty body)
@@ -136,13 +154,14 @@ export type RouteBuilderContext<
      *   return c.notModified();
      * }
      * // Response: 304 Not Modified, Body: (empty)
+     * // Type: void
      * ```
      */
-    notModified(): Response;
+    notModified(): void;
 
     /**
      * Return paginated response with metadata
-     * Returns `{ items: [...], pagination: {...} }` format
+     * Returns `{ items: [...], pagination: {...} }` format with type inference
      *
      * @example
      * ```ts
@@ -158,14 +177,15 @@ export type RouteBuilderContext<
      * //     totalPages: 5
      * //   }
      * // }
+     * // Type: PaginatedResult<User>
      * ```
      */
-    paginated(
-        data: unknown[],
+    paginated<T>(
+        data: T[],
         page: number,
         limit: number,
         total: number
-    ): Response;
+    ): PaginatedResult<T>;
 
     /**
      * Redirect to another URL

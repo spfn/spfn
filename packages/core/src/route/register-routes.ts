@@ -145,19 +145,32 @@ function registerRoute(
     const wrappedHandler = async (c: Context) =>
     {
         // Create RouteBuilderContext with validation
-        const context = await createRouteBuilderContext(c, input || {});
+        const { context, responseMeta } = await createRouteBuilderContext(c, input || {});
 
         // Call user handler
         const result = await handler(context);
 
-        // If handler returns Response, use it directly
+        // If handler returns Response, use it directly (e.g., c.json(), c.redirect())
         if (result instanceof Response)
         {
             return result;
         }
 
-        // Otherwise, return data as JSON directly (no wrapper)
-        return c.json(result);
+        // Handle empty responses (noContent, notModified, accepted without data)
+        if (responseMeta.isEmpty)
+        {
+            return c.body(null, responseMeta.status);
+        }
+
+        // Return data as JSON with status and headers from helper methods
+        const hasCustomHeaders = Object.keys(responseMeta.headers).length > 0;
+
+        if (hasCustomHeaders)
+        {
+            return c.json(result, responseMeta.status, responseMeta.headers);
+        }
+
+        return c.json(result, responseMeta.status);
     };
 
     // Collect all middlewares: server-level (filtered) + route-level
@@ -241,14 +254,26 @@ function registerRoute(
 }
 
 /**
+ * Response metadata set by helper methods
+ */
+interface ResponseMeta
+{
+    status: ContentfulStatusCode;
+    headers: Record<string, string>;
+    isEmpty: boolean;
+}
+
+/**
  * Create RouteBuilderContext from Hono Context
  *
- * Validates params, query, body, headers, cookies and returns structured input
+ * Validates params, query, body, headers, cookies and returns structured input.
+ * Helper methods (created, accepted, etc.) return data directly for type inference,
+ * while storing response metadata internally for later use.
  */
 async function createRouteBuilderContext<TInput extends RouteInput>(
     c: Context,
     input: TInput
-): Promise<RouteBuilderContext<TInput>>
+): Promise<{ context: RouteBuilderContext<TInput>; responseMeta: ResponseMeta }>
 {
     // Validate and extract all input fields
     const params = validateField(input.params, c.req.param(), 'path parameters');
@@ -264,55 +289,68 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
         body = validateField(input.body, rawBody, 'request body');
     }
 
+    // Cache for data() - avoid creating new object on each call
+    let cachedData: any = null;
+
+    // Response metadata - set by helper methods, used when building final Response
+    const responseMeta: ResponseMeta = {
+        status: 200 as ContentfulStatusCode,
+        headers: {},
+        isEmpty: false,
+    };
+
     // Create context with structured data()
-    return {
-        data: async () => ({
-            params,
-            query,
-            body,
-            headers,
-            cookies,
-        }),
+    const context: RouteBuilderContext<TInput> = {
+        data: async () =>
+        {
+            if (!cachedData)
+            {
+                cachedData = { params, query, body, headers, cookies };
+            }
+            return cachedData;
+        },
 
         json: (data, status, resHeaders) =>
         {
             return c.json(data, status, resHeaders);
         },
 
-        created: (data, location) =>
+        created: <T>(data: T, location?: string): T =>
         {
-            const resHeaders: Record<string, string> = {};
+            responseMeta.status = 201 as ContentfulStatusCode;
             if (location)
             {
-                resHeaders['Location'] = location;
+                responseMeta.headers['Location'] = location;
             }
-
-            return c.json(data, 201 as ContentfulStatusCode, resHeaders);
+            return data;
         },
 
-        accepted: (data) =>
+        accepted: <T>(data?: T): any =>
         {
+            responseMeta.status = 202 as ContentfulStatusCode;
             if (data === undefined)
             {
-                return c.body(null, 202 as ContentfulStatusCode);
+                responseMeta.isEmpty = true;
+                return undefined;
             }
-
-            return c.json(data, 202 as ContentfulStatusCode);
+            return data;
         },
 
-        noContent: () =>
+        noContent: (): void =>
         {
-            return c.body(null, 204 as ContentfulStatusCode);
+            responseMeta.status = 204 as ContentfulStatusCode;
+            responseMeta.isEmpty = true;
         },
 
-        notModified: () =>
+        notModified: (): void =>
         {
-            return c.body(null, 304 as ContentfulStatusCode);
+            responseMeta.status = 304 as ContentfulStatusCode;
+            responseMeta.isEmpty = true;
         },
 
-        paginated: (data, page, limit, total) =>
+        paginated: <T>(data: T[], page: number, limit: number, total: number) =>
         {
-            return c.json({
+            return {
                 items: data,
                 pagination: {
                     page,
@@ -320,7 +358,7 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
                     total,
                     totalPages: Math.ceil(total / limit),
                 },
-            }, 200 as ContentfulStatusCode);
+            };
         },
 
         redirect: (url, status) =>
@@ -330,4 +368,6 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
 
         raw: c,
     };
+
+    return { context, responseMeta };
 }
