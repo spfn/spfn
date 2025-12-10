@@ -7,23 +7,53 @@ import { randomBytes } from 'crypto';
 import type { Context, Next } from 'hono';
 import { logger } from '@spfn/core/logger';
 
-export interface RequestLoggerConfig
+/**
+ * Options for RequestLogger middleware
+ */
+export interface RequestLoggerOptions
 {
     /**
-     * Paths to exclude from logging (health checks, etc.)
+     * Paths to exclude from logging
+     *
+     * Supports exact match and prefix match (e.g., '/health' excludes '/health/db').
+     *
+     * @default ['/health', '/ping', '/favicon.ico']
+     *
+     * @example
+     * ```typescript
+     * excludePaths: ['/health', '/metrics', '/_next']
+     * ```
      */
     excludePaths?: string[];
 
     /**
-     * Field names to mask for sensitive data
+     * Field names to mask in logged request bodies
+     *
+     * Case-insensitive partial matching (e.g., 'password' masks 'userPassword').
+     *
+     * @default ['password', 'token', 'apiKey', 'secret', 'authorization']
+     *
+     * @example
+     * ```typescript
+     * sensitiveFields: ['password', 'creditCard', 'ssn']
+     * ```
      */
     sensitiveFields?: string[];
 
     /**
-     * Slow request threshold (ms)
+     * Threshold in milliseconds for marking requests as slow
+     *
+     * Slow requests are logged with `slow: true` flag.
+     *
+     * @default 1000
      */
     slowRequestThreshold?: number;
 }
+
+/**
+ * @deprecated Use RequestLoggerOptions instead
+ */
+export type RequestLoggerConfig = RequestLoggerOptions;
 
 const DEFAULT_CONFIG: Required<RequestLoggerConfig> = {
     excludePaths: ['/health', '/ping', '/favicon.ico'],
@@ -76,11 +106,39 @@ export function maskSensitiveData(
 }
 
 /**
- * Request Logger middleware
+ * Request logger middleware for Hono
+ *
+ * Logs incoming requests with method, path, IP, and user agent.
+ * Logs completed requests with status code and duration.
+ * Automatically generates unique request IDs and masks sensitive data.
+ *
+ * @param options - Configuration options
+ * @returns Hono middleware function
+ *
+ * @example
+ * ```typescript
+ * import { Hono } from 'hono';
+ * import { RequestLogger } from '@spfn/core/middleware';
+ *
+ * const app = new Hono();
+ *
+ * // Add request logging
+ * app.use(RequestLogger({
+ *     excludePaths: ['/health', '/metrics'],
+ *     sensitiveFields: ['password', 'token'],
+ *     slowRequestThreshold: 2000,
+ * }));
+ *
+ * // Access request ID in handlers
+ * app.get('/users', (c) => {
+ *     const requestId = c.get('requestId');
+ *     return c.json({ requestId });
+ * });
+ * ```
  */
-export function RequestLogger(config?: RequestLoggerConfig)
+export function RequestLogger(options?: RequestLoggerOptions)
 {
-    const cfg = { ...DEFAULT_CONFIG, ...config };
+    const cfg = { ...DEFAULT_CONFIG, ...options };
     const apiLogger = logger.child('@spfn/core:api');
 
     return async (c: Context, next: Next) =>

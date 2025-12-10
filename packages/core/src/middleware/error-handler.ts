@@ -11,16 +11,25 @@ import { env } from '@spfn/core/config';
 
 const errorLogger = logger.child('@spfn/core:error-handler');
 
+/**
+ * Options for ErrorHandler middleware
+ */
 export interface ErrorHandlerOptions
 {
     /**
-     * Include stack trace in response
+     * Include stack trace in error response
+     *
+     * Useful for debugging in development, should be disabled in production.
+     *
      * @default env.NODE_ENV !== 'production'
      */
     includeStack?: boolean;
 
     /**
-     * Enable error logging
+     * Enable error logging to console
+     *
+     * Logs errors with appropriate level (warn for 4xx, error for 5xx).
+     *
      * @default true
      */
     enableLogging?: boolean;
@@ -88,9 +97,34 @@ function isSerializableError(err: Error): err is SerializableErrorLike
 }
 
 /**
- * Error handler middleware
+ * Error handler middleware for Hono
  *
- * Used in Hono's onError hook
+ * Handles SerializableError with automatic serialization and standard errors.
+ * SerializableError instances are serialized using their toJSON() method,
+ * preserving custom fields like `resource`, `fields`, etc.
+ *
+ * @param options - Configuration options
+ * @returns Error handler function for Hono's onError hook
+ *
+ * @example
+ * ```typescript
+ * import { Hono } from 'hono';
+ * import { ErrorHandler } from '@spfn/core/middleware';
+ *
+ * const app = new Hono();
+ *
+ * // Register error handler
+ * app.onError(ErrorHandler({
+ *     includeStack: process.env.NODE_ENV !== 'production',
+ *     enableLogging: true,
+ * }));
+ *
+ * // Throw SerializableError in routes
+ * app.get('/users/:id', (c) => {
+ *     throw new NotFoundError({ message: 'User not found', resource: 'User' });
+ *     // Response: { __type: 'NotFoundError', message: 'User not found', resource: 'User' }
+ * });
+ * ```
  */
 export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c: Context) => Response | Promise<Response>
 {
