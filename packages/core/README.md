@@ -6,7 +6,7 @@ Full-stack type-safe framework for building Next.js + Node.js applications with 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
 
-> **Alpha Release**: SPFN is currently in alpha. APIs may change. Use `@alpha` tag for installation.
+> **Beta Release**: SPFN is currently in beta. Core APIs are stable but may have minor changes before 1.0.
 
 ---
 
@@ -200,7 +200,7 @@ route.get('/users/:id')
     |-- Type Inference: RouteDef<TInput, TResponse>
     |-- Validation: TypeBox schema
     |-- Middleware: Skip control per route
-    |-- Response: c.success() / c.error()
+    |-- Response: Direct return / c.json() / helpers
 ```
 
 **Key Components**:
@@ -431,6 +431,57 @@ Return NextResponse
 
 ---
 
+### 9. Job System (`src/job/`)
+
+**Purpose**: Background job processing with pg-boss
+
+**Architecture**:
+
+```
+job('send-email')
+    .input(schema)
+    .options({ retryLimit: 3 })
+    .cron('0 9 * * *')
+    .on(eventDef)
+    .handler(async (input) => { ... })
+```
+
+**Key Components**:
+
+- `job()`: Fluent job builder
+- `defineJobRouter()`: Group jobs for registration
+- Job types: Standard, Cron, RunOnce, Event-driven
+- `initBoss()`, `registerJobs()`: pg-boss lifecycle
+
+**Design Pattern**: Builder pattern (same as routes)
+
+---
+
+### 10. Event System (`src/event/`)
+
+**Purpose**: Decoupled pub/sub event system
+
+**Architecture**:
+
+```
+defineEvent('user.created', schema)
+    → emit(payload)
+    → handlers (in-memory)
+    → job queues (pg-boss)
+    → cache pub/sub (multi-instance)
+```
+
+**Key Components**:
+
+- `defineEvent()`: Define typed events
+- `event.emit()`: Emit event to all subscribers
+- `event.subscribe()`: In-memory subscription
+- `event.useCache()`: Multi-instance pub/sub via Redis
+
+**Integration**: `job().on(event)` for event-driven jobs
+
+---
+
 ## Type System
 
 ### End-to-End Type Safety Flow
@@ -469,8 +520,8 @@ export const getUser = route.get('/users/:id')
         const user = await findOne(users, { id: params.id });
         //    ^? User | null
 
-        return c.success(user);
-        //       ^? Response inferred from return value
+        return user;
+        //     ^? Response type inferred from return value
     });
 
 // 3. Router Type Export
@@ -884,7 +935,7 @@ export const getUser = route.get('/users/:id')
     })
     .handler(async (c) => {
         const { params } = await c.data();
-        return c.success({ id: params.id, name: 'John' });
+        return { id: params.id, name: 'John' };
     });
 
 // router.ts
@@ -1076,6 +1127,40 @@ import {
 import { env, envSchema } from '@spfn/core/config';
 ```
 
+### Job System
+
+```typescript
+import {
+    job,
+    defineJobRouter,
+    registerJobs,
+    initBoss,
+    getBoss,
+    stopBoss,
+} from '@spfn/core/job';
+
+import type {
+    JobDef,
+    JobRouter,
+    JobOptions,
+    BossOptions,
+    InferJobInput,
+} from '@spfn/core/job';
+```
+
+### Event System
+
+```typescript
+import { defineEvent } from '@spfn/core/event';
+
+import type {
+    EventDef,
+    EventHandler,
+    InferEventPayload,
+    PubSubCache,
+} from '@spfn/core/event';
+```
+
 ---
 
 ## Quick Reference
@@ -1133,7 +1218,7 @@ export const getUser = route.get('/users/:id')
     .input({ params: Type.Object({ id: Type.String() }) })
     .handler(async (c) => {
         const { params } = await c.data();
-        return c.success({ id: params.id, name: 'John' });
+        return { id: params.id, name: 'John' };
     });
 ```
 
