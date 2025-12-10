@@ -2,7 +2,7 @@ import type { Hono, MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
-import type { JobRouter, BossConfig } from '../job';
+import type { JobRouter, BossOptions } from '../job';
 
 /**
  * CORS configuration options - inferred from hono/cors
@@ -126,7 +126,7 @@ export interface ServerConfig
      * pg-boss configuration options
      * Only used if jobs router is provided
      */
-    jobsConfig?: Omit<BossConfig, 'connectionString'>;
+    jobsConfig?: Omit<BossOptions, 'connectionString'>;
 
     /**
      * Enable debug mode (default: NODE_ENV === 'development')

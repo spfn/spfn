@@ -7,7 +7,7 @@
 import type { MiddlewareHandler } from 'hono';
 import type { ServerConfig } from './types';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
-import type { JobRouter, BossConfig } from '../job';
+import type { JobRouter, BossOptions } from '../job';
 import { serverLogger } from './logger';
 
 // ============================================================================
@@ -184,7 +184,7 @@ export class ServerConfigBuilder
      *   .build();
      * ```
      */
-    jobs(router: JobRouter<any>, config?: Omit<BossConfig, 'connectionString'>): this
+    jobs(router: JobRouter<any>, config?: Omit<BossOptions, 'connectionString'>): this
     {
         this.config.jobs = router;
         if (config)
@@ -311,10 +311,10 @@ export class ServerConfigBuilder
  *
  * const appRouter = defineRouter({
  *   getUser: route.get('/users/:id')
- *     .input(Type.Object({ id: Type.String() }))
+ *     .input({ params: Type.Object({ id: Type.String() }) })
  *     .handler(async (c) => {
- *       const { id } = await c.data();
- *       return c.success({ id, name: 'John' });
+ *       const { params } = await c.data();
+ *       return { id: params.id, name: 'John' };
  *     }),
  * });
  *
