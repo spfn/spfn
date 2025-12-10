@@ -20,45 +20,86 @@ let bossInstance: PgBoss | null = null;
 let bossConfig: BossConfig | null = null;
 
 /**
- * pg-boss configuration options
+ * Options for pg-boss initialization
+ *
+ * @example
+ * ```typescript
+ * await initBoss({
+ *     connectionString: process.env.DATABASE_URL,
+ *     schema: 'spfn_queue',
+ *     clearOnStart: process.env.NODE_ENV === 'development',
+ * });
+ * ```
  */
-export interface BossConfig
+export interface BossOptions
 {
     /**
      * PostgreSQL connection string
+     *
+     * @example 'postgresql://user:password@localhost:5432/mydb'
      */
     connectionString: string;
 
     /**
      * Schema name for pg-boss tables
+     *
+     * pg-boss creates its own tables in this schema.
+     *
      * @default 'spfn_queue'
      */
     schema?: string;
 
     /**
      * Maintenance interval in seconds
+     *
+     * pg-boss runs maintenance tasks (cleanup, archiving) at this interval.
+     *
      * @default 120
      */
     maintenanceIntervalSeconds?: number;
 
     /**
      * Monitor state changes interval in seconds
+     *
+     * When set, pg-boss emits state change events at this interval.
+     *
      * @default undefined (disabled)
      */
     monitorIntervalSeconds?: number;
 
     /**
      * Clear all pending/scheduled jobs on startup
-     * Useful for development mode
+     *
+     * Useful for development mode to start with a clean queue.
+     * Should be false in production.
+     *
      * @default false
      */
     clearOnStart?: boolean;
 }
 
 /**
- * Initialize pg-boss with the given configuration
+ * @deprecated Use BossOptions instead
  */
-export async function initBoss(config: BossConfig): Promise<PgBoss>
+export type BossConfig = BossOptions;
+
+/**
+ * Initialize pg-boss with the given configuration
+ *
+ * Must be called before registerJobs(). Typically handled by defineServerConfig().
+ *
+ * @param options - pg-boss configuration options
+ * @returns The pg-boss instance
+ *
+ * @example
+ * ```typescript
+ * const boss = await initBoss({
+ *     connectionString: process.env.DATABASE_URL!,
+ *     schema: 'spfn_queue',
+ * });
+ * ```
+ */
+export async function initBoss(options: BossOptions): Promise<PgBoss>
 {
     if (bossInstance)
     {
@@ -68,12 +109,12 @@ export async function initBoss(config: BossConfig): Promise<PgBoss>
 
     jobLogger.info('Initializing pg-boss...');
 
-    bossConfig = config;
+    bossConfig = options;
     bossInstance = new PgBoss({
-        connectionString: config.connectionString,
-        schema: config.schema ?? 'spfn_queue',
-        maintenanceIntervalSeconds: config.maintenanceIntervalSeconds ?? 120,
-        monitorIntervalSeconds: config.monitorIntervalSeconds,
+        connectionString: options.connectionString,
+        schema: options.schema ?? 'spfn_queue',
+        maintenanceIntervalSeconds: options.maintenanceIntervalSeconds ?? 120,
+        monitorIntervalSeconds: options.monitorIntervalSeconds,
     });
 
     // Event handlers

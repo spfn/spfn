@@ -80,7 +80,7 @@ export type {
 } from './types';
 
 // Builder
-export { job, JobBuilder } from './job-builder';
+export { job } from './job-builder';
 
 // Router
 export { defineJobRouter, isJobDef, isJobRouter, collectJobs } from './job-router';
@@ -92,6 +92,7 @@ export {
     stopBoss,
     isBossRunning,
     shouldClearOnStart,
+    type BossOptions,
     type BossConfig,
 } from './boss';
 

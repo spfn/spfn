@@ -35,6 +35,37 @@ function getDefaultJobOptions(options?: JobOptions): PgBoss.SendOptions
 
 /**
  * Register all jobs from a JobRouter with pg-boss
+ *
+ * This function:
+ * 1. Collects all jobs from the router (including nested routers)
+ * 2. Optionally clears existing jobs (if clearOnStart is enabled)
+ * 3. Registers each job's worker handler with pg-boss
+ * 4. Sets up cron schedules for scheduled jobs
+ * 5. Queues runOnce jobs
+ * 6. Connects event subscriptions to job queues
+ *
+ * @param router - JobRouter containing job definitions
+ *
+ * @example
+ * ```typescript
+ * // Define jobs
+ * const sendEmail = job('send-email')
+ *     .input(Type.Object({ to: Type.String() }))
+ *     .handler(async (input) => { ... });
+ *
+ * const dailyReport = job('daily-report')
+ *     .cron('0 9 * * *')
+ *     .handler(async () => { ... });
+ *
+ * // Create router
+ * const jobRouter = defineJobRouter({ sendEmail, dailyReport });
+ *
+ * // Initialize pg-boss first
+ * await initBoss({ connectionString: process.env.DATABASE_URL! });
+ *
+ * // Register jobs
+ * await registerJobs(jobRouter);
+ * ```
  */
 export async function registerJobs(router: JobRouter<any>): Promise<void>
 {
