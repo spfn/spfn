@@ -21,4 +21,7 @@ export type {
     InferRouteOutput,
     RequestInterceptor,
     ResponseInterceptor,
+    StructuredInput,
+    CookieOptions,
+    SetCookie,
 } from './client';

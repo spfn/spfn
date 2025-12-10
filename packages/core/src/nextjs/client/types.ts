@@ -8,6 +8,8 @@ import type { RouteDef, RouteInput } from "@spfn/core/route";
 
 /**
  * Extract structured input from RouteInput
+ *
+ * Converts TypeBox schemas to their static types for each input field.
  */
 export type StructuredInput<TInput extends RouteInput> = {
     params: TInput['params'] extends TSchema ? Static<TInput['params']> : {};
@@ -18,7 +20,19 @@ export type StructuredInput<TInput extends RouteInput> = {
 };
 
 /**
- * Infer route input type
+ * Infer route input type from RouteDef
+ *
+ * @example
+ * ```typescript
+ * // Server route definition
+ * const getUser = route.get('/users/:id')
+ *   .input({ params: Type.Object({ id: Type.String() }) })
+ *   .handler(...);
+ *
+ * // Client: extract input type
+ * type Input = InferRouteInput<typeof getUser>;
+ * // { params: { id: string }, query: {}, body: {}, ... }
+ * ```
  */
 export type InferRouteInput<TRoute> =
     TRoute extends RouteDef<infer TInput, any, any>
@@ -26,7 +40,20 @@ export type InferRouteInput<TRoute> =
         : never;
 
 /**
- * Infer route output type
+ * Infer route output type from RouteDef
+ *
+ * @example
+ * ```typescript
+ * // Server route definition
+ * const getUser = route.get('/users/:id')
+ *   .handler(async (c) => {
+ *     return { id: '1', name: 'John' };
+ *   });
+ *
+ * // Client: extract output type
+ * type Output = InferRouteOutput<typeof getUser>;
+ * // { id: string, name: string }
+ * ```
  */
 export type InferRouteOutput<TRoute> =
     TRoute extends RouteDef<any, any, infer TResponse>

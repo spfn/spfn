@@ -5,7 +5,7 @@
 import { NextRequest } from 'next/server';
 import type { CookieOptions, SetCookie } from "../client";
 import type { InterceptorRule, RequestInterceptorContext, ResponseInterceptorContext } from './interceptors/types';
-import type { InterceptorRegistry } from './interceptors/registry';
+import type { InterceptorRegistry } from './interceptors';
 
 // Re-export from shared
 export { parseResponseBody } from '../shared';

@@ -10,14 +10,6 @@
 export { createRpcProxy } from './proxy/rpc';
 export type { RpcProxyConfig } from './proxy/rpc';
 
-export type {
-    TypedProxyConfig,
-    ProxyRequestInterceptor,
-    ProxyResponseInterceptor,
-    RequestInterceptorResult,
-    ResponseInterceptorResult,
-} from './proxy/types';
-
 // Interceptor registry
 export {
     registerInterceptors,
@@ -29,7 +21,7 @@ export {
     executeResponseInterceptors,
 } from './proxy/interceptors';
 
-// Types
+// Interceptor types
 export type {
     RequestInterceptorContext,
     ResponseInterceptorContext,
