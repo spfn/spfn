@@ -110,12 +110,20 @@ export async function initBoss(options: BossOptions): Promise<PgBoss>
     jobLogger.info('Initializing pg-boss...');
 
     bossConfig = options;
-    bossInstance = new PgBoss({
+
+    const pgBossOptions: PgBoss.ConstructorOptions = {
         connectionString: options.connectionString,
         schema: options.schema ?? 'spfn_queue',
         maintenanceIntervalSeconds: options.maintenanceIntervalSeconds ?? 120,
-        monitorIntervalSeconds: options.monitorIntervalSeconds,
-    });
+    };
+
+    // Only set monitorIntervalSeconds if explicitly provided (must be >= 1)
+    if (options.monitorIntervalSeconds !== undefined && options.monitorIntervalSeconds >= 1)
+    {
+        pgBossOptions.monitorIntervalSeconds = options.monitorIntervalSeconds;
+    }
+
+    bossInstance = new PgBoss(pgBossOptions);
 
     // Event handlers
     bossInstance.on('error', (error) =>

@@ -19,6 +19,8 @@ export type {
     CallOptions,
     InferRouteInput,
     InferRouteOutput,
+    RouterInput,
+    RouterOutput,
     RequestInterceptor,
     ResponseInterceptor,
     StructuredInput,

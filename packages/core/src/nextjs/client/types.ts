@@ -60,6 +60,60 @@ export type InferRouteOutput<TRoute> =
         ? TResponse
         : never;
 
+// ============================================================================
+// Router Type Utilities
+// ============================================================================
+
+/**
+ * Extract routes from Router type
+ * Router<TRoutes> has routes in `_routes` property
+ */
+type ExtractRoutes<TRouter> =
+    TRouter extends { _routes: infer TRoutes } ? TRoutes : TRouter;
+
+/**
+ * Extract output type for a specific route from router
+ *
+ * @example
+ * ```typescript
+ * import type { RouterOutput } from '@spfn/core/nextjs';
+ * import type { AppRouter } from '@/server/router';
+ *
+ * // Get output type for a specific route
+ * type ListData = RouterOutput<AppRouter, 'listExamples'>;
+ *
+ * // Use in props
+ * interface Props {
+ *     data: RouterOutput<AppRouter, 'listExamples'>;
+ * }
+ *
+ * // Extract item type from paginated response
+ * type Example = RouterOutput<AppRouter, 'listExamples'>['items'][number];
+ * ```
+ */
+export type RouterOutput<TRouter, K extends keyof ExtractRoutes<TRouter>> =
+    InferRouteOutput<ExtractRoutes<TRouter>[K]>;
+
+/**
+ * Extract input type for a specific route from router
+ *
+ * @example
+ * ```typescript
+ * import type { RouterInput } from '@spfn/core/nextjs';
+ * import type { AppRouter } from '@/server/router';
+ *
+ * // Get input type for a specific route
+ * type CreateInput = RouterInput<AppRouter, 'createExample'>;
+ *
+ * // Use in function parameter
+ * function submitForm(data: RouterInput<AppRouter, 'createExample'>['body']) {
+ *     // ...
+ * }
+ * ```
+ */
+export type RouterInput<TRouter, K extends keyof ExtractRoutes<TRouter>> =
+    InferRouteInput<ExtractRoutes<TRouter>[K]>;
+
 /**
  * Cookie options for setCookie
  */

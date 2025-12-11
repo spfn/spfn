@@ -110,6 +110,14 @@ export async function registerJobs(router: JobRouter<any>): Promise<void>
 }
 
 /**
+ * Create queue if not exists (required for pg-boss v11+)
+ */
+async function ensureQueue(boss: PgBoss, queueName: string): Promise<void>
+{
+    await boss.createQueue(queueName);
+}
+
+/**
  * Register worker handler for a job
  */
 async function registerWorker(
@@ -118,6 +126,9 @@ async function registerWorker(
     queueName: string
 ): Promise<void>
 {
+    // Ensure queue exists before registering worker
+    await ensureQueue(boss, queueName);
+
     await boss.work(
         queueName,
         { batchSize: 1 },
@@ -196,6 +207,9 @@ async function registerCronSchedule(boss: PgBoss, job: JobDef<any>): Promise<voi
 
     jobLogger.debug(`[Job:${job.name}] Scheduling cron: ${job.cronExpression}`);
 
+    // Ensure queue exists for cron jobs (uses job.name as queue)
+    await ensureQueue(boss, job.name);
+
     await boss.schedule(
         job.name,
         job.cronExpression,
@@ -217,6 +231,9 @@ async function queueRunOnceJob(boss: PgBoss, job: JobDef<any>): Promise<void>
     }
 
     jobLogger.debug(`[Job:${job.name}] Queuing runOnce job`);
+
+    // Ensure queue exists for runOnce jobs (uses job.name as queue)
+    await ensureQueue(boss, job.name);
 
     await boss.send(
         job.name,

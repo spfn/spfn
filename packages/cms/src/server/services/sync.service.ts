@@ -4,7 +4,7 @@
  * Synchronizes labels defined in code with database
  */
 
-import { isEqual } from 'lodash';
+import { isEqual } from 'lodash-es';
 import { type SyncOptions, type SyncResult } from '../../lib/types';
 import { type FlatLabel, flattenLabels } from '../../lib/helpers';
 import { cmsLabelsRepository } from '../repositories';
