@@ -10,12 +10,15 @@ import {
     FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React, { useState } from "react";
 
 export function LoginForm({ className }: React.ComponentProps<"div">)
 {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const redirectTo = searchParams.get('redirect') || '/';
+
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -31,6 +34,8 @@ export function LoginForm({ className }: React.ComponentProps<"div">)
         {
             const response = await authApi.login.call({ body: { email, password } });
             console.log(response);
+
+            router.replace(redirectTo);
         }
         catch (err)
         {
@@ -66,6 +71,16 @@ export function LoginForm({ className }: React.ComponentProps<"div">)
                         { error }
                     </div>
                 )}
+
+                <div className="bg-muted/50 border border-border px-4 py-3 rounded-md text-sm">
+                    <p className="font-medium text-muted-foreground mb-1">Demo Account</p>
+                    <p className="text-muted-foreground">
+                        Email: <code className="bg-muted px-1 rounded">admin@example.com</code>
+                    </p>
+                    <p className="text-muted-foreground">
+                        Password: <code className="bg-muted px-1 rounded">Admin!@34</code>
+                    </p>
+                </div>
 
                 <Field>
                     <FieldLabel htmlFor="email">Email</FieldLabel>

@@ -7,6 +7,7 @@
 import { route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
 import { ExampleRepository } from '../repositories/example.repository';
+import { exampleCreated, exampleUpdated, exampleDeleted } from '../events/example.events';
 
 const exampleRepo = new ExampleRepository();
 
@@ -14,28 +15,22 @@ const exampleRepo = new ExampleRepository();
  * GET /examples - List examples with pagination
  */
 export const listExamples = route.get('/examples')
-    .skip(['auth'])
     .input({
         query: Type.Object({
+            page: Type.Optional(Type.Number({ minimum: 1 })),
             limit: Type.Optional(Type.Number({ minimum: 1, maximum: 100 })),
-            offset: Type.Optional(Type.Number({ minimum: 0 })),
         }),
     })
     .handler(async (c) =>
     {
         const { query } = await c.data();
+        const page = query.page ?? 1;
         const limit = query.limit ?? 10;
-        const offset = query.offset ?? 0;
 
-        const examples = await exampleRepo.findAll(limit, offset);
+        const examples = await exampleRepo.findAll(limit, (page - 1) * limit);
         const total = await exampleRepo.countAll();
 
-        return {
-            examples,
-            total,
-            limit,
-            offset,
-        };
+        return c.paginated(examples, page, limit, total);
     });
 
 /**
@@ -51,9 +46,10 @@ export const getExample = route.get('/examples/:id')
             })
         }),
         params: Type.Object({
-            id: Type.String(),
+            id: Type.Number(),
         }),
     })
+    .skip(['auth'])
     .handler(async (c) =>
     {
         const { params, headers } = await c.data();
@@ -86,6 +82,9 @@ export const createExample = route.post('/examples')
         const { body } = await c.data();
         const example = await exampleRepo.createExample(body);
 
+        // Emit event for background processing
+        await exampleCreated.emit({ id: example.id, name: example.name });
+
         return example;
     });
 
@@ -95,7 +94,7 @@ export const createExample = route.post('/examples')
 export const updateExample = route.put('/examples/:id')
     .input({
         params: Type.Object({
-            id: Type.String(),
+            id: Type.Number(),
         }),
         body: Type.Object({
             name: Type.Optional(Type.String()),
@@ -112,6 +111,9 @@ export const updateExample = route.put('/examples/:id')
             throw new Error('Example not found');
         }
 
+        // Emit event for background processing
+        await exampleUpdated.emit({ id: example.id, name: example.name });
+
         return example;
     });
 
@@ -121,7 +123,7 @@ export const updateExample = route.put('/examples/:id')
 export const deleteExample = route.delete('/examples/:id')
     .input({
         params: Type.Object({
-            id: Type.String(),
+            id: Type.Number(),
         }),
     })
     .handler(async (c) =>
@@ -133,6 +135,9 @@ export const deleteExample = route.delete('/examples/:id')
         {
             throw new Error('Example not found');
         }
+
+        // Emit event for background processing
+        await exampleDeleted.emit({ id: params.id });
 
         return {
             success: true,
