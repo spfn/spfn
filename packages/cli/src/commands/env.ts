@@ -1,5 +1,31 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { parse } from 'dotenv';
+
+/**
+ * Environment file targets
+ */
+const ENV_FILES = {
+    nextjs: ['.env', '.env.local'],
+    server: ['.env.server', '.env.server.local'],
+} as const;
+
+/**
+ * Determine which file an env var should be in
+ */
+function getTargetFile(schema: any): string
+{
+    const isNextjs = schema.nextjs ?? schema.key?.startsWith('NEXT_PUBLIC_');
+
+    if (isNextjs)
+    {
+        return schema.sensitive ? '.env.local' : '.env';
+    }
+
+    return schema.sensitive ? '.env.server.local' : '.env.server';
+}
 
 /**
  * Load envSchema from a package
@@ -75,57 +101,88 @@ function formatDefault(value: any, type: string): string
 /**
  * List all environment variables from schema
  */
-async function listEnvVars(options: { package?: string }): Promise<void>
+async function listEnvVars(options: { package?: string; group?: boolean }): Promise<void>
 {
     const packageName = options.package || '@spfn/core';
 
     try
     {
         const envSchema = await loadEnvSchema(packageName);
-
-        console.log(chalk.blue.bold(`\n📋 Environment Variables (${packageName})\n`));
-
         const allVars = Object.entries(envSchema as Record<string, any>);
 
-    for (const [key, schema] of allVars)
-    {
-        // Header: KEY (type) [required/optional]
-        const typeStr = formatType(schema.type);
-        const requiredStr = schema.required || schema.default !== undefined
-            ? chalk.red('[required]')
-            : chalk.dim('[optional]');
-        const sensitiveStr = schema.sensitive ? chalk.yellow(' [sensitive]') : '';
-
-        console.log(`${chalk.bold.cyan(key)} ${chalk.dim('(')}${typeStr}${chalk.dim(')')} ${requiredStr}${sensitiveStr}`);
-
-        // Description
-        console.log(`  ${chalk.dim(schema.description)}`);
-
-        // Default value
-        if (schema.default !== undefined)
+        if (options.group)
         {
-            console.log(`  ${chalk.dim('Default:')} ${formatDefault(schema.default, schema.type)}`);
+            // Group by target file
+            const grouped = allVars.reduce((acc, [key, schema]) =>
+            {
+                const target = getTargetFile(schema);
+                if (!acc[target]) acc[target] = [];
+                acc[target].push([key, schema]);
+
+                return acc;
+            }, {} as Record<string, [string, any][]>);
+
+            console.log(chalk.blue.bold(`\n📋 Environment Variables by File (${packageName})\n`));
+
+            for (const [file, vars] of Object.entries(grouped))
+            {
+                console.log(chalk.bold.magenta(`\n${file}`));
+                console.log(chalk.dim('─'.repeat(50)));
+
+                for (const [key, schema] of vars)
+                {
+                    printEnvVar(key, schema);
+                }
+            }
+        }
+        else
+        {
+            console.log(chalk.blue.bold(`\n📋 Environment Variables (${packageName})\n`));
+
+            for (const [key, schema] of allVars)
+            {
+                printEnvVar(key, schema, true);
+            }
         }
 
-        // Examples
-        if (schema.examples && schema.examples.length > 0)
-        {
-            const exampleStr = schema.examples
-                .map((ex: any) => formatDefault(ex, schema.type))
-                .join(', ');
-            console.log(`  ${chalk.dim('Examples:')} ${exampleStr}`);
-        }
-
-        console.log(); // Empty line between vars
-    }
-
-        console.log(chalk.dim('\n💡 Tip: Use these variable names in your .env files\n'));
+        console.log(chalk.dim('\n💡 Tip: Use `spfn env init` to generate .env template files\n'));
     }
     catch (error)
     {
         console.error(chalk.red(`\n❌ ${error instanceof Error ? error.message : 'Unknown error'}\n`));
         process.exit(1);
     }
+}
+
+/**
+ * Print a single environment variable
+ */
+function printEnvVar(key: string, schema: any, showFile = false): void
+{
+    const typeStr = formatType(schema.type);
+    const requiredStr = schema.required || schema.default !== undefined
+        ? chalk.red('[required]')
+        : chalk.dim('[optional]');
+    const sensitiveStr = schema.sensitive ? chalk.yellow(' [sensitive]') : '';
+    const fileStr = showFile ? chalk.dim(` → ${getTargetFile(schema)}`) : '';
+
+    console.log(`${chalk.bold.cyan(key)} ${chalk.dim('(')}${typeStr}${chalk.dim(')')} ${requiredStr}${sensitiveStr}${fileStr}`);
+    console.log(`  ${chalk.dim(schema.description)}`);
+
+    if (schema.default !== undefined)
+    {
+        console.log(`  ${chalk.dim('Default:')} ${formatDefault(schema.default, schema.type)}`);
+    }
+
+    if (schema.examples && schema.examples.length > 0)
+    {
+        const exampleStr = schema.examples
+            .map((ex: any) => formatDefault(ex, schema.type))
+            .join(', ');
+        console.log(`  ${chalk.dim('Examples:')} ${exampleStr}`);
+    }
+
+    console.log();
 }
 
 /**
@@ -142,21 +199,46 @@ async function showEnvStats(options: { package?: string }): Promise<void>
         console.log(chalk.blue.bold(`\n📊 Environment Variable Statistics (${packageName})\n`));
 
         const allVars = Object.entries(envSchema as Record<string, any>);
-    const required = allVars.filter(([_, schema]) => schema.required || schema.default !== undefined);
-    const optional = allVars.filter(([_, schema]) => !schema.required && schema.default === undefined);
-    const sensitive = allVars.filter(([_, schema]) => schema.sensitive);
+        const required = allVars.filter(([_, schema]) => schema.required || schema.default !== undefined);
+        const optional = allVars.filter(([_, schema]) => !schema.required && schema.default === undefined);
+        const sensitive = allVars.filter(([_, schema]) => schema.sensitive);
+        const nextjsVars = allVars.filter(([_, schema]) =>
+            schema.nextjs ?? schema.key?.startsWith('NEXT_PUBLIC_')
+        );
+        const serverOnlyVars = allVars.filter(([_, schema]) =>
+            !(schema.nextjs ?? schema.key?.startsWith('NEXT_PUBLIC_'))
+        );
 
-    const typeCount = allVars.reduce((acc, [_, schema]) =>
-    {
-        acc[schema.type] = (acc[schema.type] || 0) + 1;
+        const typeCount = allVars.reduce((acc, [_, schema]) =>
+        {
+            acc[schema.type] = (acc[schema.type] || 0) + 1;
 
-        return acc;
-    }, {} as Record<string, number>);
+            return acc;
+        }, {} as Record<string, number>);
+
+        const fileCount = allVars.reduce((acc, [_, schema]) =>
+        {
+            const file = getTargetFile(schema);
+            acc[file] = (acc[file] || 0) + 1;
+
+            return acc;
+        }, {} as Record<string, number>);
 
         console.log(`${chalk.bold('Total variables:')} ${chalk.cyan(allVars.length)}`);
         console.log(`${chalk.bold('Required:')} ${chalk.red(required.length)}`);
         console.log(`${chalk.bold('Optional:')} ${chalk.dim(optional.length)}`);
         console.log(`${chalk.bold('Sensitive:')} ${chalk.yellow(sensitive.length)}`);
+
+        console.log(chalk.bold('\nBy Target:'));
+        console.log(`  ${chalk.blue('Next.js accessible:')} ${chalk.cyan(nextjsVars.length)}`);
+        console.log(`  ${chalk.magenta('SPFN server only:')} ${chalk.cyan(serverOnlyVars.length)}`);
+
+        console.log(chalk.bold('\nBy File:'));
+
+        for (const [file, count] of Object.entries(fileCount))
+        {
+            console.log(`  ${chalk.dim(file)}: ${chalk.cyan(count)}`);
+        }
 
         console.log(chalk.bold('\nBy Type:'));
 
@@ -242,6 +324,7 @@ envCommand
     .command('list')
     .description('List all environment variables from schema')
     .option('-p, --package <package>', 'Package name to read env schema from', '@spfn/core')
+    .option('-g, --group', 'Group variables by target file')
     .action(listEnvVars);
 
 // env:stats - Show statistics
@@ -258,3 +341,259 @@ envCommand
     .argument('<query>', 'Search query (matches key or description)')
     .option('-p, --package <package>', 'Package name to read env schema from', '@spfn/core')
     .action(searchEnvVars);
+
+/**
+ * Generate .env template files
+ */
+async function initEnvFiles(options: { package?: string; force?: boolean }): Promise<void>
+{
+    const packageName = options.package || '@spfn/core';
+    const cwd = process.cwd();
+
+    try
+    {
+        const envSchema = await loadEnvSchema(packageName);
+        const allVars = Object.entries(envSchema as Record<string, any>);
+
+        // Group by target file
+        const grouped = allVars.reduce((acc, [key, schema]) =>
+        {
+            const target = getTargetFile(schema);
+            const exampleFile = target + '.example';
+
+            if (!acc[exampleFile]) acc[exampleFile] = [];
+            acc[exampleFile].push([key, schema]);
+
+            return acc;
+        }, {} as Record<string, [string, any][]>);
+
+        console.log(chalk.blue.bold(`\n🚀 Generating .env template files\n`));
+
+        for (const [file, vars] of Object.entries(grouped))
+        {
+            const filePath = resolve(cwd, file);
+
+            if (existsSync(filePath) && !options.force)
+            {
+                console.log(chalk.yellow(`  ⏭️  ${file} already exists (use --force to overwrite)`));
+                continue;
+            }
+
+            const content = generateEnvFileContent(vars);
+            writeFileSync(filePath, content, 'utf-8');
+            console.log(chalk.green(`  ✅ ${file} (${vars.length} variables)`));
+        }
+
+        console.log(chalk.dim('\n💡 Copy .example files to create your actual .env files:'));
+        console.log(chalk.dim('   cp .env.example .env'));
+        console.log(chalk.dim('   cp .env.local.example .env.local'));
+        console.log(chalk.dim('   cp .env.server.example .env.server'));
+        console.log(chalk.dim('   cp .env.server.local.example .env.server.local\n'));
+    }
+    catch (error)
+    {
+        console.error(chalk.red(`\n❌ ${error instanceof Error ? error.message : 'Unknown error'}\n`));
+        process.exit(1);
+    }
+}
+
+/**
+ * Generate .env file content from schema
+ */
+function generateEnvFileContent(vars: [string, any][]): string
+{
+    const lines: string[] = [
+        '# Auto-generated by spfn env init',
+        '# Copy this file and fill in the values',
+        '',
+    ];
+
+    for (const [key, schema] of vars)
+    {
+        // Comment with description
+        lines.push(`# ${schema.description}`);
+
+        if (schema.required)
+        {
+            lines.push(`# [required]`);
+        }
+
+        if (schema.sensitive)
+        {
+            lines.push(`# [sensitive] - Do not commit this value!`);
+        }
+
+        // Example or default value
+        let value = '';
+
+        if (schema.default !== undefined)
+        {
+            value = String(schema.default);
+        }
+        else if (schema.examples && schema.examples.length > 0)
+        {
+            value = String(schema.examples[0]);
+        }
+
+        lines.push(`${key}=${value}`);
+        lines.push('');
+    }
+
+    return lines.join('\n');
+}
+
+/**
+ * Check .env files against schema
+ */
+async function checkEnvFiles(options: { package?: string }): Promise<void>
+{
+    const packageName = options.package || '@spfn/core';
+    const cwd = process.cwd();
+
+    try
+    {
+        const envSchema = await loadEnvSchema(packageName);
+        const allVars = Object.entries(envSchema as Record<string, any>);
+
+        console.log(chalk.blue.bold(`\n🔍 Checking .env files against schema\n`));
+
+        const allFiles = [...ENV_FILES.nextjs, ...ENV_FILES.server];
+        const loadedEnv: Record<string, { value: string; file: string }> = {};
+        const issues: string[] = [];
+        const warnings: string[] = [];
+
+        // Load all env files
+        for (const file of allFiles)
+        {
+            const filePath = resolve(cwd, file);
+
+            if (!existsSync(filePath))
+            {
+                continue;
+            }
+
+            const content = readFileSync(filePath, 'utf-8');
+            const parsed = parse(content);
+
+            for (const [key, value] of Object.entries(parsed))
+            {
+                loadedEnv[key] = { value: value || '', file };
+            }
+
+            console.log(chalk.dim(`  📄 ${file} loaded`));
+        }
+
+        console.log('');
+
+        // Check each schema variable
+        for (const [key, schema] of allVars)
+        {
+            const expectedFile = getTargetFile(schema);
+            const found = loadedEnv[key];
+
+            if (!found)
+            {
+                if (schema.required && schema.default === undefined)
+                {
+                    issues.push(`${chalk.red('✗')} ${chalk.cyan(key)} is required but not found in any .env file`);
+                }
+
+                continue;
+            }
+
+            // Check if in correct file
+            const isNextjsFile = ENV_FILES.nextjs.includes(found.file as any);
+            const isServerFile = ENV_FILES.server.includes(found.file as any);
+            const shouldBeNextjs = schema.nextjs ?? key.startsWith('NEXT_PUBLIC_');
+
+            if (!shouldBeNextjs && isNextjsFile && !isServerFile)
+            {
+                // Server-only var in nextjs file = security issue
+                if (schema.sensitive)
+                {
+                    issues.push(
+                        `${chalk.red('✗')} ${chalk.cyan(key)} is sensitive and should be in ${chalk.magenta(expectedFile)}, ` +
+                        `but found in ${chalk.yellow(found.file)} (security risk!)`
+                    );
+                }
+                else
+                {
+                    warnings.push(
+                        `${chalk.yellow('⚠')} ${chalk.cyan(key)} should be in ${chalk.magenta(expectedFile)}, ` +
+                        `but found in ${chalk.dim(found.file)}`
+                    );
+                }
+            }
+        }
+
+        // Check for unknown variables
+        for (const [key, { file }] of Object.entries(loadedEnv))
+        {
+            const inSchema = allVars.some(([k]) => k === key);
+
+            if (!inSchema)
+            {
+                warnings.push(`${chalk.yellow('⚠')} ${chalk.cyan(key)} in ${chalk.dim(file)} is not in schema`);
+            }
+        }
+
+        // Print results
+        if (issues.length > 0)
+        {
+            console.log(chalk.red.bold('Issues:'));
+
+            for (const issue of issues)
+            {
+                console.log(`  ${issue}`);
+            }
+
+            console.log('');
+        }
+
+        if (warnings.length > 0)
+        {
+            console.log(chalk.yellow.bold('Warnings:'));
+
+            for (const warning of warnings)
+            {
+                console.log(`  ${warning}`);
+            }
+
+            console.log('');
+        }
+
+        if (issues.length === 0 && warnings.length === 0)
+        {
+            console.log(chalk.green('✅ All environment variables are correctly configured!\n'));
+        }
+        else
+        {
+            console.log(chalk.dim(`Found ${issues.length} issue(s) and ${warnings.length} warning(s)\n`));
+
+            if (issues.length > 0)
+            {
+                process.exit(1);
+            }
+        }
+    }
+    catch (error)
+    {
+        console.error(chalk.red(`\n❌ ${error instanceof Error ? error.message : 'Unknown error'}\n`));
+        process.exit(1);
+    }
+}
+
+// env:init - Generate template files
+envCommand
+    .command('init')
+    .description('Generate .env template files from schema')
+    .option('-p, --package <package>', 'Package name to read env schema from', '@spfn/core')
+    .option('-f, --force', 'Overwrite existing files')
+    .action(initEnvFiles);
+
+// env:check - Check .env files
+envCommand
+    .command('check')
+    .description('Check .env files against schema')
+    .option('-p, --package <package>', 'Package name to read env schema from', '@spfn/core')
+    .action(checkEnvFiles);
