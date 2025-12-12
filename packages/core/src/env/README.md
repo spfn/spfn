@@ -1,12 +1,13 @@
 # @spfn/core/env - Environment Variable Management
 
-Type-safe environment variable management with schema-based validation, parsing, and Next.js support.
+Type-safe environment variable management with schema-based validation, parsing, and security-focused file separation.
 
 ## Core Components
 
 ```
 env/
 ├── index.ts        # Module exports
+├── loader.ts       # Environment file loader
 ├── schema.ts       # Schema definition helpers
 ├── registry.ts     # EnvRegistry class
 ├── validator.ts    # Parser functions
@@ -22,6 +23,7 @@ env/
 - **Security Parsers**: Entropy-based secret validation, password strength checks
 - **Parser Composition**: Chain, fallback, and optional utilities
 - **Next.js Support**: Client/server environment variable detection
+- **Security Separation**: Separate env files for Next.js and SPFN server (react2shell protection)
 
 ---
 
@@ -71,6 +73,140 @@ console.log(env.DATABASE_URL); // string (required)
 console.log(env.PORT);         // number (default: 3000)
 console.log(env.DEBUG);        // boolean (default: false)
 console.log(env.LOG_LEVEL);    // 'debug' | 'info' | 'warn' | 'error'
+```
+
+---
+
+## Security Separation (Next.js + SPFN)
+
+SPFN은 Next.js와 별도 프로세스로 실행됩니다. 보안을 위해 환경변수 파일을 분리하여 관리합니다.
+
+### Why?
+
+Next.js 서버 컴포넌트는 `.env.local`의 모든 환경변수에 접근할 수 있습니다. [react2shell](https://github.com/nicholastay/react2shell) 같은 취약점이 발생하면 `.env.local`에 있는 DATABASE_URL, SESSION_SECRET 등이 모두 노출될 수 있습니다.
+
+### File Structure
+
+```
+프로젝트 루트/
+├── .env                  # 기본값 (커밋 O)
+├── .env.local            # Next.js용 로컬 오버라이드 (커밋 X)
+├── .env.server           # SPFN 서버 전용 기본값 (커밋 O)
+└── .env.server.local     # SPFN 서버 전용 민감정보 (커밋 X)
+```
+
+### Which File for What?
+
+| 환경변수 | 파일 | 이유 |
+|----------|------|------|
+| `NEXT_PUBLIC_*` | `.env.local` | 브라우저 노출 OK |
+| `SPFN_API_URL` | `.env.local` | Next.js 서버 컴포넌트에서 사용 |
+| `DATABASE_URL` | `.env.server.local` | SPFN 서버에서만 사용, 민감정보 |
+| `SESSION_SECRET` | `.env.server.local` | SPFN 서버에서만 사용, 민감정보 |
+
+### Security Model
+
+```
+Next.js 프로세스가 읽는 것:
+  .env, .env.local
+  → DATABASE_URL 없음 ✓ (취약점에 안전)
+
+SPFN 서버가 읽는 것:
+  .env, .env.local, .env.server, .env.server.local
+  → 전부 있음 (NEXT_PUBLIC 포함해도 무방)
+```
+
+### Schema with `nextjs` Option
+
+```typescript
+const schema = defineEnvSchema({
+  // SPFN 서버에서만 사용 (nextjs: false가 기본값)
+  DATABASE_URL: envString({
+    description: 'PostgreSQL connection URL',
+    required: true,
+    sensitive: true,
+    nextjs: false,  // .env.server.local에만 존재해야 함
+  }),
+
+  // Next.js 서버 컴포넌트에서도 사용
+  SPFN_API_URL: envString({
+    description: 'Backend API URL',
+    required: true,
+    nextjs: true,   // .env.local에 존재해야 함
+  }),
+
+  // NEXT_PUBLIC_*는 자동으로 nextjs: true
+  NEXT_PUBLIC_WS_URL: envString({
+    description: 'WebSocket URL',
+    // nextjs: true (자동)
+  }),
+});
+```
+
+---
+
+## Environment File Loading
+
+### SPFN Server Entry Point
+
+```typescript
+import { loadEnv, createEnvRegistry } from '@spfn/core/env';
+import { envSchema } from './env.schema';
+
+// 1. 환경변수 파일 로드 (규칙에 따라 자동)
+loadEnv();
+
+// 2. 스키마 검증 및 사용
+const env = createEnvRegistry(envSchema).validate();
+```
+
+### Loading Priority
+
+파일은 다음 순서로 로드됩니다 (나중이 덮어씀):
+
+1. `.env` - 기본값
+2. `.env.local` - 로컬 오버라이드
+3. `.env.server` - 서버 전용 기본값
+4. `.env.server.local` - 서버 전용 민감정보
+
+### `loadEnv(options?)`
+
+```typescript
+import { loadEnv } from '@spfn/core/env';
+
+// 기본 사용
+loadEnv();
+
+// 옵션
+loadEnv({
+  cwd: '/path/to/project',  // 프로젝트 루트 (기본: process.cwd())
+  debug: true,              // 로드된 파일 로깅
+  override: false,          // 기존 process.env 덮어쓰기 (기본: false)
+});
+```
+
+### `loadEnvOnce(options?)`
+
+중복 호출 방지:
+
+```typescript
+import { loadEnvOnce } from '@spfn/core/env';
+
+loadEnvOnce(); // 첫 호출: 파일 로드
+loadEnvOnce(); // 두 번째 호출: 아무것도 안 함
+```
+
+### Next.js에서는?
+
+Next.js는 자체적으로 `.env`, `.env.local`을 로드합니다. `loadEnv()`를 호출할 필요 없습니다:
+
+```typescript
+// Next.js 서버 컴포넌트 또는 API route
+import { createEnvRegistry } from '@spfn/core/env';
+import { envSchema } from './env.schema';
+
+// loadEnv() 불필요 - Next.js가 이미 로드함
+const env = createEnvRegistry(envSchema).validate();
 ```
 
 ---

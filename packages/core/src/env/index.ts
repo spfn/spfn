@@ -70,6 +70,8 @@ export {
     envJson,
     isClientAccessible,
     isServerOnly,
+    isNextjsAccessible,
+    isSpfnServerOnly,
 } from './schema';
 
 export type {
@@ -83,5 +85,17 @@ export {
     EnvRegistry,
     createEnvRegistry,
 } from './registry';
+
+// Loader
+export {
+    loadEnv,
+    loadEnvOnce,
+    resetEnvLoadState,
+} from './loader';
+
+export type {
+    LoadEnvOptions,
+    LoadEnvResult,
+} from './loader';
 
 export type * from './types';

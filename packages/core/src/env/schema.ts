@@ -58,6 +58,18 @@ export interface EnvVarSchema<T = string>
 
     /** 예시 값들 (타입과 일치해야 함) */
     examples?: T[];
+
+    // === 파일 분리 ===
+
+    /**
+     * Next.js 프로세스에서 사용 여부
+     *
+     * - true: .env.local에 존재해야 함 (Next.js 서버 컴포넌트에서 접근 가능)
+     * - false: .env.server.local에만 존재해야 함 (SPFN 서버에서만 접근)
+     *
+     * @default NEXT_PUBLIC_* 이면 true, 아니면 false
+     */
+    nextjs?: boolean;
 }
 
 /**
@@ -338,4 +350,35 @@ export function isClientAccessible(key: string): boolean
 export function isServerOnly(key: string): boolean
 {
     return !isClientAccessible(key);
+}
+
+/**
+ * 스키마의 nextjs 옵션 값 결정
+ *
+ * 명시적으로 지정되지 않은 경우:
+ * - NEXT_PUBLIC_* → true
+ * - 그 외 → false
+ *
+ * @param schema - 환경변수 스키마
+ * @returns Next.js 프로세스에서 사용 가능 여부
+ */
+export function isNextjsAccessible(schema: EnvVarSchema): boolean
+{
+    if (schema.nextjs !== undefined)
+    {
+        return schema.nextjs;
+    }
+
+    return isClientAccessible(schema.key);
+}
+
+/**
+ * 스키마가 SPFN 서버 전용인지 확인
+ *
+ * @param schema - 환경변수 스키마
+ * @returns SPFN 서버에서만 사용되면 true
+ */
+export function isSpfnServerOnly(schema: EnvVarSchema): boolean
+{
+    return !isNextjsAccessible(schema);
 }
