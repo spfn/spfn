@@ -8,6 +8,8 @@ import type { MiddlewareHandler } from 'hono';
 import type { ServerConfig } from './types';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
 import type { JobRouter, BossOptions } from '../job';
+import type { EventRouterDef } from '../event/router';
+import type { SSEHandlerConfig } from '../event/sse/types';
 import { serverLogger } from './logger';
 
 // ============================================================================
@@ -190,6 +192,47 @@ export class ServerConfigBuilder
         if (config)
         {
             this.config.jobsConfig = config;
+        }
+        return this;
+    }
+
+    /**
+     * Register event router for SSE (Server-Sent Events)
+     *
+     * Enables real-time event streaming to frontend clients.
+     * Events defined with defineEvent() can be subscribed by:
+     * - Backend: .subscribe() for internal handlers
+     * - Jobs: .on(event) for background processing
+     * - Frontend: SSE stream for real-time updates
+     *
+     * @example
+     * ```typescript
+     * import { defineEvent, defineEventRouter } from '@spfn/core/event';
+     *
+     * const userCreated = defineEvent('user.created', Type.Object({
+     *   userId: Type.String(),
+     * }));
+     *
+     * const eventRouter = defineEventRouter({ userCreated });
+     *
+     * export default defineServerConfig()
+     *   .routes(appRouter)
+     *   .events(eventRouter)  // → GET /events/stream
+     *   .build();
+     *
+     * // Custom path
+     * .events(eventRouter, { path: '/sse' })
+     * ```
+     */
+    events(
+        router: EventRouterDef<any>,
+        config?: SSEHandlerConfig & { path?: string }
+    ): this
+    {
+        this.config.events = router;
+        if (config)
+        {
+            this.config.eventsConfig = config;
         }
         return this;
     }

@@ -9,7 +9,7 @@ Get started with Superfunction by creating a new project or adding it to an exis
 
 ## System Requirements
 
-- Node.js 18.0 or later
+- Node.js 22.0 or later
 - Next.js 15.0 or later (App Router)
 - TypeScript 5.3 or later
 - PostgreSQL (or Docker)

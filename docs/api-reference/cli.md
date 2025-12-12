@@ -98,11 +98,9 @@ spfn db generate
 ✓ Migration generated: drizzle/0001_*.sql
 ```
 
-> **Note:** Package Entity Exclusion
+> **Note:** Entity Processing
 >
-> `spfn db generate` only processes **your project's entities**. SPFN modules (like `@spfn/cms`, `@spfn/auth`) ship with pre-built migrations that are applied separately during `spfn db migrate`.
->
-> This prevents issues with mixed `.ts`/`.js` file types between your project and installed packages.
+> `spfn db generate` processes your project's entities defined in the schema files.
 
 ### Workflow
 
@@ -135,7 +133,7 @@ spfn db migrate
 
 ## spfn db migrate
 
-Apply pending migrations to the database. Applies both package migrations and project migrations.
+Apply pending migrations to the database.
 
 ```bash
 # Apply all pending migrations
@@ -144,12 +142,7 @@ spfn db migrate
 # Create automatic backup before migration
 spfn db migrate --with-backup
 
-# Output with SPFN modules installed
-📦 Applying function package migrations:
-  - @spfn/cms
-  - @spfn/auth
-✅ Function migrations applied
-
+# Output
 ✓ Applying project migrations...
 ✓ Project migrations applied successfully
 ```
@@ -178,31 +171,9 @@ spfn db migrate --with-backup
 📋 Collecting metadata...
 ✓ Metadata saved: mydb_2025-01-05_143022.meta.json
 
-📦 Applying function package migrations...
-✅ Function migrations applied
-
 ✓ Applying project migrations...
 ✓ Project migrations applied successfully
 ```
-
-### How Package Migrations Work
-
-When using SPFN modules, migrations are applied in two phases:
-
-1. **Package Migrations** - Pre-built migrations from installed modules (e.g., `@spfn/cms`)
-   - Applied first to create module tables
-   - Shipped with the module, no generation needed
-   - Isolated in module-specific schemas (e.g., `spfn_cms`, `spfn_auth`)
-
-2. **Project Migrations** - Your application's migrations
-   - Applied after package migrations
-   - Generated via `spfn db generate`
-   - Typically in the `public` schema
-
-This separation ensures:
-- Module tables are created before your app references them
-- Clean schema isolation between modules
-- No conflicts between module and project tables
 
 ### Migration Status
 
@@ -271,7 +242,7 @@ spfn db backup --format custom
 spfn db backup --output /path/to/backup.sql
 
 # Backup specific schema only
-spfn db backup --schema spfn_cms
+spfn db backup --schema public
 
 # Data-only backup (no schema)
 spfn db backup --data-only
@@ -338,7 +309,7 @@ spfn db restore backups/mydb_2025-01-05_143022.sql
 spfn db restore backup.sql --drop
 
 # Restore specific schema only
-spfn db restore backup.sql --schema spfn_cms
+spfn db restore backup.sql --schema public
 
 # Data-only restore (requires .dump format)
 spfn db restore backup.dump --data-only
@@ -807,7 +778,7 @@ pm2 start "spfn start" --name spfn-app
 
 ```dockerfile
 # Dockerfile
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
@@ -951,6 +922,6 @@ spfn db restore
 
 > **✅ Success:** API Reference Complete!
 >
-> You've learned all the core Superfunction APIs. Next, explore the architecture section to understand how Superfunction works internally.
+> You've learned all the core Superfunction APIs. Next, explore the core concepts to understand how Superfunction works internally.
 >
-> [Architecture →](/docs/architecture/how-it-works)
+> [How It Works →](/docs/core-concepts/how-it-works)

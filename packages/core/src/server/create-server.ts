@@ -11,6 +11,7 @@ import { join } from 'path';
 
 import { registerRoutes } from '@spfn/core/route';
 import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
+import { createSSEHandler } from '../event/sse/handler';
 import { createHealthCheckHandler } from './helpers';
 import { serverLogger } from './logger';
 
@@ -113,10 +114,13 @@ async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
     // 6. Load routes
     await loadAppRoutes(app, config);
 
-    // 7. afterRoutes hook from config
+    // 7. Register SSE endpoint (if events router provided)
+    registerSSEEndpoint(app, config);
+
+    // 8. afterRoutes hook from config
     await executeAfterRoutesHook(app, config);
 
-    // 8. Error handler
+    // 9. Error handler
     if (enableErrorHandler)
     {
         app.onError(ErrorHandler());
@@ -193,6 +197,32 @@ async function executeAfterRoutesHook(app: Hono, config?: ServerConfig): Promise
     if (config?.lifecycle?.afterRoutes)
     {
         await config.lifecycle.afterRoutes(app);
+    }
+}
+
+/**
+ * Register SSE endpoint for event streaming
+ */
+function registerSSEEndpoint(app: Hono, config?: ServerConfig): void
+{
+    if (!config?.events)
+    {
+        return;
+    }
+
+    const eventsConfig = config.eventsConfig ?? {};
+    const path = eventsConfig.path ?? '/events/stream';
+    const debug = isDebugMode(config);
+
+    // Register SSE handler
+    app.get(path, createSSEHandler(config.events, eventsConfig));
+
+    if (debug)
+    {
+        const eventNames = config.events.eventNames as string[];
+        serverLogger.info(`✓ SSE endpoint registered at ${path}`, {
+            events: eventNames,
+        });
     }
 }
 

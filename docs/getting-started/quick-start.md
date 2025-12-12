@@ -141,17 +141,10 @@ npx spfn@alpha db generate
 npx spfn@alpha db migrate
 ```
 
-### 5. Install functions (optional)
+### 5. View your database (optional)
 
 ```bash
-# Install CMS with automatic migration setup (recommended)
-pnpm spfn add @spfn/cms
-
-# Or install manually
-pnpm add @spfn/cms
-pnpm spfn db push
-
-# View your database
+# Open Drizzle Studio to browse your database
 pnpm spfn db studio
 ```
 

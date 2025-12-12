@@ -17,6 +17,8 @@ export default defineConfig({
         'config/index': 'src/config/index.ts',
         'job/index': 'src/job/index.ts',
         'event/index': 'src/event/index.ts',
+        'event/sse/index': 'src/event/sse/index.ts',
+        'event/sse/client': 'src/event/sse/client.ts',
     },
     format: ['esm'],
     dts: true,

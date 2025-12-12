@@ -3,6 +3,8 @@ import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
 import type { JobRouter, BossOptions } from '../job';
+import type { EventRouterDef } from '../event/router';
+import type { SSEHandlerConfig } from '../event/sse/types';
 
 /**
  * CORS configuration options - inferred from hono/cors
@@ -127,6 +129,40 @@ export interface ServerConfig
      * Only used if jobs router is provided
      */
     jobsConfig?: Omit<BossOptions, 'connectionString'>;
+
+    /**
+     * Event router for SSE (Server-Sent Events) subscription
+     * Enables real-time event streaming to frontend clients
+     *
+     * @example
+     * ```typescript
+     * import { defineEvent, defineEventRouter } from '@spfn/core/event';
+     *
+     * const userCreated = defineEvent('user.created', Type.Object({
+     *   userId: Type.String(),
+     * }));
+     *
+     * const eventRouter = defineEventRouter({ userCreated });
+     *
+     * export default defineServerConfig()
+     *   .routes(appRouter)
+     *   .events(eventRouter)  // → GET /events/stream
+     *   .build();
+     * ```
+     */
+    events?: EventRouterDef<any>;
+
+    /**
+     * SSE configuration options
+     * Only used if events router is provided
+     */
+    eventsConfig?: SSEHandlerConfig & {
+        /**
+         * SSE endpoint path
+         * @default '/events/stream'
+         */
+        path?: string;
+    };
 
     /**
      * Enable debug mode (default: NODE_ENV === 'development')

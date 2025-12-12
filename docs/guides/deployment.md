@@ -89,7 +89,7 @@ Superfunction provides a production-ready Dockerfile optimized for both Next.js 
 
 ```dockerfile
 # Production Dockerfile for Superfunction
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
@@ -147,7 +147,7 @@ REDIS_URL="redis://localhost:6379"
 
 # API
 NEXT_PUBLIC_API_URL="http://localhost:8790"
-APP_PORT=3000
+APP_PORT=3790
 API_PORT=8790
 
 # Next.js
@@ -165,7 +165,7 @@ REDIS_URL="redis://redis-host:6379"
 
 # API
 NEXT_PUBLIC_API_URL="https://api.yourdomain.com"
-APP_PORT=3000
+APP_PORT=3790
 API_PORT=8790
 
 # Next.js
@@ -188,14 +188,14 @@ LOG_LEVEL=info
 # Build Docker image
 docker build -t spfn-app:latest \
   --build-arg CI_BOT_TOKEN=${CI_BOT_TOKEN} \
-  --build-arg APP_PORT=3000 \
+  --build-arg APP_PORT=3790 \
   .
 
 # Run container
 docker run -d \
   --name spfn-app \
   --network spfn-network \
-  -p 3000:3000 \
+  -p 3790:3790 \
   -e DATABASE_URL="postgresql://spfn:spfn@spfn-postgres:5432/spfn_dev" \
   -e REDIS_URL="redis://spfn-redis:6379" \
   spfn-app:latest
@@ -245,10 +245,10 @@ services:
       dockerfile: Dockerfile
       args:
         CI_BOT_TOKEN: ${CI_BOT_TOKEN}
-        APP_PORT: 3000
+        APP_PORT: 3790
     container_name: spfn-app
     ports:
-      - "3000:3000"
+      - "3790:3790"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-spfn}:${POSTGRES_PASSWORD:-spfn}@postgres:5432/${POSTGRES_DB:-spfn_prod}
       REDIS_URL: redis://redis:6379
@@ -386,7 +386,7 @@ services:
   app:
     # ... other config
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3790/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -429,7 +429,7 @@ services:
     # ... other config
     # Don't expose port directly
     expose:
-      - "3000"
+      - "3790"
 ```
 
 ## Monitoring and Debugging
