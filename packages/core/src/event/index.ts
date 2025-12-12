@@ -1,9 +1,9 @@
 /**
  * Event Module
  *
- * Decoupled pub/sub event system with optional cache integration
+ * Decoupled pub/sub event system with optional cache integration and SSE support
  *
- * @example
+ * @example Basic Event
  * ```typescript
  * import { defineEvent } from '@spfn/core/event';
  * import { Type } from '@sinclair/typebox';
@@ -20,14 +20,47 @@
  *
  * // Emit event
  * await userCreated.emit({ userId: '123' });
+ * ```
  *
- * // Multi-instance with cache (Redis pub/sub)
- * await userCreated.useCache(pubSubCache);
- * await userCreated.emit({ userId: '123' });  // All instances receive
+ * @example Event Router for SSE
+ * ```typescript
+ * import { defineEvent, defineEventRouter } from '@spfn/core/event';
+ *
+ * export const eventRouter = defineEventRouter({
+ *     userCreated,
+ *     orderPlaced,
+ * });
+ *
+ * export type EventRouter = typeof eventRouter;
+ * ```
+ *
+ * @example SSE Server (Hono)
+ * ```typescript
+ * import { createSSEHandler } from '@spfn/core/event/sse';
+ * app.get('/events/stream', createSSEHandler(eventRouter));
+ * ```
+ *
+ * @example SSE Client (Browser)
+ * ```typescript
+ * import { createSSEClient } from '@spfn/core/event/sse/client';
+ * const client = createSSEClient<EventRouter>({ url: '/events/stream' });
+ * client.subscribe({ events: ['userCreated'], handlers: { ... } });
  * ```
  */
 
+// Event definition
 export { defineEvent } from './event';
+
+// Event router
+export { defineEventRouter } from './router';
+export type {
+    EventRouterDef,
+    InferEventNames,
+    InferEventPayload as InferRouterEventPayload,
+    InferEventPayloads,
+} from './router';
+
+// Types
 export type {
     EventDef,
     EventHandler,

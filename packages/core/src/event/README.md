@@ -1,6 +1,6 @@
 # @spfn/core/event - Event System
 
-Decoupled pub/sub event system with optional cache integration for multi-instance support.
+Decoupled pub/sub event system with SSE (Server-Sent Events) support for real-time frontend updates.
 
 ## Core Components
 
@@ -8,7 +8,13 @@ Decoupled pub/sub event system with optional cache integration for multi-instanc
 event/
 ├── index.ts              # Module exports
 ├── event.ts              # Event implementation
-└── types.ts              # Type definitions
+├── router.ts             # Event router for SSE
+├── types.ts              # Type definitions
+└── sse/
+    ├── index.ts          # SSE exports
+    ├── handler.ts        # Hono SSE handler
+    ├── client.ts         # Browser client
+    └── types.ts          # SSE types
 ```
 
 ---
@@ -19,6 +25,7 @@ event/
 - ✅ **In-Memory Pub/Sub**: Simple event subscription and emission
 - ✅ **Multi-Instance Support**: Optional Redis/Valkey pub/sub integration
 - ✅ **Job Integration**: Seamless integration with @spfn/core/job
+- ✅ **SSE Support**: Real-time event streaming to frontend clients
 - ✅ **Decoupled Architecture**: Clean separation between event producers and consumers
 - ✅ **Error Isolation**: Handler errors don't affect other subscribers
 
@@ -155,6 +162,134 @@ await orderPlaced.emit({
 
 ---
 
+## SSE (Server-Sent Events)
+
+Enable real-time event streaming to frontend clients.
+
+### Server Setup
+
+```typescript
+// 1. Define events
+import { defineEvent, defineEventRouter } from '@spfn/core/event';
+import { Type } from '@sinclair/typebox';
+
+export const userCreated = defineEvent('user.created', Type.Object({
+    userId: Type.String(),
+    email: Type.String(),
+}));
+
+export const orderPlaced = defineEvent('order.placed', Type.Object({
+    orderId: Type.String(),
+    amount: Type.Number(),
+}));
+
+// 2. Create event router
+export const eventRouter = defineEventRouter({
+    userCreated,
+    orderPlaced,
+});
+
+// 3. Register in server config
+// server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+
+export default defineServerConfig()
+    .routes(appRouter)
+    .jobs(jobRouter)
+    .events(eventRouter)  // → GET /events/stream
+    .build();
+
+// Custom path and options
+.events(eventRouter, {
+    path: '/sse',           // Custom endpoint path
+    pingInterval: 30000,    // Keep-alive interval (default: 30s)
+})
+```
+
+### Browser Client
+
+```typescript
+import { createSSEClient } from '@spfn/core/event/sse/client';
+import type { typeof eventRouter } from '@/server/events';
+
+// Create client (uses defaults: NEXT_PUBLIC_SPFN_API_URL + /events/stream)
+const client = createSSEClient<typeof eventRouter>();
+
+// Or with custom configuration
+const client = createSSEClient<typeof eventRouter>({
+    host: 'https://api.example.com',  // Custom host
+    pathname: '/sse',                  // Custom pathname
+    reconnect: true,                   // Auto reconnect (default: true)
+    reconnectDelay: 3000,              // Reconnect delay (default: 3s)
+});
+
+// Subscribe to events
+const unsubscribe = client.subscribe({
+    events: ['userCreated', 'orderPlaced'],
+    handlers: {
+        userCreated: (payload) => {
+            console.log('New user:', payload.userId);
+            // Update UI, invalidate queries, show notification, etc.
+        },
+        orderPlaced: (payload) => {
+            console.log('New order:', payload.orderId);
+        },
+    },
+    onOpen: () => console.log('SSE connected'),
+    onError: (err) => console.error('SSE error:', err),
+    onReconnect: (attempt) => console.log('Reconnecting...', attempt),
+});
+
+// Cleanup
+unsubscribe();
+```
+
+### Simple Subscribe Helper
+
+```typescript
+import { subscribeToEvents } from '@spfn/core/event/sse/client';
+import type { typeof eventRouter } from '@/server/events';
+
+// One-liner subscription (uses defaults)
+const unsubscribe = subscribeToEvents<typeof eventRouter>(
+    ['userCreated'],
+    {
+        userCreated: (payload) => console.log('User:', payload),
+    }
+);
+
+// With custom host
+const unsubscribe = subscribeToEvents<typeof eventRouter>(
+    ['userCreated'],
+    { userCreated: (payload) => console.log('User:', payload) },
+    { host: 'https://api.example.com' }
+);
+```
+
+### Event Flow Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    userCreated.emit({ ... })                     │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+          ┌───────────────────┼───────────────────┐
+          ▼                   ▼                   ▼
+    ┌──────────┐       ┌──────────┐       ┌──────────┐
+    │ Backend  │       │   Job    │       │   SSE    │
+    │ Handler  │       │  Queue   │       │  Stream  │
+    └──────────┘       └──────────┘       └──────────┘
+    .subscribe()       .on(event)            ↓
+          │                 │           ┌──────────┐
+          ▼                 ▼           │ Browser  │
+    [Logging,         [Background       │  Client  │
+     Analytics]        Processing]      └──────────┘
+```
+
+One event, multiple consumers - fully decoupled architecture.
+
+---
+
 ## API Reference
 
 ### `defineEvent(name)`
@@ -265,9 +400,80 @@ await userCreated.useCache({
 
 ---
 
+### `defineEventRouter(events)`
+
+Create an event router for SSE subscription.
+
+```typescript
+import { defineEventRouter } from '@spfn/core/event';
+
+export const eventRouter = defineEventRouter({
+    userCreated,
+    orderPlaced,
+    paymentCompleted,
+});
+
+// Register in server config
+defineServerConfig()
+    .events(eventRouter)
+    .build();
+```
+
+**Parameters:**
+- `events: Record<string, EventDef<any>>` - Named event definitions
+
+**Returns:** `EventRouterDef<TEvents>`
+
+---
+
+### `createSSEClient(config?)`
+
+Create a type-safe SSE client for the browser.
+
+```typescript
+import { createSSEClient } from '@spfn/core/event/sse/client';
+
+// Uses defaults (NEXT_PUBLIC_SPFN_API_URL + /events/stream)
+const client = createSSEClient<typeof eventRouter>();
+
+// Or with custom configuration
+const client = createSSEClient<typeof eventRouter>({
+    host: 'https://api.example.com',
+    pathname: '/sse',
+    reconnect: true,
+    reconnectDelay: 3000,
+    maxReconnectAttempts: 10,
+    withCredentials: false,
+});
+
+const unsubscribe = client.subscribe({
+    events: ['userCreated'],
+    handlers: { userCreated: (p) => console.log(p) },
+});
+
+client.getState();  // 'connecting' | 'open' | 'closed' | 'error'
+client.close();     // Close all connections
+```
+
+**Config Options:**
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `host` | string | `NEXT_PUBLIC_SPFN_API_URL` or `http://localhost:8790` | Backend API host URL |
+| `pathname` | string | `/events/stream` | SSE endpoint pathname |
+| `url` | string | - | Full URL (deprecated, use host + pathname) |
+| `reconnect` | boolean | `true` | Auto reconnect on disconnect |
+| `reconnectDelay` | number | `3000` | Reconnect delay (ms) |
+| `maxReconnectAttempts` | number | `0` | Max attempts (0 = infinite) |
+| `withCredentials` | boolean | `false` | Include cookies |
+
+**Returns:** `SSEClient<TRouter>`
+
+---
+
 ## Type Exports
 
 ```typescript
+// Event types
 import type {
     EventDef,
     EventHandler,
@@ -275,6 +481,22 @@ import type {
     PubSubCache,
     JobQueueSender,
 } from '@spfn/core/event';
+
+// Event router types
+import type {
+    EventRouterDef,
+    InferEventNames,
+    InferEventPayloads,
+} from '@spfn/core/event';
+
+// SSE types
+import type {
+    SSEClientConfig,
+    SSESubscribeOptions,
+    SSEEventHandlers,
+    SSEConnectionState,
+    SSEUnsubscribe,
+} from '@spfn/core/event/sse';
 ```
 
 ### EventDef<TPayload>
@@ -465,4 +687,6 @@ cache.publish('user.created', payload)
 
 - [@spfn/core/job](../job/README.md) - Background job system with event integration
 - [@spfn/core/cache](../cache/README.md) - Cache infrastructure for pub/sub
+- [@spfn/core/server](../server/README.md) - Server configuration with `.events()` method
+- [MDN: Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) - SSE browser API
 - [@spfn/core](../../README.md) - Main package documentation
