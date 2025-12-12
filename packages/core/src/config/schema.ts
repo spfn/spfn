@@ -44,6 +44,7 @@ export const coreEnvSchema = defineEnvSchema({
     NODE_ENV: envEnum(['local', 'development', 'production', 'test'] as const, {
         description: 'Node.js runtime environment',
         default: 'local',
+        nextjs: true,
     }),
 
     // ========================================================================
@@ -327,17 +328,27 @@ export const coreEnvSchema = defineEnvSchema({
     }),
 
     // ========================================================================
-    // Next.js Client
+    // Next.js Integration
     // ========================================================================
+
     SPFN_API_URL: envUrl({
-        description: 'Next.js API URL (required for client-side API calls)',
+        description: 'SPFN API URL (used by Next.js to call backend)',
         required: true,
-        examples: ['http://localhost:3000', 'https://your-app.com'],
+        nextjs: true,
+        examples: ['http://localhost:8790', 'https://api.your-app.com'],
+    }),
+
+    NEXT_PUBLIC_SPFN_API_URL: envUrl({
+        description: 'SPFN API URL (used by Next.js to call backend)',
+        required: true,
+        nextjs: true,
+        examples: ['http://localhost:8790', 'https://api.your-app.com'],
     }),
 
     SPFN_APP_URL: envUrl({
-        description: 'Next.js application URL (required for server-side API calls)',
+        description: 'Next.js application URL (used by SPFN server)',
         required: false,
-        examples: ['http://localhost:3000', 'https://your-app.com'],
+        nextjs: true,
+        examples: ['http://localhost:3790', 'https://your-app.com'],
     }),
 });
