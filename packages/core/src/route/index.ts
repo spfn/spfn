@@ -18,6 +18,7 @@ export type { Router } from './router';
 
 // Route registration
 export { registerRoutes } from './register-routes';
+export type { RegisteredRoute } from './register-routes';
 
 // Middleware
 export { defineMiddleware, defineMiddlewareFactory } from './define-middleware';

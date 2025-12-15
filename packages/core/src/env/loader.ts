@@ -5,7 +5,7 @@
  *
  * @example
  * ```typescript
- * import { loadEnv } from '@spfn/core/env';
+ * import { loadEnv } from '@spfn/core/env/loader';
  *
  * // SPFN 서버 진입점에서 호출
  * loadEnv();

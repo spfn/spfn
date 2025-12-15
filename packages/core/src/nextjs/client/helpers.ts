@@ -130,8 +130,11 @@ export async function handleErrorResponse(
     {
         logger.warn(
             '\n⚠️  404 Not Found\n\n' +
-            'Check if routes are registered in server.config.ts:\n' +
-            '  → defineServerConfig().routes(appRouter)\n'
+            'Check the following:\n' +
+            '  1. Routes are registered in server.config.ts:\n' +
+            '     → defineServerConfig().routes(appRouter)\n' +
+            '  2. Delete .spfn cache if you recently added new routes:\n' +
+            '     → rm -rf .spfn\n'
         );
     }
 

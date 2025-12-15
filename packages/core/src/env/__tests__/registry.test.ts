@@ -64,7 +64,7 @@ describe('EnvRegistry', () =>
 
     describe('reset', () =>
     {
-        it('should clear cache and validation state', () =>
+        it('should clear validation state', () =>
         {
             const schema = defineEnvSchema({
                 RESET_TEST: envString({ description: 'Reset test' }),
@@ -231,22 +231,22 @@ describe('EnvRegistry', () =>
             }).toThrow('Environment validation failed');
         });
 
-        it('should cache values after first access', () =>
+        it('should always return latest process.env value', () =>
         {
             const schema = defineEnvSchema({
-                CACHED_VAR: envString({ description: 'Cached variable' }),
+                DYNAMIC_VAR: envString({ description: 'Dynamic variable' }),
             });
 
-            process.env.CACHED_VAR = 'initial';
+            process.env.DYNAMIC_VAR = 'initial';
 
             const registry = createEnvRegistry(schema);
             const env = registry.validate();
 
-            expect(env.CACHED_VAR).toBe('initial');
+            expect(env.DYNAMIC_VAR).toBe('initial');
 
-            // Change env without reset - should still return cached value
-            process.env.CACHED_VAR = 'changed';
-            expect(env.CACHED_VAR).toBe('initial');
+            // Change env - should return updated value (no caching)
+            process.env.DYNAMIC_VAR = 'changed';
+            expect(env.DYNAMIC_VAR).toBe('changed');
         });
     });
 

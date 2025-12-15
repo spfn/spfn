@@ -1,6 +1,6 @@
 {
   "name": "@spfn/core",
-  "version": "0.2.0-beta.3",
+  "version": "0.2.0-beta.4",
   "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
   "type": "module",
   "exports": {
@@ -63,6 +63,11 @@
       "types": "./dist/env/index.d.ts",
       "import": "./dist/env/index.js",
       "require": "./dist/env/index.js"
+    },
+    "./env/loader": {
+      "types": "./dist/env/loader.d.ts",
+      "import": "./dist/env/loader.js",
+      "require": "./dist/env/loader.js"
     },
     "./logger": {
       "types": "./dist/logger/index.d.ts",

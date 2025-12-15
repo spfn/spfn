@@ -313,6 +313,32 @@ type InferRouteOutput<TRoute> =
         : never;
 ```
 
+### Router-Level Type Helpers
+
+Extract types from router using route names directly:
+
+```typescript
+import type { RouterOutput, RouterInput } from '@spfn/core/nextjs';
+import type { AppRouter } from '@/server/router';
+
+// Get output type for a specific route
+type ListData = RouterOutput<AppRouter, 'listExamples'>;
+
+// Get input type for a specific route
+type CreateInput = RouterInput<AppRouter, 'createExample'>;
+
+// Use in component props
+interface Props {
+    data: RouterOutput<AppRouter, 'listExamples'>;
+}
+
+// Extract item type from paginated response
+type Example = RouterOutput<AppRouter, 'listExamples'>['items'][number];
+
+// Extract pagination type
+type Pagination = RouterOutput<AppRouter, 'listExamples'>['pagination'];
+```
+
 ### RouteClient Type
 
 ```typescript

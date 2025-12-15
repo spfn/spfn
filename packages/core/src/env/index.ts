@@ -1,20 +1,23 @@
 /**
  * Environment Variable Management
  *
- * Centralized environment variable loading with dotenv priority support
+ * Schema-based environment variable validation and type-safe access.
+ *
+ * Note: For environment file loading (loadEnv), use '@spfn/core/env/loader'
+ * which is server-only due to 'node:fs' usage.
  *
  * @example
  * ```typescript
- * import { loadEnvironment, requireEnvVar } from '@spfn/core/env';
+ * import { createEnvRegistry, defineEnvSchema, envString } from '@spfn/core/env';
  *
- * // Load environment variables
- * loadEnvironment({
- *   debug: true,
- *   required: ['DATABASE_URL'],
+ * // Define schema
+ * const schema = defineEnvSchema({
+ *   DATABASE_URL: envString({ description: 'Database URL', required: true }),
  * });
  *
- * // Get required variables
- * const dbUrl = requireEnvVar('DATABASE_URL');
+ * // Create registry and validate
+ * const env = createEnvRegistry(schema).validate();
+ * console.log(env.DATABASE_URL);
  * ```
  *
  * @module env
@@ -86,16 +89,7 @@ export {
     createEnvRegistry,
 } from './registry';
 
-// Loader
-export {
-    loadEnv,
-    loadEnvOnce,
-    resetEnvLoadState,
-} from './loader';
-
-export type {
-    LoadEnvOptions,
-    LoadEnvResult,
-} from './loader';
+// Loader functions are server-only (use 'node:fs')
+// Import from '@spfn/core/env/loader' for server-side usage
 
 export type * from './types';

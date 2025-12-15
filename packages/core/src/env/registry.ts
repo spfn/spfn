@@ -32,7 +32,6 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
 {
     private schemas = new Map<string, EnvVarSchema>();
     private hasValidated = false;
-    private valueCache = new Map<string, any>();
 
     constructor(schemas?: T)
     {
@@ -62,11 +61,10 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
     }
 
     /**
-     * 캐시 및 검증 상태 리셋 (테스트용)
+     * 검증 상태 리셋 (테스트용)
      */
     reset(): void
     {
-        this.valueCache.clear();
         this.hasValidated = false;
     }
 
@@ -151,12 +149,6 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
      */
     private getAndValidate(key: string): any
     {
-        // Check cache first
-        if (this.valueCache.has(key))
-        {
-            return this.valueCache.get(key);
-        }
-
         const schema = this.schemas.get(key);
         if (!schema)
         {
@@ -181,9 +173,7 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
         // If no value and not required, use default
         if (!value)
         {
-            const result = schema.default;
-            this.valueCache.set(key, result);
-            return result;
+            return schema.default;
         }
 
         // Check minLength
@@ -194,12 +184,10 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
             throw new Error('Environment validation failed');
         }
 
-        // Apply validator and cache result
+        // Apply validator
         try
         {
-            const result = this.applyValidator(value, schema);
-            this.valueCache.set(key, result);
-            return result;
+            return this.applyValidator(value, schema);
         }
         catch (error)
         {

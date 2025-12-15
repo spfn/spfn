@@ -9,7 +9,7 @@ import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { registerRoutes } from '@spfn/core/route';
+import { registerRoutes, type RegisteredRoute } from '@spfn/core/route';
 import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
 import { createSSEHandler } from '../event/sse/handler';
 import { createHealthCheckHandler } from './helpers';
@@ -71,7 +71,8 @@ async function loadCustomApp(
     // Register routes (if provided via config)
     if (config?.routes)
     {
-        registerRoutes(app, config.routes, config.middlewares);
+        const routes = registerRoutes(app, config.routes, config.middlewares);
+        logRegisteredRoutes(routes, config?.debug ?? false);
     }
 
     return app;
@@ -180,16 +181,41 @@ async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void>
     // Register define-route based routes (if provided)
     if (config?.routes)
     {
-        registerRoutes(app, config.routes, config.middlewares);
-        if (debug)
-        {
-            serverLogger.info('✓ Routes registered');
-        }
+        const routes = registerRoutes(app, config.routes, config.middlewares);
+        logRegisteredRoutes(routes, debug);
     }
     else if (debug)
     {
         serverLogger.warn('⚠️  No routes configured. Use defineServerConfig().routes() to register routes.');
     }
+}
+
+/**
+ * Log registered routes in a formatted table
+ */
+function logRegisteredRoutes(routes: RegisteredRoute[], debug: boolean): void
+{
+    if (routes.length === 0)
+    {
+        if (debug)
+        {
+            serverLogger.warn('⚠️  No routes registered');
+        }
+        return;
+    }
+
+    // Sort routes by path for better readability
+    const sortedRoutes = [...routes].sort((a, b) => a.path.localeCompare(b.path));
+
+    // Calculate max method length for alignment
+    const maxMethodLen = Math.max(...sortedRoutes.map(r => r.method.length));
+
+    // Build route list string
+    const routeLines = sortedRoutes.map(r =>
+        `  ${r.method.padEnd(maxMethodLen)}  ${r.path}`
+    ).join('\n');
+
+    serverLogger.info(`✓ Routes registered (${routes.length}):\n${routeLines}`);
 }
 
 async function executeAfterRoutesHook(app: Hono, config?: ServerConfig): Promise<void>

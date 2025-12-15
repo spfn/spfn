@@ -150,7 +150,8 @@ const schema = defineEnvSchema({
 ### SPFN Server Entry Point
 
 ```typescript
-import { loadEnv, createEnvRegistry } from '@spfn/core/env';
+import { loadEnv } from '@spfn/core/env/loader';
+import { createEnvRegistry } from '@spfn/core/env';
 import { envSchema } from './env.schema';
 
 // 1. 환경변수 파일 로드 (규칙에 따라 자동)
@@ -172,7 +173,7 @@ const env = createEnvRegistry(envSchema).validate();
 ### `loadEnv(options?)`
 
 ```typescript
-import { loadEnv } from '@spfn/core/env';
+import { loadEnv } from '@spfn/core/env/loader';
 
 // 기본 사용
 loadEnv();
@@ -190,7 +191,7 @@ loadEnv({
 중복 호출 방지:
 
 ```typescript
-import { loadEnvOnce } from '@spfn/core/env';
+import { loadEnvOnce } from '@spfn/core/env/loader';
 
 loadEnvOnce(); // 첫 호출: 파일 로드
 loadEnvOnce(); // 두 번째 호출: 아무것도 안 함

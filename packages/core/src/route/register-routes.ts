@@ -22,6 +22,16 @@ import {
 } from './validation';
 
 /**
+ * Registered route information for logging
+ */
+export interface RegisteredRoute
+{
+    method: HttpMethod;
+    path: string;
+    name: string;
+}
+
+/**
  * Type guard to check if value is a Router
  */
 function isRouter(value: unknown): value is Router<any>
@@ -61,6 +71,7 @@ function isNamedMiddleware(value: unknown): value is NamedMiddleware<any>
  * @param router - Router definition
  * @param namedMiddlewares - Optional server-level named middlewares
  *
+ * @param collectedRoutes
  * @example
  * ```ts
  * const appRouter = defineRouter({
@@ -79,9 +90,13 @@ function isNamedMiddleware(value: unknown): value is NamedMiddleware<any>
 export function registerRoutes<TRoutes extends Record<string, RouteDef<any> | Router<any>>>(
     app: Hono,
     router: Router<TRoutes>,
-    namedMiddlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>
-): void
+    namedMiddlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>,
+    collectedRoutes?: RegisteredRoute[]
+): RegisteredRoute[]
 {
+    // Use provided array or create new one (top-level call)
+    const routes = collectedRoutes ?? [];
+
     // Merge router's global middlewares with provided named middlewares
     const allNamedMiddlewares = [
         ...(namedMiddlewares ?? []),
@@ -94,12 +109,16 @@ export function registerRoutes<TRoutes extends Record<string, RouteDef<any> | Ro
         if (isRouter(routeOrRouter))
         {
             // Nested router - recursively register
-            registerRoutes(app, routeOrRouter, allNamedMiddlewares);
+            registerRoutes(app, routeOrRouter, allNamedMiddlewares, routes);
         }
         else if (isRouteDef(routeOrRouter))
         {
             // Single route - register
-            registerRoute(app, name, routeOrRouter, allNamedMiddlewares);
+            const registered = registerRoute(app, name, routeOrRouter, allNamedMiddlewares);
+            if (registered)
+            {
+                routes.push(registered);
+            }
         }
         else
         {
@@ -114,9 +133,11 @@ export function registerRoutes<TRoutes extends Record<string, RouteDef<any> | Ro
     {
         for (const pkgRouter of router._packageRouters)
         {
-            registerRoutes(app, pkgRouter, allNamedMiddlewares);
+            registerRoutes(app, pkgRouter, allNamedMiddlewares, routes);
         }
     }
+
+    return routes;
 }
 
 /**
@@ -127,7 +148,7 @@ function registerRoute(
     name: string,
     routeDef: RouteDef<any>,
     namedMiddlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>
-): void
+): RegisteredRoute | null
 {
     const { method, path, input, middlewares = [], skipMiddlewares, handler } = routeDef;
 
@@ -138,7 +159,7 @@ function registerRoute(
             path,
         });
 
-        return;
+        return null;
     }
 
     // Create wrapped handler with validation
@@ -251,6 +272,8 @@ function registerRoute(
     }
 
     logger.debug(`Registered route: ${method} ${path}`, { name });
+
+    return { method, path, name };
 }
 
 /**

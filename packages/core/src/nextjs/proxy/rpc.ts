@@ -400,10 +400,16 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
                 }
 
                 // Build Next.js response
-                const nextResponse = NextResponse.json(body, {
-                    status: responseCtx.response.status,
-                    statusText: responseCtx.response.statusText,
-                });
+                // 204 No Content should use NextResponse directly, not NextResponse.json()
+                const nextResponse = responseCtx.response.status === 204
+                    ? new NextResponse(null, {
+                        status: 204,
+                        statusText: responseCtx.response.statusText,
+                    })
+                    : NextResponse.json(body, {
+                        status: responseCtx.response.status,
+                        statusText: responseCtx.response.statusText,
+                    });
 
                 // Forward response headers
                 forwardResponseHeaders(response.headers, nextResponse.headers);
