@@ -11,6 +11,6 @@ export default defineConfig({
     splitting: false,
     target: 'es2022',
     outDir: 'dist',
-    external: ['tsup', 'drizzle-orm', 'postgres'],
+    external: ['tsup', 'drizzle-orm', 'postgres', 'dotenv'],
     noExternal: [],
 });

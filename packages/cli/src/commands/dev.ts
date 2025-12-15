@@ -8,8 +8,8 @@ import { detectPackageManager } from '../utils/package-manager.js';
 
 export const devCommand = new Command('dev')
     .description('Start SPFN development server (detects and runs Next.js + Hono)')
-    .option('-p, --port <port>', 'Server port', '8790')
-    .option('-h, --host <host>', 'Server host', 'localhost')
+    .option('-p, --port <port>', 'Server port')
+    .option('-H, --host <host>', 'Server host')
     .option('--routes <path>', 'Routes directory path')
     .option('--server-only', 'Run only Hono server (skip Next.js)')
     .option('--watch', 'Enable hot reload (watch mode)')
@@ -54,6 +54,12 @@ export const devCommand = new Command('dev')
         mkdirSync(tempDir, { recursive: true });
 
         // Server entry
+        const configParts: string[] = [];
+        if (options.port) configParts.push(`port: ${options.port}`);
+        if (options.host) configParts.push(`host: '${options.host}'`);
+        if (options.routes) configParts.push(`routesPath: '${options.routes}'`);
+        configParts.push('debug: true');
+
         writeFileSync(serverEntry, `
 // Load environment variables FIRST (before any imports that depend on them)
 // Use centralized environment loader for standard dotenv priority
@@ -63,9 +69,7 @@ await import('@spfn/core/config');
 const { startServer } = await import('@spfn/core/server');
 
 await startServer({
-    port: ${options.port},
-    host: '${options.host}',
-    ${options.routes ? `routesPath: '${options.routes}',` : ''}debug: true
+    ${configParts.join(',\n    ')}
 });
 `);
 
