@@ -57,6 +57,7 @@ export interface ProfileInfo
     location: string | null;
     company: string | null;
     jobTitle: string | null;
+    metadata: Record<string, any> | null;
     createdAt: Date;
     updatedAt: Date;
 }

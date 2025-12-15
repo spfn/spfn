@@ -53,7 +53,6 @@ export async function RequireAuth({
 }: RequireAuthProps)
 {
     const session = await getSession();
-    console.log('session', session);
 
     if (!session)
     {

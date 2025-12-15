@@ -1,12 +1,34 @@
 /**
  * @spfn/auth - User Profile Service
  *
- * Service for retrieving user profile information
+ * Service for retrieving and updating user profile information
  * Returns full user info with profile data
  */
 
-import type { UserProfile } from '@spfn/auth';
+import type { UserProfile, ProfileInfo } from '@spfn/auth';
 import { usersRepository, userProfilesRepository } from '../repositories';
+
+/**
+ * Profile update parameters
+ * All fields are optional, empty string will be converted to null
+ */
+export interface UpdateProfileParams
+{
+    displayName?: string;
+    firstName?: string;
+    lastName?: string;
+    avatarUrl?: string;
+    bio?: string;
+    locale?: string;
+    timezone?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    website?: string;
+    location?: string;
+    company?: string;
+    jobTitle?: string;
+    metadata?: Record<string, any>;
+}
 
 /**
  * Get user profile information
@@ -42,4 +64,118 @@ export async function getUserProfileService(userId: string | number | bigint): P
         updatedAt: user.updatedAt,
         profile: profile,
     };
+}
+
+/**
+ * Convert empty string to null
+ */
+function emptyToNull<T>(value: T): T | null
+{
+    if (value === '')
+    {
+        return null;
+    }
+    return value;
+}
+
+/**
+ * Update user profile (upsert)
+ *
+ * Creates profile if not exists, updates if exists
+ * Empty strings are converted to null
+ *
+ * @param userId - User ID
+ * @param params - Profile fields to update
+ * @returns Updated profile info
+ *
+ * @example
+ * ```typescript
+ * const profile = await updateUserProfileService(123, {
+ *     displayName: 'John Doe',
+ *     bio: 'Software Engineer',
+ *     location: '', // will be saved as null
+ * });
+ * ```
+ */
+export async function updateUserProfileService(
+    userId: string | number | bigint,
+    params: UpdateProfileParams
+): Promise<ProfileInfo>
+{
+    const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
+
+    // Build update data, converting empty strings to null
+    const updateData: Record<string, any> = {};
+
+    if (params.displayName !== undefined)
+    {
+        updateData.displayName = emptyToNull(params.displayName) || 'User';
+    }
+    if (params.firstName !== undefined)
+    {
+        updateData.firstName = emptyToNull(params.firstName);
+    }
+    if (params.lastName !== undefined)
+    {
+        updateData.lastName = emptyToNull(params.lastName);
+    }
+    if (params.avatarUrl !== undefined)
+    {
+        updateData.avatarUrl = emptyToNull(params.avatarUrl);
+    }
+    if (params.bio !== undefined)
+    {
+        updateData.bio = emptyToNull(params.bio);
+    }
+    if (params.locale !== undefined)
+    {
+        updateData.locale = emptyToNull(params.locale) || 'en';
+    }
+    if (params.timezone !== undefined)
+    {
+        updateData.timezone = emptyToNull(params.timezone) || 'UTC';
+    }
+    if (params.dateOfBirth !== undefined)
+    {
+        updateData.dateOfBirth = emptyToNull(params.dateOfBirth);
+    }
+    if (params.gender !== undefined)
+    {
+        updateData.gender = emptyToNull(params.gender);
+    }
+    if (params.website !== undefined)
+    {
+        updateData.website = emptyToNull(params.website);
+    }
+    if (params.location !== undefined)
+    {
+        updateData.location = emptyToNull(params.location);
+    }
+    if (params.company !== undefined)
+    {
+        updateData.company = emptyToNull(params.company);
+    }
+    if (params.jobTitle !== undefined)
+    {
+        updateData.jobTitle = emptyToNull(params.jobTitle);
+    }
+    if (params.metadata !== undefined)
+    {
+        updateData.metadata = params.metadata;
+    }
+
+    // Check if this is a new profile (need displayName)
+    const existing = await userProfilesRepository.findByUserId(userIdNum);
+    if (!existing && !updateData.displayName)
+    {
+        updateData.displayName = 'User';
+    }
+
+    // Upsert profile
+    await userProfilesRepository.upsertByUserId(userIdNum, updateData);
+
+    // Fetch and return updated profile
+    const profile = await userProfilesRepository.fetchProfileData(userIdNum);
+
+    return profile!;
 }

@@ -153,6 +153,34 @@ export async function hasAllPermissions(
 }
 
 /**
+ * Get user's role name
+ *
+ * @param userId - User ID
+ * @returns Role name or null if user has no role
+ *
+ * @example
+ * ```typescript
+ * const role = await getUserRole('123');
+ * // 'admin' or null
+ * ```
+ */
+export async function getUserRole(userId: string | number | bigint): Promise<string | null>
+{
+    const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
+
+    const user = await usersRepository.findById(userIdNum);
+
+    if (!user || !user.roleId)
+    {
+        return null;
+    }
+
+    const role = await rolesRepository.findById(user.roleId);
+
+    return role?.name || null;
+}
+
+/**
  * Check if user has a specific role
  *
  * @param userId - User ID
@@ -168,18 +196,8 @@ export async function hasAllPermissions(
  */
 export async function hasRole(userId: string | number | bigint, roleName: string): Promise<boolean>
 {
-    const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);
-
-    const user = await usersRepository.findById(userIdNum);
-
-    if (!user || !user.roleId)
-    {
-        return false;
-    }
-
-    const role = await rolesRepository.findById(user.roleId);
-
-    return role?.name === roleName;
+    const role = await getUserRole(userId);
+    return role === roleName;
 }
 
 /**

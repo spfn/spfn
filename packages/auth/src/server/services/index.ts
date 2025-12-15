@@ -71,6 +71,7 @@ export {
     hasPermission,
     hasAnyPermission,
     hasAllPermissions,
+    getUserRole,
     hasRole,
     hasAnyRole,
 } from './permission.service';
@@ -106,7 +107,8 @@ export {
 export { getAuthSessionService } from './auth-session.service';
 
 // User Profile Service (new)
-export { getUserProfileService } from './user-profile.service';
+export { getUserProfileService, updateUserProfileService } from './user-profile.service';
+export type { UpdateProfileParams } from './user-profile.service';
 
 // Email Templates
 export {

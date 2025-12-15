@@ -48,6 +48,7 @@ export const authEnvSchema = defineEnvSchema({
                 minEntropy: 3.5,
             }),
             sensitive: true,
+            nextjs: true, // Required for Next.js RSC session validation
             examples: [
                 'my-super-secret-session-key-at-least-32-chars-long',
                 'use-a-cryptographically-secure-random-string-here',
@@ -60,6 +61,7 @@ export const authEnvSchema = defineEnvSchema({
             description: 'Session TTL (time to live) - supports duration strings like \'7d\', \'12h\', \'45m\'',
             default: '7d',
             required: false,
+            nextjs: true, // May be needed for session validation in Next.js RSC
             examples: ['7d', '30d', '12h', '45m', '3600'],
         }),
     },

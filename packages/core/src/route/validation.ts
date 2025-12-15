@@ -5,9 +5,34 @@
  */
 
 import type { TSchema } from '@sinclair/typebox';
+import { FormatRegistry } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import type { Context } from 'hono';
 import { ValidationError } from '@spfn/core/errors';
+
+// ============================================
+// Format Registry
+// ============================================
+
+FormatRegistry.Set('email', (value) =>
+    typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+);
+
+FormatRegistry.Set('uri', (value) =>
+    typeof value === 'string' && /^https?:\/\/.+/.test(value)
+);
+
+FormatRegistry.Set('uuid', (value) =>
+    typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+);
+
+FormatRegistry.Set('date', (value) =>
+    typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+);
+
+FormatRegistry.Set('date-time', (value) =>
+    typeof value === 'string' && !isNaN(Date.parse(value))
+);
 
 /**
  * Validation error field info

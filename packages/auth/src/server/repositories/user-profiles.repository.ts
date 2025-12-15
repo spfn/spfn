@@ -109,6 +109,28 @@ export class UserProfilesRepository extends BaseRepository
     }
 
     /**
+     * 프로필 Upsert (by User ID)
+     *
+     * 프로필이 없으면 생성, 있으면 업데이트
+     * 새로 생성 시 displayName은 필수 (없으면 'User'로 설정)
+     */
+    async upsertByUserId(userId: number, data: Partial<Omit<NewUserProfile, 'userId'>>)
+    {
+        const existing = await this.findByUserId(userId);
+
+        if (existing)
+        {
+            return await this.updateByUserId(userId, data);
+        }
+
+        return await this.create({
+            userId,
+            displayName: data.displayName || 'User',
+            ...data,
+        });
+    }
+
+    /**
      * User ID로 프로필 데이터 조회 (formatted)
      *
      * API 응답에 최적화된 형식으로 반환
@@ -129,6 +151,7 @@ export class UserProfilesRepository extends BaseRepository
                 location: userProfiles.location,
                 company: userProfiles.company,
                 jobTitle: userProfiles.jobTitle,
+                metadata: userProfiles.metadata,
                 createdAt: userProfiles.createdAt,
                 updatedAt: userProfiles.updatedAt,
             })
@@ -155,6 +178,7 @@ export class UserProfilesRepository extends BaseRepository
             location: profile.location,
             company: profile.company,
             jobTitle: profile.jobTitle,
+            metadata: profile.metadata,
             createdAt: profile.createdAt,
             updatedAt: profile.updatedAt,
         };
