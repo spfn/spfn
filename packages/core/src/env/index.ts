@@ -87,6 +87,11 @@ export type {
 export {
     EnvRegistry,
     createEnvRegistry,
+    validateAllEnv,
+} from './registry';
+
+export type {
+    EnvValidationResult,
 } from './registry';
 
 // Loader functions are server-only (use 'node:fs')

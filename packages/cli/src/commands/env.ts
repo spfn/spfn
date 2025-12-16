@@ -597,3 +597,112 @@ envCommand
     .description('Check .env files against schema')
     .option('-p, --package <package>', 'Package name to read env schema from', '@spfn/core')
     .action(checkEnvFiles);
+
+/**
+ * Validate environment variables against schema (runtime validation)
+ *
+ * Unlike `check` which validates .env files, this validates the actual
+ * process.env values against the schema. Useful for CI/CD pipelines
+ * to verify all required env vars are set before deployment.
+ */
+async function validateEnvVars(options: { packages?: string[]; strict?: boolean }): Promise<void>
+{
+    const packages = options.packages || ['@spfn/core'];
+
+    console.log(chalk.blue.bold(`\n🔍 Validating environment variables\n`));
+
+    const allErrors: Array<{ key: string; message: string; package: string }> = [];
+    const allWarnings: Array<{ key: string; message: string; package: string }> = [];
+
+    for (const packageName of packages)
+    {
+        try
+        {
+            console.log(chalk.dim(`  📦 ${packageName}`));
+
+            const envSchema = await loadEnvSchema(packageName);
+            const { createEnvRegistry } = await import('@spfn/core/env');
+
+            const registry = createEnvRegistry(envSchema);
+            const result = registry.validateAll();
+
+            for (const error of result.errors)
+            {
+                allErrors.push({ ...error, package: packageName });
+            }
+
+            for (const warning of result.warnings)
+            {
+                allWarnings.push({ ...warning, package: packageName });
+            }
+        }
+        catch (error)
+        {
+            if (error instanceof Error && error.message.includes('does not export envSchema'))
+            {
+                console.log(chalk.dim(`    ⏭️  No envSchema exported, skipping`));
+                continue;
+            }
+
+            console.error(chalk.red(`    ❌ Failed to load: ${error instanceof Error ? error.message : String(error)}`));
+
+            if (options.strict)
+            {
+                process.exit(1);
+            }
+        }
+    }
+
+    console.log('');
+
+    // Print errors
+    if (allErrors.length > 0)
+    {
+        console.log(chalk.red.bold(`❌ Validation Errors (${allErrors.length}):\n`));
+
+        for (const error of allErrors)
+        {
+            console.log(`  ${chalk.red('✗')} ${chalk.cyan(error.key)}`);
+            console.log(`    ${chalk.dim(error.message)}`);
+            console.log(`    ${chalk.dim(`from ${error.package}`)}`);
+            console.log('');
+        }
+    }
+
+    // Print warnings
+    if (allWarnings.length > 0)
+    {
+        console.log(chalk.yellow.bold(`⚠️  Warnings (${allWarnings.length}):\n`));
+
+        for (const warning of allWarnings)
+        {
+            console.log(`  ${chalk.yellow('⚠')} ${chalk.cyan(warning.key)}`);
+            console.log(`    ${chalk.dim(warning.message)}`);
+            console.log('');
+        }
+    }
+
+    // Summary
+    if (allErrors.length === 0 && allWarnings.length === 0)
+    {
+        console.log(chalk.green.bold('✅ All environment variables are valid!\n'));
+    }
+    else if (allErrors.length === 0)
+    {
+        console.log(chalk.green('✅ No errors found.'));
+        console.log(chalk.yellow(`⚠️  ${allWarnings.length} warning(s) found.\n`));
+    }
+    else
+    {
+        console.log(chalk.red(`\n❌ Validation failed with ${allErrors.length} error(s)\n`));
+        process.exit(1);
+    }
+}
+
+// env:validate - Validate runtime environment variables
+envCommand
+    .command('validate')
+    .description('Validate environment variables against schema (for CI/CD)')
+    .option('-p, --packages <packages...>', 'Packages to validate', ['@spfn/core'])
+    .option('-s, --strict', 'Exit on any error (including load failures)')
+    .action(validateEnvVars);
