@@ -1,6 +1,6 @@
 {
   "name": "@spfn/auth",
-  "version": "0.2.0-beta.4",
+  "version": "0.2.0-beta.5",
   "type": "module",
   "description": "Authentication, authorization, and RBAC module for SPFN",
   "main": "./dist/index.js",
@@ -97,7 +97,7 @@
   "dependencies": {
     "@spfn/core": "workspace:*",
     "bcryptjs": "^2.4.3",
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.0",
     "jose": "^6.1.0",
     "jsonwebtoken": "^9.0.2",
     "postgres": "^3.4.0"
