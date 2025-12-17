@@ -2,7 +2,6 @@ import { createApi } from "@spfn/core/nextjs";
 import { logger } from "@spfn/core/logger";
 import { type AppRouter } from './server/routes/index';
 import { bindLocale, type SectionKeys, type BoundLabelSection, type BoundLabelsSections } from './lib/bind-locale';
-import { getLocale } from './actions';
 import { setNestedValue } from './lib/helpers';
 import { format, defineLabelConfig, defineLabels } from './lib/define-labels';
 
@@ -23,7 +22,12 @@ const api = createApi<AppRouter>();
  * @example
  * ```typescript
  * // labels.ts - Setup once
- * export const { api, getLabel, getLabels, format } = createCmsClient(labelsDefinition, labelConfig);
+ * import { getLocale } from '@spfn/cms/actions';
+ *
+ * export const { api, getLabel, getLabels, format } = createCmsClient(labelsDefinition, {
+ *     defaultLocale: 'ko',
+ *     getLocale: () => getLocale('ko'),
+ * });
  *
  * // Single section - direct access
  * const label = await getLabel('home');
@@ -41,7 +45,11 @@ const api = createApi<AppRouter>();
  */
 export function createCmsClient<T>(
     labelsDefinition: T,
-    config: { defaultLocale: string; fallbackLocale?: string }
+    config: {
+        defaultLocale: string;
+        fallbackLocale?: string;
+        getLocale: () => Promise<string>;
+    }
 )
 {
     /**
@@ -59,8 +67,8 @@ export function createCmsClient<T>(
      */
     async function getLabel<K extends SectionKeys<T>>(section: K): Promise<BoundLabelSection<T, K>>
     {
-        // Auto-detect locale from cookie, fallback to config.defaultLocale
-        const locale = await getLocale(config.defaultLocale);
+        // Auto-detect locale from cookie via injected getLocale
+        const locale = await config.getLocale();
 
         cmsLogger.debug('getLabel called', {
             section,
@@ -109,8 +117,8 @@ export function createCmsClient<T>(
      */
     async function getLabels<K extends SectionKeys<T>>(sections: readonly K[]): Promise<BoundLabelsSections<T, K>>
     {
-        // Auto-detect locale from cookie, fallback to config.defaultLocale
-        const locale = await getLocale(config.defaultLocale);
+        // Auto-detect locale from cookie via injected getLocale
+        const locale = await config.getLocale();
 
         cmsLogger.debug('getLabels called', {
             sections,
