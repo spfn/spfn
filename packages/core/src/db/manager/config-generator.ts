@@ -225,6 +225,65 @@ export interface DrizzleConfigOptions
 
     /** Expand glob patterns to actual file paths (useful for Drizzle Studio) */
     expandGlobs?: boolean;
+
+    /** PostgreSQL schema filter for push/introspect commands */
+    schemaFilter?: string[];
+
+    /** Auto-detect PostgreSQL schemas from entity files (requires expandGlobs: true) */
+    autoDetectSchemas?: boolean;
+}
+
+/**
+ * Detect PostgreSQL schemas from entity files
+ * Scans files for pgSchema('...') or createSchema('...') patterns
+ *
+ * @param files - Array of file paths to scan
+ * @returns Array of schema names (always includes 'public')
+ * @internal
+ */
+function detectSchemasFromFiles(files: string[]): string[]
+{
+    const schemas = new Set<string>(['public']);
+
+    // Patterns to match:
+    // - pgSchema('schema_name')
+    // - pgSchema("schema_name")
+    // - createSchema('@scope/name') -> converted to schema name
+    const pgSchemaPattern = /pgSchema\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+    const createSchemaPattern = /createSchema\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+    for (const filePath of files)
+    {
+        try
+        {
+            const content = readFileSync(filePath, 'utf-8');
+
+            // Find pgSchema patterns
+            let match;
+            while ((match = pgSchemaPattern.exec(content)) !== null)
+            {
+                schemas.add(match[1]);
+            }
+
+            // Find createSchema patterns and convert to schema name
+            while ((match = createSchemaPattern.exec(content)) !== null)
+            {
+                const packageName = match[1];
+                // Convert package name to schema name (e.g., '@spfn/ai' -> 'spfn_ai')
+                const schemaName = packageName
+                    .replace(/@/g, '')
+                    .replace(/\//g, '_')
+                    .replace(/-/g, '_');
+                schemas.add(schemaName);
+            }
+        }
+        catch
+        {
+            // Skip files we can't read
+        }
+    }
+
+    return Array.from(schemas);
 }
 
 /**
@@ -474,29 +533,49 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
     // Merge user schemas and package schemas
     let allSchemas = [...userSchemas, ...packageSchemas];
 
-    // Expand glob patterns if requested (useful for Drizzle Studio)
+    // Expand glob patterns if requested (useful for Drizzle Studio and schema detection)
+    const cwd = options.cwd ?? process.cwd();
+    let expandedFiles: string[] = [];
     if (options.expandGlobs)
     {
-        const expandedSchemas: string[] = [];
         for (const schema of allSchemas)
         {
-            const expanded = expandGlobPattern(schema);
+            // Convert relative path to absolute path based on cwd
+            const absoluteSchema = isAbsolutePath(schema) ? schema : join(cwd, schema);
+            const expanded = expandGlobPattern(absoluteSchema);
 
             // Filter out index files (they are re-exports, not schema definitions)
             const filtered = filterIndexFiles(expanded);
 
-            expandedSchemas.push(...filtered);
+            expandedFiles.push(...filtered);
         }
-        allSchemas = expandedSchemas;
+        allSchemas = expandedFiles;
     }
 
     const schema = allSchemas.length === 1 ? allSchemas[0] : allSchemas;
+
+    // Determine schemaFilter for PostgreSQL
+    let schemaFilter: string[] | undefined;
+    if (dialect === 'postgresql')
+    {
+        if (options.schemaFilter)
+        {
+            // Use explicitly provided schemaFilter
+            schemaFilter = options.schemaFilter;
+        }
+        else if (options.autoDetectSchemas && expandedFiles.length > 0)
+        {
+            // Auto-detect schemas from files (already absolute paths from expandGlobs)
+            schemaFilter = detectSchemasFromFiles(expandedFiles);
+        }
+    }
 
     return {
         schema,
         out,
         dialect,
         dbCredentials: getDbCredentials(dialect, databaseUrl),
+        schemaFilter,
     };
 }
 
@@ -549,13 +628,18 @@ export function generateDrizzleConfigFile(options: DrizzleConfigOptions = {}): s
         ? `[\n        ${config.schema.map(s => `'${normalizeSchemaPath(s)}'`).join(',\n        ')}\n    ]`
         : `'${normalizeSchemaPath(config.schema as string)}'`;
 
+    // Format schemaFilter if present
+    const schemaFilterLine = config.schemaFilter && config.schemaFilter.length > 0
+        ? `\n    schemaFilter: ${JSON.stringify(config.schemaFilter)},`
+        : '';
+
     return `import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
     schema: ${schemaValue},
     out: '${config.out}',
     dialect: '${config.dialect}',
-    dbCredentials: ${JSON.stringify(config.dbCredentials, null, 4)},
+    dbCredentials: ${JSON.stringify(config.dbCredentials, null, 4)},${schemaFilterLine}
 });
 `;
 }

@@ -13,6 +13,7 @@ import {
 	type BackupMetadata
 } from './utils/metadata.js';
 import { env } from '@spfn/core/config';
+import { loadEnvFiles } from '@spfn/core/server';
 
 /**
  * Backup database to file
@@ -29,6 +30,7 @@ export async function dbBackup(options: {
 {
 	console.log(chalk.blue('💾 Creating database backup...\n'));
 
+	loadEnvFiles();
 	const dbUrl = env.DATABASE_URL;
 	if (!dbUrl)
 	{

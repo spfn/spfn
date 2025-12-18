@@ -48,7 +48,10 @@ export async function runDrizzleCommand(command: string): Promise<void>
         const configContent = generateDrizzleConfigFile({
             cwd: process.cwd(),
             // Exclude package schemas to avoid .ts/.js mixing (packages use migrations instead)
-            disablePackageDiscovery: true
+            disablePackageDiscovery: true,
+            // Expand globs and auto-detect PostgreSQL schemas for push/generate compatibility
+            expandGlobs: true,
+            autoDetectSchemas: true
         });
 
         writeFileSync(tempConfigPath, configContent);

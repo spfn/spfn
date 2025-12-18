@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import prompts from 'prompts';
 import { env } from '@spfn/core/config';
+import { loadEnvFiles } from '@spfn/core/server';
 import { parseDatabaseUrl } from './utils/database.js';
 import { listBackupFiles } from './utils/backup-files.js';
 import {
@@ -19,6 +20,7 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 {
 	console.log(chalk.blue('♻️  Restoring database from backup...\n'));
 
+	loadEnvFiles();
 	const dbUrl = env.DATABASE_URL;
 	if (!dbUrl)
 	{
