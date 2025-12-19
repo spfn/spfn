@@ -5,12 +5,12 @@
  */
 
 import { pgTable, text, integer, timestamp, jsonb } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
+import { timestamps } from '@spfn/core/db';
 import type { WorkflowStepStatus } from '../types/status';
 import { workflowExecutions } from './workflow-execution.entity';
 
 export const workflowStepExecutions = pgTable('workflow_step_executions', {
-    id: id(),
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
     /**
      * Parent workflow execution ID

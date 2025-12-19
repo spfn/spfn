@@ -49,6 +49,20 @@ export type {
     InferWorkflowInput,
 } from './builder';
 
+// Engine
+export { createWorkflowEngine } from './engine';
+
+// Engine Types
+export type {
+    WorkflowEngine,
+    WorkflowEngineConfig,
+    OutputStorage,
+    ExecutionResult,
+    ExecutionStatus,
+    CancelOptions,
+    ListOptions,
+} from './engine';
+
 // Status Types
 export type { WorkflowStatus, WorkflowStepStatus } from './types';
 

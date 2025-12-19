@@ -5,11 +5,11 @@
  */
 
 import { pgTable, text, integer, timestamp, jsonb } from 'drizzle-orm/pg-core';
-import { id, timestamps } from '@spfn/core/db';
+import { timestamps } from '@spfn/core/db';
 import type { WorkflowStatus } from '../types/status';
 
 export const workflowExecutions = pgTable('workflow_executions', {
-    id: id(),
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
 
     /**
      * Workflow name (identifier)
