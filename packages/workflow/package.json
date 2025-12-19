@@ -1,0 +1,66 @@
+{
+  "name": "@spfn/workflow",
+  "version": "0.1.0-alpha.1",
+  "description": "SPFN Workflow Engine - Lightweight workflow orchestration for @spfn/core",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "spfn",
+    "workflow",
+    "orchestration",
+    "job",
+    "pipeline",
+    "typescript",
+    "type-safe"
+  ],
+  "author": "Ray Im <rayim@inflike.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spfn/spfn.git",
+    "directory": "packages/workflow"
+  },
+  "bugs": {
+    "url": "https://github.com/spfn/spfn/issues"
+  },
+  "homepage": "https://github.com/spfn/spfn/tree/main/packages/workflow#readme",
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.0"
+  },
+  "peerDependencies": {
+    "@spfn/core": "^0.2.0-beta.5"
+  },
+  "devDependencies": {
+    "@spfn/core": "workspace:*",
+    "@types/node": "^20.11.0",
+    "drizzle-orm": "^0.45.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.6"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  }
+}
