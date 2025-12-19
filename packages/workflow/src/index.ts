@@ -20,7 +20,8 @@
  *     }))
  *     .pipe(createRepo, (ctx) => ({
  *         tenantId: ctx.input.tenantId,
- *     }));
+ *     }))
+ *     .build();
  *
  * // Execute workflow
  * const execution = await workflowEngine.start('provision-tenant', {
@@ -33,7 +34,22 @@
  * ```
  */
 
-// Types
+// Builder
+export { workflow, WorkflowBuilder } from './builder';
+
+// Builder Types
+export type {
+    WorkflowDef,
+    WorkflowStepDef,
+    WorkflowContext,
+    StepMapper,
+    NotifyConfig,
+    NotificationProvider,
+    WorkflowEvent,
+    InferWorkflowInput,
+} from './builder';
+
+// Status Types
 export type { WorkflowStatus, WorkflowStepStatus } from './types';
 
 // Entities
