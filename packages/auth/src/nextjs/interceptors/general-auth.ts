@@ -213,7 +213,7 @@ export const generalAuthInterceptor: InterceptorRule =
             }
         }
         // Handle logout (clear session)
-        else if (ctx.path === '/_auth/logout' && ctx.response.status === 200)
+        else if (ctx.path === '/_auth/logout' && ctx.response.ok)
         {
             ctx.setCookies.push({
                 name: COOKIE_NAMES.SESSION,

@@ -165,9 +165,6 @@ export const login = route.post('/_auth/login')
  * Revokes current key (requires authentication)
  */
 export const logout = route.post('/_auth/logout')
-    .input({
-        body: Type.Object({})
-    })
     .handler(async (c) =>
     {
         const auth = getAuth(c);
@@ -188,9 +185,6 @@ export const logout = route.post('/_auth/logout')
  * Replace current key with new one (requires authentication)
  */
 export const rotateKey = route.post('/_auth/keys/rotate')
-    .input({
-        body: Type.Object({})
-    })
     .interceptor({
         body: Type.Object({
             publicKey: Type.String({ description: 'New public key' }),
