@@ -71,14 +71,22 @@ export interface JobSendOptions
 /**
  * Job handler function type
  */
-export type JobHandler<TInput> = TInput extends void
-    ? () => Promise<void>
-    : (input: TInput) => Promise<void>;
+export type JobHandler<TInput, TOutput = void> = TInput extends void
+    ? () => Promise<TOutput>
+    : (input: TInput) => Promise<TOutput>;
+
+/**
+ * Compensate handler function type (for rollback)
+ */
+export type CompensateHandler<TInput, TOutput> = (
+    input: TInput,
+    output: TOutput
+) => Promise<void>;
 
 /**
  * Job definition interface
  */
-export interface JobDef<TInput = void>
+export interface JobDef<TInput = void, TOutput = void>
 {
     /**
      * Unique job name
@@ -89,6 +97,11 @@ export interface JobDef<TInput = void>
      * TypeBox input schema (optional)
      */
     readonly inputSchema?: TSchema;
+
+    /**
+     * TypeBox output schema (optional, for workflow integration)
+     */
+    readonly outputSchema?: TSchema;
 
     /**
      * Cron expression for scheduled jobs
@@ -118,7 +131,12 @@ export interface JobDef<TInput = void>
     /**
      * Job handler
      */
-    readonly handler: JobHandler<TInput>;
+    readonly handler: JobHandler<TInput, TOutput>;
+
+    /**
+     * Compensate handler for rollback (optional, for workflow integration)
+     */
+    readonly compensate?: CompensateHandler<TInput, TOutput>;
 
     /**
      * Send job to queue (returns immediately, executes in background)
@@ -131,19 +149,20 @@ export interface JobDef<TInput = void>
      * Run job synchronously (for testing/debugging)
      */
     run: TInput extends void
-        ? () => Promise<void>
-        : (input: TInput) => Promise<void>;
+        ? () => Promise<TOutput>
+        : (input: TInput) => Promise<TOutput>;
 
     /**
      * Type inference helpers
      */
     _input: TInput;
+    _output: TOutput;
 }
 
 /**
  * Job router entry - can be a job or nested router
  */
-export type JobRouterEntry = JobDef<any> | JobRouter<any>;
+export type JobRouterEntry = JobDef<any, any> | JobRouter<any>;
 
 /**
  * Job router interface
@@ -157,6 +176,13 @@ export interface JobRouter<TJobs extends Record<string, JobRouterEntry> = Record
 /**
  * Infer input type from JobDef
  */
-export type InferJobInput<TJob> = TJob extends JobDef<infer TInput>
+export type InferJobInput<TJob> = TJob extends JobDef<infer TInput, any>
     ? TInput
+    : never;
+
+/**
+ * Infer output type from JobDef
+ */
+export type InferJobOutput<TJob> = TJob extends JobDef<any, infer TOutput>
+    ? TOutput
     : never;

@@ -5,7 +5,7 @@
  */
 
 import type { Static, TSchema } from '@sinclair/typebox';
-import type { JobDef, JobHandler, JobOptions, JobSendOptions } from './types';
+import type { CompensateHandler, JobDef, JobHandler, JobOptions, JobSendOptions } from './types';
 import type { EventDef, InferEventPayload } from '@spfn/core/event';
 import { getBoss } from './boss';
 
@@ -65,16 +65,18 @@ function buildPgBossOptions(
 /**
  * Job builder class with fluent API
  */
-export class JobBuilder<TInput = void>
+export class JobBuilder<TInput = void, TOutput = void>
 {
     private _name: string;
     private _inputSchema?: TSchema;
+    private _outputSchema?: TSchema;
     private _cronExpression?: string;
     private _runOnce?: boolean;
     private _subscribedEvent?: string;
     private _subscribedEventDef?: EventDef<any>;
     private _options?: JobOptions;
-    private _handler?: JobHandler<TInput>;
+    private _handler?: JobHandler<TInput, TOutput>;
+    private _compensate?: CompensateHandler<TInput, TOutput>;
 
     constructor(name: string)
     {
@@ -86,10 +88,28 @@ export class JobBuilder<TInput = void>
      */
     input<TSchema extends import('@sinclair/typebox').TSchema>(
         schema: TSchema
-    ): JobBuilder<Static<TSchema>>
+    ): JobBuilder<Static<TSchema>, TOutput>
     {
-        const builder = new JobBuilder<Static<TSchema>>(this._name);
+        const builder = new JobBuilder<Static<TSchema>, TOutput>(this._name);
         builder._inputSchema = schema;
+        builder._outputSchema = this._outputSchema;
+        builder._cronExpression = this._cronExpression;
+        builder._runOnce = this._runOnce;
+        builder._subscribedEvent = this._subscribedEvent;
+        builder._options = this._options;
+        return builder;
+    }
+
+    /**
+     * Define output schema with TypeBox (for workflow integration)
+     */
+    output<TSchema extends import('@sinclair/typebox').TSchema>(
+        schema: TSchema
+    ): JobBuilder<TInput, Static<TSchema>>
+    {
+        const builder = new JobBuilder<TInput, Static<TSchema>>(this._name);
+        builder._inputSchema = this._inputSchema;
+        builder._outputSchema = schema;
         builder._cronExpression = this._cronExpression;
         builder._runOnce = this._runOnce;
         builder._subscribedEvent = this._subscribedEvent;
@@ -115,10 +135,11 @@ export class JobBuilder<TInput = void>
      */
     on<TEvent extends EventDef<any>>(
         event: TEvent
-    ): JobBuilder<InferEventPayload<TEvent>>
+    ): JobBuilder<InferEventPayload<TEvent>, TOutput>
     {
-        const builder = new JobBuilder<InferEventPayload<TEvent>>(this._name);
+        const builder = new JobBuilder<InferEventPayload<TEvent>, TOutput>(this._name);
         builder._inputSchema = event.schema;
+        builder._outputSchema = this._outputSchema;
         builder._subscribedEvent = event.name;
         builder._subscribedEventDef = event;
         builder._cronExpression = this._cronExpression;
@@ -155,20 +176,44 @@ export class JobBuilder<TInput = void>
     }
 
     /**
+     * Set job timeout in milliseconds
+     * (Converts to expireInSeconds for pg-boss)
+     */
+    timeout(ms: number): this
+    {
+        this._options = {
+            ...this._options,
+            expireInSeconds: Math.ceil(ms / 1000),
+        };
+        return this;
+    }
+
+    /**
+     * Define compensate handler for rollback (workflow integration)
+     */
+    compensate(fn: CompensateHandler<TInput, TOutput>): this
+    {
+        this._compensate = fn;
+        return this;
+    }
+
+    /**
      * Define the job handler and finalize the job definition
      */
-    handler(fn: JobHandler<TInput>): JobDef<TInput>
+    handler(fn: JobHandler<TInput, TOutput>): JobDef<TInput, TOutput>
     {
         this._handler = fn;
 
         const name = this._name;
         const inputSchema = this._inputSchema;
+        const outputSchema = this._outputSchema;
         const cronExpression = this._cronExpression;
         const runOnce = this._runOnce;
         const subscribedEvent = this._subscribedEvent;
         const subscribedEventDef = this._subscribedEventDef;
         const options = this._options;
         const handler = this._handler;
+        const compensate = this._compensate;
 
         // Create send function
         const send = async (
@@ -198,30 +243,33 @@ export class JobBuilder<TInput = void>
         };
 
         // Create run function (synchronous execution)
-        const run = async (input?: TInput): Promise<void> =>
+        const run = async (input?: TInput): Promise<TOutput> =>
         {
             if (inputSchema)
             {
-                await (handler as (input: TInput) => Promise<void>)(input as TInput);
+                return await (handler as (input: TInput) => Promise<TOutput>)(input as TInput);
             }
             else
             {
-                await (handler as () => Promise<void>)();
+                return await (handler as () => Promise<TOutput>)();
             }
         };
 
         return {
             name,
             inputSchema,
+            outputSchema,
             cronExpression,
             runOnce,
             subscribedEvent,
             _subscribedEventDef: subscribedEventDef,
             options,
             handler,
-            send: send as JobDef<TInput>['send'],
-            run: run as JobDef<TInput>['run'],
+            compensate,
+            send: send as JobDef<TInput, TOutput>['send'],
+            run: run as JobDef<TInput, TOutput>['run'],
             _input: undefined as unknown as TInput,
+            _output: undefined as unknown as TOutput,
         };
     }
 }

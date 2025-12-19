@@ -76,7 +76,9 @@ export type {
     JobOptions,
     JobSendOptions,
     JobHandler,
+    CompensateHandler,
     InferJobInput,
+    InferJobOutput,
 } from './types';
 
 // Builder
