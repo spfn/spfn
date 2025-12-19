@@ -1,12 +1,12 @@
-# @spfn/workflow 설계 문서
+# @spfn/workflow Design Document
 
-경량 워크플로 엔진 - `@spfn/core`의 Job/Events 기반
+Lightweight workflow engine - Based on `@spfn/core` Job/Events
 
-## 핵심 개념
+## Core Concepts
 
 ```
-Job = 독립적인 작업 단위 (기존 @spfn/core)
-Workflow = Job들을 연결하는 파이프라인
+Job = Independent unit of work (existing @spfn/core)
+Workflow = Pipeline that chains Jobs together
 ```
 
 ```
@@ -18,21 +18,21 @@ Workflow = Job들을 연결하는 파이프라인
                     Workflow
 ```
 
-## 설계 원칙
+## Design Principles
 
-| 원칙 | 설명 |
-|------|------|
-| Step 독립성 | Step(Job)은 다른 Step의 존재를 모름 |
-| Step 재사용 | 하나의 Step이 여러 Workflow에 참여 가능 |
-| 조합 확장 | 새 Workflow = 기존 Step 조합 |
-| 명시적 매핑 | Step 간 데이터 전달은 명시적으로 |
-| 타입 안전성 | 등록된 Workflow만 실행 가능, input 타입 추론 |
+| Principle | Description |
+|-----------|-------------|
+| Step Independence | Steps (Jobs) are unaware of other steps |
+| Step Reusability | A single step can participate in multiple workflows |
+| Composition | New workflow = combination of existing steps |
+| Explicit Mapping | Data transfer between steps is explicitly defined |
+| Type Safety | Only registered workflows can be executed, input types are inferred |
 
 ---
 
-## API 설계
+## API Design
 
-### 1. Job 확장 (@spfn/core)
+### 1. Job Extensions (@spfn/core)
 
 ```typescript
 const createRepo = job('create-repo')
@@ -58,7 +58,7 @@ const createRepo = job('create-repo')
     });
 ```
 
-### 2. Workflow 정의
+### 2. Workflow Definition
 
 ```typescript
 import { workflow } from '@spfn/workflow';
@@ -68,19 +68,19 @@ export const provisionTenant = workflow('provision-tenant')
         tenantId: Type.String(),
         plan: PlanType,
     }))
-    .resumable(true)      // 실패 지점부터 재개 가능
-    .rollback(true)       // 실패 시 역순 롤백 (default: true)
+    .resumable(true)      // Resume from failure point
+    .rollback(true)       // Rollback in reverse order on failure (default: true)
     .notify({
         on: ['failed'],
         when: (event) => event.input.plan === 'pro',
         providers: [slackProvider],
     })
-    // 순차 실행
+    // Sequential execution
     .pipe(createPodIdentity, (ctx) => ({
         tenantId: ctx.input.tenantId,
         plan: ctx.input.plan,
     }))
-    // 병렬 실행
+    // Parallel execution
     .parallel({
         appRepo: [createAppRepo, (ctx) => ({
             tenantId: ctx.input.tenantId,
@@ -89,7 +89,7 @@ export const provisionTenant = workflow('provision-tenant')
             tenantId: ctx.input.tenantId,
         })],
     })
-    // 이전 결과 참조
+    // Reference previous results
     .pipe(notifyComplete, (ctx) => ({
         tenantId: ctx.input.tenantId,
         appRepoUrl: ctx.results.appRepo.repoUrl,
@@ -97,53 +97,52 @@ export const provisionTenant = workflow('provision-tenant')
     }));
 ```
 
-### 3. server.config.ts 등록
+### 3. Configuration Registration
 
 ```typescript
-import { defineConfig } from '@spfn/core';
+import { defineWorkflows } from '@spfn/workflow';
 import { provisionTenant, deprovisionTenant } from './workflows';
 
-export default defineConfig({
-    routes: [userRoutes, tenantRoutes],
-    jobs: [sendEmail, syncData],
+export default defineWorkflows({
     workflows: [provisionTenant, deprovisionTenant],
+    db: database,
 });
 ```
 
-### 4. Workflow 실행 및 제어
+### 4. Workflow Execution and Control
 
 ```typescript
 import { getWorkflowEngine } from '@spfn/workflow';
-import type { AppConfig } from './server.config';
+import type { default as WorkflowConfig } from './workflow.config';
 
-const workflowEngine = getWorkflowEngine<AppConfig>();
+const workflowEngine = getWorkflowEngine<typeof WorkflowConfig>();
 
-// 실행 (비동기)
+// Execute (async)
 const execution = await workflowEngine.start('provision-tenant', {
     tenantId: 'abc',
     plan: 'pro',
 });
 
-// 상태 조회
+// Get status
 const status = await workflowEngine.get(execution.id);
 
-// Step output 조회
+// Get step output
 const output = await workflowEngine.getStepOutput(execution.id, 'appRepo');
 
-// 목록 조회
+// List executions
 const list = await workflowEngine.list({
     workflowName: 'provision-tenant',
     status: 'failed',
 });
 
-// 재시도
+// Retry
 await workflowEngine.retry(execution.id);
 
-// 취소
+// Cancel
 await workflowEngine.cancel(execution.id);
 await workflowEngine.cancel(execution.id, { rollback: true });
 
-// 이벤트 구독
+// Subscribe to events
 workflowEngine.subscribe(execution.id, (event) => {
     console.log(event.type, event.data);
 });
@@ -151,11 +150,11 @@ workflowEngine.subscribe(execution.id, (event) => {
 
 ---
 
-## 실행 방식
+## Execution Model
 
-### 비동기 + 이벤트 트리거
+### Async + Event Trigger
 
-각 Step은 별도 Job으로 실행되며, 이벤트로 연결됨:
+Each step runs as a separate Job, connected via events:
 
 ```
 workflow.start(input)
@@ -163,73 +162,73 @@ workflow.start(input)
     ▼
 ┌─────────────────────────────────────────────┐
 │ emit: workflow.provision.started            │
-│ → Job: step1 트리거                         │
+│ → Job: step1 triggered                      │
 └─────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────┐
-│ Step1 완료                                  │
+│ Step1 completed                             │
 │ emit: workflow.provision.step1.completed    │
-│ → Job: step2 트리거                         │
+│ → Job: step2 triggered                      │
 └─────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────┐
-│ Step2 완료                                  │
+│ Step2 completed                             │
 │ emit: workflow.provision.step2.completed    │
-│ → Job: step3 트리거                         │
+│ → Job: step3 triggered                      │
 └─────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────┐
-│ 모든 Step 완료                              │
+│ All steps completed                         │
 │ emit: workflow.provision.completed          │
 └─────────────────────────────────────────────┘
 ```
 
 ---
 
-## 실패 처리 전략
+## Failure Handling Strategy
 
-| 항목 | 결정 |
-|------|------|
-| 재시도 | Job 레벨 정의 |
-| 보상 정의 | Job 레벨 정의 (선택적) |
-| 롤백 실행 | Workflow에서 역순 자동 |
-| 보상 실패 시 | 무시하고 계속 진행 |
-| 보상 없는 Job | 허용 (skip) |
-| 병렬 실패 | 전체 실패 |
-| 롤백 비활성화 | 옵션 지원 |
+| Item | Decision |
+|------|----------|
+| Retry | Defined at Job level |
+| Compensation definition | Defined at Job level (optional) |
+| Rollback execution | Automatic reverse order in Workflow |
+| On compensation failure | Ignore and continue |
+| Jobs without compensation | Allowed (skip) |
+| Parallel failure | Entire workflow fails |
+| Disable rollback | Option supported |
 
-### 롤백 흐름
+### Rollback Flow
 
 ```
-실행: Step1 ✓ → Step2 ✓ → Step3 ✗
+Execution: Step1 ✓ → Step2 ✓ → Step3 ✗
 
-롤백: Step2.compensate() → Step1.compensate()
-      (Step3은 실패했으므로 보상 불필요)
-      (보상 실패 시 무시하고 계속)
+Rollback: Step2.compensate() → Step1.compensate()
+          (Step3 doesn't need compensation as it failed)
+          (Continue even if compensation fails)
 ```
 
-### 재시도 전략
+### Retry Strategy
 
 ```typescript
-// resumable: true인 경우
+// When resumable: true
 Step1 ✓ → Step2 ✓ → Step3 ✗
 
 retry(id):
-  - Step1, Step2 output DB에서 로드
-  - Step3부터 재실행
+  - Load Step1, Step2 outputs from DB
+  - Resume from Step3
 
-// resumable: false인 경우
-  - 처음부터 다시 실행
+// When resumable: false
+  - Restart from beginning
 ```
 
 ---
 
-## 상태 저장
+## State Persistence
 
-### 테이블 구조
+### Table Structure
 
 ```typescript
 // workflow_executions
@@ -251,14 +250,14 @@ interface WorkflowStepExecution {
     stepName: string;
     stepIndex: number;
     status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'compensated';
-    output?: unknown;         // jsonb 또는 URL (대용량)
+    output?: unknown;         // jsonb or URL (large data)
     error?: string;
     startedAt?: Date;
     completedAt?: Date;
 }
 ```
 
-### 대용량 Output 처리
+### Large Output Handling
 
 ```typescript
 if (sizeof(output) > THRESHOLD) {
@@ -271,9 +270,9 @@ if (sizeof(output) > THRESHOLD) {
 
 ---
 
-## 모니터링
+## Monitoring
 
-### 이벤트 구조
+### Event Structure
 
 ```typescript
 workflow.started        // { workflowName, executionId, input }
@@ -285,7 +284,7 @@ workflow.failed         // { workflowName, executionId, error }
 workflow.cancelled      // { workflowName, executionId }
 ```
 
-### 알림 Provider
+### Notification Providers
 
 ```typescript
 interface NotificationProvider {
@@ -293,12 +292,12 @@ interface NotificationProvider {
     notify(event: WorkflowEvent): Promise<void>;
 }
 
-// 기본 제공
+// Built-in providers
 const consoleProvider: NotificationProvider;
 const emailProvider: (config: EmailConfig) => NotificationProvider;
 const slackProvider: (config: SlackConfig) => NotificationProvider;
 
-// 워크플로에 설정
+// Configure in workflow
 workflow('provision')
     .notify({
         on: ['failed', 'completed'],
@@ -309,94 +308,109 @@ workflow('provision')
 
 ---
 
-## 구현 우선순위
+## Implementation Phases
 
-### Phase 1: 기반 확장 (@spfn/core)
+### Phase 1: Core Extensions (@spfn/core)
 
-| 순서 | 항목 | 설명 |
-|------|------|------|
-| 1-1 | Job output 스키마 | `.output()` 메서드 추가 |
-| 1-2 | Job compensate | `.compensate()` 메서드 추가 |
-| 1-3 | Job timeout | `.timeout()` 메서드 추가 |
+| Order | Item | Description |
+|-------|------|-------------|
+| 1-1 | Job output schema | Add `.output()` method |
+| 1-2 | Job compensate | Add `.compensate()` method |
+| 1-3 | Job timeout | Add `.timeout()` method |
 
-### Phase 2: 패키지 생성 (@spfn/workflow)
+### Phase 2: Package Creation (@spfn/workflow)
 
-| 순서 | 항목 | 설명 |
-|------|------|------|
-| 2-1 | 패키지 초기화 | 기본 구조, 의존성 설정 |
-| 2-2 | DB 엔티티 | WorkflowExecution, WorkflowStepExecution |
-| 2-3 | 마이그레이션 | 테이블 생성 스크립트 |
+| Order | Item | Description |
+|-------|------|-------------|
+| 2-1 | Package initialization | Basic structure, dependencies |
+| 2-2 | DB entities | WorkflowExecution, WorkflowStepExecution |
+| 2-3 | Migrations | Table creation scripts |
 
-### Phase 3: 워크플로 정의 API
+### Phase 3: Workflow Definition API
 
-| 순서 | 항목 | 설명 |
-|------|------|------|
-| 3-1 | workflow() 빌더 | 기본 체이닝 API |
-| 3-2 | .pipe() | 순차 실행 정의 |
-| 3-3 | .parallel() | 병렬 실행 정의 |
-| 3-4 | 옵션들 | .resumable(), .rollback() |
-| 3-5 | 타입 추론 | input/output 타입 안전성 |
+| Order | Item | Description |
+|-------|------|-------------|
+| 3-1 | workflow() builder | Basic chaining API |
+| 3-2 | .pipe() | Sequential execution definition |
+| 3-3 | .parallel() | Parallel execution definition |
+| 3-4 | Options | .resumable(), .rollback() |
+| 3-5 | Type inference | input/output type safety |
 
-### Phase 4: 워크플로 엔진 (핵심)
+### Phase 4: Workflow Engine (Core)
 
-| 순서 | 항목 | 설명 |
-|------|------|------|
-| 4-1 | createWorkflowEngine | 엔진 생성 |
-| 4-2 | .start() | 워크플로 실행 (비동기) |
-| 4-3 | 이벤트 연결 | Step 간 이벤트 트리거 |
-| 4-4 | 상태 저장 | 각 Step 결과 DB 저장 |
-| 4-5 | .get() | 상태 조회 |
-| 4-6 | .getStepOutput() | Step 결과 조회 |
+| Order | Item | Description |
+|-------|------|-------------|
+| 4-1 | createWorkflowEngine | Engine creation |
+| 4-2 | .start() | Workflow execution (async) |
+| 4-3 | Event chaining | Step-to-step event triggers |
+| 4-4 | State persistence | Save each step result to DB |
+| 4-5 | .get() | Status query |
+| 4-6 | .getStepOutput() | Step result query |
 
-### Phase 5: 제어 기능
+### Phase 5: Control Features
 
-| 순서 | 항목 | 설명 |
-|------|------|------|
-| 5-1 | .retry() | 재시도 (resumable 고려) |
-| 5-2 | .cancel() | 취소 + 롤백 옵션 |
-| 5-3 | 롤백 실행 | 역순 compensate 호출 |
+| Order | Item | Description |
+|-------|------|-------------|
+| 5-1 | .retry() | Retry (considering resumable) |
+| 5-2 | .cancel() | Cancel + rollback option |
+| 5-3 | Rollback execution | Reverse order compensate calls |
 
-### Phase 6: 모니터링
+### Phase 6: Monitoring
 
-| 순서 | 항목 | 설명 |
-|------|------|------|
-| 6-1 | 이벤트 발행 | workflow.* 이벤트 |
-| 6-2 | .subscribe() | 실시간 구독 |
-| 6-3 | .list() | 히스토리 조회 |
+| Order | Item | Description |
+|-------|------|-------------|
+| 6-1 | Event emission | workflow.* events |
+| 6-2 | .subscribe() | Real-time subscription |
+| 6-3 | .list() | History query |
 
-### Phase 7: 알림
+### Phase 7: Notifications
 
-| 순서 | 항목 | 설명 |
-|------|------|------|
-| 7-1 | Provider 인터페이스 | NotificationProvider |
-| 7-2 | 기본 Provider | console, email |
-| 7-3 | .notify() | 워크플로에 알림 설정 |
-| 7-4 | 조건부 알림 | when 옵션 |
+| Order | Item | Description |
+|-------|------|-------------|
+| 7-1 | Provider interface | NotificationProvider |
+| 7-2 | Built-in providers | console, email, slack |
+| 7-3 | .notify() | Configure notifications in workflow |
+| 7-4 | Conditional notifications | when option |
 
-### Phase 8: 통합
+### Phase 8: Integration
 
-| 순서 | 항목 | 설명 |
-|------|------|------|
-| 8-1 | defineConfig 확장 | workflows 옵션 |
-| 8-2 | getWorkflowEngine | 타입 안전한 접근 |
-| 8-3 | 대용량 output | 스토리지 연동 |
+| Order | Item | Description |
+|-------|------|-------------|
+| 8-1 | defineWorkflows | Configuration helper |
+| 8-2 | getWorkflowEngine | Type-safe access |
+| 8-3 | Large output | Storage integration |
 
 ---
 
-## MVP 범위
+## MVP Scope
 
-Phase 1~4 완료 시 기본 동작 가능:
+Basic operation possible after completing Phases 1-4:
 
 ```typescript
-// 정의
+// Definition
 const provision = workflow('provision')
     .input(schema)
     .pipe(step1, mapper)
     .pipe(step2, mapper);
 
-// 실행
+// Execution
 const exec = await engine.start('provision', input);
 
-// 조회
+// Query
 const status = await engine.get(exec.id);
 ```
+
+---
+
+## Implementation Status
+
+| Phase | Status |
+|-------|--------|
+| Phase 1: Core Extensions | ✅ Completed |
+| Phase 2: Package Creation | ✅ Completed |
+| Phase 3: Workflow Definition API | ✅ Completed |
+| Phase 4: Workflow Engine | ✅ Completed |
+| Phase 5: Control Features | ✅ Completed |
+| Phase 6: Monitoring | ✅ Completed |
+| Phase 7: Notifications | ✅ Completed |
+| Phase 8: Integration | ✅ Completed |
