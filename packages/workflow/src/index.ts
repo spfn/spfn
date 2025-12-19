@@ -66,6 +66,31 @@ export type {
 // Status Types
 export type { WorkflowStatus, WorkflowStepStatus } from './types';
 
+// Notification Providers
+export {
+    consoleProvider,
+    emailProvider,
+    slackProvider,
+} from './notification';
+
+export type {
+    EmailProviderConfig,
+    SlackProviderConfig,
+} from './notification';
+
+// Configuration
+export {
+    defineWorkflows,
+    getWorkflowEngine,
+    isWorkflowEngineInitialized,
+    resetWorkflowEngine,
+} from './config';
+
+export type {
+    WorkflowModuleConfig,
+    InferWorkflowNames,
+} from './config';
+
 // Entities
 export {
     workflowExecutions,

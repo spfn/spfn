@@ -536,10 +536,11 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
     }
 
     /**
-     * Emit event to subscribers
+     * Emit event to subscribers and notification providers
      */
     private emitEvent(event: WorkflowEvent): void
     {
+        // Notify subscribers
         const subscribers = this.subscribers.get(event.executionId);
         if (subscribers)
         {
@@ -555,6 +556,56 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
                 }
             }
         }
+
+        // Send notifications (async, don't block)
+        this.sendNotifications(event).catch((error) =>
+        {
+            console.error('[WorkflowEngine] Notification error:', error);
+        });
+    }
+
+    /**
+     * Send notifications based on workflow config
+     */
+    private async sendNotifications(event: WorkflowEvent): Promise<void>
+    {
+        const workflow = this.workflows.get(event.workflowName);
+        if (!workflow?.notifyConfig)
+        {
+            return;
+        }
+
+        const { on, when, providers } = workflow.notifyConfig;
+
+        // Check if this event type should trigger notification
+        if (!on.includes(event.type as typeof on[number]))
+        {
+            return;
+        }
+
+        // Check conditional
+        if (when && !when(event))
+        {
+            return;
+        }
+
+        // Send to all providers
+        await Promise.all(
+            providers.map(async (provider) =>
+            {
+                try
+                {
+                    await provider.notify(event);
+                }
+                catch (error)
+                {
+                    console.error(
+                        `[WorkflowEngine] Notification provider '${provider.name}' error:`,
+                        error
+                    );
+                }
+            })
+        );
     }
 
     // Public API methods
