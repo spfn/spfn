@@ -52,6 +52,9 @@ export function createAWSSESProvider(): EmailProvider | null
                 // Check if AWS credentials are configured
                 if (!env.SPFN_AUTH_AWS_SES_ACCESS_KEY_ID)
                 {
+                    authLogger.email.warn('AWS SES credentials not configured', {
+                        hint: 'Set SPFN_AUTH_AWS_SES_ACCESS_KEY_ID environment variable',
+                    });
                     return {
                         success: false,
                         error: 'AWS SES credentials not configured. Set SPFN_AUTH_AWS_SES_ACCESS_KEY_ID environment variable.',
@@ -61,6 +64,9 @@ export function createAWSSESProvider(): EmailProvider | null
                 // Check if sender email is configured
                 if (!env.SPFN_AUTH_AWS_SES_FROM_EMAIL)
                 {
+                    authLogger.email.warn('AWS SES sender email not configured', {
+                        hint: 'Set SPFN_AUTH_AWS_SES_FROM_EMAIL environment variable',
+                    });
                     return {
                         success: false,
                         error: 'AWS SES sender email not configured. Set SPFN_AUTH_AWS_SES_FROM_EMAIL environment variable.',
@@ -151,6 +157,9 @@ export function createAWSSESProvider(): EmailProvider | null
     catch (error)
     {
         // @aws-sdk/client-ses not installed
+        authLogger.email.debug('@aws-sdk/client-ses not available, AWS SES provider disabled', {
+            error: error instanceof Error ? error.message : String(error),
+        });
         return null;
     }
 }
