@@ -25,146 +25,156 @@ function isValidEmail(email: string): boolean
 /**
  * Create AWS SES email provider
  *
- * @returns EmailProvider instance or null if @aws-sdk/client-ses not available
+ * Uses lazy dynamic import to support Next.js bundlers (webpack/turbopack)
+ *
+ * @returns EmailProvider instance
  */
-export function createAWSSESProvider(): EmailProvider | null
+export function createAWSSESProvider(): EmailProvider
 {
-    try
-    {
-        // Dynamic import to check if @aws-sdk/client-ses is available
-        const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+    return {
+        name: 'aws-ses',
+        sendEmail: async (params: SendEmailParams): Promise<SendEmailResult> =>
+        {
+            const { to, subject, text, html, purpose } = params;
 
-        return {
-            name: 'aws-ses',
-            sendEmail: async (params: SendEmailParams): Promise<SendEmailResult> =>
+            // Validate email address format
+            if (!isValidEmail(to))
             {
-                const { to, subject, text, html, purpose } = params;
+                return {
+                    success: false,
+                    error: 'Invalid email address format',
+                };
+            }
 
-                // Validate email address format
-                if (!isValidEmail(to))
+            // Check if AWS credentials are configured
+            if (!env.SPFN_AUTH_AWS_SES_ACCESS_KEY_ID)
+            {
+                authLogger.email.warn('AWS SES credentials not configured', {
+                    hint: 'Set SPFN_AUTH_AWS_SES_ACCESS_KEY_ID environment variable',
+                });
+                return {
+                    success: false,
+                    error: 'AWS SES credentials not configured. Set SPFN_AUTH_AWS_SES_ACCESS_KEY_ID environment variable.',
+                };
+            }
+
+            // Check if sender email is configured
+            if (!env.SPFN_AUTH_AWS_SES_FROM_EMAIL)
+            {
+                authLogger.email.warn('AWS SES sender email not configured', {
+                    hint: 'Set SPFN_AUTH_AWS_SES_FROM_EMAIL environment variable',
+                });
+                return {
+                    success: false,
+                    error: 'AWS SES sender email not configured. Set SPFN_AUTH_AWS_SES_FROM_EMAIL environment variable.',
+                };
+            }
+
+            // Lazy dynamic import for bundler compatibility (webpack/turbopack)
+            let SESClient: any;
+            let SendEmailCommand: any;
+
+            try
+            {
+                const ses = await import('@aws-sdk/client-ses');
+                SESClient = ses.SESClient;
+                SendEmailCommand = ses.SendEmailCommand;
+            }
+            catch (error)
+            {
+                authLogger.email.warn('@aws-sdk/client-ses not installed', {
+                    error: error instanceof Error ? error.message : String(error),
+                    hint: 'Run: pnpm add @aws-sdk/client-ses',
+                });
+                return {
+                    success: false,
+                    error: '@aws-sdk/client-ses not installed. Run: pnpm add @aws-sdk/client-ses',
+                };
+            }
+
+            try
+            {
+                // Initialize SES client
+                const config: any = {
+                    region: env.SPFN_AUTH_AWS_REGION || 'ap-northeast-2',
+                };
+
+                if (env.SPFN_AUTH_AWS_SES_ACCESS_KEY_ID && env.SPFN_AUTH_AWS_SES_SECRET_ACCESS_KEY)
                 {
-                    return {
-                        success: false,
-                        error: 'Invalid email address format',
+                    config.credentials = {
+                        accessKeyId: env.SPFN_AUTH_AWS_SES_ACCESS_KEY_ID,
+                        secretAccessKey: env.SPFN_AUTH_AWS_SES_SECRET_ACCESS_KEY,
                     };
                 }
 
-                // Check if AWS credentials are configured
-                if (!env.SPFN_AUTH_AWS_SES_ACCESS_KEY_ID)
+                const client = new SESClient(config);
+
+                // Build email body
+                const body: any = {};
+
+                if (text)
                 {
-                    authLogger.email.warn('AWS SES credentials not configured', {
-                        hint: 'Set SPFN_AUTH_AWS_SES_ACCESS_KEY_ID environment variable',
-                    });
-                    return {
-                        success: false,
-                        error: 'AWS SES credentials not configured. Set SPFN_AUTH_AWS_SES_ACCESS_KEY_ID environment variable.',
+                    body.Text = {
+                        Charset: 'UTF-8',
+                        Data: text,
                     };
                 }
 
-                // Check if sender email is configured
-                if (!env.SPFN_AUTH_AWS_SES_FROM_EMAIL)
+                if (html)
                 {
-                    authLogger.email.warn('AWS SES sender email not configured', {
-                        hint: 'Set SPFN_AUTH_AWS_SES_FROM_EMAIL environment variable',
-                    });
-                    return {
-                        success: false,
-                        error: 'AWS SES sender email not configured. Set SPFN_AUTH_AWS_SES_FROM_EMAIL environment variable.',
+                    body.Html = {
+                        Charset: 'UTF-8',
+                        Data: html,
                     };
                 }
 
-                try
-                {
-                    // Initialize SES client
-                    const config: any = {
-                        region: env.SPFN_AUTH_AWS_REGION || 'ap-northeast-2',
-                    };
-
-                    if (env.SPFN_AUTH_AWS_SES_ACCESS_KEY_ID && env.SPFN_AUTH_AWS_SES_SECRET_ACCESS_KEY)
-                    {
-                        config.credentials = {
-                            accessKeyId: env.SPFN_AUTH_AWS_SES_ACCESS_KEY_ID,
-                            secretAccessKey: env.SPFN_AUTH_AWS_SES_SECRET_ACCESS_KEY,
-                        };
-                    }
-
-                    const client = new SESClient(config);
-
-                    // Build email body
-                    const body: any = {};
-
-                    if (text)
-                    {
-                        body.Text = {
+                // Prepare SES send email command
+                const command = new SendEmailCommand({
+                    Source: env.SPFN_AUTH_AWS_SES_FROM_EMAIL,
+                    Destination: {
+                        ToAddresses: [to],
+                    },
+                    Message: {
+                        Subject: {
                             Charset: 'UTF-8',
-                            Data: text,
-                        };
-                    }
-
-                    if (html)
-                    {
-                        body.Html = {
-                            Charset: 'UTF-8',
-                            Data: html,
-                        };
-                    }
-
-                    // Prepare SES send email command
-                    const command = new SendEmailCommand({
-                        Source: env.SPFN_AUTH_AWS_SES_FROM_EMAIL,
-                        Destination: {
-                            ToAddresses: [to],
+                            Data: subject,
                         },
-                        Message: {
-                            Subject: {
-                                Charset: 'UTF-8',
-                                Data: subject,
-                            },
-                            Body: body,
-                        },
-                    });
+                        Body: body,
+                    },
+                });
 
-                    // Send email
-                    const response = await client.send(command);
+                // Send email
+                const response = await client.send(command);
 
-                    authLogger.email.info('Email sent via AWS SES', {
-                        to,
-                        messageId: response.MessageId,
-                        purpose: purpose || 'N/A',
-                    });
+                authLogger.email.info('Email sent via AWS SES', {
+                    to,
+                    messageId: response.MessageId,
+                    purpose: purpose || 'N/A',
+                });
 
-                    return {
-                        success: true,
-                        messageId: response.MessageId,
-                    };
-                }
-                catch (error)
-                {
-                    const err = error as Error;
-                    authLogger.email.error('Failed to send email via AWS SES', {
-                        to,
-                        error: err.message,
-                    });
+                return {
+                    success: true,
+                    messageId: response.MessageId,
+                };
+            }
+            catch (error)
+            {
+                const err = error as Error;
+                authLogger.email.error('Failed to send email via AWS SES', {
+                    to,
+                    error: err.message,
+                });
 
-                    return {
-                        success: false,
-                        error: err.message || 'Failed to send email via AWS SES',
-                    };
-                }
-            },
-        };
-    }
-    catch (error)
-    {
-        // @aws-sdk/client-ses not installed
-        authLogger.email.debug('@aws-sdk/client-ses not available, AWS SES provider disabled', {
-            error: error instanceof Error ? error.message : String(error),
-        });
-        return null;
-    }
+                return {
+                    success: false,
+                    error: err.message || 'Failed to send email via AWS SES',
+                };
+            }
+        },
+    };
 }
 
 /**
- * AWS SES Provider instance (lazy initialization)
+ * AWS SES Provider instance
  */
 export const awsSESProvider = createAWSSESProvider();

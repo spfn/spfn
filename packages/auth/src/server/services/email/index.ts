@@ -41,16 +41,8 @@ export { sendEmail, registerEmailProvider, getEmailProvider } from './provider';
 export type { SendEmailParams, SendEmailResult, EmailProvider } from './types';
 export { createAWSSESProvider, awsSESProvider } from './aws-ses.provider';
 
-// Auto-register AWS SES provider if available
+// Auto-register AWS SES provider
 import { awsSESProvider } from './aws-ses.provider';
 import { registerEmailProvider } from './provider';
-import { authLogger } from '../../logger';
 
-if (awsSESProvider)
-{
-    registerEmailProvider(awsSESProvider);
-}
-else
-{
-    authLogger.email.warn('No email provider registered, using fallback (dev mode). Emails will NOT be sent. Install @aws-sdk/client-ses to enable AWS SES.');
-}
+registerEmailProvider(awsSESProvider);
