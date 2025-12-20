@@ -12,5 +12,6 @@ export type {
     NotifyConfig,
     NotificationProvider,
     WorkflowEvent,
+    WorkflowEventType,
     InferWorkflowInput,
 } from './types';

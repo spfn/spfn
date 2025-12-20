@@ -6,6 +6,27 @@ import type { WorkflowDef, WorkflowEvent } from '../builder/types';
 import type { WorkflowExecution, WorkflowStepExecution } from '../entities';
 
 /**
+ * Logger interface for workflow engine
+ */
+export interface WorkflowLogger
+{
+    info(message: string, ...args: unknown[]): void;
+    error(message: string, ...args: unknown[]): void;
+    warn(message: string, ...args: unknown[]): void;
+    debug(message: string, ...args: unknown[]): void;
+}
+
+/**
+ * Default console logger
+ */
+export const defaultLogger: WorkflowLogger = {
+    info: (message, ...args) => console.log(message, ...args),
+    error: (message, ...args) => console.error(message, ...args),
+    warn: (message, ...args) => console.warn(message, ...args),
+    debug: (message, ...args) => console.debug(message, ...args),
+};
+
+/**
  * Workflow engine configuration
  */
 export interface WorkflowEngineConfig
@@ -24,6 +45,16 @@ export interface WorkflowEngineConfig
      * Large output threshold in bytes (default: 1MB)
      */
     largeOutputThreshold?: number;
+
+    /**
+     * Custom logger (optional, defaults to console)
+     */
+    logger?: WorkflowLogger;
+
+    /**
+     * Enable input schema validation (default: true)
+     */
+    validateInput?: boolean;
 }
 
 /**

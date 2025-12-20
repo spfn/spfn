@@ -94,7 +94,8 @@ export const provisionTenant = workflow('provision-tenant')
         tenantId: ctx.input.tenantId,
         appRepoUrl: ctx.results.appRepo.repoUrl,
         gitopsRepoUrl: ctx.results.gitopsRepo.repoUrl,
-    }));
+    }))
+    .build();
 ```
 
 ### 3. Configuration Registration

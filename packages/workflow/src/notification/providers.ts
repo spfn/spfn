@@ -2,7 +2,7 @@
  * Built-in Notification Providers
  */
 
-import type { WorkflowEvent } from '../builder/types';
+import type { WorkflowEvent, WorkflowEventType } from '../builder/types';
 import type { NotificationProvider } from './types';
 
 /**
@@ -230,7 +230,7 @@ export function slackProvider(config: SlackProviderConfig): NotificationProvider
 /**
  * Get color for event type (Slack attachment)
  */
-function getEventColor(type: string): string
+function getEventColor(type: WorkflowEventType): string
 {
     switch (type)
     {
@@ -242,7 +242,8 @@ function getEventColor(type: string): string
             return 'danger'; // red
         case 'cancelled':
             return 'warning'; // yellow
-        default:
+        case 'started':
+        case 'step.started':
             return '#439FE0'; // blue
     }
 }
@@ -268,8 +269,6 @@ function formatEventText(event: WorkflowEvent): string
             return `Step '${event.stepName}' completed`;
         case 'step.failed':
             return `Step '${event.stepName}' failed: ${event.error}`;
-        default:
-            return `Unknown event: ${event.type}`;
     }
 }
 

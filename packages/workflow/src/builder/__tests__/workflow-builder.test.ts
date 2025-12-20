@@ -55,7 +55,7 @@ const notifyComplete = job('notify-complete')
         appRepoUrl: Type.String(),
         gitopsRepoUrl: Type.String(),
     }))
-    .handler(async (input) =>
+    .handler(async (_input) =>
     {
         // notification logic
     });

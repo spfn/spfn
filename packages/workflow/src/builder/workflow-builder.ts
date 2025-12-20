@@ -22,7 +22,7 @@ export class WorkflowBuilder<
     TResults extends Record<string, unknown> = Record<string, never>
 >
 {
-    private _name: TName;
+    private readonly _name: TName;
     private _inputSchema?: TSchema;
     private _steps: WorkflowStepDef[] = [];
     private _resumable: boolean = false;

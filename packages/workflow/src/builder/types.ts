@@ -80,11 +80,23 @@ export interface NotificationProvider
 }
 
 /**
+ * Workflow event types for notification
+ */
+export type WorkflowEventType =
+    | 'started'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'step.started'
+    | 'step.completed'
+    | 'step.failed';
+
+/**
  * Workflow event for notifications
  */
 export interface WorkflowEvent
 {
-    type: 'started' | 'step.started' | 'step.completed' | 'step.failed' | 'completed' | 'failed' | 'cancelled';
+    type: WorkflowEventType;
     workflowName: string;
     executionId: string;
     stepName?: string;
@@ -103,7 +115,7 @@ export interface NotifyConfig
     /**
      * Events to notify on
      */
-    on: Array<'started' | 'completed' | 'failed' | 'cancelled'>;
+    on: WorkflowEventType[];
 
     /**
      * Condition for notification

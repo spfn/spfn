@@ -46,16 +46,18 @@ export type {
     NotifyConfig,
     NotificationProvider,
     WorkflowEvent,
+    WorkflowEventType,
     InferWorkflowInput,
 } from './builder';
 
 // Engine
-export { createWorkflowEngine } from './engine';
+export { createWorkflowEngine, defaultLogger } from './engine';
 
 // Engine Types
 export type {
     WorkflowEngine,
     WorkflowEngineConfig,
+    WorkflowLogger,
     OutputStorage,
     ExecutionResult,
     ExecutionStatus,

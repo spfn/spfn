@@ -4,7 +4,8 @@
  * Orchestrates workflow execution using @spfn/core Job and Events
  */
 
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
+import { Value } from '@sinclair/typebox/value';
 import type { WorkflowDef, WorkflowEvent, WorkflowStepDef } from '../builder/types';
 import type { WorkflowStatus, WorkflowStepStatus } from '../types';
 import {
@@ -13,14 +14,16 @@ import {
     type WorkflowExecution,
     type WorkflowStepExecution,
 } from '../entities';
-import type {
-    WorkflowEngineConfig,
-    WorkflowEngine,
-    ExecutionResult,
-    ExecutionStatus,
-    CancelOptions,
-    ListOptions,
-    ExtractWorkflowInput,
+import {
+    defaultLogger,
+    type WorkflowEngineConfig,
+    type WorkflowEngine,
+    type WorkflowLogger,
+    type ExecutionResult,
+    type ExecutionStatus,
+    type CancelOptions,
+    type ListOptions,
+    type ExtractWorkflowInput,
 } from './types';
 
 /**
@@ -37,6 +40,9 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
     private config: WorkflowEngineConfig;
     private workflows: Map<string, WorkflowDef>;
     private subscribers: Map<string, Set<(event: WorkflowEvent) => void>>;
+    private logger: WorkflowLogger;
+    /** Track executions currently being processed to prevent race conditions */
+    private processingExecutions: Set<string>;
 
     constructor(
         workflows: TWorkflows,
@@ -46,6 +52,8 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
         this.config = config;
         this.workflows = new Map();
         this.subscribers = new Map();
+        this.logger = config.logger ?? defaultLogger;
+        this.processingExecutions = new Set();
 
         // Register workflows
         for (const wf of workflows)
@@ -77,32 +85,48 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
             throw new Error(`Workflow '${name}' not found`);
         }
 
-        // Create execution record
-        const [execution] = await this.db
-            .insert(workflowExecutions)
-            .values({
-                workflowName: name,
-                status: 'pending' as WorkflowStatus,
-                input: input as Record<string, unknown>,
-                currentStep: 0,
-            })
-            .returning() as WorkflowExecution[];
-
-        // Create step execution records
-        const stepRecords = workflow.steps.map((step, index) => ({
-            executionId: execution.id,
-            stepName: step.name,
-            stepIndex: index,
-            status: 'pending' as WorkflowStepStatus,
-        }));
-
-        if (stepRecords.length > 0)
+        // Validate input against schema if enabled (default: true)
+        if (this.config.validateInput !== false && workflow.inputSchema)
         {
-            await this.db
-                .insert(workflowStepExecutions)
-                .values(stepRecords)
-                .returning();
+            if (!Value.Check(workflow.inputSchema, input))
+            {
+                const errors = [...Value.Errors(workflow.inputSchema, input)];
+                const errorMessages = errors.map(e => `${e.path}: ${e.message}`).join(', ');
+                throw new Error(`Invalid workflow input: ${errorMessages}`);
+            }
         }
+
+        // Create execution and steps in a transaction for atomicity
+        const execution = await this.db.transaction(async (tx: typeof this.db) =>
+        {
+            // Create execution record
+            const [exec] = await tx
+                .insert(workflowExecutions)
+                .values({
+                    workflowName: name,
+                    status: 'pending' as WorkflowStatus,
+                    input: input as Record<string, unknown>,
+                    currentStep: 0,
+                })
+                .returning() as WorkflowExecution[];
+
+            // Create step execution records
+            const stepRecords = workflow.steps.map((step, index) => ({
+                executionId: exec.id,
+                stepName: step.name,
+                stepIndex: index,
+                status: 'pending' as WorkflowStepStatus,
+            }));
+
+            if (stepRecords.length > 0)
+            {
+                await tx
+                    .insert(workflowStepExecutions)
+                    .values(stepRecords);
+            }
+
+            return exec;
+        });
 
         // Emit started event
         this.emitEvent({
@@ -117,7 +141,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
         this.executeNextStep(execution.id, workflow, input as Record<string, unknown>)
             .catch((error) =>
             {
-                console.error(`[Workflow:${name}] Execution error:`, error);
+                this.logger.error(`[Workflow:${name}] Execution error:`, error);
             });
 
         return {
@@ -138,7 +162,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
     {
         // Get current execution state
         const execution = await this.getExecution(executionId);
-        if (!execution || execution.status !== 'pending' && execution.status !== 'running')
+        if (!execution || (execution.status !== 'pending' && execution.status !== 'running'))
         {
             return;
         }
@@ -164,11 +188,19 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
         // Get the next step(s) to execute
         const currentStepIndex = Math.min(...pendingSteps.map(s => s.stepIndex));
 
+        // Update currentStep in execution record
+        await this.db
+            .update(workflowExecutions)
+            .set({ currentStep: currentStepIndex, updatedAt: new Date() })
+            .where(eq(workflowExecutions.id, executionId));
+
         // Check if this is a parallel group
         const stepDef = workflow.steps[currentStepIndex];
         if (stepDef.type === 'parallel')
         {
             // Execute all parallel steps concurrently
+            // NOTE: If one step fails, others continue to completion.
+            // This is intentional - all results are needed for proper rollback.
             const parallelSteps = workflow.steps.filter(
                 s => s.parallelGroup === stepDef.parallelGroup
             );
@@ -345,7 +377,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
             catch (compensateError)
             {
                 // Log but continue with other compensations
-                console.error(
+                this.logger.error(
                     `[Workflow:${workflow.name}] Compensate error for step ${stepExecution.stepName}:`,
                     compensateError
                 );
@@ -552,15 +584,22 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
                 }
                 catch (error)
                 {
-                    console.error('[WorkflowEngine] Subscriber error:', error);
+                    this.logger.error('[WorkflowEngine] Subscriber error:', error);
                 }
+            }
+
+            // Cleanup subscribers on terminal events to prevent memory leaks
+            const terminalEvents = ['completed', 'failed', 'cancelled', 'compensated'];
+            if (terminalEvents.includes(event.type))
+            {
+                this.subscribers.delete(event.executionId);
             }
         }
 
         // Send notifications (async, don't block)
         this.sendNotifications(event).catch((error) =>
         {
-            console.error('[WorkflowEngine] Notification error:', error);
+            this.logger.error('[WorkflowEngine] Notification error:', error);
         });
     }
 
@@ -578,7 +617,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
         const { on, when, providers } = workflow.notifyConfig;
 
         // Check if this event type should trigger notification
-        if (!on.includes(event.type as typeof on[number]))
+        if (!on.includes(event.type))
         {
             return;
         }
@@ -599,7 +638,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
                 }
                 catch (error)
                 {
-                    console.error(
+                    this.logger.error(
                         `[WorkflowEngine] Notification provider '${provider.name}' error:`,
                         error
                     );
@@ -624,76 +663,90 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
 
     async list(options?: ListOptions): Promise<ExecutionStatus[]>
     {
-        // Build query with optional filters
-        let executions: WorkflowExecution[];
+        // Build where conditions
+        const conditions = [];
+        if (options?.workflowName)
+        {
+            conditions.push(eq(workflowExecutions.workflowName, options.workflowName));
+        }
+        if (options?.status)
+        {
+            conditions.push(eq(workflowExecutions.status, options.status as WorkflowStatus));
+        }
 
-        if (options?.workflowName && options?.status)
+        // Build query with DB-level pagination
+        let query = this.db
+            .select()
+            .from(workflowExecutions)
+            .orderBy(desc(workflowExecutions.createdAt));
+
+        if (conditions.length > 0)
         {
-            executions = await this.db
-                .select()
-                .from(workflowExecutions)
-                .where(
-                    and(
-                        eq(workflowExecutions.workflowName, options.workflowName),
-                        eq(workflowExecutions.status, options.status as WorkflowStatus)
-                    )
-                )
-                .orderBy(desc(workflowExecutions.createdAt));
-        }
-        else if (options?.workflowName)
-        {
-            executions = await this.db
-                .select()
-                .from(workflowExecutions)
-                .where(eq(workflowExecutions.workflowName, options.workflowName))
-                .orderBy(desc(workflowExecutions.createdAt));
-        }
-        else if (options?.status)
-        {
-            executions = await this.db
-                .select()
-                .from(workflowExecutions)
-                .where(eq(workflowExecutions.status, options.status as WorkflowStatus))
-                .orderBy(desc(workflowExecutions.createdAt));
-        }
-        else
-        {
-            executions = await this.db
-                .select()
-                .from(workflowExecutions)
-                .orderBy(desc(workflowExecutions.createdAt));
+            query = query.where(conditions.length === 1 ? conditions[0] : and(...conditions));
         }
 
         if (options?.limit)
         {
-            executions = executions.slice(
-                options.offset ?? 0,
-                (options.offset ?? 0) + options.limit
-            );
+            query = query.limit(options.limit);
         }
-
-        // Fetch steps for each execution
-        const results: ExecutionStatus[] = [];
-        for (const execution of executions)
+        if (options?.offset)
         {
-            const steps = await this.db
-                .select()
-                .from(workflowStepExecutions)
-                .where(eq(workflowStepExecutions.executionId, execution.id))
-                .orderBy(workflowStepExecutions.stepIndex) as WorkflowStepExecution[];
-
-            results.push({ ...execution, steps });
+            query = query.offset(options.offset);
         }
 
-        return results;
+        const executions = await query as WorkflowExecution[];
+
+        if (executions.length === 0)
+        {
+            return [];
+        }
+
+        // Fetch all steps in single query (avoid N+1)
+        const executionIds = executions.map(e => e.id);
+        const allSteps = await this.db
+            .select()
+            .from(workflowStepExecutions)
+            .where(inArray(workflowStepExecutions.executionId, executionIds))
+            .orderBy(workflowStepExecutions.stepIndex) as WorkflowStepExecution[];
+
+        // Group steps by executionId
+        const stepsByExecutionId = new Map<string, WorkflowStepExecution[]>();
+        for (const step of allSteps)
+        {
+            const steps = stepsByExecutionId.get(step.executionId) ?? [];
+            steps.push(step);
+            stepsByExecutionId.set(step.executionId, steps);
+        }
+
+        // Combine executions with their steps
+        return executions.map(execution => ({
+            ...execution,
+            steps: stepsByExecutionId.get(execution.id) ?? [],
+        }));
     }
 
     async retry(executionId: string): Promise<ExecutionResult>
     {
+        // Prevent concurrent retry calls for the same execution
+        if (this.processingExecutions.has(executionId))
+        {
+            throw new Error(`Execution '${executionId}' is already being processed`);
+        }
+
         const execution = await this.getExecution(executionId);
         if (!execution)
         {
             throw new Error(`Execution '${executionId}' not found`);
+        }
+
+        // Validate execution status - only failed or compensated can be retried
+        const retryableStatuses: WorkflowStatus[] = ['failed', 'compensated'];
+        if (!retryableStatuses.includes(execution.status))
+        {
+            throw new Error(
+                `Cannot retry execution '${executionId}' with status '${execution.status}'. ` +
+                `Only 'failed' or 'compensated' executions can be retried.`
+            );
         }
 
         const workflow = this.workflows.get(execution.workflowName);
@@ -702,27 +755,53 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
             throw new Error(`Workflow '${execution.workflowName}' not found`);
         }
 
-        if (workflow.resumable)
-        {
-            // Resume from failed step
-            await this.updateExecutionStatus(executionId, 'running');
+        // Mark as processing to prevent race conditions
+        this.processingExecutions.add(executionId);
 
-            // Reset failed steps to pending
-            const failedSteps = execution.steps.filter(s => s.status === 'failed');
-            for (const step of failedSteps)
+        try
+        {
+            if (workflow.resumable)
             {
-                await this.updateStepStatus(step.id, 'pending');
+                // Resume from failed step - only reset failed steps
+                await this.updateExecutionStatus(executionId, 'running');
+
+                const failedSteps = execution.steps.filter(s => s.status === 'failed');
+                for (const step of failedSteps)
+                {
+                    await this.updateStepStatus(step.id, 'pending');
+                }
+            }
+            else
+            {
+                // Restart from beginning - reset all steps
+                await this.resetAllSteps(executionId, execution.steps);
+
+                await this.db
+                    .update(workflowExecutions)
+                    .set({
+                        status: 'pending' as WorkflowStatus,
+                        currentStep: 0,
+                        error: null,
+                        completedAt: null,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(workflowExecutions.id, executionId));
             }
 
-            // Continue execution
+            // Start execution (async)
             this.executeNextStep(
                 executionId,
                 workflow,
                 execution.input as Record<string, unknown>
-            ).catch((error) =>
-            {
-                console.error(`[Workflow:${workflow.name}] Retry error:`, error);
-            });
+            )
+                .catch((error) =>
+                {
+                    this.logger.error(`[Workflow:${workflow.name}] Retry error:`, error);
+                })
+                .finally(() =>
+                {
+                    this.processingExecutions.delete(executionId);
+                });
 
             return {
                 id: executionId,
@@ -730,51 +809,34 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
                 status: 'pending',
             };
         }
-        else
+        catch (error)
         {
-            // Restart from beginning
-            // Reset all steps
-            for (const step of execution.steps)
-            {
-                await this.db
-                    .update(workflowStepExecutions)
-                    .set({
-                        status: 'pending' as WorkflowStepStatus,
-                        output: null,
-                        error: null,
-                        startedAt: null,
-                        completedAt: null,
-                        updatedAt: new Date(),
-                    })
-                    .where(eq(workflowStepExecutions.id, step.id));
-            }
+            this.processingExecutions.delete(executionId);
+            throw error;
+        }
+    }
 
+    /**
+     * Reset all steps to pending state
+     */
+    private async resetAllSteps(
+        _executionId: string,
+        steps: WorkflowStepExecution[]
+    ): Promise<void>
+    {
+        for (const step of steps)
+        {
             await this.db
-                .update(workflowExecutions)
+                .update(workflowStepExecutions)
                 .set({
-                    status: 'pending' as WorkflowStatus,
-                    currentStep: 0,
+                    status: 'pending' as WorkflowStepStatus,
+                    output: null,
                     error: null,
+                    startedAt: null,
                     completedAt: null,
                     updatedAt: new Date(),
                 })
-                .where(eq(workflowExecutions.id, executionId));
-
-            // Start execution
-            this.executeNextStep(
-                executionId,
-                workflow,
-                execution.input as Record<string, unknown>
-            ).catch((error) =>
-            {
-                console.error(`[Workflow:${workflow.name}] Restart error:`, error);
-            });
-
-            return {
-                id: executionId,
-                workflowName: execution.workflowName,
-                status: 'pending',
-            };
+                .where(eq(workflowStepExecutions.id, step.id));
         }
     }
 
@@ -784,6 +846,16 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
         if (!execution)
         {
             throw new Error(`Execution '${executionId}' not found`);
+        }
+
+        // Validate execution status - only pending or running can be cancelled
+        const cancellableStatuses: WorkflowStatus[] = ['pending', 'running'];
+        if (!cancellableStatuses.includes(execution.status))
+        {
+            throw new Error(
+                `Cannot cancel execution '${executionId}' with status '${execution.status}'. ` +
+                `Only 'pending' or 'running' executions can be cancelled.`
+            );
         }
 
         const workflow = this.workflows.get(execution.workflowName);
