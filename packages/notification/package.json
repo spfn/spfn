@@ -1,0 +1,77 @@
+{
+    "name": "@spfn/notification",
+    "version": "0.1.0-beta.1",
+    "type": "module",
+    "description": "Multi-channel notification system for SPFN - Email, SMS, Slack, Push",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./server": {
+            "types": "./dist/server.d.ts",
+            "import": "./dist/server.js"
+        },
+        "./config": {
+            "types": "./dist/config/index.d.ts",
+            "import": "./dist/config/index.js"
+        }
+    },
+    "scripts": {
+        "build": "pnpm check:circular && tsup",
+        "dev": "tsup --watch",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "check:circular": "madge --circular --extensions ts src/",
+        "type-check": "tsc --noEmit"
+    },
+    "keywords": [
+        "spfn",
+        "notification",
+        "email",
+        "sms",
+        "slack",
+        "push",
+        "aws-ses",
+        "aws-sns"
+    ],
+    "author": "Ray Im <rayim@inflike.com>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/spfn/spfn.git",
+        "directory": "packages/notification"
+    },
+    "dependencies": {
+        "@spfn/core": "workspace:*"
+    },
+    "peerDependencies": {
+        "@aws-sdk/client-ses": "^3.0.0",
+        "@aws-sdk/client-sns": "^3.0.0"
+    },
+    "peerDependenciesMeta": {
+        "@aws-sdk/client-ses": {
+            "optional": true
+        },
+        "@aws-sdk/client-sns": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@sinclair/typebox": "^0.34.30",
+        "@types/node": "^20.11.0",
+        "drizzle-orm": "^0.44.2",
+        "madge": "^8.0.0",
+        "tsup": "^8.5.0",
+        "typescript": "^5.3.3",
+        "vitest": "^4.0.6"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "tag": "beta"
+    }
+}

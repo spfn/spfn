@@ -1,0 +1,19 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "composite": false,
+        "lib": ["ES2022"],
+        "noEmit": false,
+        "baseUrl": ".",
+        "paths": {
+            "@spfn/notification/*": ["./src/*"],
+            "@spfn/notification": ["./src/index.ts"],
+            "@spfn/notification/server": ["./src/server.ts"],
+            "@spfn/notification/config": ["./src/config/index.ts"]
+        }
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist"]
+}
