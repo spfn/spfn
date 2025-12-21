@@ -345,6 +345,114 @@ const slackNotifier = slackProvider({
 });
 ```
 
+### Using with @spfn/notification
+
+The `emailProvider` accepts a custom `send` function, making it easy to integrate with `@spfn/notification` for robust email delivery with templates and scheduling.
+
+#### Email with @spfn/notification
+
+```typescript
+import { emailProvider } from '@spfn/workflow';
+import { sendEmail } from '@spfn/notification/server';
+
+const emailNotifier = emailProvider({
+    to: ['admin@example.com'],
+    from: 'noreply@example.com',
+    subject: '[Workflow] {workflowName}: {type}',
+    send: async ({ to, from, subject, body }) => {
+        await sendEmail({
+            to,
+            from,
+            subject,
+            text: body,
+            html: `<pre>${body}</pre>`,
+        });
+    },
+});
+
+// Use in workflow
+workflow('provision-tenant')
+    .pipe(...)
+    .notify({
+        on: ['failed', 'completed'],
+        providers: [emailNotifier],
+    })
+    .build();
+```
+
+#### SMS Notifications
+
+Create a custom provider for SMS notifications:
+
+```typescript
+import { sendSMS } from '@spfn/notification/server';
+import type { NotificationProvider, WorkflowEvent } from '@spfn/workflow';
+
+function smsProvider(phoneNumbers: string[]): NotificationProvider
+{
+    return {
+        name: 'sms',
+        async notify(event: WorkflowEvent): Promise<void>
+        {
+            const message = `[${event.workflowName}] ${event.type}` +
+                (event.error ? `: ${event.error}` : '');
+
+            for (const to of phoneNumbers)
+            {
+                await sendSMS({ to, message });
+            }
+        },
+    };
+}
+
+// Use in workflow
+const smsNotifier = smsProvider(['+821012345678']);
+
+workflow('critical-workflow')
+    .pipe(...)
+    .notify({
+        on: ['failed'],
+        providers: [smsNotifier],
+    })
+    .build();
+```
+
+#### Combined Notifications
+
+Use multiple providers for different scenarios:
+
+```typescript
+import { consoleProvider, emailProvider, slackProvider } from '@spfn/workflow';
+import { sendEmail } from '@spfn/notification/server';
+
+workflow('provision-tenant')
+    .pipe(...)
+    .notify({
+        on: ['started', 'completed', 'failed'],
+        providers: [
+            consoleProvider,  // Always log to console
+        ],
+    })
+    .notify({
+        on: ['failed'],
+        providers: [
+            slackProvider({ webhookUrl: process.env.SLACK_WEBHOOK_URL! }),
+            emailProvider({
+                to: ['oncall@example.com'],
+                from: 'alerts@example.com',
+                send: async (opts) => {
+                    await sendEmail({
+                        to: opts.to,
+                        subject: opts.subject,
+                        text: opts.body,
+                    });
+                },
+            }),
+        ],
+    })
+    .build();
+```
+
 ---
 
 ## Events
