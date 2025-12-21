@@ -2,6 +2,8 @@
  * @spfn/notification - Entities
  */
 
+export { notificationSchema } from './schema';
+
 export {
     notifications,
     NOTIFICATION_CHANNELS,

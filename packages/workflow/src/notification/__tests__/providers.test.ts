@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { consoleProvider, emailProvider, slackProvider } from '../providers';
+import { consoleProvider, formatEventAsText } from '../providers';
 import type { WorkflowEvent } from '../../builder/types';
 
 describe('notification providers', () =>
@@ -87,113 +87,38 @@ describe('notification providers', () =>
         });
     });
 
-    describe('emailProvider', () =>
+    describe('formatEventAsText', () =>
     {
-        it('should call send function with correct parameters', async () =>
+        it('should format basic event', () =>
         {
-            const sendFn = vi.fn().mockResolvedValue(undefined);
+            const result = formatEventAsText(baseEvent);
 
-            const provider = emailProvider({
-                to: ['admin@example.com'],
-                from: 'noreply@example.com',
-                send: sendFn,
-            });
-
-            await provider.notify({
-                ...baseEvent,
-                type: 'failed',
-                error: 'Database connection failed',
-            });
-
-            expect(sendFn).toHaveBeenCalledWith({
-                to: ['admin@example.com'],
-                from: 'noreply@example.com',
-                subject: expect.stringContaining('test-workflow'),
-                body: expect.stringContaining('failed'),
-            });
+            expect(result).toContain('Workflow: test-workflow');
+            expect(result).toContain('Event: started');
+            expect(result).toContain('Execution ID: exec-123');
+            expect(result).toContain('Timestamp:');
         });
 
-        it('should use custom subject template', async () =>
+        it('should include step name when present', () =>
         {
-            const sendFn = vi.fn().mockResolvedValue(undefined);
-
-            const provider = emailProvider({
-                to: ['admin@example.com'],
-                from: 'noreply@example.com',
-                subject: '[ALERT] {workflowName} - {type}',
-                send: sendFn,
-            });
-
-            await provider.notify({
+            const result = formatEventAsText({
                 ...baseEvent,
-                type: 'failed',
+                type: 'step.started',
+                stepName: 'create-repo',
             });
 
-            expect(sendFn).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    subject: '[ALERT] test-workflow - failed',
-                }),
-            );
-        });
-    });
-
-    describe('slackProvider', () =>
-    {
-        it('should send POST request to webhook URL', async () =>
-        {
-            const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
-                new Response('ok', { status: 200 })
-            );
-
-            const provider = slackProvider({
-                webhookUrl: 'https://hooks.slack.com/services/xxx',
-                channel: '#alerts',
-            });
-
-            await provider.notify({
-                ...baseEvent,
-                type: 'completed',
-            });
-
-            expect(fetchSpy).toHaveBeenCalledWith(
-                'https://hooks.slack.com/services/xxx',
-                expect.objectContaining({
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                }),
-            );
-
-            const callBody = JSON.parse(
-                (fetchSpy.mock.calls[0][1] as RequestInit).body as string
-            );
-            expect(callBody.channel).toBe('#alerts');
-            expect(callBody.attachments[0].color).toBe('good');
-
-            fetchSpy.mockRestore();
+            expect(result).toContain('Step: create-repo');
         });
 
-        it('should use danger color for failed events', async () =>
+        it('should include error when present', () =>
         {
-            const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
-                new Response('ok', { status: 200 })
-            );
-
-            const provider = slackProvider({
-                webhookUrl: 'https://hooks.slack.com/services/xxx',
-            });
-
-            await provider.notify({
+            const result = formatEventAsText({
                 ...baseEvent,
                 type: 'failed',
-                error: 'Step failed',
+                error: 'Connection timeout',
             });
 
-            const callBody = JSON.parse(
-                (fetchSpy.mock.calls[0][1] as RequestInit).body as string
-            );
-            expect(callBody.attachments[0].color).toBe('danger');
-
-            fetchSpy.mockRestore();
+            expect(result).toContain('Error: Connection timeout');
         });
     });
 });

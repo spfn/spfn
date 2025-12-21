@@ -1,5 +1,8 @@
 /**
  * Notification Module
+ *
+ * Only consoleProvider is provided by default.
+ * Implement custom providers using @spfn/notification for email, SMS, Slack, etc.
  */
 
 export type {
@@ -10,11 +13,5 @@ export type {
 
 export {
     consoleProvider,
-    emailProvider,
-    slackProvider,
-} from './providers';
-
-export type {
-    EmailProviderConfig,
-    SlackProviderConfig,
+    formatEventAsText,
 } from './providers';

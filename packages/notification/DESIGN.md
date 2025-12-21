@@ -378,10 +378,14 @@ configureNotification({
 
 ## Entity 스키마 (발송 이력)
 
-```typescript
-// entities/notifications.ts
+All tables are created in the `spfn_notification` schema.
 
-export const notifications = pgTable('spfn_notifications', {
+```typescript
+// entities/schema.ts
+export const notificationSchema = createSchema('@spfn/notification');
+
+// entities/notifications.ts
+export const notifications = notificationSchema.table('history', {
     id: id(),
 
     channel: text('channel', {
@@ -397,13 +401,20 @@ export const notifications = pgTable('spfn_notifications', {
     content: text('content'),
 
     status: text('status', {
-        enum: ['pending', 'sent', 'failed']
+        enum: ['scheduled', 'pending', 'sent', 'failed', 'cancelled']
     }).notNull().default('pending'),
 
     providerMessageId: text('provider_message_id'),
     errorMessage: text('error_message'),
 
-    sentAt: timestamp('sent_at'),
+    scheduledAt: utcTimestamp('scheduled_at'),
+    sentAt: utcTimestamp('sent_at'),
+
+    jobId: text('job_id'),          // pg-boss job ID
+    batchId: text('batch_id'),      // Bulk operation ID
+
+    referenceType: text('reference_type'),
+    referenceId: text('reference_id'),
 
     ...timestamps()
 });

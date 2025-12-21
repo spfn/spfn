@@ -2,6 +2,8 @@
  * Workflow Entities
  */
 
+export { workflowSchema } from './schema';
+
 export {
     workflowExecutions,
     type WorkflowExecution,

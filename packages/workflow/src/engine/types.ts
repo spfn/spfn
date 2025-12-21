@@ -2,7 +2,7 @@
  * Workflow Engine Types
  */
 
-import type { WorkflowDef, WorkflowEvent } from '../builder/types';
+import type { WorkflowDef, WorkflowEvent } from '../builder';
 import type { WorkflowExecution, WorkflowStepExecution } from '../entities';
 
 /**

@@ -2,8 +2,8 @@
  * Workflow Configuration Types
  */
 
-import type { WorkflowDef } from '../builder/types';
-import type { WorkflowEngineConfig } from '../engine/types';
+import type { WorkflowDef } from '../builder';
+import type { WorkflowEngineConfig } from '../engine';
 
 /**
  * Workflow module configuration

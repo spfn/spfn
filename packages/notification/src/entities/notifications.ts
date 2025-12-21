@@ -4,8 +4,9 @@
  * Stores notification sending history for tracking and auditing
  */
 
-import { pgTable, text, jsonb, index } from 'drizzle-orm/pg-core';
+import { text, jsonb, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, utcTimestamp } from '@spfn/core/db';
+import { notificationSchema } from './schema';
 
 /**
  * Notification channel types
@@ -22,7 +23,7 @@ export type NotificationStatus = typeof NOTIFICATION_STATUSES[number];
 /**
  * Notifications table - stores all notification sending history
  */
-export const notifications = pgTable('spfn_notifications',
+export const notifications = notificationSchema.table('history',
     {
         id: id(),
 
@@ -109,14 +110,14 @@ export const notifications = pgTable('spfn_notifications',
         ...timestamps(),
     },
     (table) => [
-        index('spfn_notifications_channel_idx').on(table.channel),
-        index('spfn_notifications_status_idx').on(table.status),
-        index('spfn_notifications_recipient_idx').on(table.recipient),
-        index('spfn_notifications_created_at_idx').on(table.createdAt),
-        index('spfn_notifications_scheduled_at_idx').on(table.scheduledAt),
-        index('spfn_notifications_job_id_idx').on(table.jobId),
-        index('spfn_notifications_batch_id_idx').on(table.batchId),
-        index('spfn_notifications_reference_idx').on(table.referenceType, table.referenceId),
+        index('noti_channel_idx').on(table.channel),
+        index('noti_status_idx').on(table.status),
+        index('noti_recipient_idx').on(table.recipient),
+        index('noti_created_at_idx').on(table.createdAt),
+        index('noti_scheduled_at_idx').on(table.scheduledAt),
+        index('noti_job_id_idx').on(table.jobId),
+        index('noti_batch_id_idx').on(table.batchId),
+        index('noti_reference_idx').on(table.referenceType, table.referenceId),
     ]
 );
 

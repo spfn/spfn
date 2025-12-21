@@ -229,10 +229,12 @@ retry(id):
 
 ## State Persistence
 
+All tables are created in the `spfn_workflow` schema.
+
 ### Table Structure
 
 ```typescript
-// workflow_executions
+// spfn_workflow.executions
 interface WorkflowExecution {
     id: string;
     workflowName: string;
@@ -244,7 +246,7 @@ interface WorkflowExecution {
     completedAt?: Date;
 }
 
-// workflow_step_executions
+// spfn_workflow.step_executions
 interface WorkflowStepExecution {
     id: string;
     executionId: string;      // FK

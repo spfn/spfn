@@ -301,9 +301,11 @@ unsubscribe();
 
 ### Notification Providers
 
+Only `consoleProvider` is provided by default. For email, SMS, Slack, etc., implement your own provider using `@spfn/notification`.
+
 #### `consoleProvider`
 
-Logs events to console.
+Logs events to console (built-in).
 
 ```typescript
 import { consoleProvider } from '@spfn/workflow';
@@ -314,141 +316,117 @@ import { consoleProvider } from '@spfn/workflow';
 })
 ```
 
-#### `emailProvider(config)`
+#### `formatEventAsText(event)`
 
-Sends email notifications.
+Helper function to format workflow events as plain text. Useful when implementing custom providers.
 
 ```typescript
-import { emailProvider } from '@spfn/workflow';
+import { formatEventAsText } from '@spfn/workflow';
 
-const emailNotifier = emailProvider({
-    to: ['admin@example.com'],
-    from: 'noreply@example.com',
-    subject: '[ALERT] {workflowName}: {type}',
-    send: async ({ to, from, subject, body }) => {
-        await sendEmail({ to: to[0], from, subject, body });
-    },
-});
+const text = formatEventAsText(event);
+// Output:
+// Workflow: provision-tenant
+// Event: failed
+// Execution ID: exec-123
+// Timestamp: 2024-01-01T00:00:00.000Z
+// Error: Connection timeout
 ```
 
-#### `slackProvider(config)`
+### Custom Providers with @spfn/notification
 
-Sends notifications via Slack webhook.
+Implement custom notification providers using `@spfn/notification` for email, SMS, Slack, etc.
 
-```typescript
-import { slackProvider } from '@spfn/workflow';
-
-const slackNotifier = slackProvider({
-    webhookUrl: process.env.SLACK_WEBHOOK_URL!,
-    channel: '#alerts',
-    username: 'Workflow Bot',
-});
-```
-
-### Using with @spfn/notification
-
-The `emailProvider` accepts a custom `send` function, making it easy to integrate with `@spfn/notification` for robust email delivery with templates and scheduling.
-
-#### Email with @spfn/notification
+#### Email Provider
 
 ```typescript
-import { emailProvider } from '@spfn/workflow';
+import { formatEventAsText } from '@spfn/workflow';
 import { sendEmail } from '@spfn/notification/server';
+import type { NotificationProvider } from '@spfn/workflow';
 
-const emailNotifier = emailProvider({
-    to: ['admin@example.com'],
-    from: 'noreply@example.com',
-    subject: '[Workflow] {workflowName}: {type}',
-    send: async ({ to, from, subject, body }) => {
+const emailProvider: NotificationProvider = {
+    name: 'email',
+    async notify(event)
+    {
         await sendEmail({
-            to,
-            from,
-            subject,
-            text: body,
-            html: `<pre>${body}</pre>`,
+            to: 'admin@example.com',
+            subject: `[Workflow] ${event.workflowName}: ${event.type}`,
+            text: formatEventAsText(event),
         });
     },
-});
+};
 
 // Use in workflow
 workflow('provision-tenant')
     .pipe(...)
     .notify({
         on: ['failed', 'completed'],
-        providers: [emailNotifier],
+        providers: [emailProvider],
     })
     .build();
 ```
 
-#### SMS Notifications
-
-Create a custom provider for SMS notifications:
+#### SMS Provider
 
 ```typescript
 import { sendSMS } from '@spfn/notification/server';
-import type { NotificationProvider, WorkflowEvent } from '@spfn/workflow';
+import type { NotificationProvider } from '@spfn/workflow';
 
-function smsProvider(phoneNumbers: string[]): NotificationProvider
-{
-    return {
-        name: 'sms',
-        async notify(event: WorkflowEvent): Promise<void>
-        {
-            const message = `[${event.workflowName}] ${event.type}` +
-                (event.error ? `: ${event.error}` : '');
+const smsProvider: NotificationProvider = {
+    name: 'sms',
+    async notify(event)
+    {
+        const message = `[${event.workflowName}] ${event.type}` +
+            (event.error ? `: ${event.error}` : '');
 
-            for (const to of phoneNumbers)
-            {
-                await sendSMS({ to, message });
-            }
-        },
-    };
-}
+        await sendSMS({
+            to: '+821012345678',
+            message,
+        });
+    },
+};
+```
 
-// Use in workflow
-const smsNotifier = smsProvider(['+821012345678']);
+#### Slack Provider
 
-workflow('critical-workflow')
-    .pipe(...)
-    .notify({
-        on: ['failed'],
-        providers: [smsNotifier],
-    })
-    .build();
+```typescript
+import type { NotificationProvider } from '@spfn/workflow';
+
+const slackProvider: NotificationProvider = {
+    name: 'slack',
+    async notify(event)
+    {
+        await fetch(process.env.SLACK_WEBHOOK_URL!, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: `[${event.workflowName}] ${event.type}`,
+                attachments: [{
+                    color: event.type === 'failed' ? 'danger' : 'good',
+                    fields: [
+                        { title: 'Execution ID', value: event.executionId, short: true },
+                        { title: 'Event', value: event.type, short: true },
+                    ],
+                }],
+            }),
+        });
+    },
+};
 ```
 
 #### Combined Notifications
 
-Use multiple providers for different scenarios:
-
 ```typescript
-import { consoleProvider, emailProvider, slackProvider } from '@spfn/workflow';
-import { sendEmail } from '@spfn/notification/server';
+import { consoleProvider } from '@spfn/workflow';
 
 workflow('provision-tenant')
     .pipe(...)
     .notify({
         on: ['started', 'completed', 'failed'],
-        providers: [
-            consoleProvider,  // Always log to console
-        ],
+        providers: [consoleProvider],
     })
     .notify({
         on: ['failed'],
-        providers: [
-            slackProvider({ webhookUrl: process.env.SLACK_WEBHOOK_URL! }),
-            emailProvider({
-                to: ['oncall@example.com'],
-                from: 'alerts@example.com',
-                send: async (opts) => {
-                    await sendEmail({
-                        to: opts.to,
-                        subject: opts.subject,
-                        text: opts.body,
-                    });
-                },
-            }),
-        ],
+        providers: [emailProvider, slackProvider, smsProvider],
     })
     .build();
 ```
@@ -536,7 +514,9 @@ Rollback: Step2.compensate() → Step1.compensate()
 
 ## Database Entities
 
-### workflow_executions
+All tables are created in the `spfn_workflow` schema.
+
+### spfn_workflow.executions
 
 ```typescript
 {
@@ -552,7 +532,7 @@ Rollback: Step2.compensate() → Step1.compensate()
 }
 ```
 
-### workflow_step_executions
+### spfn_workflow.step_executions
 
 ```typescript
 {

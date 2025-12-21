@@ -71,13 +71,7 @@ export type { WorkflowStatus, WorkflowStepStatus } from './types';
 // Notification Providers
 export {
     consoleProvider,
-    emailProvider,
-    slackProvider,
-} from './notification';
-
-export type {
-    EmailProviderConfig,
-    SlackProviderConfig,
+    formatEventAsText,
 } from './notification';
 
 // Configuration

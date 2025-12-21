@@ -6,7 +6,7 @@
 
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { Value } from '@sinclair/typebox/value';
-import type { WorkflowDef, WorkflowEvent, WorkflowStepDef } from '../builder/types';
+import type { WorkflowDef, WorkflowEvent, WorkflowStepDef } from '../builder';
 import type { WorkflowStatus, WorkflowStepStatus } from '../types';
 import {
     workflowExecutions,
@@ -34,7 +34,7 @@ const DEFAULT_LARGE_OUTPUT_THRESHOLD = 1024 * 1024;
 /**
  * Internal workflow engine implementation
  */
-class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
+class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
     implements WorkflowEngine<TWorkflows>
 {
     private config: WorkflowEngineConfig;
@@ -261,6 +261,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef<string, unknown>[]>
                     startedAt: new Date(),
                 },
             };
+
             const stepInput = step.mapper(context);
 
             // Execute the job

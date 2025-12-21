@@ -1,14 +1,34 @@
 /**
  * Built-in Notification Providers
+ *
+ * Only consoleProvider is provided by default.
+ * For email, SMS, Slack, etc., implement your own provider using @spfn/notification.
+ *
+ * @example
+ * ```typescript
+ * import { sendEmail } from '@spfn/notification/server';
+ * import type { NotificationProvider } from '@spfn/workflow';
+ *
+ * const emailProvider: NotificationProvider = {
+ *     name: 'email',
+ *     async notify(event) {
+ *         await sendEmail({
+ *             to: 'admin@example.com',
+ *             subject: `[Workflow] ${event.workflowName}: ${event.type}`,
+ *             text: formatEventAsText(event),
+ *         });
+ *     },
+ * };
+ * ```
  */
 
-import type { WorkflowEvent, WorkflowEventType } from '../builder/types';
+import type { WorkflowEvent } from '../builder';
 import type { NotificationProvider } from './types';
 
 /**
  * Console notification provider
  *
- * Logs workflow events to console
+ * Logs workflow events to console. This is the only built-in provider.
  *
  * @example
  * ```typescript
@@ -54,228 +74,28 @@ export const consoleProvider: NotificationProvider = {
 };
 
 /**
- * Email provider configuration
- */
-export interface EmailProviderConfig
-{
-    /**
-     * Recipient email addresses
-     */
-    to: string[];
-
-    /**
-     * Sender email address
-     */
-    from: string;
-
-    /**
-     * Email subject template (optional)
-     * Supports placeholders: {workflowName}, {type}, {executionId}
-     */
-    subject?: string;
-
-    /**
-     * Send function (integrate with your email service)
-     */
-    send: (options: {
-        to: string[];
-        from: string;
-        subject: string;
-        body: string;
-    }) => Promise<void>;
-}
-
-/**
- * Create an email notification provider
+ * Helper: Format workflow event as plain text
+ *
+ * Use this when implementing custom notification providers.
  *
  * @example
  * ```typescript
- * import { sendEmail } from '@spfn/auth';
+ * import { formatEventAsText } from '@spfn/workflow';
+ * import { sendEmail } from '@spfn/notification/server';
  *
- * const emailNotifier = emailProvider({
- *     to: ['admin@example.com'],
- *     from: 'noreply@example.com',
- *     send: async ({ to, from, subject, body }) => {
- *         await sendEmail({ to: to[0], from, subject, body });
+ * const emailProvider: NotificationProvider = {
+ *     name: 'email',
+ *     async notify(event) {
+ *         await sendEmail({
+ *             to: 'admin@example.com',
+ *             subject: `[Workflow] ${event.workflowName}: ${event.type}`,
+ *             text: formatEventAsText(event),
+ *         });
  *     },
- * });
- *
- * workflow('provision')
- *     .notify({
- *         on: ['failed'],
- *         providers: [emailNotifier],
- *     });
+ * };
  * ```
  */
-export function emailProvider(config: EmailProviderConfig): NotificationProvider
-{
-    return {
-        name: 'email',
-        async notify(event: WorkflowEvent): Promise<void>
-        {
-            const subject = (config.subject ?? 'Workflow {workflowName}: {type}')
-                .replace('{workflowName}', event.workflowName)
-                .replace('{type}', event.type)
-                .replace('{executionId}', event.executionId);
-
-            const body = formatEventBody(event);
-
-            await config.send({
-                to: config.to,
-                from: config.from,
-                subject,
-                body,
-            });
-        },
-    };
-}
-
-/**
- * Slack webhook provider configuration
- */
-export interface SlackProviderConfig
-{
-    /**
-     * Slack webhook URL
-     */
-    webhookUrl: string;
-
-    /**
-     * Channel to post to (optional, uses webhook default)
-     */
-    channel?: string;
-
-    /**
-     * Username for the bot (optional)
-     */
-    username?: string;
-
-    /**
-     * Icon emoji (optional)
-     */
-    iconEmoji?: string;
-}
-
-/**
- * Create a Slack notification provider
- *
- * @example
- * ```typescript
- * const slackNotifier = slackProvider({
- *     webhookUrl: process.env.SLACK_WEBHOOK_URL!,
- *     channel: '#alerts',
- * });
- *
- * workflow('provision')
- *     .notify({
- *         on: ['failed', 'completed'],
- *         providers: [slackNotifier],
- *     });
- * ```
- */
-export function slackProvider(config: SlackProviderConfig): NotificationProvider
-{
-    return {
-        name: 'slack',
-        async notify(event: WorkflowEvent): Promise<void>
-        {
-            const color = getEventColor(event.type);
-            const text = formatEventText(event);
-
-            const payload: Record<string, unknown> = {
-                attachments: [
-                    {
-                        color,
-                        title: `Workflow: ${event.workflowName}`,
-                        text,
-                        fields: [
-                            {
-                                title: 'Event',
-                                value: event.type,
-                                short: true,
-                            },
-                            {
-                                title: 'Execution ID',
-                                value: event.executionId,
-                                short: true,
-                            },
-                        ],
-                        ts: Math.floor(event.timestamp.getTime() / 1000),
-                    },
-                ],
-            };
-
-            if (config.channel)
-            {
-                payload.channel = config.channel;
-            }
-            if (config.username)
-            {
-                payload.username = config.username;
-            }
-            if (config.iconEmoji)
-            {
-                payload.icon_emoji = config.iconEmoji;
-            }
-
-            await fetch(config.webhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-        },
-    };
-}
-
-/**
- * Get color for event type (Slack attachment)
- */
-function getEventColor(type: WorkflowEventType): string
-{
-    switch (type)
-    {
-        case 'completed':
-        case 'step.completed':
-            return 'good'; // green
-        case 'failed':
-        case 'step.failed':
-            return 'danger'; // red
-        case 'cancelled':
-            return 'warning'; // yellow
-        case 'started':
-        case 'step.started':
-            return '#439FE0'; // blue
-    }
-}
-
-/**
- * Format event as text
- */
-function formatEventText(event: WorkflowEvent): string
-{
-    switch (event.type)
-    {
-        case 'started':
-            return `Workflow started`;
-        case 'completed':
-            return `Workflow completed successfully`;
-        case 'failed':
-            return `Workflow failed: ${event.error}`;
-        case 'cancelled':
-            return `Workflow was cancelled`;
-        case 'step.started':
-            return `Step '${event.stepName}' started`;
-        case 'step.completed':
-            return `Step '${event.stepName}' completed`;
-        case 'step.failed':
-            return `Step '${event.stepName}' failed: ${event.error}`;
-    }
-}
-
-/**
- * Format event as email body
- */
-function formatEventBody(event: WorkflowEvent): string
+export function formatEventAsText(event: WorkflowEvent): string
 {
     const lines = [
         `Workflow: ${event.workflowName}`,
@@ -284,11 +104,11 @@ function formatEventBody(event: WorkflowEvent): string
         `Timestamp: ${event.timestamp.toISOString()}`,
     ];
 
-    if ('stepName' in event && event.stepName)
+    if (event.stepName)
     {
         lines.push(`Step: ${event.stepName}`);
     }
-    if ('error' in event && event.error)
+    if (event.error)
     {
         lines.push(`Error: ${event.error}`);
     }
