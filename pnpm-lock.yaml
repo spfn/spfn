@@ -175,6 +175,9 @@ importers:
       '@spfn/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@spfn/workflow':
+        specifier: workspace:*
+        version: link:../../packages/workflow
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -639,15 +642,12 @@ importers:
 
   packages/auth:
     dependencies:
-      '@aws-sdk/client-ses':
-        specifier: ^3.0.0
-        version: 3.955.0
-      '@aws-sdk/client-sns':
-        specifier: ^3.0.0
-        version: 3.943.0
       '@spfn/core':
         specifier: workspace:*
         version: link:../core
+      '@spfn/notification':
+        specifier: workspace:*
+        version: link:../notification
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -920,6 +920,40 @@ importers:
       vitest:
         specifier: ^4.0.6
         version: 4.0.6(@types/debug@4.1.12)(@types/node@20.19.24)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
+
+  packages/notification:
+    dependencies:
+      '@aws-sdk/client-ses':
+        specifier: ^3.0.0
+        version: 3.955.0
+      '@aws-sdk/client-sns':
+        specifier: ^3.0.0
+        version: 3.943.0
+      '@spfn/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@sinclair/typebox':
+        specifier: ^0.34.30
+        version: 0.34.41
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.25
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.0(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+      madge:
+        specifier: ^8.0.0
+        version: 8.0.0(typescript@5.9.3)
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.6
+        version: 4.0.6(@types/debug@4.1.12)(@types/node@20.19.25)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
 
   packages/workflow:
     dependencies:
