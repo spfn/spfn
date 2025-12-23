@@ -7,7 +7,7 @@ Lightweight workflow engine - Pipeline orchestration based on `@spfn/core` Jobs
 `@spfn/workflow` is a workflow engine that defines and executes complex business processes by chaining multiple Jobs together.
 
 ```
-┌─────────┐    data    ┌─────────┐    data    ┌─────────┐
+┌─────────┐    data   ┌─────────┐    data   ┌─────────┐
 │  Job A  │ ────────▶ │  Job B  │ ────────▶ │  Job C  │
 └─────────┘           └─────────┘           └─────────┘
      │                     │                     │

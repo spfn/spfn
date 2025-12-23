@@ -126,11 +126,9 @@ export async function getSession(): Promise<PublicSession | null>
     }
     catch (error)
     {
-        console.error(error);
-
-        // Session expired or invalid - log in dev mode
+        // Session expired or invalid
         // Note: Cannot delete cookies in Server Components (read-only)
-        // Invalid cookies will be cleaned up on next login/logout via Route Handler or Server Action
+        // Use validateSessionMiddleware() in Next.js middleware for automatic cleanup
         logger.debug('Session validation failed', {
             error: error instanceof Error ? error.message : String(error)
         });

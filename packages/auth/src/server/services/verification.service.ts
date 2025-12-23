@@ -7,12 +7,10 @@
 import { env } from '@spfn/auth/config';
 import { InvalidVerificationCodeError } from '@spfn/auth/errors';
 import jwt from 'jsonwebtoken';
+import { sendEmail, sendSMS } from '@spfn/notification/server';
 import { authLogger } from '../logger';
 import { verificationCodesRepository } from '../repositories';
 import type { VerificationTargetType, VerificationPurpose } from '../routes/schema';
-import { sendSMS } from './sms';
-import { sendEmail } from './email';
-import { getVerificationCodeTemplate } from './email/templates';
 
 /**
  * Verification token expiry (15 minutes)
@@ -213,18 +211,14 @@ async function sendVerificationEmail(
     purpose: string
 ): Promise<void>
 {
-    const { subject, text, html } = getVerificationCodeTemplate({
-        code,
-        purpose,
-        expiresInMinutes: VERIFICATION_CODE_EXPIRY_MINUTES,
-    });
-
     const result = await sendEmail({
         to: email,
-        subject,
-        text,
-        html,
-        purpose,
+        template: 'verification-code',
+        data: {
+            code,
+            purpose,
+            expiresInMinutes: VERIFICATION_CODE_EXPIRY_MINUTES,
+        },
     });
 
     if (!result.success)
@@ -250,12 +244,13 @@ async function sendVerificationSMS(
     purpose: string
 ): Promise<void>
 {
-    const message = `Your verification code is: ${code}`;
-
     const result = await sendSMS({
-        phone,
-        message,
-        purpose,
+        to: phone,
+        template: 'verification-code',
+        data: {
+            code,
+            expiresInMinutes: VERIFICATION_CODE_EXPIRY_MINUTES,
+        },
     });
 
     if (!result.success)

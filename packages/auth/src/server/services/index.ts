@@ -110,25 +110,16 @@ export { getAuthSessionService } from './auth-session.service';
 export { getUserProfileService, updateUserProfileService } from './user-profile.service';
 export type { UpdateProfileParams } from './user-profile.service';
 
-// Email Templates
-export {
-    registerEmailTemplates,
-    getVerificationCodeTemplate,
-    getWelcomeTemplate,
-    getPasswordResetTemplate,
-    getInvitationTemplate,
-} from './email/templates';
-
-export type {
-    EmailTemplateProvider,
-    EmailTemplateResult,
-    VerificationCodeParams,
-} from './email/templates';
-
-// Email Service
-export { sendEmail, registerEmailProvider } from './email';
-export type { SendEmailParams, SendEmailResult, EmailProvider } from './email';
-
-// SMS Service
-export { sendSMS, registerSMSProvider } from './sms';
-export type { SendSMSParams, SendSMSResult, SMSProvider } from './sms';
+// =============================================================================
+// Email & SMS - DEPRECATED: Use @spfn/notification instead
+// =============================================================================
+// Email and SMS functionality has been moved to @spfn/notification package.
+// Please use the following imports instead:
+//
+//   import { sendEmail, sendSMS } from '@spfn/notification/server';
+//
+// The @spfn/notification package provides:
+// - Multi-channel support (Email, SMS, Slack, Push)
+// - Template system with variable substitution
+// - Multiple provider support (AWS SES, SNS, SendGrid, Twilio, etc.)
+// =============================================================================
