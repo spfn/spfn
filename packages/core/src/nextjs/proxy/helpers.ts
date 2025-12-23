@@ -266,6 +266,7 @@ export function buildResponseContext(
             body: requestBody,
         },
         response: {
+            ok: response.ok,
             status: response.status,
             statusText: response.statusText,
             headers: response.headers,

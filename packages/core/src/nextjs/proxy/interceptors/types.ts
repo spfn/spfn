@@ -128,6 +128,7 @@ export interface ResponseInterceptorContext
      * Response data (mutable)
      */
     response: {
+        ok: boolean;
         status: number;
         statusText: string;
         headers: Headers;

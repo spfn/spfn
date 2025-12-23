@@ -67,7 +67,7 @@ function buildPgBossOptions(
  */
 export class JobBuilder<TInput = void, TOutput = void>
 {
-    private _name: string;
+    private readonly _name: string;
     private _inputSchema?: TSchema;
     private _outputSchema?: TSchema;
     private _cronExpression?: string;
