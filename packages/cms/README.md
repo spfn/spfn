@@ -26,6 +26,7 @@ pnpm spfn add @spfn/cms
 ```typescript
 // labels.ts
 import { defineLabelConfig, defineLabels, createCmsClient } from '@spfn/cms';
+import { getLocale } from '@spfn/cms/actions';
 
 // Configure locales
 export const labelConfig = defineLabelConfig({
@@ -52,7 +53,11 @@ export const labelsDefinition = defineLabels({
 // Create client with API, getLabel, getLabels, and format
 export const { api, getLabel, getLabels, format } = createCmsClient(
     labelsDefinition,
-    labelConfig
+    {
+        defaultLocale: labelConfig.defaultLocale,
+        fallbackLocale: labelConfig.fallbackLocale,
+        getLocale: () => getLocale(labelConfig.defaultLocale),
+    }
 );
 ```
 
@@ -281,7 +286,11 @@ Labels synchronize automatically on server startup:
 Factory function to create CMS client with API, getLabel, getLabels, and format utilities.
 
 ```typescript
-const { api, getLabel, getLabels, format } = createCmsClient(labelsDefinition, labelConfig);
+const { api, getLabel, getLabels, format } = createCmsClient(labelsDefinition, {
+    defaultLocale: labelConfig.defaultLocale,
+    fallbackLocale: labelConfig.fallbackLocale,
+    getLocale: () => getLocale(labelConfig.defaultLocale),
+});
 ```
 
 **Returns:**
@@ -383,6 +392,133 @@ await syncLabels(labelsDefinition, {
 
 **Returns:** `{ added, updated, removed, unchanged }`
 
+## Admin API
+
+CMS 라벨을 관리하기 위한 Admin API를 제공합니다. 섹션별 테이블 뷰로 라벨을 조회/수정/발행할 수 있습니다.
+
+### Admin Routes
+
+`cmsAppRouter`에 포함된 Admin 라우트들:
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `getSectionLabels` | GET | 섹션의 모든 라벨 조회 (Draft/Published 상태 포함) |
+| `saveSectionDraft` | POST | 섹션 라벨 일괄 Draft 저장 |
+| `publishSection` | POST | 섹션 전체 발행 (Draft → Published) |
+| `resetSectionDraft` | DELETE | 섹션 Draft 초기화 |
+
+### Admin UI 구현 예제
+
+**1. API Client 설정:**
+
+```typescript
+// labels.ts
+import { createCmsClient } from '@spfn/cms';
+
+export const { api: cmsApi } = createCmsClient(labelsDefinition, {
+    defaultLocale: labelConfig.defaultLocale,
+    fallbackLocale: labelConfig.fallbackLocale,
+    getLocale: () => getLocale(labelConfig.defaultLocale),
+});
+```
+
+**2. 섹션 라벨 조회:**
+
+```typescript
+// 섹션의 모든 라벨을 Draft/Published 상태와 함께 조회
+const data = await cmsApi.getSectionLabels.call({
+    params: { section: 'home' },
+    query: { locales: 'en,ko' },  // 콤마로 구분
+});
+
+// 반환값
+{
+    section: 'home',
+    locales: ['en', 'ko'],
+    labels: [
+        {
+            id: 1,
+            key: 'home.hero.title',
+            defaultValue: { en: 'Welcome', ko: '환영합니다' },
+            draft: { en: 'Welcome!', ko: '환영합니다!' } | null,
+            published: { en: 'Welcome', ko: '환영합니다' } | null,
+            hasDraft: true
+        },
+        // ...
+    ]
+}
+```
+
+**3. Draft 저장:**
+
+```typescript
+// 수정된 라벨들을 Draft로 저장
+await cmsApi.saveSectionDraft.call({
+    params: { section: 'home' },
+    body: {
+        labels: [
+            { id: 1, values: { en: 'Welcome!', ko: '환영합니다!' } },
+            { id: 2, values: { ko: '새로운 부제목' } },  // 특정 locale만 수정 가능
+        ]
+    },
+});
+```
+
+**4. 섹션 발행:**
+
+```typescript
+// Draft가 있는 모든 라벨을 Published로 발행
+const result = await cmsApi.publishSection.call({
+    params: { section: 'home' },
+    body: { locales: ['en', 'ko'] },
+});
+
+// 반환값
+{
+    published: 2,           // 발행된 라벨 수
+    version: 3,             // 최대 버전 번호
+    labels: ['home.hero.title', 'home.hero.subtitle']  // 발행된 라벨 키
+}
+```
+
+**5. Draft 초기화:**
+
+```typescript
+// 섹션의 모든 Draft 삭제 (Published 값으로 복원)
+await cmsApi.resetSectionDraft.call({
+    params: { section: 'home' },
+});
+```
+
+### Workflow
+
+```
+┌─────────────┐     saveSectionDraft     ┌─────────────┐
+│  Default    │ ──────────────────────►  │    Draft    │
+│  (코드 정의)  │                          │ (version:null)│
+└─────────────┘                          └──────┬──────┘
+                                                │
+                    publishSection              │
+                ◄───────────────────────────────┘
+                                                │
+                                                ▼
+                                         ┌─────────────┐
+                                         │  Published  │
+                                         │ (version:N) │
+                                         └─────────────┘
+```
+
+**상태 우선순위:** Draft > Published > Default
+
+### 상태 표시
+
+| 상태 | 의미 | UI 표시 예 |
+|------|------|-----------|
+| Default | 코드에 정의된 기본값만 존재 | 회색 |
+| Draft | 저장되었으나 미발행 | 노란색 |
+| Published | 발행되어 실제 서비스에 반영 | 초록색 |
+| Edited | UI에서 수정 중 (미저장) | 파란색 |
+
 ## Architecture
 
 ### Database Schema
@@ -399,9 +535,6 @@ cms_label_values (actual content)
 cms_published_cache (performance)
   ├─ section, locale, content (JSONB)
   └─ version (for cache invalidation)
-
-cms_audit_logs (tracking)
-  └─ action, userId, changes, metadata
 ```
 
 ### Query Flow

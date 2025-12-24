@@ -169,14 +169,18 @@ export class CmsLabelValuesRepository extends BaseRepository
      * 특정 버전의 모든 값 삭제
      * Write primary 사용
      */
-    async deleteByVersion(labelId: number, version: number): Promise<CmsLabelValue[]>
+    async deleteByVersion(labelId: number, version: number | null): Promise<CmsLabelValue[]>
     {
+        const versionCondition = version === null
+            ? isNull(cmsLabelValues.version)
+            : eq(cmsLabelValues.version, version);
+
         return this.db
             .delete(cmsLabelValues)
             .where(
                 and(
                     eq(cmsLabelValues.labelId, labelId),
-                    eq(cmsLabelValues.version, version)
+                    versionCondition
                 )
             )
             .returning();

@@ -4,35 +4,7 @@
  * Demonstrates @spfn/cms package integration with RPC proxy
  */
 
-import { createCmsClient, defineLabels, defineLabelConfig } from '@spfn/cms';
-
-// Define labels structure
-const labelsDefinition = defineLabels({
-    home: {
-        hero: {
-            title: { ko: '환영합니다', en: 'Welcome' },
-            subtitle: { ko: '새로운 경험을 시작하세요', en: 'Start a new experience' },
-        },
-        features: {
-            item1: { ko: '빠른 성능', en: 'Fast Performance' },
-            item2: { ko: '쉬운 사용', en: 'Easy to Use' },
-        },
-    },
-    about: {
-        title: { ko: '회사 소개', en: 'About Us' },
-        description: { ko: '우리는 혁신적인 솔루션을 제공합니다', en: 'We provide innovative solutions' },
-    },
-});
-
-// Define config
-const labelConfig = defineLabelConfig({
-    locales: ['ko', 'en'],
-    defaultLocale: 'ko',
-    fallbackLocale: 'en',
-});
-
-// Create CMS client
-const { getLabel, getLabels, format } = createCmsClient(labelsDefinition, labelConfig);
+import { getLabel, getLabels, format } from '@/lib/labels';
 
 export default async function CmsTestPage()
 {

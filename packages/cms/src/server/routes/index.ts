@@ -7,6 +7,12 @@
 import { Type } from '@sinclair/typebox';
 import { defineRouter, route } from '@spfn/core/route';
 import { cmsPublishedCacheRepository } from '../repositories';
+import {
+    getSectionLabelsRoute,
+    saveSectionDraftRoute,
+    publishSectionRoute,
+    resetSectionDraftRoute,
+} from './admin.routes';
 
 export const getLabelCache = route.get('/_cms/labels/cache')
     .skip(['auth'])
@@ -32,7 +38,16 @@ export const getLabelCache = route.get('/_cms/labels/cache')
     });
 
 export const cmsAppRouter = defineRouter({
-    getLabelCache
+    getLabelCache,
+    // Admin routes
+    getSectionLabels: getSectionLabelsRoute,
+    saveSectionDraft: saveSectionDraftRoute,
+    publishSection: publishSectionRoute,
+    resetSectionDraft: resetSectionDraftRoute,
 });
 
 export type AppRouter = typeof cmsAppRouter;
+
+// Re-export admin router for standalone use
+export { cmsAdminRouter } from './admin.routes';
+export type { CmsAdminRouter } from './admin.routes';
