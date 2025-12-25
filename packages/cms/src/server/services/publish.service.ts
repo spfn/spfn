@@ -26,6 +26,7 @@ export async function getSectionLabels(
     labels: Array<{
         id: number;
         key: string;
+        description: string | null;
         defaultValue: Record<string, string>;
         draft: Record<string, string> | null;
         published: Record<string, string> | null;
@@ -89,6 +90,7 @@ export async function getSectionLabels(
         return {
             id: label.id,
             key: label.key,
+            description: label.description,
             defaultValue: (label.defaultValue as Record<string, string>) || {},
             draft: draftRecord,
             published: publishedRecord,
