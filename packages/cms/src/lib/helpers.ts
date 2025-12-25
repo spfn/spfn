@@ -4,30 +4,49 @@
 
 export type FlatLabel = Record<string, Record<string, string>>;
 
+export type FlatLabelItem = {
+    values: Record<string, string>;
+    description?: string;
+};
+
+export type FlatLabelWithDescription = Record<string, FlatLabelItem>;
+
 /**
  * Flatten nested label structure into dot notation
  *
  * @param labels - Nested label object
  * @param prefix - Key prefix for recursion
- * @returns Flattened label structure
+ * @returns Flattened label structure with description
  *
  * @example
  * ```typescript
  * const nested = {
  *   home: {
  *     hero: {
- *       title: { en: "Welcome", ko: "환영합니다" }
+ *       title: {
+ *         en: "Welcome",
+ *         ko: "환영합니다",
+ *         $description: "Main hero title"
+ *       }
  *     }
  *   }
  * };
  *
  * const flat = flattenLabels(nested);
- * // { "home.hero.title": { en: "Welcome", ko: "환영합니다" } }
+ * // {
+ * //   "home.hero.title": {
+ * //     values: { en: "Welcome", ko: "환영합니다" },
+ * //     description: "Main hero title"
+ * //   }
+ * // }
  * ```
  */
-export function flattenLabels<T extends Record<string, any>>(labels: T, prefix = ''): FlatLabel
+export function flattenLabels<T extends Record<string, any>>(
+    labels: T,
+    prefix = ''
+): FlatLabelWithDescription
 {
-    const result: FlatLabel = {};
+    const result: FlatLabelWithDescription = {};
 
     if (!labels || typeof labels !== 'object')
     {
@@ -47,12 +66,18 @@ export function flattenLabels<T extends Record<string, any>>(labels: T, prefix =
 
         const valueObj = value as Record<string, unknown>;
 
-        // Check if this is a leaf node (locale values: { en: "...", ko: "..." })
+        // Check if this is a leaf node (locale values: { en: "...", ko: "...", $description?: "..." })
+        // All values must be strings (including $description)
         const isLeaf = Object.values(valueObj).every(v => typeof v === 'string');
 
         if (isLeaf)
         {
-            result[newKey] = valueObj as Record<string, string>;
+            const { $description, ...localeValues } = valueObj as Record<string, string>;
+
+            result[newKey] = {
+                values: localeValues,
+                description: $description,
+            };
         }
         else
         {

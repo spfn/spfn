@@ -6,9 +6,11 @@
 
 import { isEqual } from 'lodash-es';
 import { type SyncOptions, type SyncResult } from '../../lib/types';
-import { type FlatLabel, flattenLabels } from '../../lib/helpers';
+import { type FlatLabelWithDescription, flattenLabels } from '../../lib/helpers';
 import { cmsLabelsRepository } from '../repositories';
 import { type NewCmsLabel } from '../entities';
+
+type DbLabelMap = Record<string, { values: Record<string, string>; description?: string | null }>;
 
 /**
  * Compare current DB labels with new labels
@@ -17,7 +19,7 @@ import { type NewCmsLabel } from '../entities';
  * @param codeLabels - Labels from code (flattened)
  * @returns Comparison result with added/removed/updated labels
  */
-function compareLabels(dbLabels: FlatLabel, codeLabels: FlatLabel): SyncResult
+function compareLabels(dbLabels: DbLabelMap, codeLabels: FlatLabelWithDescription): SyncResult
 {
     const added: string[] = [];
     const removed: string[] = [];
@@ -37,11 +39,14 @@ function compareLabels(dbLabels: FlatLabel, codeLabels: FlatLabel): SyncResult
         }
         else
         {
-            // Check if values changed (deep equality check for nested objects)
-            const dbValue = dbLabels[key];
-            const codeValue = codeLabels[key];
+            // Check if values or description changed
+            const dbItem = dbLabels[key];
+            const codeItem = codeLabels[key];
 
-            if (!isEqual(dbValue, codeValue))
+            const valuesChanged = !isEqual(dbItem.values, codeItem.values);
+            const descChanged = (dbItem.description ?? undefined) !== codeItem.description;
+
+            if (valuesChanged || descChanged)
             {
                 updated.push(key);
             }
@@ -102,13 +107,16 @@ export async function syncLabels<T extends Record<string, any>>(
 
     // 3. Fetch current labels from DB
     const dbLabels = await cmsLabelsRepository.findMany();
-    const dbLabelMap: FlatLabel = {};
+    const dbLabelMap: DbLabelMap = {};
 
     for (const label of dbLabels)
     {
         if (label.defaultValue)
         {
-            dbLabelMap[label.key] = label.defaultValue as Record<string, string>;
+            dbLabelMap[label.key] = {
+                values: label.defaultValue as Record<string, string>,
+                description: label.description,
+            };
         }
     }
 
@@ -128,7 +136,8 @@ export async function syncLabels<T extends Record<string, any>>(
             key,
             section: extractSection(key),
             type: 'text',
-            defaultValue: codeLabels[key],
+            defaultValue: codeLabels[key].values,
+            description: codeLabels[key].description,
         }));
 
         await cmsLabelsRepository.bulkCreate(toCreate);
@@ -140,7 +149,8 @@ export async function syncLabels<T extends Record<string, any>>(
         const updates = result.updated.map(key => ({
             key,
             data: {
-                defaultValue: codeLabels[key],
+                defaultValue: codeLabels[key].values,
+                description: codeLabels[key].description,
             },
         }));
 
