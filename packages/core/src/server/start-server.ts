@@ -11,7 +11,7 @@ import type { Server } from 'http';
 import { join } from 'path';
 
 import { closeCache, initCache } from '@spfn/core/cache';
-import { closeDatabase, initDatabase } from '@spfn/core/db';
+import { closeDatabase, initDatabase, getDatabase } from '@spfn/core/db';
 import { initBoss, stopBoss, registerJobs } from '../job';
 import { serverLogger } from './logger';
 import { printBanner } from './banner';
@@ -308,6 +308,26 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
 
         serverLogger.debug('Registering jobs...');
         await registerJobs(config.jobs);
+    }
+
+    // Initialize workflows if configured
+    if (config.workflows)
+    {
+        const infraConfig = getInfrastructureConfig(config);
+        if (!infraConfig.database)
+        {
+            throw new Error(
+                'Workflows require database connection. ' +
+                'Ensure database is enabled in infrastructure config.'
+            );
+        }
+
+        serverLogger.debug('Initializing workflow engine...');
+        config.workflows._init(
+            getDatabase(),
+            config.workflowsConfig
+        );
+        serverLogger.info('Workflow engine initialized');
     }
 }
 

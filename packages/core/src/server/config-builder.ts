@@ -292,6 +292,39 @@ export class ServerConfigBuilder
     }
 
     /**
+     * Register workflow router for workflow orchestration
+     *
+     * Automatically initializes the workflow engine after database is ready.
+     *
+     * @example
+     * ```typescript
+     * import { defineWorkflowRouter } from '@spfn/workflow';
+     *
+     * const workflowRouter = defineWorkflowRouter([
+     *     provisionTenant,
+     *     deprovisionTenant,
+     * ]);
+     *
+     * export default defineServerConfig()
+     *     .routes(appRouter)
+     *     .workflows(workflowRouter)
+     *     .build();
+     * ```
+     */
+    workflows(
+        router: ServerConfig['workflows'],
+        config?: ServerConfig['workflowsConfig']
+    ): this
+    {
+        this.config.workflows = router;
+        if (config)
+        {
+            this.config.workflowsConfig = config;
+        }
+        return this;
+    }
+
+    /**
      * Configure lifecycle hooks
      * Can be called multiple times - hooks will be executed in registration order
      */

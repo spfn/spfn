@@ -7,6 +7,24 @@ import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig } from '../event/sse/types';
 
 /**
+ * Workflow router interface for @spfn/core integration
+ *
+ * This is a minimal interface that avoids circular dependency with @spfn/workflow.
+ * The actual WorkflowRouter from @spfn/workflow implements this interface.
+ */
+export interface WorkflowRouterLike
+{
+    /**
+     * Initialize the workflow engine
+     * Called by server during infrastructure initialization
+     *
+     * @internal
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    _init: (db: any, options?: { largeOutputThreshold?: number }) => void;
+}
+
+/**
  * CORS configuration options - inferred from hono/cors
  */
 type CorsConfig = Parameters<typeof cors>[0];
@@ -357,6 +375,41 @@ export interface ServerConfig
          * @default true if REDIS_URL exists
          */
         redis?: boolean;
+    };
+
+    /**
+     * Workflow router for workflow orchestration
+     *
+     * Automatically initializes the workflow engine after database is ready.
+     * Workflows are defined using @spfn/workflow package.
+     *
+     * @example
+     * ```typescript
+     * import { defineWorkflowRouter } from '@spfn/workflow';
+     *
+     * const workflowRouter = defineWorkflowRouter([
+     *     provisionTenant,
+     *     deprovisionTenant,
+     * ]);
+     *
+     * export default defineServerConfig()
+     *     .workflows(workflowRouter)
+     *     .build();
+     * ```
+     */
+    workflows?: WorkflowRouterLike;
+
+    /**
+     * Workflow engine configuration
+     * Only used if workflows router is provided
+     */
+    workflowsConfig?: {
+        /**
+         * Large output threshold in bytes
+         * Outputs larger than this will be stored in external storage
+         * @default 1024 * 1024 (1MB)
+         */
+        largeOutputThreshold?: number;
     };
 
     /**
