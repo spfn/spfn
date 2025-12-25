@@ -5,11 +5,11 @@
  *
  * @example
  * ```typescript
- * import { workflow } from '@spfn/workflow';
+ * import { workflow, defineWorkflowRouter } from '@spfn/workflow';
  * import { Type } from '@sinclair/typebox';
  *
  * // Define a workflow
- * export const provisionTenant = workflow('provision-tenant')
+ * const provisionTenant = workflow('provision-tenant')
  *     .input(Type.Object({
  *         tenantId: Type.String(),
  *         plan: Type.String(),
@@ -18,19 +18,25 @@
  *     .pipe(createPodIdentity, (ctx) => ({
  *         tenantId: ctx.input.tenantId,
  *     }))
- *     .pipe(createRepo, (ctx) => ({
- *         tenantId: ctx.input.tenantId,
- *     }))
  *     .build();
  *
+ * // Create workflow router
+ * export const workflowRouter = defineWorkflowRouter([
+ *     provisionTenant,
+ *     deprovisionTenant,
+ * ]);
+ *
+ * // Register in server.config.ts
+ * // .workflows(workflowRouter)
+ *
  * // Execute workflow
- * const execution = await workflowEngine.start('provision-tenant', {
+ * const execution = await workflowRouter.engine.start('provision-tenant', {
  *     tenantId: 'abc',
  *     plan: 'pro',
  * });
  *
  * // Check status
- * const status = await workflowEngine.get(execution.id);
+ * const status = await workflowRouter.engine.get(execution.id);
  * ```
  */
 
@@ -74,17 +80,15 @@ export {
     formatEventAsText,
 } from './notification';
 
-// Configuration
+// Configuration - New API
 export {
-    defineWorkflows,
-    getWorkflowEngine,
-    isWorkflowEngineInitialized,
-    resetWorkflowEngine,
+    defineWorkflowRouter,
+    isWorkflowRouter,
 } from './config';
 
 export type {
-    WorkflowModuleConfig,
-    InferWorkflowNames,
+    WorkflowRouter,
+    WorkflowRouterConfig,
 } from './config';
 
 // Entities

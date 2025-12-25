@@ -1,35 +1,10 @@
 /**
  * Workflow Configuration Types
- */
-
-import type { WorkflowDef } from '../builder';
-import type { WorkflowEngineConfig } from '../engine';
-
-/**
- * Workflow module configuration
  *
- * @example
- * ```typescript
- * import { defineWorkflows } from '@spfn/workflow';
- *
- * export default defineWorkflows({
- *     workflows: [provisionTenant, deprovisionTenant],
- *     db: database,
- * });
- * ```
+ * Re-exports from workflow-router
  */
-export interface WorkflowModuleConfig<TWorkflows extends WorkflowDef[]>
-    extends WorkflowEngineConfig
-{
-    /**
-     * Registered workflows
-     */
-    workflows: TWorkflows;
-}
 
-/**
- * Infer workflow names from config
- */
-export type InferWorkflowNames<T> = T extends WorkflowModuleConfig<infer W>
-    ? W[number]['name']
-    : never;
+export type {
+    WorkflowRouter,
+    WorkflowRouterConfig,
+} from './workflow-router';

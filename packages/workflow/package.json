@@ -49,6 +49,7 @@
   "devDependencies": {
     "@spfn/core": "workspace:*",
     "@types/node": "^20.11.0",
+    "drizzle-kit": "^0.31.8",
     "drizzle-orm": "^0.45.0",
     "tsup": "^8.5.0",
     "typescript": "^5.3.3",
@@ -56,11 +57,20 @@
   },
   "files": [
     "dist",
+    "migrations",
     "README.md",
     "LICENSE"
   ],
   "publishConfig": {
     "access": "public",
     "tag": "alpha"
+  },
+  "spfn": {
+    "schemas": [
+      "./dist/entities/*.js"
+    ],
+    "migrations": {
+      "dir": "./migrations"
+    }
   }
 }
