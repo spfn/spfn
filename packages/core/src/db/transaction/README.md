@@ -30,31 +30,34 @@ Hono middleware that automatically wraps route handlers in database transactions
 **Basic Usage:**
 
 ```ts
-// In your route file (e.g., routes/users/index.ts)
-import { Hono } from 'hono';
-import { Transactional, bind } from '@spfn/core';
-import type { RouteContext } from '@spfn/core/route';
+// In your route file (e.g., routes/users.ts)
+import { route } from '@spfn/core/route';
+import { Transactional } from '@spfn/core/db';
+import { Type } from '@sinclair/typebox';
 
-const app = new Hono();
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({
+            email: Type.String(),
+            name: Type.String()
+        })
+    })
+    .use([Transactional()])
+    .handler(async (c) => {
+        const { body } = await c.data();
 
-// Apply transaction middleware
-app.post('/', Transactional(), bind(contract, async (c: RouteContext) => {
-  const body = await c.req.json();
+        // All DB operations run in a transaction
+        const user = await userRepo.create(body);
+        await profileRepo.create({
+            userId: user.id,
+            bio: 'New user'
+        });
 
-  // All DB operations run in a transaction
-  const [user] = await db.insert(users).values(body).returning();
-  await db.insert(profiles).values({
-    userId: user.id,
-    bio: 'New user'
-  });
+        // Success -> Auto-commit
+        return user;
 
-  // Success -> Auto-commit
-  return c.json(user, 201);
-
-  // Error -> Auto-rollback
-}));
-
-export default app;
+        // Error -> Auto-rollback
+    });
 ```
 
 **With Options:**

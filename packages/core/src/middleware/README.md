@@ -656,15 +656,25 @@ app.use('/*', RequestLogger({
 Wraps route handlers in a database transaction with automatic commit/rollback.
 
 ```typescript
-import { Transactional } from '@spfn/core';
+import { route } from '@spfn/core/route';
+import { Transactional } from '@spfn/core/db';
+import { Type } from '@sinclair/typebox';
 
-app.bind(createUserContract, [Transactional()], async (c) => {
-  const data = await c.data();
-  const user = await createUser(data);
-  // ✅ Auto-commit on success
-  // ❌ Auto-rollback on error
-  return c.json(user, 201);
-});
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({
+            email: Type.String(),
+            name: Type.String()
+        })
+    })
+    .use([Transactional()])
+    .handler(async (c) => {
+        const { body } = await c.data();
+        const user = await userRepo.create(body);
+        // ✅ Auto-commit on success
+        // ❌ Auto-rollback on error
+        return user;
+    });
 ```
 
 **Features:**
