@@ -41,6 +41,75 @@ export class UserRepository extends BaseRepository
         return this._deleteOne(users, { id });
     }
 }
+
+// Export singleton instance
+export const userRepo = new UserRepository();
+```
+
+---
+
+## Export Patterns
+
+### Singleton Instance (Recommended)
+
+```typescript
+// src/server/repositories/user.repository.ts
+export class UserRepository extends BaseRepository
+{
+    // ... methods
+}
+
+// Export singleton instance
+export const userRepo = new UserRepository();
+```
+
+**Usage in routes:**
+
+```typescript
+// src/server/routes/users.ts
+import { userRepo } from '../repositories/user.repository';
+
+export const getUser = route.get('/users/:id')
+    .handler(async (c) => {
+        const { params } = await c.data();
+        return userRepo.findById(params.id);
+    });
+```
+
+### Index File Export
+
+```typescript
+// src/server/repositories/index.ts
+export { userRepo } from './user.repository';
+export { postRepo } from './post.repository';
+export { categoryRepo } from './category.repository';
+
+// Optional: also export classes for testing
+export { UserRepository } from './user.repository';
+export { PostRepository } from './post.repository';
+```
+
+**Usage:**
+
+```typescript
+import { userRepo, postRepo } from '../repositories';
+
+const user = await userRepo.findById(id);
+const posts = await postRepo.findByAuthor(user.id);
+```
+
+### Why Singleton?
+
+- **Transaction propagation**: BaseRepository uses AsyncLocalStorage to detect active transactions
+- **No manual DB passing**: Instance automatically uses correct connection
+- **Testable**: Can still instantiate class directly in tests
+
+```typescript
+// In tests - create fresh instance
+const testRepo = new UserRepository();
+
+// In application - use singleton
+import { userRepo } from '../repositories';
 ```
 
 ---
