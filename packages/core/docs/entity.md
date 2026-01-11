@@ -215,6 +215,156 @@ export const users = pgTable('users', {
 
 ---
 
+## Indexes & Constraints
+
+### Column-level Constraints
+
+```typescript
+import { pgTable, text, integer, boolean } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+    id: id(),
+    email: text('email').notNull().unique(),        // UNIQUE constraint
+    age: integer('age').notNull().default(0),       // DEFAULT constraint
+    isActive: boolean('is_active').notNull(),       // NOT NULL constraint
+    ...timestamps()
+});
+```
+
+### Table-level Indexes
+
+```typescript
+import { pgTable, text, index, uniqueIndex } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+    id: id(),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    organizationId: text('organization_id'),
+    ...timestamps()
+}, (table) => [
+    // Single column index
+    index('users_email_idx').on(table.email),
+
+    // Unique index
+    uniqueIndex('users_email_unique').on(table.email),
+
+    // Composite index
+    index('users_org_name_idx').on(table.organizationId, table.name),
+]);
+```
+
+### Primary Key Constraints
+
+```typescript
+import { pgTable, text, primaryKey } from 'drizzle-orm/pg-core';
+
+// Composite primary key
+export const userRoles = pgTable('user_roles', {
+    userId: text('user_id').notNull(),
+    roleId: text('role_id').notNull(),
+}, (table) => [
+    primaryKey({ columns: [table.userId, table.roleId] })
+]);
+```
+
+### Unique Constraints
+
+```typescript
+import { pgTable, text, unique } from 'drizzle-orm/pg-core';
+
+export const profiles = pgTable('profiles', {
+    id: id(),
+    userId: text('user_id').notNull(),
+    type: text('type').notNull(),
+    ...timestamps()
+}, (table) => [
+    // Composite unique constraint
+    unique('profiles_user_type_unique').on(table.userId, table.type)
+]);
+```
+
+### Foreign Key Constraints
+
+```typescript
+import { pgTable, text, foreignKey as fk } from 'drizzle-orm/pg-core';
+
+export const posts = pgTable('posts', {
+    id: id(),
+    authorId: text('author_id').notNull(),
+    editorId: text('editor_id'),
+    ...timestamps()
+}, (table) => [
+    // Explicit foreign key with custom options
+    fk({
+        columns: [table.authorId],
+        foreignColumns: [users.id],
+        onDelete: 'cascade',
+        onUpdate: 'cascade'
+    }).name('posts_author_fk'),
+
+    fk({
+        columns: [table.editorId],
+        foreignColumns: [users.id],
+        onDelete: 'set null'
+    }).name('posts_editor_fk')
+]);
+```
+
+### Check Constraints
+
+```typescript
+import { pgTable, integer, check } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+
+export const products = pgTable('products', {
+    id: id(),
+    price: integer('price').notNull(),
+    quantity: integer('quantity').notNull(),
+    ...timestamps()
+}, (table) => [
+    check('price_positive', sql`${table.price} > 0`),
+    check('quantity_non_negative', sql`${table.quantity} >= 0`)
+]);
+```
+
+### Partial Indexes
+
+```typescript
+import { pgTable, text, boolean, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+
+export const users = pgTable('users', {
+    id: id(),
+    email: text('email').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    ...timestamps()
+}, (table) => [
+    // Index only active users
+    index('users_active_email_idx')
+        .on(table.email)
+        .where(sql`${table.isActive} = true`)
+]);
+```
+
+### Expression Indexes
+
+```typescript
+import { pgTable, text, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+
+export const users = pgTable('users', {
+    id: id(),
+    email: text('email').notNull(),
+    ...timestamps()
+}, (table) => [
+    // Case-insensitive email index
+    index('users_email_lower_idx').on(sql`lower(${table.email})`)
+]);
+```
+
+---
+
 ## Relations
 
 ### One-to-Many
