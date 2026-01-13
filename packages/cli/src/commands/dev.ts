@@ -133,7 +133,9 @@ catch (error)
         if (options.serverOnly || !hasNext)
         {
             const watchMode = options.watch === true;
-            logger.info(`Starting SPFN Server on http://${options.host}:${options.port}${watchMode ? ' (watch mode)' : ''}\n`);
+            const host = options.host ?? process.env.HOST ?? 'localhost';
+            const port = options.port ?? process.env.PORT ?? '4000';
+            logger.info(`Starting SPFN Server on http://${host}:${port}${watchMode ? ' (watch mode)' : ''}\n`);
 
             let serverProcess: ExecaChildProcess | null = null;
             let watcherProcess: ExecaChildProcess | null = null;

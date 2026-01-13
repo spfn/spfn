@@ -1,4 +1,7 @@
 import { defineConfig } from 'tsup';
+import { readFileSync } from 'fs';
+
+const packageJson = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 export default defineConfig({
     entry: {
@@ -13,4 +16,7 @@ export default defineConfig({
     outDir: 'dist',
     external: ['tsup', 'drizzle-orm', 'postgres', 'dotenv'],
     noExternal: [],
+    define: {
+        '__CLI_VERSION__': JSON.stringify(packageJson.version),
+    },
 });

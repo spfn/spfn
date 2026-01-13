@@ -11,6 +11,7 @@ import { dbCommand } from './commands/db';
 import { addCommand } from './commands/add.js';
 import { generateCommand } from './commands/generate.js';
 import { envCommand } from './commands/env.js';
+import { getCliVersion } from './utils/version.js';
 
 // Export types
 export type {
@@ -27,7 +28,7 @@ const program = new Command();
 program
     .name('spfn')
     .description('SPFN CLI - The Missing Backend for Next.js')
-    .version('0.1.0');
+    .version(getCliVersion());
 
 // Add commands
 program.addCommand(createCommand);

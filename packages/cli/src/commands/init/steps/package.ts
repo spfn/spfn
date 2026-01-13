@@ -2,6 +2,7 @@ import ora from 'ora';
 import { execa } from 'execa';
 import fse from 'fs-extra';
 import { logger } from '../../../utils/logger.js';
+import { getSpfnTag } from '../../../utils/version.js';
 import type { PackageJson } from './validate.js';
 
 const { writeFileSync } = fse;
@@ -26,21 +27,22 @@ export async function setupPackageJson(
     packageJson.scripts = packageJson.scripts || {};
 
     // Add SPFN dependencies (fixes Issue #3: explicit installation for pnpm)
-    // - @spfn/core@alpha: Always use latest alpha version
+    // - @spfn/core: Use same tag as CLI (alpha, beta, or latest)
     // - @sinclair/typebox: contract files import Type
     // - drizzle-typebox: contract files import createInsertSchema, createSelectSchema
-    // - spfn@alpha: CLI needed for both build and runtime (spfn build, spfn start)
+    // - spfn: CLI needed for both build and runtime (spfn build, spfn start)
     // - concurrently: Process manager for running Next.js + SPFN API concurrently
-    packageJson.dependencies['@spfn/core'] = 'alpha';
+    const spfnTag = getSpfnTag();
+    packageJson.dependencies['@spfn/core'] = spfnTag;
     packageJson.dependencies['@sinclair/typebox'] = '^0.34.0';
     packageJson.dependencies['drizzle-typebox'] = '^0.1.0';
-    packageJson.dependencies['spfn'] = 'alpha';
+    packageJson.dependencies['spfn'] = spfnTag;
     packageJson.dependencies['concurrently'] = '^9.2.1';
 
     // Add authentication package if selected
     if (includeAuth)
     {
-        packageJson.dependencies['@spfn/auth'] = 'alpha';
+        packageJson.dependencies['@spfn/auth'] = spfnTag;
     }
 
     // Add SPFN dev dependencies (fixes Issue #2)
