@@ -8,7 +8,6 @@ import { createApi } from '@spfn/core/nextjs';
 import { errorRegistry } from "@spfn/core/errors";
 
 import type { AppRouter } from '@/server/router';
-import { appMetadata } from "@/server/router.metadata";
 
 /**
  * Pre-configured type-safe API client
@@ -43,7 +42,6 @@ import { appMetadata } from "@/server/router.metadata";
  * - Route Handlers
  */
 export const api = createApi<AppRouter>({
-    metadata: { ...appMetadata },
     errorRegistry: errorRegistry,
     debug: true
 });
