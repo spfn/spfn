@@ -7,6 +7,22 @@ import type { ErrorRegistry, ErrorRegistryInput } from "@spfn/core/errors";
 import type { RouteDef, RouteInput } from "@spfn/core/route";
 
 /**
+ * Convert File types in schema to actual File for client usage
+ *
+ * TypeBox File schemas become actual File objects on the client side.
+ */
+type ConvertFileTypes<T> = T extends File ? File : T extends File[] ? File[] : T;
+
+/**
+ * Extract form data input type with File support
+ *
+ * Maps schema types to runtime types, converting FileSchema to File.
+ */
+type FormDataInput<T> = {
+    [K in keyof T]: ConvertFileTypes<T[K]>;
+};
+
+/**
  * Extract structured input from RouteInput
  *
  * Converts TypeBox schemas to their static types for each input field.
@@ -15,6 +31,7 @@ export type StructuredInput<TInput extends RouteInput> = {
     params: TInput['params'] extends TSchema ? Static<TInput['params']> : {};
     query: TInput['query'] extends TSchema ? Static<TInput['query']> : {};
     body: TInput['body'] extends TSchema ? Static<TInput['body']> : {};
+    formData: TInput['formData'] extends TSchema ? FormDataInput<Static<TInput['formData']>> : {};
     headers: TInput['headers'] extends TSchema ? Static<TInput['headers']> : {};
     cookies: TInput['cookies'] extends TSchema ? Static<TInput['cookies']> : {};
 };

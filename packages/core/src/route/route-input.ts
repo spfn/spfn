@@ -18,6 +18,8 @@ export type RouteInput = {
     query?: TSchema;
     /** Request body (JSON) */
     body?: TSchema;
+    /** Form data (multipart/form-data) for file uploads */
+    formData?: TSchema;
     /** HTTP headers */
     headers?: TSchema;
     /** Cookies */

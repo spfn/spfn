@@ -15,10 +15,12 @@ import type { Router } from './router';
 import type { HttpMethod } from './types';
 import {
     validateField,
+    validateFormData,
     extractQueryParams,
     extractHeaders,
     extractCookies,
     parseJsonBody,
+    parseFormData,
 } from './validation';
 
 /**
@@ -304,12 +306,24 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
     const headers = validateField(input.headers, extractHeaders(c), 'headers');
     const cookies = validateField(input.cookies, extractCookies(c), 'cookies');
 
-    // Body requires async parsing
+    // Body/FormData requires async parsing - determine by Content-Type
     let body: Record<string, unknown> = {};
-    if (input.body)
+    let formData: Record<string, unknown> = {};
+
+    if (input.body || input.formData)
     {
-        const rawBody = await parseJsonBody(c);
-        body = validateField(input.body, rawBody, 'request body');
+        const contentType = c.req.header('content-type') || '';
+
+        if (contentType.includes('multipart/form-data') && input.formData)
+        {
+            const rawFormData = await parseFormData(c);
+            formData = validateFormData(input.formData, rawFormData, 'form data');
+        }
+        else if (input.body)
+        {
+            const rawBody = await parseJsonBody(c);
+            body = validateField(input.body, rawBody, 'request body');
+        }
     }
 
     // Cache for data() - avoid creating new object on each call
@@ -328,7 +342,7 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
         {
             if (!cachedData)
             {
-                cachedData = { params, query, body, headers, cookies };
+                cachedData = { params, query, body, formData, headers, cookies };
             }
             return cachedData;
         },

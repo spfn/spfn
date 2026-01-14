@@ -68,9 +68,20 @@ export function buildCookieHeader(cookies: Record<string, string>): string
 
 /**
  * Parse response body based on content type
+ *
+ * Handles:
+ * - 204 No Content: returns null (no body expected)
+ * - application/json: parses JSON body
+ * - Other content types: returns raw text
  */
 export async function parseResponseBody(response: Response): Promise<any>
 {
+    // 204 No Content has no body
+    if (response.status === 204)
+    {
+        return null;
+    }
+
     const contentType = response.headers.get('content-type');
 
     if (contentType?.includes('application/json'))

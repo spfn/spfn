@@ -104,9 +104,10 @@ export function createApi<TRouter extends Router<any>>(
     /**
      * Execute API call
      *
-     * Determines GET vs POST based on body presence:
-     * - No body → GET /api/rpc/{routeName}?input={...}
-     * - Has body → POST /api/rpc/{routeName} with body
+     * Determines GET vs POST based on body/formData presence:
+     * - No body/formData → GET /api/rpc/{routeName}?input={...}
+     * - Has body → POST /api/rpc/{routeName} with JSON body
+     * - Has formData → POST /api/rpc/{routeName} with multipart/form-data
      */
     async function executeCall(
         routeName: string,
@@ -115,7 +116,8 @@ export function createApi<TRouter extends Router<any>>(
     ): Promise<any>
     {
         const hasBody = input.body !== undefined;
-        const method = hasBody ? 'POST' : 'GET';
+        const hasFormData = input.formData !== undefined && Object.keys(input.formData).length > 0;
+        const method = (hasBody || hasFormData) ? 'POST' : 'GET';
 
         // Build full URL - handle SSR case where SPFN_APP_URL might not be set
         let appUrl = env.SPFN_APP_URL || '';
@@ -163,8 +165,9 @@ export function createApi<TRouter extends Router<any>>(
         }
 
         // Prepare headers
+        // Note: Don't set Content-Type for formData - browser sets it with boundary
         const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
+            ...(hasFormData ? {} : { 'Content-Type': 'application/json' }),
             ...defaultHeaders,
             ...options.headers,
         };
@@ -199,7 +202,57 @@ export function createApi<TRouter extends Router<any>>(
         // Add body for POST
         if (method === 'POST')
         {
-            requestInit.body = JSON.stringify(input);
+            if (hasFormData)
+            {
+                // Build FormData for file uploads
+                const formData = new FormData();
+
+                // Add non-formData fields (params, query, headers, cookies) as JSON metadata
+                const metadata: Record<string, any> = {};
+                if (input.params) metadata.params = input.params;
+                if (input.query) metadata.query = input.query;
+                if (input.headers) metadata.headers = input.headers;
+                if (input.cookies) metadata.cookies = input.cookies;
+
+                if (Object.keys(metadata).length > 0)
+                {
+                    formData.append('__metadata', JSON.stringify(metadata));
+                }
+
+                // Add formData fields
+                for (const [key, value] of Object.entries(input.formData))
+                {
+                    if (value instanceof File)
+                    {
+                        formData.append(key, value);
+                    }
+                    else if (Array.isArray(value))
+                    {
+                        // Handle array of files or values
+                        for (const item of value)
+                        {
+                            if (item instanceof File)
+                            {
+                                formData.append(key, item);
+                            }
+                            else
+                            {
+                                formData.append(key, String(item));
+                            }
+                        }
+                    }
+                    else if (value !== undefined && value !== null)
+                    {
+                        formData.append(key, String(value));
+                    }
+                }
+
+                requestInit.body = formData;
+            }
+            else
+            {
+                requestInit.body = JSON.stringify(input);
+            }
         }
 
         // Execute request interceptors

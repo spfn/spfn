@@ -113,6 +113,40 @@ route.get('/session')
     });
 ```
 
+### Form Data (File Upload)
+
+```typescript
+import { route, FileSchema, FileArraySchema } from '@spfn/core/route';
+
+// Single file
+route.post('/upload')
+    .input({
+        formData: Type.Object({
+            file: FileSchema,
+            description: Type.Optional(Type.String())
+        })
+    })
+    .handler(async (c) => {
+        const { formData } = await c.data();
+        const file = formData.file as File;
+        // file.name, file.size, file.type
+    });
+
+// Multiple files
+route.post('/upload-multiple')
+    .input({
+        formData: Type.Object({
+            files: FileArraySchema
+        })
+    })
+    .handler(async (c) => {
+        const { formData } = await c.data();
+        const files = formData.files as File[];
+    });
+```
+
+> **Note:** For detailed file upload patterns including validation, storage, and security, see [File Upload Guide](./file-upload.md).
+
 ### Combined Input
 
 ```typescript

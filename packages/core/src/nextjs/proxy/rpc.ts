@@ -194,7 +194,11 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
                 params?: Record<string, any>;
                 query?: Record<string, any>;
                 body?: Record<string, any>;
+                formData?: Record<string, any>;
+                headers?: Record<string, any>;
+                cookies?: Record<string, any>;
             } = {};
+            let rawFormData: FormData | null = null;
 
             if (request.method === 'GET')
             {
@@ -216,17 +220,74 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
             }
             else
             {
-                // POST - parse body
-                try
+                // POST - check Content-Type for formData vs JSON
+                const contentType = request.headers.get('content-type') || '';
+
+                if (contentType.includes('multipart/form-data'))
                 {
-                    input = await request.json();
+                    // Parse multipart/form-data
+                    try
+                    {
+                        rawFormData = await request.formData();
+
+                        // Extract __metadata if present (contains params, query, etc.)
+                        const metadataStr = rawFormData.get('__metadata');
+                        if (metadataStr && typeof metadataStr === 'string')
+                        {
+                            const metadata = JSON.parse(metadataStr);
+                            input.params = metadata.params;
+                            input.query = metadata.query;
+                            input.headers = metadata.headers;
+                            input.cookies = metadata.cookies;
+                        }
+
+                        // Collect formData fields (excluding __metadata)
+                        input.formData = {};
+                        rawFormData.forEach((value, key) =>
+                        {
+                            if (key === '__metadata') return;
+
+                            const existing = input.formData![key];
+                            if (existing !== undefined)
+                            {
+                                // Multiple values with same key
+                                if (Array.isArray(existing))
+                                {
+                                    existing.push(value);
+                                }
+                                else
+                                {
+                                    input.formData![key] = [existing, value];
+                                }
+                            }
+                            else
+                            {
+                                input.formData![key] = value;
+                            }
+                        });
+                    }
+                    catch (error)
+                    {
+                        return NextResponse.json(
+                            buildErrorResponse('Bad Request', 'Invalid form data', debug),
+                            { status: 400 }
+                        );
+                    }
                 }
-                catch
+                else
                 {
-                    return NextResponse.json(
-                        buildErrorResponse('Bad Request', 'Invalid JSON body', debug),
-                        { status: 400 }
-                    );
+                    // Parse JSON body
+                    try
+                    {
+                        input = await request.json();
+                    }
+                    catch
+                    {
+                        return NextResponse.json(
+                            buildErrorResponse('Bad Request', 'Invalid JSON body', debug),
+                            { status: 400 }
+                        );
+                    }
                 }
             }
 
@@ -274,6 +335,8 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
             const inputParams = input.params || {};
             const inputQuery = input.query || {};
             const inputBody = input.body;
+            const inputFormData = input.formData;
+            const hasFormData = rawFormData !== null && inputFormData && Object.keys(inputFormData).length > 0;
 
             const resolvedPath = buildUrlWithParams(targetPath, inputParams);
             const queryString = buildQueryString(inputQuery);
@@ -287,11 +350,18 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
                     targetPath: resolvedPath,
                     targetUrl,
                     hasBody: !!inputBody,
+                    hasFormData,
                 });
             }
 
             // Build headers
             const headers = buildProxyHeaders(request.headers, defaultHeaders);
+
+            // Remove Content-Type for formData (let fetch set it with boundary)
+            if (hasFormData)
+            {
+                headers.delete('content-type');
+            }
 
             // Build fetch options
             const fetchOptions: RequestInit = {
@@ -300,9 +370,25 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
             };
 
             // Add body for POST/PUT/PATCH
-            if (['POST', 'PUT', 'PATCH'].includes(targetMethod) && inputBody)
+            if (['POST', 'PUT', 'PATCH'].includes(targetMethod))
             {
-                fetchOptions.body = JSON.stringify(inputBody);
+                if (hasFormData && rawFormData)
+                {
+                    // Forward formData to backend (rebuild without __metadata)
+                    const forwardFormData = new FormData();
+                    rawFormData.forEach((value, key) =>
+                    {
+                        if (key !== '__metadata')
+                        {
+                            forwardFormData.append(key, value);
+                        }
+                    });
+                    fetchOptions.body = forwardFormData;
+                }
+                else if (inputBody)
+                {
+                    fetchOptions.body = JSON.stringify(inputBody);
+                }
             }
 
             // ============================================================

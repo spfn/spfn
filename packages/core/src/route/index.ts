@@ -29,3 +29,25 @@ export type { HttpMethod } from './types';
 
 // Helpers
 export { isHttpMethod, Nullable, OptionalNullable } from './helpers';
+
+// File upload schemas
+export {
+    FileSchema,
+    FileArraySchema,
+    OptionalFileSchema,
+    // Backward compatibility
+    File,
+    FileArray,
+    OptionalFile,
+    // Helpers
+    isFileSchema,
+    isFileArraySchema,
+    getFileOptions,
+    formatFileSize,
+} from './file-schema';
+export type {
+    FileSchemaOptions,
+    FileArraySchemaOptions,
+    FileSchemaType,
+    FileArraySchemaType,
+} from './file-schema';

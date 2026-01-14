@@ -40,6 +40,8 @@ export type MergedInput<TInput extends RouteInput, TInterceptor extends RouteInp
            (TInterceptor['query'] extends TSchema ? Static<TInterceptor['query']> : {});
     body: (TInput['body'] extends TSchema ? Static<TInput['body']> : {}) &
           (TInterceptor['body'] extends TSchema ? Static<TInterceptor['body']> : {});
+    formData: (TInput['formData'] extends TSchema ? Static<TInput['formData']> : {}) &
+              (TInterceptor['formData'] extends TSchema ? Static<TInterceptor['formData']> : {});
     headers: (TInput['headers'] extends TSchema ? Static<TInput['headers']> : {}) &
              (TInterceptor['headers'] extends TSchema ? Static<TInterceptor['headers']> : {});
     cookies: (TInput['cookies'] extends TSchema ? Static<TInput['cookies']> : {}) &
