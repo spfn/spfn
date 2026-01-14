@@ -212,6 +212,18 @@ export function createRouteMapGenerator(config: RouteMapGeneratorConfig): Genera
         additionalRouteDirs = []
     } = config;
 
+    if (!routerPath)
+    {
+        throw new Error(
+            '[@spfn/core:route-map] Missing required "routerPath" option.\n\n' +
+            'Usage:\n' +
+            '  defineGenerator<RouteMapGeneratorConfig>({\n' +
+            '    name: \'@spfn/core:route-map\',\n' +
+            '    routerPath: \'./src/server/router.ts\',\n' +
+            '  })'
+        );
+    }
+
     return {
         name: '@spfn/core:route-map',
 

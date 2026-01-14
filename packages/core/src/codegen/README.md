@@ -98,6 +98,62 @@ export default defineConfig({
 
 ---
 
+## Built-in Generators
+
+### @spfn/core:route-map
+
+Generates a route map file containing `routeName → {method, path}` mappings for RPC proxy.
+
+**Configuration:**
+
+```typescript
+// .spfnrc.ts
+import { defineConfig, defineGenerator } from '@spfn/core/codegen';
+import type { RouteMapGeneratorConfig } from '@spfn/core/codegen';
+
+export default defineConfig({
+    generators: [
+        defineGenerator<RouteMapGeneratorConfig>({
+            name: '@spfn/core:route-map',
+            routerPath: './src/server/router.ts',      // Required: path to router file
+            outputPath: './src/generated/route-map.ts', // Optional (default shown)
+        })
+    ]
+});
+```
+
+**Options:**
+
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `name` | `'@spfn/core:route-map'` | Yes | - | Generator identifier |
+| `routerPath` | `string` | Yes | - | Path to router file (relative to project root) |
+| `outputPath` | `string` | No | `'./src/generated/route-map.ts'` | Output path for generated file |
+| `additionalRouteDirs` | `string[]` | No | `[]` | Additional directories to scan for routes |
+
+**Generated Output:**
+
+```typescript
+// src/generated/route-map.ts
+import type { HttpMethod } from '@spfn/core/route';
+
+export interface RouteInfo {
+    method: HttpMethod;
+    path: string;
+}
+
+export const routeMap: Record<string, RouteInfo> = {
+    getUser: { method: 'GET', path: '/users/:id' },
+    createUser: { method: 'POST', path: '/users' },
+    // ...
+};
+
+export type RouteMap = typeof routeMap;
+export type RouteName = keyof RouteMap;
+```
+
+---
+
 ## Usage
 
 ### CLI Commands
@@ -258,6 +314,9 @@ export type {
   ClientGenerationOptions,
   GenerationStats
 } from './core/types';
+
+// Built-in Generator Config Types
+export type { RouteMapGeneratorConfig } from './generators';
 ```
 
 ### `CodegenOrchestrator`

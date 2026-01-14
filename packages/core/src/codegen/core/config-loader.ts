@@ -245,6 +245,15 @@ export async function createGeneratorsFromConfig(config: CodegenConfig, cwd: str
     {
         try
         {
+            // Already instantiated Generator (has generate function)
+            // This prevents double-loading when users accidentally call factory directly
+            if ('generate' in generatorConfig && typeof (generatorConfig as any).generate === 'function')
+            {
+                generators.push(generatorConfig as Generator);
+                configLogger.info(`Generator instance added: ${(generatorConfig as Generator).name}`);
+                continue;
+            }
+
             // Custom generator (via file path)
             if ('path' in generatorConfig)
             {

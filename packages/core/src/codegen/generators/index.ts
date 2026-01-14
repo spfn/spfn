@@ -1,17 +1,19 @@
 /**
  * Built-in Generators Export
  *
- * Provides a registry of all built-in generators.
- * Custom generators can be added via .spfnrc.ts configuration.
- *
  * @example
  * ```typescript
  * // .spfnrc.ts
  * import { defineConfig, defineGenerator } from '@spfn/core/codegen';
+ * import type { RouteMapGeneratorConfig } from '@spfn/core/codegen';
  *
  * export default defineConfig({
  *   generators: [
- *     defineGenerator({ path: './my-generator.ts' })
+ *     defineGenerator<RouteMapGeneratorConfig>({
+ *       name: '@spfn/core:route-map',
+ *       routerPath: './src/server/router.ts',
+ *       outputPath: './src/generated/route-map.ts',
+ *     })
  *   ]
  * });
  * ```
@@ -21,9 +23,9 @@ import { createRouteMapGenerator } from './route-map';
 export type { RouteMapGeneratorConfig } from './route-map';
 
 /**
- * Registry of available generators
- *
- * Used by package-based generator loading (e.g., "@spfn/core:route-map")
+ * @internal
+ * Registry of available generators for package-based loading.
+ * DO NOT use directly - use defineGenerator({ name: '@spfn/core:route-map', ... }) instead.
  */
 export const generators: Record<string, unknown> = {
     'route-map': createRouteMapGenerator,
