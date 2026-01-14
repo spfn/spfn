@@ -155,31 +155,6 @@ export function OptionalFileSchema(options?: FileSchemaOptions): TSchema
 }
 
 // ============================================================================
-// Backward Compatibility - Simple schemas without validation
-// ============================================================================
-
-/**
- * Simple File schema (no validation)
- *
- * @deprecated Use FileSchema() function for validation support
- */
-export const File = FileSchema();
-
-/**
- * Simple File array schema (no validation)
- *
- * @deprecated Use FileArraySchema() function for validation support
- */
-export const FileArray = FileArraySchema();
-
-/**
- * Simple optional File schema (no validation)
- *
- * @deprecated Use OptionalFileSchema() function for validation support
- */
-export const OptionalFile = Type.Optional(File);
-
-// ============================================================================
 // Helpers
 // ============================================================================
 

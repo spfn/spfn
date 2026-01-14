@@ -1,0 +1,308 @@
+/**
+ * Route Map Generator
+ *
+ * Generates a route map file containing routeName → {method, path} mappings.
+ * This allows RPC proxy to resolve routes without importing the full router.
+ *
+ * @example
+ * ```typescript
+ * // .spfnrc.ts
+ * import { defineConfig, defineGenerator } from '@spfn/core/codegen';
+ *
+ * export default defineConfig({
+ *     generators: [
+ *         defineGenerator({
+ *             name: '@spfn/core:route-map',
+ *             routerPath: './src/server/router.ts',
+ *             outputPath: './src/generated/route-map.ts',
+ *         })
+ *     ]
+ * });
+ * ```
+ */
+
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { join, dirname, relative, resolve } from 'path';
+import type { Generator, GeneratorOptions } from '../core/generator';
+import { logger } from '@spfn/core/logger';
+
+const genLogger = logger.child('@spfn/core:route-map-generator');
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface RouteMapGeneratorConfig
+{
+    /**
+     * Generator name (required for package-based loading)
+     */
+    name: '@spfn/core:route-map';
+
+    /**
+     * Path to the router file (relative to project root)
+     * @example './src/server/router.ts'
+     */
+    routerPath: string;
+
+    /**
+     * Output path for generated route map (relative to project root)
+     * @default './src/generated/route-map.ts'
+     */
+    outputPath?: string;
+
+    /**
+     * Additional route directories to scan (for package routers)
+     */
+    additionalRouteDirs?: string[];
+}
+
+interface ParsedRoute
+{
+    name: string;
+    method: string;
+    path: string;
+    file: string;
+}
+
+// ============================================================================
+// Parser
+// ============================================================================
+
+/**
+ * Parse route definitions from a route file
+ *
+ * Supports patterns:
+ * - export const routeName = route.get('/path')...
+ * - export const routeName = route.post('/path')...
+ */
+function parseRouteFile(filePath: string): ParsedRoute[]
+{
+    const routes: ParsedRoute[] = [];
+
+    try
+    {
+        const content = readFileSync(filePath, 'utf-8');
+
+        // Pattern: export const {name} = route.{method}('{path}')
+        // Handles both single and double quotes
+        const routePattern = /export\s+const\s+(\w+)\s*=\s*route\.(get|post|put|patch|delete)\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/gi;
+
+        let match;
+        while ((match = routePattern.exec(content)) !== null)
+        {
+            const [, name, method, path] = match;
+            routes.push({
+                name,
+                method: method.toUpperCase(),
+                path,
+                file: filePath
+            });
+        }
+    }
+    catch (error)
+    {
+        genLogger.warn(`Failed to parse route file: ${filePath}`, error as Error);
+    }
+
+    return routes;
+}
+
+/**
+ * Parse router file to find route imports and names
+ *
+ * Extracts:
+ * - Import paths for route files
+ * - Route names from defineRouter({...})
+ */
+function parseRouterFile(routerPath: string): { importPaths: string[]; routeNames: string[] }
+{
+    const importPaths: string[] = [];
+    const routeNames: string[] = [];
+
+    try
+    {
+        const content = readFileSync(routerPath, 'utf-8');
+
+        // Extract import paths
+        // Pattern: import { ... } from './routes/xxx'
+        const importPattern = /import\s+\{[^}]+\}\s+from\s+['"`](\.[^'"`]+)['"`]/g;
+        let match;
+        while ((match = importPattern.exec(content)) !== null)
+        {
+            const importPath = match[1];
+            if (importPath.includes('route'))
+            {
+                importPaths.push(importPath);
+            }
+        }
+
+        // Extract route names from defineRouter({...})
+        const routerPattern = /defineRouter\s*\(\s*\{([^}]+)\}/s;
+        const routerMatch = routerPattern.exec(content);
+        if (routerMatch)
+        {
+            const routerContent = routerMatch[1];
+            // Extract identifiers (route names)
+            const namePattern = /(\w+)\s*[,}]/g;
+            while ((match = namePattern.exec(routerContent)) !== null)
+            {
+                routeNames.push(match[1]);
+            }
+        }
+    }
+    catch (error)
+    {
+        genLogger.warn(`Failed to parse router file: ${routerPath}`, error as Error);
+    }
+
+    return { importPaths, routeNames };
+}
+
+// ============================================================================
+// Generator
+// ============================================================================
+
+/**
+ * Generate route map file content
+ */
+function generateRouteMapContent(routes: ParsedRoute[]): string
+{
+    const lines: string[] = [
+        '/**',
+        ' * Route Map (Auto-generated)',
+        ' *',
+        ' * DO NOT EDIT - This file is generated by @spfn/core:route-map generator',
+        ' */',
+        '',
+        'import type { HttpMethod } from \'@spfn/core/route\';',
+        '',
+        'export interface RouteInfo',
+        '{',
+        '    method: HttpMethod;',
+        '    path: string;',
+        '}',
+        '',
+        'export const routeMap: Record<string, RouteInfo> = {'
+    ];
+
+    for (const route of routes)
+    {
+        lines.push(`    ${route.name}: { method: '${route.method}', path: '${route.path}' },`);
+    }
+
+    lines.push('};');
+    lines.push('');
+    lines.push('export type RouteMap = typeof routeMap;');
+    lines.push('');
+    lines.push('export type RouteName = keyof RouteMap;');
+    lines.push('');
+
+    return lines.join('\n');
+}
+
+/**
+ * Create Route Map Generator
+ */
+export function createRouteMapGenerator(config: RouteMapGeneratorConfig): Generator
+{
+    const {
+        routerPath,
+        outputPath = './src/generated/route-map.ts',
+        additionalRouteDirs = []
+    } = config;
+
+    return {
+        name: '@spfn/core:route-map',
+
+        watchPatterns: [
+            routerPath,
+            // Watch route directories derived from router imports
+            'src/server/routes/**/*.ts',
+            ...additionalRouteDirs.map(dir => `${dir}/**/*.ts`)
+        ],
+
+        runOn: ['watch', 'build', 'start'],
+
+        async generate(options: GeneratorOptions): Promise<void>
+        {
+            const { cwd, debug } = options;
+
+            const absoluteRouterPath = join(cwd, routerPath);
+            const absoluteOutputPath = join(cwd, outputPath);
+
+            if (!existsSync(absoluteRouterPath))
+            {
+                genLogger.warn(`Router file not found: ${absoluteRouterPath}`);
+                return;
+            }
+
+            if (debug)
+            {
+                genLogger.info('Parsing router file', { path: absoluteRouterPath });
+            }
+
+            // Parse router file
+            const { importPaths, routeNames } = parseRouterFile(absoluteRouterPath);
+
+            if (debug)
+            {
+                genLogger.info('Found route imports', { count: importPaths.length, names: routeNames });
+            }
+
+            // Resolve import paths and parse route files
+            const routerDir = dirname(absoluteRouterPath);
+            const allRoutes: ParsedRoute[] = [];
+
+            for (const importPath of importPaths)
+            {
+                // Resolve .ts extension
+                let resolvedPath = resolve(routerDir, importPath);
+                if (!resolvedPath.endsWith('.ts'))
+                {
+                    resolvedPath += '.ts';
+                }
+
+                if (existsSync(resolvedPath))
+                {
+                    const routes = parseRouteFile(resolvedPath);
+                    allRoutes.push(...routes);
+
+                    if (debug)
+                    {
+                        genLogger.info(`Parsed ${routes.length} routes from ${relative(cwd, resolvedPath)}`);
+                    }
+                }
+            }
+
+            // Filter routes that are actually exported in router
+            const exportedRoutes = allRoutes.filter(r => routeNames.includes(r.name));
+
+            if (debug)
+            {
+                genLogger.info(`Found ${exportedRoutes.length} exported routes`);
+            }
+
+            // Generate output
+            const content = generateRouteMapContent(exportedRoutes);
+
+            // Ensure output directory exists
+            const outputDir = dirname(absoluteOutputPath);
+            if (!existsSync(outputDir))
+            {
+                mkdirSync(outputDir, { recursive: true });
+            }
+
+            // Write file
+            writeFileSync(absoluteOutputPath, content, 'utf-8');
+
+            genLogger.info(`Generated route map: ${relative(cwd, absoluteOutputPath)} (${exportedRoutes.length} routes)`);
+        }
+    };
+}
+
+// ============================================================================
+// Export for package-based loading
+// ============================================================================
+
+export default createRouteMapGenerator;

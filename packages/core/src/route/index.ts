@@ -35,10 +35,6 @@ export {
     FileSchema,
     FileArraySchema,
     OptionalFileSchema,
-    // Backward compatibility
-    File,
-    FileArray,
-    OptionalFile,
     // Helpers
     isFileSchema,
     isFileArraySchema,

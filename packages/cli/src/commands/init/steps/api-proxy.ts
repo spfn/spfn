@@ -27,20 +27,20 @@ export async function setupApiProxy(cwd: string, includeAuth: boolean): Promise<
         const routeContent = `/**
  * SPFN RPC Proxy
  *
- * Resolves routeName to actual HTTP method and path from router,
+ * Resolves routeName to actual HTTP method and path from routeMap,
  * then forwards requests to SPFN API server with automatic:
  * - Cookie forwarding
  * - Interceptor execution
  * - Header manipulation
  *
- * Note: Imports from '@spfn/core/nextjs/server' (server-only)
- * Uses next/headers internally - do not import in Client Components
+ * Note: Uses generated route-map to avoid loading server code in Next.js process.
+ * Run \`spfn codegen run\` if route-map.ts is missing.
  */
 
-${authImport}import { appRouter } from '@/server/router';
+${authImport}import { routeMap } from '@/generated/route-map';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
 
-export const { GET, POST } = createRpcProxy({ router: appRouter });
+export const { GET, POST } = createRpcProxy({ routeMap });
 `;
         writeFileSync(rpcRoutePath, routeContent);
         const relativePath = rpcRoutePath.replace(cwd + '/', '');

@@ -17,9 +17,14 @@
  * ```
  */
 
+import { createRouteMapGenerator } from './route-map';
+export type { RouteMapGeneratorConfig } from './route-map';
+
 /**
  * Registry of available generators
  *
- * Used by package-based generator loading (e.g., "@spfn/core:my-generator")
+ * Used by package-based generator loading (e.g., "@spfn/core:route-map")
  */
-export const generators: Record<string, unknown> = {};
+export const generators: Record<string, unknown> = {
+    'route-map': createRouteMapGenerator,
+};

@@ -4,7 +4,16 @@
  * Next.js API Route handler that resolves routeName to method/path
  * and forwards requests to SPFN backend.
  *
- * @example
+ * @example Using routeMap (recommended - no server code loaded)
+ * ```typescript
+ * // app/api/rpc/[routeName]/route.ts
+ * import { routeMap } from '@/generated/route-map';
+ * import { createRpcProxy } from '@spfn/core/nextjs/proxy';
+ *
+ * export const { GET, POST } = createRpcProxy({ routeMap });
+ * ```
+ *
+ * @example Using router (legacy - loads full server code)
  * ```typescript
  * // app/api/rpc/[routeName]/route.ts
  * import { appRouter } from '@/server/router';
@@ -17,7 +26,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { env } from '@spfn/core/config';
 import { logger } from '@spfn/core/logger';
-import type { Router, RouteDef } from '@spfn/core/route';
+import type { Router, RouteDef, HttpMethod } from '@spfn/core/route';
 
 import { buildUrlWithParams, buildQueryString } from '../shared';
 import { interceptorRegistry } from './interceptors';
@@ -41,30 +50,75 @@ const rpcLogger = logger.child('@spfn/core:rpc-proxy');
 // Types
 // ============================================================================
 
-export interface RpcProxyConfig<TRouter extends Router<any>> extends Omit<TypedProxyConfig, 'onRequest' | 'onResponse'>
+/**
+ * Route info from generated route map
+ */
+export interface RouteMapEntry
+{
+    method: HttpMethod;
+    path: string;
+}
+
+/**
+ * Generated route map type
+ */
+export type RouteMap = Record<string, RouteMapEntry>;
+
+/**
+ * Base config for RPC proxy
+ */
+interface RpcProxyBaseConfig extends Omit<TypedProxyConfig, 'onRequest' | 'onResponse'> {}
+
+/**
+ * Config using routeMap (recommended)
+ *
+ * Uses generated route map file - no server code loaded in Next.js process.
+ */
+export interface RpcProxyRouteMapConfig extends RpcProxyBaseConfig
+{
+    /**
+     * Generated route map containing routeName → {method, path} mappings
+     *
+     * @example
+     * ```typescript
+     * import { routeMap } from '@/generated/route-map';
+     *
+     * export const { GET, POST } = createRpcProxy({ routeMap });
+     * ```
+     */
+    routeMap: RouteMap;
+    router?: never;
+}
+
+/**
+ * Config using router (legacy)
+ *
+ * @deprecated Use routeMap instead to avoid loading server code in Next.js process
+ */
+export interface RpcProxyRouterConfig<TRouter extends Router<any>> extends RpcProxyBaseConfig
 {
     /**
      * The router containing all route definitions
      *
-     * Package routes registered via `.packages()` are automatically recognized.
+     * @deprecated Use routeMap instead - router imports all server code
      *
      * @example
      * ```typescript
-     * // router.ts
-     * export const appRouter = defineRouter({
-     *     getRoot,
-     *     getHealth,
-     * })
-     * .packages([authRouter, cmsAppRouter]);
-     *
-     * // api/rpc/[routeName]/route.ts
      * export const { GET, POST } = createRpcProxy({
      *     router: appRouter,
      * });
      * ```
      */
     router: TRouter;
+    routeMap?: never;
 }
+
+/**
+ * Combined config type
+ */
+export type RpcProxyConfig<TRouter extends Router<any> = Router<any>> =
+    | RpcProxyRouteMapConfig
+    | RpcProxyRouterConfig<TRouter>;
 
 // ============================================================================
 // Helpers
@@ -147,13 +201,12 @@ function getRouteByPath(router: Router<any>, routePath: string): RouteDef<any> |
  * - GET /api/rpc/{routeName}?input={...}
  * - POST /api/rpc/{routeName} with body
  *
- * Resolves routeName to actual HTTP method and path from the router,
+ * Resolves routeName to actual HTTP method and path from the router or routeMap,
  * then forwards to SPFN backend.
  */
 export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConfig<TRouter>)
 {
     const {
-        router,
         apiUrl = env.SPFN_API_URL || 'http://localhost:8790',
         debug = env.NODE_ENV === 'development',
         timeout = 30000,
@@ -163,8 +216,60 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
         disableAutoInterceptors,
     } = config;
 
-    // Get package routers (registered via .packages())
-    const packageRouters = router._packageRouters || [];
+    // Determine if using routeMap or router
+    const useRouteMap = 'routeMap' in config && config.routeMap !== undefined;
+    const routeMap = useRouteMap ? config.routeMap : null;
+    const router = !useRouteMap && 'router' in config ? config.router : null;
+
+    // Get package routers (only when using router mode)
+    const packageRouters = router?._packageRouters || [];
+
+    /**
+     * Resolve route info from routeMap or router
+     */
+    function resolveRoute(routeName: string): { method: string; path: string } | null
+    {
+        // Try routeMap first (recommended)
+        if (routeMap)
+        {
+            const entry = routeMap[routeName];
+            if (entry)
+            {
+                return { method: entry.method, path: entry.path };
+            }
+            return null;
+        }
+
+        // Fall back to router (legacy)
+        if (router)
+        {
+            let routeDef = getRouteByPath(router, routeName);
+
+            // If not found in main router, search in package routers
+            if (!routeDef && packageRouters.length > 0)
+            {
+                for (const pkgRouter of packageRouters)
+                {
+                    routeDef = getRouteByPath(pkgRouter, routeName);
+                    if (routeDef)
+                    {
+                        if (debug)
+                        {
+                            rpcLogger.debug(`Route "${routeName}" found in package router`);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if (routeDef && routeDef.method && routeDef.path)
+            {
+                return { method: routeDef.method, path: routeDef.path };
+            }
+        }
+
+        return null;
+    }
 
     /**
      * Handle RPC request
@@ -291,45 +396,19 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
                 }
             }
 
-            // Get route definition from router (try main router first, then package routers)
-            let routeDef = getRouteByPath(router, routeName);
+            // Resolve route info from routeMap or router
+            const routeInfo = resolveRoute(routeName);
 
-            // If not found in main router, search in package routers
-            if (!routeDef && packageRouters.length > 0)
-            {
-                for (const pkgRouter of packageRouters)
-                {
-                    routeDef = getRouteByPath(pkgRouter, routeName);
-                    if (routeDef)
-                    {
-                        if (debug)
-                        {
-                            rpcLogger.debug(`Route "${routeName}" found in package router`);
-                        }
-                        break;
-                    }
-                }
-            }
-
-            if (!routeDef)
+            if (!routeInfo)
             {
                 rpcLogger.warn(`Route not found: ${routeName}`);
                 return NextResponse.json(
-                    buildErrorResponse('Not Found', `Route "${routeName}" not found in router`, debug),
+                    buildErrorResponse('Not Found', `Route "${routeName}" not found`, debug),
                     { status: 404 }
                 );
             }
 
-            const { method: targetMethod, path: targetPath } = routeDef;
-
-            if (!targetMethod || !targetPath)
-            {
-                rpcLogger.warn(`Route "${routeName}" is missing method or path`);
-                return NextResponse.json(
-                    buildErrorResponse('Internal Error', `Route "${routeName}" is misconfigured`, debug),
-                    { status: 500 }
-                );
-            }
+            const { method: targetMethod, path: targetPath } = routeInfo;
 
             // Build target URL with params and query
             const inputParams = input.params || {};
