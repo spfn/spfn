@@ -592,55 +592,11 @@ function createGracefulShutdown(
 // ============================================================================
 
 /**
- * Handle process errors with environment-specific behavior
+ * Handle process errors - log and continue, don't kill the server
  */
-function handleProcessError(
-    errorType: string,
-    shutdown: (signal: string) => Promise<void>
-): void
+function handleProcessError(errorType: string): void
 {
-    const isProduction = env.NODE_ENV === 'production';
-    const isDevelopment = env.NODE_ENV === 'development';
-
-    // In development/watch mode, exit immediately for clean restart
-    // In production, attempt graceful shutdown
-    if (isDevelopment || process.env.WATCH_MODE === 'true')
-    {
-        serverLogger.info('Exiting immediately for clean restart');
-        process.exit(1);
-    }
-    else if (isProduction)
-    {
-        serverLogger.info(`Attempting graceful shutdown after ${errorType}`);
-
-        // Set a timeout to force exit if shutdown hangs
-        const forceExitTimer = setTimeout(() =>
-        {
-            serverLogger.error(`Forced exit after ${TIMEOUTS.PRODUCTION_ERROR_SHUTDOWN}ms - graceful shutdown did not complete`);
-            process.exit(1);
-        }, TIMEOUTS.PRODUCTION_ERROR_SHUTDOWN);
-
-        // Don't use await in event handler - handle promise explicitly
-        shutdown(errorType)
-            .then(() =>
-            {
-                clearTimeout(forceExitTimer);
-                serverLogger.info('Graceful shutdown completed, exiting');
-                process.exit(0);
-            })
-            .catch((shutdownError) =>
-            {
-                clearTimeout(forceExitTimer);
-                serverLogger.error('Graceful shutdown failed', shutdownError as Error);
-                process.exit(1);
-            });
-    }
-    else
-    {
-        // Unknown environment - exit immediately for safety
-        serverLogger.info('Exiting immediately');
-        process.exit(1);
-    }
+    serverLogger.warn(`${errorType} occurred - server continues running. Check logs above for details.`);
 }
 
 function registerProcessHandlers(
@@ -698,7 +654,7 @@ function registerProcessHandlers(
             serverLogger.error('Uncaught exception', error);
         }
 
-        handleProcessError('UNCAUGHT_EXCEPTION', shutdown);
+        handleProcessError('UNCAUGHT_EXCEPTION');
     });
 
     process.on('unhandledRejection', (reason, promise) =>
@@ -728,7 +684,7 @@ function registerProcessHandlers(
             });
         }
 
-        handleProcessError('UNHANDLED_REJECTION', shutdown);
+        handleProcessError('UNHANDLED_REJECTION');
     });
 
     serverLogger.debug('Process-level shutdown handlers registered successfully');
