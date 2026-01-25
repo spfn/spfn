@@ -12,11 +12,11 @@
 
 - [Overview](#overview)
 - [Installation](#installation)
+- [Admin Account Setup](#6-admin-account-setup)
 - [Architecture](#architecture)
 - [Package Structure](#package-structure)
 - [Module Exports](#module-exports)
 - [Email & SMS Services](#email--sms-services)
-- [Email Templates](#email-templates)
 - [Server-Side API](#server-side-api)
 - [Database Schema](#database-schema)
 - [RBAC System](#rbac-system)
@@ -90,18 +90,26 @@ export const appRouter = defineRouter({
 
 ### 3. Configure Client (Next.js)
 
-#### Register Router Metadata and Errors in `api-client.ts`
+#### Option A: Use the built-in `authApi` (Recommended)
+
+```typescript
+import { authApi } from '@spfn/auth';
+
+// Type-safe API calls for auth routes
+const session = await authApi.getAuthSession.call({});
+```
+
+#### Option B: Register Error Registry in Custom API Client
 
 ```typescript
 import { createApi } from '@spfn/core/nextjs';
 import type { AppRouter } from '@/server/router';
-import { appMetadata as authAppMetadata } from "@spfn/auth";
 import { authErrorRegistry } from "@spfn/auth/errors";
 import { appMetadata } from '@/server/router.metadata';
 import { errorRegistry } from "@spfn/core/errors";
 
 export const api = createApi<AppRouter>({
-    metadata: { ...appMetadata, ...authAppMetadata },
+    metadata: appMetadata,
     errorRegistry: errorRegistry.concat(authErrorRegistry),
 });
 ```
@@ -142,6 +150,83 @@ pnpm spfn db generate
 
 # Run migrations
 pnpm spfn db migrate
+```
+
+### 6. Admin Account Setup
+
+Admin accounts are automatically created on server startup via `createAuthLifecycle()`.
+Choose one of the following methods:
+
+#### Method 1: JSON Format (Recommended)
+
+Best for multiple accounts with full configuration:
+
+```bash
+SPFN_AUTH_ADMIN_ACCOUNTS='[
+  {"email": "superadmin@example.com", "password": "secure-pass-1", "role": "superadmin"},
+  {"email": "admin@example.com", "password": "secure-pass-2", "role": "admin"},
+  {"email": "manager@example.com", "password": "secure-pass-3", "role": "user"}
+]'
+```
+
+**JSON Schema:**
+```typescript
+interface AdminAccountConfig {
+  email: string;           // Required
+  password: string;        // Required
+  role?: string;           // Default: 'user' (options: 'user', 'admin', 'superadmin')
+  phone?: string;          // Optional
+  passwordChangeRequired?: boolean;  // Default: true
+}
+```
+
+#### Method 2: CSV Format
+
+For multiple accounts with simpler configuration:
+
+```bash
+SPFN_AUTH_ADMIN_EMAILS=admin@example.com,manager@example.com
+SPFN_AUTH_ADMIN_PASSWORDS=admin-pass,manager-pass
+SPFN_AUTH_ADMIN_ROLES=superadmin,admin
+```
+
+#### Method 3: Single Account (Legacy)
+
+Simplest format for a single superadmin:
+
+```bash
+SPFN_AUTH_ADMIN_EMAIL=admin@example.com
+SPFN_AUTH_ADMIN_PASSWORD=secure-password
+```
+
+> **Note:** This method always creates a `superadmin` role account.
+
+#### Default Behavior
+
+All admin accounts created via environment variables have:
+- `emailVerifiedAt`: Auto-verified (current timestamp)
+- `passwordChangeRequired`: `true` (must change on first login)
+- `status`: `active`
+
+#### Programmatic Creation
+
+You can also create admin accounts programmatically:
+
+```typescript
+import { usersRepository, getRoleByName, hashPassword } from '@spfn/auth/server';
+
+// After initializeAuth() has been called
+const role = await getRoleByName('admin');
+const passwordHash = await hashPassword('secure-password');
+
+await usersRepository.create({
+  email: 'admin@example.com',
+  passwordHash,
+  roleId: role.id,
+  emailVerifiedAt: new Date(),
+  passwordChangeRequired: true,
+  status: 'active',
+});
 ```
 
 ---
@@ -335,20 +420,15 @@ packages/auth/
 
 ### Common Module (`@spfn/auth`)
 
-**Entities:**
+**API Client:**
 ```typescript
-import {
-  users,
-  userPublicKeys,
-  verificationCodes,
-  roles,
-  permissions,
-  rolePermissions,
-  userPermissions,
-  userInvitations,
-  userSocialAccounts,
-  userProfiles
-} from '@spfn/auth';
+import { authApi } from '@spfn/auth';
+
+// Type-safe API calls
+const session = await authApi.getAuthSession.call({});
+const result = await authApi.login.call({
+  body: { email, password, fingerprint, publicKey, keyId }
+});
 ```
 
 **Types:**
@@ -359,6 +439,9 @@ import type {
   VerificationCode,
   Role,
   Permission,
+  AuthSession,
+  UserProfile,
+  ProfileInfo,
   // ... etc
 } from '@spfn/auth';
 ```
@@ -379,6 +462,34 @@ import type {
   BuiltinPermissionName
 } from '@spfn/auth';
 ```
+
+**Validation Patterns:**
+```typescript
+import {
+  UUID_PATTERN,
+  EMAIL_PATTERN,
+  BASE64_PATTERN,
+  FINGERPRINT_PATTERN,
+  PHONE_PATTERN,
+} from '@spfn/auth';
+```
+
+**Route Map (for RPC Proxy):**
+```typescript
+import { authRouteMap } from '@spfn/auth';
+
+// Use in Next.js RPC proxy (app/api/rpc/[routeName]/route.ts)
+import '@spfn/auth/nextjs/api';  // Auto-register auth interceptors
+import { routeMap } from '@/generated/route-map';
+import { authRouteMap } from '@spfn/auth';
+import { createRpcProxy } from '@spfn/core/nextjs/proxy';
+
+export const { GET, POST } = createRpcProxy({
+    routeMap: { ...routeMap, ...authRouteMap }
+});
+```
+
+> **Note:** Database entities (`users`, `userPublicKeys`, etc.) are exported from `@spfn/auth/server`, not the common module.
 
 ---
 
@@ -456,22 +567,10 @@ import {
 
   // Session
   getAuthSessionService,
+
+  // User Profile
   getUserProfileService,
-
-  // Email
-  sendEmail,
-  registerEmailProvider,
-
-  // SMS
-  sendSMS,
-  registerSMSProvider,
-
-  // Email Templates
-  registerEmailTemplates,
-  getVerificationCodeTemplate,
-  getWelcomeTemplate,
-  getPasswordResetTemplate,
-  getInvitationTemplate,
+  updateUserProfileService,
 } from '@spfn/auth/server';
 ```
 
@@ -495,15 +594,25 @@ import {
 import {
   authenticate,
   requirePermissions,
+  requireAnyPermission,
   requireRole,
 } from '@spfn/auth/server';
 
-// Usage
+// Usage - all permissions required
 app.bind(
   myContract,
   [authenticate, requirePermissions('user:delete')],
   async (c) => {
     // Handler
+  }
+);
+
+// Usage - any of the permissions
+app.bind(
+  myContract,
+  [authenticate, requireAnyPermission('content:read', 'admin:access')],
+  async (c) => {
+    // User has either content:read OR admin:access
   }
 );
 ```
@@ -679,141 +788,24 @@ export default async function DashboardPage()
 
 ## Email & SMS Services
 
-### Email Service
+> **⚠️ DEPRECATED:** Email and SMS functionality has been moved to `@spfn/notification` package.
 
-The email service uses AWS SES by default, with fallback to console logging in development.
-
-**Send Email:**
-```typescript
-import { sendEmail } from '@spfn/auth/server';
-
-await sendEmail({
-  to: 'user@example.com',
-  subject: 'Welcome!',
-  text: 'Plain text content',
-  html: '<h1>HTML content</h1>',
-  purpose: 'welcome',  // for logging
-});
-```
-
-**Custom Email Provider:**
-```typescript
-import { registerEmailProvider } from '@spfn/auth/server';
-
-// Register SendGrid provider
-registerEmailProvider({
-  name: 'sendgrid',
-  sendEmail: async ({ to, subject, text, html }) => {
-    // Your SendGrid implementation
-    return { success: true, messageId: '...' };
-  },
-});
-```
-
----
-
-### SMS Service
-
-The SMS service uses AWS SNS by default.
-
-**Send SMS:**
-```typescript
-import { sendSMS } from '@spfn/auth/server';
-
-await sendSMS({
-  phone: '+821012345678',  // E.164 format
-  message: 'Your code is: 123456',
-  purpose: 'verification',
-});
-```
-
-**Custom SMS Provider:**
-```typescript
-import { registerSMSProvider } from '@spfn/auth/server';
-
-// Register Twilio provider
-registerSMSProvider({
-  name: 'twilio',
-  sendSMS: async ({ phone, message }) => {
-    // Your Twilio implementation
-    return { success: true, messageId: '...' };
-  },
-});
-```
-
----
-
-## Email Templates
-
-### Built-in Templates
-
-| Template | Function | Purpose |
-|----------|----------|---------|
-| `verificationCode` | `getVerificationCodeTemplate` | Verification codes (registration, login, password reset) |
-| `welcome` | `getWelcomeTemplate` | Welcome email after registration |
-| `passwordReset` | `getPasswordResetTemplate` | Password reset link |
-| `invitation` | `getInvitationTemplate` | User invitation |
-
-**Usage:**
-```typescript
-import { getVerificationCodeTemplate, sendEmail } from '@spfn/auth/server';
-
-const { subject, text, html } = getVerificationCodeTemplate({
-  code: '123456',
-  purpose: 'registration',
-  expiresInMinutes: 5,
-  appName: 'MyApp',
-});
-
-await sendEmail({ to: 'user@example.com', subject, text, html });
-```
-
----
-
-### Custom Templates
-
-Register custom templates to override defaults with your brand design:
+### Migration Guide
 
 ```typescript
-import { registerEmailTemplates } from '@spfn/auth/server';
+// Before (deprecated)
+import { sendEmail, sendSMS } from '@spfn/auth/server';
 
-// Register at app initialization (e.g., server.config.ts)
-registerEmailTemplates({
-  // Override verification code template
-  verificationCode: ({ code, purpose, expiresInMinutes, appName }) => ({
-    subject: `[${appName}] Your verification code`,
-    text: `Your code: ${code}\nExpires in ${expiresInMinutes} minutes.`,
-    html: `
-      <div style="font-family: Arial, sans-serif;">
-        <img src="https://myapp.com/logo.png" alt="Logo" />
-        <h1>Verification Code</h1>
-        <div style="font-size: 32px; font-weight: bold;">${code}</div>
-        <p>This code expires in ${expiresInMinutes} minutes.</p>
-      </div>
-    `,
-  }),
-
-  // Override invitation template
-  invitation: ({ inviteLink, inviterName, roleName, appName }) => ({
-    subject: `${inviterName} invited you to ${appName}`,
-    text: `Accept invitation: ${inviteLink}`,
-    html: `
-      <h1>You're Invited!</h1>
-      <p>${inviterName} invited you to join ${appName} as ${roleName}.</p>
-      <a href="${inviteLink}">Accept Invitation</a>
-    `,
-  }),
-});
+// After (recommended)
+import { sendEmail, sendSMS } from '@spfn/notification/server';
 ```
 
-**Template Parameters:**
+The `@spfn/notification` package provides:
+- Multi-channel support (Email, SMS, Slack, Push)
+- Template system with variable substitution
+- Multiple provider support (AWS SES, SNS, SendGrid, Twilio, etc.)
 
-| Template | Parameters |
-|----------|------------|
-| `verificationCode` | `code`, `purpose`, `expiresInMinutes?`, `appName?` |
-| `welcome` | `email`, `appName?` |
-| `passwordReset` | `resetLink`, `expiresInMinutes?`, `appName?` |
-| `invitation` | `inviteLink`, `inviterName?`, `roleName?`, `appName?` |
+For documentation, see `@spfn/notification` package README.
 
 ---
 
@@ -1167,7 +1159,7 @@ CREATE TABLE permissions (
 
 **Built-in Permissions:**
 - `auth:self:manage`
-- `user:read`, `user:write`, `user:delete`
+- `user:read`, `user:write`, `user:delete`, `user:invite`
 - `rbac:role:manage`, `rbac:permission:manage`
 
 ---
@@ -1327,7 +1319,7 @@ await initializeAuth({
 
 **Permissions:**
 - `auth:self:manage` - Change password, rotate keys
-- `user:read`, `user:write`, `user:delete`
+- `user:read`, `user:write`, `user:delete`, `user:invite`
 - `rbac:role:manage`, `rbac:permission:manage`
 
 ---
@@ -1335,7 +1327,7 @@ await initializeAuth({
 ### Middleware Usage
 
 ```typescript
-import { authenticate, requirePermissions, requireRole } from '@spfn/auth/server';
+import { authenticate, requirePermissions, requireAnyPermission, requireRole } from '@spfn/auth/server';
 
 // Single permission
 app.bind(
@@ -1352,6 +1344,15 @@ app.bind(
   [authenticate, requirePermissions('post:write', 'post:publish')],
   async (c) => {
     // Needs both permissions
+  }
+);
+
+// Any of the permissions (at least one required)
+app.bind(
+  viewContentContract,
+  [authenticate, requireAnyPermission('content:read', 'admin:access')],
+  async (c) => {
+    // User has either content:read OR admin:access
   }
 );
 
@@ -1957,6 +1958,6 @@ MIT License - See LICENSE file for details.
 
 ---
 
-**Last Updated:** 2025-12-07
-**Document Version:** 2.2.0 (Technical Documentation)
+**Last Updated:** 2026-01-25
+**Document Version:** 2.3.0 (Technical Documentation)
 **Package Version:** 0.1.0-alpha.88
