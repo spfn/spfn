@@ -5,9 +5,27 @@
  */
 
 import { defineRouter } from '@spfn/core/route';
-import { authRouter } from './auth';
-import { invitationRouter } from './invitations';
-import { userRouter } from './users';
+import {
+    checkAccountExists,
+    sendVerificationCode,
+    verifyCode,
+    register,
+    login,
+    logout,
+    rotateKey,
+    changePassword,
+    getAuthSession,
+} from './auth';
+import {
+    getInvitation,
+    acceptInvitation,
+    createInvitation,
+    listInvitations,
+    cancelInvitation,
+    resendInvitation,
+    deleteInvitation,
+} from './invitations';
+import { getUserProfile, updateUserProfile } from './users';
 
 /**
  * Main auth router
@@ -19,10 +37,27 @@ import { userRouter } from './users';
  * - Users: /_auth/users/*
  */
 export const mainAuthRouter = defineRouter({
-    // Flatten all routes at root level
-    ...authRouter.routes,
-    ...invitationRouter.routes,
-    ...userRouter.routes,
+    // Auth routes
+    checkAccountExists,
+    sendVerificationCode,
+    verifyCode,
+    register,
+    login,
+    logout,
+    rotateKey,
+    changePassword,
+    getAuthSession,
+    // Invitation routes
+    getInvitation,
+    acceptInvitation,
+    createInvitation,
+    listInvitations,
+    cancelInvitation,
+    resendInvitation,
+    deleteInvitation,
+    // User routes
+    getUserProfile,
+    updateUserProfile,
 });
 
 // For backward compatibility

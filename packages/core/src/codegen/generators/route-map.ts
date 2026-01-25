@@ -125,29 +125,50 @@ function parseRouterFile(routerPath: string): { importPaths: string[]; routeName
         const content = readFileSync(routerPath, 'utf-8');
 
         // Extract import paths
-        // Pattern: import { ... } from './routes/xxx'
+        // Pattern: import { ... } from './xxx'
+        // Include all relative imports (not @spfn/core or other packages)
         const importPattern = /import\s+\{[^}]+\}\s+from\s+['"`](\.[^'"`]+)['"`]/g;
         let match;
         while ((match = importPattern.exec(content)) !== null)
         {
             const importPath = match[1];
-            if (importPath.includes('route'))
+            // Include relative imports, exclude external packages
+            if (importPath.startsWith('.'))
             {
                 importPaths.push(importPath);
             }
         }
 
         // Extract route names from defineRouter({...})
-        const routerPattern = /defineRouter\s*\(\s*\{([^}]+)\}/s;
-        const routerMatch = routerPattern.exec(content);
-        if (routerMatch)
+        // Use balanced brace matching for nested structures
+        const defineRouterStart = content.indexOf('defineRouter(');
+        if (defineRouterStart !== -1)
         {
-            const routerContent = routerMatch[1];
-            // Extract identifiers (route names)
-            const namePattern = /(\w+)\s*[,}]/g;
-            while ((match = namePattern.exec(routerContent)) !== null)
+            // Find the opening brace after defineRouter(
+            const braceStart = content.indexOf('{', defineRouterStart);
+            if (braceStart !== -1)
             {
-                routeNames.push(match[1]);
+                // Find matching closing brace
+                let depth = 1;
+                let braceEnd = braceStart + 1;
+                while (depth > 0 && braceEnd < content.length)
+                {
+                    if (content[braceEnd] === '{') depth++;
+                    else if (content[braceEnd] === '}') depth--;
+                    braceEnd++;
+                }
+
+                const routerContent = content.slice(braceStart + 1, braceEnd - 1);
+
+                // Extract identifiers (route names), ignoring comments
+                // Remove single-line comments
+                const withoutComments = routerContent.replace(/\/\/[^\n]*/g, '');
+                // Extract identifiers that are standalone (not part of property access like xxx.routes)
+                const namePattern = /^\s*(\w+)\s*[,\n]/gm;
+                while ((match = namePattern.exec(withoutComments)) !== null)
+                {
+                    routeNames.push(match[1]);
+                }
             }
         }
     }
@@ -268,11 +289,30 @@ export function createRouteMapGenerator(config: RouteMapGeneratorConfig): Genera
 
             for (const importPath of importPaths)
             {
-                // Resolve .ts extension
+                // Resolve path - try multiple patterns
                 let resolvedPath = resolve(routerDir, importPath);
+
+                // Try: exact path with .ts extension
                 if (!resolvedPath.endsWith('.ts'))
                 {
-                    resolvedPath += '.ts';
+                    const withTs = resolvedPath + '.ts';
+                    if (existsSync(withTs))
+                    {
+                        resolvedPath = withTs;
+                    }
+                    // Try: directory with index.ts
+                    else
+                    {
+                        const indexPath = join(resolvedPath, 'index.ts');
+                        if (existsSync(indexPath))
+                        {
+                            resolvedPath = indexPath;
+                        }
+                        else
+                        {
+                            resolvedPath = withTs; // fallback to original
+                        }
+                    }
                 }
 
                 if (existsSync(resolvedPath))

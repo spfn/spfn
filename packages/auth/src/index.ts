@@ -6,6 +6,12 @@ import { createApi } from '@spfn/core/nextjs';
 import { mainAuthRouter } from './server/routes';
 import { authErrorRegistry } from './errors';
 
+// ============================================================================
+// Route Map (for RPC proxy)
+// ============================================================================
+
+export { routeMap as authRouteMap } from './generated/route-map';
+
 /**
  * Type-safe API client for auth routes
  *
