@@ -14,3 +14,4 @@ export * from './role-permissions.repository';
 export * from './user-permissions.repository';
 export * from './user-profiles.repository';
 export * from './invitations.repository';
+export * from './social-accounts.repository';

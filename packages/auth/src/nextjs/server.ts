@@ -16,7 +16,19 @@ export {
     saveSession,
     getSession,
     clearSession,
+    // Pending session (OAuth)
+    sealPendingSession,
+    unsealPendingSession,
+    getPendingSession,
+    clearPendingSession,
     type SessionData,
     type PublicSession,
-    type SaveSessionOptions
+    type SaveSessionOptions,
+    type PendingSessionData,
 } from './session-helpers';
+
+// OAuth handlers
+export {
+    createOAuthCallbackHandler,
+    type OAuthCallbackOptions,
+} from './oauth-handlers';

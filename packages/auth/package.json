@@ -36,6 +36,11 @@
       "import": "./dist/nextjs/api.js",
       "require": "./dist/nextjs/api.js"
     },
+    "./nextjs/client": {
+      "types": "./dist/nextjs/client.d.ts",
+      "import": "./dist/nextjs/client.js",
+      "require": "./dist/nextjs/client.js"
+    },
     "./nextjs/server": {
       "types": "./dist/nextjs/server.d.ts",
       "import": "./dist/nextjs/server.js",
@@ -56,6 +61,8 @@
     "db:generate": "drizzle-kit generate",
     "codegen": "spfn codegen run",
     "test": "vitest run",
+    "test:unit": "vitest run src/__tests__/unit/",
+    "test:integration": "vitest run src/__tests__/integration/",
     "test:coverage": "vitest run --coverage",
     "test:routes": "vitest src/server/routes",
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d",

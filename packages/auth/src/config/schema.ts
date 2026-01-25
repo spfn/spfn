@@ -274,4 +274,59 @@ export const authEnvSchema = defineEnvSchema({
             examples: ['MyApp', 'Your Company'],
         }),
     },
+
+    // ============================================================================
+    // OAuth Configuration - Google
+    // ============================================================================
+    SPFN_AUTH_GOOGLE_CLIENT_ID: {
+        ...envString({
+            description: 'Google OAuth 2.0 Client ID. When set, Google OAuth routes are automatically enabled.',
+            required: false,
+            examples: ['123456789-abc123.apps.googleusercontent.com'],
+        }),
+    },
+
+    SPFN_AUTH_GOOGLE_CLIENT_SECRET: {
+        ...envString({
+            description: 'Google OAuth 2.0 Client Secret',
+            required: false,
+            sensitive: true,
+            examples: ['GOCSPX-abcdefghijklmnop'],
+        }),
+    },
+
+    SPFN_AUTH_GOOGLE_REDIRECT_URI: {
+        ...envString({
+            description: 'Google OAuth callback URL. Defaults to {SPFN_API_URL}/_auth/oauth/google/callback',
+            required: false,
+            examples: [
+                'https://api.example.com/_auth/oauth/google/callback',
+                'http://localhost:8790/_auth/oauth/google/callback',
+            ],
+        }),
+    },
+
+    SPFN_AUTH_OAUTH_SUCCESS_URL: {
+        ...envString({
+            description: 'OAuth callback page URL. This page should use OAuthCallback component to finalize session.',
+            required: false,
+            default: '/auth/callback',
+            examples: [
+                '/auth/callback',
+                'https://app.example.com/auth/callback',
+            ],
+        }),
+    },
+
+    SPFN_AUTH_OAUTH_ERROR_URL: {
+        ...envString({
+            description: 'URL to redirect after OAuth error. Use {error} placeholder for error message.',
+            required: false,
+            default: 'http://localhost:3000/auth/error?error={error}',
+            examples: [
+                'https://app.example.com/auth/error?error={error}',
+                'http://localhost:3000/auth/error?error={error}',
+            ],
+        }),
+    },
 });

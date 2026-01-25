@@ -110,6 +110,22 @@ export { getAuthSessionService } from './auth-session.service';
 export { getUserProfileService, updateUserProfileService } from './user-profile.service';
 export type { UpdateProfileParams } from './user-profile.service';
 
+// OAuth Service
+export {
+    oauthStartService,
+    oauthCallbackService,
+    buildOAuthErrorUrl,
+    isOAuthProviderEnabled,
+    getEnabledOAuthProviders,
+} from './oauth.service';
+
+export type {
+    OAuthStartParams,
+    OAuthStartResult,
+    OAuthCallbackParams,
+    OAuthCallbackResult,
+} from './oauth.service';
+
 // =============================================================================
 // Email & SMS - DEPRECATED: Use @spfn/notification instead
 // =============================================================================

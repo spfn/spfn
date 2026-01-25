@@ -7,6 +7,7 @@ export default defineConfig({
         config: 'src/config/index.ts',
         errors: 'src/errors/index.ts',
         'nextjs/api': 'src/nextjs/api.ts',
+        'nextjs/client': 'src/nextjs/client.ts',
         'nextjs/server': 'src/nextjs/server.ts',
         server: 'src/server.ts',
     },
@@ -22,6 +23,7 @@ export default defineConfig({
         '@spfn/auth/config',
         '@spfn/auth/errors',
         '@spfn/auth/nextjs/api',
+        '@spfn/auth/nextjs/client',
         '@spfn/auth/nextjs/server',
         '@spfn/auth/server',
         // External dependencies

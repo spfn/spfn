@@ -4,11 +4,31 @@
  * Server-side only (uses next/headers)
  */
 
+import * as jose from 'jose';
 import { cookies } from 'next/headers.js';
-import { sealSession, unsealSession, COOKIE_NAMES, getSessionTtl, parseDuration, type SessionData } from '@spfn/auth/server';
+import {
+    sealSession,
+    unsealSession,
+    COOKIE_NAMES,
+    getSessionTtl,
+    parseDuration,
+    type SessionData,
+    type KeyAlgorithmType,
+} from '@spfn/auth/server';
+import { env } from '@spfn/auth/config';
 import { logger } from '@spfn/core/logger';
 
 export type { SessionData };
+
+/**
+ * Pending OAuth session data (before user ID is known)
+ */
+export interface PendingSessionData
+{
+    privateKey: string;
+    keyId: string;
+    algorithm: KeyAlgorithmType;
+}
 
 /**
  * Public session information (excludes sensitive data)
@@ -145,4 +165,94 @@ export async function clearSession(): Promise<void>
     const cookieStore = await cookies();
     cookieStore.delete(COOKIE_NAMES.SESSION);
     cookieStore.delete(COOKIE_NAMES.SESSION_KEY_ID);
+}
+
+// ============================================================================
+// Pending OAuth Session (for OAuth flow)
+// ============================================================================
+
+/**
+ * Get encryption key for pending session
+ */
+async function getPendingSessionKey(): Promise<Uint8Array>
+{
+    const secret = env.SPFN_AUTH_SESSION_SECRET;
+    const encoder = new TextEncoder();
+    const data = encoder.encode(`oauth-pending:${secret}`);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return new Uint8Array(hashBuffer);
+}
+
+/**
+ * Seal pending session data (for OAuth flow)
+ *
+ * @param data - Pending session data (privateKey, keyId, algorithm)
+ * @param ttl - Time to live in seconds (default: 10 minutes)
+ */
+export async function sealPendingSession(
+    data: PendingSessionData,
+    ttl: number = 600
+): Promise<string>
+{
+    const key = await getPendingSessionKey();
+
+    return await new jose.EncryptJWT({ data })
+        .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
+        .setIssuedAt()
+        .setExpirationTime(`${ttl}s`)
+        .setIssuer('spfn-auth')
+        .setAudience('spfn-oauth')
+        .encrypt(key);
+}
+
+/**
+ * Unseal pending session data
+ *
+ * @param jwt - Encrypted pending session token
+ */
+export async function unsealPendingSession(jwt: string): Promise<PendingSessionData>
+{
+    const key = await getPendingSessionKey();
+
+    const { payload } = await jose.jwtDecrypt(jwt, key, {
+        issuer: 'spfn-auth',
+        audience: 'spfn-oauth',
+    });
+
+    return payload.data as PendingSessionData;
+}
+
+/**
+ * Get pending session from cookie
+ */
+export async function getPendingSession(): Promise<PendingSessionData | null>
+{
+    const cookieStore = await cookies();
+    const pendingCookie = cookieStore.get(COOKIE_NAMES.OAUTH_PENDING);
+
+    if (!pendingCookie)
+    {
+        return null;
+    }
+
+    try
+    {
+        return await unsealPendingSession(pendingCookie.value);
+    }
+    catch (error)
+    {
+        logger.debug('Pending session validation failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
+}
+
+/**
+ * Clear pending session cookie
+ */
+export async function clearPendingSession(): Promise<void>
+{
+    const cookieStore = await cookies();
+    cookieStore.delete(COOKIE_NAMES.OAUTH_PENDING);
 }

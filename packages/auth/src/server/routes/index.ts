@@ -26,6 +26,14 @@ import {
     deleteInvitation,
 } from './invitations';
 import { getUserProfile, updateUserProfile } from './users';
+import {
+    oauthGoogleStart,
+    oauthGoogleCallback,
+    oauthStart,
+    oauthProviders,
+    getGoogleOAuthUrl,
+    oauthFinalize,
+} from './oauth';
 
 /**
  * Main auth router
@@ -33,6 +41,7 @@ import { getUserProfile, updateUserProfile } from './users';
  *
  * Routes:
  * - Auth: /_auth/exists, /_auth/codes, /_auth/login, /_auth/logout, etc.
+ * - OAuth: /_auth/oauth/google, /_auth/oauth/google/callback, etc.
  * - Invitations: /_auth/invitations/*
  * - Users: /_auth/users/*
  */
@@ -47,6 +56,13 @@ export const mainAuthRouter = defineRouter({
     rotateKey,
     changePassword,
     getAuthSession,
+    // OAuth routes
+    oauthGoogleStart,
+    oauthGoogleCallback,
+    oauthStart,
+    oauthProviders,
+    getGoogleOAuthUrl,
+    oauthFinalize,
     // Invitation routes
     getInvitation,
     acceptInvitation,

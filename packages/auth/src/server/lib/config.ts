@@ -14,6 +14,8 @@ export const COOKIE_NAMES = {
     SESSION: 'spfn_session',
     /** Current key ID (for key rotation) */
     SESSION_KEY_ID: 'spfn_session_key_id',
+    /** Pending OAuth session (privateKey, keyId, algorithm) - temporary during OAuth flow */
+    OAUTH_PENDING: 'spfn_oauth_pending',
 } as const;
 
 /**
