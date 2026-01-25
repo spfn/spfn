@@ -1,6 +1,6 @@
 # @spfn/auth - Technical Documentation
 
-**Version:** 0.1.0-alpha.88
+**Version:** 0.2.0-beta.11
 **Status:** Alpha - Internal Development
 
 > **Note:** This is a technical documentation for developers working on the @spfn/auth package.
@@ -1960,4 +1960,4 @@ MIT License - See LICENSE file for details.
 
 **Last Updated:** 2026-01-25
 **Document Version:** 2.3.0 (Technical Documentation)
-**Package Version:** 0.1.0-alpha.88
+**Package Version:** 0.2.0-beta.11
