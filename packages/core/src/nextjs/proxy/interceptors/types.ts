@@ -136,6 +136,11 @@ export interface ResponseInterceptorContext
     };
 
     /**
+     * Cookies from original request (read-only)
+     */
+    cookies: Map<string, string>;
+
+    /**
      * Cookies to set in response
      *
      * @example

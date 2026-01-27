@@ -1,6 +1,6 @@
 # @spfn/auth - Technical Documentation
 
-**Version:** 0.2.0-beta.11
+**Version:** 0.2.0-beta.12
 **Status:** Alpha - Internal Development
 
 > **Note:** This is a technical documentation for developers working on the @spfn/auth package.
@@ -18,6 +18,7 @@
 - [Module Exports](#module-exports)
 - [Email & SMS Services](#email--sms-services)
 - [Server-Side API](#server-side-api)
+- [OAuth Authentication](#oauth-authentication)
 - [Database Schema](#database-schema)
 - [RBAC System](#rbac-system)
 - [Next.js Adapter](#nextjs-adapter)
@@ -34,10 +35,11 @@
 
 - **Asymmetric JWT Authentication** - Client-signed tokens using ES256/RS256
 - **User Management** - Email/phone-based identity with bcrypt hashing
+- **OAuth Authentication** - Google OAuth 2.0 (Authorization Code Flow), extensible to other providers
 - **Multi-Factor Authentication** - OTP verification via email/SMS
 - **Session Management** - Public key rotation with 90-day expiry
 - **Role-Based Access Control** - Flexible RBAC with runtime role/permission management
-- **Next.js Integration** - Session helpers and server-side guards
+- **Next.js Integration** - Session helpers, server-side guards, and OAuth interceptors
 
 ### Design Principles
 
@@ -129,6 +131,16 @@ SPFN_AUTH_SESSION_SECRET=your-32-char-secret
 SPFN_AUTH_JWT_EXPIRES_IN=7d
 SPFN_AUTH_BCRYPT_SALT_ROUNDS=10
 SPFN_AUTH_SESSION_TTL=7d
+
+# Google OAuth
+SPFN_AUTH_GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
+SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-...
+SPFN_APP_URL=http://localhost:3000
+
+# Google OAuth (Optional)
+SPFN_AUTH_GOOGLE_REDIRECT_URI=http://localhost:8790/_auth/oauth/google/callback
+SPFN_AUTH_OAUTH_SUCCESS_URL=/auth/callback
+SPFN_AUTH_OAUTH_ERROR_URL=http://localhost:3000/auth/error?error={error}
 
 # AWS SES (Email)
 SPFN_AUTH_AWS_REGION=ap-northeast-2
@@ -719,9 +731,11 @@ import {
   loginRegisterInterceptor,
   generalAuthInterceptor,
   keyRotationInterceptor,
+  oauthUrlInterceptor,
+  oauthFinalizeInterceptor,
 } from '@spfn/auth/nextjs/api';
 
-// Auto-registers interceptors on import
+// Auto-registers interceptors on import (including OAuth)
 import '@spfn/auth/nextjs/api';
 ```
 
@@ -1019,6 +1033,266 @@ Change password.
 
 ---
 
+## OAuth Authentication
+
+### Overview
+
+`@spfn/auth`는 OAuth 2.0 Authorization Code Flow를 지원합니다. 현재 Google OAuth가 구현되어 있으며, 다른 provider (GitHub, Kakao, Naver)는 동일한 패턴으로 확장 가능합니다.
+
+**핵심 설계:**
+- 환경 변수만으로 설정 (`SPFN_AUTH_GOOGLE_CLIENT_ID`, `SPFN_AUTH_GOOGLE_CLIENT_SECRET`)
+- Next.js 인터셉터 기반 자동 세션 관리 (키쌍 생성 → pending session → full session)
+- 기존 이메일 계정과 자동 연결 (Google verified_email 확인 시에만)
+
+---
+
+### Authentication Flow
+
+```
+┌──────────┐     ┌──────────────┐     ┌──────────┐     ┌──────────┐
+│  Client  │     │  Next.js RPC │     │  Backend │     │  Google  │
+│ (Browser)│     │  (Interceptor)│     │  (SPFN)  │     │  OAuth   │
+└────┬─────┘     └──────┬───────┘     └────┬─────┘     └────┬─────┘
+     │                   │                  │                 │
+     │ 1. Click Login    │                  │                 │
+     ├──────────────────>│                  │                 │
+     │                   │                  │                 │
+     │    2. Generate keypair (ES256)       │                 │
+     │    3. Create encrypted state         │                 │
+     │       (publicKey, keyId in JWE)      │                 │
+     │    4. Save privateKey to             │                 │
+     │       pending session cookie         │                 │
+     │                   │                  │                 │
+     │                   │ 5. Forward with  │                 │
+     │                   │    state in body │                 │
+     │                   ├─────────────────>│                 │
+     │                   │                  │                 │
+     │                   │ 6. Return Google │                 │
+     │                   │    Auth URL      │                 │
+     │                   │<─────────────────┤                 │
+     │                   │                  │                 │
+     │ 7. Redirect to Google               │                 │
+     │<──────────────────┤                  │                 │
+     │                   │                  │                 │
+     │ 8. User consents  │                  │                 │
+     ├───────────────────┼──────────────────┼────────────────>│
+     │                   │                  │                 │
+     │                   │    9. Callback with code + state   │
+     │                   │                  │<────────────────┤
+     │                   │                  │                 │
+     │                   │  10. Verify state, exchange code   │
+     │                   │      Create/link user account      │
+     │                   │      Register publicKey             │
+     │                   │                  │                 │
+     │ 11. Redirect to /auth/callback       │                 │
+     │     ?userId=X&keyId=Y&returnUrl=/    │                 │
+     │<─────────────────────────────────────┤                 │
+     │                   │                  │                 │
+     │ 12. OAuthCallback │                  │                 │
+     │     component     │                  │                 │
+     │     calls finalize│                  │                 │
+     ├──────────────────>│                  │                 │
+     │                   │                  │                 │
+     │   13. Interceptor reads pending      │                 │
+     │       session cookie, verifies       │                 │
+     │       keyId match, creates full      │                 │
+     │       session cookie                 │                 │
+     │                   │                  │                 │
+     │ 14. Session set,  │                  │                 │
+     │     redirect to   │                  │                 │
+     │     returnUrl     │                  │                 │
+     │<──────────────────┤                  │                 │
+     │                   │                  │                 │
+```
+
+---
+
+### Setup
+
+#### 1. Google Cloud Console
+
+1. [Google Cloud Console](https://console.cloud.google.com/) > APIs & Services > Credentials
+2. Create OAuth 2.0 Client ID (Web application)
+3. Add Authorized redirect URI: `http://localhost:8790/_auth/oauth/google/callback`
+4. Copy Client ID and Client Secret
+
+#### 2. Environment Variables
+
+```bash
+# Required
+SPFN_AUTH_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-your-secret
+
+# Next.js app URL (for OAuth callback redirect)
+SPFN_APP_URL=http://localhost:3000
+
+# Optional
+SPFN_AUTH_GOOGLE_REDIRECT_URI=http://localhost:8790/_auth/oauth/google/callback  # default
+SPFN_AUTH_OAUTH_SUCCESS_URL=/auth/callback  # default
+```
+
+#### 3. Next.js Callback Page
+
+```tsx
+// app/auth/callback/page.tsx
+export { OAuthCallback as default } from '@spfn/auth/nextjs/client';
+```
+
+#### 4. Login Button
+
+```typescript
+import { authApi } from '@spfn/auth';
+
+const handleGoogleLogin = async () =>
+{
+    const response = await authApi.getGoogleOAuthUrl.call({
+        body: { returnUrl: '/dashboard' },
+    });
+    window.location.href = response.authUrl;
+};
+```
+
+---
+
+### OAuth Routes
+
+#### `GET /_auth/oauth/google`
+
+Google OAuth 시작 (리다이렉트 방식). 브라우저를 Google 로그인 페이지로 직접 리다이렉트합니다.
+
+**Query:**
+```typescript
+{
+  state: string;  // Encrypted OAuth state (JWE)
+}
+```
+
+---
+
+#### `POST /_auth/oauth/google/url`
+
+Google OAuth URL 획득 (인터셉터 방식). 인터셉터가 state를 자동 생성하여 주입합니다.
+
+**Request:**
+```typescript
+{
+  returnUrl?: string;  // Default: '/'
+}
+```
+
+**Response:**
+```typescript
+{
+  authUrl: string;  // Google OAuth URL
+}
+```
+
+---
+
+#### `GET /_auth/oauth/google/callback`
+
+Google에서 리다이렉트되는 콜백. code를 token으로 교환하고 사용자를 생성/연결합니다.
+
+**Query (from Google):**
+```typescript
+{
+  code?: string;              // Authorization code
+  state?: string;             // OAuth state
+  error?: string;             // Error code
+  error_description?: string; // Error description
+}
+```
+
+**Result:** Next.js 콜백 페이지로 리다이렉트 (`/auth/callback?userId=X&keyId=Y&returnUrl=/`)
+
+---
+
+#### `POST /_auth/oauth/finalize`
+
+OAuth 세션 완료. 인터셉터가 pending session에서 full session을 생성합니다.
+
+**Request:**
+```typescript
+{
+  userId: string;
+  keyId: string;
+  returnUrl?: string;
+}
+```
+
+**Response:**
+```typescript
+{
+  success: boolean;
+  returnUrl: string;
+}
+```
+
+---
+
+#### `GET /_auth/oauth/providers`
+
+활성화된 OAuth provider 목록을 반환합니다.
+
+**Response:**
+```typescript
+{
+  providers: ('google' | 'github' | 'kakao' | 'naver')[];
+}
+```
+
+---
+
+### Security
+
+- **State 암호화**: JWE (A256GCM)로 state 파라미터 암호화. CSRF 방지용 nonce 포함.
+- **Pending Session**: OAuth 리다이렉트 중 privateKey를 JWE로 암호화한 HttpOnly 쿠키에 저장. 10분 TTL.
+- **KeyId 검증**: finalize 시 pending session의 keyId와 응답의 keyId 일치 확인.
+- **Email 검증**: `verified_email`이 true인 경우에만 기존 계정에 자동 연결. 미검증 이메일로 기존 계정 연결 시도 시 에러.
+- **Session Cookie**: `HttpOnly`, `Secure` (production), `SameSite=strict`.
+
+---
+
+### OAuthCallback Component
+
+`@spfn/auth/nextjs/client`에서 제공하는 클라이언트 컴포넌트입니다.
+
+```tsx
+import { OAuthCallback } from '@spfn/auth/nextjs/client';
+
+// 기본 사용
+export default function CallbackPage()
+{
+    return <OAuthCallback />;
+}
+
+// 커스터마이징
+export default function CallbackPage()
+{
+    return (
+        <OAuthCallback
+            apiBasePath="/api/rpc"
+            loadingComponent={<MySpinner />}
+            errorComponent={(error) => <MyError message={error} />}
+            onSuccess={(userId) => console.log('Logged in:', userId)}
+            onError={(error) => console.error(error)}
+        />
+    );
+}
+```
+
+**Props:**
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `apiBasePath` | `string` | `'/api/rpc'` | RPC API base path |
+| `loadingComponent` | `ReactNode` | Built-in | 로딩 중 표시할 컴포넌트 |
+| `errorComponent` | `(error: string) => ReactNode` | Built-in | 에러 표시 컴포넌트 |
+| `onSuccess` | `(userId: string) => void` | - | 성공 콜백 |
+| `onError` | `(error: string) => void` | - | 에러 콜백 |
+
+---
+
 ## Database Schema
 
 ### Core Tables
@@ -1252,7 +1526,7 @@ CREATE TABLE user_profiles (
 
 #### `user_social_accounts`
 
-OAuth provider accounts (future feature).
+OAuth provider accounts (Google, GitHub, etc.).
 
 ```sql
 CREATE TABLE user_social_accounts (
@@ -1469,7 +1743,19 @@ import '@spfn/auth/nextjs/api';
 **Target Routes:**
 - `/_auth/login`, `/_auth/register` - Login/register interceptor
 - `/_auth/keys/rotate` - Key rotation interceptor
+- `/_auth/oauth/:provider/url` - OAuth URL interceptor (keypair + state generation)
+- `/_auth/oauth/finalize` - OAuth finalize interceptor (pending session → full session)
 - All other authenticated routes - General auth interceptor
+
+---
+
+### OAuth Client Component (`@spfn/auth/nextjs/client`)
+
+```typescript
+import { OAuthCallback, type OAuthCallbackProps } from '@spfn/auth/nextjs/client';
+```
+
+OAuth 콜백 페이지용 `'use client'` 컴포넌트. 자세한 사용법은 [OAuth Authentication](#oauth-authentication) 섹션 참조.
 
 ---
 
@@ -1818,7 +2104,7 @@ ls migrations/
 
 - [ ] **React hooks** - useAuth, useSession, usePermissions
 - [ ] **UI components** - LoginForm, RegisterForm, AuthProvider
-- [ ] **OAuth integration** - Google, GitHub, etc.
+- [x] **OAuth integration** - Google (implemented), GitHub/Kakao/Naver (planned)
 - [ ] **2FA support** - TOTP/authenticator apps
 - [ ] **Password reset flow** - Complete email-based reset
 - [ ] **Email change flow** - Verification for email updates
@@ -1958,6 +2244,6 @@ MIT License - See LICENSE file for details.
 
 ---
 
-**Last Updated:** 2026-01-25
-**Document Version:** 2.3.0 (Technical Documentation)
-**Package Version:** 0.2.0-beta.11
+**Last Updated:** 2026-01-27
+**Document Version:** 2.4.0 (Technical Documentation)
+**Package Version:** 0.2.0-beta.12

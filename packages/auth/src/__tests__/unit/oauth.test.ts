@@ -58,7 +58,6 @@ describe('OAuth State - Create/Verify', () =>
         expect(verified.fingerprint).toBe('abc123def456');
         expect(verified.algorithm).toBe('ES256');
         expect(verified.nonce).toBeTruthy();
-        expect(verified.expiresAt).toBeGreaterThan(Date.now());
     });
 
     it('should produce different state for same params (different nonce)', async () =>
@@ -116,7 +115,7 @@ describe('OAuth State - Expiration', () =>
         vi.unstubAllEnvs();
     });
 
-    it('should include expiration timestamp', async () =>
+    it('should verify state within TTL (JWE exp claim)', async () =>
     {
         const state = await createOAuthState({
             provider: 'google',
@@ -127,12 +126,9 @@ describe('OAuth State - Expiration', () =>
             algorithm: 'ES256',
         });
 
+        // State should be verifiable immediately
         const verified = await verifyOAuthState(state);
-
-        // Should expire in ~10 minutes
-        const tenMinutes = 10 * 60 * 1000;
-        expect(verified.expiresAt).toBeGreaterThan(Date.now());
-        expect(verified.expiresAt).toBeLessThan(Date.now() + tenMinutes + 5000);
+        expect(verified.provider).toBe('google');
     });
 });
 

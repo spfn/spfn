@@ -22,10 +22,7 @@ export interface OAuthState
     keyId: string;
     fingerprint: string;
     algorithm: KeyAlgorithmType;
-    expiresAt: number;  // Unix timestamp (ms)
 }
-
-const STATE_TTL_MS = 10 * 60 * 1000;  // 10 minutes
 
 /**
  * Get encryption key derived from session secret
@@ -77,7 +74,6 @@ export async function createOAuthState(params: CreateOAuthStateParams): Promise<
         keyId: params.keyId,
         fingerprint: params.fingerprint,
         algorithm: params.algorithm,
-        expiresAt: Date.now() + STATE_TTL_MS,
     };
 
     const jwe = await new jose.EncryptJWT({ state })
@@ -95,7 +91,7 @@ export async function createOAuthState(params: CreateOAuthStateParams): Promise<
  *
  * @param encryptedState - 암호화된 state 문자열
  * @returns 복호화된 state 객체
- * @throws Error if state is invalid or expired
+ * @throws Error if state is invalid or expired (JWE exp claim으로 자동 검증)
  */
 export async function verifyOAuthState(encryptedState: string): Promise<OAuthState>
 {
@@ -104,13 +100,5 @@ export async function verifyOAuthState(encryptedState: string): Promise<OAuthSta
     const jwe = decodeURIComponent(encryptedState);
     const { payload } = await jose.jwtDecrypt(jwe, key);
 
-    const state = payload.state as OAuthState;
-
-    // 추가 만료 검증
-    if (Date.now() > state.expiresAt)
-    {
-        throw new Error('OAuth state has expired');
-    }
-
-    return state;
+    return payload.state as OAuthState;
 }

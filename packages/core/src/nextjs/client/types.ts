@@ -244,6 +244,12 @@ export interface ApiConfig {
  */
 export interface CallOptions {
     /**
+     * Request timeout in milliseconds
+     * Overrides the global timeout set in ApiConfig
+     */
+    timeout?: number;
+
+    /**
      * Additional headers for this request
      */
     headers?: Record<string, string>;

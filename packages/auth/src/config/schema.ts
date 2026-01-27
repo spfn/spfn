@@ -275,6 +275,18 @@ export const authEnvSchema = defineEnvSchema({
         }),
     },
 
+    SPFN_APP_URL: {
+        ...envString({
+            description: 'Next.js application URL. Used for OAuth callback redirects.',
+            default: 'http://localhost:3000',
+            required: false,
+            examples: [
+                'https://app.example.com',
+                'http://localhost:3000',
+            ],
+        }),
+    },
+
     // ============================================================================
     // OAuth Configuration - Google
     // ============================================================================

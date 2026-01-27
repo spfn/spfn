@@ -542,7 +542,8 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
                     inputBody,
                     response,
                     body,
-                    requestCtx.metadata
+                    requestCtx.metadata,
+                    requestCtx.cookies
                 );
 
                 // Execute response interceptors

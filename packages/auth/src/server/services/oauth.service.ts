@@ -182,7 +182,9 @@ async function handleGoogleCallback(
 
     // 6. 리다이렉트 URL 생성 (OAuth 콜백 페이지로)
     // 콜백 페이지에서 oauthFinalize API를 호출하여 세션 저장
-    const callbackUrl = env.SPFN_AUTH_OAUTH_SUCCESS_URL || '/auth/callback';
+    const appUrl = env.SPFN_APP_URL;
+    const callbackPath = env.SPFN_AUTH_OAUTH_SUCCESS_URL || '/auth/callback';
+    const callbackUrl = callbackPath.startsWith('http') ? callbackPath : `${appUrl}${callbackPath}`;
     const redirectUrl = buildRedirectUrl(callbackUrl, {
         userId: String(userId),
         keyId: stateData.keyId,
@@ -216,11 +218,19 @@ async function createOrLinkUser(
 
     if (existingUser)
     {
+        // 미검증 이메일로는 기존 계정 연결 차단 (계정 탈취 방지)
+        if (!googleUser.verified_email)
+        {
+            throw new ValidationError({
+                message: 'Cannot link to existing account with unverified email. Please verify your email with Google first.',
+            });
+        }
+
         // 기존 사용자에 소셜 계정 연결
         userId = existingUser.id;
 
-        // 이메일 인증 상태 업데이트 (Google이 인증함)
-        if (!existingUser.emailVerifiedAt && googleUser.verified_email)
+        // 이메일 인증 상태 업데이트 (Google verified_email 확인)
+        if (!existingUser.emailVerifiedAt)
         {
             await usersRepository.updateById(existingUser.id, {
                 emailVerifiedAt: new Date(),
@@ -239,7 +249,7 @@ async function createOrLinkUser(
         }
 
         const newUser = await usersRepository.create({
-            email: googleUser.email,
+            email: googleUser.verified_email ? googleUser.email : null,
             phone: null,
             passwordHash: null,  // OAuth 사용자는 비밀번호 없음
             passwordChangeRequired: false,

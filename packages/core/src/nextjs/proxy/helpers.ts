@@ -255,7 +255,8 @@ export function buildResponseContext(
     requestBody: any,
     response: Response,
     responseBody: any,
-    requestMetadata: Record<string, any>
+    requestMetadata: Record<string, any>,
+    cookies: Map<string, string>
 ): ResponseInterceptorContext
 {
     return {
@@ -272,6 +273,7 @@ export function buildResponseContext(
             headers: response.headers,
             body: responseBody,
         },
+        cookies,
         setCookies: [],
         metadata: requestMetadata,
     };
