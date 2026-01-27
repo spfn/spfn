@@ -68,23 +68,40 @@ export function getGoogleOAuthConfig()
 }
 
 /**
+ * 환경변수 또는 기본값에서 Google OAuth scopes 가져오기
+ *
+ * SPFN_AUTH_GOOGLE_SCOPES가 설정되면 콤마로 분리하여 사용.
+ * 미설정이면 ['email', 'profile'] 기본값 사용.
+ */
+function getDefaultScopes(): string[]
+{
+    const envScopes = env.SPFN_AUTH_GOOGLE_SCOPES;
+    if (envScopes)
+    {
+        return envScopes.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return ['email', 'profile'];
+}
+
+/**
  * Google 로그인 URL 생성
  *
  * @param state - CSRF 방지용 state 파라미터 (암호화된 returnUrl + nonce 포함)
- * @param scopes - 요청할 OAuth scopes (기본: email, profile)
+ * @param scopes - 요청할 OAuth scopes (기본: env 또는 email, profile)
  */
 export function getGoogleAuthUrl(
     state: string,
-    scopes: string[] = ['email', 'profile']
+    scopes?: string[]
 ): string
 {
+    const resolvedScopes = scopes ?? getDefaultScopes();
     const config = getGoogleOAuthConfig();
 
     const params = new URLSearchParams({
         client_id: config.clientId,
         redirect_uri: config.redirectUri,
         response_type: 'code',
-        scope: scopes.join(' '),
+        scope: resolvedScopes.join(' '),
         state,
         access_type: 'offline',  // refresh_token 받기 위해
         prompt: 'consent',       // 매번 동의 화면 표시 (refresh_token 보장)

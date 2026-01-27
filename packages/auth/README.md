@@ -1,6 +1,6 @@
 # @spfn/auth - Technical Documentation
 
-**Version:** 0.2.0-beta.12
+**Version:** 0.2.0-beta.13
 **Status:** Alpha - Internal Development
 
 > **Note:** This is a technical documentation for developers working on the @spfn/auth package.
@@ -138,6 +138,7 @@ SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-...
 SPFN_APP_URL=http://localhost:3000
 
 # Google OAuth (Optional)
+SPFN_AUTH_GOOGLE_SCOPES=email,profile,https://www.googleapis.com/auth/gmail.readonly
 SPFN_AUTH_GOOGLE_REDIRECT_URI=http://localhost:8790/_auth/oauth/google/callback
 SPFN_AUTH_OAUTH_SUCCESS_URL=/auth/callback
 SPFN_AUTH_OAUTH_ERROR_URL=http://localhost:3000/auth/error?error={error}
@@ -583,6 +584,9 @@ import {
   // User Profile
   getUserProfileService,
   updateUserProfileService,
+
+  // OAuth - Google API Access
+  getGoogleAccessToken,
 } from '@spfn/auth/server';
 ```
 
@@ -1127,6 +1131,7 @@ SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-your-secret
 SPFN_APP_URL=http://localhost:3000
 
 # Optional
+SPFN_AUTH_GOOGLE_SCOPES=email,profile  # default (comma-separated)
 SPFN_AUTH_GOOGLE_REDIRECT_URI=http://localhost:8790/_auth/oauth/google/callback  # default
 SPFN_AUTH_OAUTH_SUCCESS_URL=/auth/callback  # default
 ```
@@ -1240,6 +1245,45 @@ OAuth 세션 완료. 인터셉터가 pending session에서 full session을 생�
   providers: ('google' | 'github' | 'kakao' | 'naver')[];
 }
 ```
+
+---
+
+### Google API Access
+
+OAuth 로그인 후 저장된 access token으로 Google API를 호출할 수 있습니다.
+
+#### Custom Scopes 설정
+
+`SPFN_AUTH_GOOGLE_SCOPES` 환경변수로 추가 스코프를 요청합니다. 미설정 시 `email,profile`이 기본값입니다.
+
+```bash
+# Gmail + Calendar 읽기 권한 추가
+SPFN_AUTH_GOOGLE_SCOPES=email,profile,https://www.googleapis.com/auth/gmail.readonly,https://www.googleapis.com/auth/calendar.readonly
+```
+
+> **Note:** Google Cloud Console에서 해당 API를 활성화해야 합니다.
+
+#### Access Token 사용
+
+`getGoogleAccessToken(userId)`은 유효한 access token을 반환합니다. 토큰이 만료 임박(5분 이내) 또는 만료 상태이면 자동으로 refresh token을 사용하여 갱신합니다.
+
+```typescript
+import { getGoogleAccessToken } from '@spfn/auth/server';
+
+// 항상 유효한 토큰 반환 (만료 시 자동 갱신)
+const token = await getGoogleAccessToken(userId);
+
+// Gmail API 호출
+const response = await fetch(
+    'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10',
+    { headers: { Authorization: `Bearer ${token}` } }
+);
+const data = await response.json();
+```
+
+**에러 케이스:**
+- Google 계정 미연결 → `'No Google account linked'`
+- Refresh token 없음 → `'Google refresh token not available'` (재로그인 필요)
 
 ---
 
@@ -2246,4 +2290,4 @@ MIT License - See LICENSE file for details.
 
 **Last Updated:** 2026-01-27
 **Document Version:** 2.4.0 (Technical Documentation)
-**Package Version:** 0.2.0-beta.12
+**Package Version:** 0.2.0-beta.13

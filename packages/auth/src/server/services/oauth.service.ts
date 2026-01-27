@@ -17,6 +17,7 @@ import {
     getGoogleAuthUrl,
     exchangeCodeForTokens,
     getGoogleUserInfo,
+    refreshAccessToken,
     createOAuthState,
     verifyOAuthState,
     type GoogleUserInfo,
@@ -342,4 +343,54 @@ export function getEnabledOAuthProviders(): SocialProvider[]
     // TODO: 다른 provider 추가
 
     return providers;
+}
+
+// 토큰 만료 판단 시 사용할 버퍼 (5분)
+const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
+
+/**
+ * Google access token 조회 (만료 시 자동 리프레시)
+ *
+ * 저장된 토큰이 만료 임박(5분 이내) 또는 만료 상태이면
+ * refresh token으로 자동 갱신 후 DB 업데이트하여 유효한 토큰 반환.
+ *
+ * @param userId - 사용자 ID
+ * @returns 유효한 Google access token
+ */
+export async function getGoogleAccessToken(userId: number): Promise<string>
+{
+    const account = await socialAccountsRepository.findByUserIdAndProvider(userId, 'google');
+
+    if (!account)
+    {
+        throw new ValidationError({
+            message: 'No Google account linked. User must sign in with Google first.',
+        });
+    }
+
+    const isExpired = !account.tokenExpiresAt
+        || account.tokenExpiresAt.getTime() < Date.now() + TOKEN_EXPIRY_BUFFER_MS;
+
+    if (!isExpired && account.accessToken)
+    {
+        return account.accessToken;
+    }
+
+    // 리프레시 토큰이 없으면 갱신 불가
+    if (!account.refreshToken)
+    {
+        throw new ValidationError({
+            message: 'Google refresh token not available. User must re-authenticate with Google.',
+        });
+    }
+
+    const tokens = await refreshAccessToken(account.refreshToken);
+
+    await socialAccountsRepository.updateTokens(account.id, {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token ?? account.refreshToken,
+        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+    });
+
+    return tokens.access_token;
 }

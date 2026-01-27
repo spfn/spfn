@@ -117,6 +117,7 @@ export {
     buildOAuthErrorUrl,
     isOAuthProviderEnabled,
     getEnabledOAuthProviders,
+    getGoogleAccessToken,
 } from './oauth.service';
 
 export type {

@@ -307,6 +307,18 @@ export const authEnvSchema = defineEnvSchema({
         }),
     },
 
+    SPFN_AUTH_GOOGLE_SCOPES: {
+        ...envString({
+            description: 'Comma-separated Google OAuth scopes. Defaults to "email,profile" if not set.',
+            required: false,
+            examples: [
+                'email,profile',
+                'email,profile,https://www.googleapis.com/auth/gmail.readonly',
+                'email,profile,https://www.googleapis.com/auth/calendar.readonly',
+            ],
+        }),
+    },
+
     SPFN_AUTH_GOOGLE_REDIRECT_URI: {
         ...envString({
             description: 'Google OAuth callback URL. Defaults to {SPFN_API_URL}/_auth/oauth/google/callback',
