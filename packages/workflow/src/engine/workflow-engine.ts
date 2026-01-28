@@ -152,7 +152,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
     }
 
     /**
-     * Execute the next pending step
+     * Execute steps iteratively until completion or failure
      */
     private async executeNextStep(
         executionId: string,
@@ -160,68 +160,83 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
         input: Record<string, unknown>
     ): Promise<void>
     {
-        // Get current execution state
-        const execution = await this.getExecution(executionId);
-        if (!execution || (execution.status !== 'pending' && execution.status !== 'running'))
+        while (true)
         {
-            return;
+            // Get current execution state
+            const execution = await this.getExecution(executionId);
+            if (!execution || (execution.status !== 'pending' && execution.status !== 'running'))
+            {
+                return;
+            }
+
+            // Update status to running
+            if (execution.status === 'pending')
+            {
+                await this.updateExecutionStatus(executionId, 'running');
+            }
+
+            // Get completed results
+            const results = await this.getCompletedResults(executionId);
+
+            // Find next pending steps
+            const pendingSteps = execution.steps.filter(s => s.status === 'pending');
+            if (pendingSteps.length === 0)
+            {
+                // All steps completed
+                await this.completeExecution(executionId);
+                return;
+            }
+
+            // Get the next step(s) to execute
+            const currentStepIndex = Math.min(...pendingSteps.map(s => s.stepIndex));
+
+            // Update currentStep in execution record
+            await this.db
+                .update(workflowExecutions)
+                .set({ currentStep: currentStepIndex, updatedAt: new Date() })
+                .where(eq(workflowExecutions.id, executionId));
+
+            // Check if this is a parallel group
+            const stepDef = workflow.steps[currentStepIndex];
+            if (stepDef.type === 'parallel')
+            {
+                // Execute all parallel steps concurrently.
+                // Wait for ALL steps to complete before handling failures
+                // to prevent rollback from racing with still-running steps.
+                const parallelSteps = workflow.steps.filter(
+                    s => s.parallelGroup === stepDef.parallelGroup
+                );
+                const errors = await Promise.all(
+                    parallelSteps.map(step =>
+                        this.executeStep(executionId, workflow, step, input, results)
+                    )
+                );
+
+                // Handle failure after all parallel steps have settled
+                const firstError = errors.find(e => e !== null);
+                if (firstError)
+                {
+                    await this.handleStepFailure(executionId, workflow, firstError);
+                    return;
+                }
+            }
+            else
+            {
+                // Execute sequential step
+                const error = await this.executeStep(executionId, workflow, stepDef, input, results);
+                if (error)
+                {
+                    await this.handleStepFailure(executionId, workflow, error);
+                    return;
+                }
+            }
         }
-
-        // Update status to running
-        if (execution.status === 'pending')
-        {
-            await this.updateExecutionStatus(executionId, 'running');
-        }
-
-        // Get completed results
-        const results = await this.getCompletedResults(executionId);
-
-        // Find next pending steps
-        const pendingSteps = execution.steps.filter(s => s.status === 'pending');
-        if (pendingSteps.length === 0)
-        {
-            // All steps completed
-            await this.completeExecution(executionId);
-            return;
-        }
-
-        // Get the next step(s) to execute
-        const currentStepIndex = Math.min(...pendingSteps.map(s => s.stepIndex));
-
-        // Update currentStep in execution record
-        await this.db
-            .update(workflowExecutions)
-            .set({ currentStep: currentStepIndex, updatedAt: new Date() })
-            .where(eq(workflowExecutions.id, executionId));
-
-        // Check if this is a parallel group
-        const stepDef = workflow.steps[currentStepIndex];
-        if (stepDef.type === 'parallel')
-        {
-            // Execute all parallel steps concurrently
-            // NOTE: If one step fails, others continue to completion.
-            // This is intentional - all results are needed for proper rollback.
-            const parallelSteps = workflow.steps.filter(
-                s => s.parallelGroup === stepDef.parallelGroup
-            );
-            await Promise.all(
-                parallelSteps.map(step =>
-                    this.executeStep(executionId, workflow, step, input, results)
-                )
-            );
-        }
-        else
-        {
-            // Execute sequential step
-            await this.executeStep(executionId, workflow, stepDef, input, results);
-        }
-
-        // Continue to next step
-        await this.executeNextStep(executionId, workflow, input);
     }
 
     /**
      * Execute a single step
+     *
+     * Returns the error message if the step failed, or null if successful.
      */
     private async executeStep(
         executionId: string,
@@ -229,12 +244,12 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
         step: WorkflowStepDef,
         input: Record<string, unknown>,
         results: Record<string, unknown>
-    ): Promise<void>
+    ): Promise<string | null>
     {
         const stepExecution = await this.getStepExecution(executionId, step.name);
         if (!stepExecution || stepExecution.status !== 'pending')
         {
-            return;
+            return null;
         }
 
         // Update step status to running
@@ -282,6 +297,8 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
                 output: storedOutput,
                 timestamp: new Date(),
             });
+
+            return null;
         }
         catch (error)
         {
@@ -300,8 +317,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
                 timestamp: new Date(),
             });
 
-            // Handle failure
-            await this.handleStepFailure(executionId, workflow, step, errorMessage);
+            return errorMessage;
         }
     }
 
@@ -311,7 +327,6 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
     private async handleStepFailure(
         executionId: string,
         workflow: WorkflowDef,
-        _failedStep: WorkflowStepDef,
         error: string
     ): Promise<void>
     {
@@ -543,7 +558,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
         const json = JSON.stringify(output);
         const threshold = this.config.largeOutputThreshold ?? DEFAULT_LARGE_OUTPUT_THRESHOLD;
 
-        if (json.length > threshold)
+        if (Buffer.byteLength(json, 'utf8') > threshold)
         {
             const url = await this.config.storage.upload(output);
             return { $ref: url };
@@ -590,7 +605,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
             }
 
             // Cleanup subscribers on terminal events to prevent memory leaks
-            const terminalEvents = ['completed', 'failed', 'cancelled', 'compensated'];
+            const terminalEvents: string[] = ['completed', 'failed', 'cancelled'];
             if (terminalEvents.includes(event.type))
             {
                 this.subscribers.delete(event.executionId);
@@ -610,42 +625,43 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
     private async sendNotifications(event: WorkflowEvent): Promise<void>
     {
         const workflow = this.workflows.get(event.workflowName);
-        if (!workflow?.notifyConfig)
+        if (!workflow || workflow.notifyConfigs.length === 0)
         {
             return;
         }
 
-        const { on, when, providers } = workflow.notifyConfig;
-
-        // Check if this event type should trigger notification
-        if (!on.includes(event.type))
+        for (const { on, when, providers } of workflow.notifyConfigs)
         {
-            return;
-        }
-
-        // Check conditional
-        if (when && !when(event))
-        {
-            return;
-        }
-
-        // Send to all providers
-        await Promise.all(
-            providers.map(async (provider) =>
+            // Check if this event type should trigger notification
+            if (!on.includes(event.type))
             {
-                try
+                continue;
+            }
+
+            // Check conditional
+            if (when && !when(event))
+            {
+                continue;
+            }
+
+            // Send to all providers
+            await Promise.all(
+                providers.map(async (provider) =>
                 {
-                    await provider.notify(event);
-                }
-                catch (error)
-                {
-                    this.logger.error(
-                        `[WorkflowEngine] Notification provider '${provider.name}' error:`,
-                        error
-                    );
-                }
-            })
-        );
+                    try
+                    {
+                        await provider.notify(event);
+                    }
+                    catch (error)
+                    {
+                        this.logger.error(
+                            `[WorkflowEngine] Notification provider '${provider.name}' error:`,
+                            error
+                        );
+                    }
+                })
+            );
+        }
     }
 
     // Public API methods
@@ -775,7 +791,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
             else
             {
                 // Restart from beginning - reset all steps
-                await this.resetAllSteps(executionId, execution.steps);
+                await this.resetAllSteps(execution.steps);
 
                 await this.db
                     .update(workflowExecutions)
@@ -820,25 +836,21 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
     /**
      * Reset all steps to pending state
      */
-    private async resetAllSteps(
-        _executionId: string,
-        steps: WorkflowStepExecution[]
-    ): Promise<void>
+    private async resetAllSteps(steps: WorkflowStepExecution[]): Promise<void>
     {
-        for (const step of steps)
-        {
-            await this.db
-                .update(workflowStepExecutions)
-                .set({
-                    status: 'pending' as WorkflowStepStatus,
-                    output: null,
-                    error: null,
-                    startedAt: null,
-                    completedAt: null,
-                    updatedAt: new Date(),
-                })
-                .where(eq(workflowStepExecutions.id, step.id));
-        }
+        if (steps.length === 0) return;
+
+        await this.db
+            .update(workflowStepExecutions)
+            .set({
+                status: 'pending' as WorkflowStepStatus,
+                output: null,
+                error: null,
+                startedAt: null,
+                completedAt: null,
+                updatedAt: new Date(),
+            })
+            .where(inArray(workflowStepExecutions.id, steps.map(s => s.id)));
     }
 
     async cancel(executionId: string, options?: CancelOptions): Promise<void>

@@ -246,10 +246,10 @@ describe('workflow-builder', () =>
                 })
                 .build();
 
-            expect(wf.notifyConfig).toBeDefined();
-            expect(wf.notifyConfig?.on).toContain('failed');
-            expect(wf.notifyConfig?.on).toContain('completed');
-            expect(wf.notifyConfig?.providers).toHaveLength(1);
+            expect(wf.notifyConfigs).toHaveLength(1);
+            expect(wf.notifyConfigs[0].on).toContain('failed');
+            expect(wf.notifyConfigs[0].on).toContain('completed');
+            expect(wf.notifyConfigs[0].providers).toHaveLength(1);
         });
 
         it('should support conditional notification', () =>
@@ -265,7 +265,8 @@ describe('workflow-builder', () =>
                 })
                 .build();
 
-            expect(wf.notifyConfig?.when).toBeDefined();
+            expect(wf.notifyConfigs).toHaveLength(1);
+            expect(wf.notifyConfigs[0].when).toBeDefined();
         });
     });
 

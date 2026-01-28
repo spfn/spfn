@@ -21,6 +21,11 @@ Lightweight workflow engine - Pipeline orchestration based on `@spfn/core` Jobs
 pnpm add @spfn/workflow
 ```
 
+## Prerequisites
+
+- `@spfn/core` server with database enabled (PostgreSQL)
+- Workflow tables (`spfn_workflow.executions`, `spfn_workflow.step_executions`) are created automatically via Drizzle migration
+
 ## Core Concepts
 
 | Concept | Description |
@@ -95,39 +100,52 @@ export const provisionTenant = workflow('provision-tenant')
     .build();
 ```
 
-### 3. Configure Engine
+### 3. Define Workflow Router
 
 ```typescript
-// workflow.config.ts
-import { defineWorkflows } from '@spfn/workflow';
-import { database } from './db';
+// workflow.router.ts
+import { defineWorkflowRouter } from '@spfn/workflow';
 
-export default defineWorkflows({
-    workflows: [provisionTenant, deprovisionTenant],
-    db: database,
-    storage: s3Storage,  // For large outputs (optional)
-});
+export const workflowRouter = defineWorkflowRouter([
+    provisionTenant,
+    deprovisionTenant,
+]);
 ```
 
-### 4. Execute Workflow
+### 4. Register in Server Config
 
 ```typescript
-import { getWorkflowEngine } from '@spfn/workflow';
-import type { default as WorkflowConfig } from './workflow.config';
+// server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { workflowRouter } from './workflow.router';
 
-const engine = getWorkflowEngine<typeof WorkflowConfig>();
+export default defineServerConfig()
+    .routes(appRouter)
+    .workflows(workflowRouter)
+    .build();
+```
+
+Server starts → DB initialized → Workflow engine auto-initialized. After this, `workflowRouter.engine` is ready to use.
+
+### 5. Execute Workflow
+
+Use `workflowRouter.engine` in route handlers or services after the server has started.
+
+```typescript
+// In a route handler or service
+import { workflowRouter } from './workflow.router';
 
 // Execute (async)
-const execution = await engine.start('provision-tenant', {
+const execution = await workflowRouter.engine.start('provision-tenant', {
     tenantId: 'abc',
     plan: 'pro',
 });
 
 // Check status
-const status = await engine.get(execution.id);
+const status = await workflowRouter.engine.get(execution.id);
 
 // Get step output
-const output = await engine.getStepOutput(execution.id, 'appRepo');
+const output = await workflowRouter.engine.getStepOutput(execution.id, 'appRepo');
 ```
 
 ## API Reference
@@ -155,7 +173,11 @@ Defines the input schema (TypeBox).
 
 #### `.pipe(job, mapper)`
 
-Adds a sequential execution step.
+Adds a sequential execution step. The mapper receives a `WorkflowContext` with:
+
+- `ctx.input` — Original workflow input
+- `ctx.results` — Results from previous steps (type-inferred)
+- `ctx.execution` — Execution metadata (`id`, `workflowName`, `startedAt`)
 
 ```typescript
 .pipe(createRepo, (ctx) => ({
@@ -206,20 +228,73 @@ Completes the workflow definition.
 
 ---
 
+### Workflow Router
+
+#### `defineWorkflowRouter(workflows)`
+
+Defines a workflow router for server registration. The engine is lazily initialized when the server starts.
+
+```typescript
+import { defineWorkflowRouter } from '@spfn/workflow';
+
+const router = defineWorkflowRouter([provisionTenant, deprovisionTenant]);
+```
+
+#### `router.engine`
+
+Access the workflow engine instance. Throws if the server has not been started yet.
+
+```typescript
+const execution = await router.engine.start('provision-tenant', {
+    tenantId: 'abc',
+    plan: 'pro',
+});
+```
+
+#### `router.isInitialized`
+
+Check if the workflow engine has been initialized.
+
+#### `isWorkflowRouter(value)`
+
+Type guard to check if a value is a `WorkflowRouter`.
+
+```typescript
+import { isWorkflowRouter } from '@spfn/workflow';
+
+if (isWorkflowRouter(value))
+{
+    value.engine.start(...);
+}
+```
+
+---
+
 ### Workflow Engine
 
 #### `createWorkflowEngine(options)`
 
-Creates a workflow engine.
+Creates a workflow engine directly (low-level API). Prefer `defineWorkflowRouter` for typical usage.
 
 ```typescript
 const engine = createWorkflowEngine({
     workflows: [provisionTenant],
     db: database,
-    storage: s3Storage,  // Optional
+    storage: s3Storage,              // Optional
     largeOutputThreshold: 1024 * 1024,  // 1MB (optional)
+    logger: customLogger,            // Optional (defaults to console)
+    validateInput: true,             // Optional (default: true)
 });
 ```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `workflows` | `WorkflowDef[]` | (required) | Workflow definitions |
+| `db` | `unknown` | (required) | Drizzle database instance |
+| `storage` | `OutputStorage` | - | External storage for large outputs |
+| `largeOutputThreshold` | `number` | `1048576` (1MB) | Byte threshold for external storage |
+| `logger` | `WorkflowLogger` | `defaultLogger` | Custom logger |
+| `validateInput` | `boolean` | `true` | Validate input against schema |
 
 #### `engine.start(name, input)`
 
@@ -415,6 +490,8 @@ const slackProvider: NotificationProvider = {
 
 #### Combined Notifications
 
+`.notify()` accepts a single configuration. To handle multiple event types with different providers, include all providers in one call and use the `when` condition for filtering:
+
 ```typescript
 import { consoleProvider } from '@spfn/workflow';
 
@@ -422,11 +499,7 @@ workflow('provision-tenant')
     .pipe(...)
     .notify({
         on: ['started', 'completed', 'failed'],
-        providers: [consoleProvider],
-    })
-    .notify({
-        on: ['failed'],
-        providers: [emailProvider, slackProvider, smsProvider],
+        providers: [consoleProvider, emailProvider, slackProvider],
     })
     .build();
 ```
@@ -537,7 +610,7 @@ All tables are created in the `spfn_workflow` schema.
 ```typescript
 {
     id: string;
-    executionId: string;  // FK
+    executionId: string;  // FK (cascade delete)
     stepName: string;
     stepIndex: number;
     status: WorkflowStepStatus;
@@ -545,6 +618,8 @@ All tables are created in the `spfn_workflow` schema.
     error?: string;
     startedAt?: Date;
     completedAt?: Date;
+    createdAt: Date;
+    updatedAt: Date;
 }
 ```
 
@@ -595,13 +670,15 @@ src/
 │   ├── workflow-engine.ts      # Engine implementation
 │   └── types.ts                # Type definitions
 ├── entities/                   # DB entities
+│   ├── schema.ts               # PostgreSQL schema definition
 │   ├── workflow-execution.entity.ts
 │   └── workflow-step-execution.entity.ts
 ├── notification/               # Notification system
 │   ├── providers.ts            # Built-in providers
 │   └── types.ts                # Type definitions
 ├── config/                     # Configuration utilities
-│   └── define-workflows.ts     # defineWorkflows, getWorkflowEngine
+│   ├── workflow-router.ts      # defineWorkflowRouter, isWorkflowRouter
+│   └── types.ts                # WorkflowRouter, WorkflowRouterConfig
 └── types/                      # Common types
     └── status.ts               # Status types
 ```

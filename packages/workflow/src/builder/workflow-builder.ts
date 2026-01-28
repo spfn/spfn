@@ -27,7 +27,7 @@ export class WorkflowBuilder<
     private _steps: WorkflowStepDef[] = [];
     private _resumable: boolean = false;
     private _rollbackEnabled: boolean = true;
-    private _notifyConfig?: NotifyConfig;
+    private _notifyConfigs: NotifyConfig[] = [];
 
     constructor(name: TName)
     {
@@ -46,7 +46,7 @@ export class WorkflowBuilder<
         builder._steps = this._steps;
         builder._resumable = this._resumable;
         builder._rollbackEnabled = this._rollbackEnabled;
-        builder._notifyConfig = this._notifyConfig;
+        builder._notifyConfigs = [...this._notifyConfigs];
         return builder;
     }
 
@@ -83,7 +83,7 @@ export class WorkflowBuilder<
         builder._steps = [...this._steps, step];
         builder._resumable = this._resumable;
         builder._rollbackEnabled = this._rollbackEnabled;
-        builder._notifyConfig = this._notifyConfig;
+        builder._notifyConfigs = [...this._notifyConfigs];
 
         return builder;
     }
@@ -124,7 +124,7 @@ export class WorkflowBuilder<
         builder._steps = [...this._steps, ...parallelSteps];
         builder._resumable = this._resumable;
         builder._rollbackEnabled = this._rollbackEnabled;
-        builder._notifyConfig = this._notifyConfig;
+        builder._notifyConfigs = [...this._notifyConfigs];
 
         return builder;
     }
@@ -148,11 +148,11 @@ export class WorkflowBuilder<
     }
 
     /**
-     * Configure notifications
+     * Configure notifications (chainable — each call adds a separate config)
      */
     notify(config: NotifyConfig): this
     {
-        this._notifyConfig = config;
+        this._notifyConfigs.push(config);
         return this;
     }
 
@@ -167,7 +167,7 @@ export class WorkflowBuilder<
             steps: this._steps,
             resumable: this._resumable,
             rollbackEnabled: this._rollbackEnabled,
-            notifyConfig: this._notifyConfig,
+            notifyConfigs: this._notifyConfigs,
             _input: undefined as unknown as TInput,
         };
     }

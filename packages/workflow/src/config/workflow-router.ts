@@ -5,7 +5,7 @@
  */
 
 import type { WorkflowDef } from '../builder';
-import type { WorkflowEngine, WorkflowEngineConfig } from '../engine';
+import type { WorkflowEngine, WorkflowEngineConfig, OutputStorage, WorkflowLogger } from '../engine';
 import { createWorkflowEngine } from '../engine';
 
 /**
@@ -19,6 +19,21 @@ export interface WorkflowRouterConfig
      * @default 1024 * 1024 (1MB)
      */
     largeOutputThreshold?: number;
+
+    /**
+     * Storage for large outputs (optional)
+     */
+    storage?: OutputStorage;
+
+    /**
+     * Custom logger (optional, defaults to console)
+     */
+    logger?: WorkflowLogger;
+
+    /**
+     * Enable input schema validation (default: true)
+     */
+    validateInput?: boolean;
 }
 
 /**
@@ -132,6 +147,9 @@ export function defineWorkflowRouter<TWorkflows extends WorkflowDef[]>(
                 db,
                 workflows,
                 largeOutputThreshold: options?.largeOutputThreshold,
+                storage: options?.storage,
+                logger: options?.logger,
+                validateInput: options?.validateInput,
             });
         },
     };

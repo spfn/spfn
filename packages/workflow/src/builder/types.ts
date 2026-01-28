@@ -159,9 +159,9 @@ export interface WorkflowDef<TName extends string = string, TInput = unknown>
     rollbackEnabled: boolean;
 
     /**
-     * Notification configuration
+     * Notification configurations
      */
-    notifyConfig?: NotifyConfig;
+    notifyConfigs: NotifyConfig[];
 
     /**
      * Type inference helper
