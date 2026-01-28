@@ -1,7 +1,7 @@
 {
   "name": "@spfn/workflow",
   "version": "0.1.0-alpha.2",
-  "description": "SPFN Workflow Engine - Lightweight workflow orchestration for @spfn/core",
+  "description": "Lightweight workflow engine - Pipeline orchestration for @spfn/core",
   "type": "module",
   "exports": {
     ".": {
