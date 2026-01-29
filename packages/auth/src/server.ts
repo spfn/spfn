@@ -76,3 +76,18 @@ export * from './server/logger';
 // ============================================================================
 
 export { createAuthLifecycle } from './server/lifecycle';
+
+// ============================================================================
+// Events
+// ============================================================================
+
+export {
+    authLoginEvent,
+    authRegisterEvent,
+    AuthProviderSchema,
+} from './server/events';
+
+export type {
+    AuthLoginPayload,
+    AuthRegisterPayload,
+} from './server/events';

@@ -21,6 +21,7 @@ import { hashPassword, verifyPassword } from '../helpers';
 import { validateVerificationToken } from './verification.service';
 import { registerPublicKeyService, revokeKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
+import { authLoginEvent, authRegisterEvent } from '../events';
 
 export interface CheckAccountExistsParams
 {
@@ -201,11 +202,21 @@ export async function registerService(
         algorithm,
     });
 
-    return {
+    const result = {
         userId: String(newUser.id),
         email: newUser.email || undefined,
         phone: newUser.phone || undefined,
     };
+
+    // Emit register event
+    await authRegisterEvent.emit({
+        userId: result.userId,
+        provider: email ? 'email' : 'phone',
+        email: result.email,
+        phone: result.phone,
+    });
+
+    return result;
 }
 
 /**
@@ -265,12 +276,22 @@ export async function loginService(
     // Update last login
     await updateLastLoginService(user.id);
 
-    return {
+    const result = {
         userId: String(user.id),
         email: user.email || undefined,
         phone: user.phone || undefined,
         passwordChangeRequired: user.passwordChangeRequired,
     };
+
+    // Emit login event
+    await authLoginEvent.emit({
+        userId: result.userId,
+        provider: email ? 'email' : 'phone',
+        email: result.email,
+        phone: result.phone,
+    });
+
+    return result;
 }
 
 /**

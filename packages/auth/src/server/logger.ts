@@ -13,6 +13,7 @@ export const authLogger = {
         general: rootLogger.child('@spfn/auth:interceptor:general'),
         login: rootLogger.child('@spfn/auth:interceptor:login'),
         keyRotation: rootLogger.child('@spfn/auth:interceptor:key-rotation'),
+        oauth: rootLogger.child('@spfn/auth:interceptor:oauth'),
     },
     service: rootLogger.child('@spfn/auth:service'),
     setup: rootLogger.child('@spfn/auth:setup'),

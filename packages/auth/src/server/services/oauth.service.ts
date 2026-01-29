@@ -25,6 +25,7 @@ import {
 } from '../lib/oauth';
 import { registerPublicKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
+import { authLoginEvent, authRegisterEvent } from '../events';
 
 export interface OAuthStartParams
 {
@@ -192,6 +193,24 @@ async function handleGoogleCallback(
         returnUrl: stateData.returnUrl,
         isNewUser: String(isNewUser),
     });
+
+    // 7. 이벤트 발행: 신규 사용자는 register, 기존 사용자는 login
+    const user = await usersRepository.findById(userId);
+    const eventPayload = {
+        userId: String(userId),
+        provider: 'google' as const,
+        email: user?.email || undefined,
+        phone: user?.phone || undefined,
+    };
+
+    if (isNewUser)
+    {
+        await authRegisterEvent.emit(eventPayload);
+    }
+    else
+    {
+        await authLoginEvent.emit(eventPayload);
+    }
 
     return {
         redirectUrl,

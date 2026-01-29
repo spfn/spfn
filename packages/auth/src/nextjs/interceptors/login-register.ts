@@ -5,7 +5,7 @@
  * for login and register endpoints
  */
 
-import type { InterceptorRule } from '@spfn/core/nextjs';
+import type { InterceptorRule } from '@spfn/core/nextjs/server';
 import { generateKeyPair, sealSession, getSessionTtl, COOKIE_NAMES, authLogger } from '@spfn/auth/server';
 import { env } from '@spfn/core/config';
 

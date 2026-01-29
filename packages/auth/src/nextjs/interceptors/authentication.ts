@@ -4,7 +4,7 @@
  * Automatically adds JWT token and headers for authenticated requests
  */
 
-import type { InterceptorRule } from '@spfn/core/nextjs';
+import type { InterceptorRule } from '@spfn/core/nextjs/server';
 import { unsealSession, generateClientToken } from '@spfn/auth/server';
 
 /**

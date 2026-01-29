@@ -7,7 +7,7 @@
  * - Expired session cleanup
  */
 
-import type { InterceptorRule } from '@spfn/core/nextjs';
+import type { InterceptorRule } from '@spfn/core/nextjs/server';
 import { unsealSession, sealSession, shouldRefreshSession, generateClientToken, getSessionTtl, COOKIE_NAMES, authLogger } from '@spfn/auth/server';
 import { env } from '@spfn/core/config';
 

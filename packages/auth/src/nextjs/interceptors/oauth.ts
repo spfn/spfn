@@ -5,7 +5,7 @@
  * 2. oauthFinalizeInterceptor: OAuth 완료 시 pending session에서 세션 저장
  */
 
-import type { InterceptorRule } from '@spfn/core/nextjs';
+import type { InterceptorRule } from '@spfn/core/nextjs/server';
 import {
     generateKeyPair,
     createOAuthState,

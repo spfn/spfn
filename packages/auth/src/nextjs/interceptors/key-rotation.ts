@@ -4,7 +4,7 @@
  * Handles key rotation with new key generation and session update
  */
 
-import type { InterceptorRule } from '@spfn/core/nextjs';
+import type { InterceptorRule } from '@spfn/core/nextjs/server';
 import { generateKeyPair, unsealSession, sealSession, generateClientToken, getSessionTtl, COOKIE_NAMES, authLogger } from '@spfn/auth/server';
 
 /**
