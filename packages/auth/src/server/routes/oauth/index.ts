@@ -219,9 +219,11 @@ export const oauthFinalize = route.post('/_auth/oauth/finalize')
         const { body } = await c.data();
 
         // 인터셉터가 세션을 저장함
-        // 여기서는 성공 응답만 반환
+        // userId, keyId를 반환해야 인터셉터가 처리 가능
         return {
             success: true,
+            userId: body.userId,
+            keyId: body.keyId,
             returnUrl: body.returnUrl || '/',
         };
     });
