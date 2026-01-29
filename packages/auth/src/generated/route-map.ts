@@ -31,6 +31,12 @@ export const routeMap: Record<string, RouteInfo> = {
     deleteInvitation: { method: 'POST', path: '/_auth/invitations/delete' },
     getUserProfile: { method: 'GET', path: '/_auth/users/profile' },
     updateUserProfile: { method: 'PATCH', path: '/_auth/users/profile' },
+    oauthGoogleStart: { method: 'GET', path: '/_auth/oauth/google' },
+    oauthGoogleCallback: { method: 'GET', path: '/_auth/oauth/google/callback' },
+    oauthStart: { method: 'POST', path: '/_auth/oauth/start' },
+    oauthProviders: { method: 'GET', path: '/_auth/oauth/providers' },
+    getGoogleOAuthUrl: { method: 'POST', path: '/_auth/oauth/google/url' },
+    oauthFinalize: { method: 'POST', path: '/_auth/oauth/finalize' },
 };
 
 export type RouteMap = typeof routeMap;
