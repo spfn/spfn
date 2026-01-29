@@ -1,6 +1,6 @@
 # @spfn/auth - Technical Documentation
 
-**Version:** 0.2.0-beta.13
+**Version:** 0.2.0-beta.15
 **Status:** Alpha - Internal Development
 
 > **Note:** This is a technical documentation for developers working on the @spfn/auth package.
@@ -18,6 +18,7 @@
 - [Module Exports](#module-exports)
 - [Email & SMS Services](#email--sms-services)
 - [Server-Side API](#server-side-api)
+- [Events](#events)
 - [OAuth Authentication](#oauth-authentication)
 - [Database Schema](#database-schema)
 - [RBAC System](#rbac-system)
@@ -1033,6 +1034,137 @@ Change password.
 {
   success: boolean;
 }
+```
+
+---
+
+## Events
+
+`@spfn/auth`는 `@spfn/core/event`를 사용하여 인증 관련 이벤트를 발행합니다. 이를 통해 로그인/회원가입 시 추가 로직(환영 이메일, 분석, 알림 등)을 디커플링된 방식으로 처리할 수 있습니다.
+
+### Available Events
+
+| Event | Description | Trigger |
+|-------|-------------|---------|
+| `auth.login` | 로그인 성공 | 이메일/전화 로그인, OAuth 기존 사용자 |
+| `auth.register` | 회원가입 성공 | 이메일/전화 회원가입, OAuth 신규 사용자 |
+
+---
+
+### Event Payloads
+
+#### `auth.login`
+
+```typescript
+{
+  userId: string;
+  provider: 'email' | 'phone' | 'google';
+  email?: string;
+  phone?: string;
+}
+```
+
+#### `auth.register`
+
+```typescript
+{
+  userId: string;
+  provider: 'email' | 'phone' | 'google';
+  email?: string;
+  phone?: string;
+}
+```
+
+---
+
+### Subscribing to Events
+
+```typescript
+import { authLoginEvent, authRegisterEvent } from '@spfn/auth/server';
+
+// 로그인 이벤트 구독
+authLoginEvent.subscribe(async (payload) => {
+    console.log('User logged in:', payload.userId, payload.provider);
+    await analytics.trackLogin(payload.userId);
+});
+
+// 회원가입 이벤트 구독
+authRegisterEvent.subscribe(async (payload) => {
+    console.log('New user registered:', payload.userId);
+    if (payload.email) {
+        await emailService.sendWelcome(payload.email);
+    }
+});
+```
+
+---
+
+### Job Integration
+
+`@spfn/core/job`과 연동하여 백그라운드 작업을 실행할 수 있습니다.
+
+```typescript
+import { job, defineJobRouter } from '@spfn/core/job';
+import { authRegisterEvent } from '@spfn/auth/server';
+
+// 회원가입 시 환영 이메일 발송 Job
+const sendWelcomeEmailJob = job('send-welcome-email')
+    .on(authRegisterEvent)
+    .handler(async ({ userId, email }) => {
+        if (email) {
+            await emailService.sendWelcome(email);
+        }
+    });
+
+// 회원가입 시 기본 설정 생성 Job
+const createDefaultSettingsJob = job('create-default-settings')
+    .on(authRegisterEvent)
+    .handler(async ({ userId }) => {
+        await settingsService.createDefaults(userId);
+    });
+
+export const jobRouter = defineJobRouter({
+    sendWelcomeEmailJob,
+    createDefaultSettingsJob,
+});
+```
+
+---
+
+### Event Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              loginService() / registerService()                  │
+│                    oauthCallbackService()                        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    authLoginEvent.emit()
+                   authRegisterEvent.emit()
+                              │
+          ┌───────────────────┼───────────────────┐
+          ▼                   ▼                   ▼
+    ┌──────────┐       ┌──────────┐       ┌──────────┐
+    │ Backend  │       │   Job    │       │   SSE    │
+    │ Handler  │       │  Queue   │       │  Stream  │
+    └──────────┘       └──────────┘       └──────────┘
+    .subscribe()       .on(event)         (optional)
+          │                 │
+          ▼                 ▼
+    [Analytics,       [Background
+     Logging]          Processing]
+```
+
+---
+
+### Type Exports
+
+```typescript
+import type {
+    AuthLoginPayload,
+    AuthRegisterPayload,
+} from '@spfn/auth/server';
 ```
 
 ---
@@ -2288,6 +2420,6 @@ MIT License - See LICENSE file for details.
 
 ---
 
-**Last Updated:** 2026-01-27
-**Document Version:** 2.4.0 (Technical Documentation)
-**Package Version:** 0.2.0-beta.13
+**Last Updated:** 2026-01-29
+**Document Version:** 2.5.0 (Technical Documentation)
+**Package Version:** 0.2.0-beta.15
