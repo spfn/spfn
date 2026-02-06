@@ -11,20 +11,39 @@ const { ensureDirSync, writeFileSync } = fse;
  */
 export async function setupApiProxy(cwd: string, includeAuth: boolean): Promise<void>
 {
-    // Check if src directory exists (created by create-next-app --src-dir)
-    const appDir = existsSync(join(cwd, 'src', 'app'))
-        ? join(cwd, 'src', 'app')
-        : join(cwd, 'app');
+    // Determine app directory location (src/app takes priority over app)
+    const srcAppDir = join(cwd, 'src', 'app');
+    const rootAppDir = join(cwd, 'app');
+
+    let appDir: string;
+    if (existsSync(srcAppDir))
+    {
+        appDir = srcAppDir;
+    }
+    else if (existsSync(rootAppDir))
+    {
+        appDir = rootAppDir;
+    }
+    else
+    {
+        logger.error('Next.js app directory not found. Expected src/app or app directory.');
+        process.exit(1);
+    }
+
     const rpcDir = join(appDir, 'api', 'rpc', '[routeName]');
     const rpcRoutePath = join(rpcDir, 'route.ts');
 
-    if (!existsSync(rpcRoutePath))
+    if (existsSync(rpcRoutePath))
     {
-        ensureDirSync(rpcDir);
+        logger.error(`RPC proxy route already exists: ${rpcRoutePath.replace(cwd + '/', '')}`);
+        process.exit(1);
+    }
 
-        const authImport = includeAuth ? `import '@spfn/auth/nextjs/api';\n` : '';
+    ensureDirSync(rpcDir);
 
-        const routeContent = `/**
+    const authImport = includeAuth ? `import '@spfn/auth/nextjs/api';\n` : '';
+
+    const routeContent = `/**
  * SPFN RPC Proxy
  *
  * Resolves routeName to actual HTTP method and path from routeMap,
@@ -42,8 +61,8 @@ import { createRpcProxy } from '@spfn/core/nextjs/server';
 
 export const { GET, POST } = createRpcProxy({ routeMap });
 `;
-        writeFileSync(rpcRoutePath, routeContent);
-        const relativePath = rpcRoutePath.replace(cwd + '/', '');
-        logger.success(`Created ${relativePath} (RPC proxy)`);
-    }
+    writeFileSync(rpcRoutePath, routeContent);
+
+    const relativePath = rpcRoutePath.replace(cwd + '/', '');
+    logger.success(`Created ${relativePath} (RPC proxy)`);
 }
