@@ -117,7 +117,7 @@ async function runGenerators(): Promise<void>
     const orchestrator = new CodegenOrchestrator({
         generators,
         cwd,
-        debug: false
+        debug: true
     });
 
     await orchestrator.generateAll();
