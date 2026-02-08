@@ -129,8 +129,53 @@ throw new NotFoundError({ resource: 'User' });
 
 **🎉 마이그레이션 완료!** 모든 문서가 define-route 패턴으로 통일되었습니다.
 
+---
+
+## Phase 6: Public Docs ↔ Core Docs 동기화
+
+`packages/core/docs/` 내부 문서와 `docs/` 공개 문서 간 불일치를 해소하는 작업.
+
+### Phase 6.1: Event 문서 전면 교체
+
+| 문서 | 상태 | 비고 |
+|------|------|------|
+| api-reference/events.md | ✅ 완료 | defineEvent/defineEventRouter/SSE 기반으로 전면 재작성 |
+
+### Phase 6.2: 누락 모듈 문서 추가
+
+| 문서 | 상태 | 비고 |
+|------|------|------|
+| api-reference/cache.md | ✅ 완료 | 신규 작성 - Redis 캐시 기본 ops, hash/list, TTL |
+| guides/jobs.md | ✅ 완료 | 신규 작성 - job() 빌더 API, 4가지 타입, JobRouter |
+| api-reference/codegen.md | ✅ 완료 | 신규 작성 - defineConfig, CLI, 생성된 클라이언트 |
+| guides/nextjs.md | ✅ 완료 | 신규 작성 - RPC proxy, createApi, 인터셉터 |
+| guides/file-upload.md | ✅ 완료 | 신규 작성 - FileSchema, 스토리지 패턴, 보안 |
+
+### Phase 6.3: 기존 문서 보강
+
+| 문서 | 상태 | 비고 |
+|------|------|------|
+| core-concepts/contracts.md | ✅ 완료 | cookies/formData input, response helpers, .skip(), router composition, Nullable 추가 |
+| guides/entity.md | ✅ 완료 | 신규 작성 - 11종 column helpers, indexes, relations, schema namespacing |
+| guides/repository.md | ✅ 완료 | 신규 작성 - BaseRepository, where/query options, 비즈니스 로직 패턴 |
+
+### Phase 6.4: 상호 참조
+
+| From | To | 상태 |
+|------|----|------|
+| events.md | jobs.md, cache.md | ✅ |
+| jobs.md | events.md, app.md | ✅ |
+| codegen.md | nextjs.md, custom-generators.md | ✅ |
+| nextjs.md | codegen.md, file-upload.md | ✅ |
+| file-upload.md | contracts.md, error-handling.md | ✅ |
+| contracts.md | file-upload.md, entity.md | ✅ |
+| entity.md | database.md, repository.md | ✅ |
+| repository.md | entity.md, database.md, testing.md | ✅ |
+
 ## Notes
 
 - 문서 점검 시 실제 코드(`packages/core/src/`)와 일치 여부 확인 필수
 - CLI 템플릿(`packages/cli/templates/`)과 예제 코드 일관성 유지
 - 문서 내 링크가 올바른지 확인 (제목 변경된 문서 링크 수정)
+- **core/docs/job.md는 오래된 API(defineJob/enqueue/schedule)를 기술** - 실제 API는 job() 빌더 패턴
+- **core/docs/codegen.md는 defineCodegenConfig 사용** - 실제 export는 defineConfig

@@ -113,6 +113,57 @@ export const protectedRoute = route.get('/protected')
     });
 ```
 
+### Cookies
+
+```typescript
+export const getSession = route.get('/session')
+    .input({
+        cookies: Type.Object({
+            sessionId: Type.String()
+        })
+    })
+    .handler(async (c) => {
+        const { cookies } = await c.data();
+        // cookies.sessionId is typed
+    });
+```
+
+### Form Data (File Upload)
+
+For file uploads, use `FileSchema` and `FileArraySchema`:
+
+```typescript
+import { route, FileSchema, FileArraySchema } from '@spfn/core/route';
+
+// Single file
+export const uploadAvatar = route.post('/upload')
+    .input({
+        formData: Type.Object({
+            file: FileSchema(),
+            description: Type.Optional(Type.String())
+        })
+    })
+    .handler(async (c) => {
+        const { formData } = await c.data();
+        const file = formData.file as File;
+        // file.name, file.size, file.type
+    });
+
+// Multiple files
+export const uploadFiles = route.post('/upload-multiple')
+    .input({
+        formData: Type.Object({
+            files: FileArraySchema()
+        })
+    })
+    .handler(async (c) => {
+        const { formData } = await c.data();
+        const files = formData.files as File[];
+    });
+```
+
+> For detailed file upload patterns including validation, storage, and security, see [File Upload](/docs/guides/file-upload).
+
 ### Combined Input
 
 ```typescript
@@ -149,6 +200,20 @@ Superfunction uses TypeBox for schema definitions. Common types:
 | `Type.Optional(T)` | Make a field optional | `Type.Optional(Type.String())` |
 | `Type.Union([])` | Union types | `Type.Union([Type.Literal('a'), Type.Literal('b')])` |
 | `Type.Literal(v)` | Exact value | `Type.Literal('active')` |
+| `Nullable(T)` | Nullable value (`T \| null`) | `Nullable(Type.String())` |
+| `OptionalNullable(T)` | Optional nullable (`T \| null \| undefined`) | `OptionalNullable(Type.String())` |
+
+### Nullable & OptionalNullable
+
+SPFN provides helpers for nullable types:
+
+```typescript
+import { Nullable, OptionalNullable } from '@spfn/core/route';
+
+Type.Optional(Type.String())      // string | undefined
+Nullable(Type.String())           // string | null
+OptionalNullable(Type.String())   // string | null | undefined
+```
 
 ## Why TypeBox?
 
@@ -161,6 +226,119 @@ Superfunction uses TypeBox for schema validation:
 
 > **Note:** For detailed performance benchmarks, see [Philosophy: Why TypeBox?](/docs/philosophy/why-typebox)
 
+## Response Helpers
+
+### Direct Return
+
+Simply return data from the handler for automatic JSON response:
+
+```typescript
+route.get('/users/:id')
+    .handler(async (c) => {
+        const user = await userRepo.findById(id);
+        return user;  // Automatic c.json(user)
+    });
+```
+
+### Custom Status Codes
+
+Use response helpers for non-200 responses:
+
+```typescript
+route.post('/users')
+    .handler(async (c) => {
+        const user = await userRepo.create(data);
+        return c.created(user, `/users/${user.id}`);  // 201 + Location header
+    });
+
+route.delete('/users/:id')
+    .handler(async (c) => {
+        await userRepo.delete(id);
+        return c.noContent();  // 204
+    });
+```
+
+| Helper | Status | Description |
+|--------|--------|-------------|
+| `c.json(data, status?)` | Custom | JSON with optional status |
+| `c.created(data, location?)` | 201 | Created with optional Location header |
+| `c.accepted(data?)` | 202 | Accepted |
+| `c.noContent()` | 204 | No Content |
+| `c.notModified()` | 304 | Not Modified |
+| `c.paginated(items, page, limit, total)` | 200 | Paginated response |
+
+### Paginated Response
+
+```typescript
+route.get('/users')
+    .input({
+        query: Type.Object({
+            page: Type.Number({ default: 1 }),
+            limit: Type.Number({ default: 20 })
+        })
+    })
+    .handler(async (c) => {
+        const { query } = await c.data();
+        const { items, total } = await userRepo.findPaginated(query);
+
+        return c.paginated(items, query.page, query.limit, total);
+        // Response: { items: [...], pagination: { page, limit, total, totalPages } }
+    });
+```
+
+## Middleware
+
+### Using Middleware
+
+```typescript
+import { Transactional } from '@spfn/core/db';
+import { authMiddleware } from './middlewares/auth';
+
+route.post('/users')
+    .use([Transactional(), authMiddleware])
+    .handler(async (c) => {
+        // Runs after middleware chain
+    });
+```
+
+### Skip Global Middleware
+
+Skip specific or all global middlewares for individual routes:
+
+```typescript
+// Skip specific middlewares
+route.get('/public')
+    .skip(['auth', 'rateLimit'])
+    .handler(async (c) => { /* ... */ });
+
+// Skip all global middlewares
+route.get('/health')
+    .skip('*')
+    .handler(async (c) => { /* ... */ });
+```
+
+## Raw Hono Context
+
+For advanced features, access the underlying Hono context:
+
+```typescript
+route.get('/advanced')
+    .handler(async (c) => {
+        const raw = c.raw;
+
+        // Custom header
+        const customHeader = raw.req.header('x-custom');
+
+        // Set response header
+        raw.header('x-response', 'value');
+
+        // Get context variable (set by middleware)
+        const user = raw.get('user');
+
+        return { data: 'ok' };
+    });
+```
+
 ## Route Registration
 
 Routes are registered in a router using `defineRouter`:
@@ -172,17 +350,45 @@ import { getUser, createUser, updateUser } from './routes/users';
 import { listPosts, getPost } from './routes/posts';
 
 export const appRouter = defineRouter({
-    // User routes
     getUser,
     createUser,
     updateUser,
-
-    // Post routes
     listPosts,
     getPost,
 });
 
 export type AppRouter = typeof appRouter;
+```
+
+### Nested Routers
+
+Organize routes into nested namespaces:
+
+```typescript
+export const appRouter = defineRouter({
+    users: defineRouter({
+        get: getUser,
+        create: createUser,
+    }),
+    posts: defineRouter({
+        list: getPosts,
+        create: createPost,
+    }),
+});
+```
+
+### Spread Pattern
+
+Combine route modules using the spread operator:
+
+```typescript
+import * as userRoutes from './routes/users';
+import * as postRoutes from './routes/posts';
+
+export const appRouter = defineRouter({
+    ...userRoutes,
+    ...postRoutes,
+});
 ```
 
 ## Route Organization
@@ -203,4 +409,4 @@ src/server/
 
 > **Next:** Learn about middleware and response helpers in route handlers.
 >
-> [How It Works →](/docs/core-concepts/how-it-works)
+> [How It Works →](/docs/core-concepts/how-it-works) | [Entity Guide →](/docs/guides/entity) | [File Upload →](/docs/guides/file-upload)

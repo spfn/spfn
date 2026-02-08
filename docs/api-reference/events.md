@@ -1,599 +1,383 @@
 ---
 title: "Events"
-description: "Complete API reference for the SPFN event system with adapter-based architecture"
+description: "Type-safe pub/sub event system with SSE support for real-time frontend updates"
 order: 7
 available: true
 ---
 
 # Events
 
-SPFN provides a flexible, adapter-based event emitter for decoupled communication between packages. The event system enables loose coupling where packages can emit events without knowing about subscribers, making the codebase more maintainable and extensible.
+SPFN provides a type-safe pub/sub event system built on TypeBox schemas. Events enable decoupled communication between backend services and real-time updates to the browser via Server-Sent Events (SSE).
 
-## Architecture
-
-The event system uses an adapter-based architecture similar to the Logger:
+## Overview
 
 ```
-EventEmitter → Adapter (InMemory, Redis)
+                    userCreated.emit({ ... })
+                              |
+          +-------------------+-------------------+
+          v                   v                   v
+    +----------+       +----------+       +----------+
+    | Backend  |       |   Job    |       |   SSE    |
+    | Handler  |       |  Queue   |       |  Stream  |
+    +----------+       +----------+       +----------+
+    .subscribe()       .on(event)              |
+          |                 |           +----------+
+          v                 v           | Browser  |
+    [Logging,         [Background       |  Client  |
+     Analytics]        Processing]      +----------+
 ```
 
-Each adapter implements the same interface, allowing you to switch between in-memory (single-instance) and distributed (Redis/Valkey) implementations without changing your code.
-
-## Basic Usage
-
-### Import
+## Define Events
 
 ```typescript
-import { on, emit } from '@spfn/core/events';
+// src/server/events/index.ts
+import { defineEvent } from '@spfn/core/event';
+import { Type } from '@sinclair/typebox';
+
+// Event with typed payload
+export const userCreated = defineEvent('user.created', Type.Object({
+    userId: Type.String(),
+    email: Type.String(),
+}));
+
+export const orderPlaced = defineEvent('order.placed', Type.Object({
+    orderId: Type.String(),
+    amount: Type.Number(),
+}));
+
+// Event without payload
+export const serverStarted = defineEvent('server.started');
 ```
 
-### Subscribe to Events
+## Subscribe and Emit
 
 ```typescript
-// Subscribe to events
-on('user:created', (data) => {
-  console.log('User created:', data.email);
+import { userCreated, serverStarted } from './events';
+
+// Subscribe to event - returns unsubscribe function
+const unsubscribe = userCreated.subscribe((payload) =>
+{
+    console.log('User created:', payload.userId);
 });
 
-// Emit events
-await emit('user:created', {
-  userId: '123',
-  email: 'user@example.com'
-});
+// Emit event (typed payload required)
+await userCreated.emit({ userId: '123', email: 'user@example.com' });
+
+// Emit event without payload
+await serverStarted.emit();
+
+// Unsubscribe when done
+unsubscribe();
 ```
 
 ### Multiple Subscribers
 
-Multiple handlers can subscribe to the same event and execute in parallel:
+Multiple independent handlers can subscribe to the same event. Each handler executes independently - one failing handler does not affect others.
 
 ```typescript
-import { on, emit } from '@spfn/core/events';
-
-// Audit logging
-on('auth:user:login', async (data) => {
-  await db.insert(auditLogs).values({
-    action: 'login',
-    userId: data.userId,
-  });
+userCreated.subscribe(async (payload) =>
+{
+    await sendWelcomeEmail(payload.email);
 });
 
-// Email notification
-on('auth:user:login', async (data) => {
-  await sendEmail({
-    to: data.email,
-    subject: 'Login detected',
-  });
+userCreated.subscribe(async (payload) =>
+{
+    await createDefaultSettings(payload.userId);
 });
 
-// Analytics tracking
-on('auth:user:login', (data) => {
-  console.log('Login from:', data.ipAddress);
+userCreated.subscribe(async (payload) =>
+{
+    await notifyAdmins(payload.userId);
 });
 
-// All handlers execute in parallel
-await emit('auth:user:login', {
-  userId: '123',
-  email: 'user@example.com',
-  ipAddress: '192.168.1.1',
-});
+// All handlers execute when event is emitted
+await userCreated.emit({ userId: '123', email: 'user@example.com' });
 ```
 
-## Configuration
+## Event Router for SSE
 
-### Adapters
+To stream events to the browser, define an event router and register it with the server.
 
-#### In-Memory Adapter (Default)
-
-The default adapter stores events in memory. Events are not shared across multiple server instances.
+### Define Event Router
 
 ```typescript
-import { setEventEmitter, InMemoryEventEmitter } from '@spfn/core/events';
+// src/server/events/router.ts
+import { defineEventRouter } from '@spfn/core/event';
+import { userCreated, orderPlaced } from './index';
 
-// Explicitly set (optional, this is the default)
-setEventEmitter(new InMemoryEventEmitter());
+export const eventRouter = defineEventRouter({
+    userCreated,
+    orderPlaced,
+});
+
+export type EventRouter = typeof eventRouter;
 ```
 
-**Use cases:**
-- Development
-- Single-instance deployments
-- Testing
-
-#### Redis Adapter (Future)
-
-For distributed deployments with multiple server instances.
+### Register with Server
 
 ```typescript
-// Coming soon
-import { RedisEventEmitter } from '@spfn/core/events';
+// server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { eventRouter } from './events/router';
 
-setEventEmitter(new RedisEventEmitter({
-  host: 'localhost',
-  port: 6379
+export default defineServerConfig()
+    .routes(appRouter)
+    .jobs(jobRouter)
+    .events(eventRouter)  // -> GET /events/stream
+    .build();
+
+// Custom path and options
+.events(eventRouter, {
+    path: '/sse',           // Custom endpoint path
+    pingInterval: 30000,    // Keep-alive interval (default: 30s)
+})
+```
+
+## Browser Client
+
+### createSSEClient
+
+Full-featured SSE client with reconnection support.
+
+```typescript
+import { createSSEClient } from '@spfn/core/event/sse/client';
+import type { EventRouter } from '@/server/events/router';
+
+// Create client (uses defaults: NEXT_PUBLIC_SPFN_API_URL + /events/stream)
+const client = createSSEClient<EventRouter>();
+
+// Or with custom configuration
+const client = createSSEClient<EventRouter>({
+    host: 'https://api.example.com',
+    pathname: '/sse',
+    reconnect: true,
+    reconnectDelay: 3000,
+});
+
+// Subscribe to events - returns unsubscribe function
+const unsubscribe = client.subscribe({
+    events: ['userCreated', 'orderPlaced'],
+    handlers: {
+        userCreated: (payload) =>
+        {
+            console.log('New user:', payload.userId);
+        },
+        orderPlaced: (payload) =>
+        {
+            console.log('New order:', payload.orderId);
+        },
+    },
+    onOpen: () => console.log('SSE connected'),
+    onError: (err) => console.error('SSE error:', err),
+});
+
+// Cleanup
+unsubscribe();
+```
+
+### subscribeToEvents
+
+Simplified one-liner subscription helper.
+
+```typescript
+import { subscribeToEvents } from '@spfn/core/event/sse/client';
+import type { EventRouter } from '@/server/events/router';
+
+const unsubscribe = subscribeToEvents<EventRouter>(
+    ['userCreated'],
+    {
+        userCreated: (payload) => console.log('User:', payload),
+    }
+);
+```
+
+## Job Integration
+
+Events integrate with the [job system](/docs/guides/jobs) to trigger background processing. Jobs subscribe to events using the `.on()` method.
+
+```typescript
+import { defineEvent } from '@spfn/core/event';
+import { job, defineJobRouter } from '@spfn/core/job';
+import { Type } from '@sinclair/typebox';
+
+// Define event
+export const orderPlaced = defineEvent('order.placed', Type.Object({
+    orderId: Type.String(),
+    userId: Type.String(),
 }));
+
+// Jobs subscribe to event
+export const sendOrderConfirmation = job('send-order-confirmation')
+    .on(orderPlaced)
+    .handler(async (payload) =>
+    {
+        await emailService.sendOrderConfirmation(payload.orderId);
+    });
+
+export const updateInventory = job('update-inventory')
+    .on(orderPlaced)
+    .handler(async (payload) =>
+    {
+        await inventoryService.reserve(payload.orderId);
+    });
+
+// Register jobs
+export const jobRouter = defineJobRouter({
+    sendOrderConfirmation,
+    updateInventory,
+});
+
+// Emit event - all subscribed jobs execute
+await orderPlaced.emit({ orderId: 'ord-123', userId: 'user-456' });
 ```
 
-## Event Naming Convention
+## Multi-Instance Support
 
-Use namespaced event names following the pattern: `package:entity:action`
-
-```typescript
-// Good - clear hierarchy
-'auth:user:login'
-'auth:user:logout'
-'auth:password:changed'
-'cms:post:published'
-'payment:invoice:paid'
-
-// Avoid - unclear structure
-'userLogin'
-'passwordChange'
-```
-
-## Error Handling
-
-Handlers that throw errors are caught and logged, but don't affect other handlers. All handlers execute independently.
+For applications running multiple server instances, enable cache-based pub/sub so events broadcast across all instances.
 
 ```typescript
-on('test:event', () => {
-  console.log('Handler 1'); // Executes
-});
+import { defineEvent } from '@spfn/core/event';
+import { getCache } from '@spfn/core/cache';
 
-on('test:event', () => {
-  throw new Error('Oops!'); // Fails but logged
-});
+const userCreated = defineEvent('user.created', Type.Object({
+    userId: Type.String(),
+}));
 
-on('test:event', () => {
-  console.log('Handler 3'); // Still executes
-});
+// Enable cache-based pub/sub
+const cache = getCache();
+if (cache)
+{
+    await userCreated.useCache({
+        publish: async (channel, message) =>
+        {
+            await cache.publish(channel, JSON.stringify(message));
+        },
+        subscribe: async (channel, handler) =>
+        {
+            const subscriber = cache.duplicate();
+            await subscriber.subscribe(channel);
+            subscriber.on('message', (ch, msg) =>
+            {
+                if (ch === channel)
+                {
+                    handler(JSON.parse(msg));
+                }
+            });
+        },
+    });
+}
 
-await emit('test:event');
-// Output:
-// Handler 1
-// [Events] 1/3 handlers failed for event "test:event"
-// Handler 3
+// Events now broadcast to all instances
+await userCreated.emit({ userId: '123' });
 ```
 
 ## API Reference
 
-### Functions
+### defineEvent(name)
 
-#### `on(event, handler)`
-
-Subscribe to an event.
+Define an event without payload.
 
 ```typescript
-on(event: string, handler: (data: any) => Promise<void> | void): void
+export const serverStarted = defineEvent('server.started');
+
+serverStarted.subscribe(() => { /* ... */ });
+await serverStarted.emit();
 ```
 
-**Parameters:**
-- `event` - Event name (recommended: `package:entity:action`)
-- `handler` - Async or sync function to handle the event
+### defineEvent(name, schema)
 
-**Example:**
-```typescript
-on('user:updated', (data) => {
-  console.log('User updated:', data.userId);
-});
-```
-
-#### `emit(event, data)`
-
-Emit an event to all subscribers. Returns a Promise that resolves when all handlers complete.
+Define an event with typed payload using a TypeBox schema.
 
 ```typescript
-emit(event: string, data?: any): Promise<void>
+export const userCreated = defineEvent('user.created', Type.Object({
+    userId: Type.String(),
+}));
+
+userCreated.subscribe((payload) => { /* payload.userId is typed */ });
+await userCreated.emit({ userId: '123' });
 ```
 
-**Parameters:**
-- `event` - Event name to emit
-- `data` - Optional data to pass to handlers
+### EventDef Methods
 
-**Example:**
-```typescript
-await emit('user:updated', {
-  userId: '123',
-  changes: { email: 'new@example.com' }
-});
-```
+| Method | Description |
+|--------|-------------|
+| `subscribe(handler)` | Subscribe to event. Returns unsubscribe function |
+| `unsubscribeAll()` | Remove all subscribers |
+| `emit(payload?)` | Emit event to all subscribers |
+| `useCache(cache)` | Enable cache-based pub/sub for multi-instance |
 
-#### `off(event)`
+### defineEventRouter(events)
 
-Unsubscribe all handlers from an event.
-
-```typescript
-off(event: string): void
-```
-
-**Example:**
-```typescript
-off('user:created');
-```
-
-#### `clear()`
-
-Clear all event subscriptions. Useful for testing.
+Create an event router for SSE streaming. Takes an object of named events.
 
 ```typescript
-clear(): void
+const eventRouter = defineEventRouter({ userCreated, orderPlaced });
+export type EventRouter = typeof eventRouter;
 ```
 
-**Example:**
-```typescript
-// In tests
-beforeEach(() => {
-  clear();
-});
-```
+### SSE Client Options
 
-#### `setEventEmitter(adapter)`
-
-Set a custom event emitter adapter.
-
-```typescript
-setEventEmitter(adapter: EventEmitter): void
-```
-
-**Example:**
-```typescript
-import { setEventEmitter, InMemoryEventEmitter } from '@spfn/core/events';
-
-setEventEmitter(new InMemoryEventEmitter());
-```
-
-#### `getEventEmitter()`
-
-Get the current event emitter adapter.
-
-```typescript
-getEventEmitter(): EventEmitter
-```
-
-**Example:**
-```typescript
-const emitter = getEventEmitter();
-console.log(emitter.getEvents()); // Debug: list all registered events
-```
-
-### Types
-
-#### EventHandler
-
-```typescript
-type EventHandler<T = any> = (data: T) => Promise<void> | void;
-```
-
-#### EventEmitter
-
-```typescript
-interface EventEmitter {
-  on(event: string, handler: EventHandler): void;
-  emit(event: string, data?: any): Promise<void>;
-  off(event: string): void;
-  clear(): void;
-}
-```
-
-## Common Patterns
-
-### Auth Package Events
-
-Emit events in your service layer:
-
-```typescript
-// packages/auth/src/server/services/auth.service.ts
-import { emit } from '@spfn/core/events';
-
-export async function loginService(params) {
-  // ... login logic ...
-
-  await emit('auth:user:login', {
-    userId: user.id,
-    email: user.email,
-    timestamp: new Date(),
-  });
-
-  return result;
-}
-```
-
-### Consuming Events in Your App
-
-Subscribe to events in your app initialization:
-
-```typescript
-// src/server.config.ts
-import { on } from '@spfn/core/events';
-
-export default {
-  lifecycle: {
-    afterInfrastructure: async () => {
-      // Audit logging
-      on('auth:user:login', async (data) => {
-        await db.insert(auditLogs).values({
-          userId: data.userId,
-          action: 'login',
-          timestamp: data.timestamp,
-        });
-      });
-
-      // Slack notification for admin logins
-      on('auth:user:login', async (data) => {
-        if (data.email.endsWith('@admin.com')) {
-          await sendSlackNotification(
-            `Admin login: ${data.email}`
-          );
-        }
-      });
-
-      // Analytics tracking
-      on('auth:user:login', (data) => {
-        trackEvent('user_login', {
-          userId: data.userId,
-        });
-      });
-    }
-  }
-} satisfies ServerConfig;
-```
-
-### Cross-Package Communication
-
-Events enable packages to communicate without direct dependencies:
-
-```typescript
-// @spfn/auth emits
-await emit('auth:user:registered', { userId, email });
-
-// @spfn/cms subscribes
-on('auth:user:registered', async (data) => {
-  await createUserWorkspace(data.userId);
-});
-
-// Your app subscribes
-on('auth:user:registered', async (data) => {
-  await sendWelcomeEmail(data.email);
-});
-```
-
-## Type-Safe Events
-
-Define event types for better developer experience:
-
-```typescript
-// packages/auth/src/events.ts
-export type AuthEvents = {
-  'auth:user:login': {
-    userId: string;
-    email: string;
-    timestamp: Date;
-  };
-  'auth:user:logout': {
-    userId: string;
-    timestamp: Date;
-  };
-  'auth:user:registered': {
-    userId: string;
-    email: string;
-  };
-};
-
-// Type-safe helper
-export function onAuth<K extends keyof AuthEvents>(
-  event: K,
-  handler: (data: AuthEvents[K]) => void | Promise<void>
-) {
-  return on(event, handler);
-}
-
-// Usage
-import { onAuth } from '@spfn/auth/events';
-
-onAuth('auth:user:login', (data) => {
-  // data is fully typed!
-  console.log(data.userId, data.email);
-});
-```
-
-## Testing
-
-### Mock Events in Tests
-
-```typescript
-import { on, emit, clear } from '@spfn/core/events';
-import { describe, it, expect, beforeEach } from 'vitest';
-
-describe('User Service', () => {
-  beforeEach(() => {
-    clear(); // Clean state for each test
-  });
-
-  it('should emit user:created event', async () => {
-    const events: any[] = [];
-
-    on('user:created', (data) => {
-      events.push(data);
-    });
-
-    await createUser({ email: 'test@example.com' });
-
-    expect(events).toHaveLength(1);
-    expect(events[0].email).toBe('test@example.com');
-  });
-});
-```
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `host` | string | `NEXT_PUBLIC_SPFN_API_URL` | Backend API host URL |
+| `pathname` | string | `/events/stream` | SSE endpoint pathname |
+| `reconnect` | boolean | `true` | Auto reconnect on disconnect |
+| `reconnectDelay` | number | `3000` | Reconnect delay (ms) |
+| `maxReconnectAttempts` | number | `0` | Max attempts (0 = infinite) |
+| `withCredentials` | boolean | `false` | Include cookies |
 
 ## Best Practices
 
-### 1. Use Consistent Event Names
-
-Follow the `package:entity:action` convention:
-
 ```typescript
-// Good
-'auth:user:login'
-'auth:password:changed'
-'cms:post:published'
-'payment:invoice:paid'
+// 1. Use descriptive dot-separated event names
+defineEvent('user.created');
+defineEvent('order.completed');
+defineEvent('payment.failed');
 
-// Avoid
-'userLogin'
-'passwordChange'
-```
+// 2. Keep payloads minimal - just IDs, not full objects
+defineEvent('user.deleted', Type.Object({
+    userId: Type.String(),
+}));
 
-### 2. Fire and Forget
-
-For non-critical operations, don't await emit():
-
-```typescript
-// Fire and forget (recommended for most cases)
-emit('user:created', { userId: '123' });
-
-// Wait for all handlers (use sparingly)
-await emit('user:created', { userId: '123' });
-```
-
-### 3. Keep Handlers Small
-
-Handlers should be lightweight. For heavy operations, queue them:
-
-```typescript
-// Good
-on('order:created', async (data) => {
-  await queue.add('process-order', data);
+// 3. Handler errors are isolated - one failing handler doesn't affect others
+userCreated.subscribe(async (payload) =>
+{
+    throw new Error('This fails');
 });
 
-// Avoid
-on('order:created', async (data) => {
-  await processOrder(data);      // Heavy operation
-  await sendEmail(data);         // Another heavy operation
-  await updateInventory(data);   // Yet another
-  await notifyWarehouse(data);   // Too much!
-});
-```
-
-### 4. Use Events for Side Effects
-
-Main business logic should return results directly. Use events for side effects:
-
-```typescript
-// Good - main logic returns directly
-export async function createUser(data) {
-  const user = await db.insert(users).values(data);
-
-  // Side effects via events
-  emit('user:created', { userId: user.id, email: user.email });
-
-  return user; // Return main result
-}
-
-// Avoid - using events for main flow
-export async function createUser(data) {
-  emit('user:create:requested', data); // Don't do this
-  // No return value, unclear flow
-}
-```
-
-### 5. Document Your Events
-
-Create an events.ts file in your package to document all events:
-
-```typescript
-// packages/auth/src/events.ts
-
-/**
- * Authentication Events
- *
- * @event auth:user:login - Emitted when a user successfully logs in
- * @event auth:user:logout - Emitted when a user logs out
- * @event auth:user:registered - Emitted when a new user registers
- * @event auth:password:changed - Emitted when a user changes password
- * @event auth:mfa:enabled - Emitted when a user enables MFA
- * @event auth:mfa:disabled - Emitted when a user disables MFA
- */
-export type AuthEvents = {
-  'auth:user:login': {
-    userId: string;
-    email: string;
-    timestamp: Date;
-  };
-  // ... other events
-};
-```
-
-## Debugging
-
-### List Registered Events
-
-```typescript
-const emitter = getEventEmitter();
-console.log('Registered events:', emitter.getEvents());
-```
-
-### Count Handlers
-
-```typescript
-const emitter = getEventEmitter();
-console.log('Login handlers:', emitter.getHandlerCount('auth:user:login'));
-```
-
-## Migration from Direct Calls
-
-**Before (tight coupling):**
-```typescript
-// auth.service.ts
-import { logAudit } from '@spfn/audit';
-import { trackEvent } from '@spfn/analytics';
-
-export async function loginService(params) {
-  // ... login logic ...
-
-  // Tight coupling to other packages
-  await logAudit({ action: 'login', userId });
-  await trackEvent('login', { userId });
-
-  return result;
-}
-```
-
-**After (loose coupling):**
-```typescript
-// auth.service.ts
-import { emit } from '@spfn/core/events';
-
-export async function loginService(params) {
-  // ... login logic ...
-
-  // Loose coupling via events
-  emit('auth:user:login', { userId, email });
-
-  return result;
-}
-
-// Other packages subscribe independently
-// audit package
-on('auth:user:login', (data) => {
-  logAudit({ action: 'login', userId: data.userId });
+userCreated.subscribe(async (payload) =>
+{
+    // This still executes
+    console.log('Handler 2 runs');
 });
 
-// analytics package
-on('auth:user:login', (data) => {
-  trackEvent('login', { userId: data.userId });
-});
+// 4. Use events for side effects, not core logic
+// Core: await userRepo.create(data);
+// Side effect: await userCreated.emit({ ... });
+
+// 5. Await useCache() before emitting for multi-instance
+await userCreated.useCache(cache);
+await userCreated.emit({ userId: '123' });
 ```
 
-## Future Features
+## Event vs Direct Job
 
-The following features are planned for future releases:
+| Aspect | Event + Job | Direct Job |
+|--------|-------------|------------|
+| Coupling | Loose (producer doesn't know consumers) | Tight (producer calls specific job) |
+| Multiple consumers | Easy (multiple jobs subscribe) | Manual (call each job) |
+| Extensibility | Add consumers without modifying producer | Modify producer for each consumer |
 
-- **Redis Adapter** - Distributed events across multiple server instances
-- **Valkey Adapter** - Alternative distributed backend
-- **Event Replay** - Replay events for debugging or recovery
-- **Event Persistence** - Store events in database for audit trail
-- **Event Filtering** - Subscribe to event patterns (e.g., `auth:*`, `*:created`)
-- **Middleware** - Transform or validate event data before handlers
+**Use Event when:**
+- Multiple systems need to react to the same occurrence
+- You want to decouple producers from consumers
+
+**Use Direct Job when:**
+- Single, known consumer
+- Simpler mental model preferred
 
 ## Related
 
-- [Logger](/docs/api-reference/logger) - Similar adapter-based architecture
-- [Cache](/docs/api-reference/cache) - Another adapter-based system
-- [Server Configuration](/docs/api-reference/app#lifecycle-hooks) - Where to subscribe to events
+- [Jobs](/docs/guides/jobs) - Background job processing with event triggers
+- [Cache](/docs/api-reference/cache) - Redis caching used for multi-instance events
+- [Server Configuration](/docs/api-reference/app) - Register event routers
