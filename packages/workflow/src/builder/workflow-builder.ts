@@ -19,7 +19,7 @@ import type {
 export class WorkflowBuilder<
     TName extends string,
     TInput = void,
-    TResults extends Record<string, unknown> = Record<string, never>
+    TResults extends Record<string, unknown> = {}
 >
 {
     private readonly _name: TName;
