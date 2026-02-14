@@ -32,10 +32,16 @@
 // Server-side exports (Hono handler)
 export { createSSEHandler } from './handler';
 
+// Token manager
+export { SSETokenManager } from './token-manager';
+export type { SSEToken, SSETokenStore, SSETokenManagerConfig } from './token-manager';
+
 // Types
 export type {
     SSEMessage,
     SSEHandlerConfig,
+    SSEHandlerAuthConfig,
+    SSEAuthConfig,
     SSEClientConfig,
     SSEEventHandler,
     SSEEventHandlers,

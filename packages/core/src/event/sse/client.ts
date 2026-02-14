@@ -17,6 +17,18 @@
  *     pathname: '/sse',
  * });
  *
+ * // With token authentication
+ * const client = createSSEClient<EventRouter>({
+ *     acquireToken: async () => {
+ *         const res = await fetch('/api/events/token', {
+ *             method: 'POST',
+ *             credentials: 'include',
+ *         });
+ *         const data = await res.json();
+ *         return data.token;
+ *     },
+ * });
+ *
  * const unsubscribe = client.subscribe({
  *     events: ['userCreated', 'orderPlaced'],
  *     handlers: {
@@ -61,6 +73,16 @@ export interface SSEClient<TRouter extends EventRouterDef<any>>
 }
 
 /**
+ * Default SSE configuration
+ */
+const SSE_DEFAULTS = {
+    host: typeof process !== 'undefined'
+        ? (process.env.NEXT_PUBLIC_SPFN_API_URL || 'http://localhost:8790')
+        : 'http://localhost:8790',
+    pathname: '/events/stream',
+} as const;
+
+/**
  * Create type-safe SSE client
  *
  * @example
@@ -96,16 +118,6 @@ export interface SSEClient<TRouter extends EventRouterDef<any>>
  * unsubscribe();
  * ```
  */
-/**
- * Default SSE configuration
- */
-const SSE_DEFAULTS = {
-    host: typeof process !== 'undefined'
-        ? (process.env.NEXT_PUBLIC_SPFN_API_URL || 'http://localhost:8790')
-        : 'http://localhost:8790',
-    pathname: '/events/stream',
-} as const;
-
 export function createSSEClient<TRouter extends EventRouterDef<any>>(
     config: SSEClientConfig = {}
 ): SSEClient<TRouter>
@@ -118,6 +130,7 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
         reconnectDelay = 3000,
         maxReconnectAttempts = 0,
         withCredentials = false,
+        acquireToken,
     } = config;
 
     // Build base URL: url takes precedence, otherwise host + pathname
@@ -132,50 +145,62 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
     {
         const { events, handlers, onOpen, onError, onReconnect } = options;
 
-        // Build URL with events query parameter
         const eventNames = events as string[];
-        const streamUrl = `${baseUrl}?events=${eventNames.join(',')}`;
 
         function connect()
         {
             state = 'connecting';
 
-            eventSource = new EventSource(streamUrl, {
-                withCredentials,
-            });
+            const init = async () =>
+            {
+                let tokenParam = '';
 
-            // Handle open
-            eventSource.onopen = () =>
+                if (acquireToken)
+                {
+                    const token = await acquireToken();
+                    tokenParam = `&token=${encodeURIComponent(token)}`;
+                }
+
+                const streamUrl = `${baseUrl}?events=${eventNames.join(',')}${tokenParam}`;
+
+                eventSource = new EventSource(streamUrl, {
+                    withCredentials,
+                });
+
+                setupEventHandlers(eventSource, eventNames, handlers, onOpen, onError);
+                setupReconnect(onReconnect);
+            };
+
+            init().catch(() =>
+            {
+                state = 'error';
+                attemptReconnect(onReconnect);
+            });
+        }
+
+        function setupEventHandlers(
+            es: EventSource,
+            names: string[],
+            handlerMap: SSESubscribeOptions<TRouter>['handlers'],
+            onOpenCb?: () => void,
+            onErrorCb?: (error: Event) => void
+        )
+        {
+            es.onopen = () =>
             {
                 state = 'open';
                 reconnectAttempts = 0;
-                onOpen?.();
+                onOpenCb?.();
             };
 
-            // Handle errors
-            eventSource.onerror = (error) =>
+            es.onerror = (error) =>
             {
                 state = 'error';
-                onError?.(error);
-
-                // Auto reconnect
-                if (reconnect && eventSource?.readyState === EventSource.CLOSED)
-                {
-                    if (maxReconnectAttempts === 0 || reconnectAttempts < maxReconnectAttempts)
-                    {
-                        reconnectAttempts++;
-                        onReconnect?.(reconnectAttempts);
-
-                        reconnectTimer = setTimeout(() =>
-                        {
-                            connect();
-                        }, reconnectDelay);
-                    }
-                }
+                onErrorCb?.(error);
             };
 
             // Handle connected event (server sends this on connection)
-            eventSource.addEventListener('connected', (e: MessageEvent) =>
+            es.addEventListener('connected', (e: MessageEvent) =>
             {
                 try
                 {
@@ -189,23 +214,22 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
             });
 
             // Handle ping (keep-alive)
-            eventSource.addEventListener('ping', () =>
+            es.addEventListener('ping', () =>
             {
                 // Ping received, connection is alive
             });
 
             // Register handlers for each event
-            for (const eventName of eventNames)
+            for (const eventName of names)
             {
-                // Type assertion needed here - runtime type safety is ensured by EventRouter
-                const handler = (handlers as Record<string, ((payload: unknown) => void) | undefined>)[eventName];
+                const handler = (handlerMap as Record<string, ((payload: unknown) => void) | undefined>)[eventName];
 
                 if (!handler)
                 {
                     continue;
                 }
 
-                eventSource.addEventListener(eventName, (e: MessageEvent) =>
+                es.addEventListener(eventName, (e: MessageEvent) =>
                 {
                     try
                     {
@@ -218,6 +242,51 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
                     }
                 });
             }
+        }
+
+        function setupReconnect(onReconnectCb?: (attempt: number) => void)
+        {
+            if (!eventSource)
+            {
+                return;
+            }
+
+            const currentEs = eventSource;
+            const originalOnError = currentEs.onerror;
+
+            currentEs.onerror = (error) =>
+            {
+                if (originalOnError)
+                {
+                    (originalOnError as (ev: Event) => void)(error);
+                }
+
+                if (reconnect && currentEs.readyState === EventSource.CLOSED)
+                {
+                    attemptReconnect(onReconnectCb);
+                }
+            };
+        }
+
+        function attemptReconnect(onReconnectCb?: (attempt: number) => void)
+        {
+            if (!reconnect)
+            {
+                return;
+            }
+
+            if (maxReconnectAttempts > 0 && reconnectAttempts >= maxReconnectAttempts)
+            {
+                return;
+            }
+
+            reconnectAttempts++;
+            onReconnectCb?.(reconnectAttempts);
+
+            reconnectTimer = setTimeout(() =>
+            {
+                connect();
+            }, reconnectDelay);
         }
 
         // Start connection

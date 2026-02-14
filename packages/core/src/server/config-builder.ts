@@ -9,7 +9,7 @@ import type { ServerConfig } from './types';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
 import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
-import type { SSEHandlerConfig } from '../event/sse/types';
+import type { SSEHandlerConfig, SSEAuthConfig } from '../event/sse/types';
 import { serverLogger } from './logger';
 
 // ============================================================================
@@ -224,15 +224,16 @@ export class ServerConfigBuilder
      * .events(eventRouter, { path: '/sse' })
      * ```
      */
-    events(
-        router: EventRouterDef<any>,
-        config?: SSEHandlerConfig & { path?: string }
+    events<TRouter extends EventRouterDef<any>>(
+        router: TRouter,
+        config?: Omit<SSEHandlerConfig, 'auth'> & { path?: string; auth?: SSEAuthConfig<TRouter> }
     ): this
     {
         this.config.events = router;
         if (config)
         {
-            this.config.eventsConfig = config;
+            // SSEAuthConfig<TRouter> is assignable to SSEHandlerAuthConfig at runtime
+            this.config.eventsConfig = config as SSEHandlerConfig & { path?: string };
         }
         return this;
     }

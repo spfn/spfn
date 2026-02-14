@@ -14,6 +14,7 @@ event/
     ├── index.ts          # SSE exports
     ├── handler.ts        # Hono SSE handler
     ├── client.ts         # Browser client
+    ├── token-manager.ts  # Token issuance/verification
     └── types.ts          # SSE types
 ```
 
@@ -26,6 +27,8 @@ event/
 - ✅ **Multi-Instance Support**: Optional Redis/Valkey pub/sub integration
 - ✅ **Job Integration**: Seamless integration with @spfn/core/job
 - ✅ **SSE Support**: Real-time event streaming to frontend clients
+- ✅ **SSE Authentication**: Token Exchange pattern for secure SSE connections
+- ✅ **SSE Authorization**: Per-event subscription and payload filtering hooks
 - ✅ **Decoupled Architecture**: Clean separation between event producers and consumers
 - ✅ **Error Isolation**: Handler errors don't affect other subscribers
 
@@ -206,6 +209,103 @@ export default defineServerConfig()
 })
 ```
 
+### SSE Authentication
+
+Browser `EventSource` API does not support custom headers, so Bearer JWT cannot be used directly.
+SPFN solves this with a **Token Exchange** pattern:
+
+```
+Client                           Server
+  │                                │
+  │  POST /events/token            │
+  │  (Authorization: Bearer JWT)   │
+  │ ─────────────────────────────► │  authenticate middleware verifies
+  │  ◄───────────────────────────  │  { token: "abc123..." } issued
+  │                                │
+  │  GET /events/stream            │
+  │  ?token=abc123&events=...      │
+  │ ─────────────────────────────► │  Token verified (one-time, 30s TTL)
+  │  ◄════════════════════════════ │  SSE stream starts
+```
+
+Enable authentication by adding `auth: { enabled: true }`:
+
+```typescript
+// server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { authenticate } from '@spfn/auth/server';
+
+export default defineServerConfig()
+    .middlewares([authenticate])
+    .routes(appRouter)
+    .events(eventRouter, {
+        auth: { enabled: true },
+    })
+    .build();
+// → POST /events/token (protected by authenticate middleware)
+// → GET /events/stream?token=...&events=... (token verified)
+```
+
+This automatically:
+- Creates a `POST /events/token` endpoint (protected by `config.middlewares`)
+- Validates one-time tokens on `GET /events/stream`
+- Tokens expire after 30 seconds (configurable via `tokenTtl`)
+
+### SSE Authorization
+
+Two hooks allow fine-grained access control with full type inference from the event router.
+
+#### `authorize` — Subscription Authorization (once on connect)
+
+Controls which events a user can subscribe to. Returns allowed events subset.
+
+```typescript
+.events(eventRouter, {
+    auth: {
+        enabled: true,
+        authorize: async (subject, events) =>
+        {
+            // events: ('userCreated' | 'orderPlaced')[] — inferred from router
+            const user = await usersRepository.findById(subject);
+            if (user.role === 'admin') return events;
+            return events.filter(e => !e.startsWith('admin.'));
+        },
+    },
+})
+```
+
+#### `filter` — Payload Filtering (on every event emission)
+
+Controls whether a specific event instance should be sent to a user.
+Payload type is inferred per-event — no casting needed.
+
+```typescript
+.events(eventRouter, {
+    auth: {
+        enabled: true,
+        filter: {
+            // payload: { orderId: string; amount: number } — type inferred!
+            orderPlaced: (subject, payload) =>
+            {
+                return payload.userId === subject;
+            },
+            // userCreated: no filter → sent to all authenticated users
+        },
+    },
+})
+```
+
+### SSE Auth Config Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable token authentication |
+| `tokenTtl` | number | `30000` | Token TTL in milliseconds |
+| `store` | SSETokenStore | InMemory | Custom token store (e.g., Redis) |
+| `getSubject` | (c: Context) => string \| null | `c.get('auth')?.userId` | Extract subject from context |
+| `authorize` | (subject, events) => events[] | - | Subscription authorization hook |
+| `filter` | { [event]: (subject, payload) => boolean } | - | Per-event payload filter |
+
 ### Browser Client
 
 ```typescript
@@ -243,6 +343,26 @@ const unsubscribe = client.subscribe({
 // Cleanup
 unsubscribe();
 ```
+
+#### With Authentication
+
+When the server has `auth: { enabled: true }`, provide `acquireToken`:
+
+```typescript
+const client = createSSEClient<typeof eventRouter>({
+    acquireToken: async () =>
+    {
+        const res = await fetch('/api/events/token', {
+            method: 'POST',
+            credentials: 'include',
+        });
+        const data = await res.json();
+        return data.token;
+    },
+});
+```
+
+`acquireToken` is called on every (re)connect — one-time tokens are handled automatically.
 
 ### Simple Subscribe Helper
 
@@ -284,6 +404,22 @@ const unsubscribe = subscribeToEvents<typeof eventRouter>(
           ▼                 ▼           │ Browser  │
     [Logging,         [Background       │  Client  │
      Analytics]        Processing]      └──────────┘
+```
+
+With authentication enabled:
+
+```
+Client                              Server
+  │  POST /events/token               │
+  │  (Bearer JWT) ──────────────────► │ authenticate → issue token
+  │  ◄──────────────────────────────  │ { token: "..." }
+  │                                   │
+  │  GET /events/stream               │
+  │  ?token=...&events=... ─────────► │ verify token (one-time)
+  │                                   │ → authorize(subject, events)
+  │  ◄═══════════════════════════════ │ SSE stream
+  │  event: userCreated               │ ← filter(subject, payload)
+  │  data: { ... }                    │
 ```
 
 One event, multiple consumers - fully decoupled architecture.
@@ -465,6 +601,7 @@ client.close();     // Close all connections
 | `reconnectDelay` | number | `3000` | Reconnect delay (ms) |
 | `maxReconnectAttempts` | number | `0` | Max attempts (0 = infinite) |
 | `withCredentials` | boolean | `false` | Include cookies |
+| `acquireToken` | () => Promise\<string\> | - | Acquire one-time SSE token before connecting |
 
 **Returns:** `SSEClient<TRouter>`
 
@@ -492,11 +629,17 @@ import type {
 // SSE types
 import type {
     SSEClientConfig,
+    SSEHandlerConfig,
+    SSEAuthConfig,
     SSESubscribeOptions,
     SSEEventHandlers,
     SSEConnectionState,
     SSEUnsubscribe,
 } from '@spfn/core/event/sse';
+
+// Token manager
+import { SSETokenManager } from '@spfn/core/event/sse';
+import type { SSEToken, SSETokenStore, SSETokenManagerConfig } from '@spfn/core/event/sse';
 ```
 
 ### EventDef<TPayload>

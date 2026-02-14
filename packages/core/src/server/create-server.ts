@@ -4,7 +4,7 @@
  * Creates and configures a Hono application instance.
  */
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
@@ -12,6 +12,7 @@ import { join } from 'path';
 import { registerRoutes, type RegisteredRoute } from '@spfn/core/route';
 import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
 import { createSSEHandler } from '../event/sse/handler';
+import { SSETokenManager } from '../event/sse/token-manager';
 import { createHealthCheckHandler } from './helpers';
 import { serverLogger } from './logger';
 
@@ -228,6 +229,10 @@ async function executeAfterRoutesHook(app: Hono, config?: ServerConfig): Promise
 
 /**
  * Register SSE endpoint for event streaming
+ *
+ * When auth is enabled:
+ * - POST /events/token — issues one-time SSE token (protected by config.middlewares)
+ * - GET /events/stream?token=...&events=... — SSE stream (token verified)
  */
 function registerSSEEndpoint(app: Hono, config?: ServerConfig): void
 {
@@ -237,17 +242,54 @@ function registerSSEEndpoint(app: Hono, config?: ServerConfig): void
     }
 
     const eventsConfig = config.eventsConfig ?? {};
-    const path = eventsConfig.path ?? '/events/stream';
+    const streamPath = eventsConfig.path ?? '/events/stream';
+    const authConfig = eventsConfig.auth;
     const debug = isDebugMode(config);
 
-    // Register SSE handler
-    app.get(path, createSSEHandler(config.events, eventsConfig));
+    let tokenManager: SSETokenManager | undefined;
+
+    if (authConfig?.enabled)
+    {
+        tokenManager = new SSETokenManager({
+            ttl: authConfig.tokenTtl,
+            store: authConfig.store,
+        });
+
+        // Derive token path: /events/stream → /events/token
+        const tokenPath = streamPath.replace(/\/[^/]+$/, '/token');
+
+        // Apply config.middlewares (e.g., authenticate) to token endpoint
+        const mwHandlers = (config.middlewares ?? []).map(mw => mw.handler);
+        const getSubject = authConfig.getSubject
+            ?? ((c: Context) => (c.get('auth') as Record<string, string> | undefined)?.userId ?? null);
+
+        app.post(tokenPath, ...mwHandlers, async (c: Context) =>
+        {
+            const subject = getSubject(c);
+            if (!subject)
+            {
+                return c.json({ error: 'Unable to identify subject' }, 401);
+            }
+
+            const token = await tokenManager!.issue(subject);
+            return c.json({ token });
+        });
+
+        if (debug)
+        {
+            serverLogger.info(`✓ SSE token endpoint registered at POST ${tokenPath}`);
+        }
+    }
+
+    // Register SSE stream handler
+    app.get(streamPath, createSSEHandler(config.events, eventsConfig, tokenManager));
 
     if (debug)
     {
         const eventNames = config.events.eventNames as string[];
-        serverLogger.info(`✓ SSE endpoint registered at ${path}`, {
+        serverLogger.info(`✓ SSE endpoint registered at ${streamPath}`, {
             events: eventNames,
+            auth: !!authConfig?.enabled,
         });
     }
 }

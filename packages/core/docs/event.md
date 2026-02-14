@@ -99,6 +99,64 @@ export default defineServerConfig()
 })
 ```
 
+## SSE Authentication
+
+Browser `EventSource` API does not support custom headers. SPFN uses a **Token Exchange** pattern:
+
+1. Client sends `POST /events/token` with Bearer JWT
+2. Server returns a one-time token (30s TTL)
+3. Client connects to `GET /events/stream?token=...&events=...`
+
+```typescript
+// server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { authenticate } from '@spfn/auth/server';
+
+export default defineServerConfig()
+    .middlewares([authenticate])
+    .routes(appRouter)
+    .events(eventRouter, {
+        auth: { enabled: true },  // This is all you need
+    })
+    .build();
+// → POST /events/token (protected by authenticate middleware)
+// → GET /events/stream?token=...&events=... (token verified)
+```
+
+### Authorization Hooks
+
+#### `authorize` — Subscription Authorization (once on connect)
+
+```typescript
+.events(eventRouter, {
+    auth: {
+        enabled: true,
+        authorize: async (subject, events) =>
+        {
+            // events: ('userCreated' | 'orderPlaced')[] — type inferred
+            const user = await usersRepository.findById(subject);
+            if (user.role === 'admin') return events;
+            return events.filter(e => !e.startsWith('admin.'));
+        },
+    },
+})
+```
+
+#### `filter` — Payload Filtering (on every event emission)
+
+```typescript
+.events(eventRouter, {
+    auth: {
+        enabled: true,
+        filter: {
+            // payload type inferred per-event — no casting needed
+            orderPlaced: (subject, payload) => payload.userId === subject,
+            // userCreated: no filter → sent to all authenticated users
+        },
+    },
+})
+```
+
 ## Browser Client
 
 ```typescript
@@ -134,6 +192,24 @@ const unsubscribe = client.subscribe({
 // Cleanup
 unsubscribe();
 ```
+
+### With Authentication
+
+```typescript
+const client = createSSEClient<EventRouter>({
+    acquireToken: async () =>
+    {
+        const res = await fetch('/api/events/token', {
+            method: 'POST',
+            credentials: 'include',
+        });
+        const data = await res.json();
+        return data.token;
+    },
+});
+```
+
+`acquireToken` is called on every (re)connect — one-time tokens are handled automatically.
 
 ## Simple Subscribe Helper
 
@@ -267,6 +343,18 @@ await userCreated.emit({ userId: '123' });
 | `reconnectDelay` | number | `3000` | Reconnect delay (ms) |
 | `maxReconnectAttempts` | number | `0` | Max attempts (0 = infinite) |
 | `withCredentials` | boolean | `false` | Include cookies |
+| `acquireToken` | () => Promise\<string\> | - | Acquire one-time SSE token before connecting |
+
+### SSE Auth Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable token authentication |
+| `tokenTtl` | number | `30000` | Token TTL in milliseconds |
+| `store` | SSETokenStore | InMemory | Custom token store (e.g., Redis) |
+| `getSubject` | (c) => string \| null | `c.get('auth')?.userId` | Extract subject from context |
+| `authorize` | (subject, events) => events[] | - | Subscription authorization hook |
+| `filter` | { [event]: (subject, payload) => boolean } | - | Per-event payload filter |
 
 ## Event Flow Architecture
 

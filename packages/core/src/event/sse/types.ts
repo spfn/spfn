@@ -4,7 +4,9 @@
  * Type definitions for Server-Sent Events
  */
 
+import type { Context } from 'hono';
 import type { EventRouterDef, InferEventNames, InferEventPayload } from '../router';
+import type { SSETokenStore } from './token-manager';
 
 /**
  * SSE message sent from server
@@ -21,6 +23,101 @@ export interface SSEMessage<TEvent extends string = string, TPayload = unknown>
     id?: string;
 }
 
+// ============================================================================
+// Auth Config Types
+// ============================================================================
+
+/**
+ * SSE auth configuration (internal, non-generic)
+ *
+ * Stored in SSEHandlerConfig. Generic user-facing version is SSEAuthConfig.
+ */
+export interface SSEHandlerAuthConfig
+{
+    /**
+     * Enable SSE token authentication
+     * @default false
+     */
+    enabled?: boolean;
+
+    /**
+     * Token TTL in milliseconds
+     * @default 30000
+     */
+    tokenTtl?: number;
+
+    /**
+     * Custom token store (e.g., Redis for multi-instance)
+     */
+    store?: SSETokenStore;
+
+    /**
+     * Extract subject (user ID) from Hono context
+     * @default (c) => c.get('auth')?.userId ?? null
+     */
+    getSubject?: (c: Context) => string | null;
+
+    /**
+     * Subscription authorization hook (called once on connect)
+     *
+     * Return allowed events subset. Empty array = 403 rejection.
+     */
+    authorize?: (subject: string, events: string[]) => Promise<string[]> | string[];
+
+    /**
+     * Per-event payload filter map (called on every event emission)
+     *
+     * Return false to skip sending the event to this user.
+     */
+    filter?: Record<string, (subject: string, payload: unknown) => boolean>;
+}
+
+/**
+ * SSE auth configuration (user-facing, generic)
+ *
+ * Provides type-safe event names and payload inference from EventRouter.
+ *
+ * @example
+ * ```typescript
+ * .events(eventRouter, {
+ *     auth: {
+ *         enabled: true,
+ *         authorize: async (subject, events) => {
+ *             // events: ('userCreated' | 'orderUpdated')[]
+ *             return events.filter(e => hasPermission(subject, e));
+ *         },
+ *         filter: {
+ *             orderUpdated: (subject, payload) => {
+ *                 // payload: { orderId: string; userId: string }
+ *                 return payload.userId === subject;
+ *             },
+ *         },
+ *     },
+ * })
+ * ```
+ */
+export interface SSEAuthConfig<TRouter extends EventRouterDef<any>>
+{
+    enabled?: boolean;
+    tokenTtl?: number;
+    store?: SSETokenStore;
+    getSubject?: (c: Context) => string | null;
+    authorize?: (
+        subject: string,
+        events: InferEventNames<TRouter>[]
+    ) => Promise<InferEventNames<TRouter>[]> | InferEventNames<TRouter>[];
+    filter?: {
+        [K in InferEventNames<TRouter>]?: (
+            subject: string,
+            payload: InferEventPayload<TRouter, K>
+        ) => boolean;
+    };
+}
+
+// ============================================================================
+// Handler Config
+// ============================================================================
+
 /**
  * SSE Handler configuration
  */
@@ -36,7 +133,16 @@ export interface SSEHandlerConfig
      * Custom headers for SSE response
      */
     headers?: Record<string, string>;
+
+    /**
+     * Authentication and authorization configuration
+     */
+    auth?: SSEHandlerAuthConfig;
 }
+
+// ============================================================================
+// Client Config
+// ============================================================================
 
 /**
  * SSE Client configuration
@@ -87,6 +193,26 @@ export interface SSEClientConfig
      * @default false
      */
     withCredentials?: boolean;
+
+    /**
+     * Acquire a one-time SSE token before connecting.
+     *
+     * Called on every (re)connect. The returned token is appended
+     * to the SSE URL as `?token=...`.
+     *
+     * @example
+     * ```typescript
+     * acquireToken: async () => {
+     *     const res = await fetch('/api/events/token', {
+     *         method: 'POST',
+     *         credentials: 'include',
+     *     });
+     *     const data = await res.json();
+     *     return data.token;
+     * }
+     * ```
+     */
+    acquireToken?: () => Promise<string>;
 }
 
 /**

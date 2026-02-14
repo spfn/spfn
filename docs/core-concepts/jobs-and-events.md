@@ -141,6 +141,24 @@ unsubscribe();
 orderPlaced.unsubscribeAll();
 ```
 
+### SSE Authentication
+
+When streaming events to the browser, secure SSE connections with token-based authentication:
+
+```typescript
+.events(eventRouter, {
+    auth: {
+        enabled: true,
+        authorize: async (subject, events) => events.filter(e => hasPermission(subject, e)),
+        filter: {
+            orderPlaced: (subject, payload) => payload.userId === subject,
+        },
+    },
+})
+```
+
+See the [Events API reference](/docs/api-reference/events) for full authentication documentation.
+
 ### Multi-Instance Support
 
 For applications running multiple instances, use cache-based pub/sub:

@@ -133,6 +133,65 @@ export default defineServerConfig()
 })
 ```
 
+## SSE Authentication
+
+Browser `EventSource` API does not support custom headers. SPFN uses a **Token Exchange** pattern to secure SSE connections:
+
+1. Client sends `POST /events/token` with Bearer JWT
+2. Server issues a one-time token (30s TTL)
+3. Client connects to `GET /events/stream?token=...&events=...`
+
+Enable with `auth: { enabled: true }`:
+
+```typescript
+// server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { authenticate } from '@spfn/auth/server';
+
+export default defineServerConfig()
+    .middlewares([authenticate])
+    .routes(appRouter)
+    .events(eventRouter, {
+        auth: { enabled: true },
+    })
+    .build();
+```
+
+### Authorization Hooks
+
+#### `authorize` — Subscription Authorization (once on connect)
+
+Controls which events a user can subscribe to:
+
+```typescript
+.events(eventRouter, {
+    auth: {
+        enabled: true,
+        authorize: async (subject, events) =>
+        {
+            const user = await usersRepository.findById(subject);
+            if (user.role === 'admin') return events;
+            return events.filter(e => !e.startsWith('admin.'));
+        },
+    },
+})
+```
+
+#### `filter` — Payload Filtering (per event emission)
+
+Controls whether a specific event instance is sent to a user. Payload types are inferred per-event:
+
+```typescript
+.events(eventRouter, {
+    auth: {
+        enabled: true,
+        filter: {
+            orderPlaced: (subject, payload) => payload.userId === subject,
+        },
+    },
+})
+```
+
 ## Browser Client
 
 ### createSSEClient
@@ -174,6 +233,26 @@ const unsubscribe = client.subscribe({
 // Cleanup
 unsubscribe();
 ```
+
+### With Authentication
+
+When the server has `auth: { enabled: true }`, provide `acquireToken`:
+
+```typescript
+const client = createSSEClient<EventRouter>({
+    acquireToken: async () =>
+    {
+        const res = await fetch('/api/events/token', {
+            method: 'POST',
+            credentials: 'include',
+        });
+        const data = await res.json();
+        return data.token;
+    },
+});
+```
+
+`acquireToken` is called on every (re)connect — one-time tokens are handled automatically.
 
 ### subscribeToEvents
 
@@ -325,6 +404,18 @@ export type EventRouter = typeof eventRouter;
 | `reconnectDelay` | number | `3000` | Reconnect delay (ms) |
 | `maxReconnectAttempts` | number | `0` | Max attempts (0 = infinite) |
 | `withCredentials` | boolean | `false` | Include cookies |
+| `acquireToken` | () => Promise\<string\> | - | Acquire one-time SSE token before connecting |
+
+### SSE Auth Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable token authentication |
+| `tokenTtl` | number | `30000` | Token TTL in milliseconds |
+| `store` | SSETokenStore | InMemory | Custom token store (e.g., Redis) |
+| `getSubject` | (c) => string \| null | `c.get('auth')?.userId` | Extract subject from context |
+| `authorize` | (subject, events) => events[] | - | Subscription authorization hook |
+| `filter` | { [event]: (subject, payload) => boolean } | - | Per-event payload filter |
 
 ## Best Practices
 
