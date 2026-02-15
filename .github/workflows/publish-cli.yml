@@ -104,8 +104,14 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Add latest tag (stable releases or manual promote)
-        if: ${{ !inputs.dry_run && (steps.pkg.outputs.tag == 'latest' || inputs.promote_to_latest) && steps.check-npm.outputs.exists == 'false' }}
+      - name: Add latest tag (stable releases)
+        if: ${{ !inputs.dry_run && steps.pkg.outputs.tag == 'latest' && steps.check-npm.outputs.exists == 'false' }}
+        run: npm dist-tag add spfn@${{ steps.pkg.outputs.version }} latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Promote to latest (manual)
+        if: ${{ !inputs.dry_run && inputs.promote_to_latest }}
         run: npm dist-tag add spfn@${{ steps.pkg.outputs.version }} latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
