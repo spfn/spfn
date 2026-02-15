@@ -75,6 +75,7 @@ dbCommand
 	.option('-s, --schema <name>', 'Restore specific schema only')
 	.option('--data-only', 'Restore data only (requires custom format .dump file)')
 	.option('--schema-only', 'Restore schema only (requires custom format .dump file)')
+	.option('-v, --verbose', 'Show detailed restore progress')
 	.action((file, options) => dbRestore(file, options));
 
 dbCommand

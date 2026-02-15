@@ -316,6 +316,9 @@ spfn db restore backup.dump --data-only
 
 # Schema-only restore (requires .dump format)
 spfn db restore backup.dump --schema-only
+
+# Show detailed restore progress
+spfn db restore backup.dump --verbose
 ```
 
 ### Options
@@ -326,6 +329,31 @@ spfn db restore backup.dump --schema-only
 | `-s, --schema <name>` | Restore specific schema only |
 | `--data-only` | Restore data only (requires `.dump` format) |
 | `--schema-only` | Restore schema only (requires `.dump` format) |
+| `-v, --verbose` | Show detailed restore progress |
+
+### Progress & Error Reporting
+
+Restore progress is displayed in real-time via the spinner. For `.dump` files, `pg_restore --verbose` provides object-level tracking. For `.sql` files, `ON_ERROR_STOP=1` is enabled to halt on the first error.
+
+```bash
+# Default mode — spinner shows current progress
+⠋ Restoring backup... [3/23] processing item 3/23 TABLE public.users
+✔ Restore completed (23 objects)
+
+⚠️  Warnings during restore (1):
+  - WARNING: table "sessions" already exists, skipping
+
+✅ Database restored successfully
+
+# Verbose mode — streams all output in real-time
+spfn db restore backup.dump --verbose
+  pg_restore: creating TABLE "public"."users"
+  pg_restore: creating TABLE "public"."posts"
+  pg_restore: processing item 1/23 TABLE public.users
+  ...
+✔ Restore completed (23 objects)
+✅ Database restored successfully
+```
 
 ### Metadata & Version Check
 

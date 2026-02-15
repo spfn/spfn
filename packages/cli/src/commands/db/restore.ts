@@ -16,7 +16,7 @@ import {
 /**
  * Restore database from backup file
  */
-export async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?: string; dataOnly?: boolean; schemaOnly?: boolean } = {}): Promise<void>
+export async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?: string; dataOnly?: boolean; schemaOnly?: boolean; verbose?: boolean } = {}): Promise<void>
 {
 	console.log(chalk.blue('♻️  Restoring database from backup...\n'));
 
@@ -177,6 +177,7 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 		args.push('-p', dbInfo.port);
 		args.push('-U', dbInfo.user);
 		args.push('-d', dbInfo.database);
+		args.push('--verbose');
 
 		if (options.drop)
 		{
@@ -214,10 +215,12 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 		args.push('-p', dbInfo.port);
 		args.push('-U', dbInfo.user);
 		args.push('-d', dbInfo.database);
+		args.push('-v', 'ON_ERROR_STOP=1');
 		args.push('-f', file);
 	}
 
 	// Execute restore
+	const verbose = options.verbose ?? false;
 	const spinner = ora('Restoring backup...').start();
 
 	const restoreProcess = spawn(command, args, {
@@ -228,11 +231,65 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 		},
 	});
 
-	let errorOutput = '';
+	const warnings: string[] = [];
+	const errors: string[] = [];
+	let objectCount = 0;
+	let lastObject = '';
 
 	restoreProcess.stderr?.on('data', (data) =>
 	{
-		errorOutput += data.toString();
+		const lines = data.toString().split('\n').filter((l: string) => l.trim());
+
+		for (const line of lines)
+		{
+			// Categorize by log level
+			if (/^pg_restore:.*warning:/i.test(line) || /^WARNING:/i.test(line))
+			{
+				warnings.push(line.trim());
+			}
+			else if (/^pg_restore:.*error:/i.test(line) || /^ERROR:/i.test(line) || /^psql:.*ERROR/i.test(line))
+			{
+				errors.push(line.trim());
+			}
+
+			// Parse pg_restore verbose output for progress
+			const objectMatch = line.match(/processing item (\d+)\/(\d+)/);
+			if (objectMatch)
+			{
+				objectCount = Number(objectMatch[2]);
+				const current = Number(objectMatch[1]);
+				const desc = line.replace(/^pg_restore:\s*/, '').trim();
+				lastObject = desc;
+				spinner.text = `Restoring backup... [${current}/${objectCount}] ${desc}`;
+			}
+			else if (isCustomFormat)
+			{
+				// Other verbose lines from pg_restore (e.g., "creating TABLE ...", "restoring data for ...")
+				const desc = line.replace(/^pg_restore:\s*/, '').trim();
+				if (desc && !/warning:|error:/i.test(desc))
+				{
+					lastObject = desc;
+					spinner.text = `Restoring backup... ${desc}`;
+				}
+			}
+
+			if (verbose)
+			{
+				spinner.stop();
+				console.log(chalk.dim(`  ${line.trim()}`));
+				spinner.start();
+			}
+		}
+	});
+
+	restoreProcess.stdout?.on('data', (data) =>
+	{
+		if (verbose)
+		{
+			spinner.stop();
+			console.log(chalk.dim(`  ${data.toString().trim()}`));
+			spinner.start();
+		}
 	});
 
 	await new Promise<void>((resolve, reject) =>
@@ -241,14 +298,49 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 		{
 			if (code === 0)
 			{
-				spinner.succeed('Restore completed');
+				const summary = objectCount > 0 ? ` (${objectCount} objects)` : '';
+				spinner.succeed(`Restore completed${summary}`);
+
+				// Show warnings even on success
+				if (warnings.length > 0)
+				{
+					console.log(chalk.yellow(`\n⚠️  Warnings during restore (${warnings.length}):\n`));
+					for (const w of warnings)
+					{
+						console.log(chalk.yellow(`  - ${w}`));
+					}
+				}
+
 				console.log(chalk.green('\n✅ Database restored successfully'));
 				resolve();
 			}
 			else
 			{
 				spinner.fail('Restore failed');
-				reject(new Error(errorOutput || 'Restore failed'));
+
+				if (errors.length > 0)
+				{
+					console.error(chalk.red(`\n❌ Errors (${errors.length}):\n`));
+					for (const e of errors)
+					{
+						console.error(chalk.red(`  - ${e}`));
+					}
+				}
+
+				if (warnings.length > 0)
+				{
+					console.log(chalk.yellow(`\n⚠️  Warnings (${warnings.length}):\n`));
+					for (const w of warnings)
+					{
+						console.log(chalk.yellow(`  - ${w}`));
+					}
+				}
+
+				const fallback = errors.length === 0 && warnings.length === 0
+					? 'Restore failed with no output'
+					: '';
+
+				reject(new Error(fallback));
 			}
 		});
 
@@ -259,8 +351,11 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 		});
 	}).catch((error) =>
 	{
-		console.error(chalk.red('\n❌ Failed to restore database'));
-		console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
+		const msg = error instanceof Error ? error.message : 'Unknown error';
+		if (msg)
+		{
+			console.error(chalk.red(`\n❌ ${msg}`));
+		}
 		process.exit(1);
 	});
 }
