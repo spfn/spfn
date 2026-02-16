@@ -190,8 +190,19 @@ export const authEnvSchema = defineEnvSchema({
     // ============================================================================
     SPFN_API_URL: {
         ...envString({
-            description: 'Base API URL for invitation links and other external-facing URLs',
+            description: 'Internal API URL for server-to-server communication',
             default: 'http://localhost:8790',
+            required: false,
+            examples: [
+                'https://api.example.com',
+                'http://localhost:8790',
+            ],
+        }),
+    },
+
+    NEXT_PUBLIC_SPFN_API_URL: {
+        ...envString({
+            description: 'Public-facing API URL used for browser-facing redirects (e.g. OAuth callback). Falls back to SPFN_API_URL if not set.',
             required: false,
             examples: [
                 'https://api.example.com',
@@ -321,7 +332,7 @@ export const authEnvSchema = defineEnvSchema({
 
     SPFN_AUTH_GOOGLE_REDIRECT_URI: {
         ...envString({
-            description: 'Google OAuth callback URL. Defaults to {SPFN_API_URL}/_auth/oauth/google/callback',
+            description: 'Google OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_API_URL || SPFN_API_URL}/_auth/oauth/google/callback',
             required: false,
             examples: [
                 'https://api.example.com/_auth/oauth/google/callback',

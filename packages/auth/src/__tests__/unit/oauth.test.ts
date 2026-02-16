@@ -184,6 +184,29 @@ describe('Google OAuth Config', () =>
 
         expect(config.redirectUri).toBe('https://custom.example.com/callback');
     });
+
+    it('should prefer NEXT_PUBLIC_SPFN_API_URL over SPFN_API_URL for redirect URI', () =>
+    {
+        vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_ID', 'test-client-id');
+        vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_SECRET', 'test-secret');
+        vi.stubEnv('SPFN_API_URL', 'http://localhost:8790');
+        vi.stubEnv('NEXT_PUBLIC_SPFN_API_URL', 'https://api.example.com');
+
+        const config = getGoogleOAuthConfig();
+
+        expect(config.redirectUri).toBe('https://api.example.com/_auth/oauth/google/callback');
+    });
+
+    it('should fall back to SPFN_API_URL when NEXT_PUBLIC_SPFN_API_URL is not set', () =>
+    {
+        vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_ID', 'test-client-id');
+        vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_SECRET', 'test-secret');
+        vi.stubEnv('SPFN_API_URL', 'http://localhost:8790');
+
+        const config = getGoogleOAuthConfig();
+
+        expect(config.redirectUri).toBe('http://localhost:8790/_auth/oauth/google/callback');
+    });
 });
 
 describe('Google Auth URL', () =>

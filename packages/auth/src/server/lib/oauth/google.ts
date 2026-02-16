@@ -57,8 +57,9 @@ export function getGoogleOAuthConfig()
         throw new Error('Google OAuth is not configured. Set SPFN_AUTH_GOOGLE_CLIENT_ID and SPFN_AUTH_GOOGLE_CLIENT_SECRET.');
     }
 
+    const baseUrl = env.NEXT_PUBLIC_SPFN_API_URL || env.SPFN_API_URL;
     const redirectUri = env.SPFN_AUTH_GOOGLE_REDIRECT_URI
-        || `${env.SPFN_API_URL}/_auth/oauth/google/callback`;
+        || `${baseUrl}/_auth/oauth/google/callback`;
 
     return {
         clientId,
