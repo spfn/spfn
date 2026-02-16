@@ -1,10 +1,45 @@
 import { Command } from 'commander';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { createConnection } from 'net';
 import { execa, type ExecaChildProcess } from 'execa';
 import chokidar from 'chokidar';
 import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
+
+/**
+ * Wait for a TCP port to accept connections
+ */
+function waitForPort(port: number, host: string, timeoutMs = 30000): Promise<void>
+{
+    const start = Date.now();
+
+    return new Promise((resolve, reject) =>
+    {
+        const tryConnect = () =>
+        {
+            if (Date.now() - start > timeoutMs)
+            {
+                reject(new Error(`Server did not start within ${timeoutMs / 1000}s (port ${port})`));
+                return;
+            }
+
+            const socket = createConnection({ port, host }, () =>
+            {
+                socket.destroy();
+                resolve();
+            });
+
+            socket.on('error', () =>
+            {
+                socket.destroy();
+                setTimeout(tryConnect, 300);
+            });
+        };
+
+        tryConnect();
+    });
+}
 
 export const devCommand = new Command('dev')
     .description('Start SPFN development server (detects and runs Next.js + Hono)')
@@ -431,11 +466,24 @@ catch (error)
         process.on('SIGINT', cleanup);
         process.on('SIGTERM', cleanup);
 
-        // Start all processes
+        // Start all processes — server must be ready before Next.js
         startWatcher();
         startServer();
-        // Delay Next.js start to let server start first
-        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        const serverHost = options.host ?? process.env.HOST ?? 'localhost';
+        const serverPort = Number(options.port ?? process.env.PORT ?? 4000);
+
+        try
+        {
+            logger.info(`[SPFN] Waiting for server on port ${serverPort}...`);
+            await waitForPort(serverPort, serverHost);
+            logger.info(`[SPFN] Server ready, starting Next.js...\n`);
+        }
+        catch (error)
+        {
+            logger.warn(`[SPFN] Server readiness check timed out, starting Next.js anyway...`);
+        }
+
         startNext();
 
         // Keep process alive - let cleanup handlers manage exit
