@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 
 import { env } from "@spfn/core/config";
-import { loadEnvFiles } from "@spfn/core/server";
+import { loadEnv } from "@spfn/core/server";
 
 /**
  * Validate prerequisites for database operations
@@ -13,7 +13,7 @@ import { loadEnvFiles } from "@spfn/core/server";
  */
 export function validateDatabasePrerequisites(): void
 {
-    loadEnvFiles();
+    loadEnv();
     if (!env.DATABASE_URL)
     {
         console.error(chalk.red('❌ DATABASE_URL not found in environment'));
@@ -35,7 +35,7 @@ export async function runDrizzleCommand(command: string): Promise<void>
 
     if (!hasUserConfig)
     {
-        loadEnvFiles();
+        loadEnv();
         if (!env.DATABASE_URL)
         {
             console.error(chalk.red('❌ DATABASE_URL not found in environment'));

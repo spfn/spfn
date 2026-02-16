@@ -1,17 +1,28 @@
 /**
  * Environment Variable Loader
  *
- * Next.js 스타일의 환경변수 파일 로딩
+ * Next.js 스타일의 환경변수 파일 로딩 (환경별 분리 지원)
+ *
+ * 로딩 우선순위 (낮음 -> 높음, 나중 파일이 덮어씀):
+ * 1. .env                   - 기본값 (committed)
+ * 2. .env.{NODE_ENV}        - 환경별 오버라이드 (committed)
+ * 3. .env.local             - 로컬 오버라이드 (gitignored, test에서 스킵)
+ * 4. .env.{NODE_ENV}.local  - 환경별 시크릿 (gitignored)
+ * 5. .env.server            - 서버 전용 기본값 (committed)
+ * 6. .env.server.local      - 서버 전용 시크릿 (gitignored)
  *
  * @example
  * ```typescript
  * import { loadEnv } from '@spfn/core/env/loader';
  *
- * // SPFN 서버 진입점에서 호출
+ * // 기본 사용 (NODE_ENV 자동 감지)
  * loadEnv();
  *
- * // 이후 스키마 검증
- * const env = createEnvRegistry(envSchema).validate();
+ * // 특정 환경 지정
+ * loadEnv({ nodeEnv: 'production' });
+ *
+ * // 서버 레이어 제외 (Next.js 클라이언트용)
+ * loadEnv({ server: false });
  * ```
  *
  * @module env/loader
@@ -36,6 +47,18 @@ export interface LoadEnvOptions
     cwd?: string;
 
     /**
+     * NODE_ENV 값 (환경별 .env 파일 결정)
+     * @default process.env.NODE_ENV || 'local'
+     */
+    nodeEnv?: string;
+
+    /**
+     * 서버 전용 파일 포함 여부 (.env.server, .env.server.local)
+     * @default true
+     */
+    server?: boolean;
+
+    /**
      * 디버그 모드 (로드된 파일 로깅)
      * @default false
      */
@@ -46,35 +69,6 @@ export interface LoadEnvOptions
      * @default false
      */
     override?: boolean;
-}
-
-/**
- * 환경변수 파일 로딩 순서 (우선순위 낮음 → 높음)
- *
- * 1. .env              - 기본값 (커밋 O)
- * 2. .env.local        - 로컬 오버라이드 (커밋 X)
- * 3. .env.server       - 서버 전용 기본값 (커밋 O)
- * 4. .env.server.local - 서버 전용 민감정보 (커밋 X)
- */
-const ENV_FILES = [
-    '.env',
-    '.env.local',
-    '.env.server',
-    '.env.server.local',
-] as const;
-
-/**
- * 단일 .env 파일 파싱
- */
-function parseEnvFile(filePath: string): Record<string, string> | null
-{
-    if (!existsSync(filePath))
-    {
-        return null;
-    }
-
-    const content = readFileSync(filePath, 'utf-8');
-    return parse(content);
 }
 
 /**
@@ -94,39 +88,79 @@ export interface LoadEnvResult
 }
 
 /**
+ * NODE_ENV에 따른 .env 파일 목록 생성 (우선순위 낮음 -> 높음)
+ *
+ * 더 구체적인 파일이 승리:
+ * - environment > base
+ * - server > shared
+ * - local > committed
+ */
+function getEnvFiles(nodeEnv: string, server: boolean): string[]
+{
+    const files: string[] = [
+        '.env',
+        `.env.${nodeEnv}`,
+    ];
+
+    // test 환경에서는 .env.local 스킵 (테스트 결정론성 보장)
+    if (nodeEnv !== 'test')
+    {
+        files.push('.env.local');
+    }
+
+    files.push(`.env.${nodeEnv}.local`);
+
+    if (server)
+    {
+        files.push('.env.server');
+        files.push('.env.server.local');
+    }
+
+    return files;
+}
+
+/**
+ * 단일 .env 파일 파싱
+ */
+function parseEnvFile(filePath: string): Record<string, string> | null
+{
+    if (!existsSync(filePath))
+    {
+        return null;
+    }
+
+    return parse(readFileSync(filePath, 'utf-8'));
+}
+
+/**
  * 프로젝트 루트의 환경변수 파일들을 규칙에 따라 로드
  *
- * Next.js 스타일의 우선순위를 따름:
- * - .env → .env.local → .env.server → .env.server.local
- * - 나중에 로드된 값이 이전 값을 덮어씀
+ * 모든 파일을 파싱 후 머지한 뒤 process.env에 한번에 적용.
+ * 이미 process.env에 존재하는 키는 덮어쓰지 않음 (플랫폼 주입 보호).
  *
  * @param options - 로드 옵션
  * @returns 로드 결과 (로드된 파일, 키 목록)
- *
- * @example
- * ```typescript
- * // 기본 사용
- * loadEnv();
- *
- * // 커스텀 경로
- * loadEnv({ cwd: '/path/to/project' });
- *
- * // 디버그 모드
- * loadEnv({ debug: true });
- * ```
  */
 export function loadEnv(options: LoadEnvOptions = {}): LoadEnvResult
 {
     const {
         cwd = process.cwd(),
+        nodeEnv = process.env.NODE_ENV || 'local',
+        server = true,
         debug = false,
         override = false,
     } = options;
 
+    const envFiles = getEnvFiles(nodeEnv, server);
     const loadedFiles: string[] = [];
-    const loadedKeys = new Set<string>();
 
-    for (const fileName of ENV_FILES)
+    // 1) 기존 process.env 키 스냅샷 저장
+    const existingKeys = new Set(Object.keys(process.env));
+
+    // 2) 모든 .env 파일 파싱 후 머지 (나중 파일이 승리)
+    const merged: Record<string, string> = {};
+
+    for (const fileName of envFiles)
     {
         const filePath = resolve(cwd, fileName);
         const parsed = parseEnvFile(filePath);
@@ -137,30 +171,31 @@ export function loadEnv(options: LoadEnvOptions = {}): LoadEnvResult
         }
 
         loadedFiles.push(fileName);
+        Object.assign(merged, parsed);
+    }
 
-        for (const [key, value] of Object.entries(parsed))
+    // 3) 머지된 결과를 process.env에 적용
+    const loadedKeys: string[] = [];
+
+    for (const [key, value] of Object.entries(merged))
+    {
+        // 기존 process.env에 이미 있는 키는 스킵 (override가 false일 때)
+        if (!override && existingKeys.has(key))
         {
-            // 기존 값이 있고 override가 false면 스킵
-            if (!override && process.env[key] !== undefined)
-            {
-                continue;
-            }
-
-            process.env[key] = value;
-            loadedKeys.add(key);
+            continue;
         }
+
+        process.env[key] = value;
+        loadedKeys.push(key);
     }
 
     if (debug && loadedFiles.length > 0)
     {
         envLogger.debug(`Loaded env files: ${loadedFiles.join(', ')}`);
-        envLogger.debug(`Loaded ${loadedKeys.size} environment variables`);
+        envLogger.debug(`Loaded ${loadedKeys.length} environment variables`);
     }
 
-    return {
-        loadedFiles,
-        loadedKeys: Array.from(loadedKeys),
-    };
+    return { loadedFiles, loadedKeys };
 }
 
 /**
@@ -178,10 +213,7 @@ export function loadEnvOnce(options: LoadEnvOptions = {}): LoadEnvResult
 {
     if (isEnvLoaded)
     {
-        return {
-            loadedFiles: [],
-            loadedKeys: [],
-        };
+        return { loadedFiles: [], loadedKeys: [] };
     }
 
     isEnvLoaded = true;

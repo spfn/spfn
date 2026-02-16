@@ -23,7 +23,9 @@
 import '@spfn/core/config';
 
 // Server functions
+/** @deprecated Use `loadEnv` from '@spfn/core/env/loader' instead */
 export { loadEnvFiles } from './dotenv-loader';
+export { loadEnv } from '../env/loader';
 export { createServer, startServer } from './server';
 
 // Config builder

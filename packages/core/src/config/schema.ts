@@ -41,7 +41,7 @@ export const coreEnvSchema = defineEnvSchema({
     // Core Environment
     // ========================================================================
 
-    NODE_ENV: envEnum(['local', 'development', 'production', 'test'] as const, {
+    NODE_ENV: envEnum(['local', 'development', 'staging', 'production', 'test'] as const, {
         description: 'Node.js runtime environment',
         default: 'local',
         nextjs: true,

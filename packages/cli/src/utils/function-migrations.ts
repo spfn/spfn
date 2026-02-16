@@ -8,7 +8,7 @@ import chalk from 'chalk';
 import { join } from 'path';
 
 import { env } from "@spfn/core/config";
-import { loadEnvFiles } from "@spfn/core/server";
+import { loadEnv } from "@spfn/core/server";
 import { existsSync, readdirSync, readFileSync } from 'fs';
 
 export type FunctionMigrationInfo = {
@@ -100,7 +100,7 @@ export async function executeFunctionMigrations(
     const { migrate } = await import('drizzle-orm/postgres-js/migrator');
     const postgres = await import('postgres');
 
-    loadEnvFiles();
+    loadEnv();
     if (!env.DATABASE_URL)
     {
         throw new Error('DATABASE_URL not found in environment');

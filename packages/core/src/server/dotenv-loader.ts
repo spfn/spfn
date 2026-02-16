@@ -1,41 +1,24 @@
-import { config } from "dotenv";
-import { existsSync } from "fs";
-import { resolve } from "path";
+/**
+ * @deprecated Use `loadEnv` from '@spfn/core/env/loader' instead.
+ * This module will be removed in the next major version.
+ */
+
+import { loadEnv } from '../env/loader';
+
+let warned = false;
 
 /**
- * Load environment files for SPFN server
- *
- * Priority (high → low, later files don't override):
- * 1. .env.server.local  - Server-only secrets (gitignored)
- * 2. .env.server        - Server-only defaults
- * 3. .env.{NODE_ENV}.local
- * 4. .env.local         - Local overrides (gitignored)
- * 5. .env.{NODE_ENV}
- * 6. .env               - Defaults
+ * @deprecated Use `loadEnv()` from '@spfn/core/env/loader' instead.
  */
-export function loadEnvFiles()
+export function loadEnvFiles(): void
 {
-    const cwd = process.cwd();
-    const nodeEnv = process.env.NODE_ENV || 'development';
-
-    // Build list of .env files to load (in priority order, high → low)
-    // dotenv won't override existing vars, so load high-priority files first
-    const envFiles: string[] = [
-        '.env.server.local',
-        '.env.server',
-        `.env.${nodeEnv}.local`,
-        nodeEnv !== 'test' ? '.env.local' : null,
-        `.env.${nodeEnv}`,
-        '.env',
-    ].filter((file): file is string => file !== null);
-
-    // Load each file if it exists
-    for (const file of envFiles)
+    if (!warned)
     {
-        const filePath = resolve(cwd, file);
-        if (existsSync(filePath))
-        {
-            config({ path: filePath });
-        }
+        warned = true;
+        console.warn(
+            '[SPFN] loadEnvFiles() is deprecated. Use loadEnv() from "@spfn/core/env/loader" instead.'
+        );
     }
+
+    loadEnv();
 }

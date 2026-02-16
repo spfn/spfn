@@ -16,7 +16,7 @@ import { initBoss, stopBoss, registerJobs } from '../job';
 import { serverLogger } from './logger';
 import { printBanner } from './banner';
 import { createServer } from './create-server';
-import { loadEnvFiles } from "./dotenv-loader";
+import { loadEnv } from '../env/loader';
 import {
     applyServerTimeouts,
     buildMiddlewareOrder,
@@ -92,7 +92,7 @@ let processHandlersRegistered = false;
  */
 export async function startServer(config?: ServerConfig): Promise<ServerInstance>
 {
-    loadEnvFiles();
+    loadEnv();
 
     const finalConfig = await loadAndMergeConfig(config);
     const { host, port, debug } = finalConfig;

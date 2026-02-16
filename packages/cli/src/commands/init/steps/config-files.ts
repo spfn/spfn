@@ -7,35 +7,17 @@ const { writeFileSync } = fse;
 
 /**
  * Setup configuration files:
- * - .env.local.example (environment variables template)
+ * - .env.example (shared defaults, committed)
+ * - .env.local.example (local overrides with secrets, gitignored)
+ * - .env.server.example (server-only defaults, committed)
+ * - .env.server.local.example (server secrets, gitignored)
  * - .spfnrc.ts (codegen configuration)
- * - .gitignore (add .spfn directory)
+ * - .gitignore (add .spfn directory + env patterns)
  * - tsconfig.json (exclude src/server for Vercel)
  */
 export async function setupConfigFiles(cwd: string): Promise<void>
 {
-    // Generate .env.local.example
-    const envExamplePath = join(cwd, '.env.local.example');
-    if (!existsSync(envExamplePath))
-    {
-        const envExampleContent = `# Environment
-NODE_ENV=local
-
-# Logging
-SPFN_LOG_LEVEL=info
-
-# Database (matches docker-compose.yml)
-DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
-
-# Cache - Redis/Valkey (optional)
-CACHE_URL=redis://localhost:6379
-
-# SPFN API Server URL (for API Route Proxy and SSR)
-SPFN_API_URL=http://localhost:8790
-`;
-        writeFileSync(envExamplePath, envExampleContent);
-        logger.success('Created .env.local.example');
-    }
+    generateEnvExamples(cwd);
 
     // Create .spfnrc.ts for codegen configuration
     const spfnrcPath = join(cwd, '.spfnrc.ts');
@@ -65,61 +47,171 @@ export default defineConfig({
         logger.success('Created .spfnrc.ts (codegen configuration)');
     }
 
-    // Update .gitignore to include .spfn directory
-    const gitignorePath = join(cwd, '.gitignore');
-    if (existsSync(gitignorePath))
+    updateGitignore(cwd);
+    updateTsconfig(cwd);
+}
+
+/**
+ * Generate separated .env example files
+ */
+function generateEnvExamples(cwd: string): void
+{
+    // .env.example — shared defaults (committed, non-sensitive)
+    writeEnvExample(cwd, '.env.example', `# Shared defaults (committed)
+# These values are shared across all environments.
+
+# Environment
+NODE_ENV=local
+
+# Logging
+SPFN_LOG_LEVEL=info
+
+# Server
+PORT=4000
+
+# SPFN API Server URL (for API Route Proxy and SSR)
+SPFN_API_URL=http://localhost:8790
+NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
+`);
+
+    // .env.local.example — local overrides (gitignored, sensitive)
+    writeEnvExample(cwd, '.env.local.example', `# Local overrides (gitignored)
+# Developer-specific values that should NOT be committed.
+
+# Database (matches docker-compose.yml)
+DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
+
+# Cache - Redis/Valkey (optional)
+CACHE_URL=redis://localhost:6379
+
+# SPFN App URL (optional, for CORS and redirects)
+# SPFN_APP_URL=http://localhost:3790
+`);
+
+    // .env.server.example — server-only defaults (committed)
+    writeEnvExample(cwd, '.env.server.example', `# Server-only defaults (committed)
+# These values are only loaded by the SPFN server, not by Next.js.
+
+# Database pool
+DB_POOL_MAX=10
+DB_POOL_IDLE_TIMEOUT=30
+
+# Server timeouts
+SERVER_TIMEOUT=120000
+SHUTDOWN_TIMEOUT=30000
+`);
+
+    // .env.server.local.example — server secrets (gitignored)
+    writeEnvExample(cwd, '.env.server.local.example', `# Server secrets (gitignored)
+# Server-only sensitive values. Never commit this file.
+
+# Database write/read URLs (master-replica pattern, optional)
+# DATABASE_WRITE_URL=postgresql://user:password@master:5432/dbname
+# DATABASE_READ_URL=postgresql://user:password@replica:5432/dbname
+
+# Cache password (optional)
+# CACHE_PASSWORD=your-redis-password
+`);
+}
+
+/**
+ * Write a single .env example file (skip if exists)
+ */
+function writeEnvExample(cwd: string, filename: string, content: string): void
+{
+    const filePath = join(cwd, filename);
+
+    if (existsSync(filePath))
     {
-        try
-        {
-            const gitignoreContent = readFileSync(gitignorePath, 'utf-8');
-
-            // Check if .spfn is already in .gitignore
-            if (!gitignoreContent.includes('.spfn'))
-            {
-                // Add .spfn to .gitignore after production build section
-                const updatedContent = gitignoreContent.replace(
-                    /# production\n\/build/,
-                    '# production\n/build\n\n# spfn\n/.spfn/'
-                );
-
-                writeFileSync(gitignorePath, updatedContent);
-                logger.success('Updated .gitignore with .spfn directory');
-            }
-        }
-        catch (error)
-        {
-            // Not critical, continue
-            logger.warn('Could not update .gitignore (you can add .spfn manually)');
-        }
+        return;
     }
 
-    // Update tsconfig.json to exclude src/server
-    const tsconfigPath = join(cwd, 'tsconfig.json');
-    if (existsSync(tsconfigPath))
+    writeFileSync(filePath, content);
+    logger.success(`Created ${filename}`);
+}
+
+/**
+ * Update .gitignore with SPFN patterns
+ */
+function updateGitignore(cwd: string): void
+{
+    const gitignorePath = join(cwd, '.gitignore');
+
+    if (!existsSync(gitignorePath))
     {
-        try
-        {
-            const tsconfigContent = readFileSync(tsconfigPath, 'utf-8');
-            const tsconfig = JSON.parse(tsconfigContent);
+        return;
+    }
 
-            // Initialize exclude array if not exists
-            if (!tsconfig.exclude)
-            {
-                tsconfig.exclude = [];
-            }
+    try
+    {
+        const content = readFileSync(gitignorePath, 'utf-8');
+        let updated = content;
+        let changed = false;
 
-            // Add src/server to exclude if not already present
-            if (!tsconfig.exclude.includes('src/server'))
-            {
-                tsconfig.exclude.push('src/server');
-                writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2) + '\n');
-                logger.success('Updated tsconfig.json (excluded src/server for Vercel compatibility)');
-            }
-        }
-        catch (error)
+        // Add .spfn directory
+        if (!content.includes('.spfn'))
         {
-            // Not critical, continue
-            logger.warn('Could not update tsconfig.json (you can add "src/server" to exclude manually)');
+            updated = updated.replace(
+                /# production\n\/build/,
+                '# production\n/build\n\n# spfn\n/.spfn/'
+            );
+            changed = true;
         }
+
+        // Add env local patterns
+        if (!content.includes('.env.local') && !content.includes('.env.*.local'))
+        {
+            updated += `
+# environment secrets (local overrides)
+.env.local
+.env.*.local
+`;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            writeFileSync(gitignorePath, updated);
+            logger.success('Updated .gitignore with .spfn directory and env patterns');
+        }
+    }
+    catch (error)
+    {
+        logger.warn('Could not update .gitignore (you can add patterns manually)');
+    }
+}
+
+/**
+ * Update tsconfig.json to exclude src/server
+ */
+function updateTsconfig(cwd: string): void
+{
+    const tsconfigPath = join(cwd, 'tsconfig.json');
+
+    if (!existsSync(tsconfigPath))
+    {
+        return;
+    }
+
+    try
+    {
+        const tsconfigContent = readFileSync(tsconfigPath, 'utf-8');
+        const tsconfig = JSON.parse(tsconfigContent);
+
+        if (!tsconfig.exclude)
+        {
+            tsconfig.exclude = [];
+        }
+
+        if (!tsconfig.exclude.includes('src/server'))
+        {
+            tsconfig.exclude.push('src/server');
+            writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2) + '\n');
+            logger.success('Updated tsconfig.json (excluded src/server for Vercel compatibility)');
+        }
+    }
+    catch (error)
+    {
+        logger.warn('Could not update tsconfig.json (you can add "src/server" to exclude manually)');
     }
 }

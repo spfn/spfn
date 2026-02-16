@@ -5,12 +5,45 @@ import { resolve } from 'node:path';
 import { parse } from 'dotenv';
 
 /**
- * Environment file targets
+ * Valid NODE_ENV values
  */
-const ENV_FILES = {
+const VALID_ENVS = ['local', 'development', 'staging', 'production', 'test'] as const;
+
+/**
+ * Base environment file targets (no NODE_ENV)
+ */
+const BASE_ENV_FILES = {
     nextjs: ['.env', '.env.local'],
     server: ['.env.server', '.env.server.local'],
 } as const;
+
+/**
+ * Get all env files for a given NODE_ENV (loading order: low -> high priority)
+ */
+function getEnvFilesForEnvironment(nodeEnv?: string): string[]
+{
+    const files: string[] = ['.env'];
+
+    if (nodeEnv)
+    {
+        files.push(`.env.${nodeEnv}`);
+    }
+
+    if (nodeEnv !== 'test')
+    {
+        files.push('.env.local');
+    }
+
+    if (nodeEnv)
+    {
+        files.push(`.env.${nodeEnv}.local`);
+    }
+
+    files.push('.env.server');
+    files.push('.env.server.local');
+
+    return files;
+}
 
 /**
  * Determine which file an env var should be in
@@ -70,9 +103,7 @@ function formatType(type: string): string
         json: chalk.red,
     };
 
-    const colorFn = typeColors[type] || chalk.white;
-
-    return colorFn(type);
+    return (typeColors[type] || chalk.white)(type);
 }
 
 /**
@@ -271,42 +302,42 @@ async function searchEnvVars(query: string, options: { package?: string }): Prom
         const results: [string, any][] = [];
 
         for (const [key, schema] of Object.entries(envSchema as Record<string, any>))
-    {
-        const matchesKey = key.toLowerCase().includes(normalizedQuery);
-        const matchesDescription = schema.description.toLowerCase().includes(normalizedQuery);
-
-        if (matchesKey || matchesDescription)
         {
-            results.push([key, schema]);
-        }
-    }
+            const matchesKey = key.toLowerCase().includes(normalizedQuery);
+            const matchesDescription = schema.description.toLowerCase().includes(normalizedQuery);
 
-    if (results.length === 0)
-    {
-        console.log(chalk.yellow(`\n⚠️  No environment variables found matching "${query}"\n`));
-
-        return;
-    }
-
-    console.log(chalk.blue.bold(`\n🔍 Found ${results.length} environment variable(s) matching "${query}"\n`));
-
-    for (const [key, schema] of results)
-    {
-        const typeStr = formatType(schema.type);
-        const requiredStr = schema.required || schema.default !== undefined
-            ? chalk.red('[required]')
-            : chalk.dim('[optional]');
-
-        console.log(`${chalk.bold.cyan(key)} ${chalk.dim('(')}${typeStr}${chalk.dim(')')} ${requiredStr}`);
-        console.log(`  ${chalk.dim(schema.description)}`);
-
-        if (schema.default !== undefined)
-        {
-            console.log(`  ${chalk.dim('Default:')} ${formatDefault(schema.default, schema.type)}`);
+            if (matchesKey || matchesDescription)
+            {
+                results.push([key, schema]);
+            }
         }
 
-        console.log();
-    }
+        if (results.length === 0)
+        {
+            console.log(chalk.yellow(`\n⚠️  No environment variables found matching "${query}"\n`));
+
+            return;
+        }
+
+        console.log(chalk.blue.bold(`\n🔍 Found ${results.length} environment variable(s) matching "${query}"\n`));
+
+        for (const [key, schema] of results)
+        {
+            const typeStr = formatType(schema.type);
+            const requiredStr = schema.required || schema.default !== undefined
+                ? chalk.red('[required]')
+                : chalk.dim('[optional]');
+
+            console.log(`${chalk.bold.cyan(key)} ${chalk.dim('(')}${typeStr}${chalk.dim(')')} ${requiredStr}`);
+            console.log(`  ${chalk.dim(schema.description)}`);
+
+            if (schema.default !== undefined)
+            {
+                console.log(`  ${chalk.dim('Default:')} ${formatDefault(schema.default, schema.type)}`);
+            }
+
+            console.log();
+        }
     }
     catch (error)
     {
@@ -343,11 +374,27 @@ envCommand
     .action(searchEnvVars);
 
 /**
+ * Validate --env option value
+ */
+function validateEnvOption(envValue: string): string
+{
+    if (!VALID_ENVS.includes(envValue as any))
+    {
+        console.error(chalk.red(`\n❌ Invalid environment: "${envValue}"`));
+        console.log(chalk.dim(`   Valid values: ${VALID_ENVS.join(', ')}\n`));
+        process.exit(1);
+    }
+
+    return envValue;
+}
+
+/**
  * Generate .env template files
  */
-async function initEnvFiles(options: { package?: string; force?: boolean }): Promise<void>
+async function initEnvFiles(options: { package?: string; force?: boolean; env?: string }): Promise<void>
 {
     const packageName = options.package || '@spfn/core';
+    const targetEnv = options.env ? validateEnvOption(options.env) : undefined;
     const cwd = process.cwd();
 
     try
@@ -367,34 +414,81 @@ async function initEnvFiles(options: { package?: string; force?: boolean }): Pro
             return acc;
         }, {} as Record<string, [string, any][]>);
 
-        console.log(chalk.blue.bold(`\n🚀 Generating .env template files\n`));
-
-        for (const [file, vars] of Object.entries(grouped))
+        // If --env specified, also generate environment-specific template
+        if (targetEnv)
         {
-            const filePath = resolve(cwd, file);
+            console.log(chalk.blue.bold(`\n🚀 Generating .env template files for ${chalk.cyan(targetEnv)} environment\n`));
 
-            if (existsSync(filePath) && !options.force)
+            const envSpecificFiles: Record<string, [string, any][]> = {};
+
+            // .env.{NODE_ENV}.example — non-sensitive vars
+            const committedVars = allVars.filter(([_, schema]) => !schema.sensitive);
+            if (committedVars.length > 0)
             {
-                console.log(chalk.yellow(`  ⏭️  ${file} already exists (use --force to overwrite)`));
-                continue;
+                envSpecificFiles[`.env.${targetEnv}.example`] = committedVars;
             }
 
-            const content = generateEnvFileContent(vars);
-            writeFileSync(filePath, content, 'utf-8');
-            console.log(chalk.green(`  ✅ ${file} (${vars.length} variables)`));
+            // .env.{NODE_ENV}.local.example — sensitive vars
+            const sensitiveVars = allVars.filter(([_, schema]) => schema.sensitive);
+            if (sensitiveVars.length > 0)
+            {
+                envSpecificFiles[`.env.${targetEnv}.local.example`] = sensitiveVars;
+            }
+
+            // Generate base files + environment-specific files
+            const allGrouped = { ...grouped, ...envSpecificFiles };
+
+            for (const [file, vars] of Object.entries(allGrouped))
+            {
+                writeEnvTemplate(cwd, file, vars, options.force ?? false);
+            }
+        }
+        else
+        {
+            console.log(chalk.blue.bold(`\n🚀 Generating .env template files\n`));
+
+            for (const [file, vars] of Object.entries(grouped))
+            {
+                writeEnvTemplate(cwd, file, vars, options.force ?? false);
+            }
         }
 
         console.log(chalk.dim('\n💡 Copy .example files to create your actual .env files:'));
         console.log(chalk.dim('   cp .env.example .env'));
         console.log(chalk.dim('   cp .env.local.example .env.local'));
         console.log(chalk.dim('   cp .env.server.example .env.server'));
-        console.log(chalk.dim('   cp .env.server.local.example .env.server.local\n'));
+        console.log(chalk.dim('   cp .env.server.local.example .env.server.local'));
+
+        if (targetEnv)
+        {
+            console.log(chalk.dim(`   cp .env.${targetEnv}.example .env.${targetEnv}`));
+            console.log(chalk.dim(`   cp .env.${targetEnv}.local.example .env.${targetEnv}.local`));
+        }
+
+        console.log('');
     }
     catch (error)
     {
         console.error(chalk.red(`\n❌ ${error instanceof Error ? error.message : 'Unknown error'}\n`));
         process.exit(1);
     }
+}
+
+/**
+ * Write a single .env template file
+ */
+function writeEnvTemplate(cwd: string, file: string, vars: [string, any][], force: boolean): void
+{
+    const filePath = resolve(cwd, file);
+
+    if (existsSync(filePath) && !force)
+    {
+        console.log(chalk.yellow(`  ⏭️  ${file} already exists (use --force to overwrite)`));
+        return;
+    }
+
+    writeFileSync(filePath, generateEnvFileContent(vars), 'utf-8');
+    console.log(chalk.green(`  ✅ ${file} (${vars.length} variables)`));
 }
 
 /**
@@ -445,9 +539,10 @@ function generateEnvFileContent(vars: [string, any][]): string
 /**
  * Check .env files against schema
  */
-async function checkEnvFiles(options: { package?: string }): Promise<void>
+async function checkEnvFiles(options: { package?: string; env?: string }): Promise<void>
 {
     const packageName = options.package || '@spfn/core';
+    const targetEnv = options.env ? validateEnvOption(options.env) : undefined;
     const cwd = process.cwd();
 
     try
@@ -455,15 +550,20 @@ async function checkEnvFiles(options: { package?: string }): Promise<void>
         const envSchema = await loadEnvSchema(packageName);
         const allVars = Object.entries(envSchema as Record<string, any>);
 
-        console.log(chalk.blue.bold(`\n🔍 Checking .env files against schema\n`));
+        const envLabel = targetEnv ? ` (${targetEnv})` : '';
+        console.log(chalk.blue.bold(`\n🔍 Checking .env files against schema${envLabel}\n`));
 
-        const allFiles = [...ENV_FILES.nextjs, ...ENV_FILES.server];
+        // Determine which files to check
+        const filesToCheck = targetEnv
+            ? getEnvFilesForEnvironment(targetEnv)
+            : [...BASE_ENV_FILES.nextjs, ...BASE_ENV_FILES.server];
+
         const loadedEnv: Record<string, { value: string; file: string }> = {};
         const issues: string[] = [];
         const warnings: string[] = [];
 
-        // Load all env files
-        for (const file of allFiles)
+        // Load env files
+        for (const file of filesToCheck)
         {
             const filePath = resolve(cwd, file);
 
@@ -502,8 +602,8 @@ async function checkEnvFiles(options: { package?: string }): Promise<void>
             }
 
             // Check if in correct file
-            const isNextjsFile = ENV_FILES.nextjs.includes(found.file as any);
-            const isServerFile = ENV_FILES.server.includes(found.file as any);
+            const isNextjsFile = BASE_ENV_FILES.nextjs.includes(found.file as any);
+            const isServerFile = BASE_ENV_FILES.server.includes(found.file as any);
             const shouldBeNextjs = schema.nextjs ?? key.startsWith('NEXT_PUBLIC_');
 
             if (!shouldBeNextjs && isNextjsFile && !isServerFile)
@@ -588,6 +688,7 @@ envCommand
     .command('init')
     .description('Generate .env template files from schema')
     .option('-p, --package <package>', 'Package name to read env schema from', '@spfn/core')
+    .option('-e, --env <environment>', 'Generate environment-specific templates (e.g. production, staging)')
     .option('-f, --force', 'Overwrite existing files')
     .action(initEnvFiles);
 
@@ -596,6 +697,7 @@ envCommand
     .command('check')
     .description('Check .env files against schema')
     .option('-p, --package <package>', 'Package name to read env schema from', '@spfn/core')
+    .option('-e, --env <environment>', 'Check files for a specific environment (e.g. production)')
     .action(checkEnvFiles);
 
 /**
@@ -604,12 +706,34 @@ envCommand
  * Unlike `check` which validates .env files, this validates the actual
  * process.env values against the schema. Useful for CI/CD pipelines
  * to verify all required env vars are set before deployment.
+ *
+ * When --env is specified, loads .env files for that environment first,
+ * then validates the resulting process.env against the schema.
  */
-async function validateEnvVars(options: { packages?: string[]; strict?: boolean }): Promise<void>
+async function validateEnvVars(options: { packages?: string[]; strict?: boolean; env?: string }): Promise<void>
 {
     const packages = options.packages || ['@spfn/core'];
+    const targetEnv = options.env ? validateEnvOption(options.env) : undefined;
 
-    console.log(chalk.blue.bold(`\n🔍 Validating environment variables\n`));
+    // If --env specified, load env files for that environment before validating
+    if (targetEnv)
+    {
+        const { loadEnv } = await import('@spfn/core/env/loader');
+        const result = loadEnv({ nodeEnv: targetEnv });
+
+        console.log(chalk.blue.bold(`\n🔍 Validating environment variables for ${chalk.cyan(targetEnv)}\n`));
+
+        if (result.loadedFiles.length > 0)
+        {
+            console.log(chalk.dim(`  Loaded: ${result.loadedFiles.join(', ')}`));
+        }
+
+        console.log('');
+    }
+    else
+    {
+        console.log(chalk.blue.bold(`\n🔍 Validating environment variables\n`));
+    }
 
     const allErrors: Array<{ key: string; message: string; package: string }> = [];
     const allWarnings: Array<{ key: string; message: string; package: string }> = [];
@@ -704,5 +828,6 @@ envCommand
     .command('validate')
     .description('Validate environment variables against schema (for CI/CD)')
     .option('-p, --packages <packages...>', 'Packages to validate', ['@spfn/core'])
+    .option('-e, --env <environment>', 'Load env files for specific environment before validating')
     .option('-s, --strict', 'Exit on any error (including load failures)')
     .action(validateEnvVars);
