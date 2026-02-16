@@ -291,23 +291,38 @@ const optionalRedisParser = optional(parseRedisUrl);
 ```typescript
 import { loadEnv } from '@spfn/core/env/loader';
 
-loadEnv();  // Loads .env, .env.local, .env.server, .env.server.local
+// 기본 사용 (NODE_ENV 자동 감지)
+loadEnv();
+
+// 특정 환경 지정
+loadEnv({ nodeEnv: 'production' });
+
+// 서버 레이어 제외 (Next.js 클라이언트용)
+loadEnv({ server: false });
 ```
 
-### Loading Priority
+### Loading Priority (6-Layer)
 
-1. `.env` - 기본값
-2. `.env.local` - 로컬 오버라이드
-3. `.env.server` - 서버 전용 기본값
-4. `.env.server.local` - 서버 전용 민감정보
+`NODE_ENV`에 따라 동적으로 파일 목록이 결정됩니다 (나중 파일이 덮어씀):
+
+1. `.env` - 공통 기본값 (committed)
+2. `.env.{NODE_ENV}` - 환경별 오버라이드 (committed)
+3. `.env.local` - Next.js용 로컬 오버라이드 (gitignored, **test에서 스킵**)
+4. `.env.{NODE_ENV}.local` - 환경별 시크릿 (gitignored)
+5. `.env.server` - 서버 전용 기본값 (committed)
+6. `.env.server.local` - 서버 전용 시크릿 (gitignored)
+
+> **Important:** `.env.local`은 Next.js용입니다. 서버 전용 시크릿(`DATABASE_URL` 등)은 반드시 `.env.server.local`에 넣으세요.
 
 ### Options
 
 ```typescript
 loadEnv({
-    cwd: '/path/to/project',
-    debug: true,
-    override: false,
+    cwd: '/path/to/project',  // 프로젝트 루트 (default: process.cwd())
+    nodeEnv: 'production',     // NODE_ENV 지정 (default: process.env.NODE_ENV || 'local')
+    server: true,              // 서버 전용 파일 포함 (default: true)
+    debug: true,               // 로드된 파일 로깅 (default: false)
+    override: false,           // 기존 process.env 덮어쓰기 (default: false)
 });
 
 // Load once (prevent duplicate calls)
@@ -323,20 +338,27 @@ loadEnvOnce();
 
 ```
 project/
-├── .env                  # 기본값 (커밋 O)
-├── .env.local            # Next.js용 (커밋 X)
-├── .env.server           # SPFN 전용 기본값 (커밋 O)
-└── .env.server.local     # SPFN 전용 민감정보 (커밋 X)
+├── .env                      # 공통 기본값 (committed)
+├── .env.production           # production 오버라이드 (committed)
+├── .env.local                # Next.js용 로컬 오버라이드 (gitignored)
+├── .env.production.local     # production 시크릿 (gitignored)
+├── .env.server               # 서버 전용 기본값 (committed)
+└── .env.server.local         # 서버 전용 시크릿 (gitignored)
 ```
 
 ### Which File for What?
 
 | 환경변수 | 파일 | 이유 |
 |----------|------|------|
-| `NEXT_PUBLIC_*` | `.env.local` | 브라우저 노출 OK |
-| `SPFN_API_URL` | `.env.local` | Next.js에서 사용 |
-| `DATABASE_URL` | `.env.server.local` | SPFN 전용, 민감정보 |
-| `SESSION_SECRET` | `.env.server.local` | SPFN 전용, 민감정보 |
+| `NODE_ENV`, `SPFN_LOG_LEVEL` | `.env` | 모든 환경 공통, 비민감 |
+| `SPFN_API_URL` (production) | `.env.production` | 환경별 비민감 설정 |
+| `NEXT_PUBLIC_*` | `.env.local` | Next.js 클라이언트용, 브라우저 노출 OK |
+| `SPFN_APP_URL` | `.env.local` | Next.js에서 사용하는 로컬 설정 |
+| `DB_POOL_MAX` | `.env.server` | 서버 전용, 비민감 |
+| `DATABASE_URL` | `.env.server.local` | 서버 전용, **민감정보** |
+| `SESSION_SECRET` | `.env.server.local` | 서버 전용, **민감정보** |
+
+> **Rule:** `.env.local`은 Next.js용입니다. `DATABASE_URL`, `SESSION_SECRET` 등 서버 전용 시크릿은 `.env.server.local`에 넣으세요.
 
 ### Schema with `nextjs` Option
 
@@ -345,13 +367,13 @@ DATABASE_URL: envString({
     description: 'PostgreSQL connection URL',
     required: true,
     sensitive: true,
-    nextjs: false,  // SPFN 서버에서만 사용
+    nextjs: false,  // SPFN 서버에서만 사용 → .env.server.local
 }),
 
 SPFN_API_URL: envString({
     description: 'Backend API URL',
     required: true,
-    nextjs: true,   // Next.js에서도 사용
+    nextjs: true,   // Next.js에서도 사용 → .env 또는 .env.local
 }),
 ```
 
@@ -419,9 +441,9 @@ const schema = defineEnvSchema({
     }),
 
     // Environment
-    NODE_ENV: envEnum(['development', 'staging', 'production', 'test'] as const, {
+    NODE_ENV: envEnum(['local', 'development', 'staging', 'production', 'test'] as const, {
         description: 'Node environment',
-        default: 'development',
+        default: 'local',
     }),
 
     // Logging

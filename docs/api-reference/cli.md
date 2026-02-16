@@ -749,22 +749,110 @@ const user = await api.getUser.call({ params: { id: '123' } });
 >
 > With the define-route pattern, types are inferred at compile time. When you modify a route, TypeScript immediately reflects the changes—no code generation step required.
 
-## Environment Variables
+## spfn env
 
-CLI commands respect environment variables from `.env` files.
+환경변수 관리를 위한 명령어 모음. 스키마 기반으로 .env 파일을 생성, 검증, 검색합니다.
+
+### spfn env init
+
+스키마 기반으로 .env 템플릿 파일을 생성합니다.
 
 ```bash
-# .env.local (Development)
-DATABASE_URL=postgresql://user:pass@localhost:5432/spfn_dev
-API_PORT=8790
-APP_PORT=3790
+# 기본 4개 example 파일 생성
+spfn env init
 
-# .env.production (Production)
-DATABASE_URL=postgresql://user:pass@prod-host:5432/spfn_prod
-API_PORT=8790
-APP_PORT=3790
-NODE_ENV=production
+# 특정 환경용 템플릿 추가 생성
+spfn env init --env production
+spfn env init --env staging
+
+# 기존 파일 덮어쓰기
+spfn env init --force
 ```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `-p, --package <package>` | 스키마를 읽을 패키지명 (default: `@spfn/core`) |
+| `-e, --env <environment>` | 환경별 템플릿 추가 생성 (`production`, `staging` 등) |
+| `-f, --force` | 기존 파일 덮어쓰기 |
+
+### spfn env check
+
+.env 파일들을 스키마와 대조하여 누락/오류를 검사합니다.
+
+```bash
+# 기본 파일들 체크
+spfn env check
+
+# 특정 환경의 파일 체인 전체 체크
+spfn env check --env production
+```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `-p, --package <package>` | 스키마를 읽을 패키지명 (default: `@spfn/core`) |
+| `-e, --env <environment>` | 특정 환경의 파일 체인 체크 |
+
+### spfn env validate
+
+실제 `process.env` 값을 스키마에 대해 검증합니다. CI/CD 파이프라인에서 배포 전 검증에 유용합니다.
+
+```bash
+# 현재 process.env 검증
+spfn env validate
+
+# 특정 환경의 .env 파일을 로드한 후 검증
+spfn env validate --env production
+
+# 엄격 모드 (로드 실패도 에러로 처리)
+spfn env validate --strict
+```
+
+#### Options
+
+| Option | Description |
+|--------|-------------|
+| `-p, --packages <packages...>` | 검증할 패키지 목록 (default: `@spfn/core`) |
+| `-e, --env <environment>` | 해당 환경의 .env 파일 로드 후 검증 |
+| `-s, --strict` | 로드 실패 시에도 에러로 처리 |
+
+### spfn env search
+
+환경변수를 이름이나 설명으로 검색합니다.
+
+```bash
+# DATABASE 관련 변수 검색
+spfn env search database
+
+# URL 관련 변수 검색
+spfn env search url
+```
+
+## Environment Variables
+
+CLI 명령어는 6-layer 우선순위로 `.env` 파일들을 로드합니다.
+
+```bash
+# .env (committed — 공통 기본값)
+NODE_ENV=local
+SPFN_LOG_LEVEL=info
+SPFN_API_URL=http://localhost:8790
+
+# .env.local (gitignored — Next.js용 로컬 오버라이드)
+NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
+
+# .env.server.local (gitignored — 서버 전용 시크릿)
+DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
+
+# .env.production (committed — production 설정)
+SPFN_LOG_LEVEL=warn
+SPFN_API_URL=https://api.myapp.com
+```
+
+> **Note:** `.env.local`은 Next.js용입니다. 서버 전용 시크릿(`DATABASE_URL` 등)은 `.env.server.local`에 넣으세요.
 
 ## Common Workflows
 
