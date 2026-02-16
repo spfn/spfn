@@ -1,43 +1,42 @@
 import { Command } from 'commander';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, watch } from 'fs';
 import { join } from 'path';
-import { createConnection } from 'net';
 import { execa, type ExecaChildProcess } from 'execa';
 import chokidar from 'chokidar';
 import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
 
 /**
- * Wait for a TCP port to accept connections
+ * Wait for a file to be created (server writes ready signal to it)
  */
-function waitForPort(port: number, host: string, timeoutMs = 30000): Promise<void>
+function waitForReadyFile(filePath: string, timeoutMs = 30000): Promise<string>
 {
-    const start = Date.now();
-
     return new Promise((resolve, reject) =>
     {
-        const tryConnect = () =>
+        // Already exists (from a previous run) — delete it first
+        if (existsSync(filePath))
         {
-            if (Date.now() - start > timeoutMs)
+            unlinkSync(filePath);
+        }
+
+        const timer = setTimeout(() =>
+        {
+            watcher.close();
+            reject(new Error(`Server did not become ready within ${timeoutMs / 1000}s`));
+        }, timeoutMs);
+
+        const dir = join(filePath, '..');
+        const fileName = filePath.split('/').pop()!;
+
+        const watcher = watch(dir, (event, name) =>
+        {
+            if (name === fileName && existsSync(filePath))
             {
-                reject(new Error(`Server did not start within ${timeoutMs / 1000}s (port ${port})`));
-                return;
+                watcher.close();
+                clearTimeout(timer);
+                resolve(readFileSync(filePath, 'utf-8').trim());
             }
-
-            const socket = createConnection({ port, host }, () =>
-            {
-                socket.destroy();
-                resolve();
-            });
-
-            socket.on('error', () =>
-            {
-                socket.destroy();
-                setTimeout(tryConnect, 300);
-            });
-        };
-
-        tryConnect();
+        });
     });
 }
 
@@ -95,17 +94,22 @@ export const devCommand = new Command('dev')
         if (options.routes) configParts.push(`routesPath: '${options.routes}'`);
         configParts.push('debug: true');
 
+        const readyFile = join(tempDir, 'server-ready');
         writeFileSync(serverEntry, `
+import { writeFileSync } from 'fs';
+
 // Load environment variables FIRST (before any imports that depend on them)
-// Use centralized environment loader for standard dotenv priority
 await import('@spfn/core/config');
 
 // Import and start server
 const { startServer } = await import('@spfn/core/server');
 
-await startServer({
+const instance = await startServer({
     ${configParts.join(',\n    ')}
 });
+
+// Signal ready with actual port
+writeFileSync(${JSON.stringify(readyFile)}, String(instance.config.port));
 `);
 
         // Codegen orchestrator entry
@@ -470,14 +474,10 @@ catch (error)
         startWatcher();
         startServer();
 
-        const serverHost = options.host ?? process.env.HOST ?? 'localhost';
-        const serverPort = Number(options.port ?? process.env.PORT ?? 4000);
-
         try
         {
-            logger.info(`[SPFN] Waiting for server on port ${serverPort}...`);
-            await waitForPort(serverPort, serverHost);
-            logger.info(`[SPFN] Server ready, starting Next.js...\n`);
+            const port = await waitForReadyFile(readyFile);
+            logger.info(`[SPFN] Server ready on port ${port}, starting Next.js...\n`);
         }
         catch (error)
         {
