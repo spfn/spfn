@@ -23,6 +23,7 @@
     "@spfn/auth": "workspace:*",
     "@spfn/cms": "workspace:*",
     "@spfn/core": "workspace:*",
+    "@spfn/notification": "workspace:0.1.0-beta.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "concurrently": "^9.2.1",

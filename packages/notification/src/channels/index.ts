@@ -21,3 +21,12 @@ export {
     type SendSMSParams,
     type SMSProvider,
 } from './sms';
+
+// Slack
+export {
+    sendSlack,
+    sendSlackBulk,
+    registerSlackProvider,
+    type SendSlackParams,
+    type SlackProvider,
+} from './slack';

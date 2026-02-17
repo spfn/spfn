@@ -125,7 +125,7 @@ async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
     // 9. Error handler
     if (enableErrorHandler)
     {
-        app.onError(ErrorHandler());
+        app.onError(ErrorHandler({ onError: config?.middleware?.onError }));
     }
 
     return app;

@@ -584,6 +584,9 @@ importers:
       '@spfn/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@spfn/notification':
+        specifier: workspace:0.1.0-beta.1
+        version: link:../../packages/notification
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

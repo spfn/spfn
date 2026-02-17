@@ -2,6 +2,7 @@ import type { Hono, MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
+import type { OnErrorContext } from '@spfn/core/middleware';
 import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig } from '../event/sse/types';
@@ -71,6 +72,25 @@ export interface ServerConfig
          * Error handler (default: true)
          */
         errorHandler?: boolean;
+
+        /**
+         * Callback invoked when an error occurs (passed to ErrorHandler)
+         *
+         * Called asynchronously without blocking the response.
+         *
+         * @example
+         * ```typescript
+         * import { createErrorSlackNotifier } from '@spfn/notification/server';
+         *
+         * middleware: {
+         *     onError: createErrorSlackNotifier({ minStatusCode: 500 }),
+         * }
+         * ```
+         */
+        onError?: (
+            err: Error,
+            context: OnErrorContext
+        ) => Promise<void> | void;
     };
 
     /**

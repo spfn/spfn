@@ -46,12 +46,17 @@ export {
     sendSMS,
     sendSMSBulk,
     registerSMSProvider,
+    sendSlack,
+    sendSlackBulk,
+    registerSlackProvider,
     type NotificationChannel,
     type SendResult,
     type SendEmailParams,
     type EmailProvider,
     type SendSMSParams,
     type SMSProvider,
+    type SendSlackParams,
+    type SlackProvider,
 } from './channels';
 
 // Scheduling
@@ -118,6 +123,12 @@ export {
     sendScheduledSmsJob,
     notificationJobRouter,
 } from './jobs';
+
+// Integrations
+export {
+    createErrorSlackNotifier,
+    type ErrorSlackOptions,
+} from './integrations/error-slack';
 
 // Auto-register built-in templates
 import { registerBuiltinTemplates } from './templates';

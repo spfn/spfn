@@ -1,0 +1,189 @@
+/**
+ * @spfn/notification - Error → Slack Integration
+ *
+ * Factory for creating an onError callback that sends error notifications to Slack.
+ *
+ * @example
+ * ```typescript
+ * import { createServer } from '@spfn/core/server';
+ * import { createErrorSlackNotifier } from '@spfn/notification/server';
+ *
+ * await createServer({
+ *     middleware: {
+ *         onError: createErrorSlackNotifier({ minStatusCode: 500 }),
+ *     },
+ * });
+ * ```
+ */
+
+import { sendSlack } from '../channels/slack';
+
+interface ErrorContext
+{
+    statusCode: number;
+    path: string;
+    method: string;
+    requestId?: string;
+    timestamp: string;
+    userId?: string;
+    request: {
+        headers: Record<string, string>;
+        query: Record<string, string>;
+    };
+}
+
+export interface ErrorSlackOptions
+{
+    /**
+     * Minimum status code to trigger notification
+     * @default 500
+     */
+    minStatusCode?: number;
+
+    /**
+     * Webhook URL override (defaults to env/config)
+     */
+    webhookUrl?: string;
+
+    /**
+     * Custom message formatter
+     */
+    formatMessage?: (err: Error, ctx: ErrorContext) => { text?: string; blocks?: unknown[] };
+}
+
+/**
+ * Format headers as a code block string
+ */
+function formatHeaders(headers: Record<string, string>): string
+{
+    const entries = Object.entries(headers);
+
+    if (entries.length === 0)
+    {
+        return '(none)';
+    }
+
+    return entries
+        .map(([k, v]) => `${k}: ${v}`)
+        .join('\n');
+}
+
+/**
+ * Format query params as a code block string
+ */
+function formatQuery(query: Record<string, string>): string
+{
+    const entries = Object.entries(query);
+
+    if (entries.length === 0)
+    {
+        return '(none)';
+    }
+
+    return entries
+        .map(([k, v]) => `${k}=${v}`)
+        .join('\n');
+}
+
+/**
+ * Extract short stack trace (first N frames)
+ */
+function shortStack(err: Error, maxLines: number = 3): string
+{
+    if (!err.stack)
+    {
+        return '(no stack)';
+    }
+
+    const lines = err.stack.split('\n').slice(1); // skip error message line
+
+    return lines
+        .slice(0, maxLines)
+        .map(line => line.trim())
+        .join('\n');
+}
+
+/**
+ * Default Block Kit format for error notifications
+ */
+function defaultFormat(err: Error, ctx: ErrorContext): { text: string; blocks: unknown[] }
+{
+    const emoji = ctx.statusCode >= 500 ? ':rotating_light:' : ':warning:';
+    const title = `${emoji} *${err.name || 'Error'}* — ${ctx.statusCode}`;
+
+    const fields = [
+        { type: 'mrkdwn', text: `*Method*\n${ctx.method}` },
+        { type: 'mrkdwn', text: `*Path*\n${ctx.path}` },
+        { type: 'mrkdwn', text: `*User*\n${ctx.userId ?? '(anonymous)'}` },
+        { type: 'mrkdwn', text: `*Request ID*\n${ctx.requestId ?? '(none)'}` },
+    ];
+
+    const blocks: unknown[] = [
+        // Title
+        {
+            type: 'header',
+            text: { type: 'plain_text', text: `${err.name || 'Error'} — ${ctx.statusCode}`, emoji: true },
+        },
+        // Error message
+        {
+            type: 'section',
+            text: { type: 'mrkdwn', text: `> ${err.message}` },
+        },
+        // Fields: method, path, user, requestId
+        {
+            type: 'section',
+            fields,
+        },
+        // Timestamp
+        {
+            type: 'context',
+            elements: [
+                { type: 'mrkdwn', text: `*Time:* ${ctx.timestamp}` },
+            ],
+        },
+        { type: 'divider' },
+        // Headers
+        {
+            type: 'section',
+            text: { type: 'mrkdwn', text: `*Request Headers*\n\`\`\`${formatHeaders(ctx.request.headers)}\`\`\`` },
+        },
+        // Query
+        {
+            type: 'section',
+            text: { type: 'mrkdwn', text: `*Query Params*\n\`\`\`${formatQuery(ctx.request.query)}\`\`\`` },
+        },
+        { type: 'divider' },
+        // Stack trace
+        {
+            type: 'section',
+            text: { type: 'mrkdwn', text: `*Stack Trace*\n\`\`\`${shortStack(err)}\`\`\`` },
+        },
+    ];
+
+    return { text: title, blocks };
+}
+
+/**
+ * Create an onError callback that sends Slack notifications
+ *
+ * Returns a function matching ErrorHandler's onError signature.
+ */
+export function createErrorSlackNotifier(options: ErrorSlackOptions = {})
+{
+    const { minStatusCode = 500 } = options;
+
+    return async (err: Error, ctx: ErrorContext) =>
+    {
+        if (ctx.statusCode < minStatusCode)
+        {
+            return;
+        }
+
+        const message = options.formatMessage?.(err, ctx) ?? defaultFormat(err, ctx);
+
+        await sendSlack({
+            ...message,
+            webhookUrl: options.webhookUrl,
+        });
+    };
+}

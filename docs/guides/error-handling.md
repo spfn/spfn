@@ -661,6 +661,94 @@ throw new TooManyRequestsError({ message: 'Rate limit exceeded' });
 }
 ```
 
+## Error Notifications (Slack)
+
+Send error alerts to Slack using the `@spfn/notification` package. The `createErrorSlackNotifier` factory creates an `onError` callback compatible with `ErrorHandler`.
+
+### Setup
+
+```typescript
+// src/server/server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { createErrorSlackNotifier } from '@spfn/notification/server';
+
+export default defineServerConfig()
+    .middleware({
+        onError: createErrorSlackNotifier({
+            webhookUrl: 'https://hooks.slack.com/services/xxx/xxx/xxx',
+            minStatusCode: 500,       // Only 5xx errors (default)
+            // minStatusCode: 400,    // Include 4xx errors
+        }),
+    })
+    .routes(appRouter)
+    .build();
+```
+
+The webhook URL can also be set via the `SPFN_NOTIFICATION_SLACK_WEBHOOK_URL` environment variable instead of passing it directly.
+
+### Default Message Format
+
+Notifications are sent using Slack Block Kit with the following information:
+
+- Error type and status code
+- Error message
+- HTTP method and path
+- Authenticated user ID (if available)
+- Request ID (for log correlation)
+- Timestamp
+- Request headers (sensitive values masked)
+- Query parameters
+- Stack trace (first 3 frames)
+
+### Custom Message Format
+
+Override the default format with the `formatMessage` option:
+
+```typescript
+createErrorSlackNotifier({
+    formatMessage: (err, ctx) => ({
+        text: `[${ctx.statusCode}] ${err.message} — ${ctx.path}`,
+        // Or use Slack Block Kit:
+        // blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '...' } }]
+    }),
+})
+```
+
+### ErrorSlackOptions
+
+| Option | Type | Default |
+|--------|------|---------|
+| `minStatusCode` | `number` | `500` |
+| `webhookUrl` | `string` | `env.SPFN_NOTIFICATION_SLACK_WEBHOOK_URL` |
+| `formatMessage` | `(err, ctx) => { text?, blocks? }` | Block Kit format |
+
+### Using sendSlack Directly
+
+For custom notification logic beyond error handling, use `sendSlack` directly:
+
+```typescript
+import { sendSlack } from '@spfn/notification/server';
+
+await sendSlack({
+    text: 'Deployment completed successfully',
+    webhookUrl: 'https://hooks.slack.com/services/xxx/xxx/xxx',
+});
+
+// With Block Kit
+await sendSlack({
+    blocks: [
+        { type: 'header', text: { type: 'plain_text', text: 'New User Signup' } },
+        { type: 'section', text: { type: 'mrkdwn', text: `*Email:* user@example.com` } },
+    ],
+});
+
+// With templates
+await sendSlack({
+    template: 'alert',
+    data: { level: 'critical', message: 'Database connection lost' },
+});
+```
+
 > **Next: Testing**
 >
 > Learn how to test your Superfunction application with comprehensive testing strategies.

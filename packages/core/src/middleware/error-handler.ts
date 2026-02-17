@@ -33,6 +33,34 @@ export interface ErrorHandlerOptions
      * @default true
      */
     enableLogging?: boolean;
+
+    /**
+     * Callback invoked when an error occurs
+     *
+     * Called asynchronously without blocking the response.
+     * Useful for external error notifications (Slack, PagerDuty, etc.)
+     */
+    onError?: (
+        err: Error,
+        context: OnErrorContext
+    ) => Promise<void> | void;
+}
+
+/**
+ * Context passed to onError callback
+ */
+export interface OnErrorContext
+{
+    statusCode: number;
+    path: string;
+    method: string;
+    requestId?: string;
+    timestamp: string;
+    userId?: string;
+    request: {
+        headers: Record<string, string>;
+        query: Record<string, string>;
+    };
 }
 
 interface ErrorWithStatusCode extends Error
@@ -61,6 +89,44 @@ interface StandardErrorResponse
     __type: string;
     message: string;
     stack?: string;
+}
+
+const SENSITIVE_HEADERS = new Set(['authorization', 'cookie', 'x-api-key', 'x-auth-token']);
+
+/**
+ * Extract headers from request, masking sensitive values
+ */
+function extractHeaders(c: Context): Record<string, string>
+{
+    const headers: Record<string, string> = {};
+
+    c.req.raw.headers.forEach((value, key) =>
+    {
+        headers[key] = SENSITIVE_HEADERS.has(key.toLowerCase()) ? '***' : value;
+    });
+
+    return headers;
+}
+
+/**
+ * Build onError context from Hono context
+ */
+function buildOnErrorContext(c: Context, statusCode: number): OnErrorContext
+{
+    const auth = c.get('auth') as { userId?: string } | undefined;
+
+    return {
+        statusCode,
+        path: c.req.path,
+        method: c.req.method,
+        requestId: c.get('requestId') as string | undefined,
+        timestamp: new Date().toISOString(),
+        userId: auth?.userId,
+        request: {
+            headers: extractHeaders(c),
+            query: c.req.query(),
+        },
+    };
 }
 
 /**
@@ -131,10 +197,14 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
     const {
         includeStack = env.NODE_ENV !== 'production',
         enableLogging = true,
+        onError,
     } = options;
 
     return (err: Error, c: Context) =>
     {
+        const path = c.req.path;
+        const method = c.req.method;
+
         // Handle SerializableError with automatic serialization
         if (isSerializableError(err))
         {
@@ -146,9 +216,17 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                     type: err.constructor.name,
                     message: err.message,
                     statusCode,
-                    path: c.req.path,
-                    method: c.req.method,
+                    path,
+                    method,
                 }, includeStack);
+            }
+
+            // Fire onError callback (non-blocking)
+            if (onError)
+            {
+                const ctx = buildOnErrorContext(c, statusCode);
+                Promise.resolve(onError(err, ctx))
+                    .catch(e => errorLogger.warn('onError callback failed', e as Error));
             }
 
             // Use toJSON() for automatic serialization
@@ -173,9 +251,17 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                 type: err.name || 'Error',
                 message: err.message,
                 statusCode,
-                path: c.req.path,
-                method: c.req.method,
+                path,
+                method,
             }, includeStack);
+        }
+
+        // Fire onError callback (non-blocking)
+        if (onError)
+        {
+            const ctx = buildOnErrorContext(c, statusCode);
+            Promise.resolve(onError(err, ctx))
+                .catch(e => errorLogger.warn('onError callback failed', e as Error));
         }
 
         // Standard error response
