@@ -184,7 +184,7 @@ async function handleGoogleCallback(
 
     // 6. 리다이렉트 URL 생성 (OAuth 콜백 페이지로)
     // 콜백 페이지에서 oauthFinalize API를 호출하여 세션 저장
-    const appUrl = env.SPFN_APP_URL;
+    const appUrl = env.NEXT_PUBLIC_SPFN_APP_URL || env.SPFN_APP_URL;
     const callbackPath = env.SPFN_AUTH_OAUTH_SUCCESS_URL || '/auth/callback';
     const callbackUrl = callbackPath.startsWith('http') ? callbackPath : `${appUrl}${callbackPath}`;
     const redirectUrl = buildRedirectUrl(callbackUrl, {

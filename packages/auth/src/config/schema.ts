@@ -288,8 +288,19 @@ export const authEnvSchema = defineEnvSchema({
 
     SPFN_APP_URL: {
         ...envString({
-            description: 'Next.js application URL. Used for OAuth callback redirects.',
+            description: 'Next.js application URL (internal). Used for server-to-server communication.',
             default: 'http://localhost:3000',
+            required: false,
+            examples: [
+                'https://app.example.com',
+                'http://localhost:3000',
+            ],
+        }),
+    },
+
+    NEXT_PUBLIC_SPFN_APP_URL: {
+        ...envString({
+            description: 'Public-facing Next.js app URL for browser redirects (e.g. OAuth redirect). Falls back to SPFN_APP_URL if not set.',
             required: false,
             examples: [
                 'https://app.example.com',
