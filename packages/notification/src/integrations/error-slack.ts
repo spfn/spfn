@@ -41,6 +41,13 @@ export interface ErrorSlackOptions
     minStatusCode?: number;
 
     /**
+     * Throttle window in milliseconds.
+     * Duplicate errors (same name + statusCode + path) within this window are suppressed.
+     * @default 60_000
+     */
+    throttleMs?: number;
+
+    /**
      * Webhook URL override (defaults to env/config)
      */
     webhookUrl?: string;
@@ -103,10 +110,27 @@ function shortStack(err: Error, maxLines: number = 3): string
         .join('\n');
 }
 
+// ── Throttle ────────────────────────────────────────────────
+
+interface ThrottleEntry
+{
+    lastSent: number;
+    suppressed: number;
+}
+
+const throttleMap = new Map<string, ThrottleEntry>();
+
+function throttleKey(err: Error, ctx: ErrorContext): string
+{
+    return `${err.name}:${ctx.statusCode}:${ctx.path}`;
+}
+
+// ── Formatting ──────────────────────────────────────────────
+
 /**
  * Default Block Kit format for error notifications
  */
-function defaultFormat(err: Error, ctx: ErrorContext): { text: string; blocks: unknown[] }
+function defaultFormat(err: Error, ctx: ErrorContext, suppressed: number = 0): { text: string; blocks: unknown[] }
 {
     const emoji = ctx.statusCode >= 500 ? ':rotating_light:' : ':warning:';
     const title = `${emoji} *${err.name || 'Error'}* — ${ctx.statusCode}`;
@@ -134,11 +158,14 @@ function defaultFormat(err: Error, ctx: ErrorContext): { text: string; blocks: u
             type: 'section',
             fields,
         },
-        // Timestamp
+        // Timestamp + suppressed count
         {
             type: 'context',
             elements: [
                 { type: 'mrkdwn', text: `*Time:* ${ctx.timestamp}` },
+                ...(suppressed > 0
+                    ? [{ type: 'mrkdwn' as const, text: `_+${suppressed} suppressed since last notification_` }]
+                    : []),
             ],
         },
         { type: 'divider' },
@@ -167,10 +194,11 @@ function defaultFormat(err: Error, ctx: ErrorContext): { text: string; blocks: u
  * Create an onError callback that sends Slack notifications
  *
  * Returns a function matching ErrorHandler's onError signature.
+ * Duplicate errors (same name + statusCode + path) within `throttleMs` are suppressed.
  */
 export function createErrorSlackNotifier(options: ErrorSlackOptions = {})
 {
-    const { minStatusCode = 500 } = options;
+    const { minStatusCode = 500, throttleMs = 60_000 } = options;
 
     return async (err: Error, ctx: ErrorContext) =>
     {
@@ -179,7 +207,23 @@ export function createErrorSlackNotifier(options: ErrorSlackOptions = {})
             return;
         }
 
-        const message = options.formatMessage?.(err, ctx) ?? defaultFormat(err, ctx);
+        // Throttle: suppress duplicate errors within the window
+        const key = throttleKey(err, ctx);
+        const now = Date.now();
+        const entry = throttleMap.get(key);
+
+        if (entry && now - entry.lastSent < throttleMs)
+        {
+            entry.suppressed++;
+            return;
+        }
+
+        const suppressed = entry?.suppressed ?? 0;
+
+        // Reset entry
+        throttleMap.set(key, { lastSent: now, suppressed: 0 });
+
+        const message = options.formatMessage?.(err, ctx) ?? defaultFormat(err, ctx, suppressed);
 
         await sendSlack({
             ...message,

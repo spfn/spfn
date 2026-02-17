@@ -678,6 +678,7 @@ export default defineServerConfig()
             webhookUrl: 'https://hooks.slack.com/services/xxx/xxx/xxx',
             minStatusCode: 500,       // Only 5xx errors (default)
             // minStatusCode: 400,    // Include 4xx errors
+            // throttleMs: 120_000,   // Suppress duplicates for 2 min (default: 60s)
         }),
     })
     .routes(appRouter)
@@ -696,6 +697,7 @@ Notifications are sent using Slack Block Kit with the following information:
 - Authenticated user ID (if available)
 - Request ID (for log correlation)
 - Timestamp
+- Suppressed count (when duplicate errors were throttled)
 - Request headers (sensitive values masked)
 - Query parameters
 - Stack trace (first 3 frames)
@@ -716,11 +718,12 @@ createErrorSlackNotifier({
 
 ### ErrorSlackOptions
 
-| Option | Type | Default |
-|--------|------|---------|
-| `minStatusCode` | `number` | `500` |
-| `webhookUrl` | `string` | `env.SPFN_NOTIFICATION_SLACK_WEBHOOK_URL` |
-| `formatMessage` | `(err, ctx) => { text?, blocks? }` | Block Kit format |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `minStatusCode` | `number` | `500` | Minimum status code to trigger notification |
+| `throttleMs` | `number` | `60000` | Suppress duplicate errors (same name + status + path) within this window |
+| `webhookUrl` | `string` | `env.SPFN_NOTIFICATION_SLACK_WEBHOOK_URL` | Slack webhook URL |
+| `formatMessage` | `(err, ctx) => { text?, blocks? }` | Block Kit format | Custom message formatter |
 
 ### Using sendSlack Directly
 
