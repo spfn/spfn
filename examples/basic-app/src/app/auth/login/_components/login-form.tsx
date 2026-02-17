@@ -97,7 +97,7 @@ export function LoginForm({ className }: React.ComponentProps<"div">)
                 <div className="bg-muted/50 border border-border px-4 py-3 rounded-md text-sm">
                     <p className="font-medium text-muted-foreground mb-1">Demo Account</p>
                     <p className="text-muted-foreground">
-                        Email: <code className="bg-muted px-1 rounded">admin@example.com</code>
+                        Email: <code className="bg-muted px-1 rounded">admin@superfunction.xyz</code>
                     </p>
                     <p className="text-muted-foreground">
                         Password: <code className="bg-muted px-1 rounded">Admin!@34</code>

@@ -37,6 +37,11 @@ export const routeMap: Record<string, RouteInfo> = {
     oauthProviders: { method: 'GET', path: '/_auth/oauth/providers' },
     getGoogleOAuthUrl: { method: 'POST', path: '/_auth/oauth/google/url' },
     oauthFinalize: { method: 'POST', path: '/_auth/oauth/finalize' },
+    listRoles: { method: 'GET', path: '/_auth/admin/roles' },
+    createAdminRole: { method: 'POST', path: '/_auth/admin/roles' },
+    updateAdminRole: { method: 'PATCH', path: '/_auth/admin/roles/:id' },
+    deleteAdminRole: { method: 'DELETE', path: '/_auth/admin/roles/:id' },
+    updateUserRole: { method: 'PATCH', path: '/_auth/admin/users/:userId/role' },
 };
 
 export type RouteMap = typeof routeMap;

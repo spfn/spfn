@@ -34,6 +34,13 @@ import {
     getGoogleOAuthUrl,
     oauthFinalize,
 } from './oauth';
+import {
+    listRoles,
+    createAdminRole,
+    updateAdminRole,
+    deleteAdminRole,
+    updateUserRole,
+} from './admin';
 
 /**
  * Main auth router
@@ -44,6 +51,7 @@ import {
  * - OAuth: /_auth/oauth/google, /_auth/oauth/google/callback, etc.
  * - Invitations: /_auth/invitations/*
  * - Users: /_auth/users/*
+ * - Admin: /_auth/admin/* (superadmin only)
  */
 export const mainAuthRouter = defineRouter({
     // Auth routes
@@ -74,6 +82,12 @@ export const mainAuthRouter = defineRouter({
     // User routes
     getUserProfile,
     updateUserProfile,
+    // Admin routes (superadmin only)
+    listRoles,
+    createAdminRole,
+    updateAdminRole,
+    deleteAdminRole,
+    updateUserRole,
 });
 
 // For backward compatibility
