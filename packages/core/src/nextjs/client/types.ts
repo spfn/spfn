@@ -194,7 +194,7 @@ export interface ApiConfig {
     /**
      * Request timeout in milliseconds
      *
-     * @default 30000
+     * @default env.SERVER_TIMEOUT (120000)
      */
     timeout?: number;
 

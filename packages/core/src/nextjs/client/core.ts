@@ -83,7 +83,7 @@ export function createApi<TRouter extends Router<any>>(
     const {
         baseUrl = '/api/rpc',
         headers: defaultHeaders = {},
-        timeout = 30000,
+        timeout = env.SERVER_TIMEOUT,
         fetch: customFetch = fetch,
         onRequest: globalOnRequest,
         onResponse: globalOnResponse,
