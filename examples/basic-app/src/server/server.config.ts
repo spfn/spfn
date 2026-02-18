@@ -6,6 +6,7 @@
 
 import { defineServerConfig } from '@spfn/core/server';
 import { createAuthLifecycle } from '@spfn/auth/server';
+import { createMonitorErrorHandler, createMonitorLifecycle } from '@spfn/monitor/server';
 import { syncLabels } from '@spfn/cms/server';
 import { appRouter } from './router';
 import { jobRouter } from './jobs';
@@ -15,6 +16,7 @@ import { labelsDefinition } from '@/lib/labels';
 export default defineServerConfig()
     .port(8790)
     .host('0.0.0.0')
+    .middleware({ onError: createMonitorErrorHandler() })
     .routes(appRouter)
     .jobs(jobRouter)
     .events(eventRouter, {
@@ -32,6 +34,7 @@ export default defineServerConfig()
         },
     })
     .lifecycle(createAuthLifecycle())
+    .lifecycle(createMonitorLifecycle())
     .lifecycle({
         afterInfrastructure: async () =>
         {

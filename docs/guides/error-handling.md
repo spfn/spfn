@@ -663,6 +663,17 @@ throw new TooManyRequestsError({ message: 'Rate limit exceeded' });
 
 ## Error Notifications (Slack)
 
+> **Recommended: Use `@spfn/monitor`**
+>
+> For DB-backed error tracking with fingerprint deduplication, state-based notifications, and an admin dashboard, use [`@spfn/monitor`](/docs/guides/monitoring) instead of the basic Slack notifier below.
+>
+> ```typescript
+> import { createMonitorErrorHandler } from '@spfn/monitor/server';
+> middleware: { onError: createMonitorErrorHandler() }
+> ```
+
+### Legacy: `createErrorSlackNotifier`
+
 Send error alerts to Slack using the `@spfn/notification` package. The `createErrorSlackNotifier` factory creates an `onError` callback compatible with `ErrorHandler`.
 
 ### Setup

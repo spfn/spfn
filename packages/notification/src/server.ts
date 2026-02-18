@@ -125,6 +125,7 @@ export {
 } from './jobs';
 
 // Integrations
+// @deprecated — Use createMonitorErrorHandler() from @spfn/monitor/server instead
 export {
     createErrorSlackNotifier,
     type ErrorSlackOptions,

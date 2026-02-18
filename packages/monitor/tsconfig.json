@@ -1,0 +1,21 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "composite": false,
+        "jsx": "react-jsx",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "noEmit": false,
+        "baseUrl": ".",
+        "paths": {
+            "@spfn/monitor/*": ["./src/*"],
+            "@spfn/monitor": ["./src/index.ts"],
+            "@spfn/monitor/server": ["./src/server.ts"],
+            "@spfn/monitor/config": ["./src/config/index.ts"],
+            "@spfn/monitor/nextjs/client": ["./src/nextjs/client.ts"]
+        }
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist"]
+}

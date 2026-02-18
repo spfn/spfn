@@ -195,9 +195,29 @@ function defaultFormat(err: Error, ctx: ErrorContext, suppressed: number = 0): {
  *
  * Returns a function matching ErrorHandler's onError signature.
  * Duplicate errors (same name + statusCode + path) within `throttleMs` are suppressed.
+ *
+ * @deprecated Use `createMonitorErrorHandler()` from `@spfn/monitor/server` instead.
+ * It provides DB-backed error tracking with fingerprint deduplication,
+ * state-based notifications (new/reopened), and an admin dashboard.
+ *
+ * Migration:
+ * ```typescript
+ * // Before
+ * import { createErrorSlackNotifier } from '@spfn/notification/server';
+ * middleware: { onError: createErrorSlackNotifier() }
+ *
+ * // After
+ * import { createMonitorErrorHandler } from '@spfn/monitor/server';
+ * middleware: { onError: createMonitorErrorHandler() }
+ * ```
  */
 export function createErrorSlackNotifier(options: ErrorSlackOptions = {})
 {
+    console.warn(
+        '[@spfn/notification] createErrorSlackNotifier() is deprecated. ' +
+        'Use createMonitorErrorHandler() from @spfn/monitor/server instead.'
+    );
+
     const { minStatusCode = 500, throttleMs = 60_000 } = options;
 
     return async (err: Error, ctx: ErrorContext) =>

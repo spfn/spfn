@@ -1,0 +1,27 @@
+export const sharedExternal = [
+    // Internal entrypoints (prevent bundling into each other)
+    '@spfn/monitor',
+    '@spfn/monitor/server',
+    '@spfn/monitor/config',
+    '@spfn/monitor/nextjs/client',
+    // External dependencies
+    '@spfn/core',
+    '@spfn/core/server',
+    '@spfn/core/db',
+    '@spfn/core/route',
+    '@spfn/core/errors',
+    '@spfn/core/logger',
+    '@spfn/core/config',
+    '@spfn/core/env',
+    '@spfn/core/nextjs',
+    '@spfn/notification',
+    '@spfn/notification/server',
+    '@spfn/auth/server',
+    'drizzle-orm',
+    'drizzle-orm/pg-core',
+    'next',
+    'next/headers',
+    'next/navigation',
+    'react',
+    'react/jsx-runtime',
+];

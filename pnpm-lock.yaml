@@ -584,8 +584,11 @@ importers:
       '@spfn/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@spfn/monitor':
+        specifier: workspace:*
+        version: link:../../packages/monitor
       '@spfn/notification':
-        specifier: workspace:0.1.0-beta.1
+        specifier: workspace:*
         version: link:../../packages/notification
       class-variance-authority:
         specifier: ^0.7.1
@@ -944,6 +947,52 @@ importers:
       vitest:
         specifier: ^4.0.6
         version: 4.0.6(@types/debug@4.1.12)(@types/node@20.19.24)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
+
+  packages/monitor:
+    dependencies:
+      '@spfn/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@spfn/core':
+        specifier: workspace:*
+        version: link:../core
+      '@spfn/notification':
+        specifier: workspace:*
+        version: link:../notification
+      next:
+        specifier: ^16.0.10
+        version: 16.1.1(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+    devDependencies:
+      '@sinclair/typebox':
+        specifier: ^0.34.30
+        version: 0.34.41
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.25
+      '@types/react':
+        specifier: ^19
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.2(@types/react@19.2.2)
+      drizzle-kit:
+        specifier: ^0.31.6
+        version: 0.31.8
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.0(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+      madge:
+        specifier: ^8.0.0
+        version: 8.0.0(typescript@5.9.3)
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.6
+        version: 4.0.6(@types/debug@4.1.12)(@types/node@20.19.25)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.2)
 
   packages/notification:
     dependencies:
@@ -5924,7 +5973,7 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   gonzales-pe@4.3.0:
     resolution: {integrity: sha512-otgSPpUmdWJ43VXyiNgEYE4luzHCL2pz4wQ0OnDluC6Eg4Ko3Vexy/SrSynglw/eR+OhkzmqFCZa/OFa/RgAOQ==}

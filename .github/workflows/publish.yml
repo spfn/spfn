@@ -61,11 +61,18 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Publish @spfn/monitor
+        working-directory: packages/monitor
+        run: pnpm publish --access public --tag alpha --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Add latest tags
         run: |
           npm dist-tag add @spfn/core@$(node -p "require('./packages/core/package.json').version") latest
           npm dist-tag add spfn@$(node -p "require('./packages/cli/package.json').version") latest
           npm dist-tag add @spfn/cms@$(node -p "require('./packages/cms/package.json').version") latest
           npm dist-tag add @spfn/auth@$(node -p "require('./packages/auth/package.json').version") latest
+          npm dist-tag add @spfn/monitor@$(node -p "require('./packages/monitor/package.json').version") latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
