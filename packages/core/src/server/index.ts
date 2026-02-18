@@ -27,9 +27,11 @@ import '@spfn/core/config';
 export { loadEnvFiles } from './dotenv-loader';
 export { loadEnv } from '../env/loader';
 export { createServer, startServer } from './server';
+export { getShutdownManager } from './shutdown-manager';
 
 // Config builder
 export { defineServerConfig } from './config-builder';
 
 // Server types
 export type { ServerConfig, AppFactory, ServerInstance } from './types';
+export type { ShutdownHookOptions } from './shutdown-manager';

@@ -342,9 +342,13 @@ export interface ServerConfig
     shutdown?: {
         /**
          * Graceful shutdown timeout in milliseconds
-         * Maximum time to wait for ongoing requests and resource cleanup
-         * After timeout, forces process termination
-         * @default 30000 (30 seconds)
+         * Maximum time to wait for in-flight operations to drain and resource cleanup
+         * After timeout, forces process.exit() before k8s SIGKILL
+         *
+         * Formula: terminationGracePeriodSeconds - preStopSleep - safetyMargin
+         * Default: 300s - 5s - 15s = 280s
+         *
+         * @default 280000 (280 seconds)
          * @env SHUTDOWN_TIMEOUT
          */
         timeout?: number;

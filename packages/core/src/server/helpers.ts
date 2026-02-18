@@ -3,6 +3,7 @@ import type { Server } from 'http';
 import { getDatabase } from '@spfn/core/db';
 import { getCache } from '@spfn/core/cache';
 import { env } from '@spfn/core/config';
+import { getShutdownManager } from './shutdown-manager';
 
 // ============================================================================
 // Types
@@ -59,6 +60,16 @@ export function createHealthCheckHandler(detailed: boolean): Handler
 {
     return async (c) =>
     {
+        // Return 503 immediately during shutdown (for k8s readiness probe)
+        const shutdownManager = getShutdownManager();
+        if (shutdownManager.isShuttingDown())
+        {
+            return c.json({
+                status: 'shutting_down',
+                timestamp: new Date().toISOString(),
+            }, 503);
+        }
+
         const response: HealthCheckResponse = {
             status: 'ok',
             timestamp: new Date().toISOString(),

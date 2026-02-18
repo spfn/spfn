@@ -322,9 +322,9 @@ export const coreEnvSchema = defineEnvSchema({
     }),
 
     SHUTDOWN_TIMEOUT: envNumber({
-        description: 'Graceful shutdown timeout in milliseconds',
-        default: 30000,
-        examples: [10000, 30000, 60000],
+        description: 'Graceful shutdown timeout in milliseconds (must be less than k8s terminationGracePeriodSeconds minus preStop sleep, with safety margin)',
+        default: 280000,
+        examples: [30000, 120000, 280000],
     }),
 
     // ========================================================================

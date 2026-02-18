@@ -24,6 +24,7 @@ import {
     getShutdownTimeout,
     getTimeoutConfig,
 } from './helpers';
+import { getShutdownManager, resetShutdownManager } from './shutdown-manager';
 
 import type { ServerConfig, ServerInstance } from './types';
 import { validateServerConfig } from './validation';
@@ -147,15 +148,6 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
             close: async () =>
             {
                 serverLogger.info('Manual server shutdown requested');
-
-                // Prevent re-entry for manual close
-                if (shutdownState.isShuttingDown)
-                {
-                    serverLogger.warn('Shutdown already in progress, ignoring manual close request');
-                    return;
-                }
-
-                shutdownState.isShuttingDown = true;
                 await shutdownServer();
             },
         };
@@ -405,91 +397,109 @@ function createShutdownHandler(
         }
 
         shutdownState.isShuttingDown = true;
-        serverLogger.debug('Closing HTTP server...');
 
-        // Close server with timeout to prevent hanging
-        let timeoutId: NodeJS.Timeout | undefined;
+        const shutdownTimeout = getShutdownTimeout(config.shutdown);
+        const shutdownManager = getShutdownManager();
 
-        await Promise.race([
-            new Promise<void>((resolve, reject) =>
-            {
-                server.close((err) =>
-                {
-                    if (timeoutId) clearTimeout(timeoutId);
+        // Immediately mark as draining so health check returns 503
+        // and trackOperation() rejects new work
+        shutdownManager.beginShutdown();
 
-                    if (err)
-                    {
-                        serverLogger.error('HTTP server close error', err);
-                        reject(err);
-                    }
-                    else
-                    {
-                        serverLogger.info('HTTP server closed');
-                        resolve();
-                    }
-                });
-            }),
-            new Promise<void>((_, reject) =>
-            {
-                timeoutId = setTimeout(() =>
-                {
-                    reject(new Error(`HTTP server close timeout after ${TIMEOUTS.SERVER_CLOSE}ms`));
-                }, TIMEOUTS.SERVER_CLOSE);
-            }),
-        ]).catch((error) =>
-        {
-            if (timeoutId) clearTimeout(timeoutId);
-            serverLogger.warn('HTTP server close timeout, forcing shutdown', error as Error);
-            // Continue with cleanup even if server.close() times out
-        });
+        // ── Phase 1: Stop accepting new connections ──
+        serverLogger.info('Phase 1: Closing HTTP server (stop accepting new connections)...');
+        await closeHttpServer(server);
 
-        // Stop pg-boss if jobs were configured
+        // ── Phase 2: Stop pg-boss (stop accepting new jobs) ──
         if (config.jobs)
         {
-            serverLogger.debug('Stopping pg-boss...');
+            serverLogger.info('Phase 2: Stopping pg-boss...');
             try
             {
                 await stopBoss();
+                serverLogger.info('pg-boss stopped');
             }
             catch (error)
             {
                 serverLogger.error('pg-boss stop failed', error as Error);
-                // Continue with shutdown even if stop fails
             }
         }
 
-        // Execute beforeShutdown hook from config
+        // ── Phase 3: Drain — wait for all tracked operations to complete ──
+        // Use 80% of remaining shutdown timeout for drain + hooks
+        const drainTimeout = Math.floor(shutdownTimeout * 0.8);
+        serverLogger.info(`Phase 3: Draining tracked operations (timeout: ${drainTimeout}ms)...`);
+        await shutdownManager.execute(drainTimeout);
+
+        // ── Phase 4: Execute beforeShutdown lifecycle hook (backward compat) ──
         if (config.lifecycle?.beforeShutdown)
         {
-            serverLogger.debug('Executing beforeShutdown hook...');
+            serverLogger.info('Phase 4: Executing beforeShutdown lifecycle hook...');
             try
             {
                 await config.lifecycle.beforeShutdown();
             }
             catch (error)
             {
-                serverLogger.error('beforeShutdown hook failed', error as Error);
-                // Continue with shutdown even if hook fails
+                serverLogger.error('beforeShutdown lifecycle hook failed', error as Error);
             }
         }
 
-        // Only close resources that were enabled for initialization
+        // ── Phase 5: Close infrastructure (DB, Redis) ──
+        serverLogger.info('Phase 5: Closing infrastructure...');
         const infraConfig = getInfrastructureConfig(config);
 
         if (infraConfig.database)
         {
-            serverLogger.debug('Closing database connections...');
             await closeInfrastructure(closeDatabase, 'Database', TIMEOUTS.DATABASE_CLOSE);
         }
 
         if (infraConfig.redis)
         {
-            serverLogger.debug('Closing Redis connections...');
             await closeInfrastructure(closeCache, 'Redis', TIMEOUTS.REDIS_CLOSE);
         }
 
         serverLogger.info('Server shutdown completed');
     };
+}
+
+/**
+ * Close HTTP server with timeout
+ */
+async function closeHttpServer(server: Server): Promise<void>
+{
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    await Promise.race([
+        new Promise<void>((resolve, reject) =>
+        {
+            server.close((err) =>
+            {
+                if (timeoutId) clearTimeout(timeoutId);
+
+                if (err)
+                {
+                    serverLogger.error('HTTP server close error', err);
+                    reject(err);
+                }
+                else
+                {
+                    serverLogger.info('HTTP server closed');
+                    resolve();
+                }
+            });
+        }),
+        new Promise<void>((_, reject) =>
+        {
+            timeoutId = setTimeout(() =>
+            {
+                reject(new Error(`HTTP server close timeout after ${TIMEOUTS.SERVER_CLOSE}ms`));
+            }, TIMEOUTS.SERVER_CLOSE);
+        }),
+    ]).catch((error) =>
+    {
+        if (timeoutId) clearTimeout(timeoutId);
+        serverLogger.warn('HTTP server close timeout, forcing shutdown', error as Error);
+    });
 }
 
 /**
@@ -713,6 +723,7 @@ async function cleanupOnFailure(config: ServerConfig): Promise<void>
             await closeInfrastructure(closeCache, 'Redis', TIMEOUTS.REDIS_CLOSE);
         }
 
+        resetShutdownManager();
         serverLogger.debug('Cleanup completed');
     }
     catch (cleanupError)
