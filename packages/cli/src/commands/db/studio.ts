@@ -66,7 +66,8 @@ export async function dbStudio(requestedPort?: number): Promise<void>
         // Spawn drizzle-kit studio process
         const studioProcess = spawn('drizzle-kit', ['studio', `--port=${port}`, `--config=${configPath}`], {
             stdio: 'inherit',
-            shell: true
+            shell: true,
+            env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' }
         });
 
         // Handle process termination

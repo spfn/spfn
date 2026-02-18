@@ -66,7 +66,8 @@ export async function runDrizzleCommand(command: string): Promise<void>
     {
         const drizzleProcess = spawn('drizzle-kit', args, {
             stdio: 'inherit', // Allow interactive input
-            shell: true
+            shell: true,
+            env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' }
         });
 
         const cleanup = () =>
