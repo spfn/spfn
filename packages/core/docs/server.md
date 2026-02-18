@@ -191,15 +191,78 @@ const api = createApi<AppRouter>();
 
 ## Graceful Shutdown
 
-Automatic graceful shutdown handling:
+Automatic graceful shutdown with drain behavior (AWS drain style):
 
-1. Stop accepting new connections
-2. Wait for in-flight requests
-3. Close database connections
-4. Close Redis connections
-5. Exit process
+```
+SIGTERM
+  │
+  ├─ Phase 1: server.close()              ← 새 연결 거부, 진행 중 요청 대기
+  ├─ Phase 2: stopBoss()                   ← pg-boss 작업 정리
+  ├─ Phase 3: ShutdownManager.execute()
+  │     ├─ drain: tracked operations 완료 대기
+  │     └─ hooks: 등록된 훅 순서대로 실행
+  ├─ Phase 4: beforeShutdown lifecycle     ← 기존 lifecycle 호환
+  ├─ Phase 5: closeDatabase / closeCache
+  └─ process.exit(0)
+```
 
 **Signals handled:** `SIGTERM`, `SIGINT`
+
+### ShutdownManager
+
+모듈별 독립적인 shutdown 훅 등록과 장기 작업 추적:
+
+```typescript
+import { getShutdownManager } from '@spfn/core/server';
+
+const shutdown = getShutdownManager();
+
+// 1. Shutdown 훅 등록 — 모듈별 독립 cleanup
+shutdown.onShutdown('ai-client', async () =>
+{
+    await openaiClient.close();
+}, { timeout: 5000, order: 10 });
+
+shutdown.onShutdown('search-index', async () =>
+{
+    await elasticClient.close();
+}, { order: 20 });
+
+// 2. 장기 작업 추적 — shutdown 시 완료까지 대기
+const result = await shutdown.trackOperation(
+    'ai-generate',
+    aiService.generate(prompt)
+);
+// shutdown 중이면 자동으로 throw → 503
+
+// 3. Shutdown 상태 확인
+if (shutdown.isShuttingDown())
+{
+    return c.json({ error: 'Server is shutting down' }, 503);
+}
+```
+
+### Timeout Configuration
+
+```typescript
+defineServerConfig()
+    .shutdown({
+        timeout: 280000,  // 280s (default: k8s 300s - 5s preStop - 15s margin)
+    })
+    .build();
+```
+
+AI 파이프라인 등 장기 작업이 있는 앱은 Helm chart과 함께 조정:
+
+```yaml
+# apps/values.yaml
+gracefulShutdown:
+  terminationGracePeriodSeconds: 660  # 11분
+```
+
+```bash
+SHUTDOWN_TIMEOUT=640000  # 660 - 5 - 15 = 640s
+```
 
 ---
 
@@ -208,8 +271,12 @@ Automatic graceful shutdown handling:
 Built-in health endpoint at `/health`:
 
 ```bash
+# Normal
 curl http://localhost:8790/health
 # { "status": "ok", "timestamp": "2024-..." }
+
+# During shutdown → 503
+# { "status": "shutting_down", "timestamp": "2024-..." }
 ```
 
 ---
@@ -229,6 +296,9 @@ DATABASE_READ_URL=postgresql://replica:5432/mydb
 
 # Redis
 REDIS_URL=redis://localhost:6379
+
+# Shutdown
+SHUTDOWN_TIMEOUT=280000  # Milliseconds (default: 280s)
 ```
 
 ---

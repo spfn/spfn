@@ -14,6 +14,7 @@ server/
 ├── server.ts                # Re-exports for internal use
 ├── start-server.ts          # Server lifecycle and initialization
 ├── create-server.ts         # Hono app creation and configuration
+├── shutdown-manager.ts      # Graceful shutdown with drain behavior
 ├── config-builder.ts        # Configuration builder with lifecycle merging
 ├── helpers.ts               # Utility functions (timeouts, health checks)
 ├── validation.ts            # Configuration validation logic
@@ -622,6 +623,7 @@ export function createHealthCheckHandler(detailed: boolean): Handler {
 - `error` - Service connection failed
 - `not_initialized` - Service instance not yet created
 - `unknown` - Status could not be determined
+- `shutting_down` - Server is in graceful shutdown (returns 503 immediately)
 
 **Response Examples:**
 
@@ -665,6 +667,12 @@ $ curl http://localhost:4000/health
     "database": { "status": "not_initialized" },
     "redis": { "status": "not_initialized" }
   }
+}
+
+# During shutdown (503 Service Unavailable)
+{
+  "status": "shutting_down",
+  "timestamp": "2025-01-21T10:00:00.000Z"
 }
 ```
 
@@ -761,88 +769,103 @@ export default defineServerConfig()
 
 ### Graceful Shutdown
 
-The server handles termination signals gracefully:
+The server handles termination signals with AWS drain-style behavior — all tracked operations must complete before shutdown proceeds.
 
-```typescript
-// start-server.ts implementation
-function createShutdownHandler(
-    server: Server,
-    config: ServerConfig,
-    shutdownState: ShutdownState
-): () => Promise<void> {
-    return async () => {
-        // Prevent re-entry
-        if (shutdownState.isShuttingDown) return;
-        shutdownState.isShuttingDown = true;
-
-        // 1. Close HTTP server (with timeout)
-        await Promise.race([
-            new Promise<void>((resolve, reject) => {
-                server.close((err) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
-            }),
-            timeout(SERVER_CLOSE_TIMEOUT)
-        ]);
-
-        // 2. Execute beforeShutdown hook
-        if (config.lifecycle?.beforeShutdown) {
-            await config.lifecycle.beforeShutdown();
-        }
-
-        // 3. Close infrastructure (only what was initialized)
-        const infraConfig = getInfrastructureConfig(config);
-
-        if (infraConfig.database) {
-            await closeInfrastructure(closeDatabase, 'Database', DATABASE_CLOSE_TIMEOUT);
-        }
-
-        if (infraConfig.redis) {
-            await closeInfrastructure(closeCache, 'Redis', REDIS_CLOSE_TIMEOUT);
-        }
-    };
-}
-```
-
-**Shutdown Sequence:**
+**Shutdown Sequence (5 Phases):**
 
 ```
 Signal Received (SIGTERM/SIGINT)
     ↓
-[1] Stop accepting new connections
+    createGracefulShutdown (outer safety timeout: SHUTDOWN_TIMEOUT)
     ↓
-[2] Close HTTP server (5s timeout)
+    ├─ beginShutdown()                         ← health → 503, reject new work
     ↓
-[3] Execute lifecycle.beforeShutdown()
+[1] Phase 1: server.close()                   ← stop new connections (5s timeout)
+    ↓                                            wait for in-flight HTTP requests
+[2] Phase 2: stopBoss()                        ← pg-boss job queue drain
     ↓
-[4] Close database connections (5s timeout)
+[3] Phase 3: ShutdownManager.execute()         ← drain tracked operations (80% of timeout)
+    │   ├─ drain: poll every 500ms until all tracked operations complete
+    │   └─ hooks: execute registered shutdown hooks in order
     ↓
-[5] Close Redis connections (5s timeout)
+[4] Phase 4: lifecycle.beforeShutdown()        ← backward-compatible lifecycle hook
     ↓
-[6] Exit process
+[5] Phase 5: closeDatabase + closeCache        ← infrastructure cleanup (5s each)
+    ↓
+    process.exit(0)
+```
+
+**ShutdownManager (`shutdown-manager.ts`):**
+
+```typescript
+import { getShutdownManager } from '@spfn/core/server';
+
+const shutdown = getShutdownManager();
+
+// Register cleanup hook (modules can register independently)
+shutdown.onShutdown('ai-client', async () => {
+    await openaiClient.close();
+}, { timeout: 5000, order: 10 });
+
+// Track long-running operation (drain waits for completion)
+const result = await shutdown.trackOperation('ai-generate', aiService.generate(prompt));
+
+// Check shutdown state
+shutdown.isShuttingDown();  // true during drain/close phases
+```
+
+**ShutdownManager API:**
+
+| Method | Description |
+|--------|-------------|
+| `onShutdown(name, handler, options?)` | Register cleanup hook with optional `timeout` (default: 10s) and `order` (default: 100) |
+| `trackOperation(name, promise)` | Track in-flight operation — drain phase waits for completion. Throws if shutting down. |
+| `isShuttingDown()` | Returns `true` once shutdown begins (drain + close phases) |
+| `beginShutdown()` | Called internally — immediately marks state as draining |
+| `execute(drainTimeout)` | Called internally — runs drain + hooks sequence |
+
+**State Transitions:**
+
+```
+running → draining → closed
+   │          │          │
+   │          │          └─ All hooks executed, infrastructure closing
+   │          └─ trackOperation() throws, health returns 503, drain in progress
+   └─ Normal operation
 ```
 
 **Supported Signals:**
 - `SIGTERM` - Graceful shutdown (Docker, Kubernetes)
 - `SIGINT` - Graceful shutdown (Ctrl+C)
-- `uncaughtException` - Log error → graceful shutdown (production) or immediate exit (development)
-- `unhandledRejection` - Log error → graceful shutdown (production) or immediate exit (development)
+- `uncaughtException` - Log and continue (server stays running)
+- `unhandledRejection` - Log and continue (server stays running)
 
 **Timeout Configuration:**
 
 ```typescript
 export default defineServerConfig()
     .shutdown({
-        timeout: 30000,  // 30 seconds max for shutdown
+        timeout: 280000,  // 280s = k8s 300s - 5s preStop - 15s margin
     })
     .build();
+```
+
+**Kubernetes Integration:**
+
+```
+0s     Pod terminating → endpoint removed from Service
+0-5s   preStop: sleep 5s (iptables propagation)
+5s     SIGTERM → graceful shutdown starts
+5-285s App drains operations + cleanup
+285s   SHUTDOWN_TIMEOUT expires → process.exit(1)
+       ← 15s safety margin →
+300s   terminationGracePeriodSeconds → SIGKILL (should never reach here)
 ```
 
 **Environment Variables:**
 
 ```bash
-SHUTDOWN_TIMEOUT=30000  # Milliseconds
+SHUTDOWN_TIMEOUT=280000  # Milliseconds (default: 280s)
 ```
 
 ---
@@ -1264,12 +1287,24 @@ export default defineServerConfig()
         },
 
         beforeShutdown: async () => {
-            // Cleanup custom resources
-            await closeMessageQueue();
-            await closeSearchIndex();
+            // Simple cleanup (backward compatible)
+            await flushMetrics();
         },
     })
     .build();
+
+// For multiple independent modules, prefer ShutdownManager:
+import { getShutdownManager } from '@spfn/core/server';
+
+const shutdown = getShutdownManager();
+
+shutdown.onShutdown('message-queue', async () => {
+    await closeMessageQueue();
+}, { order: 10 });
+
+shutdown.onShutdown('search-index', async () => {
+    await closeSearchIndex();
+}, { order: 20 });
 ```
 
 ### Custom Health Checks
