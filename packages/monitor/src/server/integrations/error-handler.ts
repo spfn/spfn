@@ -30,6 +30,12 @@ export interface MonitorErrorHandlerOptions
     minStatusCode?: number;
 
     /**
+     * Environment label (e.g. 'production', 'staging', 'development')
+     * Displayed in Slack notifications for easy identification.
+     */
+    environment?: string;
+
+    /**
      * Extract custom metadata from error and context
      */
     extractMetadata?: (err: Error, ctx: ErrorTrackingContext) => Record<string, unknown>;
@@ -74,6 +80,7 @@ export function createMonitorErrorHandler(options: MonitorErrorHandlerOptions = 
             userId: ctx.userId,
             headers: ctx.request.headers,
             query: ctx.request.query,
+            environment: options.environment,
         };
 
         const metadata = options.extractMetadata?.(err, trackingCtx);

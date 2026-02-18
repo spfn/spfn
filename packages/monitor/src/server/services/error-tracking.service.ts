@@ -27,6 +27,7 @@ export interface ErrorTrackingContext
     userId?: string;
     headers?: Record<string, string>;
     query?: Record<string, string>;
+    environment?: string;
 }
 
 /**
@@ -86,7 +87,7 @@ export async function trackError(
 
         logger.info('New error group tracked', { fingerprint, groupId: group.id });
 
-        notifyErrorToSlack(group, event, 'new')
+        notifyErrorToSlack(group, event, 'new', ctx.environment)
             .catch(e => logger.warn('Slack notification failed', e as Error));
 
         return;
@@ -105,7 +106,8 @@ export async function trackError(
         notifyErrorToSlack(
             { ...existing, status: 'active', count: existing.count + 1 },
             event,
-            'reopened'
+            'reopened',
+            ctx.environment,
         ).catch(e => logger.warn('Slack notification failed', e as Error));
 
         return;

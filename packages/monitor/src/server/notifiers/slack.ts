@@ -20,7 +20,8 @@ type NotifyReason = 'new' | 'reopened';
 export async function notifyErrorToSlack(
     group: ErrorGroup,
     event: ErrorEvent,
-    reason: NotifyReason
+    reason: NotifyReason,
+    environment?: string,
 ): Promise<void>
 {
     const webhookUrl = getSlackWebhookUrl();
@@ -30,7 +31,7 @@ export async function notifyErrorToSlack(
         return;
     }
 
-    const { text, blocks } = formatSlackMessage(group, event, reason);
+    const { text, blocks } = formatSlackMessage(group, event, reason, environment);
 
     const result = await sendSlack({ webhookUrl, text, blocks });
     if (!result.success)
@@ -45,20 +46,22 @@ export async function notifyErrorToSlack(
 function formatSlackMessage(
     group: ErrorGroup,
     event: ErrorEvent,
-    reason: NotifyReason
+    reason: NotifyReason,
+    environment?: string,
 ): { text: string; blocks: unknown[] }
 {
     const isNew = reason === 'new';
     const emoji = isNew ? ':rotating_light:' : ':warning:';
     const label = isNew ? 'New Error' : 'Re-opened Error';
-    const title = `${emoji} ${label} — ${group.statusCode}`;
+    const envTag = environment ? ` [${environment}]` : '';
+    const title = `${emoji}${envTag} ${label} — ${group.statusCode}`;
 
     const blocks: unknown[] = [
         {
             type: 'header',
             text: {
                 type: 'plain_text',
-                text: `${label} — ${group.statusCode}`,
+                text: `${envTag ? envTag.trim() + ' ' : ''}${label} — ${group.statusCode}`,
                 emoji: true,
             },
         },
