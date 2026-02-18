@@ -29,12 +29,14 @@ export async function setupPackageJson(
     // Add SPFN dependencies (fixes Issue #3: explicit installation for pnpm)
     // - @spfn/core: Use same tag as CLI (alpha, beta, or latest)
     // - @sinclair/typebox: contract files import Type
+    // - drizzle-orm: entity/repository files import from drizzle-orm, drizzle-orm/pg-core
     // - drizzle-typebox: contract files import createInsertSchema, createSelectSchema
     // - spfn: CLI needed for both build and runtime (spfn build, spfn start)
     // - concurrently: Process manager for running Next.js + SPFN API concurrently
     const spfnTag = getSpfnTag();
     packageJson.dependencies['@spfn/core'] = spfnTag;
     packageJson.dependencies['@sinclair/typebox'] = '^0.34.0';
+    packageJson.dependencies['drizzle-orm'] = '^0.45.0';
     packageJson.dependencies['drizzle-typebox'] = '^0.1.0';
     packageJson.dependencies['spfn'] = spfnTag;
     packageJson.dependencies['concurrently'] = '^9.2.1';
