@@ -428,7 +428,7 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
             const healthCheckConfig = buildHealthCheckConfig(options?.healthCheck);
             if (healthCheckConfig.enabled)
             {
-                startHealthCheck(healthCheckConfig, options, getDatabase, closeDatabase);
+                startHealthCheck(healthCheckConfig, options, getDatabase);
             }
 
             // Initialize monitoring configuration

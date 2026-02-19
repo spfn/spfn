@@ -37,6 +37,8 @@ vi.mock('../global-state', () => ({
     getWriteInstance: vi.fn(() => undefined),
     setWriteInstance: vi.fn(),
     setReadInstance: vi.fn(),
+    getWriteClient: vi.fn(() => undefined),
+    getReadClient: vi.fn(() => undefined),
     setWriteClient: vi.fn(),
     setReadClient: vi.fn(),
     getMonitoringConfig: vi.fn(() => undefined),
@@ -74,9 +76,7 @@ describe('Database Health Check', () =>
                 execute: vi.fn(async () => {}),
             })) as any;
 
-            const closeDatabase = vi.fn(async () => {});
-
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             const { setHealthCheckInterval } = await import('../global-state');
             expect(setHealthCheckInterval).toHaveBeenCalledWith(expect.any(Object));
@@ -96,13 +96,11 @@ describe('Database Health Check', () =>
                 execute: vi.fn(async () => {}),
             })) as any;
 
-            const closeDatabase = vi.fn(async () => {});
-
             // Mock existing interval
             const { getHealthCheckInterval, setHealthCheckInterval } = await import('../global-state');
             vi.mocked(getHealthCheckInterval).mockReturnValueOnce({} as any);
 
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             expect(setHealthCheckInterval).not.toHaveBeenCalled();
         });
@@ -122,9 +120,7 @@ describe('Database Health Check', () =>
                 execute: mockExecute,
             })) as any;
 
-            const closeDatabase = vi.fn(async () => {});
-
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             // Fast-forward to first interval
             await vi.advanceTimersByTimeAsync(60000);
@@ -153,9 +149,7 @@ describe('Database Health Check', () =>
                 return writeDb;
             }) as any;
 
-            const closeDatabase = vi.fn(async () => {});
-
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             await vi.advanceTimersByTimeAsync(60000);
 
@@ -177,9 +171,7 @@ describe('Database Health Check', () =>
 
             const getDatabase = vi.fn(() => mockDb) as any;
 
-            const closeDatabase = vi.fn(async () => {});
-
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             await vi.advanceTimersByTimeAsync(60000);
 
@@ -198,9 +190,8 @@ describe('Database Health Check', () =>
             };
 
             const getDatabase = vi.fn(() => null) as any;
-            const closeDatabase = vi.fn(async () => {});
 
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             await expect(
                 vi.advanceTimersByTimeAsync(60000)
@@ -224,13 +215,13 @@ describe('Database Health Check', () =>
             };
 
             const getDatabase = vi.fn(() => mockDb) as any;
-            const closeDatabase = vi.fn(async () => {});
 
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             await vi.advanceTimersByTimeAsync(60000);
 
-            expect(closeDatabase).not.toHaveBeenCalled();
+            const { createDatabaseFromEnv } = await import('../factory');
+            expect(createDatabaseFromEnv).not.toHaveBeenCalled();
         });
 
         it('should attempt reconnection when reconnect=true', async () =>
@@ -250,7 +241,6 @@ describe('Database Health Check', () =>
             };
 
             const getDatabase = vi.fn(() => mockDb) as any;
-            const closeDatabase = vi.fn(async () => {});
 
             const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValue({
@@ -260,13 +250,15 @@ describe('Database Health Check', () =>
                 readClient: { end: vi.fn(async () => {}) } as any,
             });
 
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             await vi.advanceTimersByTimeAsync(10000);
             await vi.advanceTimersByTimeAsync(5000);
 
-            expect(closeDatabase).toHaveBeenCalled();
             expect(createDatabaseFromEnv).toHaveBeenCalled();
+
+            const { setWriteInstance } = await import('../global-state');
+            expect(setWriteInstance).toHaveBeenCalled();
         });
 
         it('should retry reconnection up to maxRetries', async () =>
@@ -286,14 +278,13 @@ describe('Database Health Check', () =>
             };
 
             const getDatabase = vi.fn(() => mockDb) as any;
-            const closeDatabase = vi.fn(async () => {});
 
             const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockRejectedValue(
                 new Error('Reconnection failed')
             );
 
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             await vi.advanceTimersByTimeAsync(10000);
 
@@ -331,8 +322,6 @@ describe('Database Health Check', () =>
                 return currentWrite || mockDb;
             }) as any;
 
-            const closeDatabase = vi.fn(async () => {});
-
             const { createDatabaseFromEnv } = await import('../factory');
             let attempts = 0;
             const successDb = { execute: vi.fn(async () => {}) } as any;
@@ -353,7 +342,7 @@ describe('Database Health Check', () =>
                 throw new Error('Reconnection failed');
             });
 
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             // Trigger first health check (fails, starts reconnection)
             await vi.advanceTimersByTimeAsync(10000);
@@ -383,7 +372,6 @@ describe('Database Health Check', () =>
             };
 
             const getDatabase = vi.fn(() => mockDb) as any;
-            const closeDatabase = vi.fn(async () => {});
 
             const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValue({
@@ -391,7 +379,7 @@ describe('Database Health Check', () =>
                 read: undefined,
             });
 
-            startHealthCheck(config, undefined, getDatabase, closeDatabase);
+            startHealthCheck(config, undefined, getDatabase);
 
             await vi.advanceTimersByTimeAsync(10000);
             await vi.advanceTimersByTimeAsync(1000);
@@ -399,6 +387,85 @@ describe('Database Health Check', () =>
             // Should not set instances when write is undefined
             const { setWriteInstance } = await import('../global-state');
             expect(setWriteInstance).not.toHaveBeenCalled();
+        });
+
+        it('should skip health check while reconnecting', async () =>
+        {
+            const config = {
+                enabled: true,
+                interval: 5000,
+                reconnect: true,
+                maxRetries: 3,
+                retryInterval: 3000,
+            };
+
+            const mockDb = {
+                execute: vi.fn(async () => {
+                    throw new Error('Health check failed');
+                }),
+            };
+
+            const getDatabase = vi.fn(() => mockDb) as any;
+
+            const { createDatabaseFromEnv } = await import('../factory');
+            // Make reconnection slow (takes multiple intervals)
+            vi.mocked(createDatabaseFromEnv).mockImplementation(async () =>
+            {
+                // Simulate slow reconnection
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                throw new Error('Reconnection failed');
+            });
+
+            startHealthCheck(config, undefined, getDatabase);
+
+            // First health check triggers reconnection
+            await vi.advanceTimersByTimeAsync(5000);
+
+            // Second health check fires while reconnecting - should be skipped
+            await vi.advanceTimersByTimeAsync(5000);
+
+            // Only one reconnection cycle should be active
+            // (getDatabase called 2 times for first health check: write + read,
+            //  but not called again for second interval due to isReconnecting)
+            expect(getDatabase).toHaveBeenCalledTimes(2);
+        });
+
+        it('should continue health checks after reconnection failure', async () =>
+        {
+            const config = {
+                enabled: true,
+                interval: 10000,
+                reconnect: true,
+                maxRetries: 1,
+                retryInterval: 1000,
+            };
+
+            const mockDb = {
+                execute: vi.fn(async () => {
+                    throw new Error('Health check failed');
+                }),
+            };
+
+            const getDatabase = vi.fn(() => mockDb) as any;
+
+            const { createDatabaseFromEnv } = await import('../factory');
+            vi.mocked(createDatabaseFromEnv).mockRejectedValue(
+                new Error('Reconnection failed')
+            );
+
+            startHealthCheck(config, undefined, getDatabase);
+
+            // First health check + reconnection attempt
+            await vi.advanceTimersByTimeAsync(10000);
+            await vi.advanceTimersByTimeAsync(1000);
+
+            expect(createDatabaseFromEnv).toHaveBeenCalledTimes(1);
+
+            // Second health check should still fire (interval not stopped)
+            await vi.advanceTimersByTimeAsync(10000);
+            await vi.advanceTimersByTimeAsync(1000);
+
+            expect(createDatabaseFromEnv).toHaveBeenCalledTimes(2);
         });
     });
 

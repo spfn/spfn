@@ -3,9 +3,15 @@
  *
  * Periodic health checks for database connections with automatic reconnection.
  * Monitors both write and read database instances and attempts recovery on failure.
+ *
+ * Key design decisions:
+ * - Atomic swap: new connections are created and tested BEFORE replacing global state
+ * - Health check interval survives reconnection attempts (never stopped during reconnect)
+ * - isReconnecting flag prevents concurrent reconnection attempts
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { Sql } from 'postgres';
 
 import { logger } from '@spfn/core/logger';
 import { createDatabaseFromEnv } from './factory';
@@ -14,6 +20,8 @@ import { buildMonitoringConfig } from './config';
 import {
     getHealthCheckInterval,
     setHealthCheckInterval,
+    getWriteClient,
+    getReadClient,
     setWriteInstance,
     setReadInstance,
     setWriteClient,
@@ -23,6 +31,16 @@ import {
 import type { GetDatabaseFn } from './types';
 
 const dbLogger = logger.child('@spfn/core:database');
+
+/**
+ * Connection close timeout in seconds
+ */
+const CLIENT_CLOSE_TIMEOUT = 5;
+
+/**
+ * Flag to prevent concurrent reconnection attempts
+ */
+let isReconnecting = false;
 
 // ============================================================================
 // Helper Functions (Private)
@@ -66,24 +84,40 @@ async function performHealthCheck(getDatabase: GetDatabaseFn): Promise<void>
 }
 
 /**
- * Reconnect database and restore instances
+ * Close a raw postgres client with timeout
  *
- * Closes existing connections, creates new ones, tests them, and restores global state.
+ * Ignores errors to prevent cleanup failures from blocking reconnection.
+ *
+ * @param client - Raw postgres client to close
+ * @internal
+ */
+async function closeClient(client: Sql): Promise<void>
+{
+    try
+    {
+        await client.end({ timeout: CLIENT_CLOSE_TIMEOUT });
+    }
+    catch
+    {
+        // Ignore cleanup errors (client may already be closed)
+    }
+}
+
+/**
+ * Reconnect database using atomic swap
+ *
+ * Creates new connections first, tests them, then swaps global state.
+ * Old clients are closed after the swap. If creation fails, old state is preserved.
  *
  * @param options - Optional database configuration
- * @param closeDatabase - Function to close existing connections
  * @returns true if reconnection successful, false otherwise
  * @internal
  */
 async function reconnectAndRestore(
-    options: DatabaseOptions | undefined,
-    closeDatabase: () => Promise<void>
+    options: DatabaseOptions | undefined
 ): Promise<boolean>
 {
-    // Close existing connections
-    await closeDatabase();
-
-    // Create new connections
+    // Create new connections (old instances remain in place)
     const result = await createDatabaseFromEnv(options);
 
     if (!result.write)
@@ -91,14 +125,18 @@ async function reconnectAndRestore(
         return false;
     }
 
-    // Test both connections before restoring
+    // Test new connections before swapping
     await testDatabaseConnection(result.write);
     if (result.read && result.read !== result.write)
     {
         await testDatabaseConnection(result.read);
     }
 
-    // Store instances
+    // Capture old clients for cleanup
+    const oldWriteClient = getWriteClient();
+    const oldReadClient = getReadClient();
+
+    // Atomic swap: replace global state with new instances
     setWriteInstance(result.write);
     setReadInstance(result.read);
     setWriteClient(result.writeClient);
@@ -107,6 +145,16 @@ async function reconnectAndRestore(
     // Restore monitoring configuration
     const monConfig = buildMonitoringConfig(options?.monitoring);
     setMonitoringConfig(monConfig);
+
+    // Close old clients after swap (fire and forget)
+    if (oldWriteClient)
+    {
+        closeClient(oldWriteClient);
+    }
+    if (oldReadClient && oldReadClient !== oldWriteClient)
+    {
+        closeClient(oldReadClient);
+    }
 
     return true;
 }
@@ -121,10 +169,12 @@ async function reconnectAndRestore(
  * Periodically checks database connection health and attempts reconnection if enabled.
  * Automatically started by initDatabase() when health check is enabled.
  *
+ * The health check interval survives reconnection attempts - it is never stopped
+ * during reconnection, ensuring continuous monitoring even after failures.
+ *
  * @param config - Health check configuration
  * @param options - Optional database configuration (pool settings, etc.)
  * @param getDatabase - Function to get database instance (to avoid circular dependency)
- * @param closeDatabase - Function to close database (for reconnection)
  *
  * @example
  * ```typescript
@@ -139,16 +189,14 @@ async function reconnectAndRestore(
  *     retryInterval: 10000, // 10 seconds
  *   },
  *   undefined,
- *   getDatabase,
- *   closeDatabase
+ *   getDatabase
  * );
  * ```
  */
 export function startHealthCheck(
     config: HealthCheckConfig,
     options: DatabaseOptions | undefined,
-    getDatabase: GetDatabaseFn,
-    closeDatabase: () => Promise<void>
+    getDatabase: GetDatabaseFn
 ): void
 {
     const healthCheck = getHealthCheckInterval();
@@ -165,6 +213,13 @@ export function startHealthCheck(
 
     const interval = setInterval(async () =>
     {
+        // Skip if reconnection is in progress
+        if (isReconnecting)
+        {
+            dbLogger.debug('Health check skipped: reconnection in progress');
+            return;
+        }
+
         try
         {
             await performHealthCheck(getDatabase);
@@ -178,7 +233,7 @@ export function startHealthCheck(
             // Attempt reconnection if enabled
             if (config.reconnect)
             {
-                await attemptReconnection(config, options, closeDatabase);
+                await attemptReconnection(config, options);
             }
         }
     }, config.interval);
@@ -189,63 +244,71 @@ export function startHealthCheck(
 /**
  * Attempt database reconnection with retry logic
  *
- * Closes existing connections and attempts to reinitialize the database.
- * Retries multiple times with configurable delay between attempts.
+ * Uses atomic swap to replace connections without clearing global state.
+ * Old instances remain available until new connections are verified.
+ * The health check interval continues running throughout the process.
  *
  * @param config - Health check configuration
  * @param options - Optional database configuration (pool settings, etc.)
- * @param closeDatabase - Function to close existing database connections
  */
 async function attemptReconnection(
     config: HealthCheckConfig,
-    options: DatabaseOptions | undefined,
-    closeDatabase: () => Promise<void>
+    options: DatabaseOptions | undefined
 ): Promise<void>
 {
+    isReconnecting = true;
+
     dbLogger.warn('Attempting database reconnection', {
         maxRetries: config.maxRetries,
         retryInterval: `${config.retryInterval}ms`,
     });
 
-    for (let attempt = 1; attempt <= config.maxRetries; attempt++)
+    try
     {
-        try
+        for (let attempt = 1; attempt <= config.maxRetries; attempt++)
         {
-            dbLogger.debug(`Reconnection attempt ${attempt}/${config.maxRetries}`);
-
-            // Wait before retry (skip for first attempt)
-            if (attempt > 1)
+            try
             {
-                await new Promise(resolve => setTimeout(resolve, config.retryInterval));
+                dbLogger.debug(`Reconnection attempt ${attempt}/${config.maxRetries}`);
+
+                // Wait before retry (skip for first attempt)
+                if (attempt > 1)
+                {
+                    await new Promise(resolve => setTimeout(resolve, config.retryInterval));
+                }
+
+                // Attempt reconnection with atomic swap
+                const success = await reconnectAndRestore(options);
+
+                if (success)
+                {
+                    dbLogger.info('Database reconnection successful', { attempt });
+                    return;
+                }
+                else
+                {
+                    dbLogger.error(`Reconnection attempt ${attempt} failed: No write database instance created`);
+                }
+            }
+            catch (error: unknown)
+            {
+                const message = error instanceof Error ? error.message : 'Unknown error';
+                dbLogger.error(`Reconnection attempt ${attempt} failed`, {
+                    error: message,
+                    attempt,
+                    maxRetries: config.maxRetries,
+                });
             }
 
-            // Attempt reconnection
-            const success = await reconnectAndRestore(options, closeDatabase);
-
-            if (success)
+            if (attempt === config.maxRetries)
             {
-                dbLogger.info('Database reconnection successful', { attempt });
-                return;
-            }
-            else
-            {
-                dbLogger.error(`Reconnection attempt ${attempt} failed: No write database instance created`);
+                dbLogger.error('Max reconnection attempts reached, will retry on next health check');
             }
         }
-        catch (error: unknown)
-        {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            dbLogger.error(`Reconnection attempt ${attempt} failed`, {
-                error: message,
-                attempt,
-                maxRetries: config.maxRetries,
-            });
-        }
-
-        if (attempt === config.maxRetries)
-        {
-            dbLogger.error('Max reconnection attempts reached, giving up');
-        }
+    }
+    finally
+    {
+        isReconnecting = false;
     }
 }
 
@@ -271,4 +334,6 @@ export function stopHealthCheck(): void
         setHealthCheckInterval(undefined);
         dbLogger.info('Database health check stopped');
     }
+
+    isReconnecting = false;
 }
