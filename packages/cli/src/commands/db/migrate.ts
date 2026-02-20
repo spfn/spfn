@@ -1,8 +1,11 @@
 import chalk from 'chalk';
-import { runWithSpinner, validateDatabasePrerequisites } from './utils/drizzle.js';
+import { join } from 'path';
+import { existsSync } from 'fs';
+import { validateDatabasePrerequisites } from './utils/drizzle.js';
 import { dbBackup } from './backup.js';
 
-import "@spfn/core/config";
+import { env } from "@spfn/core/config";
+import { loadEnv } from "@spfn/core/server";
 
 /**
  * Run pending migrations
@@ -36,36 +39,66 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
         console.log('');
     }
 
-    // First, execute function package migrations
-    const { discoverFunctionMigrations, executeFunctionMigrations } = await import('../../utils/function-migrations.js');
+    // Setup DB connection for programmatic migrations
+    const { drizzle } = await import('drizzle-orm/postgres-js');
+    const { migrate } = await import('drizzle-orm/postgres-js/migrator');
+    const postgres = await import('postgres');
 
-    const functions = discoverFunctionMigrations(process.cwd());
-    if (functions.length > 0)
+    loadEnv();
+    if (!env.DATABASE_URL)
     {
-        console.log(chalk.blue('📦 Applying function package migrations:'));
-        functions.forEach(func =>
-        {
-            console.log(chalk.dim(`  - ${func.packageName}`));
-        });
-
-        try
-        {
-            await executeFunctionMigrations(functions);
-            console.log(chalk.green('✅ Function migrations applied\n'));
-        }
-        catch (error)
-        {
-            console.error(chalk.red('\n❌ Failed to apply function migrations'));
-            console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
-            process.exit(1);
-        }
+        console.error(chalk.red('❌ DATABASE_URL not found in environment'));
+        process.exit(1);
     }
 
-    // Then, run project migrations
-    await runWithSpinner(
-        'Running project migrations...',
-        'migrate',
-        'Project migrations applied successfully',
-        'Failed to run project migrations'
-    );
+    const connection = postgres.default(env.DATABASE_URL, { max: 1 });
+    const db = drizzle(connection);
+
+    try
+    {
+        // First, execute function package migrations
+        const { discoverFunctionMigrations } = await import('../../utils/function-migrations.js');
+
+        const functions = discoverFunctionMigrations(process.cwd());
+        if (functions.length > 0)
+        {
+            console.log(chalk.blue('📦 Applying function package migrations:'));
+            functions.forEach(func =>
+            {
+                console.log(chalk.dim(`  - ${func.packageName}`));
+            });
+
+            for (const func of functions)
+            {
+                console.log(chalk.blue(`\n  📦 Running ${func.packageName} migrations...`));
+                await migrate(db, { migrationsFolder: func.migrationsDir });
+                console.log(chalk.green(`  ✓ ${func.packageName} migrations applied`));
+            }
+
+            console.log(chalk.green('✅ Function migrations applied\n'));
+        }
+
+        // Then, run project migrations
+        const projectMigrationsDir = join(process.cwd(), 'src/server/drizzle');
+        if (existsSync(projectMigrationsDir))
+        {
+            console.log(chalk.blue('📦 Running project migrations...'));
+            await migrate(db, { migrationsFolder: projectMigrationsDir });
+            console.log(chalk.green('✅ Project migrations applied successfully'));
+        }
+        else
+        {
+            console.log(chalk.dim('No project migrations found (src/server/drizzle)'));
+        }
+    }
+    catch (error)
+    {
+        console.error(chalk.red('\n❌ Failed to apply migrations'));
+        console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
+        process.exit(1);
+    }
+    finally
+    {
+        await connection.end();
+    }
 }
