@@ -116,7 +116,11 @@ export async function executeFunctionMigrations(
             console.log(chalk.blue(`\n  📦 Running ${func.packageName} migrations...`));
 
             // Execute migrations from package directory
-            await migrate(db, { migrationsFolder: func.migrationsDir });
+            // Use separate table to avoid timestamp conflicts with project migrations
+            await migrate(db, {
+                migrationsFolder: func.migrationsDir,
+                migrationsTable: '__spfn_fn_migrations',
+            });
 
             console.log(chalk.green(`  ✓ ${func.packageName} migrations applied`));
             executedCount++;

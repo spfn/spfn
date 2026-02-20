@@ -8,6 +8,17 @@ import { env } from "@spfn/core/config";
 import { loadEnv } from "@spfn/core/server";
 
 /**
+ * Migration table names - separated to prevent timestamp conflicts
+ * between function package migrations and project migrations.
+ *
+ * drizzle-orm's migrate() uses max(created_at) to skip "already applied" entries.
+ * If function packages have newer timestamps than project migrations,
+ * project migrations get incorrectly skipped.
+ */
+const FUNCTION_MIGRATIONS_TABLE = '__spfn_fn_migrations';
+const PROJECT_MIGRATIONS_TABLE = '__drizzle_migrations';
+
+/**
  * Run pending migrations
  *
  * This command applies migrations created by `spfn db generate`.
@@ -70,7 +81,10 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
             for (const func of functions)
             {
                 console.log(chalk.blue(`\n  📦 Running ${func.packageName} migrations...`));
-                await migrate(fnDb, { migrationsFolder: func.migrationsDir });
+                await migrate(fnDb, {
+                    migrationsFolder: func.migrationsDir,
+                    migrationsTable: FUNCTION_MIGRATIONS_TABLE,
+                });
                 console.log(chalk.green(`  ✓ ${func.packageName} migrations applied`));
             }
 
@@ -82,7 +96,7 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
         }
     }
 
-    // Then, run project migrations with a SEPARATE connection
+    // Then, run project migrations (separate table to avoid timestamp conflicts)
     const projectMigrationsDir = join(process.cwd(), 'src/server/drizzle');
     if (existsSync(projectMigrationsDir))
     {
@@ -91,26 +105,12 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
 
         try
         {
-            const beforeCount = await projConn`
-                SELECT count(*)::int as count FROM drizzle.__drizzle_migrations
-            `;
-            console.log(chalk.blue(`📦 Running project migrations... (${beforeCount[0].count} already recorded)`));
-
-            await migrate(projDb, { migrationsFolder: projectMigrationsDir });
-
-            const afterCount = await projConn`
-                SELECT count(*)::int as count FROM drizzle.__drizzle_migrations
-            `;
-            const applied = afterCount[0].count - beforeCount[0].count;
-
-            if (applied > 0)
-            {
-                console.log(chalk.green(`✅ Project migrations applied successfully (${applied} new)`));
-            }
-            else
-            {
-                console.log(chalk.yellow(`⚠️  No new project migrations to apply (${afterCount[0].count} already recorded)`));
-            }
+            console.log(chalk.blue('📦 Running project migrations...'));
+            await migrate(projDb, {
+                migrationsFolder: projectMigrationsDir,
+                migrationsTable: PROJECT_MIGRATIONS_TABLE,
+            });
+            console.log(chalk.green('✅ Project migrations applied successfully'));
         }
         finally
         {
