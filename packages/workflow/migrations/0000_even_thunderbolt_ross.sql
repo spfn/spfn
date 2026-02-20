@@ -1,6 +1,6 @@
-CREATE SCHEMA "spfn_workflow";
+CREATE SCHEMA IF NOT EXISTS "spfn_workflow";
 --> statement-breakpoint
-CREATE TABLE "spfn_workflow"."executions" (
+CREATE TABLE IF NOT EXISTS "spfn_workflow"."executions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"workflow_name" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE "spfn_workflow"."executions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "spfn_workflow"."step_executions" (
+CREATE TABLE IF NOT EXISTS "spfn_workflow"."step_executions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"execution_id" text NOT NULL,
 	"step_name" text NOT NULL,
@@ -26,11 +26,16 @@ CREATE TABLE "spfn_workflow"."step_executions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "spfn_workflow"."step_executions" ADD CONSTRAINT "step_executions_execution_id_executions_id_fk" FOREIGN KEY ("execution_id") REFERENCES "spfn_workflow"."executions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "wf_exec_workflow_name_idx" ON "spfn_workflow"."executions" USING btree ("workflow_name");--> statement-breakpoint
-CREATE INDEX "wf_exec_status_idx" ON "spfn_workflow"."executions" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "wf_exec_created_at_idx" ON "spfn_workflow"."executions" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "wf_exec_workflow_status_idx" ON "spfn_workflow"."executions" USING btree ("workflow_name","status");--> statement-breakpoint
-CREATE INDEX "wf_step_exec_execution_id_idx" ON "spfn_workflow"."step_executions" USING btree ("execution_id");--> statement-breakpoint
-CREATE INDEX "wf_step_exec_status_idx" ON "spfn_workflow"."step_executions" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "wf_step_exec_exec_step_idx" ON "spfn_workflow"."step_executions" USING btree ("execution_id","step_index");
+DO $$ BEGIN
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'step_executions_execution_id_executions_id_fk') THEN
+		ALTER TABLE "spfn_workflow"."step_executions" ADD CONSTRAINT "step_executions_execution_id_executions_id_fk" FOREIGN KEY ("execution_id") REFERENCES "spfn_workflow"."executions"("id") ON DELETE cascade ON UPDATE no action;
+	END IF;
+END $$;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "wf_exec_workflow_name_idx" ON "spfn_workflow"."executions" USING btree ("workflow_name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "wf_exec_status_idx" ON "spfn_workflow"."executions" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "wf_exec_created_at_idx" ON "spfn_workflow"."executions" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "wf_exec_workflow_status_idx" ON "spfn_workflow"."executions" USING btree ("workflow_name","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "wf_step_exec_execution_id_idx" ON "spfn_workflow"."step_executions" USING btree ("execution_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "wf_step_exec_status_idx" ON "spfn_workflow"."step_executions" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "wf_step_exec_exec_step_idx" ON "spfn_workflow"."step_executions" USING btree ("execution_id","step_index");
