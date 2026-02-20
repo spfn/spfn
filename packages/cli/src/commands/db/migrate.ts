@@ -39,7 +39,6 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
         console.log('');
     }
 
-    // Setup DB connection for programmatic migrations
     const { drizzle } = await import('drizzle-orm/postgres-js');
     const { migrate } = await import('drizzle-orm/postgres-js/migrator');
     const postgres = await import('postgres');
@@ -51,16 +50,16 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
         process.exit(1);
     }
 
-    const connection = postgres.default(env.DATABASE_URL, { max: 1 });
-    const db = drizzle(connection);
+    // First, execute function package migrations
+    const { discoverFunctionMigrations } = await import('../../utils/function-migrations.js');
+    const functions = discoverFunctionMigrations(process.cwd());
 
-    try
+    if (functions.length > 0)
     {
-        // First, execute function package migrations
-        const { discoverFunctionMigrations } = await import('../../utils/function-migrations.js');
+        const fnConn = postgres.default(env.DATABASE_URL, { max: 1 });
+        const fnDb = drizzle(fnConn);
 
-        const functions = discoverFunctionMigrations(process.cwd());
-        if (functions.length > 0)
+        try
         {
             console.log(chalk.blue('📦 Applying function package migrations:'));
             functions.forEach(func =>
@@ -71,34 +70,55 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
             for (const func of functions)
             {
                 console.log(chalk.blue(`\n  📦 Running ${func.packageName} migrations...`));
-                await migrate(db, { migrationsFolder: func.migrationsDir });
+                await migrate(fnDb, { migrationsFolder: func.migrationsDir });
                 console.log(chalk.green(`  ✓ ${func.packageName} migrations applied`));
             }
 
             console.log(chalk.green('✅ Function migrations applied\n'));
         }
+        finally
+        {
+            await fnConn.end();
+        }
+    }
 
-        // Then, run project migrations
-        const projectMigrationsDir = join(process.cwd(), 'src/server/drizzle');
-        if (existsSync(projectMigrationsDir))
+    // Then, run project migrations with a SEPARATE connection
+    const projectMigrationsDir = join(process.cwd(), 'src/server/drizzle');
+    if (existsSync(projectMigrationsDir))
+    {
+        const projConn = postgres.default(env.DATABASE_URL, { max: 1 });
+        const projDb = drizzle(projConn);
+
+        try
         {
-            console.log(chalk.blue('📦 Running project migrations...'));
-            await migrate(db, { migrationsFolder: projectMigrationsDir });
-            console.log(chalk.green('✅ Project migrations applied successfully'));
+            const beforeCount = await projConn`
+                SELECT count(*)::int as count FROM drizzle.__drizzle_migrations
+            `;
+            console.log(chalk.blue(`📦 Running project migrations... (${beforeCount[0].count} already recorded)`));
+
+            await migrate(projDb, { migrationsFolder: projectMigrationsDir });
+
+            const afterCount = await projConn`
+                SELECT count(*)::int as count FROM drizzle.__drizzle_migrations
+            `;
+            const applied = afterCount[0].count - beforeCount[0].count;
+
+            if (applied > 0)
+            {
+                console.log(chalk.green(`✅ Project migrations applied successfully (${applied} new)`));
+            }
+            else
+            {
+                console.log(chalk.yellow(`⚠️  No new project migrations to apply (${afterCount[0].count} already recorded)`));
+            }
         }
-        else
+        finally
         {
-            console.log(chalk.dim('No project migrations found (src/server/drizzle)'));
+            await projConn.end();
         }
     }
-    catch (error)
+    else
     {
-        console.error(chalk.red('\n❌ Failed to apply migrations'));
-        console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
-        process.exit(1);
-    }
-    finally
-    {
-        await connection.end();
+        console.log(chalk.dim('No project migrations found (src/server/drizzle)'));
     }
 }
