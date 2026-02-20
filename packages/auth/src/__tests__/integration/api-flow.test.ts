@@ -6,8 +6,10 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { Hono } from 'hono';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '../helpers/db';
-import app from '@/server/routes';
+import { mainAuthRouter } from '@/server/routes';
+import { registerRoutes } from '@spfn/core/route';
 import { initializeAuth } from '@/server/services/rbac.service';
 
 // Check if database is available before running tests
@@ -15,10 +17,15 @@ const dbAvailable = await isDatabaseAvailable();
 
 describe.skipIf(!dbAvailable)('API Flow Integration', () =>
 {
+    let app: Hono;
+
     beforeAll(async () =>
     {
         await setupTestDb();
         process.env.SPFN_AUTH_SESSION_SECRET = 'test-secret-key-for-testing-only-min-32-chars';
+
+        app = new Hono();
+        registerRoutes(app, mainAuthRouter);
     });
 
     afterAll(async () =>

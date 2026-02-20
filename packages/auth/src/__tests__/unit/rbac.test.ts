@@ -25,7 +25,7 @@ import {
     hasRole,
 } from '@/server/services/permission.service';
 import { getDatabase } from '@spfn/core/db';
-import { users, permissions, userPermissions } from '@/server/entities/config';
+import { users, permissions, userPermissions } from '@/server/entities';
 import { hashPassword } from '@/server/helpers/password';
 import { eq } from 'drizzle-orm';
 
@@ -134,7 +134,7 @@ describe('RBAC System', () =>
                     {
                         name: 'post:create',
                         displayName: 'Create Posts',
-                        category: 'content',
+                        category: 'custom',
                     },
                 ],
                 rolePermissions: {
@@ -289,9 +289,9 @@ describe('RBAC System', () =>
         {
             await initializeAuth({
                 permissions: [
-                    { name: 'post:create', displayName: 'Create Posts', category: 'content' },
-                    { name: 'post:publish', displayName: 'Publish Posts', category: 'content' },
-                    { name: 'post:delete', displayName: 'Delete Posts', category: 'content' },
+                    { name: 'post:create', displayName: 'Create Posts', category: 'custom' },
+                    { name: 'post:publish', displayName: 'Publish Posts', category: 'custom' },
+                    { name: 'post:delete', displayName: 'Delete Posts', category: 'custom' },
                 ],
             });
         });
@@ -314,7 +314,7 @@ describe('RBAC System', () =>
             const db = getDatabase()!;
 
             const userRole = await getRoleByName('user');
-            const perms = await db.select().from(permissions).where(eq(permissions.category, 'content'));
+            const perms = await db.select().from(permissions).where(eq(permissions.category, 'custom'));
 
             await setRolePermissions(userRole!.id, perms.map(p => p.id));
 

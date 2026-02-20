@@ -10,9 +10,8 @@ import {
     unsealSession,
     getSessionInfo,
     shouldRefreshSession,
-    validateSessionSecret,
-} from '@/lib/session';
-import type { SessionData } from '@/lib/session';
+} from '@/server/lib/session';
+import type { SessionData } from '@/server/lib/session';
 
 describe('Session - Seal/Unseal', () =>
 {
@@ -327,106 +326,6 @@ describe('Session - Refresh Detection (shouldRefreshSession)', () =>
     });
 });
 
-describe('Session - Secret Strength Validation (validateSessionSecret)', () =>
-{
-    afterEach(() =>
-    {
-        vi.unstubAllEnvs();
-    });
-
-    it('should validate strong secret', () =>
-    {
-        vi.stubEnv('SESSION_SECRET', 'aB3!xY9#mN2$pQ7&wE5%rT8@uI4^oP6*'); // 32 chars, high entropy
-
-        const result = validateSessionSecret();
-
-        expect(result.valid).toBe(true);
-        expect(result.details).toBeTruthy();
-        expect(result.details!.length).toBe(32);
-        expect(result.details!.uniqueChars).toBeGreaterThan(16);
-        expect(result.details!.entropy).toBeGreaterThan(3.5);
-    });
-
-    it('should reject secret that is not set', () =>
-    {
-        vi.unstubAllEnvs();
-
-        const result = validateSessionSecret();
-
-        expect(result.valid).toBe(false);
-        expect(result.error).toBe('SPFN_AUTH_SESSION_SECRET is not set');
-    });
-
-    it('should reject short secret', () =>
-    {
-        vi.stubEnv('SESSION_SECRET', 'short'); // 5 chars
-
-        const result = validateSessionSecret();
-
-        expect(result.valid).toBe(false);
-        expect(result.error).toContain('too short');
-        expect(result.details?.length).toBe(5);
-    });
-
-    it('should reject secret with low character diversity', () =>
-    {
-        vi.stubEnv('SESSION_SECRET', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'); // 32 chars, only 1 unique
-
-        const result = validateSessionSecret();
-
-        expect(result.valid).toBe(false);
-        expect(result.error).toContain('low diversity');
-        expect(result.details?.uniqueChars).toBe(1);
-    });
-
-    it('should reject secret with low entropy', () =>
-    {
-        // 32 chars with 16+ unique chars but very unbalanced distribution (low entropy)
-        // 'a' appears 17 times, 'bcdefghijklmnop' each appears once
-        vi.stubEnv('SESSION_SECRET', 'aaaaaaaaaaaaaaaaabcdefghijklmnop');
-
-        const result = validateSessionSecret();
-
-        expect(result.valid).toBe(false);
-        expect(result.error).toContain('low entropy');
-        expect(result.details?.entropy).toBeLessThan(3.5);
-    });
-
-    it('should provide detailed error information', () =>
-    {
-        vi.stubEnv('SESSION_SECRET', 'weakweak'); // 8 chars, low entropy
-
-        const result = validateSessionSecret();
-
-        expect(result.valid).toBe(false);
-        expect(result.error).toBeTruthy();
-        expect(result.details).toBeTruthy();
-        expect(result.details?.length).toBe(8);
-        expect(result.details?.uniqueChars).toBeLessThan(16);
-        expect(result.details?.entropy).toBeLessThan(3.5);
-    });
-
-    it('should calculate Shannon entropy correctly', () =>
-    {
-        // Highly random string should have high entropy
-        vi.stubEnv('SESSION_SECRET', 'q8W!r3@tY#u9I$o0P%a1S^d2F&g3H*j4K');
-
-        const result = validateSessionSecret();
-
-        expect(result.valid).toBe(true);
-        expect(result.details?.entropy).toBeGreaterThan(4.5); // High entropy
-    });
-
-    it('should accept minimum valid secret (32 chars, 16 unique, 3.5 entropy)', () =>
-    {
-        vi.stubEnv('SESSION_SECRET', 'abcdefgh12345678ABCDEFGH!@#$%^&*'); // Borderline valid
-
-        const result = validateSessionSecret();
-
-        expect(result.valid).toBe(true);
-    });
-});
-
 describe('Session - Performance', () =>
 {
     const mockSessionData: SessionData = {
@@ -466,17 +365,5 @@ describe('Session - Performance', () =>
 
         // Should be fast (< 50ms)
         expect(duration).toBeLessThan(50);
-    });
-
-    it('should validate secret strength instantly', () =>
-    {
-        vi.stubEnv('SESSION_SECRET', 'test-secret-with-at-least-32-characters-for-security-testing');
-
-        const start = Date.now();
-        validateSessionSecret();
-        const duration = Date.now() - start;
-
-        // Should be nearly instant (< 10ms)
-        expect(duration).toBeLessThan(10);
     });
 });

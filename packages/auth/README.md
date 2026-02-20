@@ -144,16 +144,8 @@ SPFN_AUTH_GOOGLE_REDIRECT_URI=http://localhost:8790/_auth/oauth/google/callback
 SPFN_AUTH_OAUTH_SUCCESS_URL=/auth/callback
 SPFN_AUTH_OAUTH_ERROR_URL=http://localhost:3000/auth/error?error={error}
 
-# AWS SES (Email)
-SPFN_AUTH_AWS_REGION=ap-northeast-2
-SPFN_AUTH_AWS_SES_ACCESS_KEY_ID=AKIA...
-SPFN_AUTH_AWS_SES_SECRET_ACCESS_KEY=...
-SPFN_AUTH_AWS_SES_FROM_EMAIL=noreply@yourdomain.com
-
-# AWS SNS (SMS)
-SPFN_AUTH_AWS_SNS_ACCESS_KEY_ID=AKIA...
-SPFN_AUTH_AWS_SNS_SECRET_ACCESS_KEY=...
-SPFN_AUTH_AWS_SNS_SENDER_ID=MyApp
+# Email/SMS — configure via @spfn/notification
+# See @spfn/notification README for AWS SES/SNS settings
 ```
 
 ### 5. Run Migrations

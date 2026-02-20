@@ -10,11 +10,10 @@ import {
     generateKeyPairES256,
     generateKeyPairRS256,
     generateClientToken,
-    verifyClientToken,
     getKeySize,
     shouldRotateKey,
 } from '@/server/lib/crypto';
-import { decodeToken } from '@/server/helpers/jwt';
+import { verifyClientToken, decodeToken } from '@/server/helpers/jwt';
 
 describe('Crypto - ES256 Key Generation', () =>
 {

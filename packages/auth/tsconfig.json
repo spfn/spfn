@@ -16,9 +16,10 @@
             "@spfn/auth/config": ["./src/config/index.ts"],
             "@spfn/auth/errors": ["./src/errors/index.ts"],
             "@spfn/auth/nextjs/api": ["./src/nextjs/api.ts"],
-            "@spfn/auth/nextjs/server": ["./src/nextjs/server.ts"]
+            "@spfn/auth/nextjs/server": ["./src/nextjs/server.ts"],
+            "@/*": ["./src/*"]
         }
     },
-    "include": ["src/**/*", ".spfnrc.ts"],
+    "include": ["src/**/*"],
     "exclude": ["node_modules", "dist"]
 }

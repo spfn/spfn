@@ -8,7 +8,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
     createOAuthState,
     verifyOAuthState,
-    type OAuthState,
 } from '../../server/lib/oauth/state';
 import {
     isGoogleOAuthEnabled,

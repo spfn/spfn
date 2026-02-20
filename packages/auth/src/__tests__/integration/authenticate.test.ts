@@ -61,7 +61,7 @@ describe('Authenticate Middleware', () =>
         {
             (mockContext.req!.header as any).mockReturnValue(undefined);
 
-            await expect(authenticate(mockContext as Context, mockNext))
+            await expect(authenticate.handler(mockContext as Context, mockNext))
                 .rejects
                 .toThrow('Missing or invalid authorization header');
 
@@ -76,7 +76,7 @@ describe('Authenticate Middleware', () =>
                 return undefined;
             });
 
-            await expect(authenticate(mockContext as Context, mockNext))
+            await expect(authenticate.handler(mockContext as Context, mockNext))
                 .rejects
                 .toThrow('Missing or invalid authorization header');
 
@@ -91,7 +91,7 @@ describe('Authenticate Middleware', () =>
                 return undefined;
             });
 
-            await expect(authenticate(mockContext as Context, mockNext))
+            await expect(authenticate.handler(mockContext as Context, mockNext))
                 .rejects
                 .toThrow('Missing X-Key-Id header');
 
@@ -123,7 +123,7 @@ describe('Authenticate Middleware', () =>
                 }),
             } as any);
 
-            await expect(authenticate(mockContext as Context, mockNext))
+            await expect(authenticate.handler(mockContext as Context, mockNext))
                 .rejects
                 .toThrow('Invalid or revoked key');
 
@@ -154,7 +154,7 @@ describe('Authenticate Middleware', () =>
                 }),
             } as any);
 
-            await expect(authenticate(mockContext as Context, mockNext))
+            await expect(authenticate.handler(mockContext as Context, mockNext))
                 .rejects
                 .toThrow('Public key has expired');
 
@@ -216,7 +216,7 @@ describe('Authenticate Middleware', () =>
             // Mock findOne to return null (user not found)
             vi.mocked(dbModule.findOne).mockResolvedValue(null);
 
-            await expect(authenticate(mockContext as Context, mockNext))
+            await expect(authenticate.handler(mockContext as Context, mockNext))
                 .rejects
                 .toThrow('User not found');
 
@@ -232,7 +232,7 @@ describe('Authenticate Middleware', () =>
                 status: 'inactive',
             } as any);
 
-            await expect(authenticate(mockContext as Context, mockNext))
+            await expect(authenticate.handler(mockContext as Context, mockNext))
                 .rejects
                 .toThrow('Account is inactive');
 
@@ -248,7 +248,7 @@ describe('Authenticate Middleware', () =>
                 status: 'suspended',
             } as any);
 
-            await expect(authenticate(mockContext as Context, mockNext))
+            await expect(authenticate.handler(mockContext as Context, mockNext))
                 .rejects
                 .toThrow('Account is suspended');
 
@@ -312,7 +312,7 @@ describe('Authenticate Middleware', () =>
                 status: 'active',
             } as any);
 
-            await authenticate(mockContext as Context, mockNext);
+            await authenticate.handler(mockContext as Context, mockNext);
 
             // Should set user data in context
             expect(mockContext.set).toHaveBeenCalledWith('auth', expect.objectContaining({
