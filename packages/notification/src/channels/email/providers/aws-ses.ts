@@ -5,6 +5,9 @@
 import type { EmailProvider, InternalSendEmailParams } from '../types';
 import type { SendResult } from '../../types';
 import { env } from '../../../config';
+import { logger } from '@spfn/core/logger';
+
+const log = logger.child('@spfn/notification:ses');
 
 let sesClient: any = null;
 
@@ -32,6 +35,7 @@ async function getSESClient()
                 : undefined,
         });
 
+        log.debug('SES client created', { region: env.AWS_REGION });
         return sesClient;
     }
     catch
@@ -94,6 +98,7 @@ export const awsSesProvider: EmailProvider = {
         catch (error)
         {
             const err = error as Error;
+            log.error('SES send failed', err, { to: params.to, from: params.from });
             return {
                 success: false,
                 error: err.message,

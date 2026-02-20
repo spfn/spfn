@@ -4,6 +4,9 @@
 
 import type { SlackProvider, InternalSendSlackParams } from '../types';
 import type { SendResult } from '../../types';
+import { logger } from '@spfn/core/logger';
+
+const log = logger.child('@spfn/notification:slack-webhook');
 
 /**
  * Slack Webhook Provider
@@ -34,6 +37,7 @@ export const webhookProvider: SlackProvider = {
         catch (error)
         {
             const err = error as Error;
+            log.error('Webhook request failed', err);
             return {
                 success: false,
                 error: err.message,

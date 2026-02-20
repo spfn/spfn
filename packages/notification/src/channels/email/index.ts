@@ -12,6 +12,9 @@ import {
     markNotificationSent,
     markNotificationFailed,
 } from '../../services/notification.service';
+import { logger } from '@spfn/core/logger';
+
+const log = logger.child('@spfn/notification:email');
 
 export type { SendEmailParams, EmailProvider, InternalSendEmailParams };
 
@@ -64,6 +67,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
     {
         if (!hasTemplate(params.template))
         {
+            log.warn(`Template not found: ${params.template}`);
             return {
                 success: false,
                 error: `Template not found: ${params.template}`,
@@ -83,6 +87,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
     // Validate required fields
     if (!subject)
     {
+        log.warn('Email subject is required', { to: recipients });
         return {
             success: false,
             error: 'Email subject is required',
@@ -91,6 +96,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
 
     if (!text && !html)
     {
+        log.warn('Email content (text or html) is required', { to: recipients, subject });
         return {
             success: false,
             error: 'Email content (text or html) is required',
@@ -127,14 +133,23 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
             });
             historyId = record.id;
         }
-        catch
+        catch (error)
         {
-            // Ignore history errors - don't fail the send
+            log.warn('Failed to create notification history record', error as Error);
         }
     }
 
     // Send via provider
     const result = await provider.send(internalParams);
+
+    if (result.success)
+    {
+        log.info('Email sent', { to: recipients, subject, messageId: result.messageId });
+    }
+    else
+    {
+        log.error('Email send failed', { to: recipients, subject, error: result.error });
+    }
 
     // Update history record
     if (historyId && isHistoryEnabled())
@@ -150,9 +165,9 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
                 await markNotificationFailed(historyId, result.error || 'Unknown error');
             }
         }
-        catch
+        catch (error)
         {
-            // Ignore history errors
+            log.warn('Failed to update notification history record', error as Error);
         }
     }
 

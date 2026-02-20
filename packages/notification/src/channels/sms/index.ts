@@ -13,6 +13,9 @@ import {
     markNotificationFailed,
 } from '../../services/notification.service';
 import { normalizePhoneNumber } from './utils';
+import { logger } from '@spfn/core/logger';
+
+const log = logger.child('@spfn/notification:sms');
 
 export type { SendSMSParams, SMSProvider, InternalSendSMSParams };
 export { normalizePhoneNumber };
@@ -64,6 +67,7 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
     {
         if (!hasTemplate(params.template))
         {
+            log.warn(`Template not found: ${params.template}`);
             return {
                 success: false,
                 error: `Template not found: ${params.template}`,
@@ -81,6 +85,7 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
     // Validate required fields
     if (!message)
     {
+        log.warn('SMS message is required', { to: recipients });
         return {
             success: false,
             error: 'SMS message is required',
@@ -116,13 +121,22 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
                 });
                 historyId = record.id;
             }
-            catch
+            catch (error)
             {
-                // Ignore history errors - don't fail the send
+                log.warn('Failed to create notification history record', error as Error);
             }
         }
 
         const result = await provider.send(internalParams);
+
+        if (result.success)
+        {
+            log.info('SMS sent', { to: normalizedPhone, messageId: result.messageId });
+        }
+        else
+        {
+            log.error('SMS send failed', { to: normalizedPhone, error: result.error });
+        }
 
         // Update history record
         if (historyId && isHistoryEnabled())
@@ -138,9 +152,9 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
                     await markNotificationFailed(historyId, result.error || 'Unknown error');
                 }
             }
-            catch
+            catch (error)
             {
-                // Ignore history errors
+                log.warn('Failed to update notification history record', error as Error);
             }
         }
 

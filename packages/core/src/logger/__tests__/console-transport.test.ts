@@ -2,14 +2,14 @@
  * Console Transport Tests
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { ConsoleTransport } from '../transports/console';
 import type { LogMetadata } from '../types';
 
 describe('ConsoleTransport', () =>
 {
-    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-    let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+    let consoleLogSpy: MockInstance;
+    let consoleErrorSpy: MockInstance;
 
     beforeEach(() =>
     {

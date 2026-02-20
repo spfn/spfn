@@ -1012,6 +1012,9 @@ importers:
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.25
+      drizzle-kit:
+        specifier: ^0.31.8
+        version: 0.31.8
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.0(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)

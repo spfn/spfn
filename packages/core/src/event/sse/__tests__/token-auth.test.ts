@@ -7,12 +7,13 @@
  * 3. Various auth failure scenarios
  */
 
+import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
 import { defineEvent, defineEventRouter } from '@spfn/core/event';
 import { createSSEHandler } from '../handler';
 import { SSETokenManager } from '../token-manager';
 import { Type } from '@sinclair/typebox';
-import type { SSEHandlerConfig } from '../types';
+import type { SSEHandlerConfig, SSEHandlerAuthConfig } from '../types';
 
 // ============================================================================
 // Test Setup
@@ -32,8 +33,8 @@ const testRouter = defineEventRouter({ userCreated, orderUpdated });
 
 function createTestApp(config?: {
     authEnabled?: boolean;
-    authorize?: SSEHandlerConfig['auth']['authorize'];
-    filter?: SSEHandlerConfig['auth']['filter'];
+    authorize?: SSEHandlerAuthConfig['authorize'];
+    filter?: SSEHandlerAuthConfig['filter'];
 })
 {
     const app = new Hono();
@@ -234,7 +235,7 @@ describe('SSE Token Authentication', () =>
         it('should filter events via authorize hook', async () =>
         {
             const { app } = createTestApp({
-                authorize: (_subject, events) =>
+                authorize: (_subject: string, events: string[]) =>
                 {
                     // Only allow userCreated
                     return events.filter(e => e === 'userCreated');

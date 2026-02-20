@@ -12,6 +12,9 @@ import {
     markNotificationSent,
     markNotificationFailed,
 } from '../../services/notification.service';
+import { logger } from '@spfn/core/logger';
+
+const log = logger.child('@spfn/notification:slack');
 
 export type { SendSlackParams, SlackProvider, InternalSendSlackParams };
 
@@ -56,6 +59,7 @@ export async function sendSlack(params: SendSlackParams): Promise<SendResult>
 
     if (!webhookUrl)
     {
+        log.warn('Slack webhook URL is required');
         return {
             success: false,
             error: 'Slack webhook URL is required. Set SPFN_NOTIFICATION_SLACK_WEBHOOK_URL or pass webhookUrl.',
@@ -71,6 +75,7 @@ export async function sendSlack(params: SendSlackParams): Promise<SendResult>
     {
         if (!hasTemplate(params.template))
         {
+            log.warn(`Template not found: ${params.template}`);
             return {
                 success: false,
                 error: `Template not found: ${params.template}`,
@@ -89,6 +94,7 @@ export async function sendSlack(params: SendSlackParams): Promise<SendResult>
     // Validate required fields
     if (!text && !blocks)
     {
+        log.warn('Slack message requires text or blocks');
         return {
             success: false,
             error: 'Slack message requires text or blocks',
@@ -121,14 +127,23 @@ export async function sendSlack(params: SendSlackParams): Promise<SendResult>
             });
             historyId = record.id;
         }
-        catch
+        catch (error)
         {
-            // Ignore history errors - don't fail the send
+            log.warn('Failed to create notification history record', error as Error);
         }
     }
 
     // Send via provider
     const result = await provider.send(internalParams);
+
+    if (result.success)
+    {
+        log.info('Slack message sent');
+    }
+    else
+    {
+        log.error('Slack send failed', { error: result.error });
+    }
 
     // Update history record
     if (historyId && isHistoryEnabled())
@@ -144,9 +159,9 @@ export async function sendSlack(params: SendSlackParams): Promise<SendResult>
                 await markNotificationFailed(historyId, result.error || 'Unknown error');
             }
         }
-        catch
+        catch (error)
         {
-            // Ignore history errors
+            log.warn('Failed to update notification history record', error as Error);
         }
     }
 

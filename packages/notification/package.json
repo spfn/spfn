@@ -1,6 +1,6 @@
 {
     "name": "@spfn/notification",
-    "version": "0.1.0-beta.4",
+    "version": "0.1.0-beta.5",
     "type": "module",
     "description": "Multi-channel notification system for SPFN - Email, SMS, Slack, Push",
     "exports": {
@@ -63,6 +63,7 @@
     "devDependencies": {
         "@sinclair/typebox": "^0.34.30",
         "@types/node": "^20.11.0",
+        "drizzle-kit": "^0.31.8",
         "drizzle-orm": "^0.44.2",
         "madge": "^8.0.0",
         "tsup": "^8.5.0",
@@ -71,10 +72,19 @@
     },
     "files": [
         "dist",
+        "migrations",
         "README.md"
     ],
     "publishConfig": {
         "access": "public",
         "tag": "beta"
+    },
+    "spfn": {
+        "schemas": [
+            "./dist/entities/*.js"
+        ],
+        "migrations": {
+            "dir": "./migrations"
+        }
     }
 }

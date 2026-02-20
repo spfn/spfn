@@ -125,7 +125,7 @@ describe('job-builder', () =>
                 .input(Type.Object({ id: Type.String() }))
                 .output(Type.Object({ created: Type.Boolean() }))
                 .compensate(compensateFn)
-                .handler(async (input) =>
+                .handler(async (_input) =>
                 {
                     return { created: true };
                 });

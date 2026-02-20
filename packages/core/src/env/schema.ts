@@ -157,11 +157,12 @@ export function defineEnvSchema<T extends Record<string, any>>(
  */
 export function envString<T extends Omit<EnvVarSchema, 'key' | 'type'>>(
     options: T
-): T & { type: 'string' }
+): T & { type: 'string'; validator: (value: string) => string }
 {
     return {
         ...options,
         type: 'string',
+        validator: options.validator || ((value: string) => value),
     };
 }
 

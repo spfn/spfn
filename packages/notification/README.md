@@ -4,7 +4,7 @@ Multi-channel notification system for SPFN applications.
 
 ## Features
 
-- **Multi-channel support**: Email, SMS (Slack, Push coming soon)
+- **Multi-channel support**: Email, SMS, Slack (Push coming soon)
 - **Provider pattern**: Pluggable providers (AWS SES, AWS SNS, etc.)
 - **Template system**: Variable substitution with filters
 - **Scheduled delivery**: Schedule notifications for later via pg-boss
@@ -282,6 +282,32 @@ const twilioProvider: SMSProvider = {
 registerSMSProvider(twilioProvider);
 ```
 
+## Logging & Error Handling
+
+All channels log via `@spfn/core/logger`. Logs are tagged by channel:
+
+- `@spfn/notification:email` — Email send success/failure, validation errors
+- `@spfn/notification:sms` — SMS send success/failure, validation errors
+- `@spfn/notification:slack` — Slack send success/failure, validation errors
+- `@spfn/notification:ses` — AWS SES client lifecycle, provider errors
+- `@spfn/notification:sns` — AWS SNS client lifecycle, provider errors
+
+`sendEmail`, `sendSMS`, `sendSlack` are designed to **not throw** — they return a `SendResult` object. Always check the result:
+
+```typescript
+const result = await sendEmail({
+    to: 'user@example.com',
+    template: 'welcome',
+    data: { name: 'John' },
+});
+
+if (!result.success)
+{
+    // result.error contains the failure reason
+    console.error('Email failed:', result.error);
+}
+```
+
 ## Notification History
 
 Enable history tracking to store all notifications in the database:
@@ -333,6 +359,7 @@ export type {
     SendResult,
     SendEmailParams,
     SendSMSParams,
+    SendSlackParams,
     TemplateDefinition,
     TemplateData,
 };
@@ -352,6 +379,11 @@ export {
     sendSMS,
     sendSMSBulk,
     registerSMSProvider,
+
+    // Slack
+    sendSlack,
+    sendSlackBulk,
+    registerSlackProvider,
 
     // Scheduling
     scheduleEmail,

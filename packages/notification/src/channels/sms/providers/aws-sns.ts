@@ -5,6 +5,9 @@
 import type { SMSProvider, InternalSendSMSParams } from '../types';
 import type { SendResult } from '../../types';
 import { env } from '../../../config';
+import { logger } from '@spfn/core/logger';
+
+const log = logger.child('@spfn/notification:sns');
 
 let snsClient: any = null;
 
@@ -32,6 +35,7 @@ async function getSNSClient()
                 : undefined,
         });
 
+        log.debug('SNS client created', { region: env.AWS_REGION });
         return snsClient;
     }
     catch
@@ -77,6 +81,7 @@ export const awsSnsProvider: SMSProvider = {
         catch (error)
         {
             const err = error as Error;
+            log.error('SNS send failed', err, { to: params.to });
             return {
                 success: false,
                 error: err.message,
