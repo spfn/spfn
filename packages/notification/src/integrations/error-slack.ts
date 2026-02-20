@@ -16,6 +16,7 @@
  * ```
  */
 
+import { hostname } from 'os';
 import { sendSlack } from '../channels/slack';
 
 interface ErrorContext
@@ -130,10 +131,20 @@ function throttleKey(err: Error, ctx: ErrorContext): string
 /**
  * Default Block Kit format for error notifications
  */
+function getEnvLabel(): string
+{
+    const env = process.env.NODE_ENV || 'unknown';
+    const host = hostname();
+    const dbUrl = process.env.DATABASE_URL || '';
+    const dbName = dbUrl.match(/\/([^/?]+)(\?|$)/)?.[1] || '(unknown)';
+    return `${env} | ${host} | db:${dbName}`;
+}
+
 function defaultFormat(err: Error, ctx: ErrorContext, suppressed: number = 0): { text: string; blocks: unknown[] }
 {
+    const envLabel = getEnvLabel();
     const emoji = ctx.statusCode >= 500 ? ':rotating_light:' : ':warning:';
-    const title = `${emoji} *${err.name || 'Error'}* — ${ctx.statusCode}`;
+    const title = `${emoji} *${err.name || 'Error'}* — ${ctx.statusCode} [${envLabel}]`;
 
     const fields = [
         { type: 'mrkdwn', text: `*Method*\n${ctx.method}` },
