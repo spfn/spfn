@@ -209,7 +209,7 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
     const {
         apiUrl = env.SPFN_API_URL || 'http://localhost:8790',
         debug = env.NODE_ENV === 'development',
-        timeout = env.SERVER_TIMEOUT,
+        timeout = env.RPC_PROXY_TIMEOUT,
         headers: defaultHeaders = {},
         interceptors,
         autoDiscoverInterceptors = true,

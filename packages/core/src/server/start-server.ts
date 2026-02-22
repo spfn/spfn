@@ -19,8 +19,10 @@ import { createServer } from './create-server';
 import { loadEnv } from '../env/loader';
 import {
     applyServerTimeouts,
+    applyGlobalFetchTimeouts,
     buildMiddlewareOrder,
     buildStartupConfig,
+    getFetchTimeoutConfig,
     getShutdownTimeout,
     getTimeoutConfig,
 } from './helpers';
@@ -125,6 +127,9 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
 
         const timeouts = getTimeoutConfig(finalConfig.timeout);
         applyServerTimeouts(server as Server, timeouts);
+
+        const fetchTimeouts = getFetchTimeoutConfig(finalConfig.fetchTimeout);
+        applyGlobalFetchTimeouts(fetchTimeouts);
 
         logServerTimeouts(timeouts);
         printBanner({

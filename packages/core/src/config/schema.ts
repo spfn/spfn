@@ -328,6 +328,28 @@ export const coreEnvSchema = defineEnvSchema({
     }),
 
     // ========================================================================
+    // Fetch (Node.js undici) - outbound HTTP request timeout
+    // ========================================================================
+
+    FETCH_CONNECT_TIMEOUT: envNumber({
+        description: 'Fetch TCP connection timeout in milliseconds (time to establish socket connection to upstream server)',
+        default: 10000,
+        examples: [5000, 10000, 30000],
+    }),
+
+    FETCH_HEADERS_TIMEOUT: envNumber({
+        description: 'Fetch headers timeout in milliseconds (time to receive response headers after request sent)',
+        default: 300000,
+        examples: [120000, 300000, 600000],
+    }),
+
+    FETCH_BODY_TIMEOUT: envNumber({
+        description: 'Fetch body timeout in milliseconds (time between body data chunks from upstream server)',
+        default: 300000,
+        examples: [120000, 300000, 600000],
+    }),
+
+    // ========================================================================
     // Next.js Integration
     // ========================================================================
 
@@ -350,5 +372,12 @@ export const coreEnvSchema = defineEnvSchema({
         required: false,
         nextjs: true,
         examples: ['http://localhost:3790', 'https://your-app.com'],
+    }),
+
+    RPC_PROXY_TIMEOUT: envNumber({
+        description: 'RPC proxy request timeout in milliseconds (AbortController timeout for proxied requests to backend, should be shorter than FETCH_HEADERS_TIMEOUT)',
+        default: 120000,
+        nextjs: true,
+        examples: [60000, 120000, 280000],
     }),
 });

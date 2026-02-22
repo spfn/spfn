@@ -1,5 +1,6 @@
 import type { Hono, Handler, MiddlewareHandler } from 'hono';
 import type { Server } from 'http';
+import { Agent, setGlobalDispatcher } from 'undici';
 import { getDatabase } from '@spfn/core/db';
 import { getCache } from '@spfn/core/cache';
 import { env } from '@spfn/core/config';
@@ -178,6 +179,37 @@ export function getTimeoutConfig(config?: {
 export function getShutdownTimeout(config?: { timeout?: number }): number
 {
     return config?.timeout ?? env.SHUTDOWN_TIMEOUT;
+}
+
+export function getFetchTimeoutConfig(config?: {
+    connect?: number;
+    headers?: number;
+    body?: number;
+}): {
+    connect: number;
+    headers: number;
+    body: number;
+}
+{
+    return {
+        connect: config?.connect ?? env.FETCH_CONNECT_TIMEOUT,
+        headers: config?.headers ?? env.FETCH_HEADERS_TIMEOUT,
+        body: config?.body ?? env.FETCH_BODY_TIMEOUT,
+    };
+}
+
+export function applyGlobalFetchTimeouts(timeouts: {
+    connect: number;
+    headers: number;
+    body: number;
+}): void
+{
+    const agent = new Agent({
+        connect: { timeout: timeouts.connect },
+        headersTimeout: timeouts.headers,
+        bodyTimeout: timeouts.body,
+    });
+    setGlobalDispatcher(agent);
 }
 
 export function buildMiddlewareOrder(config: {

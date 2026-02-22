@@ -336,6 +336,37 @@ export interface ServerConfig
     };
 
     /**
+     * Fetch (outbound HTTP) timeout configuration
+     * Controls Node.js undici global dispatcher timeouts for fetch() calls
+     * Applies to all outbound HTTP requests made via fetch() in this process
+     */
+    fetchTimeout?: {
+        /**
+         * TCP connection timeout in milliseconds
+         * Time to establish socket connection to upstream server
+         * @default 10000 (10 seconds)
+         * @env FETCH_CONNECT_TIMEOUT
+         */
+        connect?: number;
+
+        /**
+         * Response headers timeout in milliseconds
+         * Time to receive complete response headers after request sent
+         * @default 300000 (5 minutes)
+         * @env FETCH_HEADERS_TIMEOUT
+         */
+        headers?: number;
+
+        /**
+         * Body data timeout in milliseconds
+         * Maximum time between body data chunks from upstream server
+         * @default 300000 (5 minutes)
+         * @env FETCH_BODY_TIMEOUT
+         */
+        body?: number;
+    };
+
+    /**
      * Graceful shutdown configuration
      * Controls server shutdown behavior during SIGTERM/SIGINT signals
      */

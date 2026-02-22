@@ -59,9 +59,11 @@ export interface TypedProxyConfig
     debug?: boolean;
 
     /**
-     * Request timeout in milliseconds
+     * RPC proxy request timeout in milliseconds
+     * AbortController timeout - cancels proxied request if backend doesn't respond in time
+     * Should be shorter than FETCH_HEADERS_TIMEOUT to ensure meaningful 504 response
      *
-     * @default env.SERVER_TIMEOUT (120000)
+     * @default env.RPC_PROXY_TIMEOUT (120000)
      */
     timeout?: number;
 
