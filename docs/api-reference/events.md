@@ -357,6 +357,33 @@ if (cache)
 await userCreated.emit({ userId: '123' });
 ```
 
+### SSE Token Store
+
+SSE 토큰 저장소도 멀티 인스턴스 배포 시 공유되어야 합니다.
+캐시(Redis/Valkey)가 연결되어 있으면 `CacheTokenStore`가 **자동으로 사용**됩니다.
+
+| 환경 | 토큰 저장소 | 설정 |
+|------|------------|------|
+| `CACHE_URL` 없음 | `InMemoryTokenStore` | 자동 (기본값) |
+| `CACHE_URL` 설정됨 | `CacheTokenStore` | 자동 감지 |
+| 커스텀 | `SSETokenStore` 구현 | `auth.store` 옵션 |
+
+수동 설정이 필요한 경우:
+
+```typescript
+import { CacheTokenStore } from '@spfn/core/event/sse';
+import { getCache } from '@spfn/core/cache';
+
+export default defineServerConfig()
+    .events(eventRouter, {
+        auth: {
+            enabled: true,
+            store: new CacheTokenStore(getCache()!),
+        },
+    })
+    .build();
+```
+
 ## API Reference
 
 ### defineEvent(name)
@@ -441,7 +468,7 @@ import { eventRouteMap } from '@spfn/core/event';
 |--------|------|---------|-------------|
 | `enabled` | boolean | `false` | Enable token authentication |
 | `tokenTtl` | number | `30000` | Token TTL in milliseconds |
-| `store` | SSETokenStore | InMemory | Custom token store (e.g., Redis) |
+| `store` | SSETokenStore | Auto (Cache → InMemory) | Token store. 캐시 연결 시 `CacheTokenStore` 자동 사용 |
 | `getSubject` | (c) => string \| null | `c.get('auth')?.userId` | Extract subject from context |
 | `authorize` | (subject, events) => events[] | - | Subscription authorization hook |
 | `filter` | { [event]: (subject, payload) => boolean } | - | Per-event payload filter |

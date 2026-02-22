@@ -33,7 +33,7 @@
 export { createSSEHandler } from './handler';
 
 // Token manager
-export { SSETokenManager } from './token-manager';
+export { SSETokenManager, CacheTokenStore } from './token-manager';
 export type { SSEToken, SSETokenStore, SSETokenManagerConfig } from './token-manager';
 
 // Types

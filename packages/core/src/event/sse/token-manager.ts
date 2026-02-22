@@ -22,6 +22,16 @@
 
 import { randomBytes } from 'crypto';
 
+/**
+ * Minimal cache client interface (compatible with ioredis Redis | Cluster)
+ */
+type CacheClient = {
+    set(key: string, value: string, ...args: any[]): Promise<any>;
+    getdel?(key: string): Promise<string | null>;
+    get(key: string): Promise<string | null>;
+    del(key: string | string[]): Promise<number>;
+};
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -112,6 +122,78 @@ class InMemoryTokenStore implements SSETokenStore
                 this.tokens.delete(token);
             }
         }
+    }
+}
+
+// ============================================================================
+// CacheTokenStore (Redis/Valkey)
+// ============================================================================
+
+/**
+ * Redis/Valkey-backed token store for multi-instance deployments.
+ *
+ * Uses SET EX for automatic TTL expiry and GETDEL for atomic one-time consumption.
+ * No cleanup needed — Redis handles expiration automatically.
+ *
+ * @example
+ * ```typescript
+ * import { getCache } from '@spfn/core/cache';
+ *
+ * const cache = getCache();
+ * if (cache) {
+ *     const store = new CacheTokenStore(cache);
+ *     const manager = new SSETokenManager({ store });
+ * }
+ * ```
+ */
+export class CacheTokenStore implements SSETokenStore
+{
+    private prefix = 'sse:token:';
+
+    constructor(private cache: CacheClient) {}
+
+    async set(token: string, data: SSEToken): Promise<void>
+    {
+        const ttlSeconds = Math.max(1, Math.ceil((data.expiresAt - Date.now()) / 1000));
+        await this.cache.set(
+            this.prefix + token,
+            JSON.stringify(data),
+            'EX',
+            ttlSeconds,
+        );
+    }
+
+    async consume(token: string): Promise<SSEToken | null>
+    {
+        const key = this.prefix + token;
+
+        // GETDEL (Redis 6.2+) for atomic consume, fallback to GET+DEL
+        let raw: string | null = null;
+
+        if (this.cache.getdel)
+        {
+            raw = await this.cache.getdel(key);
+        }
+        else
+        {
+            raw = await this.cache.get(key);
+            if (raw)
+            {
+                await this.cache.del(key);
+            }
+        }
+
+        if (!raw)
+        {
+            return null;
+        }
+
+        return JSON.parse(raw) as SSEToken;
+    }
+
+    async cleanup(): Promise<void>
+    {
+        // No-op: Redis TTL handles expiration automatically
     }
 }
 

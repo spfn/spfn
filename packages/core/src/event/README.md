@@ -686,7 +686,7 @@ import type {
 } from '@spfn/core/event/sse';
 
 // Token manager
-import { SSETokenManager } from '@spfn/core/event/sse';
+import { SSETokenManager, CacheTokenStore } from '@spfn/core/event/sse';
 import type { SSEToken, SSETokenStore, SSETokenManagerConfig } from '@spfn/core/event/sse';
 ```
 
@@ -825,6 +825,47 @@ cache.publish('user.created', payload)
 │ Instance B: handlers execute        │
 │ Instance C: handlers execute        │
 └─────────────────────────────────────┘
+```
+
+### SSE Token Store (Multi-Instance)
+
+SSE 토큰 저장소도 멀티 인스턴스 배포 시 인스턴스 간 공유가 필요합니다.
+캐시(Redis/Valkey)가 연결되어 있으면 `CacheTokenStore`가 **자동으로 사용**됩니다.
+
+| 환경 | 토큰 저장소 | 설정 |
+|------|------------|------|
+| `CACHE_URL` 없음 | `InMemoryTokenStore` (Map) | 자동 (기본값) |
+| `CACHE_URL` 설정됨 | `CacheTokenStore` (Redis) | 자동 감지 |
+| 커스텀 | `SSETokenStore` 인터페이스 구현 | `auth.store` 옵션 |
+
+**자동 감지 동작:**
+- `auth: { enabled: true }` 설정 시, `store`를 명시하지 않으면 서버 시작 시 `getCache()` 확인
+- 캐시 연결이 있으면 `CacheTokenStore` 사용 (`sse:token:` prefix, SET EX + GETDEL)
+- 없으면 `InMemoryTokenStore` fallback
+
+**수동 설정:**
+```typescript
+import { CacheTokenStore } from '@spfn/core/event/sse';
+import { getCache } from '@spfn/core/cache';
+
+.events(eventRouter, {
+    auth: {
+        enabled: true,
+        store: new CacheTokenStore(getCache()!),
+    },
+})
+```
+
+**커스텀 구현:**
+```typescript
+import type { SSETokenStore, SSEToken } from '@spfn/core/event/sse';
+
+class DynamoDBTokenStore implements SSETokenStore
+{
+    async set(token: string, data: SSEToken): Promise<void> { /* ... */ }
+    async consume(token: string): Promise<SSEToken | null> { /* ... */ }
+    async cleanup(): Promise<void> { /* ... */ }
+}
 ```
 
 ---

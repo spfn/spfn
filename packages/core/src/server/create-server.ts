@@ -12,7 +12,7 @@ import { join } from 'path';
 import { registerRoutes, type RegisteredRoute } from '@spfn/core/route';
 import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
 import { createSSEHandler } from '../event/sse/handler';
-import { SSETokenManager } from '../event/sse/token-manager';
+import { SSETokenManager, CacheTokenStore } from '../event/sse/token-manager';
 import { createHealthCheckHandler } from './helpers';
 import { serverLogger } from './logger';
 
@@ -117,7 +117,7 @@ async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
     await loadAppRoutes(app, config);
 
     // 7. Register SSE endpoint (if events router provided)
-    registerSSEEndpoint(app, config);
+    await registerSSEEndpoint(app, config);
 
     // 8. afterRoutes hook from config
     await executeAfterRoutesHook(app, config);
@@ -234,7 +234,7 @@ async function executeAfterRoutesHook(app: Hono, config?: ServerConfig): Promise
  * - POST /events/token — issues one-time SSE token (protected by config.middlewares)
  * - GET /events/stream?token=...&events=... — SSE stream (token verified)
  */
-function registerSSEEndpoint(app: Hono, config?: ServerConfig): void
+async function registerSSEEndpoint(app: Hono, config?: ServerConfig): Promise<void>
 {
     if (!config?.events)
     {
@@ -250,9 +250,32 @@ function registerSSEEndpoint(app: Hono, config?: ServerConfig): void
 
     if (authConfig?.enabled)
     {
+        // Auto-detect cache for token store (multi-instance support)
+        let store = authConfig.store;
+        if (!store)
+        {
+            try
+            {
+                const { getCache } = await import('@spfn/core/cache');
+                const cache = getCache();
+                if (cache)
+                {
+                    store = new CacheTokenStore(cache as any);
+                    if (debug)
+                    {
+                        serverLogger.info('SSE token store: cache (Redis/Valkey)');
+                    }
+                }
+            }
+            catch
+            {
+                // Cache module not available, use in-memory
+            }
+        }
+
         tokenManager = new SSETokenManager({
             ttl: authConfig.tokenTtl,
-            store: authConfig.store,
+            store,
         });
 
         // Derive token path: /events/stream → /events/token

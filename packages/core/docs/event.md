@@ -307,6 +307,17 @@ if (cache)
 await userCreated.emit({ userId: '123' });
 ```
 
+### SSE Token Store
+
+SSE 토큰 저장소도 멀티 인스턴스에서 공유되어야 합니다.
+캐시가 연결되면 `CacheTokenStore`가 **자동 사용**됩니다.
+
+| 환경 | 토큰 저장소 | 설정 |
+|------|------------|------|
+| `CACHE_URL` 없음 | `InMemoryTokenStore` | 자동 |
+| `CACHE_URL` 설정됨 | `CacheTokenStore` | 자동 감지 |
+| 커스텀 | `SSETokenStore` 구현 | `auth.store` 옵션 |
+
 ## API Reference
 
 ### defineEvent(name)
