@@ -1,104 +1,104 @@
 {
-    "name": "@spfn/monitor",
-    "version": "0.1.0-beta.4",
-    "type": "module",
-    "description": "Error tracking, log management, and monitoring dashboard for SPFN",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "import": "./dist/index.js",
-            "require": "./dist/index.js"
-        },
-        "./server": {
-            "types": "./dist/server.d.ts",
-            "import": "./dist/server.js",
-            "require": "./dist/server.js"
-        },
-        "./config": {
-            "types": "./dist/config/index.d.ts",
-            "import": "./dist/config/index.js",
-            "require": "./dist/config/index.js"
-        },
-        "./nextjs/client": {
-            "types": "./dist/nextjs/client.d.ts",
-            "import": "./dist/nextjs/client.js",
-            "require": "./dist/nextjs/client.js"
-        }
+  "name": "@spfn/monitor",
+  "version": "0.1.0-beta.5",
+  "type": "module",
+  "description": "Error tracking, log management, and monitoring dashboard for SPFN",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     },
-    "files": [
-        "dist",
-        "migrations",
-        "README.md"
-    ],
-    "scripts": {
-        "build": "pnpm check:circular && tsup && tsup --config tsup.client.config.ts",
-        "dev": "tsup --watch",
-        "type-check": "tsc --noEmit",
-        "clean": "rm -rf dist",
-        "db:generate": "drizzle-kit generate",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "check:circular": "madge --circular --extensions ts src/",
-        "prepublishOnly": "pnpm run clean && pnpm run build",
-        "publish:alpha": "npm publish --access public --tag alpha",
-        "publish:beta": "npm publish --access public --tag beta",
-        "publish:latest": "npm publish --access public"
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "require": "./dist/server.js"
     },
-    "keywords": [
-        "spfn",
-        "monitor",
-        "error-tracking",
-        "logging",
-        "dashboard"
-    ],
-    "author": "Ray Im <rayim@inflike.com>",
-    "license": "MIT",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/spfn/spfn.git",
-        "directory": "packages/monitor"
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js",
+      "require": "./dist/config/index.js"
     },
-    "bugs": {
-        "url": "https://github.com/spfn/spfn/issues"
-    },
-    "homepage": "https://github.com/spfn/spfn/tree/main/packages/monitor#readme",
-    "spfn": {
-        "schemas": [
-            "./dist/server/entities/*.js"
-        ],
-        "migrations": {
-            "dir": "./migrations"
-        }
-    },
-    "dependencies": {
-        "@spfn/auth": "workspace:*",
-        "@spfn/core": "workspace:*",
-        "@spfn/notification": "workspace:*"
-    },
-    "devDependencies": {
-        "@sinclair/typebox": "^0.34.30",
-        "@types/node": "^20.11.0",
-        "@types/react": "^19.2.2",
-        "@types/react-dom": "^19.2.2",
-        "drizzle-kit": "^0.31.6",
-        "drizzle-orm": "^0.44.2",
-        "madge": "^8.0.0",
-        "tsup": "^8.5.0",
-        "typescript": "^5.3.3",
-        "vitest": "^4.0.6"
-    },
-    "peerDependencies": {
-        "next": "^15.0.0 || ^16.0.0"
-    },
-    "peerDependenciesMeta": {
-        "next": {
-            "optional": true
-        }
-    },
-    "publishConfig": {
-        "access": "public",
-        "tag": "beta"
+    "./nextjs/client": {
+      "types": "./dist/nextjs/client.d.ts",
+      "import": "./dist/nextjs/client.js",
+      "require": "./dist/nextjs/client.js"
     }
+  },
+  "files": [
+    "dist",
+    "migrations",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "pnpm check:circular && tsup && tsup --config tsup.client.config.ts",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "db:generate": "drizzle-kit generate",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:circular": "madge --circular --extensions ts src/",
+    "prepublishOnly": "pnpm run clean && pnpm run build",
+    "publish:alpha": "npm publish --access public --tag alpha",
+    "publish:beta": "npm publish --access public --tag beta",
+    "publish:latest": "npm publish --access public"
+  },
+  "keywords": [
+    "spfn",
+    "monitor",
+    "error-tracking",
+    "logging",
+    "dashboard"
+  ],
+  "author": "Ray Im <rayim@inflike.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spfn/spfn.git",
+    "directory": "packages/monitor"
+  },
+  "bugs": {
+    "url": "https://github.com/spfn/spfn/issues"
+  },
+  "homepage": "https://github.com/spfn/spfn/tree/main/packages/monitor#readme",
+  "spfn": {
+    "schemas": [
+      "./dist/server/entities/*.js"
+    ],
+    "migrations": {
+      "dir": "./migrations"
+    }
+  },
+  "dependencies": {
+    "@spfn/auth": "workspace:*",
+    "@spfn/core": "workspace:*",
+    "@spfn/notification": "workspace:*"
+  },
+  "devDependencies": {
+    "@sinclair/typebox": "^0.34.30",
+    "@types/node": "^20.11.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "drizzle-kit": "^0.31.6",
+    "drizzle-orm": "^0.44.2",
+    "madge": "^8.0.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.6"
+  },
+  "peerDependencies": {
+    "next": "^15.0.0 || ^16.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "beta"
+  }
 }
