@@ -17,17 +17,9 @@
  *     pathname: '/sse',
  * });
  *
- * // With token authentication
- * const client = createSSEClient<EventRouter>({
- *     acquireToken: async () => {
- *         const res = await fetch('/api/events/token', {
- *             method: 'POST',
- *             credentials: 'include',
- *         });
- *         const data = await res.json();
- *         return data.token;
- *     },
- * });
+ * // With token authentication (recommended: use createAuthSSEClient)
+ * import { createAuthSSEClient } from '@spfn/core/event/sse/client';
+ * const client = createAuthSSEClient<EventRouter>();
  *
  * const unsubscribe = client.subscribe({
  *     events: ['userCreated', 'orderPlaced'],
@@ -376,5 +368,72 @@ export function subscribeToEvents<TRouter extends EventRouterDef<any>>(
     return client.subscribe({
         events,
         handlers,
+    });
+}
+
+// ============================================================================
+// Auth SSE Client
+// ============================================================================
+
+/**
+ * SSE client configuration for authenticated connections
+ *
+ * Same as SSEClientConfig but without acquireToken (auto-configured).
+ */
+export interface AuthSSEClientConfig extends Omit<SSEClientConfig, 'acquireToken'>
+{
+    /**
+     * RPC proxy base URL for token acquisition
+     * @default '/api/rpc'
+     */
+    rpcBaseUrl?: string;
+}
+
+/**
+ * Create SSE client with built-in token authentication
+ *
+ * Acquires one-time SSE tokens via RPC proxy automatically.
+ * Requires eventRouteMap to be merged into RPC proxy config.
+ *
+ * @example
+ * ```typescript
+ * import { createAuthSSEClient } from '@spfn/core/event/sse/client';
+ * import type { EventRouter } from '@/server/events';
+ *
+ * const client = createAuthSSEClient<EventRouter>();
+ *
+ * client.subscribe({
+ *     events: ['userCreated'],
+ *     handlers: {
+ *         userCreated: (payload) => console.log(payload),
+ *     },
+ * });
+ * ```
+ */
+export function createAuthSSEClient<TRouter extends EventRouterDef<any>>(
+    config: AuthSSEClientConfig = {}
+): SSEClient<TRouter>
+{
+    const { rpcBaseUrl = '/api/rpc', ...sseConfig } = config;
+
+    return createSSEClient<TRouter>({
+        ...sseConfig,
+        acquireToken: async () =>
+        {
+            const res = await fetch(`${rpcBaseUrl}/eventsToken`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+
+            if (!res.ok)
+            {
+                throw new Error(`Failed to acquire SSE token: ${res.status}`);
+            }
+
+            const data = await res.json();
+            return data.token;
+        },
     });
 }

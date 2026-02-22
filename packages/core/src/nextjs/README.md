@@ -375,27 +375,34 @@ type Client<TRouter extends Router<any>> = {
 
 ```typescript
 // app/api/rpc/[routeName]/route.ts
-import { appRouter } from '@/server/router';
+import '@spfn/auth/nextjs/api';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
+import { authRouteMap } from '@spfn/auth';
+import { eventRouteMap } from '@spfn/core/event';
+import { routeMap } from '@/generated/route-map';
 
-export const { GET, POST } = createRpcProxy({ router: appRouter });
+export const { GET, POST } = createRpcProxy({
+    routeMap: { ...routeMap, ...authRouteMap, ...eventRouteMap },
+});
 ```
 
 **How it works:**
 1. Client calls `GET /api/rpc/getUser?input={...}` or `POST /api/rpc/createUser`
 2. Proxy extracts `routeName` from URL
-3. Proxy looks up `appRouter.routes[routeName]` to get `method` and `path`
+3. Proxy looks up `routeMap[routeName]` to get `method` and `path`
 4. Proxy forwards request to SPFN backend with correct HTTP method and path
 
 ### Custom Configuration
 
 ```typescript
 // app/api/rpc/[routeName]/route.ts
-import { appRouter } from '@/server/router';
+import '@spfn/auth/nextjs/api';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
+import { authRouteMap } from '@spfn/auth';
+import { routeMap } from '@/generated/route-map';
 
 export const { GET, POST } = createRpcProxy({
-    router: appRouter,
+    routeMap: { ...routeMap, ...authRouteMap },
     apiUrl: process.env.SPFN_API_URL,
     timeout: 60000,
     debug: true,

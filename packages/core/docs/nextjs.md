@@ -8,12 +8,14 @@ RPC proxy and type-safe API client for Next.js.
 
 ```typescript
 // app/api/rpc/[routeName]/route.ts
-import { appRouter } from '@/server/server.config';
+import '@spfn/auth/nextjs/api';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
+import { authRouteMap } from '@spfn/auth';
+import { eventRouteMap } from '@spfn/core/event';
+import { routeMap } from '@/generated/route-map';
 
-export const { GET, POST, PUT, PATCH, DELETE } = createRpcProxy({
-    router: appRouter,
-    apiUrl: process.env.SPFN_API_URL || 'http://localhost:8790'
+export const { GET, POST } = createRpcProxy({
+    routeMap: { ...routeMap, ...authRouteMap, ...eventRouteMap },
 });
 ```
 
@@ -135,7 +137,7 @@ const updated = await api.updateUser.call({
 
 ```typescript
 export const { GET, POST } = createRpcProxy({
-    router: appRouter,
+    routeMap: { ...routeMap, ...authRouteMap },
     apiUrl: process.env.SPFN_API_URL,
     interceptors: {
         request: async (request, context) => {

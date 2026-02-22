@@ -3,15 +3,17 @@
 /**
  * Example List Component
  *
- * Client component for CRUD operations
+ * Client component for CRUD operations with real-time SSE updates
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api-client';
+import { createAuthSSEClient } from '@spfn/core/event/sse/client';
 import type { RouterOutput } from '@spfn/core/nextjs';
 import type { AppRouter } from '@/server/router';
+import type { EventRouter } from '@/server/events';
 
 type ListExamplesResponse = RouterOutput<AppRouter, 'listExamples'>;
 type Example = ListExamplesResponse['items'][number];
@@ -26,6 +28,8 @@ export function ExampleList({ initialData }: ExampleListProps)
     const [examples, setExamples] = useState<Example[]>(initialData.items);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [sseConnected, setSseConnected] = useState(false);
+    const [sseEvents, setSseEvents] = useState<string[]>([]);
 
     // Form state
     const [newName, setNewName] = useState('');
@@ -36,7 +40,7 @@ export function ExampleList({ initialData }: ExampleListProps)
     const [editName, setEditName] = useState('');
     const [editDescription, setEditDescription] = useState('');
 
-    const refreshList = async () =>
+    const refreshList = useCallback(async () =>
     {
         setLoading(true);
         setError(null);
@@ -53,7 +57,50 @@ export function ExampleList({ initialData }: ExampleListProps)
         {
             setLoading(false);
         }
-    };
+    }, []);
+
+    // SSE real-time subscription
+    const refreshListRef = useRef(refreshList);
+    refreshListRef.current = refreshList;
+
+    useEffect(() =>
+    {
+        const client = createAuthSSEClient<EventRouter>();
+
+        const addEvent = (msg: string) =>
+        {
+            setSseEvents((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 20));
+        };
+
+        const unsubscribe = client.subscribe({
+            events: ['exampleCreated', 'exampleUpdated', 'exampleDeleted'],
+            handlers: {
+                exampleCreated: (payload) =>
+                {
+                    addEvent(`Created: ${payload.name} (id: ${payload.id})`);
+                    refreshListRef.current();
+                },
+                exampleUpdated: (payload) =>
+                {
+                    addEvent(`Updated: ${payload.name} (id: ${payload.id})`);
+                    refreshListRef.current();
+                },
+                exampleDeleted: (payload) =>
+                {
+                    addEvent(`Deleted: id ${payload.id}`);
+                    refreshListRef.current();
+                },
+            },
+            onOpen: () => setSseConnected(true),
+            onError: () => setSseConnected(false),
+        });
+
+        return () =>
+        {
+            unsubscribe();
+            setSseConnected(false);
+        };
+    }, []);
 
     const handleCreate = async (e: React.FormEvent) =>
     {
@@ -240,7 +287,7 @@ export function ExampleList({ initialData }: ExampleListProps)
                                             <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
                                                 {example.description}
                                             </p>
-                                            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-2">
+                                            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-2" suppressHydrationWarning>
                                                 ID: {example.id} | Created: {new Date(example.createdAt).toLocaleString()}
                                             </p>
                                         </div>
@@ -270,20 +317,23 @@ export function ExampleList({ initialData }: ExampleListProps)
                 )}
             </div>
 
-            {/* Info Box */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-2">
-                    Job & Event Integration
-                </h3>
-                <p className="text-sm text-blue-700 dark:text-blue-400">
-                    When you create, update, or delete an example, events are emitted and background jobs are triggered.
-                    Check your server console to see the job execution logs:
-                </p>
-                <ul className="mt-2 text-sm text-blue-600 dark:text-blue-400 list-disc list-inside space-y-1">
-                    <li><code className="bg-blue-100 dark:bg-blue-800/50 px-1 rounded">onExampleCreated</code> - Triggered on create</li>
-                    <li><code className="bg-blue-100 dark:bg-blue-800/50 px-1 rounded">onExampleUpdated</code> - Triggered on update</li>
-                    <li><code className="bg-blue-100 dark:bg-blue-800/50 px-1 rounded">onExampleDeleted</code> - Triggered on delete</li>
-                </ul>
+            {/* SSE Event Log */}
+            <div className="bg-zinc-900 rounded-lg border border-zinc-700 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                    <span className={`w-2 h-2 rounded-full ${sseConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <h3 className="font-medium text-white text-sm">
+                        SSE {sseConnected ? 'Connected' : 'Disconnected'}
+                    </h3>
+                </div>
+                {sseEvents.length === 0 ? (
+                    <p className="text-xs text-zinc-500">Waiting for events...</p>
+                ) : (
+                    <ul className="space-y-1 font-mono text-xs text-zinc-400 max-h-48 overflow-y-auto">
+                        {sseEvents.map((event, i) => (
+                            <li key={i}>{event}</li>
+                        ))}
+                    </ul>
+                )}
             </div>
         </div>
     );

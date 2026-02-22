@@ -2,19 +2,18 @@
  * SPFN RPC Proxy Route
  *
  * Forwards all requests to SPFN API server with automatic:
- * - Route resolution from router definition (including package routers)
+ * - Route resolution from routeMap
  * - Cookie forwarding
  * - Interceptor execution
  * - Header manipulation
- *
- * Package routers (auth, cms) are registered in router.ts via .packages()
- * and automatically recognized here.
  */
 
 import '@spfn/auth/nextjs/api';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
-import { appRouter } from '@/server/router';
+import { authRouteMap } from '@spfn/auth';
+import { eventRouteMap } from '@spfn/core/event';
+import { routeMap } from '@/generated/route-map';
 
 export const { GET, POST } = createRpcProxy({
-    router: appRouter,
+    routeMap: { ...routeMap, ...authRouteMap, ...eventRouteMap },
 });

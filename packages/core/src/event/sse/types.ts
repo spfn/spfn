@@ -200,10 +200,17 @@ export interface SSEClientConfig
      * Called on every (re)connect. The returned token is appended
      * to the SSE URL as `?token=...`.
      *
+     * For automatic token acquisition via RPC proxy, use `createAuthSSEClient` instead.
+     *
      * @example
      * ```typescript
+     * // Recommended: use createAuthSSEClient for automatic token handling
+     * import { createAuthSSEClient } from '@spfn/core/event/sse/client';
+     * const client = createAuthSSEClient<EventRouter>();
+     *
+     * // Manual: provide acquireToken directly
      * acquireToken: async () => {
-     *     const res = await fetch('/api/events/token', {
+     *     const res = await fetch('/api/rpc/eventsToken', {
      *         method: 'POST',
      *         credentials: 'include',
      *     });

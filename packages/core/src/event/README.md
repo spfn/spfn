@@ -13,7 +13,8 @@ event/
 └── sse/
     ├── index.ts          # SSE exports
     ├── handler.ts        # Hono SSE handler
-    ├── client.ts         # Browser client
+    ├── client.ts         # Browser client (createSSEClient, createAuthSSEClient)
+    ├── route-map.ts      # Static route map for RPC proxy
     ├── token-manager.ts  # Token issuance/verification
     └── types.ts          # SSE types
 ```
@@ -346,23 +347,29 @@ unsubscribe();
 
 #### With Authentication
 
-When the server has `auth: { enabled: true }`, provide `acquireToken`:
+When the server has `auth: { enabled: true }`, use `createAuthSSEClient` which handles token acquisition automatically via the RPC proxy:
 
 ```typescript
-const client = createSSEClient<typeof eventRouter>({
-    acquireToken: async () =>
-    {
-        const res = await fetch('/api/events/token', {
-            method: 'POST',
-            credentials: 'include',
-        });
-        const data = await res.json();
-        return data.token;
-    },
+import { createAuthSSEClient } from '@spfn/core/event/sse/client';
+
+const client = createAuthSSEClient<typeof eventRouter>();
+```
+
+This requires `eventRouteMap` to be merged into your RPC proxy (one-time setup):
+
+```typescript
+// app/api/rpc/[routeName]/route.ts
+import '@spfn/auth/nextjs/api';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+import { eventRouteMap } from '@spfn/core/event';
+import { routeMap } from '@/generated/route-map';
+
+export const { GET, POST } = createRpcProxy({
+    routeMap: { ...routeMap, ...eventRouteMap },
 });
 ```
 
-`acquireToken` is called on every (re)connect — one-time tokens are handled automatically.
+Tokens are acquired on every (re)connect — one-time tokens are handled automatically.
 
 ### Simple Subscribe Helper
 
@@ -604,6 +611,47 @@ client.close();     // Close all connections
 | `acquireToken` | () => Promise\<string\> | - | Acquire one-time SSE token before connecting |
 
 **Returns:** `SSEClient<TRouter>`
+
+---
+
+### `createAuthSSEClient(config?)`
+
+Create an SSE client with built-in token authentication via RPC proxy.
+
+```typescript
+import { createAuthSSEClient } from '@spfn/core/event/sse/client';
+
+const client = createAuthSSEClient<typeof eventRouter>();
+
+// Or with custom RPC base URL
+const client = createAuthSSEClient<typeof eventRouter>({
+    rpcBaseUrl: '/api/rpc',
+});
+```
+
+**Config Options:**
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `rpcBaseUrl` | string | `/api/rpc` | RPC proxy base URL for token acquisition |
+| `host` | string | `NEXT_PUBLIC_SPFN_API_URL` or `http://localhost:8790` | Backend API host URL |
+| `pathname` | string | `/events/stream` | SSE endpoint pathname |
+| `reconnect` | boolean | `true` | Auto reconnect on disconnect |
+| `reconnectDelay` | number | `3000` | Reconnect delay (ms) |
+| `maxReconnectAttempts` | number | `0` | Max attempts (0 = infinite) |
+| `withCredentials` | boolean | `false` | Include cookies |
+
+**Returns:** `SSEClient<TRouter>`
+
+---
+
+### `eventRouteMap`
+
+Static route map for SSE token endpoint. Merge into RPC proxy config.
+
+```typescript
+import { eventRouteMap } from '@spfn/core/event';
+// { eventsToken: { method: 'POST', path: '/events/token' } }
+```
 
 ---
 

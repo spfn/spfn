@@ -236,23 +236,30 @@ unsubscribe();
 
 ### With Authentication
 
-When the server has `auth: { enabled: true }`, provide `acquireToken`:
+When the server has `auth: { enabled: true }`, use `createAuthSSEClient` which handles token acquisition automatically via the RPC proxy:
 
 ```typescript
-const client = createSSEClient<EventRouter>({
-    acquireToken: async () =>
-    {
-        const res = await fetch('/api/events/token', {
-            method: 'POST',
-            credentials: 'include',
-        });
-        const data = await res.json();
-        return data.token;
-    },
+import { createAuthSSEClient } from '@spfn/core/event/sse/client';
+import type { EventRouter } from '@/server/events/router';
+
+const client = createAuthSSEClient<EventRouter>();
+```
+
+This requires `eventRouteMap` to be merged into your RPC proxy (one-time setup):
+
+```typescript
+// app/api/rpc/[routeName]/route.ts
+import '@spfn/auth/nextjs/api';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+import { eventRouteMap } from '@spfn/core/event';
+import { routeMap } from '@/generated/route-map';
+
+export const { GET, POST } = createRpcProxy({
+    routeMap: { ...routeMap, ...eventRouteMap },
 });
 ```
 
-`acquireToken` is called on every (re)connect — one-time tokens are handled automatically.
+Tokens are acquired on every (re)connect — one-time tokens are handled automatically.
 
 ### subscribeToEvents
 
@@ -392,6 +399,28 @@ Create an event router for SSE streaming. Takes an object of named events.
 ```typescript
 const eventRouter = defineEventRouter({ userCreated, orderPlaced });
 export type EventRouter = typeof eventRouter;
+```
+
+### createAuthSSEClient(config?)
+
+Create an SSE client with built-in token authentication via RPC proxy. Same as `createSSEClient` but with automatic `acquireToken`.
+
+```typescript
+import { createAuthSSEClient } from '@spfn/core/event/sse/client';
+import type { EventRouter } from '@/server/events/router';
+
+const client = createAuthSSEClient<EventRouter>();
+```
+
+Requires `eventRouteMap` merged into RPC proxy config (see [With Authentication](#with-authentication)).
+
+### eventRouteMap
+
+Static route map for SSE token endpoint. Import from `@spfn/core/event` and merge into RPC proxy.
+
+```typescript
+import { eventRouteMap } from '@spfn/core/event';
+// { eventsToken: { method: 'POST', path: '/events/token' } }
 ```
 
 ### SSE Client Options

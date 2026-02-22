@@ -195,21 +195,30 @@ unsubscribe();
 
 ### With Authentication
 
+Use `createAuthSSEClient` which handles token acquisition automatically via the RPC proxy:
+
 ```typescript
-const client = createSSEClient<EventRouter>({
-    acquireToken: async () =>
-    {
-        const res = await fetch('/api/events/token', {
-            method: 'POST',
-            credentials: 'include',
-        });
-        const data = await res.json();
-        return data.token;
-    },
+import { createAuthSSEClient } from '@spfn/core/event/sse/client';
+import type { EventRouter } from '@/server/events/router';
+
+const client = createAuthSSEClient<EventRouter>();
+```
+
+This requires `eventRouteMap` to be merged into your RPC proxy (one-time setup):
+
+```typescript
+// app/api/rpc/[routeName]/route.ts
+import '@spfn/auth/nextjs/api';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+import { eventRouteMap } from '@spfn/core/event';
+import { routeMap } from '@/generated/route-map';
+
+export const { GET, POST } = createRpcProxy({
+    routeMap: { ...routeMap, ...eventRouteMap },
 });
 ```
 
-`acquireToken` is called on every (re)connect — one-time tokens are handled automatically.
+Tokens are acquired on every (re)connect — one-time tokens are handled automatically.
 
 ## Simple Subscribe Helper
 

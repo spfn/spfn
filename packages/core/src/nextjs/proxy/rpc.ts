@@ -4,29 +4,24 @@
  * Next.js API Route handler that resolves routeName to method/path
  * and forwards requests to SPFN backend.
  *
- * @example Using routeMap (recommended - no server code loaded)
+ * @example
  * ```typescript
  * // app/api/rpc/[routeName]/route.ts
+ * import { createRpcProxy } from '@spfn/core/nextjs/server';
+ * import { authRouteMap } from '@spfn/auth';
+ * import { eventRouteMap } from '@spfn/core/event';
  * import { routeMap } from '@/generated/route-map';
- * import { createRpcProxy } from '@spfn/core/nextjs/proxy';
  *
- * export const { GET, POST } = createRpcProxy({ routeMap });
- * ```
- *
- * @example Using router (legacy - loads full server code)
- * ```typescript
- * // app/api/rpc/[routeName]/route.ts
- * import { appRouter } from '@/server/router';
- * import { createRpcProxy } from '@spfn/core/nextjs/proxy';
- *
- * export const { GET, POST } = createRpcProxy({ router: appRouter });
+ * export const { GET, POST } = createRpcProxy({
+ *     routeMap: { ...routeMap, ...authRouteMap, ...eventRouteMap },
+ * });
  * ```
  */
 import { NextRequest, NextResponse } from 'next/server';
 
 import { env } from '@spfn/core/config';
 import { logger } from '@spfn/core/logger';
-import type { Router, RouteDef, HttpMethod } from '@spfn/core/route';
+import type { HttpMethod } from '@spfn/core/route';
 
 import { buildUrlWithParams, buildQueryString } from '../shared';
 import { interceptorRegistry } from './interceptors';
@@ -65,129 +60,27 @@ export interface RouteMapEntry
 export type RouteMap = Record<string, RouteMapEntry>;
 
 /**
- * Base config for RPC proxy
+ * RPC proxy configuration
  */
-interface RpcProxyBaseConfig extends Omit<TypedProxyConfig, 'onRequest' | 'onResponse'> {}
-
-/**
- * Config using routeMap (recommended)
- *
- * Uses generated route map file - no server code loaded in Next.js process.
- */
-export interface RpcProxyRouteMapConfig extends RpcProxyBaseConfig
+export interface RpcProxyConfig extends Omit<TypedProxyConfig, 'onRequest' | 'onResponse'>
 {
     /**
-     * Generated route map containing routeName → {method, path} mappings
+     * Route map containing routeName → {method, path} mappings
+     *
+     * Merge generated route map with package route maps (auth, events, etc.)
      *
      * @example
      * ```typescript
+     * import { authRouteMap } from '@spfn/auth';
+     * import { eventRouteMap } from '@spfn/core/event';
      * import { routeMap } from '@/generated/route-map';
      *
-     * export const { GET, POST } = createRpcProxy({ routeMap });
-     * ```
-     */
-    routeMap: RouteMap;
-    router?: never;
-}
-
-/**
- * Config using router (legacy)
- *
- * @deprecated Use routeMap instead to avoid loading server code in Next.js process
- */
-export interface RpcProxyRouterConfig<TRouter extends Router<any>> extends RpcProxyBaseConfig
-{
-    /**
-     * The router containing all route definitions
-     *
-     * @deprecated Use routeMap instead - router imports all server code
-     *
-     * @example
-     * ```typescript
      * export const { GET, POST } = createRpcProxy({
-     *     router: appRouter,
+     *     routeMap: { ...routeMap, ...authRouteMap, ...eventRouteMap },
      * });
      * ```
      */
-    router: TRouter;
-    routeMap?: never;
-}
-
-/**
- * Combined config type
- */
-export type RpcProxyConfig<TRouter extends Router<any> = Router<any>> =
-    | RpcProxyRouteMapConfig
-    | RpcProxyRouterConfig<TRouter>;
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/**
- * Type guard to check if value is a RouteDef
- */
-function isRouteDef(value: unknown): value is RouteDef<any>
-{
-    return value !== null &&
-        typeof value === 'object' &&
-        'handler' in value &&
-        'method' in value &&
-        'path' in value;
-}
-
-/**
- * Type guard to check if value is a Router
- */
-function isRouter(value: unknown): value is Router<any>
-{
-    return value !== null &&
-        typeof value === 'object' &&
-        'routes' in value &&
-        '_routes' in value;
-}
-
-/**
- * Get route definition from router by dotted path
- *
- * @example
- * getRouteByPath(router, 'users.getUser') → RouteDef
- * getRouteByPath(router, 'getUser') → RouteDef
- */
-function getRouteByPath(router: Router<any>, routePath: string): RouteDef<any> | null
-{
-    const parts = routePath.split('.');
-    let current: any = router.routes;
-
-    for (const part of parts)
-    {
-        if (!current || typeof current !== 'object')
-        {
-            return null;
-        }
-
-        const next = current[part];
-
-        if (isRouter(next))
-        {
-            current = next.routes;
-        }
-        else if (isRouteDef(next))
-        {
-            return next;
-        }
-        else
-        {
-            current = next;
-        }
-    }
-
-    if (isRouteDef(current))
-    {
-        return current;
-    }
-
-    return null;
+    routeMap: RouteMap;
 }
 
 // ============================================================================
@@ -201,10 +94,10 @@ function getRouteByPath(router: Router<any>, routePath: string): RouteDef<any> |
  * - GET /api/rpc/{routeName}?input={...}
  * - POST /api/rpc/{routeName} with body
  *
- * Resolves routeName to actual HTTP method and path from the router or routeMap,
+ * Resolves routeName to actual HTTP method and path from routeMap,
  * then forwards to SPFN backend.
  */
-export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConfig<TRouter>)
+export function createRpcProxy(config: RpcProxyConfig)
 {
     const {
         apiUrl = env.SPFN_API_URL || 'http://localhost:8790',
@@ -214,60 +107,19 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
         interceptors,
         autoDiscoverInterceptors = true,
         disableAutoInterceptors,
+        routeMap,
     } = config;
 
-    // Determine if using routeMap or router
-    const useRouteMap = 'routeMap' in config && config.routeMap !== undefined;
-    const routeMap = useRouteMap ? config.routeMap : null;
-    const router = !useRouteMap && 'router' in config ? config.router : null;
-
-    // Get package routers (only when using router mode)
-    const packageRouters = router?._packageRouters || [];
-
     /**
-     * Resolve route info from routeMap or router
+     * Resolve route info from routeMap
      */
     function resolveRoute(routeName: string): { method: string; path: string } | null
     {
-        // Try routeMap first (recommended)
-        if (routeMap)
+        const entry = routeMap[routeName];
+        if (entry)
         {
-            const entry = routeMap[routeName];
-            if (entry)
-            {
-                return { method: entry.method, path: entry.path };
-            }
-            return null;
+            return { method: entry.method, path: entry.path };
         }
-
-        // Fall back to router (legacy)
-        if (router)
-        {
-            let routeDef = getRouteByPath(router, routeName);
-
-            // If not found in main router, search in package routers
-            if (!routeDef && packageRouters.length > 0)
-            {
-                for (const pkgRouter of packageRouters)
-                {
-                    routeDef = getRouteByPath(pkgRouter, routeName);
-                    if (routeDef)
-                    {
-                        if (debug)
-                        {
-                            rpcLogger.debug(`Route "${routeName}" found in package router`);
-                        }
-                        break;
-                    }
-                }
-            }
-
-            if (routeDef && routeDef.method && routeDef.path)
-            {
-                return { method: routeDef.method, path: routeDef.path };
-            }
-        }
-
         return null;
     }
 
@@ -396,7 +248,7 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
                 }
             }
 
-            // Resolve route info from routeMap or router
+            // Resolve route info from routeMap
             const routeInfo = resolveRoute(routeName);
 
             if (!routeInfo)
@@ -480,7 +332,7 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
 
             if (debug && matchingInterceptors.length > 0)
             {
-                rpcLogger.debug(`🎯 Found ${matchingInterceptors.length} matching interceptors for ${targetMethod} ${resolvedPath}`);
+                rpcLogger.debug(`Found ${matchingInterceptors.length} matching interceptors for ${targetMethod} ${resolvedPath}`);
             }
 
             // Create RequestInterceptorContext
@@ -588,7 +440,7 @@ export function createRpcProxy<TRouter extends Router<any>>(config: RpcProxyConf
 
                     if (debug)
                     {
-                        rpcLogger.debug('🍪 Set-Cookie header added', {
+                        rpcLogger.debug('Set-Cookie header added', {
                             name: cookie.name,
                         });
                     }

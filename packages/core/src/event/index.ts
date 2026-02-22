@@ -51,6 +51,9 @@
 // Event definition
 export { defineEvent } from './event';
 
+// SSE route map
+export { eventRouteMap } from './sse/route-map';
+
 // Event router
 export { defineEventRouter } from './router';
 export type {
