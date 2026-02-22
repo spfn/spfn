@@ -38,6 +38,7 @@ export interface AuthContext
     user: User;
     userId: string;
     keyId: string;
+    role: string | null;
 }
 
 // Extend Hono context with auth
@@ -161,12 +162,14 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
         throw new UnauthorizedError({ message: 'Authentication failed' });
     }
 
-    // 5. Get user from database
-    const user = await usersRepository.findById(keyRecord.userId);
-    if (!user)
+    // 5. Get user from database (with role via leftJoin)
+    const result = await usersRepository.findByIdWithRole(keyRecord.userId);
+    if (!result)
     {
         throw new UnauthorizedError({ message: 'User not found' });
     }
+
+    const { user, role } = result;
 
     // 6. Check if user account is active
     // Status can be: active, inactive, suspended
@@ -190,6 +193,7 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
         user,
         userId: String(user.id),
         keyId,
+        role: role?.name ?? null,
     });
 
     // Log API access

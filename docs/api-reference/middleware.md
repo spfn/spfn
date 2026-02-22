@@ -258,6 +258,76 @@ Transactional({
 })
 ```
 
+## @spfn/auth Middleware
+
+`@spfn/auth` provides pre-built authentication and role-based access control middleware.
+
+### authenticate
+
+Verifies client-signed JWT token and attaches `AuthContext` (user, userId, keyId, role) to the request context. The role is fetched from DB alongside the user in a single query (leftJoin).
+
+```typescript
+import { authenticate } from '@spfn/auth/server/middleware';
+import { getUser, getUserId, getRole } from '@spfn/auth/server';
+
+// Global registration
+export default defineServerConfig()
+    .middlewares([authenticate])
+    .routes(appRouter)
+    .build();
+
+// Access auth data in handlers
+export const profileRoute = route.get('/profile')
+    .handler(async (c) =>
+    {
+        const user = getUser(c);          // User entity
+        const userId = getUserId(c);      // string
+        const role = getRole(c);          // 'admin' | null
+        return { email: user.email, role };
+    });
+```
+
+### requireRole
+
+Require the authenticated user to have one of the specified roles. Uses `auth.role` from the context (no additional DB query).
+
+```typescript
+import { authenticate, requireRole } from '@spfn/auth/server/middleware';
+
+// Single role
+export const configRoute = route.get('/admin/config')
+    .use([authenticate, requireRole('superadmin')])
+    .handler(async (c) => { /* ... */ });
+
+// Multiple roles (OR condition)
+export const dashboardRoute = route.get('/admin/dashboard')
+    .use([authenticate, requireRole('admin', 'superadmin')])
+    .handler(async (c) => { /* ... */ });
+```
+
+### roleGuard
+
+Advanced role-based access control with allow/deny options. Uses `auth.role` from the context (no additional DB query).
+
+```typescript
+import { authenticate, roleGuard } from '@spfn/auth/server/middleware';
+
+// Allow specific roles
+export const adminRoute = route.get('/admin')
+    .use([authenticate, roleGuard({ allow: ['admin', 'superadmin'] })])
+    .handler(async (c) => { /* ... */ });
+
+// Deny specific roles
+export const contentRoute = route.get('/content')
+    .use([authenticate, roleGuard({ deny: ['banned'] })])
+    .handler(async (c) => { /* ... */ });
+
+// Combined allow and deny
+export const manageRoute = route.get('/manage')
+    .use([authenticate, roleGuard({ allow: ['admin', 'manager'], deny: ['suspended'] })])
+    .handler(async (c) => { /* ... */ });
+```
+
 ## Custom Middleware
 
 ### Basic Middleware

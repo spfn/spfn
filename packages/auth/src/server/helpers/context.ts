@@ -69,6 +69,24 @@ export function getUserId(c: Context | { raw: Context }): string
 }
 
 /**
+ * Get authenticated user's role from route context
+ *
+ * @returns Role name or null if user has no role
+ *
+ * @example
+ * ```typescript
+ * app.bind(adminContract, [authenticate], async (c) => {
+ *     const role = getRole(c);
+ *     // 'admin' | 'superadmin' | null
+ * });
+ * ```
+ */
+export function getRole(c: Context | { raw: Context }): string | null
+{
+    return getAuth(c).role;
+}
+
+/**
  * Get current key ID from route context
  *
  * @example

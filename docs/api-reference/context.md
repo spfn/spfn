@@ -339,6 +339,54 @@ export const getProfile = route.get('/profile')
     });
 ```
 
+### @spfn/auth Context Helpers
+
+When using `@spfn/auth`, the `authenticate` middleware sets an `AuthContext` with user, userId, keyId, and role. Use the provided helper functions for type-safe access:
+
+```typescript
+import { getAuth, getUser, getUserId, getKeyId, getRole } from '@spfn/auth/server';
+
+// getAuth(c) - Full auth context
+export const profileRoute = route.get('/profile')
+    .handler(async (c) =>
+    {
+        const { user, userId, keyId, role } = getAuth(c);
+    });
+
+// getUser(c) - User entity
+export const meRoute = route.get('/me')
+    .handler(async (c) =>
+    {
+        const user = getUser(c);
+        return { email: user.email };
+    });
+
+// getUserId(c) - User ID (string)
+export const postsRoute = route.get('/my-posts')
+    .handler(async (c) =>
+    {
+        const userId = getUserId(c);
+        return await findPosts({ authorId: userId });
+    });
+
+// getRole(c) - Role name or null
+export const dashboardRoute = route.get('/dashboard')
+    .handler(async (c) =>
+    {
+        const role = getRole(c);
+        // 'admin' | 'superadmin' | 'user' | null
+    });
+
+// getKeyId(c) - Current API key ID
+export const rotateRoute = route.post('/keys/rotate')
+    .handler(async (c) =>
+    {
+        const oldKeyId = getKeyId(c);
+    });
+```
+
+All helpers accept both raw Hono `Context` and `RouteContext` (with `.raw` property).
+
 ### Custom Response Headers
 
 ```typescript

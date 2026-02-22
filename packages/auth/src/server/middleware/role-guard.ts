@@ -6,7 +6,7 @@
 
 import type { Context, Next } from 'hono';
 import { defineMiddleware } from '@spfn/core/route';
-import { getAuth, getUserRole, authLogger } from '@spfn/auth/server';
+import { getAuth, authLogger } from '@spfn/auth/server';
 import { ForbiddenError } from '@spfn/core/errors';
 import { InsufficientRoleError } from '@spfn/auth/errors';
 
@@ -78,8 +78,7 @@ export const roleGuard = defineMiddleware('roleGuard',
             throw new ForbiddenError({ message: 'Authentication required' });
         }
 
-        const { userId } = auth;
-        const userRole = await getUserRole(userId);
+        const { userId, role: userRole } = auth;
 
         // 1. Check deny list first
         if (deny && deny.length > 0)

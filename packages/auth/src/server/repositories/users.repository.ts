@@ -85,6 +85,40 @@ export class UsersRepository extends BaseRepository
     }
 
     /**
+     * ID로 사용자 + Role 조회 (leftJoin)
+     * Read replica 사용
+     *
+     * roleId가 null인 유저는 role: null 반환
+     */
+    async findByIdWithRole(id: number)
+    {
+        const result = await this.readDb
+            .select({
+                user: users,
+                roleName: roles.name,
+                roleDisplayName: roles.displayName,
+                rolePriority: roles.priority,
+            })
+            .from(users)
+            .leftJoin(roles, eq(users.roleId, roles.id))
+            .where(eq(users.id, id))
+            .limit(1);
+
+        const row = result[0];
+        if (!row)
+        {
+            return null;
+        }
+
+        return {
+            user: row.user,
+            role: row.roleName
+                ? { name: row.roleName, displayName: row.roleDisplayName!, priority: row.rolePriority! }
+                : null,
+        };
+    }
+
+    /**
      * 사용자 생성
      * Write primary 사용
      */

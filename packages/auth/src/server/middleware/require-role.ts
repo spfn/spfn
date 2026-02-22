@@ -6,7 +6,7 @@
 
 import type { Context, Next } from 'hono';
 import { defineMiddleware } from '@spfn/core/route';
-import { getAuth, hasAnyRole, authLogger } from '@spfn/auth/server';
+import { getAuth, authLogger } from '@spfn/auth/server';
 import { ForbiddenError } from '@spfn/core/errors';
 import { InsufficientRoleError } from '@spfn/auth/errors';
 
@@ -56,14 +56,13 @@ export const requireRole = defineMiddleware('role',
             throw new ForbiddenError({ message: 'Authentication required' });
         }
 
-        const { userId } = auth;
+        const { userId, role: userRole } = auth;
 
-        const allowed = await hasAnyRole(userId, roleNames);
-
-        if (!allowed)
+        if (!userRole || !roleNames.includes(userRole))
         {
             authLogger.middleware.warn('Role check failed', {
                 userId,
+                userRole,
                 requiredRoles: roleNames,
                 path: c.req.path,
             });
@@ -72,6 +71,7 @@ export const requireRole = defineMiddleware('role',
 
         authLogger.middleware.debug('Role check passed', {
             userId,
+            userRole,
             roles: roleNames,
         });
 
