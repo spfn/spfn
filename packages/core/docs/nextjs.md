@@ -208,6 +208,10 @@ SPFN_API_URL=http://localhost:8790
 
 # For production
 SPFN_API_URL=https://api.example.com
+
+# RPC proxy timeout (AbortController, default: 120s)
+# Should be shorter than FETCH_HEADERS_TIMEOUT for meaningful 504 responses
+RPC_PROXY_TIMEOUT=120000
 ```
 
 ## Best Practices

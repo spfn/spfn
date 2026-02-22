@@ -246,10 +246,28 @@ if (shutdown.isShuttingDown())
 
 ```typescript
 defineServerConfig()
+    .timeout({
+        request: 120000,    // SERVER_TIMEOUT (default: 120s)
+        keepAlive: 65000,   // SERVER_KEEPALIVE_TIMEOUT (default: 65s)
+        headers: 60000,     // SERVER_HEADERS_TIMEOUT (default: 60s)
+    })
+    .fetchTimeout({
+        connect: 10000,     // FETCH_CONNECT_TIMEOUT (default: 10s)
+        headers: 300000,    // FETCH_HEADERS_TIMEOUT (default: 300s)
+        body: 300000,       // FETCH_BODY_TIMEOUT (default: 300s)
+    })
     .shutdown({
-        timeout: 280000,  // 280s (default: k8s 300s - 5s preStop - 15s margin)
+        timeout: 280000,    // SHUTDOWN_TIMEOUT (default: 280s)
     })
     .build();
+```
+
+For long-running AI workloads, increase fetch timeouts:
+
+```bash
+FETCH_HEADERS_TIMEOUT=600000   # 10 minutes
+FETCH_BODY_TIMEOUT=600000      # 10 minutes
+RPC_PROXY_TIMEOUT=580000       # Must be < FETCH_HEADERS_TIMEOUT
 ```
 
 AI 파이프라인 등 장기 작업이 있는 앱은 Helm chart과 함께 조정:
@@ -297,8 +315,42 @@ DATABASE_READ_URL=postgresql://replica:5432/mydb
 # Redis
 REDIS_URL=redis://localhost:6379
 
+# Server Timeout (inbound HTTP server)
+SERVER_TIMEOUT=120000           # Request timeout (default: 120s)
+SERVER_KEEPALIVE_TIMEOUT=65000  # Keep-alive timeout (default: 65s)
+SERVER_HEADERS_TIMEOUT=60000    # Headers timeout, Slowloris defense (default: 60s)
+
+# Fetch Timeout (outbound HTTP via undici global dispatcher)
+FETCH_CONNECT_TIMEOUT=10000     # TCP connection timeout (default: 10s)
+FETCH_HEADERS_TIMEOUT=300000    # Response headers timeout (default: 300s)
+FETCH_BODY_TIMEOUT=300000       # Body chunk interval timeout (default: 300s)
+
+# RPC Proxy Timeout (Next.js → Backend)
+RPC_PROXY_TIMEOUT=120000        # AbortController timeout (default: 120s)
+
 # Shutdown
-SHUTDOWN_TIMEOUT=280000  # Milliseconds (default: 280s)
+SHUTDOWN_TIMEOUT=280000         # Graceful shutdown timeout (default: 280s)
+```
+
+### Timeout Architecture
+
+```
+Request flow:
+Client → Next.js API Route → fetch() → SPFN Backend
+
+Timeout layers:
+┌──────────────────────────────────────────────────────┐
+│ RPC_PROXY_TIMEOUT (AbortController)     default 120s │ ← shortest, returns 504
+│ FETCH_HEADERS_TIMEOUT (undici)          default 300s │ ← fetch socket level
+│ FETCH_BODY_TIMEOUT (undici)             default 300s │ ← body chunk interval
+│ FETCH_CONNECT_TIMEOUT (undici)          default  10s │ ← TCP connection
+├──────────────────────────────────────────────────────┤
+│ SERVER_TIMEOUT (backend server.timeout) default 120s │ ← backend HTTP server
+│ SERVER_HEADERS_TIMEOUT                  default  60s │ ← Slowloris defense
+│ SERVER_KEEPALIVE_TIMEOUT                default  65s │ ← idle connection
+└──────────────────────────────────────────────────────┘
+
+Rule: RPC_PROXY_TIMEOUT < FETCH_HEADERS_TIMEOUT
 ```
 
 ---

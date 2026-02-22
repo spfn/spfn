@@ -149,6 +149,8 @@ DATABASE_URL=postgresql://prod:secret@prod-db:5432/app
 | `DATABASE_URL` | `.env.server.local` | 서버 전용, 민감정보 |
 | `SESSION_SECRET` | `.env.server.local` | 서버 전용, 민감정보 |
 | `DB_POOL_MAX` | `.env.server` | 서버 전용, 비민감 설정 |
+| `FETCH_HEADERS_TIMEOUT` | `.env.server` | 서버 전용, 비민감 설정 |
+| `RPC_PROXY_TIMEOUT` | `.env` / `.env.local` | Next.js에서 사용하는 공통 설정 |
 
 ### Test Environment Behavior
 
