@@ -602,6 +602,7 @@ import {
 ```typescript
 import {
   authenticate,
+  optionalAuth,
   requirePermissions,
   requireAnyPermission,
   requireRole,
@@ -624,6 +625,18 @@ app.bind(
     // User has either content:read OR admin:access
   }
 );
+
+// Usage - optional auth (public route with optional user context)
+// Auto-skips global 'auth' middleware — no .skip(['auth']) needed
+export const getProducts = route.get('/products')
+  .use([optionalAuth])
+  .handler(async (c) => {
+    const auth = getOptionalAuth(c);  // AuthContext | undefined
+    if (auth) {
+      return getPersonalizedProducts(auth.userId);
+    }
+    return getPublicProducts();
+  });
 ```
 
 **Helpers:**
@@ -631,6 +644,7 @@ app.bind(
 import {
   // Context
   getAuth,
+  getOptionalAuth,
   getUser,
   getUserId,
   getKeyId,
@@ -2412,6 +2426,6 @@ MIT License - See LICENSE file for details.
 
 ---
 
-**Last Updated:** 2026-01-29
-**Document Version:** 2.5.0 (Technical Documentation)
+**Last Updated:** 2026-02-23
+**Document Version:** 2.6.0 (Technical Documentation)
 **Package Version:** 0.2.0-beta.15

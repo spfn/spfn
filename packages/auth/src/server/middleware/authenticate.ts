@@ -212,3 +212,102 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
     // Continue to route handler
     await next();
 });
+
+/**
+ * Optional authentication middleware
+ *
+ * Same as `authenticate` but does NOT reject unauthenticated requests.
+ * - No token → continues without auth context
+ * - Invalid token → continues without auth context
+ * - Valid token → sets auth context normally
+ *
+ * Auto-skips the global 'auth' middleware when used at route level.
+ *
+ * @example
+ * ```typescript
+ * // No need for .skip(['auth']) — handled automatically
+ * export const getProducts = route.get('/products')
+ *   .use([optionalAuth])
+ *   .handler(async (c) => {
+ *     const auth = getOptionalAuth(c);  // AuthContext | undefined
+ *
+ *     if (auth)
+ *     {
+ *       return getPersonalizedProducts(auth.userId);
+ *     }
+ *
+ *     return getPublicProducts();
+ *   });
+ * ```
+ */
+export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
+{
+    const authHeader = c.req.header('Authorization');
+
+    if (!authHeader || !authHeader.startsWith('Bearer '))
+    {
+        await next();
+        return;
+    }
+
+    const token = authHeader.substring(7);
+
+    try
+    {
+        const decoded = decodeToken(token);
+
+        if (!decoded || !decoded.keyId)
+        {
+            await next();
+            return;
+        }
+
+        const keyId = decoded.keyId as string;
+
+        const keyRecord = await keysRepository.findActiveByKeyId(keyId);
+
+        if (!keyRecord)
+        {
+            await next();
+            return;
+        }
+
+        if (keyRecord.expiresAt && new Date() > keyRecord.expiresAt)
+        {
+            await next();
+            return;
+        }
+
+        verifyClientToken(
+            token,
+            keyRecord.publicKey,
+            keyRecord.algorithm as KeyAlgorithmType
+        );
+
+        const result = await usersRepository.findByIdWithRole(keyRecord.userId);
+
+        if (!result || result.user.status !== 'active')
+        {
+            await next();
+            return;
+        }
+
+        const { user, role } = result;
+
+        keysRepository.updateLastUsedById(keyRecord.id)
+            .catch((err: unknown) => authLogger.middleware.error('Failed to update lastUsedAt', err));
+
+        c.set('auth', {
+            user,
+            userId: String(user.id),
+            keyId,
+            role: role?.name ?? null,
+        });
+    }
+    catch
+    {
+        // Invalid token — continue without auth context
+    }
+
+    await next();
+}, { skips: ['auth'] });

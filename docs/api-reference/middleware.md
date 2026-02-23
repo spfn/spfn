@@ -37,14 +37,42 @@ export const authMiddleware = defineMiddleware('auth', async (c, next) =>
 ```typescript
 function defineMiddleware<TName extends string>(
     name: TName,
-    handler: MiddlewareHandler
+    handler: MiddlewareHandler,
+    options?: DefineMiddlewareOptions
 ): NamedMiddleware<TName>;
 
 // Factory pattern for parameterized middleware
 function defineMiddleware<TName extends string, TArgs extends any[]>(
     name: TName,
-    factory: (...args: TArgs) => MiddlewareHandler
+    factory: (...args: TArgs) => MiddlewareHandler,
+    options?: DefineMiddlewareOptions
 ): (...args: TArgs) => NamedMiddleware<TName>;
+```
+
+### Options
+
+```typescript
+interface DefineMiddlewareOptions
+{
+    /**
+     * Server-level middleware names to auto-skip when this middleware is used at route level.
+     */
+    skips?: string[];
+}
+```
+
+The `skips` option allows a middleware to automatically skip specified global middlewares when used at route level. This eliminates the need for manual `.skip()` calls.
+
+```typescript
+// optionalAuth auto-skips the global 'auth' middleware
+export const optionalAuth = defineMiddleware('optionalAuth', handler, {
+    skips: ['auth']
+});
+
+// No need for .skip(['auth']) — handled automatically
+route.get('/products')
+    .use([optionalAuth])
+    .handler(async (c) => { /* ... */ });
 ```
 
 ### Factory Middleware
@@ -305,6 +333,43 @@ export const dashboardRoute = route.get('/admin/dashboard')
     .handler(async (c) => { /* ... */ });
 ```
 
+### optionalAuth
+
+Optional authentication middleware for routes that serve both authenticated and unauthenticated users. Automatically skips the global `auth` middleware — no need for `.skip(['auth'])`.
+
+- No token → continues without auth context
+- Invalid/expired token → continues without auth context
+- Valid token → sets `AuthContext` normally
+
+```typescript
+import { optionalAuth } from '@spfn/auth/server/middleware';
+import { getOptionalAuth } from '@spfn/auth/server';
+
+// .skip(['auth']) is NOT needed — optionalAuth handles it automatically
+export const getProducts = route.get('/products')
+    .use([optionalAuth])
+    .handler(async (c) =>
+    {
+        const auth = getOptionalAuth(c);  // AuthContext | undefined
+
+        if (auth)
+        {
+            // Authenticated user: personalized response
+            return getPersonalizedProducts(auth.userId);
+        }
+
+        // Unauthenticated user: public response
+        return getPublicProducts();
+    });
+```
+
+#### Context Helpers
+
+| Helper | Return Type | Description |
+|--------|------------|-------------|
+| `getOptionalAuth(c)` | `AuthContext \| undefined` | Returns auth context or undefined |
+| `getAuth(c)` | `AuthContext` | Use only when auth is guaranteed |
+
 ### roleGuard
 
 Advanced role-based access control with allow/deny options. Uses `auth.role` from the context (no additional DB query).
@@ -522,6 +587,7 @@ type MiddlewareHandler = (
 interface NamedMiddleware<TName extends string = string> {
     name: TName;
     handler: MiddlewareHandler;
+    skips?: string[];  // Server-level middlewares to auto-skip
 }
 ```
 

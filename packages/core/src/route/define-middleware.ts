@@ -27,6 +27,7 @@ export type NamedMiddleware<TName extends string = string> = {
     name: TName;
     handler: MiddlewareHandler;
     _name: TName;  // Type inference helper
+    skips?: string[];  // Server-level middlewares to auto-skip when this middleware is used
 };
 
 /**
@@ -103,21 +104,47 @@ export type NamedMiddlewareFactory<TName extends string = string, TArgs extends 
  *   .handler(async (c) => { ... });
  * ```
  */
+/**
+ * Options for defineMiddleware
+ */
+export interface DefineMiddlewareOptions
+{
+    /**
+     * Server-level middleware names to auto-skip when this middleware is used at route level.
+     *
+     * @example
+     * ```ts
+     * // optionalAuth auto-skips the global 'auth' middleware
+     * export const optionalAuth = defineMiddleware('optionalAuth', handler, {
+     *     skips: ['auth']
+     * });
+     *
+     * // Usage: .use([optionalAuth]) — no need for .skip(['auth'])
+     * ```
+     */
+    skips?: string[];
+}
+
 export function defineMiddleware<TName extends string>(
     name: TName,
-    handler: MiddlewareHandler
+    handler: MiddlewareHandler,
+    options?: DefineMiddlewareOptions
 ): NamedMiddleware<TName>;
 
 export function defineMiddleware<TName extends string, TArgs extends any[]>(
     name: TName,
-    factory: (...args: TArgs) => MiddlewareHandler
+    factory: (...args: TArgs) => MiddlewareHandler,
+    options?: DefineMiddlewareOptions
 ): NamedMiddlewareFactory<TName, TArgs>;
 
 export function defineMiddleware<TName extends string, TArgs extends any[] = []>(
     name: TName,
-    handlerOrFactory: MiddlewareHandler | ((...args: TArgs) => MiddlewareHandler)
+    handlerOrFactory: MiddlewareHandler | ((...args: TArgs) => MiddlewareHandler),
+    options?: DefineMiddlewareOptions
 ): NamedMiddleware<TName> | NamedMiddlewareFactory<TName, TArgs>
 {
+    const skips = options?.skips;
+
     // Distinguish between regular middleware and factory by parameter count
     // MiddlewareHandler always has exactly 2 parameters: (c, next)
     // Factory has any other number of parameters
@@ -132,6 +159,7 @@ export function defineMiddleware<TName extends string, TArgs extends any[] = []>
                 name,
                 handler: handlerOrFactory as MiddlewareHandler,
                 _name: name as TName,
+                ...(skips && { skips }),
             };
         }
         // Factory (...args) => (c, next) => ...
@@ -156,6 +184,16 @@ export function defineMiddleware<TName extends string, TArgs extends any[] = []>
                 configurable: true,
             });
 
+            if (skips)
+            {
+                Object.defineProperty(wrapper, 'skips', {
+                    value: skips,
+                    writable: false,
+                    enumerable: false,
+                    configurable: true,
+                });
+            }
+
             return wrapper as NamedMiddlewareFactory<TName, TArgs>;
         }
     }
@@ -165,6 +203,7 @@ export function defineMiddleware<TName extends string, TArgs extends any[] = []>
         name,
         handler: handlerOrFactory as MiddlewareHandler,
         _name: name as TName,
+        ...(skips && { skips }),
     };
 }
 

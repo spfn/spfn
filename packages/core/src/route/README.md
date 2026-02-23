@@ -467,6 +467,7 @@ export type NamedMiddleware<TName extends string = string> = {
     name: TName;
     handler: MiddlewareHandler;
     _name: TName;  // Type inference helper
+    skips?: string[];  // Server-level middlewares to auto-skip when this middleware is used
 };
 
 // Factory middleware with parameters
@@ -484,14 +485,21 @@ Supports two patterns via function overloading:
 // Overload 1: Regular middleware
 export function defineMiddleware<TName extends string>(
     name: TName,
-    handler: MiddlewareHandler
+    handler: MiddlewareHandler,
+    options?: DefineMiddlewareOptions
 ): NamedMiddleware<TName>;
 
 // Overload 2: Factory middleware
 export function defineMiddleware<TName extends string, TArgs extends any[]>(
     name: TName,
-    factory: (...args: TArgs) => MiddlewareHandler
+    factory: (...args: TArgs) => MiddlewareHandler,
+    options?: DefineMiddlewareOptions
 ): NamedMiddlewareFactory<TName, TArgs>;
+
+// Options
+interface DefineMiddlewareOptions {
+    skips?: string[];  // Server-level middlewares to auto-skip
+}
 ```
 
 **Usage Examples:**
@@ -626,6 +634,7 @@ function registerRoute(
 **Skip Semantics:**
 - `skip(['auth'])` - Skip specific named middlewares
 - `skip('*')` - Skip all server-level middlewares
+- `skips` option on `NamedMiddleware` - Auto-skip specified server-level middlewares when the middleware is used at route level (e.g., `optionalAuth` with `skips: ['auth']`)
 - Route-level middlewares (`.use()`) are never skipped
 - Validation middleware is never skipped
 

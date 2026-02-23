@@ -178,6 +178,42 @@ export const internalHealthCheck = route.get('/_internal/health')
 >
 > When using `defineMiddleware`, the middleware name is preserved for type safety. Your IDE will provide autocomplete for middleware names in `.skip()` calls.
 
+### Auto-Skip via `skips` Option
+
+Middlewares can declare which global middlewares they replace using the `skips` option. When a route uses such a middleware, the specified global middlewares are automatically skipped — no manual `.skip()` needed.
+
+```typescript
+import { optionalAuth } from '@spfn/auth/server/middleware';
+import { getOptionalAuth } from '@spfn/auth/server';
+
+// optionalAuth automatically skips the global 'auth' middleware
+export const getProducts = route.get('/products')
+    .use([optionalAuth])  // ← No .skip(['auth']) needed
+    .handler(async (c) =>
+    {
+        const auth = getOptionalAuth(c);  // AuthContext | undefined
+
+        if (auth)
+        {
+            return getPersonalizedProducts(auth.userId);
+        }
+
+        return getPublicProducts();
+    });
+```
+
+To create your own middleware with auto-skip:
+
+```typescript
+import { defineMiddleware } from '@spfn/core/route';
+
+export const softAuth = defineMiddleware('softAuth', async (c, next) =>
+{
+    // Try to authenticate, but don't block on failure
+    await next();
+}, { skips: ['auth'] });  // ← Auto-skips global 'auth' middleware
+```
+
 ## Factory Middleware
 
 Create parameterized middleware using factory pattern:

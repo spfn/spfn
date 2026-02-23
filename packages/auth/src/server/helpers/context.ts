@@ -37,6 +37,39 @@ export function getAuth(c: Context | { raw: Context }): AuthContext
 }
 
 /**
+ * Get optional auth context from route context
+ *
+ * Returns AuthContext if authenticated, undefined otherwise.
+ * Use with `optionalAuth` middleware for routes that serve both
+ * authenticated and unauthenticated users.
+ *
+ * @example
+ * ```typescript
+ * export const getProducts = route.get('/products')
+ *   .use([optionalAuth])
+ *   .handler(async (c) => {
+ *     const auth = getOptionalAuth(c);
+ *
+ *     if (auth)
+ *     {
+ *       return getPersonalizedProducts(auth.userId);
+ *     }
+ *
+ *     return getPublicProducts();
+ *   });
+ * ```
+ */
+export function getOptionalAuth(c: Context | { raw: Context }): AuthContext | undefined
+{
+    if ('raw' in c && c.raw)
+    {
+        return c.raw.get('auth');
+    }
+
+    return (c as Context).get('auth');
+}
+
+/**
  * Get authenticated user from route context
  *
  * @example

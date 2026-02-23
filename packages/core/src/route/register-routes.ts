@@ -206,7 +206,20 @@ function registerRoute(
     // Check if skipping all middlewares
     const skipAll = skipMiddlewares === '*';
 
-    // Add server-level named middlewares (skip those in skipMiddlewares or if '*')
+    // Collect auto-skips from route-level middlewares (e.g., optionalAuth skips 'auth')
+    const autoSkips = new Set<string>();
+    for (const mw of middlewares)
+    {
+        if (isNamedMiddleware(mw) && mw.skips)
+        {
+            for (const skipName of mw.skips)
+            {
+                autoSkips.add(skipName);
+            }
+        }
+    }
+
+    // Add server-level named middlewares (skip those in skipMiddlewares, autoSkips, or if '*')
     if (namedMiddlewares && namedMiddlewares.length > 0)
     {
         if (skipAll)
@@ -218,15 +231,19 @@ function registerRoute(
             const skipSet = new Set(Array.isArray(skipMiddlewares) ? skipMiddlewares : []);
             for (const middleware of namedMiddlewares)
             {
-                if (!skipSet.has(middleware.name))
+                if (skipSet.has(middleware.name))
+                {
+                    logger.debug(`⏭️  Skipping middleware '${middleware.name}' for route: ${method} ${path}`, { name });
+                }
+                else if (autoSkips.has(middleware.name))
+                {
+                    logger.debug(`⏭️  Auto-skipping middleware '${middleware.name}' for route: ${method} ${path}`, { name });
+                }
+                else
                 {
                     allMiddlewares.push(middleware.handler);
                     registeredNames.add(middleware.name);
                     registeredHandlers.add(middleware.handler);
-                }
-                else
-                {
-                    logger.debug(`⏭️  Skipping middleware '${middleware.name}' for route: ${method} ${path}`, { name });
                 }
             }
         }
