@@ -10,7 +10,7 @@ import { authLogger } from '@spfn/auth/server';
 /**
  * Get current auth session with roles and permissions via API
  */
-async function getAuthSessionData()
+export async function getAuthSessionData()
 {
     try
     {

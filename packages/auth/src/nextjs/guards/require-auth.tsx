@@ -5,7 +5,8 @@
  */
 
 import { redirect } from 'next/navigation';
-import { getSession } from '../session-helpers';
+import { getSession, clearSession } from '../session-helpers';
+import { getAuthSessionData } from './auth-utils';
 import type { ReactNode } from 'react';
 
 export interface RequireAuthProps
@@ -61,6 +62,15 @@ export async function RequireAuth({
             return <>{fallback}</>;
         }
 
+        redirect(redirectTo);
+    }
+
+    // Validate server-side session (key expiry, user status, etc.)
+    const serverSession = await getAuthSessionData();
+
+    if (!serverSession)
+    {
+        await clearSession();
         redirect(redirectTo);
     }
 

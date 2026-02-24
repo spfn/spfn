@@ -9,7 +9,7 @@ export type { RequireRoleProps } from './guards/require-role';
 export { RequirePermission } from './guards/require-permission';
 export type { RequirePermissionProps } from './guards/require-permission';
 
-export { getUserRole, getUserPermissions, hasAnyRole, hasAnyPermission } from './guards/auth-utils';
+export { getAuthSessionData, getUserRole, getUserPermissions, hasAnyRole, hasAnyPermission } from './guards/auth-utils';
 
 // Session helpers
 export {

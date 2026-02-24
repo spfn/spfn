@@ -146,6 +146,27 @@ export const generalAuthInterceptor: InterceptorRule =
 
     response: async (ctx, next) =>
     {
+        // Backend returned 401 with a valid session — server rejected it
+        if (ctx.response.status === 401 && ctx.metadata.sessionValid)
+        {
+            authLogger.interceptor.general.warn('Backend returned 401, clearing session');
+
+            ctx.setCookies.push({
+                name: COOKIE_NAMES.SESSION,
+                value: '',
+                options: { maxAge: 0, path: '/' },
+            });
+
+            ctx.setCookies.push({
+                name: COOKIE_NAMES.SESSION_KEY_ID,
+                value: '',
+                options: { maxAge: 0, path: '/' },
+            });
+
+            await next();
+            return;
+        }
+
         // Clear expired/invalid session
         if (ctx.metadata.clearSession)
         {
