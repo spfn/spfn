@@ -8,6 +8,13 @@
       "when": 1764036749408,
       "tag": "0000_premium_famine",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772024450308,
+      "tag": "0001_smooth_the_fury",
+      "breakpoints": true
     }
   ]
 }
