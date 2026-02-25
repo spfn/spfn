@@ -57,6 +57,7 @@ export async function getUserProfileService(userId: string | number | bigint): P
     return {
         userId: user.userId,
         email: user.email,
+        username: user.username,
         emailVerified: user.isEmailVerified,
         phoneVerified: user.isPhoneVerified,
         lastLoginAt: user.lastLoginAt,

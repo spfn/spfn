@@ -76,6 +76,7 @@ export interface UserProfile
 {
     userId: number;
     email: string | null;
+    username: string | null;
     emailVerified: boolean;
     phoneVerified: boolean;
     lastLoginAt: Date | null;
