@@ -1044,6 +1044,44 @@ Change password.
 
 ---
 
+#### `GET /_auth/users/username/check`
+
+Check if a username is available.
+
+**Query:**
+```typescript
+{
+  username: string;  // Min 1 char
+}
+```
+
+**Response:**
+```typescript
+{
+  available: boolean;
+}
+```
+
+---
+
+#### `PATCH /_auth/users/username`
+
+Update authenticated user's username. Validates uniqueness before updating.
+
+**Request:**
+```typescript
+{
+  username: string | null;  // New username or null to clear
+}
+```
+
+**Response:** Updated user object.
+
+**Errors:**
+- `409 UsernameAlreadyTakenError` - Username is already in use by another user
+
+---
+
 ## Events
 
 `@spfn/auth`는 `@spfn/core/event`를 사용하여 인증 관련 이벤트를 발행합니다. 이를 통해 로그인/회원가입 시 추가 로직(환영 이메일, 분석, 알림 등)을 디커플링된 방식으로 처리할 수 있습니다.
@@ -1488,6 +1526,7 @@ CREATE TABLE users (
   id BIGSERIAL PRIMARY KEY,
   email TEXT UNIQUE,
   phone TEXT UNIQUE,
+  username TEXT UNIQUE,
   password_hash TEXT NOT NULL,
   password_change_required BOOLEAN DEFAULT false,
   role_id BIGINT REFERENCES roles(id) NOT NULL,
@@ -1506,6 +1545,7 @@ CREATE TABLE users (
 
 **Key Points:**
 - At least one of `email` OR `phone` required
+- `username` is unique and nullable (optional display/mention identifier)
 - `passwordHash` is bcrypt ($2b$10$..., 60 chars)
 - `roleId` references roles table (NOT NULL)
 

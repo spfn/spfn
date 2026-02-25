@@ -3,7 +3,7 @@
  */
 
 import { getAuth } from '../../helpers';
-import { getUserProfileService, updateUserProfileService } from '../../services';
+import { getUserProfileService, updateUserProfileService, checkUsernameAvailableService, updateUsernameService } from '../../services';
 import { defineRouter, route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
 
@@ -62,10 +62,59 @@ export const updateUserProfile = route.patch('/_auth/users/profile')
         return await updateUserProfileService(userId, body);
     });
 
+/**
+ * GET /_auth/users/username/check
+ * Check if username is available
+ *
+ * Returns { available: boolean }
+ *
+ * Requires authentication
+ */
+export const checkUsername = route.get('/_auth/users/username/check')
+    .input({
+        query: Type.Object({
+            username: Type.String({ minLength: 1 }),
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { query } = await c.data();
+        return { available: await checkUsernameAvailableService(query.username) };
+    });
+
+/**
+ * PATCH /_auth/users/username
+ * Update username (authenticated)
+ *
+ * Validates uniqueness before updating.
+ * Pass null to clear the username.
+ *
+ * @throws UsernameAlreadyTakenError (409) if username is taken
+ *
+ * Requires authentication
+ */
+export const updateUsername = route.patch('/_auth/users/username')
+    .input({
+        body: Type.Object({
+            username: Type.Union([
+                Type.String({ minLength: 1 }),
+                Type.Null(),
+            ], { description: 'New username or null to clear' }),
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { userId } = getAuth(c);
+        const { body } = await c.data();
+        return await updateUsernameService(userId, body.username);
+    });
+
 // Export router
 export const userRouter = defineRouter({
     getUserProfile: getUserProfile,
     updateUserProfile: updateUserProfile,
+    checkUsername: checkUsername,
+    updateUsername: updateUsername,
 });
 
 // For backward compatibility with file-based routing (temporary)

@@ -33,6 +33,10 @@ export const users = authSchema.table('users',
         // Used for: SMS login, 2FA, notifications
         phone: text('phone').unique(),
 
+        // Username (unique, optional)
+        // Used for: display, mention, public profile URL
+        username: text('username').unique(),
+
         // Authentication
         // Bcrypt password hash ($2b$10$[salt][hash], 60 chars)
         // Nullable to support OAuth-only accounts
@@ -80,6 +84,7 @@ export const users = authSchema.table('users',
         // Indexes for query optimization
         index('users_email_idx').on(table.email),
         index('users_phone_idx').on(table.phone),
+        index('users_username_idx').on(table.username),
         index('users_status_idx').on(table.status),
         index('users_role_id_idx').on(table.roleId),
     ]

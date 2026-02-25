@@ -67,6 +67,21 @@ export class UsersRepository extends BaseRepository
     }
 
     /**
+     * 사용자명으로 사용자 조회
+     * Read replica 사용
+     */
+    async findByUsername(username: string)
+    {
+        const result = await this.readDb
+            .select()
+            .from(users)
+            .where(eq(users.username, username))
+            .limit(1);
+
+        return result[0] ?? null;
+    }
+
+    /**
      * 이메일 또는 전화번호로 사용자 조회
      * Read replica 사용
      */
@@ -280,6 +295,7 @@ export class UsersRepository extends BaseRepository
             .select({
                 id: users.id,
                 email: users.email,
+                username: users.username,
                 emailVerifiedAt: users.emailVerifiedAt,
                 phoneVerifiedAt: users.phoneVerifiedAt,
             })
@@ -296,6 +312,7 @@ export class UsersRepository extends BaseRepository
         return {
             userId: user.id,
             email: user.email,
+            username: user.username,
             isEmailVerified: !!user.emailVerifiedAt,
             isPhoneVerified: !!user.phoneVerifiedAt,
         };
@@ -314,6 +331,7 @@ export class UsersRepository extends BaseRepository
             .select({
                 id: users.id,
                 email: users.email,
+                username: users.username,
                 emailVerifiedAt: users.emailVerifiedAt,
                 phoneVerifiedAt: users.phoneVerifiedAt,
                 lastLoginAt: users.lastLoginAt,
@@ -333,6 +351,7 @@ export class UsersRepository extends BaseRepository
         return {
             userId: user.id,
             email: user.email,
+            username: user.username,
             isEmailVerified: !!user.emailVerifiedAt,
             isPhoneVerified: !!user.phoneVerifiedAt,
             lastLoginAt: user.lastLoginAt,

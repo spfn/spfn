@@ -58,6 +58,8 @@ export {
     getUserByPhoneService,
     updateLastLoginService,
     updateUserService,
+    checkUsernameAvailableService,
+    updateUsernameService,
 } from './user.service';
 
 // RBAC Service

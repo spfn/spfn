@@ -185,6 +185,23 @@ export class VerificationTokenTargetMismatchError extends ValidationError
 }
 
 /**
+ * Username Already Taken Error (409)
+ *
+ * Thrown when trying to set a username that is already in use
+ */
+export class UsernameAlreadyTakenError extends ConflictError
+{
+    constructor(data: { username?: string; message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'Username is already taken',
+            details: { username: data.username, ...data.details }
+        });
+        this.name = 'UsernameAlreadyTakenError';
+    }
+}
+
+/**
  * Insufficient Permissions Error (403)
  *
  * Thrown when user lacks required permissions for the operation
