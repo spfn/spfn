@@ -6,6 +6,7 @@
 
 import { type NewUser } from "../entities/users";
 import { usersRepository } from '../repositories';
+import { ValidationError } from '@spfn/core/errors';
 import { ReservedUsernameError, UsernameAlreadyTakenError } from '@spfn/auth/errors';
 import { env } from '@spfn/auth/config';
 
@@ -77,12 +78,41 @@ function isReservedUsername(username: string): boolean
 }
 
 /**
+ * Validate username length against env config
+ *
+ * @throws ValidationError if username length is out of range
+ */
+function validateUsernameLength(username: string): void
+{
+    const min = env.SPFN_AUTH_USERNAME_MIN_LENGTH ?? 3;
+    const max = env.SPFN_AUTH_USERNAME_MAX_LENGTH ?? 30;
+
+    if (username.length < min)
+    {
+        throw new ValidationError({
+            message: `Username must be at least ${min} characters`,
+            details: { minLength: min, actual: username.length },
+        });
+    }
+
+    if (username.length > max)
+    {
+        throw new ValidationError({
+            message: `Username must be at most ${max} characters`,
+            details: { maxLength: max, actual: username.length },
+        });
+    }
+}
+
+/**
  * Check if username is available
  *
  * @returns true if the username is available (not taken and not reserved)
  */
 export async function checkUsernameAvailableService(username: string)
 {
+    validateUsernameLength(username);
+
     if (isReservedUsername(username))
     {
         return false;
@@ -106,6 +136,8 @@ export async function updateUsernameService(userId: string | number | bigint, us
 
     if (username !== null)
     {
+        validateUsernameLength(username);
+
         if (isReservedUsername(username))
         {
             throw new ReservedUsernameError({ username });

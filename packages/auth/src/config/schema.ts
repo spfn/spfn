@@ -200,6 +200,24 @@ export const authEnvSchema = defineEnvSchema({
         }),
     },
 
+    SPFN_AUTH_USERNAME_MIN_LENGTH: {
+        ...envNumber({
+            description: 'Minimum username length',
+            default: 3,
+            required: false,
+            examples: [2, 3, 4],
+        }),
+    },
+
+    SPFN_AUTH_USERNAME_MAX_LENGTH: {
+        ...envNumber({
+            description: 'Maximum username length',
+            default: 30,
+            required: false,
+            examples: [20, 30, 50],
+        }),
+    },
+
     // ============================================================================
     // API Configuration
     // ============================================================================
