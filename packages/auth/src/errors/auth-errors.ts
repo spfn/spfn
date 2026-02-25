@@ -185,6 +185,23 @@ export class VerificationTokenTargetMismatchError extends ValidationError
 }
 
 /**
+ * Reserved Username Error (400)
+ *
+ * Thrown when trying to use a reserved/prohibited username
+ */
+export class ReservedUsernameError extends ValidationError
+{
+    constructor(data: { username?: string; message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'This username is reserved',
+            details: { username: data.username, ...data.details }
+        });
+        this.name = 'ReservedUsernameError';
+    }
+}
+
+/**
  * Username Already Taken Error (409)
  *
  * Thrown when trying to set a username that is already in use

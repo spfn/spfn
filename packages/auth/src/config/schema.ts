@@ -186,6 +186,21 @@ export const authEnvSchema = defineEnvSchema({
     },
 
     // ============================================================================
+    // Username Configuration
+    // ============================================================================
+    SPFN_AUTH_RESERVED_USERNAMES: {
+        ...envString({
+            description: 'Comma-separated list of reserved usernames that cannot be registered',
+            required: false,
+            default: 'admin,root,system,support,help,moderator,superadmin',
+            examples: [
+                'admin,root,system,support,help',
+                'admin,root,system,support,help,moderator,superadmin,operator',
+            ],
+        }),
+    },
+
+    // ============================================================================
     // API Configuration
     // ============================================================================
     SPFN_API_URL: {
