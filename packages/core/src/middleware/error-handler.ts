@@ -82,13 +82,40 @@ interface ErrorLogData extends Record<string, unknown>
     statusCode: number;
     path: string;
     method: string;
+    cause?: string;
 }
 
 interface StandardErrorResponse
 {
     __type: string;
     message: string;
+    cause?: string;
     stack?: string;
+}
+
+/**
+ * Extract root cause message from nested Error.cause chain
+ */
+function extractCauseMessage(err: Error): string | undefined
+{
+    const cause = (err as any).cause;
+
+    if (!cause)
+    {
+        return undefined;
+    }
+
+    if (cause instanceof Error)
+    {
+        return cause.message;
+    }
+
+    if (typeof cause === 'string')
+    {
+        return cause;
+    }
+
+    return String(cause);
 }
 
 const SENSITIVE_HEADERS = new Set(['authorization', 'cookie', 'x-api-key', 'x-auth-token']);
@@ -205,6 +232,8 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
         const path = c.req.path;
         const method = c.req.method;
 
+        const causeMessage = extractCauseMessage(err);
+
         // Handle SerializableError with automatic serialization
         if (isSerializableError(err))
         {
@@ -215,6 +244,7 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                 logError(err, {
                     type: err.constructor.name,
                     message: err.message,
+                    cause: causeMessage,
                     statusCode,
                     path,
                     method,
@@ -250,6 +280,7 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
             logError(err, {
                 type: err.name || 'Error',
                 message: err.message,
+                cause: causeMessage,
                 statusCode,
                 path,
                 method,
@@ -269,6 +300,11 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
             __type: 'Error',
             message: err.message || 'Internal Server Error',
         };
+
+        if (causeMessage)
+        {
+            response.cause = causeMessage;
+        }
 
         if (includeStack && err.stack)
         {
