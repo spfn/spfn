@@ -128,24 +128,19 @@ export async function runWithSpinner(
 }
 
 /**
- * Register tsx ESM loader so that `.ts` schema files can be dynamically imported.
- * Safe to call multiple times — only registers once.
+ * Check if tsx ESM loader is available.
+ *
+ * On Node.js 22+, tsx must be loaded via --import tsx at process start
+ * (handled by bin/spfn.js). Calling tsx.register() at runtime causes
+ * ERR_REQUIRE_CYCLE_MODULE due to CJS/ESM interop issues.
+ *
+ * This function is kept for backwards compatibility but is now a no-op.
+ * The bin entry point handles tsx loader registration via process re-spawn.
  */
-let tsxRegistered = false;
 async function ensureTsxLoader(): Promise<void>
 {
-    if (tsxRegistered) return;
-
-    try
-    {
-        const tsx = await import('tsx/esm/api');
-        tsx.register();
-        tsxRegistered = true;
-    }
-    catch
-    {
-        // tsx not available — .ts imports will rely on Node's native loader
-    }
+    // No-op: tsx loader is registered at process start via --import tsx
+    // See bin/spfn.js for the re-spawn mechanism
 }
 
 /**
