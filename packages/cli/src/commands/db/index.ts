@@ -15,6 +15,7 @@ import { dbBackup } from './backup.js';
 import { dbRestore } from './restore.js';
 import { dbBackupList } from './list.js';
 import { dbBackupClean } from './clean.js';
+import { dbReindex } from './reindex.js';
 
 /**
  * Database command group
@@ -91,3 +92,9 @@ dbCommand
 	.option('-k, --keep <number>', 'Keep N most recent backups', parseInt)
 	.option('-o, --older-than <days>', 'Delete backups older than N days', parseInt)
 	.action((options) => dbBackupClean(options));
+
+dbCommand
+    .command('reindex')
+    .description('Convert migration files from sequential to timestamp prefix')
+    .option('--dry-run', 'Show changes without applying')
+    .action((options) => dbReindex(options));

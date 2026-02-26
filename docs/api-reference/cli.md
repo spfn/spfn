@@ -89,13 +89,14 @@ spfn start --port 8790 --host 0.0.0.0
 ## spfn db generate
 
 Generate database migration files from schema changes. Wraps `drizzle-kit generate`.
+Uses **timestamp prefix** by default for branch-parallel compatibility.
 
 ```bash
 # Generate migration
 spfn db generate
 
-# Output
-✓ Migration generated: drizzle/0001_*.sql
+# Output (timestamp-prefixed)
+✓ Migration generated: drizzle/1764036749408_*.sql
 ```
 
 > **Note:** Entity Processing
@@ -222,6 +223,37 @@ spfn db push --force
 > **⚠️ Warning:** Development Only
 >
 > `spfn db push` is intended for development only. For production, always use `spfn db generate` and `spfn db migrate` to maintain migration history.
+
+## spfn db reindex
+
+Convert existing sequential-prefix migrations (`0000_`, `0001_`) to timestamp-prefix format for better branch-parallel compatibility. If your project was created before timestamp prefix became the default, run this once to migrate existing files.
+
+```bash
+# Preview changes without applying
+spfn db reindex --dry-run
+
+# Apply conversion
+spfn db reindex
+```
+
+### What It Does
+
+1. Reads `_journal.json` from the drizzle output directory
+2. For each sequential-prefixed entry, replaces the prefix with the `when` timestamp
+3. Renames SQL files (`0001_smooth_fury.sql` → `1764036749408_smooth_fury.sql`)
+4. Renames snapshot files (`meta/0001_snapshot.json` → `meta/1764036749408_snapshot.json`)
+5. Updates journal tags accordingly
+6. Creates a `_journal.json.bak` backup before modifying
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Show the reindex plan without making any changes |
+
+> **Note:** Entries that already use timestamp prefix are automatically skipped.
+
+> **Safe with existing databases:** Reindex only renames files and updates journal tags — the `when` timestamp and SQL content remain unchanged, so `__drizzle_migrations` records stay valid. You can run `reindex` even after migrations have been applied.
 
 ## spfn db studio
 
@@ -998,14 +1030,17 @@ psql $DATABASE_URL -c "SELECT 1"
 ```bash
 # Error: Migration conflict detected
 
-# Solution 1: Pull latest migrations
+# Solution 1: Convert to timestamp prefix (prevents future conflicts)
+spfn db reindex
+
+# Solution 2: Pull latest migrations
 git pull origin main
 
-# Solution 2: Regenerate migrations
+# Solution 3: Regenerate migrations
 rm -rf drizzle/
 spfn db generate
 
-# Solution 3: Manual merge
+# Solution 4: Manual merge
 # Edit conflicting migration files manually
 ```
 

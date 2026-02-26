@@ -1043,6 +1043,47 @@ This prevents issues with:
 
 Module migrations are already included in the published package, so you never need to regenerate them.
 
+## Branch-Parallel Development
+
+SPFN uses **timestamp-based migration prefixes** by default to avoid conflicts when multiple developers generate migrations on different branches.
+
+### Why Timestamp Prefix?
+
+With sequential prefixes (`0000`, `0001`), two branches that each generate a migration will both create `0001_*.sql`, causing a 3-way merge conflict across the SQL file, the snapshot, and `_journal.json`. Timestamp prefixes (e.g., `1764036749408_*.sql`) are virtually collision-free.
+
+### Migrating Existing Projects
+
+If your project was created before timestamp prefix became the default, convert existing migrations with:
+
+```bash
+# Preview what will change
+spfn db reindex --dry-run
+
+# Apply conversion
+spfn db reindex
+```
+
+After reindexing, all future `spfn db generate` calls will use timestamp prefixes automatically.
+
+### Workflow
+
+```bash
+# Branch A: add users table
+git checkout -b feat/users
+# edit schema...
+spfn db generate        # → 1764036749408_add_users.sql
+
+# Branch B: add posts table
+git checkout -b feat/posts
+# edit schema...
+spfn db generate        # → 1764036812345_add_posts.sql
+
+# Merge — no conflicts!
+git checkout main
+git merge feat/users
+git merge feat/posts    # Both migrations coexist
+```
+
 ## Read/Write Separation
 
 Superfunction automatically routes read operations to replica databases when configured:

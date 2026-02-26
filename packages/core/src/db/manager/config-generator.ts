@@ -231,6 +231,9 @@ export interface DrizzleConfigOptions
 
     /** Auto-detect PostgreSQL schemas from entity files (requires expandGlobs: true) */
     autoDetectSchemas?: boolean;
+
+    /** Migration prefix strategy (default: 'timestamp') */
+    migrationPrefix?: 'index' | 'timestamp' | 'unix' | 'none';
 }
 
 /**
@@ -518,6 +521,9 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
             out,
             dialect,
             dbCredentials: getDbCredentials(dialect, databaseUrl),
+            migrations: {
+                prefix: options.migrationPrefix ?? 'timestamp',
+            },
         };
     }
 
@@ -576,6 +582,9 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
         dialect,
         dbCredentials: getDbCredentials(dialect, databaseUrl),
         schemaFilter,
+        migrations: {
+            prefix: options.migrationPrefix ?? 'timestamp',
+        },
     };
 }
 
@@ -633,13 +642,18 @@ export function generateDrizzleConfigFile(options: DrizzleConfigOptions = {}): s
         ? `\n    schemaFilter: ${JSON.stringify(config.schemaFilter)},`
         : '';
 
+    // Format migrations if present
+    const migrationsLine = config.migrations
+        ? `\n    migrations: ${JSON.stringify(config.migrations)},`
+        : '';
+
     return `import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
     schema: ${schemaValue},
     out: '${config.out}',
     dialect: '${config.dialect}',
-    dbCredentials: ${JSON.stringify(config.dbCredentials, null, 4)},${schemaFilterLine}
+    dbCredentials: ${JSON.stringify(config.dbCredentials, null, 4)},${schemaFilterLine}${migrationsLine}
 });
 `;
 }
