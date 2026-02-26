@@ -754,6 +754,9 @@ importers:
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
+      drizzle-kit:
+        specifier: ^0.31.6
+        version: 0.31.6
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.0(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
@@ -794,9 +797,6 @@ importers:
       concurrently:
         specifier: ^9.2.1
         version: 9.2.1
-      drizzle-kit:
-        specifier: ^0.31.6
-        version: 0.31.6
       tsx:
         specifier: ^4.20.6
         version: 4.20.6
