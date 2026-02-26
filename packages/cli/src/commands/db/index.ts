@@ -30,8 +30,10 @@ dbCommand
 
 dbCommand
     .command('push')
-    .description('Push schema changes directly to database (no migrations)')
-    .action(dbPush);
+    .description('Push schema changes to database (safe mode by default)')
+    .option('--force', 'Apply all changes including destructive ones')
+    .option('--dry-run', 'Show changes without applying')
+    .action((options) => dbPush(options));
 
 dbCommand
     .command('migrate')

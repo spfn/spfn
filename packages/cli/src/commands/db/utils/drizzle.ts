@@ -1,5 +1,6 @@
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { spawn } from 'child_process';
+import { pathToFileURL } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
 
@@ -124,4 +125,87 @@ export async function runWithSpinner(
         console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
         process.exit(1);
     }
+}
+
+/**
+ * Register tsx ESM loader so that `.ts` schema files can be dynamically imported.
+ * Safe to call multiple times — only registers once.
+ */
+let tsxRegistered = false;
+async function ensureTsxLoader(): Promise<void>
+{
+    if (tsxRegistered) return;
+
+    try
+    {
+        const tsx = await import('tsx/esm/api');
+        tsx.register();
+        tsxRegistered = true;
+    }
+    catch
+    {
+        // tsx not available — .ts imports will rely on Node's native loader
+    }
+}
+
+/**
+ * Dynamically import schema files and merge all exports into a single object.
+ * Used to build the `imports` parameter for drizzle-kit's `pushSchema()`.
+ */
+export async function loadSchemaImports(schemaFiles: string[]): Promise<Record<string, unknown>>
+{
+    // Ensure tsx loader is registered so .ts files can be imported
+    const hasTsFiles = schemaFiles.some(f => f.endsWith('.ts'));
+    if (hasTsFiles)
+    {
+        await ensureTsxLoader();
+    }
+
+    const imports: Record<string, unknown> = {};
+
+    for (const file of schemaFiles)
+    {
+        const moduleUrl = pathToFileURL(file).href;
+        const mod = await import(moduleUrl);
+
+        for (const [key, value] of Object.entries(mod))
+        {
+            if (key !== 'default')
+            {
+                imports[key] = value;
+            }
+        }
+    }
+
+    return imports;
+}
+
+/**
+ * Create a drizzle-orm PgDatabase instance for pushSchema().
+ * Uses `pg` (node-postgres) driver because drizzle-kit's internal adapter
+ * expects `execute()` to return `{ rows: [...] }`, which `pg` provides
+ * but `postgres.js` does not.
+ */
+export async function createPushConnection(): Promise<{ db: any; close: () => Promise<void> }>
+{
+    loadEnv();
+
+    if (!env.DATABASE_URL)
+    {
+        throw new Error('DATABASE_URL is required');
+    }
+
+    const pg = await import('pg');
+    const { drizzle } = await import('drizzle-orm/node-postgres');
+
+    const pool = new pg.default.Pool({
+        connectionString: env.DATABASE_URL,
+        max: 1,
+    });
+    const db = drizzle(pool);
+
+    return {
+        db,
+        close: () => pool.end(),
+    };
 }

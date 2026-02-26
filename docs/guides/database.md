@@ -973,18 +973,24 @@ Modules ship with pre-built migrations in their `migrations/` directory. These a
 
 ```bash
 # When you run:
-spfn db push
+spfn db push          # safe mode — prompts for destructive changes
+spfn db push --force  # apply all without prompting
+spfn db push --dry-run # preview only
 # or
 spfn db migrate
 
-# Module migrations are applied first:
+# Schema changes are classified and applied:
+✅ Safe changes (2):
+   CREATE TABLE "posts" (...)
+   ALTER TABLE "users" ADD COLUMN "bio" varchar(500);
+❌ Destructive changes (1):    ← requires --force or confirmation
+   ALTER TABLE "users" DROP COLUMN "legacy";
+
+# Then module migrations are applied:
 📦 Applying function package migrations:
   - @spfn/cms
   - @spfn/auth
-✅ Function migrations applied
-
-# Then your project migrations:
-✅ Project migrations applied successfully
+✅ All function migrations applied
 ```
 
 ### Module Schemas

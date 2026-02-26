@@ -191,12 +191,33 @@ SELECT * FROM __drizzle_migrations;
 
 ## spfn db push
 
-Push schema changes directly to the database without generating migration files. Useful for rapid prototyping in development.
+Push schema changes to the database (safe mode by default). Additive changes (CREATE TABLE, ADD COLUMN, etc.) are applied automatically, while destructive changes (DROP TABLE, DROP COLUMN, etc.) require confirmation.
 
 ```bash
-# Push schema changes to database
+# Push schema changes (safe mode — prompts for destructive changes)
 spfn db push
+
+# Preview changes without applying
+spfn db push --dry-run
+
+# Apply all changes including destructive ones without prompting
+spfn db push --force
 ```
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Show classified SQL statements without applying |
+| `--force` | Apply all changes including destructive ones |
+
+### Safe Mode Classification
+
+| Category | Examples | Behavior |
+|----------|----------|----------|
+| **Safe** | CREATE TABLE, ADD COLUMN, CREATE INDEX | Auto-applied |
+| **Warning** | SET NOT NULL, RENAME COLUMN | Auto-applied with warning |
+| **Destructive** | DROP TABLE, DROP COLUMN, column type change | Requires `--force` or interactive confirmation |
 
 > **⚠️ Warning:** Development Only
 >
