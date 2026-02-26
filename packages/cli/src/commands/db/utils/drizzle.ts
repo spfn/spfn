@@ -196,6 +196,9 @@ export async function createPushConnection(): Promise<{ db: any; close: () => Pr
     const pool = new pg.default.Pool({
         connectionString: env.DATABASE_URL,
         max: 1,
+        ssl: env.DATABASE_URL.includes('sslmode=')
+            ? { rejectUnauthorized: false }
+            : undefined,
     });
     const db = drizzle(pool);
 
