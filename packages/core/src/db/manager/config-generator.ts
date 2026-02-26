@@ -12,9 +12,11 @@ import { env } from '@spfn/core/config';
 // ============================================================================
 
 /**
- * Index file patterns to exclude from schema discovery
+ * Barrel file patterns to exclude from schema discovery.
+ * These are re-export files that would cause circular imports
+ * when loaded alongside the individual entity files they re-export.
  */
-const INDEX_FILE_PATTERNS = [
+const BARREL_FILE_PATTERNS = [
     '/index',
     '/index.ts',
     '/index.js',
@@ -23,6 +25,12 @@ const INDEX_FILE_PATTERNS = [
     '\\index.ts',
     '\\index.js',
     '\\index.mjs',
+    '/config.ts',
+    '/config.js',
+    '/config.mjs',
+    '\\config.ts',
+    '\\config.js',
+    '\\config.mjs',
 ];
 
 /**
@@ -42,9 +50,9 @@ const SUPPORTED_EXTENSIONS = ['.ts', '.js', '.mjs'];
  * @returns true if file is an index file
  * @internal
  */
-function isIndexFile(filePath: string): boolean
+function isBarrelFile(filePath: string): boolean
 {
-    return INDEX_FILE_PATTERNS.some(pattern => filePath.endsWith(pattern));
+    return BARREL_FILE_PATTERNS.some(pattern => filePath.endsWith(pattern));
 }
 
 /**
@@ -79,15 +87,15 @@ function hasSupportedExtension(filePath: string): boolean
 }
 
 /**
- * Filter out index files from file list
+ * Filter out barrel files (re-export aggregators) from file list
  *
  * @param files - Array of file paths
- * @returns Filtered array without index files
+ * @returns Filtered array without barrel files
  * @internal
  */
-function filterIndexFiles(files: string[]): string[]
+function filterBarrelFiles(files: string[]): string[]
 {
-    return files.filter(file => !isIndexFile(file));
+    return files.filter(file => !isBarrelFile(file));
 }
 
 /**
@@ -387,7 +395,7 @@ function discoverPackageSchemas(cwd: string): string[]
                     const expandedFiles = expandGlobPattern(absolutePath);
 
                     // Filter out index files (they are re-exports, not schema definitions)
-                    const schemaFiles = filterIndexFiles(expandedFiles);
+                    const schemaFiles = filterBarrelFiles(expandedFiles);
 
                     schemas.push(...schemaFiles);
                 }
@@ -551,7 +559,7 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
             const expanded = expandGlobPattern(absoluteSchema);
 
             // Filter out index files (they are re-exports, not schema definitions)
-            const filtered = filterIndexFiles(expanded);
+            const filtered = filterBarrelFiles(expanded);
 
             expandedFiles.push(...filtered);
         }
