@@ -190,15 +190,15 @@ export async function createPushConnection(): Promise<{ db: any; close: () => Pr
         throw new Error('DATABASE_URL is required');
     }
 
+    // Allow self-signed certificates (same as runDrizzleCommand)
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
     const pg = await import('pg');
     const { drizzle } = await import('drizzle-orm/node-postgres');
 
     const pool = new pg.default.Pool({
         connectionString: env.DATABASE_URL,
         max: 1,
-        ssl: env.DATABASE_URL.includes('sslmode=')
-            ? { rejectUnauthorized: false }
-            : undefined,
     });
     const db = drizzle(pool);
 
