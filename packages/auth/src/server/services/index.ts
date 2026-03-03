@@ -109,7 +109,7 @@ export {
 export { getAuthSessionService } from './auth-session.service';
 
 // User Profile Service (new)
-export { getUserProfileService, updateUserProfileService } from './user-profile.service';
+export { getUserProfileService, updateUserProfileService, updateLocaleService } from './user-profile.service';
 export type { UpdateProfileParams } from './user-profile.service';
 
 // OAuth Service

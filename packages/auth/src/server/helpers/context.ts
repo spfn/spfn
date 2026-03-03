@@ -120,6 +120,24 @@ export function getRole(c: Context | { raw: Context }): string | null
 }
 
 /**
+ * Get authenticated user's locale from route context
+ *
+ * @returns Locale string (e.g., 'en', 'ko')
+ *
+ * @example
+ * ```typescript
+ * app.bind(contract, [authenticate], async (c) => {
+ *     const locale = getLocale(c);
+ *     // 'en' | 'ko' | ...
+ * });
+ * ```
+ */
+export function getLocale(c: Context | { raw: Context }): string
+{
+    return getAuth(c).locale;
+}
+
+/**
  * Get current key ID from route context
  *
  * @example

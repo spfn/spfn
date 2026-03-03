@@ -29,6 +29,20 @@ export class UserProfilesRepository extends BaseRepository
     }
 
     /**
+     * User ID로 locale만 조회 (경량)
+     */
+    async findLocaleByUserId(userId: number): Promise<string>
+    {
+        const result = await this.readDb
+            .select({ locale: userProfiles.locale })
+            .from(userProfiles)
+            .where(eq(userProfiles.userId, userId))
+            .limit(1);
+
+        return result[0]?.locale || 'en';
+    }
+
+    /**
      * User ID로 프로필 조회
      */
     async findByUserId(userId: number)

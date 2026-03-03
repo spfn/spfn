@@ -341,16 +341,16 @@ export const getProfile = route.get('/profile')
 
 ### @spfn/auth Context Helpers
 
-When using `@spfn/auth`, the `authenticate` middleware sets an `AuthContext` with user, userId, keyId, and role. Use the provided helper functions for type-safe access:
+When using `@spfn/auth`, the `authenticate` middleware sets an `AuthContext` with user, userId, keyId, role, and locale. Use the provided helper functions for type-safe access:
 
 ```typescript
-import { getAuth, getUser, getUserId, getKeyId, getRole } from '@spfn/auth/server';
+import { getAuth, getUser, getUserId, getKeyId, getRole, getLocale } from '@spfn/auth/server';
 
 // getAuth(c) - Full auth context
 export const profileRoute = route.get('/profile')
     .handler(async (c) =>
     {
-        const { user, userId, keyId, role } = getAuth(c);
+        const { user, userId, keyId, role, locale } = getAuth(c);
     });
 
 // getUser(c) - User entity
@@ -375,6 +375,14 @@ export const dashboardRoute = route.get('/dashboard')
     {
         const role = getRole(c);
         // 'admin' | 'superadmin' | 'user' | null
+    });
+
+// getLocale(c) - User locale (string)
+export const localizedRoute = route.get('/content')
+    .handler(async (c) =>
+    {
+        const locale = getLocale(c);
+        // 'en' | 'ko' | 'ja' | ...
     });
 
 // getKeyId(c) - Current API key ID

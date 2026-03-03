@@ -33,6 +33,7 @@ export const routeMap: Record<string, RouteInfo> = {
     updateUserProfile: { method: 'PATCH', path: '/_auth/users/profile' },
     checkUsername: { method: 'GET', path: '/_auth/users/username/check' },
     updateUsername: { method: 'PATCH', path: '/_auth/users/username' },
+    updateLocale: { method: 'PATCH', path: '/_auth/users/locale' },
     oauthGoogleStart: { method: 'GET', path: '/_auth/oauth/google' },
     oauthGoogleCallback: { method: 'GET', path: '/_auth/oauth/google/callback' },
     oauthStart: { method: 'POST', path: '/_auth/oauth/start' },

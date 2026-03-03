@@ -25,7 +25,7 @@ import {
     resendInvitation,
     deleteInvitation,
 } from './invitations';
-import { getUserProfile, updateUserProfile, checkUsername, updateUsername } from './users';
+import { getUserProfile, updateUserProfile, checkUsername, updateUsername, updateLocale } from './users';
 import {
     oauthGoogleStart,
     oauthGoogleCallback,
@@ -84,6 +84,7 @@ export const mainAuthRouter = defineRouter({
     updateUserProfile,
     checkUsername,
     updateUsername,
+    updateLocale,
     // Admin routes (superadmin only)
     listRoles,
     createAdminRole,

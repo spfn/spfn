@@ -3,7 +3,7 @@
  */
 
 import { getAuth } from '../../helpers';
-import { getUserProfileService, updateUserProfileService, checkUsernameAvailableService, updateUsernameService } from '../../services';
+import { getUserProfileService, updateUserProfileService, checkUsernameAvailableService, updateUsernameService, updateLocaleService } from '../../services';
 import { defineRouter, route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
 
@@ -109,12 +109,34 @@ export const updateUsername = route.patch('/_auth/users/username')
         return await updateUsernameService(userId, body.username);
     });
 
+/**
+ * PATCH /_auth/users/locale
+ * Update user locale (authenticated)
+ *
+ * Lightweight endpoint for locale-only updates
+ *
+ * Requires authentication
+ */
+export const updateLocale = route.patch('/_auth/users/locale')
+    .input({
+        body: Type.Object({
+            locale: Type.String({ minLength: 1, description: 'Locale code (e.g., en, ko, ja)' }),
+        })
+    })
+    .handler(async (c) =>
+    {
+        const { userId } = getAuth(c);
+        const { body } = await c.data();
+        return await updateLocaleService(userId, body.locale);
+    });
+
 // Export router
 export const userRouter = defineRouter({
     getUserProfile: getUserProfile,
     updateUserProfile: updateUserProfile,
     checkUsername: checkUsername,
     updateUsername: updateUsername,
+    updateLocale: updateLocale,
 });
 
 // For backward compatibility with file-based routing (temporary)

@@ -68,6 +68,26 @@ export async function getUserProfileService(userId: string | number | bigint): P
 }
 
 /**
+ * Update user locale
+ *
+ * @param userId - User ID
+ * @param locale - Locale code (e.g., 'en', 'ko', 'ja')
+ * @returns Updated locale
+ */
+export async function updateLocaleService(
+    userId: string | number | bigint,
+    locale: string
+): Promise<{ locale: string }>
+{
+    const userIdNum = Number(userId);
+    const normalized = locale.trim() || 'en';
+
+    await userProfilesRepository.upsertByUserId(userIdNum, { locale: normalized });
+
+    return { locale: normalized };
+}
+
+/**
  * Convert empty string to null
  */
 function emptyToNull<T>(value: T): T | null

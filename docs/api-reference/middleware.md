@@ -292,11 +292,11 @@ Transactional({
 
 ### authenticate
 
-Verifies client-signed JWT token and attaches `AuthContext` (user, userId, keyId, role) to the request context. The role is fetched from DB alongside the user in a single query (leftJoin).
+Verifies client-signed JWT token and attaches `AuthContext` (user, userId, keyId, role, locale) to the request context. The role is fetched from DB alongside the user in a single query (leftJoin), and locale is fetched from `user_profiles` in parallel.
 
 ```typescript
 import { authenticate } from '@spfn/auth/server/middleware';
-import { getUser, getUserId, getRole } from '@spfn/auth/server';
+import { getUser, getUserId, getRole, getLocale } from '@spfn/auth/server';
 
 // Global registration
 export default defineServerConfig()
@@ -311,7 +311,8 @@ export const profileRoute = route.get('/profile')
         const user = getUser(c);          // User entity
         const userId = getUserId(c);      // string
         const role = getRole(c);          // 'admin' | null
-        return { email: user.email, role };
+        const locale = getLocale(c);      // 'en' | 'ko' | ...
+        return { email: user.email, role, locale };
     });
 ```
 
@@ -367,8 +368,9 @@ export const getProducts = route.get('/products')
 
 | Helper | Return Type | Description |
 |--------|------------|-------------|
-| `getOptionalAuth(c)` | `AuthContext \| undefined` | Returns auth context or undefined |
+| `getOptionalAuth(c)` | `AuthContext \| undefined` | Returns auth context (incl. locale) or undefined |
 | `getAuth(c)` | `AuthContext` | Use only when auth is guaranteed |
+| `getLocale(c)` | `string` | Shorthand for `getAuth(c).locale` |
 
 ### roleGuard
 

@@ -24,7 +24,7 @@ import { defineMiddleware } from '@spfn/core/route';
 import { UnauthorizedError } from '@spfn/core/errors';
 
 import type { User, KeyAlgorithmType } from '@spfn/auth/server';
-import { verifyClientToken, decodeToken, authLogger, keysRepository, usersRepository } from '@spfn/auth/server';
+import { verifyClientToken, decodeToken, authLogger, keysRepository, usersRepository, userProfilesRepository } from '@spfn/auth/server';
 import {
     InvalidTokenError,
     TokenExpiredError,
@@ -39,6 +39,7 @@ export interface AuthContext
     userId: string;
     keyId: string;
     role: string | null;
+    locale: string;
 }
 
 // Extend Hono context with auth
@@ -162,8 +163,11 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
         throw new UnauthorizedError({ message: 'Authentication failed' });
     }
 
-    // 5. Get user from database (with role via leftJoin)
-    const result = await usersRepository.findByIdWithRole(keyRecord.userId);
+    // 5. Get user from database (with role via leftJoin) + locale in parallel
+    const [result, locale] = await Promise.all([
+        usersRepository.findByIdWithRole(keyRecord.userId),
+        userProfilesRepository.findLocaleByUserId(keyRecord.userId),
+    ]);
     if (!result)
     {
         throw new UnauthorizedError({ message: 'User not found' });
@@ -194,6 +198,7 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
         userId: String(user.id),
         keyId,
         role: role?.name ?? null,
+        locale,
     });
 
     // Log API access
@@ -284,7 +289,10 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
             keyRecord.algorithm as KeyAlgorithmType
         );
 
-        const result = await usersRepository.findByIdWithRole(keyRecord.userId);
+        const [result, locale] = await Promise.all([
+            usersRepository.findByIdWithRole(keyRecord.userId),
+            userProfilesRepository.findLocaleByUserId(keyRecord.userId),
+        ]);
 
         if (!result || result.user.status !== 'active')
         {
@@ -302,6 +310,7 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
             userId: String(user.id),
             keyId,
             role: role?.name ?? null,
+            locale,
         });
     }
     catch
