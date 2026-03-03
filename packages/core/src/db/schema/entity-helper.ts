@@ -17,7 +17,7 @@
  */
 
 import type { PgColumn } from 'drizzle-orm/pg-core';
-import { bigserial, timestamp, text, uuid as pgUuid, jsonb } from 'drizzle-orm/pg-core';
+import { bigserial, bigint as pgBigint, timestamp, text, uuid as pgUuid, jsonb } from 'drizzle-orm/pg-core';
 
 /**
  * Standard auto-incrementing primary key
@@ -77,7 +77,7 @@ export function timestamps()
 /**
  * Foreign key reference to another table
  *
- * Creates a bigserial column with cascade delete.
+ * Creates a bigint column with cascade delete.
  * Type-safe: ensures the reference points to a valid PostgreSQL column.
  *
  * @param name - Column name (e.g., 'author' creates 'author_id')
@@ -101,7 +101,7 @@ export function foreignKey<T extends PgColumn>(
     options?: { onDelete?: 'cascade' | 'set null' | 'restrict' | 'no action' }
 )
 {
-    return bigserial(`${name}_id`, { mode: 'number' })
+    return pgBigint(`${name}_id`, { mode: 'number' })
         .notNull()
         .references(reference, { onDelete: options?.onDelete ?? 'cascade' });
 }
@@ -129,7 +129,7 @@ export function optionalForeignKey<T extends PgColumn>(
     options?: { onDelete?: 'cascade' | 'set null' | 'restrict' | 'no action' }
 )
 {
-    return bigserial(`${name}_id`, { mode: 'number' })
+    return pgBigint(`${name}_id`, { mode: 'number' })
         .references(reference, { onDelete: options?.onDelete ?? 'set null' });
 }
 
