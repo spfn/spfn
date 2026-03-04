@@ -5,7 +5,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { getSession, clearSession } from '../session-helpers';
+import { getSession } from '../session-helpers';
 import { getAuthSessionData } from './auth-utils';
 import type { ReactNode } from 'react';
 
@@ -70,7 +70,8 @@ export async function RequireAuth({
 
     if (!serverSession)
     {
-        await clearSession();
+        // Note: clearSession() cannot be called in Server Components (Next.js 16+)
+        // The RPC proxy interceptor handles session cleanup on 401 responses
         redirect(redirectTo);
     }
 
