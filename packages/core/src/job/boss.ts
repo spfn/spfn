@@ -10,6 +10,27 @@ import { logger } from '@spfn/core/logger';
 const jobLogger = logger.child('@spfn/core:job');
 
 /**
+ * Check if connection string uses SSL without certificate verification
+ *
+ * pg library verifies certificates by default even with sslmode=require.
+ * For require/prefer modes (no explicit verification), we disable cert checking
+ * to support self-signed certificates.
+ */
+function requiresSSLWithoutVerification(connectionString: string): boolean
+{
+    try
+    {
+        const url = new URL(connectionString);
+        const sslmode = url.searchParams.get('sslmode');
+        return sslmode === 'require' || sslmode === 'prefer';
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+/**
  * Global pg-boss instance
  */
 let bossInstance: PgBoss | null = null;
@@ -116,6 +137,13 @@ export async function initBoss(options: BossOptions): Promise<PgBoss>
         schema: options.schema ?? 'spfn_queue',
         maintenanceIntervalSeconds: options.maintenanceIntervalSeconds ?? 120,
     };
+
+    // pg 라이브러리는 sslmode=require여도 인증서를 검증함
+    // self-signed cert 환경에서는 rejectUnauthorized: false 필요
+    if (requiresSSLWithoutVerification(options.connectionString))
+    {
+        pgBossOptions.ssl = { rejectUnauthorized: false };
+    }
 
     // Only set monitorIntervalSeconds if explicitly provided (must be >= 1)
     if (options.monitorIntervalSeconds !== undefined && options.monitorIntervalSeconds >= 1)
