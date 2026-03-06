@@ -4,9 +4,12 @@
  * Central logging class with multiple transports, child loggers, and sensitive data masking.
  */
 
+import { format } from 'node:util';
 import type { LogLevel, LogMetadata, LoggerConfig, Transport } from './types';
 import { LOG_LEVEL_PRIORITY } from './types';
 import { maskSensitiveData } from './formatters';
+
+const FORMAT_PATTERN = /%[sdifjoOc%]/;
 
 /**
  * Logger class
@@ -90,6 +93,13 @@ export class Logger
         context?: Record<string, unknown>
     ): void
     {
+        // printf-style format string: logger.info('url: %s', value)
+        if (errorOrContext !== undefined && FORMAT_PATTERN.test(message))
+        {
+            this.log(level, format(message, errorOrContext), undefined, context);
+            return;
+        }
+
         if (errorOrContext instanceof Error)
         {
             this.log(level, message, errorOrContext, context);

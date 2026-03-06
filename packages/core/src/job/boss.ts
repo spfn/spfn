@@ -44,14 +44,32 @@ function stripSslModeFromUrl(connectionString: string): string
 }
 
 /**
- * Global pg-boss instance
+ * globalThis keys for cross-module-cache singleton (ESM/CJS share same instance)
  */
-let bossInstance: PgBoss | null = null;
+const BOSS_KEY = Symbol.for('spfn:boss-instance');
+const CONFIG_KEY = Symbol.for('spfn:boss-config');
 
-/**
- * Stored config for access during registration
- */
-let bossConfig: BossConfig | null = null;
+const g = globalThis as any;
+
+function getBossInstance(): PgBoss | null
+{
+    return g[BOSS_KEY] ?? null;
+}
+
+function setBossInstance(instance: PgBoss | null): void
+{
+    g[BOSS_KEY] = instance;
+}
+
+function getBossConfig(): BossConfig | null
+{
+    return g[CONFIG_KEY] ?? null;
+}
+
+function setBossConfig(config: BossConfig | null): void
+{
+    g[CONFIG_KEY] = config;
+}
 
 /**
  * Options for pg-boss initialization
@@ -135,15 +153,16 @@ export type BossConfig = BossOptions;
  */
 export async function initBoss(options: BossOptions): Promise<PgBoss>
 {
-    if (bossInstance)
+    const existing = getBossInstance();
+    if (existing)
     {
         jobLogger.warn('pg-boss already initialized, returning existing instance');
-        return bossInstance;
+        return existing;
     }
 
     jobLogger.info('Initializing pg-boss...');
 
-    bossConfig = options;
+    setBossConfig(options);
 
     const needsSSL = requiresSSLWithoutVerification(options.connectionString);
 
@@ -168,19 +187,21 @@ export async function initBoss(options: BossOptions): Promise<PgBoss>
         pgBossOptions.monitorIntervalSeconds = options.monitorIntervalSeconds;
     }
 
-    bossInstance = new PgBoss(pgBossOptions);
+    const boss = new PgBoss(pgBossOptions);
 
     // Event handlers
-    bossInstance.on('error', (error) =>
+    boss.on('error', (error) =>
     {
         jobLogger.error('pg-boss error:', error);
     });
 
-    await bossInstance.start();
+    await boss.start();
+
+    setBossInstance(boss);
 
     jobLogger.info('pg-boss started successfully');
 
-    return bossInstance;
+    return boss;
 }
 
 /**
@@ -188,7 +209,7 @@ export async function initBoss(options: BossOptions): Promise<PgBoss>
  */
 export function getBoss(): PgBoss | null
 {
-    return bossInstance;
+    return getBossInstance();
 }
 
 /**
@@ -196,7 +217,8 @@ export function getBoss(): PgBoss | null
  */
 export async function stopBoss(): Promise<void>
 {
-    if (!bossInstance)
+    const boss = getBossInstance();
+    if (!boss)
     {
         return;
     }
@@ -205,7 +227,7 @@ export async function stopBoss(): Promise<void>
 
     try
     {
-        await bossInstance.stop({ graceful: true, timeout: 30000 });
+        await boss.stop({ graceful: true, timeout: 30000 });
         jobLogger.info('pg-boss stopped gracefully');
     }
     catch (error)
@@ -215,8 +237,8 @@ export async function stopBoss(): Promise<void>
     }
     finally
     {
-        bossInstance = null;
-        bossConfig = null;
+        setBossInstance(null);
+        setBossConfig(null);
     }
 }
 
@@ -225,7 +247,7 @@ export async function stopBoss(): Promise<void>
  */
 export function isBossRunning(): boolean
 {
-    return bossInstance !== null;
+    return getBossInstance() !== null;
 }
 
 /**
@@ -233,5 +255,5 @@ export function isBossRunning(): boolean
  */
 export function shouldClearOnStart(): boolean
 {
-    return bossConfig?.clearOnStart ?? false;
+    return getBossConfig()?.clearOnStart ?? false;
 }
