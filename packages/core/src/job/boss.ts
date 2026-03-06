@@ -31,6 +31,19 @@ function requiresSSLWithoutVerification(connectionString: string): boolean
 }
 
 /**
+ * Remove sslmode parameter from connection string URL
+ *
+ * pg driver interprets sslmode=require as verify-full, which overrides
+ * the ssl option object. Stripping it lets us control SSL via the ssl option only.
+ */
+function stripSslModeFromUrl(connectionString: string): string
+{
+    const url = new URL(connectionString);
+    url.searchParams.delete('sslmode');
+    return url.toString();
+}
+
+/**
  * Global pg-boss instance
  */
 let bossInstance: PgBoss | null = null;
@@ -132,15 +145,19 @@ export async function initBoss(options: BossOptions): Promise<PgBoss>
 
     bossConfig = options;
 
+    const needsSSL = requiresSSLWithoutVerification(options.connectionString);
+
     const pgBossOptions: PgBoss.ConstructorOptions = {
-        connectionString: options.connectionString,
+        // pg 드라이버가 URL의 sslmode=require를 verify-full로 해석해서
+        // ssl 옵션을 무시하므로, URL에서 sslmode를 빼고 ssl 객체만 전달
+        connectionString: needsSSL
+            ? stripSslModeFromUrl(options.connectionString)
+            : options.connectionString,
         schema: options.schema ?? 'spfn_queue',
         maintenanceIntervalSeconds: options.maintenanceIntervalSeconds ?? 120,
     };
 
-    // pg 라이브러리는 sslmode=require여도 인증서를 검증함
-    // self-signed cert 환경에서는 rejectUnauthorized: false 필요
-    if (requiresSSLWithoutVerification(options.connectionString))
+    if (needsSSL)
     {
         pgBossOptions.ssl = { rejectUnauthorized: false };
     }
