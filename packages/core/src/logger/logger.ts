@@ -122,8 +122,9 @@ export class Logger
      * Debug log
      */
     debug(message: string, context?: Record<string, unknown>): void;
+    debug(message: string, formatArg: string | number | boolean): void;
     debug(message: string, error: Error | unknown, context?: Record<string, unknown>): void;
-    debug(message: string, errorOrContext?: Error | unknown | Record<string, unknown>, context?: Record<string, unknown>): void
+    debug(message: string, errorOrContext?: unknown, context?: Record<string, unknown>): void
     {
         this.logWithLevel('debug', message, errorOrContext, context);
     }
@@ -132,8 +133,9 @@ export class Logger
      * Info log
      */
     info(message: string, context?: Record<string, unknown>): void;
+    info(message: string, formatArg: string | number | boolean): void;
     info(message: string, error: Error | unknown, context?: Record<string, unknown>): void;
-    info(message: string, errorOrContext?: Error | unknown | Record<string, unknown>, context?: Record<string, unknown>): void
+    info(message: string, errorOrContext?: unknown, context?: Record<string, unknown>): void
     {
         this.logWithLevel('info', message, errorOrContext, context);
     }
@@ -142,8 +144,9 @@ export class Logger
      * Warn log
      */
     warn(message: string, context?: Record<string, unknown>): void;
+    warn(message: string, formatArg: string | number | boolean): void;
     warn(message: string, error: Error | unknown, context?: Record<string, unknown>): void;
-    warn(message: string, errorOrContext?: Error | unknown | Record<string, unknown>, context?: Record<string, unknown>): void
+    warn(message: string, errorOrContext?: unknown, context?: Record<string, unknown>): void
     {
         this.logWithLevel('warn', message, errorOrContext, context);
     }
@@ -152,8 +155,9 @@ export class Logger
      * Error log
      */
     error(message: string, context?: Record<string, unknown>): void;
+    error(message: string, formatArg: string | number | boolean): void;
     error(message: string, error: Error | unknown, context?: Record<string, unknown>): void;
-    error(message: string, errorOrContext?: Error | unknown | Record<string, unknown>, context?: Record<string, unknown>): void
+    error(message: string, errorOrContext?: unknown, context?: Record<string, unknown>): void
     {
         this.logWithLevel('error', message, errorOrContext, context);
     }
@@ -162,8 +166,9 @@ export class Logger
      * Fatal log
      */
     fatal(message: string, context?: Record<string, unknown>): void;
+    fatal(message: string, formatArg: string | number | boolean): void;
     fatal(message: string, error: Error | unknown, context?: Record<string, unknown>): void;
-    fatal(message: string, errorOrContext?: Error | unknown | Record<string, unknown>, context?: Record<string, unknown>): void
+    fatal(message: string, errorOrContext?: unknown, context?: Record<string, unknown>): void
     {
         this.logWithLevel('fatal', message, errorOrContext, context);
     }
