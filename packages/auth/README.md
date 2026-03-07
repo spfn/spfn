@@ -1116,8 +1116,12 @@ Update authenticated user's username. Validates uniqueness before updating.
   provider: 'email' | 'phone' | 'google';
   email?: string;
   phone?: string;
+  metadata?: Record<string, unknown>;  // 가입 시 전달된 커스텀 메타데이터
 }
 ```
+
+`metadata`는 클라이언트가 register/OAuth 요청 body에 포함한 값이 그대로 전달됩니다.
+레퍼럴 코드, UTM 파라미터 등 앱 고유 데이터를 이벤트 구독자에게 전달할 때 사용합니다.
 
 ---
 
@@ -1132,12 +1136,32 @@ authLoginEvent.subscribe(async (payload) => {
     await analytics.trackLogin(payload.userId);
 });
 
-// 회원가입 이벤트 구독
+// 회원가입 이벤트 구독 (metadata 활용)
 authRegisterEvent.subscribe(async (payload) => {
     console.log('New user registered:', payload.userId);
     if (payload.email) {
         await emailService.sendWelcome(payload.email);
     }
+
+    // 레퍼럴 코드 처리
+    const refCode = payload.metadata?.refCode as string;
+    if (refCode) {
+        await referralService.link(payload.userId, refCode);
+    }
+});
+```
+
+클라이언트에서 metadata를 전달하는 방법:
+
+```typescript
+// 이메일/전화 가입
+authApi.register.call({
+    body: { email, password, metadata: { refCode: 'CODE', utm_source: 'google' } }
+});
+
+// OAuth 가입
+authApi.oauthStart.call({
+    body: { provider: 'google', returnUrl: '/dashboard', metadata: { refCode: 'CODE' } }
 });
 ```
 

@@ -22,6 +22,7 @@ export interface OAuthState
     keyId: string;
     fingerprint: string;
     algorithm: KeyAlgorithmType;
+    metadata?: Record<string, unknown>;
 }
 
 /**
@@ -54,6 +55,7 @@ export interface CreateOAuthStateParams
     keyId: string;
     fingerprint: string;
     algorithm: KeyAlgorithmType;
+    metadata?: Record<string, unknown>;
 }
 
 /**
@@ -74,6 +76,7 @@ export async function createOAuthState(params: CreateOAuthStateParams): Promise<
         keyId: params.keyId,
         fingerprint: params.fingerprint,
         algorithm: params.algorithm,
+        metadata: params.metadata,
     };
 
     const jwe = await new jose.EncryptJWT({ state })

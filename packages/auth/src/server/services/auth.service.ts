@@ -46,6 +46,7 @@ export interface RegisterParams
     keyId: string;
     fingerprint: string;
     algorithm?: KeyAlgorithmType;
+    metadata?: Record<string, unknown>;
 }
 
 export interface RegisterResult
@@ -133,7 +134,7 @@ export async function registerService(
     params: RegisterParams
 ): Promise<RegisterResult>
 {
-    const { email, phone, verificationToken, password, publicKey, keyId, fingerprint, algorithm } = params;
+    const { email, phone, verificationToken, password, publicKey, keyId, fingerprint, algorithm, metadata } = params;
 
     // Validate verification token
     const tokenPayload = validateVerificationToken(verificationToken);
@@ -214,6 +215,7 @@ export async function registerService(
         provider: email ? 'email' : 'phone',
         email: result.email,
         phone: result.phone,
+        metadata,
     });
 
     return result;

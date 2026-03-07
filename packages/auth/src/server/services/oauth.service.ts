@@ -35,6 +35,7 @@ export interface OAuthStartParams
     keyId: string;
     fingerprint: string;
     algorithm: KeyAlgorithmType;
+    metadata?: Record<string, unknown>;
 }
 
 export interface OAuthStartResult
@@ -66,7 +67,7 @@ export async function oauthStartService(
     params: OAuthStartParams
 ): Promise<OAuthStartResult>
 {
-    const { provider, returnUrl, publicKey, keyId, fingerprint, algorithm } = params;
+    const { provider, returnUrl, publicKey, keyId, fingerprint, algorithm, metadata } = params;
 
     if (provider === 'google')
     {
@@ -84,6 +85,7 @@ export async function oauthStartService(
             keyId,
             fingerprint,
             algorithm,
+            metadata,
         });
 
         const authUrl = getGoogleAuthUrl(state);
@@ -201,6 +203,7 @@ async function handleGoogleCallback(
         provider: 'google' as const,
         email: user?.email || undefined,
         phone: user?.phone || undefined,
+        metadata: stateData.metadata,
     };
 
     if (isNewUser)

@@ -101,6 +101,9 @@ export const register = route.post('/_auth/register')
                 description: 'Verification token obtained from /verify-code endpoint'
             }),
             password: PasswordSchema,
+            metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), {
+                description: 'Custom metadata passed to authRegisterEvent (e.g. referral code, UTM params)'
+            })),
         }, {
             minProperties: 3, // email/phone + verificationToken + password
             description: 'Email or phone must be provided with verification token'

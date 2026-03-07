@@ -134,6 +134,9 @@ export const oauthStart = route.post('/_auth/oauth/start')
             algorithm: Type.Union(KEY_ALGORITHM.map(a => Type.Literal(a)), {
                 description: 'Key algorithm (ES256 or RS256)',
             }),
+            metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), {
+                description: 'Custom metadata passed to authRegisterEvent (e.g. referral code, UTM params)',
+            })),
         }),
     })
     .skip(['auth'])

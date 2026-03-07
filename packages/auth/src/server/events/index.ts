@@ -63,6 +63,7 @@ export const authRegisterEvent = defineEvent(
         provider: AuthProviderSchema,
         email: Type.Optional(Type.String()),
         phone: Type.Optional(Type.String()),
+        metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
     })
 );
 
