@@ -42,6 +42,32 @@ export const notificationEnvSchema = defineEnvSchema({
         }),
     },
 
+    // Tracking
+    SPFN_NOTIFICATION_TRACKING_ENABLED: {
+        ...envString({
+            description: 'Enable email engagement tracking (open/click)',
+            default: 'false',
+            required: false,
+            examples: ['true', 'false'],
+        }),
+    },
+
+    SPFN_NOTIFICATION_TRACKING_SECRET: {
+        ...envString({
+            description: 'HMAC secret key for tracking token signing',
+            required: false,
+            sensitive: true,
+        }),
+    },
+
+    SPFN_NOTIFICATION_TRACKING_BASE_URL: {
+        ...envString({
+            description: 'Base URL for tracking endpoints',
+            required: false,
+            examples: ['https://api.example.com'],
+        }),
+    },
+
     // AWS (shared with other AWS services)
     AWS_REGION: {
         ...envString({

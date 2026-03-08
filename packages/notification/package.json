@@ -1,6 +1,6 @@
 {
   "name": "@spfn/notification",
-  "version": "0.1.0-beta.14",
+  "version": "0.1.0-beta.15",
   "type": "module",
   "description": "Multi-channel notification system for SPFN - Email, SMS, Slack, Push",
   "exports": {
@@ -26,7 +26,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:circular": "madge --circular --extensions ts src/",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate"
   },
   "keywords": [
     "spfn",

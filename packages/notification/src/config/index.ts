@@ -38,6 +38,17 @@ export interface NotificationConfig
      * @default false
      */
     enableHistory?: boolean;
+    /**
+     * Email engagement tracking configuration
+     */
+    tracking?: {
+        /** Enable tracking (default: false) */
+        enabled?: boolean;
+        /** HMAC secret key for token signing */
+        secret?: string;
+        /** Base URL for tracking endpoints */
+        baseUrl?: string;
+    };
 }
 
 let globalConfig: NotificationConfig = {};
@@ -96,4 +107,32 @@ export function getAppName(): string
 export function isHistoryEnabled(): boolean
 {
     return globalConfig.enableHistory ?? false;
+}
+
+/**
+ * Check if tracking is enabled (config → env → false)
+ */
+export function isTrackingEnabled(): boolean
+{
+    if (globalConfig.tracking?.enabled != null)
+    {
+        return globalConfig.tracking.enabled;
+    }
+    return env.SPFN_NOTIFICATION_TRACKING_ENABLED === 'true';
+}
+
+/**
+ * Get tracking HMAC secret
+ */
+export function getTrackingSecret(): string | undefined
+{
+    return globalConfig.tracking?.secret ?? env.SPFN_NOTIFICATION_TRACKING_SECRET;
+}
+
+/**
+ * Get tracking base URL
+ */
+export function getTrackingBaseUrl(): string | undefined
+{
+    return globalConfig.tracking?.baseUrl ?? env.SPFN_NOTIFICATION_TRACKING_BASE_URL;
 }

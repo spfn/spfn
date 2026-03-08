@@ -8,10 +8,21 @@ import { defineServerConfig } from '@spfn/core/server';
 import { createAuthLifecycle } from '@spfn/auth/server';
 import { createMonitorErrorHandler, createMonitorLifecycle } from '@spfn/monitor/server';
 import { syncLabels } from '@spfn/cms/server';
+import { configureNotification } from '@spfn/notification/server';
 import { appRouter } from './router';
 import { jobRouter } from './jobs';
 import { eventRouter } from './events';
 import { labelsDefinition } from '@/lib/labels';
+
+// Configure notification with tracking enabled for testing
+configureNotification({
+    enableHistory: true,
+    tracking: {
+        enabled: true,
+        secret: 'test-tracking-secret-for-dev',
+        baseUrl: 'http://localhost:8790',
+    },
+});
 
 export default defineServerConfig()
     .port(8790)

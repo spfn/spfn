@@ -5,7 +5,8 @@
 import type { SendEmailParams, EmailProvider, InternalSendEmailParams } from './types';
 import type { SendResult } from '../types';
 import { awsSesProvider } from './providers/aws-ses';
-import { getEmailFrom, getEmailReplyTo, env, isHistoryEnabled } from '../../config';
+import { getEmailFrom, getEmailReplyTo, env, isHistoryEnabled, isTrackingEnabled, getTrackingBaseUrl } from '../../config';
+import { processTrackingHtml } from '../../tracking/processor';
 import { renderTemplate, hasTemplate } from '../../templates';
 import {
     createNotificationRecord,
@@ -136,6 +137,26 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
         catch (error)
         {
             log.warn('Failed to create notification history record', error as Error);
+        }
+    }
+
+    // Apply tracking if enabled
+    const shouldTrack = params.tracking ?? isTrackingEnabled();
+    const trackingBaseUrl = getTrackingBaseUrl();
+
+    if (shouldTrack && historyId && internalParams.html && trackingBaseUrl)
+    {
+        try
+        {
+            const { html: trackedHtml } = processTrackingHtml(internalParams.html, {
+                notificationId: historyId,
+                baseUrl: trackingBaseUrl,
+            });
+            internalParams.html = trackedHtml;
+        }
+        catch (error)
+        {
+            log.warn('Failed to apply tracking to email HTML', error as Error);
         }
     }
 

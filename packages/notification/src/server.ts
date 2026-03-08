@@ -131,6 +131,29 @@ export {
     type ErrorSlackOptions,
 } from './integrations/error-slack';
 
+// Tracking
+export { trackingRouter } from './tracking';
+export { processTrackingHtml } from './tracking';
+export {
+    getTrackingStats,
+    getEngagementStats,
+    getClickDetails,
+    type TrackingStats,
+    type EngagementStats,
+    type ClickDetail,
+} from './tracking';
+export {
+    trackingEvents,
+    TRACKING_EVENT_TYPES,
+    type TrackingEvent,
+    type TrackingEventType,
+} from './entities';
+export {
+    isTrackingEnabled,
+    getTrackingSecret,
+    getTrackingBaseUrl,
+} from './config';
+
 // Auto-register built-in templates
 import { registerBuiltinTemplates } from './templates';
 registerBuiltinTemplates();

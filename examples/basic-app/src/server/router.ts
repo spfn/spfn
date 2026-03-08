@@ -8,6 +8,7 @@ import { defineRouter } from '@spfn/core/route';
 import { authRouter, authenticate } from '@spfn/auth/server';
 import { cmsAppRouter } from '@spfn/cms/server';
 import { monitorRouter } from '@spfn/monitor/server';
+import { trackingRouter } from '@spfn/notification/server';
 
 // Root routes
 import { getRoot } from './routes/root';
@@ -41,6 +42,13 @@ import {
     errorUnprocessable,
     errorCustom,
 } from './routes/error-examples';
+
+// Tracking test routes
+import {
+    previewTrackedEmail,
+    getTrackingStatsRoute,
+    getEngagementStatsRoute,
+} from './routes/tracking-test';
 
 /**
  * Main application router
@@ -79,11 +87,17 @@ export const appRouter = defineRouter({
     errorConflict,
     errorUnprocessable,
     errorCustom,
+
+    // Tracking test routes
+    previewTrackedEmail,
+    getTrackingStatsRoute,
+    getEngagementStatsRoute,
 })
 .packages([
     authRouter,
     cmsAppRouter,
     monitorRouter,
+    trackingRouter,
 ])
 .use([authenticate]);
 

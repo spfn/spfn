@@ -9,6 +9,7 @@ Multi-channel notification system for SPFN applications.
 - **Template system**: Variable substitution with filters
 - **Scheduled delivery**: Schedule notifications for later via pg-boss
 - **History tracking**: Optional notification history with database storage
+- **Email tracking**: Open pixel & click redirect tracking with engagement analytics
 
 ## Installation
 
@@ -70,6 +71,11 @@ SPFN_NOTIFICATION_EMAIL_FROM=noreply@example.com
 # SMS
 SPFN_NOTIFICATION_SMS_PROVIDER=aws-sns
 
+# Tracking
+SPFN_NOTIFICATION_TRACKING_ENABLED=true
+SPFN_NOTIFICATION_TRACKING_SECRET=your-hmac-secret-key
+SPFN_NOTIFICATION_TRACKING_BASE_URL=https://api.example.com
+
 # AWS Credentials
 AWS_REGION=ap-northeast-2
 AWS_ACCESS_KEY_ID=xxx
@@ -95,6 +101,11 @@ configureNotification({
         appName: 'MyApp',
     },
     enableHistory: true, // Enable notification history tracking
+    tracking: {
+        enabled: true,                          // Enable email tracking
+        secret: 'your-hmac-secret-key',         // HMAC signing key
+        baseUrl: 'https://api.example.com',     // Tracking endpoint URL
+    },
 });
 ```
 
@@ -348,6 +359,114 @@ const scheduled = await findScheduledNotifications({
 });
 ```
 
+## Email Tracking
+
+Track email opens and link clicks to measure engagement.
+
+### How It Works
+
+1. **Open tracking**: A 1x1 transparent GIF is inserted before `</body>`. When the email client loads the image, an open event is recorded.
+2. **Click tracking**: `<a href>` links are wrapped with redirect URLs. When clicked, a click event is recorded and the user is redirected to the original URL.
+3. Links with `mailto:`, `tel:`, `sms:`, `javascript:`, and `#` protocols are automatically skipped.
+
+### Setup
+
+Tracking requires:
+- `enableHistory: true` (tracking events reference the history table via FK)
+- `tracking.secret` configured (HMAC token signing)
+- `tracking.baseUrl` configured (where tracking endpoints are accessible)
+- `trackingRouter` registered in your app router
+
+```typescript
+import { configureNotification, trackingRouter } from '@spfn/notification/server';
+import { defineRouter } from '@spfn/core/route';
+
+configureNotification({
+    enableHistory: true,
+    tracking: {
+        enabled: true,
+        secret: 'your-hmac-secret-key',
+        baseUrl: 'https://api.example.com',
+    },
+});
+
+// Register tracking router (provides /_noti/t/o/:token and /_noti/t/c/:token)
+const appRouter = defineRouter({ ... })
+    .packages([trackingRouter]);
+```
+
+### Per-Email Control
+
+Override the global tracking setting for individual emails:
+
+```typescript
+// Force tracking on for this email (even if globally disabled)
+await sendEmail({
+    to: 'user@example.com',
+    template: 'campaign',
+    data: { ... },
+    tracking: true,
+});
+
+// Force tracking off for this email (even if globally enabled)
+await sendEmail({
+    to: 'admin@example.com',
+    subject: 'Internal Report',
+    html: '<p>...</p>',
+    tracking: false,
+});
+```
+
+### Priority
+
+```
+sendEmail({ tracking: true/false })              ← 1st: per-call override
+configureNotification({ tracking: { enabled } }) ← 2nd: code config
+SPFN_NOTIFICATION_TRACKING_ENABLED=true           ← 3rd: environment variable
+```
+
+### Tracking Endpoints
+
+These endpoints skip authentication (accessed by email clients):
+
+| Endpoint | Response | Action |
+|----------|----------|--------|
+| `GET /_noti/t/o/:token` | 200 + 1x1 GIF | Records open event |
+| `GET /_noti/t/c/:token?url=...` | 302 redirect | Records click event, redirects to original URL |
+
+- Invalid tokens still return pixel/redirect (UX protection)
+- `Cache-Control: no-store` for re-open tracking
+- DB writes are fire-and-forget (response speed first)
+
+### Analytics
+
+```typescript
+import {
+    getTrackingStats,
+    getEngagementStats,
+    getClickDetails,
+} from '@spfn/notification/server';
+
+// Stats for a specific notification
+const stats = await getTrackingStats(notificationId);
+// { totalOpens: 15, uniqueOpens: 8, totalClicks: 5, uniqueClicks: 3 }
+
+// Overall engagement stats
+const engagement = await getEngagementStats({ channel: 'email' });
+// { sent: 1000, opened: 450, clicked: 120, openRate: 45.00, clickRate: 12.00 }
+
+// Click details per link
+const clicks = await getClickDetails(notificationId);
+// [{ linkUrl: 'https://...', linkIndex: 0, totalClicks: 5, uniqueClicks: 3 }]
+```
+
+Unique counts are based on distinct IP addresses.
+
+### Limitations
+
+- **Open tracking is approximate**: Email clients like Apple Mail Privacy Protection may pre-fetch images, inflating open counts.
+- Tracking auto-disables when `enableHistory: false` (FK dependency) or `tracking.secret` is not set.
+
 ## API Reference
 
 ### Exports
@@ -398,6 +517,14 @@ export {
     // History
     findNotifications,
     getNotificationStats,
+
+    // Tracking
+    trackingRouter,
+    processTrackingHtml,
+    getTrackingStats,
+    getEngagementStats,
+    getClickDetails,
+    isTrackingEnabled,
 
     // Jobs
     notificationJobRouter,

@@ -48,6 +48,12 @@ export interface SendEmailParams
      * Reply-to address
      */
     replyTo?: string;
+
+    /**
+     * Enable/disable engagement tracking for this email.
+     * When undefined, falls back to global tracking config.
+     */
+    tracking?: boolean;
 }
 
 /**
