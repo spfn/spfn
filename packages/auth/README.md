@@ -1092,6 +1092,8 @@ Update authenticated user's username. Validates uniqueness before updating.
 |-------|-------------|---------|
 | `auth.login` | 로그인 성공 | 이메일/전화 로그인, OAuth 기존 사용자 |
 | `auth.register` | 회원가입 성공 | 이메일/전화 회원가입, OAuth 신규 사용자 |
+| `auth.invitation.created` | 초대 생성/재발송 | createInvitation, resendInvitation |
+| `auth.invitation.accepted` | 초대 수락 | acceptInvitation |
 
 ---
 
@@ -1122,6 +1124,34 @@ Update authenticated user's username. Validates uniqueness before updating.
 
 `metadata`는 클라이언트가 register/OAuth 요청 body에 포함한 값이 그대로 전달됩니다.
 레퍼럴 코드, UTM 파라미터 등 앱 고유 데이터를 이벤트 구독자에게 전달할 때 사용합니다.
+
+#### `auth.invitation.created`
+
+```typescript
+{
+  invitationId: string;
+  email: string;
+  token: string;
+  roleId: number;
+  invitedBy: string;
+  expiresAt: string;           // ISO 8601
+  isResend: boolean;           // true면 재발송
+  metadata?: Record<string, unknown>;
+}
+```
+
+#### `auth.invitation.accepted`
+
+```typescript
+{
+  invitationId: string;
+  email: string;
+  userId: string;              // 생성된 사용자 ID
+  roleId: number;
+  invitedBy: string;
+  metadata?: Record<string, unknown>;
+}
+```
 
 ---
 
@@ -1162,6 +1192,51 @@ authApi.register.call({
 // OAuth 가입
 authApi.oauthStart.call({
     body: { provider: 'google', returnUrl: '/dashboard', metadata: { refCode: 'CODE' } }
+});
+```
+
+#### 초대 이벤트 구독 (이메일 발송 연동)
+
+```typescript
+import { invitationCreatedEvent, invitationAcceptedEvent } from '@spfn/auth/server';
+
+// 초대 생성 시 이메일 발송
+invitationCreatedEvent.subscribe(async (payload) => {
+    const inviteUrl = `${APP_URL}/invite/${payload.token}`;
+
+    await notificationService.send({
+        channel: 'email',
+        to: payload.email,
+        subject: payload.isResend ? '초대가 재발송되었습니다' : '초대장이 도착했습니다',
+        html: renderInviteEmail({
+            inviteUrl,
+            inviterName: payload.metadata?.inviterName,
+            message: payload.metadata?.message,
+        }),
+        tracking: {
+            category: 'invitation',
+            metadata: { invitationId: payload.invitationId },
+        },
+    });
+});
+
+// 초대 수락 시 온보딩 처리
+invitationAcceptedEvent.subscribe(async (payload) => {
+    await onboardingService.start(payload.userId);
+});
+```
+
+초대 생성 시 커스텀 만료 시간 지정:
+
+```typescript
+// expiresAt이 expiresInDays보다 우선
+authApi.createInvitation.call({
+    body: {
+        email: 'user@example.com',
+        roleId: 2,
+        expiresAt: '2026-03-20T00:00:00Z',
+        metadata: { inviterName: '홍길동', message: '함께 일해요!' },
+    }
 });
 ```
 

@@ -137,6 +137,10 @@ export const createInvitation = route.post('/_auth/invitations')
                 maximum: 30,
                 description: 'Days until invitation expires (default: 7)'
             })),
+            expiresAt: Type.Optional(Type.String({
+                format: 'date-time',
+                description: 'Exact expiration timestamp (ISO 8601). Takes precedence over expiresInDays.'
+            })),
             metadata: Type.Optional(Type.Any({
                 description: 'Custom metadata (welcome message, department, etc.)'
             })),
@@ -153,6 +157,7 @@ export const createInvitation = route.post('/_auth/invitations')
             roleId: body.roleId,
             invitedBy: Number(userId),
             expiresInDays: body.expiresInDays,
+            expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,
             metadata: body.metadata,
         });
 

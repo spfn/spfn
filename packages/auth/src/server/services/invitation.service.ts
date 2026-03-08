@@ -14,6 +14,7 @@ import {
 } from '../repositories';
 import type { InvitationStatus, KeyAlgorithmType } from '../types';
 import { hashPassword } from '../helpers';
+import { invitationCreatedEvent, invitationAcceptedEvent } from '../events';
 
 /**
  * Generate unique invitation token (UUID v4)
@@ -59,10 +60,11 @@ export async function createInvitation(params: {
     roleId: number;
     invitedBy: number;
     expiresInDays?: number;
+    expiresAt?: Date;
     metadata?: Record<string, any>;
 }): Promise<Invitation>
 {
-    const { email, roleId, invitedBy, expiresInDays = 7, metadata } = params;
+    const { email, roleId, invitedBy, expiresInDays = 7, expiresAt: expiresAtParam, metadata } = params;
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -105,7 +107,7 @@ export async function createInvitation(params: {
 
     // Generate unique token
     const token = generateInvitationToken();
-    const expiresAt = calculateExpiresAt(expiresInDays);
+    const expiresAt = expiresAtParam ?? calculateExpiresAt(expiresInDays);
 
     // Create invitation
     const invitation = await invitationsRepository.create({
@@ -118,7 +120,17 @@ export async function createInvitation(params: {
         metadata: metadata || null,
     });
 
-    console.log(`[Auth] ✅ Created invitation: ${email} as ${role.name} (expires: ${expiresAt.toISOString()})`);
+    // Emit invitation created event
+    await invitationCreatedEvent.emit({
+        invitationId: String(invitation.id),
+        email,
+        token,
+        roleId,
+        invitedBy: String(invitedBy),
+        expiresAt: expiresAt.toISOString(),
+        isResend: false,
+        metadata,
+    });
 
     return invitation;
 }
@@ -268,7 +280,15 @@ export async function acceptInvitation(params: {
         new Date()
     );
 
-    console.log(`[Auth] ✅ Invitation accepted: ${invitation.email} as ${role.name}`);
+    // Emit invitation accepted event
+    await invitationAcceptedEvent.emit({
+        invitationId: String(invitation.id),
+        email: invitation.email,
+        userId: String(newUser.id),
+        roleId: Number(invitation.roleId),
+        invitedBy: String(invitation.invitedBy),
+        metadata: invitation.metadata as Record<string, unknown> | undefined,
+    });
 
     return {
         userId: newUser.id,
@@ -408,7 +428,17 @@ export async function resendInvitation(
         throw new Error('Failed to update invitation');
     }
 
-    console.log(`[Auth] 📧 Invitation resent: ${invitation.email} (new expiry: ${newExpiresAt.toISOString()})`);
+    // Emit invitation created event (isResend: true)
+    await invitationCreatedEvent.emit({
+        invitationId: String(invitation.id),
+        email: invitation.email,
+        token: invitation.token,
+        roleId: Number(invitation.roleId),
+        invitedBy: String(invitation.invitedBy),
+        expiresAt: newExpiresAt.toISOString(),
+        isResend: true,
+        metadata: invitation.metadata as Record<string, unknown> | undefined,
+    });
 
     return updated;
 }

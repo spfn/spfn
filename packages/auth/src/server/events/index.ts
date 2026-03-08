@@ -68,7 +68,68 @@ export const authRegisterEvent = defineEvent(
 );
 
 /**
+ * auth.invitation.created - 초대 생성 이벤트
+ *
+ * 발행 시점:
+ * - createInvitation() 성공 시
+ * - resendInvitation() 성공 시
+ *
+ * @example
+ * ```typescript
+ * invitationCreatedEvent.subscribe(async (payload) => {
+ *     const inviteUrl = `${APP_URL}/invite/${payload.token}`;
+ *     await notificationService.send({
+ *         channel: 'email',
+ *         to: payload.email,
+ *         subject: 'You are invited!',
+ *         html: renderInviteEmail({ inviteUrl, ...payload.metadata }),
+ *     });
+ * });
+ * ```
+ */
+export const invitationCreatedEvent = defineEvent(
+    'auth.invitation.created',
+    Type.Object({
+        invitationId: Type.String(),
+        email: Type.String(),
+        token: Type.String(),
+        roleId: Type.Number(),
+        invitedBy: Type.String(),
+        expiresAt: Type.String(),
+        isResend: Type.Boolean(),
+        metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    })
+);
+
+/**
+ * auth.invitation.accepted - 초대 수락 이벤트
+ *
+ * 발행 시점:
+ * - acceptInvitation() 성공 시
+ *
+ * @example
+ * ```typescript
+ * invitationAcceptedEvent.subscribe(async (payload) => {
+ *     await onboardingService.start(payload.userId);
+ * });
+ * ```
+ */
+export const invitationAcceptedEvent = defineEvent(
+    'auth.invitation.accepted',
+    Type.Object({
+        invitationId: Type.String(),
+        email: Type.String(),
+        userId: Type.String(),
+        roleId: Type.Number(),
+        invitedBy: Type.String(),
+        metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    })
+);
+
+/**
  * Auth event payload types
  */
 export type AuthLoginPayload = typeof authLoginEvent._payload;
 export type AuthRegisterPayload = typeof authRegisterEvent._payload;
+export type InvitationCreatedPayload = typeof invitationCreatedEvent._payload;
+export type InvitationAcceptedPayload = typeof invitationAcceptedEvent._payload;

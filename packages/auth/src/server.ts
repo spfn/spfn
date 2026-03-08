@@ -84,10 +84,14 @@ export { createAuthLifecycle } from './server/lifecycle';
 export {
     authLoginEvent,
     authRegisterEvent,
+    invitationCreatedEvent,
+    invitationAcceptedEvent,
     AuthProviderSchema,
 } from './server/events';
 
 export type {
     AuthLoginPayload,
     AuthRegisterPayload,
+    InvitationCreatedPayload,
+    InvitationAcceptedPayload,
 } from './server/events';
