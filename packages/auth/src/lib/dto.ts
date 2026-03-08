@@ -46,7 +46,7 @@ export interface AuthSession
 export interface ProfileInfo
 {
     profileId: number;
-    displayName: string;
+    displayName: string | null;
     firstName: string | null;
     lastName: string | null;
     avatarUrl: string | null;

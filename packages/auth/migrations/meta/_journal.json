@@ -15,6 +15,13 @@
       "when": 1772024450308,
       "tag": "0001_smooth_the_fury",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772979257335,
+      "tag": "0002_deep_iceman",
+      "breakpoints": true
     }
   ]
 }

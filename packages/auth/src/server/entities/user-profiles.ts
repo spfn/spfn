@@ -25,8 +25,8 @@ export const userProfiles = authSchema.table('user_profiles',
         userId: foreignKey('user', () => users.id).unique(),
 
         // Display Information
-        // Display name shown in UI (required)
-        displayName: text('display_name').notNull(),
+        // Display name shown in UI (optional)
+        displayName: text('display_name'),
 
         // First name (optional)
         firstName: text('first_name'),

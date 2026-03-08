@@ -130,7 +130,7 @@ export async function updateUserProfileService(
 
     if (params.displayName !== undefined)
     {
-        updateData.displayName = emptyToNull(params.displayName) || 'User';
+        updateData.displayName = emptyToNull(params.displayName);
     }
     if (params.firstName !== undefined)
     {
@@ -183,13 +183,6 @@ export async function updateUserProfileService(
     if (params.metadata !== undefined)
     {
         updateData.metadata = params.metadata;
-    }
-
-    // Check if this is a new profile (need displayName)
-    const existing = await userProfilesRepository.findByUserId(userIdNum);
-    if (!existing && !updateData.displayName)
-    {
-        updateData.displayName = 'User';
     }
 
     // Upsert profile
