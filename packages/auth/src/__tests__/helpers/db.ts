@@ -117,6 +117,7 @@ export async function clearTables(db: ReturnType<typeof drizzle>)
     await db.execute(sql`TRUNCATE TABLE spfn_auth.user_public_keys CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.user_social_accounts CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.verification_codes CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spfn_auth.auth_metadata CASCADE`);
 }
 
 /**
@@ -137,6 +138,16 @@ async function createTables(db: ReturnType<typeof drizzle>)
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.users CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.permissions CASCADE`);
     await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.roles CASCADE`);
+    await db.execute(sql`DROP TABLE IF EXISTS spfn_auth.auth_metadata CASCADE`);
+
+    // Create auth_metadata table
+    await db.execute(sql`
+        CREATE TABLE spfn_auth.auth_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )
+    `);
 
     // Create roles table
     await db.execute(sql`

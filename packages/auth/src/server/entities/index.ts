@@ -19,4 +19,7 @@ export * from './user-invitations';
 export * from './roles';
 export * from './permissions';
 export * from './role-permissions';
-export * from './user-permissions'
+export * from './user-permissions';
+
+// System entities
+export * from './auth-metadata';
