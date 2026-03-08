@@ -326,7 +326,7 @@ export const authEnvSchema = defineEnvSchema({
         ...envString({
             description: 'URL to redirect after OAuth error. Use {error} placeholder for error message.',
             required: false,
-            default: 'http://localhost:3000/auth/error?error={error}',
+            default: '/auth/error?error={error}',
             examples: [
                 'https://app.example.com/auth/error?error={error}',
                 'http://localhost:3000/auth/error?error={error}',
