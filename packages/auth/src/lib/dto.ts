@@ -36,6 +36,7 @@ export interface Permission
 export interface AuthSession
 {
     userId: number;
+    publicId: string;
     email: string | null;
     emailVerified: boolean;
     phoneVerified: boolean;
@@ -75,6 +76,7 @@ export interface ProfileInfo
 export interface UserProfile
 {
     userId: number;
+    publicId: string;
     email: string | null;
     username: string | null;
     emailVerified: boolean;

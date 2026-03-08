@@ -1623,6 +1623,7 @@ Main user identity table.
 ```sql
 CREATE TABLE users (
   id BIGSERIAL PRIMARY KEY,
+  public_id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
   email TEXT UNIQUE,
   phone TEXT UNIQUE,
   username TEXT UNIQUE,
@@ -1643,6 +1644,7 @@ CREATE TABLE users (
 ```
 
 **Key Points:**
+- `public_id` is a UUID v4 for external-facing URLs and APIs (never expose internal `id`)
 - At least one of `email` OR `phone` required
 - `username` is unique and nullable (optional display/mention identifier)
 - `passwordHash` is bcrypt ($2b$10$..., 60 chars)

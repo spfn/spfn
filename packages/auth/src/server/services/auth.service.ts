@@ -52,6 +52,7 @@ export interface RegisterParams
 export interface RegisterResult
 {
     userId: string;
+    publicId: string;
     email?: string;
     phone?: string;
 }
@@ -71,6 +72,7 @@ export interface LoginParams
 export interface LoginResult
 {
     userId: string;
+    publicId: string;
     email?: string;
     phone?: string;
     passwordChangeRequired: boolean;
@@ -205,6 +207,7 @@ export async function registerService(
 
     const result = {
         userId: String(newUser.id),
+        publicId: newUser.publicId,
         email: newUser.email || undefined,
         phone: newUser.phone || undefined,
     };
@@ -280,6 +283,7 @@ export async function loginService(
 
     const result = {
         userId: String(user.id),
+        publicId: user.publicId,
         email: user.email || undefined,
         phone: user.phone || undefined,
         passwordChangeRequired: user.passwordChangeRequired,

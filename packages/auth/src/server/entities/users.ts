@@ -13,7 +13,7 @@
  */
 
 import { USER_STATUSES } from "../types";
-import { text, check, boolean, index } from 'drizzle-orm/pg-core';
+import { text, check, boolean, index, uuid } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp, foreignKey } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
 import { roles } from './roles';
@@ -23,6 +23,10 @@ export const users = authSchema.table('users',
     {
         // Identity
         id: id(),
+
+        // Public-facing UUID (for URLs, external APIs)
+        // Never expose internal bigserial ID externally
+        publicId: uuid('public_id').notNull().unique().defaultRandom(),
 
         // Email address (unique identifier)
         // Used for: login, password reset, notifications
@@ -82,6 +86,7 @@ export const users = authSchema.table('users',
         ),
 
         // Indexes for query optimization
+        index('users_public_id_idx').on(table.publicId),
         index('users_email_idx').on(table.email),
         index('users_phone_idx').on(table.phone),
         index('users_username_idx').on(table.username),

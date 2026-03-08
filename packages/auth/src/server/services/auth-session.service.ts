@@ -32,6 +32,7 @@ export async function getAuthSessionService(userId: string | number | bigint)
 
     return {
         userId: user.userId,
+        publicId: user.publicId,
         email: user.email,
         emailVerified: user.isEmailVerified,
         phoneVerified: user.isPhoneVerified,

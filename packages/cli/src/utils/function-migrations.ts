@@ -86,6 +86,132 @@ export function discoverFunctionMigrations(cwd: string = process.cwd()): Functio
 }
 
 /**
+ * Migrate legacy shared __spfn_fn_migrations table to per-package tables.
+ *
+ * Previous versions used a single shared table for all packages, causing
+ * index-based hash conflicts. This copies each package's migration hashes
+ * from the legacy table (matched by journal) into per-package tables,
+ * then drops the legacy table.
+ */
+async function migrateLegacyTable(
+    db: any,
+    functionMigrations: FunctionMigrationInfo[]
+): Promise<void>
+{
+    // Check if legacy table exists
+    const legacyCheck = await db.execute(
+        `SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'drizzle' AND table_name = '__spfn_fn_migrations'
+        ) AS "exists"`
+    );
+
+    if (!legacyCheck[0]?.exists)
+    {
+        return;
+    }
+
+    console.log(chalk.dim('\n  Migrating legacy shared migration table to per-package tables...'));
+
+    // Read all legacy records ordered by id
+    const legacyRows: { hash: string; created_at: string }[] = await db.execute(
+        `SELECT hash, created_at FROM drizzle."__spfn_fn_migrations" ORDER BY id`
+    );
+
+    if (legacyRows.length === 0)
+    {
+        await db.execute(`DROP TABLE drizzle."__spfn_fn_migrations"`);
+        return;
+    }
+
+    // For each package, read its journal and match hashes by index
+    for (const func of functionMigrations)
+    {
+        const journalPath = join(func.migrationsDir, 'meta', '_journal.json');
+        if (!existsSync(journalPath))
+        {
+            continue;
+        }
+
+        const journal = JSON.parse(readFileSync(journalPath, 'utf-8'));
+        const entries: { idx: number; tag: string; when: number }[] = journal.entries || [];
+
+        const tableName = `__spfn_fn_${func.packageName.replace('@spfn/', '')}_migrations`;
+
+        // Create per-package table if not exists
+        await db.execute(
+            `CREATE SCHEMA IF NOT EXISTS drizzle`
+        );
+        await db.execute(
+            `CREATE TABLE IF NOT EXISTS drizzle."${tableName}" (
+                id serial PRIMARY KEY,
+                hash text NOT NULL,
+                created_at bigint
+            )`
+        );
+
+        // Check if already has records (skip if so)
+        const existing = await db.execute(
+            `SELECT COUNT(*) AS "count" FROM drizzle."${tableName}"`
+        );
+
+        if (Number(existing[0]?.count) > 0)
+        {
+            continue;
+        }
+
+        // Match: legacy rows were inserted in order by the first package (auth)
+        // that ran. Each package's journal entries correspond to legacy rows
+        // only if the hash matches. We need to find which legacy hashes
+        // belong to this package by reading migration SQL files and computing hashes.
+        //
+        // Simpler approach: copy ALL legacy hashes into each package table.
+        // drizzle's migrate() compares by hash, not index.
+        // If a hash doesn't match the journal, it's ignored.
+        // If it does match, it prevents re-execution.
+        //
+        // Actually drizzle uses hash from the SQL file content, and the legacy
+        // table stores those hashes. The simplest correct approach:
+        // compute each package's migration file hashes and check if they exist
+        // in the legacy table.
+
+        const { createHash } = await import('crypto');
+        let copied = 0;
+
+        for (const entry of entries)
+        {
+            const sqlPath = join(func.migrationsDir, `${entry.tag}.sql`);
+            if (!existsSync(sqlPath))
+            {
+                continue;
+            }
+
+            const sqlContent = readFileSync(sqlPath, 'utf-8');
+            const hash = createHash('sha256').update(sqlContent).digest('hex');
+
+            // Check if this hash exists in legacy table
+            const found = legacyRows.find(r => r.hash === hash);
+            if (found)
+            {
+                await db.execute(
+                    `INSERT INTO drizzle."${tableName}" (hash, created_at) VALUES ('${hash}', ${entry.when})`
+                );
+                copied++;
+            }
+        }
+
+        if (copied > 0)
+        {
+            console.log(chalk.dim(`    ✓ ${func.packageName}: copied ${copied} migration record(s)`));
+        }
+    }
+
+    // Drop legacy table
+    await db.execute(`DROP TABLE drizzle."__spfn_fn_migrations"`);
+    console.log(chalk.dim('    ✓ Legacy migration table removed\n'));
+}
+
+/**
  * Execute function package migrations directly (no copying)
  * Returns the number of migrations executed
  */
@@ -111,6 +237,9 @@ export async function executeFunctionMigrations(
 
     try
     {
+        // Migrate legacy shared table to per-package tables (one-time)
+        await migrateLegacyTable(db, functionMigrations);
+
         for (const func of functionMigrations)
         {
             console.log(chalk.blue(`\n  📦 Running ${func.packageName} migrations...`));
