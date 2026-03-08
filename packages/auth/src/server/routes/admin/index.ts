@@ -11,7 +11,10 @@ import {
     updateRole as _updateRole,
     deleteRole as _deleteRole,
     updateUserService,
+    getUserRole,
 } from '../../services';
+import { getAuth } from '../../helpers';
+import { ForbiddenError } from '@spfn/core/errors';
 import { Type } from '@sinclair/typebox';
 import { route } from '@spfn/core/route';
 
@@ -138,6 +141,19 @@ export const updateUserRole = route.patch('/_auth/admin/users/:userId/role')
     .handler(async (c) =>
     {
         const { params, body } = await c.data();
+        const auth = getAuth(c);
+
+        if (params.userId === Number(auth.userId))
+        {
+            throw new ForbiddenError({ message: 'Cannot change your own role' });
+        }
+
+        const targetRole = await getUserRole(params.userId);
+        if (targetRole === 'superadmin')
+        {
+            throw new ForbiddenError({ message: 'Cannot modify superadmin role' });
+        }
+
         await updateUserService(params.userId, { roleId: body.roleId });
 
         return { userId: params.userId, roleId: body.roleId };
