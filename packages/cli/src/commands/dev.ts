@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, watch } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, rmSync, watch } from 'fs';
 import { join } from 'path';
 import { execa, type ExecaChildProcess } from 'execa';
 import chokidar from 'chokidar';
@@ -86,6 +86,21 @@ export const devCommand = new Command('dev')
         const watcherEntry = join(tempDir, 'watcher.mjs');
 
         mkdirSync(tempDir, { recursive: true });
+
+        // Clean stale build cache from previous builds
+        const serverBuildDir = join(tempDir, 'server');
+        if (existsSync(serverBuildDir))
+        {
+            rmSync(serverBuildDir, { recursive: true, force: true });
+            logger.info('[SPFN] Cleaned stale build cache (.spfn/server)');
+        }
+
+        // Clean stale ready signal
+        const readySignal = join(tempDir, 'server-ready');
+        if (existsSync(readySignal))
+        {
+            unlinkSync(readySignal);
+        }
 
         // Server entry
         const configParts: string[] = [];
