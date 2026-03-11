@@ -46,7 +46,7 @@ import { randomUUID } from 'crypto';
 import { sql } from 'drizzle-orm';
 import { logger } from '@spfn/core/logger';
 import { getDatabase } from '../manager';
-import { runWithTransaction, getTransactionContext, type TransactionDB } from './context';
+import { runWithTransaction, getTransactionContext, type TransactionDB, type AfterCommitCallback } from './context';
 import { TransactionError } from '@spfn/core/errors';
 import { env } from '@spfn/core/config';
 
@@ -261,6 +261,9 @@ export async function runInTransaction<T>(
     // Start timing from actual transaction execution
     const startTime = Date.now();
 
+    // Collect afterCommit callbacks from root transaction
+    let afterCommitCallbacks: AfterCommitCallback[] = [];
+
     // Execute transaction within try-catch to capture all errors
     try
     {
@@ -278,8 +281,19 @@ export async function runInTransaction<T>(
             // Store transaction in AsyncLocalStorage
             return await runWithTransaction(tx, txId, async () =>
             {
-                // Execute callback
-                return await callback(tx);
+                const innerResult = await callback(tx);
+
+                // Capture afterCommit callbacks before transaction context is destroyed
+                if (!isNested)
+                {
+                    const ctx = getTransactionContext();
+                    if (ctx)
+                    {
+                        afterCommitCallbacks = [...ctx.afterCommitCallbacks];
+                    }
+                }
+
+                return innerResult;
             });
         });
 
@@ -303,6 +317,31 @@ export async function runInTransaction<T>(
                     txId,
                     context,
                     duration: `${duration}ms`,
+                });
+            }
+        }
+
+        // Execute afterCommit callbacks (root transaction only, after commit confirmed)
+        if (!isNested && afterCommitCallbacks.length > 0)
+        {
+            if (enableLogging)
+            {
+                txLogger.debug('Executing afterCommit callbacks', {
+                    txId,
+                    context,
+                    count: afterCommitCallbacks.length,
+                });
+            }
+
+            for (const cb of afterCommitCallbacks)
+            {
+                Promise.resolve().then(cb).catch((err) =>
+                {
+                    txLogger.error('afterCommit callback failed', {
+                        txId,
+                        context,
+                        error: err instanceof Error ? err.message : String(err),
+                    });
                 });
             }
         }

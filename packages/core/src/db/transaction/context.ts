@@ -23,14 +23,21 @@ export type TransactionDB = PostgresJsDatabase<Record<string, unknown>>;
 const txLogger = logger.child('@spfn/core:transaction');
 
 /**
+ * afterCommit callback type
+ */
+export type AfterCommitCallback = () => void | Promise<void>;
+
+/**
  * Transaction context stored in AsyncLocalStorage
  */
 export type TransactionContext = {
     /** The actual Drizzle transaction object */
     tx: TransactionDB;
     /** Unique transaction ID for logging and tracing */
-    txId: string; // Add txId to the context
+    txId: string;
     level: number;
+    /** Callbacks to execute after root transaction commits */
+    afterCommitCallbacks: AfterCommitCallback[];
 };
 
 /**
@@ -107,6 +114,54 @@ export function runWithTransaction<T>(
         txLogger.debug('Root transaction context set', { txId, level: newLevel });
     }
 
+    // Nested transactions share the root's afterCommitCallbacks queue
+    const afterCommitCallbacks = existingContext
+        ? existingContext.afterCommitCallbacks
+        : [];
+
     // Store transaction, new ID, and the current nesting level
-    return asyncContext.run({ tx, txId, level: newLevel }, callback);
+    return asyncContext.run({ tx, txId, level: newLevel, afterCommitCallbacks }, callback);
+}
+
+/**
+ * Register a callback to run after the current transaction commits
+ *
+ * - Inside a transaction: queued and executed after root transaction commits
+ * - Outside a transaction: executed immediately (already "committed")
+ * - Nested transactions: callbacks bubble up to root transaction
+ * - Callbacks run outside transaction context (new connection for DB access)
+ * - Errors are logged but never thrown (commit already succeeded)
+ *
+ * @example
+ * ```typescript
+ * import { onAfterCommit } from '@spfn/core/db/transaction';
+ *
+ * async function submit(spaceId: string, chatId: string)
+ * {
+ *     const publication = await publicationRepo.create({...});
+ *     await requestRepo.updateStatusAtomically(...);
+ *
+ *     onAfterCommit(() => generateArticle(spaceId, chatId, publication.id));
+ *
+ *     return publication;
+ * }
+ * ```
+ */
+export function onAfterCommit(callback: AfterCommitCallback): void
+{
+    const context = getTransactionContext();
+
+    if (!context)
+    {
+        // No active transaction → execute immediately
+        Promise.resolve().then(callback).catch((err) =>
+        {
+            txLogger.error('afterCommit callback failed (no transaction)', {
+                error: err instanceof Error ? err.message : String(err),
+            });
+        });
+        return;
+    }
+
+    context.afterCommitCallbacks.push(callback);
 }

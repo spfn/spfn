@@ -5,8 +5,8 @@
  */
 
 // AsyncLocalStorage utilities
-export { getTransaction, runWithTransaction, getTransactionContext } from './context';
-export type { TransactionContext, TransactionDB } from './context';
+export { getTransaction, runWithTransaction, getTransactionContext, onAfterCommit } from './context';
+export type { TransactionContext, TransactionDB, AfterCommitCallback } from './context';
 
 // Transaction middleware
 export { Transactional } from './middleware';
