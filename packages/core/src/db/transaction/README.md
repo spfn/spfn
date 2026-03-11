@@ -5,11 +5,11 @@ Database transaction management with AsyncLocalStorage-based propagation.
 ## Import
 
 ```ts
-import { Transactional, getTransaction, runWithTransaction } from '@spfn/core/db/transaction';
-import type { TransactionContext, TransactionalOptions } from '@spfn/core/db/transaction';
+import { Transactional, getTransaction, runWithTransaction, onAfterCommit } from '@spfn/core/db/transaction';
+import type { TransactionContext, TransactionalOptions, AfterCommitCallback } from '@spfn/core/db/transaction';
 
 // or from @spfn/core
-import { Transactional, getTransaction, runWithTransaction } from '@spfn/core';
+import { Transactional, getTransaction, runWithTransaction, onAfterCommit } from '@spfn/core';
 ```
 
 ## Transaction Middleware
@@ -26,6 +26,7 @@ Hono middleware that automatically wraps route handlers in database transactions
 - ✅ Slow transaction warnings
 - ✅ Transaction ID for debugging
 - ✅ Nested Transaction Detection and Logging
+- ✅ After-commit hooks via `onAfterCommit()`
 
 **Basic Usage:**
 
@@ -390,6 +391,68 @@ export async function POST(c: RouteContext)
 }
 ```
 
+## After-Commit Hooks
+
+### `onAfterCommit(callback)`
+
+Register a callback to execute after the current transaction commits successfully.
+
+Use this for side effects that must happen only after data is persisted: sending notifications, triggering background jobs, firing analytics events, etc.
+
+```ts
+import { onAfterCommit } from '@spfn/core/db';
+
+async function submitRequest(spaceId: string, chatId: string)
+{
+    const publication = await publicationRepo.create({ spaceId, chatId });
+    await requestRepo.updateStatusAtomically(requestId, 'submitted');
+
+    // Runs only after the transaction commits
+    onAfterCommit(() =>
+    {
+        generateArticle(spaceId, chatId, publication.id).catch(console.error);
+    });
+
+    return publication;
+}
+```
+
+**Behavior:**
+
+| Context | Behavior |
+|---------|----------|
+| Inside root transaction | Queued, executed after commit |
+| Inside nested transaction | Queued on root transaction's queue, executed after root commits |
+| Outside any transaction | Executed immediately (already "committed") |
+
+**Key characteristics:**
+- Callbacks run **outside** the transaction context (new connection for DB access)
+- Callbacks are fire-and-forget: errors are logged but never thrown
+- Execution order follows registration order (FIFO)
+- Multiple callbacks can be registered within a single transaction
+
+**Anti-Pattern:**
+
+```ts
+// ❌ Bad: Side effect inside transaction (blocks commit, uses tx connection)
+.use([Transactional()])
+.handler(async (c) =>
+{
+    await requestRepo.update(...);
+    await generateArticle(...);  // Runs before commit, holds transaction open
+    return result;
+});
+
+// ✅ Good: Side effect after commit
+.use([Transactional()])
+.handler(async (c) =>
+{
+    await requestRepo.update(...);
+    onAfterCommit(() => generateArticle(...));  // Runs after commit confirmed
+    return result;
+});
+```
+
 ## Type Definitions
 
 ```ts
@@ -404,10 +467,13 @@ export type TransactionDB = PostgresJsDatabase;
  * @property txId - 트랜잭션 고유 ID (추적용)
  * @property level - 중첩 트랜잭션 깊이 (1부터 시작)
  */
+export type AfterCommitCallback = () => void | Promise<void>;
+
 export type TransactionContext = {
     tx: TransactionDB;
     txId: string;
     level: number;
+    afterCommitCallbacks: AfterCommitCallback[];
 };
 
 /**
@@ -488,7 +554,7 @@ Planned features:
 - 🔄 **Read-only transactions** - Optimize read-heavy operations
 - 🔄 **Retry logic** - Auto-retry on deadlock
 - 🔄 **Savepoints** - Nested transaction support
-- 🔄 **Event hooks** - beforeCommit, afterCommit, onRollback
+- 🔄 **Event hooks** - beforeCommit, onRollback
 - 🔄 **Enhanced Savepoint Support** - Add direct APIs for savepoint management and explicit rollback to savepoint.
 
 ## See Also

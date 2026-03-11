@@ -221,6 +221,30 @@ await runWithTransaction(async () => {
 });
 ```
 
+### After-Commit Hooks
+
+Schedule side effects to run only after the transaction commits.
+
+```typescript
+import { onAfterCommit } from '@spfn/core/db';
+
+async function submitRequest(spaceId: string, chatId: string)
+{
+    const publication = await publicationRepo.create({ spaceId, chatId });
+    await requestRepo.updateStatusAtomically(requestId, 'submitted');
+
+    // Runs after commit, fire-and-forget
+    onAfterCommit(() => generateArticle(spaceId, chatId, publication.id));
+
+    return publication;
+}
+```
+
+- Inside transaction: queued, executed after root commit
+- Outside transaction: executed immediately
+- Nested transactions: callbacks bubble up to root
+- Errors are logged, never thrown
+
 ### Get Current Transaction
 
 Access the current transaction context.

@@ -443,7 +443,33 @@ try {
 
 > **Note:** Unlike the `Transactional` middleware, `runInTransaction` does **not** automatically convert PostgreSQL errors to custom errors. You're responsible for error handling and conversion.
 
+### After-Commit Hooks
 
+Use `onAfterCommit()` to schedule side effects that should only run after the transaction commits successfully. This is ideal for sending notifications, triggering background jobs, or any fire-and-forget work.
+
+```typescript
+import { onAfterCommit } from '@spfn/core/db';
+
+async function submitTestimonial(spaceId: string, chatId: string)
+{
+    const publication = await publicationRepo.create({ spaceId, chatId });
+    await requestRepo.updateStatusAtomically(requestId, 'submitted');
+
+    // Only runs after the transaction commits
+    onAfterCommit(() =>
+    {
+        generateArticle(spaceId, chatId, publication.id).catch(console.error);
+    });
+
+    return publication;
+}
+```
+
+**Behavior:**
+- Inside a transaction: queued and executed after the root transaction commits
+- Inside a nested transaction: bubbles up to the root transaction's queue
+- Outside any transaction: executed immediately
+- Errors in callbacks are logged but never thrown (commit already succeeded)
 
 
 ```typescript
