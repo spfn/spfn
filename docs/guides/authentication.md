@@ -82,6 +82,7 @@ SPFN_AUTH_SESSION_SECRET="my-super-secret-session-key-at-least-32-chars-long"
 
 # ── Optional ─────────────────────────────────────────────────────────
 SPFN_AUTH_SESSION_TTL=7d
+SPFN_AUTH_COOKIE_SECURE=false   # Override cookie Secure flag (default: true in production)
 ```
 
 > **Why two files?**
@@ -397,11 +398,13 @@ export default defineServerConfig()
     .events(eventRouter, {
         auth: {
             enabled: true,
-            tokenManager: getOneTimeTokenManager(),
+            tokenManager: () => getOneTimeTokenManager(),  // Lazy — resolved at server start
         },
     })
     .build();
 ```
+
+> **Why a function?** `getOneTimeTokenManager()` requires `createAuthLifecycle()` to run first (during `afterInfrastructure`). At module load time the manager doesn't exist yet. A lazy resolver `() => getOneTimeTokenManager()` defers the call to server startup, when the manager is ready.
 
 ### API Endpoint
 
@@ -687,6 +690,25 @@ SPFN_AUTH_SESSION_TTL=30d   # 30 days
 SPFN_AUTH_SESSION_TTL=12h   # 12 hours
 ```
 
+### Cookie Secure Flag
+
+Session cookies have the `Secure` flag enabled by default in production (`NODE_ENV=production`). This means cookies are only sent over HTTPS.
+
+For HTTP-only environments (e.g. bastion server accessed via plain HTTP), override with:
+
+```bash
+# .env.local
+SPFN_AUTH_COOKIE_SECURE=false
+```
+
+| Value | Behavior |
+|-------|----------|
+| unset | `Secure` follows `NODE_ENV === 'production'` |
+| `true` | Always set `Secure` flag |
+| `false` | Never set `Secure` flag |
+
+> **Warning:** Only set `SPFN_AUTH_COOKIE_SECURE=false` in non-public staging environments. Disabling `Secure` on a public-facing server exposes session cookies to network interception.
+
 ---
 
 ## API Endpoints Reference
@@ -861,6 +883,17 @@ Check that `createAuthLifecycle()` is registered in `server.config.ts` and at le
 # .env.server — pick one format
 SPFN_AUTH_ADMIN_ACCOUNTS='[{"email":"admin@example.com","password":"Admin!@34","role":"superadmin"}]'
 ```
+
+### Login works on localhost but not on remote server (HTTP)
+
+Session cookies have the `Secure` flag in production, so they are not sent over plain HTTP. If you access the app via `http://<ip>:<port>`, the browser silently drops the cookie.
+
+```bash
+# .env.local (on the remote server)
+SPFN_AUTH_COOKIE_SECURE=false
+```
+
+See [Cookie Secure Flag](#cookie-secure-flag) for details.
 
 ### OAuth redirects to wrong URL
 

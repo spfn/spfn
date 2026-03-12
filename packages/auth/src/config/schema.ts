@@ -11,6 +11,7 @@ import {
     defineEnvSchema,
     envString,
     envNumber,
+    envBoolean,
     createSecureSecretParser,
     createPasswordParser,
 } from '@spfn/core/env';
@@ -93,6 +94,15 @@ export const authEnvSchema = defineEnvSchema({
     // ============================================================================
     // Security Configuration
     // ============================================================================
+    SPFN_AUTH_COOKIE_SECURE: {
+        ...envBoolean({
+            description: 'Override cookie Secure flag. Defaults to NODE_ENV === "production". Set to false for HTTP-only environments (e.g. bastion over plain HTTP).',
+            required: false,
+            nextjs: true,
+            examples: [true, false],
+        }),
+    },
+
     SPFN_AUTH_BCRYPT_SALT_ROUNDS: {
         ...envNumber({
             description: 'Bcrypt salt rounds (cost factor, higher = more secure but slower)',

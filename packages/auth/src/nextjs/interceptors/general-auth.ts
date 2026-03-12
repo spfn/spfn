@@ -9,7 +9,7 @@
 
 import type { InterceptorRule } from '@spfn/core/nextjs/server';
 import { unsealSession, sealSession, shouldRefreshSession, generateClientToken, getSessionTtl, COOKIE_NAMES, authLogger } from '@spfn/auth/server';
-import { env } from '@spfn/core/config';
+import { cookieSecure } from './cookie-options';
 
 /**
  * Check if path requires authentication
@@ -205,7 +205,7 @@ export const generalAuthInterceptor: InterceptorRule =
                     value: sealed,
                     options: {
                         httpOnly: true,
-                        secure: env.NODE_ENV === 'production',
+                        secure: cookieSecure,
                         sameSite: 'strict',
                         maxAge: ttl,
                         path: '/',
@@ -218,7 +218,7 @@ export const generalAuthInterceptor: InterceptorRule =
                     value: sessionData.keyId,
                     options: {
                         httpOnly: true,
-                        secure: process.env.NODE_ENV === 'production',
+                        secure: cookieSecure,
                         sameSite: 'strict',
                         maxAge: ttl,
                         path: '/',

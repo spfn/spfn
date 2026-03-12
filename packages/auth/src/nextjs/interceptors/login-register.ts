@@ -7,7 +7,7 @@
 
 import type { InterceptorRule } from '@spfn/core/nextjs/server';
 import { generateKeyPair, sealSession, getSessionTtl, COOKIE_NAMES, authLogger } from '@spfn/auth/server';
-import { env } from '@spfn/core/config';
+import { cookieSecure } from './cookie-options';
 
 /**
  * Login and Register Interceptor
@@ -101,7 +101,7 @@ export const loginRegisterInterceptor: InterceptorRule =
                     value: sealed,
                     options: {
                         httpOnly: true,
-                        secure: env.NODE_ENV === 'production',
+                        secure: cookieSecure,
                         sameSite: 'strict',
                         maxAge: ttl,
                         path: '/',
@@ -114,7 +114,7 @@ export const loginRegisterInterceptor: InterceptorRule =
                     value: ctx.metadata.keyId,
                     options: {
                         httpOnly: true,
-                        secure: env.NODE_ENV === 'production',
+                        secure: cookieSecure,
                         sameSite: 'strict',
                         maxAge: ttl,
                         path: '/',

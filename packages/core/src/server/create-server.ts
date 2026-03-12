@@ -273,7 +273,11 @@ async function registerSSEEndpoint(app: Hono, config?: ServerConfig): Promise<vo
             }
         }
 
-        tokenManager = authConfig.tokenManager ?? new SSETokenManager({
+        const externalManager = typeof authConfig.tokenManager === 'function'
+            ? authConfig.tokenManager()
+            : authConfig.tokenManager;
+
+        tokenManager = externalManager ?? new SSETokenManager({
             ttl: authConfig.tokenTtl,
             store,
         });

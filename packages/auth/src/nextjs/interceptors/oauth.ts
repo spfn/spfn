@@ -15,7 +15,7 @@ import {
     authLogger,
 } from '@spfn/auth/server';
 import { sealPendingSession, unsealPendingSession } from '../session-helpers';
-import { env } from '@spfn/core/config';
+import { cookieSecure } from './cookie-options';
 
 /**
  * OAuth URL Interceptor
@@ -81,7 +81,7 @@ export const oauthUrlInterceptor: InterceptorRule = {
                     value: sealed,
                     options: {
                         httpOnly: true,
-                        secure: env.NODE_ENV === 'production',
+                        secure: cookieSecure,
                         sameSite: 'lax', // OAuth 리다이렉트 허용
                         maxAge: 600, // 10분
                         path: '/',
@@ -171,7 +171,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
                 value: sessionToken,
                 options: {
                     httpOnly: true,
-                    secure: env.NODE_ENV === 'production',
+                    secure: cookieSecure,
                     sameSite: 'strict',
                     maxAge: ttl,
                     path: '/',
@@ -184,7 +184,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
                 value: keyId,
                 options: {
                     httpOnly: true,
-                    secure: env.NODE_ENV === 'production',
+                    secure: cookieSecure,
                     sameSite: 'strict',
                     maxAge: ttl,
                     path: '/',
@@ -197,7 +197,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
                 value: '',
                 options: {
                     httpOnly: true,
-                    secure: env.NODE_ENV === 'production',
+                    secure: cookieSecure,
                     sameSite: 'lax',
                     maxAge: 0,
                     path: '/',

@@ -52,24 +52,28 @@ export interface SSEHandlerAuthConfig
     store?: SSETokenStore;
 
     /**
-     * External token manager instance
+     * External token manager instance or lazy resolver.
      *
      * When provided, the SSE system uses this manager instead of creating its own.
      * Useful for sharing a single token manager with auth package's one-time token system.
+     *
+     * Use a function when the manager is not available at module load time
+     * (e.g. initialized in a lifecycle hook that runs after config evaluation).
      *
      * @example
      * ```typescript
      * import { getOneTimeTokenManager } from '@spfn/auth/server';
      *
-     * .eventsConfig({
+     * // Lazy resolver (recommended — avoids timing issues)
+     * .events(eventRouter, {
      *     auth: {
      *         enabled: true,
-     *         tokenManager: getOneTimeTokenManager(),
+     *         tokenManager: () => getOneTimeTokenManager(),
      *     },
      * })
      * ```
      */
-    tokenManager?: SSETokenManager;
+    tokenManager?: SSETokenManager | (() => SSETokenManager);
 
     /**
      * Extract subject (user ID) from Hono context
@@ -121,7 +125,7 @@ export interface SSEAuthConfig<TRouter extends EventRouterDef<any>>
     enabled?: boolean;
     tokenTtl?: number;
     store?: SSETokenStore;
-    tokenManager?: SSETokenManager;
+    tokenManager?: SSETokenManager | (() => SSETokenManager);
     getSubject?: (c: Context) => string | null;
     authorize?: (
         subject: string,

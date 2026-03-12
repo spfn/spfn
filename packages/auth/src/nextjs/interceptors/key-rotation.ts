@@ -6,6 +6,7 @@
 
 import type { InterceptorRule } from '@spfn/core/nextjs/server';
 import { generateKeyPair, unsealSession, sealSession, generateClientToken, getSessionTtl, COOKIE_NAMES, authLogger } from '@spfn/auth/server';
+import { cookieSecure } from './cookie-options';
 
 /**
  * Key Rotation Interceptor
@@ -122,7 +123,7 @@ export const keyRotationInterceptor: InterceptorRule =
                 value: sealed,
                 options: {
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
+                    secure: cookieSecure,
                     sameSite: 'strict',
                     maxAge: ttl,
                     path: '/',
@@ -135,7 +136,7 @@ export const keyRotationInterceptor: InterceptorRule =
                 value: ctx.metadata.newKeyId,
                 options: {
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
+                    secure: cookieSecure,
                     sameSite: 'strict',
                     maxAge: ttl,
                     path: '/',

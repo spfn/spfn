@@ -170,11 +170,13 @@ export default defineServerConfig()
     .events(eventRouter, {
         auth: {
             enabled: true,
-            tokenManager: getOneTimeTokenManager(),  // Shared with auth one-time tokens
+            tokenManager: () => getOneTimeTokenManager(),  // Lazy — resolved at server start
         },
     })
     .build();
 ```
+
+> **Why a function?** `getOneTimeTokenManager()` is only available after `createAuthLifecycle()` runs (during `afterInfrastructure`). A lazy resolver `() => ...` defers resolution to server startup, avoiding the timing issue.
 
 This way both SSE connections and direct API calls (file uploads, etc.) use the same token pool. See [Authentication > One-Time Token](/docs/guides/authentication#one-time-token) for details.
 
@@ -490,7 +492,7 @@ import { eventRouteMap } from '@spfn/core/event';
 | `enabled` | boolean | `false` | Enable token authentication |
 | `tokenTtl` | number | `30000` | Token TTL in milliseconds |
 | `store` | SSETokenStore | Auto (Cache → InMemory) | Token store. 캐시 연결 시 `CacheTokenStore` 자동 사용 |
-| `tokenManager` | SSETokenManager | - | External token manager. 제공 시 내부 생성 대신 사용 |
+| `tokenManager` | SSETokenManager \| () => SSETokenManager | - | External token manager (or lazy resolver). 제공 시 내부 생성 대신 사용 |
 | `getSubject` | (c) => string \| null | `c.get('auth')?.userId` | Extract subject from context |
 | `authorize` | (subject, events) => events[] | - | Subscription authorization hook |
 | `filter` | { [event]: (subject, payload) => boolean } | - | Per-event payload filter |
