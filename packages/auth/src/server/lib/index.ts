@@ -20,3 +20,4 @@ export * from './crypto';
 export * from './session';
 export * from './config';
 export * from './oauth';
+export * from './one-time-token';

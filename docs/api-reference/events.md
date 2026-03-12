@@ -157,6 +157,27 @@ export default defineServerConfig()
     .build();
 ```
 
+### Shared Token Manager
+
+When using `@spfn/auth`'s one-time token system, you can share the same token manager with SSE instead of creating a separate one:
+
+```typescript
+import { defineServerConfig } from '@spfn/core/server';
+import { createAuthLifecycle, getOneTimeTokenManager } from '@spfn/auth/server';
+
+export default defineServerConfig()
+    .lifecycle(createAuthLifecycle())
+    .events(eventRouter, {
+        auth: {
+            enabled: true,
+            tokenManager: getOneTimeTokenManager(),  // Shared with auth one-time tokens
+        },
+    })
+    .build();
+```
+
+This way both SSE connections and direct API calls (file uploads, etc.) use the same token pool. See [Authentication > One-Time Token](/docs/guides/authentication#one-time-token) for details.
+
 ### Authorization Hooks
 
 #### `authorize` — Subscription Authorization (once on connect)
@@ -469,6 +490,7 @@ import { eventRouteMap } from '@spfn/core/event';
 | `enabled` | boolean | `false` | Enable token authentication |
 | `tokenTtl` | number | `30000` | Token TTL in milliseconds |
 | `store` | SSETokenStore | Auto (Cache → InMemory) | Token store. 캐시 연결 시 `CacheTokenStore` 자동 사용 |
+| `tokenManager` | SSETokenManager | - | External token manager. 제공 시 내부 생성 대신 사용 |
 | `getSubject` | (c) => string \| null | `c.get('auth')?.userId` | Extract subject from context |
 | `authorize` | (subject, events) => events[] | - | Subscription authorization hook |
 | `filter` | { [event]: (subject, payload) => boolean } | - | Per-event payload filter |

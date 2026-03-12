@@ -76,6 +76,7 @@ export * from './server/logger';
 // ============================================================================
 
 export { createAuthLifecycle } from './server/lifecycle';
+export type { AuthLifecycleOptions, AuthLifecycleConfig } from './server/lifecycle';
 
 // ============================================================================
 // Events

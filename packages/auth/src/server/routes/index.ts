@@ -15,6 +15,7 @@ import {
     rotateKey,
     changePassword,
     getAuthSession,
+    issueOneTimeToken,
 } from './auth';
 import {
     getInvitation,
@@ -64,6 +65,8 @@ export const mainAuthRouter = defineRouter({
     rotateKey,
     changePassword,
     getAuthSession,
+    // One-Time Token routes
+    issueOneTimeToken,
     // OAuth routes
     oauthGoogleStart,
     oauthGoogleCallback,

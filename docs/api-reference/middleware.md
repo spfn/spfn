@@ -372,6 +372,33 @@ export const getProducts = route.get('/products')
 | `getAuth(c)` | `AuthContext` | Use only when auth is guaranteed |
 | `getLocale(c)` | `string` | Shorthand for `getAuth(c).locale` |
 
+### oneTimeTokenAuth
+
+Authenticates requests using a one-time token instead of JWT. For direct API calls that bypass the RPC proxy (file uploads, SSE, streaming). Auto-skips the global `authenticate` middleware.
+
+Token is extracted from `?token=xxx` query parameter or `Authorization: OTT xxx` header.
+
+```typescript
+import { oneTimeTokenAuth } from '@spfn/auth/server/middleware';
+import { getAuth } from '@spfn/auth/server';
+
+// Direct file upload endpoint
+export const uploadFile = route.post('/files/upload')
+    .use([oneTimeTokenAuth])  // No .skip(['auth']) needed
+    .handler(async (c) =>
+    {
+        const { userId } = getAuth(c);
+        // handle upload...
+    });
+```
+
+| Helper | Return Type | Notes |
+|--------|------------|-------|
+| `getAuth(c)` | `AuthContext` | Same as with `authenticate` |
+| `auth.keyId` | `string` | Always `''` (no key in OTT auth) |
+
+See [Authentication > One-Time Token](/docs/guides/authentication#one-time-token) for the full flow.
+
 ### roleGuard
 
 Advanced role-based access control with allow/deny options. Uses `auth.role` from the context (no additional DB query).

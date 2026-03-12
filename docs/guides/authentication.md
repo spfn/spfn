@@ -14,6 +14,7 @@ available: true
 - **Asymmetric JWT** - Client-signed tokens using ES256/RS256
 - **Session Management** - HttpOnly cookie sessions with configurable TTL
 - **Role-Based Access Control** - Roles, permissions, and middleware guards
+- **One-Time Tokens** - Direct API access for file uploads, SSE, streaming
 - **OAuth** - Google OAuth 2.0 (extensible to other providers)
 - **User Management** - Email/phone identity, profiles, invitations
 - **Next.js Integration** - Server components, session guards, OAuth callbacks
@@ -325,9 +326,99 @@ export const moderateContent = route.post('/content/:id/moderate')
 
 ---
 
+## One-Time Token
+
+For operations that bypass the RPC proxy — streaming, large file uploads, SSE, or any direct backend API call — SPFN provides a one-time token system. Authenticated users request a short-lived token via RPC, then use it to call the backend directly.
+
+### Flow
+
+```
+1. Client → RPC → POST /_auth/tokens (authenticated) → { token, expiresAt }
+2. Client → Direct → POST /files/upload?token=xxx    (file upload)
+   Client → Direct → GET /events/stream?token=xxx     (SSE streaming)
+3. Backend → oneTimeTokenAuth middleware → verify & consume → AuthContext
+```
+
+### Server Setup
+
+One-time tokens are initialized automatically by `createAuthLifecycle()`. Optionally configure TTL:
+
+```typescript
+// server.config.ts
+.lifecycle(createAuthLifecycle({
+    oneTimeToken: { ttl: 60000 },  // 60 seconds (default: 30s)
+}))
+```
+
+### oneTimeTokenAuth Middleware
+
+Use `oneTimeTokenAuth` on routes that accept one-time tokens instead of JWT. It automatically skips the global `authenticate` middleware and injects the same `AuthContext`.
+
+Token is extracted from `?token=xxx` query parameter or `Authorization: OTT xxx` header.
+
+```typescript
+import { route } from '@spfn/core/route';
+import { oneTimeTokenAuth, getAuth } from '@spfn/auth/server';
+
+export const uploadFile = route.post('/files/upload')
+    .use([oneTimeTokenAuth])  // Auto-skips 'auth', injects AuthContext
+    .handler(async (c) =>
+    {
+        const { userId } = getAuth(c);
+        // handle upload...
+    });
+```
+
+### Client Usage
+
+```typescript
+import { authApi } from '@spfn/auth';
+
+// 1. Issue token (via RPC, requires authentication)
+const { token } = await authApi.issueOneTimeToken.call({});
+
+// 2. Direct API call with token
+await fetch(`${SPFN_API_URL}/files/upload?token=${token}`, {
+    method: 'POST',
+    body: formData,
+});
+```
+
+### SSE Integration
+
+Share the auth package's token manager with the SSE system to use a single token pool:
+
+```typescript
+// server.config.ts
+import { getOneTimeTokenManager } from '@spfn/auth/server';
+
+export default defineServerConfig()
+    .lifecycle(createAuthLifecycle())
+    .events(eventRouter, {
+        auth: {
+            enabled: true,
+            tokenManager: getOneTimeTokenManager(),
+        },
+    })
+    .build();
+```
+
+### API Endpoint
+
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/_auth/tokens` | POST | Required | Issue a one-time token |
+
+Response:
+```json
+{ "token": "a1b2c3...", "expiresAt": "2026-03-12T12:00:30.000Z" }
+```
+
+---
+
 ## Auth Context
 
-When a request passes through `authenticate` middleware, an `AuthContext` object is attached to the request context.
+When a request passes through `authenticate` middleware (or `oneTimeTokenAuth`), an `AuthContext` object is attached to the request context.
 
 ### getAuth
 
@@ -613,6 +704,7 @@ SPFN_AUTH_SESSION_TTL=12h   # 12 hours
 | `/_auth/keys/rotate` | POST | Required | Rotate public key |
 | `/_auth/password` | PUT | Required | Change password |
 | `/_auth/session` | GET | Required | Get session info |
+| `/_auth/tokens` | POST | Required | Issue one-time token |
 
 ### User Profile
 

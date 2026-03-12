@@ -22,6 +22,7 @@ export const routeMap: Record<string, RouteInfo> = {
     rotateKey: { method: 'POST', path: '/_auth/keys/rotate' },
     changePassword: { method: 'PUT', path: '/_auth/password' },
     getAuthSession: { method: 'GET', path: '/_auth/session' },
+    issueOneTimeToken: { method: 'POST', path: '/_auth/tokens' },
     getInvitation: { method: 'GET', path: '/_auth/invitations/:token' },
     acceptInvitation: { method: 'POST', path: '/_auth/invitations/accept' },
     createInvitation: { method: 'POST', path: '/_auth/invitations' },

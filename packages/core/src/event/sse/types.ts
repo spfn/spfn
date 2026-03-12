@@ -6,7 +6,7 @@
 
 import type { Context } from 'hono';
 import type { EventRouterDef, InferEventNames, InferEventPayload } from '../router';
-import type { SSETokenStore } from './token-manager';
+import type { SSETokenStore, SSETokenManager } from './token-manager';
 
 /**
  * SSE message sent from server
@@ -50,6 +50,26 @@ export interface SSEHandlerAuthConfig
      * Custom token store (e.g., Redis for multi-instance)
      */
     store?: SSETokenStore;
+
+    /**
+     * External token manager instance
+     *
+     * When provided, the SSE system uses this manager instead of creating its own.
+     * Useful for sharing a single token manager with auth package's one-time token system.
+     *
+     * @example
+     * ```typescript
+     * import { getOneTimeTokenManager } from '@spfn/auth/server';
+     *
+     * .eventsConfig({
+     *     auth: {
+     *         enabled: true,
+     *         tokenManager: getOneTimeTokenManager(),
+     *     },
+     * })
+     * ```
+     */
+    tokenManager?: SSETokenManager;
 
     /**
      * Extract subject (user ID) from Hono context
@@ -101,6 +121,7 @@ export interface SSEAuthConfig<TRouter extends EventRouterDef<any>>
     enabled?: boolean;
     tokenTtl?: number;
     store?: SSETokenStore;
+    tokenManager?: SSETokenManager;
     getSubject?: (c: Context) => string | null;
     authorize?: (
         subject: string,

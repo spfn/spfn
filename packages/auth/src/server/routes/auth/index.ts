@@ -16,7 +16,8 @@ import {
     rotateKeyService,
     sendVerificationCodeService,
     verifyCodeService,
-    getAuthSessionService
+    getAuthSessionService,
+    issueOneTimeTokenService,
 } from '../../services';
 import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
@@ -261,6 +262,19 @@ export const getAuthSession = route.get('/_auth/session')
         return await getAuthSessionService(userId)
     });
 
+/**
+ * POST /_auth/tokens - Issue a one-time token
+ * Returns a single-use token for direct API access (file uploads, SSE, etc.)
+ *
+ * Requires authentication
+ */
+export const issueOneTimeToken = route.post('/_auth/tokens')
+    .handler(async (c) =>
+    {
+        const { userId } = getAuth(c);
+        return await issueOneTimeTokenService(userId);
+    });
+
 // Export router
 export const authRouter = defineRouter({
     checkAccountExists: checkAccountExists,
@@ -272,6 +286,7 @@ export const authRouter = defineRouter({
     rotateKey: rotateKey,
     changePassword: changePassword,
     getAuthSession: getAuthSession,
+    issueOneTimeToken: issueOneTimeToken,
 });
 
 // For backward compatibility with file-based routing (temporary)

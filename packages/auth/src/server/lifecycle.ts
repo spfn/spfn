@@ -7,6 +7,7 @@
 import type { AuthInitOptions } from './rbac';
 import { ensureAdminExists } from './setup';
 import { initializeAuth } from './services';
+import { initOneTimeTokenManager } from './lib/one-time-token';
 
 /**
  * Auth lifecycle configuration
@@ -78,7 +79,34 @@ export interface AuthLifecycleConfig
  *   .build();
  * ```
  */
-export function createAuthLifecycle(options: AuthInitOptions = {}): AuthLifecycleConfig
+/**
+ * Options for createAuthLifecycle
+ */
+export interface AuthLifecycleOptions extends AuthInitOptions
+{
+    /**
+     * One-time token configuration
+     *
+     * Enables one-time token issuance for direct API access
+     * (file uploads, SSE streaming, etc.)
+     *
+     * @example
+     * ```typescript
+     * createAuthLifecycle({
+     *     oneTimeToken: { ttl: 60000 },  // 60 seconds
+     * })
+     * ```
+     */
+    oneTimeToken?: {
+        /**
+         * Token time-to-live in milliseconds
+         * @default 30000
+         */
+        ttl?: number;
+    };
+}
+
+export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLifecycleConfig
 {
     return {
         /**
@@ -87,11 +115,13 @@ export function createAuthLifecycle(options: AuthInitOptions = {}): AuthLifecycl
          * Performs:
          * 1. Ensures admin account exists (creates if missing)
          * 2. Initializes RBAC system with built-in + custom roles/permissions
+         * 3. Initializes one-time token manager
          */
         afterInfrastructure: async () =>
         {
             await initializeAuth(options);
             await ensureAdminExists();
+            initOneTimeTokenManager(options.oneTimeToken);
         }
     };
 }

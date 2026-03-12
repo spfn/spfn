@@ -108,6 +108,16 @@ export {
 // Auth Session Service (new)
 export { getAuthSessionService } from './auth-session.service';
 
+// One-Time Token Service
+export {
+    issueOneTimeTokenService,
+    verifyOneTimeTokenService,
+} from './one-time-token.service';
+
+export type {
+    IssueOneTimeTokenResult,
+} from './one-time-token.service';
+
 // User Profile Service (new)
 export { getUserProfileService, updateUserProfileService, updateLocaleService } from './user-profile.service';
 export type { UpdateProfileParams } from './user-profile.service';
