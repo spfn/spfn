@@ -1,3 +1,4 @@
+import net from 'node:net';
 import postgres from 'postgres';
 import type { Sql } from 'postgres';
 
@@ -5,6 +6,21 @@ import { logger } from '@spfn/core/logger';
 import { ConnectionError } from '@spfn/core/errors';
 import { fromPostgresError } from '../postgres-errors';
 import type { PoolConfig, RetryConfig } from './config';
+
+/**
+ * Parse DATABASE_SOCKET_FAMILY environment variable
+ *
+ * When set to 4 or 6, forces IPv4 or IPv6 for database connections.
+ * This resolves issues with Node.js 25+ Happy Eyeballs (autoSelectFamily)
+ * causing EHOSTUNREACH on some network configurations.
+ */
+function getSocketFamily(): 4 | 6 | undefined
+{
+    const family = process.env.DATABASE_SOCKET_FAMILY;
+    if (family === '4') return 4;
+    if (family === '6') return 6;
+    return undefined;
+}
 
 const dbLogger = logger.child('@spfn/core:database');
 
@@ -226,10 +242,23 @@ export async function createDatabaseConnection(
         try
         {
             // Create PostgreSQL client
+            const socketFamily = getSocketFamily();
             client = postgres(connectionString, {
                 max: poolConfig.max,
                 idle_timeout: poolConfig.idleTimeout,
                 connect_timeout: DEFAULT_CONNECT_TIMEOUT,
+                ...(socketFamily && {
+                    socket: ({ host, port }: { host: string[]; port: number[] }) =>
+                        new Promise<net.Socket>((resolve, reject) =>
+                        {
+                            const socket = new net.Socket();
+                            socket.on('error', reject);
+                            socket.connect(
+                                { port: port[0], host: host[0], family: socketFamily },
+                                () => resolve(socket)
+                            );
+                        }),
+                }),
             });
 
             // Test connection with simple query
