@@ -99,7 +99,7 @@
     "migrations": {
       "dir": "./migrations"
     },
-    "setupMessage": "  📚 Next steps:\n    1. Import auth: import { authMiddleware } from '@spfn/auth/server'\n    2. View tables: pnpm spfn db studio\n    3. API at: http://localhost:8790/_auth"
+    "setupMessage": "  📚 Next steps:\n    1. Add lifecycle: .lifecycle(createAuthLifecycle()) in server.config.ts\n    2. Register router: .packages([authRouter]).use([authenticate]) in router.ts\n    3. Add interceptor: import '@spfn/auth/nextjs/api' in RPC proxy route\n    4. Set env vars: SPFN_AUTH_SESSION_SECRET (.env.local), SPFN_AUTH_VERIFICATION_TOKEN_SECRET (.env.server)\n    5. Run migrations: pnpm spfn db migrate\n    6. Full guide: https://spfn.dev/docs/guides/authentication"
   },
   "dependencies": {
     "@spfn/core": "workspace:*",

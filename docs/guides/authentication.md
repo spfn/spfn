@@ -1,0 +1,781 @@
+---
+title: "Authentication"
+description: "Complete guide for setting up and using @spfn/auth - environment variables, middleware, RBAC, OAuth, and session management"
+order: 9
+available: true
+---
+
+# Authentication
+
+`@spfn/auth` provides authentication, authorization, and RBAC for SPFN applications. This guide covers the complete setup process and usage patterns.
+
+## Features
+
+- **Asymmetric JWT** - Client-signed tokens using ES256/RS256
+- **Session Management** - HttpOnly cookie sessions with configurable TTL
+- **Role-Based Access Control** - Roles, permissions, and middleware guards
+- **OAuth** - Google OAuth 2.0 (extensible to other providers)
+- **User Management** - Email/phone identity, profiles, invitations
+- **Next.js Integration** - Server components, session guards, OAuth callbacks
+
+---
+
+## Setup
+
+Auth setup consists of 6 steps. Follow them in order.
+
+### 1. Install Package
+
+```bash
+pnpm add @spfn/auth
+```
+
+### 2. Environment Variables
+
+Auth requires environment variables in **two separate files**. This is the most common source of setup issues.
+
+#### `.env.server` (SPFN Backend)
+
+The SPFN server reads these variables. They are **never exposed to the browser**.
+
+```bash
+# ── Required ─────────────────────────────────────────────────────────
+DATABASE_URL=postgresql://user:pass@localhost:5432/myapp_dev
+
+# Verification token secret (email verification, password reset)
+SPFN_AUTH_VERIFICATION_TOKEN_SECRET="generate-a-random-32-char-string"
+
+# ── Admin Account (at least one method required) ─────────────────────
+# JSON format (recommended for multiple accounts)
+SPFN_AUTH_ADMIN_ACCOUNTS='[{"email":"admin@example.com","password":"Admin!@34","role":"superadmin"}]'
+
+# ── Optional ─────────────────────────────────────────────────────────
+SPFN_AUTH_JWT_SECRET=your-jwt-secret        # Default: dev-secret (change in production!)
+SPFN_AUTH_JWT_EXPIRES_IN=7d                 # Default: 7d
+SPFN_AUTH_BCRYPT_SALT_ROUNDS=10             # Default: 10
+SPFN_AUTH_SESSION_TTL=7d                    # Default: 7d
+
+# ── Email Service (AWS SES) ──────────────────────────────────────────
+SPFN_AUTH_AWS_REGION="us-east-1"
+SPFN_AUTH_AWS_SES_ACCESS_KEY_ID=AKIA...
+SPFN_AUTH_AWS_SES_SECRET_ACCESS_KEY=...
+SPFN_AUTH_AWS_SES_FROM_EMAIL="noreply@example.com"
+
+# ── Google OAuth (optional) ──────────────────────────────────────────
+SPFN_AUTH_GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
+SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-...
+```
+
+#### `.env.local` (Next.js Frontend)
+
+Next.js reads these variables. `SPFN_AUTH_SESSION_SECRET` is **required** for cookie-based session management in Server Components.
+
+```bash
+# ── Required ─────────────────────────────────────────────────────────
+DATABASE_URL=postgresql://user:pass@localhost:5432/myapp_dev
+SPFN_API_URL=http://localhost:8790
+
+# Session secret (minimum 32 characters, AES-256 encryption)
+# This MUST be set for Next.js session cookies to work
+SPFN_AUTH_SESSION_SECRET="my-super-secret-session-key-at-least-32-chars-long"
+
+# ── Optional ─────────────────────────────────────────────────────────
+SPFN_AUTH_SESSION_TTL=7d
+```
+
+> **Why two files?**
+>
+> SPFN runs as a separate backend process (`.env.server`), while Next.js is the frontend (``.env.local``). `SPFN_AUTH_SESSION_SECRET` is needed on both sides — the backend creates sessions, and Next.js validates them for Server Components.
+
+### 3. Run Migrations
+
+```bash
+# Generate migration files (if schema changed)
+pnpm spfn db generate
+
+# Apply migrations to database
+pnpm spfn db migrate
+```
+
+This creates the `spfn_auth` schema with tables: `users`, `user_profiles`, `user_public_keys`, `user_social_accounts`, `verification_codes`, `user_invitations`, `roles`, `permissions`.
+
+### 4. Register Lifecycle in `server.config.ts`
+
+```typescript
+// src/server/server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { createAuthLifecycle } from '@spfn/auth/server';
+import { appRouter } from './router';
+
+export default defineServerConfig()
+    .port(8790)
+    .routes(appRouter)
+    .lifecycle(createAuthLifecycle())  // Validates env, creates admin accounts, initializes RBAC
+    .build();
+```
+
+`createAuthLifecycle()` runs on server startup and:
+- Validates all required environment variables
+- Creates admin accounts from `SPFN_AUTH_ADMIN_ACCOUNTS`
+- Initializes built-in roles and permissions
+
+### 5. Register Router and Middleware in `router.ts`
+
+This is the **critical step** that most setups miss. You need three things:
+
+1. Register `authRouter` via `.packages()` — exposes auth endpoints (`/_auth/*`)
+2. Apply `authenticate` middleware via `.use()` — protects all routes globally
+3. Use `.skip(['auth'])` on public routes — exempts specific routes from auth
+
+```typescript
+// src/server/router.ts
+import { defineRouter } from '@spfn/core/route';
+import { authRouter, authenticate } from '@spfn/auth/server';
+import { getHealth } from './routes/health';
+import { listProducts, getProduct } from './routes/products';
+import { createOrder } from './routes/orders';
+
+export const appRouter = defineRouter({
+    getHealth,
+    listProducts,
+    getProduct,
+    createOrder,
+})
+.packages([authRouter])    // ← Auth routes: /_auth/login, /_auth/session, etc.
+.use([authenticate]);      // ← Global auth middleware on ALL routes
+
+export type AppRouter = typeof appRouter;
+```
+
+> **Common mistake:** Using `auth: authRouter` in defineRouter. Auth routes use a fixed `/_auth` namespace and must be registered via `.packages()`.
+
+#### Skipping Auth for Public Routes
+
+Routes that don't require authentication must explicitly skip the global `authenticate` middleware:
+
+```typescript
+// src/server/routes/health.ts
+import { route } from '@spfn/core/route';
+
+export const getHealth = route.get('/health')
+    .skip(['auth'])  // ← Public route, no auth required
+    .handler(async (c) =>
+    {
+        return { status: 'ok' };
+    });
+```
+
+```typescript
+// src/server/routes/products.ts
+import { route } from '@spfn/core/route';
+
+// Public: anyone can browse products
+export const listProducts = route.get('/products')
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        // ...
+    });
+
+// Protected: only authenticated users can create orders (no .skip needed)
+export const createOrder = route.post('/orders')
+    .handler(async (c) =>
+    {
+        const auth = c.raw.get('auth');  // AuthContext is available
+        // ...
+    });
+```
+
+### 6. Configure Next.js Interceptor
+
+The Next.js interceptor handles session cookies, JWT signing, and public key encryption automatically. Without it, login/register/key-rotation will not work.
+
+```typescript
+// app/api/rpc/[routeName]/route.ts
+import '@spfn/auth/nextjs/api';  // ← Register auth interceptor (side-effect import)
+import { appRouter } from '@/server/router';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+
+export const { GET, POST } = createRpcProxy({ router: appRouter });
+```
+
+The `import '@spfn/auth/nextjs/api'` line must come **before** `createRpcProxy`. It automatically:
+- Injects `publicKey`, `keyId`, `fingerprint`, `algorithm` on `register`, `login`, `rotateKey` calls
+- Manages session cookies (HttpOnly, encrypted)
+- Handles key generation and storage
+
+#### API Client
+
+Your API client works as-is — no auth-specific registration needed:
+
+```typescript
+// src/lib/api-client.ts
+import { createApi } from '@spfn/core/nextjs';
+import type { AppRouter } from '@/server/router';
+
+export const api = createApi<AppRouter>();
+```
+
+Auth routes (`/_auth/*`) are included in `AppRouter` because `authRouter` is registered via `.packages()`. The built-in `authApi` from `@spfn/auth` is also available if you prefer a dedicated client:
+
+```typescript
+import { authApi } from '@spfn/auth';
+
+const session = await authApi.getAuthSession.call({});
+```
+
+---
+
+## Middleware
+
+`@spfn/auth` provides middleware for authentication and access control.
+
+### authenticate
+
+Global JWT verification middleware. Extracts the token from the `Authorization` header, verifies the signature against stored public keys, and attaches `AuthContext` to the request context.
+
+Already configured in [Step 5](#5-register-router-and-middleware-in-routerts). Available on all routes that don't `.skip(['auth'])`.
+
+### optionalAuth
+
+For routes that work for both authenticated and unauthenticated users. Automatically skips the global `authenticate` middleware — no `.skip(['auth'])` needed.
+
+```typescript
+import { route } from '@spfn/core/route';
+import { optionalAuth, getOptionalAuth } from '@spfn/auth/server';
+
+export const getProducts = route.get('/products')
+    .use([optionalAuth])  // ← No .skip(['auth']) needed, auto-skips
+    .handler(async (c) =>
+    {
+        const auth = getOptionalAuth(c);  // AuthContext | undefined
+
+        if (auth)
+        {
+            return getPersonalizedProducts(auth.userId);
+        }
+
+        return getPublicProducts();
+    });
+```
+
+### requireRole
+
+Restrict a route to users with specific roles. OR condition — user must have at least one of the specified roles.
+
+```typescript
+import { route } from '@spfn/core/route';
+import { authenticate, requireRole } from '@spfn/auth/server';
+
+export const deleteUser = route.delete('/admin/users/:id')
+    .use([authenticate, requireRole('admin', 'superadmin')])
+    .handler(async (c) =>
+    {
+        // Only admin or superadmin can reach here
+    });
+```
+
+### requirePermissions
+
+Restrict a route to users with specific permissions. AND condition — user must have **all** specified permissions.
+
+```typescript
+import { route } from '@spfn/core/route';
+import { authenticate, requirePermissions } from '@spfn/auth/server';
+
+export const publishPost = route.post('/posts/:id/publish')
+    .use([authenticate, requirePermissions('post:publish', 'post:edit')])
+    .handler(async (c) =>
+    {
+        // User must have BOTH post:publish AND post:edit
+    });
+```
+
+### requireAnyPermission
+
+OR condition — user must have **at least one** of the specified permissions.
+
+```typescript
+import { route } from '@spfn/core/route';
+import { authenticate, requireAnyPermission } from '@spfn/auth/server';
+
+export const viewContent = route.get('/content/:id')
+    .use([authenticate, requireAnyPermission('content:read', 'admin:access')])
+    .handler(async (c) =>
+    {
+        // User needs content:read OR admin:access
+    });
+```
+
+### roleGuard
+
+Combined allow/deny logic. Deny is evaluated first.
+
+```typescript
+import { route } from '@spfn/core/route';
+import { authenticate, roleGuard } from '@spfn/auth/server';
+
+export const moderateContent = route.post('/content/:id/moderate')
+    .use([authenticate, roleGuard({ allow: ['admin', 'moderator'], deny: ['banned'] })])
+    .handler(async (c) =>
+    {
+        // Allowed for admin/moderator, but never for banned users
+    });
+```
+
+---
+
+## Auth Context
+
+When a request passes through `authenticate` middleware, an `AuthContext` object is attached to the request context.
+
+### getAuth
+
+Returns the `AuthContext` for the current request. Throws if not authenticated.
+
+```typescript
+import { getAuth } from '@spfn/auth/server';
+
+export const getProfile = route.get('/me')
+    .handler(async (c) =>
+    {
+        const auth = getAuth(c);
+
+        // auth.userId   - User ID (string)
+        // auth.user     - Full User entity
+        // auth.keyId    - Current public key ID
+        // auth.role     - User's role name (string | null)
+        // auth.locale   - User's locale
+
+        return { userId: auth.userId, role: auth.role };
+    });
+```
+
+### getOptionalAuth
+
+Returns `AuthContext | undefined`. Use with `optionalAuth` middleware.
+
+```typescript
+import { getOptionalAuth } from '@spfn/auth/server';
+
+export const getProducts = route.get('/products')
+    .use([optionalAuth])
+    .handler(async (c) =>
+    {
+        const auth = getOptionalAuth(c);
+        const userId = auth?.userId;
+        // ...
+    });
+```
+
+### getUser
+
+Shortcut to get the full User entity. Throws if not authenticated.
+
+```typescript
+import { getUser } from '@spfn/auth/server';
+
+export const getMyEmail = route.get('/me/email')
+    .handler(async (c) =>
+    {
+        const user = getUser(c);
+        return { email: user.email };
+    });
+```
+
+---
+
+## RBAC
+
+### Built-in Roles
+
+Auth creates three built-in roles on startup:
+
+| Role | Priority | Description |
+|------|----------|-------------|
+| `superadmin` | 100 | Full system access |
+| `admin` | 50 | Administrative access |
+| `user` | 10 | Standard user access |
+
+### Custom Roles and Permissions
+
+Pass custom roles and permissions to `createAuthLifecycle()`:
+
+```typescript
+// src/server/server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { createAuthLifecycle } from '@spfn/auth/server';
+
+export default defineServerConfig()
+    .port(8790)
+    .routes(appRouter)
+    .lifecycle(createAuthLifecycle({
+        roles: [
+            { name: 'moderator', displayName: 'Moderator', priority: 30 },
+            { name: 'editor', displayName: 'Editor', priority: 20 },
+        ],
+        permissions: [
+            { name: 'post:publish', displayName: 'Publish Posts', category: 'content' },
+            { name: 'post:edit', displayName: 'Edit Posts', category: 'content' },
+            { name: 'user:invite', displayName: 'Invite Users', category: 'admin' },
+            { name: 'user:delete', displayName: 'Delete Users', category: 'admin' },
+        ],
+        rolePermissions: {
+            moderator: ['post:publish', 'post:edit'],
+            editor: ['post:edit'],
+            admin: ['post:publish', 'post:edit', 'user:invite', 'user:delete'],
+        },
+    }))
+    .build();
+```
+
+### Checking Roles/Permissions in Handlers
+
+For middleware-based checks, use `requireRole` or `requirePermissions` (see [Middleware](#middleware)). For inline checks within handlers:
+
+```typescript
+import { getAuth, hasPermission, hasRole } from '@spfn/auth/server';
+
+export const updatePost = route.put('/posts/:id')
+    .handler(async (c) =>
+    {
+        const auth = getAuth(c);
+
+        if (await hasRole(auth.userId, 'superadmin'))
+        {
+            // Superadmin can edit any post
+        }
+
+        if (await hasPermission(auth.userId, 'post:edit'))
+        {
+            // User has post:edit permission
+        }
+    });
+```
+
+### Admin Routes
+
+Admin endpoints for managing roles are available at `/_auth/admin/*` (requires `superadmin` role):
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/_auth/admin/roles` | GET | List all roles |
+| `/_auth/admin/roles` | POST | Create role |
+| `/_auth/admin/roles/:id` | PATCH | Update role |
+| `/_auth/admin/roles/:id` | DELETE | Delete role |
+| `/_auth/admin/users/:userId/role` | PATCH | Change user role |
+
+---
+
+## OAuth
+
+### Configuration
+
+Set Google OAuth environment variables in `.env.server`:
+
+```bash
+SPFN_AUTH_GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
+SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-...
+
+# Optional
+SPFN_AUTH_GOOGLE_SCOPES=email,profile               # Default: email,profile
+SPFN_AUTH_OAUTH_SUCCESS_URL=/auth/callback           # Default: /auth/callback
+SPFN_AUTH_OAUTH_ERROR_URL=/auth/error?error={error}  # Default: /auth/error?error={error}
+```
+
+OAuth routes are **automatically enabled** when `SPFN_AUTH_GOOGLE_CLIENT_ID` is set.
+
+### OAuth Flow
+
+```
+1. Browser → /_auth/oauth/google         → Redirect to Google consent screen
+2. Google  → /_auth/oauth/google/callback → Server validates, creates/links account
+3. Server  → /auth/callback?session=...  → Redirect to Next.js callback page
+4. Next.js → OAuthCallback component     → Finalizes session, redirects to app
+```
+
+### Callback Page
+
+Create a callback page using the `OAuthCallback` component:
+
+```typescript
+// app/auth/callback/page.tsx
+'use client';
+
+import { OAuthCallback } from '@spfn/auth/nextjs/client';
+
+export default function OAuthCallbackPage()
+{
+    return <OAuthCallback provider="google" redirectTo="/dashboard" />;
+}
+```
+
+### Available Endpoints
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/_auth/oauth/google` | GET | Start Google OAuth flow |
+| `/_auth/oauth/google/callback` | GET | Google OAuth callback |
+| `/_auth/oauth/start` | POST | Get OAuth URL (API mode) |
+| `/_auth/oauth/providers` | GET | List enabled providers |
+| `/_auth/oauth/finalize` | POST | Finalize OAuth session |
+
+---
+
+## Session Management
+
+### How Sessions Work
+
+1. **Login/Register**: Client generates a key pair → sends public key to server → server stores it
+2. **Request**: Client signs a JWT with private key → sends in `Authorization` header
+3. **Verification**: Server verifies JWT signature with stored public key
+4. **Next.js**: Sessions are also stored in encrypted HttpOnly cookies for Server Components
+
+### Session in Server Components
+
+```typescript
+// app/page.tsx
+import { getSession } from '@spfn/auth/nextjs/server';
+import { redirect } from 'next/navigation';
+
+export default async function HomePage()
+{
+    const session = getSession();
+
+    if (!session)
+    {
+        redirect('/auth/login');
+    }
+
+    redirect('/dashboard');
+}
+```
+
+### Server Component Guards
+
+```typescript
+// app/admin/layout.tsx
+import { RequireAuth, RequireRole } from '@spfn/auth/nextjs/server';
+
+export default function AdminLayout({ children }: { children: React.ReactNode })
+{
+    return (
+        <RequireAuth>
+            <RequireRole roles={['superadmin', 'admin']}>
+                {children}
+            </RequireRole>
+        </RequireAuth>
+    );
+}
+```
+
+Available guard components:
+
+| Component | Props | Purpose |
+|-----------|-------|---------|
+| `RequireAuth` | — | Redirects to login if not authenticated |
+| `RequireRole` | `roles: string[]` | Requires one of the specified roles |
+| `RequirePermission` | `permissions: string[]` | Requires all specified permissions |
+
+### Logout
+
+```typescript
+import { authApi } from '@spfn/auth';
+
+// Revokes the current key and clears session
+await authApi.logout.call({});
+```
+
+### Session TTL
+
+Configure via environment variable:
+
+```bash
+SPFN_AUTH_SESSION_TTL=7d    # 7 days (default)
+SPFN_AUTH_SESSION_TTL=30d   # 30 days
+SPFN_AUTH_SESSION_TTL=12h   # 12 hours
+```
+
+---
+
+## API Endpoints Reference
+
+### Auth
+
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/_auth/exists` | POST | — | Check if account exists |
+| `/_auth/codes` | POST | — | Send verification code |
+| `/_auth/codes/verify` | POST | — | Verify code, get temp token |
+| `/_auth/register` | POST | — | Register new account |
+| `/_auth/login` | POST | — | Login with email/phone |
+| `/_auth/logout` | POST | Required | Revoke current key |
+| `/_auth/keys/rotate` | POST | Required | Rotate public key |
+| `/_auth/password` | PUT | Required | Change password |
+| `/_auth/session` | GET | Required | Get session info |
+
+### User Profile
+
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/_auth/users/profile` | GET | Required | Get user profile |
+| `/_auth/users/profile` | PATCH | Required | Update user profile |
+| `/_auth/users/username/check` | GET | Required | Check username availability |
+| `/_auth/users/username` | PATCH | Required | Update username |
+| `/_auth/users/locale` | PATCH | Required | Update locale |
+
+### Invitations
+
+| Route | Method | Auth | Permission | Purpose |
+|-------|--------|------|-----------|---------|
+| `/_auth/invitations/:token` | GET | — | — | Get invitation details |
+| `/_auth/invitations/accept` | POST | — | — | Accept invitation |
+| `/_auth/invitations` | POST | Required | `user:invite` | Create invitation |
+| `/_auth/invitations` | GET | Required | `user:read` | List invitations |
+| `/_auth/invitations/cancel` | POST | Required | `user:invite` | Cancel invitation |
+| `/_auth/invitations/resend` | POST | Required | `user:invite` | Resend invitation |
+| `/_auth/invitations/delete` | POST | Required | `superadmin` | Delete invitation |
+
+---
+
+## Error Handling
+
+Auth provides specific error classes for each failure scenario:
+
+```typescript
+import { AuthError } from '@spfn/auth/errors';
+
+try
+{
+    await authApi.login.call({ body: { email, password } });
+}
+catch (error)
+{
+    if (error instanceof AuthError.InvalidCredentialsError)
+    {
+        // Wrong email or password (401)
+    }
+    if (error instanceof AuthError.AccountDisabledError)
+    {
+        // Account suspended (403)
+    }
+}
+```
+
+### Error Classes
+
+| Error | Status | When |
+|-------|--------|------|
+| `InvalidCredentialsError` | 401 | Wrong email/password |
+| `InvalidTokenError` | 401 | Malformed or invalid JWT |
+| `TokenExpiredError` | 401 | JWT has expired |
+| `KeyExpiredError` | 401 | Public key has expired |
+| `AccountDisabledError` | 403 | Account is suspended/inactive |
+| `AccountAlreadyExistsError` | 409 | Email/phone already registered |
+| `InsufficientRoleError` | 403 | Missing required role |
+| `InsufficientPermissionsError` | 403 | Missing required permission |
+| `InvalidVerificationCodeError` | 400 | Wrong verification code |
+| `InvalidVerificationTokenError` | 401 | Invalid verification token |
+| `ReservedUsernameError` | 409 | Username is reserved |
+| `UsernameAlreadyTakenError` | 409 | Username already in use |
+
+---
+
+## Events
+
+Subscribe to auth events for side effects like analytics, notifications, or audit logging:
+
+```typescript
+import { authLoginEvent, authRegisterEvent } from '@spfn/auth/server';
+
+authLoginEvent.on((payload) =>
+{
+    // payload: { userId, provider: 'email'|'phone'|'google', email?, phone? }
+    console.log(`User ${payload.userId} logged in via ${payload.provider}`);
+});
+
+authRegisterEvent.on((payload) =>
+{
+    // payload: { userId, provider, email?, phone?, metadata? }
+    await sendWelcomeEmail(payload.email);
+});
+```
+
+### Available Events
+
+| Event | Payload |
+|-------|---------|
+| `authLoginEvent` | `{ userId, provider, email?, phone? }` |
+| `authRegisterEvent` | `{ userId, provider, email?, phone?, metadata? }` |
+| `invitationCreatedEvent` | `{ invitationId, email, token, roleId, invitedBy, expiresAt, isResend, metadata? }` |
+| `invitationAcceptedEvent` | `{ invitationId, email, userId, roleId, invitedBy, metadata? }` |
+
+---
+
+## Troubleshooting
+
+### "SPFN_AUTH_SESSION_SECRET is required"
+
+`SPFN_AUTH_SESSION_SECRET` must be set in `.env.local` (Next.js side). It must be at least 32 characters.
+
+```bash
+# .env.local
+SPFN_AUTH_SESSION_SECRET="generate-a-cryptographically-secure-32-char-string"
+```
+
+### Login succeeds but session is empty
+
+The auth interceptor is not registered. Make sure `import '@spfn/auth/nextjs/api'` is the **first import** in your RPC proxy route:
+
+```typescript
+// app/api/rpc/[routeName]/route.ts
+import '@spfn/auth/nextjs/api';  // ← Must be first!
+import { appRouter } from '@/server/router';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+
+export const { GET, POST } = createRpcProxy({ router: appRouter });
+```
+
+### All routes return 401
+
+You applied `authenticate` globally but forgot to `.skip(['auth'])` on public routes. Add `.skip(['auth'])` to routes that don't require authentication:
+
+```typescript
+export const getHealth = route.get('/health')
+    .skip(['auth'])
+    .handler(async (c) => ({ status: 'ok' }));
+```
+
+### Auth routes not found (404 on `/_auth/*`)
+
+`authRouter` is not registered. Make sure you use `.packages()`:
+
+```typescript
+// ✅ Correct
+export const appRouter = defineRouter({ ... })
+    .packages([authRouter]);
+
+// ❌ Wrong — auth routes won't be accessible
+export const appRouter = defineRouter({
+    auth: authRouter,  // This doesn't work for package routers
+});
+```
+
+### Admin account not created on startup
+
+Check that `createAuthLifecycle()` is registered in `server.config.ts` and at least one admin env var format is set:
+
+```bash
+# .env.server — pick one format
+SPFN_AUTH_ADMIN_ACCOUNTS='[{"email":"admin@example.com","password":"Admin!@34","role":"superadmin"}]'
+```
+
+### OAuth redirects to wrong URL
+
+Set `SPFN_APP_URL` and `NEXT_PUBLIC_SPFN_API_URL` in your environment:
+
+```bash
+# .env.server
+SPFN_APP_URL=http://localhost:3000
+NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
+```

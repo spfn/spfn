@@ -77,72 +77,95 @@ export default defineServerConfig()
     .build();
 ```
 
-#### Register Router in `router.ts`
+#### Register Router and Global Middleware in `router.ts`
 
 ```typescript
 import { defineRouter } from '@spfn/core/route';
-import { authRouter } from '@spfn/auth/server';
+import { authRouter, authenticate } from '@spfn/auth/server';
+import { getHealth } from './routes/health';
+import { createOrder } from './routes/orders';
 
 export const appRouter = defineRouter({
-    // Auth routes (fixed namespace)
-    auth: authRouter,
-
+    getHealth,
+    createOrder,
     // ... your other routes
-});
+})
+.packages([authRouter])    // Auth routes (/_auth/* namespace)
+.use([authenticate]);      // Global auth middleware on all routes
+
+export type AppRouter = typeof appRouter;
 ```
 
-### 3. Configure Client (Next.js)
+> **Important:** Public routes must explicitly skip auth with `.skip(['auth'])`.
+> See the [Authentication Guide](https://spfn.dev/docs/guides/authentication) for details.
 
-#### Option A: Use the built-in `authApi` (Recommended)
+### 3. Configure Next.js Interceptor
+
+Register the auth interceptor in your RPC proxy route. This handles session cookies, JWT signing, and key management automatically.
+
+```typescript
+// app/api/rpc/[routeName]/route.ts
+import '@spfn/auth/nextjs/api';  // Must be first! Registers auth interceptor
+import { appRouter } from '@/server/router';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+
+export const { GET, POST } = createRpcProxy({ router: appRouter });
+```
+
+Your API client needs no auth-specific configuration:
+
+```typescript
+// src/lib/api-client.ts
+import { createApi } from '@spfn/core/nextjs';
+import type { AppRouter } from '@/server/router';
+
+export const api = createApi<AppRouter>();
+```
+
+The built-in `authApi` is also available for auth-only calls:
 
 ```typescript
 import { authApi } from '@spfn/auth';
-
-// Type-safe API calls for auth routes
 const session = await authApi.getAuthSession.call({});
-```
-
-#### Option B: Register Error Registry in Custom API Client
-
-```typescript
-import { createApi } from '@spfn/core/nextjs';
-import type { AppRouter } from '@/server/router';
-import { authErrorRegistry } from "@spfn/auth/errors";
-import { appMetadata } from '@/server/router.metadata';
-import { errorRegistry } from "@spfn/core/errors";
-
-export const api = createApi<AppRouter>({
-    metadata: appMetadata,
-    errorRegistry: errorRegistry.concat(authErrorRegistry),
-});
 ```
 
 ### 4. Environment Variables
 
+Auth requires variables in **two separate files**: `.env.server` (SPFN backend) and `.env.local` (Next.js).
+
+#### `.env.server` (SPFN Backend)
+
 ```bash
 # Required
-SPFN_AUTH_JWT_SECRET=your-secret-key
+DATABASE_URL=postgresql://user:pass@localhost:5432/myapp_dev
 SPFN_AUTH_VERIFICATION_TOKEN_SECRET=your-verification-secret
-DATABASE_URL=postgresql://...
 
-# Next.js (required)
-SPFN_AUTH_SESSION_SECRET=your-32-char-secret
+# Admin account (required — at least one format)
+SPFN_AUTH_ADMIN_ACCOUNTS='[{"email":"admin@example.com","password":"Admin!@34","role":"superadmin"}]'
 
 # Optional
+SPFN_AUTH_JWT_SECRET=your-jwt-secret
 SPFN_AUTH_JWT_EXPIRES_IN=7d
 SPFN_AUTH_BCRYPT_SALT_ROUNDS=10
 SPFN_AUTH_SESSION_TTL=7d
 
-# Google OAuth
+# Google OAuth (optional)
 SPFN_AUTH_GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
 SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-...
-SPFN_APP_URL=http://localhost:3000
+```
 
-# Google OAuth (Optional)
-SPFN_AUTH_GOOGLE_SCOPES=email,profile,https://www.googleapis.com/auth/gmail.readonly
-SPFN_AUTH_GOOGLE_REDIRECT_URI=http://localhost:8790/_auth/oauth/google/callback
-SPFN_AUTH_OAUTH_SUCCESS_URL=/auth/callback
-SPFN_AUTH_OAUTH_ERROR_URL=http://localhost:3000/auth/error?error={error}
+#### `.env.local` (Next.js)
+
+```bash
+# Required
+DATABASE_URL=postgresql://user:pass@localhost:5432/myapp_dev
+SPFN_API_URL=http://localhost:8790
+
+# Required for session cookies (minimum 32 characters)
+SPFN_AUTH_SESSION_SECRET=my-super-secret-session-key-at-least-32-chars-long
+
+# Optional
+SPFN_AUTH_SESSION_TTL=7d
 
 # Email/SMS — configure via @spfn/notification
 # See @spfn/notification README for AWS SES/SNS settings
