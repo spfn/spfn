@@ -15,6 +15,7 @@ export const authLogger = {
         keyRotation: rootLogger.child('@spfn/auth:interceptor:key-rotation'),
         oauth: rootLogger.child('@spfn/auth:interceptor:oauth'),
     },
+    session: rootLogger.child('@spfn/auth:session'),
     service: rootLogger.child('@spfn/auth:service'),
     setup: rootLogger.child('@spfn/auth:setup'),
     email: rootLogger.child('@spfn/auth:email'),

@@ -8,6 +8,7 @@
 import * as jose from 'jose';
 import { env } from '@spfn/auth/config';
 import { env as coreEnv } from '@spfn/core/config';
+import { authLogger } from '../logger';
 
 import { type KeyAlgorithmType } from '../types';
 
@@ -38,6 +39,20 @@ async function getSessionSecretKey(): Promise<Uint8Array>
 }
 
 /**
+ * Get a short fingerprint of the current secret key for debugging
+ * Logs only the first 8 hex chars of the SHA-256 hash — safe to expose
+ */
+async function getSecretFingerprint(): Promise<string>
+{
+    const key = await getSessionSecretKey();
+    const hash = await crypto.subtle.digest('SHA-256', key.buffer as ArrayBuffer);
+    const hex = Array.from(new Uint8Array(hash))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    return hex.slice(0, 8);
+}
+
+/**
  * Seal session data into encrypted JWT (JWE)
  *
  * @param data - Session data to encrypt
@@ -50,6 +65,12 @@ export async function sealSession(
 ): Promise<string>
 {
     const secret = await getSessionSecretKey();
+
+    if (coreEnv.NODE_ENV !== 'production')
+    {
+        const fingerprint = await getSecretFingerprint();
+        authLogger.session.debug(`Sealing session (secret fingerprint: ${fingerprint})`);
+    }
 
     return await new jose.EncryptJWT({ data })
         .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
@@ -89,6 +110,13 @@ export async function unsealSession(jwt: string): Promise<SessionData>
 
         if (err instanceof jose.errors.JWEDecryptionFailed)
         {
+            // Log secret fingerprint for debugging cross-process key mismatch
+            if (coreEnv.NODE_ENV !== 'production')
+            {
+                const fingerprint = await getSecretFingerprint();
+                authLogger.session.warn(`JWE decryption failed (secret fingerprint: ${fingerprint})`);
+            }
+
             throw new Error('Invalid session');
         }
 
@@ -132,7 +160,7 @@ export async function getSessionInfo(jwt: string): Promise<{
         // Log error for debugging but return null for graceful handling
         if (coreEnv.NODE_ENV !== 'production')
         {
-            console.warn('[Session] Failed to get session info:', err instanceof Error ? err.message : 'Unknown error');
+            authLogger.session.warn('Failed to get session info:', err instanceof Error ? err.message : 'Unknown error');
         }
 
         return null;

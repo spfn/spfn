@@ -124,9 +124,10 @@ export const generalAuthInterceptor: InterceptorRule =
         catch (error)
         {
             const err = error as Error;
+            const msg = err.message.toLowerCase();
 
             // Session expired or invalid
-            if (err.message.includes('expired') || err.message.includes('invalid'))
+            if (msg.includes('expired') || msg.includes('invalid'))
             {
                 authLogger.interceptor.general.warn('Session expired or invalid', { message: err.message });
                 authLogger.interceptor.general.debug('Marking session for cleanup');
