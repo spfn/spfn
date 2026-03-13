@@ -66,19 +66,25 @@ export async function sealSession(
 {
     const secret = await getSessionSecretKey();
 
-    if (coreEnv.NODE_ENV !== 'production')
-    {
-        const fingerprint = await getSecretFingerprint();
-        authLogger.session.debug(`Sealing session (secret fingerprint: ${fingerprint})`);
-    }
-
-    return await new jose.EncryptJWT({ data })
+    const result = await new jose.EncryptJWT({ data })
         .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
         .setIssuedAt()
         .setExpirationTime(`${ttl}s`)
         .setIssuer('spfn-auth')
         .setAudience('spfn-client')
         .encrypt(secret);
+
+    if (coreEnv.NODE_ENV !== 'production')
+    {
+        const fingerprint = await getSecretFingerprint();
+        authLogger.session.debug(`Sealed session`, {
+            secretFingerprint: fingerprint,
+            resultLength: result.length,
+            resultPrefix: result.slice(0, 20),
+        });
+    }
+
+    return result;
 }
 
 /**
@@ -114,7 +120,12 @@ export async function unsealSession(jwt: string): Promise<SessionData>
             if (coreEnv.NODE_ENV !== 'production')
             {
                 const fingerprint = await getSecretFingerprint();
-                authLogger.session.warn(`JWE decryption failed (secret fingerprint: ${fingerprint})`);
+                authLogger.session.warn(`JWE decryption failed`, {
+                    secretFingerprint: fingerprint,
+                    jwtLength: jwt.length,
+                    jwtPrefix: jwt.slice(0, 20),
+                    jwtSuffix: jwt.slice(-10),
+                });
             }
 
             throw new Error('Invalid session');

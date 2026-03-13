@@ -66,7 +66,9 @@ export const generalAuthInterceptor: InterceptorRule =
             method: ctx.method,
             path: ctx.path,
             hasSession: !!sessionCookie,
-            sessionCookieValue: sessionCookie ? '***EXISTS***' : 'NOT_FOUND',
+            sessionLength: sessionCookie?.length ?? 0,
+            sessionPrefix: sessionCookie?.slice(0, 20) ?? '',
+            sessionSuffix: sessionCookie?.slice(-10) ?? '',
         });
 
         // No session cookie
@@ -129,7 +131,12 @@ export const generalAuthInterceptor: InterceptorRule =
             // Session expired or invalid
             if (msg.includes('expired') || msg.includes('invalid'))
             {
-                authLogger.interceptor.general.warn('Session expired or invalid', { message: err.message });
+                authLogger.interceptor.general.warn('Session expired or invalid', {
+                    message: err.message,
+                    cookieLength: sessionCookie.length,
+                    cookiePrefix: sessionCookie.slice(0, 20),
+                    cookieSuffix: sessionCookie.slice(-10),
+                });
                 authLogger.interceptor.general.debug('Marking session for cleanup');
 
                 // Mark for cleanup in response interceptor
@@ -226,7 +233,11 @@ export const generalAuthInterceptor: InterceptorRule =
                     },
                 });
 
-                authLogger.interceptor.general.info('Session refreshed', { userId: sessionData.userId });
+                authLogger.interceptor.general.info('Session refreshed', {
+                    userId: sessionData.userId,
+                    sealedLength: sealed.length,
+                    sealedPrefix: sealed.slice(0, 20),
+                });
             }
             catch (error)
             {
