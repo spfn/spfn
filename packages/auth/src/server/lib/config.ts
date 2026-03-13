@@ -7,16 +7,29 @@
 import { env } from '@spfn/auth/config';
 
 /**
+ * Cookie name suffix derived from PORT to isolate sessions across
+ * multiple local dev instances running on the same domain (localhost).
+ */
+function getCookieSuffix(): string
+{
+    const port = process.env.PORT;
+    return port ? `_${port}` : '';
+}
+
+/**
  * Cookie names used by SPFN Auth
+ *
+ * Names include a port-based suffix so that multiple dev instances
+ * on different ports don't overwrite each other's cookies.
  */
 export const COOKIE_NAMES = {
     /** Encrypted session data (userId, privateKey, keyId, algorithm) */
-    SESSION: 'spfn_session',
+    get SESSION() { return `spfn_session${getCookieSuffix()}`; },
     /** Current key ID (for key rotation) */
-    SESSION_KEY_ID: 'spfn_session_key_id',
+    get SESSION_KEY_ID() { return `spfn_session_key_id${getCookieSuffix()}`; },
     /** Pending OAuth session (privateKey, keyId, algorithm) - temporary during OAuth flow */
-    OAUTH_PENDING: 'spfn_oauth_pending',
-} as const;
+    get OAUTH_PENDING() { return `spfn_oauth_pending${getCookieSuffix()}`; },
+};
 
 /**
  * Parse duration string to seconds

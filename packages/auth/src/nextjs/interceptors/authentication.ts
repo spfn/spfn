@@ -5,7 +5,7 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/nextjs/server';
-import { unsealSession, generateClientToken } from '@spfn/auth/server';
+import { unsealSession, generateClientToken, COOKIE_NAMES } from '@spfn/auth/server';
 
 /**
  * Authentication Interceptor
@@ -20,7 +20,7 @@ export const authenticationInterceptor: InterceptorRule =
 
     request: async (ctx, next) =>
     {
-        const sessionCookie = ctx.cookies.get('spfn_session');
+        const sessionCookie = ctx.cookies.get(COOKIE_NAMES.SESSION);
 
         if (!sessionCookie)
         {
@@ -68,7 +68,7 @@ export const authenticationInterceptor: InterceptorRule =
         if (ctx.path === '/_auth/logout' && ctx.response.status === 200)
         {
             ctx.setCookies.push({
-                name: 'spfn_session',
+                name: COOKIE_NAMES.SESSION,
                 value: '',
                 options: {
                     maxAge: 0,
@@ -77,7 +77,7 @@ export const authenticationInterceptor: InterceptorRule =
             });
 
             ctx.setCookies.push({
-                name: 'spfn_session_key_id',
+                name: COOKIE_NAMES.SESSION_KEY_ID,
                 value: '',
                 options: {
                     maxAge: 0,
