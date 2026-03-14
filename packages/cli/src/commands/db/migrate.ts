@@ -8,14 +8,8 @@ import { env } from "@spfn/core/config";
 import { loadEnv } from "@spfn/core/server";
 
 /**
- * Migration table names - separated to prevent timestamp conflicts
- * between function package migrations and project migrations.
- *
- * drizzle-orm's migrate() uses max(created_at) to skip "already applied" entries.
- * If function packages have newer timestamps than project migrations,
- * project migrations get incorrectly skipped.
+ * Project migrations use the default drizzle migrations table.
  */
-const FUNCTION_MIGRATIONS_TABLE = '__spfn_fn_migrations';
 const PROJECT_MIGRATIONS_TABLE = '__drizzle_migrations';
 
 /**
@@ -61,39 +55,21 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
         process.exit(1);
     }
 
-    // First, execute function package migrations
-    const { discoverFunctionMigrations } = await import('../../utils/function-migrations.js');
+    // First, execute function package migrations (per-package tables)
+    const { discoverFunctionMigrations, executeFunctionMigrations } =
+        await import('../../utils/function-migrations.js');
     const functions = discoverFunctionMigrations(process.cwd());
 
     if (functions.length > 0)
     {
-        const fnConn = postgres.default(env.DATABASE_URL, { max: 1 });
-        const fnDb = drizzle(fnConn);
-
-        try
+        console.log(chalk.blue('📦 Applying function package migrations:'));
+        functions.forEach(func =>
         {
-            console.log(chalk.blue('📦 Applying function package migrations:'));
-            functions.forEach(func =>
-            {
-                console.log(chalk.dim(`  - ${func.packageName}`));
-            });
+            console.log(chalk.dim(`  - ${func.packageName}`));
+        });
 
-            for (const func of functions)
-            {
-                console.log(chalk.blue(`\n  📦 Running ${func.packageName} migrations...`));
-                await migrate(fnDb, {
-                    migrationsFolder: func.migrationsDir,
-                    migrationsTable: FUNCTION_MIGRATIONS_TABLE,
-                });
-                console.log(chalk.green(`  ✓ ${func.packageName} migrations applied`));
-            }
-
-            console.log(chalk.green('✅ Function migrations applied\n'));
-        }
-        finally
-        {
-            await fnConn.end();
-        }
+        await executeFunctionMigrations(functions);
+        console.log(chalk.green('✅ Function migrations applied\n'));
     }
 
     // Then, run project migrations (separate table to avoid timestamp conflicts)
