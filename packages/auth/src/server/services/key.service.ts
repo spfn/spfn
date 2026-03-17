@@ -60,6 +60,13 @@ export async function registerPublicKeyService(
 {
     const { userId, keyId, publicKey, fingerprint, algorithm = 'ES256' } = params;
 
+    // Idempotent: skip if key already registered
+    const existing = await keysRepository.findActiveByKeyId(keyId);
+    if (existing)
+    {
+        return;
+    }
+
     // Verify fingerprint matches public key
     const isValidFingerprint = verifyKeyFingerprint(publicKey, fingerprint);
     if (!isValidFingerprint)
