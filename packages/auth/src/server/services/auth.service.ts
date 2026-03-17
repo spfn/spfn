@@ -87,7 +87,7 @@ export interface LogoutParams
 export interface ChangePasswordParams
 {
     userId: number;
-    currentPassword: string;
+    currentPassword?: string;
     newPassword: string;
     passwordHash?: string; // Optional: pass user's password hash to avoid re-fetch
 }
@@ -341,16 +341,18 @@ export async function changePasswordService(
         passwordHash = user.passwordHash;
     }
 
-    // Verify current password
-    if (!passwordHash)
+    // Verify current password (skip for OAuth-only users setting password for the first time)
+    if (passwordHash)
     {
-        throw new ValidationError({ message: 'No password set for this account' });
-    }
-
-    const isValid = await verifyPassword(currentPassword, passwordHash);
-    if (!isValid)
-    {
-        throw new InvalidCredentialsError({ message: 'Current password is incorrect' });
+        if (!currentPassword)
+        {
+            throw new ValidationError({ message: 'Current password is required' });
+        }
+        const isValid = await verifyPassword(currentPassword, passwordHash);
+        if (!isValid)
+        {
+            throw new InvalidCredentialsError({ message: 'Current password is incorrect' });
+        }
     }
 
     // Hash new password

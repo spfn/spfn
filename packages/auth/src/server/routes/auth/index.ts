@@ -221,10 +221,10 @@ export const rotateKey = route.post('/_auth/keys/rotate')
 export const changePassword = route.put('/_auth/password')
     .input({
         body: Type.Object({
-            currentPassword: Type.String({
+            currentPassword: Type.Optional(Type.String({
                 minLength: 1,
-                description: 'Current password for verification'
-            }),
+                description: 'Current password for verification (required when changing existing password)'
+            })),
             newPassword: PasswordSchema,
         })
     })
