@@ -40,6 +40,7 @@ export interface AuthSession
     email: string | null;
     emailVerified: boolean;
     phoneVerified: boolean;
+    hasPassword: boolean;
     role: Role;
     permissions: Permission[];
 }

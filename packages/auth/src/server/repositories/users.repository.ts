@@ -314,6 +314,7 @@ export class UsersRepository extends BaseRepository
                 username: users.username,
                 emailVerifiedAt: users.emailVerifiedAt,
                 phoneVerifiedAt: users.phoneVerifiedAt,
+                passwordHash: users.passwordHash,
             })
             .from(users)
             .where(eq(users.id, userId))
@@ -332,6 +333,7 @@ export class UsersRepository extends BaseRepository
             username: user.username,
             isEmailVerified: !!user.emailVerifiedAt,
             isPhoneVerified: !!user.phoneVerifiedAt,
+            hasPassword: !!user.passwordHash,
         };
     }
 

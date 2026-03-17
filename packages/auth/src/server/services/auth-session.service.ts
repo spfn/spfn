@@ -36,6 +36,7 @@ export async function getAuthSessionService(userId: string | number | bigint)
         email: user.email,
         emailVerified: user.isEmailVerified,
         phoneVerified: user.isPhoneVerified,
+        hasPassword: user.hasPassword,
         ...roleAndPerms,
     };
 }
