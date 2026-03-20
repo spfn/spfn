@@ -6,6 +6,7 @@
  */
 
 import { SSETokenManager } from '@spfn/core/event/sse';
+import type { SSETokenStore } from '@spfn/core/event/sse';
 
 let manager: SSETokenManager | null = null;
 
@@ -17,8 +18,9 @@ let manager: SSETokenManager | null = null;
  *
  * @param config - Optional configuration
  * @param config.ttl - Token time-to-live in milliseconds (default: 30000)
+ * @param config.store - Custom token store (e.g., CacheTokenStore for Redis)
  */
-export function initOneTimeTokenManager(config?: { ttl?: number }): void
+export function initOneTimeTokenManager(config?: { ttl?: number; store?: SSETokenStore }): void
 {
     if (manager)
     {
@@ -27,6 +29,7 @@ export function initOneTimeTokenManager(config?: { ttl?: number }): void
 
     manager = new SSETokenManager({
         ttl: config?.ttl,
+        store: config?.store,
     });
 }
 

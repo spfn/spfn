@@ -5,6 +5,7 @@
  */
 
 import type { AuthInitOptions } from './rbac';
+import type { SSETokenStore } from '@spfn/core/event/sse';
 import { ensureAdminExists } from './setup';
 import { initializeAuth } from './services';
 import { initOneTimeTokenManager } from './lib/one-time-token';
@@ -103,6 +104,27 @@ export interface AuthLifecycleOptions extends AuthInitOptions
          * @default 30000
          */
         ttl?: number;
+
+        /**
+         * Custom token store (e.g., CacheTokenStore for Redis/Valkey)
+         *
+         * When provided, tokens are stored in the external store instead of in-memory Map.
+         * Required for multi-instance deployments where token issuance and verification
+         * may happen on different server instances.
+         *
+         * @example
+         * ```typescript
+         * import { CacheTokenStore } from '@spfn/core/event/sse';
+         * import { getCache } from '@spfn/core/cache';
+         *
+         * createAuthLifecycle({
+         *     oneTimeToken: {
+         *         store: new CacheTokenStore(getCache()),
+         *     },
+         * })
+         * ```
+         */
+        store?: SSETokenStore;
     };
 }
 
