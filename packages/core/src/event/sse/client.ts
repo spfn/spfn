@@ -253,7 +253,14 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
                     (originalOnError as (ev: Event) => void)(error);
                 }
 
-                if (reconnect && currentEs.readyState === EventSource.CLOSED)
+                // Token-auth 사용 시 브라우저 auto-retry는 소비된 토큰으로 재시도하므로
+                // 즉시 close하고 우리 reconnect로 새 토큰 발급받아 재연결
+                if (reconnect && acquireToken)
+                {
+                    currentEs.close();
+                    attemptReconnect(onReconnectCb);
+                }
+                else if (reconnect && currentEs.readyState === EventSource.CLOSED)
                 {
                     attemptReconnect(onReconnectCb);
                 }
