@@ -132,10 +132,12 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
     let state: SSEConnectionState = 'closed';
     let reconnectAttempts = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let activeOnClose: (() => void) | undefined;
 
     function subscribe(options: SSESubscribeOptions<TRouter>): SSEUnsubscribe
     {
-        const { events, handlers, onOpen, onError, onReconnect } = options;
+        const { events, handlers, onOpen, onError, onReconnect, onClose } = options;
+        activeOnClose = onClose;
 
         const eventNames = events as string[];
 
@@ -276,6 +278,8 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
 
             if (maxReconnectAttempts > 0 && reconnectAttempts >= maxReconnectAttempts)
             {
+                state = 'closed';
+                onClose?.();
                 return;
             }
 
@@ -307,6 +311,7 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
             }
 
             state = 'closed';
+            onClose?.();
         };
     }
 
@@ -330,6 +335,7 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
         }
 
         state = 'closed';
+        activeOnClose?.();
     }
 
     return {

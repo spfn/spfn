@@ -285,6 +285,16 @@ export interface SSESubscribeOptions<TRouter extends EventRouterDef<any>>
     onError?: (error: Event) => void;
 
     /**
+     * Called when connection is permanently closed
+     *
+     * Triggered when:
+     * - unsubscribe() is called
+     * - client.close() is called
+     * - Max reconnect attempts exceeded
+     */
+    onClose?: () => void;
+
+    /**
      * Called when reconnecting
      */
     onReconnect?: (attempt: number) => void;
