@@ -8,6 +8,13 @@
       "when": 1771397528484,
       "tag": "0000_slow_mandrill",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774403094404,
+      "tag": "0001_bumpy_dark_beast",
+      "breakpoints": true
     }
   ]
 }
