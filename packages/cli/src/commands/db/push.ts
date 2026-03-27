@@ -3,6 +3,7 @@ import prompts from 'prompts';
 import '@spfn/core/config';
 import { loadEnv } from '@spfn/core/server';
 import { sql } from 'drizzle-orm';
+import { getTableConfig } from 'drizzle-orm/pg-core';
 
 import { validateDatabasePrerequisites, loadSchemaImports, createPushConnection } from './utils/drizzle.js';
 import { classifyStatements } from './utils/sql-classifier.js';
@@ -43,6 +44,27 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
     // 3. Load schema imports
     const imports = await loadSchemaImports(schemaFiles);
 
+    // 3.5 Detect schemas from loaded table objects.
+    //     config.schemaFilter misses schemas from re-exported packages
+    //     (e.g., @spfn/ai entities re-exported in consumer project).
+    const detectedSchemas = new Set<string>(config.schemaFilter ?? ['public']);
+    for (const value of Object.values(imports))
+    {
+        try
+        {
+            const cfg = getTableConfig(value as any);
+            if (cfg.schema)
+            {
+                detectedSchemas.add(cfg.schema);
+            }
+        }
+        catch
+        {
+            // Not a drizzle table — skip
+        }
+    }
+    const schemaFilter = Array.from(detectedSchemas);
+
     // 4. Create DB connection
     const { db, close } = await createPushConnection();
 
@@ -53,7 +75,7 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
         const { statementsToExecute } = await pushSchema(
             imports,
             db,
-            config.schemaFilter ?? ['public'],
+            schemaFilter,
         );
 
         // 5.5 drizzle-kit emits bare CREATE SCHEMA without IF NOT EXISTS,
