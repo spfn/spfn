@@ -739,9 +739,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@spfn/core':
-        specifier: workspace:*
-        version: link:../core
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -782,6 +779,9 @@ importers:
         specifier: ^8.5.0
         version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.8.2)
     devDependencies:
+      '@spfn/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/fs-extra':
         specifier: ^11.0.4
         version: 11.0.4

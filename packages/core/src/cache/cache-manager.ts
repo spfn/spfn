@@ -13,9 +13,23 @@ import { logger } from '@spfn/core/logger';
 
 const cacheLogger = logger.child('@spfn/core:cache');
 
-let writeInstance: Redis | Cluster | undefined;
-let readInstance: Redis | Cluster | undefined;
-let isDisabled = false;
+// ── globalThis singleton ──────────────────────────────────────────
+// CJS/ESM dual-package hazard: 모듈이 두 번 로드되어도
+// Symbol.for() + globalThis로 동일 상태를 공유한다.
+interface CacheState
+{
+    write: Redis | Cluster | undefined;
+    read: Redis | Cluster | undefined;
+    disabled: boolean;
+}
+
+const CACHE_KEY = Symbol.for('@spfn/core:cache');
+
+const state: CacheState = ((globalThis as any)[CACHE_KEY] ??= {
+    write: undefined,
+    read: undefined,
+    disabled: false,
+});
 
 /**
  * Get global cache write instance
@@ -37,7 +51,7 @@ let isDisabled = false;
  */
 export function getCache(): Redis | Cluster | undefined
 {
-    return writeInstance;
+    return state.write;
 }
 
 /**
@@ -57,7 +71,7 @@ export function getCache(): Redis | Cluster | undefined
  */
 export function getCacheRead(): Redis | Cluster | undefined
 {
-    return readInstance ?? writeInstance;
+    return state.read ?? state.write;
 }
 
 /**
@@ -75,7 +89,7 @@ export function getCacheRead(): Redis | Cluster | undefined
  */
 export function isCacheDisabled(): boolean
 {
-    return isDisabled;
+    return state.disabled;
 }
 
 /**
@@ -99,9 +113,9 @@ export function setCache(
     read?: Redis | Cluster | undefined
 ): void
 {
-    writeInstance = write;
-    readInstance = read ?? write;
-    isDisabled = !write;
+    state.write = write;
+    state.read = read ?? write;
+    state.disabled = !write;
 }
 
 /**
@@ -136,9 +150,9 @@ export async function initCache(): Promise<{
 }>
 {
     // Already initialized
-    if (writeInstance)
+    if (state.write)
     {
-        return { write: writeInstance, read: readInstance, disabled: isDisabled };
+        return { write: state.write, read: state.read, disabled: state.disabled };
     }
 
     // Auto-detect from environment
@@ -157,9 +171,9 @@ export async function initCache(): Promise<{
                 await read.ping();
             }
 
-            writeInstance = write;
-            readInstance = read;
-            isDisabled = false;
+            state.write = write;
+            state.read = read;
+            state.disabled = false;
 
             const hasReplica = read && read !== write;
             cacheLogger.info(
@@ -169,7 +183,7 @@ export async function initCache(): Promise<{
                 { mode: 'enabled' }
             );
 
-            return { write: writeInstance, read: readInstance, disabled: false };
+            return { write: state.write, read: state.read, disabled: false };
         }
         catch (error)
         {
@@ -193,13 +207,13 @@ export async function initCache(): Promise<{
                 // Ignore cleanup errors
             }
 
-            isDisabled = true;
+            state.disabled = true;
             return { write: undefined, read: undefined, disabled: true };
         }
     }
 
     // No configuration or library not installed
-    isDisabled = true;
+    state.disabled = true;
     cacheLogger.info('Cache disabled - no configuration or library not installed', { mode: 'disabled' });
     return { write: undefined, read: undefined, disabled: true };
 }
@@ -217,7 +231,7 @@ export async function initCache(): Promise<{
  */
 export async function closeCache(): Promise<void>
 {
-    if (isDisabled)
+    if (state.disabled)
     {
         cacheLogger.debug('Cache already disabled, nothing to close');
         return;
@@ -225,20 +239,20 @@ export async function closeCache(): Promise<void>
 
     const closePromises: Promise<unknown>[] = [];
 
-    if (writeInstance)
+    if (state.write)
     {
         closePromises.push(
-            writeInstance.quit().catch((err: Error) =>
+            state.write.quit().catch((err: Error) =>
             {
                 cacheLogger.error('Error closing cache write instance', err);
             })
         );
     }
 
-    if (readInstance && readInstance !== writeInstance)
+    if (state.read && state.read !== state.write)
     {
         closePromises.push(
-            readInstance.quit().catch((err: Error) =>
+            state.read.quit().catch((err: Error) =>
             {
                 cacheLogger.error('Error closing cache read instance', err);
             })
@@ -247,9 +261,9 @@ export async function closeCache(): Promise<void>
 
     await Promise.all(closePromises);
 
-    writeInstance = undefined;
-    readInstance = undefined;
-    isDisabled = true;
+    state.write = undefined;
+    state.read = undefined;
+    state.disabled = true;
 
     cacheLogger.info('Cache connections closed', { mode: 'disabled' });
 }
@@ -279,9 +293,9 @@ export function getCacheInfo(): {
 }
 {
     return {
-        hasWrite: !!writeInstance,
-        hasRead: !!readInstance,
-        isReplica: !!(readInstance && readInstance !== writeInstance),
-        disabled: isDisabled,
+        hasWrite: !!state.write,
+        hasRead: !!state.read,
+        isReplica: !!(state.read && state.read !== state.write),
+        disabled: state.disabled,
     };
 }
