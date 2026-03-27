@@ -5,7 +5,7 @@
  * 2. oauthFinalizeInterceptor: OAuth 완료 시 pending session에서 세션 저장
  */
 
-import type { InterceptorRule } from '@spfn/core/nextjs/server';
+import type { InterceptorRule, ResponseInterceptorContext } from '@spfn/core/nextjs/server';
 import {
     generateKeyPair,
     createOAuthState,
@@ -104,6 +104,29 @@ export const oauthUrlInterceptor: InterceptorRule = {
 };
 
 /**
+ * Finalize 실패 시 에러 응답 설정 + pending 쿠키 정리
+ */
+function setFinalizeError(ctx: ResponseInterceptorContext, message: string): void
+{
+    ctx.response.ok = false;
+    ctx.response.status = 401;
+    ctx.response.statusText = 'Unauthorized';
+    ctx.response.body = { success: false, message };
+
+    ctx.setCookies.push({
+        name: COOKIE_NAMES.OAUTH_PENDING,
+        value: '',
+        options: {
+            httpOnly: true,
+            secure: cookieSecure,
+            sameSite: 'lax',
+            maxAge: 0,
+            path: '/',
+        },
+    });
+}
+
+/**
  * OAuth Finalize Interceptor
  *
  * POST /_auth/oauth/finalize 요청을 가로채서
@@ -126,6 +149,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
         if (!pendingCookie)
         {
             authLogger.interceptor.oauth?.warn?.('No pending session cookie found');
+            setFinalizeError(ctx, 'OAuth session expired. Please try again.');
             await next();
             return;
         }
@@ -141,6 +165,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
             if (!userId || !keyId)
             {
                 authLogger.interceptor.oauth?.error?.('Missing userId or keyId in response');
+                setFinalizeError(ctx, 'OAuth finalize failed: missing credentials');
                 await next();
                 return;
             }
@@ -152,6 +177,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
                     expected: pendingSession.keyId,
                     received: keyId,
                 });
+                setFinalizeError(ctx, 'OAuth session mismatch. Please try again.');
                 await next();
                 return;
             }
@@ -213,6 +239,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
         {
             const err = error as Error;
             authLogger.interceptor.oauth?.error?.('Failed to finalize OAuth session', err);
+            setFinalizeError(ctx, err.message);
         }
 
         await next();

@@ -1,10 +1,13 @@
 import type { Logger } from '@spfn/core/logger';
 import type { ErrorRegistry } from '@spfn/core/errors';
+import { logger } from '@spfn/core/logger';
 import { ApiError } from './errors';
 import * as debugLogs from './debug-logs';
 
 // Re-export shared utilities
 export { buildCookieHeader, parseResponseBody } from '../shared';
+
+const cookieLogger = logger.child('@spfn/core:auto-cookies');
 
 /**
  * Auto-detect cookies from Next.js server environment
@@ -12,6 +15,12 @@ export { buildCookieHeader, parseResponseBody } from '../shared';
  */
 export async function autoDetectServerCookies(): Promise<Record<string, string>>
 {
+    // Client environment — browser sends cookies automatically
+    if (typeof window !== 'undefined')
+    {
+        return {};
+    }
+
     try
     {
         // Next.js cookies() API is only available in server environment
@@ -19,14 +28,26 @@ export async function autoDetectServerCookies(): Promise<Record<string, string>>
         const cookieStore = await cookies();
         const allCookies = cookieStore.getAll();
 
-        return Object.fromEntries(
+        const result = Object.fromEntries(
             allCookies.map(cookie => [cookie.name, cookie.value])
         );
+
+        cookieLogger.debug('Server cookies detected', {
+            count: allCookies.length,
+            names: allCookies.map(c => c.name),
+        });
+
+        return result;
     }
     catch (error)
     {
-        // Client environment or cookies not accessible
-        // Browser automatically sends cookies in client components
+        // Server environment but cookies() not accessible
+        // (e.g. static generation, build time, or outside request context)
+        const err = error as Error;
+        cookieLogger.warn('Failed to read server cookies', {
+            message: err.message,
+            name: err.name,
+        });
         return {};
     }
 }
