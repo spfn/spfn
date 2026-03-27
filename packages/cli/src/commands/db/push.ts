@@ -50,14 +50,20 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
     {
         // 5. Compute diff via pushSchema (does NOT apply yet)
         const { pushSchema } = await import('drizzle-kit/api');
-        const { statementsToExecute, apply } = await pushSchema(
+        const { statementsToExecute } = await pushSchema(
             imports,
             db,
             config.schemaFilter ?? ['public'],
         );
 
+        // 5.5 drizzle-kit emits bare CREATE SCHEMA without IF NOT EXISTS,
+        //     which fails when the schema already exists. Patch it here.
+        const statements = statementsToExecute.map(s =>
+            s.replace(/^CREATE SCHEMA(?!\s+IF\s+NOT\s+EXISTS)/i, 'CREATE SCHEMA IF NOT EXISTS')
+        );
+
         // 6. Empty diff?
-        if (statementsToExecute.length === 0)
+        if (statements.length === 0)
         {
             console.log(chalk.green('✅ No changes detected — database is up to date\n'));
             await applyFunctionMigrations();
@@ -65,7 +71,7 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
         }
 
         // 7. Classify
-        const result = classifyStatements(statementsToExecute);
+        const result = classifyStatements(statements);
 
         // 8. Dry-run mode
         if (options.dryRun)
@@ -82,14 +88,20 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
         {
             // --force: apply everything
             console.log(chalk.dim('\n--force: applying all changes...'));
-            await apply();
-            displayApplySummary(statementsToExecute.length, 0);
+            for (const stmt of statements)
+            {
+                await db.execute(sql.raw(stmt));
+            }
+            displayApplySummary(statements.length, 0);
         }
         else if (result.destructive.length === 0)
         {
             // No destructive changes — safe to apply all
-            await apply();
-            displayApplySummary(statementsToExecute.length, 0);
+            for (const stmt of statements)
+            {
+                await db.execute(sql.raw(stmt));
+            }
+            displayApplySummary(statements.length, 0);
         }
         else
         {
@@ -126,7 +138,7 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
                 {
                     await db.execute(sql.raw(stmt.sql));
                 }
-                displayApplySummary(statementsToExecute.length, 0);
+                displayApplySummary(statements.length, 0);
             }
             else
             {
