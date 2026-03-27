@@ -1,6 +1,6 @@
 {
   "name": "@spfn/notification",
-  "version": "0.1.0-beta.16",
+  "version": "0.1.0-beta.17",
   "type": "module",
   "description": "Multi-channel notification system for SPFN - Email, SMS, Slack, Push",
   "exports": {
