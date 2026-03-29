@@ -78,11 +78,24 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
             schemaFilter,
         );
 
-        // 5.5 drizzle-kit emits bare CREATE SCHEMA without IF NOT EXISTS,
-        //     which fails when the schema already exists. Patch it here.
-        const statements = statementsToExecute.map(s =>
-            s.replace(/^CREATE SCHEMA(?!\s+IF\s+NOT\s+EXISTS)/i, 'CREATE SCHEMA IF NOT EXISTS')
-        );
+        // 5.5 Patch drizzle-kit statement bugs:
+        //     - CREATE SCHEMA without IF NOT EXISTS → fails on existing schemas
+        //     - DROP SCHEMA for schemas we actively manage → false positive
+        const managedSchemaSet = new Set(schemaFilter);
+        const statements = statementsToExecute
+            .filter(s =>
+            {
+                const dropMatch = s.match(/^\s*DROP\s+SCHEMA\s+"?([^"\s;]+)"?/i);
+                if (dropMatch && managedSchemaSet.has(dropMatch[1]))
+                {
+                    console.log(chalk.dim(`  [skip] DROP SCHEMA "${dropMatch[1]}" — managed schema, ignoring`));
+                    return false;
+                }
+                return true;
+            })
+            .map(s =>
+                s.replace(/^CREATE SCHEMA(?!\s+IF\s+NOT\s+EXISTS)/i, 'CREATE SCHEMA IF NOT EXISTS')
+            );
 
         // 6. Empty diff?
         if (statements.length === 0)
