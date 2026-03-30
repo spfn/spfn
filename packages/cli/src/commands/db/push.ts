@@ -79,10 +79,11 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
         );
 
         // 5.5 Patch drizzle-kit statement bugs:
-        //     - CREATE SCHEMA without IF NOT EXISTS → fails on existing schemas
         //     - DROP SCHEMA for schemas we actively manage → false positive
+        //     - CREATE SCHEMA without IF NOT EXISTS → fails on existing schemas
+        //     - Missing CREATE SCHEMA for new non-public schemas
         const managedSchemaSet = new Set(schemaFilter);
-        const statements = statementsToExecute
+        const patched = statementsToExecute
             .filter(s =>
             {
                 const dropMatch = s.match(/^\s*DROP\s+SCHEMA\s+"?([^"\s;]+)"?/i);
@@ -97,8 +98,15 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
                 s.replace(/^CREATE SCHEMA(?!\s+IF\s+NOT\s+EXISTS)/i, 'CREATE SCHEMA IF NOT EXISTS')
             );
 
-        // 6. Empty diff?
-        if (statements.length === 0)
+        // Ensure CREATE SCHEMA IF NOT EXISTS for all non-public managed schemas
+        // (drizzle-kit sometimes omits CREATE SCHEMA when generating CREATE TABLE)
+        const ensureSchemas = schemaFilter
+            .filter(s => s !== 'public')
+            .map(s => `CREATE SCHEMA IF NOT EXISTS "${s}";\n`);
+        const statements = [...ensureSchemas, ...patched];
+
+        // 6. Empty diff? (ensureSchemas are idempotent, check actual changes)
+        if (patched.length === 0)
         {
             console.log(chalk.green('✅ No changes detected — database is up to date\n'));
             await applyFunctionMigrations();
