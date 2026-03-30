@@ -1,6 +1,6 @@
 {
   "name": "@spfn/monitor",
-  "version": "0.1.0-beta.15",
+  "version": "0.1.0-beta.16",
   "type": "module",
   "description": "Error tracking, log management, and monitoring dashboard for SPFN",
   "main": "./dist/index.js",

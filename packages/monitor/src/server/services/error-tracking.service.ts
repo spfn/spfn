@@ -83,12 +83,15 @@ export async function trackError(
             lastSeenAt: now,
         });
 
-        const event = await createEvent(group.id, err, ctx, metadata);
+        const event = await safeCreateEvent(group.id, err, ctx, metadata);
 
         logger.info('New error group tracked', { fingerprint, groupId: group.id });
 
-        notifyErrorToSlack(group, event, 'new', ctx.environment)
-            .catch(e => logger.warn('Slack notification failed', e as Error));
+        if (event)
+        {
+            notifyErrorToSlack(group, event, 'new', ctx.environment)
+                .catch(e => logger.warn('Slack notification failed', e as Error));
+        }
 
         return;
     }
@@ -99,23 +102,26 @@ export async function trackError(
         await errorGroupsRepository.updateStatus(existing.id, 'active');
         await errorGroupsRepository.incrementCount(existing.id);
 
-        const event = await createEvent(existing.id, err, ctx, metadata);
+        const event = await safeCreateEvent(existing.id, err, ctx, metadata);
 
         logger.info('Error group reopened', { fingerprint, groupId: existing.id });
 
-        notifyErrorToSlack(
-            { ...existing, status: 'active', count: existing.count + 1 },
-            event,
-            'reopened',
-            ctx.environment,
-        ).catch(e => logger.warn('Slack notification failed', e as Error));
+        if (event)
+        {
+            notifyErrorToSlack(
+                { ...existing, status: 'active', count: existing.count + 1 },
+                event,
+                'reopened',
+                ctx.environment,
+            ).catch(e => logger.warn('Slack notification failed', e as Error));
+        }
 
         return;
     }
 
     // Active or ignored — just increment count + create event (no notification)
     await errorGroupsRepository.incrementCount(existing.id);
-    await createEvent(existing.id, err, ctx, metadata);
+    await safeCreateEvent(existing.id, err, ctx, metadata);
 }
 
 /**
@@ -148,23 +154,34 @@ export async function updateErrorGroupStatus(
 }
 
 /**
- * Create an error event record
+ * Create an error event record (isolated — failure does not break group tracking)
  */
-async function createEvent(
+async function safeCreateEvent(
     groupId: number,
     err: Error,
     ctx: ErrorTrackingContext,
     metadata?: Record<string, unknown>
 )
 {
-    return await errorEventsRepository.create({
-        groupId,
-        requestId: ctx.requestId,
-        userId: ctx.userId,
-        statusCode: ctx.statusCode,
-        headers: ctx.headers,
-        query: ctx.query,
-        stackTrace: err.stack,
-        metadata,
-    });
+    try
+    {
+        return await errorEventsRepository.create({
+            groupId,
+            requestId: ctx.requestId,
+            userId: ctx.userId,
+            statusCode: ctx.statusCode,
+            headers: ctx.headers,
+            query: ctx.query,
+            stackTrace: err.stack,
+            metadata,
+        });
+    }
+    catch (e)
+    {
+        const cause = e instanceof Error && e.cause instanceof Error
+            ? e.cause
+            : e;
+        logger.warn('Failed to create error event', cause as Error, { groupId });
+        return null;
+    }
 }

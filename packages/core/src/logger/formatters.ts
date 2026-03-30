@@ -182,6 +182,16 @@ export function formatError(error: Error): string
         lines.push(...stackLines);
     }
 
+    // Cause chain — surfaces original PG errors hidden by DrizzleQueryError
+    if (error.cause instanceof Error)
+    {
+        lines.push(`Caused by: ${formatError(error.cause)}`);
+    }
+    else if (error.cause !== undefined)
+    {
+        lines.push(`Caused by: ${String(error.cause)}`);
+    }
+
     return lines.join('\n');
 }
 
@@ -313,6 +323,29 @@ export function formatConsole(metadata: LogMetadata, colorize = true): string
 }
 
 /**
+ * Error 객체를 cause 체인까지 포함한 직렬화 가능 객체로 변환
+ */
+function formatErrorCauseChain(error: Error): Record<string, unknown>
+{
+    const result: Record<string, unknown> = {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+    };
+
+    if (error.cause instanceof Error)
+    {
+        result.cause = formatErrorCauseChain(error.cause);
+    }
+    else if (error.cause !== undefined)
+    {
+        result.cause = String(error.cause);
+    }
+
+    return result;
+}
+
+/**
  * JSON 포맷 (파일 저장 및 전송용)
  */
 export function formatJSON(metadata: LogMetadata): string
@@ -335,11 +368,7 @@ export function formatJSON(metadata: LogMetadata): string
 
     if (metadata.error)
     {
-        obj.error = {
-            name: metadata.error.name,
-            message: metadata.error.message,
-            stack: metadata.error.stack,
-        };
+        obj.error = formatErrorCauseChain(metadata.error);
     }
 
     return JSON.stringify(obj);
