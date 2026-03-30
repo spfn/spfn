@@ -12,8 +12,10 @@ import {
     deleteRole as _deleteRole,
     updateUserService,
     getUserRole,
+    hasPermission,
 } from '../../services';
 import { getAuth } from '../../helpers';
+import { rolesRepository } from '../../repositories';
 import { ForbiddenError } from '@spfn/core/errors';
 import { Type } from '@sinclair/typebox';
 import { route } from '@spfn/core/route';
@@ -34,7 +36,7 @@ export const listRoles = route.get('/_auth/admin/roles')
             })),
         }),
     })
-    .use([authenticate, requireRole('superadmin')])
+    .use([authenticate, requireRole('admin', 'superadmin')])
     .handler(async (c) =>
     {
         const { query } = await c.data();
@@ -137,11 +139,12 @@ export const updateUserRole = route.patch('/_auth/admin/users/:userId/role')
             roleId: Type.Number({ description: 'New role ID to assign' }),
         }),
     })
-    .use([authenticate, requireRole('superadmin')])
+    .use([authenticate, requireRole('admin', 'superadmin')])
     .handler(async (c) =>
     {
         const { params, body } = await c.data();
         const auth = getAuth(c);
+        const callerRole = await getUserRole(auth.userId);
 
         if (params.userId === Number(auth.userId))
         {
@@ -152,6 +155,26 @@ export const updateUserRole = route.patch('/_auth/admin/users/:userId/role')
         if (targetRole === 'superadmin')
         {
             throw new ForbiddenError({ message: 'Cannot modify superadmin role' });
+        }
+
+        // admin 권한 검증: 대상 role에 따라 제한
+        if (callerRole !== 'superadmin')
+        {
+            const newRole = await rolesRepository.findById(body.roleId);
+
+            if (newRole?.name === 'superadmin')
+            {
+                throw new ForbiddenError({ message: 'Only superadmin can assign superadmin role' });
+            }
+
+            if (newRole?.name === 'admin')
+            {
+                const canPromote = await hasPermission(auth.userId, 'admin:promote');
+                if (!canPromote)
+                {
+                    throw new ForbiddenError({ message: 'admin:promote permission required to assign admin role' });
+                }
+            }
         }
 
         await updateUserService(params.userId, { roleId: body.roleId });
