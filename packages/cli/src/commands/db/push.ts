@@ -148,16 +148,17 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
         }
         else
         {
-            // Has destructive changes — apply safe+warning individually, prompt for destructive
-            const safeCount = result.safe.length + result.warning.length;
+            // Has destructive changes — apply non-destructive in original order, prompt for destructive
+            const destructiveSet = new Set(result.destructive.map(s => s.sql));
+            const nonDestructive = statements.filter(s => !destructiveSet.has(s));
 
-            if (safeCount > 0)
+            if (nonDestructive.length > 0)
             {
-                for (const stmt of [...result.safe, ...result.warning])
+                for (const stmt of nonDestructive)
                 {
-                    await db.execute(sql.raw(stmt.sql));
+                    await db.execute(sql.raw(stmt));
                 }
-                console.log(chalk.green(`\n✅ Applied ${safeCount} safe statement(s)`));
+                console.log(chalk.green(`\n✅ Applied ${nonDestructive.length} safe statement(s)`));
             }
 
             // Prompt for destructive
@@ -185,7 +186,7 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
             }
             else
             {
-                displayApplySummary(safeCount, result.destructive.length);
+                displayApplySummary(nonDestructive.length, result.destructive.length);
                 console.log(chalk.dim('Tip: Use --force to apply all changes without prompting.\n'));
             }
         }
