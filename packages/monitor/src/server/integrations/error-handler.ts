@@ -77,7 +77,7 @@ export function createMonitorErrorHandler(options: MonitorErrorHandlerOptions = 
             path: ctx.path,
             method: ctx.method,
             requestId: ctx.requestId,
-            userId: ctx.userId,
+            userId: ctx.userId != null ? String(ctx.userId) : undefined,
             headers: ctx.request.headers,
             query: ctx.request.query,
             environment: options.environment,
