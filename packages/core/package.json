@@ -1,6 +1,6 @@
 {
   "name": "@spfn/core",
-  "version": "0.2.0-beta.40",
+  "version": "0.2.0-beta.41",
   "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
   "type": "module",
   "exports": {
@@ -168,13 +168,13 @@
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.0",
     "drizzle-typebox": "^0.1.0",
-    "hono": "^4.10.6",
+    "hono": "^4.12.4",
     "jiti": "^2.6.1",
     "micromatch": "^4.0.8",
     "pg-boss": "^11.1.2",
     "postgres": "^3.4.0",
     "typescript": "^5.3.3",
-    "undici": "^7.22.0",
+    "undici": "^7.24.0",
     "zod": "^4.1.11"
   },
   "optionalDependencies": {

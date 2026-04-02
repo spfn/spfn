@@ -279,16 +279,9 @@ function registerRoute(
     // Register to Hono with correct HTTP method
     const methodLower = method.toLowerCase() as Lowercase<HttpMethod>;
 
-    if (allMiddlewares.length > 0)
-    {
-        // Register with middlewares
-        app[methodLower](path, ...allMiddlewares, wrappedHandler);
-    }
-    else
-    {
-        // Register without middlewares
-        app[methodLower](path, wrappedHandler);
-    }
+    // hono 4.12+ overload resolution fails with spread middleware arrays
+    const handlers: MiddlewareHandler[] = [...allMiddlewares, wrappedHandler as unknown as MiddlewareHandler];
+    app.on([methodLower], [path], ...handlers);
 
     logger.debug(`Registered route: ${method} ${path}`, { name });
 

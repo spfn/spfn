@@ -290,7 +290,7 @@ async function registerSSEEndpoint(app: Hono, config?: ServerConfig): Promise<vo
         const getSubject = authConfig.getSubject
             ?? ((c: Context) => (c.get('auth') as Record<string, string> | undefined)?.userId ?? null);
 
-        app.post(tokenPath, ...mwHandlers, async (c: Context) =>
+        app.on(['POST'], [tokenPath], ...mwHandlers, async (c: Context) =>
         {
             const subject = getSubject(c);
             if (!subject)
