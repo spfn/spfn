@@ -28,6 +28,7 @@ packages/notification/
 │   ├── channels/                   # 채널별 구현
 │   │   ├── index.ts
 │   │   ├── types.ts                # Channel 공통 타입
+│   │   ├── concurrency.ts          # runWithConcurrency 유틸
 │   │   │
 │   │   ├── email/
 │   │   │   ├── index.ts
@@ -65,8 +66,12 @@ packages/notification/
 │   │
 │   ├── jobs/                       # @spfn/core/job 활용
 │   │   ├── index.ts
-│   │   ├── send-notification.ts    # 단건 발송 job
-│   │   └── batch-notification.ts   # 배치 발송 job
+│   │   ├── router.ts               # notificationJobRouter
+│   │   ├── send-scheduled-email.ts # 예약 이메일 발송 job
+│   │   ├── send-scheduled-sms.ts   # 예약 SMS 발송 job
+│   │   ├── send-bulk-email-item.ts # 분산 벌크 이메일 item job (batchSize: 50)
+│   │   ├── send-bulk-sms-item.ts   # 분산 벌크 SMS item job (batchSize: 50)
+│   │   └── send-bulk-slack-item.ts # 분산 벌크 Slack item job (batchSize: 50)
 │   │
 │   ├── entities/                   # DB 스키마 (발송 이력)
 │   │   ├── index.ts
@@ -165,18 +170,22 @@ await userCreated.emit({ userId: '123', email: 'user@example.com', name: '홍길
 ```typescript
 import { sendEmailBulk } from '@spfn/notification/server';
 
-// 동일 템플릿, 다른 데이터
+// In-process 병렬 발송 (기본, concurrency 10)
 await sendEmailBulk([
     { to: 'user1@example.com', template: 'welcome', data: { name: '홍길동' } },
     { to: 'user2@example.com', template: 'welcome', data: { name: '김철수' } },
-]);
+], { concurrency: 20 });
 
-// 동일 내용, 여러 수신자
-await sendEmail({
-    to: ['user1@example.com', 'user2@example.com'],
-    template: 'announcement',
-    data: { title: '공지사항' }
-});
+// 분산 발송 (pg-boss 경유, 멀티 인스턴스 처리)
+await sendEmailBulk(items, { distributed: true });
+```
+
+**분산 모드 흐름:**
+```
+호출 인스턴스: validate → batch INSERT records → tracking → boss.insert(N jobs) → return
+인스턴스 A: boss.work(batchSize:50) → 50건 fetch → 50건 병렬 발송
+인스턴스 B: boss.work(batchSize:50) → 50건 fetch → 50건 병렬 발송
+...자동 분산, 실패 건 개별 재시도 (pg-boss retryLimit)
 ```
 
 ### 5. 배치 발송 (cron job)
@@ -185,17 +194,20 @@ await sendEmail({
 import { job } from '@spfn/core/job';
 import { sendEmailBulk } from '@spfn/notification/server';
 
-// 매일 오전 9시 마케팅 이메일
+// 매일 오전 9시 마케팅 이메일 (분산 처리)
 export const dailyMarketingJob = job('daily-marketing')
     .cron('0 9 * * *')
     .handler(async () => {
         const users = await getActiveUsers();
 
-        await sendEmailBulk(users.map(user => ({
-            to: user.email,
-            template: 'daily-digest',
-            data: { name: user.name, content: getDailyContent() }
-        })));
+        await sendEmailBulk(
+            users.map(user => ({
+                to: user.email,
+                template: 'daily-digest',
+                data: { name: user.name, content: getDailyContent() }
+            })),
+            { distributed: true }
+        );
     });
 ```
 
@@ -451,11 +463,11 @@ export const notifications = notificationSchema.table('history', {
         "@spfn/core": "workspace:*"
     },
     "peerDependencies": {
-        "@aws-sdk/client-ses": "^3.0.0",
+        "@aws-sdk/client-sesv2": "^3.0.0",
         "@aws-sdk/client-sns": "^3.0.0"
     },
     "peerDependenciesMeta": {
-        "@aws-sdk/client-ses": { "optional": true },
+        "@aws-sdk/client-sesv2": { "optional": true },
         "@aws-sdk/client-sns": { "optional": true }
     }
 }

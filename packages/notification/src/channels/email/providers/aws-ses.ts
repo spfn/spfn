@@ -1,5 +1,5 @@
 /**
- * @spfn/notification - AWS SES Email Provider
+ * @spfn/notification - AWS SES v2 Email Provider
  */
 
 import type { EmailProvider, InternalSendEmailParams } from '../types';
@@ -12,7 +12,7 @@ const log = logger.child('@spfn/notification:ses');
 let sesClient: any = null;
 
 /**
- * Get or create SES client
+ * Get or create SES v2 client
  */
 async function getSESClient()
 {
@@ -23,9 +23,9 @@ async function getSESClient()
 
     try
     {
-        const { SESClient } = await import('@aws-sdk/client-ses');
+        const { SESv2Client } = await import('@aws-sdk/client-sesv2');
 
-        sesClient = new SESClient({
+        sesClient = new SESv2Client({
             region: env.AWS_REGION,
             credentials: env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
                 ? {
@@ -35,20 +35,20 @@ async function getSESClient()
                 : undefined,
         });
 
-        log.debug('SES client created', { region: env.AWS_REGION });
+        log.debug('SES v2 client created', { region: env.AWS_REGION });
         return sesClient;
     }
     catch
     {
         throw new Error(
-            '@aws-sdk/client-ses is not installed. ' +
-            'Please install it: pnpm add @aws-sdk/client-ses'
+            '@aws-sdk/client-sesv2 is not installed. ' +
+            'Please install it: pnpm add @aws-sdk/client-sesv2'
         );
     }
 }
 
 /**
- * AWS SES Email Provider
+ * AWS SES v2 Email Provider
  */
 export const awsSesProvider: EmailProvider = {
     name: 'aws-ses',
@@ -58,32 +58,34 @@ export const awsSesProvider: EmailProvider = {
         try
         {
             const client = await getSESClient();
-            const { SendEmailCommand } = await import('@aws-sdk/client-ses');
+            const { SendEmailCommand } = await import('@aws-sdk/client-sesv2');
 
             const command = new SendEmailCommand({
-                Source: params.from,
+                FromEmailAddress: params.from,
                 Destination: {
                     ToAddresses: params.to,
                 },
                 ReplyToAddresses: params.replyTo ? [params.replyTo] : undefined,
-                Message: {
-                    Subject: {
-                        Charset: 'UTF-8',
-                        Data: params.subject,
-                    },
-                    Body: {
-                        ...(params.html && {
-                            Html: {
-                                Charset: 'UTF-8',
-                                Data: params.html,
-                            },
-                        }),
-                        ...(params.text && {
-                            Text: {
-                                Charset: 'UTF-8',
-                                Data: params.text,
-                            },
-                        }),
+                Content: {
+                    Simple: {
+                        Subject: {
+                            Charset: 'UTF-8',
+                            Data: params.subject,
+                        },
+                        Body: {
+                            ...(params.html && {
+                                Html: {
+                                    Charset: 'UTF-8',
+                                    Data: params.html,
+                                },
+                            }),
+                            ...(params.text && {
+                                Text: {
+                                    Charset: 'UTF-8',
+                                    Data: params.text,
+                                },
+                            }),
+                        },
                     },
                 },
             });

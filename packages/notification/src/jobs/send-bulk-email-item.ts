@@ -1,0 +1,52 @@
+/**
+ * @spfn/notification - Bulk Email Item Job
+ *
+ * Processes a single email item from a distributed bulk send.
+ * Notification record and tracking are already applied by sendEmailBulk().
+ * This job just sends via provider and updates history.
+ *
+ * Uses batchSize so pg-boss workers fetch multiple items at once
+ * and process them in parallel across instances.
+ */
+
+import { job } from '@spfn/core/job';
+import { Type } from '@sinclair/typebox';
+import { awsSesProvider } from '../channels/email/providers/aws-ses';
+import {
+    markNotificationSent,
+    markNotificationFailed,
+} from '../services/notification.service';
+
+const SendBulkEmailItemInput = Type.Object({
+    notificationId: Type.Number(),
+    to: Type.Array(Type.String()),
+    from: Type.String(),
+    replyTo: Type.Optional(Type.String()),
+    subject: Type.String(),
+    text: Type.Optional(Type.String()),
+    html: Type.Optional(Type.String()),
+});
+
+export const sendBulkEmailItemJob = job('notification.send-bulk-email-item')
+    .input(SendBulkEmailItemInput)
+    .options({
+        retryLimit: 3,
+        retryDelay: 5000,
+        batchSize: 50,
+    })
+    .handler(async (input) =>
+    {
+        const { notificationId, ...emailParams } = input;
+
+        const result = await awsSesProvider.send(emailParams);
+
+        if (result.success)
+        {
+            await markNotificationSent(notificationId, result.messageId);
+        }
+        else
+        {
+            await markNotificationFailed(notificationId, result.error || 'Unknown error');
+            throw new Error(result.error || 'Failed to send email');
+        }
+    });

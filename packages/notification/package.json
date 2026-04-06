@@ -1,6 +1,6 @@
 {
   "name": "@spfn/notification",
-  "version": "0.1.0-beta.17",
+  "version": "0.1.0-beta.18",
   "type": "module",
   "description": "Multi-channel notification system for SPFN - Email, SMS, Slack, Push",
   "exports": {
@@ -50,11 +50,11 @@
     "@spfn/core": "workspace:*"
   },
   "peerDependencies": {
-    "@aws-sdk/client-ses": "^3.0.0",
+    "@aws-sdk/client-sesv2": "^3.0.0",
     "@aws-sdk/client-sns": "^3.0.0"
   },
   "peerDependenciesMeta": {
-    "@aws-sdk/client-ses": {
+    "@aws-sdk/client-sesv2": {
       "optional": true
     },
     "@aws-sdk/client-sns": {
@@ -62,6 +62,7 @@
     }
   },
   "devDependencies": {
+    "@aws-sdk/client-sesv2": "^3.1024.0",
     "@sinclair/typebox": "^0.34.30",
     "@types/node": "^20.11.0",
     "drizzle-kit": "^0.31.8",

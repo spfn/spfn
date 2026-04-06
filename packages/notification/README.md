@@ -22,8 +22,8 @@ pnpm add @spfn/notification
 Install providers as needed:
 
 ```bash
-# For AWS SES (Email)
-pnpm add @aws-sdk/client-ses
+# For AWS SES v2 (Email)
+pnpm add @aws-sdk/client-sesv2
 
 # For AWS SNS (SMS)
 pnpm add @aws-sdk/client-sns
@@ -131,11 +131,16 @@ await sendEmail({
     html: '<h1>HTML content</h1>',
 });
 
-// Bulk send
+// Bulk send (in-process, parallel)
 await sendEmailBulk([
     { to: 'user1@example.com', template: 'welcome', data: { name: 'John' } },
     { to: 'user2@example.com', template: 'welcome', data: { name: 'Jane' } },
-]);
+], { concurrency: 20 });
+
+// Bulk send (distributed across instances via pg-boss)
+const result = await sendEmailBulk(items, { distributed: true });
+// result.batchId — UUID for tracking this batch
+// Actual sending happens in background via pg-boss workers
 ```
 
 ### SMS
@@ -182,6 +187,47 @@ const result = await scheduleEmail(
 import { cancelNotification } from '@spfn/notification/server';
 await cancelNotification(result.notificationId);
 ```
+
+## Bulk Sending
+
+All channels support bulk sending with two modes:
+
+### In-Process Mode (default)
+
+Sends all items in the current process with concurrency control.
+Suitable for single-instance deployments or smaller batches.
+
+```typescript
+import { sendEmailBulk, sendSMSBulk, sendSlackBulk } from '@spfn/notification/server';
+
+const result = await sendEmailBulk(items, { concurrency: 20 });
+// result.results — SendResult[] in same order as input
+// result.successCount / result.failureCount
+// result.batchId — UUID for this batch
+```
+
+### Distributed Mode
+
+Enqueues items to pg-boss for processing across multiple instances.
+Each instance's worker fetches 50 items at a time and processes them in parallel.
+Failed items are individually retried by pg-boss.
+
+```typescript
+const result = await sendEmailBulk(items, { distributed: true });
+// Returns immediately with pending results
+// result.results[i].messageId === 'pending:{batchId}'
+```
+
+**Distributed mode flow:**
+1. Validates and renders templates
+2. Batch inserts notification records (single query)
+3. Applies tracking (email only)
+4. Bulk inserts pg-boss jobs via `sendBatch()`
+5. Returns immediately — workers process in background
+
+**Requirements:**
+- `notificationJobRouter` must be registered (see Job Router Setup below)
+- pg-boss must be initialized
 
 ### Job Router Setup
 
@@ -493,16 +539,22 @@ export {
     sendEmail,
     sendEmailBulk,
     registerEmailProvider,
+    type BulkEmailResult,
+    type BulkEmailOptions,
 
     // SMS
     sendSMS,
     sendSMSBulk,
     registerSMSProvider,
+    type BulkSMSResult,
+    type BulkSMSOptions,
 
     // Slack
     sendSlack,
     sendSlackBulk,
     registerSlackProvider,
+    type BulkSlackResult,
+    type BulkSlackOptions,
 
     // Scheduling
     scheduleEmail,
@@ -528,6 +580,9 @@ export {
 
     // Jobs
     notificationJobRouter,
+    sendBulkEmailItemJob,
+    sendBulkSmsItemJob,
+    sendBulkSlackItemJob,
 };
 ```
 

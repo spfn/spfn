@@ -45,6 +45,14 @@ export interface JobOptions
      * @default 604800 (7 days)
      */
     retentionSeconds?: number;
+
+    /**
+     * Number of jobs to fetch per worker poll.
+     * When > 1, jobs in each batch are processed in parallel.
+     * Failed jobs are individually marked and retried by pg-boss.
+     * @default 1
+     */
+    batchSize?: number;
 }
 
 /**
@@ -151,6 +159,15 @@ export interface JobDef<TInput = void, TOutput = void>
     run: TInput extends void
         ? () => Promise<TOutput>
         : (input: TInput) => Promise<TOutput>;
+
+    /**
+     * Bulk insert jobs into the queue (pg-boss insert).
+     * Much faster than calling send() in a loop.
+     * Only available for jobs with input schema.
+     */
+    sendBatch: TInput extends void
+        ? (options?: JobSendOptions) => Promise<void>
+        : (inputs: TInput[], options?: JobSendOptions) => Promise<void>;
 
     /**
      * Type inference helpers

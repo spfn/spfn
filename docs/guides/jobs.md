@@ -126,6 +126,47 @@ export const timedJob = job('timed-task')
     });
 ```
 
+## Batch Processing
+
+Configure `batchSize` so workers fetch multiple jobs at once and process them in parallel. Failed jobs are individually marked and retried by pg-boss.
+
+```typescript
+export const sendBulkEmail = job('send-bulk-email')
+    .input(Type.Object({
+        to: Type.String(),
+        subject: Type.String(),
+        html: Type.String(),
+    }))
+    .options({
+        retryLimit: 3,
+        retryDelay: 5000,
+        batchSize: 50,  // Worker fetches 50 jobs at a time, processes in parallel
+    })
+    .handler(async (input) =>
+    {
+        await emailProvider.send(input);
+    });
+```
+
+Use `.sendBatch()` to bulk-insert jobs via `pg-boss.insert()` — much faster than calling `.send()` in a loop:
+
+```typescript
+const items = users.map(user => ({
+    to: user.email,
+    subject: 'Welcome',
+    html: renderWelcomeHtml(user),
+}));
+
+// Inserts all jobs in a single pg-boss query
+await sendBulkEmail.sendBatch(items);
+```
+
+This enables distributed processing across multiple instances:
+- Instance A: fetches 50 jobs → processes in parallel
+- Instance B: fetches 50 jobs → processes in parallel
+- pg-boss advisory locks prevent duplicate processing
+- Failed jobs are individually retried (not the entire batch)
+
 ## Sending Jobs
 
 Trigger a standard job programmatically with `.send()`.
@@ -240,6 +281,7 @@ export default defineServerConfig()
 | Method | Description |
 |--------|-------------|
 | `.send(input?, options?)` | Enqueue job via pg-boss |
+| `.sendBatch(inputs, options?)` | Bulk insert jobs via pg-boss (single query) |
 | `.run(input?)` | Execute handler synchronously (bypasses queue) |
 
 ### JobOptions
@@ -252,6 +294,7 @@ export default defineServerConfig()
 | `priority` | number | Higher = processed first |
 | `singletonKey` | string | Prevent duplicate jobs |
 | `retentionSeconds` | number | Retention period for completed jobs |
+| `batchSize` | number | Jobs fetched per worker poll (default: 1). When > 1, processed in parallel |
 
 ### JobSendOptions
 

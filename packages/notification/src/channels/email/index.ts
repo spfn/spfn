@@ -4,15 +4,19 @@
 
 import type { SendEmailParams, EmailProvider, InternalSendEmailParams } from './types';
 import type { SendResult } from '../types';
+import type { Notification } from '../../entities';
 import { awsSesProvider } from './providers/aws-ses';
 import { getEmailFrom, getEmailReplyTo, env, isHistoryEnabled, isTrackingEnabled, getTrackingBaseUrl } from '../../config';
 import { processTrackingHtml } from '../../tracking/processor';
 import { renderTemplate, hasTemplate } from '../../templates';
 import {
     createNotificationRecord,
+    createNotificationRecords,
     markNotificationSent,
     markNotificationFailed,
 } from '../../services/notification.service';
+import { runWithConcurrency } from '../concurrency';
+import { sendBulkEmailItemJob } from '../../jobs/send-bulk-email-item';
 import { logger } from '@spfn/core/logger';
 
 const log = logger.child('@spfn/notification:email');
@@ -196,30 +200,294 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
 }
 
 /**
- * Send bulk emails
+ * Bulk email result
+ */
+export interface BulkEmailResult
+{
+    results: SendResult[];
+    successCount: number;
+    failureCount: number;
+    batchId: string;
+}
+
+/**
+ * Prepared email item (after template rendering + validation)
+ */
+interface PreparedEmail
+{
+    index: number;
+    params: InternalSendEmailParams;
+    recipients: string[];
+    template?: string;
+    data?: Record<string, unknown>;
+    subject: string;
+    text?: string;
+    tracking?: boolean;
+}
+
+/**
+ * Bulk email options
+ */
+export interface BulkEmailOptions
+{
+    /**
+     * Max parallel sends when processing in-process (default: 10)
+     */
+    concurrency?: number;
+
+    /**
+     * When true, enqueue to pg-boss for distributed processing across instances.
+     * Returns immediately with pending results — actual sending happens in background.
+     * Requires notificationJobRouter to be registered.
+     * @default false
+     */
+    distributed?: boolean;
+}
+
+/**
+ * Validate and prepare all email items.
+ * Shared between in-process and distributed modes.
+ */
+function prepareEmailItems(items: SendEmailParams[]): {
+    prepared: PreparedEmail[];
+    earlyFailures: { index: number; result: SendResult }[];
+}
+{
+    const prepared: PreparedEmail[] = [];
+    const earlyFailures: { index: number; result: SendResult }[] = [];
+
+    for (let i = 0; i < items.length; i++)
+    {
+        const item = items[i];
+        const recipients = Array.isArray(item.to) ? item.to : [item.to];
+
+        let subject = item.subject;
+        let text = item.text;
+        let html = item.html;
+
+        if (item.template)
+        {
+            if (!hasTemplate(item.template))
+            {
+                earlyFailures.push({ index: i, result: { success: false, error: `Template not found: ${item.template}` } });
+                continue;
+            }
+
+            const rendered = renderTemplate(item.template, item.data || {}, 'email');
+
+            if (rendered.email)
+            {
+                subject = rendered.email.subject;
+                text = rendered.email.text;
+                html = rendered.email.html;
+            }
+        }
+
+        if (!subject)
+        {
+            earlyFailures.push({ index: i, result: { success: false, error: 'Email subject is required' } });
+            continue;
+        }
+
+        if (!text && !html)
+        {
+            earlyFailures.push({ index: i, result: { success: false, error: 'Email content (text or html) is required' } });
+            continue;
+        }
+
+        prepared.push({
+            index: i,
+            params: {
+                to: recipients,
+                from: item.from || getEmailFrom(),
+                replyTo: item.replyTo || getEmailReplyTo(),
+                subject,
+                text,
+                html,
+            },
+            recipients,
+            template: item.template,
+            data: item.data,
+            subject,
+            text,
+            tracking: item.tracking,
+        });
+    }
+
+    return { prepared, earlyFailures };
+}
+
+/**
+ * Send bulk emails with batch DB insert and concurrent sending.
+ *
+ * @param items - Email items to send
+ * @param options - concurrency, distributed
  */
 export async function sendEmailBulk(
-    items: SendEmailParams[]
-): Promise<{ results: SendResult[]; successCount: number; failureCount: number }>
+    items: SendEmailParams[],
+    options?: BulkEmailOptions
+): Promise<BulkEmailResult>
 {
-    const results: SendResult[] = [];
-    let successCount = 0;
-    let failureCount = 0;
-
-    for (const item of items)
+    if (items.length === 0)
     {
-        const result = await sendEmail(item);
-        results.push(result);
+        return { results: [], successCount: 0, failureCount: 0, batchId: '' };
+    }
+
+    const batchId = crypto.randomUUID();
+    const provider = getProvider();
+
+    // 1. Validate and prepare all items
+    const { prepared, earlyFailures } = prepareEmailItems(items);
+
+    // 2. Batch create notification records
+    let historyRecords: Notification[] = [];
+
+    if (isHistoryEnabled() && prepared.length > 0)
+    {
+        try
+        {
+            historyRecords = await createNotificationRecords(
+                prepared.map((p) => ({
+                    channel: 'email' as const,
+                    recipient: p.recipients.join(','),
+                    templateName: p.template,
+                    templateData: p.data,
+                    subject: p.subject,
+                    content: p.text,
+                    providerName: provider.name,
+                    batchId,
+                }))
+            );
+        }
+        catch (error)
+        {
+            log.warn('Failed to batch create notification history records', error as Error);
+        }
+    }
+
+    // 3. Apply tracking per email
+    const shouldTrackGlobal = isTrackingEnabled();
+    const trackingBaseUrl = getTrackingBaseUrl();
+
+    for (let i = 0; i < prepared.length; i++)
+    {
+        const p = prepared[i];
+        const historyId = historyRecords[i]?.id;
+        const shouldTrack = p.tracking ?? shouldTrackGlobal;
+
+        if (shouldTrack && historyId && p.params.html && trackingBaseUrl)
+        {
+            try
+            {
+                const { html } = processTrackingHtml(p.params.html, {
+                    notificationId: historyId,
+                    baseUrl: trackingBaseUrl,
+                });
+                p.params.html = html;
+            }
+            catch (error)
+            {
+                log.warn('Failed to apply tracking to email HTML', error as Error);
+            }
+        }
+    }
+
+    // 4. Distributed mode: enqueue to pg-boss and return immediately
+    if (options?.distributed)
+    {
+        const jobInputs = prepared.map((p, i) => ({
+            notificationId: historyRecords[i]?.id ?? 0,
+            to: p.params.to,
+            from: p.params.from,
+            replyTo: p.params.replyTo,
+            subject: p.params.subject,
+            text: p.params.text,
+            html: p.params.html,
+        }));
+
+        await sendBulkEmailItemJob.sendBatch(jobInputs);
+
+        log.info('Bulk email enqueued for distributed processing', {
+            batchId,
+            total: items.length,
+            enqueued: prepared.length,
+            earlyFailures: earlyFailures.length,
+        });
+
+        // Return pending results — actual send happens via pg-boss workers
+        const results: SendResult[] = new Array(items.length);
+
+        for (const { index, result } of earlyFailures)
+        {
+            results[index] = result;
+        }
+
+        for (const p of prepared)
+        {
+            results[p.index] = { success: true, messageId: `pending:${batchId}` };
+        }
+
+        return {
+            results,
+            successCount: prepared.length,
+            failureCount: earlyFailures.length,
+            batchId,
+        };
+    }
+
+    // 5. In-process mode: send with concurrency control
+    const concurrency = options?.concurrency ?? 10;
+
+    const sendResults = await runWithConcurrency(
+        prepared,
+        (p) => provider.send(p.params),
+        concurrency
+    );
+
+    // 6. Build results + update history records
+    const results: SendResult[] = new Array(items.length);
+    let successCount = 0;
+    let failureCount = earlyFailures.length;
+
+    for (const { index, result } of earlyFailures)
+    {
+        results[index] = result;
+    }
+
+    const historyUpdates: Promise<unknown>[] = [];
+
+    for (let i = 0; i < prepared.length; i++)
+    {
+        const { index, recipients, subject } = prepared[i];
+        const result = sendResults[i];
+        results[index] = result;
 
         if (result.success)
         {
             successCount++;
+            log.info('Email sent', { to: recipients, subject, messageId: result.messageId });
         }
         else
         {
             failureCount++;
+            log.error('Email send failed', { to: recipients, subject, error: result.error });
+        }
+
+        const historyId = historyRecords[i]?.id;
+
+        if (historyId && isHistoryEnabled())
+        {
+            const promise = result.success
+                ? markNotificationSent(historyId, result.messageId)
+                : markNotificationFailed(historyId, result.error || 'Unknown error');
+
+            historyUpdates.push(
+                promise.catch((err) => log.warn('Failed to update notification history', err))
+            );
         }
     }
 
-    return { results, successCount, failureCount };
+    await Promise.all(historyUpdates);
+
+    return { results, successCount, failureCount, batchId };
 }

@@ -4,14 +4,18 @@
 
 import type { SendSMSParams, SMSProvider, InternalSendSMSParams } from './types';
 import type { SendResult } from '../types';
+import type { Notification } from '../../entities';
 import { awsSnsProvider } from './providers/aws-sns';
 import { env, isHistoryEnabled } from '../../config';
 import { renderTemplate, hasTemplate } from '../../templates';
 import {
     createNotificationRecord,
+    createNotificationRecords,
     markNotificationSent,
     markNotificationFailed,
 } from '../../services/notification.service';
+import { runWithConcurrency } from '../concurrency';
+import { sendBulkSmsItemJob } from '../../jobs/send-bulk-sms-item';
 import { normalizePhoneNumber } from './utils';
 import { logger } from '@spfn/core/logger';
 
@@ -180,22 +184,246 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
 }
 
 /**
- * Send bulk SMS
+ * Bulk SMS result
+ */
+export interface BulkSMSResult
+{
+    results: SendResult[];
+    successCount: number;
+    failureCount: number;
+    batchId: string;
+}
+
+/**
+ * Prepared SMS item (after template rendering + validation + recipient expansion)
+ */
+interface PreparedSMS
+{
+    index: number;
+    phone: string;
+    message: string;
+    template?: string;
+    data?: Record<string, unknown>;
+}
+
+/**
+ * Bulk SMS options
+ */
+export interface BulkSMSOptions
+{
+    concurrency?: number;
+    distributed?: boolean;
+}
+
+/**
+ * Send bulk SMS with batch DB insert and concurrent sending.
+ *
+ * @param items - SMS items to send
+ * @param options - concurrency, distributed
  */
 export async function sendSMSBulk(
-    items: SendSMSParams[]
-): Promise<{ results: SendResult[]; successCount: number; failureCount: number }>
+    items: SendSMSParams[],
+    options?: BulkSMSOptions
+): Promise<BulkSMSResult>
 {
-    const results: SendResult[] = [];
-    let successCount = 0;
-    let failureCount = 0;
-
-    for (const item of items)
+    if (items.length === 0)
     {
-        const result = await sendSMS(item);
-        results.push(result);
+        return { results: [], successCount: 0, failureCount: 0, batchId: '' };
+    }
+
+    const batchId = crypto.randomUUID();
+    const provider = getProvider();
+
+    // 1. Validate, render templates, expand recipients
+    const prepared: PreparedSMS[] = [];
+    const earlyFailures: { index: number; result: SendResult }[] = [];
+
+    for (let i = 0; i < items.length; i++)
+    {
+        const item = items[i];
+        const recipients = Array.isArray(item.to) ? item.to : [item.to];
+
+        let message = item.message;
+
+        if (item.template)
+        {
+            if (!hasTemplate(item.template))
+            {
+                earlyFailures.push({ index: i, result: { success: false, error: `Template not found: ${item.template}` } });
+                continue;
+            }
+
+            const rendered = renderTemplate(item.template, item.data || {}, 'sms');
+
+            if (rendered.sms)
+            {
+                message = rendered.sms.message;
+            }
+        }
+
+        if (!message)
+        {
+            earlyFailures.push({ index: i, result: { success: false, error: 'SMS message is required' } });
+            continue;
+        }
+
+        for (const recipient of recipients)
+        {
+            prepared.push({
+                index: i,
+                phone: normalizePhoneNumber(recipient),
+                message,
+                template: item.template,
+                data: item.data,
+            });
+        }
+    }
+
+    // 2. Batch create notification records
+    let historyRecords: Notification[] = [];
+
+    if (isHistoryEnabled() && prepared.length > 0)
+    {
+        try
+        {
+            historyRecords = await createNotificationRecords(
+                prepared.map((p) => ({
+                    channel: 'sms' as const,
+                    recipient: p.phone,
+                    templateName: p.template,
+                    templateData: p.data,
+                    content: p.message,
+                    providerName: provider.name,
+                    batchId,
+                }))
+            );
+        }
+        catch (error)
+        {
+            log.warn('Failed to batch create notification history records', error as Error);
+        }
+    }
+
+    // 3. Distributed mode: enqueue to pg-boss
+    if (options?.distributed)
+    {
+        const jobInputs = prepared.map((p, i) => ({
+            notificationId: historyRecords[i]?.id ?? 0,
+            to: p.phone,
+            message: p.message,
+        }));
+
+        await sendBulkSmsItemJob.sendBatch(jobInputs);
+
+        log.info('Bulk SMS enqueued for distributed processing', {
+            batchId,
+            total: items.length,
+            enqueued: prepared.length,
+            earlyFailures: earlyFailures.length,
+        });
+
+        const results: SendResult[] = new Array(items.length);
+
+        for (const { index, result } of earlyFailures)
+        {
+            results[index] = result;
+        }
+
+        // Aggregate pending results per original item
+        const pendingMap = new Map<number, number>();
+        for (const p of prepared)
+        {
+            pendingMap.set(p.index, (pendingMap.get(p.index) ?? 0) + 1);
+        }
+
+        for (const [index] of pendingMap)
+        {
+            if (!results[index])
+            {
+                results[index] = { success: true, messageId: `pending:${batchId}` };
+            }
+        }
+
+        return {
+            results,
+            successCount: pendingMap.size,
+            failureCount: earlyFailures.length,
+            batchId,
+        };
+    }
+
+    // 4. In-process mode: send with concurrency control
+    const concurrency = options?.concurrency ?? 10;
+
+    const sendResults = await runWithConcurrency(
+        prepared,
+        (p) => provider.send({ to: p.phone, message: p.message }),
+        concurrency
+    );
+
+    // 5. Build per-item aggregated results + update history
+    const resultsMap = new Map<number, SendResult[]>();
+    const historyUpdates: Promise<unknown>[] = [];
+
+    for (let i = 0; i < prepared.length; i++)
+    {
+        const { index, phone } = prepared[i];
+        const result = sendResults[i];
+
+        if (!resultsMap.has(index))
+        {
+            resultsMap.set(index, []);
+        }
+        resultsMap.get(index)!.push(result);
 
         if (result.success)
+        {
+            log.info('SMS sent', { to: phone, messageId: result.messageId });
+        }
+        else
+        {
+            log.error('SMS send failed', { to: phone, error: result.error });
+        }
+
+        const historyId = historyRecords[i]?.id;
+
+        if (historyId && isHistoryEnabled())
+        {
+            const promise = result.success
+                ? markNotificationSent(historyId, result.messageId)
+                : markNotificationFailed(historyId, result.error || 'Unknown error');
+
+            historyUpdates.push(
+                promise.catch((err) => log.warn('Failed to update notification history', err))
+            );
+        }
+    }
+
+    await Promise.all(historyUpdates);
+
+    // 6. Aggregate results per original item
+    const results: SendResult[] = new Array(items.length);
+    let successCount = 0;
+    let failureCount = earlyFailures.length;
+
+    for (const { index, result } of earlyFailures)
+    {
+        results[index] = result;
+    }
+
+    for (const [index, itemResults] of resultsMap)
+    {
+        const allSuccess = itemResults.every(r => r.success);
+        const messageIds = itemResults.filter(r => r.messageId).map(r => r.messageId).join(',');
+        const errors = itemResults.filter(r => r.error).map(r => r.error).join('; ');
+
+        results[index] = {
+            success: allSuccess,
+            messageId: messageIds || undefined,
+            error: errors || undefined,
+        };
+
+        if (allSuccess)
         {
             successCount++;
         }
@@ -205,5 +433,5 @@ export async function sendSMSBulk(
         }
     }
 
-    return { results, successCount, failureCount };
+    return { results, successCount, failureCount, batchId };
 }

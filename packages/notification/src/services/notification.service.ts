@@ -4,7 +4,7 @@
  * Core service for tracking notification history
  */
 
-import { create, findOne, findMany, updateOne, count } from '@spfn/core/db';
+import { create, createMany, findOne, findMany, updateOne, count } from '@spfn/core/db';
 import { desc, eq, and, gte, lte } from 'drizzle-orm';
 import {
     notifications,
@@ -25,6 +25,19 @@ export async function createNotificationRecord(
         ...data,
         status: 'pending',
     });
+}
+
+/**
+ * Bulk create notification records (pending status)
+ */
+export async function createNotificationRecords(
+    data: Omit<NewNotification, 'id' | 'createdAt' | 'updatedAt'>[]
+): Promise<Notification[]>
+{
+    return await createMany(notifications, data.map((d) => ({
+        ...d,
+        status: 'pending' as const,
+    })));
 }
 
 /**

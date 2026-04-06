@@ -118,7 +118,52 @@ async function ensureQueue(boss: PgBoss, queueName: string): Promise<void>
 }
 
 /**
+ * Execute a single job handler with logging
+ */
+async function executeJobHandler(
+    job: JobDef<any>,
+    pgBossJob: PgBoss.Job<any>
+): Promise<void>
+{
+    jobLogger.debug(`[Job:${job.name}] Executing...`, { jobId: pgBossJob.id });
+
+    const startTime = Date.now();
+
+    try
+    {
+        if (job.inputSchema)
+        {
+            await (job.handler as (input: unknown) => Promise<void>)(pgBossJob.data);
+        }
+        else
+        {
+            await (job.handler as () => Promise<void>)();
+        }
+
+        const duration = Date.now() - startTime;
+        jobLogger.info(`[Job:${job.name}] Completed in ${duration}ms`, {
+            jobId: pgBossJob.id,
+            duration,
+        });
+    }
+    catch (error)
+    {
+        const duration = Date.now() - startTime;
+        jobLogger.error(`[Job:${job.name}] Failed after ${duration}ms`, {
+            jobId: pgBossJob.id,
+            duration,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+    }
+}
+
+/**
  * Register worker handler for a job
+ *
+ * When batchSize > 1, jobs are processed in parallel.
+ * Failed jobs are individually marked via boss.fail() so pg-boss can retry them.
+ * Successful jobs are auto-completed when the handler callback resolves.
  */
 async function registerWorker(
     boss: PgBoss,
@@ -129,45 +174,45 @@ async function registerWorker(
     // Ensure queue exists before registering worker
     await ensureQueue(boss, queueName);
 
+    const batchSize = job.options?.batchSize ?? 1;
+
     await boss.work(
         queueName,
-        { batchSize: 1 },
-        async (jobs) =>
+        { batchSize },
+        async (pgBossJobs) =>
         {
-            for (const pgBossJob of jobs)
+            if (batchSize <= 1)
             {
-                jobLogger.debug(`[Job:${job.name}] Executing...`, { jobId: pgBossJob.id });
+                // Single job — throw on error for pg-boss retry
+                await executeJobHandler(job, pgBossJobs[0]);
+                return;
+            }
 
-                const startTime = Date.now();
+            // Batch — parallel execution with individual failure handling
+            const results = await Promise.allSettled(
+                pgBossJobs.map((pgBossJob) => executeJobHandler(job, pgBossJob))
+            );
 
-                try
+            // Collect failed job IDs and mark them individually.
+            // boss.fail() sets state = 'failed'; the subsequent auto-complete
+            // from work() only affects jobs still in 'active' state, so
+            // already-failed jobs are not overwritten.
+            const failedIds: string[] = [];
+
+            for (let i = 0; i < results.length; i++)
+            {
+                if (results[i].status === 'rejected')
                 {
-                    if (job.inputSchema)
-                    {
-                        await (job.handler as (input: unknown) => Promise<void>)(pgBossJob.data);
-                    }
-                    else
-                    {
-                        await (job.handler as () => Promise<void>)();
-                    }
-
-                    const duration = Date.now() - startTime;
-                    jobLogger.info(`[Job:${job.name}] Completed in ${duration}ms`, {
-                        jobId: pgBossJob.id,
-                        duration,
-                    });
-                }
-                catch (error)
-                {
-                    const duration = Date.now() - startTime;
-                    jobLogger.error(`[Job:${job.name}] Failed after ${duration}ms`, {
-                        jobId: pgBossJob.id,
-                        duration,
-                        error: error instanceof Error ? error.message : String(error),
-                    });
-                    throw error;
+                    failedIds.push(pgBossJobs[i].id);
                 }
             }
+
+            if (failedIds.length > 0)
+            {
+                await boss.fail(queueName, failedIds);
+            }
+
+            // Callback resolves → pg-boss auto-completes remaining 'active' jobs
         }
     );
 }

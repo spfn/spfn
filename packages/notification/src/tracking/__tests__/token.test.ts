@@ -4,7 +4,7 @@
  * Tests HMAC token generation and verification without DB
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // Mock config before importing token module
 vi.mock('../../config', () => ({

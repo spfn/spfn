@@ -11,6 +11,8 @@ export {
     registerEmailProvider,
     type SendEmailParams,
     type EmailProvider,
+    type BulkEmailResult,
+    type BulkEmailOptions,
 } from './email';
 
 // SMS
@@ -20,6 +22,8 @@ export {
     registerSMSProvider,
     type SendSMSParams,
     type SMSProvider,
+    type BulkSMSResult,
+    type BulkSMSOptions,
 } from './sms';
 
 // Slack
@@ -29,4 +33,6 @@ export {
     registerSlackProvider,
     type SendSlackParams,
     type SlackProvider,
+    type BulkSlackResult,
+    type BulkSlackOptions,
 } from './slack';

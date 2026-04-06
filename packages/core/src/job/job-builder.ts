@@ -255,6 +255,36 @@ export class JobBuilder<TInput = void, TOutput = void>
             }
         };
 
+        // Create sendBatch function (bulk insert via pg-boss)
+        const sendBatch = async (
+            inputsOrOptions?: TInput[] | JobSendOptions,
+            maybeOptions?: JobSendOptions
+        ): Promise<void> =>
+        {
+            const boss = getBoss();
+            if (!boss)
+            {
+                throw new Error(
+                    `[Job:${name}] pg-boss not initialized. ` +
+                    'Ensure jobs are registered with defineServerConfig().jobs()'
+                );
+            }
+
+            const [inputs, sendOptions] = inputSchema
+                ? [inputsOrOptions as TInput[], maybeOptions]
+                : [undefined, inputsOrOptions as JobSendOptions | undefined];
+
+            const pgBossOptions = buildPgBossOptions(options, sendOptions);
+
+            const jobs = (inputs ?? [{}]).map((data) => ({
+                name,
+                ...pgBossOptions,
+                data: data as object,
+            }));
+
+            await boss.insert(name, jobs);
+        };
+
         return {
             name,
             inputSchema,
@@ -267,6 +297,7 @@ export class JobBuilder<TInput = void, TOutput = void>
             handler,
             compensate,
             send: send as JobDef<TInput, TOutput>['send'],
+            sendBatch: sendBatch as JobDef<TInput, TOutput>['sendBatch'],
             run: run as JobDef<TInput, TOutput>['run'],
             _input: undefined as unknown as TInput,
             _output: undefined as unknown as TOutput,

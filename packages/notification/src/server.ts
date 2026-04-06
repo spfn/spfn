@@ -57,6 +57,12 @@ export {
     type SMSProvider,
     type SendSlackParams,
     type SlackProvider,
+    type BulkEmailResult,
+    type BulkEmailOptions,
+    type BulkSMSResult,
+    type BulkSMSOptions,
+    type BulkSlackResult,
+    type BulkSlackOptions,
 } from './channels';
 
 // Scheduling
@@ -121,6 +127,9 @@ export {
 export {
     sendScheduledEmailJob,
     sendScheduledSmsJob,
+    sendBulkEmailItemJob,
+    sendBulkSmsItemJob,
+    sendBulkSlackItemJob,
     notificationJobRouter,
 } from './jobs';
 

@@ -5,6 +5,9 @@
 import { defineJobRouter } from '@spfn/core/job';
 import { sendScheduledEmailJob } from './send-scheduled-email';
 import { sendScheduledSmsJob } from './send-scheduled-sms';
+import { sendBulkEmailItemJob } from './send-bulk-email-item';
+import { sendBulkSmsItemJob } from './send-bulk-sms-item';
+import { sendBulkSlackItemJob } from './send-bulk-slack-item';
 
 /**
  * Notification job router
@@ -26,4 +29,7 @@ import { sendScheduledSmsJob } from './send-scheduled-sms';
 export const notificationJobRouter = defineJobRouter({
     sendScheduledEmail: sendScheduledEmailJob,
     sendScheduledSms: sendScheduledSmsJob,
+    sendBulkEmailItem: sendBulkEmailItemJob,
+    sendBulkSmsItem: sendBulkSmsItemJob,
+    sendBulkSlackItem: sendBulkSlackItemJob,
 });
