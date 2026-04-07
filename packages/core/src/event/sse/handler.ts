@@ -110,10 +110,25 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
         });
 
         // ── 5. SSE Stream ──
+        c.header('X-Accel-Buffering', 'no');
+
         return streamSSE(c, async (stream) =>
         {
             const unsubscribes: (() => void)[] = [];
             let messageId = 0;
+            let connectionDead = false;
+            let pingTimer: ReturnType<typeof setInterval>;
+
+            const cleanup = () =>
+            {
+                if (connectionDead) return;
+                connectionDead = true;
+                clearInterval(pingTimer);
+                unsubscribes.forEach(fn => fn());
+                sseLogger.info('SSE dead connection cleaned up', {
+                    events: allowedEvents,
+                });
+            };
 
             for (const eventName of allowedEvents as InferEventNames<TRouter>[])
             {
@@ -126,6 +141,8 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
 
                 const unsubscribe = eventDef.subscribe((payload: unknown) =>
                 {
+                    if (connectionDead) return;
+
                     // ── Payload Filtering ──
                     if (subject && authConfig?.filter?.[eventName as string])
                     {
@@ -147,11 +164,18 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
                         messageId,
                     });
 
-                    // Fire-and-forget in sync callback
-                    void stream.writeSSE({
+                    stream.writeSSE({
                         id: String(messageId),
                         event: eventName as string,
                         data: JSON.stringify(message),
+                    }).catch((err) =>
+                    {
+                        sseLogger.warn('SSE write failed', {
+                            event: eventName,
+                            messageId,
+                            error: err.message,
+                        });
+                        cleanup();
                     });
                 });
 
@@ -173,30 +197,32 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
             });
 
             // Keep-alive ping
-            const pingTimer = setInterval(() =>
+            pingTimer = setInterval(() =>
             {
-                // Fire-and-forget in sync callback
-                void stream.writeSSE({
+                if (connectionDead) return;
+
+                stream.writeSSE({
                     event: 'ping',
                     data: JSON.stringify({ timestamp: Date.now() }),
+                }).catch((err) =>
+                {
+                    sseLogger.warn('SSE ping failed', {
+                        error: err.message,
+                    });
+                    cleanup();
                 });
             }, pingInterval);
 
             // Wait for client disconnect using abort signal
             const abortSignal = c.req.raw.signal;
 
-            while (!abortSignal.aborted)
+            while (!abortSignal.aborted && !connectionDead)
             {
                 await stream.sleep(pingInterval);
             }
 
-            // Cleanup
-            clearInterval(pingTimer);
-            unsubscribes.forEach(fn => fn());
-
-            sseLogger.info('SSE connection closed', {
-                events: allowedEvents,
-            });
+            // Cleanup (normal disconnect path)
+            cleanup();
         }, async (err: Error) =>
         {
             sseLogger.error('SSE stream error', {
