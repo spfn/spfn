@@ -23,8 +23,15 @@ import {
     setReadClient,
     getMonitoringConfig,
     setMonitoringConfig,
+    setInitOptions,
+    getIsClosing,
+    setIsClosing,
 } from './global-state';
-import { startHealthCheck, stopHealthCheck } from './health-check';
+import {
+    startHealthCheck,
+    stopHealthCheck,
+    triggerForceReconnect,
+} from './health-check';
 import type { DbConnectionType } from './types';
 
 const dbLogger = logger.child('@spfn/core:database');
@@ -55,10 +62,9 @@ let initPromise: Promise<{
     read?: PostgresJsDatabase<Record<string, unknown>>;
 }> | null = null;
 
-/**
- * Close in progress flag to prevent concurrent closeDatabase calls
- */
-let isClosing = false;
+// NOTE: the "closing" flag lives in global-state so reconnect paths in
+// health-check.ts can observe it without creating a circular import back
+// into manager.ts. Access via getIsClosing() / setIsClosing().
 
 // ============================================================================
 // Helper Functions (Private)
@@ -361,7 +367,7 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
 }>
 {
     // Prevent initialization during close operation
-    if (isClosing)
+    if (getIsClosing())
     {
         throw new Error('Cannot initialize database while closing');
     }
@@ -404,7 +410,7 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
             }
 
             // Check if database was closed during initialization
-            if (isClosing)
+            if (getIsClosing())
             {
                 dbLogger.warn('Database closed during initialization, cleaning up...');
                 await cleanupDatabaseConnections(result.writeClient, result.readClient);
@@ -416,6 +422,10 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
             setReadInstance(result.read);
             setWriteClient(result.writeClient);
             setReadClient(result.readClient);
+
+            // Persist init options so forceReconnectDatabase() and health-check
+            // recovery can rebuild the pool with the same configuration.
+            setInitOptions(options);
 
             const hasReplica = result.read && result.read !== result.write;
             dbLogger.info(
@@ -479,14 +489,15 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
 export async function closeDatabase(): Promise<void>
 {
     // Prevent concurrent close operations
-    if (isClosing)
+    if (getIsClosing())
     {
         dbLogger.debug('Database close already in progress');
         return;
     }
 
-    // Set closing flag early to prevent new operations
-    isClosing = true;
+    // Set closing flag early to prevent new operations.
+    // Shared via global-state so reconnect paths in health-check.ts observe it.
+    setIsClosing(true);
 
     // Wait for any in-progress initialization to complete before closing
     if (initPromise)
@@ -509,7 +520,7 @@ export async function closeDatabase(): Promise<void>
     if (!writeInst && !readInst)
     {
         dbLogger.debug('No database connections to close');
-        isClosing = false;
+        setIsClosing(false);
         return;
     }
 
@@ -547,8 +558,43 @@ export async function closeDatabase(): Promise<void>
         setWriteClient(undefined);
         setReadClient(undefined);
         setMonitoringConfig(undefined);
-        isClosing = false;
+        setInitOptions(undefined);
+        setIsClosing(false);
     }
+}
+
+/**
+ * Force an immediate database pool rebuild
+ *
+ * Destroys the current postgres.js pool(s) and rebuilds them with the same
+ * configuration passed to the original `initDatabase()` call (or whatever
+ * was detected from environment variables). Uses the same atomic-swap
+ * strategy as the periodic health check: new connections are created and
+ * tested BEFORE the old ones are torn down, so `getDatabase()` callers never
+ * observe a missing instance.
+ *
+ * Use this when application code detects that the pool is stuck and does not
+ * want to wait for the next periodic health check tick. Concurrent calls are
+ * coalesced — if a reconnect is already in progress, this resolves to `false`
+ * without starting a second one.
+ *
+ * @param reason - Short label describing why the rebuild was requested (for logs)
+ * @returns `true` if a reconnection ran, `false` if one was already in-flight.
+ *          Resolves after the rebuild completes (success or max retries exhausted).
+ *
+ * @example
+ * ```typescript
+ * import { forceReconnectDatabase } from '@spfn/core/db';
+ *
+ * app.post('/admin/db/reconnect', async (c) => {
+ *     const ran = await forceReconnectDatabase('admin_request');
+ *     return c.json({ reconnected: ran });
+ * });
+ * ```
+ */
+export async function forceReconnectDatabase(reason = 'manual'): Promise<boolean>
+{
+    return await triggerForceReconnect(reason);
 }
 
 /**

@@ -17,6 +17,7 @@
 import { createMiddleware } from 'hono/factory';
 import { TransactionError, DatabaseError } from '@spfn/core/errors';
 import { fromPostgresError } from '../postgres-errors';
+import { reportDatabaseError } from '../manager/reconnect-trigger';
 import { runInTransaction } from './runner';
 
 /**
@@ -133,6 +134,10 @@ export function Transactional(options: TransactionalOptions = {})
         }
         catch (error)
         {
+            // Feed connection-level errors to the reconnect-trigger before
+            // rethrowing. No-op for non-connection errors.
+            reportDatabaseError(error);
+
             // DatabaseError 계열 (비즈니스 로직 에러)는 그대로 throw
             if (error instanceof DatabaseError)
             {

@@ -79,6 +79,7 @@ import type { SQL } from 'drizzle-orm';
 import { count as sqlCount } from 'drizzle-orm';
 import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 import { getDatabase } from './manager';
+import { reportDatabaseError } from './manager/reconnect-trigger';
 import { getTransaction } from './transaction';
 import { isSQLWrapper, buildWhereFromObject } from './query-utils';
 
@@ -219,6 +220,10 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         }
         catch (error)
         {
+            // Feed query errors to the reconnect-trigger so repeated
+            // connection-level failures can force a pool rebuild.
+            reportDatabaseError(error);
+
             const err = error instanceof Error ? error : new Error(String(error));
             const repositoryName = this.constructor.name;
 

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { startHealthCheck, stopHealthCheck } from '../health-check';
+import { startHealthCheck, stopHealthCheck, triggerForceReconnect } from '../health-check';
 
 // Mock logger
 vi.mock('../../../logger', () => ({
@@ -43,6 +43,8 @@ vi.mock('../global-state', () => ({
     setReadClient: vi.fn(),
     getMonitoringConfig: vi.fn(() => undefined),
     setMonitoringConfig: vi.fn(),
+    getInitOptions: vi.fn(() => undefined),
+    getIsClosing: vi.fn(() => false),
 }));
 
 describe('Database Health Check', () =>
@@ -491,6 +493,134 @@ describe('Database Health Check', () =>
             stopHealthCheck();
 
             expect(setHealthCheckInterval).not.toHaveBeenCalled();
+        });
+    });
+
+    // ========================================================================
+    // triggerForceReconnect — guards + coalescing
+    // ========================================================================
+
+    describe('triggerForceReconnect', () =>
+    {
+        it('returns false and does nothing if DB is not initialized', async () =>
+        {
+            const { getWriteInstance, getIsClosing } = await import('../global-state');
+            const { createDatabaseFromEnv } = await import('../factory');
+
+            // Fresh process: no write instance yet.
+            vi.mocked(getWriteInstance).mockReturnValue(undefined);
+            vi.mocked(getIsClosing).mockReturnValue(false);
+
+            await expect(triggerForceReconnect('manual')).resolves.toBe(false);
+            expect(createDatabaseFromEnv).not.toHaveBeenCalled();
+        });
+
+        it('returns false if closeDatabase is in progress', async () =>
+        {
+            const { getWriteInstance, getIsClosing } = await import('../global-state');
+            const { createDatabaseFromEnv } = await import('../factory');
+
+            vi.mocked(getWriteInstance).mockReturnValue({ execute: vi.fn() } as any);
+            vi.mocked(getIsClosing).mockReturnValue(true);
+
+            await expect(triggerForceReconnect('manual')).resolves.toBe(false);
+            expect(createDatabaseFromEnv).not.toHaveBeenCalled();
+        });
+
+        it('runs a full reconnect cycle on happy path', async () =>
+        {
+            const { getWriteInstance, getIsClosing, setWriteInstance } = await import('../global-state');
+            const { createDatabaseFromEnv } = await import('../factory');
+
+            vi.mocked(getWriteInstance).mockReturnValue({ execute: vi.fn() } as any);
+            vi.mocked(getIsClosing).mockReturnValue(false);
+            vi.mocked(createDatabaseFromEnv).mockResolvedValue({
+                write: { execute: vi.fn(async () => {}) } as any,
+                read: { execute: vi.fn(async () => {}) } as any,
+                writeClient: { end: vi.fn(async () => {}) } as any,
+                readClient: { end: vi.fn(async () => {}) } as any,
+            });
+
+            const result = await triggerForceReconnect('manual');
+
+            expect(result).toBe(true);
+            expect(createDatabaseFromEnv).toHaveBeenCalledTimes(1);
+            expect(setWriteInstance).toHaveBeenCalled();
+        });
+
+        it('coalesces concurrent callers — only one rebuild runs', async () =>
+        {
+            const { getWriteInstance, getIsClosing } = await import('../global-state');
+            const { createDatabaseFromEnv } = await import('../factory');
+
+            vi.mocked(getWriteInstance).mockReturnValue({ execute: vi.fn() } as any);
+            vi.mocked(getIsClosing).mockReturnValue(false);
+
+            // Make the rebuild slow so both callers overlap.
+            vi.mocked(createDatabaseFromEnv).mockImplementation(async () =>
+            {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                return {
+                    write: { execute: vi.fn(async () => {}) } as any,
+                    read: { execute: vi.fn(async () => {}) } as any,
+                    writeClient: { end: vi.fn(async () => {}) } as any,
+                    readClient: { end: vi.fn(async () => {}) } as any,
+                };
+            });
+
+            const first = triggerForceReconnect('caller_a');
+            const second = triggerForceReconnect('caller_b');
+
+            await vi.advanceTimersByTimeAsync(3000);
+
+            const [firstResult, secondResult] = await Promise.all([first, second]);
+
+            // Exactly one of them actually ran the loop.
+            expect([firstResult, secondResult].filter(Boolean)).toHaveLength(1);
+            expect(createDatabaseFromEnv).toHaveBeenCalledTimes(1);
+        });
+
+        it('aborts before swap if isClosing flips during rebuild', async () =>
+        {
+            const {
+                getWriteInstance,
+                getIsClosing,
+                setWriteInstance,
+                getInitOptions,
+            } = await import('../global-state');
+            const { createDatabaseFromEnv } = await import('../factory');
+
+            vi.mocked(getWriteInstance).mockReturnValue({ execute: vi.fn() } as any);
+
+            // Single-attempt retry loop so the test doesn't wait on the retry
+            // timer when reconnectAndRestore returns false.
+            vi.mocked(getInitOptions).mockReturnValue({
+                healthCheck: { maxRetries: 1, retryInterval: 1 },
+            });
+
+            // Entry checks → false. The swap-time check → true (close started
+            // while createDatabaseFromEnv was running).
+            vi.mocked(getIsClosing)
+                .mockReturnValueOnce(false)  // triggerForceReconnect entry
+                .mockReturnValueOnce(false)  // reconnectAndRestore entry
+                .mockReturnValue(true);      // post-await check → bail
+
+            const writeEnd = vi.fn(async () => {});
+            const readEnd = vi.fn(async () => {});
+            vi.mocked(createDatabaseFromEnv).mockResolvedValue({
+                write: { execute: vi.fn(async () => {}) } as any,
+                read: { execute: vi.fn(async () => {}) } as any,
+                writeClient: { end: writeEnd } as any,
+                readClient: { end: readEnd } as any,
+            });
+
+            const resultPromise = triggerForceReconnect('manual');
+            await vi.runAllTimersAsync();
+            await resultPromise;
+
+            // Newly-created clients must be torn down, NOT swapped into globalThis.
+            expect(writeEnd).toHaveBeenCalled();
+            expect(setWriteInstance).not.toHaveBeenCalled();
         });
     });
 });

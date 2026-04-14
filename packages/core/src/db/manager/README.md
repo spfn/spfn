@@ -6,20 +6,22 @@ Database connection management with support for Primary + Replica pattern, healt
 
 ```
 manager/
-├── manager.ts (341줄)         # Core database manager
-├── global-state.ts (126줄)    # Global state management
-├── health-check.ts (198줄)    # Health check & reconnection
-├── config.ts (289줄)          # Configuration & utilities
-├── factory.ts (304줄)         # Database factory with pattern detection
-├── connection.ts (111줄)      # Connection logic with retry
-├── config-generator.ts (127줄) # Drizzle Kit config generator
-├── index.ts (22줄)            # Public API exports
-└── __tests__/                 # Comprehensive test suite
-    ├── config.test.ts         # 33 tests - 100% coverage
-    ├── connection.test.ts     # 9 tests - 100% coverage
-    ├── factory.test.ts        # 14 tests - 100% coverage
-    ├── manager.test.ts        # 38 tests - 95.83% coverage
-    └── health-check.test.ts   # 13 tests - 100% coverage
+├── manager.ts                 # Core database manager
+├── global-state.ts            # Global state (instances, isClosing, initOptions)
+├── health-check.ts            # Periodic health check + reconnect retry loop
+├── reconnect-trigger.ts       # Query-error driven fast-path pool rebuild
+├── config.ts                  # Configuration & utilities
+├── factory.ts                 # Database factory with pattern detection
+├── connection.ts              # Connection logic with retry
+├── config-generator.ts        # Drizzle Kit config generator
+├── index.ts                   # Public API exports
+└── __tests__/
+    ├── config.test.ts
+    ├── connection.test.ts
+    ├── factory.test.ts
+    ├── manager.test.ts
+    ├── health-check.test.ts
+    └── reconnect-trigger.test.ts
 ```
 
 ## 🏗️ Module Responsibilities
@@ -30,22 +32,35 @@ Main entry point for database operations:
 - `getDatabase()` - Get database instance (throws if not initialized)
 - `setDatabase()` - Set database instance (testing)
 - `closeDatabase()` - Gracefully close connections
+- `forceReconnectDatabase()` - Destroy and rebuild the pool on demand (atomic swap)
 - `getDatabaseInfo()` - Get connection info (debugging)
 - `getDatabaseMonitoringConfig()` - Get monitoring config
 
 ### global-state.ts (State Management)
 Global state management using `globalThis`:
-- Singleton instance accessors (get/set)
-- Persistent state across module reloads
-- Type-safe global declarations
-- Support for write/read separation
+- Singleton instance accessors (write/read drizzle + raw postgres clients)
+- `isClosing` flag shared across modules (prevents reconnect racing close)
+- `initOptions` persisted so `forceReconnectDatabase()` reuses the same config
+- Persistent state across module reloads (HMR-friendly)
 
-### health-check.ts (Monitoring)
+### health-check.ts (Monitoring & Reconnection)
 Automatic health monitoring and recovery:
-- `startHealthCheck()` - Periodic connection verification
+- `startHealthCheck()` - Periodic `SELECT 1` on write/read instances
 - `stopHealthCheck()` - Stop health checks
-- Automatic reconnection with exponential backoff
-- Configurable intervals and retry limits
+- `triggerForceReconnect(reason)` - Internal entry for on-demand rebuild
+- Atomic swap reconnection: new pool created and tested BEFORE old pool is closed
+- `isReconnecting` gate coalesces concurrent callers (periodic + force) to one rebuild
+- `isClosing` gate bails out before swap to prevent leaking into a torn-down globalThis
+
+### reconnect-trigger.ts (Query-Error Fast-Path)
+Sliding-window error reporter that shortens reconnect detection from ~60s
+(periodic health check) to a few seconds:
+- `reportDatabaseError(error)` - Feed caught query errors; non-connection errors are no-ops
+- `isConnectionLevelError(error)` - Classifier (postgres.js codes, Node errno, PG SQLSTATE 08/53300/57P0x, walks cause chain)
+- `resetConnectionErrorCounter()` - Test helper
+- WeakSet dedup: same underlying failure counted once even when re-wrapped across repository + middleware
+- Auto-hooked from `BaseRepository.withContext` and `@Transactional` middleware —
+  application code does not need to call it manually
 
 ### config.ts (Configuration)
 Configuration builders and utilities:
@@ -140,6 +155,82 @@ await initDatabase({
     logQueries: false,
   },
 });
+```
+
+## 🔁 Pool Recovery
+
+When a PostgreSQL server restarts, a network partition heals, or a deploy
+rotates the DB, the entire `postgres.js` pool can end up holding dead sockets.
+SPFN recovers this in two ways:
+
+### 1. Periodic health check (interval-driven)
+`startHealthCheck()` runs `SELECT 1` every `DB_HEALTH_CHECK_INTERVAL` (default
+60s). On failure it invokes `attemptReconnection()`, which uses an **atomic
+swap**: a fresh pool is created and validated *before* `setWriteInstance()`
+replaces the global reference, and only then are the old `postgres.js` clients
+torn down via `client.end({ timeout: 5 })`.
+
+### 2. Query-error fast-path (error-driven)
+The periodic check can false-pass (postgres.js transparently opens a new
+socket for a single `SELECT 1` while other dead sockets remain). To cover this,
+`reconnect-trigger.ts` watches real query errors from the application path —
+`BaseRepository.withContext` and `@Transactional` middleware both feed caught
+errors to `reportDatabaseError()`. Once `DB_RECONNECT_ERROR_THRESHOLD` (default 3)
+connection-level failures occur within `DB_RECONNECT_ERROR_WINDOW_MS` (default
+10s), the trigger calls the same atomic-swap rebuild as the health check.
+
+Recovery latency drops from up to 60s to a few seconds.
+
+### Manual trigger (operator escape hatch)
+
+```typescript
+import { forceReconnectDatabase } from '@spfn/core/db';
+
+// Admin endpoint for operators
+app.post('/admin/db/reconnect', async (c) => {
+    const ran = await forceReconnectDatabase('admin_request');
+    return c.json({ reconnected: ran });
+});
+```
+
+`forceReconnectDatabase(reason?)` returns:
+- `true` — a rebuild actually ran
+- `false` — skipped because the DB is not initialized, is currently closing,
+  or a reconnect is already in progress (concurrent callers coalesce to one rebuild)
+
+### Safety invariants
+- **No parallel rebuilds**: `isReconnecting` is checked+set at the entry of
+  `attemptReconnection` in a single sync block — concurrent callers coalesce.
+- **No leaked pools on shutdown**: `reconnectAndRestore()` re-checks
+  `getIsClosing()` after `createDatabaseFromEnv` awaits; if close started
+  mid-rebuild, the freshly-created clients are torn down instead of being
+  swapped into a globalThis that `closeDatabase` is about to clear.
+- **No implicit lazy init**: `forceReconnectDatabase` returns `false` if
+  `initDatabase()` was never called.
+- **No double-counting**: a single query failure caught by both
+  `BaseRepository.withContext` and `@Transactional` middleware counts as one
+  logical failure (WeakSet dedup across the cause chain).
+
+### Advanced: custom catch sites
+
+If you execute drizzle queries outside `BaseRepository` and `@Transactional`
+and still want the fast-path, feed your catch blocks to the reporter:
+
+```typescript
+import { reportDatabaseError, isConnectionLevelError } from '@spfn/core/db';
+
+try {
+    await db.execute(sql`...`);
+}
+catch (error) {
+    reportDatabaseError(error);   // no-op for non-connection errors
+    throw error;
+}
+
+// Or classify manually
+if (isConnectionLevelError(error)) {
+    // route to retry logic, circuit breaker, etc.
+}
 ```
 
 ## 📦 Package Schema Discovery
@@ -386,6 +477,21 @@ DB_HEALTH_CHECK_MAX_RETRIES=3
 DB_HEALTH_CHECK_RETRY_INTERVAL=5000
 ```
 
+### Reconnect Trigger (Query-Error Fast-Path)
+
+Controls the sliding-window counter that triggers `forceReconnectDatabase()`
+when live queries keep failing with connection-level errors. These knobs are
+read once at module load — they are operational tuning, not per-call flips.
+
+```bash
+# Environment variables
+DB_RECONNECT_ERROR_THRESHOLD=3      # Connection errors needed to trigger rebuild
+DB_RECONNECT_ERROR_WINDOW_MS=10000  # Sliding window length (min 1000ms)
+```
+
+**Defaults**: 3 errors in 10 seconds. Lower the threshold for more aggressive
+recovery, raise it to tolerate transient blips without rebuilding the pool.
+
 ### Monitoring Configuration
 
 ```bash
@@ -441,7 +547,20 @@ All connections are tested before being marked as ready:
 await db.execute('SELECT 1');  // Test query
 ```
 
-## 📊 Recent Improvements (2024)
+## 📊 Recent Improvements (2026)
+
+### Pool Recovery Hardening
+- ✅ `forceReconnectDatabase()` public API for on-demand rebuild
+- ✅ `reportDatabaseError()` + sliding-window trigger: reconnect within seconds
+  instead of waiting for the periodic health check
+- ✅ `isConnectionLevelError()` classifier (postgres.js codes, Node errno,
+  PG SQLSTATE class 08/53300/57P0x, walks `cause`/`original`/`err`/`inner` chain)
+- ✅ Atomic-swap race fixes: check-and-set on `isReconnecting` at function
+  entry (single-threaded atomic), `isClosing` re-check before swap
+- ✅ WeakSet dedup across error-chain re-wrapping (repo → middleware)
+- ✅ `DB_RECONNECT_ERROR_THRESHOLD` / `DB_RECONNECT_ERROR_WINDOW_MS` env vars
+
+## 📊 Earlier Improvements (2024)
 
 ### Code Quality
 - ✅ Removed 186 lines of commented code
@@ -482,15 +601,16 @@ await db.execute('SELECT 1');  // Test query
 
 ## 🧪 Testing
 
-The manager module has comprehensive test coverage with 107 unit tests:
+The manager module has comprehensive unit test coverage:
 
-### Test Coverage
+### Test Files
 ```
-config.test.ts         33 tests   100% coverage
-connection.test.ts      9 tests   100% coverage
-factory.test.ts        14 tests   100% coverage
-manager.test.ts        38 tests   95.83% coverage
-health-check.test.ts   13 tests   100% coverage
+config.test.ts              Pool/retry/healthCheck/monitoring config builders
+connection.test.ts          Exponential-backoff retry + non-retryable detection
+factory.test.ts             Pattern detection (write-read / single / none)
+manager.test.ts             Lifecycle, getDatabase, closeDatabase
+health-check.test.ts        Periodic check + triggerForceReconnect guards + coalescing
+reconnect-trigger.test.ts   Classifier matrix + sliding window + WeakSet dedup
 ```
 
 ### Running Tests
@@ -537,6 +657,11 @@ describe('Database Manager', () => {
 - ✅ Database pattern detection (write-read, legacy, single)
 - ✅ Manager initialization and lifecycle
 - ✅ Health check intervals and reconnection
+- ✅ `triggerForceReconnect` guards (uninit DB, `isClosing`) and coalescing
+- ✅ `reconnectAndRestore` swap-time `isClosing` abort (no leaked pool)
+- ✅ `isConnectionLevelError` classifier matrix (driver / errno / SQLSTATE / cause chain)
+- ✅ Sliding-window threshold, counter aging, reset on trigger
+- ✅ WeakSet dedup across error-chain re-wrapping
 - ✅ Pool configuration and environment variables
 - ✅ Error handling and edge cases
 

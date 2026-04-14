@@ -14,7 +14,15 @@ export {
     closeDatabase,
     getDatabaseInfo,
     getDatabaseMonitoringConfig,
+    forceReconnectDatabase,
 } from './manager';
+
+// Reconnect Trigger
+export {
+    reportDatabaseError,
+    isConnectionLevelError,
+    resetConnectionErrorCounter,
+} from './reconnect-trigger';
 
 // Connection Functions
 export { createDatabaseConnection, checkConnection } from './connection';

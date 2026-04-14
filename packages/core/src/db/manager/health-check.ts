@@ -16,7 +16,7 @@ import type { Sql } from 'postgres';
 import { logger } from '@spfn/core/logger';
 import { createDatabaseFromEnv } from './factory';
 import type { DatabaseOptions, HealthCheckConfig } from './config';
-import { buildMonitoringConfig } from './config';
+import { buildHealthCheckConfig, buildMonitoringConfig } from './config';
 import {
     getHealthCheckInterval,
     setHealthCheckInterval,
@@ -27,6 +27,9 @@ import {
     setWriteClient,
     setReadClient,
     setMonitoringConfig,
+    getInitOptions,
+    getWriteInstance,
+    getIsClosing,
 } from './global-state';
 import type { GetDatabaseFn } from './types';
 
@@ -41,6 +44,17 @@ const CLIENT_CLOSE_TIMEOUT = 5;
  * Flag to prevent concurrent reconnection attempts
  */
 let isReconnecting = false;
+
+/**
+ * Check whether a reconnection attempt is currently running
+ *
+ * Used by reportDatabaseError and forceReconnectDatabase to avoid
+ * triggering parallel rebuilds on top of an in-flight one.
+ */
+export function isReconnectingNow(): boolean
+{
+    return isReconnecting;
+}
 
 // ============================================================================
 // Helper Functions (Private)
@@ -117,6 +131,17 @@ async function reconnectAndRestore(
     options: DatabaseOptions | undefined
 ): Promise<boolean>
 {
+    // Bail out early if closeDatabase is already tearing down the pool.
+    // Without this, a concurrent close() could clear globalThis while we
+    // are still awaiting createDatabaseFromEnv, and we would then swap a
+    // fresh pool into the just-cleared slot → leaked handles with no
+    // cleanup path.
+    if (getIsClosing())
+    {
+        dbLogger.debug('reconnectAndRestore aborted: database is closing');
+        return false;
+    }
+
     // Create new connections (old instances remain in place)
     const result = await createDatabaseFromEnv(options);
 
@@ -130,6 +155,24 @@ async function reconnectAndRestore(
     if (result.read && result.read !== result.write)
     {
         await testDatabaseConnection(result.read);
+    }
+
+    // Re-check the closing flag right before the swap. createDatabaseFromEnv
+    // and testDatabaseConnection both await, so closeDatabase may have been
+    // called during that window. If so, tear down the freshly-created pool
+    // here rather than leaking it into a globalThis we are about to clear.
+    if (getIsClosing())
+    {
+        dbLogger.warn('reconnectAndRestore: close started mid-rebuild, discarding new pool');
+        if (result.writeClient)
+        {
+            await closeClient(result.writeClient);
+        }
+        if (result.readClient && result.readClient !== result.writeClient)
+        {
+            await closeClient(result.readClient);
+        }
+        return false;
     }
 
     // Capture old clients for cleanup
@@ -233,12 +276,50 @@ export function startHealthCheck(
             // Attempt reconnection if enabled
             if (config.reconnect)
             {
-                await attemptReconnection(config, options);
+                await attemptReconnection(config, options, 'health_check_failed');
             }
         }
     }, config.interval);
 
     setHealthCheckInterval(interval);
+}
+
+/**
+ * Force an immediate reconnection attempt
+ *
+ * Public entry-point for non-periodic triggers (query-error threshold,
+ * operator-driven recovery). Reuses the same retry loop as the health check.
+ * Safe to call concurrently — overlapping calls are coalesced by the
+ * check-and-set inside attemptReconnection().
+ *
+ * @param reason - Short label describing what triggered the reconnect (for logs)
+ * @returns true if a reconnection actually ran, false if one was already in-flight
+ *          or the database has not been initialized yet.
+ */
+export async function triggerForceReconnect(reason: string): Promise<boolean>
+{
+    // Do not implicitly initialize the database from a reconnect path.
+    // initDatabase() must have run first; otherwise this is almost certainly
+    // a test/misconfiguration scenario and we should fail quietly.
+    if (!getWriteInstance())
+    {
+        dbLogger.warn('Force reconnect skipped: database not initialized', { reason });
+        return false;
+    }
+
+    // Do not start a rebuild on top of an in-progress close.
+    if (getIsClosing())
+    {
+        dbLogger.debug('Force reconnect skipped: database is closing', { reason });
+        return false;
+    }
+
+    const options = getInitOptions();
+    const config = buildHealthCheckConfig(options?.healthCheck);
+
+    dbLogger.warn('Force reconnect triggered', { reason });
+
+    return await attemptReconnection(config, options, reason);
 }
 
 /**
@@ -248,17 +329,34 @@ export function startHealthCheck(
  * Old instances remain available until new connections are verified.
  * The health check interval continues running throughout the process.
  *
+ * Concurrency: the first synchronous statement check-and-sets isReconnecting.
+ * Under JS's single-threaded model this is atomic — overlapping callers from
+ * the periodic interval and from triggerForceReconnect cannot both proceed.
+ * The second caller observes isReconnecting=true and returns false without
+ * running a parallel rebuild.
+ *
  * @param config - Health check configuration
  * @param options - Optional database configuration (pool settings, etc.)
+ * @param reason - Trigger label for logs (e.g. 'health_check_failed', 'query_error_threshold')
+ * @returns true if this invocation actually ran the reconnect loop, false if
+ *          it was coalesced with an already-running attempt.
  */
 async function attemptReconnection(
     config: HealthCheckConfig,
-    options: DatabaseOptions | undefined
-): Promise<void>
+    options: DatabaseOptions | undefined,
+    reason: string
+): Promise<boolean>
 {
+    // Atomic check-and-set (sync, pre-await) — coalesces concurrent callers.
+    if (isReconnecting)
+    {
+        dbLogger.debug('Reconnection coalesced: attempt already in progress', { reason });
+        return false;
+    }
     isReconnecting = true;
 
     dbLogger.warn('Attempting database reconnection', {
+        reason,
         maxRetries: config.maxRetries,
         retryInterval: `${config.retryInterval}ms`,
     });
@@ -283,7 +381,7 @@ async function attemptReconnection(
                 if (success)
                 {
                     dbLogger.info('Database reconnection successful', { attempt });
-                    return;
+                    return true;
                 }
                 else
                 {
@@ -310,6 +408,9 @@ async function attemptReconnection(
     {
         isReconnecting = false;
     }
+
+    // Retry loop exhausted — we did run, just without success.
+    return true;
 }
 
 /**
@@ -335,5 +436,12 @@ export function stopHealthCheck(): void
         dbLogger.info('Database health check stopped');
     }
 
+    // Reset isReconnecting as a defensive measure for stale state (tests,
+    // restarts). This is safe because stopHealthCheck() is only called from
+    // closeDatabase() in production, which sets isClosing=true BEFORE calling
+    // us. The isClosing guards in triggerForceReconnect() and
+    // reconnectAndRestore() prevent any racing reconnect from completing its
+    // swap into globalThis, so flipping the flag here cannot cause a parallel
+    // createDatabaseFromEnv to slip through.
     isReconnecting = false;
 }

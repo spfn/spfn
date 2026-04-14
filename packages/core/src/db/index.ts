@@ -12,9 +12,17 @@ export {
     setDatabase,
     closeDatabase,
     getDatabaseInfo,
+    forceReconnectDatabase,
     createDatabaseConnection,
     checkConnection,
 } from './manager';
+
+// Reconnect trigger (query-error driven pool rebuild)
+export {
+    reportDatabaseError,
+    isConnectionLevelError,
+    resetConnectionErrorCounter,
+} from './manager/reconnect-trigger';
 
 export type {
     DatabaseClients,

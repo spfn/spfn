@@ -311,6 +311,72 @@ const isHealthy = await checkConnection(getDatabase('write'));
 
 ---
 
+## Pool Recovery
+
+`@spfn/core` rebuilds the entire `postgres.js` pool (atomic swap) in two situations:
+
+1. **Periodic health check** — every `DB_HEALTH_CHECK_INTERVAL` (default 60s),
+   `SELECT 1` runs on write/read. On failure the pool is destroyed and recreated.
+2. **Query-error fast-path** — real query errors caught by `BaseRepository.withContext`
+   and `@Transactional` middleware are classified; once `DB_RECONNECT_ERROR_THRESHOLD`
+   (default 3) connection-level failures occur within `DB_RECONNECT_ERROR_WINDOW_MS`
+   (default 10s), a rebuild fires without waiting for the periodic tick.
+
+Both paths share the same atomic-swap implementation: the new pool is created and
+validated *before* the global reference is replaced, and the old pool is torn down
+only after the swap completes. Concurrent triggers coalesce to a single rebuild.
+
+### Manual trigger
+
+```typescript
+import { forceReconnectDatabase } from '@spfn/core/db';
+
+// Admin endpoint
+route.post('/admin/db/reconnect')
+    .handler(async (c) => {
+        const ran = await forceReconnectDatabase('admin_request');
+        return c.json({ reconnected: ran });
+    });
+```
+
+Returns `false` if the database is not initialized, is currently closing, or a
+reconnect is already in progress.
+
+### Environment variables
+
+```bash
+# Periodic health check
+DB_HEALTH_CHECK_INTERVAL=60000        # ms between SELECT 1 probes
+DB_HEALTH_CHECK_MAX_RETRIES=3         # retries per rebuild attempt
+DB_HEALTH_CHECK_RETRY_INTERVAL=5000   # delay between retries
+
+# Query-error fast-path
+DB_RECONNECT_ERROR_THRESHOLD=3        # errors needed to trigger rebuild
+DB_RECONNECT_ERROR_WINDOW_MS=10000    # sliding window length (min 1000ms)
+```
+
+### Advanced: custom catch sites
+
+Application code that executes drizzle queries outside `BaseRepository` and
+`@Transactional` can feed the fast-path manually:
+
+```typescript
+import { reportDatabaseError } from '@spfn/core/db';
+
+try {
+    await db.execute(sql`...`);
+}
+catch (error) {
+    reportDatabaseError(error);  // no-op for non-connection errors
+    throw error;
+}
+```
+
+Inside `BaseRepository` / `@Transactional` this is already automatic — no
+manual call needed.
+
+---
+
 ## Cleanup
 
 ```typescript

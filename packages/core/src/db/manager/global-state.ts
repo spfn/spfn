@@ -10,7 +10,7 @@
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
-import type { MonitoringConfig } from './config';
+import type { DatabaseOptions, MonitoringConfig } from './config';
 
 // ============================================================================
 // Global Type Declarations
@@ -30,6 +30,8 @@ declare global
     var __SPFN_DB_READ_CLIENT__: Sql | undefined;
     var __SPFN_DB_HEALTH_CHECK__: NodeJS.Timeout | undefined;
     var __SPFN_DB_MONITORING__: MonitoringConfig | undefined;
+    var __SPFN_DB_INIT_OPTIONS__: DatabaseOptions | undefined;
+    var __SPFN_DB_CLOSING__: boolean | undefined;
 }
 
 // ============================================================================
@@ -148,4 +150,54 @@ export const getMonitoringConfig = (): MonitoringConfig | undefined =>
  */
 export const setMonitoringConfig = (config: MonitoringConfig | undefined): void => {
     globalThis.__SPFN_DB_MONITORING__ = config;
+};
+
+// ============================================================================
+// Init Options Accessors
+// ============================================================================
+
+/**
+ * Get stored database init options from global state
+ *
+ * Preserved from the original initDatabase() call so that on-demand
+ * reconnection (forceReconnectDatabase, health-check recovery) can
+ * reconstruct the same pool/monitoring/healthCheck configuration.
+ *
+ * @internal
+ */
+export const getInitOptions = (): DatabaseOptions | undefined =>
+    globalThis.__SPFN_DB_INIT_OPTIONS__;
+
+/**
+ * Set database init options in global state
+ *
+ * @internal
+ */
+export const setInitOptions = (options: DatabaseOptions | undefined): void => {
+    globalThis.__SPFN_DB_INIT_OPTIONS__ = options;
+};
+
+// ============================================================================
+// Closing Flag Accessors
+// ============================================================================
+
+/**
+ * Check whether closeDatabase() is currently tearing down the pool
+ *
+ * Shared across modules so reconnect paths (both periodic and query-error
+ * triggered) can bail out cleanly without swapping a freshly-created pool
+ * into a globalThis that closeDatabase is about to clear.
+ *
+ * @internal
+ */
+export const getIsClosing = (): boolean =>
+    globalThis.__SPFN_DB_CLOSING__ === true;
+
+/**
+ * Set the closing flag
+ *
+ * @internal
+ */
+export const setIsClosing = (closing: boolean): void => {
+    globalThis.__SPFN_DB_CLOSING__ = closing;
 };
