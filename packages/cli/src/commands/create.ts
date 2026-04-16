@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { join, resolve, dirname } from 'path';
 import prompts from 'prompts';
 import ora from 'ora';
 import { execa } from 'execa';
@@ -16,6 +16,29 @@ interface CreateOptions
     pm?: 'npm' | 'pnpm' | 'yarn' | 'bun';
     shadcn?: boolean;
     yes?: boolean;
+}
+
+/**
+ * Walk up from startDir looking for pnpm-workspace.yaml.
+ * Returns the workspace root path if found, null otherwise.
+ */
+function findPnpmWorkspaceRoot(startDir: string): string | null
+{
+    let dir = resolve(startDir);
+
+    while (true)
+    {
+        if (existsSync(join(dir, 'pnpm-workspace.yaml')))
+        {
+            return dir;
+        }
+
+        const parent = dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+    }
+
+    return null;
 }
 
 /**
@@ -63,9 +86,16 @@ async function createProject(projectName: string, options: CreateOptions): Promi
 
     logger.step(`Using package manager: ${pm}`);
 
-    // 3. Run create-next-app with SPFN-recommended settings
-    const spinner = ora('Creating Next.js project...').start();
+    // 3. Detect pnpm workspace (monorepo)
+    const workspaceRoot = pm === 'pnpm' ? findPnpmWorkspaceRoot(cwd) : null;
+    const isInWorkspace = workspaceRoot !== null;
 
+    if (isInWorkspace)
+    {
+        logger.info(`Detected pnpm workspace at ${workspaceRoot}`);
+    }
+
+    // 4. Run create-next-app with SPFN-recommended settings
     try
     {
         const createNextAppArgs = [
@@ -78,10 +108,12 @@ async function createProject(projectName: string, options: CreateOptions): Promi
             '--tailwind',
             '--no-eslint',
             '--yes', // Skip prompts
+            `--use-${pm}`,
         ];
 
-        // Add package manager specific flags
-        if (options.skipInstall)
+        // In a workspace, skip install to avoid workspace conflicts;
+        // we'll run pnpm install from the workspace root afterwards.
+        if (options.skipInstall || isInWorkspace)
         {
             createNextAppArgs.push('--skip-install');
         }
@@ -91,29 +123,71 @@ async function createProject(projectName: string, options: CreateOptions): Promi
             createNextAppArgs.push('--skip-git');
         }
 
-        // Use the selected package manager's create command
+        // Use the selected package manager's dlx command
         const createCommand = pm === 'npm' ? 'npx' : pm === 'yarn' ? 'yarn' : pm === 'pnpm' ? 'pnpm' : 'bunx';
         const createArgs = createCommand === 'npx' ? createNextAppArgs : ['dlx', ...createNextAppArgs];
+
+        logger.step('Running create-next-app...');
 
         await execa(createCommand, createArgs, {
             cwd,
             stdio: 'inherit',
+            timeout: 300_000, // 5 minutes
         });
 
-        spinner.succeed('Next.js project created');
+        ora().succeed('Next.js project created');
     }
-    catch (error)
+    catch (error: any)
     {
-        spinner.fail('Failed to create Next.js project');
-        logger.error(String(error));
+        ora().fail('Failed to create Next.js project');
+
+        if (error.exitCode != null)
+        {
+            logger.error(`create-next-app exited with code ${error.exitCode}`);
+        }
+        if (error.stderr)
+        {
+            logger.error(error.stderr);
+        }
+        else
+        {
+            logger.error(String(error));
+        }
         process.exit(1);
     }
 
-    // 4. Change to project directory
+    // 5. Install dependencies from workspace root
+    if (isInWorkspace && !options.skipInstall)
+    {
+        const installSpinner = ora('Installing dependencies from workspace root...').start();
+
+        try
+        {
+            await execa('pnpm', ['install'], {
+                cwd: workspaceRoot!,
+                stdio: 'pipe',
+                timeout: 300_000,
+            });
+
+            installSpinner.succeed('Dependencies installed');
+        }
+        catch (error: any)
+        {
+            installSpinner.fail('Failed to install dependencies');
+            logger.error('Run `pnpm install` from workspace root manually.');
+
+            if (error.stderr)
+            {
+                logger.error(error.stderr);
+            }
+        }
+    }
+
+    // 6. Change to project directory
     process.chdir(projectPath);
     logger.info(`\n📂 Changed directory to ${projectName}\n`);
 
-    // 5. Setup SVGR for icons
+    // 7. Setup SVGR for icons
     const iconsSpinner = ora('Setting up SVGR for icon management...').start();
 
     try
@@ -127,7 +201,7 @@ async function createProject(projectName: string, options: CreateOptions): Promi
                     ? ['add', '-D', '@svgr/webpack']
                     : ['add', '-d', '@svgr/webpack'];
 
-        await execa(pm, installArgs, { cwd: projectPath });
+        await execa(pm, installArgs, { cwd: projectPath, timeout: 120_000 });
 
         // Run spfn setup icons programmatically
         const { setupIcons } = await import('./setup.js');
@@ -140,33 +214,34 @@ async function createProject(projectName: string, options: CreateOptions): Promi
         iconsSpinner.warn('Failed to setup SVGR (you can run `spfn setup icons` later)');
     }
 
-    // 6. Setup shadcn/ui (optional)
+    // 8. Setup shadcn/ui (optional)
     if (options.shadcn)
     {
-        const shadcnSpinner = ora('Setting up shadcn/ui...').start();
-
         try
         {
-            // Run shadcn init with default settings
-            const shadcnCommand = pm === 'npm' ? 'npx' : pm === 'pnpm' ? 'pnpx' : pm === 'yarn' ? 'yarn dlx' : 'bunx';
-            const shadcnArgs = pm === 'yarn'
+            const shadcnCommand = pm === 'npm' ? 'npx' : pm === 'pnpm' ? 'pnpm' : pm === 'yarn' ? 'yarn' : 'bunx';
+            const shadcnBaseArgs = ['dlx', 'shadcn@latest', 'init', '--yes', '--defaults'];
+            const shadcnArgs = shadcnCommand === 'npx'
                 ? ['shadcn@latest', 'init', '--yes', '--defaults']
-                : ['shadcn@latest', 'init', '--yes', '--defaults'];
+                : shadcnBaseArgs;
+
+            logger.step('Setting up shadcn/ui...');
 
             await execa(shadcnCommand, shadcnArgs, {
                 cwd: projectPath,
                 stdio: 'inherit',
+                timeout: 300_000,
             });
 
-            shadcnSpinner.succeed('shadcn/ui initialized');
+            ora().succeed('shadcn/ui initialized');
         }
         catch (error)
         {
-            shadcnSpinner.warn('Failed to initialize shadcn/ui (you can run `npx shadcn@latest init` later)');
+            ora().warn('Failed to initialize shadcn/ui (you can run `npx shadcn@latest init` later)');
         }
     }
 
-    // 7. Initialize SPFN
+    // 9. Initialize SPFN
     const initSpinner = ora('Initializing SPFN...').start();
 
     try
@@ -184,7 +259,7 @@ async function createProject(projectName: string, options: CreateOptions): Promi
         process.exit(1);
     }
 
-    // 8. Success message
+    // 10. Success message
     console.log('\n' + chalk.green.bold('✓ Project created successfully!\n'));
 
     console.log(chalk.bold('Next steps:\n'));
