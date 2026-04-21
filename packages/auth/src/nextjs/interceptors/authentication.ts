@@ -5,7 +5,9 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/nextjs/server';
-import { unsealSession, generateClientToken, COOKIE_NAMES } from '@spfn/auth/server';
+import { unsealSession } from '../../server/lib/session';
+import { generateClientToken } from '../../server/lib/crypto';
+import { COOKIE_NAMES } from '../../server/lib/config';
 
 /**
  * Authentication Interceptor

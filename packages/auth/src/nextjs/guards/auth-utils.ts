@@ -5,7 +5,7 @@
  */
 
 import { authApi } from '@spfn/auth';
-import { authLogger } from '@spfn/auth/server';
+import { authLogger } from '../../server/logger';
 
 /**
  * Get current auth session with roles and permissions via API

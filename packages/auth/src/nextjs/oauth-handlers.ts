@@ -6,7 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers.js';
-import { sealSession, COOKIE_NAMES, getSessionTtl } from '@spfn/auth/server';
+import { sealSession } from '../server/lib/session';
+import { COOKIE_NAMES, getSessionTtl } from '../server/lib/config';
 import { env } from '@spfn/core/config';
 import { logger } from '@spfn/core/logger';
 import { unsealPendingSession } from './session-helpers';

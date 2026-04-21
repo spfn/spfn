@@ -6,14 +6,11 @@
  */
 
 import type { InterceptorRule, ResponseInterceptorContext } from '@spfn/core/nextjs/server';
-import {
-    generateKeyPair,
-    createOAuthState,
-    sealSession,
-    COOKIE_NAMES,
-    getSessionTtl,
-    authLogger,
-} from '@spfn/auth/server';
+import { generateKeyPair } from '../../server/lib/crypto';
+import { createOAuthState } from '../../server/lib/oauth/state';
+import { sealSession } from '../../server/lib/session';
+import { COOKIE_NAMES, getSessionTtl } from '../../server/lib/config';
+import { authLogger } from '../../server/logger';
 import { sealPendingSession, unsealPendingSession } from '../session-helpers';
 import { cookieSecure } from './cookie-options';
 

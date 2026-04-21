@@ -6,15 +6,9 @@
 
 import * as jose from 'jose';
 import { cookies } from 'next/headers.js';
-import {
-    sealSession,
-    unsealSession,
-    COOKIE_NAMES,
-    getSessionTtl,
-    parseDuration,
-    type SessionData,
-    type KeyAlgorithmType,
-} from '@spfn/auth/server';
+import { sealSession, unsealSession, type SessionData } from '../server/lib/session';
+import { COOKIE_NAMES, getSessionTtl, parseDuration } from '../server/lib/config';
+import { type KeyAlgorithmType } from '../server/types';
 import { env } from '@spfn/auth/config';
 import { logger } from '@spfn/core/logger';
 

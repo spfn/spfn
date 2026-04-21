@@ -6,7 +6,10 @@
  */
 
 import type { InterceptorRule } from '@spfn/core/nextjs/server';
-import { generateKeyPair, sealSession, getSessionTtl, COOKIE_NAMES, authLogger } from '@spfn/auth/server';
+import { generateKeyPair } from '../../server/lib/crypto';
+import { sealSession } from '../../server/lib/session';
+import { getSessionTtl, COOKIE_NAMES } from '../../server/lib/config';
+import { authLogger } from '../../server/logger';
 import { cookieSecure } from './cookie-options';
 
 /**
