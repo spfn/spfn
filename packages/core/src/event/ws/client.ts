@@ -306,6 +306,21 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                         }
                         reconnectTimer = setTimeout(() => connect(), reconnectDelay);
                     }
+                    else
+                    {
+                        // Max attempts exceeded — permanently close
+                        setState('closed');
+                        sentEvents = new Set();
+                        for (const sub of subscriptions)
+                        {
+                            if (sub.active)
+                            {
+                                sub.options.onClose?.();
+                                sub.active = false;
+                            }
+                        }
+                        subscriptions.clear();
+                    }
                 }
                 return;
             }
