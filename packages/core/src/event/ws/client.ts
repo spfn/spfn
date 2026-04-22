@@ -395,6 +395,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
 
         return () =>
         {
+            if (!sub.active) return;
             sub.active = false;
             subscriptions.delete(sub);
             options.onClose?.();
