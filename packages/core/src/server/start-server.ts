@@ -6,13 +6,15 @@
 
 import { serve } from '@hono/node-server';
 import { existsSync } from 'fs';
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import type { Server } from 'http';
 import { join } from 'path';
 
 import { closeCache, initCache } from '@spfn/core/cache';
 import { closeDatabase, initDatabase, getDatabase } from '@spfn/core/db';
 import { initBoss, stopBoss, registerJobs } from '../job';
+import { attachWSHandler } from '../event/ws/handler';
+import { SSETokenManager, CacheTokenStore } from '../event/sse/token-manager';
 import { serverLogger } from './logger';
 import { printBanner } from './banner';
 import { createServer } from './create-server';
@@ -125,6 +127,13 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
         const app = await createServer(finalConfig);
         const server = startHttpServer(app, host, port);
 
+        // Initialize WebSocket server if configured
+        let wsCleanup: (() => Promise<void>) | undefined;
+        if (finalConfig.websockets)
+        {
+            wsCleanup = await initializeWebSocket(server as Server, app, finalConfig);
+        }
+
         const timeouts = getTimeoutConfig(finalConfig.timeout);
         applyServerTimeouts(server as Server, timeouts);
 
@@ -140,7 +149,7 @@ export async function startServer(config?: ServerConfig): Promise<ServerInstance
 
         logServerStarted(debug, host, port, finalConfig, timeouts);
 
-        const shutdownServer = createShutdownHandler(server as Server, finalConfig, shutdownState);
+        const shutdownServer = createShutdownHandler(server as Server, finalConfig, shutdownState, wsCleanup);
         const shutdown = createGracefulShutdown(shutdownServer, finalConfig, shutdownState);
 
         // Register process-level handlers
@@ -343,6 +352,75 @@ function startHttpServer(app: Hono, host: string, port: number): ReturnType<type
     });
 }
 
+async function initializeWebSocket(
+    server: Server,
+    app: Hono,
+    config: ServerConfig
+): Promise<() => Promise<void>>
+{
+    const wsRouter = config.websockets!;
+    const wsConfig = config.websocketsConfig ?? {};
+    const authConfig = wsConfig.auth;
+    const wsPath = wsConfig.path ?? '/ws';
+    const debug = config.debug ?? process.env.NODE_ENV === 'development';
+
+    let tokenManager: SSETokenManager | undefined;
+
+    if (authConfig?.enabled)
+    {
+        // Auto-detect cache for token store (multi-instance support)
+        let store = authConfig.store;
+        if (!store)
+        {
+            try
+            {
+                const { getCache } = await import('@spfn/core/cache');
+                const cache = getCache();
+                if (cache)
+                {
+                    store = new CacheTokenStore(cache as any);
+                    if (debug) serverLogger.info('WS token store: cache (Redis/Valkey)');
+                }
+            }
+            catch
+            {
+                // Cache module not available, use in-memory
+            }
+        }
+
+        const externalManager = typeof authConfig.tokenManager === 'function'
+            ? authConfig.tokenManager()
+            : authConfig.tokenManager;
+
+        tokenManager = externalManager ?? new SSETokenManager({
+            ttl: authConfig.tokenTtl,
+            store,
+        });
+
+        // Register POST /ws/token endpoint on Hono app
+        const tokenPath = wsPath.replace(/\/[^/]+$/, '/token');
+        const mwHandlers = (config.middlewares ?? []).map(mw => mw.handler);
+        const getSubject = authConfig.getSubject
+            ?? ((c: Context) => (c.get('auth') as Record<string, string> | undefined)?.userId ?? null);
+
+        app.on(['POST'], [tokenPath], ...mwHandlers, async (c: Context) =>
+        {
+            const subject = getSubject(c);
+            if (!subject)
+            {
+                return c.json({ error: 'Unable to identify subject' }, 401);
+            }
+
+            const token = await tokenManager!.issue(subject);
+            return c.json({ token });
+        });
+
+        if (debug) serverLogger.info(`✓ WS token endpoint registered at POST ${tokenPath}`);
+    }
+
+    return await attachWSHandler(server, wsRouter, wsConfig, tokenManager);
+}
+
 function logMiddlewareOrder(config: ServerConfig): void
 {
     const middlewareOrder = buildMiddlewareOrder(config);
@@ -389,7 +467,8 @@ function logServerStarted(
 function createShutdownHandler(
     server: Server,
     config: ServerConfig,
-    shutdownState: ShutdownState
+    shutdownState: ShutdownState,
+    wsCleanup?: () => Promise<void>
 ): () => Promise<void>
 {
     return async () =>
@@ -413,6 +492,21 @@ function createShutdownHandler(
         // ── Phase 1: Stop accepting new connections ──
         serverLogger.info('Phase 1: Closing HTTP server (stop accepting new connections)...');
         await closeHttpServer(server);
+
+        // ── Phase 1.5: Close WebSocket server ──
+        if (wsCleanup)
+        {
+            serverLogger.info('Phase 1.5: Closing WebSocket server...');
+            try
+            {
+                await wsCleanup();
+                serverLogger.info('WebSocket server closed');
+            }
+            catch (error)
+            {
+                serverLogger.error('WebSocket server close failed', error as Error);
+            }
+        }
 
         // ── Phase 2: Stop pg-boss (stop accepting new jobs) ──
         if (config.jobs)

@@ -1,6 +1,6 @@
 {
   "name": "@spfn/core",
-  "version": "0.2.0-beta.45",
+  "version": "0.2.0-beta.46",
   "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
   "type": "module",
   "exports": {
@@ -98,6 +98,16 @@
       "types": "./dist/event/sse/client.d.ts",
       "import": "./dist/event/sse/client.js",
       "require": "./dist/event/sse/client.js"
+    },
+    "./event/ws": {
+      "types": "./dist/event/ws/index.d.ts",
+      "import": "./dist/event/ws/index.js",
+      "require": "./dist/event/ws/index.js"
+    },
+    "./event/ws/client": {
+      "types": "./dist/event/ws/client.d.ts",
+      "import": "./dist/event/ws/client.js",
+      "require": "./dist/event/ws/client.js"
     }
   },
   "scripts": {
@@ -178,11 +188,13 @@
     "zod": "^4.1.11"
   },
   "optionalDependencies": {
-    "ioredis": "^5.4.1"
+    "ioredis": "^5.4.1",
+    "ws": "^8.0.0"
   },
   "devDependencies": {
     "@types/micromatch": "^4.0.9",
     "@types/node": "^20.11.0",
+    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.0.6",
     "drizzle-kit": "^0.31.6",
     "madge": "^8.0.0",

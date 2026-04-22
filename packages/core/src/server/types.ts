@@ -6,6 +6,7 @@ import type { OnErrorContext } from '@spfn/core/middleware';
 import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig } from '../event/sse/types';
+import type { WSRouterDef, WSHandlerConfig } from '../event/ws/types';
 
 /**
  * Workflow router interface for @spfn/core integration
@@ -198,6 +199,32 @@ export interface ServerConfig
         /**
          * SSE endpoint path
          * @default '/events/stream'
+         */
+        path?: string;
+    };
+
+    /**
+     * WebSocket router for bidirectional real-time communication
+     *
+     * @example
+     * ```typescript
+     * import { defineWSRouter } from '@spfn/core/event/ws';
+     *
+     * export default defineServerConfig()
+     *   .websockets(wsRouter)       // → WS /ws
+     *   .build();
+     * ```
+     */
+    websockets?: WSRouterDef<any, any>;
+
+    /**
+     * WebSocket configuration options
+     * Only used if websockets router is provided
+     */
+    websocketsConfig?: WSHandlerConfig & {
+        /**
+         * WebSocket endpoint path
+         * @default '/ws'
          */
         path?: string;
     };

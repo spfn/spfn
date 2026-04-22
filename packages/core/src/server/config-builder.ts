@@ -10,6 +10,7 @@ import type { Router, NamedMiddleware } from '@spfn/core/route';
 import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig, SSEAuthConfig } from '../event/sse/types';
+import type { WSRouterDef, WSHandlerConfig, WSAuthConfig, WSMessageHandlers } from '../event/ws/types';
 import { serverLogger } from './logger';
 
 // ============================================================================
@@ -234,6 +235,50 @@ export class ServerConfigBuilder
         {
             // SSEAuthConfig<TRouter> is assignable to SSEHandlerAuthConfig at runtime
             this.config.eventsConfig = config as SSEHandlerConfig & { path?: string };
+        }
+        return this;
+    }
+
+    /**
+     * Register WebSocket router for bidirectional real-time communication
+     *
+     * Enables type-safe WebSocket connections with:
+     * - Server→client event push (via defineEvent + emit)
+     * - Client→server message handling (via messages in defineWSRouter)
+     *
+     * @example
+     * ```typescript
+     * // src/server/ws.ts
+     * export const wsRouter = defineWSRouter({
+     *     events: { userUpdated, notification },
+     *     messages: {
+     *         ping: ({ ws }) => ws.send('pong', {}),
+     *     },
+     * });
+     *
+     * // server.config.ts
+     * export default defineServerConfig()
+     *     .websockets(wsRouter)              // → WS /ws
+     *     .websockets(wsRouter, {
+     *         path: '/realtime',             // custom path
+     *         auth: { enabled: true },       // token authentication
+     *     })
+     *     .build();
+     * ```
+     */
+    websockets<
+        TEvents extends Record<string, any>,
+        TMessages extends WSMessageHandlers,
+        TRouter extends WSRouterDef<TEvents, TMessages>
+    >(
+        router: TRouter,
+        config?: Omit<WSHandlerConfig, 'auth'> & { path?: string; auth?: WSAuthConfig<TRouter> }
+    ): this
+    {
+        this.config.websockets = router;
+        if (config)
+        {
+            this.config.websocketsConfig = config as WSHandlerConfig & { path?: string };
         }
         return this;
     }

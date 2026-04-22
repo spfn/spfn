@@ -54,8 +54,11 @@ export { defineEvent } from './event';
 // SSE route map
 export { eventRouteMap } from './sse/route-map';
 
-// Event router
+// Event router (SSE)
 export { defineEventRouter } from './router';
+
+// WebSocket router
+export { defineWSRouter } from './ws';
 export type {
     EventRouterDef,
     InferEventNames,
