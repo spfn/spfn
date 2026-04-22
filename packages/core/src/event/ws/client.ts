@@ -312,9 +312,23 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
 
             // close() may have been called while awaiting the token
             if (destroyed) return;
+
+            // Subscriptions may have changed while awaiting the token — recompute
+            const currentEvents = mergeEventNames();
+            if (currentEvents.length === 0)
+            {
+                setState('closed');
+                sentEvents = new Set();
+                return;
+            }
+            // Update sentEvents to reflect what we're actually connecting with
+            if (currentEvents.some(e => !sentEvents.has(e)) || sentEvents.size !== currentEvents.length)
+            {
+                sentEvents = new Set(currentEvents);
+            }
         }
 
-        const url = buildURL(events, token);
+        const url = buildURL([...sentEvents], token);
         socket = new WebSocket(url);
         socket.onopen = onOpen;
         socket.onerror = onError;
@@ -329,7 +343,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         const sub: Subscription = { options, active: true };
         subscriptions.add(sub);
 
-        if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING)
+        if (state === 'closed' || state === 'error')
         {
             if (reconnectTimer)
             {
@@ -338,16 +352,17 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
             }
             connect();
         }
-        else if (socket.readyState === WebSocket.OPEN)
+        else if (state === 'open')
         {
             // Reconnect if the new subscription requests events not yet subscribed
             const hasNewEvents = (options.events as string[]).some(e => !connectedEvents.has(e));
             if (hasNewEvents)
             {
                 intentionalReconnect = true;
-                socket.close();  // triggers onClose → connect() immediately, no delay/counter
+                socket!.close();  // triggers onClose → connect() immediately, no delay/counter
             }
         }
+        // state === 'connecting': onOpen will detect new events and do intentionalReconnect
 
         return () =>
         {
