@@ -46,6 +46,14 @@ export async function attachWSHandler<
         auth: authConfig,
     } = config;
 
+    if (authConfig?.enabled && !tokenManager)
+    {
+        throw new Error(
+            'WebSocket auth.enabled=true requires a tokenManager. ' +
+            'Pass tokenManager or use .websockets(router, { auth: { enabled: true } }) via startServer.'
+        );
+    }
+
     const wss = new WebSocketServer({ server, path });
 
     // Track live connections for graceful shutdown
