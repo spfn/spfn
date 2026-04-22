@@ -225,6 +225,18 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         if (!reconnect || !hasActive)
         {
             setState('closed');
+            if (!reconnect && hasActive)
+            {
+                for (const sub of subscriptions)
+                {
+                    if (sub.active)
+                    {
+                        sub.options.onClose?.();
+                        sub.active = false;
+                    }
+                }
+                subscriptions.clear();
+            }
             return;
         }
 
@@ -296,35 +308,29 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                 {
                     if (sub.active) sub.options.onError?.(errorEvent);
                 }
-                // Schedule reconnect so transient token failures recover automatically
-                if (reconnect && !destroyed)
+
+                const permanentlyClose = destroyed || !reconnect
+                    || (maxReconnectAttempts > 0 && reconnectAttempts >= maxReconnectAttempts);
+
+                if (permanentlyClose)
                 {
-                    if (maxReconnectAttempts === 0 || reconnectAttempts < maxReconnectAttempts)
+                    setState('closed');
+                    sentEvents = new Set();
+                    for (const sub of subscriptions)
                     {
-                        reconnectAttempts++;
-                        for (const sub of subscriptions)
-                        {
-                            if (sub.active) sub.options.onReconnect?.(reconnectAttempts);
-                        }
-                        if (reconnectTimer) clearTimeout(reconnectTimer);
-                        reconnectTimer = setTimeout(() => connect(), reconnectDelay);
+                        if (sub.active) { sub.options.onClose?.(); sub.active = false; }
                     }
-                    else
-                    {
-                        // Max attempts exceeded — permanently close
-                        setState('closed');
-                        sentEvents = new Set();
-                        for (const sub of subscriptions)
-                        {
-                            if (sub.active)
-                            {
-                                sub.options.onClose?.();
-                                sub.active = false;
-                            }
-                        }
-                        subscriptions.clear();
-                    }
+                    subscriptions.clear();
+                    return;
                 }
+
+                reconnectAttempts++;
+                for (const sub of subscriptions)
+                {
+                    if (sub.active) sub.options.onReconnect?.(reconnectAttempts);
+                }
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(() => connect(), reconnectDelay);
                 return;
             }
 
