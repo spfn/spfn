@@ -442,7 +442,22 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         }
         if (socket)
         {
-            socket.close();
+            socket.close();  // onClose() will fire and clean up
+        }
+        else
+        {
+            // No socket (e.g. waiting for reconnect timer) — onClose won't fire, clean up directly
+            setState('closed');
+            sentEvents = new Set();
+            for (const sub of subscriptions)
+            {
+                if (sub.active)
+                {
+                    sub.options.onClose?.();
+                    sub.active = false;
+                }
+            }
+            subscriptions.clear();
         }
     }
 
