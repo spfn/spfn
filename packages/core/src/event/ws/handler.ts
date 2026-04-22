@@ -153,7 +153,8 @@ async function handleConnection(
     // ── 6. Handle incoming messages ──
     ws.on('message', (data: Buffer | string) =>
     {
-        onClientMessage(data, router, connection, subject);
+        onClientMessage(data, router, connection, subject)
+            .catch((err: Error) => wsLogger.error('Unhandled message error', err));
     });
 
     // ── 7. Keep-alive ping ──
@@ -288,7 +289,14 @@ function subscribeEvents(
                 if (!authConfig.filter[eventName](subject, payload)) return;
             }
 
-            ws.send(JSON.stringify({ type: eventName, data: payload }));
+            try
+            {
+                ws.send(JSON.stringify({ type: eventName, data: payload }));
+            }
+            catch
+            {
+                // Socket closed between readyState check and send — ignore
+            }
         });
 
         unsubscribes.push(unsubscribe);

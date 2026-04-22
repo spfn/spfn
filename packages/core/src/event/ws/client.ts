@@ -167,18 +167,19 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         // New subscriptions added during CONNECTING are NOT yet on the server
         connectedEvents = new Set(sentEvents);
 
-        for (const sub of subscriptions)
-        {
-            if (sub.active) sub.options.onOpen?.();
-        }
-
-        // If new events were added while connecting, reconnect immediately (no delay, no counter)
+        // Check reconnect need BEFORE firing callbacks to avoid spurious onOpen calls
         const current = mergeEventNames();
         const hasNewEvents = current.some(e => !connectedEvents.has(e));
         if (hasNewEvents)
         {
             intentionalReconnect = true;
             socket?.close();
+            return;
+        }
+
+        for (const sub of subscriptions)
+        {
+            if (sub.active) sub.options.onOpen?.();
         }
     }
 
@@ -272,6 +273,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
     async function connect()
     {
         if (destroyed) return;
+        if (state === 'connecting') return;
 
         const events = mergeEventNames();
         if (events.length === 0) return;
@@ -304,6 +306,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                         {
                             if (sub.active) sub.options.onReconnect?.(reconnectAttempts);
                         }
+                        if (reconnectTimer) clearTimeout(reconnectTimer);
                         reconnectTimer = setTimeout(() => connect(), reconnectDelay);
                     }
                     else
