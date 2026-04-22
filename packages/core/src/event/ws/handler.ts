@@ -103,13 +103,16 @@ async function handleConnection(
     pingInterval: number
 ): Promise<void>
 {
-    // Register close handler immediately — before any await — so we never miss the event
+    // Register close handler before any await — ensures we never miss the event even during auth
     let pingTimer: ReturnType<typeof setInterval> | undefined;
     let connectionUnsubscribes: (() => void)[] = [];
+    let subscribedEvents: string[] = [];
     ws.on('close', () =>
     {
         clearInterval(pingTimer);
         connectionUnsubscribes.forEach(fn => fn());
+        if (subscribedEvents.length > 0)
+            wsLogger.info('WebSocket connection closed', { events: subscribedEvents });
     });
 
     const url = parseURL(req);
@@ -148,6 +151,7 @@ async function handleConnection(
         return;
     }
 
+    subscribedEvents = allowedEvents;
     wsLogger.info('WebSocket connection established', {
         events: allowedEvents,
         subject: subject ?? undefined,
@@ -158,6 +162,14 @@ async function handleConnection(
 
     // ── 5. Subscribe to server-push events ──
     connectionUnsubscribes = subscribeEvents(ws, router, allowedEvents, subject, authConfig);
+
+    // If socket closed during auth awaits, clean up and bail
+    if (ws.readyState !== 1)
+    {
+        connectionUnsubscribes.forEach(fn => fn());
+        connectionUnsubscribes = [];
+        return;
+    }
 
     // ── 6. Handle incoming messages ──
     ws.on('message', (data: Buffer | string) =>
@@ -174,8 +186,6 @@ async function handleConnection(
             if (ws.readyState === 1) ws.ping();
         }, pingInterval);
     }
-
-    ws.on('close', () => wsLogger.info('WebSocket connection closed', { events: allowedEvents }));
 
     // ── 9. Send connected ack ──
     connection.send('__connected', {

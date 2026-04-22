@@ -255,6 +255,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
             return;
         }
 
+        setState('closed');
         reconnectAttempts++;
         for (const sub of subscriptions)
         {
