@@ -125,6 +125,11 @@ async function handleConnection(
 
     // ── 2. Resolve subscribed events ──
     const requestedEvents = parseRequestedEvents(url, router.eventNames as string[]);
+    if (requestedEvents.length === 0)
+    {
+        ws.close(4000, 'No valid event names specified');
+        return;
+    }
 
     // ── 3. Authorize ──
     const allowedEvents = await resolveAllowedEvents(subject, requestedEvents, authConfig);
