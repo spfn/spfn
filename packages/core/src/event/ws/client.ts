@@ -311,7 +311,21 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
             }
 
             // close() may have been called while awaiting the token
-            if (destroyed) return;
+            if (destroyed)
+            {
+                setState('closed');
+                sentEvents = new Set();
+                for (const sub of subscriptions)
+                {
+                    if (sub.active)
+                    {
+                        sub.options.onClose?.();
+                        sub.active = false;
+                    }
+                }
+                subscriptions.clear();
+                return;
+            }
 
             // Subscriptions may have changed while awaiting the token — recompute
             const currentEvents = mergeEventNames();
