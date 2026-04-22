@@ -387,7 +387,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         const sub: Subscription = { options, active: true };
         subscriptions.add(sub);
 
-        if (!destroyed && (state === 'closed' || state === 'error'))
+        if (!destroyed && (state === 'closed' || state === 'error') && !socket)
         {
             if (reconnectTimer)
             {
@@ -413,7 +413,6 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
             if (!sub.active) return;
             sub.active = false;
             subscriptions.delete(sub);
-            options.onClose?.();
 
             if (!destroyed)
             {
@@ -423,6 +422,8 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                     socket.close();
                 }
             }
+
+            options.onClose?.();
         };
     }
 
