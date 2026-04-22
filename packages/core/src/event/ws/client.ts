@@ -387,7 +387,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         const sub: Subscription = { options, active: true };
         subscriptions.add(sub);
 
-        if (state === 'closed' || state === 'error')
+        if (!destroyed && (state === 'closed' || state === 'error'))
         {
             if (reconnectTimer)
             {

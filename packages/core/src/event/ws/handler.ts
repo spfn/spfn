@@ -131,7 +131,7 @@ async function handleConnection(
     }
 
     // ── 1. Authenticate ──
-    const subject = await resolveSubject(url, tokenManager);
+    const subject = await resolveSubject(url, authConfig?.enabled ? tokenManager : undefined);
     if (subject === false)
     {
         ws.close(4001, 'Missing token');
