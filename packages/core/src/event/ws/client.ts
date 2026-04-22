@@ -415,10 +415,13 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
             subscriptions.delete(sub);
             options.onClose?.();
 
-            const hasActive = [...subscriptions].some(s => s.active);
-            if (!hasActive && socket)
+            if (!destroyed)
             {
-                socket.close();
+                const hasActive = [...subscriptions].some(s => s.active);
+                if (!hasActive && socket)
+                {
+                    socket.close();
+                }
             }
         };
     }
