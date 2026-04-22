@@ -55,7 +55,12 @@ export async function attachWSHandler<
     {
         clients.add(ws);
         ws.on('close', () => clients.delete(ws));
-        handleConnection(ws, req, router, authConfig, tokenManager, pingInterval);
+        handleConnection(ws, req, router, authConfig, tokenManager, pingInterval)
+            .catch((err: Error) =>
+            {
+                wsLogger.error('WebSocket connection handler error', err);
+                if (ws.readyState === 1) ws.close(1011, 'Internal server error');
+            });
     });
 
     wss.on('error', (err: Error) =>
@@ -334,10 +339,24 @@ async function loadWSServer(): Promise<any>
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mod = await import('ws') as any;
         const WS = mod.default ?? mod;
-        return WS.WebSocketServer ?? WS.Server;
+        const WSS = WS.WebSocketServer ?? WS.Server;
+
+        if (typeof WSS !== 'function')
+        {
+            throw new Error(
+                'WebSocketServer not found in ws module. ' +
+                'Ensure ws@^8 is installed: pnpm add ws'
+            );
+        }
+
+        return WSS;
     }
-    catch
+    catch (err)
     {
+        if (err instanceof Error && err.message.includes('WebSocketServer not found'))
+        {
+            throw err;
+        }
         throw new Error(
             '@spfn/core WebSocket support requires the "ws" package.\n' +
             'Install it with: pnpm add ws'

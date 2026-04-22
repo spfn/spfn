@@ -107,6 +107,8 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
     let reconnectAttempts = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let destroyed = false;
+    // Set before intentionally closing socket (new events merge) — skips delay/counter in onClose
+    let intentionalReconnect = false;
     // Events actually sent in the current/last connect() URL
     let sentEvents: Set<string> = new Set();
     // Events the server confirmed it has subscribed (set on onOpen)
@@ -170,11 +172,12 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
             if (sub.active) sub.options.onOpen?.();
         }
 
-        // If new events were added while connecting, reconnect immediately
+        // If new events were added while connecting, reconnect immediately (no delay, no counter)
         const current = mergeEventNames();
         const hasNewEvents = current.some(e => !connectedEvents.has(e));
         if (hasNewEvents)
         {
+            intentionalReconnect = true;
             socket?.close();
         }
     }
@@ -206,6 +209,14 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                 }
             }
             subscriptions.clear();
+            return;
+        }
+
+        // Intentional reconnect (new events merged): skip delay, counter, and callbacks
+        if (intentionalReconnect)
+        {
+            intentionalReconnect = false;
+            connect();
             return;
         }
 
@@ -286,15 +297,21 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                 // Schedule reconnect so transient token failures recover automatically
                 if (reconnect && !destroyed)
                 {
-                    reconnectAttempts++;
-                    for (const sub of subscriptions)
+                    if (maxReconnectAttempts === 0 || reconnectAttempts < maxReconnectAttempts)
                     {
-                        if (sub.active) sub.options.onReconnect?.(reconnectAttempts);
+                        reconnectAttempts++;
+                        for (const sub of subscriptions)
+                        {
+                            if (sub.active) sub.options.onReconnect?.(reconnectAttempts);
+                        }
+                        reconnectTimer = setTimeout(() => connect(), reconnectDelay);
                     }
-                    reconnectTimer = setTimeout(() => connect(), reconnectDelay);
                 }
                 return;
             }
+
+            // close() may have been called while awaiting the token
+            if (destroyed) return;
         }
 
         const url = buildURL(events, token);
@@ -327,7 +344,8 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
             const hasNewEvents = (options.events as string[]).some(e => !connectedEvents.has(e));
             if (hasNewEvents)
             {
-                socket.close();  // triggers onClose → reconnect with merged event set
+                intentionalReconnect = true;
+                socket.close();  // triggers onClose → connect() immediately, no delay/counter
             }
         }
 
