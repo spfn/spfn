@@ -107,6 +107,8 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
     let reconnectAttempts = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let destroyed = false;
+    // Events the current open connection is subscribed to
+    let connectedEvents: Set<string> = new Set();
 
     // Active subscriptions: each entry is one subscribe() call
     type Subscription = {
@@ -157,6 +159,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
     {
         setState('open');
         reconnectAttempts = 0;
+        connectedEvents = new Set(mergeEventNames());
         for (const sub of subscriptions)
         {
             if (sub.active) sub.options.onOpen?.();
@@ -175,6 +178,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
     function onClose()
     {
         socket = null;
+        connectedEvents = new Set();
 
         if (destroyed)
         {
@@ -256,9 +260,24 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
             {
                 token = await acquireToken();
             }
-            catch (err)
+            catch
             {
                 setState('error');
+                const errorEvent = new Event('error');
+                for (const sub of subscriptions)
+                {
+                    if (sub.active) sub.options.onError?.(errorEvent);
+                }
+                // Schedule reconnect so transient token failures recover automatically
+                if (reconnect && !destroyed)
+                {
+                    reconnectAttempts++;
+                    for (const sub of subscriptions)
+                    {
+                        if (sub.active) sub.options.onReconnect?.(reconnectAttempts);
+                    }
+                    reconnectTimer = setTimeout(() => connect(), reconnectDelay);
+                }
                 return;
             }
         }
@@ -278,7 +297,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         const sub: Subscription = { options, active: true };
         subscriptions.add(sub);
 
-        if (!socket || socket.readyState === WebSocket.CLOSED)
+        if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING)
         {
             if (reconnectTimer)
             {
@@ -286,6 +305,15 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                 reconnectTimer = null;
             }
             connect();
+        }
+        else if (socket.readyState === WebSocket.OPEN)
+        {
+            // Reconnect if the new subscription requests events not yet subscribed
+            const hasNewEvents = (options.events as string[]).some(e => !connectedEvents.has(e));
+            if (hasNewEvents)
+            {
+                socket.close();  // triggers onClose → reconnect with merged event set
+            }
         }
 
         return () =>

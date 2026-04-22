@@ -48,8 +48,13 @@ export async function attachWSHandler<
 
     const wss = new WebSocketServer({ server, path });
 
+    // Track live connections for graceful shutdown
+    const clients = new Set<any>();
+
     wss.on('connection', (ws: any, req: any) =>
     {
+        clients.add(ws);
+        ws.on('close', () => clients.delete(ws));
         handleConnection(ws, req, router, authConfig, tokenManager, pingInterval);
     });
 
@@ -65,7 +70,14 @@ export async function attachWSHandler<
 
     return () => new Promise<void>((resolve, reject) =>
     {
-        wss.close((err: Error | undefined) =>
+        // Close all existing connections with 1001 Going Away
+        for (const client of clients)
+        {
+            client.close(1001, 'Server shutting down');
+        }
+        clients.clear();
+
+        wss.close((err?: Error) =>
         {
             if (err) reject(err);
             else resolve();
@@ -317,9 +329,12 @@ async function loadWSServer(): Promise<any>
 {
     try
     {
+        // ws is a CJS package: module.exports = WebSocket, WebSocket.WebSocketServer is set on it.
+        // ESM dynamic import wraps CJS default export under .default
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mod = await import('ws') as any;
-        return mod.WebSocketServer ?? mod.default?.Server ?? mod.Server;
+        const WS = mod.default ?? mod;
+        return WS.WebSocketServer ?? WS.Server;
     }
     catch
     {
