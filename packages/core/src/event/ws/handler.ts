@@ -249,7 +249,7 @@ function parseRequestedEvents(url: URL, validEventNames: string[]): string[]
     const eventsParam = url.searchParams.get('events');
     if (!eventsParam)
     {
-        return validEventNames; // subscribe all if none specified
+        return [];
     }
 
     return eventsParam
