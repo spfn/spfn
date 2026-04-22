@@ -107,7 +107,9 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
     let reconnectAttempts = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let destroyed = false;
-    // Events the current open connection is subscribed to
+    // Events actually sent in the current/last connect() URL
+    let sentEvents: Set<string> = new Set();
+    // Events the server confirmed it has subscribed (set on onOpen)
     let connectedEvents: Set<string> = new Set();
 
     // Active subscriptions: each entry is one subscribe() call
@@ -159,10 +161,21 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
     {
         setState('open');
         reconnectAttempts = 0;
-        connectedEvents = new Set(mergeEventNames());
+        // Use sentEvents (what was in the URL), not mergeEventNames()
+        // New subscriptions added during CONNECTING are NOT yet on the server
+        connectedEvents = new Set(sentEvents);
+
         for (const sub of subscriptions)
         {
             if (sub.active) sub.options.onOpen?.();
+        }
+
+        // If new events were added while connecting, reconnect immediately
+        const current = mergeEventNames();
+        const hasNewEvents = current.some(e => !connectedEvents.has(e));
+        if (hasNewEvents)
+        {
+            socket?.close();
         }
     }
 
@@ -179,6 +192,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
     {
         socket = null;
         connectedEvents = new Set();
+        sentEvents = new Set();
 
         if (destroyed)
         {
@@ -251,6 +265,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         const events = mergeEventNames();
         if (events.length === 0) return;
 
+        sentEvents = new Set(events);  // record what we're sending in the URL
         setState('connecting');
 
         let token: string | undefined;
