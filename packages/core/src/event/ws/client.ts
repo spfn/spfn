@@ -368,10 +368,15 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         }
 
         const url = buildURL([...sentEvents], token);
-        socket = new WebSocket(url);
+        const thisSocket = new WebSocket(url);
+        socket = thisSocket;
         socket.onopen = onOpen;
         socket.onerror = onError;
-        socket.onclose = onClose;
+        // Guard against a stale close event from a previous socket overwriting the
+        // current socket reference. This can happen when onError fires (state→'error'),
+        // subscribe() immediately calls connect() creating a new socket, and then the
+        // old socket's onclose finally arrives and sets socket = null on the new one.
+        socket.onclose = () => { if (socket === thisSocket) onClose(); };
         socket.onmessage = onMessage;
     }
 
