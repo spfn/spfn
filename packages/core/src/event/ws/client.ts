@@ -429,7 +429,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
 
     function send(type: string, payload: unknown): void
     {
-        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        if (destroyed || !socket || socket.readyState !== WebSocket.OPEN) return;
         socket.send(JSON.stringify({ type, data: payload }));
     }
 
