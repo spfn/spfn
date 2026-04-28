@@ -251,22 +251,29 @@ export const generalAuthInterceptor: InterceptorRule =
         // Handle logout (clear session)
         else if (ctx.path === '/_auth/logout' && ctx.response.ok)
         {
+            const base = {
+                httpOnly: true,
+                secure: cookieSecure,
+                maxAge: 0,
+                path: '/',
+            };
+
             ctx.setCookies.push({
                 name: COOKIE_NAMES.SESSION,
                 value: '',
-                options: {
-                    maxAge: 0,
-                    path: '/',
-                },
+                options: { ...base, sameSite: 'strict' },
             });
 
             ctx.setCookies.push({
                 name: COOKIE_NAMES.SESSION_KEY_ID,
                 value: '',
-                options: {
-                    maxAge: 0,
-                    path: '/',
-                },
+                options: { ...base, sameSite: 'strict' },
+            });
+
+            ctx.setCookies.push({
+                name: COOKIE_NAMES.OAUTH_PENDING,
+                value: '',
+                options: { ...base, sameSite: 'lax' },
             });
         }
 
