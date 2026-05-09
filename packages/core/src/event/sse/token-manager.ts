@@ -29,7 +29,7 @@ type CacheClient = {
     set(key: string, value: string, ...args: any[]): Promise<any>;
     getdel?(key: string): Promise<string | null>;
     get(key: string): Promise<string | null>;
-    del(key: string | string[]): Promise<number>;
+    del(...keys: string[]): Promise<number>;
 };
 
 // ============================================================================

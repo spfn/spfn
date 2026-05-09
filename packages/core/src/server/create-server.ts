@@ -260,7 +260,7 @@ async function registerSSEEndpoint(app: Hono, config?: ServerConfig): Promise<vo
                 const cache = getCache();
                 if (cache)
                 {
-                    store = new CacheTokenStore(cache as any);
+                    store = new CacheTokenStore(cache);
                     if (debug)
                     {
                         serverLogger.info('SSE token store: cache (Redis/Valkey)');

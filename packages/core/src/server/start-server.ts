@@ -378,7 +378,7 @@ async function initializeWebSocket(
                 const cache = getCache();
                 if (cache)
                 {
-                    store = new CacheTokenStore(cache as any);
+                    store = new CacheTokenStore(cache);
                     if (debug) serverLogger.info('WS token store: cache (Redis/Valkey)');
                 }
             }
