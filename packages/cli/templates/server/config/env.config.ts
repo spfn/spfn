@@ -36,88 +36,23 @@ export const envSchema = defineEnvSchema({
 });
 
 /**
- * Type-safe Environment Registry
+ * Type-safe Environment Variables
  *
- * Use this registry to access environment variables throughout your application.
- * It provides type-safe access and automatic validation.
+ * Variables are lazily validated on access — if a required variable is
+ * missing or invalid, an error is thrown at the first access point.
+ * This is timing-safe with dotenv loading.
  *
  * @example
  * ```typescript
  * import env from '@/server/config/env.config';
  *
- * // Get required variable (throws if missing)
- * const dbUrl = env.require('DATABASE_URL');
- *
- * // Get optional variable (returns undefined if missing)
- * const redisUrl = env.get('REDIS_URL');
- *
- * // Get with default value
- * const port = env.get('PORT') ?? 8790;
+ * const dbUrl = env.DATABASE_URL;   // throws if required and missing
+ * const port = env.PORT ?? 8790;    // optional with fallback
  * ```
- */
-export const env = createEnvRegistry(envSchema);
-
-/**
- * Validate Environment Variables
  *
- * This validation runs automatically when this module is imported.
- * It will fail fast on startup if any required variables are missing
- * or if there are configuration errors.
+ * For explicit upfront validation (e.g. in a CLI script), call
+ * `createEnvRegistry(envSchema).validateAll()` to get `{ errors, warnings }`.
  */
-if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'test')
-{
-    const validation = env.validate();
+export const env = createEnvRegistry(envSchema).validate();
 
-    // Critical errors (missing required variables)
-    if (!validation.valid)
-    {
-        console.error('\n❌ Environment Validation Failed\n');
-        console.error('The following required environment variables are missing or invalid:\n');
-
-        validation.errors.forEach((error) =>
-        {
-            console.error(`  • ${error.key}`);
-            console.error(`    ${error.message}`);
-
-            if (error.suggestion)
-            {
-                console.error(`    💡 ${error.suggestion}`);
-            }
-
-            console.error('');
-        });
-
-        console.error('Please check your .env files and ensure all required variables are set.');
-        console.error('See .env.example for reference.\n');
-
-        process.exit(1);
-    }
-
-    // Non-critical warnings
-    if (validation.warnings.length > 0)
-    {
-        console.warn('\n⚠️  Environment Warnings:\n');
-
-        validation.warnings.forEach((warning) =>
-        {
-            console.warn(`  • ${warning.key}: ${warning.message}`);
-
-            if (warning.suggestion)
-            {
-                console.warn(`    💡 ${warning.suggestion}`);
-            }
-        });
-
-        console.warn('');
-    }
-}
-
-/**
- * Export the registry as default
- *
- * Import this in your application to access environment variables:
- * ```typescript
- * import env from '@/server/config/env.config';
- * ```
- */
 export default env;
