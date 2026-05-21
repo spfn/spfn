@@ -14,11 +14,33 @@ import {
     getGoogleAuthUrl,
     getGoogleOAuthConfig,
 } from '../../server/lib/oauth/google';
+// index 경로로 import → side-effect로 google provider가 registry에 자기 등록됨
+import {
+    registerOAuthProvider,
+    getOAuthProvider,
+    getRegisteredProviders,
+    type OAuthProvider,
+} from '../../server/lib/oauth';
+import { oauthStartService } from '../../server/services/oauth.service';
 import {
     sealPendingSession,
     unsealPendingSession,
     type PendingSessionData,
 } from '../../nextjs/session-helpers';
+
+/**
+ * 테스트용 mock provider 생성 헬퍼
+ */
+function mockProvider(id: OAuthProvider['id'], enabled = true): OAuthProvider
+{
+    return {
+        id,
+        isEnabled: () => enabled,
+        getAuthUrl: (state: string) => `https://mock.example.com/${id}/auth?state=${state}`,
+        exchangeCodeForTokens: async () => ({ accessToken: 'mock-access', refreshToken: 'mock-refresh', expiresIn: 3600 }),
+        getUserInfo: async () => ({ providerUserId: 'mock-id', email: null, emailVerified: false }),
+    };
+}
 
 describe('OAuth State - Create/Verify', () =>
 {
@@ -394,5 +416,89 @@ describe('OAuth Interceptor Logic', () =>
         expect(unsealed.privateKey).toBe(pendingData.privateKey);
         expect(unsealed.keyId).toBe(pendingData.keyId);
         expect(unsealed.algorithm).toBe(pendingData.algorithm);
+    });
+});
+
+describe('OAuth Provider Registry', () =>
+{
+    // 회귀 방어: side-effect import가 tree-shake되거나 wiring이 깨지면 이 테스트가 실패한다.
+    it('auto-registers the built-in google provider on module load', () =>
+    {
+        const google = getOAuthProvider('google');
+
+        expect(google).toBeDefined();
+        expect(google?.id).toBe('google');
+        expect(getRegisteredProviders().map(p => p.id)).toContain('google');
+    });
+
+    it('register/get round-trips a custom provider', () =>
+    {
+        const provider = mockProvider('github');
+        registerOAuthProvider(provider);
+
+        expect(getOAuthProvider('github')).toBe(provider);
+        expect(getRegisteredProviders().map(p => p.id)).toContain('github');
+    });
+
+    it('re-registering the same id overrides the previous provider', () =>
+    {
+        const first = mockProvider('kakao');
+        const second = mockProvider('kakao');
+
+        registerOAuthProvider(first);
+        registerOAuthProvider(second);
+
+        expect(getOAuthProvider('kakao')).toBe(second);
+    });
+
+    it('returns undefined for an unregistered provider', () =>
+    {
+        expect(getOAuthProvider('superself')).toBeUndefined();
+    });
+});
+
+describe('oauthStartService - provider resolution', () =>
+{
+    const baseParams = {
+        returnUrl: '/dashboard',
+        publicKey: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...',
+        keyId: 'key-uuid-123',
+        fingerprint: 'abc123',
+        algorithm: 'ES256' as const,
+    };
+
+    beforeEach(() =>
+    {
+        vi.stubEnv('SPFN_AUTH_SESSION_SECRET', 'test-secret-with-at-least-32-characters-for-security-testing');
+    });
+
+    afterEach(() =>
+    {
+        vi.unstubAllEnvs();
+    });
+
+    it('throws "Unsupported OAuth provider" for an unregistered provider', async () =>
+    {
+        await expect(
+            oauthStartService({ provider: 'superself', ...baseParams })
+        ).rejects.toThrow(/Unsupported OAuth provider/);
+    });
+
+    it('throws "registered but not configured" for a disabled provider', async () =>
+    {
+        registerOAuthProvider(mockProvider('naver', false));
+
+        await expect(
+            oauthStartService({ provider: 'naver', ...baseParams })
+        ).rejects.toThrow(/registered but not configured/);
+    });
+
+    it('returns an authUrl from a registered enabled provider', async () =>
+    {
+        registerOAuthProvider(mockProvider('github', true));
+
+        const result = await oauthStartService({ provider: 'github', ...baseParams });
+
+        expect(result.authUrl).toContain('https://mock.example.com/github/auth?state=');
     });
 });

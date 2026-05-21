@@ -1540,9 +1540,11 @@ OAuth 세션 완료. 인터셉터가 pending session에서 full session을 생�
 **Response:**
 ```typescript
 {
-  providers: ('google' | 'github' | 'kakao' | 'naver')[];
+  providers: ('google' | 'github' | 'kakao' | 'naver' | 'superself')[];
 }
 ```
+
+> 등록(`registerOAuthProvider`)되고 `isEnabled()`가 true인 provider만 반환됩니다.
 
 ---
 
@@ -1582,6 +1584,62 @@ const data = await response.json();
 **에러 케이스:**
 - Google 계정 미연결 → `'No Google account linked'`
 - Refresh token 없음 → `'Google refresh token not available'` (재로그인 필요)
+
+---
+
+### Custom OAuth Providers (Pluggable)
+
+OAuth provider 분기는 하드코딩이 아니라 **registry 기반**입니다. 내장 `google` provider는 패키지 로드 시 자기 등록되며, 외부 패키지(예: `@superself/auth`)는 `registerOAuthProvider()`로 런타임에 provider를 끼울 수 있습니다.
+
+#### `OAuthProvider` 인터페이스
+
+```typescript
+import type { OAuthProvider, NormalizedIdentity, OAuthTokens } from '@spfn/auth/server';
+
+interface NormalizedIdentity {
+    providerUserId: string;
+    email: string | null;
+    emailVerified: boolean;
+    name?: string;
+    avatar?: string;
+}
+
+interface OAuthTokens {
+    accessToken: string;
+    refreshToken?: string;
+    expiresIn: number;   // seconds
+}
+
+interface OAuthProvider {
+    id: SocialProvider;                                          // SOCIAL_PROVIDERS 중 하나
+    isEnabled(): boolean;                                        // 필수 설정 충족 여부
+    getAuthUrl(state: string, scopes?: string[]): string;        // authorize URL 생성
+    exchangeCodeForTokens(code: string): Promise<OAuthTokens>;   // code → token
+    getUserInfo(accessToken: string): Promise<NormalizedIdentity>; // 사용자 정보 정규화
+    refreshTokens?(refreshToken: string): Promise<OAuthTokens>;  // (선택) 토큰 갱신
+}
+```
+
+#### 등록 API
+
+```typescript
+import { registerOAuthProvider, getOAuthProvider, getRegisteredProviders } from '@spfn/auth/server';
+
+registerOAuthProvider(myProvider);          // 동일 id 재등록 시 override
+getOAuthProvider('superself');              // OAuthProvider | undefined
+getRegisteredProviders();                   // OAuthProvider[]
+```
+
+provider를 등록하면 범용 시작 엔드포인트 `POST /_auth/oauth/start`(및 `oauthStartService`/`oauthCallbackService`)가 자동으로 해당 provider를 처리합니다.
+
+#### 통합 계약 ⚠️
+
+- **콜백 route는 소비 측 책임**입니다. 이 패키지는 `GET /_auth/oauth/google/callback`(google 고정)만 제공합니다. 커스텀 provider는 자신의 콜백 route에서 `oauthCallbackService({ provider, code, state })`를 호출해야 흐름이 완결됩니다.
+- **콜백 route는 `Transactional()`로 감싸세요.** `oauthCallbackService`는 사용자 생성/연결과 소셜 계정 저장을 순차로 수행하므로, 중간 실패 시 orphan user가 남지 않으려면 트랜잭션이 필요합니다. (내장 google 콜백 route도 `.use([Transactional()])`를 사용합니다.)
+- `SOCIAL_PROVIDERS` enum에 provider id가 포함되어 있어야 합니다. (현재: `google`, `github`, `kakao`, `naver`, `superself`)
+- 등록은 모듈 로드 시점의 side-effect입니다. 번들러에서 `package.json`에 `"sideEffects": false`를 추가하면 내장 google 등록이 tree-shake될 수 있으니 주의하세요.
+
+> **이벤트 영향**: `auth.login` / `auth.register` 이벤트의 `provider` 필드에 이제 모든 `SOCIAL_PROVIDERS` 값이 들어올 수 있습니다. 구독자의 `switch(provider)`에 새 값 처리를 추가하세요.
 
 ---
 

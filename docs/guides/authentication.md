@@ -614,6 +614,28 @@ export default function OAuthCallbackPage()
 | `/_auth/oauth/providers` | GET | List enabled providers |
 | `/_auth/oauth/finalize` | POST | Finalize OAuth session |
 
+### Custom Providers (Pluggable)
+
+OAuth provider 분기는 registry 기반이라 Google 외 provider를 런타임에 끼울 수 있습니다. 내장 `google`은 자기 등록되고, 외부 패키지는 `registerOAuthProvider()`로 등록합니다.
+
+```typescript
+import { registerOAuthProvider, type OAuthProvider } from '@spfn/auth/server';
+
+const myProvider: OAuthProvider = {
+    id: 'superself',
+    isEnabled: () => Boolean(process.env.MY_CLIENT_ID),
+    getAuthUrl: (state) => `https://issuer.example.com/authorize?state=${state}`,
+    exchangeCodeForTokens: async (code) => ({ accessToken, refreshToken, expiresIn }),
+    getUserInfo: async (accessToken) => ({ providerUserId, email, emailVerified }),
+};
+
+registerOAuthProvider(myProvider);
+```
+
+등록 후 `POST /_auth/oauth/start`가 해당 provider를 자동 처리합니다. 단, **콜백 route는 소비 측에서** 직접 만들어 `oauthCallbackService({ provider, code, state })`를 호출해야 합니다 (이 패키지는 google 콜백 route만 내장). 이 콜백 route는 `.use([Transactional()])`로 감싸 중간 실패 시 orphan user를 방지하세요. provider id는 `SOCIAL_PROVIDERS` enum에 포함되어야 합니다.
+
+> 인터페이스(`OAuthProvider` / `NormalizedIdentity` / `OAuthTokens`) 전체 명세는 [`@spfn/auth` README의 Custom OAuth Providers](../../packages/auth/README.md#custom-oauth-providers-pluggable) 참고.
+
 ---
 
 ## Session Management

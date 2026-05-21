@@ -44,7 +44,7 @@ export type UserStatus = typeof USER_STATUSES[number];
  * Social provider enum values
  * Single source of truth for supported OAuth providers
  */
-export const SOCIAL_PROVIDERS = ['google', 'github', 'kakao', 'naver'] as const;
+export const SOCIAL_PROVIDERS = ['google', 'github', 'kakao', 'naver', 'superself'] as const;
 
 /**
  * Social provider type derived from the const array

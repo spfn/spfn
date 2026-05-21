@@ -9,13 +9,17 @@
 import { defineEvent } from '@spfn/core/event';
 import { Type } from '@sinclair/typebox';
 
+import { SOCIAL_PROVIDERS } from '../types';
+
 /**
  * Auth provider type
+ *
+ * 직접 인증(email/phone) + 등록 가능한 모든 소셜 provider(SOCIAL_PROVIDERS).
  */
 export const AuthProviderSchema = Type.Union([
     Type.Literal('email'),
     Type.Literal('phone'),
-    Type.Literal('google'),
+    ...SOCIAL_PROVIDERS.map(p => Type.Literal(p)),
 ]);
 
 /**

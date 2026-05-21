@@ -13,15 +13,14 @@ import { ValidationError } from '@spfn/core/errors';
 import { usersRepository, socialAccountsRepository } from '../repositories';
 import { type SocialProvider, type KeyAlgorithmType } from '../types';
 import {
-    isGoogleOAuthEnabled,
-    getGoogleAuthUrl,
-    exchangeCodeForTokens,
-    getGoogleUserInfo,
     refreshAccessToken,
     createOAuthState,
     verifyOAuthState,
-    type GoogleUserInfo,
-    type OAuthState,
+    getOAuthProvider,
+    getRegisteredProviders,
+    type OAuthProvider,
+    type OAuthTokens,
+    type NormalizedIdentity,
 } from '../lib/oauth';
 import { registerPublicKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
@@ -59,6 +58,47 @@ export interface OAuthCallbackResult
 }
 
 /**
+ * registry에서 provider를 찾아 사용 가능한지 검증 후 반환
+ *
+ * 미등록과 비활성을 구분해 디버깅 신호를 남긴다.
+ */
+function requireEnabledProvider(provider: SocialProvider): OAuthProvider
+{
+    const oauthProvider = getOAuthProvider(provider);
+
+    if (!oauthProvider)
+    {
+        throw new ValidationError({
+            message: `Unsupported OAuth provider: ${provider}. No provider is registered for this id.`,
+        });
+    }
+
+    if (!oauthProvider.isEnabled())
+    {
+        throw new ValidationError({
+            message: `OAuth provider '${provider}' is registered but not configured. Check its required environment variables.`,
+        });
+    }
+
+    return oauthProvider;
+}
+
+/**
+ * provider가 돌려준 만료 초(seconds)를 만료 시각으로 변환 (방어적 검증)
+ */
+function tokenExpiryDate(expiresIn: number): Date
+{
+    if (!Number.isFinite(expiresIn))
+    {
+        throw new ValidationError({
+            message: `Invalid token expiry returned from OAuth provider: ${expiresIn}`,
+        });
+    }
+
+    return new Date(Date.now() + expiresIn * 1000);
+}
+
+/**
  * OAuth 로그인 시작 - Provider 로그인 페이지로 리다이렉트할 URL 생성
  *
  * Next.js에서 키쌍을 생성한 후, publicKey를 state에 포함하여 호출
@@ -69,33 +109,19 @@ export async function oauthStartService(
 {
     const { provider, returnUrl, publicKey, keyId, fingerprint, algorithm, metadata } = params;
 
-    if (provider === 'google')
-    {
-        if (!isGoogleOAuthEnabled())
-        {
-            throw new ValidationError({
-                message: 'Google OAuth is not configured. Set SPFN_AUTH_GOOGLE_CLIENT_ID and SPFN_AUTH_GOOGLE_CLIENT_SECRET.',
-            });
-        }
+    const oauthProvider = requireEnabledProvider(provider);
 
-        const state = await createOAuthState({
-            provider: 'google',
-            returnUrl,
-            publicKey,
-            keyId,
-            fingerprint,
-            algorithm,
-            metadata,
-        });
-
-        const authUrl = getGoogleAuthUrl(state);
-
-        return { authUrl };
-    }
-
-    throw new ValidationError({
-        message: `Unsupported OAuth provider: ${provider}`,
+    const state = await createOAuthState({
+        provider,
+        returnUrl,
+        publicKey,
+        keyId,
+        fingerprint,
+        algorithm,
+        metadata,
     });
+
+    return { authUrl: oauthProvider.getAuthUrl(state) };
 }
 
 /**
@@ -120,34 +146,18 @@ export async function oauthCallbackService(
         });
     }
 
-    if (provider === 'google')
-    {
-        return handleGoogleCallback(code, stateData);
-    }
+    const oauthProvider = requireEnabledProvider(provider);
 
-    throw new ValidationError({
-        message: `Unsupported OAuth provider: ${provider}`,
-    });
-}
-
-/**
- * Google OAuth 콜백 처리
- */
-async function handleGoogleCallback(
-    code: string,
-    stateData: OAuthState
-): Promise<OAuthCallbackResult>
-{
     // 1. Code를 Token으로 교환
-    const tokens = await exchangeCodeForTokens(code);
+    const tokens = await oauthProvider.exchangeCodeForTokens(code);
 
-    // 2. 사용자 정보 조회
-    const googleUser = await getGoogleUserInfo(tokens.access_token);
+    // 2. 사용자 정보 조회 (provider별 응답을 공통 형태로 정규화)
+    const identity = await oauthProvider.getUserInfo(tokens.accessToken);
 
     // 3. 기존 소셜 계정 확인
     const existingSocialAccount = await socialAccountsRepository.findByProviderAndProviderId(
-        'google',
-        googleUser.id
+        provider,
+        identity.providerUserId
     );
 
     let userId: number;
@@ -159,15 +169,15 @@ async function handleGoogleCallback(
         userId = existingSocialAccount.userId;
 
         await socialAccountsRepository.updateTokens(existingSocialAccount.id, {
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token ?? existingSocialAccount.refreshToken,
-            tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken ?? existingSocialAccount.refreshToken,
+            tokenExpiresAt: tokenExpiryDate(tokens.expiresIn),
         });
     }
     else
     {
         // 신규 사용자 또는 이메일로 기존 사용자 연결
-        const result = await createOrLinkUser(googleUser, tokens);
+        const result = await createOrLinkUser(provider, identity, tokens);
         userId = result.userId;
         isNewUser = result.isNewUser;
     }
@@ -200,7 +210,7 @@ async function handleGoogleCallback(
     const user = await usersRepository.findById(userId);
     const eventPayload = {
         userId: String(userId),
-        provider: 'google' as const,
+        provider,
         email: user?.email || undefined,
         phone: user?.phone || undefined,
         metadata: stateData.metadata,
@@ -224,16 +234,19 @@ async function handleGoogleCallback(
 }
 
 /**
- * Google 사용자 생성 또는 기존 사용자에 소셜 계정 연결
+ * 사용자 생성 또는 기존 사용자에 소셜 계정 연결
+ *
+ * 모든 OAuth provider 공통 경로. provider별 응답은 NormalizedIdentity로 정규화되어 들어온다.
  */
 async function createOrLinkUser(
-    googleUser: GoogleUserInfo,
-    tokens: { access_token: string; refresh_token?: string; expires_in: number }
+    provider: SocialProvider,
+    identity: NormalizedIdentity,
+    tokens: OAuthTokens
 ): Promise<{ userId: number; isNewUser: boolean }>
 {
     // 이메일로 기존 사용자 검색
-    const existingUser = googleUser.email
-        ? await usersRepository.findByEmail(googleUser.email)
+    const existingUser = identity.email
+        ? await usersRepository.findByEmail(identity.email)
         : null;
 
     let userId: number;
@@ -242,17 +255,17 @@ async function createOrLinkUser(
     if (existingUser)
     {
         // 미검증 이메일로는 기존 계정 연결 차단 (계정 탈취 방지)
-        if (!googleUser.verified_email)
+        if (!identity.emailVerified)
         {
             throw new ValidationError({
-                message: 'Cannot link to existing account with unverified email. Please verify your email with Google first.',
+                message: 'Cannot link to existing account with unverified email. Please verify your email with the provider first.',
             });
         }
 
         // 기존 사용자에 소셜 계정 연결
         userId = existingUser.id;
 
-        // 이메일 인증 상태 업데이트 (Google verified_email 확인)
+        // 이메일 인증 상태 업데이트 (provider의 검증된 이메일 기준)
         if (!existingUser.emailVerifiedAt)
         {
             await usersRepository.updateById(existingUser.id, {
@@ -272,13 +285,13 @@ async function createOrLinkUser(
         }
 
         const newUser = await usersRepository.create({
-            email: googleUser.verified_email ? googleUser.email : null,
+            email: identity.emailVerified ? identity.email : null,
             phone: null,
             passwordHash: null,  // OAuth 사용자는 비밀번호 없음
             passwordChangeRequired: false,
             roleId: userRole.id,
             status: 'active',
-            emailVerifiedAt: googleUser.verified_email ? new Date() : null,
+            emailVerifiedAt: identity.emailVerified ? new Date() : null,
         });
 
         userId = newUser.id;
@@ -288,12 +301,12 @@ async function createOrLinkUser(
     // 소셜 계정 생성
     await socialAccountsRepository.create({
         userId,
-        provider: 'google',
-        providerUserId: googleUser.id,
-        providerEmail: googleUser.email,
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token ?? null,
-        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        provider,
+        providerUserId: identity.providerUserId,
+        providerEmail: identity.email,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken ?? null,
+        tokenExpiresAt: tokenExpiryDate(tokens.expiresIn),
     });
 
     return { userId, isNewUser };
@@ -332,39 +345,21 @@ export function buildOAuthErrorUrl(error: string): string
 }
 
 /**
- * OAuth provider가 활성화되어 있는지 확인
+ * OAuth provider가 등록되어 있고 활성화되어 있는지 확인
  */
 export function isOAuthProviderEnabled(provider: SocialProvider): boolean
 {
-    switch (provider)
-    {
-        case 'google':
-            return isGoogleOAuthEnabled();
-        case 'github':
-        case 'kakao':
-        case 'naver':
-            // TODO: 추후 구현
-            return false;
-        default:
-            return false;
-    }
+    return getOAuthProvider(provider)?.isEnabled() ?? false;
 }
 
 /**
- * 활성화된 모든 OAuth provider 목록
+ * 활성화된 모든 OAuth provider 목록 (registry 기반)
  */
 export function getEnabledOAuthProviders(): SocialProvider[]
 {
-    const providers: SocialProvider[] = [];
-
-    if (isGoogleOAuthEnabled())
-    {
-        providers.push('google');
-    }
-
-    // TODO: 다른 provider 추가
-
-    return providers;
+    return getRegisteredProviders()
+        .filter(p => p.isEnabled())
+        .map(p => p.id);
 }
 
 // 토큰 만료 판단 시 사용할 버퍼 (5분)
@@ -411,7 +406,7 @@ export async function getGoogleAccessToken(userId: number): Promise<string>
     await socialAccountsRepository.updateTokens(account.id, {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token ?? account.refreshToken,
-        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+        tokenExpiresAt: tokenExpiryDate(tokens.expires_in),
     });
 
     return tokens.access_token;
