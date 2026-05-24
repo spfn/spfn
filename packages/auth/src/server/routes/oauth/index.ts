@@ -9,6 +9,7 @@
 
 import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
+import { ValidationError } from '@spfn/core/errors';
 import { defineRouter, route } from '@spfn/core/route';
 
 import { KEY_ALGORITHM, SOCIAL_PROVIDERS } from '../../types';
@@ -17,8 +18,18 @@ import {
     oauthCallbackService,
     buildOAuthErrorUrl,
     getEnabledOAuthProviders,
+    isOAuthProviderEnabled,
 } from '../../services';
-import { isGoogleOAuthEnabled, getGoogleAuthUrl } from '../../lib/oauth';
+import { isGoogleOAuthEnabled, getGoogleAuthUrl, getOAuthProvider } from '../../lib/oauth';
+
+/**
+ * path param의 provider 타입 (등록 가능한 모든 소셜 provider)
+ */
+const providerParams = Type.Object({
+    provider: Type.Union(SOCIAL_PROVIDERS.map(p => Type.Literal(p)), {
+        description: 'OAuth provider id (google, github, kakao, naver, superself)',
+    }),
+});
 
 /**
  * GET /_auth/oauth/google - Google OAuth 시작
@@ -231,6 +242,147 @@ export const oauthFinalize = route.post('/_auth/oauth/finalize')
         };
     });
 
+/**
+ * GET /_auth/oauth/:provider - 범용 OAuth 시작 (provider로 리다이렉트)
+ *
+ * oauthGoogleStart의 provider-generic 버전.
+ * Next.js에서 키쌍을 생성한 후 state를 query에 담아 호출.
+ *
+ * 경로 충돌: Hono는 static segment(/google, /providers)를 param(:provider)보다
+ * 우선 매칭하므로, google 리터럴 라우트와 /providers 목록 라우트가 이를 흡수하고
+ * 나머지 provider만 이 핸들러로 들어온다.
+ */
+export const oauthProviderStart = route.get('/_auth/oauth/:provider')
+    .input({
+        params: providerParams,
+        query: Type.Object({
+            state: Type.String({
+                description: 'Encrypted OAuth state (returnUrl, publicKey, keyId, fingerprint, algorithm)',
+            }),
+        }),
+    })
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        const { params, query } = await c.data();
+
+        if (!isOAuthProviderEnabled(params.provider))
+        {
+            return c.redirect(buildOAuthErrorUrl(`OAuth provider '${params.provider}' is not configured`));
+        }
+
+        const authUrl = getOAuthProvider(params.provider)!.getAuthUrl(query.state);
+        return c.redirect(authUrl);
+    });
+
+/**
+ * GET /_auth/oauth/:provider/callback - 범용 OAuth 콜백
+ *
+ * oauthGoogleCallback의 provider-generic 버전.
+ * provider에서 리다이렉트되는 콜백을 path param의 provider로 처리한다.
+ */
+export const oauthProviderCallback = route.get('/_auth/oauth/:provider/callback')
+    .input({
+        params: providerParams,
+        query: Type.Object({
+            code: Type.Optional(Type.String({
+                description: 'Authorization code from provider',
+            })),
+            state: Type.Optional(Type.String({
+                description: 'OAuth state parameter',
+            })),
+            error: Type.Optional(Type.String({
+                description: 'Error code from provider',
+            })),
+            error_description: Type.Optional(Type.String({
+                description: 'Error description from provider',
+            })),
+        }),
+    })
+    .use([Transactional()])
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        const { params, query } = await c.data();
+
+        // provider에서 에러가 반환된 경우
+        if (query.error)
+        {
+            const errorMessage = query.error_description || query.error;
+            return c.redirect(buildOAuthErrorUrl(errorMessage));
+        }
+
+        // code와 state 필수 확인
+        if (!query.code || !query.state)
+        {
+            return c.redirect(buildOAuthErrorUrl('Missing authorization code or state'));
+        }
+
+        try
+        {
+            const result = await oauthCallbackService({
+                provider: params.provider,
+                code: query.code,
+                state: query.state,
+            });
+
+            return c.redirect(result.redirectUrl);
+        }
+        catch (err)
+        {
+            const message = err instanceof Error ? err.message : 'OAuth callback failed';
+            return c.redirect(buildOAuthErrorUrl(message));
+        }
+    });
+
+/**
+ * POST /_auth/oauth/:provider/url - 범용 OAuth URL 획득 (인터셉터용)
+ *
+ * getGoogleOAuthUrl의 provider-generic 버전.
+ * Next.js 인터셉터(oauthUrlInterceptor)가 키쌍 생성 후 body.state를 주입하고,
+ * 백엔드는 state로 provider별 authorization URL을 생성해 반환한다.
+ *
+ * @example
+ * const { authUrl } = await authApi.getProviderOAuthUrl.call({
+ *     params: { provider: 'superself' },
+ *     body: { returnUrl: '/dashboard' },
+ * });
+ * window.location.href = authUrl;
+ */
+export const getProviderOAuthUrl = route.post('/_auth/oauth/:provider/url')
+    .input({
+        params: providerParams,
+        body: Type.Object({
+            returnUrl: Type.Optional(Type.String({
+                description: 'URL to redirect after OAuth success',
+            })),
+            state: Type.Optional(Type.String({
+                description: 'Encrypted OAuth state (injected by interceptor)',
+            })),
+        }),
+    })
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        const { params, body } = await c.data();
+
+        if (!isOAuthProviderEnabled(params.provider))
+        {
+            throw new ValidationError({
+                message: `OAuth provider '${params.provider}' is not configured`,
+            });
+        }
+
+        if (!body.state)
+        {
+            throw new ValidationError({
+                message: 'OAuth state is required. Ensure the OAuth interceptor is configured.',
+            });
+        }
+
+        return { authUrl: getOAuthProvider(params.provider)!.getAuthUrl(body.state) };
+    });
+
 // Export router
 export const oauthRouter = defineRouter({
     oauthGoogleStart,
@@ -239,6 +391,9 @@ export const oauthRouter = defineRouter({
     oauthProviders,
     getGoogleOAuthUrl,
     oauthFinalize,
+    oauthProviderStart,
+    oauthProviderCallback,
+    getProviderOAuthUrl,
 });
 
 export default oauthRouter;

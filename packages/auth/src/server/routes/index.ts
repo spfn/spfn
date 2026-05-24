@@ -34,6 +34,9 @@ import {
     oauthProviders,
     getGoogleOAuthUrl,
     oauthFinalize,
+    oauthProviderStart,
+    oauthProviderCallback,
+    getProviderOAuthUrl,
 } from './oauth';
 import {
     listRoles,
@@ -74,6 +77,9 @@ export const mainAuthRouter = defineRouter({
     oauthProviders,
     getGoogleOAuthUrl,
     oauthFinalize,
+    oauthProviderStart,
+    oauthProviderCallback,
+    getProviderOAuthUrl,
     // Invitation routes
     getInvitation,
     acceptInvitation,
