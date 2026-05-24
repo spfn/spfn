@@ -128,6 +128,7 @@ export {
     oauthCallbackService,
     buildOAuthErrorUrl,
     isOAuthProviderEnabled,
+    requireEnabledProvider,
     getEnabledOAuthProviders,
     getGoogleAccessToken,
 } from './oauth.service';

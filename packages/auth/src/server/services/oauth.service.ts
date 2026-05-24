@@ -61,8 +61,9 @@ export interface OAuthCallbackResult
  * registry에서 provider를 찾아 사용 가능한지 검증 후 반환
  *
  * 미등록과 비활성을 구분해 디버깅 신호를 남긴다.
+ * 라우트 레이어에서도 재사용한다(중복 조회/non-null 단언 제거).
  */
-function requireEnabledProvider(provider: SocialProvider): OAuthProvider
+export function requireEnabledProvider(provider: SocialProvider): OAuthProvider
 {
     const oauthProvider = getOAuthProvider(provider);
 

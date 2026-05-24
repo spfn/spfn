@@ -18,7 +18,7 @@ import {
     oauthCallbackService,
     buildOAuthErrorUrl,
     getEnabledOAuthProviders,
-    isOAuthProviderEnabled,
+    requireEnabledProvider,
 } from '../../services';
 import { isGoogleOAuthEnabled, getGoogleAuthUrl, getOAuthProvider } from '../../lib/oauth';
 
@@ -202,12 +202,14 @@ export const getGoogleOAuthUrl = route.post('/_auth/oauth/google/url')
 
         if (!isGoogleOAuthEnabled())
         {
-            throw new Error('Google OAuth is not configured');
+            throw new ValidationError({ message: 'Google OAuth is not configured' });
         }
 
         if (!body.state)
         {
-            throw new Error('OAuth state is required. Ensure the OAuth interceptor is configured.');
+            throw new ValidationError({
+                message: 'OAuth state is required. Ensure the OAuth interceptor is configured.',
+            });
         }
 
         return { authUrl: getGoogleAuthUrl(body.state) };
@@ -266,13 +268,14 @@ export const oauthProviderStart = route.get('/_auth/oauth/:provider')
     {
         const { params, query } = await c.data();
 
-        if (!isOAuthProviderEnabled(params.provider))
+        const provider = getOAuthProvider(params.provider);
+
+        if (!provider?.isEnabled())
         {
             return c.redirect(buildOAuthErrorUrl(`OAuth provider '${params.provider}' is not configured`));
         }
 
-        const authUrl = getOAuthProvider(params.provider)!.getAuthUrl(query.state);
-        return c.redirect(authUrl);
+        return c.redirect(provider.getAuthUrl(query.state));
     });
 
 /**
@@ -366,12 +369,8 @@ export const getProviderOAuthUrl = route.post('/_auth/oauth/:provider/url')
     {
         const { params, body } = await c.data();
 
-        if (!isOAuthProviderEnabled(params.provider))
-        {
-            throw new ValidationError({
-                message: `OAuth provider '${params.provider}' is not configured`,
-            });
-        }
+        // 미등록/비활성을 구분해 ValidationError를 던진다(인터셉터가 던졌을 plain Error 대신).
+        const provider = requireEnabledProvider(params.provider);
 
         if (!body.state)
         {
@@ -380,7 +379,7 @@ export const getProviderOAuthUrl = route.post('/_auth/oauth/:provider/url')
             });
         }
 
-        return { authUrl: getOAuthProvider(params.provider)!.getAuthUrl(body.state) };
+        return { authUrl: provider.getAuthUrl(body.state) };
     });
 
 // Export router
