@@ -54,3 +54,4 @@ packages/*/.guide/
 .woodpecker.dev.yml
 .woodpecker.main.yml
 /apps/
+.supervibe/notes/
