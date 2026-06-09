@@ -110,6 +110,22 @@ const SSE_DEFAULTS = {
  * unsubscribe();
  * ```
  */
+/**
+ * Per-subscription connection resources.
+ *
+ * Grouped so an in-flight async connect can be cancelled atomically and
+ * `close()` can tear down whichever subscription is currently active —
+ * the shared module-level EventSource used to leak across the token await.
+ */
+interface SSEConnection
+{
+    eventSource: EventSource | null;
+    reconnectTimer: ReturnType<typeof setTimeout> | null;
+    reconnectAttempts: number;
+    closed: boolean;
+    onClose?: () => void;
+}
+
 export function createSSEClient<TRouter extends EventRouterDef<any>>(
     config: SSEClientConfig = {}
 ): SSEClient<TRouter>
@@ -128,16 +144,59 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
     // Build base URL: url takes precedence, otherwise host + pathname
     const baseUrl = url || `${host}${pathname}`;
 
-    let eventSource: EventSource | null = null;
     let state: SSEConnectionState = 'closed';
-    let reconnectAttempts = 0;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let activeOnClose: (() => void) | undefined;
+    let active: SSEConnection | null = null;
+
+    // Idempotent teardown: closes the connection, fires onClose exactly once,
+    // and clears the active slot if this was the live connection.
+    function closeConn(conn: SSEConnection)
+    {
+        if (conn.closed)
+        {
+            return;
+        }
+
+        conn.closed = true;
+
+        if (conn.reconnectTimer)
+        {
+            clearTimeout(conn.reconnectTimer);
+            conn.reconnectTimer = null;
+        }
+
+        if (conn.eventSource)
+        {
+            conn.eventSource.close();
+            conn.eventSource = null;
+        }
+
+        if (active === conn)
+        {
+            active = null;
+            state = 'closed';
+        }
+
+        conn.onClose?.();
+    }
 
     function subscribe(options: SSESubscribeOptions<TRouter>): SSEUnsubscribe
     {
         const { events, handlers, onOpen, onError, onReconnect, onClose } = options;
-        activeOnClose = onClose;
+
+        // A new subscription supersedes any previous one on this client.
+        if (active)
+        {
+            closeConn(active);
+        }
+
+        const conn: SSEConnection = {
+            eventSource: null,
+            reconnectTimer: null,
+            reconnectAttempts: 0,
+            closed: false,
+            onClose,
+        };
+        active = conn;
 
         const eventNames = events as string[];
 
@@ -152,21 +211,40 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
                 if (acquireToken)
                 {
                     const token = await acquireToken();
+
+                    // Cancelled during the token await (e.g. StrictMode cleanup) —
+                    // don't open a connection that has no teardown waiting for it.
+                    if (conn.closed)
+                    {
+                        return;
+                    }
+
                     tokenParam = `&token=${encodeURIComponent(token)}`;
+                }
+
+                if (conn.closed)
+                {
+                    return;
                 }
 
                 const streamUrl = `${baseUrl}?events=${eventNames.join(',')}${tokenParam}`;
 
-                eventSource = new EventSource(streamUrl, {
+                conn.eventSource = new EventSource(streamUrl, {
                     withCredentials,
                 });
 
-                setupEventHandlers(eventSource, eventNames, handlers, onOpen, onError);
+                setupEventHandlers(conn.eventSource, eventNames, handlers, onOpen, onError);
                 setupReconnect(onReconnect);
             };
 
             init().catch(() =>
             {
+                // Don't resurrect a torn-down subscription via reconnect.
+                if (conn.closed)
+                {
+                    return;
+                }
+
                 state = 'error';
                 attemptReconnect(onReconnect);
             });
@@ -183,7 +261,7 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
             es.onopen = () =>
             {
                 state = 'open';
-                reconnectAttempts = 0;
+                conn.reconnectAttempts = 0;
                 onOpenCb?.();
             };
 
@@ -240,12 +318,12 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
 
         function setupReconnect(onReconnectCb?: (attempt: number) => void)
         {
-            if (!eventSource)
+            if (!conn.eventSource)
             {
                 return;
             }
 
-            const currentEs = eventSource;
+            const currentEs = conn.eventSource;
             const originalOnError = currentEs.onerror;
 
             currentEs.onerror = (error) =>
@@ -271,22 +349,21 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
 
         function attemptReconnect(onReconnectCb?: (attempt: number) => void)
         {
-            if (!reconnect)
+            if (conn.closed || !reconnect)
             {
                 return;
             }
 
-            if (maxReconnectAttempts > 0 && reconnectAttempts >= maxReconnectAttempts)
+            if (maxReconnectAttempts > 0 && conn.reconnectAttempts >= maxReconnectAttempts)
             {
-                state = 'closed';
-                onClose?.();
+                closeConn(conn);
                 return;
             }
 
-            reconnectAttempts++;
-            onReconnectCb?.(reconnectAttempts);
+            conn.reconnectAttempts++;
+            onReconnectCb?.(conn.reconnectAttempts);
 
-            reconnectTimer = setTimeout(() =>
+            conn.reconnectTimer = setTimeout(() =>
             {
                 connect();
             }, reconnectDelay);
@@ -298,20 +375,7 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
         // Return unsubscribe function
         return () =>
         {
-            if (reconnectTimer)
-            {
-                clearTimeout(reconnectTimer);
-                reconnectTimer = null;
-            }
-
-            if (eventSource)
-            {
-                eventSource.close();
-                eventSource = null;
-            }
-
-            state = 'closed';
-            onClose?.();
+            closeConn(conn);
         };
     }
 
@@ -322,20 +386,14 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
 
     function close()
     {
-        if (reconnectTimer)
+        if (active)
         {
-            clearTimeout(reconnectTimer);
-            reconnectTimer = null;
+            closeConn(active);
         }
-
-        if (eventSource)
+        else
         {
-            eventSource.close();
-            eventSource = null;
+            state = 'closed';
         }
-
-        state = 'closed';
-        activeOnClose?.();
     }
 
     return {
