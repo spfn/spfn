@@ -24,12 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 스캐폴드 example 템플릿 결함 제거: `getExample`의 테스트용 헤더 강제 validation·디버그 로그, root 응답의 미등록 `/teams` 참조.
 - `.gitignore`에 `.env.server`가 누락될 수 있던 분기 수정(독립 체크로 분리).
 - type-check 미사용 심볼 정리(에러 0).
+- **db 파괴 명령 안전 가드**: `drop`/`restore`가 대상 DB(name@host:port)를 표시하고, 원격/프로덕션 DB면 이름 재입력을 요구. `restore --drop`이 `--clean`에 `--if-exists`를 동반하고, plain SQL 경로에서 `--drop` 무시 시 경고. `db clean`이 `.meta.json` 사이드카도 함께 삭제.
+- `init` 멱등성: 기존 RPC 프록시 라우트 발견 시 init 전체를 중단(`process.exit(1)`)하지 않고 skip.
+- 스캐폴드 `Dockerfile`이 프로젝트의 패키지 매니저(npm/yarn/bun/pnpm)에 맞게 생성되도록 수정(기존 pnpm 하드코딩). base 이미지 node 20→22.
+- `spfn start` both 모드가 `concurrently`를 `shell:true`·수동 따옴표 없이 호출하도록 수정(공백 포함 경로 대응).
 
 ### Removed
 
 #### spfn (CLI)
 
 - 죽은 `.guide` 참조 제거: `create` 안내 메시지, `sync:guides` 스크립트, RELEASE 체크리스트 항목, stale 빌드 잔재(`copy-templates`에 `emptyDirSync` 추가로 재발 방지).
+- generate 죽은 자산 제거: `generateInitMigration`+`init-migration.template`, `validation.ts`, 고아 `templates/config/`, 참조 없는 `Dockerfile.optimized`.
 
 ## [0.1.0-alpha.85] - 2025-11-07
 
