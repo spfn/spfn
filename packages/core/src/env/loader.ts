@@ -8,8 +8,7 @@
  * 2. .env.{NODE_ENV}        - 환경별 오버라이드 (committed)
  * 3. .env.local             - 로컬 오버라이드 (gitignored, test에서 스킵)
  * 4. .env.{NODE_ENV}.local  - 환경별 시크릿 (gitignored)
- * 5. .env.server            - 서버 전용 기본값 (committed)
- * 6. .env.server.local      - 서버 전용 시크릿 (gitignored)
+ * 5. .env.server            - 서버 전용 (gitignored, Next.js 미로드)
  *
  * @example
  * ```typescript
@@ -53,7 +52,7 @@ export interface LoadEnvOptions
     nodeEnv?: string;
 
     /**
-     * 서버 전용 파일 포함 여부 (.env.server, .env.server.local)
+     * 서버 전용 파일 포함 여부 (.env.server)
      * @default true
      */
     server?: boolean;
@@ -113,7 +112,6 @@ function getEnvFiles(nodeEnv: string, server: boolean): string[]
     if (server)
     {
         files.push('.env.server');
-        files.push('.env.server.local');
     }
 
     return files;

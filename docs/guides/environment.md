@@ -100,20 +100,19 @@ const port = env.get('PORT');               // number | undefined
 
 ## File Priority
 
-환경변수는 6-layer 우선순위 체인으로 로드됩니다 (나중 파일이 이전 값을 덮어씀):
+환경변수는 5-layer 우선순위 체인으로 로드됩니다 (나중 파일이 이전 값을 덮어씀):
 
 ```
 1. .env                        # 공통 기본값 (committed)
 2. .env.{NODE_ENV}             # 환경별 오버라이드 (committed)
 3. .env.local                  # Next.js용 로컬 오버라이드 (gitignored)
 4. .env.{NODE_ENV}.local       # 환경별 시크릿 (gitignored)
-5. .env.server                 # 서버 전용 기본값 (committed)
-6. .env.server.local           # 서버 전용 시크릿 (gitignored)
+5. .env.server                 # 서버 전용 시크릿 포함 (gitignored)
 ```
 
 ### Next.js vs Server 파일 분리
 
-`.env.local`은 **Next.js용**입니다. Next.js가 자동으로 읽는 파일이므로 `NEXT_PUBLIC_*` 변수나 Next.js에서 사용하는 값을 넣습니다. **서버 전용 시크릿(`DATABASE_URL`, `SESSION_SECRET` 등)은 반드시 `.env.server.local`에** 넣어야 합니다.
+`.env.local`은 **Next.js용**입니다. Next.js가 자동으로 읽는 파일이므로 `NEXT_PUBLIC_*` 변수나 Next.js에서 사용하는 값을 넣습니다. **서버 전용 시크릿(`DATABASE_URL`, `SESSION_SECRET` 등)은 반드시 `.env.server`에** 넣어야 합니다. `.env.server`는 gitignored이며, committed 템플릿으로는 `.env.server.example`을 사용합니다.
 
 ### Example
 
@@ -131,7 +130,7 @@ SPFN_API_URL=https://api.myapp.com
 NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
 SPFN_APP_URL=http://localhost:3790
 
-# .env.server.local (gitignored — 서버 전용 시크릿)
+# .env.server (gitignored — 서버 전용, 시크릿 포함)
 DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
 CACHE_URL=redis://localhost:6379
 SESSION_SECRET=my-dev-secret
@@ -146,17 +145,17 @@ DATABASE_URL=postgresql://prod:secret@prod-db:5432/app
 |----------|------|------|
 | `NEXT_PUBLIC_*` | `.env.local` | Next.js 클라이언트용, 브라우저 노출 OK |
 | `SPFN_API_URL` | `.env` / `.env.local` | Next.js에서도 사용하는 공통 설정 |
-| `DATABASE_URL` | `.env.server.local` | 서버 전용, 민감정보 |
-| `SESSION_SECRET` | `.env.server.local` | 서버 전용, 민감정보 |
-| `DB_POOL_MAX` | `.env.server` | 서버 전용, 비민감 설정 |
-| `FETCH_HEADERS_TIMEOUT` | `.env.server` | 서버 전용, 비민감 설정 |
+| `DATABASE_URL` | `.env.server` | 서버 전용, 민감정보 |
+| `SESSION_SECRET` | `.env.server` | 서버 전용, 민감정보 |
+| `DB_POOL_MAX` | `.env.server` | 서버 전용 설정 |
+| `FETCH_HEADERS_TIMEOUT` | `.env.server` | 서버 전용 설정 |
 | `RPC_PROXY_TIMEOUT` | `.env` / `.env.local` | Next.js에서 사용하는 공통 설정 |
 
 ### Test Environment Behavior
 
 테스트 환경(`NODE_ENV=test`)에서는:
 - `.env.local` 파일이 **스킵**됨 (테스트 결정론성 보장)
-- `.env`, `.env.test`, `.env.test.local`, `.env.server`, `.env.server.local`만 로드
+- `.env`, `.env.test`, `.env.test.local`, `.env.server`만 로드
 
 ## Namespace Support
 
@@ -740,7 +739,7 @@ loadEnvironment({ namespace: 'payment' });
 .env.*.local
 ```
 
-> **Note:** `.env.production`은 커밋해도 됩니다 (비민감 설정만 포함). 시크릿은 반드시 `.env.production.local` 또는 `.env.server.local`에 넣으세요.
+> **Note:** `.env.production`은 커밋해도 됩니다 (비민감 설정만 포함). 시크릿은 반드시 `.env.production.local` 또는 `.env.server`에 넣으세요.
 
 ### 5. Validate Early
 

@@ -65,7 +65,7 @@ export interface EnvVarSchema<T = string>
      * Next.js 프로세스에서 사용 여부
      *
      * - true: .env.local에 존재해야 함 (Next.js 서버 컴포넌트에서 접근 가능)
-     * - false: .env.server.local에만 존재해야 함 (SPFN 서버에서만 접근)
+     * - false: .env.server에만 존재해야 함 (SPFN 서버에서만 접근)
      *
      * @default NEXT_PUBLIC_* 이면 true, 아니면 false
      */

@@ -91,8 +91,7 @@ Next.js 서버 컴포넌트는 `.env.local`의 모든 환경변수에 접근할 
 프로젝트 루트/
 ├── .env                  # 기본값 (커밋 O)
 ├── .env.local            # Next.js용 로컬 오버라이드 (커밋 X)
-├── .env.server           # SPFN 서버 전용 기본값 (커밋 O)
-└── .env.server.local     # SPFN 서버 전용 민감정보 (커밋 X)
+└── .env.server           # SPFN 서버 전용 (시크릿 포함, 커밋 X)
 ```
 
 ### Which File for What?
@@ -101,8 +100,8 @@ Next.js 서버 컴포넌트는 `.env.local`의 모든 환경변수에 접근할 
 |----------|------|------|
 | `NEXT_PUBLIC_*` | `.env.local` | 브라우저 노출 OK |
 | `SPFN_API_URL` | `.env.local` | Next.js 서버 컴포넌트에서 사용 |
-| `DATABASE_URL` | `.env.server.local` | SPFN 서버에서만 사용, 민감정보 |
-| `SESSION_SECRET` | `.env.server.local` | SPFN 서버에서만 사용, 민감정보 |
+| `DATABASE_URL` | `.env.server` | SPFN 서버에서만 사용, 민감정보 |
+| `SESSION_SECRET` | `.env.server` | SPFN 서버에서만 사용, 민감정보 |
 
 ### Security Model
 
@@ -112,7 +111,7 @@ Next.js 프로세스가 읽는 것:
   → DATABASE_URL 없음 ✓ (취약점에 안전)
 
 SPFN 서버가 읽는 것:
-  .env, .env.local, .env.server, .env.server.local
+  .env, .env.local, .env.server
   → 전부 있음 (NEXT_PUBLIC 포함해도 무방)
 ```
 
@@ -125,7 +124,7 @@ const schema = defineEnvSchema({
     description: 'PostgreSQL connection URL',
     required: true,
     sensitive: true,
-    nextjs: false,  // .env.server.local에만 존재해야 함
+    nextjs: false,  // .env.server에만 존재해야 함
   }),
 
   // Next.js 서버 컴포넌트에서도 사용
@@ -167,8 +166,7 @@ const env = createEnvRegistry(envSchema).validate();
 
 1. `.env` - 기본값
 2. `.env.local` - 로컬 오버라이드
-3. `.env.server` - 서버 전용 기본값
-4. `.env.server.local` - 서버 전용 민감정보
+3. `.env.server` - 서버 전용 (시크릿 포함)
 
 ### `loadEnv(options?)`
 

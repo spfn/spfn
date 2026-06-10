@@ -9,8 +9,7 @@ const { writeFileSync } = fse;
  * Setup configuration files:
  * - .env.example (shared defaults, committed)
  * - .env.local.example (local overrides with secrets, gitignored)
- * - .env.server.example (server-only defaults, committed)
- * - .env.server.local.example (server secrets, gitignored)
+ * - .env.server.example (server-only template incl. secrets; copy to .env.server, gitignored)
  * - .spfnrc.ts (codegen configuration)
  * - .gitignore (add .spfn directory + env patterns)
  * - tsconfig.json (exclude src/server for Vercel)
@@ -88,8 +87,9 @@ CACHE_URL=redis://localhost:6379
 # SPFN_APP_URL=http://localhost:3790
 `);
 
-    // .env.server.example — server-only defaults (committed)
-    writeEnvExample(cwd, '.env.server.example', `# Server-only defaults (committed)
+    // .env.server.example — server-only template (copy to .env.server, gitignored)
+    writeEnvExample(cwd, '.env.server.example', `# Server-only environment (template)
+# Copy to .env.server (gitignored) and fill in real values.
 # These values are only loaded by the SPFN server, not by Next.js.
 
 # Database pool
@@ -99,11 +99,8 @@ DB_POOL_IDLE_TIMEOUT=30
 # Server timeouts
 SERVER_TIMEOUT=120000
 SHUTDOWN_TIMEOUT=30000
-`);
 
-    // .env.server.local.example — server secrets (gitignored)
-    writeEnvExample(cwd, '.env.server.local.example', `# Server secrets (gitignored)
-# Server-only sensitive values. Never commit this file.
+# --- Secrets (never commit .env.server) ---
 
 # Database write/read URLs (master-replica pattern, optional)
 # DATABASE_WRITE_URL=postgresql://user:password@master:5432/dbname
@@ -165,6 +162,7 @@ function updateGitignore(cwd: string): void
 # environment secrets (local overrides)
 .env.local
 .env.*.local
+.env.server
 `;
             changed = true;
         }

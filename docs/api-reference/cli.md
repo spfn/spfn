@@ -897,7 +897,7 @@ SPFN_API_URL=http://localhost:8790
 # .env.local (gitignored — Next.js용 로컬 오버라이드)
 NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
 
-# .env.server.local (gitignored — 서버 전용 시크릿)
+# .env.server (gitignored — 서버 전용 시크릿)
 DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
 
 # .env.production (committed — production 설정)
@@ -905,7 +905,7 @@ SPFN_LOG_LEVEL=warn
 SPFN_API_URL=https://api.myapp.com
 ```
 
-> **Note:** `.env.local`은 Next.js용입니다. 서버 전용 시크릿(`DATABASE_URL` 등)은 `.env.server.local`에 넣으세요.
+> **Note:** `.env.local`은 Next.js용입니다. 서버 전용 시크릿(`DATABASE_URL` 등)은 `.env.server`에 넣으세요. `.env.server`는 gitignored 이며 서버 전용(시크릿 포함)입니다.
 
 ## Common Workflows
 

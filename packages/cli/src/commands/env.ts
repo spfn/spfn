@@ -14,7 +14,7 @@ const VALID_ENVS = ['local', 'development', 'staging', 'production', 'test'] as 
  */
 const BASE_ENV_FILES = {
     nextjs: ['.env', '.env.local'],
-    server: ['.env.server', '.env.server.local'],
+    server: ['.env.server'],
 } as const;
 
 /**
@@ -40,7 +40,6 @@ function getEnvFilesForEnvironment(nodeEnv?: string): string[]
     }
 
     files.push('.env.server');
-    files.push('.env.server.local');
 
     return files;
 }
@@ -57,7 +56,7 @@ function getTargetFile(schema: any): string
         return schema.sensitive ? '.env.local' : '.env';
     }
 
-    return schema.sensitive ? '.env.server.local' : '.env.server';
+    return '.env.server';
 }
 
 /**
@@ -457,7 +456,6 @@ async function initEnvFiles(options: { package?: string; force?: boolean; env?: 
         console.log(chalk.dim('   cp .env.example .env'));
         console.log(chalk.dim('   cp .env.local.example .env.local'));
         console.log(chalk.dim('   cp .env.server.example .env.server'));
-        console.log(chalk.dim('   cp .env.server.local.example .env.server.local'));
 
         if (targetEnv)
         {

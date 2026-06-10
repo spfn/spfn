@@ -301,7 +301,7 @@ loadEnv({ nodeEnv: 'production' });
 loadEnv({ server: false });
 ```
 
-### Loading Priority (6-Layer)
+### Loading Priority (5-Layer)
 
 `NODE_ENV`에 따라 동적으로 파일 목록이 결정됩니다 (나중 파일이 덮어씀):
 
@@ -309,10 +309,9 @@ loadEnv({ server: false });
 2. `.env.{NODE_ENV}` - 환경별 오버라이드 (committed)
 3. `.env.local` - Next.js용 로컬 오버라이드 (gitignored, **test에서 스킵**)
 4. `.env.{NODE_ENV}.local` - 환경별 시크릿 (gitignored)
-5. `.env.server` - 서버 전용 기본값 (committed)
-6. `.env.server.local` - 서버 전용 시크릿 (gitignored)
+5. `.env.server` - 서버 전용 (gitignored, 시크릿 포함)
 
-> **Important:** `.env.local`은 Next.js용입니다. 서버 전용 시크릿(`DATABASE_URL` 등)은 반드시 `.env.server.local`에 넣으세요.
+> **Important:** `.env.local`은 Next.js용입니다. 서버 전용 시크릿(`DATABASE_URL` 등)은 반드시 `.env.server`에 넣으세요.
 
 ### Options
 
@@ -342,8 +341,7 @@ project/
 ├── .env.production           # production 오버라이드 (committed)
 ├── .env.local                # Next.js용 로컬 오버라이드 (gitignored)
 ├── .env.production.local     # production 시크릿 (gitignored)
-├── .env.server               # 서버 전용 기본값 (committed)
-└── .env.server.local         # 서버 전용 시크릿 (gitignored)
+└── .env.server               # 서버 전용 (gitignored, 시크릿 포함)
 ```
 
 ### Which File for What?
@@ -355,10 +353,10 @@ project/
 | `NEXT_PUBLIC_*` | `.env.local` | Next.js 클라이언트용, 브라우저 노출 OK |
 | `SPFN_APP_URL` | `.env.local` | Next.js에서 사용하는 로컬 설정 |
 | `DB_POOL_MAX` | `.env.server` | 서버 전용, 비민감 |
-| `DATABASE_URL` | `.env.server.local` | 서버 전용, **민감정보** |
-| `SESSION_SECRET` | `.env.server.local` | 서버 전용, **민감정보** |
+| `DATABASE_URL` | `.env.server` | 서버 전용, **민감정보** |
+| `SESSION_SECRET` | `.env.server` | 서버 전용, **민감정보** |
 
-> **Rule:** `.env.local`은 Next.js용입니다. `DATABASE_URL`, `SESSION_SECRET` 등 서버 전용 시크릿은 `.env.server.local`에 넣으세요.
+> **Rule:** `.env.local`은 Next.js용입니다. `DATABASE_URL`, `SESSION_SECRET` 등 서버 전용 시크릿은 `.env.server`에 넣으세요.
 
 ### Schema with `nextjs` Option
 
@@ -367,7 +365,7 @@ DATABASE_URL: envString({
     description: 'PostgreSQL connection URL',
     required: true,
     sensitive: true,
-    nextjs: false,  // SPFN 서버에서만 사용 → .env.server.local
+    nextjs: false,  // SPFN 서버에서만 사용 → .env.server
 }),
 
 SPFN_API_URL: envString({
