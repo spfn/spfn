@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### spfn (CLI)
 
+- **BREAKING: `spfn generate` / `spfn g fn` 명령 제거** — 폐기된 contract-first 아키텍처(`createApp`/`createContract`/`createFunctionSchema`, 현행 core에서 제거됨)를 스캐폴드해 산출물이 컴파일 불가였음. 실제 `@spfn` 패키지는 route DSL을 사용하고 generate fn 구조(`lib/contracts`)를 쓰지 않음. 향후 필요 시 현행 패턴으로 신규 작성.
 - 죽은 `.guide` 참조 제거: `create` 안내 메시지, `sync:guides` 스크립트, RELEASE 체크리스트 항목, stale 빌드 잔재(`copy-templates`에 `emptyDirSync` 추가로 재발 방지).
 - generate 죽은 자산 제거: `generateInitMigration`+`init-migration.template`, `validation.ts`, 고아 `templates/config/`, 참조 없는 `Dockerfile.optimized`.
 
