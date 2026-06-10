@@ -35,8 +35,8 @@ export async function setupApiProxy(cwd: string, includeAuth: boolean): Promise<
 
     if (existsSync(rpcRoutePath))
     {
-        logger.error(`RPC proxy route already exists: ${rpcRoutePath.replace(cwd + '/', '')}`);
-        process.exit(1);
+        logger.warn(`RPC proxy route already exists, skipping: ${rpcRoutePath.replace(cwd + '/', '')}`);
+        return;
     }
 
     ensureDirSync(rpcDir);

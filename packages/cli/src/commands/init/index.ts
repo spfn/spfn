@@ -36,7 +36,7 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
     await setupApiProxy(cwd, includeAuth);
 
     // Step 5: Copy Docker files
-    await setupDockerFiles(cwd);
+    await setupDockerFiles(cwd, pm);
 
     // Step 6: Generate deployment config (spfn.config.js)
     await setupDeploymentConfig(cwd, packageJson, pm);
