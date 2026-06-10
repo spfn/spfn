@@ -16,12 +16,3 @@ console.log('📋 Copying templates...');
 emptyDirSync(templatesDest);
 copySync(templatesSource, templatesDest);
 console.log('✅ Templates copied to dist/templates');
-
-// Copy generate templates
-const generateTemplatesSource = join(__dirname, '..', 'src', 'commands', 'generate', 'templates');
-const generateTemplatesDest = join(__dirname, '..', 'dist', 'commands', 'generate', 'templates');
-
-console.log('📋 Copying generate templates...');
-emptyDirSync(generateTemplatesDest);
-copySync(generateTemplatesSource, generateTemplatesDest);
-console.log('✅ Generate templates copied to dist/commands/generate/templates');
