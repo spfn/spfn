@@ -28,7 +28,7 @@ function waitForReadyFile(filePath: string, timeoutMs = 30000): Promise<string>
         const dir = join(filePath, '..');
         const fileName = filePath.split('/').pop()!;
 
-        const watcher = watch(dir, (event, name) =>
+        const watcher = watch(dir, (_event, name) =>
         {
             if (name === fileName && existsSync(filePath))
             {

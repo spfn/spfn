@@ -234,7 +234,6 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 	const warnings: string[] = [];
 	const errors: string[] = [];
 	let objectCount = 0;
-	let lastObject = '';
 
 	restoreProcess.stderr?.on('data', (data) =>
 	{
@@ -259,7 +258,6 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 				objectCount = Number(objectMatch[2]);
 				const current = Number(objectMatch[1]);
 				const desc = line.replace(/^pg_restore:\s*/, '').trim();
-				lastObject = desc;
 				spinner.text = `Restoring backup... [${current}/${objectCount}] ${desc}`;
 			}
 			else if (isCustomFormat)
@@ -268,7 +266,6 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 				const desc = line.replace(/^pg_restore:\s*/, '').trim();
 				if (desc && !/warning:|error:/i.test(desc))
 				{
-					lastObject = desc;
 					spinner.text = `Restoring backup... ${desc}`;
 				}
 			}

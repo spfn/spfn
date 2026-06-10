@@ -9,7 +9,6 @@ import {
     generateTsConfig,
     generateTsupConfig,
     generateDrizzleConfig,
-    generateInitMigration,
     generateExampleGenerator,
     generateReadme,
 } from './config.js';

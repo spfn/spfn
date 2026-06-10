@@ -313,7 +313,7 @@ export function generateInitMigration(fnDir: string, fnName: string): void
 /**
  * Generate example generator file
  */
-export function generateExampleGenerator(fnDir: string, scope: string, fnName: string): void
+export function generateExampleGenerator(fnDir: string, _scope: string, fnName: string): void
 {
     const pascalName = toPascalCase(fnName);
 

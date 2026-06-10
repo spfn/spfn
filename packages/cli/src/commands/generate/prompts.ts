@@ -84,7 +84,7 @@ export async function promptFunctionName(): Promise<string>
 /**
  * Prompt for function description
  */
-export async function promptDescription(fnName: string): Promise<string>
+export async function promptDescription(_fnName: string): Promise<string>
 {
     const response = await prompts({
         type: 'text',
