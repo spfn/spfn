@@ -1,703 +1,617 @@
-# @spfn/core/env - Environment Variable Management
+# @spfn/core/env — Environment Variable Management
 
-Type-safe environment variable management with schema-based validation, parsing, and security-focused file separation.
+Type-safe, schema-based environment variable validation, parsing, and security-focused
+file separation for Next.js + SPFN server.
 
-## Core Components
+## Import paths
 
+There are **two** entry points. Picking the wrong one breaks the build.
+
+```typescript
+// Schema, registry, parsers, type guards — isomorphic (no node:fs)
+import { defineEnvSchema, createEnvRegistry, envString /* ... */ } from '@spfn/core/env';
+
+// File loader — SERVER ONLY (uses node:fs). Never import in client/edge code.
+import { loadEnv, loadEnvOnce } from '@spfn/core/env/loader';
 ```
-env/
-├── index.ts        # Module exports
-├── loader.ts       # Environment file loader
-├── schema.ts       # Schema definition helpers
-├── registry.ts     # EnvRegistry class
-├── validator.ts    # Parser functions
-└── types.ts        # Type definitions (NodeEnv, LogLevel)
-```
 
-## Features
+`loadEnv` is **not** re-exported from `@spfn/core/env`. Import it from `@spfn/core/env/loader`.
 
-- **Schema-Based Validation**: Define environment variables with metadata and validation
-- **Type-Safe Access**: Full TypeScript inference from schema definitions
-- **Lazy Validation**: Proxy-based access validates at runtime
-- **Rich Parsers**: String, number, boolean, URL, enum, JSON, array parsers
-- **Security Parsers**: Entropy-based secret validation, password strength checks
-- **Parser Composition**: Chain, fallback, and optional utilities
-- **Next.js Support**: Client/server environment variable detection
-- **Security Separation**: Separate env files for Next.js and SPFN server (react2shell protection)
+---
+
+## Public API (complete)
+
+From `@spfn/core/env`:
+
+- Schema helpers: `defineEnvSchema`, `envString`, `envNumber`, `envBoolean`, `envUrl`,
+  `envEnum`, `envJson`
+- Registry: `createEnvRegistry`, `EnvRegistry` (class), `validateAllEnv`
+- Type guards: `isClientAccessible`, `isServerOnly`, `isNextjsAccessible`, `isSpfnServerOnly`
+- Parsers: `parseString`, `createStringParser`, `parseBoolean`, `parseNumber`,
+  `createNumberParser`, `parseInteger`, `parseDecimal`, `parseUrl`, `createUrlParser`,
+  `parsePostgresUrl`, `parseRedisUrl`, `parseEnum`, `createEnumParser`, `parseJson`,
+  `createJsonParser`, `parseArray`, `createArrayParser`, `createSecureSecretParser`,
+  `createPasswordParser`
+- Parser composition: `chain`, `withFallback`, `optional`
+- Types: `Parser<T>`, `EnvVarSchema`, `EnvSchemaCollection`, `InferEnvType`,
+  `EnvValidationResult`, `NodeEnv`, `LogLevel`
+
+From `@spfn/core/env/loader`:
+
+- `loadEnv`, `loadEnvOnce`, `resetEnvLoadState`
+- Types: `LoadEnvOptions`, `LoadEnvResult`
+
+> There is **no** `getEnvVar` / `requireEnvVar` / `hasEnvVar` / `getEnvVars` /
+> `loadEnvironment` function, and **no** `env.get()` / `env.require()` /
+> `getByCategory()` / `generateMarkdownDocs()` etc. Those belong to a removed API — do
+> not use them. The current model is: define a schema, build a registry, call
+> `.validate()`, read properties off the returned proxy.
 
 ---
 
 ## Quick Start
 
-### Basic Usage
-
 ```typescript
+// src/config/env.ts
 import {
-  defineEnvSchema,
-  envString,
-  envNumber,
-  envBoolean,
-  envEnum,
-  createEnvRegistry,
-  parsePostgresUrl,
+    defineEnvSchema,
+    envString,
+    envNumber,
+    envBoolean,
+    envEnum,
+    createEnvRegistry,
+    parsePostgresUrl,
 } from '@spfn/core/env';
 
-// 1. Define schema
 const schema = defineEnvSchema({
-  DATABASE_URL: envString({
-    description: 'PostgreSQL connection URL',
-    required: true,
-    sensitive: true,
-    validator: parsePostgresUrl,
-  }),
-  PORT: envNumber({
-    description: 'Server port',
-    default: 3000,
-  }),
-  DEBUG: envBoolean({
-    description: 'Enable debug mode',
-    default: false,
-  }),
-  LOG_LEVEL: envEnum(['debug', 'info', 'warn', 'error'] as const, {
-    description: 'Logging level',
-    default: 'info',
-  }),
+    DATABASE_URL: envString({
+        description: 'PostgreSQL connection URL',
+        required: true,
+        sensitive: true,
+        validator: parsePostgresUrl,
+    }),
+    PORT: envNumber({
+        description: 'Server port',
+        default: 3000,
+    }),
+    DEBUG: envBoolean({
+        description: 'Enable debug mode',
+        default: false,
+    }),
+    LOG_LEVEL: envEnum(['debug', 'info', 'warn', 'error'] as const, {
+        description: 'Logging level',
+        default: 'info',
+    }),
 });
 
-// 2. Create registry and validate
 const registry = createEnvRegistry(schema);
 export const env = registry.validate();
+export type Env = typeof env;
 
-// 3. Use with full type safety
-console.log(env.DATABASE_URL); // string (required)
-console.log(env.PORT);         // number (default: 3000)
-console.log(env.DEBUG);        // boolean (default: false)
-console.log(env.LOG_LEVEL);    // 'debug' | 'info' | 'warn' | 'error'
+// Full type safety:
+env.DATABASE_URL; // string  (required)
+env.PORT;         // number  (default: 3000)
+env.DEBUG;        // boolean (default: false)
+env.LOG_LEVEL;    // 'debug' | 'info' | 'warn' | 'error'
 ```
 
----
-
-## Security Separation (Next.js + SPFN)
-
-SPFN은 Next.js와 별도 프로세스로 실행됩니다. 보안을 위해 환경변수 파일을 분리하여 관리합니다.
-
-### Why?
-
-Next.js 서버 컴포넌트는 `.env.local`의 모든 환경변수에 접근할 수 있습니다. [react2shell](https://github.com/nicholastay/react2shell) 같은 취약점이 발생하면 `.env.local`에 있는 DATABASE_URL, SESSION_SECRET 등이 모두 노출될 수 있습니다.
-
-### File Structure
-
-```
-프로젝트 루트/
-├── .env                  # 기본값 (커밋 O)
-├── .env.local            # Next.js용 로컬 오버라이드 (커밋 X)
-└── .env.server           # SPFN 서버 전용 (시크릿 포함, 커밋 X)
-```
-
-### Which File for What?
-
-| 환경변수 | 파일 | 이유 |
-|----------|------|------|
-| `NEXT_PUBLIC_*` | `.env.local` | 브라우저 노출 OK |
-| `SPFN_API_URL` | `.env.local` | Next.js 서버 컴포넌트에서 사용 |
-| `DATABASE_URL` | `.env.server` | SPFN 서버에서만 사용, 민감정보 |
-| `SESSION_SECRET` | `.env.server` | SPFN 서버에서만 사용, 민감정보 |
-
-### Security Model
-
-```
-Next.js 프로세스가 읽는 것:
-  .env, .env.local
-  → DATABASE_URL 없음 ✓ (취약점에 안전)
-
-SPFN 서버가 읽는 것:
-  .env, .env.local, .env.server
-  → 전부 있음 (NEXT_PUBLIC 포함해도 무방)
-```
-
-### Schema with `nextjs` Option
-
-```typescript
-const schema = defineEnvSchema({
-  // SPFN 서버에서만 사용 (nextjs: false가 기본값)
-  DATABASE_URL: envString({
-    description: 'PostgreSQL connection URL',
-    required: true,
-    sensitive: true,
-    nextjs: false,  // .env.server에만 존재해야 함
-  }),
-
-  // Next.js 서버 컴포넌트에서도 사용
-  SPFN_API_URL: envString({
-    description: 'Backend API URL',
-    required: true,
-    nextjs: true,   // .env.local에 존재해야 함
-  }),
-
-  // NEXT_PUBLIC_*는 자동으로 nextjs: true
-  NEXT_PUBLIC_WS_URL: envString({
-    description: 'WebSocket URL',
-    // nextjs: true (자동)
-  }),
-});
-```
-
----
-
-## Environment File Loading
-
-### SPFN Server Entry Point
-
-```typescript
-import { loadEnv } from '@spfn/core/env/loader';
-import { createEnvRegistry } from '@spfn/core/env';
-import { envSchema } from './env.schema';
-
-// 1. 환경변수 파일 로드 (규칙에 따라 자동)
-loadEnv();
-
-// 2. 스키마 검증 및 사용
-const env = createEnvRegistry(envSchema).validate();
-```
-
-### Loading Priority
-
-파일은 다음 순서로 로드됩니다 (나중이 덮어씀):
-
-1. `.env` - 기본값
-2. `.env.local` - 로컬 오버라이드
-3. `.env.server` - 서버 전용 (시크릿 포함)
-
-### `loadEnv(options?)`
-
-```typescript
-import { loadEnv } from '@spfn/core/env/loader';
-
-// 기본 사용
-loadEnv();
-
-// 옵션
-loadEnv({
-  cwd: '/path/to/project',  // 프로젝트 루트 (기본: process.cwd())
-  debug: true,              // 로드된 파일 로깅
-  override: false,          // 기존 process.env 덮어쓰기 (기본: false)
-});
-```
-
-### `loadEnvOnce(options?)`
-
-중복 호출 방지:
-
-```typescript
-import { loadEnvOnce } from '@spfn/core/env/loader';
-
-loadEnvOnce(); // 첫 호출: 파일 로드
-loadEnvOnce(); // 두 번째 호출: 아무것도 안 함
-```
-
-### Next.js에서는?
-
-Next.js는 자체적으로 `.env`, `.env.local`을 로드합니다. `loadEnv()`를 호출할 필요 없습니다:
-
-```typescript
-// Next.js 서버 컴포넌트 또는 API route
-import { createEnvRegistry } from '@spfn/core/env';
-import { envSchema } from './env.schema';
-
-// loadEnv() 불필요 - Next.js가 이미 로드함
-const env = createEnvRegistry(envSchema).validate();
-```
+`defineEnvSchema` auto-fills the `key` field from each object key. You can write the
+schema object inline without it, but then you must set `key` manually on every entry —
+prefer `defineEnvSchema`.
 
 ---
 
 ## Schema Definition
 
-### `defineEnvSchema(schema)`
+### Type helpers
 
-Define environment variable schema with auto-filled keys.
-
-```typescript
-const schema = defineEnvSchema({
-  API_KEY: envString({ description: 'API key', required: true }),
-  // Automatically adds key: 'API_KEY'
-});
-```
-
-### Schema Type Helpers
-
-#### `envString(options)`
-
-String environment variable.
+| Helper | Result type | Default validator |
+|--------|-------------|-------------------|
+| `envString(options)` | `string` | identity (no-op) |
+| `envNumber(options)` | `number` | `parseNumber` |
+| `envBoolean(options)` | `boolean` | `parseBoolean` |
+| `envUrl(options)` | `string` | none (set `validator` yourself, e.g. `parsePostgresUrl`) |
+| `envEnum(allowed, options)` | union of `allowed` | built-in membership check |
+| `envJson<T>(options)` | `T` | `parseJson` |
 
 ```typescript
 API_KEY: envString({
-  description: 'API authentication key',
-  required: true,
-  sensitive: true,
-  minLength: 32,
-})
-```
+    description: 'API authentication key',
+    required: true,
+    sensitive: true,
+    minLength: 32,
+}),
 
-#### `envNumber(options)`
-
-Number environment variable with automatic parsing.
-
-```typescript
 PORT: envNumber({
-  description: 'Server port',
-  default: 3000,
-  validator: createNumberParser({ min: 1, max: 65535 }),
-})
-```
+    description: 'Server port',
+    default: 3000,
+    validator: createNumberParser({ min: 1, max: 65535, integer: true }),
+}),
 
-#### `envBoolean(options)`
-
-Boolean environment variable.
-
-```typescript
-DEBUG: envBoolean({
-  description: 'Enable debug mode',
-  default: false,
-})
-```
-
-#### `envUrl(options)`
-
-URL environment variable.
-
-```typescript
+// envUrl has NO default validator — add one for protocol enforcement:
 API_URL: envUrl({
-  description: 'API endpoint URL',
-  required: true,
-  validator: parsePostgresUrl,
-})
-```
+    description: 'API endpoint URL',
+    required: true,
+    validator: createUrlParser('https'),
+}),
 
-#### `envEnum(allowed, options)`
-
-Enum environment variable with allowed values.
-
-```typescript
 LOG_LEVEL: envEnum(['debug', 'info', 'warn', 'error'] as const, {
-  description: 'Logging level',
-  default: 'info',
-})
-```
+    description: 'Logging level',
+    default: 'info',
+}),
 
-#### `envJson<T>(options)`
-
-JSON environment variable with type inference.
-
-```typescript
 CONFIG: envJson<{ host: string; port: number }>({
-  description: 'JSON configuration',
-  required: true,
-})
+    description: 'JSON configuration',
+    required: true,
+}),
 ```
 
-### Schema Options
+### `EnvVarSchema` options
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `description` | `string` | Variable description |
-| `required` | `boolean` | Whether variable is required |
-| `default` | `T` | Default value if not set |
-| `validator` | `(value: string) => T` | Custom validation/transform function |
-| `fallbackKeys` | `string[]` | Fallback environment variable keys |
-| `minLength` | `number` | Minimum string length |
-| `sensitive` | `boolean` | Mark as sensitive (masked in logs) |
-| `examples` | `T[]` | Example values for documentation |
+| `description` | `string` | Purpose / usage (used in CLI validate output) |
+| `type` | `'string' \| 'number' \| 'boolean' \| 'url' \| 'enum' \| 'json'` | Set by the helper; don't pass manually |
+| `required` | `boolean` | Throw at access time if unset and no default |
+| `default` | `T` | Value returned when the variable is unset |
+| `validator` | `(value: string) => T` | Parse/validate. Throwing fails validation |
+| `fallbackKeys` | `string[]` | Legacy keys read (in order) when the primary key is unset |
+| `minLength` | `number` | Minimum raw string length (checked before `validator`) |
+| `sensitive` | `boolean` | Marks a secret; triggers a warning if `NEXT_PUBLIC_*` |
+| `examples` | `T[]` | Example values (metadata only) |
+| `nextjs` | `boolean` | File-separation hint (see below). Defaults to `true` for `NEXT_PUBLIC_*`, else `false` |
+
+> There is **no** `category` option. Docs that show `category: '...'` are stale — passing
+> it is harmless (excess property) but it does nothing.
+
+### Type inference (`InferEnvType`)
+
+```typescript
+import type { InferEnvType } from '@spfn/core/env';
+
+const schema = defineEnvSchema({
+    DATABASE_URL: envString({ description: 'DB URL', required: true }),
+    PORT: envNumber({ description: 'Port', default: 3000 }),
+    DEBUG: envBoolean({ description: 'Debug' }),
+});
+
+type Env = InferEnvType<typeof schema>;
+// {
+//   DATABASE_URL: string;        // required: true  → required
+//   PORT: number;                // has default     → required
+//   DEBUG?: boolean | undefined; // neither         → optional
+// }
+```
+
+Rule: `required: true` **or** a `default` present ⇒ required field. Otherwise optional
+(`| undefined`). `registry.validate()` returns `InferEnvType<typeof schema>`.
 
 ---
 
-## EnvRegistry
-
-### Creating Registry
+## Registry
 
 ```typescript
 import { createEnvRegistry } from '@spfn/core/env';
 
-const registry = createEnvRegistry(schema);
+const registry = createEnvRegistry(schema); // or: new EnvRegistry(schema)
 const env = registry.validate();
 ```
 
-### Lazy Validation
+### Lazy validation (timing matters)
 
-The registry uses Proxy-based lazy validation - values are validated when accessed:
+`registry.validate()` performs **only schema-level checks** (e.g. sensitive + client-
+accessible warnings) and returns a **Proxy**. Each individual variable is read from
+`process.env`, defaulted, and run through its `validator` **at the moment you access the
+property** — not when `validate()` is called.
 
 ```typescript
-const env = registry.validate(); // Only validates schema structure
-
-// Later, when accessed:
-console.log(env.DATABASE_URL); // Validates and returns value at this point
+const env = registry.validate(); // does NOT read process.env values yet
+loadEnv();                        // dotenv files populate process.env
+env.DATABASE_URL;                 // value is read + validated HERE
 ```
 
-This allows dotenv to be loaded after registry creation.
+Consequences:
 
-### Fallback Keys
+- You can call `validate()` before `loadEnv()` — values are picked up lazily. This is the
+  intended order for the SPFN server entry point.
+- A missing `required` variable does **not** throw at `validate()` time; it throws on
+  first access (`Error('Environment validation failed')`, with the offending key logged).
+- Accessing an unknown key (not in the schema) returns `undefined`.
 
-Support legacy environment variable names:
+### Skipping validation
+
+Set `SKIP_ENV_VALIDATION=true` (or `=1`) to make the proxy skip the `required` check —
+missing required vars return their `default` (or `undefined`) instead of throwing. Useful
+for build steps that don't have secrets. `validator`/`minLength` checks still apply when a
+value is present. **`EnvRegistry.validateAll()` ignores this flag** and always reports
+missing requireds.
+
+### `validateAll()` / `validateAllEnv()` (eager, for CLI)
+
+For an explicit up-front check of *all* variables (used by `spfn env validate`):
+
+```typescript
+import { validateAllEnv } from '@spfn/core/env';
+
+const result = validateAllEnv([coreRegistry, authRegistry]); // EnvValidationResult
+if (!result.valid) {
+    for (const e of result.errors) {
+        console.error(`${e.key}: ${e.message}`);
+    }
+    process.exit(1);
+}
+for (const w of result.warnings) {
+    console.warn(`${w.key}: ${w.message}`);
+}
+```
+
+`EnvValidationResult` is `{ valid: boolean; errors: {key,message}[]; warnings: {key,message}[] }`.
+A single registry exposes the same via `registry.validateAll()` returning just
+`{ errors, warnings }`.
+
+### Fallback keys
 
 ```typescript
 DATABASE_URL: envString({
-  description: 'Database URL',
-  required: true,
-  fallbackKeys: ['DB_URL', 'POSTGRES_URL'],
-})
+    description: 'Database URL',
+    required: true,
+    fallbackKeys: ['DB_URL', 'POSTGRES_URL'], // tried in order if DATABASE_URL is unset
+}),
+```
+
+### Other `EnvRegistry` methods
+
+`register(schema)`, `registerMultiple(schemas)` — add schemas after construction.
+`reset()` — clears the internal "already validated" flag (test helper).
+
+---
+
+## Environment File Loading
+
+`loadEnv` is server-only (`@spfn/core/env/loader`). It parses `.env*` files, merges them,
+and writes into `process.env`.
+
+```typescript
+import { loadEnv } from '@spfn/core/env/loader';
+import { createEnvRegistry } from '@spfn/core/env';
+import { envSchema } from './env.schema';
+
+loadEnv();                                  // server entry point
+const env = createEnvRegistry(envSchema).validate();
+```
+
+### Loading priority (5 tiers, low → high; later overrides earlier)
+
+`NODE_ENV` (default `'local'`) selects which files apply:
+
+1. `.env`                   — common defaults (committed)
+2. `.env.{NODE_ENV}`        — per-environment override (committed)
+3. `.env.local`             — local override (gitignored; **skipped when `NODE_ENV=test`**)
+4. `.env.{NODE_ENV}.local`  — per-environment secrets (gitignored)
+5. `.env.server`            — SPFN-server-only secrets (gitignored; **never read by Next.js**)
+
+Within `loadEnv`, **keys already present in `process.env` are not overwritten** (so
+platform-injected vars win) unless `override: true`.
+
+### `LoadEnvOptions`
+
+```typescript
+loadEnv({
+    cwd: '/path/to/project', // project root        (default: process.cwd())
+    nodeEnv: 'production',   // selects .env.{nodeEnv} (default: process.env.NODE_ENV || 'local')
+    server: true,            // include .env.server  (default: true; set false for Next.js client builds)
+    debug: true,             // log loaded files     (default: false)
+    override: false,         // overwrite existing process.env keys (default: false)
+});
+```
+
+`loadEnv` returns `LoadEnvResult` = `{ loadedFiles: string[]; loadedKeys: string[] }`.
+
+### `loadEnvOnce()` / `resetEnvLoadState()`
+
+`loadEnvOnce(options?)` runs `loadEnv` once per process; subsequent calls return an empty
+result. `resetEnvLoadState()` clears that latch (test helper).
+
+### Next.js does its own loading
+
+Next.js loads `.env` / `.env.local` / `.env.{NODE_ENV}` itself. In Next.js code (server
+components, route handlers) **do not call `loadEnv()`** — just build the registry and read
+values. `.env.server` is intentionally invisible to Next.js (that is the whole point of
+the separation below).
+
+---
+
+## Security Separation (Next.js + SPFN)
+
+SPFN runs as a **separate process** from Next.js. Next.js server components can read every
+variable in `.env` / `.env.local`; a server-side data-exfiltration bug (e.g. a
+react2shell-style vulnerability) would expose all of them. Keep server-only secrets out of
+files Next.js reads.
+
+### File layout
+
+```
+project/
+├── .env                    # common defaults              (committed)
+├── .env.production         # production non-secret overrides (committed)
+├── .env.local              # Next.js local overrides      (gitignored)
+├── .env.production.local   # production secrets            (gitignored)
+└── .env.server             # SPFN-server-only secrets      (gitignored)
+```
+
+Commit a `.env.server.example` template (placeholder values only) so teammates know which
+keys to fill in.
+
+### Which file for what?
+
+| Variable | File | Why |
+|----------|------|-----|
+| `NEXT_PUBLIC_*` | `.env.local` | Client-exposed; browser-safe |
+| `SPFN_API_URL` (per-env) | `.env` / `.env.production` | Used by Next.js too; non-secret |
+| `SPFN_APP_URL` | `.env.local` | Next.js local setting |
+| `DB_POOL_MAX` | `.env.server` | Server-only, non-secret |
+| `DATABASE_URL` | `.env.server` | Server-only, **secret** |
+| `SESSION_SECRET` | `.env.server` | Server-only, **secret** |
+
+Rule of thumb: anything Next.js must read goes in `.env` / `.env.local`; everything
+server-only (especially secrets) goes in `.env.server`.
+
+### Schema `nextjs` flag
+
+`nextjs` documents which process a variable belongs to. Defaults: `true` for
+`NEXT_PUBLIC_*`, `false` otherwise. The type guards below consume it.
+
+```typescript
+DATABASE_URL: envString({
+    description: 'PostgreSQL connection URL',
+    required: true,
+    sensitive: true,
+    nextjs: false,   // SPFN-server-only → belongs in .env.server
+}),
+
+SPFN_API_URL: envString({
+    description: 'Backend API URL',
+    required: true,
+    nextjs: true,    // Next.js also reads it → .env / .env.local
+}),
+
+NEXT_PUBLIC_WS_URL: envString({
+    description: 'WebSocket URL',
+    // nextjs defaults to true (NEXT_PUBLIC_ prefix)
+}),
+```
+
+### Type guards
+
+```typescript
+import {
+    isClientAccessible, isServerOnly,
+    isNextjsAccessible, isSpfnServerOnly,
+} from '@spfn/core/env';
+
+isClientAccessible('NEXT_PUBLIC_API_URL'); // true  — string key, NEXT_PUBLIC_ prefix
+isClientAccessible('DATABASE_URL');        // false
+isServerOnly('DATABASE_URL');              // true  — inverse of isClientAccessible
+
+// These take a SCHEMA object (not a string) and honor the `nextjs` flag:
+isNextjsAccessible(schema.SPFN_API_URL);   // true
+isSpfnServerOnly(schema.DATABASE_URL);     // true  — inverse of isNextjsAccessible
+```
+
+> `isClientAccessible` / `isServerOnly` take a **string key**.
+> `isNextjsAccessible` / `isSpfnServerOnly` take an **`EnvVarSchema` object** and respect
+> its `nextjs` flag. Don't mix them up.
+
+### Sensitive-on-client warning
+
+`registry.validate()` (and `validateAll()`) emit a warning if a `sensitive` variable is
+client-accessible — fix it by dropping the `NEXT_PUBLIC_` prefix, not by unmarking it:
+
+```typescript
+// Wrong — secret exposed to the browser, triggers a warning:
+NEXT_PUBLIC_API_SECRET: envString({ description: 'secret', sensitive: true }),
+
+// Right:
+API_SECRET: envString({ description: 'secret', sensitive: true }),
 ```
 
 ---
 
 ## Parsers
 
-### String Parsers
+All parsers are `(value: string) => T` and **throw** on invalid input. Use them as a
+schema `validator`, or standalone.
+
+### String
 
 ```typescript
 import { parseString, createStringParser } from '@spfn/core/env';
 
-// Basic non-empty string
-parseString('  hello  '); // 'hello'
+parseString('  hello  '); // 'hello' (trims; throws if empty)
 
-// With constraints
-const apiKeyParser = createStringParser({
-  minLength: 32,
-  maxLength: 128,
-  pattern: /^[A-Za-z0-9_-]+$/,
-  trim: true,
-});
+createStringParser({ minLength: 32, maxLength: 128, pattern: /^[A-Za-z0-9_-]+$/, trim: true });
 ```
 
-### Boolean Parser
+### Boolean
 
 ```typescript
 import { parseBoolean } from '@spfn/core/env';
 
-parseBoolean('true');  // true
-parseBoolean('1');     // true
-parseBoolean('yes');   // true
-parseBoolean('false'); // false
-parseBoolean('0');     // false
-parseBoolean('no');    // false
+parseBoolean('true' /* | '1' | 'yes' */);  // true   (case-insensitive)
+parseBoolean('false' /* | '0' | 'no' */);  // false
+// anything else → throws
 ```
 
-### Number Parsers
+### Number
 
 ```typescript
 import {
-  parseNumber,
-  createNumberParser,
-  parseInteger,
-  parseFloat,
+    parseNumber, createNumberParser, parseInteger, parseDecimal,
 } from '@spfn/core/env';
 
-// Basic number
-parseNumber('42'); // 42
-
-// With constraints
-const portParser = createNumberParser({
-  min: 1,
-  max: 65535,
-  integer: true,
-});
-
-// Integer shorthand
-parseInteger('42', { min: 1, max: 100 });
-
-// Float shorthand
-parseFloat('0.75', { min: 0, max: 1 });
+parseNumber('42');                                  // 42
+parseNumber('42', { min: 1, max: 100, integer: true });
+createNumberParser({ min: 1, max: 65535, integer: true });
+parseInteger('42', { min: 1, max: 100 });           // integer-constrained
+parseDecimal('0.75', { min: 0, max: 1 });           // float-constrained
 ```
 
-### URL Parsers
+> The float helper is named **`parseDecimal`**. There is no `parseFloat` export.
+
+### URL
 
 ```typescript
 import {
-  parseUrl,
-  createUrlParser,
-  parsePostgresUrl,
-  parseRedisUrl,
+    parseUrl, createUrlParser, parsePostgresUrl, parseRedisUrl,
 } from '@spfn/core/env';
 
-// Generic URL
-parseUrl('https://api.example.com');
-
-// With protocol requirement
-const httpsParser = createUrlParser('https');
-
-// PostgreSQL URL (postgres:// or postgresql://)
-parsePostgresUrl('postgres://user:pass@localhost:5432/db');
-
-// Redis URL (redis:// or rediss://)
-parseRedisUrl('redis://localhost:6379');
+parseUrl('https://api.example.com');             // any protocol
+parseUrl('https://x', { protocol: 'https' });    // enforce protocol
+createUrlParser('https');                         // reusable
+parsePostgresUrl('postgres://u:p@host:5432/db');  // postgres:// or postgresql://
+parseRedisUrl('redis://localhost:6379');          // redis:// or rediss://
 ```
 
-### Enum Parser
+### Enum
 
 ```typescript
 import { parseEnum, createEnumParser } from '@spfn/core/env';
 
-// Inline
 parseEnum('info', ['debug', 'info', 'warn', 'error']);
-
-// Reusable parser
-const logLevelParser = createEnumParser(
-  ['debug', 'info', 'warn', 'error'],
-  true // case-insensitive
-);
+createEnumParser(['debug', 'info', 'warn', 'error'], true /* caseInsensitive */);
 ```
 
-### JSON Parser
+> For schema fields prefer the `envEnum(allowed, options)` helper — it produces a precise
+> string-literal union type. `parseEnum`/`createEnumParser` return a plain `string`.
+
+### JSON
 
 ```typescript
 import { parseJson, createJsonParser } from '@spfn/core/env';
 
-// Generic JSON
-const config = parseJson('{"host":"localhost","port":3000}');
-
-// Typed JSON
-interface Config {
-  host: string;
-  port: number;
-}
-const typedParser = createJsonParser<Config>();
+parseJson('{"host":"localhost","port":3000}');
+createJsonParser<{ host: string; port: number }>();
 ```
 
-### Array Parser
+### Array
 
 ```typescript
 import { parseArray, createArrayParser, createNumberParser } from '@spfn/core/env';
 
-// String array
-parseArray('a,b,c'); // ['a', 'b', 'c']
+parseArray('a,b,c');                       // ['a','b','c']
+parseArray('a|b|c', { separator: '|' });   // ['a','b','c']  (empty string → [])
 
-// With custom separator
-parseArray('a|b|c', { separator: '|' }); // ['a', 'b', 'c']
-
-// Typed array with item parser
-const portsParser = createArrayParser(
-  createNumberParser({ min: 1, max: 65535, integer: true })
-);
-portsParser('3000,4000,5000'); // [3000, 4000, 5000]
+createArrayParser(createNumberParser({ min: 1, max: 65535, integer: true }))('3000,4000');
+// → [3000, 4000]
 ```
 
-### Security Parsers
-
-#### Secure Secret Parser
-
-Validates cryptographic secrets with entropy check:
+### Secrets & passwords
 
 ```typescript
-import { createSecureSecretParser } from '@spfn/core/env';
+import { createSecureSecretParser, createPasswordParser } from '@spfn/core/env';
 
-const secretParser = createSecureSecretParser({
-  minLength: 32,        // Minimum 256-bit
-  minUniqueChars: 16,   // Character diversity
-  minEntropy: 3.5,      // Shannon entropy (bits/char)
-});
+// Entropy-based secret check (Shannon entropy in bits/char)
+createSecureSecretParser({ minLength: 32, minUniqueChars: 16, minEntropy: 3.5 });
+// reference: random lowercase ~4.7 · alphanumeric ~5.2 · printable ASCII ~6.6 · "aaaa" ~0
 
-// Entropy reference:
-// - Random lowercase: ~4.7 bits/char
-// - Random alphanumeric: ~5.2 bits/char
-// - Random printable ASCII: ~6.6 bits/char
-// - "aaaaaaa...": ~0 bits/char
-```
-
-#### Password Parser
-
-Validates password strength:
-
-```typescript
-import { createPasswordParser } from '@spfn/core/env';
-
-const passwordParser = createPasswordParser({
-  minLength: 12,
-  requireUppercase: true,
-  requireLowercase: true,
-  requireNumber: true,
-  requireSpecial: true,
+createPasswordParser({
+    minLength: 12,
+    requireUppercase: true,
+    requireLowercase: true,
+    requireNumber: true,
+    requireSpecial: true,
 });
 ```
 
-### Parser Composition
-
-#### `chain(...parsers)`
-
-Chain multiple parsers sequentially:
+### Composition
 
 ```typescript
-import { chain, parseString, createStringParser } from '@spfn/core/env';
+import { chain, withFallback, optional, parseString, createStringParser, parseRedisUrl, parseJson } from '@spfn/core/env';
 
-const apiKeyParser = chain(
-  parseString,
-  createStringParser({ minLength: 32, pattern: /^[A-Za-z0-9_-]+$/ })
-);
-```
-
-#### `withFallback(parser, fallback)`
-
-Provide fallback value on parse failure:
-
-```typescript
-import { withFallback, parseJson } from '@spfn/core/env';
-
-const configParser = withFallback(parseJson, { host: 'localhost', port: 3000 });
-```
-
-#### `optional(parser)`
-
-Make parser return undefined for empty strings:
-
-```typescript
-import { optional, parseRedisUrl } from '@spfn/core/env';
-
-const optionalRedisParser = optional(parseRedisUrl);
-optionalRedisParser('');                    // undefined
-optionalRedisParser('redis://localhost');   // 'redis://localhost'
+chain(parseString, createStringParser({ minLength: 32 }));  // run sequentially
+withFallback(parseJson, { host: 'localhost' });             // return fallback if parser throws
+optional(parseRedisUrl);                                    // '' → undefined, else parse
 ```
 
 ---
 
-## Next.js Support
+## Pitfalls & anti-patterns
 
-### Client/Server Detection
-
-```typescript
-import { isClientAccessible, isServerOnly } from '@spfn/core/env';
-
-isClientAccessible('NEXT_PUBLIC_API_URL');  // true
-isClientAccessible('DATABASE_URL');         // false
-
-isServerOnly('DATABASE_URL');               // true
-isServerOnly('NEXT_PUBLIC_API_URL');        // false
-```
-
-### Security Warning
-
-Registry warns when sensitive variables are client-accessible:
-
-```typescript
-// Warning: DATABASE_URL is marked as sensitive but accessible from client
-NEXT_PUBLIC_DATABASE_URL: envString({
-  description: 'Database URL',
-  sensitive: true, // This triggers a warning
-})
-```
-
----
-
-## Type Inference
-
-### InferEnvType
-
-Automatically infers types from schema:
-
-```typescript
-import type { InferEnvType } from '@spfn/core/env';
-
-const schema = defineEnvSchema({
-  DATABASE_URL: envString({ description: 'DB URL', required: true }),
-  PORT: envNumber({ description: 'Port', default: 3000 }),
-  DEBUG: envBoolean({ description: 'Debug' }),
-});
-
-type Env = InferEnvType<typeof schema>;
-// {
-//   DATABASE_URL: string;        // required: true
-//   PORT: number;                // has default
-//   DEBUG?: boolean | undefined; // optional
-// }
-```
-
-### Type Rules
-
-- `required: true` or `default` provided → Required field
-- `required: false` or not specified → Optional field (`| undefined`)
+- **Don't import `loadEnv` from `@spfn/core/env`.** It lives in `@spfn/core/env/loader`
+  (server-only, uses `node:fs`). Importing the loader into client/edge code breaks bundling.
+- **`.env.server.local` does not exist.** The loader's 5 tiers are `.env`,
+  `.env.{NODE_ENV}`, `.env.local`, `.env.{NODE_ENV}.local`, `.env.server`. Do not invent a
+  `.env.server.local` file — it is never loaded.
+- **`.env.server` is gitignored and Next.js-invisible by design.** Commit
+  `.env.server.example` as the template; never put secrets in `.env`/`.env.local`/committed
+  files.
+- **Don't call `loadEnv()` inside Next.js.** Next.js already loads `.env*` (minus
+  `.env.server`). Calling `loadEnv` there is redundant and, with `server: true`, would pull
+  server secrets into the Next.js process — defeating the separation.
+- **`validate()` is lazy.** It does not throw for missing required vars; the throw happens
+  on first property access. For an eager all-at-once check (CI/startup gate) use
+  `validateAllEnv([...])` / `registry.validateAll()`.
+- **`envUrl` has no built-in validator.** Without `validator`, it only enforces presence —
+  add `parsePostgresUrl` / `createUrlParser('https')` etc. for actual URL validation.
+- **`sensitive: true` + `NEXT_PUBLIC_` is wrong.** It only emits a warning, not an error —
+  the secret is still exposed. Remove the prefix.
+- **`SKIP_ENV_VALIDATION` only skips the `required` check** (and only in the lazy proxy);
+  present values are still validated, and `validateAll()` ignores the flag entirely.
+- **Removed API.** `getEnvVar`, `requireEnvVar`, `hasEnvVar`, `getEnvVars`,
+  `loadEnvironment`, `namespace`/`useFolderStructure`/`customPaths`/`useCache` loader
+  options, `env.get()`/`env.require()`, `getByCategory()`/`getAllSchemas()`,
+  `generateMarkdownDocs`/`generateEnvExample`/`generateJsonDocs`, and the `category` schema
+  option **do not exist**. Some validator JSDoc still shows `getEnvVar(...)` in examples —
+  that is stale; use the schema-`validator` pattern instead.
 
 ---
 
-## Types
-
-### NodeEnv
-
-```typescript
-type NodeEnv = 'local' | 'development' | 'staging' | 'production' | 'test';
-```
-
-### LogLevel
-
-```typescript
-type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
-```
-
----
-
-## Complete Example
+## Complete example
 
 ```typescript
 // src/config/env.ts
 import {
-  defineEnvSchema,
-  envString,
-  envNumber,
-  envBoolean,
-  envEnum,
-  envUrl,
-  createEnvRegistry,
-  parsePostgresUrl,
-  createSecureSecretParser,
-  createNumberParser,
+    defineEnvSchema,
+    envString, envNumber, envBoolean, envEnum, envUrl,
+    createEnvRegistry,
+    parsePostgresUrl, createNumberParser, createSecureSecretParser, createUrlParser,
 } from '@spfn/core/env';
 
 const schema = defineEnvSchema({
-  // Database
-  DATABASE_URL: envString({
-    description: 'PostgreSQL connection URL',
-    required: true,
-    sensitive: true,
-    validator: parsePostgresUrl,
-  }),
-
-  // Server
-  PORT: envNumber({
-    description: 'Server port',
-    default: 3000,
-    validator: createNumberParser({ min: 1, max: 65535, integer: true }),
-  }),
-  HOST: envString({
-    description: 'Server host',
-    default: '0.0.0.0',
-  }),
-
-  // Security
-  SESSION_SECRET: envString({
-    description: 'Session encryption secret',
-    required: true,
-    sensitive: true,
-    validator: createSecureSecretParser({ minLength: 32 }),
-  }),
-
-  // Environment
-  NODE_ENV: envEnum(['development', 'staging', 'production', 'test'] as const, {
-    description: 'Node environment',
-    default: 'development',
-  }),
-
-  // Logging
-  LOG_LEVEL: envEnum(['debug', 'info', 'warn', 'error', 'fatal'] as const, {
-    description: 'Log level',
-    default: 'info',
-  }),
-
-  // Optional Redis
-  REDIS_URL: envUrl({
-    description: 'Redis connection URL (optional)',
-    required: false,
-  }),
-
-  // Feature flags
-  DEBUG: envBoolean({
-    description: 'Enable debug mode',
-    default: false,
-  }),
+    DATABASE_URL: envString({
+        description: 'PostgreSQL connection URL',
+        required: true,
+        sensitive: true,
+        nextjs: false,
+        validator: parsePostgresUrl,
+    }),
+    PORT: envNumber({
+        description: 'Server port',
+        default: 3000,
+        validator: createNumberParser({ min: 1, max: 65535, integer: true }),
+    }),
+    HOST: envString({ description: 'Server host', default: '0.0.0.0' }),
+    SESSION_SECRET: envString({
+        description: 'Session encryption secret',
+        required: true,
+        sensitive: true,
+        nextjs: false,
+        validator: createSecureSecretParser({ minLength: 32 }),
+    }),
+    NODE_ENV: envEnum(['local', 'development', 'staging', 'production', 'test'] as const, {
+        description: 'Node environment',
+        default: 'local',
+    }),
+    LOG_LEVEL: envEnum(['debug', 'info', 'warn', 'error', 'fatal'] as const, {
+        description: 'Log level',
+        default: 'info',
+    }),
+    REDIS_URL: envUrl({
+        description: 'Redis connection URL (optional)',
+        required: false,
+        validator: createUrlParser('any'),
+    }),
+    DEBUG: envBoolean({ description: 'Enable debug mode', default: false }),
 });
 
 const registry = createEnvRegistry(schema);
@@ -705,107 +619,33 @@ export const env = registry.validate();
 export type Env = typeof env;
 ```
 
-Usage:
-
 ```typescript
+// SPFN server entry point
+import { loadEnv } from '@spfn/core/env/loader';
 import { env } from '@/config/env';
 
-// Full type safety
-const dbUrl = env.DATABASE_URL;     // string
-const port = env.PORT;              // number
-const isDebug = env.DEBUG;          // boolean
-const nodeEnv = env.NODE_ENV;       // 'development' | 'staging' | 'production' | 'test'
-const redisUrl = env.REDIS_URL;     // string | undefined
+loadEnv();              // populate process.env from .env* (server reads .env.server too)
+console.log(env.PORT);  // validated lazily on access
+```
+
+```typescript
+// Next.js — no loadEnv()
+import { env } from '@/config/env';
+const dbUrl = env.DATABASE_URL; // (only resolves if DATABASE_URL is in the Next.js process)
 ```
 
 ---
 
-## Best Practices
-
-### 1. Centralize Environment Configuration
+## Types reference
 
 ```typescript
-// src/config/env.ts - Single source of truth
-export const env = registry.validate();
+type NodeEnv  = 'local' | 'development' | 'staging' | 'production' | 'test';
+type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal'; // re-exported from logger
+type Parser<T> = (value: string) => T;
 ```
-
-### 2. Use Descriptive Descriptions
-
-```typescript
-DATABASE_URL: envString({
-  description: 'PostgreSQL connection URL for primary database',
-  // Not: 'DB URL'
-})
-```
-
-### 3. Mark Sensitive Variables
-
-```typescript
-API_SECRET: envString({
-  sensitive: true, // Masked in logs
-})
-```
-
-### 4. Provide Fallback Keys for Migrations
-
-```typescript
-DATABASE_URL: envString({
-  required: true,
-  fallbackKeys: ['DB_URL', 'POSTGRES_URL'], // Legacy support
-})
-```
-
-### 5. Use Strong Validators for Secrets
-
-```typescript
-SESSION_SECRET: envString({
-  validator: createSecureSecretParser({
-    minLength: 32,
-    minEntropy: 3.5,
-  }),
-})
-```
-
----
-
-## Troubleshooting
-
-### Environment variable not found
-
-**Cause:** Variable not set or dotenv not loaded
-
-**Solution:**
-1. Check `.env` file exists and contains the variable
-2. Ensure dotenv is loaded before accessing env
-3. Check for typos in variable name
-
-### Validation failed
-
-**Cause:** Value doesn't meet validation constraints
-
-**Solution:**
-1. Check error message for specific constraint failure
-2. Verify value format matches expected type
-3. Check min/max constraints
-
-### Sensitive variable exposed to client
-
-**Cause:** NEXT_PUBLIC_ prefix on sensitive variable
-
-**Solution:**
-Remove NEXT_PUBLIC_ prefix from sensitive variables:
-```typescript
-// Wrong
-NEXT_PUBLIC_API_SECRET: envString({ sensitive: true })
-
-// Correct
-API_SECRET: envString({ sensitive: true })
-```
-
----
 
 ## Related
 
-- [@spfn/core/config](../config/README.md) - Application configuration
-- [@spfn/core/logger](../logger/README.md) - Logging infrastructure
-- [@spfn/core](../../README.md) - Main package documentation
+- [@spfn/core/config](../config/README.md) — application configuration
+- [@spfn/core/logger](../logger/README.md) — logging infrastructure
+- [@spfn/core](../../README.md) — main package documentation

@@ -1,701 +1,410 @@
-# @spfn/core/middleware - HTTP Middleware
+# @spfn/core/middleware — Built-in HTTP middleware (error handling + request logging)
 
-HTTP middleware collection for API request/response handling and error management.
+Two production Hono middleware factories and a masking helper: `ErrorHandler` (serializes
+thrown errors into HTTP responses) and `RequestLogger` (structured request/response logging
+with request IDs, slow-request detection, and sensitive-data masking).
 
-## Core Components
+> **These are the only exports of this module.** `defineMiddleware` (custom named
+> middleware), `.use()` / `.skip()` (route-level wiring), and `Transactional` (DB
+> transaction middleware) are **not** here — they live in `@spfn/core/route` and
+> `@spfn/core/db`. See [Related](#related).
 
+## Import paths
+
+```typescript
+import {
+    ErrorHandler,
+    RequestLogger,
+    maskSensitiveData,
+} from '@spfn/core/middleware';
+
+import type {
+    ErrorHandlerOptions,
+    OnErrorContext,
+    RequestLoggerOptions,
+    RequestLoggerConfig, // deprecated alias of RequestLoggerOptions
+} from '@spfn/core/middleware';
 ```
-middleware/
-├── index.ts              # Module exports
-├── error-handler.ts      # Error handler middleware
-├── request-logger.ts     # Request logger middleware
-└── __tests__/
-    └── request-logger.test.ts
-```
 
-## Features
-
-- ✅ **Error Handler**: Automatic error-to-HTTP response conversion
-- ✅ **Request Logger**: Automatic API request/response logging
-- ✅ **Request ID**: Distributed tracing support
-- ✅ **Performance Monitoring**: Response time tracking and slow request detection
-- ✅ **Sensitive Data Masking**: Automatic masking of passwords, tokens, etc.
-- ✅ **Type-Safe**: Full TypeScript support
+There is **no** `@spfn/core` root barrel — always import from `@spfn/core/middleware`.
+`import { ErrorHandler } from '@spfn/core'` does not resolve.
 
 ---
 
-## Quick Start
+## Public API (complete)
 
-### Error Handler
+From `@spfn/core/middleware`:
+
+- `ErrorHandler(options?: ErrorHandlerOptions)` → `(err, c) => Response | Promise<Response>`
+  — register with `app.onError(...)`, **not** `app.use(...)`.
+- `RequestLogger(options?: RequestLoggerOptions)` → Hono middleware `(c, next) => Promise<void>`
+  — register with `app.use(...)`.
+- `maskSensitiveData(obj, sensitiveFields, seen?)` → deep-masked copy of `obj`.
+
+Types: `ErrorHandlerOptions`, `OnErrorContext`, `RequestLoggerOptions`, `RequestLoggerConfig`.
+
+> **`RequestLoggerConfig` is deprecated** — it is a type alias of `RequestLoggerOptions`.
+> Use `RequestLoggerOptions` in new code.
+
+> **Most SPFN apps never call these directly.** `createServer` / `defineServerConfig`
+> auto-register both — see [Auto-registration](#auto-registration-the-spfn-default-path)
+> below. Manual `app.use` / `app.onError` is the raw-Hono path.
+
+---
+
+## Auto-registration (the SPFN default path)
+
+When you start a server via `@spfn/core/server`, **`RequestLogger` and `ErrorHandler` are
+applied for you** (along with CORS). You do not wire them by hand.
+
+```typescript
+import { defineServerConfig } from '@spfn/core/server';
+
+export default defineServerConfig()
+    .routes(appRouter)
+    .build();
+// → RequestLogger() (no options), CORS, then ErrorHandler() are auto-applied.
+```
+
+Toggle / configure them through `config.middleware`:
+
+```typescript
+export default defineServerConfig()
+    .middleware({
+        logger: true,         // RequestLogger (default: true) — set false to disable
+        cors: true,           // CORS (default: true)
+        errorHandler: true,   // ErrorHandler (default: true) — set false to disable
+        onError: (err, ctx) =>  // forwarded into ErrorHandler({ onError })
+        {
+            // non-blocking side-effect (Slack, PagerDuty, ...)
+            log(ctx.statusCode, ctx.method, ctx.path, err.message);
+        },
+    })
+    .routes(appRouter)
+    .build();
+```
+
+Notes (from `create-server.ts`):
+
+- The auto-applied `RequestLogger()` is called with **no options**, so it uses the
+  defaults below (excludes `/health`, `/ping`, `/favicon.ico`). To customize excludePaths
+  etc., disable it (`middleware.logger: false`) and add your own via `config.use`.
+- `config.middleware.onError` is the **only** `ErrorHandlerOption` exposed through the
+  builder; `includeStack` / `enableLogging` fall back to their defaults under auto-config.
+- Order is fixed: `RequestLogger` → CORS → routes → `ErrorHandler` (via `app.onError`).
+
+---
+
+## Quick Start (raw Hono)
+
+Use this only when wiring a bare Hono app yourself (not via `defineServerConfig`).
 
 ```typescript
 import { Hono } from 'hono';
-import { ErrorHandler } from '@spfn/core';
+import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
 
 const app = new Hono();
 
-// Apply error handler
-app.onError(ErrorHandler());
-```
-
-### Request Logger
-
-```typescript
-import { RequestLogger } from '@spfn/core';
-
-// Apply request logger
-app.use('/*', RequestLogger());
-
-// With custom configuration
-app.use('/*', RequestLogger({
-  excludePaths: ['/health', '/metrics'],
-  slowRequestThreshold: 500
-}));
-```
-
----
-
-## Error Handler
-
-Converts custom errors to appropriate HTTP responses with automatic logging.
-
-### Features
-
-- **Automatic Error Conversion**: DatabaseError → HTTP status codes
-- **Environment-Aware**: Stack traces in development only
-- **Smart Logging**: 4xx = warn, 5xx = error
-- **Type-Safe**: Full TypeScript error handling
-
-### Basic Usage
-
-```typescript
-import { ErrorHandler } from '@spfn/core';
-
-app.onError(ErrorHandler());
-```
-
-### Configuration Options
-
-```typescript
-app.onError(ErrorHandler({
-  includeStack: true,        // Include stack trace (default: dev only)
-  enableLogging: true        // Enable error logging (default: true)
-}));
-```
-
-### Error Response Format
-
-**Development (SerializableError):**
-```json
-{
-  "__type": "NotFoundError",
-  "message": "User not found",
-  "stack": "Error: User not found\n    at /app/routes/users.ts:45:11"
-}
-```
-
-**Production (SerializableError):**
-```json
-{
-  "__type": "NotFoundError",
-  "message": "User not found"
-}
-```
-
-**Standard Error (fallback):**
-```json
-{
-  "__type": "Error",
-  "message": "Internal Server Error",
-  "stack": "Error: Internal Server Error..."
-}
-```
-
-Note: `stack` field is only included in development mode.
-
-### Error Logging
-
-The error handler automatically logs errors based on status code:
-
-**4xx Errors (Client Errors) - Logged as Warning:**
-```json
-{
-  "level": "warn",
-  "module": "error-handler",
-  "msg": "Error occurred",
-  "type": "NotFoundError",
-  "message": "User not found",
-  "statusCode": 404,
-  "path": "/users/123",
-  "method": "GET"
-}
-```
-
-**5xx Errors (Server Errors) - Logged as Error:**
-```json
-{
-  "level": "error",
-  "module": "error-handler",
-  "msg": "Error occurred",
-  "type": "DatabaseConnectionError",
-  "message": "Connection pool exhausted",
-  "statusCode": 500,
-  "path": "/users",
-  "method": "POST"
-}
-```
-
-### Custom Error Handling
-
-```typescript
-import { DatabaseError } from '@spfn/core';
-
-export async function GET(c: Context) {
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId)
-  });
-
-  if (!user) {
-    // Will be converted to 404 response
-    throw new NotFoundError('User not found');
-  }
-
-  return c.json(user);
-}
-```
-
----
-
-## Request Logger
-
-Automatically logs all API requests with performance tracking and error monitoring.
-
-### Features
-
-- **Automatic Logging**: No manual logging needed
-- **Request ID**: Unique ID for distributed tracing
-- **Performance Tracking**: Response time measurement
-- **Slow Request Detection**: Automatic warnings for slow requests
-- **Error Tracking**: Automatic error logging
-- **Detailed Error Logging**: Response body and request body logging for 4xx/5xx errors
-- **Sensitive Data Masking**: Mask passwords, tokens, etc.
-- **Path Exclusion**: Skip health checks and other paths
-
-### Basic Usage
-
-```typescript
-import { RequestLogger } from '@spfn/core';
-
-app.use('/*', RequestLogger());
-```
-
-### Configuration Options
-
-```typescript
-app.use('/*', RequestLogger({
-  // Paths to exclude from logging
-  excludePaths: ['/health', '/ping', '/favicon.ico'],
-
-  // Fields to mask (passwords, tokens, etc.)
-  sensitiveFields: ['password', 'token', 'apiKey', 'secret'],
-
-  // Slow request threshold (ms)
-  slowRequestThreshold: 1000
-}));
-```
-
-### Request ID
-
-Every request gets a unique ID for distributed tracing:
-
-```typescript
-export async function POST(c: Context) {
-  // Access request ID
-  const requestId = c.get('requestId');
-
-  logger.info('Processing user creation', { requestId });
-
-  return c.json({ requestId, userId: 123 });
-}
-```
-
-### Log Output Examples
-
-**Request Received:**
-```json
-{
-  "level": "info",
-  "module": "api",
-  "msg": "Request received",
-  "requestId": "req_1759541628730_qsm7esvo7",
-  "method": "POST",
-  "path": "/users",
-  "ip": "127.0.0.1",
-  "userAgent": "Mozilla/5.0..."
-}
-```
-
-**Request Completed (Success):**
-```json
-{
-  "level": "info",
-  "module": "api",
-  "msg": "Request completed",
-  "requestId": "req_1759541628730_qsm7esvo7",
-  "method": "POST",
-  "path": "/users",
-  "status": 201,
-  "duration": 45
-}
-```
-
-**Request Completed (4xx Warning with Error Details):**
-```json
-{
-  "level": "warn",
-  "module": "api",
-  "msg": "Request completed",
-  "requestId": "req_1759541628735_xn79oj7yc",
-  "method": "PUT",
-  "path": "/api/tasks/t1-1-001",
-  "status": 400,
-  "duration": 2,
-  "response": {
-    "success": false,
-    "error": {
-      "message": "Invalid request body",
-      "type": "ValidationError",
-      "statusCode": 400,
-      "details": {
-        "fields": [
-          {
-            "path": "/status",
-            "message": "Expected string",
-            "value": 123
-          }
-        ]
-      }
-    }
-  },
-  "request": {
-    "status": 123,
-    "title": "Updated task title"
-  }
-}
-```
-
-**Note:** For 4xx/5xx errors:
-- `response`: Full error response body (including error message, type, and details)
-- `request`: Request body for POST/PUT/PATCH (with sensitive data masked)
-
-**Slow Request (> threshold):**
-```json
-{
-  "level": "info",
-  "module": "api",
-  "msg": "Request completed",
-  "requestId": "req_1759541628739_63j84fp2j",
-  "method": "GET",
-  "path": "/slow-endpoint",
-  "status": 200,
-  "duration": 1250,
-  "slow": true
-}
-```
-
-**Request Failed (Error):**
-```json
-{
-  "level": "error",
-  "module": "api",
-  "msg": "Request failed",
-  "requestId": "req_1759541628740_abc123xyz",
-  "method": "POST",
-  "path": "/users",
-  "duration": 23,
-  "error": {
-    "type": "DatabaseError",
-    "message": "Connection failed"
-  }
-}
-```
-
-### Sensitive Data Masking
-
-Automatically masks sensitive fields in logged data with comprehensive edge case handling:
-
-```typescript
-import { maskSensitiveData } from '@spfn/core';
-
-const data = {
-  username: 'john',
-  password: 'secret123',
-  email: 'john@example.com',
-  apiKey: 'sk_live_abc123'
-};
-
-const masked = maskSensitiveData(data, ['password', 'apiKey']);
-// {
-//   username: 'john',
-//   password: '***MASKED***',
-//   email: 'john@example.com',
-//   apiKey: '***MASKED***'
-// }
-```
-
-**Features:**
-- **Case-Insensitive Matching**: Masks `password`, `PASSWORD`, or `Password`
-- **Partial Matches**: Masks `userPassword`, `accessToken`, `secretKey`
-- **Nested Objects**: Recursively masks fields in nested structures
-- **Array Support**: Masks sensitive fields in arrays and nested arrays
-- **Circular Reference Handling**: Safely handles circular references without infinite loops
-- **Immutable**: Creates a new object without modifying the original
-
-**Examples:**
-
-```typescript
-// Nested objects
-const user = {
-  name: 'john',
-  credentials: {
-    password: 'secret',
-    token: 'abc123'
-  }
-};
-const masked = maskSensitiveData(user, ['password', 'token']);
-// credentials.password and credentials.token are masked
-
-// Arrays
-const users = [
-  { name: 'john', password: 'secret1' },
-  { name: 'jane', password: 'secret2' }
-];
-const masked = maskSensitiveData(users, ['password']);
-// All password fields are masked
-
-// Circular references
-const data = { name: 'john', password: 'secret' };
-data.self = data;
-const masked = maskSensitiveData(data, ['password']);
-// { name: 'john', password: '***MASKED***', self: '[Circular]' }
-```
-
----
-
-## Complete Example
-
-```typescript
-import { Hono } from 'hono';
-import { ErrorHandler, RequestLogger } from '@spfn/core';
-import { NotFoundError } from '@spfn/core';
-
-const app = new Hono();
-
-// Apply middleware
-app.use('/*', RequestLogger({
-  excludePaths: ['/health'],
-  slowRequestThreshold: 500
-}));
-
-app.onError(ErrorHandler({
-  includeStack: env.NODE_ENV !== 'production'
-}));
-
-// Routes
-app.get('/users/:id', async (c) => {
-  const requestId = c.get('requestId');
-  const userId = c.req.param('id');
-
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId)
-  });
-
-  if (!user) {
-    throw new NotFoundError('User not found');
-  }
-
-  return c.json({ requestId, user });
-});
+app.use('*', RequestLogger());     // middleware — runs per request
+app.onError(ErrorHandler());       // error hook — NOT app.use()
 
 export default app;
 ```
 
-**Request Flow:**
-
-1. **Request Received** → Logged with Request ID
-2. **Processing** → Business logic executes
-3. **Error Thrown** → Caught and logged by Request Logger
-4. **Error Handler** → Converts to HTTP response
-5. **Response Sent** → Logged with duration
-
-**Log Output:**
-```json
-{"level":"info","module":"api","msg":"Request received","requestId":"req_123","method":"GET","path":"/users/999"}
-{"level":"error","module":"api","msg":"Request failed","requestId":"req_123","duration":12,"error":"User not found"}
-{"level":"warn","module":"error-handler","msg":"Error occurred","type":"NotFoundError","statusCode":404}
-```
-
 ---
 
-## Performance Monitoring
+## ErrorHandler
 
-### Slow Request Detection
+Converts a thrown error into a JSON HTTP response. Register it with **`app.onError()`**
+(it is Hono's error hook, not a `use()` middleware).
 
-Automatically marks slow requests in the completion log:
+### Behavior
 
-```typescript
-app.use('/*', RequestLogger({
-  slowRequestThreshold: 500  // Mark if request takes > 500ms
-}));
-```
+- **`SerializableError`** (from `@spfn/core/errors`) → serialized via its `toJSON()`, using
+  the error's own `statusCode` as the HTTP status. Custom fields (`resource`, `fields`, …)
+  are preserved. Detection is duck-typed (`toJSON` + numeric `statusCode`) so it survives
+  module duplication under tsx/dev.
+- **Standard `Error`** → falls back to `{ __type: 'Error', message }`, status from a
+  `statusCode` property on the error if present, else `500`.
+- **`cause` chain** → the root cause message is extracted and added as `cause`.
+- **Logging** (when `enableLogging`): `warn` for 4xx, `error` for 5xx, via the
+  `@spfn/core:error-handler` logger.
+- **`onError` callback** → fired non-blocking (`Promise.resolve(...).catch(...)`); never
+  delays or fails the response.
 
-**Output:**
-```json
-{
-  "level": "info",
-  "module": "api",
-  "msg": "Request completed",
-  "requestId": "req_1759541628739_abc123xyz",
-  "method": "GET",
-  "path": "/api/heavy-computation",
-  "status": 200,
-  "duration": 1250,
-  "slow": true
-}
-```
+### Options (`ErrorHandlerOptions`)
 
-### Response Time Tracking
-
-Every request logs its duration:
-
-```json
-{
-  "msg": "Request completed",
-  "path": "/users",
-  "duration": 45,
-  "status": 200
-}
-```
-
----
-
-## Best Practices
-
-### 1. Apply Middleware in Correct Order
+| Option | Type | Default | Effect |
+|--------|------|---------|--------|
+| `includeStack` | `boolean` | `env.NODE_ENV !== 'production'` | Add `stack` to the response body |
+| `enableLogging` | `boolean` | `true` | Log errors (warn 4xx / error 5xx) |
+| `onError` | `(err, ctx: OnErrorContext) => void \| Promise<void>` | — | Non-blocking side-effect callback |
 
 ```typescript
-// ✅ Correct order
-app.use('/*', RequestLogger());           // 1. Log first
-app.use('/*', otherMiddleware());         // 2. Other middleware
-app.onError(ErrorHandler());              // 3. Error handler last
-```
-
-### 2. Exclude Health Check Endpoints
-
-```typescript
-// ✅ Reduce noise in logs
-app.use('/*', RequestLogger({
-  excludePaths: ['/health', '/ping', '/metrics']
-}));
-```
-
-### 3. Use Request ID for Tracing
-
-```typescript
-// ✅ Include request ID in all logs
-export async function POST(c: Context) {
-  const requestId = c.get('requestId');
-
-  logger.info('Starting transaction', { requestId });
-  await processData();
-  logger.info('Transaction complete', { requestId });
-
-  return c.json({ requestId, result: 'success' });
-}
-```
-
-### 4. Set Appropriate Slow Threshold
-
-```typescript
-// ✅ Based on your SLA
-app.use('/*', RequestLogger({
-  slowRequestThreshold: 200   // API target: < 200ms
-}));
-```
-
-### 5. Enable Stack Traces in Development
-
-```typescript
-// ✅ Environment-aware configuration
 app.onError(ErrorHandler({
-  includeStack: env.NODE_ENV !== 'production'
+    includeStack: env.NODE_ENV !== 'production',
+    enableLogging: true,
+    onError: (err, ctx) => notify(ctx.statusCode, ctx.path, err),
 }));
 ```
 
+### Response format
+
+`SerializableError` (e.g. `NotFoundError`) — body is its `toJSON()` output; HTTP status is
+the error's `statusCode`:
+
+```json
+// production
+{ "__type": "NotFoundError", "message": "User not found", "resource": "User" }
+
+// development (includeStack) adds:
+{ "__type": "NotFoundError", "message": "User not found", "resource": "User",
+  "stack": "Error: User not found\n    at ..." }
+```
+
+Standard error fallback:
+
+```json
+{ "__type": "Error", "message": "Internal Server Error" }
+// + "cause": "..."  when the error has a cause
+// + "stack": "..."  only when includeStack is true
+```
+
+> The serialized field is **`__type`**, and the status code is carried by the **HTTP
+> status**, not a body field. (Older docs showing `{ "error": "...", "statusCode": 400 }`
+> are stale.)
+
+### `OnErrorContext`
+
+```typescript
+interface OnErrorContext {
+    statusCode: number;
+    path: string;
+    method: string;
+    requestId?: string;   // present when RequestLogger ran first
+    timestamp: string;    // ISO 8601
+    userId?: string;      // from c.get('auth')?.userId, when auth middleware set it
+    request: {
+        headers: Record<string, string>;  // sensitive headers masked to '***'
+        query: Record<string, string>;
+    };
+}
+```
+
+Masked request headers: `authorization`, `cookie`, `x-api-key`, `x-auth-token`
+(case-insensitive). `requestId` and `userId` are only populated when the corresponding
+upstream middleware (RequestLogger / auth) has run.
+
 ---
 
-## Environment Variables
+## RequestLogger
 
-No environment variables required. Configuration is code-based.
+Per-request logging middleware. Register with **`app.use()`**.
 
----
+### Behavior
 
-## Test Coverage
+- Generates a request ID (`req_<timestamp>_<6-byte hex>`) and stores it on the context:
+  `c.set('requestId', id)` → read via `c.get('requestId')`.
+- Logs `Request received` (method, path, ip, userAgent) and `Request completed`
+  (status, duration). Client IP is taken from `x-forwarded-for` (first hop) → `x-real-ip` →
+  `'unknown'`.
+- Log level by status: `info` (<400), `warn` (4xx), `error` (5xx). Logger child:
+  `@spfn/core:api`.
+- **Slow requests** (`duration >= slowRequestThreshold`) get `slow: true`.
+- **For 4xx/5xx**: clones the response to attach the error `response` body, and for
+  `POST`/`PUT`/`PATCH` attaches the masked request body (`request`).
+- If the downstream throws, logs `Request failed` at `error` level **and re-throws**
+  (so `app.onError` / `ErrorHandler` still runs). It does not swallow errors.
 
-The middleware module has test coverage for RequestLogger:
+### Options (`RequestLoggerOptions`)
 
-### Request Logger Tests (29 tests)
-- Basic logging (3 tests)
-- Error handling (3 tests)
-- Request ID generation (1 test)
-- Excluded paths (3 tests)
-- Slow request detection (2 tests)
-- Integration with other middleware (1 test)
-- **maskSensitiveData tests (16 tests)**:
-  - Basic masking (4 tests): password fields, multiple fields, case-insensitive, partial matches
-  - Nested objects (2 tests): shallow and deep nesting
-  - Arrays (2 tests): array elements, nested arrays
-  - Circular references (2 tests): simple and nested circular references
-  - Edge cases (6 tests): null, undefined, primitives, empty objects/arrays, immutability
+| Option | Type | Default |
+|--------|------|---------|
+| `excludePaths` | `string[]` | `['/health', '/ping', '/favicon.ico']` |
+| `sensitiveFields` | `string[]` | `['password', 'token', 'apiKey', 'secret', 'authorization']` |
+| `slowRequestThreshold` | `number` (ms) | `1000` |
 
-Run tests:
-```bash
-pnpm test src/middleware
+`excludePaths` matches **exact or prefix** — `/health` also excludes `/health/db`. Excluded
+paths skip logging entirely (and get **no** request ID).
+
+```typescript
+app.use('*', RequestLogger({
+    excludePaths: ['/health', '/metrics', '/_next'],
+    sensitiveFields: ['password', 'creditCard', 'ssn'],
+    slowRequestThreshold: 500,
+}));
+```
+
+### Reading the request ID
+
+```typescript
+// in a route handler
+const requestId = c.get('requestId'); // string | undefined
+```
+
+### Log output examples
+
+```json
+// Request received
+{ "level": "info", "module": "api", "msg": "Request received",
+  "requestId": "req_1759541628730_qsm7esvo7", "method": "POST", "path": "/users",
+  "ip": "127.0.0.1", "userAgent": "..." }
+
+// completed (success)
+{ "level": "info", "module": "api", "msg": "Request completed",
+  "requestId": "req_...", "method": "POST", "path": "/users", "status": 201, "duration": 45 }
+
+// completed (4xx — includes response body + masked request body)
+{ "level": "warn", "module": "api", "msg": "Request completed",
+  "status": 400, "duration": 2,
+  "response": { "__type": "ValidationError", "message": "Invalid request body" },
+  "request": { "status": 123, "password": "***MASKED***" } }
+
+// slow
+{ "level": "info", "msg": "Request completed", "status": 200, "duration": 1250, "slow": true }
+
+// downstream threw (then re-thrown to ErrorHandler)
+{ "level": "error", "module": "api", "msg": "Request failed",
+  "method": "POST", "path": "/users", "duration": 23, "error": { ... } }
 ```
 
 ---
 
-## API Reference
+## maskSensitiveData
 
-### Types
+Deep-masks fields whose name (case-insensitive) **contains** any of `sensitiveFields`,
+returning a new structure. Used internally by `RequestLogger`; exported for reuse.
 
-#### `ErrorHandlerOptions`
+```typescript
+import { maskSensitiveData } from '@spfn/core/middleware';
 
-Configuration options for ErrorHandler middleware.
+maskSensitiveData(
+    { username: 'john', password: 'secret', apiKey: 'sk_live_x' },
+    ['password', 'apiKey'],
+);
+// → { username: 'john', password: '***MASKED***', apiKey: '***MASKED***' }
+```
+
+- **Partial + case-insensitive**: `['password']` masks `userPassword`, `PASSWORD`, etc.
+- **Recursive**: descends into nested objects and arrays.
+- **Immutable**: shallow-clones at each level; the input is untouched.
+- **Circular-safe**: repeated references become `'[Circular]'` (via an internal `WeakSet`).
+- Non-objects (`null`, primitives) are returned as-is.
+
+Replacement token is the literal string `'***MASKED***'`.
+
+---
+
+## Pitfalls & anti-patterns
+
+- **`ErrorHandler` goes on `app.onError()`, never `app.use()`.** It returns an
+  `(err, c) => Response` error hook, not a `(c, next)` middleware. Putting it in `use()`
+  (or `config.middlewares` / `config.use`) will not catch errors.
+- **Don't double-register under `defineServerConfig`.** The server auto-applies both. Only
+  use the raw `app.use(RequestLogger())` / `app.onError(ErrorHandler())` calls on a bare
+  Hono app. To change RequestLogger options under SPFN, set `middleware.logger: false` and
+  add your own via `config.use`.
+- **`config.middleware.onError` is the only ErrorHandler option the builder forwards.**
+  `includeStack` / `enableLogging` are not configurable through `defineServerConfig` — they
+  use defaults. Need them tuned? Build the Hono app manually.
+- **RequestLogger must run before ErrorHandler** for `requestId` to appear in
+  `OnErrorContext`. The auto-config order (logger → … → onError) already guarantees this;
+  preserve it if wiring manually (`app.use(RequestLogger())` then `app.onError(...)`).
+- **Excluded paths get no request ID.** `excludePaths` short-circuits before
+  `c.set('requestId')`, so handlers on `/health` etc. read `undefined`.
+- **These are not "named middleware."** They have no `.skip()` name and cannot be skipped
+  per-route via the route DSL. Route-level skip applies only to `NamedMiddleware` created
+  with `defineMiddleware` (`@spfn/core/route`). To exclude paths from logging, use
+  `excludePaths`, not `.skip()`.
+- **`sensitiveFields` matches by substring.** A field named `tokenize` is masked because it
+  contains `token`. Choose field names with that in mind.
+- **Don't import from `@spfn/core`.** No root barrel exists; use `@spfn/core/middleware`.
+- **`RequestLoggerConfig` is deprecated** — alias of `RequestLoggerOptions`.
+
+---
+
+## Complete example (raw Hono)
+
+```typescript
+import { Hono } from 'hono';
+import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
+import { NotFoundError } from '@spfn/core/errors';
+
+const app = new Hono();
+
+// 1. RequestLogger first — assigns requestId, times every request
+app.use('*', RequestLogger({
+    excludePaths: ['/health'],
+    slowRequestThreshold: 500,
+}));
+
+app.get('/users/:id', async (c) =>
+{
+    const requestId = c.get('requestId');
+    const user = await findUser(c.req.param('id'));
+
+    if (!user)
+    {
+        throw new NotFoundError({ message: 'User not found', resource: 'User' });
+    }
+
+    return c.json({ requestId, user });
+});
+
+// 2. ErrorHandler last — onError hook catches everything above
+app.onError(ErrorHandler({
+    includeStack: process.env.NODE_ENV !== 'production',
+    onError: (err, ctx) => notify(ctx),
+}));
+
+export default app;
+```
+
+Under SPFN, the equivalent is just `defineServerConfig().routes(appRouter).build()` — both
+middleware are added automatically.
+
+---
+
+## Types reference
 
 ```typescript
 interface ErrorHandlerOptions {
-  includeStack?: boolean;  // Include stack trace (default: dev only)
-  enableLogging?: boolean; // Enable error logging (default: true)
+    includeStack?: boolean;   // default: env.NODE_ENV !== 'production'
+    enableLogging?: boolean;  // default: true
+    onError?: (err: Error, context: OnErrorContext) => Promise<void> | void;
 }
-```
 
----
-
-#### `RequestLoggerConfig`
-
-Configuration options for RequestLogger middleware.
-
-```typescript
-interface RequestLoggerConfig {
-  excludePaths?: string[];         // Paths to exclude from logging
-  sensitiveFields?: string[];      // Field names to mask
-  slowRequestThreshold?: number;   // Slow request threshold in ms
+interface OnErrorContext {
+    statusCode: number;
+    path: string;
+    method: string;
+    requestId?: string;
+    timestamp: string;
+    userId?: string;
+    request: { headers: Record<string, string>; query: Record<string, string> };
 }
-```
 
-**Default Values:**
-- `excludePaths`: `['/health', '/ping', '/favicon.ico']`
-- `sensitiveFields`: `['password', 'token', 'apiKey', 'secret', 'authorization']`
-- `slowRequestThreshold`: `1000` (1 second)
-
----
-
-### Functions
-
-#### `ErrorHandler(options?)`
-
-**Parameters:**
-- `options?: ErrorHandlerOptions` - Configuration options
-
-**Returns:** Hono error handler function
-
-**Example:**
-```typescript
-app.onError(ErrorHandler({
-  includeStack: env.NODE_ENV !== 'production',
-  enableLogging: true
-}));
-```
-
----
-
-#### `RequestLogger(config?)`
-
-**Parameters:**
-- `config?: RequestLoggerConfig` - Configuration options
-
-**Returns:** Hono middleware function
-
-**Example:**
-```typescript
-app.use('/*', RequestLogger({
-  excludePaths: ['/health', '/metrics'],
-  slowRequestThreshold: 500
-}));
-```
-
----
-
-#### `maskSensitiveData(obj, sensitiveFields)`
-
-**Parameters:**
-- `obj: any` - Object to mask
-- `sensitiveFields: string[]` - Field names to mask
-
-**Returns:** Masked object with sensitive fields replaced by `***MASKED***`
-
----
-
-## Transaction Middleware
-
-**Note:** Transaction middleware is part of the database module but is included here for completeness.
-
-### `Transactional(options?)`
-
-Wraps route handlers in a database transaction with automatic commit/rollback.
-
-```typescript
-import { route } from '@spfn/core/route';
-import { Transactional } from '@spfn/core/db';
-import { Type } from '@sinclair/typebox';
-
-export const createUser = route.post('/users')
-    .input({
-        body: Type.Object({
-            email: Type.String(),
-            name: Type.String()
-        })
-    })
-    .use([Transactional()])
-    .handler(async (c) => {
-        const { body } = await c.data();
-        const user = await userRepo.create(body);
-        // ✅ Auto-commit on success
-        // ❌ Auto-rollback on error
-        return user;
-    });
-```
-
-**Features:**
-- Auto-commit when handler completes successfully
-- Auto-rollback on any error
-- AsyncLocalStorage-based context propagation
-- Automatic transaction logging
-- Nested transaction support
-
-**Options:**
-```typescript
-interface TransactionalOptions {
-  logSuccess?: boolean;  // Log successful commits (default: false)
-  logErrors?: boolean;   // Log rollbacks (default: true)
+interface RequestLoggerOptions {
+    excludePaths?: string[];        // default: ['/health', '/ping', '/favicon.ico']
+    sensitiveFields?: string[];     // default: ['password','token','apiKey','secret','authorization']
+    slowRequestThreshold?: number;  // default: 1000 (ms)
 }
-```
 
----
+type RequestLoggerConfig = RequestLoggerOptions; // @deprecated
+
+function maskSensitiveData(obj: any, sensitiveFields: string[], seen?: WeakSet<object>): any;
+```
 
 ## Related
 
-- [Error Module](../errors/README.md) - Custom error classes
-- [Logger Module](../logger/README.md) - Logging infrastructure
-- [@spfn/core](../../README.md) - Main package documentation
+- [@spfn/core/route](../route/README.md) — `defineMiddleware` / `defineMiddlewareFactory`
+  (custom named middleware), route-level `.use()` / `.skip()` wiring and execution order.
+- [@spfn/core/db](../db/README.md) — `Transactional()` route middleware
+  (auto commit/rollback).
+- [@spfn/core/server](../server/README.md) — `defineServerConfig` / `config.middleware`,
+  which auto-registers `RequestLogger` + `ErrorHandler`.
+- [@spfn/core/errors](../errors/README.md) — `SerializableError` and the built-in error
+  classes that `ErrorHandler` serializes.
+- [@spfn/core/logger](../logger/README.md) — the logger both middleware write to.
+</content>
+</invoke>

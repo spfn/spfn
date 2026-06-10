@@ -1,179 +1,148 @@
-# @spfn/core/event - Event System
+# @spfn/core/event — Decoupled pub/sub events + SSE streaming
 
-Decoupled pub/sub event system with SSE (Server-Sent Events) support for real-time frontend updates.
+In-memory pub/sub event system with TypeBox-typed payloads, optional cache-backed
+multi-instance broadcast, job-queue fan-out, and Server-Sent Events (SSE) streaming to the
+browser. A WebSocket variant shares the same event definitions.
 
-## Core Components
+## Import paths
 
+There are **four** entry points. Picking the wrong one breaks the build (client code must
+never pull the Hono handler; the handler must never pull the EventSource client).
+
+```typescript
+// Event definitions, router, route-map — isomorphic (define + emit + subscribe)
+import { defineEvent, defineEventRouter, eventRouteMap } from '@spfn/core/event';
+
+// Server SSE handler + token manager — SERVER ONLY (Hono, node:crypto)
+import { createSSEHandler, SSETokenManager, CacheTokenStore } from '@spfn/core/event/sse';
+
+// Browser SSE client — CLIENT ONLY (EventSource)
+import { createSSEClient, createAuthSSEClient, subscribeToEvents } from '@spfn/core/event/sse/client';
+
+// WebSocket router/handler/client — separate surface (see "WebSocket" below)
+import { defineWSRouter } from '@spfn/core/event';          // or '@spfn/core/event/ws'
+import { attachWSHandler } from '@spfn/core/event/ws';       // server
+import { createWSClient } from '@spfn/core/event/ws/client'; // browser
 ```
-event/
-├── index.ts              # Module exports
-├── event.ts              # Event implementation
-├── router.ts             # Event router for SSE
-├── types.ts              # Type definitions
-└── sse/
-    ├── index.ts          # SSE exports
-    ├── handler.ts        # Hono SSE handler
-    ├── client.ts         # Browser client (createSSEClient, createAuthSSEClient)
-    ├── route-map.ts      # Static route map for RPC proxy
-    ├── token-manager.ts  # Token issuance/verification
-    └── types.ts          # SSE types
-```
+
+> `createSSEClient` / `createAuthSSEClient` / `subscribeToEvents` live in
+> `@spfn/core/event/sse/**client**` — **not** in `@spfn/core/event/sse`. The bare
+> `@spfn/core/event/sse` is the server handler surface.
+
+In practice you rarely call `createSSEHandler` directly — `defineServerConfig().events(router)`
+mounts it for you (see [Server setup](#server-setup-via-defineserverconfig)).
 
 ---
 
-## Features
+## Public API (complete)
 
-- ✅ **Type-Safe**: TypeBox schema-based payload type inference
-- ✅ **In-Memory Pub/Sub**: Simple event subscription and emission
-- ✅ **Multi-Instance Support**: Optional Redis/Valkey pub/sub integration
-- ✅ **Job Integration**: Seamless integration with @spfn/core/job
-- ✅ **SSE Support**: Real-time event streaming to frontend clients
-- ✅ **SSE Authentication**: Token Exchange pattern for secure SSE connections
-- ✅ **SSE Authorization**: Per-event subscription and payload filtering hooks
-- ✅ **Decoupled Architecture**: Clean separation between event producers and consumers
-- ✅ **Error Isolation**: Handler errors don't affect other subscribers
+From `@spfn/core/event`:
+
+- `defineEvent(name)` / `defineEvent(name, schema)` — define an event
+- `defineEventRouter(events)` — group events for SSE
+- `defineWSRouter({ events, messages? })` — group events + message handlers for WebSocket
+- `eventRouteMap` — `{ eventsToken: { method: 'POST', path: '/events/token' } }` (merge into RPC proxy)
+- Types: `EventDef`, `EventHandler`, `InferEventPayload`, `PubSubCache`, `JobQueueSender`,
+  `EventRouterDef`, `InferEventNames`, `InferEventPayloads`,
+  `InferRouterEventPayload` (the two-arg router variant — see note)
+
+From `@spfn/core/event/sse`:
+
+- `createSSEHandler(router, config?, tokenManager?)` — Hono GET handler
+- `SSETokenManager` (class), `CacheTokenStore` (class)
+- Types: `SSEToken`, `SSETokenStore`, `SSETokenManagerConfig`, `SSEMessage`,
+  `SSEHandlerConfig`, `SSEHandlerAuthConfig`, `SSEAuthConfig`, `SSEClientConfig`,
+  `SSEEventHandler`, `SSEEventHandlers`, `SSESubscribeOptions`, `SSEConnectionState`,
+  `SSEUnsubscribe`
+
+From `@spfn/core/event/sse/client`:
+
+- `createSSEClient(config?)`, `createAuthSSEClient(config?)`, `subscribeToEvents(events, handlers, config?)`
+- Type: `SSEClient`, `AuthSSEClientConfig`
+
+From `@spfn/core/event/ws` / `@spfn/core/event/ws/client`: see [WebSocket](#websocket).
+
+> **Two `InferEventPayload`s.** The name `InferEventPayload` exported from
+> `@spfn/core/event` is the **single-arg** one (`InferEventPayload<typeof userCreated>` →
+> payload of one event). The router module's **two-arg** version
+> (`<Router, 'eventName'>`) is re-exported under the alias **`InferRouterEventPayload`** to
+> avoid a clash. Inside the SSE types it is the two-arg form.
+>
+> **No such API.** There is no `event.on(...)`, no `event.publish(...)`, no
+> `createEventBus()`, no `emitSync()`. The model is: `defineEvent` → `.subscribe()` /
+> `.emit()` / `.useCache()`. SSE clients are created with `createSSEClient` /
+> `createAuthSSEClient`, never `new EventSource` directly (that loses typing and token handling).
 
 ---
 
 ## Quick Start
 
-### Basic Usage
-
 ```typescript
 import { defineEvent } from '@spfn/core/event';
 import { Type } from '@sinclair/typebox';
 
-// Define event with typed payload
+// 1. Define an event with a typed payload
 export const userCreated = defineEvent('user.created', Type.Object({
     userId: Type.String(),
     email: Type.String(),
 }));
 
-// Subscribe to event
-const unsubscribe = userCreated.subscribe((payload) => {
+// 2. Subscribe (in-memory) — returns an unsubscribe function
+const unsubscribe = userCreated.subscribe((payload) =>
+{
+    // payload: { userId: string; email: string }
     console.log('User created:', payload.userId);
 });
 
-// Emit event
+// 3. Emit — awaits all handlers
 await userCreated.emit({ userId: '123', email: 'user@example.com' });
 
-// Unsubscribe when done
+// 4. Cleanup
 unsubscribe();
 ```
 
-### Event Without Payload
+### Event without payload
 
 ```typescript
-// Define event without payload
-export const serverStarted = defineEvent('server.started');
+export const serverStarted = defineEvent('server.started'); // EventDef<void>
 
-// Subscribe
-serverStarted.subscribe(() => {
-    console.log('Server has started');
-});
-
-// Emit (no payload needed)
-await serverStarted.emit();
+serverStarted.subscribe(() => console.log('started'));
+await serverStarted.emit();   // emit() takes no argument when there is no schema
 ```
+
+`emit` is typed off the payload: `() => Promise<void>` for void events, `(payload) =>
+Promise<void>` otherwise. Handlers run via `Promise.allSettled` — see
+[error isolation](#error-isolation).
 
 ---
 
-## Multi-Instance Support
+## EventDef methods
 
-For applications running multiple instances (containers, pods), use cache-based pub/sub to broadcast events across all instances.
+`defineEvent` returns an `EventDef<TPayload>`:
 
-```typescript
-import { defineEvent } from '@spfn/core/event';
-import { getCache } from '@spfn/core/cache';
+| Member | Signature | Notes |
+|--------|-----------|-------|
+| `name` | `readonly string` | event name (e.g. `'user.created'`) |
+| `schema` | `readonly TSchema?` | the TypeBox schema, if provided |
+| `subscribe(handler)` | `(payload) => void \| Promise<void>` ⇒ returns `() => void` | in-memory; returns unsubscribe |
+| `unsubscribeAll()` | `() => void` | drop all in-memory handlers |
+| `emit(payload?)` | `Promise<void>` | fan-out to handlers (or cache) + job queues |
+| `useCache(cache)` | `(PubSubCache) => Promise<EventDef>` | enable cross-instance broadcast (must `await`) |
 
-const userCreated = defineEvent('user.created', Type.Object({
-    userId: Type.String(),
-}));
-
-// Enable cache-based pub/sub (must await before emitting)
-const cache = getCache();
-if (cache) {
-    await userCreated.useCache({
-        publish: async (channel, message) => {
-            await cache.publish(channel, JSON.stringify(message));
-        },
-        subscribe: async (channel, handler) => {
-            const subscriber = cache.duplicate();
-            await subscriber.subscribe(channel);
-            subscriber.on('message', (ch, msg) => {
-                if (ch === channel) {
-                    handler(JSON.parse(msg));
-                }
-            });
-        },
-    });
-}
-
-// Events now broadcast to all instances
-await userCreated.emit({ userId: '123' });
-```
+> `_registerJobQueue` and `_payload` exist on the interface but are **internal** —
+> `_registerJobQueue` is called by `@spfn/core/job` when a job does `.on(event)`; `_payload`
+> is a type-inference carrier (always `undefined` at runtime). Don't call them.
 
 ---
 
-## Job Integration
+## Server setup (via `defineServerConfig`)
 
-Events integrate seamlessly with the job system for background processing.
-
-```typescript
-import { defineEvent } from '@spfn/core/event';
-import { job, defineJobRouter } from '@spfn/core/job';
-
-// Define event
-export const orderPlaced = defineEvent('order.placed', Type.Object({
-    orderId: Type.String(),
-    userId: Type.String(),
-    amount: Type.Number(),
-}));
-
-// Jobs subscribe to event
-export const sendOrderConfirmation = job('send-order-confirmation')
-    .on(orderPlaced)
-    .handler(async (payload) => {
-        await emailService.sendOrderConfirmation(payload.orderId);
-    });
-
-export const updateInventory = job('update-inventory')
-    .on(orderPlaced)
-    .handler(async (payload) => {
-        await inventoryService.reserve(payload.orderId);
-    });
-
-export const notifyWarehouse = job('notify-warehouse')
-    .on(orderPlaced)
-    .handler(async (payload) => {
-        await warehouseService.notify(payload.orderId);
-    });
-
-// Register jobs
-export const jobRouter = defineJobRouter({
-    sendOrderConfirmation,
-    updateInventory,
-    notifyWarehouse,
-});
-
-// Emit event - all subscribed jobs execute
-await orderPlaced.emit({
-    orderId: 'ord-123',
-    userId: 'user-456',
-    amount: 99.99,
-});
-```
-
----
-
-## SSE (Server-Sent Events)
-
-Enable real-time event streaming to frontend clients.
-
-### Server Setup
+To stream events to the browser, group them with `defineEventRouter` and register the
+router on the server. `.events()` mounts the SSE handler — you don't call `createSSEHandler`
+yourself.
 
 ```typescript
-// 1. Define events
+// src/server/events.ts
 import { defineEvent, defineEventRouter } from '@spfn/core/event';
 import { Type } from '@sinclair/typebox';
 
@@ -181,84 +150,146 @@ export const userCreated = defineEvent('user.created', Type.Object({
     userId: Type.String(),
     email: Type.String(),
 }));
-
 export const orderPlaced = defineEvent('order.placed', Type.Object({
     orderId: Type.String(),
+    userId: Type.String(),
     amount: Type.Number(),
 }));
 
-// 2. Create event router
-export const eventRouter = defineEventRouter({
-    userCreated,
-    orderPlaced,
-});
-
-// 3. Register in server config
-// server.config.ts
-import { defineServerConfig } from '@spfn/core/server';
-
-export default defineServerConfig()
-    .routes(appRouter)
-    .jobs(jobRouter)
-    .events(eventRouter)  // → GET /events/stream
-    .build();
-
-// Custom path and options
-.events(eventRouter, {
-    path: '/sse',           // Custom endpoint path
-    pingInterval: 30000,    // Keep-alive interval (default: 30s)
-})
+export const eventRouter = defineEventRouter({ userCreated, orderPlaced });
+export type EventRouter = typeof eventRouter;
 ```
-
-### SSE Authentication
-
-Browser `EventSource` API does not support custom headers, so Bearer JWT cannot be used directly.
-SPFN solves this with a **Token Exchange** pattern:
-
-```
-Client                           Server
-  │                                │
-  │  POST /events/token            │
-  │  (Authorization: Bearer JWT)   │
-  │ ─────────────────────────────► │  authenticate middleware verifies
-  │  ◄───────────────────────────  │  { token: "abc123..." } issued
-  │                                │
-  │  GET /events/stream            │
-  │  ?token=abc123&events=...      │
-  │ ─────────────────────────────► │  Token verified (one-time, 30s TTL)
-  │  ◄════════════════════════════ │  SSE stream starts
-```
-
-Enable authentication by adding `auth: { enabled: true }`:
 
 ```typescript
 // server.config.ts
 import { defineServerConfig } from '@spfn/core/server';
+import { eventRouter } from './server/events';
+
+export default defineServerConfig()
+    .routes(appRouter)
+    .jobs(jobRouter)
+    .events(eventRouter)              // → GET /events/stream
+    .build();
+
+// Custom path + ping interval:
+.events(eventRouter, {
+    path: '/sse',                     // default: '/events/stream'
+    pingInterval: 30000,              // keep-alive interval, ms (default: 30000)
+})
+```
+
+`.events(router, config)` accepts `Omit<SSEHandlerConfig, 'auth'> & { path?, auth?:
+SSEAuthConfig<TRouter> }`. The `auth` field is the **generic** `SSEAuthConfig<TRouter>` so
+`authorize`/`filter` get full event-name and payload inference from your router.
+
+> `SSEHandlerConfig` also declares a `headers` field, but the current handler only reads
+> `pingInterval` and `auth`. Setting custom `headers` here is a no-op — set response headers
+> in middleware instead.
+
+---
+
+## SSE authentication (Token Exchange)
+
+The browser `EventSource` API cannot send custom headers, so a `Authorization: Bearer` JWT
+can't ride along on the stream request. SPFN uses a **token exchange**: an authenticated
+`POST /events/token` mints a one-time, short-TTL token; the stream request carries it as
+`?token=...`.
+
+```
+Client                              Server
+  │  POST /events/token (Bearer JWT) │  ← protected by config.middlewares (e.g. authenticate)
+  │ ───────────────────────────────► │  getSubject(c) → issue one-time token
+  │  ◄─────────────────────────────  │  { token: "..." }   (default TTL 30s)
+  │  GET /events/stream?token=…&events=…
+  │ ───────────────────────────────► │  verify+consume token (one-time)
+  │                                   │  → authorize(subject, events)
+  │  ◄═══════════════════════════════ │  SSE stream opens
+  │  event: <name> / data: {…}        │  ← filter(subject, payload) per emission
+```
+
+Enable it with `auth: { enabled: true }`:
+
+```typescript
+import { defineServerConfig } from '@spfn/core/server';
 import { authenticate } from '@spfn/auth/server';
 
 export default defineServerConfig()
-    .middlewares([authenticate])
+    .middlewares([authenticate])          // protects POST /events/token
     .routes(appRouter)
     .events(eventRouter, {
         auth: { enabled: true },
     })
     .build();
-// → POST /events/token (protected by authenticate middleware)
-// → GET /events/stream?token=...&events=... (token verified)
+// → POST /events/token   (mints token; subject = c.get('auth').userId by default)
+// → GET  /events/stream?token=…&events=…
 ```
 
-This automatically:
-- Creates a `POST /events/token` endpoint (protected by `config.middlewares`)
-- Validates one-time tokens on `GET /events/stream`
-- Tokens expire after 30 seconds (configurable via `tokenTtl`)
+The token endpoint path is **derived** from the stream path: `/events/stream` →
+`/events/token`, `/sse` → `/token`. It is registered with `config.middlewares` applied, so
+whatever authenticates your routes also authenticates token issuance.
 
-### SSE Authorization
+### Token store (multi-instance)
 
-Two hooks allow fine-grained access control with full type inference from the event router.
+One-time tokens are stored. With `auth.enabled` and no explicit `store`, the server
+auto-detects a cache at startup via `getCache()`:
 
-#### `authorize` — Subscription Authorization (once on connect)
+| Environment | Store | How |
+|-------------|-------|-----|
+| No cache (`CACHE_URL` unset) | `InMemoryTokenStore` (Map) | automatic fallback |
+| Cache connected | `CacheTokenStore` (Redis/Valkey, `SET EX` + `GETDEL`, prefix `sse:token:`) | auto-detected |
+| Custom | your `SSETokenStore` impl | pass `auth.store` |
 
-Controls which events a user can subscribe to. Returns allowed events subset.
+Manual / custom store:
+
+```typescript
+import { CacheTokenStore } from '@spfn/core/event/sse';
+import { getCache } from '@spfn/core/cache';
+
+.events(eventRouter, {
+    auth: { enabled: true, store: new CacheTokenStore(getCache()!) },
+})
+```
+
+```typescript
+import type { SSETokenStore, SSEToken } from '@spfn/core/event/sse';
+
+class DynamoTokenStore implements SSETokenStore
+{
+    async set(token: string, data: SSEToken): Promise<void> { /* ... */ }
+    async consume(token: string): Promise<SSEToken | null> { /* one-time get+delete */ }
+    async cleanup(): Promise<void> { /* remove expired */ }
+}
+```
+
+### Sharing a token manager with `@spfn/auth`
+
+If you already run `@spfn/auth`'s one-time-token system, hand SSE the **same** manager via
+`tokenManager` instead of letting it create its own — both SSE and direct API calls then
+draw from one token pool. Use a **lazy resolver** because `getOneTimeTokenManager()` only
+exists after the auth lifecycle's `afterInfrastructure` runs:
+
+```typescript
+import { createAuthLifecycle, getOneTimeTokenManager } from '@spfn/auth/server';
+
+export default defineServerConfig()
+    .lifecycle(createAuthLifecycle())
+    .events(eventRouter, {
+        auth: {
+            enabled: true,
+            tokenManager: () => getOneTimeTokenManager(), // resolved at server start
+        },
+    })
+    .build();
+```
+
+When `tokenManager` is provided, `store`/`tokenTtl` are ignored (the external manager owns them).
+
+### Authorization hooks
+
+Both hooks get full type inference from the router (no casting).
+
+`authorize` — runs **once on connect**, decides which events the subject may subscribe to.
+Return the allowed subset; an empty array ⇒ `403`.
 
 ```typescript
 .events(eventRouter, {
@@ -266,96 +297,105 @@ Controls which events a user can subscribe to. Returns allowed events subset.
         enabled: true,
         authorize: async (subject, events) =>
         {
-            // events: ('userCreated' | 'orderPlaced')[] — inferred from router
+            // events: ('userCreated' | 'orderPlaced')[] — inferred
             const user = await usersRepository.findById(subject);
-            if (user.role === 'admin') return events;
-            return events.filter(e => !e.startsWith('admin.'));
+            return user.role === 'admin' ? events : events.filter(e => !e.startsWith('admin.'));
         },
     },
 })
 ```
 
-#### `filter` — Payload Filtering (on every event emission)
-
-Controls whether a specific event instance should be sent to a user.
-Payload type is inferred per-event — no casting needed.
+`filter` — runs **per emission**, decides whether a given payload goes to this subject.
+Return `false` to skip. Payload is typed per event.
 
 ```typescript
 .events(eventRouter, {
     auth: {
         enabled: true,
         filter: {
-            // payload: { orderId: string; amount: number } — type inferred!
-            orderPlaced: (subject, payload) =>
-            {
-                return payload.userId === subject;
-            },
-            // userCreated: no filter → sent to all authenticated users
+            // payload: { orderId; userId; amount } — inferred
+            orderPlaced: (subject, payload) => payload.userId === subject,
+            // userCreated: omitted → delivered to all authorized subscribers
         },
     },
 })
 ```
 
-### SSE Auth Config Options
+### SSE auth config (`SSEAuthConfig<TRouter>`)
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable token authentication |
-| `tokenTtl` | number | `30000` | Token TTL in milliseconds |
-| `store` | SSETokenStore | InMemory | Custom token store (e.g., Redis) |
-| `getSubject` | (c: Context) => string \| null | `c.get('auth')?.userId` | Extract subject from context |
-| `authorize` | (subject, events) => events[] | - | Subscription authorization hook |
-| `filter` | { [event]: (subject, payload) => boolean } | - | Per-event payload filter |
+| `enabled` | `boolean` | `false` | turn on token auth |
+| `tokenTtl` | `number` | `30000` | token TTL (ms) |
+| `store` | `SSETokenStore` | auto (Cache → InMemory) | token storage backend |
+| `tokenManager` | `SSETokenManager \| () => SSETokenManager` | — | reuse an external manager (lazy resolver recommended); overrides `store`/`tokenTtl` |
+| `getSubject` | `(c: Context) => string \| null` | `c.get('auth')?.userId ?? null` | extract subject on the token endpoint |
+| `authorize` | `(subject, events[]) => events[] \| Promise<…>` | — | subscription authorization (once on connect) |
+| `filter` | `{ [event]?: (subject, payload) => boolean }` | — | per-event payload filter |
 
-### Browser Client
+---
+
+## Browser client
+
+### `createSSEClient(config?)` — no auth
 
 ```typescript
 import { createSSEClient } from '@spfn/core/event/sse/client';
-import type { typeof eventRouter } from '@/server/events';
+import type { EventRouter } from '@/server/events';
 
-// Create client (uses defaults: NEXT_PUBLIC_SPFN_API_URL + /events/stream)
-const client = createSSEClient<typeof eventRouter>();
+// Defaults: NEXT_PUBLIC_SPFN_API_URL (or http://localhost:8790) + /events/stream
+const client = createSSEClient<EventRouter>();
 
-// Or with custom configuration
-const client = createSSEClient<typeof eventRouter>({
-    host: 'https://api.example.com',  // Custom host
-    pathname: '/sse',                  // Custom pathname
-    reconnect: true,                   // Auto reconnect (default: true)
-    reconnectDelay: 3000,              // Reconnect delay (default: 3s)
-});
-
-// Subscribe to events
 const unsubscribe = client.subscribe({
-    events: ['userCreated', 'orderPlaced'],
+    events: ['userCreated', 'orderPlaced'], // names inferred from EventRouter
     handlers: {
-        userCreated: (payload) => {
-            console.log('New user:', payload.userId);
-            // Update UI, invalidate queries, show notification, etc.
-        },
-        orderPlaced: (payload) => {
-            console.log('New order:', payload.orderId);
-        },
+        userCreated: (payload) => console.log('user', payload.userId),
+        orderPlaced: (payload) => console.log('order', payload.orderId),
     },
-    onOpen: () => console.log('SSE connected'),
-    onError: (err) => console.error('SSE error:', err),
-    onReconnect: (attempt) => console.log('Reconnecting...', attempt),
+    onOpen: () => console.log('connected'),
+    onError: (err) => console.error(err),
+    onReconnect: (attempt) => console.log('reconnect', attempt),
+    onClose: () => console.log('closed for good'),
 });
 
-// Cleanup
-unsubscribe();
+client.getState();  // 'connecting' | 'open' | 'closed' | 'error'
+client.close();     // tear down the active connection
+unsubscribe();      // same as close() for that subscription
 ```
 
-#### With Authentication
+`SSEClientConfig`:
 
-When the server has `auth: { enabled: true }`, use `createAuthSSEClient` which handles token acquisition automatically via the RPC proxy:
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `host` | `string` | `NEXT_PUBLIC_SPFN_API_URL` or `http://localhost:8790` | backend host |
+| `pathname` | `string` | `/events/stream` | SSE endpoint path |
+| `url` | `string` | — | **deprecated**; full URL overriding host+pathname |
+| `reconnect` | `boolean` | `true` | auto-reconnect on drop |
+| `reconnectDelay` | `number` | `3000` | delay between attempts (ms) |
+| `maxReconnectAttempts` | `number` | `0` | `0` = infinite |
+| `withCredentials` | `boolean` | `false` | send cookies with the EventSource request |
+| `acquireToken` | `() => Promise<string>` | — | mint a token before each (re)connect; appended as `?token=…` |
+
+### `createAuthSSEClient(config?)` — with auth (recommended)
+
+Wraps `createSSEClient` and wires `acquireToken` to fetch a one-time token from the RPC
+proxy automatically on every (re)connect.
 
 ```typescript
 import { createAuthSSEClient } from '@spfn/core/event/sse/client';
+import type { EventRouter } from '@/server/events';
 
-const client = createAuthSSEClient<typeof eventRouter>();
+const client = createAuthSSEClient<EventRouter>(); // POSTs /api/rpc/eventsToken under the hood
+
+client.subscribe({
+    events: ['userCreated'],
+    handlers: { userCreated: (p) => console.log(p) },
+});
 ```
 
-This requires `eventRouteMap` to be merged into your RPC proxy (one-time setup):
+`AuthSSEClientConfig` = `Omit<SSEClientConfig, 'acquireToken'>` plus `rpcBaseUrl` (default
+`/api/rpc`). It requires `eventRouteMap` merged into your RPC proxy so `eventsToken`
+resolves to `POST /events/token`:
 
 ```typescript
 // app/api/rpc/[routeName]/route.ts
@@ -369,330 +409,175 @@ export const { GET, POST } = createRpcProxy({
 });
 ```
 
-Tokens are acquired on every (re)connect — one-time tokens are handled automatically.
-
-### Simple Subscribe Helper
+### `subscribeToEvents(events, handlers, config?)` — one-shot helper
 
 ```typescript
 import { subscribeToEvents } from '@spfn/core/event/sse/client';
-import type { typeof eventRouter } from '@/server/events';
+import type { EventRouter } from '@/server/events';
 
-// One-liner subscription (uses defaults)
-const unsubscribe = subscribeToEvents<typeof eventRouter>(
+const unsubscribe = subscribeToEvents<EventRouter>(
     ['userCreated'],
-    {
-        userCreated: (payload) => console.log('User:', payload),
-    }
-);
-
-// With custom host
-const unsubscribe = subscribeToEvents<typeof eventRouter>(
-    ['userCreated'],
-    { userCreated: (payload) => console.log('User:', payload) },
-    { host: 'https://api.example.com' }
+    { userCreated: (payload) => console.log(payload) },
+    { host: 'https://api.example.com' }, // optional SSEClientConfig
 );
 ```
 
-### Event Flow Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    userCreated.emit({ ... })                     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
-    ┌──────────┐       ┌──────────┐       ┌──────────┐
-    │ Backend  │       │   Job    │       │   SSE    │
-    │ Handler  │       │  Queue   │       │  Stream  │
-    └──────────┘       └──────────┘       └──────────┘
-    .subscribe()       .on(event)            ↓
-          │                 │           ┌──────────┐
-          ▼                 ▼           │ Browser  │
-    [Logging,         [Background       │  Client  │
-     Analytics]        Processing]      └──────────┘
-```
-
-With authentication enabled:
-
-```
-Client                              Server
-  │  POST /events/token               │
-  │  (Bearer JWT) ──────────────────► │ authenticate → issue token
-  │  ◄──────────────────────────────  │ { token: "..." }
-  │                                   │
-  │  GET /events/stream               │
-  │  ?token=...&events=... ─────────► │ verify token (one-time)
-  │                                   │ → authorize(subject, events)
-  │  ◄═══════════════════════════════ │ SSE stream
-  │  event: userCreated               │ ← filter(subject, payload)
-  │  data: { ... }                    │
-```
-
-One event, multiple consumers - fully decoupled architecture.
+It creates a throwaway client and subscribes once. For auth, prefer `createAuthSSEClient`
+(this helper takes a plain `SSEClientConfig`, so you'd have to wire `acquireToken` yourself).
 
 ---
 
-## API Reference
+## Multi-instance broadcast (`useCache`)
 
-### `defineEvent(name)`
-
-Define an event without payload.
+By default `emit` only reaches handlers in the **same process**. For multiple
+instances/pods, attach a `PubSubCache` so an emit on one instance fans out to all. **`await`
+`useCache` before emitting** — it must finish subscribing first.
 
 ```typescript
-export const serverStarted = defineEvent('server.started');
+import { getCache } from '@spfn/core/cache';
 
-// Usage
-serverStarted.subscribe(() => { ... });
-await serverStarted.emit();
+const cache = getCache();
+if (cache)
+{
+    await userCreated.useCache({
+        publish: async (channel, message) =>
+        {
+            await cache.publish(channel, JSON.stringify(message));
+        },
+        subscribe: async (channel, handler) =>
+        {
+            const sub = cache.duplicate();
+            await sub.subscribe(channel);
+            sub.on('message', (ch, msg) =>
+            {
+                if (ch === channel) handler(JSON.parse(msg));
+            });
+        },
+    });
+}
+
+await userCreated.emit({ userId: '123', email: 'a@b.com' }); // broadcasts to all instances
 ```
 
-**Returns:** `EventDef<void>`
+Mechanics (from `event.ts`): once a cache is set, `emit` calls `cache.publish(name, payload)`
+**instead of** triggering local handlers directly — local handlers fire only when the
+message comes back through the cache `subscribe` callback. Job queues still receive the
+payload on every emit regardless of cache.
 
 ---
 
-### `defineEvent(name, schema)`
+## Job integration
 
-Define an event with typed payload.
+A job subscribing to an event with `.on(event)` registers itself on the event's job queue;
+the event's `emit` then enqueues the payload to every such queue (in addition to in-memory
+handlers / cache broadcast).
 
 ```typescript
-export const userCreated = defineEvent('user.created', Type.Object({
+import { defineEvent } from '@spfn/core/event';
+import { job, defineJobRouter } from '@spfn/core/job';
+import { Type } from '@sinclair/typebox';
+
+export const orderPlaced = defineEvent('order.placed', Type.Object({
+    orderId: Type.String(),
     userId: Type.String(),
-    email: Type.String(),
 }));
 
-// Usage
-userCreated.subscribe((payload) => {
-    // payload is typed as { userId: string, email: string }
+export const sendConfirmation = job('send-order-confirmation')
+    .on(orderPlaced)                          // payload type inferred from the event
+    .handler(async (payload) => emailService.send(payload.orderId));
+
+export const updateInventory = job('update-inventory')
+    .on(orderPlaced)
+    .handler(async (payload) => inventoryService.reserve(payload.orderId));
+
+export const jobRouter = defineJobRouter({ sendConfirmation, updateInventory });
+
+await orderPlaced.emit({ orderId: 'ord-1', userId: 'u-1' }); // both jobs enqueue
+```
+
+One emit fans out to in-memory handlers, the SSE stream, and every subscribed job queue —
+fully decoupled.
+
+---
+
+## Pitfalls & anti-patterns
+
+- **Wrong import depth for the client.** `createSSEClient` / `createAuthSSEClient` /
+  `subscribeToEvents` are in `@spfn/core/event/sse/**client**`, not `@spfn/core/event/sse`.
+  The bare `/sse` is the server (Hono) surface; importing it into the browser pulls server code.
+- **`useCache` not awaited before `emit`.** `useCache` is async (it subscribes to the
+  channel). Emitting before it resolves can drop the very first cross-instance events. Always
+  `await event.useCache(...)` first.
+- **Calling `useCache` twice.** A second call logs `Cache already configured for event: …`
+  and is ignored. Configure the cache once per event instance (typically at startup).
+- **Emitting before subscribing (in-memory).** `subscribe` registers a handler set; an
+  `emit` that runs before any `subscribe` simply has no handlers. Register handlers / jobs at
+  startup, not lazily after the first emit.
+- **`auth.headers`/`SSEHandlerConfig.headers` does nothing.** The handler reads only
+  `pingInterval` and `auth`. Don't expect custom response headers from config.
+- **Don't `new EventSource(...)` by hand.** You lose type inference, the `connected`/`ping`
+  control-event handling, one-time-token reconnect, and StrictMode-safe teardown that the
+  client implements. Use `createSSEClient` / `createAuthSSEClient`.
+- **Token-auth + browser auto-retry.** A one-time token is consumed on first use, so the
+  browser's built-in EventSource retry would reconnect with a dead token. The client handles
+  this: on error with `acquireToken` set, it closes and reconnects through its own path to
+  mint a fresh token. Don't disable `reconnect` expecting native retry to work with auth.
+- **Stream-time errors aren't subscription errors.** `authorize` returning `[]` ⇒ `403` at
+  connect; invalid event names ⇒ `400`; missing/expired token ⇒ `401`. `onError` on the
+  client fires for transport-level drops, not for these HTTP rejections — check the network
+  response when a connection never opens.
+- **Subject default.** Without a custom `getSubject`, the token endpoint reads
+  `c.get('auth')?.userId`. If your auth middleware stores the user elsewhere, supply
+  `getSubject` or token issuance returns `401`.
+- **One subscription per client.** `createSSEClient(...).subscribe(...)` supersedes any
+  previous subscription on that client (the prior connection is closed). For independent
+  streams, create separate clients.
+- **`SSETokenManager` keeps a cleanup timer.** It runs an `unref`'d interval; the in-memory
+  store needs it to expire tokens. If you construct a manager manually (outside the server),
+  call `destroy()` on shutdown. The Redis-backed `CacheTokenStore` relies on TTL and its
+  `cleanup()` is a no-op.
+
+---
+
+## WebSocket (bidirectional variant)
+
+For client→server messages in addition to server→client push, use a WS router. It reuses
+the same `defineEvent` definitions and shares the SSE token manager / auth model.
+
+```typescript
+// server
+import { defineWSRouter } from '@spfn/core/event';     // also re-exported from /event/ws
+import { attachWSHandler } from '@spfn/core/event/ws';
+
+export const wsRouter = defineWSRouter({
+    events: { userUpdated, notification },               // server → client push
+    messages: {                                          // client → server handlers
+        ping: ({ ws }) => ws.send('pong', {}),
+        'chat.send': ({ payload, subject }) => handleChat(payload, subject),
+    },
 });
-await userCreated.emit({ userId: '123', email: 'user@example.com' });
+export type WSRouter = typeof wsRouter;
+
+// usually mounted via defineServerConfig().websockets(wsRouter)
 ```
 
-**Returns:** `EventDef<Static<TSchema>>`
+```typescript
+// browser
+import { createWSClient } from '@spfn/core/event/ws/client';
+import type { WSRouter } from '@/server/ws';
+
+const client = createWSClient<WSRouter>();
+client.subscribe({ events: ['userUpdated'], handlers: { userUpdated: (p) => {} } });
+client.send('ping', {});
+```
+
+`WSRouterDef` extends `EventRouterDef` with a `messages` map. Message handlers receive
+`{ payload, subject?, ws }` (`WSMessageContext`). See `@spfn/core/event/ws` exports for
+`WSHandlerConfig`, `WSAuthConfig`, `WSClientConfig`, etc.
 
 ---
 
-### `EventDef.subscribe(handler)`
-
-Subscribe to the event with a handler function.
-
-```typescript
-const unsubscribe = userCreated.subscribe((payload) => {
-    console.log('User created:', payload.userId);
-});
-
-// Later, unsubscribe
-unsubscribe();
-```
-
-**Parameters:**
-- `handler: (payload: TPayload) => void | Promise<void>` - Event handler
-
-**Returns:** `() => void` - Unsubscribe function
-
----
-
-### `EventDef.unsubscribeAll()`
-
-Remove all subscribers from the event.
-
-```typescript
-userCreated.unsubscribeAll();
-```
-
-**Returns:** `void`
-
----
-
-### `EventDef.emit(payload?)`
-
-Emit the event to all subscribers.
-
-```typescript
-// With payload
-await userCreated.emit({ userId: '123', email: 'user@example.com' });
-
-// Without payload (for void events)
-await serverStarted.emit();
-```
-
-**Parameters:**
-- `payload: TPayload` - Event payload (required if schema defined)
-
-**Returns:** `Promise<void>`
-
----
-
-### `EventDef.useCache(cache)`
-
-Enable cache-based pub/sub for multi-instance support.
-
-```typescript
-await userCreated.useCache({
-    publish: async (channel, message) => { ... },
-    subscribe: async (channel, handler) => { ... },
-});
-```
-
-**Parameters:**
-- `cache: PubSubCache` - Cache with pub/sub capability
-
-**Returns:** `Promise<EventDef<TPayload>>`
-
-**Note:** Must await before emitting events to ensure subscription is ready.
-
----
-
-### `defineEventRouter(events)`
-
-Create an event router for SSE subscription.
-
-```typescript
-import { defineEventRouter } from '@spfn/core/event';
-
-export const eventRouter = defineEventRouter({
-    userCreated,
-    orderPlaced,
-    paymentCompleted,
-});
-
-// Register in server config
-defineServerConfig()
-    .events(eventRouter)
-    .build();
-```
-
-**Parameters:**
-- `events: Record<string, EventDef<any>>` - Named event definitions
-
-**Returns:** `EventRouterDef<TEvents>`
-
----
-
-### `createSSEClient(config?)`
-
-Create a type-safe SSE client for the browser.
-
-```typescript
-import { createSSEClient } from '@spfn/core/event/sse/client';
-
-// Uses defaults (NEXT_PUBLIC_SPFN_API_URL + /events/stream)
-const client = createSSEClient<typeof eventRouter>();
-
-// Or with custom configuration
-const client = createSSEClient<typeof eventRouter>({
-    host: 'https://api.example.com',
-    pathname: '/sse',
-    reconnect: true,
-    reconnectDelay: 3000,
-    maxReconnectAttempts: 10,
-    withCredentials: false,
-});
-
-const unsubscribe = client.subscribe({
-    events: ['userCreated'],
-    handlers: { userCreated: (p) => console.log(p) },
-});
-
-client.getState();  // 'connecting' | 'open' | 'closed' | 'error'
-client.close();     // Close all connections
-```
-
-**Config Options:**
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `host` | string | `NEXT_PUBLIC_SPFN_API_URL` or `http://localhost:8790` | Backend API host URL |
-| `pathname` | string | `/events/stream` | SSE endpoint pathname |
-| `url` | string | - | Full URL (deprecated, use host + pathname) |
-| `reconnect` | boolean | `true` | Auto reconnect on disconnect |
-| `reconnectDelay` | number | `3000` | Reconnect delay (ms) |
-| `maxReconnectAttempts` | number | `0` | Max attempts (0 = infinite) |
-| `withCredentials` | boolean | `false` | Include cookies |
-| `acquireToken` | () => Promise\<string\> | - | Acquire one-time SSE token before connecting |
-
-**Returns:** `SSEClient<TRouter>`
-
----
-
-### `createAuthSSEClient(config?)`
-
-Create an SSE client with built-in token authentication via RPC proxy.
-
-```typescript
-import { createAuthSSEClient } from '@spfn/core/event/sse/client';
-
-const client = createAuthSSEClient<typeof eventRouter>();
-
-// Or with custom RPC base URL
-const client = createAuthSSEClient<typeof eventRouter>({
-    rpcBaseUrl: '/api/rpc',
-});
-```
-
-**Config Options:**
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `rpcBaseUrl` | string | `/api/rpc` | RPC proxy base URL for token acquisition |
-| `host` | string | `NEXT_PUBLIC_SPFN_API_URL` or `http://localhost:8790` | Backend API host URL |
-| `pathname` | string | `/events/stream` | SSE endpoint pathname |
-| `reconnect` | boolean | `true` | Auto reconnect on disconnect |
-| `reconnectDelay` | number | `3000` | Reconnect delay (ms) |
-| `maxReconnectAttempts` | number | `0` | Max attempts (0 = infinite) |
-| `withCredentials` | boolean | `false` | Include cookies |
-
-**Returns:** `SSEClient<TRouter>`
-
----
-
-### `eventRouteMap`
-
-Static route map for SSE token endpoint. Merge into RPC proxy config.
-
-```typescript
-import { eventRouteMap } from '@spfn/core/event';
-// { eventsToken: { method: 'POST', path: '/events/token' } }
-```
-
----
-
-## Type Exports
-
-```typescript
-// Event types
-import type {
-    EventDef,
-    EventHandler,
-    InferEventPayload,
-    PubSubCache,
-    JobQueueSender,
-} from '@spfn/core/event';
-
-// Event router types
-import type {
-    EventRouterDef,
-    InferEventNames,
-    InferEventPayloads,
-} from '@spfn/core/event';
-
-// SSE types
-import type {
-    SSEClientConfig,
-    SSEHandlerConfig,
-    SSEAuthConfig,
-    SSESubscribeOptions,
-    SSEEventHandlers,
-    SSEConnectionState,
-    SSEUnsubscribe,
-} from '@spfn/core/event/sse';
-
-// Token manager
-import { SSETokenManager, CacheTokenStore } from '@spfn/core/event/sse';
-import type { SSEToken, SSETokenStore, SSETokenManagerConfig } from '@spfn/core/event/sse';
-```
-
-### EventDef<TPayload>
-
-Event definition interface.
+## Types reference
 
 ```typescript
 interface EventDef<TPayload = void> {
@@ -700,225 +585,45 @@ interface EventDef<TPayload = void> {
     readonly schema?: TSchema;
     subscribe: (handler: EventHandler<TPayload>) => () => void;
     unsubscribeAll: () => void;
-    emit: TPayload extends void
-        ? () => Promise<void>
-        : (payload: TPayload) => Promise<void>;
+    emit: TPayload extends void ? () => Promise<void> : (payload: TPayload) => Promise<void>;
     useCache: (cache: PubSubCache) => Promise<EventDef<TPayload>>;
 }
-```
 
-### EventHandler<TPayload>
-
-Event handler function type.
-
-```typescript
 type EventHandler<TPayload> = (payload: TPayload) => void | Promise<void>;
-```
+type InferEventPayload<TEvent> = TEvent extends EventDef<infer P> ? P : never; // single-arg
 
-### InferEventPayload<TEvent>
-
-Infer payload type from EventDef.
-
-```typescript
-type Payload = InferEventPayload<typeof userCreated>;
-// { userId: string, email: string }
-```
-
-### PubSubCache
-
-Cache interface for multi-instance pub/sub.
-
-```typescript
 interface PubSubCache {
     publish(channel: string, message: unknown): Promise<void>;
     subscribe(channel: string, handler: (message: unknown) => void | Promise<void>): Promise<void>;
 }
-```
+type JobQueueSender = (queueName: string, payload: unknown) => Promise<void>;
 
----
+interface EventRouterDef<TEvents> {
+    readonly events: TEvents;
+    readonly eventNames: (keyof TEvents)[];
+    readonly _types: { [K in keyof TEvents]: TEvents[K]['_payload'] };
+}
+type InferEventNames<T>     = /* keyof router events as string union */;
+type InferEventPayloads<T>  = T['_types'];
+// router two-arg payload, exported as `InferRouterEventPayload`:
+type InferRouterEventPayload<T, K> = T['_types'][K];
 
-## Patterns
+interface SSEMessage<TEvent extends string = string, TPayload = unknown> {
+    event: TEvent; data: TPayload; id?: string;
+}
+type SSEConnectionState = 'connecting' | 'open' | 'closed' | 'error';
 
-### Multiple Subscribers
-
-```typescript
-const userCreated = defineEvent('user.created', Type.Object({
-    userId: Type.String(),
-}));
-
-// Multiple independent handlers
-userCreated.subscribe(async (payload) => {
-    await sendWelcomeEmail(payload.userId);
-});
-
-userCreated.subscribe(async (payload) => {
-    await createDefaultSettings(payload.userId);
-});
-
-userCreated.subscribe(async (payload) => {
-    await notifyAdmins(payload.userId);
-});
-
-// All handlers execute when event is emitted
-await userCreated.emit({ userId: '123' });
-```
-
-### Error Handling
-
-Handler errors are isolated - one failing handler doesn't affect others.
-
-```typescript
-userCreated.subscribe(async (payload) => {
-    throw new Error('This fails');
-});
-
-userCreated.subscribe(async (payload) => {
-    // This still executes
-    console.log('Handler 2 runs');
-});
-
-// Both handlers are called, errors are logged
-await userCreated.emit({ userId: '123' });
-```
-
-### Conditional Subscription
-
-```typescript
-const orderPlaced = defineEvent('order.placed', Type.Object({
-    orderId: Type.String(),
-    amount: Type.Number(),
-}));
-
-// Subscribe only to high-value orders
-orderPlaced.subscribe(async (payload) => {
-    if (payload.amount > 1000) {
-        await notifyVIPTeam(payload.orderId);
-    }
-});
-```
-
----
-
-## Architecture
-
-### In-Memory Mode
-
-```
-emit({ userId: '123' })
-    ↓
-Handler 1 executes
-Handler 2 executes
-Handler 3 executes
-    ↓
-Job queues receive payload (if integrated)
-```
-
-### Cache Pub/Sub Mode
-
-```
-Instance A: emit({ userId: '123' })
-    ↓
-cache.publish('user.created', payload)
-    ↓
-┌─────────────────────────────────────┐
-│ Instance A: handlers execute        │
-│ Instance B: handlers execute        │
-│ Instance C: handlers execute        │
-└─────────────────────────────────────┘
-```
-
-### SSE Token Store (Multi-Instance)
-
-SSE 토큰 저장소도 멀티 인스턴스 배포 시 인스턴스 간 공유가 필요합니다.
-캐시(Redis/Valkey)가 연결되어 있으면 `CacheTokenStore`가 **자동으로 사용**됩니다.
-
-| 환경 | 토큰 저장소 | 설정 |
-|------|------------|------|
-| `CACHE_URL` 없음 | `InMemoryTokenStore` (Map) | 자동 (기본값) |
-| `CACHE_URL` 설정됨 | `CacheTokenStore` (Redis) | 자동 감지 |
-| 커스텀 | `SSETokenStore` 인터페이스 구현 | `auth.store` 옵션 |
-
-**자동 감지 동작:**
-- `auth: { enabled: true }` 설정 시, `store`를 명시하지 않으면 서버 시작 시 `getCache()` 확인
-- 캐시 연결이 있으면 `CacheTokenStore` 사용 (`sse:token:` prefix, SET EX + GETDEL)
-- 없으면 `InMemoryTokenStore` fallback
-
-**수동 설정:**
-```typescript
-import { CacheTokenStore } from '@spfn/core/event/sse';
-import { getCache } from '@spfn/core/cache';
-
-.events(eventRouter, {
-    auth: {
-        enabled: true,
-        store: new CacheTokenStore(getCache()!),
-    },
-})
-```
-
-**커스텀 구현:**
-```typescript
-import type { SSETokenStore, SSEToken } from '@spfn/core/event/sse';
-
-class DynamoDBTokenStore implements SSETokenStore
-{
-    async set(token: string, data: SSEToken): Promise<void> { /* ... */ }
-    async consume(token: string): Promise<SSEToken | null> { /* ... */ }
-    async cleanup(): Promise<void> { /* ... */ }
+interface SSEToken { token: string; subject: string; expiresAt: number; }
+interface SSETokenStore {
+    set(token: string, data: SSEToken): Promise<void>;
+    consume(token: string): Promise<SSEToken | null>; // one-time get+delete
+    cleanup(): Promise<void>;
 }
 ```
 
----
-
-## Comparison: Event vs Direct Job
-
-| Aspect | Event + Job | Direct Job |
-|--------|-------------|------------|
-| Coupling | Loose (producer doesn't know consumers) | Tight (producer calls specific job) |
-| Multiple consumers | Easy (multiple jobs subscribe) | Manual (call each job) |
-| Testing | Mock event emission | Mock each job call |
-| Extensibility | Add consumers without modifying producer | Modify producer for each consumer |
-
-**Use Event when:**
-- Multiple systems need to react to the same occurrence
-- You want to decouple producers from consumers
-- Different teams own different reaction logic
-
-**Use Direct Job when:**
-- Single, known consumer
-- Tight coupling is acceptable
-- Simpler mental model preferred
-
----
-
-## Troubleshooting
-
-### ⚠️ Warning: "Cache already configured for event"
-
-**Cause:** `useCache()` called multiple times on same event.
-
-**Solution:** Only call `useCache()` once per event instance.
-
-### Handlers not receiving events
-
-**Check:**
-1. Ensure `subscribe()` is called before `emit()`
-2. If using cache, ensure `await useCache()` completes before emitting
-3. Check logs for handler errors
-
-### Events not broadcasting across instances
-
-**Check:**
-1. Cache pub/sub is properly configured
-2. All instances use same cache/channel
-3. `useCache()` is awaited on all instances
-
----
-
 ## Related
 
-- [@spfn/core/job](../job/README.md) - Background job system with event integration
-- [@spfn/core/cache](../cache/README.md) - Cache infrastructure for pub/sub
-- [@spfn/core/server](../server/README.md) - Server configuration with `.events()` method
-- [MDN: Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) - SSE browser API
-- [@spfn/core](../../README.md) - Main package documentation
+- [@spfn/core/job](../job/README.md) — background jobs that subscribe to events via `.on()`
+- [@spfn/core/cache](../cache/README.md) — Redis/Valkey backing for multi-instance broadcast + token store
+- [@spfn/core/server](../server/README.md) — `defineServerConfig().events()` / `.websockets()`
+- [MDN: Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)

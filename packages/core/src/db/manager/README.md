@@ -1,475 +1,234 @@
-# SPFN Database Manager
+# @spfn/core/db/manager — DB connection lifecycle, pool, health-check & reconnect
 
-Database connection management with support for Primary + Replica pattern, health checks, and automatic reconnection.
+Global singleton database manager for postgres.js + Drizzle: connection acquisition,
+pool config, Primary+Replica detection, periodic health checks, and two-tier automatic
+pool recovery (periodic + query-error fast-path).
 
-## 📁 Architecture
+## Import paths
 
+Everything is consumed through **`@spfn/core/db`**. There is **no** `@spfn/core/db/manager`
+package subpath — `manager/index.ts` is an internal barrel; the public surface is
+re-exported by `@spfn/core/db`.
+
+```typescript
+import {
+    initDatabase,
+    getDatabase,
+    setDatabase,
+    closeDatabase,
+    getDatabaseInfo,
+    forceReconnectDatabase,
+    createDatabaseFromEnv,
+    createDatabaseConnection,
+    checkConnection,
+    reportDatabaseError,
+    isConnectionLevelError,
+    resetConnectionErrorCounter,
+} from '@spfn/core/db';
+
+import type { DatabaseClients, PoolConfig, RetryConfig } from '@spfn/core/db';
 ```
-manager/
-├── manager.ts                 # Core database manager
-├── global-state.ts            # Global state (instances, isClosing, initOptions)
-├── health-check.ts            # Periodic health check + reconnect retry loop
-├── reconnect-trigger.ts       # Query-error driven fast-path pool rebuild
-├── config.ts                  # Configuration & utilities
-├── factory.ts                 # Database factory with pattern detection
-├── connection.ts              # Connection logic with retry
-├── config-generator.ts        # Drizzle Kit config generator
-├── index.ts                   # Public API exports
-└── __tests__/
-    ├── config.test.ts
-    ├── connection.test.ts
-    ├── factory.test.ts
-    ├── manager.test.ts
-    ├── health-check.test.ts
-    └── reconnect-trigger.test.ts
-```
 
-## 🏗️ Module Responsibilities
+> `getDatabaseMonitoringConfig` and `getDatabaseInfo` are the only debug/introspection
+> helpers. **`getDatabaseMonitoringConfig` is exported from the `manager/` barrel but is
+> NOT re-exported through `@spfn/core/db`** — it is effectively internal (consumed by the
+> repository layer). Do not rely on importing it from `@spfn/core/db`.
 
-### manager.ts (Core API)
-Main entry point for database operations:
-- `initDatabase()` - Initialize database with auto-detection
-- `getDatabase()` - Get database instance (throws if not initialized)
-- `setDatabase()` - Set database instance (testing)
-- `closeDatabase()` - Gracefully close connections
-- `forceReconnectDatabase()` - Destroy and rebuild the pool on demand (atomic swap)
-- `getDatabaseInfo()` - Get connection info (debugging)
-- `getDatabaseMonitoringConfig()` - Get monitoring config
+---
 
-### global-state.ts (State Management)
-Global state management using `globalThis`:
-- Singleton instance accessors (write/read drizzle + raw postgres clients)
-- `isClosing` flag shared across modules (prevents reconnect racing close)
-- `initOptions` persisted so `forceReconnectDatabase()` reuses the same config
-- Persistent state across module reloads (HMR-friendly)
+## Public API (complete, via `@spfn/core/db`)
 
-### health-check.ts (Monitoring & Reconnection)
-Automatic health monitoring and recovery:
-- `startHealthCheck()` - Periodic `SELECT 1` on write/read instances
-- `stopHealthCheck()` - Stop health checks
-- `triggerForceReconnect(reason)` - Internal entry for on-demand rebuild
-- Atomic swap reconnection: new pool created and tested BEFORE old pool is closed
-- `isReconnecting` gate coalesces concurrent callers (periodic + force) to one rebuild
-- `isClosing` gate bails out before swap to prevent leaking into a torn-down globalThis
+Lifecycle:
 
-### reconnect-trigger.ts (Query-Error Fast-Path)
-Sliding-window error reporter that shortens reconnect detection from ~60s
-(periodic health check) to a few seconds:
-- `reportDatabaseError(error)` - Feed caught query errors; non-connection errors are no-ops
-- `isConnectionLevelError(error)` - Classifier (postgres.js codes, Node errno, PG SQLSTATE 08/53300/57P0x, walks cause chain)
-- `resetConnectionErrorCounter()` - Test helper
-- WeakSet dedup: same underlying failure counted once even when re-wrapped across repository + middleware
-- Auto-hooked from `BaseRepository.withContext` and `@Transactional` middleware —
-  application code does not need to call it manually
+- `initDatabase(options?): Promise<{ write?, read? }>` — connect from env, test, start
+  health check. Idempotent + concurrency-locked.
+- `getDatabase(type?): PostgresJsDatabase` — get the singleton instance. **Throws** if not
+  initialized. `type` is `'read' | 'write'` (default `'write'`).
+- `setDatabase(write, read?): void` — directly set instances (testing/manual). No connect,
+  no validation, no cleanup of previous instances.
+- `closeDatabase(): Promise<void>` — graceful shutdown: stop health check, end pools, clear
+  global state.
 
-### config.ts (Configuration)
-Configuration builders and utilities:
-- `getPoolConfig()` - Connection pool settings
-- `getRetryConfig()` - Retry strategy settings
-- `buildHealthCheckConfig()` - Health check settings
-- `buildMonitoringConfig()` - Query monitoring settings
-- Environment variable parsing utilities
+Recovery:
 
-### factory.ts (Database Factory)
-Auto-detection and database creation:
-- Pattern detection (write-read, legacy, single)
-- Environment variable auto-detection
-- Type-safe pattern matching with switch
-- Password masking in logs
+- `forceReconnectDatabase(reason?): Promise<boolean>` — on-demand atomic-swap pool rebuild.
+  Returns `true` if a rebuild ran, `false` if skipped (uninitialized / closing / already
+  reconnecting).
+- `reportDatabaseError(error): void` — feed a caught query error to the fast-path trigger.
+  No-op for non-connection errors. Fire-and-forget (never awaits, never throws).
+- `isConnectionLevelError(error): boolean` — classify whether an error is connection-level
+  (vs. a query/constraint error).
+- `resetConnectionErrorCounter(): void` — test helper; clears the sliding-window counter.
 
-### connection.ts (Connection)
-Low-level connection management:
-- Exponential backoff retry logic
-- Connection testing and validation
-- Detailed error logging
-- postgres.js client creation
+Low-level / factory:
 
-### config-generator.ts (Drizzle Kit & Schema Discovery)
-Drizzle Kit configuration generator with package schema auto-discovery:
-- Auto-detect dialect from connection string
-- Generate `drizzle.config.ts`
-- Support for migrations and schema
-- **Package schema auto-discovery**
-- Scan `@spfn/*` packages and direct dependencies
-- Support for package-specific migrations
-- Nested entity folder support (`**/*.ts`)
+- `createDatabaseFromEnv(options?): Promise<DatabaseClients>` — build clients from env using
+  pattern detection. Does **not** touch global state or start health checks.
+- `createDatabaseConnection(connectionString, poolConfig, retryConfig): Promise<Sql>` —
+  single postgres.js client with exponential-backoff retry. Returns the raw `Sql` client.
+- `checkConnection(client): Promise<boolean>` — run `SELECT 1`, return health as a boolean
+  (never throws).
 
-## 🚀 Quick Start
+Introspection:
 
-### Basic Usage
+- `getDatabaseInfo(): { hasWrite, hasRead, isReplica }` — non-throwing status snapshot.
+
+Types: `DatabaseClients`, `PoolConfig`, `RetryConfig` (also `DbConnectionType`,
+`GetDatabaseFn` from the barrel, but those are not re-exported by `@spfn/core/db`).
+
+> **Not exported (internal):** `detectDatabasePattern`, `startHealthCheck`,
+> `stopHealthCheck`, `triggerForceReconnect`, `reconnectAndRestore`, all of
+> `global-state.ts` (`getWriteInstance`/`setWriteInstance`/…), and the config builders
+> (`getPoolConfig`, `getRetryConfig`, `buildHealthCheckConfig`, `buildMonitoringConfig`).
+> Configure them via `initDatabase(options)` or env vars — do not import them.
+> There is **no** `discoverPackageSchemas` export. Schema discovery is reached only through
+> `getDrizzleConfig` / `generateDrizzleConfigFile` (from `@spfn/core/db`, defined in
+> `config-generator.ts` — out of scope for this README).
+
+---
+
+## Quick Start
 
 ```typescript
 import { initDatabase, getDatabase, closeDatabase } from '@spfn/core/db';
 
-// Initialize database (auto-detects from environment)
-await initDatabase();
+await initDatabase();              // auto-detect from env, test, start health check
 
-// Get database instance
-const db = getDatabase('write');  // or 'read'
+const db = getDatabase();          // 'write' (default)
+const dbR = getDatabase('read');   // replica if configured, else falls back to write
 
-// Use database
 const users = await db.select().from(usersTable);
 
-// Graceful shutdown
-await closeDatabase();
+process.on('SIGTERM', async () => {
+    await closeDatabase();
+    process.exit(0);
+});
 ```
 
-### Environment Variables
+### Environment variables (connection)
 
-**Single Database** (most common):
 ```bash
+# Single database (most common)
 DATABASE_URL=postgresql://localhost:5432/mydb
-```
 
-**Primary + Replica** (recommended for production):
-```bash
+# Primary + Replica
 DATABASE_WRITE_URL=postgresql://primary:5432/mydb
 DATABASE_READ_URL=postgresql://replica:5432/mydb
 ```
 
-### Advanced Configuration
+`DATABASE_URL`, `DATABASE_WRITE_URL`, `DATABASE_READ_URL` are validated via the
+`@spfn/core/config` schema (`parsePostgresUrl`). All read through `env` from
+`@spfn/core/config`, **not** raw `process.env`.
+
+---
+
+## Connection acquisition (`getDatabase`)
+
+`getDatabase(type?)` reads the singleton off `globalThis`:
+
+- `getDatabase()` / `getDatabase('write')` → write instance, or **throws**
+  `Database not initialized (type: write)…` if `initDatabase()` was never called.
+- `getDatabase('read')` → read instance, **falling back to write** when no replica is
+  configured (`readInst ?? writeInst`). Throws only if neither exists.
+
+It never returns `undefined`. There is **no implicit lazy init** — you must call
+`initDatabase()` (or `setDatabase()`) first.
+
+Set `DB_DEBUG_TRACE=true` (non-production only) to log every `getDatabase()` call with the
+resolved caller `file:line` extracted from the stack — useful for tracing "who is querying
+before init".
+
+### `initDatabase(options?)` semantics
+
+- **Idempotent**: if a write instance already exists, returns it immediately.
+- **Concurrency-locked**: an in-flight `initDatabase()` is shared via an internal
+  `initPromise`; parallel callers await the same promise.
+- **Tests connections** (`SELECT 1` on write, and on read if distinct) before marking ready;
+  on failure it cleans up the half-open clients and throws
+  `Database connection test failed: …`.
+- **Persists `options`** to global state so `forceReconnectDatabase()` and health-check
+  recovery rebuild with the *same* pool/health/monitoring config.
+- Throws `Cannot initialize database while closing` if called during `closeDatabase()`.
 
 ```typescript
-import { initDatabase } from '@spfn/core/db';
-
 await initDatabase({
-  // Connection pool
-  pool: {
-    max: 50,              // Max connections
-    idleTimeout: 60,      // Idle timeout (seconds)
-  },
-
-  // Health checks
-  healthCheck: {
-    enabled: true,
-    interval: 30000,      // 30 seconds
-    reconnect: true,
-    maxRetries: 5,
-    retryInterval: 5000,  // 5 seconds
-  },
-
-  // Query monitoring
-  monitoring: {
-    enabled: true,
-    slowThreshold: 1000,  // 1 second
-    logQueries: false,
-  },
+    pool:        { max: 50, idleTimeout: 60 },
+    healthCheck: { enabled: true, interval: 30000, reconnect: true, maxRetries: 5, retryInterval: 5000 },
+    monitoring:  { enabled: true, slowThreshold: 1000, logQueries: false },
 });
 ```
 
-## 🔁 Pool Recovery
+---
 
-When a PostgreSQL server restarts, a network partition heals, or a deploy
-rotates the DB, the entire `postgres.js` pool can end up holding dead sockets.
-SPFN recovers this in two ways:
+## Pattern detection (factory)
+
+`createDatabaseFromEnv()` detects, in priority order:
+
+1. **write-read** — `DATABASE_WRITE_URL` **and** `DATABASE_READ_URL` set → separate pools.
+2. **single** — `DATABASE_URL` set → one pool used for both read and write.
+3. **single** — only `DATABASE_WRITE_URL` set → write-only, one pool.
+4. **none** — nothing set → throws `No database configuration found…`.
+
+In the **write-read** case the write connection is required (failure throws
+`Write database connection failed: …`); the read connection is **optional** — if the replica
+fails to connect, it logs a warning and falls back to the write client for reads (so
+`isReplica` becomes `false`).
+
+> `detectDatabasePattern()` is an internal function, not an export. Use `getDatabaseInfo()`
+> (`{ hasWrite, hasRead, isReplica }`) to inspect the resolved topology.
+
+---
+
+## Pool & retry config
+
+Resolution priority for every knob: **`options` arg > env var > NODE_ENV default**.
+Pool and retry numbers are parsed from **raw `process.env`** inside `config.ts`
+(`parseEnvNumber`/`parseEnvBoolean`), independent of the `@spfn/core/config` schema.
+
+### Pool
+
+```bash
+DB_POOL_MAX=20            # max connections   (prod default 20, dev 10)
+DB_POOL_IDLE_TIMEOUT=30   # idle timeout (s)  (prod default 30, dev 20)
+```
+
+### Retry (exponential backoff, applied per `createDatabaseConnection`)
+
+```bash
+DB_RETRY_MAX=5            # max attempts      (prod 5, dev 3)
+DB_RETRY_INITIAL_DELAY=100   # ms             (prod 100, dev 50)
+DB_RETRY_MAX_DELAY=10000     # ms cap         (prod 10000, dev 5000)
+DB_RETRY_FACTOR=2            # multiplier      (prod 2, dev 2)
+```
+
+Backoff = `min(initialDelay * factor^attempt, maxDelay)` with 50–100% jitter.
+**Non-retryable errors fail immediately** (no retry): authentication failures, "database
+does not exist", and SSL/TLS errors. Total attempts = `maxRetries + 1`.
+
+### Connect timeout & socket family
+
+- `connect_timeout` is fixed at **10s** per attempt (postgres.js handles it; no
+  `Promise.race`).
+- `DATABASE_SOCKET_FAMILY=4` or `=6` forces IPv4/IPv6 for DB sockets — a workaround for
+  Node 25+ Happy Eyeballs causing `EHOSTUNREACH`. Read from raw `process.env`; unset =
+  default Node behavior.
+
+---
+
+## Health check & two-tier recovery
+
+When a Postgres server restarts, a partition heals, or a deploy rotates the DB, the whole
+postgres.js pool can hold dead sockets. Recovery happens two ways, both using the **same
+atomic swap**: a fresh pool is created **and validated** before the global reference is
+replaced, then the old clients are `end({ timeout: 5 })`-ed.
 
 ### 1. Periodic health check (interval-driven)
-`startHealthCheck()` runs `SELECT 1` every `DB_HEALTH_CHECK_INTERVAL` (default
-60s). On failure it invokes `attemptReconnection()`, which uses an **atomic
-swap**: a fresh pool is created and validated *before* `setWriteInstance()`
-replaces the global reference, and only then are the old `postgres.js` clients
-torn down via `client.end({ timeout: 5 })`.
 
-### 2. Query-error fast-path (error-driven)
-The periodic check can false-pass (postgres.js transparently opens a new
-socket for a single `SELECT 1` while other dead sockets remain). To cover this,
-`reconnect-trigger.ts` watches real query errors from the application path —
-`BaseRepository.withContext` and `@Transactional` middleware both feed caught
-errors to `reportDatabaseError()`. Once `DB_RECONNECT_ERROR_THRESHOLD` (default 3)
-connection-level failures occur within `DB_RECONNECT_ERROR_WINDOW_MS` (default
-10s), the trigger calls the same atomic-swap rebuild as the health check.
-
-Recovery latency drops from up to 60s to a few seconds.
-
-### Manual trigger (operator escape hatch)
-
-```typescript
-import { forceReconnectDatabase } from '@spfn/core/db';
-
-// Admin endpoint for operators
-app.post('/admin/db/reconnect', async (c) => {
-    const ran = await forceReconnectDatabase('admin_request');
-    return c.json({ reconnected: ran });
-});
-```
-
-`forceReconnectDatabase(reason?)` returns:
-- `true` — a rebuild actually ran
-- `false` — skipped because the DB is not initialized, is currently closing,
-  or a reconnect is already in progress (concurrent callers coalesce to one rebuild)
-
-### Safety invariants
-- **No parallel rebuilds**: `isReconnecting` is checked+set at the entry of
-  `attemptReconnection` in a single sync block — concurrent callers coalesce.
-- **No leaked pools on shutdown**: `reconnectAndRestore()` re-checks
-  `getIsClosing()` after `createDatabaseFromEnv` awaits; if close started
-  mid-rebuild, the freshly-created clients are torn down instead of being
-  swapped into a globalThis that `closeDatabase` is about to clear.
-- **No implicit lazy init**: `forceReconnectDatabase` returns `false` if
-  `initDatabase()` was never called.
-- **No double-counting**: a single query failure caught by both
-  `BaseRepository.withContext` and `@Transactional` middleware counts as one
-  logical failure (WeakSet dedup across the cause chain).
-
-### Advanced: custom catch sites
-
-If you execute drizzle queries outside `BaseRepository` and `@Transactional`
-and still want the fast-path, feed your catch blocks to the reporter:
-
-```typescript
-import { reportDatabaseError, isConnectionLevelError } from '@spfn/core/db';
-
-try {
-    await db.execute(sql`...`);
-}
-catch (error) {
-    reportDatabaseError(error);   // no-op for non-connection errors
-    throw error;
-}
-
-// Or classify manually
-if (isConnectionLevelError(error)) {
-    // route to retry logic, circuit breaker, etc.
-}
-```
-
-## 📦 Package Schema Discovery
-
-SPFN automatically discovers database schemas from installed packages, enabling a plugin-like architecture where packages can provide their own database schemas without creating hard dependencies.
-
-### How It Works
-
-**1. Package Declaration**
-
-Packages declare their schemas in `package.json`:
-
-```json
-{
-  "name": "@spfn/cms",
-  "spfn": {
-    "schemas": ["./dist/entities/*.js"],
-    "setupMessage": "📚 Next steps:\n  1. Import components..."
-  }
-}
-```
-
-**2. Automatic Discovery**
-
-During migration generation, SPFN scans for schemas in:
-- All `@spfn/*` packages (official ecosystem)
-- Direct dependencies with `spfn.schemas` field in `package.json`
-- **Note**: Transitive dependencies are NOT scanned (performance optimization)
-
-**3. Schema Merging**
-
-All discovered schemas are merged with your app's schemas:
-
-```typescript
-import { getDrizzleConfig } from '@spfn/core'
-
-const config = getDrizzleConfig({
-  cwd: process.cwd()
-})
-// Returns merged schemas from:
-// - ./src/server/entities/**/*.ts (your app)
-// - node_modules/@spfn/cms/dist/entities/*.js
-// - node_modules/@spfn/auth/dist/entities/*.js
-// - etc.
-```
-
-### Usage
-
-**Zero-Config** (auto-discovers all packages):
-
-```typescript
-import { getDrizzleConfig } from '@spfn/core'
-
-const config = getDrizzleConfig()
-```
-
-**Package-Specific Migrations** (for `spfn add` command):
-
-```typescript
-import { generateDrizzleConfigFile } from '@spfn/core'
-
-const configContent = generateDrizzleConfigFile({
-  cwd: process.cwd(),
-  packageFilter: '@spfn/cms'  // Only include CMS schemas
-})
-```
-
-**Disable Package Discovery**:
-
-```typescript
-const config = getDrizzleConfig({
-  disablePackageDiscovery: true
-})
-```
-
-### Scanning Strategy
-
-For optimal performance, SPFN uses a targeted scanning approach:
-
-1. **Read project's `package.json`**
-   - Extract direct dependencies and devDependencies
-
-2. **Scan `@spfn/*` packages**
-   - All packages in `node_modules/@spfn/` are checked
-
-3. **Check direct dependencies**
-   - Only packages listed in your `package.json`
-   - Skip if already scanned (e.g., `@spfn/*` packages)
-
-4. **Look for `spfn.schemas` field**
-   - Read each package's `package.json`
-   - Extract schema paths if `spfn.schemas` exists
-
-5. **Convert to absolute paths**
-   - Schema paths are resolved relative to package root
-
-**Example**:
-```
-your-app/
-├── package.json
-│   └── dependencies: { "@spfn/cms": "*", "lodash": "*" }
-└── node_modules/
-    ├── @spfn/
-    │   ├── cms/           ✅ Scanned (official package)
-    │   └── auth/          ✅ Scanned (official package)
-    ├── lodash/            ❌ No `spfn` field
-    └── @mycompany/
-        └── spfn-plugin/   ✅ Scanned (direct dep with `spfn` field)
-```
-
-### Creating SPFN Packages
-
-**1. Define Entities**:
-
-```typescript
-// src/entities/my-table.ts
-import { pgTable, serial, text } from 'drizzle-orm/pg-core'
-
-export const myTable = pgTable('my_table', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull()
-})
-```
-
-**2. Configure package.json**:
-
-```json
-{
-  "name": "@mycompany/spfn-analytics",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "spfn": {
-    "schemas": ["./dist/entities/**/*.js"],
-    "setupMessage": "📚 Next steps:\n  1. Import analytics: import { trackEvent } from '@mycompany/spfn-analytics'\n  2. Configure: See https://docs.example.com"
-  }
-}
-```
-
-**3. Build and Publish**:
+Started automatically by `initDatabase()` when `healthCheck.enabled`. Every
+`DB_HEALTH_CHECK_INTERVAL` (default **60000ms**) it runs `SELECT 1` on write (and read if
+distinct). On failure, if `reconnect` is on, it runs `attemptReconnection()`.
 
 ```bash
-pnpm build
-pnpm publish
-```
-
-**4. Users Install**:
-
-```bash
-pnpm spfn add @mycompany/spfn-analytics
-# ✅ Installs package
-# ✅ Discovers schemas automatically
-# ✅ Generates migrations
-# ✅ Applies migrations
-# ✅ Shows setup message
-```
-
-### Configuration Options
-
-```typescript
-interface DrizzleConfigOptions {
-  /** Database connection URL */
-  databaseUrl?: string
-
-  /** Schema paths (supports globs like **/*.ts) */
-  schema?: string | string[]
-
-  /** Migration output directory */
-  out?: string
-
-  /** Database dialect (auto-detected if not provided) */
-  dialect?: 'postgresql' | 'mysql' | 'sqlite'
-
-  /** Working directory for package discovery */
-  cwd?: string
-
-  /** Disable automatic package schema discovery */
-  disablePackageDiscovery?: boolean
-
-  /** Only include schemas from specific package */
-  packageFilter?: string
-}
-```
-
-### API Reference
-
-**`discoverPackageSchemas(cwd: string): string[]`**
-
-Discovers schema paths from installed packages.
-
-**`getDrizzleConfig(options?: DrizzleConfigOptions)`**
-
-Generate Drizzle Kit configuration object.
-
-**`generateDrizzleConfigFile(options?: DrizzleConfigOptions): string`**
-
-Generate `drizzle.config.ts` file content.
-
-**`detectDialect(url: string): 'postgresql' | 'mysql' | 'sqlite'`**
-
-Auto-detect database dialect from connection URL.
-
-## 🔧 Configuration Priority
-
-All configuration follows the same priority order:
-
-1. **Options parameter** (highest) - Passed to functions
-2. **Environment variables** - From `.env` files
-3. **Defaults** (lowest) - Based on NODE_ENV
-
-### Pool Configuration
-
-```bash
-# Environment variables
-DB_POOL_MAX=20                  # Max connections
-DB_POOL_IDLE_TIMEOUT=30         # Idle timeout (seconds)
-```
-
-**Defaults**:
-- Production: `max=20`, `idleTimeout=30`
-- Development: `max=10`, `idleTimeout=20`
-
-### Retry Configuration
-
-```bash
-# Environment variables
-DB_RETRY_MAX=5                  # Max retry attempts
-DB_RETRY_INITIAL_DELAY=100      # Initial delay (ms)
-DB_RETRY_MAX_DELAY=10000        # Max delay (ms)
-DB_RETRY_FACTOR=2               # Exponential factor
-```
-
-**Defaults**:
-- Production: `5 retries`, `100ms initial`, `10s max`
-- Development: `3 retries`, `50ms initial`, `5s max`
-
-### Health Check Configuration
-
-```bash
-# Environment variables
 DB_HEALTH_CHECK_ENABLED=true
 DB_HEALTH_CHECK_INTERVAL=60000
 DB_HEALTH_CHECK_RECONNECT=true
@@ -477,204 +236,177 @@ DB_HEALTH_CHECK_MAX_RETRIES=3
 DB_HEALTH_CHECK_RETRY_INTERVAL=5000
 ```
 
-### Reconnect Trigger (Query-Error Fast-Path)
+The interval is **never cleared during reconnection** — only `closeDatabase()` →
+`stopHealthCheck()` clears it.
 
-Controls the sliding-window counter that triggers `forceReconnectDatabase()`
-when live queries keep failing with connection-level errors. These knobs are
-read once at module load — they are operational tuning, not per-call flips.
+### 2. Query-error fast-path (error-driven)
+
+A bare `SELECT 1` can false-pass (postgres.js opens a new socket for it while other dead
+sockets remain). `reconnect-trigger.ts` watches **real** query errors instead. A
+sliding-window counter trips a force-reconnect once enough connection-level failures occur,
+cutting latency from up to 60s to a few seconds.
 
 ```bash
-# Environment variables
-DB_RECONNECT_ERROR_THRESHOLD=3      # Connection errors needed to trigger rebuild
-DB_RECONNECT_ERROR_WINDOW_MS=10000  # Sliding window length (min 1000ms)
+DB_RECONNECT_ERROR_THRESHOLD=3      # connection errors needed to trip (read once at module load)
+DB_RECONNECT_ERROR_WINDOW_MS=10000  # sliding window (min 1000ms)
 ```
 
-**Defaults**: 3 errors in 10 seconds. Lower the threshold for more aggressive
-recovery, raise it to tolerate transient blips without rebuilding the pool.
+These two knobs are read **once at import time** (operational tuning, not per-call). Invalid
+values silently fall back to defaults.
 
-### Monitoring Configuration
+**Auto-hooked** — application code does **not** call `reportDatabaseError()` manually:
+
+- `BaseRepository.withContext` (`src/db/repository.ts`) reports caught errors.
+- The `@Transactional` middleware (`src/db/transaction/middleware.ts`) reports caught errors.
+
+`isConnectionLevelError()` classifies across the whole error chain
+(`cause`/`original`/`error`/`err`/`inner`):
+
+- `instanceof ConnectionError`
+- postgres.js codes: `CONNECTION_ENDED`, `CONNECTION_CLOSED`, `CONNECTION_DESTROYED`,
+  `CONNECT_TIMEOUT`, `CONNECTION_CONNECT_TIMEOUT`
+- Node errno: `ECONNRESET`, `ECONNREFUSED`, `EPIPE`, `ETIMEDOUT`, `EHOSTUNREACH`,
+  `ENETUNREACH`, `ENOTFOUND`
+- PG SQLSTATE: class `08*`, `53300`, `57P01/02/03`
+
+### Manual trigger
+
+```typescript
+import { forceReconnectDatabase } from '@spfn/core/db';
+
+app.post('/admin/db/reconnect', async (c) => {
+    const ran = await forceReconnectDatabase('admin_request');
+    return c.json({ reconnected: ran });
+});
+```
+
+Returns `false` (no rebuild) when the DB is uninitialized, currently closing, or a reconnect
+is already in flight; `true` when a rebuild ran (success or retries exhausted).
+
+### Monitoring config
 
 ```bash
-# Environment variables
-DB_MONITORING_ENABLED=true      # Auto: true in dev, false in prod
+DB_MONITORING_ENABLED=true       # default: true in dev, false in prod
 DB_MONITORING_SLOW_THRESHOLD=1000
 DB_MONITORING_LOG_QUERIES=false
 ```
 
-## 🎯 Pattern Detection
+Stored at init; consumed internally by the repository layer for slow-query logging.
 
-The factory automatically detects database configuration patterns:
+---
 
-### Priority Order
-1. **write-read**: `DATABASE_WRITE_URL` + `DATABASE_READ_URL` (recommended)
-2. **single**: `DATABASE_URL` (most common)
-3. **single**: `DATABASE_WRITE_URL` (write-only)
-4. **none**: No configuration
+## Pitfalls & anti-patterns
 
-### Example
+- **No `@spfn/core/db/manager` subpath.** Import from `@spfn/core/db`. The `manager/`
+  barrel is internal.
+- **`getDatabase()` throws before init.** It does not lazily connect. Call `initDatabase()`
+  (server startup does this) or `setDatabase()` (tests) first, otherwise
+  `Database not initialized (type: …)`.
+- **`getDatabase('read')` silently falls back to write** when no replica exists — it does
+  not throw, so a misconfigured `DATABASE_READ_URL` looks "fine". Check `getDatabaseInfo()
+  .isReplica` to confirm a real replica.
+- **A failed replica connection is non-fatal.** In write-read mode a dead `DATABASE_READ_URL`
+  only logs a warning and reuses the write pool. Reads silently hit the primary.
+- **Do not import the internals.** `detectDatabasePattern`, `getPoolConfig`,
+  `buildHealthCheckConfig`, `startHealthCheck`, `triggerForceReconnect`, and the
+  `global-state` accessors are not exported. Configure via `initDatabase(options)` / env.
+- **`setDatabase()` does not clean up.** It swaps the global reference without closing the
+  previous pool — passing `undefined` leaks connections. Use `closeDatabase()` for real
+  teardown.
+- **Don't manually call `reportDatabaseError()` for repo/transactional queries** — they are
+  already hooked. Manual calls there get **deduped** anyway (WeakSet across the error chain),
+  so a single failure counts once. Only feed it for raw `db.execute(...)` outside those
+  paths.
+- **`reportDatabaseError()` is fire-and-forget** — do not `await` it. It never throws and
+  triggers the rebuild in the background.
+- **Reconnect tuning is load-time only.** `DB_RECONNECT_ERROR_THRESHOLD` /
+  `DB_RECONNECT_ERROR_WINDOW_MS` are read once at import; changing `process.env` at runtime
+  has no effect.
+- **Pool/retry env vars bypass the config schema.** `config.ts` reads them from raw
+  `process.env` (with `0`-min integer parsing), so they are NOT in the
+  `@spfn/core/config` env schema and won't show up in `spfn env validate`.
+- **Closing wins over reconnect.** Reconnect paths re-check `isClosing` before the swap; if
+  `closeDatabase()` started mid-rebuild the fresh pool is torn down instead of leaked. Don't
+  race `closeDatabase()` with `forceReconnectDatabase()` expecting the rebuild to survive.
+- **`isReplica` flips after a fallback.** If the replica was up at init but the pool later
+  rebuilds without it (or vice versa), topology can change — read it live, don't cache.
+
+---
+
+## Complete example
 
 ```typescript
-// Pattern detection is automatic
-const pattern = detectDatabasePattern();
+// src/server/db.ts
+import { initDatabase, getDatabase, getDatabaseInfo, closeDatabase } from '@spfn/core/db';
 
-switch (pattern.type) {
-  case 'write-read':
-    console.log(`Write: ${pattern.write}, Read: ${pattern.read}`);
-    break;
-  case 'single':
-    console.log(`Single: ${pattern.url}`);
-    break;
-  case 'none':
-    console.log('No database configured');
-    break;
+export async function startDb()
+{
+    await initDatabase({
+        pool:        { max: 30, idleTimeout: 30 },
+        healthCheck: { enabled: true, interval: 30000, reconnect: true, maxRetries: 5, retryInterval: 5000 },
+        monitoring:  { enabled: true, slowThreshold: 500 },
+    });
+
+    const info = getDatabaseInfo();
+    if (info.isReplica)
+    {
+        console.log('Primary + Replica active');
+    }
 }
-```
 
-## 🔒 Security Features
+export function db()      { return getDatabase('write'); }
+export function dbRead()  { return getDatabase('read'); }
 
-### Password Masking
-Database URLs in logs have passwords masked:
-
-```typescript
-// Input:  postgresql://user:secret123@localhost:5432/mydb
-// Logged: postgresql://user:***@localhost:5432/mydb
-```
-
-### Connection Validation
-All connections are tested before being marked as ready:
-
-```typescript
-await db.execute('SELECT 1');  // Test query
-```
-
-## 📊 Recent Improvements (2026)
-
-### Pool Recovery Hardening
-- ✅ `forceReconnectDatabase()` public API for on-demand rebuild
-- ✅ `reportDatabaseError()` + sliding-window trigger: reconnect within seconds
-  instead of waiting for the periodic health check
-- ✅ `isConnectionLevelError()` classifier (postgres.js codes, Node errno,
-  PG SQLSTATE class 08/53300/57P0x, walks `cause`/`original`/`err`/`inner` chain)
-- ✅ Atomic-swap race fixes: check-and-set on `isReconnecting` at function
-  entry (single-threaded atomic), `isClosing` re-check before swap
-- ✅ WeakSet dedup across error-chain re-wrapping (repo → middleware)
-- ✅ `DB_RECONNECT_ERROR_THRESHOLD` / `DB_RECONNECT_ERROR_WINDOW_MS` env vars
-
-## 📊 Earlier Improvements (2024)
-
-### Code Quality
-- ✅ Removed 186 lines of commented code
-- ✅ Split manager.ts (561 → 341 lines, -39%)
-- ✅ Added type-safe pattern detection
-- ✅ Extracted reusable utility functions
-- ✅ Reduced code duplication (DRY principle)
-
-### Architecture
-- ✅ Separated global state management
-- ✅ Extracted health check logic
-- ✅ Added environment variable parsing utilities
-- ✅ Improved configuration builders
-
-### Type System
-- ✅ Explicit `PostgresJsDatabase<Record<string, unknown>>` type
-- ✅ Fixed type compatibility across transaction modules
-- ✅ Consistent schema parameter specification
-- ✅ Resolved type inference issues
-
-### Testing
-- ✅ **107 comprehensive unit tests** across all modules
-- ✅ **~100% code coverage** for manager module
-- ✅ Mock-based testing for external dependencies
-- ✅ Retry logic and backoff validation
-- ✅ Health check and reconnection testing
-- ✅ Pattern detection coverage
-
-### Security
-- ✅ Password masking in all logs
-- ✅ Connection string sanitization
-
-### Maintainability
-- ✅ Clear module separation
-- ✅ Type-safe pattern matching
-- ✅ Consistent error handling
-- ✅ Comprehensive documentation
-
-## 🧪 Testing
-
-The manager module has comprehensive unit test coverage:
-
-### Test Files
-```
-config.test.ts              Pool/retry/healthCheck/monitoring config builders
-connection.test.ts          Exponential-backoff retry + non-retryable detection
-factory.test.ts             Pattern detection (write-read / single / none)
-manager.test.ts             Lifecycle, getDatabase, closeDatabase
-health-check.test.ts        Periodic check + triggerForceReconnect guards + coalescing
-reconnect-trigger.test.ts   Classifier matrix + sliding window + WeakSet dedup
-```
-
-### Running Tests
-```bash
-# Run all manager tests
-pnpm vitest run src/db/manager/__tests__
-
-# Run with coverage
-pnpm vitest run src/db/manager/__tests__ --coverage
-```
-
-### Example Test Usage
-```typescript
-import { initDatabase, closeDatabase, setDatabase } from '@spfn/core/db';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-
-describe('Database Manager', () => {
-  afterEach(async () => {
+process.on('SIGTERM', async () =>
+{
     await closeDatabase();
-  });
-
-  it('should initialize database', async () => {
-    const { write, read } = await initDatabase();
-    expect(write).toBeDefined();
-    expect(read).toBeDefined();
-  });
-
-  it('should support manual configuration', async () => {
-    const client = postgres('postgresql://localhost:5432/test');
-    const db = drizzle(client);
-
-    setDatabase(db);
-
-    const instance = getDatabase('write');
-    expect(instance).toBe(db);
-  });
+    process.exit(0);
 });
 ```
 
-### What's Tested
-- ✅ Configuration builders with priority resolution
-- ✅ Connection retry with exponential backoff
-- ✅ Database pattern detection (write-read, legacy, single)
-- ✅ Manager initialization and lifecycle
-- ✅ Health check intervals and reconnection
-- ✅ `triggerForceReconnect` guards (uninit DB, `isClosing`) and coalescing
-- ✅ `reconnectAndRestore` swap-time `isClosing` abort (no leaked pool)
-- ✅ `isConnectionLevelError` classifier matrix (driver / errno / SQLSTATE / cause chain)
-- ✅ Sliding-window threshold, counter aging, reset on trigger
-- ✅ WeakSet dedup across error-chain re-wrapping
-- ✅ Pool configuration and environment variables
-- ✅ Error handling and edge cases
+```typescript
+// Raw query outside BaseRepository / @Transactional — opt into the fast-path manually:
+import { getDatabase, reportDatabaseError } from '@spfn/core/db';
+import { sql } from 'drizzle-orm';
 
-## 🔗 Related Modules
+try
+{
+    await getDatabase().execute(sql`SELECT now()`);
+}
+catch (error)
+{
+    reportDatabaseError(error);   // fire-and-forget; no-op for non-connection errors
+    throw error;
+}
+```
 
-- `../repository/` - Repository pattern implementation
-- `../transaction/` - Transaction middleware
-- `../schema/` - Schema helper functions
-- `../../logger/` - Structured logging
-- `../../env/` - Environment variable loading
+---
 
-## 📚 Additional Resources
+## Types reference
 
-- [Drizzle ORM Documentation](https://orm.drizzle.team/)
-- [postgres.js Documentation](https://github.com/porsager/postgres)
-- [Connection Pooling Best Practices](https://node-postgres.com/features/pooling)
+```typescript
+type DbConnectionType = 'read' | 'write';
+
+interface DatabaseClients {
+    write?:       PostgresJsDatabase;   // primary (or both if no replica)
+    read?:        PostgresJsDatabase;   // replica (falls back to write)
+    writeClient?: Sql;                  // raw client, for cleanup
+    readClient?:  Sql;
+}
+
+interface PoolConfig  { max: number; idleTimeout: number; }                       // seconds
+interface RetryConfig { maxRetries: number; initialDelay: number; maxDelay: number; factor: number; }
+
+interface DatabaseOptions {            // initDatabase() argument
+    pool?:        Partial<PoolConfig>;
+    healthCheck?: Partial<HealthCheckConfig>;
+    monitoring?:  Partial<MonitoringConfig>;
+}
+```
+
+## Related
+
+- [@spfn/core/db](../README.md) — DB module (helpers, schema, transaction, repository)
+- [@spfn/core/config](../../config/README.md) — env schema for `DATABASE_*` / `DB_*`
+- [@spfn/core/env](../../env/README.md) — env parsing/validation primitives
+- [@spfn/core/logger](../../logger/README.md) — structured logging

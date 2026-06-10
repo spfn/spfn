@@ -1,765 +1,334 @@
-# Schema Helper Module
+# @spfn/core/db/schema — Drizzle entity column helpers & schema namespacing
 
-Reusable column definitions and schema helper functions for Drizzle ORM to reduce boilerplate and ensure consistency across database schemas.
+Reusable column-definition helpers and package-scoped PostgreSQL schema utilities for
+defining Drizzle ORM entities (`pgTable`) with consistent, type-safe boilerplate.
 
-## 📁 Architecture
+## Import paths
 
-```
-schema/
-├── helpers.ts (396줄)           # 11 schema helper functions
-├── index.ts (18줄)              # Public API exports
-└── __tests__/
-    └── helpers.test.ts (489줄)  # 42 tests - 100% coverage
-```
-
-## 🚀 Quick Start
-
-### Import
+There is **no** `@spfn/core/db/schema` subpath export. Everything in this module is
+re-exported from `@spfn/core/db`. Import from there.
 
 ```typescript
-import { id, timestamps, foreignKey, optionalForeignKey } from '@spfn/core/db/schema';
-// or from @spfn/core
-import { id, timestamps, foreignKey, optionalForeignKey } from '@spfn/core';
-```
+import {
+    id, uuid, timestamps,
+    foreignKey, optionalForeignKey,
+    auditFields, publishingFields, softDelete,
+    verificationTimestamp, utcTimestamp, enumText, typedJsonb,
+    createSchema, packageNameToSchema, getSchemaInfo,
+} from '@spfn/core/db';
 
-### Basic Usage
-
-```typescript
+// Column primitives (text, integer, index, etc.) come from drizzle directly:
 import { pgTable, text } from 'drizzle-orm/pg-core';
-import { id, timestamps, foreignKey } from '@spfn/core';
+```
+
+> There is **no** root `.` export for `@spfn/core`. `import { id } from '@spfn/core'`
+> does **not** resolve — always use `@spfn/core/db`. (Some JSDoc examples in the source
+> still show `from '@spfn/core'`; that is stale.)
+
+---
+
+## Public API (complete)
+
+Column helpers (`entity-helper.ts`):
+
+- `id()` — bigserial primary key
+- `uuid()` — uuid primary key (`gen_random_uuid()`)
+- `timestamps()` — `createdAt` + `updatedAt` (timestamptz, default now, not null)
+- `foreignKey(name, reference, options?)` — required FK (bigint, cascade by default)
+- `optionalForeignKey(name, reference, options?)` — nullable FK (set null by default)
+- `auditFields()` — `createdBy` + `updatedBy` (text, nullable)
+- `publishingFields()` — `publishedAt` (timestamptz, nullable) + `publishedBy` (text)
+- `softDelete()` — `deletedAt` (timestamptz, nullable) + `deletedBy` (text)
+- `verificationTimestamp(fieldName)` — single nullable timestamptz, `{fieldName}At`
+- `utcTimestamp(fieldName, mode?)` — single timestamptz column (chainable)
+- `enumText(fieldName, values)` — text column with enum constraint (chainable)
+- `typedJsonb<T>(fieldName)` — jsonb column typed as `T` (chainable)
+
+Schema namespacing (`schema-helper.ts`):
+
+- `createSchema(packageName)` → `PgSchema` (drizzle `pgSchema`) for `schema.table(...)`
+- `packageNameToSchema(packageName)` → `string` schema name
+- `getSchemaInfo(packageName)` → `{ schemaName, isScoped, scope }`
+
+> The following **do not exist** in the current code — do not use them:
+> `autoUpdateTimestamp()`, `statusEnum()`, the `timestamps({ autoUpdate })` option, and
+> the `__autoUpdate` marker. Earlier docs referenced these; they were removed. For
+> auto-updating `updatedAt`, set it manually (`.set({ updatedAt: new Date() })`) — the
+> helpers do not auto-update it.
+
+---
+
+## Quick Start
+
+```typescript
+// src/server/entities/users.ts
+import { pgTable, text, boolean } from 'drizzle-orm/pg-core';
+import { id, timestamps, enumText } from '@spfn/core/db';
+
+export const USER_ROLES = ['admin', 'user', 'guest'] as const;
 
 export const users = pgTable('users', {
     id: id(),
     email: text('email').notNull().unique(),
-    name: text('name'),
+    name: text('name').notNull(),
+    role: enumText('role', USER_ROLES).notNull().default('user'),
+    isActive: boolean('is_active').notNull().default(true),
     ...timestamps(),
 });
 
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title').notNull(),
-    content: text('content'),
-    authorId: foreignKey('author', () => users.id),
-    ...timestamps({ autoUpdate: true }),
-});
+// Type inference straight from the table
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
 ```
 
-## 📚 Helper Functions
+Spread helpers that return multiple columns (`timestamps()`, `auditFields()`,
+`publishingFields()`, `softDelete()`, `verificationTimestamp()`); call directly the ones
+that return a single column (`id()`, `uuid()`, `foreignKey()`, `enumText()`,
+`utcTimestamp()`, `typedJsonb()`).
 
-### `id()`
+---
 
-Standard auto-incrementing primary key using `bigserial`.
+## Column helpers
 
-**Returns:** `bigserial` column with `number` mode as primary key
+### Primary keys — `id()`, `uuid()`
 
-**Example:**
 ```typescript
-export const users = pgTable('users', {
-    id: id(),
-    email: text('email'),
-});
+id: id(),     // bigserial('id', { mode: 'number' }).primaryKey()  → bigserial PK
+id: uuid(),   // uuid('id').defaultRandom().primaryKey()           → uuid PK
 ```
 
-**Generated SQL:**
-```sql
-CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    email TEXT
-);
-```
+`id()` is the default. Use `uuid()` for distributed/public-facing IDs. Both produce a
+column named `id`.
 
-### `timestamps(options?)`
+### `timestamps()`
 
-Standard timestamp fields (`createdAt`, `updatedAt`).
-
-**Parameters:**
-- `options.autoUpdate?: boolean` - Automatically update `updatedAt` on record updates (default: `false`)
-
-**Returns:** Object with `createdAt` and `updatedAt` columns
-
-**Example:**
 ```typescript
-// Without auto-update
-export const users = pgTable('users', {
-    id: id(),
-    email: text('email'),
-    ...timestamps(),
-});
-
-// With auto-update
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title'),
-    ...timestamps({ autoUpdate: true }),
-});
+...timestamps(),
+// createdAt: timestamptz, defaultNow(), notNull()
+// updatedAt: timestamptz, defaultNow(), notNull()
 ```
 
-**Generated SQL:**
-```sql
-CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    email TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
-```
+DB column names are `created_at` / `updated_at`. `updatedAt` is **not** auto-updated —
+set it explicitly on writes:
 
-**Auto-Update Behavior:**
-- `createdAt`: Always set on creation, never updated
-- `updatedAt`: Set on creation, optionally auto-updated on record updates
-- Auto-update is implemented via custom marker (`__autoUpdate: true`)
-
-### `autoUpdateTimestamp(fieldName?)`
-
-Create custom auto-updating timestamp field.
-
-**Parameters:**
-- `fieldName?: string` - Field name in camelCase (default: `'updatedAt'`)
-
-**Returns:** Object with timestamp column (converts camelCase to snake_case)
-
-**Example:**
 ```typescript
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title'),
-    ...timestamps(),
-    ...autoUpdateTimestamp('modifiedAt'),  // Creates 'modified_at' column
-});
-
-export const articles = pgTable('articles', {
-    id: id(),
-    ...autoUpdateTimestamp(),  // Creates 'updated_at' column
-});
+await db.update(users)
+    .set({ name: 'new', updatedAt: new Date() })
+    .where(eq(users.id, userId));
 ```
 
-**Generated SQL:**
-```sql
-CREATE TABLE posts (
-    id BIGSERIAL PRIMARY KEY,
-    title TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    modified_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
-```
+### `foreignKey(name, reference, options?)` / `optionalForeignKey(...)`
 
-**Use Cases:**
-- Custom field names like `publishedAt`, `lastSeen`, `modifiedAt`
-- Multiple auto-updating timestamps in one table
-- Domain-specific timestamp fields
-
-### `foreignKey(name, reference, options?)`
-
-Required foreign key reference to another table.
-
-**Parameters:**
-- `name: string` - Column name prefix (e.g., `'author'` creates `'author_id'`)
-- `reference: () => T` - Reference to parent table column
-- `options.onDelete?: 'cascade' | 'set null' | 'restrict' | 'no action'` - On delete action (default: `'cascade'`)
-
-**Returns:** `bigserial` column with `.notNull().references()`
-
-**Example:**
 ```typescript
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title'),
-    authorId: foreignKey('author', () => users.id),
-    categoryId: foreignKey('category', () => categories.id, { onDelete: 'restrict' }),
-});
+authorId:   foreignKey('author', () => users.id),         // author_id BIGINT NOT NULL, ON DELETE CASCADE
+categoryId: optionalForeignKey('category', () => cats.id), // category_id BIGINT (nullable), ON DELETE SET NULL
 ```
 
-**Generated SQL:**
-```sql
-CREATE TABLE posts (
-    id BIGSERIAL PRIMARY KEY,
-    title TEXT,
-    author_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    category_id BIGSERIAL NOT NULL REFERENCES categories(id) ON DELETE RESTRICT
-);
-```
+- Column name is `{name}_id`. Both produce a **bigint** column (`mode: 'number'`) — pair
+  with `id()` (bigserial), not `uuid()`.
+- `options.onDelete`: `'cascade' | 'set null' | 'restrict' | 'no action'`. Defaults:
+  `foreignKey` → `'cascade'`, `optionalForeignKey` → `'set null'`.
+- There is **no** `onUpdate` option on these helpers. For `onUpdate` (or FK to a uuid PK),
+  use drizzle's table-level `foreignKey({ columns, foreignColumns, onUpdate })` instead.
 
-### `optionalForeignKey(name, reference, options?)`
+### `auditFields()`, `publishingFields()`, `softDelete()`
 
-Optional (nullable) foreign key reference.
-
-**Parameters:**
-- `name: string` - Column name prefix (e.g., `'reviewer'` creates `'reviewer_id'`)
-- `reference: () => T` - Reference to parent table column
-- `options.onDelete?: 'cascade' | 'set null' | 'restrict' | 'no action'` - On delete action (default: `'set null'`)
-
-**Returns:** `bigserial` column with `.references()` (nullable)
-
-**Example:**
 ```typescript
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title'),
-    authorId: foreignKey('author', () => users.id),
-    reviewerId: optionalForeignKey('reviewer', () => users.id),
-});
+...auditFields(),       // created_by TEXT, updated_by TEXT (nullable)
+...publishingFields(),  // published_at TIMESTAMPTZ (nullable), published_by TEXT
+...softDelete(),        // deleted_at TIMESTAMPTZ (nullable), deleted_by TEXT
 ```
 
-**Generated SQL:**
-```sql
-CREATE TABLE posts (
-    id BIGSERIAL PRIMARY KEY,
-    title TEXT,
-    author_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    reviewer_id BIGSERIAL REFERENCES users(id) ON DELETE SET NULL
-);
-```
+Soft-delete query pattern — filter manually, there is no automatic scoping:
 
-**Difference from `foreignKey()`:**
-- **`foreignKey()`**: `.notNull()` - Required relationship, default `onDelete: 'cascade'`
-- **`optionalForeignKey()`**: Nullable - Optional relationship, default `onDelete: 'set null'`
-
-### `uuid()`
-
-UUID primary key.
-
-Creates a UUID column as primary key with automatic default value generation using `gen_random_uuid()`.
-
-**Returns:** `uuid` primary key column
-
-**Example:**
 ```typescript
-export const sessions = pgTable('sessions', {
-    id: uuid(),
-    userId: foreignKey('user', () => users.id),
-    ...timestamps(),
-});
-```
-
-**Generated SQL:**
-```sql
-CREATE TABLE sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
-```
-
-**When to use UUID vs bigserial:**
-- **UUID**: Distributed systems, external IDs, public-facing IDs, merge scenarios
-- **bigserial**: Single database, sequential ordering, performance-critical paths
-
-### `auditFields()`
-
-Audit fields for tracking record creators and updaters.
-
-Adds `createdBy` and `updatedBy` text fields for user tracking.
-
-**Returns:** Object with `createdBy` and `updatedBy` columns
-
-**Example:**
-```typescript
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title'),
-    ...timestamps(),
-    ...auditFields(),
-});
-
-// Usage in route
-await db.insert(posts).values({
-    title: 'New Post',
-    createdBy: currentUser.email,
-});
-```
-
-**Generated SQL:**
-```sql
-CREATE TABLE posts (
-    id BIGSERIAL PRIMARY KEY,
-    title TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    created_by TEXT,
-    updated_by TEXT
-);
-```
-
-### `publishingFields()`
-
-Publishing fields for content management systems.
-
-Tracks when and by whom content was published.
-
-**Returns:** Object with `publishedAt` and `publishedBy` columns
-
-**Example:**
-```typescript
-export const articles = pgTable('articles', {
-    id: id(),
-    title: text('title'),
-    status: text('status'), // draft/published/archived
-    ...publishingFields(),
-    ...timestamps(),
-});
-
-// Publishing an article
-await db.update(articles)
-    .set({
-        status: 'published',
-        publishedAt: new Date(),
-        publishedBy: currentUser.email,
-    })
-    .where(eq(articles.id, articleId));
-```
-
-**Generated SQL:**
-```sql
-CREATE TABLE articles (
-    id BIGSERIAL PRIMARY KEY,
-    title TEXT,
-    status TEXT,
-    published_at TIMESTAMP WITH TIME ZONE,
-    published_by TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
+await db.select().from(posts).where(isNull(posts.deletedAt));
 ```
 
 ### `verificationTimestamp(fieldName)`
 
-Custom verification timestamp field.
+Single nullable timestamptz. The JS property is `{fieldName}At`, the DB column is
+`snake_case(fieldName) + '_at'`.
 
-Creates a nullable timestamp field for tracking verification status.
-
-**Parameters:**
-- `fieldName: string` - Field name in camelCase (e.g., 'emailVerified', 'phoneVerified')
-
-**Returns:** Object with verification timestamp column (converts to snake_case + '_at')
-
-**Example:**
 ```typescript
-export const users = pgTable('users', {
+...verificationTimestamp('emailVerified'),  // prop emailVerifiedAt → col email_verified_at
+...verificationTimestamp('phoneVerified'),  // prop phoneVerifiedAt → col phone_verified_at
+```
+
+### `utcTimestamp(fieldName, mode?)`
+
+Single timestamptz column. `fieldName` is the **DB column name** (snake_case, unlike
+`verificationTimestamp`). `mode` is `'date'` (default, `Date`) or `'string'` (ISO string).
+Chainable.
+
+```typescript
+scheduledAt: utcTimestamp('scheduled_at').notNull(),
+lastLoginAt: utcTimestamp('last_login_at').defaultNow().notNull(),
+processedAt: utcTimestamp('processed_at', 'string'),  // ISO string
+```
+
+### `enumText(fieldName, values)`
+
+Text column constrained to a const tuple; the value type is inferred. Chainable.
+
+```typescript
+export const USER_STATUSES = ['active', 'inactive', 'suspended'] as const;
+export type UserStatus = typeof USER_STATUSES[number];
+
+status: enumText('status', USER_STATUSES).notNull().default('active'),
+```
+
+Backing type is plain `text` (no PG enum type), so adding values needs **no migration**.
+
+### `typedJsonb<T>(fieldName)`
+
+jsonb column typed as `T` — avoids `unknown` / `as any` on reads. Chainable.
+
+```typescript
+type Metadata = { theme: 'light' | 'dark'; settings: Record<string, unknown> };
+
+metadata: typedJsonb<Metadata>('metadata').notNull(),
+tags:     typedJsonb<string[]>('tags'),
+```
+
+---
+
+## Schema namespacing
+
+Isolate a package's tables under a dedicated PostgreSQL schema so multiple SPFN packages
+share one database without table-name collisions.
+
+```typescript
+import { createSchema, id, timestamps } from '@spfn/core/db';
+import { text } from 'drizzle-orm/pg-core';
+
+const schema = createSchema('@spfn/cms');   // PG schema: spfn_cms
+
+export const labels = schema.table('labels', {
     id: id(),
-    email: text('email'),
-    phone: text('phone'),
-    ...verificationTimestamp('emailVerified'),  // emailVerifiedAt -> email_verified_at
-    ...verificationTimestamp('phoneVerified'),  // phoneVerifiedAt -> phone_verified_at
+    name: text('name').notNull(),
     ...timestamps(),
 });
-
-// Verify email
-await db.update(users)
-    .set({ emailVerifiedAt: new Date() })
-    .where(eq(users.email, userEmail));
+// → table  spfn_cms.labels
 ```
 
-**Generated SQL:**
-```sql
-CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    email TEXT,
-    phone TEXT,
-    email_verified_at TIMESTAMP WITH TIME ZONE,
-    phone_verified_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
-```
+Naming rules (`packageNameToSchema`): strip `@`, replace `/` and `-` with `_`.
 
-### `softDelete()`
-
-Soft delete fields.
-
-Adds `deletedAt` and `deletedBy` for logical deletion instead of physical removal.
-
-**Returns:** Object with `deletedAt` and `deletedBy` columns
-
-**Example:**
 ```typescript
+packageNameToSchema('@spfn/cms');      // 'spfn_cms'
+packageNameToSchema('@company/auth');  // 'company_auth'
+packageNameToSchema('spfn-storage');   // 'spfn_storage'
+
+getSchemaInfo('@spfn/cms');
+// { schemaName: 'spfn_cms', isScoped: true, scope: 'spfn' }
+```
+
+Use `schema.table(...)` instead of `pgTable(...)` for every table in that package. The
+column helpers above work identically inside `schema.table`.
+
+---
+
+## Pitfalls & anti-patterns
+
+- **`@spfn/core/db/schema` is not an export path; `@spfn/core` (bare) has no root export
+  either.** Import everything from `@spfn/core/db`.
+- **`id` is bigint, not uuid.** `id()` and `foreignKey()`/`optionalForeignKey()` are all
+  bigint-based. Don't point a `foreignKey()` (bigint) at a `uuid()` PK — types won't match.
+  For a uuid FK, use drizzle's table-level `foreignKey({ columns, foreignColumns })`.
+- **`timestamps()` takes no arguments and does not auto-update `updatedAt`.** Calls like
+  `timestamps({ autoUpdate: true })` are from an old API and will fail/no-op. Set
+  `updatedAt: new Date()` yourself on updates.
+- **`autoUpdateTimestamp()`, `statusEnum()`, and the `__autoUpdate` marker do not exist.**
+  Replace `statusEnum([...])` with `enumText('status', [...] as const).notNull().default(...)`.
+- **`verificationTimestamp(name)` takes a camelCase logical name; `utcTimestamp(col)` takes
+  a snake_case DB column name.** They differ — `verificationTimestamp('emailVerified')`
+  yields column `email_verified_at`, but `utcTimestamp('emailVerified')` would create a
+  column literally named `emailVerified`.
+- **`enumText` is plain text + CHECK, not a PG enum type.** Adding values requires no
+  migration; renaming/removing the column still does.
+- **Exported tables must be reachable by drizzle-kit to land in migrations.** Re-export
+  every entity (e.g. `src/server/entities/index.ts → export * from './users'`) and point
+  drizzle config at it; an unexported table generates no migration.
+- **When using `createSchema`, all tables in that package must use `schema.table(...)`.**
+  Mixing `pgTable(...)` puts that table in the default `public` schema.
+
+---
+
+## Complete example
+
+```typescript
+// src/server/entities/posts.ts
+import { pgTable, text, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+    id, foreignKey, optionalForeignKey,
+    enumText, typedJsonb,
+    timestamps, auditFields, publishingFields, softDelete,
+} from '@spfn/core/db';
+import { users } from './users';
+
+export const POST_STATUSES = ['draft', 'published', 'archived'] as const;
+export type PostStatus = typeof POST_STATUSES[number];
+
+type PostMeta = { seoTitle?: string; tags: string[] };
+
 export const posts = pgTable('posts', {
     id: id(),
-    title: text('title'),
+    title: text('title').notNull(),
+    slug: text('slug').notNull().unique(),
+
+    authorId:   foreignKey('author', () => users.id),                 // NOT NULL, cascade
+    reviewerId: optionalForeignKey('reviewer', () => users.id),       // nullable, set null
+
+    status: enumText('status', POST_STATUSES).notNull().default('draft'),
+    meta:   typedJsonb<PostMeta>('meta'),
+
     ...timestamps(),
+    ...auditFields(),
+    ...publishingFields(),
     ...softDelete(),
-});
+}, (table) => [
+    index('posts_status_idx').on(table.status),
+    index('posts_active_idx').on(table.slug).where(sql`${table.deletedAt} is null`),
+]);
 
-// Soft delete
-await db.update(posts)
-    .set({
-        deletedAt: new Date(),
-        deletedBy: currentUser.email,
-    })
-    .where(eq(posts.id, postId));
-
-// Query only non-deleted records
-const activePosts = await db.select()
-    .from(posts)
-    .where(isNull(posts.deletedAt));
+export type Post = typeof posts.$inferSelect;
+export type NewPost = typeof posts.$inferInsert;
 ```
-
-**Generated SQL:**
-```sql
-CREATE TABLE posts (
-    id BIGSERIAL PRIMARY KEY,
-    title TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    deleted_at TIMESTAMP WITH TIME ZONE,
-    deleted_by TEXT
-);
-```
-
-**Benefits of Soft Delete:**
-- Data recovery capability
-- Audit trail preservation
-- Maintains referential integrity
-- Gradual data cleanup
-
-### `statusEnum(statuses, defaultStatus?)`
-
-Type-safe status enum field.
-
-Creates a status text column with enum constraint and default value.
-
-**Parameters:**
-- `statuses: readonly [string, ...string[]]` - Array of status values (at least 2 required)
-- `defaultStatus?: string` - Default status value (defaults to first status)
-
-**Returns:** Status column with enum constraint
-
-**Example:**
-```typescript
-// Basic usage
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title'),
-    status: statusEnum(['draft', 'published', 'archived'] as const),
-    ...timestamps(),
-});
-
-// With custom default
-export const users = pgTable('users', {
-    id: id(),
-    email: text('email'),
-    status: statusEnum(['active', 'inactive', 'suspended'] as const, 'active'),
-    ...timestamps(),
-});
-
-// TypeScript infers the type
-type PostStatus = 'draft' | 'published' | 'archived';
-```
-
-**Generated SQL:**
-```sql
-CREATE TABLE posts (
-    id BIGSERIAL PRIMARY KEY,
-    title TEXT,
-    status TEXT NOT NULL DEFAULT 'draft',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    CHECK (status IN ('draft', 'published', 'archived'))
-);
-```
-
-**Benefits:**
-- Compile-time type safety
-- Runtime validation
-- Auto-completion in IDE
-- Prevents invalid status values
-
-## 🎯 Design Patterns
-
-### Basic Entity
 
 ```typescript
-export const users = pgTable('users', {
-    id: id(),
-    email: text('email').notNull().unique(),
-    name: text('name'),
-    ...timestamps(),
-});
+// src/server/entities/index.ts — must re-export so drizzle-kit sees every table
+export * from './users';
+export * from './posts';
+export * from './relations';
 ```
 
-### Entity with Auto-Update
+Indexes, composite primary keys, unique/check constraints, and `relations()` are standard
+drizzle features (table callback / `drizzle-orm`) — this module does not wrap them; use
+drizzle directly.
+
+---
+
+## Types reference
 
 ```typescript
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title').notNull(),
-    content: text('content'),
-    status: text('status').default('draft'),
-    ...timestamps({ autoUpdate: true }),
-});
+// foreignKey / optionalForeignKey options
+type FkOptions = { onDelete?: 'cascade' | 'set null' | 'restrict' | 'no action' };
+
+// utcTimestamp mode
+type UtcMode = 'date' | 'string';   // default 'date'
+
+// enumText values
+type EnumValues = readonly [string, ...string[]];
+
+// getSchemaInfo return
+type SchemaInfo = { schemaName: string; isScoped: boolean; scope: string | null };
 ```
 
-### Entity with Relationships
+Column return types are drizzle column builders (`PgColumn`-based); chain
+`.notNull()`, `.default(...)`, `.unique()`, `.references(...)` as usual.
 
-```typescript
-export const comments = pgTable('comments', {
-    id: id(),
-    content: text('content').notNull(),
-    authorId: foreignKey('author', () => users.id),
-    postId: foreignKey('post', () => posts.id),
-    parentId: optionalForeignKey('parent', () => comments.id),
-    ...timestamps(),
-});
-```
+## Related
 
-### Entity with Custom Timestamps
-
-```typescript
-export const articles = pgTable('articles', {
-    id: id(),
-    title: text('title').notNull(),
-    status: text('status').default('draft'),
-    ...timestamps(),
-    ...autoUpdateTimestamp('publishedAt'),
-    ...autoUpdateTimestamp('lastViewedAt'),
-});
-```
-
-### Complex Entity
-
-```typescript
-export const orders = pgTable('orders', {
-    id: id(),
-    orderNumber: text('order_number').notNull().unique(),
-
-    // Relationships
-    userId: foreignKey('user', () => users.id),
-    shippingAddressId: foreignKey('shipping_address', () => addresses.id, {
-        onDelete: 'restrict'
-    }),
-    billingAddressId: optionalForeignKey('billing_address', () => addresses.id),
-
-    // Status tracking
-    status: text('status').default('pending'),
-
-    // Timestamps
-    ...timestamps(),
-    ...autoUpdateTimestamp('paidAt'),
-    ...autoUpdateTimestamp('shippedAt'),
-    ...autoUpdateTimestamp('deliveredAt'),
-});
-```
-
-## 🔧 Advanced Features
-
-### Type Safety
-
-All helpers are fully type-safe:
-
-```typescript
-// ✅ Type-safe foreign key
-const postId = foreignKey('post', () => posts.id);  // T = PgColumn<...>
-
-// ❌ Compile error - invalid reference
-const badRef = foreignKey('post', () => 'invalid');  // Type error
-```
-
-### CamelCase to snake_case Conversion
-
-Field names in camelCase are automatically converted to snake_case:
-
-```typescript
-const cols = autoUpdateTimestamp('publishedAt');
-// Creates column: published_at
-
-const cols2 = autoUpdateTimestamp('lastViewedAt');
-// Creates column: last_viewed_at
-```
-
-### Auto-Update Marker
-
-Columns marked for auto-update have a special `__autoUpdate` property:
-
-```typescript
-const cols = timestamps({ autoUpdate: true });
-console.log(cols.updatedAt.__autoUpdate);  // true
-
-const customCol = autoUpdateTimestamp('modifiedAt');
-console.log(customCol.modifiedAt.__autoUpdate);  // true
-```
-
-This marker can be used by middleware or ORM plugins to automatically update these fields on record updates.
-
-### Foreign Key Cascading
-
-Different cascade behaviors for different relationships:
-
-```typescript
-export const posts = pgTable('posts', {
-    // Cascade: Delete posts when user is deleted
-    authorId: foreignKey('author', () => users.id, {
-        onDelete: 'cascade'
-    }),
-
-    // Restrict: Prevent category deletion if posts exist
-    categoryId: foreignKey('category', () => categories.id, {
-        onDelete: 'restrict'
-    }),
-
-    // Set null: Clear reviewer when reviewer is deleted
-    reviewerId: optionalForeignKey('reviewer', () => users.id, {
-        onDelete: 'set null'
-    }),
-});
-```
-
-## 🧪 Testing
-
-The schema module has comprehensive test coverage:
-
-### Test Structure
-
-```
-schema/__tests__/
-└── helpers.test.ts    # 42 tests - 100% coverage
-```
-
-### Test Coverage
-
-- **helpers.ts**: 100% coverage (100% Stmts, 100% Branch, 100% Funcs, 100% Lines)
-- **index.ts**: Export-only file (no testing required)
-
-### Running Tests
-
-```bash
-# Run all schema tests
-pnpm vitest run src/db/schema/__tests__
-
-# Run with coverage
-pnpm vitest run src/db/schema/__tests__ --coverage
-```
-
-### What's Tested
-
-**Core Helper Functions:**
-- ✅ `id()` - bigserial primary key creation
-- ✅ `uuid()` - UUID primary key with gen_random_uuid()
-- ✅ `timestamps()` - createdAt/updatedAt fields
-- ✅ `timestamps({ autoUpdate: true })` - auto-update marker
-- ✅ `autoUpdateTimestamp()` - custom timestamp fields with camelCase conversion
-- ✅ `foreignKey()` - required foreign key with cascade options
-- ✅ `optionalForeignKey()` - optional foreign key with set null default
-
-**New Helper Functions:**
-- ✅ `auditFields()` - createdBy/updatedBy columns
-- ✅ `publishingFields()` - publishedAt/publishedBy columns
-- ✅ `verificationTimestamp()` - custom verification timestamps
-- ✅ `softDelete()` - deletedAt/deletedBy columns
-- ✅ `statusEnum()` - type-safe enum with default value
-
-**Integration Tests:**
-- ✅ Complete table schemas with all helpers
-- ✅ UUID tables with audit fields
-- ✅ CMS-style tables with publishing fields
-- ✅ Soft delete patterns
-- ✅ Auth tables with verification timestamps
-- ✅ Multiple foreign keys in one table
-- ✅ Auto-updating timestamps combination
-
-### Example Test
-
-```typescript
-describe('timestamps()', () => {
-    it('should create createdAt and updatedAt columns', () => {
-        const cols = timestamps();
-
-        expect(cols.createdAt).toBeDefined();
-        expect(cols.updatedAt).toBeDefined();
-    });
-
-    it('should mark updatedAt for auto-update when enabled', () => {
-        const cols = timestamps({ autoUpdate: true });
-
-        expect((cols.updatedAt as any).__autoUpdate).toBe(true);
-    });
-});
-```
-
-## 📊 Benefits
-
-### Code Reduction
-
-**Before (without helpers):**
-```typescript
-export const users = pgTable('users', {
-    id: bigserial('id', { mode: 'number' }).primaryKey(),
-    email: text('email').notNull().unique(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
-        .defaultNow()
-        .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
-        .defaultNow()
-        .notNull(),
-});
-
-export const posts = pgTable('posts', {
-    id: bigserial('id', { mode: 'number' }).primaryKey(),
-    title: text('title').notNull(),
-    authorId: bigserial('author_id', { mode: 'number' })
-        .notNull()
-        .references(() => users.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
-        .defaultNow()
-        .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
-        .defaultNow()
-        .notNull(),
-});
-```
-
-**After (with helpers):**
-```typescript
-export const users = pgTable('users', {
-    id: id(),
-    email: text('email').notNull().unique(),
-    ...timestamps(),
-});
-
-export const posts = pgTable('posts', {
-    id: id(),
-    title: text('title').notNull(),
-    authorId: foreignKey('author', () => users.id),
-    ...timestamps(),
-});
-```
-
-**Result:**
-- 📉 **60% less code**
-- ✨ **More readable**
-- 🔒 **Consistent patterns**
-- 🛡️ **Type-safe**
-
-### Consistency
-
-All tables follow the same patterns:
-- `id` is always bigserial number mode primary key
-- Timestamps always have timezone and default to NOW()
-- Foreign keys follow consistent naming (`{name}_id`)
-
-### Maintainability
-
-Changes to common patterns only need to be made in one place:
-
-```typescript
-// Want to change all IDs to UUID?
-// Just update id() helper function
-export function id() {
-    return uuid('id').defaultRandom().primaryKey();
-}
-
-// All tables now use UUID automatically
-```
-
-## 🔗 Related Modules
-
-- `../manager/` - Database connection management
-- `../transaction/` - Transaction middleware
-- `../repository/` - Repository pattern implementation
-- `../../logger/` - Structured logging
-
-## 📚 Additional Resources
-
-- [Drizzle ORM Documentation](https://orm.drizzle.team/)
-- [PostgreSQL Data Types](https://www.postgresql.org/docs/current/datatype.html)
-- [Foreign Key Constraints](https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK)
+- [@spfn/core/db](../README.md) — DB manager, transactions, repository, postgres errors
+- [Drizzle ORM](https://orm.drizzle.team/) — `pgTable`, `pgSchema`, indexes, relations

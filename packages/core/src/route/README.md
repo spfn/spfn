@@ -1,1015 +1,659 @@
-# @spfn/core/route - Technical Documentation
+# @spfn/core/route — Type-safe route DSL + router composition
 
-Type-safe route definition system with tRPC-style API and comprehensive middleware control.
+A tRPC-style chainable DSL for defining HTTP routes with TypeBox-validated input,
+end-to-end type inference into the handler, and composable routers. This is the core of
+SPFN: routes defined here are registered onto Hono and consumed by the typed RPC client.
 
-## Architecture Overview
+## Import paths
 
-The route system provides a declarative, type-safe way to define API routes with automatic validation, middleware management, and type inference. It follows a builder pattern inspired by tRPC.
+Everything is exported from a single entry point.
 
-### Core Components
+```typescript
+import {
+    route,            // route builder entry (get/post/put/patch/delete)
+    defineRouter,     // compose routes into a router
+    registerRoutes,   // mount a router onto a Hono app (usually called by @spfn/core/server)
+    defineMiddleware, // named middleware (skippable by name)
+    defineMiddlewareFactory,
+    Nullable, OptionalNullable, isHttpMethod,
+    FileSchema, FileArraySchema, OptionalFileSchema,
+} from '@spfn/core/route';
 
+import { Type } from '@sinclair/typebox'; // schemas come from TypeBox, not from this package
 ```
-route/
-├── index.ts                 # Public API exports
-├── types.ts                 # Type definitions (HttpMethod, RouteMeta, etc.)
-├── helpers.ts               # Type guards and TypeBox utilities
-├── route-input.ts           # RouteInput type definition
-├── context.ts               # RouteBuilderContext and MergedInput types
-├── route-builder.ts         # RouteBuilder class and route object
-├── router.ts                # Router interface and defineRouter
-├── define-middleware.ts     # Named middleware definition
-├── register-routes.ts       # Hono integration layer
-└── validation.ts            # Input validation utilities
-```
 
-### Design Principles
-
-1. **Type Safety First**: Full end-to-end type inference from route definition to handler
-2. **Explicit Over Implicit**: No magic - all input sources (params, query, body, headers, cookies) are explicit
-3. **Composability**: Routes, routers, and middleware are composable building blocks
-4. **Framework Agnostic**: Core types are independent of Hono (though implementation uses it)
+There is **no** `@spfn/core/route/*` sub-path. Import the schema builder `Type` from
+`@sinclair/typebox` directly.
 
 ---
 
-## Type System
+## Public API (complete)
 
-### Core Types
+Values:
+
+- `route` — builder entry. Methods: `route.get/post/put/patch/delete(path)`. **No `head`/`options`.**
+- `defineRouter(routes)` — build a `Router`. Returned router is chainable: `.packages([...])`, `.use([...])`.
+- `registerRoutes(app, router, namedMiddlewares?, collectedRoutes?)` — mount onto Hono, returns `RegisteredRoute[]`.
+- `defineMiddleware(name, handler | factory, options?)` — named middleware (param-count auto-detects handler vs factory).
+- `defineMiddlewareFactory(name, factory)` — explicit factory form (use when the factory itself takes exactly 2 args).
+- `Nullable(schema)` → `T | null`; `OptionalNullable(schema)` → `T | null | undefined`.
+- `isHttpMethod(value)` — type guard for `'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'`.
+- File schemas: `FileSchema(opts?)`, `FileArraySchema(opts?)`, `OptionalFileSchema(opts?)` — **all are functions, call with `()`**.
+- File helpers: `isFileSchema`, `isFileArraySchema`, `getFileOptions`, `formatFileSize`.
+
+Types:
+
+- `RouteInput`, `RouteDef`, `RouteHandlerFn`, `Router`, `RegisteredRoute`
+- `RouteBuilderContext`, `MergedInput`, `PaginatedResult`
+- `HttpMethod`, `NamedMiddleware`, `NamedMiddlewareFactory`, `ExtractMiddlewareNames`
+- `FileSchemaOptions`, `FileArraySchemaOptions`, `FileSchemaType`, `FileArraySchemaType`
+
+### Removed API — do not use
+
+The following contract-first / class-based APIs **do not exist** in this package. Older
+docs and AI completions invent them — they will not compile:
+
+- **`createApp(...)`, `createContract(...)`, `.bind(handler)`** — there is no contract-first
+  layer. A route is `route.<method>(path).input(...).handler(...)`, full stop. The handler
+  is attached inline via `.handler()`, never bound separately.
+- **`RouteMeta`, `RouteMetadata`, `RouterMetadata`, `InferResponseData`** — not exported
+  from `types.ts` (which only exports `HttpMethod`). Do not import them.
+- **`.meta(...)`, `.public()`, `.tags(...)`, `.description(...)` builder methods** — the
+  builder only has `input`, `interceptor`, `middleware`/`use`, `skip`, `handler`.
+- **`route.head(...)` / `route.options(...)`** — not defined.
+- **`c.success(...)` / `c.error(...)`** — not context helpers (see the helper list below).
+
+---
+
+## Quick Start
 
 ```typescript
-// Route input definition
+// routes/users.ts
+import { route } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
+
+export const getUser = route.get('/users/:id')
+    .input({
+        params: Type.Object({ id: Type.String() }),
+    })
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();   // params: { id: string }
+        return await userRepo.findById(params.id); // plain return → JSON 200, type inferred
+    });
+
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({ name: Type.String(), email: Type.String({ format: 'email' }) }),
+    })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();      // body: { name: string; email: string }
+        return c.created(await userRepo.create(body), `/users/123`); // 201 + Location
+    });
+```
+
+```typescript
+// router.ts
+import { defineRouter } from '@spfn/core/route';
+import { getUser, createUser } from './routes/users';
+
+export const appRouter = defineRouter({ getUser, createUser });
+export type AppRouter = typeof appRouter;
+```
+
+The router is then handed to `@spfn/core/server` via `defineServerConfig().routes(appRouter)`,
+which calls `registerRoutes` internally. You rarely call `registerRoutes` by hand.
+
+---
+
+## Route builder
+
+`route.<method>(path)` returns a chainable, **immutable** `RouteBuilder` (each method
+returns a fresh builder). `.handler(fn)` is the only terminal — it produces a `RouteDef`.
+
+```typescript
+route.get('/users/:id')          // method + path fixed here
+    .input({ ... })              // optional — TypeBox schemas per input source
+    .interceptor({ ... })        // optional — middleware-injected fields (see below)
+    .use([mwA, mwB])             // optional — route-level middleware (alias: .middleware)
+    .skip(['auth'])              // optional — skip named server-level middleware
+    .handler(async (c) => { ... }); // required — terminal
+```
+
+| Method | Purpose |
+|--------|---------|
+| `route.get/post/put/patch/delete(path)` | Start a builder with method + path. |
+| `.input(schemas)` | Define validated input (`params`/`query`/`body`/`formData`/`headers`/`cookies`). |
+| `.interceptor(schemas)` | Declare fields injected by middleware — typed in handler, excluded from client types. |
+| `.use(mws)` / `.middleware(mws)` | Attach route-level middleware (regular `MiddlewareHandler` or `NamedMiddleware`). Identical. |
+| `.skip(names \| '*')` | Skip server-level named middleware for this route. |
+| `.handler(fn)` | Terminal. Return value type becomes the response type. |
+
+Chain order between `.input`/`.interceptor`/`.use`/`.skip` is free; only `.handler` must be last.
+
+---
+
+## Input
+
+`.input(...)` takes a `RouteInput` — an object whose keys are TypeBox schemas, one per
+HTTP input source. **All six keys are optional**; only declared sources are validated and typed.
+
+```typescript
 export type RouteInput = {
-    params?: TSchema;
-    query?: TSchema;
-    body?: TSchema;
-    headers?: TSchema;
-    cookies?: TSchema;
-};
-
-// Merged input with interceptor-injected fields
-type MergedInput<TInput extends RouteInput, TInterceptor extends RouteInput> = {
-    params: (TInput['params'] extends TSchema ? Static<TInput['params']> : {}) &
-            (TInterceptor['params'] extends TSchema ? Static<TInterceptor['params']> : {});
-    query: (TInput['query'] extends TSchema ? Static<TInput['query']> : {}) &
-           (TInterceptor['query'] extends TSchema ? Static<TInterceptor['query']> : {});
-    body: (TInput['body'] extends TSchema ? Static<TInput['body']> : {}) &
-          (TInterceptor['body'] extends TSchema ? Static<TInterceptor['body']> : {});
-    headers: (TInput['headers'] extends TSchema ? Static<TInput['headers']> : {}) &
-             (TInterceptor['headers'] extends TSchema ? Static<TInterceptor['headers']> : {});
-    cookies: (TInput['cookies'] extends TSchema ? Static<TInput['cookies']> : {}) &
-             (TInterceptor['cookies'] extends TSchema ? Static<TInterceptor['cookies']> : {});
-};
-
-// Route definition result
-export type RouteDef<
-    TInput extends RouteInput = RouteInput,
-    TInterceptor extends RouteInput = {},
-    TResponse = any
-> = {
-    method?: HttpMethod;
-    path?: string;
-    input?: TInput;
-    interceptor?: TInterceptor;
-    middlewares?: (MiddlewareHandler | NamedMiddleware<any>)[];
-    skipMiddlewares?: string[] | '*';
-    handler: RouteHandlerFn<TInput, TInterceptor, TResponse>;
-
-    // Type inference helpers
-    _input: TInput;
-    _interceptor: TInterceptor;
-    _response: TResponse;
-};
-
-// Router composition
-export type Router<TRoutes extends Record<string, RouteDef<any> | Router<any>>> = {
-    routes: TRoutes;
-    _routes: TRoutes;  // Type inference helper
+    params?:   TSchema; // path params  (/users/:id)
+    query?:    TSchema; // query string (?page=1)
+    body?:     TSchema; // JSON request body
+    formData?: TSchema; // multipart/form-data (file uploads)
+    headers?:  TSchema; // request headers (keys are lowercased)
+    cookies?:  TSchema; // cookies
 };
 ```
 
-### Utility Types (types.ts)
-
 ```typescript
-// Route metadata for codegen
-export type RouteMeta = {
-    public?: boolean;
-    skipMiddlewares?: string[];
-    tags?: string[];
-    description?: string;
-    deprecated?: boolean;
-};
-
-// Extract data type from ApiSuccessResponse<T>
-export type InferResponseData<T> = T extends { success: true; data: infer D } ? D : T;
-
-// Route metadata types (used by RPC proxy for route resolution)
-export interface RouteMetadata {
-    method: string;
-    path: string;
-}
-
-export interface RouterMetadata {
-    routes: Record<string, RouteMetadata>;
-    routerTypeName: string;
-}
+route.patch('/users/:id')
+    .input({
+        params:  Type.Object({ id: Type.String() }),
+        query:   Type.Object({ notify: Type.Optional(Type.Boolean()) }),
+        body:    Type.Object({ name: Type.String() }),
+        headers: Type.Object({ authorization: Type.String() }),
+        cookies: Type.Object({ session: Type.String() }),
+    })
+    .handler(async (c) =>
+    {
+        const { params, query, body, headers, cookies } = await c.data();
+    });
 ```
 
-### Helper Functions (helpers.ts)
+### Type coercion
+
+Input is run through TypeBox `Value.Convert` before validation, so URL/query/param strings
+are coerced to their schema type:
 
 ```typescript
-import { Type } from '@sinclair/typebox';
-
-// Nullable - Creates a union of T | null
-export const Nullable = <T extends TSchema>(schema: T) =>
-    Type.Union([schema, Type.Null()]);
-
-// OptionalNullable - Creates a union of T | null | undefined
-export const OptionalNullable = <T extends TSchema>(schema: T) =>
-    Type.Optional(Type.Union([schema, Type.Null()]));
+.input({
+    params: Type.Object({ id: Type.Number() }),     // "123"  → 123
+    query:  Type.Object({ active: Type.Boolean(),    // "true" → true
+                          limit:  Type.Number() }),  // "10"   → 10
+})
 ```
 
-**Usage Examples:**
+### Validation errors
+
+Validation throws `ValidationError` (from `@spfn/core/errors`), caught by the global error
+handler → `400` with `{ error: { name, message, statusCode, fields: [{ path, message, value }] } }`.
+Validation runs in this order: **params → query → headers → cookies → body/formData**.
+
+### Built-in string formats
+
+`@spfn/core/route` registers these TypeBox formats at import time: `email`, `uri` (http/https),
+`uuid`, `date` (`YYYY-MM-DD`), `date-time`. Use via `Type.String({ format: 'email' })`.
+Register your own with `FormatRegistry.Set(...)` from `@sinclair/typebox`.
+
+### Nullable helpers
 
 ```typescript
-import { Type } from '@sinclair/typebox';
 import { Nullable, OptionalNullable } from '@spfn/core/route';
 
-const UserSchema = Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    nickname: Nullable(Type.String()),        // string | null
-    bio: OptionalNullable(Type.String()),     // string | null | undefined
-});
+Type.Optional(Type.String())     // string | undefined
+Nullable(Type.String())          // string | null
+OptionalNullable(Type.String())  // string | null | undefined
 ```
 
-### Type Inference Flow
+### File uploads (formData)
+
+`body` and `formData` are **mutually exclusive at runtime** — the request `Content-Type`
+decides: `multipart/form-data` → `formData` is parsed/validated; otherwise `body`. Declaring
+both is allowed but only one is populated per request.
 
 ```typescript
-// 1. Input definition with TypeBox schemas
-const input = {
-    params: Type.Object({ id: Type.String() }),
-    query: Type.Object({ page: Type.Number() })
-};
+import { route, FileSchema, FileArraySchema, OptionalFileSchema } from '@spfn/core/route';
 
-// 2. Type inference at compile time
-type InferredInput = MergedInput<typeof input, {}>;
-// Result: {
-//   params: { id: string },
-//   query: { page: number },
-//   body: {},
-//   headers: {},
-//   cookies: {}
-// }
+route.post('/upload')
+    .input({
+        formData: Type.Object({
+            avatar: FileSchema({                              // call it — it is a function
+                maxSize: 5 * 1024 * 1024,                     // 5MB
+                allowedTypes: ['image/jpeg', 'image/png'],
+            }),
+            docs: FileArraySchema({ maxFiles: 5 }),
+            note: OptionalFileSchema(),                       // optional file
+            description: Type.Optional(Type.String()),        // non-file fields validated by TypeBox
+        }),
+    })
+    .handler(async (c) =>
+    {
+        const { formData } = await c.data();
+        const avatar = formData.avatar as File; // file.name, file.size, file.type
+    });
+```
 
-// 3. Handler receives typed context
+File constraints (`maxSize`/`minSize`/`allowedTypes`/`maxFiles`/`minFiles`) are enforced
+separately from TypeBox and also surface as `ValidationError`.
+
+---
+
+## Handler & context
+
+`.handler((c) => ...)` receives a `RouteBuilderContext`. Input is read via the **async**
+`c.data()`; the return value of the handler becomes the response.
+
+### `c.data()`
+
+Returns `MergedInput` — the validated input merged with any `interceptor` fields. It is
+**async** (body/formData parsing) and **cached** (safe to call once per source destructure):
+
+```typescript
+const { params, query, body, formData, headers, cookies } = await c.data();
+```
+
+### Response: return value handling
+
+The registration layer inspects what the handler returns:
+
+- **Plain value** (object/array/primitive) → `c.json(value, 200)`. Type is inferred all the
+  way to the client. **This is the preferred path.**
+- **A `Response`** (e.g. from `c.json(...)` / `c.redirect(...)`) → returned as-is. Note this
+  **erases the inferred response type** — only use when you need a status the helpers don't cover.
+- Helper return values (`c.created`/`c.accepted`/`c.paginated`/...) carry status/headers via
+  internal metadata while still returning the **data** for inference.
+
+### Context helpers (exhaustive)
+
+| Helper | Returns | Effect |
+|--------|---------|--------|
+| `c.data()` | `Promise<MergedInput>` | Validated, merged, cached input. |
+| `c.json(data, status?, headers?)` | `Response` | Raw JSON response — **loses response type inference**. |
+| `c.created(data, location?)` | `T` (the data) | 201; sets `Location` header if given. |
+| `c.accepted(data?)` | `T` or `void` | 202; empty body when called with no argument. |
+| `c.noContent()` | `void` | 204, empty body. |
+| `c.notModified()` | `void` | 304, empty body. |
+| `c.paginated(items, page, limit, total)` | `PaginatedResult<T>` | `{ items, pagination: { page, limit, total, totalPages } }`. |
+| `c.redirect(url, status?)` | `Response` | Redirect (default 302). |
+| `c.raw` | Hono `Context` | Escape hatch for headers/streaming/`c.get()` set by middleware. |
+
+> `created`/`accepted`/`paginated` return the **data** (not a `Response`) precisely so the
+> response type is preserved — you must `return` them.
+
+```typescript
+route.delete('/users/:id')
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) =>
+    {
+        await userRepo.delete((await c.data()).params.id);
+        return c.noContent(); // 204, type: void
+    });
+
+route.get('/users')
+    .input({ query: Type.Object({ page: Type.Number(), limit: Type.Number() }) })
+    .handler(async (c) =>
+    {
+        const { query } = await c.data();
+        const { items, total } = await userRepo.findPaginated(query);
+        return c.paginated(items, query.page, query.limit, total); // PaginatedResult<User>
+    });
+```
+
+### Errors
+
+Throw — don't return error objects. `@spfn/core/errors` provides
+`BadRequestError`/`UnauthorizedError`/`ForbiddenError`/`NotFoundError`/`ConflictError`/
+`TooManyRequestsError`/`ValidationError`/`InternalServerError`, plus the generic
+`HttpError(status, message)`. The global handler serializes them.
+
+```typescript
+import { NotFoundError } from '@spfn/core/errors';
+
 route.get('/users/:id')
-    .input(input)
-    .handler(async (c) => {
-        const { params, query } = await c.data();
-        // params: { id: string }
-        // query: { page: number }
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) =>
+    {
+        const user = await userRepo.findById((await c.data()).params.id);
+        if (!user)
+        {
+            throw new NotFoundError({ resource: 'User' });
+        }
+        return user;
     });
+```
 
-// 4. With interceptor-injected fields
-const interceptor = {
-    body: Type.Object({
-        publicKey: Type.String(),
-        keyId: Type.String()
-    })
-};
+### `.interceptor()` — middleware-injected fields
 
-route.post('/auth/login')
-    .input({
-        body: Type.Object({
-            email: Type.String(),
-            password: Type.String()
-        })
-    })
-    .interceptor(interceptor)
-    .handler(async (c) => {
+When a middleware injects fields into the request (e.g. auth crypto keys), declare them with
+`.interceptor(...)`. They are merged into `c.data()` and **typed in the handler**, but
+**excluded from generated client types** (clients never send them). They are **not** validated
+by the route input schema (the middleware is responsible).
+
+```typescript
+route.post('/_auth/login')
+    .input({ body: Type.Object({ email: Type.String(), password: Type.String() }) })
+    .interceptor({ body: Type.Object({ publicKey: Type.String(), keyId: Type.String() }) })
+    .handler(async (c) =>
+    {
         const { body } = await c.data();
-        // body type: { email: string, password: string, publicKey: string, keyId: string }
-        // Client only sees: { email: string, password: string }
+        // handler sees: { email, password, publicKey, keyId }
+        // client sends only: { email, password }
+        return loginService(body);
     });
 ```
 
 ---
 
-## Builder Pattern Implementation
+## defineRouter — composition
 
-### RouteBuilder Class
-
-The `RouteBuilder` implements a fluent API for route construction:
+`defineRouter(routes)` groups routes into a `Router`. Values may be `RouteDef`s **or** nested
+`Router`s. The returned router is chainable.
 
 ```typescript
-export class RouteBuilder<
-    TInput extends RouteInput = {},
-    TInterceptor extends RouteInput = {},
-    TResponse = never
-> {
-    public _method?: HttpMethod;
-    public _path?: string;
-    public _input?: TInput;
-    public _interceptor?: TInterceptor;
-    public _middlewares?: (MiddlewareHandler | NamedMiddleware<any>)[];
-    public _skipMiddlewares?: string[] | '*';
+// Flat — keys become RPC method names
+export const appRouter = defineRouter({ getUser, createUser, updateUser });
 
-    // Chainable methods that return new builder instances
-    input<TNewInput extends RouteInput>(input: TNewInput): RouteBuilder<TNewInput, TInterceptor, TResponse>
-    interceptor<TNewInterceptor extends RouteInput>(interceptor: TNewInterceptor): RouteBuilder<TInput, TNewInterceptor, TResponse>
-    middleware(middlewares: (MiddlewareHandler | NamedMiddleware<any>)[]): RouteBuilder<TInput, TInterceptor, TResponse>
-    use(middlewares: (MiddlewareHandler | NamedMiddleware<any>)[]): RouteBuilder<TInput, TInterceptor, TResponse>
-    skip(middlewareNames: string[] | '*'): RouteBuilder<TInput, TInterceptor, TResponse>
+// Nested namespaces
+export const appRouter = defineRouter({
+    users: defineRouter({ get: getUser, create: createUser }),
+    posts: defineRouter({ list: listPosts, get: getPost }),
+});
 
-    // Terminal method that produces RouteDef
-    handler<THandlerResponse>(fn: RouteHandlerFn<TInput, TInterceptor, THandlerResponse>): RouteDef<TInput, TInterceptor, THandlerResponse>
-}
+// Spread route modules
+import * as userRoutes from './routes/users';
+export const appRouter = defineRouter({ ...userRoutes, ...postRoutes });
+
+export type AppRouter = typeof appRouter;
 ```
 
-**Key Design Decisions:**
+### `.packages([...])` — mount package routers
 
-1. **Immutability**: Each chainable method returns a new `RouteBuilder` instance
-2. **Type Preservation**: Generic parameters flow through the chain
-3. **Terminal Handler**: `.handler()` is the only way to finalize a route
-4. **No Method Overloading**: Single signature for each method reduces complexity
-
-### Factory Functions
+Attach routers from SPFN packages (`@spfn/auth`, `@spfn/cms`, …). Package routes **are**
+registered/served, but are **excluded from `AppRouter`'s client types** — call them through
+the package's own typed client (`authApi`, `cmsApi`) instead of `api`.
 
 ```typescript
-function createMethodRoute(method: HttpMethod): (path: string) => RouteBuilder {
-    return (path: string) => {
-        const builder = new RouteBuilder();
-        builder._method = method;
-        builder._path = path;
-        return builder;
-    };
-}
+import { authRouter } from '@spfn/auth/server';
 
-export const route = {
-    get: createMethodRoute('GET'),
-    post: createMethodRoute('POST'),
-    put: createMethodRoute('PUT'),
-    patch: createMethodRoute('PATCH'),
-    delete: createMethodRoute('DELETE'),
-};
+export const appRouter = defineRouter({ getRoot, getHealth })
+    .packages([authRouter]);
+// api.getRoot.call({})    — app route
+// authApi.login.call({})  — package route
+```
+
+`.packages()` also flattens any nested package routers the given routers themselves declared.
+
+### `.use([...])` — router-level global middleware
+
+Named middleware applied to **every** route in the router (and package routers), unless a
+route opts out with `.skip(...)`. These are merged with server-config middleware at registration.
+
+```typescript
+export const appRouter = defineRouter({ getRoot, getHealth })
+    .packages([authRouter])
+    .use([loggingMiddleware]);
 ```
 
 ---
 
-## Validation System
+## Middleware
 
-### Input Validation Flow
+### Route-level (`.use` / `.middleware`)
 
-```
-HTTP Request
-    ↓
-Extract & Parse (params, query, body, headers, cookies)
-    ↓
-TypeBox Value.Convert() - Type coercion
-    ↓
-TypeBox Value.Errors() - Schema validation
-    ↓
-Throw ValidationError if errors exist
-    ↓
-Return StructuredInput<TInput>
-```
-
-### Implementation (register-routes.ts)
+Accepts plain Hono `MiddlewareHandler`s and `NamedMiddleware`s, mixed:
 
 ```typescript
-async function createRouteBuilderContext<TInput extends RouteInput>(
-    c: Context,
-    input: TInput
-): Promise<RouteBuilderContext<TInput>> {
-    // 1. Validate params
-    let params: Record<string, any> = {};
-    if (input.params) {
-        params = c.req.param();
-        params = Value.Convert(input.params, params);
-
-        const errors = [...Value.Errors(input.params, params)];
-        if (errors.length > 0) {
-            throw new ValidationError({
-                message: 'Invalid path parameters',
-                fields: errors.map(e => ({
-                    path: e.path,
-                    message: e.message,
-                    value: e.value,
-                }))
-            });
-        }
-    }
-
-    // 2-5. Similar for query, body, headers, cookies
-    // ...
-
-    // 6. Return structured context
-    return {
-        data: async () => ({ params, query, body, headers, cookies }),
-        json: (data, status, headers) => c.json(data, status, headers),
-        created: (data, location) => { /* ... */ },
-        accepted: (data) => { /* ... */ },
-        noContent: () => { /* ... */ },
-        notModified: () => { /* ... */ },
-        paginated: (data, page, limit, total) => { /* ... */ },
-        raw: c
-    };
-}
+route.post('/posts')
+    .use([authenticate, rateLimit({ limit: 10 })])
+    .handler(async (c) => { ... });
 ```
 
-**Validation Order:**
-1. Path parameters (`:id`)
-2. Query parameters (`?page=1`)
-3. Request body (JSON)
-4. Headers (`authorization`)
-5. Cookies (`session`)
+### Named middleware (`defineMiddleware`)
 
-**Error Handling:**
-- All validation errors throw `ValidationError`
-- Errors include field path, message, and actual value
-- Caught by global error handler middleware
+A named middleware can be **skipped by name** at the route level and is **deduplicated** if
+present both globally and route-level. `defineMiddleware` auto-detects form by parameter count:
+a 2-arg function is a `(c, next)` handler; anything else is a factory.
+
+```typescript
+import { defineMiddleware } from '@spfn/core/route';
+
+// Regular handler — exactly (c, next)
+export const authMiddleware = defineMiddleware('auth', async (c, next) =>
+{
+    if (!c.req.header('authorization')) return c.json({ error: 'Unauthorized' }, 401);
+    c.set('user', await verifyToken(c.req.header('authorization')!));
+    await next();
+});
+
+// Factory — any arg count other than 2
+export const requirePermissions = defineMiddleware('permission',
+    (...perms: string[]) => async (c, next) =>
+    {
+        if (!hasPermissions(c.get('user'), perms)) return c.json({ error: 'Forbidden' }, 403);
+        await next();
+    });
+
+route.get('/admin').use([requirePermissions('admin:write')]).handler(...);
+```
+
+### `defineMiddlewareFactory` — for 2-arg factories
+
+A factory whose own signature is exactly two args (e.g. `(limit, window) => handler`) would be
+misread as a `(c, next)` handler by `defineMiddleware`. Use `defineMiddlewareFactory` to force
+the factory interpretation:
+
+```typescript
+import { defineMiddlewareFactory } from '@spfn/core/route';
+
+export const rateLimiter = defineMiddlewareFactory('rateLimit',
+    (limit: number, window: number) => async (c, next) => { /* ... */ await next(); });
+
+route.get('/api').use([rateLimiter(100, 60_000)]).handler(...);
+```
+
+### Skipping & auto-skip
+
+```typescript
+route.get('/health').skip(['auth']).handler(...);   // skip a specific server-level middleware
+route.get('/health').skip('*').handler(...);          // skip ALL server-level middleware
+```
+
+`.skip(...)` only affects **server-level named middleware** — middleware added via `.use()`
+on the same route is never skipped. A named middleware can declare auto-skips so callers don't
+need an explicit `.skip`:
+
+```typescript
+// optionalAuth auto-skips the global 'auth' whenever it is used
+export const optionalAuth = defineMiddleware('optionalAuth', handler, { skips: ['auth'] });
+route.get('/feed').use([optionalAuth]).handler(...); // 'auth' auto-skipped, no .skip needed
+```
+
+### Effective order at registration
+
+```
+server-level named middleware (minus skipped / auto-skipped)
+  → route-level middleware (.use, deduped against the above)
+    → input validation
+      → handler
+```
+
+Dedup rules: named middleware by `name`; plain middleware by handler reference.
 
 ---
 
-## Response Patterns
+## Pitfalls & anti-patterns
 
-### Direct Return (Recommended)
+- **`c.data()` is async — `await` it.** `const { params } = c.data()` (no `await`) yields a
+  Promise, not your input.
+- **File schemas are functions: `FileSchema()`, not `FileSchema`.** Passing the function
+  reference (no `()`) produces an invalid schema. Same for `FileArraySchema`/`OptionalFileSchema`.
+  (Some old docs show `file: FileSchema` — wrong.)
+- **Returning a `Response` erases response-type inference.** `return c.json(data, 418)` makes
+  the client type `unknown`/`Response`. Prefer a plain `return data` or a typed helper
+  (`c.created`, `c.paginated`) unless you genuinely need a custom status.
+- **You must `return` the response helpers.** `c.created(user)` / `c.noContent()` set metadata
+  and return the value/void — calling without `return` does nothing useful.
+- **`created`/`accepted`/`paginated` return data, not a `Response`.** Don't `await c.json(...)`
+  on their output or wrap them again — just `return` them.
+- **`.skip(...)` does not skip `.use(...)` middleware.** It only filters **server-level named**
+  middleware. To not run a route-level middleware, don't add it.
+- **`skip`/`skips` match by middleware *name*, not import identity.** Only `defineMiddleware`-
+  created middleware has a name; a plain `MiddlewareHandler` can't be targeted by `.skip`.
+- **`body` vs `formData` is decided by `Content-Type`.** A JSON request won't populate
+  `formData` and a multipart request won't populate `body`. Don't expect both.
+- **Package routes aren't in `AppRouter` types.** After `.packages([authRouter])`, call those
+  endpoints via the package client (`authApi`), not via `api` — `typeof appRouter` deliberately
+  hides them.
+- **`.handler` is terminal.** No chaining after it (it returns a `RouteDef`, not a builder).
+  Put `.input/.interceptor/.use/.skip` before `.handler`.
+- **Headers are lowercased.** Declare `headers: Type.Object({ authorization: ... })`, not
+  `Authorization`. Cookies are split from the `cookie` header and URL-decoded.
+- **No contract-first API.** There is no `createApp`/`createContract`/`.bind()`/`.meta()`/
+  `RouteMeta`. A route is fully defined by `route.<m>(path).input(...).handler(...)`.
 
-The simplest and most type-safe way to return data from handlers:
+---
+
+## Complete example
 
 ```typescript
-export const getUser = route.get('/users/:id')
+// routes/users.ts
+import { route, FileSchema } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
+import { NotFoundError } from '@spfn/core/errors';
+import { userRepo } from '../repositories/user.repository';
+
+export const listUsers = route.get('/users')
     .input({
-        params: Type.Object({ id: Type.String() })
+        query: Type.Object({
+            page:  Type.Number({ default: 1 }),
+            limit: Type.Number({ default: 20 }),
+            search: Type.Optional(Type.String()),
+        }),
     })
-    .handler(async (c) => {
-        const { params } = await c.data();
-        const user = await db.getUser(params.id);
-
-        if (!user) {
-            throw new Error('User not found');
-        }
-
-        // Direct return - perfect type inference!
-        return {
-            id: user.id,
-            name: user.name,
-            email: user.email
-        };
+    .handler(async (c) =>
+    {
+        const { query } = await c.data();
+        const { items, total } = await userRepo.findPaginated(query);
+        return c.paginated(items, query.page, query.limit, total);
     });
 
-// Response body: { id: '123', name: 'John', email: 'john@example.com' }
-// Client type: { id: string; name: string; email: string }
-```
-
-**Advantages:**
-- ✅ Perfect TypeScript inference
-- ✅ Clean, minimal code
-- ✅ tRPC-style developer experience
-- ✅ Automatic JSON serialization
-
-**How it works:**
-- Handler returns plain JavaScript object/array/primitive
-- Framework automatically wraps with `c.json(result)`
-- No response wrapper - client receives data directly
-
-### Response Helpers (Optional)
-
-For cases requiring custom status codes, headers, or response structure:
-
-```typescript
-export const createUser = route.post('/users')
-    .input({ body: Type.Object({ name: Type.String() }) })
-    .handler(async (c) => {
-        const { body } = await c.data();
-        const user = await db.createUser(body);
-
-        // Created with Location header
-        return c.created(user, `/users/${user.id}`);
-        // Response: 201 Created
-        // Header: Location: /users/123
-    });
-
-export const deleteUser = route.delete('/users/:id')
-    .handler(async (c) => {
-        await db.deleteUser((await c.data()).params.id);
-
-        // No content
-        return c.noContent();
-        // Response: 204 No Content (empty body)
-    });
-
-export const updateUser = route.put('/users/:id')
-    .handler(async (c) => {
-        // Custom status code
-        return c.json({ updated: true }, 202);
-        // Response: 202 Accepted
-    });
-```
-
-**Available Helpers:**
-- `c.json(data, status?, headers?)` - Custom JSON response
-- `c.created(data, location?)` - 201 with Location header
-- `c.accepted(data?)` - 202 Accepted
-- `c.noContent()` - 204 No Content
-- `c.notModified()` - 304 Not Modified
-
-**When to use helpers:**
-- Need specific HTTP status codes (201, 202, 204, 304, etc.)
-- Need custom headers (Location, Cache-Control, etc.)
-- Paginated responses (`c.paginated()`)
-
-### Error Handling
-
-Errors are handled by throwing:
-
-```typescript
 export const getUser = route.get('/users/:id')
-    .handler(async (c) => {
-        const user = await db.getUser((await c.data()).params.id);
-
-        if (!user) {
-            // Throw standard Error
-            throw new Error('User not found');
-            // Framework converts to proper error response
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) =>
+    {
+        const user = await userRepo.findById((await c.data()).params.id);
+        if (!user)
+        {
+            throw new NotFoundError({ resource: 'User' });
         }
-
         return user;
     });
 
-// For custom error codes:
-export const protectedRoute = route.get('/protected')
-    .handler(async (c) => {
-        const user = await authenticate(c);
+export const createUser = route.post('/users')
+    .input({
+        body: Type.Object({
+            name:  Type.String({ minLength: 1, maxLength: 100 }),
+            email: Type.String({ format: 'email' }),
+        }),
+    })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const user = await userRepo.create(body);
+        return c.created(user, `/users/${user.id}`);
+    });
 
-        if (!user) {
-            // Use ValidationError for 400-level errors
-            throw new ValidationError({
-                message: 'Authentication required',
-                fields: [{ path: '/auth', message: 'Missing token' }]
-            });
-        }
+export const uploadAvatar = route.post('/users/:id/avatar')
+    .input({
+        params: Type.Object({ id: Type.String() }),
+        formData: Type.Object({
+            avatar: FileSchema({ maxSize: 5 * 1024 * 1024, allowedTypes: ['image/jpeg', 'image/png'] }),
+        }),
+    })
+    .handler(async (c) =>
+    {
+        const { params, formData } = await c.data();
+        await userRepo.setAvatar(params.id, formData.avatar as File);
+        return c.noContent();
+    });
 
-        return { data: 'protected' };
+export const deleteUser = route.delete('/users/:id')
+    .skip(['rateLimit'])
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) =>
+    {
+        await userRepo.delete((await c.data()).params.id);
+        return c.noContent();
     });
 ```
 
----
+```typescript
+// router.ts
+import { defineRouter } from '@spfn/core/route';
+import { authRouter } from '@spfn/auth/server';
+import { loggingMiddleware } from './middlewares/logging';
+import * as userRoutes from './routes/users';
 
-## Middleware System
+export const appRouter = defineRouter({ ...userRoutes })
+    .packages([authRouter])
+    .use([loggingMiddleware]);
 
-### Named Middleware Types
+export type AppRouter = typeof appRouter;
+```
 
 ```typescript
-// define-middleware.ts
-
-// Regular named middleware
-export type NamedMiddleware<TName extends string = string> = {
-    name: TName;
-    handler: MiddlewareHandler;
-    _name: TName;  // Type inference helper
-    skips?: string[];  // Server-level middlewares to auto-skip when this middleware is used
-};
-
-// Factory middleware with parameters
-export type NamedMiddlewareFactory<TName extends string, TArgs extends any[]> = {
-    name: TName;
-    _name: TName;  // Type inference helper
-} & ((...args: TArgs) => MiddlewareHandler);
-```
-
-### defineMiddleware Function
-
-Supports two patterns via function overloading:
-
-```typescript
-// Overload 1: Regular middleware
-export function defineMiddleware<TName extends string>(
-    name: TName,
-    handler: MiddlewareHandler,
-    options?: DefineMiddlewareOptions
-): NamedMiddleware<TName>;
-
-// Overload 2: Factory middleware
-export function defineMiddleware<TName extends string, TArgs extends any[]>(
-    name: TName,
-    factory: (...args: TArgs) => MiddlewareHandler,
-    options?: DefineMiddlewareOptions
-): NamedMiddlewareFactory<TName, TArgs>;
-
-// Options
-interface DefineMiddlewareOptions {
-    skips?: string[];  // Server-level middlewares to auto-skip
-}
-```
-
-**Usage Examples:**
-
-```typescript
-// Regular middleware - handler with (c, next) signature
-export const authMiddleware = defineMiddleware('auth', async (c, next) => {
-    const token = c.req.header('authorization');
-    if (!token) {
-        return c.json({ error: 'Unauthorized' }, 401);
-    }
-    c.set('user', await verifyToken(token));
-    await next();
-});
-
-// Factory middleware - returns handler based on parameters
-export const requirePermissions = defineMiddleware('permission',
-    (...permissions: string[]) => async (c, next) => {
-        const user = c.get('user');
-        if (!hasPermissions(user, permissions)) {
-            return c.json({ error: 'Forbidden' }, 403);
-        }
-        await next();
-    }
-);
-
-// Usage in routes
-route.get('/admin')
-    .use([requirePermissions('admin:write')])  // Factory called with args
-    .handler(async (c) => { ... });
-
-route.get('/profile')
-    .use([authMiddleware])  // Regular middleware used directly
-    .handler(async (c) => { ... });
-```
-
-**Design Rationale:**
-- `_name` field enables TypeScript literal type inference
-- Type parameter `TName` captured for compile-time checking
-- Name used for runtime middleware filtering
-- Factory pattern distinguishes by parameter count (2 = regular, other = factory)
-
-### defineMiddlewareFactory Function
-
-For factory middlewares with exactly 2 parameters (which would be misdetected by `defineMiddleware`):
-
-```typescript
-// Factory with 2 params would be incorrectly detected as regular middleware
-// Use defineMiddlewareFactory explicitly
-export const rateLimiter = defineMiddlewareFactory('rateLimit',
-    (limit: number, window: number) => async (c, next) => {
-        // rate limit logic using limit and window
-        await next();
-    }
-);
-
-// Usage
-route.get('/api')
-    .use([rateLimiter(100, 60000)])  // 100 requests per minute
-    .handler(...)
-```
-
-### Middleware Application Order
-
-```
-Request
-    ↓
-[Server-level named middlewares] (filtered by skipMiddlewares)
-    ↓
-[Route-level middlewares] (from .use())
-    ↓
-[Validation middleware] (automatic)
-    ↓
-Route handler
-```
-
-### Skip Control and Deduplication
-
-```typescript
-// In registerRoute()
-function registerRoute(
-    app: Hono,
-    name: string,
-    routeDef: RouteDef<any>,
-    namedMiddlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>
-): void {
-    const { skipMiddlewares, middlewares = [] } = routeDef;
-    const skipAll = skipMiddlewares === '*';
-
-    const allMiddlewares: MiddlewareHandler[] = [];
-
-    // Track global middleware handlers to prevent duplicates
-    const globalHandlers = new Set<MiddlewareHandler>();
-
-    // Add server-level middlewares (filtered by skip)
-    if (namedMiddlewares && namedMiddlewares.length > 0) {
-        if (skipAll) {
-            logger.debug(`Skipping all middlewares (*) for route: ${method} ${path}`);
-        } else {
-            const skipSet = new Set(Array.isArray(skipMiddlewares) ? skipMiddlewares : []);
-            for (const middleware of namedMiddlewares) {
-                if (!skipSet.has(middleware.name)) {
-                    allMiddlewares.push(middleware.handler);
-                    globalHandlers.add(middleware.handler);
-                } else {
-                    logger.debug(`Skipping middleware '${middleware.name}' for route: ${method} ${path}`);
-                }
-            }
-        }
-    }
-
-    // Add route-level middlewares (with deduplication)
-    for (const mw of middlewares) {
-        // Extract handler from NamedMiddleware or use directly
-        const handler = isNamedMiddleware(mw) ? mw.handler : mw;
-
-        // Check if already added from global middlewares
-        if (globalHandlers.has(handler)) {
-            const middlewareName = isNamedMiddleware(mw) ? mw.name : 'unknown';
-            logger.debug(`Skipping duplicate middleware '${middlewareName}' for route: ${method} ${path}`);
-            continue;
-        }
-
-        allMiddlewares.push(handler);
-    }
-
-    // Register to Hono
-    app[methodLower](path, ...allMiddlewares, wrappedHandler);
-}
-```
-
-**Skip Semantics:**
-- `skip(['auth'])` - Skip specific named middlewares
-- `skip('*')` - Skip all server-level middlewares
-- `skips` option on `NamedMiddleware` - Auto-skip specified server-level middlewares when the middleware is used at route level (e.g., `optionalAuth` with `skips: ['auth']`)
-- Route-level middlewares (`.use()`) are never skipped
-- Validation middleware is never skipped
-
-**Middleware Deduplication:**
-- When a NamedMiddleware is registered both globally and route-level, it's automatically deduplicated
-- NamedMiddleware: deduplicated by name (same name = duplicate)
-- Regular middleware: deduplicated by handler reference equality
-- Only the first instance is used (duplicate is skipped)
-- Debug logs indicate when deduplication occurs
-
----
-
-## Router Composition
-
-### defineRouter Implementation
-
-```typescript
-export function defineRouter<TRoutes extends Record<string, RouteDef<any, any> | Router<any>>>(
-    routes: TRoutes
-): Router<TRoutes> {
-    return {
-        routes,
-        _routes: routes,  // Type inference helper
-    };
-}
-```
-
-**Usage Patterns:**
-
-```typescript
-// Pattern 1: Flat spread
-export const appRouter = defineRouter({
-    ...userRoutes,    // { getUser, createUser, updateUser }
-    ...teamRoutes,    // { getTeam, createTeam, updateTeam }
-});
-
-// Pattern 2: Nested namespacing
-export const appRouter = defineRouter({
-    users: defineRouter(userRoutes),
-    teams: defineRouter(teamRoutes),
-});
-
-// Pattern 3: Mixed
-export const appRouter = defineRouter({
-    ...publicRoutes,  // Flat spread
-    admin: defineRouter(adminRoutes),  // Nested
-});
-```
-
-### Type Guard Functions
-
-```typescript
-function isRouter(value: unknown): value is Router<any> {
-    return value !== null &&
-        typeof value === 'object' &&
-        'routes' in value &&
-        '_routes' in value;
-}
-
-function isRouteDef(value: unknown): value is RouteDef<any> {
-    return value !== null &&
-        typeof value === 'object' &&
-        'handler' in value;
-}
-```
-
-**Recursive Registration:**
-
-```typescript
-export function registerRoutes<TRoutes>(
-    app: Hono,
-    router: Router<TRoutes>,
-    namedMiddlewares?: ReadonlyArray<NamedMiddleware<any>>
-): void {
-    for (const [name, routeOrRouter] of Object.entries(router.routes)) {
-        if (isRouter(routeOrRouter)) {
-            // Nested router - recurse
-            registerRoutes(app, routeOrRouter, namedMiddlewares);
-        } else if (isRouteDef(routeOrRouter)) {
-            // Single route - register
-            registerRoute(app, name, routeOrRouter, namedMiddlewares);
-        }
-    }
-}
-```
-
----
-
-## Server Integration
-
-### Config Builder Pattern
-
-```typescript
-// server/config-builder.ts
-export class ServerConfigBuilder {
-    private config: ServerConfig = {};
-
-    routes(router: Router<any>): this {
-        this.config.routes = router;
-        return this;
-    }
-
-    middlewares(middlewares: readonly NamedMiddleware<any>[]): this {
-        this.config.middlewares = middlewares;
-        return this;
-    }
-
-    build(): ServerConfig {
-        return this.config;
-    }
-}
-
-export function defineServerConfig(): ServerConfigBuilder {
-    return new ServerConfigBuilder();
-}
-```
-
-### Automatic Registration
-
-```typescript
-// server/create-server.ts
-async function loadAppRoutes(app: Hono, config?: ServerConfig): Promise<void> {
-    // Register define-route routes (if provided)
-    if (config?.routes) {
-        registerRoutes(app, config.routes, config.middlewares);
-    }
-}
-```
-
----
-
-## Context API
-
-### RouteBuilderContext
-
-```typescript
-export type RouteBuilderContext<
-    TInput extends RouteInput = RouteInput,
-    TInterceptor extends RouteInput = {}
-> = {
-    // Structured input accessor (returns merged input + interceptor fields)
-    data(): Promise<MergedInput<TInput, TInterceptor>>;
-
-    // Response helpers
-    json(data: any, status?: ContentfulStatusCode, headers?: Record<string, string | string[]>): Response;
-    created(data: any, location?: string): Response;
-    accepted(data?: any): Response;
-    noContent(): Response;
-    notModified(): Response;
-    paginated(data: any[], page: number, limit: number, total: number): Response;
-
-    // Raw Hono context
-    raw: Context;
-};
-```
-
-**Design Decisions:**
-
-1. **Async data()**: Returns Promise to support async body parsing
-2. **Structured Return**: Returns object with separate fields (not merged)
-3. **Response Helpers**: Convenience methods for common patterns
-4. **Raw Access**: Escape hatch for advanced Hono features
-
-### Response Helper Implementation
-
-```typescript
-created: (data, location) => {
-    const headers: Record<string, string> = {};
-    if (location) {
-        headers['Location'] = location;
-    }
-    return c.json(data, 201, headers);
-},
-
-accepted: (data) => {
-    if (data === undefined) {
-        return c.body(null, 202);
-    }
-    return c.json(data, 202);
-},
-
-noContent: () => {
-    return c.body(null, 204);
-},
-
-notModified: () => {
-    return c.body(null, 304);
-},
-
-paginated: (data, page, limit, total) => {
-    return c.json({
-        items: data,
-        pagination: {
-            page,
-            limit,
-            total,
-            totalPages: Math.ceil(total / limit),
-        },
-    }, 200);
-},
-```
-
----
-
-## Extension Points
-
-### Custom Response Helpers
-
-Add custom helpers by extending `RouteBuilderContext`:
-
-```typescript
-// Extend the context type
-declare module '@spfn/core/route' {
-    interface RouteBuilderContext {
-        customHelper(data: any): Response;
-    }
-}
-
-// Implement in createRouteBuilderContext()
-return {
-    // ... existing helpers
-    customHelper: (data) => {
-        return c.json({ custom: true, data });
-    },
-    raw: c
-};
-```
-
-### Custom Validation
-
-Extend TypeBox schemas with custom formats:
-
-```typescript
-import { FormatRegistry } from '@sinclair/typebox';
-
-// Register custom format
-FormatRegistry.Set('slug', (value) => /^[a-z0-9-]+$/.test(value));
-
-// Use in schema
-const input = {
-    params: Type.Object({
-        slug: Type.String({ format: 'slug' })
-    })
-};
-```
-
-### Custom Middleware
-
-Named middlewares enable type-safe skip control:
-
-```typescript
-// Define middleware
-export const customMiddleware = defineMiddleware('custom', async (c, next) => {
-    // middleware logic
-    await next();
-});
-
-// Register globally
-const config = defineServerConfig()
-    .middlewares([customMiddleware])
+// server.config.ts — registration is done by @spfn/core/server
+import { defineServerConfig } from '@spfn/core/server';
+import { authMiddleware } from './middlewares/auth';
+import { appRouter } from './router';
+
+export default defineServerConfig()
+    .middlewares([authMiddleware]) // server-level named middleware (skippable per-route)
+    .routes(appRouter)             // calls registerRoutes(app, appRouter, middlewares) internally
     .build();
-
-// Skip in specific routes
-route.get('/public')
-    .skip(['custom'])
-    .handler(async (c) => { ... });
 ```
 
 ---
 
-## Performance Considerations
-
-### Type Inference Cost
-
-- Type inference happens at compile time (zero runtime cost)
-- `_input` and `_response` fields are never accessed at runtime
-- Only used by TypeScript for type checking
-
-### Validation Cost
-
-- TypeBox validation is fast (~1-2ms for typical schemas)
-- Value.Convert() minimizes overhead with in-place modifications
-- Errors array is lazy (only created on validation failure)
-
-### Middleware Overhead
-
-- Skip check is O(n) where n = number of named middlewares (typically < 10)
-- Set lookup is O(1) for skip checking
-- Wildcard check is O(1)
-
-### Memory Usage
-
-- Each route creates one `RouteBuilder` instance per chain
-- Intermediate builders are garbage collected immediately
-- Final `RouteDef` is retained in router
-
----
-
-## Testing Strategy
-
-### Unit Tests
-
-Test individual components in isolation:
+## Types reference
 
 ```typescript
-// Test route builder
-it('should chain methods correctly', () => {
-    const route = route.get('/users/:id')
-        .input({ params: Type.Object({ id: Type.String() }) })
-        .handler(async (c) => c.json({ id: c.params.id }));
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-    expect(route.method).toBe('GET');
-    expect(route.path).toBe('/users/:id');
-    expect(route.input).toBeDefined();
-});
+type RouteInput = {
+    params?: TSchema; query?: TSchema; body?: TSchema;
+    formData?: TSchema; headers?: TSchema; cookies?: TSchema;
+};
 
-// Test validation
-it('should validate params correctly', async () => {
-    const input = { params: Type.Object({ id: Type.Integer() }) };
-    const context = await createRouteBuilderContext(mockContext, input);
+type RouteDef<TInput, TInterceptor, TResponse> = {
+    method?: HttpMethod; path?: string;
+    input?: TInput; interceptor?: TInterceptor;
+    middlewares?: (MiddlewareHandler | NamedMiddleware<string>)[];
+    skipMiddlewares?: string[] | '*';
+    handler: RouteHandlerFn<TInput, TInterceptor, TResponse>;
+    // _input / _interceptor / _response: compile-time inference helpers (never read at runtime)
+};
 
-    // Should throw ValidationError for invalid input
-});
+type Router<TRoutes> = {
+    routes: TRoutes;
+    packages(routers: Router<any>[]): Router<TRoutes>;
+    use(middlewares: NamedMiddleware<string>[]): Router<TRoutes>;
+    // _routes / _packageRouters / _globalMiddlewares: internal
+};
+
+type PaginatedResult<T> = {
+    items: T[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+};
+
+type NamedMiddleware<TName extends string = string> = {
+    name: TName; handler: MiddlewareHandler; _name: TName; skips?: string[];
+};
+
+type RegisteredRoute = { method: HttpMethod; path: string; name: string };
 ```
 
-### Integration Tests
+`registerRoutes(app, router, namedMiddlewares?, collectedRoutes?)` returns the flattened
+`RegisteredRoute[]` (including nested and package routers) — useful for logging mounted routes.
 
-Test full request/response cycle:
+## Related
 
-```typescript
-it('should handle request end-to-end', async () => {
-    const getUser = route.get('/users/:id')
-        .input({ params: Type.Object({ id: Type.String() }) })
-        .handler(async (c) => {
-            const { params } = await c.data();
-            return { id: params.id, name: 'John' };
-        });
-
-    const router = defineRouter({ getUser });
-    const app = await createServer(defineServerConfig().routes(router).build());
-
-    const res = await app.request('/users/123');
-    const data = await res.json();
-
-    expect(res.status).toBe(200);
-    expect(data).toEqual({ id: '123', name: 'John' });
-});
-```
-
----
-
-## Future Enhancements
-
-### Potential Improvements
-
-1. **Streaming Responses**: Support streaming for large payloads
-2. **WebSocket Support**: Add `.ws()` method for WebSocket routes
-3. **OpenAPI Generation**: Generate OpenAPI specs from route definitions
-4. **Client Generation**: Auto-generate type-safe API clients
-5. **Rate Limiting**: Built-in rate limiting with `.rateLimit()` method
-
----
-
-## Related Systems
-
-### Integration with Other Modules
-
-- **@spfn/core/errors**: ValidationError, HttpError classes
-- **@spfn/core/logger**: Route registration logging
-- **@spfn/core/server**: Server configuration and startup
-
----
-
-## References
-
-- [TypeBox](https://github.com/sinclairzx81/typebox) - Schema validation
-- [Hono](https://hono.dev) - Web framework
-- [tRPC](https://trpc.io) - Inspiration for builder pattern
+- [@spfn/core/server](../server/README.md) — `defineServerConfig().routes(router)`, which mounts the router.
+- [@spfn/core/errors](../errors/README.md) — error classes thrown from handlers and validation.
+- [@sinclair/typebox](https://github.com/sinclairzx81/typebox) — schema builder (`Type`) used in `.input()`.
+- [Hono](https://hono.dev) — underlying framework; `c.raw` is a Hono `Context`.

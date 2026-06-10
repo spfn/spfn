@@ -1,286 +1,256 @@
-# @spfn/core/errors - Error Handling
+# @spfn/core/errors — Serializable HTTP/DB error classes with cross-boundary deserialization
 
-Type-safe custom error classes with HTTP status codes and metadata for API responses.
+Type-safe error classes that carry an HTTP status code, auto-serialize to JSON via
+`toJSON()`, and can be reconstructed as real error instances on the client through an
+`ErrorRegistry`.
 
-## Core Components
+## Import paths
 
+```typescript
+// Error classes, base class, registry, type guards
+import {
+    NotFoundError,
+    ValidationError,
+    EntityNotFoundError,
+    SerializableError,
+    ErrorRegistry,
+    errorRegistry,
+    isHttpError,
+} from '@spfn/core/errors';
 ```
-errors/
-├── index.ts              # Module exports
-├── serializable-error.ts # SerializableError base class
-├── error-registry.ts     # ErrorRegistry for deserialization
-├── http-errors.ts        # HTTP error classes
-├── database-errors.ts    # Database error classes
-├── error-utils.ts        # Type guard utilities
-└── __tests__/
-    ├── database-errors.test.ts
-    ├── http-errors.test.ts
-    └── error-utils.test.ts
-```
 
-## Features
+Everything in this module is also re-exported from the package root `@spfn/core`, so
+`import { NotFoundError } from '@spfn/core'` works too. Prefer the `@spfn/core/errors`
+subpath in new code.
 
-- ✅ **Type-Safe**: Full TypeScript support with error hierarchy
-- ✅ **HTTP Status Codes**: Automatic mapping to appropriate status codes
-- ✅ **Error Metadata**: Additional context via `details` field
-- ✅ **JSON Serialization**: HTTP errors (SerializableError) have built-in `toJSON()`
-- ✅ **Error Registry**: Client-side error deserialization with ErrorRegistry
-- ✅ **Stack Traces**: Preserved for debugging
+Related symbols that live in **other** subpaths (a common mistake):
+
+- `ErrorHandler` (the Hono `onError` middleware) → `@spfn/core/middleware`.
+- `fromPostgresError` (Postgres error-code → DB error mapping) → `@spfn/core/db`,
+  **not** `@spfn/core/errors`.
+
+---
+
+## Public API (complete)
+
+From `@spfn/core/errors`:
+
+- Base: `SerializableError` (abstract class), `ErrorRegistry` (class),
+  `errorRegistry` (a pre-populated `ErrorRegistry` instance)
+- HTTP errors: `HttpError`, `BadRequestError`, `ValidationError`, `UnauthorizedError`,
+  `ForbiddenError`, `NotFoundError`, `ConflictError`, `GoneError`,
+  `TooManyRequestsError`, `UnsupportedMediaTypeError`, `UnprocessableEntityError`,
+  `InternalServerError`, `ServiceUnavailableError`
+- Database errors: `DatabaseError`, `ConnectionError`, `QueryError`,
+  `EntityNotFoundError`, `ConstraintViolationError`, `TransactionError`,
+  `DeadlockError`, `DuplicateEntryError`
+- Namespaced re-exports: `HttpErrors` (`HttpErrors.NotFoundError`, …),
+  `DatabaseErrors` (`DatabaseErrors.QueryError`, …)
+- Type guards: `isHttpError`, `isDatabaseError`, `hasStatusCode`
+- Types: `SerializedError`, `SerializableErrorConstructor`, `ErrorRegistryInput`
+
+> **Every constructor takes a single object argument.** There is **no** positional form.
+> `new NotFoundError('User', 123)`, `new EntityNotFoundError('User', 123)`,
+> `new DatabaseError('msg', 500, {...})`, `new HttpError(404, 'msg')` do **not** exist —
+> these were old signatures and will not compile. Use the object forms below.
+>
+> There is **no** `name` or `timestamp` field on the serialized output, and **no**
+> `code` field. Serialized JSON is `{ __type, message, ...publicFields }` — `statusCode`
+> is intentionally excluded (it is inferred from the type on deserialize). Old docs
+> showing `{ "name": ..., "timestamp": ... }` responses are wrong.
 
 ---
 
 ## Quick Start
 
-### Basic Usage
-
 ```typescript
-import {
-  EntityNotFoundError,
-  ValidationError,
-  DuplicateEntryError,
-  UnauthorizedError,
-  ForbiddenError,
-  NotFoundError
-} from '@spfn/core';
+import { NotFoundError, ValidationError } from '@spfn/core/errors';
 
-// Database errors
-throw new EntityNotFoundError('User', 123);
-// NotFoundError: User with id 123 not found (404)
+// Throw anywhere in a route/service. The ErrorHandler middleware serializes it.
+throw new NotFoundError({ message: 'User not found', resource: 'User' });
 
 throw new ValidationError({
-  message: 'Invalid input',
-  fields: [{ path: '/email', message: 'Email is required' }]
+    message: 'Invalid input',
+    fields: [{ path: '/email', message: 'Email is required' }],
 });
-// ValidationError: Invalid input (400)
-
-throw new DuplicateEntryError('email', 'john@example.com');
-// DuplicateEntryError: email 'john@example.com' already exists (409)
-
-// HTTP errors
-throw new UnauthorizedError({ message: 'Invalid token' });
-// UnauthorizedError: Invalid token (401)
-
-throw new ForbiddenError({ message: 'Insufficient permissions' });
-// ForbiddenError: Insufficient permissions (403)
-
-throw new NotFoundError({ message: 'User not found', resource: 'User' });
-// NotFoundError: User not found (404)
 ```
 
-### With Error Handler Middleware
+Wire up the handler once (it is **not** automatic — see Pitfalls):
 
 ```typescript
-import { ErrorHandler } from '@spfn/core';
-import { app } from './app';
+import { Hono } from 'hono';
+import { ErrorHandler } from '@spfn/core/middleware';
 
-// Automatically converts errors to JSON responses
+const app = new Hono();
 app.onError(ErrorHandler());
 ```
 
-### API Response Example (SerializableError)
+Response for the `NotFoundError` above (HTTP 404):
 
 ```json
 {
-  "__type": "NotFoundError",
-  "message": "User not found",
-  "resource": "User"
+    "__type": "NotFoundError",
+    "message": "User not found",
+    "resource": "User"
 }
 ```
 
-**Note:** SerializableError automatically serializes all public fields via `toJSON()`. The response format varies based on error type and fields.
-
 ---
 
-## Error Classes
+## HTTP error classes
 
-### Base: `DatabaseError`
+All extend `HttpError → SerializableError`. Each constructor takes an object. Classes
+with no required fields accept zero args and fall back to a default message.
 
-Base class for all database-related errors.
+| Class | Status | Constructor arg | Extra public fields |
+|---|---|---|---|
+| `HttpError` | (required) | `{ message, statusCode, details? }` | `details?` |
+| `BadRequestError` | 400 | `{ message?, details? }` | — |
+| `ValidationError` | 400 | `{ message, fields?, details? }` | `fields?` |
+| `UnauthorizedError` | 401 | `{ message?, details? }` | — |
+| `ForbiddenError` | 403 | `{ message?, details? }` | — |
+| `NotFoundError` | 404 | `{ message?, resource?, details? }` | `resource?` |
+| `ConflictError` | 409 | `{ message?, details? }` | — |
+| `GoneError` | 410 | `{ message?, resource?, details? }` | `resource?` |
+| `UnsupportedMediaTypeError` | 415 | `{ message?, mediaType?, supportedTypes?, details? }` | `mediaType?`, `supportedTypes?` |
+| `UnprocessableEntityError` | 422 | `{ message?, details? }` | — |
+| `TooManyRequestsError` | 429 | `{ message?, retryAfter?, details? }` | `retryAfter?` |
+| `InternalServerError` | 500 | `{ message?, details? }` | — |
+| `ServiceUnavailableError` | 503 | `{ message?, retryAfter?, details? }` | `retryAfter?` |
 
 ```typescript
-import { DatabaseError } from '@spfn/core';
+import {
+    BadRequestError,
+    UnauthorizedError,
+    ForbiddenError,
+    NotFoundError,
+    ConflictError,
+    ValidationError,
+    TooManyRequestsError,
+} from '@spfn/core/errors';
 
-throw new DatabaseError('Something went wrong', 500, {
-  query: 'SELECT * FROM users',
-  params: [123]
+throw new BadRequestError();                                  // "Bad request"
+throw new UnauthorizedError({ message: 'Invalid token' });    // 401
+throw new ForbiddenError({ message: 'Insufficient permissions' });
+throw new NotFoundError({ resource: 'User' });                // "Resource not found", resource: 'User'
+throw new ConflictError({ message: 'Email already in use' });
+
+throw new ValidationError({
+    message: 'Validation failed',
+    fields: [
+        { path: '/email', message: 'Invalid format', value: 'nope' },
+        { path: '/age', message: 'Must be >= 18', value: 15 },
+    ],
 });
+
+throw new TooManyRequestsError({ message: 'Rate limit exceeded', retryAfter: 60 });
 ```
 
-**Properties:**
-- `message: string` - Error message
-- `statusCode: number` - HTTP status code (default: 500)
-- `details?: Record<string, any>` - Additional context
-- `stack?: string` - Stack trace (automatically captured)
+The optional `details` field accepts any `Record<string, unknown>` and is serialized as-is.
 
 ---
 
-### `ConnectionError` (503)
+## Database error classes
 
-Database connection failures.
+All extend `SerializableError`. `EntityNotFoundError`, `ConstraintViolationError`, and
+`DuplicateEntryError` extend `QueryError`; `DeadlockError` extends `TransactionError`.
+`EntityNotFoundError` and `DuplicateEntryError` **build their own message** from the
+provided fields.
+
+| Class | Status | Constructor arg | Notes |
+|---|---|---|---|
+| `DatabaseError` | 500 (default) | `{ message, statusCode?, details? }` | base class |
+| `ConnectionError` | 503 | `{ message, details? }` | |
+| `QueryError` | 500 (default) | `{ message, statusCode?, details? }` | |
+| `EntityNotFoundError` | 404 | `{ resource, id }` | message auto-built; `resource`, `id` public; `details = { resource, id }` |
+| `ConstraintViolationError` | 400 | `{ message, details? }` | |
+| `TransactionError` | 500 (default) | `{ message, statusCode?, details? }` | |
+| `DeadlockError` | 409 | `{ message, details? }` | |
+| `DuplicateEntryError` | 409 | `{ field, value }` | message auto-built; `field`, `value` public; `details = { field, value }` |
 
 ```typescript
-import { ConnectionError } from '@spfn/core';
+import {
+    EntityNotFoundError,
+    DuplicateEntryError,
+    ConnectionError,
+    QueryError,
+} from '@spfn/core/errors';
 
-throw new ConnectionError('Failed to connect to database', {
-  host: 'localhost',
-  port: 5432,
-  retries: 3
-});
+throw new EntityNotFoundError({ resource: 'User', id: 123 });
+// message: "User with id 123 not found", statusCode 404
+
+throw new DuplicateEntryError({ field: 'email', value: 'john@example.com' });
+// message: "email 'john@example.com' already exists", statusCode 409
+
+throw new ConnectionError({ message: 'Failed to connect to database' });
+throw new QueryError({ message: 'Syntax error in SQL query' });
 ```
 
-**Use Cases:**
-- Connection pool exhausted
-- Database server unreachable
-- Authentication failed
-- Network timeout
+`EntityNotFoundError` is for missing **database** rows. For the HTTP layer (a missing
+route/resource) use `NotFoundError`.
+
+### Mapping raw Postgres errors
+
+`fromPostgresError(error)` (from `@spfn/core/db`) maps a `pg` error code to one of the DB
+classes above. SPFN's DB helpers and the `Transactional()` middleware already call it, so
+you rarely need it directly.
+
+```typescript
+import { fromPostgresError } from '@spfn/core/db';
+
+try { await db.insert(users).values(data); }
+catch (error) { throw fromPostgresError(error); }
+// 23505 → DuplicateEntryError, 23503 → ConstraintViolationError,
+// 40P01 → DeadlockError, 08xxx → ConnectionError, else → QueryError
+```
 
 ---
 
-### `QueryError` (500)
+## Serialization & the ErrorRegistry
 
-SQL query execution failures.
+`SerializableError.toJSON()` emits `{ __type: this.constructor.name, message, ...publicFields }`,
+skipping `name`, `message`, `stack`, and `statusCode`. The `ErrorHandler` middleware calls
+`toJSON()` and responds with the matching status code (plus `stack` when `includeStack` is on).
+
+On the client, the SPFN API client deserializes a response body that has a `__type` field
+back into a real error instance using an `ErrorRegistry`. Built-in HTTP and DB errors are
+already in the exported `errorRegistry` and are always merged into the client's registry,
+so `error instanceof NotFoundError` works on the client out of the box. **Custom error
+classes only deserialize if you register them.**
 
 ```typescript
-import { QueryError } from '@spfn/core';
+import { ErrorRegistry, errorRegistry, ValidationError } from '@spfn/core/errors';
 
-throw new QueryError('Syntax error in SQL query', 500, {
-  query: 'SELCT * FROM users', // typo
-  table: 'users'
-});
+// Pre-populated registry holds all built-in HTTP + DB errors
+errorRegistry.has('ValidationError');        // true
+errorRegistry.getRegisteredTypes();          // string[]
+
+// Build a custom registry (merge in the built-ins)
+const registry = new ErrorRegistry([errorRegistry, PaymentFailedError]);
+registry.append(ValidationError);            // chainable
+registry.concat(errorRegistry);              // merge another registry
+
+const err = registry.deserialize({ __type: 'NotFoundError', message: 'x', resource: 'User' });
+// err instanceof NotFoundError === true
+
+const maybe = registry.tryDeserialize(body); // null if __type missing/unknown (never throws)
 ```
 
-**Use Cases:**
-- SQL syntax errors
-- Invalid table/column names
-- Type mismatches
-- General query failures
+`ErrorRegistry` methods: `append(ClassOrArray)`, `concat(registry)`, `has(name)`,
+`deserialize(data)` (throws on unknown `__type`), `tryDeserialize(data)` (returns `null`),
+`getRegisteredTypes()`. Constructor accepts an array mixing single classes, arrays of
+classes, and other `ErrorRegistry` instances (`ErrorRegistryInput[]`).
 
 ---
 
-### `EntityNotFoundError` (404)
+## Custom errors
 
-Database entity not found.
-
-```typescript
-import { EntityNotFoundError } from '@spfn/core';
-
-// Automatically generates message and includes resource/id in details
-throw new EntityNotFoundError('User', 123);
-
-// Message: "User with id 123 not found"
-// Details: { resource: 'User', id: 123 }
-```
-
-**Use Cases:**
-- Database record doesn't exist
-- Invalid entity ID provided
-- Soft-deleted items
-
----
-
-### `ConstraintViolationError` (400)
-
-Database constraint violation.
+Extend `SerializableError` directly (define `statusCode`, set `name`, assign fields), or
+extend one of the concrete classes.
 
 ```typescript
-import { ConstraintViolationError } from '@spfn/core';
+import { SerializableError } from '@spfn/core/errors';
 
-throw new ConstraintViolationError('Foreign key constraint failed', {
-  constraint: 'fk_user_id',
-  table: 'orders'
-});
-```
-
-**Use Cases:**
-- NOT NULL violation
-- CHECK constraint failure
-- FOREIGN KEY violation
-
----
-
-### `TransactionError` (500)
-
-Transaction management failures.
-
-```typescript
-import { TransactionError } from '@spfn/core';
-
-throw new TransactionError('Failed to commit transaction', 500, {
-  operation: 'commit',
-  affectedTables: ['users', 'profiles']
-});
-```
-
-**Use Cases:**
-- Transaction start failed
-- Commit failed
-- Rollback failed
-- Nested transaction errors
-
----
-
-### `DeadlockError` (409)
-
-Database deadlock detected.
-
-```typescript
-import { DeadlockError } from '@spfn/core';
-
-throw new DeadlockError('Deadlock detected, please retry', {
-  tables: ['users', 'orders'],
-  retryAfter: 1000
-});
-```
-
-**Use Cases:**
-- Concurrent transaction conflicts
-- Lock timeout
-- Circular lock dependencies
-
-**Recommendation:** Implement retry logic for deadlock errors.
-
----
-
-### `DuplicateEntryError` (409)
-
-Unique constraint violation.
-
-```typescript
-import { DuplicateEntryError } from '@spfn/core';
-
-// Automatically includes field and value in details
-throw new DuplicateEntryError('email', 'john@example.com');
-
-// Response
-{
-  "message": "email 'john@example.com' already exists",
-  "statusCode": 409,
-  "details": {
-    "field": "email",
-    "value": "john@example.com"
-  }
-}
-```
-
-**Use Cases:**
-- Duplicate email/username
-- Unique key violations
-- Already exists errors
-
----
-
-## HTTP Error Classes
-
-HTTP errors extend `SerializableError` and use object-based constructors for explicit field naming.
-
-### Base: `SerializableError`
-
-Abstract base class for all serializable errors.
-
-```typescript
-import { SerializableError } from '@spfn/core';
-
-// Custom serializable error
 export class PaymentFailedError extends SerializableError
 {
     readonly statusCode = 402;
@@ -300,702 +270,125 @@ export class PaymentFailedError extends SerializableError
 }
 ```
 
-**Features:**
-- `toJSON()` auto-serializes all public fields with `__type` for deserialization
-- `statusCode` is abstract (must be defined in subclass)
+To make the client receive `instanceof PaymentFailedError`, register the class in the
+`ErrorRegistry` passed to the API client (otherwise the client gets a plain `Error`).
+For a custom subclass to round-trip, **its constructor must accept the serialized object**
+(`deserialize` calls `new ErrorClass(data)` with the whole JSON body).
 
 ---
 
-### `HttpError`
-
-Base class for all HTTP-related errors.
+## Type guards
 
 ```typescript
-import { HttpError } from '@spfn/core';
+import { isHttpError, isDatabaseError, hasStatusCode } from '@spfn/core/errors';
 
-throw new HttpError({
-  message: 'Custom error',
-  statusCode: 418,
-  details: { reason: 'I am a teapot' }
-});
+if (isDatabaseError(error)) { /* error: DatabaseError — has .statusCode, .details */ }
+if (isHttpError(error))     { /* error: HttpError */ }
+if (hasStatusCode(error))   { /* error: { statusCode: number } */ }
 ```
 
 ---
 
-### `BadRequestError` (400)
+## Pitfalls & anti-patterns
 
-Generic bad request error.
-
-```typescript
-import { BadRequestError } from '@spfn/core';
-
-throw new BadRequestError({
-  message: 'Invalid request format',
-  details: { expected: 'application/json', received: 'text/plain' }
-});
-
-// With default message
-throw new BadRequestError(); // "Bad request"
-```
-
-**Use Cases:**
-- Malformed request syntax
-- Invalid request parameters
-- Missing required headers
-
----
-
-### `ValidationError` (400)
-
-Input validation failure with field-level errors.
-
-```typescript
-import { ValidationError } from '@spfn/core';
-
-throw new ValidationError({
-  message: 'Invalid input data',
-  fields: [
-    { path: '/email', message: 'Invalid email format' },
-    { path: '/age', message: 'Must be at least 18', value: 15 }
-  ]
-});
-```
-
-**Properties:**
-- `fields?: Array<{ path: string; message: string; value?: any }>` - Field-level errors
-
-**Use Cases:**
-- Request body validation failure
-- Query/params validation failure
-- TypeBox schema validation
+- **The `ErrorHandler` middleware is not automatic.** You must register it
+  (`app.onError(ErrorHandler())` from `@spfn/core/middleware`). Without it, thrown
+  `SerializableError`s are not serialized and you get Hono's default 500.
+- **`ErrorHandler` and `fromPostgresError` are not in `@spfn/core/errors`.** They live in
+  `@spfn/core/middleware` and `@spfn/core/db` respectively. Importing them from
+  `@spfn/core/errors` fails.
+- **Use the object constructor form.** `new NotFoundError('User')`,
+  `new EntityNotFoundError('User', 123)`, `new HttpError(404, 'x')`,
+  `new DatabaseError('x', 500, {...})` are all old/removed signatures and won't compile.
+- **A generic `throw new Error('...')` is not type-safe.** `ErrorHandler` returns it as
+  `{ __type: 'Error', message, cause?, stack? }` with status **500** (or `error.statusCode`
+  if present) — no field-level data, no 4xx mapping. Throw a specific class instead.
+- **Custom errors don't deserialize on the client unless registered.** Built-ins are in the
+  exported `errorRegistry` and always merged in, but your own classes must be added to the
+  registry you pass to the API client, or the client receives a plain `Error`.
+- **`statusCode` is not in the serialized JSON.** It's excluded by `toJSON()` and re-derived
+  from the class on deserialize. Don't expect it in the response body.
+- **No `name` / `timestamp` / `code` fields** in the response — only `__type`, `message`,
+  and the error's own public fields (plus `stack` in dev). Don't parse for those.
+- **In a transactional route, re-throw caught errors.** Errors propagate to trigger
+  rollback; swallowing one commits the transaction. Let errors bubble to the middleware
+  rather than returning `c.json({ error }, code)` yourself.
+- **Never put secrets in `message` or `details`.** They are serialized verbatim and shipped
+  to the client (and logged). Don't include passwords, tokens, raw SQL with credentials, etc.
 
 ---
 
-### `UnauthorizedError` (401)
-
-Authentication required or failed.
+## Complete example
 
 ```typescript
-import { UnauthorizedError } from '@spfn/core';
-
-throw new UnauthorizedError({
-  message: 'Invalid token',
-  details: { reason: 'expired' }
-});
-
-// With default message
-throw new UnauthorizedError(); // "Authentication required"
-```
-
-**Use Cases:**
-- Missing authentication token
-- Invalid credentials
-- Expired token
-- Token verification failed
-
----
-
-### `ForbiddenError` (403)
-
-Authenticated but lacks permission.
-
-```typescript
-import { ForbiddenError } from '@spfn/core';
-
-throw new ForbiddenError({
-  message: 'Insufficient permissions',
-  details: { required: 'admin', current: 'user' }
-});
-
-// With default message
-throw new ForbiddenError(); // "Access forbidden"
-```
-
-**Use Cases:**
-- Insufficient role/permissions
-- Access to restricted resource
-- Operation not allowed for user
-
----
-
-### `NotFoundError` (404)
-
-HTTP resource not found.
-
-```typescript
-import { NotFoundError } from '@spfn/core';
-
-throw new NotFoundError({
-  message: 'User not found',
-  resource: 'User'
-});
-
-// With default message
-throw new NotFoundError(); // "Resource not found"
-```
-
-**Properties:**
-- `resource?: string` - Resource type that was not found
-
-**Use Cases:**
-- API endpoint not found
-- Resource not found (HTTP layer)
-- For database entities, use `EntityNotFoundError` instead
-
----
-
-### `ConflictError` (409)
-
-Generic resource conflict.
-
-```typescript
-import { ConflictError } from '@spfn/core';
-
-throw new ConflictError({
-  message: 'Order already processed',
-  details: { orderId: '123', status: 'completed' }
-});
-
-// With default message
-throw new ConflictError(); // "Resource conflict"
-```
-
-**Use Cases:**
-- Resource state conflict
-- Concurrent modification
-- Business logic conflict
-
----
-
-### `GoneError` (410)
-
-Resource permanently deleted.
-
-```typescript
-import { GoneError } from '@spfn/core';
-
-throw new GoneError({
-  message: 'This API version has been retired',
-  resource: 'v1/users'
-});
-
-// With default message
-throw new GoneError(); // "Resource permanently deleted"
-```
-
-**Properties:**
-- `resource?: string` - Resource that was deleted
-
-**Use Cases:**
-- Deprecated API endpoints
-- Permanently deleted resources
-- Retired features
-
----
-
-### `UnsupportedMediaTypeError` (415)
-
-Media type not supported.
-
-```typescript
-import { UnsupportedMediaTypeError } from '@spfn/core';
-
-throw new UnsupportedMediaTypeError({
-  message: 'Unsupported file type',
-  mediaType: 'video/avi',
-  supportedTypes: ['video/mp4', 'video/webm']
-});
-```
-
-**Properties:**
-- `mediaType?: string` - The unsupported media type
-- `supportedTypes?: string[]` - List of supported types
-
-**Use Cases:**
-- Invalid file upload types
-- Wrong Content-Type header
-- Unsupported encoding
-
----
-
-### `UnprocessableEntityError` (422)
-
-Request well-formed but contains semantic errors.
-
-```typescript
-import { UnprocessableEntityError } from '@spfn/core';
-
-throw new UnprocessableEntityError({
-  message: 'Cannot process this order',
-  details: { reason: 'Insufficient inventory' }
-});
-
-// With default message
-throw new UnprocessableEntityError(); // "Unprocessable entity"
-```
-
-**Use Cases:**
-- Semantic validation errors
-- Business logic violations
-- Invalid state transitions
-
----
-
-### `TooManyRequestsError` (429)
-
-Rate limit exceeded.
-
-```typescript
-import { TooManyRequestsError } from '@spfn/core';
-
-throw new TooManyRequestsError({
-  message: 'Rate limit exceeded',
-  retryAfter: 60,
-  details: { limit: 100, window: '1 minute' }
-});
-
-// With default message
-throw new TooManyRequestsError(); // "Too many requests"
-```
-
-**Properties:**
-- `retryAfter?: number` - Seconds to wait before retry
-
-**Use Cases:**
-- API rate limiting
-- Request throttling
-- Abuse prevention
-
----
-
-### `InternalServerError` (500)
-
-Generic server error.
-
-```typescript
-import { InternalServerError } from '@spfn/core';
-
-throw new InternalServerError({
-  message: 'Unexpected error occurred',
-  details: { component: 'payment-processor' }
-});
-
-// With default message
-throw new InternalServerError(); // "Internal server error"
-```
-
-**Use Cases:**
-- Unexpected server errors
-- Unhandled exceptions
-- Generic 500 errors
-
----
-
-### `ServiceUnavailableError` (503)
-
-Service temporarily unavailable.
-
-```typescript
-import { ServiceUnavailableError } from '@spfn/core';
-
-throw new ServiceUnavailableError({
-  message: 'Service under maintenance',
-  retryAfter: 3600,
-  details: { reason: 'scheduled_maintenance' }
-});
-
-// With default message
-throw new ServiceUnavailableError(); // "Service unavailable"
-```
-
-**Properties:**
-- `retryAfter?: number` - Seconds to wait before retry
-
-**Use Cases:**
-- Scheduled maintenance
-- Service overload
-- Temporary outage
-
----
-
-## Utility Functions
-
-### `isDatabaseError(error)`
-
-Type guard to check if error is a DatabaseError.
-
-```typescript
-import { isDatabaseError } from '@spfn/core';
-
-try {
-  await userRepo.save(data);
-} catch (error) {
-  if (isDatabaseError(error)) {
-    console.log(`DB Error (${error.statusCode}): ${error.message}`);
-    console.log('Details:', error.details);
-  } else {
-    console.error('Unknown error:', error);
-  }
-}
-```
-
-**Returns:** `boolean`
-
----
-
-### `isHttpError(error)`
-
-Type guard to check if error is an HttpError.
-
-```typescript
-import { isHttpError } from '@spfn/core';
-
-try {
-  await api.call();
-} catch (error) {
-  if (isHttpError(error)) {
-    console.log(`HTTP Error (${error.statusCode}): ${error.message}`);
-  }
-}
-```
-
-**Returns:** `boolean`
-
----
-
-### `hasStatusCode(error)`
-
-Type guard to check if error has a statusCode property.
-
-```typescript
-import { hasStatusCode } from '@spfn/core';
-
-if (hasStatusCode(error)) {
-  console.log(`Status: ${error.statusCode}`);
-}
-```
-
-**Returns:** `boolean`
-
----
-
-## ErrorRegistry
-
-Client-side error deserialization registry.
-
-```typescript
-import { ErrorRegistry, ValidationError, NotFoundError, errorRegistry } from '@spfn/core';
-
-// Use pre-configured registry (includes all built-in HTTP errors)
-const error = errorRegistry.deserialize({
-  __type: 'ValidationError',
-  message: 'Invalid email',
-  fields: [{ path: '/email', message: 'Invalid format' }]
-});
-// error instanceof ValidationError === true
-
-// Or create custom registry
-const customRegistry = new ErrorRegistry();
-customRegistry
-  .append(ValidationError)
-  .append([NotFoundError, PaymentFailedError]);
-
-// Safely try to deserialize (returns null if unknown type)
-const maybeError = customRegistry.tryDeserialize(data);
-
-// Merge registries
-customRegistry.concat(errorRegistry);
-```
-
-**Methods:**
-- `append(ErrorClass)` - Add error class to registry
-- `concat(registry)` - Merge another registry
-- `has(name)` - Check if error type is registered
-- `deserialize(data)` - Deserialize error (throws if unknown)
-- `tryDeserialize(data)` - Safely deserialize (returns null if unknown)
-- `getRegisteredTypes()` - Get all registered type names
-
----
-
-## Advanced Usage
-
-### Custom Error Classes
-
-```typescript
-import { DatabaseError } from '@spfn/core';
-
-export class TimeoutError extends DatabaseError {
-  constructor(message: string, timeoutMs: number) {
-    super(message, 504, { timeoutMs });
-    this.name = 'TimeoutError';
-  }
-}
-
-// Usage
-throw new TimeoutError('Query timeout exceeded', 5000);
-```
-
-### Error Metadata
-
-```typescript
-import { QueryError } from '@spfn/core';
-
-throw new QueryError('Failed to update user', 500, {
-  userId: 123,
-  attemptedFields: ['email', 'name'],
-  query: 'UPDATE users SET ...',
-  executionTime: 1500
-});
-```
-
-### Error Handler Integration
-
-```typescript
-import { ErrorHandler, NotFoundError } from '@spfn/core';
+// server.ts — register the handler once
 import { Hono } from 'hono';
+import { ErrorHandler } from '@spfn/core/middleware';
 
-const app = new Hono();
+export const app = new Hono();
+app.onError(ErrorHandler({ includeStack: process.env.NODE_ENV !== 'production' }));
 
-// Apply error handler
-app.onError(ErrorHandler());
+// routes/users.ts — throw specific errors; the handler serializes them
+import { route } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
+import { NotFoundError, DuplicateEntryError } from '@spfn/core/errors';
+import { findOne, create } from '@spfn/core/db';
+import { users } from '@/server/entities/users';
 
-// Route
-app.get('/users/:id', async (c) => {
-  const id = c.req.param('id');
-  const user = await userRepo.findById(id);
+export const getUser = route.get('/users/:id')
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        const user = await findOne(users, { id: params.id });
 
-  if (!user) {
-    throw new NotFoundError({ message: 'User not found', resource: 'User' });
-  }
+        if (!user)
+        {
+            throw new NotFoundError({ message: 'User not found', resource: 'User' });
+        }
 
-  return c.json(user);
-});
-```
-
-### Repository Pattern Integration
-
-```typescript
-import { EntityNotFoundError, DuplicateEntryError } from '@spfn/core';
-
-class UserRepository {
-  async findByIdOrFail(id: number) {
-    const user = await this.findById(id);
-    if (!user) {
-      throw new EntityNotFoundError('User', id);
-    }
-    return user;
-  }
-
-  async createUnique(email: string, data: any) {
-    const existing = await this.findByEmail(email);
-    if (existing) {
-      throw new DuplicateEntryError('email', email);
-    }
-    return this.save(data);
-  }
-}
-```
-
-### Transaction Error Handling
-
-```typescript
-import { TransactionError } from '@spfn/core';
-import { runWithTransaction } from '@spfn/core';
-
-try {
-  await runWithTransaction(async (tx) => {
-    await tx.insert(users).values(userData);
-    await tx.insert(profiles).values(profileData);
-  });
-} catch (error) {
-  if (error instanceof TransactionError) {
-    console.error('Transaction failed:', error.details);
-    // Maybe retry or notify admin
-  }
-  throw error;
-}
-```
-
----
-
-## Best Practices
-
-### 1. Use Specific Error Types
-
-```typescript
-// ❌ Generic error
-throw new Error('User not found');
-
-// ✅ Specific error with context (database)
-throw new EntityNotFoundError('User', userId);
-
-// ✅ Specific error with context (HTTP)
-throw new NotFoundError({ message: 'User not found', resource: 'User' });
-```
-
-### 2. Include Useful Details
-
-```typescript
-// ❌ Minimal context
-throw new ValidationError({ message: 'Validation failed' });
-
-// ✅ Rich context
-throw new ValidationError({
-  message: 'Validation failed',
-  fields: [
-    { path: '/email', message: 'Invalid format', value: 'invalid' },
-    { path: '/age', message: 'Must be >= 18', value: 15 }
-  ]
-});
-```
-
-### 3. Handle Errors at the Right Level
-
-```typescript
-// In repository - throw database errors
-async findByIdOrFail(id: number) {
-  const result = await this.findById(id);
-  if (!result) {
-    throw new EntityNotFoundError('User', id);
-  }
-  return result;
-}
-
-// In route - let middleware handle
-app.get('/users/:id', async (c) => {
-  const user = await userRepo.findByIdOrFail(c.req.param('id'));
-  return c.json(user);
-});
-```
-
-### 4. Don't Leak Sensitive Information
-
-```typescript
-// ❌ Exposes internal details
-throw new QueryError('SELECT * FROM users WHERE password = ?', 500, {
-  password: 'secret123' // Don't include sensitive data!
-});
-
-// ✅ Safe error message
-throw new QueryError('Failed to authenticate user', 401);
-```
-
----
-
-## Testing
-
-```typescript
-import { describe, it, expect } from 'vitest';
-import { NotFoundError, ValidationError } from '@spfn/core';
-
-describe('Error Handling', () => {
-  it('should create NotFoundError with correct properties', () => {
-    const error = new NotFoundError('User', 123);
-
-    expect(error.name).toBe('NotFoundError');
-    expect(error.message).toBe('User with id 123 not found');
-    expect(error.statusCode).toBe(404);
-    expect(error.details).toEqual({ resource: 'User', id: 123 });
-    expect(error.timestamp).toBeInstanceOf(Date);
-  });
-
-  it('should serialize to JSON correctly', () => {
-    const error = new ValidationError('Invalid data', { field: 'email' });
-    const json = error.toJSON();
-
-    expect(json).toEqual({
-      name: 'ValidationError',
-      message: 'Invalid data',
-      statusCode: 400,
-      details: { field: 'email' },
-      timestamp: expect.any(String)
+        return user;
     });
-  });
-});
+
+export const createUser = route.post('/users')
+    .input({ body: Type.Object({ email: Type.String(), name: Type.String() }) })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+
+        if (await findOne(users, { email: body.email }))
+        {
+            throw new DuplicateEntryError({ field: 'email', value: body.email });
+        }
+
+        return c.created(await create(users, body));
+    });
+
+// client side — instanceof works because NotFoundError is a built-in
+try { await api.users.get({ id: '999' }); }
+catch (err)
+{
+    if (err instanceof NotFoundError) { /* err.resource === 'User' */ }
+}
 ```
 
 ---
 
-## Test Coverage
+## Types reference
 
-The errors module has comprehensive test coverage with **71 tests** (all passing ✅).
-
-### Database Errors Tests (20 tests)
-**File:** `src/errors/__tests__/database-errors.test.ts`
-
-- **DatabaseError** (3 tests)
-- **ConnectionError** (2 tests)
-- **QueryError** (3 tests)
-- **EntityNotFoundError** (3 tests)
-- **ConstraintViolationError** (2 tests)
-- **TransactionError** (3 tests)
-- **DeadlockError** (2 tests)
-- **DuplicateEntryError** (2 tests)
-
-### HTTP Errors Tests (36 tests)
-**File:** `src/errors/__tests__/http-errors.test.ts`
-
-- **HttpError** - Properties, JSON serialization
-- **BadRequestError** - Status code, default message, details
-- **ValidationError** - Status code, fields handling
-- **UnauthorizedError** - Status code, default message, details
-- **ForbiddenError** - Status code, default message, details
-- **NotFoundError** - Status code, resource field, default message
-- **ConflictError** - Status code, default message, details
-- **TooManyRequestsError** - Status code, retryAfter handling
-- **InternalServerError** - Status code, default message, details
-- **ServiceUnavailableError** - Status code, retryAfter handling
-
-### Error Utils Tests (15 tests)
-**File:** `src/errors/__tests__/error-utils.test.ts`
-
-- **isDatabaseError()** (4 tests)
-- **isHttpError()** (5 tests)
-- **hasStatusCode()** (6 tests)
-
-### Running Tests
-
-```bash
-# Run all errors tests
-pnpm test src/errors
-
-# Run specific test file
-pnpm test src/errors/__tests__/database-errors.test.ts
-pnpm test src/errors/__tests__/http-errors.test.ts
-pnpm test src/errors/__tests__/error-utils.test.ts
-```
-
----
-
-## Troubleshooting
-
-### Error not serializing in API response
-
-**Cause:** Not using error handler middleware
-
-**Solution:**
-```typescript
-import { ErrorHandler } from '@spfn/core';
-app.onError(ErrorHandler());
-```
-
-### Stack trace missing in development
-
-**Cause:** Error.captureStackTrace not called
-
-**Solution:** All custom errors automatically capture stack traces. Check if extending DatabaseError properly.
-
-### Wrong status code returned
-
-**Cause:** Using generic Error class
-
-**Solution:** Use specific error classes (NotFoundError, ValidationError, etc.)
+- `SerializedError` — `{ __type: string; message: string; [key: string]: unknown }`
+- `SerializableErrorConstructor` — `new (data: any) => SerializableError`
+- `ErrorRegistryInput` — `SerializableErrorConstructor | SerializableErrorConstructor[] | ErrorRegistry`
+- `SerializableError` (abstract) — `Error` subclass with abstract `readonly statusCode: number`
+  and `toJSON(): SerializedError`
 
 ---
 
 ## Related
 
-- [Hono Error Handling](https://hono.dev/api/hono#error-handling) - Framework integration
-- [PostgreSQL Error Codes](https://www.postgresql.org/docs/current/errcodes-appendix.html) - Reference
-- [@spfn/core/middleware](../middleware/README.md) - Error handler middleware
-- [@spfn/core](../../README.md) - Main package documentation
+- `@spfn/core/middleware` — `ErrorHandler` (the `onError` middleware that serializes these
+  errors), `ErrorHandlerOptions` (`includeStack`, `enableLogging`, `onError`).
+- `@spfn/core/db` — `fromPostgresError` and the `Transactional()` middleware that converts
+  and rolls back on DB errors.
+- `@spfn/notification/server` — `createErrorSlackNotifier` (an `onError` callback for Slack
+  alerts). `@spfn/monitor/server` — `createMonitorErrorHandler` for DB-backed error tracking.

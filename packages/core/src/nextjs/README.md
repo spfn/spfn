@@ -1,138 +1,67 @@
-# @spfn/core/nextjs - Technical Documentation
+# @spfn/core/nextjs — Type-safe Next.js RPC client + proxy
 
-Type-safe Next.js client system with tRPC-style API for define-route integration.
-
-## Architecture Overview
-
-The Next.js client system provides end-to-end type safety from server-side route definitions to client-side API calls through a 3-tier RPC architecture:
-
-```
-+---------------------------------------------------------------+
-|                         Client Tier                           |
-|  +---------------------------------------------------------+  |
-|  |  ApiClient (Browser / React Server Component)           |  |
-|  |  - Type-safe API calls with structured input            |  |
-|  |  - Request/Response interceptors                        |  |
-|  |  - Next.js caching integration                          |  |
-|  |  - No metadata required!                                |  |
-|  +---------------------------------------------------------+  |
-+---------------------------------------------------------------+
-                              |
-                              | GET/POST /api/rpc/{routeName}
-                              v
-+---------------------------------------------------------------+
-|                      RPC Proxy Tier (Edge)                    |
-|  +---------------------------------------------------------+  |
-|  |  RpcProxy (Next.js API Route)                           |  |
-|  |  - routeName → method/path resolution from router       |  |
-|  |  - Interceptor system (path matching, cookies)          |  |
-|  |  - Auto-discovery from registry                         |  |
-|  +---------------------------------------------------------+  |
-+---------------------------------------------------------------+
-                              |
-                              | Actual HTTP method to resolved path
-                              v
-+---------------------------------------------------------------+
-|                       Backend Tier                            |
-|  +---------------------------------------------------------+  |
-|  |  SPFN Server (define-route system)                      |  |
-|  |  - Route handlers with validation                       |  |
-|  |  - Database operations                                  |  |
-|  |  - Business logic                                       |  |
-|  +---------------------------------------------------------+  |
-+---------------------------------------------------------------+
-```
-
-### Core Components
+End-to-end type-safe API client (`createApi<AppRouter>()`) and an RPC proxy route handler
+(`createRpcProxy`) that bridges a Next.js App Router app to a SPFN `define-route` backend.
+No per-route metadata codegen is required for the client — method/path resolution happens
+at the proxy from a generated `routeMap`.
 
 ```
-nextjs/
-├── index.ts                    # Client-safe exports only
-├── server.ts                   # Server-only exports (next/headers)
-├── shared.ts                   # Shared utilities (client & proxy)
-├── client/
-│   ├── index.ts
-│   ├── core.ts                 # createApi implementation
-│   ├── builder.ts              # RouteCallBuilder (Structured Input)
-│   ├── types.ts                # Client types
-│   ├── helpers.ts              # Request helpers
-│   ├── errors.ts               # ApiError class
-│   └── debug-logs.ts           # Debug logging utilities
-└── proxy/
-    ├── index.ts                # RPC proxy exports
-    ├── rpc.ts                  # createRpcProxy implementation
-    ├── types.ts                # Proxy types
-    ├── helpers.ts              # Proxy helpers
-    └── interceptors/
-        ├── index.ts
-        ├── registry.ts         # Global interceptor registry
-        ├── helpers.ts          # Path matching, execution
-        └── types.ts            # Interceptor types
+Client (browser / RSC)                Proxy (Next.js API route)         SPFN backend
+  api.getUser.call({...})  ──GET/POST──▶  /api/rpc/{routeName}  ──HTTP──▶  resolved method+path
+  createApi<AppRouter>()                  createRpcProxy({ routeMap })      define-route handler
 ```
 
-### Design Principles
+## Import paths
 
-1. **No Metadata Required**: Client doesn't need pre-extracted metadata
-2. **Body-Based Method Detection**: GET for no body, POST for body
-3. **RPC-Style Resolution**: Proxy resolves routeName to actual HTTP method/path
-4. **Next.js Native**: Deep integration with App Router, caching, cookies
-5. **Type Safety First**: End-to-end type inference from server to client
-6. **Client/Server Separation**: Clear import paths for client vs server code
-
----
-
-## Import Paths
-
-### Client-Safe Imports
-
-Use `@spfn/core/nextjs` for code that runs in both client and server:
+There are **two** entry points. Picking the wrong one breaks the build — `/server` pulls in
+`next/headers` + `next/server` and must never reach a Client Component bundle.
 
 ```typescript
+// Client-safe (Client Components, Server Components, anywhere). NO next/headers.
 import { createApi, ApiError } from '@spfn/core/nextjs';
 
-import type {
-    Client,
-    RouteClient,
-    ApiConfig,
-    CallOptions,
-    InferRouteInput,
-    InferRouteOutput,
-    RequestInterceptor,
-    ResponseInterceptor,
-} from '@spfn/core/nextjs';
+// Server-only (API routes, Server Components). Uses next/headers + next/server.
+import { createRpcProxy, registerInterceptors } from '@spfn/core/nextjs/server';
 ```
 
-### Server-Only Imports
+`createRpcProxy` and the interceptor registry are **only** exported from
+`@spfn/core/nextjs/server`. `createApi` / `ApiError` are **only** exported from
+`@spfn/core/nextjs`. There is no barrel that re-exports both.
 
-Use `@spfn/core/nextjs/server` for code that uses `next/headers`:
-
-```typescript
-// RPC proxy configuration
-import { createRpcProxy } from '@spfn/core/nextjs/server';
-
-// Interceptor system
-import {
-    registerInterceptors,
-    interceptorRegistry,
-    matchPath,
-    filterMatchingInterceptors,
-} from '@spfn/core/nextjs/server';
-
-import type {
-    RpcProxyConfig,
-    RequestInterceptorContext,
-    ResponseInterceptorContext,
-    InterceptorRule,
-} from '@spfn/core/nextjs/server';
-```
+| Path | Environment | Exports |
+|------|-------------|---------|
+| `@spfn/core/nextjs` | Client + Server | `createApi`, `ApiError`, all client types |
+| `@spfn/core/nextjs/server` | Server only | `createRpcProxy`, interceptor registry + helpers, interceptor types |
 
 ---
 
-## ApiClient (Structured Input API)
+## Public API (complete)
 
-### Creating a Client
+From `@spfn/core/nextjs` (client-safe):
 
-The client **does not require metadata** - method/path resolution happens at the proxy layer:
+- Values: `createApi`, `ApiError`
+- Types: `Client`, `RouteClient`, `ApiConfig`, `CallOptions`, `InferRouteInput`,
+  `InferRouteOutput`, `RouterInput`, `RouterOutput`, `StructuredInput`,
+  `RequestInterceptor`, `ResponseInterceptor`, `CookieOptions`, `SetCookie`
+
+From `@spfn/core/nextjs/server` (server-only):
+
+- Values: `createRpcProxy`, `registerInterceptors`, `interceptorRegistry`, `matchPath`,
+  `matchMethod`, `filterMatchingInterceptors`, `executeRequestInterceptors`,
+  `executeResponseInterceptors`
+- Types: `RpcProxyConfig`, `RequestInterceptorContext`, `ResponseInterceptorContext`,
+  `RequestInterceptor`, `ResponseInterceptor` (the *proxy* `(ctx, next)` shape — distinct
+  from the client interceptor types of the same name), `InterceptorRule`, `ProxyConfig`
+
+> The client `RequestInterceptor`/`ResponseInterceptor` (`(url, init)` / `(response, body)`)
+> and the proxy `RequestInterceptor`/`ResponseInterceptor` (`(ctx, next) => Promise<void>`)
+> are **different types that share a name** across the two entry points. Don't cross them.
+
+---
+
+## Quick Start
+
+### 1. Define the router (server)
 
 ```typescript
 // server/router.ts
@@ -153,229 +82,201 @@ export const appRouter = defineRouter({
             const { body } = await c.data();
             return { id: '2', name: body.name };
         }),
-
-    updateUser: route.put('/users/:id')
-        .input({
-            params: Type.Object({ id: Type.String() }),
-            body: Type.Object({ name: Type.String() })
-        })
-        .handler(async (c) => {
-            const { params, body } = await c.data();
-            return { id: params.id, name: body.name };
-        }),
 });
 
 export type AppRouter = typeof appRouter;
 ```
+
+### 2. Create the client (no metadata needed)
 
 ```typescript
 // lib/api.ts
 import { createApi } from '@spfn/core/nextjs';
 import type { AppRouter } from '@/server/router';
 
-// No metadata needed!
 export const api = createApi<AppRouter>();
 ```
 
-### Structured Input Pattern
-
-Input structure matches the server-side route definition exactly:
+### 3. Mount the proxy route
 
 ```typescript
-// GET /users/:id - params only (→ GET /api/rpc/getUser?input=...)
-const user = await api.getUser.call({ params: { id: '123' } });
+// app/api/rpc/[routeName]/route.ts
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+import { routeMap } from '@/generated/route-map';
 
-// GET /users/:id?include=posts - params + query
-const user = await api.getUser.call({
+export const { GET, POST } = createRpcProxy({ routeMap });
+```
+
+### 4. Call it
+
+```typescript
+const user = await api.getUser.call({ params: { id: '123' } });    // GET  /api/rpc/getUser?input=...
+const created = await api.createUser.call({ body: { name: 'A' } }); // POST /api/rpc/createUser
+```
+
+---
+
+## Client — `createApi`
+
+```typescript
+function createApi<TRouter extends Router<any>>(config?: ApiConfig): Client<TRouter>;
+```
+
+Returns a `Proxy`: every property access (`api.getUser`, `api.foo.bar` for nested routers)
+yields a `RouteClient` builder. Calls are made via `.call(input)`.
+
+### Structured input
+
+Input mirrors the route's `.input({...})` definition exactly. Empty sections are omitted
+from the type, so you only pass what the route declares:
+
+```typescript
+await api.getUser.call({ params: { id: '123' } });
+await api.getUser.call({ params: { id: '123' }, query: { include: 'posts' } });
+await api.createUser.call({ body: { name: 'John', email: 'a@b.com' } });
+await api.updateUser.call({ params: { id: '123' }, body: { name: 'Jane' } });
+
+// Route with no required input → call() with no argument:
+await api.listAll.call();
+```
+
+### Method detection (client → proxy URL)
+
+The client picks the HTTP method to the **proxy** purely from input shape:
+
+- Has `body` **or** non-empty `formData` → `POST /api/rpc/{routeName}` (JSON body, or
+  `multipart/form-data` when `formData` is present)
+- Otherwise → `GET /api/rpc/{routeName}?input={encoded}` (browser-cacheable)
+
+This is the method to the proxy only. The *actual* backend method (PUT/PATCH/DELETE/…) is
+resolved by the proxy from `routeMap` — see below.
+
+### File upload (`formData`)
+
+```typescript
+await api.uploadAvatar.call({
     params: { id: '123' },
-    query: { include: 'posts' }
-});
-
-// POST /users - body only (→ POST /api/rpc/createUser)
-const newUser = await api.createUser.call({
-    body: { name: 'John', email: 'john@example.com' }
-});
-
-// PUT /users/:id - params + body (→ POST /api/rpc/updateUser)
-const updatedUser = await api.updateUser.call({
-    params: { id: '123' },
-    body: { name: 'Jane' }
+    formData: { file: fileInput.files[0], description: 'Profile photo' },
 });
 ```
 
-### Method Detection
+`File` / `File[]` values go into a `FormData`; the other sections (`params`, `query`,
+`headers`, `cookies`) are bundled into a `__metadata` JSON part. The proxy unpacks
+`__metadata` and forwards a clean `multipart/form-data` body to the backend. `Content-Type`
+is left unset so the boundary is generated automatically.
 
-The client automatically determines HTTP method based on input:
+### Options via method chaining
 
-- **No `body` field** → `GET /api/rpc/{routeName}?input={encoded}` (browser cacheable)
-- **Has `body` field** → `POST /api/rpc/{routeName}` with JSON body
-
-### Options via Method Chaining
-
-Options (headers, cookies, fetchOptions) use method chaining:
+Options are set fluently (each returns a cloned builder) and applied on `.call()`:
 
 ```typescript
 const user = await api.getUser
     .headers({ 'X-Custom': 'value' })
     .cookies({ session: 'xxx' })
     .fetchOptions({ next: { revalidate: 60 } })
-    .onRequest((url, init) => {
-        console.log('→', url);
-        return init;
-    })
-    .onResponse((res, body) => {
-        console.log('←', body);
-        return { response: res, body };
-    })
+    .onRequest((url, init) => init)                       // client RequestInterceptor
+    .onResponse((res, body) => ({ response: res, body })) // client ResponseInterceptor
     .call({ params: { id: '123' } });
 ```
 
-### Client Configuration
+### `ApiConfig`
 
 ```typescript
 interface ApiConfig {
-    // Base URL for RPC endpoint (default: '/api/rpc')
-    baseUrl?: string;
-
-    // Default headers for all requests
-    headers?: Record<string, string>;
-
-    // Request timeout in milliseconds (default: 30000)
-    timeout?: number;
-
-    // Custom fetch implementation
-    fetch?: typeof fetch;
-
-    // Global request interceptor
-    onRequest?: RequestInterceptor;
-
-    // Global response interceptor
-    onResponse?: ResponseInterceptor;
-
-    // Custom error registry for deserialization
-    errorRegistry?: ErrorRegistry;
-
-    // Enable debug logging (default: false)
-    debug?: boolean;
+    baseUrl?: string;                              // default '/api/rpc'
+    headers?: Record<string, string>;             // default headers on every request
+    timeout?: number;                              // default env.SERVER_TIMEOUT (120000 ms)
+    fetch?: typeof fetch;                          // custom fetch impl
+    onRequest?: RequestInterceptor;                // global, (url, init) => init
+    onResponse?: ResponseInterceptor;              // global, (response, body) => { response, body }
+    errorRegistry?: ErrorRegistry | ErrorRegistryInput[]; // custom error deserialization
+    debug?: boolean;                               // default false
 }
 ```
 
-### Per-Call Options
+`errorRegistry`: the core `errorRegistry` is **always** merged in automatically. Pass an
+array to add your app/package error registries on top:
+
+```typescript
+import { errorRegistry } from '@spfn/core/errors';
+const api = createApi<AppRouter>({ errorRegistry: [errorRegistry, authErrorRegistry] });
+```
+
+### `CallOptions` (per-call, also settable via chaining)
 
 ```typescript
 interface CallOptions {
-    // Additional headers for this request
+    timeout?: number;
     headers?: Record<string, string>;
-
-    // Override cookies for this request
-    cookies?: Record<string, string>;
-
-    // Request-specific interceptors
+    cookies?: Record<string, string>;   // override only; cookies are auto-forwarded otherwise
     onRequest?: RequestInterceptor;
     onResponse?: ResponseInterceptor;
-
-    // Next.js-specific fetch options
-    fetchOptions?: RequestInit & {
-        next?: {
-            revalidate?: number | false;
-            tags?: string[];
-        };
-    };
+    fetchOptions?: RequestInit & { next?: { revalidate?: number | false; tags?: string[] } };
 }
 ```
 
+### Automatic cookie forwarding (SSR)
+
+When `createApi` runs **on the server** (RSC / route handler) it auto-detects request
+cookies via `next/headers` `cookies()` and forwards them as the `Cookie` header. In the
+browser, cookies are sent by the browser automatically. You only need `.cookies({...})` /
+`options.cookies` to **override**. Outside a request context (static generation, build) the
+cookie read silently yields none.
+
+### SSR base URL resolution
+
+For absolute fetches on the server the client uses `env.SPFN_APP_URL`. If unset, it falls
+back to reconstructing the origin from the incoming request's `host` /
+`x-forwarded-proto` headers (via `next/headers`); failing that, it uses a relative URL.
+
 ---
 
-## Type System
-
-### Core Types
+## Proxy — `createRpcProxy`
 
 ```typescript
-// Structured input (matches server-side route definition)
-type StructuredInput<TInput extends RouteInput> = {
-    params: TInput['params'] extends TSchema ? Static<TInput['params']> : {};
-    query: TInput['query'] extends TSchema ? Static<TInput['query']> : {};
-    body: TInput['body'] extends TSchema ? Static<TInput['body']> : {};
-    headers: TInput['headers'] extends TSchema ? Static<TInput['headers']> : {};
-    cookies: TInput['cookies'] extends TSchema ? Static<TInput['cookies']> : {};
+function createRpcProxy(config: RpcProxyConfig): {
+    GET: (req, ctx) => Promise<NextResponse>;
+    POST: (req, ctx) => Promise<NextResponse>;
 };
-
-// Infer route input type
-type InferRouteInput<TRoute> =
-    TRoute extends RouteDef<infer TInput, any, any>
-        ? StructuredInput<TInput>
-        : never;
-
-// Infer route output type
-type InferRouteOutput<TRoute> =
-    TRoute extends RouteDef<any, any, infer TResponse>
-        ? TResponse
-        : never;
 ```
 
-### Router-Level Type Helpers
+Returns `{ GET, POST }` handlers for an App Router catch-all route. It:
 
-Extract types from router using route names directly:
+1. Reads `routeName` from the async `params` (`context.params: Promise<{ routeName?: string }>` — Next.js 15).
+2. Parses `input` from `?input=` (GET) or the JSON / `multipart/form-data` body (POST).
+3. Resolves `routeMap[routeName]` → `{ method, path }`; **404** if missing.
+4. Substitutes `:params` into `path`, appends the query string.
+5. Forwards to `${apiUrl}${path}${query}` with the resolved backend method, running matching
+   interceptors before/after.
+6. Wraps the backend response in a `NextResponse` (special-casing `204`), forwards response
+   headers, and appends any `Set-Cookie` pushed by interceptors.
+
+### `RpcProxyConfig`
 
 ```typescript
-import type { RouterOutput, RouterInput } from '@spfn/core/nextjs';
-import type { AppRouter } from '@/server/router';
-
-// Get output type for a specific route
-type ListData = RouterOutput<AppRouter, 'listExamples'>;
-
-// Get input type for a specific route
-type CreateInput = RouterInput<AppRouter, 'createExample'>;
-
-// Use in component props
-interface Props {
-    data: RouterOutput<AppRouter, 'listExamples'>;
+interface RpcProxyConfig {
+    routeMap: RouteMap;                         // REQUIRED — Record<routeName, { method, path }>
+    apiUrl?: string;                            // default env.SPFN_API_URL || 'http://localhost:8790'
+    timeout?: number;                           // default env.RPC_PROXY_TIMEOUT (120000 ms); AbortController
+    debug?: boolean;                            // default env.NODE_ENV === 'development'
+    headers?: Record<string, string>;           // added to every forwarded request
+    interceptors?: InterceptorRule[];           // inline interceptors (array, NOT { request, response })
+    autoDiscoverInterceptors?: boolean;          // default true — pull from registry
+    disableAutoInterceptors?: string[];          // e.g. ['auth'] — exclude registered packages
 }
 
-// Extract item type from paginated response
-type Example = RouterOutput<AppRouter, 'listExamples'>['items'][number];
-
-// Extract pagination type
-type Pagination = RouterOutput<AppRouter, 'listExamples'>['pagination'];
+interface RouteMapEntry { method: HttpMethod; path: string; }
+type RouteMap = Record<string, RouteMapEntry>;
 ```
 
-### RouteClient Type
+### `routeMap` — the proxy's source of truth
 
-```typescript
-type RouteClient<TRoute extends RouteDef<any, any>> = {
-    // Method chaining for options
-    headers(headers: Record<string, string>): RouteClient<TRoute>;
-    cookies(cookies: Record<string, string>): RouteClient<TRoute>;
-    fetchOptions(options: RequestInit & NextFetchOptions): RouteClient<TRoute>;
-    onRequest(interceptor: RequestInterceptor): RouteClient<TRoute>;
-    onResponse(interceptor: ResponseInterceptor): RouteClient<TRoute>;
-
-    // Execute with structured input
-    call(input: CleanStructuredInput<InferRouteInput<TRoute>>): Promise<InferRouteOutput<TRoute>>;
-};
-```
-
-### Client Type
-
-```typescript
-type Client<TRouter extends Router<any>> = {
-    [K in keyof TRouter['routes']]: TRouter['routes'][K] extends RouteDef<any, any, any>
-        ? RouteClient<TRouter['routes'][K]>
-        : TRouter['routes'][K] extends Router<any>
-            ? Client<TRouter['routes'][K]>
-            : never;
-};
-```
-
----
-
-## RpcProxy (Next.js API Route)
-
-### Setup
+`routeMap` comes from codegen (`@/generated/route-map`). Merge in route maps exported by
+SPFN packages so their endpoints are reachable through the same proxy:
 
 ```typescript
 // app/api/rpc/[routeName]/route.ts
-import '@spfn/auth/nextjs/api';
+import '@spfn/auth/nextjs/api';                 // side-effect: registers auth interceptors
 import { createRpcProxy } from '@spfn/core/nextjs/server';
 import { authRouteMap } from '@spfn/auth';
 import { eventRouteMap } from '@spfn/core/event';
@@ -386,135 +287,97 @@ export const { GET, POST } = createRpcProxy({
 });
 ```
 
-**How it works:**
-1. Client calls `GET /api/rpc/getUser?input={...}` or `POST /api/rpc/createUser`
-2. Proxy extracts `routeName` from URL
-3. Proxy looks up `routeMap[routeName]` to get `method` and `path`
-4. Proxy forwards request to SPFN backend with correct HTTP method and path
+A `routeName` absent from the merged `routeMap` returns **404** from the proxy (not from the
+backend). After adding routes, re-run codegen and clear `.spfn` cache if stale.
 
-### Custom Configuration
+### Full config example
 
 ```typescript
-// app/api/rpc/[routeName]/route.ts
-import '@spfn/auth/nextjs/api';
-import { createRpcProxy } from '@spfn/core/nextjs/server';
-import { authRouteMap } from '@spfn/auth';
-import { routeMap } from '@/generated/route-map';
-
 export const { GET, POST } = createRpcProxy({
     routeMap: { ...routeMap, ...authRouteMap },
     apiUrl: process.env.SPFN_API_URL,
     timeout: 60000,
     debug: true,
-
-    headers: {
-        'X-API-Key': process.env.SPFN_API_KEY!,
-    },
-
-    // Advanced interceptors (path matching, cookies)
+    headers: { 'X-API-Key': process.env.SPFN_API_KEY! },
     interceptors: [
         {
             pathPattern: '/_auth/*',
             method: 'POST',
             response: async (ctx, next) => {
-                if (ctx.response.body?.token)
-                {
+                if (ctx.response.body?.token) {
                     ctx.setCookies.push({
                         name: 'session',
                         value: ctx.response.body.token,
-                        options: {
-                            httpOnly: true,
-                            secure: true,
-                            sameSite: 'lax',
-                            maxAge: 86400,
-                        },
+                        options: { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 86400 },
                     });
                 }
                 await next();
             },
         },
     ],
-
-    // Auto-discovery settings
     autoDiscoverInterceptors: true,
     disableAutoInterceptors: ['analytics'],
 });
 ```
 
-### Next.js 15 Support
-
-The proxy supports Next.js 15's async params:
-
-```typescript
-// Handler signature
-async function handleRpc(
-    request: NextRequest,
-    context: { params: Promise<{ routeName?: string }> }
-): Promise<NextResponse>
-```
-
 ---
 
-## Interceptor System
+## Interceptors (proxy-side)
 
-### InterceptorRule Structure
+Proxy interceptors run **inside the proxy route**, around the backend fetch. They use a
+middleware `(ctx, next)` signature and are matched by path/method. Do not confuse them with
+the client `onRequest`/`onResponse` hooks (those run in the calling code, on the proxy URL).
+
+### `InterceptorRule`
 
 ```typescript
 interface InterceptorRule {
-    // Path pattern to match (supports wildcards)
-    pathPattern?: string;
-
-    // HTTP method to match (undefined = all methods)
-    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-
-    // Request interceptor (before fetch)
+    pathPattern: string | RegExp;     // '/_auth/*' | '/users/:id' | /regex/ | '*' (matches the BACKEND path)
+    method?: string | string[];        // 'POST' | ['POST','PUT'] | omit = all
     request?: (ctx: RequestInterceptorContext, next: () => Promise<void>) => Promise<void>;
-
-    // Response interceptor (after fetch)
     response?: (ctx: ResponseInterceptorContext, next: () => Promise<void>) => Promise<void>;
 }
 ```
 
-### Request Interceptor Context
+Pattern matching: `'*'` matches all; a `RegExp` is tested directly; a string converts `*`→
+`.*` and `:param`→`[^/]+`. The path matched is the **resolved backend path** (e.g.
+`/users/123`), not `/api/rpc/...`.
+
+### Contexts
 
 ```typescript
 interface RequestInterceptorContext {
-    path: string;                          // Request path: '/users/123'
-    method: string;                        // HTTP method: 'GET', 'POST', etc.
-    headers: Record<string, string>;       // Mutable headers
-    body: any;                             // Mutable request body
-    query: Record<string, string>;         // Query parameters
-    cookies: Map<string, string>;          // Request cookies
-    request: NextRequest;                  // Raw Next.js request
-    metadata: Record<string, any>;         // Share data between interceptors
+    path: string; method: string;
+    headers: Record<string, string>;          // mutable — written back to forwarded headers
+    body?: any;                                // mutable — re-stringified if changed
+    query: Record<string, string | string[]>;
+    cookies: Map<string, string>;             // request cookies
+    request: NextRequest;
+    metadata: Record<string, any>;            // shared with the response interceptor
 }
-```
 
-### Response Interceptor Context
-
-```typescript
 interface ResponseInterceptorContext {
-    path: string;
-    method: string;
-    request: {
-        headers: Record<string, string>;
-        body: any;
-    };
-    response: {
-        status: number;
-        statusText: string;
-        headers: Headers;
-        body: any;                         // Mutable response body
-    };
-    setCookies: SetCookie[];               // Cookies to set in response
+    path: string; method: string;
+    request: { headers: Record<string, string>; body?: any };
+    response: { ok: boolean; status: number; statusText: string; headers: Headers; body: any }; // body mutable
+    cookies: Map<string, string>;             // read-only
+    setCookies: SetCookie[];                  // push to emit Set-Cookie on the NextResponse
     metadata: Record<string, any>;
 }
 ```
 
-### Package Registration
+Interceptors chain in registration order; each must `await next()` to continue (skip it to
+short-circuit). Mutating `ctx.headers` / `ctx.body` (request) and `ctx.response.body` /
+`ctx.setCookies` (response) is how you affect the forwarded request and returned response.
+
+### Package auto-registration
+
+Packages register interceptors on import; the proxy auto-discovers them
+(`autoDiscoverInterceptors: true`). The registry lives on `globalThis` to survive HMR and
+de-dupes by package name.
 
 ```typescript
-// @spfn/auth/src/adapters/nextjs/index.ts
+// inside a package, on import
 import { registerInterceptors } from '@spfn/core/nextjs/server';
 
 registerInterceptors('auth', [
@@ -522,15 +385,11 @@ registerInterceptors('auth', [
         pathPattern: '/_auth/*',
         request: async (ctx, next) => {
             const session = ctx.cookies.get('session');
-            if (session)
-            {
-                ctx.headers['Authorization'] = `Bearer ${session}`;
-            }
+            if (session) ctx.headers['Authorization'] = `Bearer ${session}`;
             await next();
         },
         response: async (ctx, next) => {
-            if (ctx.path === '/_auth/login' && ctx.response.body?.token)
-            {
+            if (ctx.path === '/_auth/login' && ctx.response.body?.token) {
                 ctx.setCookies.push({
                     name: 'session',
                     value: ctx.response.body.token,
@@ -544,163 +403,174 @@ registerInterceptors('auth', [
 ]);
 ```
 
+Importing the package's side-effect entry (e.g. `import '@spfn/auth/nextjs/api'`) in the
+proxy route is what triggers registration. Use `disableAutoInterceptors: ['auth']` to opt a
+package out.
+
 ---
 
-## Next.js Integration
+## Type helpers
 
-### Server Components with Caching
+```typescript
+import type { RouterOutput, RouterInput, InferRouteInput, InferRouteOutput } from '@spfn/core/nextjs';
+import type { AppRouter } from '@/server/router';
+
+type ListData    = RouterOutput<AppRouter, 'listExamples'>;
+type CreateInput = RouterInput<AppRouter, 'createExample'>;
+type Item        = RouterOutput<AppRouter, 'listExamples'>['items'][number];
+type BodyInput   = RouterInput<AppRouter, 'createExample'>['body'];
+```
+
+`RouterOutput`/`RouterInput` take the router type + a route-name key. `InferRouteInput`/
+`InferRouteOutput` take a single `RouteDef`. All inference is compile-time only (zero runtime
+cost).
+
+---
+
+## Error handling
+
+`ApiError` is thrown for non-2xx responses, network failures, and timeouts:
+
+```typescript
+class ApiError extends Error {
+    constructor(
+        message: string,
+        public readonly status: number,            // HTTP status; 0 for network; 408 for timeout
+        public readonly url: string,
+        public readonly response?: unknown,         // parsed error body
+        public readonly errorType?: 'http' | 'network' | 'timeout',
+    ) {}
+}
+```
+
+```typescript
+import { ApiError } from '@spfn/core/nextjs';
+
+try {
+    await api.getUser.call({ params: { id: '123' } });
+} catch (error) {
+    if (error instanceof ApiError) {
+        if (error.errorType === 'timeout')      { /* 408 */ }
+        else if (error.errorType === 'network') { /* status 0 */ }
+        else                                    { /* error.status, error.response */ }
+    }
+}
+```
+
+**Custom errors**: if the backend body carries a `__type` discriminator and a matching entry
+is registered in the client's `errorRegistry`, the client deserializes and throws the
+**original typed error** instead of a generic `ApiError`. Otherwise it falls back to
+`ApiError`.
+
+---
+
+## Next.js integration
+
+### Server Components with caching
 
 ```typescript
 // app/users/[id]/page.tsx
 import { api } from '@/lib/api';
 
-export default async function UserPage({ params }: { params: Promise<{ id: string }> })
-{
+export default async function UserPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
-
     const user = await api.getUser
         .fetchOptions({ next: { revalidate: 3600 } })
         .call({ params: { id } });
-
     return <div>{user.name}</div>;
 }
 ```
 
-### Tag-Based Revalidation
+### Tag-based revalidation
 
 ```typescript
 const posts = await api.getPosts
     .fetchOptions({ next: { tags: ['posts'] } })
     .call({ query: { page: 1 } });
 
-// Later, in a Server Action:
+// later, in a Server Action:
 import { revalidateTag } from 'next/cache';
 revalidateTag('posts');
 ```
 
-### Client Components
+### Client Components / Server Actions
 
 ```typescript
 'use client';
-
 import { api } from '@/lib/api';
-import { useState } from 'react';
-
-export function CreateUserForm()
-{
-    const [loading, setLoading] = useState(false);
-
-    async function handleSubmit(data: { name: string; email: string })
-    {
-        setLoading(true);
-        try
-        {
-            const user = await api.createUser.call({ body: data });
-            console.log('Created:', user);
-        }
-        finally
-        {
-            setLoading(false);
-        }
-    }
-
-    return <form onSubmit={...}>...</form>;
-}
+const created = await api.createUser.call({ body: { name, email } });
 ```
-
----
-
-## Error Handling
-
-### ApiError Class
 
 ```typescript
-class ApiError extends Error {
-    constructor(
-        message: string,
-        public readonly status: number,
-        public readonly url: string,
-        public readonly response?: unknown,
-        public readonly errorType?: 'http' | 'network' | 'timeout'
-    ) {}
+// app/actions.ts
+'use server';
+import { api } from '@/lib/api';
+export async function createUser(formData: FormData) {
+    return api.createUser.call({
+        body: { name: formData.get('name') as string, email: formData.get('email') as string },
+    });
 }
 ```
 
-### Usage
+---
+
+## Pitfalls & anti-patterns
+
+- **Never import `@spfn/core/nextjs/server` in a Client Component.** It pulls in
+  `next/headers` + `next/server`; bundling it client-side breaks the build. Client code uses
+  `@spfn/core/nextjs` only (`createApi`, `ApiError`, types).
+- **`interceptors` is an `InterceptorRule[]`, not `{ request, response }`.** Older docs
+  showed `createRpcProxy({ router, interceptors: { request, response } })` — that config
+  shape **does not exist**. The current API is `{ routeMap, interceptors: [{ pathPattern,
+  method?, request?, response? }] }`. There is **no** `router` option either; the proxy is
+  driven entirely by `routeMap`.
+- **The proxy resolves the real HTTP method from `routeMap`, not from the client call.** The
+  client only ever sends GET (no body) or POST (body/formData) to `/api/rpc/...`. A PUT /
+  PATCH / DELETE route still works — the backend method comes from `routeMap[routeName]`.
+- **A missing `routeName` in `routeMap` is a proxy 404, not a backend 404.** Merge package
+  route maps (`authRouteMap`, `eventRouteMap`, …) and re-run codegen after adding routes;
+  delete `.spfn` if the map looks stale.
+- **Interceptor `pathPattern` matches the resolved backend path** (e.g. `/users/123`,
+  `/_auth/login`) — *not* the `/api/rpc/{routeName}` URL the client hit.
+- **Two same-named interceptor type pairs.** `RequestInterceptor`/`ResponseInterceptor` from
+  `@spfn/core/nextjs` are `(url, init)` / `(response, body)` (client hooks);
+  from `@spfn/core/nextjs/server` they are `(ctx, next) => Promise<void>` (proxy middleware).
+  Import from the right entry point.
+- **Don't pass auth via the client to set HttpOnly cookies.** HttpOnly session cookies are
+  set on the proxy response by a response interceptor (`ctx.setCookies.push(...)`), and
+  forwarded automatically on subsequent requests. Client code can't read them by design.
+- **Cookies are auto-forwarded on the server** — only use `.cookies({...})` /
+  `options.cookies` to override. Calling outside a request context (static generation) yields
+  no cookies, silently.
+- **`createApi` needs no codegen; the *proxy* does.** The client is metadata-free. The
+  `routeMap` the proxy consumes is the generated artifact.
+- **Each `.headers()/.cookies()/.fetchOptions()/.onRequest()/.onResponse()` returns a new
+  builder.** Chain them in one expression; a dangling builder without `.call()` does nothing.
+
+---
+
+## Types reference
 
 ```typescript
-import { ApiError } from '@spfn/core/nextjs';
+// client (@spfn/core/nextjs)
+type RequestInterceptor  = (url: string, init: RequestInit) => Promise<RequestInit> | RequestInit;
+type ResponseInterceptor = (response: Response, body: any)
+    => Promise<{ response: Response; body: any }> | { response: Response; body: any };
 
-try
-{
-    const user = await api.getUser.call({ params: { id: '123' } });
-}
-catch (error)
-{
-    if (error instanceof ApiError)
-    {
-        if (error.errorType === 'timeout')
-        {
-            console.error('Request timed out');
-        }
-        else if (error.errorType === 'network')
-        {
-            console.error('Network error:', error.message);
-        }
-        else
-        {
-            console.error(`HTTP ${error.status}:`, error.response);
-        }
-    }
-}
+interface CookieOptions { httpOnly?: boolean; secure?: boolean; sameSite?: 'strict'|'lax'|'none'; maxAge?: number; path?: string; domain?: string; }
+interface SetCookie { name: string; value: string; options?: CookieOptions; }
+
+// proxy (@spfn/core/nextjs/server)
+type RequestInterceptor  = (ctx: RequestInterceptorContext,  next: () => Promise<void>) => Promise<void>;
+type ResponseInterceptor = (ctx: ResponseInterceptorContext, next: () => Promise<void>) => Promise<void>;
+interface RouteMapEntry { method: HttpMethod; path: string; }
+type RouteMap = Record<string, RouteMapEntry>;
 ```
 
----
+## Related
 
-## Performance Considerations
-
-### Type Inference
-
-- Type inference happens at **compile time** (zero runtime cost)
-- `_input` and `_response` fields are never accessed at runtime
-
-### RPC vs REST
-
-| Aspect | RPC Style (Current) | REST Style (Previous) |
-|--------|---------------------|----------------------|
-| Client complexity | Lower (no metadata) | Higher (needs metadata) |
-| URL structure | `/api/rpc/{routeName}` | `/api/actions/{path}` |
-| Browser caching | GET requests cacheable | GET requests cacheable |
-| Proxy complexity | Higher (route resolution) | Lower (simple forward) |
-
-### Interceptor Execution
-
-- Path matching uses regex: O(n) where n = number of patterns
-- Average case: < 10 patterns, negligible overhead (~1ms)
-
-### Proxy Overhead
-
-- Route lookup: ~0.1ms (object property access)
-- Header copying: ~0.5ms
-- JSON parsing/stringifying: ~1-2ms
-- Cookie formatting: ~0.1ms per cookie
-- Total proxy overhead: **~5-10ms per request**
-
----
-
-## Related Systems
-
-- **@spfn/core/route**: Server-side route definitions
-- **@spfn/core/server**: Server configuration and startup
-- **@spfn/core/errors**: Error classes
-- **@spfn/auth**: Authentication interceptors
-
----
-
-## Future Enhancements
-
-1. **Request Batching**: Combine multiple requests into single HTTP call
-2. **Automatic Retries**: Retry failed requests with exponential backoff
-3. **Query Deduplication**: Prevent duplicate in-flight requests
-4. **WebSocket Support**: Real-time updates via WebSocket connections
-5. **React Query Integration**: First-class support for TanStack Query
+- [@spfn/core/route](../route/README.md) — server-side route + router definitions (source of `AppRouter`)
+- [@spfn/core/codegen](../codegen/README.md) — generates the `routeMap` the proxy consumes
+- [@spfn/core/errors](../errors/README.md) — `ErrorRegistry`, custom error deserialization
+- [@spfn/core/config](../config/README.md) — `SPFN_API_URL`, `SPFN_APP_URL`, `RPC_PROXY_TIMEOUT`, `SERVER_TIMEOUT`
+- [@spfn/auth](../../../auth/README.md) — example package: route map + auto-registered interceptors

@@ -1,385 +1,321 @@
-# @spfn/core/logger - Logging Infrastructure
+# @spfn/core/logger — Zero-dependency structured logger (singleton + child loggers)
 
-Universal logging module with transport-based architecture.
+Transport-based logging for Next.js + SPFN server. One process-wide singleton `logger`,
+five levels, automatic sensitive-data masking, and per-module child loggers. No external
+logging library.
 
-## Core Components
+## Import paths
 
-```
-logger/
-├── index.ts              # Module exports
-├── logger.ts             # Logger class
-├── types.ts              # Type definitions
-├── config.ts             # Configuration
-├── factory.ts            # Logger factory
-├── formatters.ts         # Log formatters & sensitive masking
-├── transports/
-│   └── console.ts        # Console transport
-└── __tests__/
-    ├── logger.test.ts
-    ├── console-transport.test.ts
-    ├── formatters.test.ts
-    ├── config.test.ts
-    ├── logger-context.test.ts
-    └── promise-context.test.ts
+One entry point. Everything public comes from `@spfn/core/logger`.
+
+```typescript
+import { logger } from '@spfn/core/logger';
+import type { LogLevel, Transport } from '@spfn/core/logger';
 ```
 
-## Features
+`logger` (and `Logger`, `LogLevel`, `Transport`) is also re-exported from the package
+root `@spfn/core`, so `import { logger } from '@spfn/core'` works too. Prefer the
+`@spfn/core/logger` subpath for clarity.
 
-- ✅ **Transport System**: Console transport with extensible architecture
-- ✅ **Zero Dependencies**: No external logging library required
-- ✅ **Browser Compatible**: Works in Next.js client/server components
-- ✅ **Console Transport**: Stdout/stderr logging for Docker/K8s
-- ✅ **Child Loggers**: Module-specific loggers with context
-- ✅ **Sensitive Data Masking**: Automatic masking of passwords, tokens, API keys
-- ✅ **Configuration Validation**: Startup validation with clear error messages
-- ✅ **Environment-Aware**: Different configs per environment
-- ✅ **Type-Safe**: Full TypeScript support
+---
+
+## Public API (complete)
+
+From `@spfn/core/logger` (`src/logger/index.ts` is the only export surface):
+
+- `logger` — the singleton `Logger` instance. This is what you use 99% of the time.
+- `Logger` — the class. Exported mainly for typing; you do **not** construct it yourself
+  (the singleton is created in `factory.ts`). Use `logger` / `logger.child(...)`.
+- Types: `LogLevel`, `Transport`.
+
+Instance methods on `logger` / any child logger:
+
+- `logger.debug(message, ...)`, `logger.info(...)`, `logger.warn(...)`, `logger.error(...)`,
+  `logger.fatal(...)` — the five level methods (overloaded, see Logging below).
+- `logger.child(module: string): Logger` — new logger that tags every line with `[module=...]`.
+- `logger.close(): Promise<void>` — close/flush all transports (graceful shutdown).
+- `logger.level: LogLevel` — getter for the currently active level (read-only).
+
+> **No such API — do not use these (they appear in old docs but are not in the code):**
+> - `createLogger(name)` — does **not** exist. Use `logger.child(name)`.
+> - `withLogContext(ctx, fn)` / any AsyncLocalStorage context helper — does **not** exist.
+>   Pass context explicitly as the last argument on each call.
+> - File transport, `LOGGER_FILE_ENABLED`, `LOG_DIR` — there is **no** file transport.
+>   The only transport is console (stdout/stderr).
+> - `LOG_LEVEL` env var — the level is read from `SPFN_LOG_LEVEL` /
+>   `NEXT_PUBLIC_SPFN_LOG_LEVEL`, **not** `LOG_LEVEL`.
+> - Slack / Email / CloudWatch / Sentry transports — none exist and none are "already
+>   configured". The factory wires exactly one `ConsoleTransport`.
+>
+> Internal formatter functions (`maskSensitiveData`, `formatConsole`, `formatJSON`,
+> `extractQueryInfo`, `formatUnhandledRejection`, etc.) live in `formatters.ts` but are
+> **not** part of the public export surface — don't import them from `@spfn/core/logger`.
+> In particular `formatJSON` exists but is **not wired into any transport**: production
+> output is plain (uncolored) console text, not JSON (see Output format).
 
 ---
 
 ## Quick Start
 
-### Basic Usage
-
 ```typescript
-import { logger } from '@spfn/core';
+import { logger } from '@spfn/core/logger';
 
-// Basic logging
-logger.debug('Debug message');
-logger.info('Server started');
-logger.warn('Warning message');
-logger.error('Error occurred', error);
-logger.fatal('Critical error');
+logger.debug('Cache miss', { key: 'user:123' });
+logger.info('Server started', { port: 3000 });
+logger.warn('Retry attempt', { attempt: 3 });
+logger.error('Operation failed', error, { userId: 123 });   // error as 2nd arg
+logger.fatal('Database unreachable', error);
 ```
 
-### Module-Specific Loggers
+No initialization, no `await`, no setup — importing `logger` is enough. The singleton is
+constructed on first import in `factory.ts`.
+
+---
+
+## Logging: message + (error | context) + context
+
+Each level method (`debug`/`info`/`warn`/`error`/`fatal`) shares the same overloads.
+The second argument is detected at runtime, so argument **order and type matter**:
 
 ```typescript
-import { logger } from '@spfn/core';
+// 1. message only
+logger.info('Server started');
 
+// 2. message + context object  → rendered as [key=value] pairs
+logger.info('Request received', { method: 'POST', path: '/users' });
+
+// 3. message + Error            → stack trace (and cause chain) printed
+logger.error('Query failed', error);
+
+// 4. message + Error + context  → both
+logger.error('Query failed', error, { userId: 123, op: 'createUser' });
+
+// 5. printf-style — if message contains a %s/%d/%i/%f/%j/%o/%O/%c token,
+//    the second arg is substituted via node:util.format (NOT treated as context)
+logger.info('Fetching url: %s', requestUrl);
+```
+
+How the second argument is classified (see `logWithLevel` in `logger.ts`):
+- If `message` contains a printf token (`%s %d %i %f %j %o %O %c %%`), the 2nd arg is
+  formatted into the message string — it will **not** appear as context.
+- An `Error` instance → logged as the error (stack + `cause` chain printed).
+- A non-Error object **with** a string `stack` property → treated as an error and wrapped.
+- A plain object **without** a `stack` property → treated as **context**.
+- A `string` / `number` / `boolean` → wrapped into an `Error` (so `{ key: value }`
+  context must be an object, not a bare primitive).
+
+This `stack`-based heuristic means an object you intend as context will be misread as an
+error if it happens to carry a string `stack` field. Prefer the explicit 3-arg form
+`logger.error(msg, error, context)` when you have both.
+
+---
+
+## Child loggers (per-module)
+
+`logger.child(name)` returns a new `Logger` that inherits the level/transports and adds a
+`[module=name]` tag to every line. Cheap to create; create one per module.
+
+```typescript
 const dbLogger = logger.child('database');
 const apiLogger = logger.child('api');
 
-dbLogger.info('Database connected');
-apiLogger.info('Request received', { method: 'POST', path: '/users' });
+dbLogger.info('Connection established');
+// [2026-06-10 10:30:00.123] [pid=12345] [module=database] (INFO): Connection established
 ```
 
-### Error Logging with Context
+Child loggers do **not** stack — calling `.child('b')` on a child created with `.child('a')`
+replaces the module name with `b`, it does not produce `a.b`.
+
+---
+
+## Log levels
+
+Five levels, filtered by priority. A log is emitted only when its priority is `>=` the
+configured level (filtering happens *before* metadata is built, so suppressed
+`logger.debug(...)` calls are cheap).
+
+| Level   | Priority | Stream | Use case |
+|---------|----------|--------|----------|
+| `debug` | 0 | stdout | Development diagnostics |
+| `info`  | 1 | stdout | Normal operations (server start, etc.) |
+| `warn`  | 2 | stderr | Potential issues, retries |
+| `error` | 3 | stderr | Failures needing attention |
+| `fatal` | 4 | stderr | Critical / shutdown-level errors |
+
+`warn`, `error`, `fatal` go to **stderr**; `debug`, `info` go to **stdout** (via
+`console.error` / `console.log`).
+
+`LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal'`.
+
+---
+
+## Configuration (environment variables)
+
+The level is resolved once, at module load, in `factory.ts`:
+
+| Variable | Effect | Default |
+|----------|--------|---------|
+| `SPFN_LOG_LEVEL` | Minimum level. First choice. | `info` |
+| `NEXT_PUBLIC_SPFN_LOG_LEVEL` | Fallback level (client-visible in Next.js). Used only if `SPFN_LOG_LEVEL` is unset. | `info` |
+| `NODE_ENV` | `production` → colorized output **off**; anything else → colors **on**. | (warns if unset) |
+
+```bash
+SPFN_LOG_LEVEL=debug   # show everything
+NODE_ENV=production    # disable ANSI colors (plain text for log collectors)
+```
+
+- An invalid `SPFN_LOG_LEVEL` value falls back to `info` with a stderr warning.
+- Because the level is read **once at import time**, changing `process.env.SPFN_LOG_LEVEL`
+  at runtime has **no effect** — set it before the process starts.
+- The console transport itself is created with level `debug` and is always enabled; the
+  effective floor is the logger-level computed from `SPFN_LOG_LEVEL`.
+
+---
+
+## Sensitive data masking
+
+Context objects are recursively scanned and any key whose lowercased name *contains* a
+sensitive token is replaced with the literal string `***MASKED***` before output. The
+original value is never written to any transport.
 
 ```typescript
-try {
-  await someOperation();
-} catch (error) {
-  logger.error('Operation failed', error as Error, {
-    userId: 123,
-    operation: 'createUser'
-  });
-}
+logger.info('Login attempt', { username: 'john', password: pw, token: t });
+// [username=john] [password=***MASKED***] [token=***MASKED***] (INFO): Login attempt
 ```
+
+Masking applies to nested objects and arrays, and circular references render as
+`[Circular]`. Matching is substring + case-insensitive, so `userPassword`, `X-Api-Key`,
+`refresh_token`, etc. all match.
+
+Masked key tokens (a key matches if it contains any of these):
+`password`, `passwd`, `pwd`, `secret`, `token`, `apikey`, `api_key`, `accesstoken`,
+`access_token`, `refreshtoken`, `refresh_token`, `authorization`, `auth`, `cookie`,
+`session`, `sessionid`, `session_id`, `privatekey`, `private_key`, `creditcard`,
+`credit_card`, `cardnumber`, `card_number`, `cvv`, `ssn`, `pin`.
+
+> Masking only applies to the **context** object. It does **not** scan the `message`
+> string. Never interpolate a secret into the message — `logger.info(\`token: ${t}\`)`
+> is logged verbatim, unmasked. Put potentially-sensitive data in the context object so
+> the masker can catch it.
 
 ---
 
-## Log Levels
+## Output format
 
-Five log levels with priority order:
-
-| Level | Priority | Use Case |
-|-------|----------|----------|
-| debug | 0 | Development debugging |
-| info | 1 | General information (server start, etc.) |
-| warn | 2 | Warnings (retries, unusual situations) |
-| error | 3 | Errors (exceptions, failures) |
-| fatal | 4 | Critical errors (system halt level) |
-
----
-
-## Environment Configuration
-
-### Development
-
-```bash
-NODE_ENV=development
-SPFN_LOG_LEVEL=debug
-```
-
-**Output:** Colored console output
-
-```
-[2025-10-21 15:39:06.123] [pid=12345] [module=database] [userId=123] (INFO): Request received
-```
-
-### Production (Docker/K8s)
-
-```bash
-NODE_ENV=production
-SPFN_LOG_LEVEL=info
-```
-
-**Output:** Plain text to stdout/stderr (Docker collects logs automatically)
-
-```
-[2025-10-21 15:39:06.123] [pid=12345] [module=api] [method=POST] [path=/users] (INFO): Request received
-```
-
-**Docker Logging:** Logs written to stdout/stderr are automatically captured by Docker and can be:
-- Viewed with `docker logs <container>`
-- Forwarded to centralized logging systems (CloudWatch, Stackdriver, Loki)
-- Managed by Kubernetes logging infrastructure
-
-### Production (Self-Hosted)
-
-For self-hosted environments, use external logging systems (Loki, ELK, etc.) to collect stdout/stderr instead of file-based logging.
-
----
-
-## Security Features
-
-### Sensitive Data Masking
-
-Automatically masks sensitive information in logs:
-
-```typescript
-logger.info('User login', {
-  username: 'john',
-  password: 'secret123',  // Automatically masked
-  token: 'abc123'          // Automatically masked
-});
-
-// Output
-[2025-10-21 15:39:06.123] [pid=12345] [module=auth] [username=john] [password=***MASKED***] [token=***MASKED***] (INFO): User login
-```
-
-**Automatically masked fields:**
-- password, passwd, pwd
-- token, accessToken, refreshToken
-- apiKey, api_key
-- secret, privateKey
-- authorization, auth
-- cookie, session, sessionId
-- creditCard, cardNumber, cvv
-- ssn, pin
-
----
-
-## Environment Variables
-
-```bash
-NODE_ENV=production                       # development | production | test (affects colorization)
-SPFN_LOG_LEVEL=info                       # debug | info | warn | error | fatal (default: info)
-NEXT_PUBLIC_SPFN_LOG_LEVEL=info          # Client-side log level for Next.js (default: info)
-```
-
----
-
-## Transports
-
-### Console Transport
-
-- Always enabled
-- stdout (debug, info) / stderr (warn, error, fatal)
-- Colored in development, plain text in production
-- **Docker/K8s Compatible**: Logs to stdout/stderr for container log collection
-
-**Recommended Logging Strategy:**
-- **Development**: Console with colors
-- **Docker/K8s**: Console (plain text) → Container logs → Centralized system (CloudWatch, Loki, etc.)
-- **Serverless**: Console (plain text) → Automatic capture by platform
-
----
-
-## Log Formats
-
-### Console Output Format
+There is exactly one transport (`ConsoleTransport`) and it always renders the
+human-readable console format — colorized when `NODE_ENV !== 'production'`, plain text
+otherwise. Layout:
 
 ```
 [timestamp] [pid=N] [module=name] [key=value]... (LEVEL): message
 ```
 
-**Example:**
 ```
-[2025-10-21 15:39:06.123] [pid=12345] [module=database] (INFO): Connection established
-[2025-10-21 15:39:06.456] [pid=12345] [module=api] [userId=123] (ERROR): Request failed
+[2026-06-10 10:30:00.123] [pid=12345] [module=database] (INFO): Connection established
+[2026-06-10 10:30:01.456] [pid=12345] [module=api] [userId=123] (ERROR): Request failed
 Error: Connection timeout
     at processRequest (/app/src/api.ts:45:11)
 ```
 
+Errors are printed on their own line after the message, including the `Caused by:` cause
+chain. In containers (Docker/K8s), set `NODE_ENV=production` so output is plain text on
+stdout/stderr, which the platform collects automatically.
+
 ---
 
-## API Reference
+## Pitfalls & anti-patterns
 
-### `logger.child(module)`
+- **`createLogger` / `withLogContext` don't exist.** Use `logger.child(name)` for scoping
+  and pass context explicitly per call. There is no ambient/async context.
+- **No JSON output.** `formatJSON` exists in the source but is unused; the only transport
+  emits console text. "Production = JSON logs" (from old docs) is false — production just
+  turns colors off.
+- **Wrong env var.** The level comes from `SPFN_LOG_LEVEL` (or
+  `NEXT_PUBLIC_SPFN_LOG_LEVEL`), **not** `LOG_LEVEL`.
+- **Level is frozen at import.** Mutating `process.env.SPFN_LOG_LEVEL` after startup does
+  nothing. Set it in the environment before launching.
+- **Masked value is `***MASKED***`, not `***`.** Don't assert on `***` in tests/parsers.
+- **Secrets in the message are NOT masked.** Only the context object is scanned. Keep
+  sensitive values out of the message string; put them in context.
+- **Context vs error ambiguity.** A plain object with a string `stack` property is treated
+  as an error, not context. Use the 3-arg form `logger.error(msg, error, context)` when
+  you have both, and don't put a `stack` key on a context object.
+- **Bare primitives as 2nd arg become errors.** `logger.info('x', 42)` logs `42` as an
+  Error (or printf-substitutes it if the message has a `%` token) — it is not context.
+  Context must be an object: `logger.info('x', { n: 42 })`.
+- **Don't import internals.** `maskSensitiveData`, `formatConsole`, `formatJSON`,
+  `extractQueryInfo`, `formatUnhandledRejection`, `Logger` construction, etc. are not the
+  public surface. Use the `logger` singleton + `child`.
+- **No file transport.** `LOGGER_FILE_ENABLED` / `LOG_DIR` do nothing. Route stdout/stderr
+  to your log collector (Loki/CloudWatch/ELK) instead.
 
-Create module-specific logger.
+---
+
+## Complete example
 
 ```typescript
+import { logger } from '@spfn/core/logger';
+
 const dbLogger = logger.child('database');
-dbLogger.info('Connected');
-```
 
-**Returns:** `Logger`
+async function createUser(input: { email: string; password: string }): Promise<void>
+{
+    dbLogger.debug('createUser called', { email: input.email });
+    // 'password' in context would be auto-masked if included.
 
----
+    try
+    {
+        await db.insert(/* ... */);
+        dbLogger.info('User created', { email: input.email });
+    }
+    catch (error)
+    {
+        // 3-arg form: message + Error (stack + cause) + extra context
+        dbLogger.error('User insert failed', error as Error, { email: input.email });
+        throw error;
+    }
+}
 
-### `logger.debug(message, context?)`
-
-Debug level log.
-
-```typescript
-logger.debug('Query executed', { query: 'SELECT...', duration: 45 });
-```
-
----
-
-### `logger.info(message, context?)`
-
-Info level log.
-
-```typescript
-logger.info('Server started', { port: 3000 });
-```
-
----
-
-### `logger.warn(message, error?, context?)`
-
-Warning level log.
-
-```typescript
-logger.warn('Connection retry', { attempt: 3 });
-logger.warn('Connection retry', error, { attempt: 3 });
+// Graceful shutdown: flush transports
+process.on('SIGTERM', async () =>
+{
+    logger.info('Shutting down');
+    await logger.close();
+    process.exit(0);
+});
 ```
 
 ---
 
-### `logger.error(message, error?, context?)`
-
-Error level log.
+## Types reference
 
 ```typescript
-logger.error('Request failed', error, { userId: 123 });
+type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+
+interface Transport
+{
+    name: string;
+    level: LogLevel;
+    enabled: boolean;
+    log(metadata: LogMetadata): Promise<void>;
+    close?(): Promise<void>;
+}
 ```
 
----
+`LogMetadata` (the object passed to a `Transport.log`; not exported, shown for
+implementers) carries `timestamp: Date`, `level`, `message`, optional `module`,
+optional `error: Error`, and optional `context` (already masked).
 
-### `logger.fatal(message, error?, context?)`
+`logger.level` is a `LogLevel` getter (read-only).
 
-Fatal level log.
-
-```typescript
-logger.fatal('Database unavailable', error);
-```
-
----
-
-## Performance Tips
-
-### 1. Log Level Filtering
-
-Logs are filtered at the source before metadata creation for optimal performance:
-
-```typescript
-// ❌ Don't worry - if level is 'info', this won't create metadata
-logger.debug('Expensive operation', { data: hugeObject });
-
-// ✅ But still, use appropriate levels
-logger.info('User query completed', { count: 100, duration: 45 });
-```
-
-### 2. Use Child Loggers
-
-```typescript
-// ❌ Module name in every log
-logger.info('[database] Connected');
-
-// ✅ Create child logger once
-const dbLogger = logger.child('database');
-dbLogger.info('Connected');
-```
-
-### 3. Sensitive Data
-
-Don't worry about accidentally logging sensitive data - it's automatically masked:
-
-```typescript
-// ✅ Safe - password will be masked
-logger.info('Login attempt', { username: 'john', password: userInput });
-```
-
----
-
-## Testing
-
-```bash
-# Run all logger tests (103 tests)
-pnpm test src/logger
-
-# Run specific test files
-pnpm test src/logger/__tests__/logger.test.ts
-pnpm test src/logger/__tests__/console-transport.test.ts
-pnpm test src/logger/__tests__/formatters.test.ts
-pnpm test src/logger/__tests__/config.test.ts
-pnpm test src/logger/__tests__/logger-context.test.ts
-pnpm test src/logger/__tests__/promise-context.test.ts
-```
-
-**Test Coverage (103 tests):**
-- ✅ Logger core (26 tests)
-  - Basic logging (all levels)
-  - Context logging
-  - Error logging with stack traces
-  - Child logger creation
-  - Log level filtering
-  - Sensitive data masking
-- ✅ Console Transport (16 tests)
-  - Enabled state handling
-  - Log level filtering
-  - Stream separation (stdout/stderr)
-  - Colorization
-- ✅ Formatters (35 tests)
-  - Console formatting
-  - Plain text formatting
-  - Timestamp formatting
-  - Sensitive data masking
-- ✅ Configuration (7 tests)
-  - Environment detection
-  - Log level configuration
-- ✅ Logger Context (6 tests)
-  - Context propagation
-  - Nested context handling
-- ✅ Promise Context (13 tests)
-  - Async context tracking
-  - Promise chain context propagation
-
----
-
-## Troubleshooting
-
-### Logs not appearing
-
-**Cause:** Log level too high
-
-**Solution:** Check `SPFN_LOG_LEVEL` environment variable
-```bash
-SPFN_LOG_LEVEL=debug  # Show all logs
-```
-
-### Docker/K8s Logging
-
-For containerized environments, logs are automatically captured from stdout/stderr:
-
-```bash
-# View container logs
-docker logs <container-id>
-
-# Follow logs in real-time
-docker logs -f <container-id>
-
-# Kubernetes logs
-kubectl logs <pod-name>
-```
+The `Transport` interface is public so you *could* implement a custom transport, but the
+factory does not expose a registration hook — there is currently no supported way to add a
+transport to the singleton without editing `factory.ts`.
 
 ---
 
 ## Related
 
-- [@spfn/core](../../README.md) - Main package documentation
+- `@spfn/core` — package root (re-exports `logger`).
+- `src/logger/factory.ts` — where the singleton + console transport are wired and the
+  level is resolved from env.

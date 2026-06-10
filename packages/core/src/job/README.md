@@ -1,627 +1,492 @@
-# @spfn/core/job - Background Job System
+# @spfn/core/job — pg-boss background jobs
 
-pg-boss based background job system with type-safe job definitions and execution.
+Type-safe background jobs on PostgreSQL (pg-boss): a fluent `job()` builder with typed
+input/output, cron scheduling, run-once, event-driven triggers, batch processing, and
+compensation — grouped in a `JobRouter` and registered through `defineServerConfig()`.
 
-## Core Components
+## Import paths
 
+One entry point. pg-boss is a peer dependency you install yourself.
+
+```typescript
+import {
+    job, defineJobRouter,
+    initBoss, getBoss, stopBoss, isBossRunning, registerJobs,
+} from '@spfn/core/job';
+import { defineEvent } from '@spfn/core/event';   // for .on(event) jobs
+import { Type } from '@sinclair/typebox';         // for .input()/.output() schemas
 ```
-job/
-├── index.ts              # Module exports
-├── job-builder.ts        # Fluent API job builder
-├── job-router.ts         # Job router and collection
-├── boss.ts               # pg-boss wrapper
-├── register-jobs.ts      # Job registration with pg-boss
-└── types.ts              # Type definitions
+
+```bash
+pnpm add pg-boss        # required peer dependency
 ```
 
-## What is pg-boss?
-
-**pg-boss** is a PostgreSQL-based job queue system. It provides reliable background job processing using only your existing PostgreSQL database, without requiring Redis or other message brokers.
-
-- 🔗 Website: https://github.com/timgit/pg-boss
-- 📦 PostgreSQL native - no additional infrastructure
-- ⚡ Retry, scheduling, and priority support
-- 🔒 Transaction safety guaranteed
+In a normal SPFN app you do **not** call `initBoss` / `registerJobs` yourself — wiring a
+`JobRouter` into `defineServerConfig().jobs(...)` does both at server start (see Quick Start).
 
 ---
 
-## Features
+## Public API (complete)
 
-- ✅ **Type-Safe**: TypeBox schema-based type inference
-- ✅ **Fluent API**: Intuitive job definition with builder pattern
-- ✅ **Cron Scheduling**: Periodic job scheduling
-- ✅ **Event Integration**: Decoupled event system integration
-- ✅ **Run Once**: One-time execution on server start
-- ✅ **Retry & Expiration**: Configurable retry and expiration
-- ✅ **Nested Routers**: Hierarchical router structure support
-- ✅ **Singleton Jobs**: Duplicate execution prevention
+From `@spfn/core/job`:
+
+- Builder: `job(name)` → `JobBuilder`
+- Router: `defineJobRouter(jobs)`, `collectJobs(router, prefix?)`, `isJobDef(v)`, `isJobRouter(v)`
+- pg-boss lifecycle: `initBoss(options)`, `getBoss()`, `stopBoss()`, `isBossRunning()`,
+  `shouldClearOnStart()`
+- Registration: `registerJobs(router)` — **takes a `JobRouter`, not an array**
+- Types: `JobDef`, `JobRouter`, `JobRouterEntry`, `JobOptions`, `JobSendOptions`,
+  `JobHandler`, `CompensateHandler`, `InferJobInput`, `InferJobOutput`, `BossOptions`,
+  `BossConfig` (deprecated alias of `BossOptions`)
+
+`JobBuilder` methods: `.input(schema)`, `.output(schema)`, `.on(event)`, `.cron(expr)`,
+`.runOnce()`, `.options(opts)`, `.timeout(ms)`, `.compensate(fn)`, `.handler(fn)`.
+
+`JobDef` methods (returned by `.handler()`): `.send(input?, opts?)`,
+`.sendBatch(inputs?, opts?)`, `.run(input?)`.
+
+### Removed API — do not use
+
+The old `core/docs/job.md` documents an API that **no longer exists**. None of these are
+exported; using them will not compile:
+
+| Removed | Use instead |
+|---------|-------------|
+| `defineJob({ name, handler })` | `job(name).input(...).handler(...)` builder |
+| `enqueue(jobDef, payload, opts)` | `jobDef.send(input, opts)` |
+| `schedule(name, cron, fn)` | `job(name).cron(expr).handler(fn)` |
+| `registerJobs([jobA, jobB])` (array) | `registerJobs(defineJobRouter({ jobA, jobB }))` |
+| `concurrency`, `attempts`, `backoff`, `delay`, `priority: 'high'` options | `batchSize`, `retryLimit`, `retryDelay`, `startAfter`, numeric `priority` |
+
+`registerJobs` exists but its signature changed: it accepts a **`JobRouter`**, not an array
+of jobs.
 
 ---
 
 ## Quick Start
 
-### 1. Install pg-boss
-
-```bash
-pnpm install pg-boss
-```
-
-### 2. Define Jobs
+### 1. Define jobs
 
 ```typescript
-import { job, defineJobRouter } from '@spfn/core/job';
+// src/server/jobs/send-email.job.ts
+import { job } from '@spfn/core/job';
 import { Type } from '@sinclair/typebox';
 
-// Simple job without input
-export const cleanupJob = job('cleanup')
-    .handler(async () => {
-        await db.cleanup();
-    });
-
-// Job with typed input
 export const sendEmailJob = job('send-email')
     .input(Type.Object({
         to: Type.String(),
         subject: Type.String(),
         body: Type.String(),
     }))
-    .handler(async (input) => {
+    .options({ retryLimit: 3 })
+    .handler(async (input) =>
+    {
         await emailService.send(input.to, input.subject, input.body);
     });
-
-// Create job router
-export const jobRouter = defineJobRouter({
-    cleanupJob,
-    sendEmailJob,
-});
 ```
 
-### 3. Register with Server
+### 2. Group into a router
 
 ```typescript
+// src/server/jobs/index.ts
+import { defineJobRouter } from '@spfn/core/job';
+import { sendEmailJob } from './send-email.job';
+
+export const jobRouter = defineJobRouter({ sendEmailJob });
+```
+
+### 3. Register with the server (does initBoss + registerJobs)
+
+```typescript
+// server.config.ts
 import { defineServerConfig } from '@spfn/core/server';
+import { appRouter } from './routes';
 import { jobRouter } from './jobs';
 
-defineServerConfig()
+export default defineServerConfig()
     .routes(appRouter)
-    .jobs(jobRouter)
+    .jobs(jobRouter)   // connectionString comes from env.DATABASE_URL automatically
     .build();
 ```
 
-### 4. Trigger Jobs
+### 4. Trigger jobs
 
 ```typescript
-// Send to queue (async execution)
-await sendEmailJob.send({
-    to: 'user@example.com',
-    subject: 'Welcome',
-    body: 'Hello!',
-});
-
-// Direct execution (for testing)
-await sendEmailJob.run({
-    to: 'user@example.com',
-    subject: 'Test',
-    body: 'Test body',
-});
+await sendEmailJob.send({ to: 'user@example.com', subject: 'Welcome', body: 'Hi!' });
+await sendEmailJob.run({ to: 'test@example.com', subject: 'Test', body: 'x' }); // sync, for tests
 ```
 
 ---
 
-## Job Types
+## Job types
 
-### Standard Job
+`job(name)` starts a builder. The terminal `.handler(fn)` finalizes and returns a `JobDef`.
+The builder kind is selected by which modifier you chain — they are not mutually exclusive in
+type, but a job should be *one* of these:
 
-Basic job definition. Can be used without input schema or with TypeBox type specification.
+### Standard — triggered via `.send()`
 
 ```typescript
-// Without input
-const simpleJob = job('simple')
-    .handler(async () => {
-        console.log('Running simple job');
-    });
-
-// With typed input
 const typedJob = job('typed')
-    .input(Type.Object({
-        userId: Type.String(),
-        action: Type.String(),
-    }))
-    .handler(async (input) => {
-        // input is typed as { userId: string, action: string }
+    .input(Type.Object({ userId: Type.String(), action: Type.String() }))
+    .handler(async (input) =>
+    {
+        // input: { userId: string; action: string }
         await processAction(input.userId, input.action);
     });
+
+const noInput = job('simple').handler(async () => { await db.cleanup(); });
 ```
 
-### Cron Job
-
-Schedule periodic execution with cron expressions.
+### Cron — scheduled
 
 ```typescript
 const dailyReport = job('daily-report')
-    .cron('0 9 * * *')  // Every day at 9 AM
-    .handler(async () => {
-        await reportService.generateDaily();
-    });
-
-const weeklyCleanup = job('weekly-cleanup')
-    .cron('0 0 * * 0')  // Every Sunday at midnight
-    .handler(async () => {
-        await cleanupService.weeklyCleanup();
-    });
+    .cron('0 9 * * *')      // every day 09:00
+    .handler(async () => { await reportService.generateDaily(); });
 ```
 
-**Cron Expression Examples:**
-| Expression | Description |
-|------------|-------------|
-| `0 * * * *` | Every hour |
-| `0 9 * * *` | Every day at 9 AM |
-| `0 0 * * 0` | Every Sunday at midnight |
-| `0 0 1 * *` | First day of every month |
-| `*/5 * * * *` | Every 5 minutes |
+| Cron | Meaning |
+|------|---------|
+| `*/5 * * * *` | every 5 minutes |
+| `0 * * * *` | every hour |
+| `0 9 * * *` | every day 09:00 |
+| `0 0 * * 0` | every Sunday 00:00 |
+| `0 0 1 * *` | first day of month |
 
-### Run Once Job
+Cron jobs take **no input** — pg-boss invokes the handler with `{}`.
 
-Jobs that run only once on server start. Useful for cache warming or initialization.
+### RunOnce — once per server start
 
 ```typescript
 const initCache = job('init-cache')
     .runOnce()
-    .handler(async () => {
-        await cache.warmup();
-    });
-
-const seedDatabase = job('seed-db')
-    .runOnce()
-    .handler(async () => {
-        await seedInitialData();
-    });
+    .handler(async () => { await cache.warmup(); });
 ```
 
-### Event-Triggered Job
+Enqueued with `singletonKey: 'runOnce:<name>'` so concurrent instances don't double-run it.
 
-Integrate with Event system for automatic execution on event emission. Useful for system decoupling.
+### Event-driven — `.on(event)`
+
+Subscribe to an event; the input type is **inferred from the event payload**. Emitting the
+event enqueues the job (decoupled — one event can drive many jobs).
 
 ```typescript
 import { defineEvent } from '@spfn/core/event';
 
-// Define event
 export const userCreated = defineEvent('user.created', Type.Object({
     userId: Type.String(),
     email: Type.String(),
 }));
 
-// Job subscribes to event
-export const sendWelcomeEmail = job('send-welcome-email')
-    .on(userCreated)  // Subscribe to event
-    .handler(async (payload) => {
-        // payload is typed as { userId: string, email: string }
-        await emailService.sendWelcome(payload.email);
-    });
+export const sendWelcome = job('send-welcome')
+    .on(userCreated)        // input typed as { userId: string; email: string }
+    .handler(async (payload) => { await emailService.sendWelcome(payload.email); });
 
-// Emit event (triggers subscribed jobs)
-await userCreated.emit({ userId: '123', email: 'user@example.com' });
+await userCreated.emit({ userId: '123', email: 'user@example.com' }); // triggers sendWelcome
 ```
+
+`.on()` consumes the event's queue (`event:<name>`), not `<job.name>`. You do **not** call
+`.send()` on an event-driven job — emit the event instead.
 
 ---
 
-## Job Options
-
-Configure job execution options.
+## Job options (`.options()`)
 
 ```typescript
-const importantJob = job('important-task')
+job('important-task')
     .input(Type.Object({ id: Type.String() }))
     .options({
-        retryLimit: 5,          // Max retry attempts (default: 3)
-        retryDelay: 5000,       // Retry interval in ms (default: 1000)
-        expireInSeconds: 600,   // Job expiration time (default: 300)
-        priority: 10,           // Priority (higher = executed first)
-        singletonKey: 'unique', // Duplicate prevention key
-        retentionSeconds: 86400 // Completed job retention (default: 604800)
+        retryLimit: 5,          // max retries        (default 3)
+        retryDelay: 5000,       // ms between retries  (default 1000)
+        expireInSeconds: 600,   // handler timeout     (default 300)
+        priority: 10,           // higher = first      (default 0)
+        singletonKey: 'unique', // dedupe key
+        retentionSeconds: 86400,// keep completed jobs (default 604800 = 7d)
+        batchSize: 1,           // jobs per worker poll(default 1)
     })
-    .handler(async (input) => {
-        await processImportant(input.id);
+    .handler(async (input) => { await processImportant(input.id); });
+```
+
+`.timeout(ms)` is sugar for `expireInSeconds` (`Math.ceil(ms / 1000)`):
+
+```typescript
+job('quick').timeout(10000).handler(async () => { /* ... */ }); // expireInSeconds: 10
+```
+
+| Option | Type | Default | Notes |
+|--------|------|---------|-------|
+| `retryLimit` | number | 3 | max retry attempts |
+| `retryDelay` | number | 1000 | ms between retries |
+| `expireInSeconds` | number | 300 | handler timeout (seconds) |
+| `priority` | number | 0 | higher = processed first |
+| `singletonKey` | string | — | only one active job per key |
+| `retentionSeconds` | number | 604800 | completed-job retention |
+| `batchSize` | number | 1 | jobs fetched per worker poll; `> 1` ⇒ parallel |
+
+---
+
+## Sending jobs
+
+### `.send(input?, options?)` → `Promise<string | null>`
+
+Enqueue one job (returns the pg-boss job id, or `null` if deduped). Jobs with no input
+schema take only the options arg.
+
+```typescript
+await sendEmailJob.send({ to: 'u@x.com', subject: 'Hi', body: '...' });
+
+await sendEmailJob.send(
+    { to: 'u@x.com', subject: 'Hi', body: '...' },
+    {
+        startAfter: 60,                       // delay seconds — or a Date
+        priority: 10,                         // override default priority
+        singletonKey: 'welcome-u@x.com',      // dedupe this invocation
+    },
+);
+```
+
+`JobSendOptions`: `startAfter?: number | Date`, `priority?: number`, `singletonKey?: string`.
+Send-time options override the job's defaults.
+
+### `.sendBatch(inputs?, options?)` → `Promise<void>`
+
+Bulk-insert via `pg-boss.insert()` — a single query, far faster than a `.send()` loop.
+
+```typescript
+await sendEmailJob.sendBatch(
+    users.map(u => ({ to: u.email, subject: 'Welcome', body: render(u) })),
+);
+```
+
+Combine with `batchSize` for distributed parallel processing: each worker fetches `batchSize`
+jobs and runs them with `Promise.allSettled`; failed jobs are individually marked
+(`boss.fail`) and retried — the whole batch does not fail together. pg-boss advisory locks
+prevent duplicate processing across instances.
+
+### `.run(input?)` → `Promise<TOutput>`
+
+Invoke the handler **synchronously, bypassing pg-boss** — for unit tests / debugging only.
+No queue, no retries, no boss required.
+
+```typescript
+await sendEmailJob.run({ to: 't@x.com', subject: 'Test', body: 'x' });
+```
+
+---
+
+## Compensation & output (workflow/saga)
+
+`.output(schema)` types the handler's return; `.compensate(fn)` defines rollback. These are
+hooks for workflow/saga orchestration — they do not run automatically on plain `.send()`.
+
+```typescript
+export const chargePayment = job('charge-payment')
+    .input(Type.Object({ orderId: Type.String(), amount: Type.Number() }))
+    .output(Type.Object({ chargeId: Type.String() }))
+    .compensate(async (input, output) =>
+    {
+        await paymentService.refund(input.orderId, input.amount); // rollback
+    })
+    .handler(async (input) =>
+    {
+        return await paymentService.charge(input.orderId, input.amount);
     });
 ```
 
-### Options Reference
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `retryLimit` | number | 3 | Maximum retry attempts |
-| `retryDelay` | number | 1000 | Retry interval (ms) |
-| `expireInSeconds` | number | 300 | Job expiration time (seconds) |
-| `priority` | number | 0 | Priority (higher = first) |
-| `singletonKey` | string | - | Duplicate prevention key |
-| `retentionSeconds` | number | 604800 | Completed job retention (seconds) |
-
 ---
 
-## Job Router
+## Job router
 
-### Flat Structure
-
-```typescript
-export const jobRouter = defineJobRouter({
-    sendWelcomeEmail,
-    dailyReport,
-    initCache,
-});
-```
-
-### Nested Structure
+`defineJobRouter` groups jobs (flat, nested, or mixed). `collectJobs` flattens nested
+routers — nested keys become dotted names (`email.sendWelcome`).
 
 ```typescript
-export const jobRouter = defineJobRouter({
-    email: defineJobRouter({
-        sendWelcome: sendWelcomeEmailJob,
-        sendReset: sendResetPasswordJob,
-    }),
-    reports: defineJobRouter({
-        daily: dailyReportJob,
-        weekly: weeklyReportJob,
-    }),
-});
-```
+// flat
+export const jobRouter = defineJobRouter({ sendWelcome, dailyReport, initCache });
 
-### Mixed Structure
-
-```typescript
+// nested + mixed
 export const jobRouter = defineJobRouter({
-    initCache,  // flat
-    email: defineJobRouter({
-        sendWelcome: sendWelcomeEmailJob,
+    initCache,                                       // flat
+    email: defineJobRouter({                         // nested → 'email.sendWelcome', ...
+        sendWelcome,
+        sendReset,
     }),
 });
 ```
 
 ---
 
-## Send Options
+## Server wiring
 
-Specify individual options when sending jobs.
+`defineServerConfig().jobs(router, config?)` at server start: reads `env.DATABASE_URL`, calls
+`initBoss({ connectionString: DATABASE_URL, ...config })`, then `registerJobs(router)`.
 
 ```typescript
-// Delayed execution
-await sendEmailJob.send(
-    { to: 'user@example.com', subject: 'Hi', body: 'Hello' },
-    { startAfter: 60 }  // Execute after 60 seconds
-);
-
-// With specific date
-await sendEmailJob.send(
-    { to: 'user@example.com', subject: 'Hi', body: 'Hello' },
-    { startAfter: new Date('2024-12-25T09:00:00') }
-);
-
-// Singleton (prevent duplicates)
-await sendEmailJob.send(
-    { to: 'user@example.com', subject: 'Hi', body: 'Hello' },
-    { singletonKey: 'email-user@example.com' }
-);
-
-// Priority override
-await sendEmailJob.send(
-    { to: 'vip@example.com', subject: 'Urgent', body: 'Important!' },
-    { priority: 100 }
-);
+export default defineServerConfig()
+    .routes(appRouter)
+    .jobs(jobRouter, {
+        schema: 'spfn_queue',                          // default 'spfn_queue'
+        clearOnStart: process.env.NODE_ENV === 'development',
+    })
+    .build();
 ```
+
+The second arg is `Omit<BossOptions, 'connectionString'>` — **do not pass
+`connectionString`** here; it is taken from `env.DATABASE_URL`. If `DATABASE_URL` is unset,
+server start throws `"Jobs require database connection."`.
+
+### `BossOptions` (for manual `initBoss`)
+
+| Option | Type | Default | Notes |
+|--------|------|---------|-------|
+| `connectionString` | string | (required) | PostgreSQL URL (auto-supplied by `.jobs()`) |
+| `schema` | string | `'spfn_queue'` | pg-boss tables live here |
+| `maintenanceIntervalSeconds` | number | 120 | cleanup/archive interval |
+| `monitorIntervalSeconds` | number | — | state-change events; must be `>= 1` |
+| `clearOnStart` | boolean | false | delete pending jobs on boot (dev only) |
+
+`sslmode=require`/`prefer` in the URL is rewritten to `ssl: { rejectUnauthorized: false }`
+so self-signed certs work.
 
 ---
 
-## API Reference
+## Pitfalls & anti-patterns
 
-### `job(name)`
-
-Create a new job builder.
-
-```typescript
-const myJob = job('my-job')
-    .input(schema)
-    .options({ ... })
-    .handler(async (input) => { ... });
-```
-
-**Returns:** `JobBuilder`
-
----
-
-### `JobBuilder.input(schema)`
-
-Define input type with TypeBox schema.
-
-```typescript
-job('send-email')
-    .input(Type.Object({
-        to: Type.String(),
-        subject: Type.String(),
-    }))
-```
-
-**Returns:** `JobBuilder<Static<TSchema>>`
-
----
-
-### `JobBuilder.on(event)`
-
-Set event subscription. Event payload is passed as job input.
-
-```typescript
-job('on-user-created')
-    .on(userCreatedEvent)
-    .handler(async (payload) => { ... });
-```
-
-**Returns:** `JobBuilder<InferEventPayload<TEvent>>`
+- **`registerJobs` takes a `JobRouter`, not an array.** `registerJobs([a, b])` is the removed
+  API. Use `registerJobs(defineJobRouter({ a, b }))` — or just `.jobs(router)`, which is the
+  normal path and also runs `initBoss`.
+- **Don't call `initBoss` / `registerJobs` yourself in an SPFN app.** `defineServerConfig().jobs()`
+  does both. Calling `initBoss` twice logs `"pg-boss already initialized"` and returns the
+  existing instance (the second config is ignored).
+- **`.send()` before the boss is up throws** `"pg-boss not initialized"`. Only call `.send()`
+  after the server has started (e.g. inside route/job handlers), never at module top-level.
+- **Don't pass `connectionString` to `.jobs()`.** Its config is `Omit<BossOptions,
+  'connectionString'>`; the connection comes from `env.DATABASE_URL`. (Old docs showing
+  `.jobs(router, { connectionString })` are wrong.)
+- **Event-driven jobs are triggered by `emit()`, not `.send()`.** `.on(event)` binds the job
+  to the `event:<name>` queue; emitting the event enqueues it. Calling `.send()` on such a job
+  targets the wrong queue.
+- **`.run()` is not `.send()`.** `.run()` executes the handler inline with no queue, retries,
+  or timeout — tests/debugging only. Production dispatch is `.send()` / `.sendBatch()`.
+- **Cron and runOnce jobs take no input.** They are invoked with `{}`. Don't give them
+  `.input()` and expect data.
+- **Job names must be unique across the (flattened) router.** Two jobs sharing a `name` map to
+  the same pg-boss queue and collide. Nested router keys are namespaced into the *router* path
+  but the pg-boss queue is `job.name` — keep `name` strings unique.
+- **`clearOnStart: true` deletes pending/scheduled jobs on boot.** Development only — it wipes
+  queued work (and the subscribed event queues) every restart.
+- **`expireInSeconds` is a handler timeout, not a delay.** A handler exceeding it is treated as
+  failed and retried (up to `retryLimit`). Make handlers idempotent.
+- **`batchSize > 1` runs jobs concurrently.** Handlers must be safe to run in parallel;
+  failures are isolated per job, not per batch.
 
 ---
 
-### `JobBuilder.cron(expression)`
-
-Set cron schedule.
+## Complete example
 
 ```typescript
-job('daily-task')
+// src/server/jobs/index.ts
+import { job, defineJobRouter } from '@spfn/core/job';
+import { defineEvent } from '@spfn/core/event';
+import { Type } from '@sinclair/typebox';
+
+// event-driven
+export const userCreated = defineEvent('user.created', Type.Object({
+    userId: Type.String(),
+    email: Type.String(),
+}));
+
+export const sendWelcome = job('send-welcome')
+    .on(userCreated)
+    .options({ retryLimit: 3, retryDelay: 5000 })
+    .handler(async (p) => { await emailService.sendWelcome(p.email); });
+
+// standard + idempotent
+export const processOrder = job('process-order')
+    .input(Type.Object({ orderId: Type.String() }))
+    .options({ retryLimit: 3 })
+    .handler(async (input) =>
+    {
+        const order = await orderRepo.findById(input.orderId);
+        if (order.status === 'processed') return;     // idempotent guard
+        await processOrderLogic(order);
+    });
+
+// batch
+export const sendBulkEmail = job('send-bulk-email')
+    .input(Type.Object({ to: Type.String(), subject: Type.String(), html: Type.String() }))
+    .options({ retryLimit: 3, batchSize: 50 })
+    .handler(async (input) => { await emailProvider.send(input); });
+
+// cron
+export const dailyReport = job('daily-report')
     .cron('0 9 * * *')
-```
+    .handler(async () => { await reportService.generateDaily(); });
 
-**Returns:** `JobBuilder`
-
----
-
-### `JobBuilder.runOnce()`
-
-Set to run once on server start.
-
-```typescript
-job('init-task')
+// runOnce
+export const initCache = job('init-cache')
     .runOnce()
-```
+    .handler(async () => { await cache.warmup(); });
 
-**Returns:** `JobBuilder`
-
----
-
-### `JobBuilder.options(options)`
-
-Set job options.
-
-```typescript
-job('my-job')
-    .options({
-        retryLimit: 5,
-        priority: 10,
-    })
-```
-
-**Returns:** `JobBuilder`
-
----
-
-### `JobBuilder.handler(fn)`
-
-Define job handler and return JobDef.
-
-```typescript
-const myJob = job('my-job')
-    .handler(async () => {
-        // job logic
-    });
-```
-
-**Returns:** `JobDef<TInput>`
-
----
-
-### `JobDef.send(input?, options?)`
-
-Send job to queue (async execution).
-
-```typescript
-await sendEmailJob.send({ to: 'user@example.com', ... });
-await sendEmailJob.send({ to: 'user@example.com', ... }, { startAfter: 60 });
-```
-
-**Returns:** `Promise<string | null>` - Job ID or null
-
----
-
-### `JobDef.run(input?)`
-
-Execute job synchronously (for testing).
-
-```typescript
-await sendEmailJob.run({ to: 'user@example.com', ... });
-```
-
-**Returns:** `Promise<void>`
-
----
-
-### `defineJobRouter(jobs)`
-
-Group jobs into a router.
-
-```typescript
-const router = defineJobRouter({
-    job1,
-    job2,
-    nested: defineJobRouter({ ... }),
+export const jobRouter = defineJobRouter({
+    sendWelcome, processOrder, sendBulkEmail, dailyReport, initCache,
 });
 ```
 
-**Returns:** `JobRouter<TJobs>`
+```typescript
+// server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { appRouter } from './routes';
+import { jobRouter } from './jobs';
 
----
-
-### `initBoss(options)`
-
-Initialize pg-boss instance. Automatically called by `defineServerConfig()`.
+export default defineServerConfig()
+    .routes(appRouter)
+    .jobs(jobRouter, { clearOnStart: process.env.NODE_ENV === 'development' })
+    .build();
+```
 
 ```typescript
-await initBoss({
-    connectionString: process.env.DATABASE_URL!,
-    schema: 'spfn_queue',
-    clearOnStart: process.env.NODE_ENV === 'development',
+// dispatch (inside a handler, after server start)
+await processOrder.send({ orderId: 'o-1' });
+await sendBulkEmail.sendBatch(users.map(u => ({ to: u.email, subject: 'Hi', html: render(u) })));
+await userCreated.emit({ userId: '123', email: 'u@x.com' }); // → sendWelcome
+```
+
+```typescript
+// test
+import { processOrder } from './jobs';
+
+it('processes an order', async () =>
+{
+    await processOrder.run({ orderId: 'o-1' });   // sync, no pg-boss
+    expect(orderRepo.findById).toHaveBeenCalled();
 });
 ```
 
-**Options:**
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `connectionString` | string | (required) | PostgreSQL connection string |
-| `schema` | string | 'spfn_queue' | pg-boss table schema |
-| `maintenanceIntervalSeconds` | number | 120 | Maintenance task interval |
-| `monitorIntervalSeconds` | number | - | State monitoring interval |
-| `clearOnStart` | boolean | false | Delete existing jobs on start |
-
-**Returns:** `Promise<PgBoss>`
-
 ---
 
-### `getBoss()`
-
-Get current pg-boss instance.
-
-```typescript
-const boss = getBoss();
-if (boss) {
-    // Direct pg-boss API access if needed
-}
-```
-
-**Returns:** `PgBoss | null`
-
----
-
-### `stopBoss()`
-
-Gracefully stop pg-boss.
-
-```typescript
-await stopBoss();
-```
-
-**Returns:** `Promise<void>`
-
----
-
-### `isBossRunning()`
-
-Check if pg-boss is running.
-
-```typescript
-if (isBossRunning()) {
-    console.log('Job system is running');
-}
-```
-
-**Returns:** `boolean`
-
----
-
-### `registerJobs(router)`
-
-Register all jobs from JobRouter with pg-boss. Automatically called by `defineServerConfig()`.
-
-```typescript
-await registerJobs(jobRouter);
-```
-
-**Returns:** `Promise<void>`
-
----
-
-## Type Exports
+## Types reference
 
 ```typescript
 import type {
-    JobDef,
-    JobRouter,
-    JobRouterEntry,
-    JobOptions,
-    JobSendOptions,
-    JobHandler,
-    InferJobInput,
-    BossOptions,
-    BossConfig,  // deprecated, use BossOptions
+    JobDef, JobRouter, JobRouterEntry,
+    JobOptions, JobSendOptions, JobHandler, CompensateHandler,
+    InferJobInput, InferJobOutput, BossOptions,
 } from '@spfn/core/job';
+
+type SendInput = InferJobInput<typeof processOrder>;   // { orderId: string }
+type ChargeOut = InferJobOutput<typeof chargePayment>; // { chargeId: string }
+
+// JobHandler<TInput, TOutput> = TInput extends void
+//     ? () => Promise<TOutput>
+//     : (input: TInput) => Promise<TOutput>;
+// CompensateHandler<TInput, TOutput> = (input: TInput, output: TOutput) => Promise<void>;
 ```
-
----
-
-## Environment Configuration
-
-pg-boss only requires a PostgreSQL connection string.
-
-```bash
-# .env
-DATABASE_URL=postgresql://user:password@localhost:5432/mydb
-```
-
-In development, set `clearOnStart: true` to delete existing jobs on server restart.
-
----
-
-## Architecture
-
-### Job Registration Flow
-
-```
-defineServerConfig()
-    ↓
-initBoss(connectionString)
-    ↓
-registerJobs(jobRouter)
-    ↓
-├── collectJobs() - Flatten nested routers
-├── deleteAllJobs() - Clear if clearOnStart
-├── work() - Register handlers
-├── schedule() - Setup cron jobs
-├── send() - Queue runOnce jobs
-└── _registerJobQueue() - Connect events
-```
-
-### Event Integration
-
-```
-userCreated.emit({ userId: '123' })
-    ↓
-_registerJobQueue sends to pg-boss queue
-    ↓
-pg-boss worker picks up job
-    ↓
-sendWelcomeEmail.handler(payload) executes
-```
-
----
-
-## Troubleshooting
-
-### ❌ Error: "pg-boss not initialized"
-
-**Cause:** Attempted to send job before `initBoss()` was called.
-
-**Solution:** Ensure jobs are registered via `defineServerConfig().jobs()`.
-
-### ⚠️ Warning: "pg-boss already initialized"
-
-**Cause:** `initBoss()` called multiple times.
-
-**Solution:** Initialize only once in server config. This is not an error; existing instance is returned.
-
-### Jobs not executing
-
-**Check:**
-1. Verify pg-boss started successfully
-2. Check PostgreSQL connection string is correct
-3. Check logs for errors in job handlers
-
----
 
 ## Related
 
-- [@spfn/core/event](../event/README.md) - Event system for decoupled triggering
-- [pg-boss Documentation](https://github.com/timgit/pg-boss) - Full pg-boss API
-- [@spfn/core](../../README.md) - Main package documentation
+- [@spfn/core/event](../event/README.md) — events drive `.on(event)` jobs; emit triggers them
+- [@spfn/core/server](../server/README.md) — `defineServerConfig().jobs()` wiring
+- [@spfn/core/env](../env/README.md) — `DATABASE_URL` powers the job connection
+- [pg-boss](https://github.com/timgit/pg-boss) — underlying queue engine
