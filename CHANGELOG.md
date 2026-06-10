@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Note**: For changelog history prior to v0.1.0-alpha.60, see [CHANGELOG-v0.0.x-alpha.md](./CHANGELOG-v0.0.x-alpha.md)
 
+## [Unreleased]
+
+### Changed
+
+#### @spfn/core · spfn (CLI)
+
+- **BREAKING: `.env.server.local` 폐지** — 서버 전용 환경변수를 `.env.server` 단일 파일로 통합. `.env.server`는 이제 gitignored(시크릿 포함)이며, committed 템플릿은 `.env.server.example`을 사용. 서버 시크릿을 `.env.server.local`에 두던 프로젝트는 `.env.server`로 이전해야 함(둘 다 gitignored).
+  - `@spfn/core`: env loader가 server 레이어에서 `.env.server`만 로드(`.env.server.local` 제거). loader 로딩 규칙 단위 테스트 추가.
+  - `spfn` (CLI): `create`/`init`이 `.env.server.local.example`을 생성하지 않고 `.gitignore`에 `.env.server`를 추가. `env:init` 및 런타임 로딩에서도 `.env.server.local` 제거.
+
+### Fixed
+
+#### spfn (CLI)
+
+- 스캐폴드 example 템플릿 결함 제거: `getExample`의 테스트용 헤더 강제 validation·디버그 로그, root 응답의 미등록 `/teams` 참조.
+- `.gitignore`에 `.env.server`가 누락될 수 있던 분기 수정(독립 체크로 분리).
+- type-check 미사용 심볼 정리(에러 0).
+
+### Removed
+
+#### spfn (CLI)
+
+- 죽은 `.guide` 참조 제거: `create` 안내 메시지, `sync:guides` 스크립트, RELEASE 체크리스트 항목, stale 빌드 잔재(`copy-templates`에 `emptyDirSync` 추가로 재발 방지).
+
 ## [0.1.0-alpha.85] - 2025-11-07
 
 ### Added
