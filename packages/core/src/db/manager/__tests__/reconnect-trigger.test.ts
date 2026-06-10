@@ -36,7 +36,7 @@ vi.mock('../../../logger', () => ({
 
 // Mock health-check's two interaction points. triggerForceReconnect must
 // return a Promise (reporter chains .catch on it).
-const mockTriggerForceReconnect = vi.fn(async () => true);
+const mockTriggerForceReconnect = vi.fn(async (_reason: string) => true);
 const mockIsReconnectingNow = vi.fn(() => false);
 
 vi.mock('../health-check', () => ({
