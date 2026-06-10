@@ -155,13 +155,23 @@ function updateGitignore(cwd: string): void
             changed = true;
         }
 
-        // Add env local patterns
+        // Add env local patterns (Next.js)
         if (!content.includes('.env.local') && !content.includes('.env.*.local'))
         {
             updated += `
 # environment secrets (local overrides)
 .env.local
 .env.*.local
+`;
+            changed = true;
+        }
+
+        // Add .env.server independently — it holds server secrets and must be
+        // ignored regardless of whether the .env.local block above was added.
+        if (!content.includes('.env.server'))
+        {
+            updated += `
+# spfn server env (secrets)
 .env.server
 `;
             changed = true;
