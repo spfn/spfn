@@ -79,7 +79,11 @@ export async function dbBackupClean(options: {
 
 	try
 	{
-		await Promise.all(toDelete.map(backup => fs.unlink(backup.path)));
+		await Promise.all(toDelete.flatMap(backup => [
+			fs.unlink(backup.path),
+			// Remove the .meta.json sidecar too (force: ok if it doesn't exist)
+			fs.rm(backup.path.replace(/\.(sql|dump)$/, '.meta.json'), { force: true }),
+		]));
 
 		spinner.succeed('Backups deleted');
 		console.log(chalk.green(`\n✅ Deleted ${toDelete.length} backup(s)`));

@@ -5,7 +5,7 @@ import ora from 'ora';
 import prompts from 'prompts';
 import { env } from '@spfn/core/config';
 import { loadEnv } from '@spfn/core/server';
-import { parseDatabaseUrl } from './utils/database.js';
+import { parseDatabaseUrl, confirmDangerousTarget } from './utils/database.js';
 import { listBackupFiles } from './utils/backup-files.js';
 import {
 	loadBackupMetadata,
@@ -139,11 +139,14 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 		}
 	}
 
+	// Parse connection info (shown in the confirmation prompt)
+	const dbInfo = parseDatabaseUrl(dbUrl);
+
 	// Confirm before restore
 	const { confirm } = await prompts({
 		type: 'confirm',
 		name: 'confirm',
-		message: chalk.yellow('⚠️  This will replace all data in the database. Continue?'),
+		message: chalk.yellow(`⚠️  This will replace all data in "${dbInfo.database}" @ ${dbInfo.host}:${dbInfo.port}. Continue?`),
 		initial: false,
 	});
 
@@ -153,15 +156,14 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 		process.exit(0);
 	}
 
+	await confirmDangerousTarget(dbInfo);
+
 	// Validate mutually exclusive options
 	if (options.dataOnly && options.schemaOnly)
 	{
 		console.error(chalk.red('❌ Cannot use --data-only and --schema-only together'));
 		process.exit(1);
 	}
-
-	// Parse connection info
-	const dbInfo = parseDatabaseUrl(dbUrl);
 
 	// Check file format
 	const ext = path.extname(file);
@@ -181,7 +183,7 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 
 		if (options.drop)
 		{
-			args.push('--clean');
+			args.push('--clean', '--if-exists');
 		}
 
 		if (options.schema)
@@ -205,6 +207,11 @@ export async function dbRestore(backupFile?: string, options: { drop?: boolean; 
 	{
 		// For plain SQL files, --data-only and --schema-only are not directly supported
 		// The backup file itself should have been created with these options
+		if (options.drop)
+		{
+			console.log(chalk.yellow('⚠️  Note: --drop only works with custom format backups (.dump) and was ignored.'));
+		}
+
 		if (options.dataOnly || options.schemaOnly)
 		{
 			console.log(chalk.yellow('⚠️  Note: --data-only and --schema-only options only work with custom format backups (.dump)'));

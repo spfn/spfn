@@ -1,4 +1,6 @@
 import net from 'net';
+import chalk from 'chalk';
+import prompts from 'prompts';
 
 /**
  * Parse DATABASE_URL into connection info
@@ -28,6 +30,37 @@ export function parseDatabaseUrl(dbUrl: string): DbConnectionInfo
 	catch (error)
 	{
 		throw new Error(`Invalid DATABASE_URL format: ${error instanceof Error ? error.message : 'Unknown error'}`);
+	}
+}
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+
+export function isRemoteHost(host: string): boolean
+{
+	return !LOCAL_HOSTS.has(host);
+}
+
+/**
+ * Extra confirmation for destructive operations against a remote host
+ * or a production environment: the user must type the exact database name.
+ */
+export async function confirmDangerousTarget(dbInfo: DbConnectionInfo): Promise<void>
+{
+	if (!isRemoteHost(dbInfo.host) && process.env.NODE_ENV !== 'production')
+	{
+		return;
+	}
+
+	const { typed } = await prompts({
+		type: 'text',
+		name: 'typed',
+		message: `Remote/production database detected. Type the database name "${dbInfo.database}" to continue:`,
+	});
+
+	if (typed !== dbInfo.database)
+	{
+		console.log(chalk.gray('Cancelled (database name mismatch).'));
+		process.exit(0);
 	}
 }
 
