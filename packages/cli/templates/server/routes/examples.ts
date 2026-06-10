@@ -39,26 +39,16 @@ export const listExamples = route.get('/examples')
 
 /**
  * GET /examples/:id - Get single example
- *
- * This route requires authorization header for testing header validation
  */
 export const getExample = route.get('/examples/:id')
     .input({
-        headers: Type.Object({
-            test: Type.String({
-                description: 'Bearer token for authentication'
-            })
-        }),
         params: Type.Object({
             id: Type.String(),
         }),
     })
     .handler(async (c) =>
     {
-        const { params, headers } = await c.data();
-
-        // Log authorization header for testing
-        console.log('Authorization:', headers.test);
+        const { params } = await c.data();
 
         const example = await exampleRepo.findById(params.id);
 
