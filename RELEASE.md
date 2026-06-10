@@ -37,8 +37,6 @@ Ask user for new version number (e.g., `0.1.0-alpha.15`)
 - For new features:
   - Add docs in relevant package (e.g., `packages/core/src/MODULE/README.md`)
   - Update main README if needed (e.g., `packages/core/README.md`)
-  - Add user guide in `.guide/` if applicable
-  - Update `.guide/README.md` with links
 - Review all documentation for accuracy
 
 ### 4. Build Packages

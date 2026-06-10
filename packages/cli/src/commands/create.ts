@@ -281,7 +281,6 @@ async function createProject(projectName: string, options: CreateOptions): Promi
     console.log('  ' + chalk.cyan('Or deploy with Docker:'));
     console.log(`    ${chalk.cyan('docker compose -f docker-compose.production.yml up --build -d')}\n`);
 
-    console.log(chalk.dim('  📖 See .guide/deployment.md for complete deployment guide'));
     console.log(chalk.dim('  🌐 Documentation: https://github.com/spfn/spfn\n'));
 }
 
