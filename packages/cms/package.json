@@ -1,6 +1,6 @@
 {
   "name": "@spfn/cms",
-  "version": "0.2.0-beta.18",
+  "version": "0.2.0-beta.19",
   "description": "SPFN CMS - Content Management System with type-safe labels and Next.js integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -81,18 +81,19 @@
     "setupMessage": "  📚 Next steps:\n    1. Import CMS components: import { useLabels } from '@spfn/cms'\n    2. View labels in Drizzle Studio: pnpm spfn db studio\n    3. CMS API available at: http://localhost:8790/_cms\n    4. Learn more: https://github.com/spfnio/spfn"
   },
   "peerDependencies": {
+    "@spfn/core": ">=0.2.0-beta.49",
     "drizzle-orm": ">=0.44.7",
     "next": "^15.0.0 || ^16.0.0",
     "react": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
-    "@spfn/core": "workspace:*",
     "@sinclair/typebox": "^0.34.0",
     "jiti": "^2.6.1",
     "lodash-es": "^4.17.21",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@spfn/core": "workspace:*",
     "@types/lodash-es": "^4.17.12",
     "@types/node": "^20.11.0",
     "@types/react": "^19",

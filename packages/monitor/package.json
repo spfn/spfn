@@ -1,6 +1,6 @@
 {
   "name": "@spfn/monitor",
-  "version": "0.1.0-beta.17",
+  "version": "0.1.0-beta.18",
   "type": "module",
   "description": "Error tracking, log management, and monitoring dashboard for SPFN",
   "main": "./dist/index.js",
@@ -72,12 +72,10 @@
       "dir": "./migrations"
     }
   },
-  "dependencies": {
+  "devDependencies": {
     "@spfn/auth": "workspace:*",
     "@spfn/core": "workspace:*",
-    "@spfn/notification": "workspace:*"
-  },
-  "devDependencies": {
+    "@spfn/notification": "workspace:*",
     "@sinclair/typebox": "^0.34.30",
     "@types/node": "^20.11.0",
     "@types/react": "^19.2.2",
@@ -90,6 +88,9 @@
     "vitest": "^4.0.6"
   },
   "peerDependencies": {
+    "@spfn/auth": ">=0.2.0-beta.66",
+    "@spfn/core": ">=0.2.0-beta.49",
+    "@spfn/notification": ">=0.1.0-beta.18",
     "next": "^15.0.0 || ^16.0.0"
   },
   "peerDependenciesMeta": {

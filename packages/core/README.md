@@ -20,6 +20,18 @@ pnpm add @spfn/core
 
 Node `>=18.18.0`. ESM-only.
 
+> **Apps that define entities must declare the Postgres driver directly:** add
+> `postgres` (and `pg`) to your app's `dependencies`. `@spfn/core` uses postgres.js
+> internally, and Drizzle branches its type resolution on the `postgres`/`pg` peer. If
+> the app doesn't pin the same driver, pnpm resolves `drizzle-orm` to a second instance,
+> `BaseRepository` generics collapse to `unknown`, and RPC responses lose their types.
+> `spfn create` adds these automatically; declare them by hand only when wiring SPFN into
+> an existing app.
+>
+> ```bash
+> pnpm add postgres pg
+> ```
+
 ## Modules
 
 Each entry below is exactly one subpath from `package.json` `exports`. Import path → one-line

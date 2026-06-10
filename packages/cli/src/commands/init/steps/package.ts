@@ -31,6 +31,9 @@ export async function setupPackageJson(
     // - @sinclair/typebox: contract files import Type
     // - drizzle-orm: entity/repository files import from drizzle-orm, drizzle-orm/pg-core
     // - drizzle-typebox: contract files import createInsertSchema, createSelectSchema
+    // - postgres/pg: app must declare the same drivers @spfn/core uses, otherwise pnpm
+    //   resolves drizzle-orm to a separate instance (drizzle-orm branches on its postgres/pg
+    //   peer) → BaseRepository generics collapse to `unknown` and RPC responses lose types
     // - spfn: CLI needed for both build and runtime (spfn build, spfn start)
     // - concurrently: Process manager for running Next.js + SPFN API concurrently
     const spfnTag = getSpfnTag();
@@ -38,6 +41,8 @@ export async function setupPackageJson(
     packageJson.dependencies['@sinclair/typebox'] = '^0.34.0';
     packageJson.dependencies['drizzle-orm'] = '^0.45.0';
     packageJson.dependencies['drizzle-typebox'] = '^0.1.0';
+    packageJson.dependencies['postgres'] = '^3.4.0';
+    packageJson.dependencies['pg'] = '^8.16.3';
     packageJson.dependencies['spfn'] = spfnTag;
     packageJson.dependencies['concurrently'] = '^9.2.1';
 

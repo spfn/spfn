@@ -159,12 +159,6 @@ importers:
 
   packages/auth:
     dependencies:
-      '@spfn/core':
-        specifier: workspace:*
-        version: link:../core
-      '@spfn/notification':
-        specifier: workspace:*
-        version: link:../notification
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -181,6 +175,12 @@ importers:
         specifier: ^3.4.0
         version: 3.4.7
     devDependencies:
+      '@spfn/core':
+        specifier: workspace:*
+        version: link:../core
+      '@spfn/notification':
+        specifier: workspace:*
+        version: link:../notification
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
@@ -299,9 +299,6 @@ importers:
       '@sinclair/typebox':
         specifier: ^0.34.0
         version: 0.34.41
-      '@spfn/core':
-        specifier: workspace:*
-        version: link:../core
       drizzle-orm:
         specifier: ^0.45.0
         version: 0.45.0(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
@@ -321,6 +318,9 @@ importers:
         specifier: ^5.0.8
         version: 5.0.8(@types/react@19.2.2)(immer@10.2.0)(react@19.2.1)(use-sync-external-store@1.6.0(react@19.2.1))
     devDependencies:
+      '@spfn/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/lodash-es':
         specifier: ^4.17.12
         version: 4.17.12
@@ -449,6 +449,13 @@ importers:
 
   packages/monitor:
     dependencies:
+      next:
+        specifier: ^16.1.7
+        version: 16.2.2(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+    devDependencies:
+      '@sinclair/typebox':
+        specifier: ^0.34.30
+        version: 0.34.41
       '@spfn/auth':
         specifier: workspace:*
         version: link:../auth
@@ -458,13 +465,6 @@ importers:
       '@spfn/notification':
         specifier: workspace:*
         version: link:../notification
-      next:
-        specifier: ^16.1.7
-        version: 16.2.2(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-    devDependencies:
-      '@sinclair/typebox':
-        specifier: ^0.34.30
-        version: 0.34.41
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.25
@@ -498,9 +498,6 @@ importers:
       '@aws-sdk/client-sns':
         specifier: ^3.0.0
         version: 3.943.0
-      '@spfn/core':
-        specifier: workspace:*
-        version: link:../core
     devDependencies:
       '@aws-sdk/client-sesv2':
         specifier: ^3.1024.0
@@ -508,6 +505,9 @@ importers:
       '@sinclair/typebox':
         specifier: ^0.34.30
         version: 0.34.41
+      '@spfn/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.25

@@ -1,6 +1,6 @@
 {
   "name": "@spfn/auth",
-  "version": "0.2.0-beta.65",
+  "version": "0.2.0-beta.66",
   "type": "module",
   "description": "Authentication, authorization, and RBAC module for SPFN",
   "main": "./dist/index.js",
@@ -102,8 +102,6 @@
     "setupMessage": "  📚 Next steps:\n    1. Add lifecycle: .lifecycle(createAuthLifecycle()) in server.config.ts\n    2. Register router: .packages([authRouter]).use([authenticate]) in router.ts\n    3. Add interceptor: import '@spfn/auth/nextjs/api' in RPC proxy route\n    4. Set env vars: SPFN_AUTH_SESSION_SECRET (.env.local), SPFN_AUTH_VERIFICATION_TOKEN_SECRET (.env.server)\n    5. Run migrations: pnpm spfn db migrate\n    6. Full guide: https://spfn.dev/docs/guides/authentication"
   },
   "dependencies": {
-    "@spfn/core": "workspace:*",
-    "@spfn/notification": "workspace:*",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.45.0",
     "jose": "^6.1.0",
@@ -111,6 +109,8 @@
     "postgres": "^3.4.0"
   },
   "devDependencies": {
+    "@spfn/core": "workspace:*",
+    "@spfn/notification": "workspace:*",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.11.0",
@@ -128,6 +128,8 @@
     "vitest": "^4.0.6"
   },
   "peerDependencies": {
+    "@spfn/core": ">=0.2.0-beta.49",
+    "@spfn/notification": ">=0.1.0-beta.18",
     "next": "^15.0.0 || ^16.0.0"
   },
   "peerDependenciesMeta": {
