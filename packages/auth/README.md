@@ -1,68 +1,43 @@
-# @spfn/auth - Technical Documentation
+# @spfn/auth — Authentication, OAuth, and RBAC for SPFN
 
-**Version:** 0.2.0-beta.15
-**Status:** Alpha - Internal Development
+Asymmetric client-signed JWT auth (ES256/RS256), OTP verification, OAuth 2.0 (pluggable
+provider registry, Google built-in), session cookies for Next.js, and runtime RBAC.
+Routes are exposed under the `/_auth/*` namespace and reached through a type-safe `authApi`
+client. Requires `@spfn/core`; Next.js is an optional peer (`^15 || ^16`).
 
-> **Note:** This is a technical documentation for developers working on the @spfn/auth package.
-> For user-facing documentation, see [SPFN Documentation](https://spfn.dev/docs).
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Installation](#installation)
-- [Admin Account Setup](#6-admin-account-setup)
-- [Architecture](#architecture)
-- [Package Structure](#package-structure)
-- [Module Exports](#module-exports)
-- [Email & SMS Services](#email--sms-services)
-- [Server-Side API](#server-side-api)
-- [Events](#events)
-- [OAuth Authentication](#oauth-authentication)
-- [Database Schema](#database-schema)
-- [RBAC System](#rbac-system)
-- [Next.js Adapter](#nextjs-adapter)
-- [Testing](#testing)
-- [Development Workflow](#development-workflow)
-- [Known Issues](#known-issues)
-- [Roadmap](#roadmap)
-
----
-
-## Overview
-
-`@spfn/auth` is an authentication and authorization package for the SPFN framework, providing:
-
-- **Asymmetric JWT Authentication** - Client-signed tokens using ES256/RS256
-- **User Management** - Email/phone-based identity with bcrypt hashing
-- **OAuth Authentication** - Google OAuth 2.0 (Authorization Code Flow), extensible to other providers
-- **Multi-Factor Authentication** - OTP verification via email/SMS
-- **Session Management** - Public key rotation with 90-day expiry
-- **Role-Based Access Control** - Flexible RBAC with runtime role/permission management
-- **Next.js Integration** - Session helpers, server-side guards, and OAuth interceptors
-
-### Design Principles
-
-1. **Security First** - Asymmetric cryptography, no shared secrets
-2. **Type Safety** - Full TypeScript support with Typebox validation
-3. **Framework Integration** - Seamless SPFN plugin architecture
-4. **Extensibility** - Service layer for custom authentication flows
-5. **Developer Experience** - Clear separation of concerns, reusable components
-
----
-
-## Installation
-
-### 1. Install Package
+## Install
 
 ```bash
 pnpm add @spfn/auth
 ```
 
-### 2. Configure Server
+## Import paths
 
-#### Add Lifecycle to `server.config.ts`
+Five entry points (from `package.json` `exports`). Picking the wrong one breaks the build —
+`/server` and `/nextjs/*` pull in Node/`server-only` code and must never reach the browser bundle.
+
+```typescript
+import { authApi, authRouteMap }      from '@spfn/auth';          // isomorphic: client + route map + types/constants
+import { authRouter, authenticate }   from '@spfn/auth/server';   // SERVER ONLY: router, services, repos, middleware, helpers
+import { /* hooks/components */ }      from '@spfn/auth/client';   // browser only (currently empty — WIP)
+import { env, envSchema }             from '@spfn/auth/config';    // validated env proxy + schema
+import { InvalidCredentialsError }    from '@spfn/auth/errors';    // error classes + authErrorRegistry
+import '@spfn/auth/nextjs/api';                                    // SERVER: auto-registers RPC interceptors (side-effect)
+import { RequireAuth, getSession }    from '@spfn/auth/nextjs/server'; // SERVER: RSC guards, session helpers, OAuth handler
+import { OAuthCallback }              from '@spfn/auth/nextjs/client';  // 'use client' OAuth callback component
+```
+
+> Database entities (`users`, `userPublicKeys`, …) and all services/repositories are exported
+> from `@spfn/auth/server`, **not** from the root `@spfn/auth`.
+
+## Setup (4 wiring points)
+
+Auth needs four edits in the consuming app. All four are required for the flow to work end to end.
+
+### 1. Lifecycle — `server.config.ts`
+
+`createAuthLifecycle()` validates env before DB connect, then seeds admin accounts and
+initializes RBAC after the DB is ready. Pass custom roles/permissions here (see RBAC below).
 
 ```typescript
 import { defineServerConfig } from '@spfn/core/server';
@@ -71,2583 +46,364 @@ import { appRouter } from './router';
 
 export default defineServerConfig()
     .port(8790)
-    .host('0.0.0.0')
     .routes(appRouter)
-    .lifecycle(createAuthLifecycle())  // Add auth lifecycle
+    .lifecycle(createAuthLifecycle())
     .build();
 ```
 
-#### Register Router and Global Middleware in `router.ts`
+### 2. Router + global middleware — `router.ts`
+
+`authRouter` (the package's `mainAuthRouter`) is merged via `.packages()`; `authenticate` is
+applied globally via `.use()`. Public routes opt out per-route with `.skip(['auth'])`.
 
 ```typescript
 import { defineRouter } from '@spfn/core/route';
 import { authRouter, authenticate } from '@spfn/auth/server';
 import { getHealth } from './routes/health';
-import { createOrder } from './routes/orders';
 
 export const appRouter = defineRouter({
     getHealth,
-    createOrder,
-    // ... your other routes
+    // ...your routes
 })
-.packages([authRouter])    // Auth routes (/_auth/* namespace)
-.use([authenticate]);      // Global auth middleware on all routes
+    .packages([authRouter])   // mounts /_auth/* and exposes routes on authApi
+    .use([authenticate]);     // global auth middleware
 
 export type AppRouter = typeof appRouter;
 ```
 
-> **Important:** Public routes must explicitly skip auth with `.skip(['auth'])`.
-> See the [Authentication Guide](https://spfn.dev/docs/guides/authentication) for details.
+### 3. Next.js interceptor — RPC proxy route
 
-### 3. Configure Next.js Interceptor
-
-Register the auth interceptor in your RPC proxy route. This handles session cookies, JWT signing, and key management automatically.
+The interceptor handles session cookies, JWT signing, and key management automatically.
+Import it for its side-effect (it self-registers); it must run before the proxy is created.
 
 ```typescript
 // app/api/rpc/[routeName]/route.ts
-import '@spfn/auth/nextjs/api';  // Must be first! Registers auth interceptor
+import '@spfn/auth/nextjs/api';        // side-effect: registers auth interceptors
 import { appRouter } from '@/server/router';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
 
 export const { GET, POST } = createRpcProxy({ router: appRouter });
 ```
 
-Your API client needs no auth-specific configuration:
-
-```typescript
-// src/lib/api-client.ts
-import { createApi } from '@spfn/core/nextjs';
-import type { AppRouter } from '@/server/router';
-
-export const api = createApi<AppRouter>();
-```
-
-The built-in `authApi` is also available for auth-only calls:
-
-```typescript
-import { authApi } from '@spfn/auth';
-const session = await authApi.getAuthSession.call({});
-```
-
-### 4. Environment Variables
-
-Auth requires variables in **two separate files**: `.env.server` (SPFN backend) and `.env.local` (Next.js).
-
-#### `.env.server` (SPFN Backend)
+### 4. Run migrations
 
 ```bash
-# Required
-DATABASE_URL=postgresql://user:pass@localhost:5432/myapp_dev
-SPFN_AUTH_VERIFICATION_TOKEN_SECRET=your-verification-secret
-
-# Admin account (required — at least one format)
-SPFN_AUTH_ADMIN_ACCOUNTS='[{"email":"admin@example.com","password":"Admin!@34","role":"superadmin"}]'
-
-# Optional
-SPFN_AUTH_JWT_SECRET=your-jwt-secret
-SPFN_AUTH_JWT_EXPIRES_IN=7d
-SPFN_AUTH_BCRYPT_SALT_ROUNDS=10
-SPFN_AUTH_SESSION_TTL=7d
-
-# Google OAuth (optional)
-SPFN_AUTH_GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
-SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-...
-```
-
-#### `.env.local` (Next.js)
-
-```bash
-# Required
-DATABASE_URL=postgresql://user:pass@localhost:5432/myapp_dev
-SPFN_API_URL=http://localhost:8790
-
-# Required for session cookies (minimum 32 characters)
-SPFN_AUTH_SESSION_SECRET=my-super-secret-session-key-at-least-32-chars-long
-
-# Optional
-SPFN_AUTH_SESSION_TTL=7d
-
-# Email/SMS — configure via @spfn/notification
-# See @spfn/notification README for AWS SES/SNS settings
-```
-
-### 5. Run Migrations
-
-```bash
-# Generate migrations (if needed)
-pnpm spfn db generate
-
-# Run migrations
+pnpm spfn db generate   # only if entities changed
 pnpm spfn db migrate
 ```
 
-### 6. Admin Account Setup
+The API client needs no auth-specific config. `authApi` is also available standalone:
 
-Admin accounts are automatically created on server startup via `createAuthLifecycle()`.
-Choose one of the following methods:
-
-#### Method 1: JSON Format (Recommended)
-
-Best for multiple accounts with full configuration:
-
-```bash
-SPFN_AUTH_ADMIN_ACCOUNTS='[
-  {"email": "superadmin@example.com", "password": "secure-pass-1", "role": "superadmin"},
-  {"email": "admin@example.com", "password": "secure-pass-2", "role": "admin"},
-  {"email": "manager@example.com", "password": "secure-pass-3", "role": "user"}
-]'
-```
-
-**JSON Schema:**
-```typescript
-interface AdminAccountConfig {
-  email: string;           // Required
-  password: string;        // Required
-  role?: string;           // Default: 'user' (options: 'user', 'admin', 'superadmin')
-  phone?: string;          // Optional
-  passwordChangeRequired?: boolean;  // Default: true
-}
-```
-
-#### Method 2: CSV Format
-
-For multiple accounts with simpler configuration:
-
-```bash
-SPFN_AUTH_ADMIN_EMAILS=admin@example.com,manager@example.com
-SPFN_AUTH_ADMIN_PASSWORDS=admin-pass,manager-pass
-SPFN_AUTH_ADMIN_ROLES=superadmin,admin
-```
-
-#### Method 3: Single Account (Legacy)
-
-Simplest format for a single superadmin:
-
-```bash
-SPFN_AUTH_ADMIN_EMAIL=admin@example.com
-SPFN_AUTH_ADMIN_PASSWORD=secure-password
-```
-
-> **Note:** This method always creates a `superadmin` role account.
-
-#### Default Behavior
-
-All admin accounts created via environment variables have:
-- `emailVerifiedAt`: Auto-verified (current timestamp)
-- `passwordChangeRequired`: `true` (must change on first login)
-- `status`: `active`
-
-#### Programmatic Creation
-
-You can also create admin accounts programmatically:
-
-```typescript
-import { usersRepository, getRoleByName, hashPassword } from '@spfn/auth/server';
-
-// After initializeAuth() has been called
-const role = await getRoleByName('admin');
-const passwordHash = await hashPassword('secure-password');
-
-await usersRepository.create({
-  email: 'admin@example.com',
-  passwordHash,
-  roleId: role.id,
-  emailVerifiedAt: new Date(),
-  passwordChangeRequired: true,
-  status: 'active',
-});
-```
-
----
-
-## Architecture
-
-### High-Level Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     @spfn/auth Package                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐   │
-│  │    Server     │  │    Next.js    │  │    Client     │   │
-│  │   (server.ts) │  │   (nextjs/*)  │  │  (client.ts)  │   │
-│  └───────┬───────┘  └───────┬───────┘  └───────┬───────┘   │
-│          │                   │                   │           │
-│  ┌───────▼───────────────────▼───────────────────▼───────┐  │
-│  │              Common Types & Entities                   │  │
-│  │                   (index.ts)                           │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                               │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Module Separation
-
-The package is split into three distinct entry points to ensure proper code separation:
-
-1. **Common Module** (`@spfn/auth`)
-   - Database entities (users, roles, permissions)
-   - TypeScript types and interfaces
-   - RBAC type definitions
-   - Can be imported anywhere (server/client)
-
-2. **Server Module** (`@spfn/auth/server`)
-   - Server-only code (marked with Node.js APIs)
-   - Routes, services, repositories
-   - Middleware, helpers (JWT, password)
-   - RBAC initialization
-   - **Never** import in client-side code
-
-3. **Client Module** (`@spfn/auth/client`)
-   - Client-only code (React hooks, components)
-   - Currently in development (placeholders only)
-   - **Never** import in server-side code
-
-4. **Next.js Adapter** (`@spfn/auth/nextjs/*`)
-   - Next.js-specific integrations
-   - `@spfn/auth/nextjs/api` - Interceptors for API routes
-   - `@spfn/auth/nextjs/server` - Server Components guards & session helpers
-
-### Asymmetric JWT Flow
-
-```
-┌──────────┐                                    ┌──────────┐
-│  Client  │                                    │  Server  │
-└────┬─────┘                                    └────┬─────┘
-     │                                               │
-     │ 1. Generate ES256 keypair                    │
-     │    (privateKey stored locally)               │
-     │                                               │
-     │ 2. POST /_auth/register                      │
-     │    { email, password, publicKey, keyId }     │
-     ├──────────────────────────────────────────────>│
-     │                                               │
-     │                            3. Store publicKey │
-     │                               (user_public_keys)
-     │                                               │
-     │ 4. Sign JWT with privateKey                  │
-     │    payload: { userId, keyId }                │
-     │                                               │
-     │ 5. Request with Authorization header         │
-     │    Authorization: Bearer <jwt>               │
-     ├──────────────────────────────────────────────>│
-     │                                               │
-     │                      6. Decode JWT → keyId   │
-     │                         Fetch publicKey      │
-     │                         Verify signature     │
-     │                                               │
-     │                                    7. Success │
-     │<──────────────────────────────────────────────┤
-     │                                               │
-```
-
-**Key Points:**
-- Server **never** knows the private key
-- Each client has a unique keypair
-- JWT verification uses stored public key
-- No shared secrets (unlike HMAC-based JWT)
-
----
-
-## Package Structure
-
-```
-packages/auth/
-├── dist/                      # Compiled output (tsup)
-│   ├── index.js              # Common exports
-│   ├── index.d.ts
-│   ├── server.js             # Server exports
-│   ├── server.d.ts
-│   ├── client.js             # Client exports (minimal)
-│   ├── client.d.ts
-│   ├── config/               # Configuration module
-│   ├── errors/               # Error classes
-│   ├── nextjs/               # Next.js adapter
-│   └── server/               # Server implementation
-│
-├── migrations/                # Drizzle database migrations
-│   └── *.sql
-│
-├── src/
-│   ├── index.ts              # Common entry point
-│   ├── server.ts             # Server entry point
-│   ├── client.ts             # Client entry point
-│   │
-│   ├── config/               # Configuration system
-│   │   ├── index.ts
-│   │   ├── schema.ts         # Env var schema
-│   │   └── types.ts
-│   │
-│   ├── errors/               # Error definitions
-│   │   ├── index.ts
-│   │   └── auth-errors.ts
-│   │
-│   ├── lib/                  # Shared code
-│   │   └── contracts/        # Typebox schemas
-│   │
-│   ├── server/               # Server-side implementation
-│   │   ├── entities/         # Drizzle ORM entities
-│   │   ├── services/         # Business logic layer
-│   │   ├── repositories/     # Database access layer
-│   │   ├── routes/           # HTTP route handlers
-│   │   ├── middleware/       # Auth middleware
-│   │   ├── helpers/          # JWT, password, context
-│   │   ├── rbac/             # RBAC types and builtins
-│   │   ├── lib/              # Server utilities
-│   │   ├── lifecycle.ts      # SPFN lifecycle hooks
-│   │   ├── setup.ts          # Initialization
-│   │   ├── logger.ts         # Logging
-│   │   └── types.ts          # Server types
-│   │
-│   ├── nextjs/               # Next.js adapter
-│   │   ├── api.ts            # Interceptor exports
-│   │   ├── server.ts         # Server Components guards
-│   │   ├── session-helpers.ts# Session management
-│   │   ├── interceptors/     # Request interceptors
-│   │   └── guards/           # Auth guards
-│   │
-│   └── client/               # Client-side (WIP)
-│       ├── hooks/            # React hooks (TODO)
-│       ├── store/            # Zustand store (TODO)
-│       └── components/       # UI components (TODO)
-│
-├── package.json              # Package configuration + SPFN plugin config
-├── tsup.config.ts            # Build configuration
-├── drizzle.config.ts         # Database migration config
-└── README.md                 # This file
-```
-
-### Layer Responsibilities
-
-#### 1. **Routes Layer** (`src/server/routes/`)
-- Thin HTTP handlers
-- Request validation (Typebox)
-- Delegates to services
-- Returns responses
-
-#### 2. **Services Layer** (`src/server/services/`)
-- Business logic
-- Transaction management
-- Reusable functions
-- Can be used outside of routes
-
-#### 3. **Repositories Layer** (`src/server/repositories/`)
-- Database access only
-- CRUD operations
-- No business logic
-- Drizzle ORM queries
-
-#### 4. **Helpers Layer** (`src/server/helpers/`)
-- Utility functions (JWT, password hashing)
-- Context accessors (getAuth, getUser)
-- Stateless operations
-
----
-
-## Module Exports
-
-### Common Module (`@spfn/auth`)
-
-**API Client:**
 ```typescript
 import { authApi } from '@spfn/auth';
-
-// Type-safe API calls
-const session = await authApi.getAuthSession.call({});
-const result = await authApi.login.call({
-  body: { email, password, fingerprint, publicKey, keyId }
-});
+const session = await authApi.getAuthSession.call({});   // → GET /_auth/session
 ```
 
-**Types:**
+## Environment variables
+
+Set across **two files** by audience. Server-only secrets go in `.env.server`; values the
+Next.js runtime needs (session cookie crypto) go in `.env.local`. Names only below — supply
+real secret values out of band, never commit them.
+
+| Var | File | Required | Notes |
+|-----|------|----------|-------|
+| `DATABASE_URL` | both | yes | Postgres connection |
+| `SPFN_AUTH_VERIFICATION_TOKEN_SECRET` | `.env.server` | yes | OTP / verification token signing |
+| `SPFN_AUTH_SESSION_SECRET` | `.env.local` | yes | ≥32 chars, AES-256 session cookie encryption (validated: entropy/unique-char checks) |
+| `SPFN_API_URL` | `.env.local` | — | default `http://localhost:8790` |
+| `SPFN_AUTH_SESSION_TTL` | both | — | default `7d` (e.g. `7d`, `12h`, `45m`) |
+| `SPFN_AUTH_JWT_SECRET` / `SPFN_AUTH_JWT_EXPIRES_IN` | `.env.server` | — | legacy server-signed JWT mode only |
+| `SPFN_AUTH_BCRYPT_SALT_ROUNDS` | `.env.server` | — | default `10` |
+| `SPFN_AUTH_COOKIE_SECURE` | both | — | override Secure flag (defaults to `NODE_ENV==='production'`) |
+| `SPFN_AUTH_ADMIN_*` | `.env.server` | — | admin seeding (see below) |
+| `SPFN_AUTH_GOOGLE_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | enables Google OAuth when both set |
+| `SPFN_AUTH_GOOGLE_SCOPES` | `.env.server` | — | comma-separated; default `email,profile` |
+| `SPFN_AUTH_GOOGLE_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_API_URL\|\|SPFN_API_URL}/_auth/oauth/google/callback` |
+| `SPFN_AUTH_OAUTH_SUCCESS_URL` | `.env.server` | — | default `/auth/callback` |
+| `SPFN_AUTH_OAUTH_ERROR_URL` | `.env.server` | — | default `/auth/error?error={error}` |
+| `SPFN_AUTH_RESERVED_USERNAMES` / `_USERNAME_MIN_LENGTH` / `_USERNAME_MAX_LENGTH` | `.env.server` | — | username rules |
+| `NEXT_PUBLIC_SPFN_API_URL` / `NEXT_PUBLIC_SPFN_APP_URL` | `.env.local` | — | browser-facing URLs for OAuth redirects |
+
+Read validated values via `import { env } from '@spfn/auth/config'` (a proxy validated at
+startup). `envSchema` (also exported as `authEnvSchema`) carries descriptions/defaults.
+
+### Admin seeding
+
+`createAuthLifecycle()` creates admin accounts on startup from env, in priority order. Seeded
+accounts are auto email-verified, `status: 'active'`, `passwordChangeRequired: true`.
+
+- **JSON (recommended):** `SPFN_AUTH_ADMIN_ACCOUNTS` — array of `{email, password, role?, phone?, passwordChangeRequired?}`. `role` defaults to `user` (`user` | `admin` | `superadmin`).
+- **CSV:** `SPFN_AUTH_ADMIN_EMAILS` + `SPFN_AUTH_ADMIN_PASSWORDS` + `SPFN_AUTH_ADMIN_ROLES`.
+- **Single (legacy):** `SPFN_AUTH_ADMIN_EMAIL` + `SPFN_AUTH_ADMIN_PASSWORD` → always `superadmin`.
+
+## Routes
+
+All routes mount at `/_auth/*` and are reached through `authApi.<name>.call({ body })`. Public
+routes use `.skip(['auth'])`; the rest require `Authorization: Bearer <client-signed-jwt>`.
+
+| `authApi` method | HTTP | Auth | Purpose |
+|------------------|------|------|---------|
+| `checkAccountExists` | POST `/_auth/exists` | public | email/phone existence check |
+| `sendVerificationCode` | POST `/_auth/codes` | public | send 6-digit OTP |
+| `verifyCode` | POST `/_auth/codes/verify` | public | verify OTP → verification token |
+| `register` | POST `/_auth/register` | public | create user + register public key |
+| `login` | POST `/_auth/login` | public | password login + new session key |
+| `logout` | POST `/_auth/logout` | yes | revoke current key |
+| `rotateKey` | POST `/_auth/keys/rotate` | yes | rotate public key before 90-day expiry |
+| `changePassword` | PUT `/_auth/password` | yes | change password |
+| `getAuthSession` | GET `/_auth/session` | yes | current session/user |
+| `issueOneTimeToken` | POST | yes | short-lived token (e.g. SSE handshake) |
+| `checkUsername` / `updateUsername` / `updateLocale` | — | mixed | username availability/update, locale |
+| `getUserProfile` / `updateUserProfile` | — | yes | profile read/update |
+| `createInvitation` / `acceptInvitation` / `listInvitations` / `cancelInvitation` / `resendInvitation` / `deleteInvitation` / `getInvitation` | — | mixed | invitation flow |
+| `listRoles` / `createAdminRole` / `updateAdminRole` / `deleteAdminRole` / `updateUserRole` | — | superadmin | admin RBAC management |
+| OAuth routes | — | — | see OAuth section |
+
+Auth uses **asymmetric, client-signed JWTs**: the client generates an ES256/RS256 keypair,
+sends the public key on register/login, signs request JWTs locally, and the server verifies
+with the stored public key (`keyId` carried in the JWT). The server never holds a private key.
+Keys expire after 90 days — rotate with `rotateKey`.
+
+### Writing protected routes (route DSL)
+
+This is the current SPFN route DSL — `route.<method>().input().use().skip().handler()` registered
+via `defineRouter`. Access auth state through the context helpers, not by reading raw context.
+
 ```typescript
-import type {
-  User,
-  UserPublicKey,
-  VerificationCode,
-  Role,
-  Permission,
-  AuthSession,
-  UserProfile,
-  ProfileInfo,
-  // ... etc
-} from '@spfn/auth';
-```
+import { route } from '@spfn/core/route';
+import { authenticate, requirePermissions, optionalAuth } from '@spfn/auth/server';
+import { getAuth, getOptionalAuth } from '@spfn/auth/server';
 
-**RBAC:**
-```typescript
-import {
-  BUILTIN_ROLES,
-  BUILTIN_PERMISSIONS,
-  BUILTIN_ROLE_PERMISSIONS
-} from '@spfn/auth';
+// Protected (global `authenticate` already applies; helpers read the context)
+export const getMe = route.get('/me')
+    .handler(async (c) =>
+    {
+        const { user, userId, role, locale } = getAuth(c);
+        return { id: userId, email: user.email, role };
+    });
 
-import type {
-  RoleConfig,
-  PermissionConfig,
-  InitializeAuthOptions,
-  BuiltinRoleName,
-  BuiltinPermissionName
-} from '@spfn/auth';
-```
+// Permission-gated (all required); use requireAnyPermission for OR, requireRole for roles
+export const deleteUser = route.delete('/users/:id')
+    .use([authenticate, requirePermissions('user:delete')])
+    .handler(async (c) => { /* ... */ });
 
-**Validation Patterns:**
-```typescript
-import {
-  UUID_PATTERN,
-  EMAIL_PATTERN,
-  BASE64_PATTERN,
-  FINGERPRINT_PATTERN,
-  PHONE_PATTERN,
-} from '@spfn/auth';
-```
-
-**Route Map (for RPC Proxy):**
-```typescript
-import { authRouteMap } from '@spfn/auth';
-
-// Use in Next.js RPC proxy (app/api/rpc/[routeName]/route.ts)
-import '@spfn/auth/nextjs/api';  // Auto-register auth interceptors
-import { routeMap } from '@/generated/route-map';
-import { authRouteMap } from '@spfn/auth';
-import { createRpcProxy } from '@spfn/core/nextjs/proxy';
-
-export const { GET, POST } = createRpcProxy({
-    routeMap: { ...routeMap, ...authRouteMap }
-});
-```
-
-> **Note:** Database entities (`users`, `userPublicKeys`, etc.) are exported from `@spfn/auth/server`, not the common module.
-
----
-
-### Server Module (`@spfn/auth/server`)
-
-**Router:**
-```typescript
-import { authRouter } from '@spfn/auth/server';
-
-// Explicit registration in your app router
-export const appRouter = defineRouter({
-  auth: authRouter,  // Mounts at /_auth/*
-});
-```
-
-**Services:**
-```typescript
-import {
-  // Auth
-  checkAccountExistsService,
-  registerService,
-  loginService,
-  logoutService,
-  changePasswordService,
-
-  // Verification
-  sendVerificationCodeService,
-  verifyCodeService,
-
-  // Key Management
-  registerPublicKeyService,
-  rotateKeyService,
-  revokeKeyService,
-
-  // User
-  getUserByIdService,
-  getUserByEmailService,
-  getUserByPhoneService,
-  updateUserService,
-  updateLastLoginService,
-
-  // RBAC
-  initializeAuth,
-
-  // Permission
-  getUserPermissions,
-  hasPermission,
-  hasAnyPermission,
-  hasAllPermissions,
-  hasRole,
-  hasAnyRole,
-
-  // Role
-  createRole,
-  updateRole,
-  deleteRole,
-  addPermissionToRole,
-  removePermissionFromRole,
-  setRolePermissions,
-  getAllRoles,
-  getRoleByName,
-  getRolePermissions,
-
-  // Invitation
-  createInvitation,
-  getInvitationByToken,
-  getInvitationWithDetails,
-  validateInvitation,
-  acceptInvitation,
-  listInvitations,
-  cancelInvitation,
-  deleteInvitation,
-  expireOldInvitations,
-  resendInvitation,
-
-  // Session
-  getAuthSessionService,
-
-  // User Profile
-  getUserProfileService,
-  updateUserProfileService,
-
-  // OAuth - Google API Access
-  getGoogleAccessToken,
-} from '@spfn/auth/server';
-```
-
-**Repositories:**
-```typescript
-import {
-  usersRepository,
-  keysRepository,
-  rolesRepository,
-  permissionsRepository,
-  verificationCodesRepository,
-  invitationsRepository,
-  rolePermissionsRepository,
-  userPermissionsRepository,
-  userProfilesRepository,
-} from '@spfn/auth/server';
-```
-
-**Middleware:**
-```typescript
-import {
-  authenticate,
-  optionalAuth,
-  requirePermissions,
-  requireAnyPermission,
-  requireRole,
-} from '@spfn/auth/server';
-
-// Usage - all permissions required
-app.bind(
-  myContract,
-  [authenticate, requirePermissions('user:delete')],
-  async (c) => {
-    // Handler
-  }
-);
-
-// Usage - any of the permissions
-app.bind(
-  myContract,
-  [authenticate, requireAnyPermission('content:read', 'admin:access')],
-  async (c) => {
-    // User has either content:read OR admin:access
-  }
-);
-
-// Usage - optional auth (public route with optional user context)
-// Auto-skips global 'auth' middleware — no .skip(['auth']) needed
+// Public + optional user context. optionalAuth auto-skips global 'auth' — no .skip needed
 export const getProducts = route.get('/products')
-  .use([optionalAuth])
-  .handler(async (c) => {
-    const auth = getOptionalAuth(c);  // AuthContext | undefined
-    if (auth) {
-      return getPersonalizedProducts(auth.userId);
-    }
-    return getPublicProducts();
-  });
-```
-
-**Helpers:**
-```typescript
-import {
-  // Context
-  getAuth,
-  getOptionalAuth,
-  getUser,
-  getUserId,
-  getKeyId,
-
-  // JWT
-  generateToken,       // Legacy server-signed (deprecated)
-  verifyToken,         // Legacy server-signed (deprecated)
-  verifyClientToken,   // Client-signed asymmetric JWT
-  decodeToken,         // Decode without verification (debugging)
-  verifyKeyFingerprint,
-
-  // Password
-  hashPassword,
-  verifyPassword,
-} from '@spfn/auth/server';
-```
-
-**Lifecycle:**
-```typescript
-import { createAuthLifecycle } from '@spfn/auth/server';
-
-// SPFN plugin lifecycle hooks
-const lifecycle = createAuthLifecycle();
-```
-
----
-
-### Client Module (`@spfn/auth/client`)
-
-> **Status:** Work in Progress - Placeholders only
-
-```typescript
-// Currently empty exports
-import {} from '@spfn/auth/client';
-```
-
-**Planned:**
-- React hooks (useAuth, useSession)
-- Zustand store
-- UI components (LoginForm, etc.)
-
----
-
-### Configuration Module (`@spfn/auth/config`)
-
-```typescript
-import { env, envSchema } from '@spfn/auth/config';
-
-// Access environment variables (validated at startup)
-console.log(env.SPFN_AUTH_JWT_SECRET);
-console.log(env.SPFN_AUTH_JWT_EXPIRES_IN);
-console.log(env.SPFN_AUTH_BCRYPT_SALT_ROUNDS);
-
-// envSchema can be used for custom validation
-```
-
----
-
-### Errors Module (`@spfn/auth/errors`)
-
-```typescript
-import {
-  // Auth namespace (contains all error classes)
-  AuthError,
-
-  // Individual error classes
-  InvalidCredentialsError,
-  InvalidTokenError,
-  TokenExpiredError,
-  KeyExpiredError,
-  AccountDisabledError,
-  AccountAlreadyExistsError,
-  InvalidVerificationCodeError,
-  InvalidVerificationTokenError,
-  InvalidKeyFingerprintError,
-  VerificationTokenPurposeMismatchError,
-  VerificationTokenTargetMismatchError,
-  InsufficientPermissionsError,
-  InsufficientRoleError,
-
-  // Error registry for client-side error handling
-  authErrorRegistry,
-} from '@spfn/auth/errors';
-```
-
----
-
-### Next.js Adapter (`@spfn/auth/nextjs/*`)
-
-#### `@spfn/auth/nextjs/api`
-
-```typescript
-import {
-  authInterceptors,
-  loginRegisterInterceptor,
-  generalAuthInterceptor,
-  keyRotationInterceptor,
-  oauthUrlInterceptor,
-  oauthFinalizeInterceptor,
-} from '@spfn/auth/nextjs/api';
-
-// Auto-registers interceptors on import (including OAuth)
-import '@spfn/auth/nextjs/api';
-```
-
-#### `@spfn/auth/nextjs/server`
-
-```typescript
-import {
-  // Guards (Server Components)
-  RequireAuth,
-  RequireRole,
-  RequirePermission,
-
-  // Auth Utils
-  getUserRole,
-  getUserPermissions,
-  hasAnyRole,
-  hasAnyPermission,
-
-  // Session Helpers
-  saveSession,
-  getSession,
-  clearSession,
-
-  // Types
-  type SessionData,
-  type PublicSession,
-  type SaveSessionOptions,
-} from '@spfn/auth/nextjs/server';
-```
-
-**Session Helpers Usage:**
-```typescript
-// Save session (Server Actions / Route Handlers)
-await saveSession({
-  userId: '123',
-  privateKey: '...',
-  keyId: 'uuid',
-  algorithm: 'ES256',
-});
-
-// Get session (read-only, safe in Server Components)
-const session = await getSession();
-
-// Clear session
-await clearSession();
-```
-
-**Guard Usage:**
-```typescript
-// app/dashboard/page.tsx
-import { RequireAuth } from '@spfn/auth/nextjs/server';
-
-export default async function DashboardPage()
-{
-  return (
-    <RequireAuth redirectTo="/login">
-      <div>Protected content</div>
-    </RequireAuth>
-  );
-}
-```
-
----
-
-## Email & SMS Services
-
-> **⚠️ DEPRECATED:** Email and SMS functionality has been moved to `@spfn/notification` package.
-
-### Migration Guide
-
-```typescript
-// Before (deprecated)
-import { sendEmail, sendSMS } from '@spfn/auth/server';
-
-// After (recommended)
-import { sendEmail, sendSMS } from '@spfn/notification/server';
-```
-
-The `@spfn/notification` package provides:
-- Multi-channel support (Email, SMS, Slack, Push)
-- Template system with variable substitution
-- Multiple provider support (AWS SES, SNS, SendGrid, Twilio, etc.)
-
-For documentation, see `@spfn/notification` package README.
-
----
-
-## Server-Side API
-
-### Public Routes (No Authentication)
-
-All routes are automatically registered at `/_auth/*` via SPFN plugin system.
-
-#### `POST /_auth/exists`
-
-Check if account exists.
-
-**Request:**
-```typescript
-{
-  email?: string;
-  phone?: string;  // E.164 format
-}
-```
-
-**Response:**
-```typescript
-{
-  exists: boolean;
-  identifier: string;
-  identifierType: 'email' | 'phone';
-}
-```
-
----
-
-#### `POST /_auth/codes`
-
-Send verification code.
-
-**Request:**
-```typescript
-{
-  target: string;           // Email or phone
-  targetType: 'email' | 'phone';
-  purpose: 'registration' | 'login' | 'password_reset';
-}
-```
-
-**Response:**
-```typescript
-{
-  success: boolean;
-  expiresAt: string;        // ISO 8601
-}
-```
-
----
-
-#### `POST /_auth/codes/verify`
-
-Verify OTP code.
-
-**Request:**
-```typescript
-{
-  target: string;
-  targetType: 'email' | 'phone';
-  code: string;             // 6 digits
-  purpose: 'registration' | 'login' | 'password_reset';
-}
-```
-
-**Response:**
-```typescript
-{
-  valid: boolean;
-  verificationToken?: string;  // 15min JWT for registration
-}
-```
-
----
-
-#### `POST /_auth/register`
-
-Register new user.
-
-**Request:**
-```typescript
-{
-  email?: string;
-  phone?: string;
-  verificationToken: string;  // From /codes/verify
-  password: string;           // Min 8 chars
-  publicKey: string;          // Base64 DER (SPKI)
-  keyId: string;              // UUID v4
-  fingerprint: string;        // SHA-256 hex (64 chars)
-  algorithm: 'ES256' | 'RS256';
-  keySize?: number;
-}
-```
-
-**Response:**
-```typescript
-{
-  userId: string;
-  email?: string;
-  phone?: string;
-}
-```
-
----
-
-#### `POST /_auth/login`
-
-User login.
-
-**Request:**
-```typescript
-{
-  email?: string;
-  phone?: string;
-  password: string;
-  publicKey: string;          // New key for session
-  keyId: string;
-  fingerprint: string;
-  oldKeyId?: string;          // Revoke previous key
-  algorithm: 'ES256' | 'RS256';
-  keySize?: number;
-}
-```
-
-**Response:**
-```typescript
-{
-  userId: string;
-  email?: string;
-  phone?: string;
-  passwordChangeRequired: boolean;
-}
-```
-
----
-
-### Authenticated Routes (Require JWT)
-
-**Authentication:**
-- Header: `Authorization: Bearer <jwt>`
-- JWT payload must contain: `{ userId, keyId }`
-- Server extracts `keyId` from JWT, fetches public key, verifies signature
-
----
-
-#### `POST /_auth/logout`
-
-Logout and revoke current key.
-
-**Request:**
-```typescript
-{}  // Empty body
-```
-
-**Response:**
-```typescript
-{
-  success: boolean;
-}
-```
-
----
-
-#### `POST /_auth/keys/rotate`
-
-Rotate public key before expiry (90 days).
-
-**Request:**
-```typescript
-{
-  publicKey: string;          // New public key
-  keyId: string;              // New UUID
-  fingerprint: string;
-  algorithm: 'ES256' | 'RS256';
-  keySize?: number;
-}
-```
-
-**Response:**
-```typescript
-{
-  success: boolean;
-  keyId: string;
-}
-```
-
----
-
-#### `PUT /_auth/password`
-
-Change password.
-
-**Request:**
-```typescript
-{
-  currentPassword: string;
-  newPassword: string;        // Min 8 chars
-}
-```
-
-**Response:**
-```typescript
-{
-  success: boolean;
-}
-```
-
----
-
-#### `GET /_auth/users/username/check`
-
-Check if a username is available.
-
-**Query:**
-```typescript
-{
-  username: string;  // Min 1 char
-}
-```
-
-**Response:**
-```typescript
-{
-  available: boolean;
-}
-```
-
----
-
-#### `PATCH /_auth/users/username`
-
-Update authenticated user's username. Validates uniqueness before updating.
-
-**Request:**
-```typescript
-{
-  username: string | null;  // New username or null to clear
-}
-```
-
-**Response:** Updated user object.
-
-**Errors:**
-- `409 UsernameAlreadyTakenError` - Username is already in use by another user
-
----
-
-## Events
-
-`@spfn/auth`는 `@spfn/core/event`를 사용하여 인증 관련 이벤트를 발행합니다. 이를 통해 로그인/회원가입 시 추가 로직(환영 이메일, 분석, 알림 등)을 디커플링된 방식으로 처리할 수 있습니다.
-
-### Available Events
-
-| Event | Description | Trigger |
-|-------|-------------|---------|
-| `auth.login` | 로그인 성공 | 이메일/전화 로그인, OAuth 기존 사용자 |
-| `auth.register` | 회원가입 성공 | 이메일/전화 회원가입, OAuth 신규 사용자 |
-| `auth.invitation.created` | 초대 생성/재발송 | createInvitation, resendInvitation |
-| `auth.invitation.accepted` | 초대 수락 | acceptInvitation |
-
----
-
-### Event Payloads
-
-#### `auth.login`
-
-```typescript
-{
-  userId: string;
-  provider: 'email' | 'phone' | 'google';
-  email?: string;
-  phone?: string;
-}
-```
-
-#### `auth.register`
-
-```typescript
-{
-  userId: string;
-  provider: 'email' | 'phone' | 'google';
-  email?: string;
-  phone?: string;
-  metadata?: Record<string, unknown>;  // 가입 시 전달된 커스텀 메타데이터
-}
-```
-
-`metadata`는 클라이언트가 register/OAuth 요청 body에 포함한 값이 그대로 전달됩니다.
-레퍼럴 코드, UTM 파라미터 등 앱 고유 데이터를 이벤트 구독자에게 전달할 때 사용합니다.
-
-#### `auth.invitation.created`
-
-```typescript
-{
-  invitationId: string;
-  email: string;
-  token: string;
-  roleId: number;
-  invitedBy: string;
-  expiresAt: string;           // ISO 8601
-  isResend: boolean;           // true면 재발송
-  metadata?: Record<string, unknown>;
-}
-```
-
-#### `auth.invitation.accepted`
-
-```typescript
-{
-  invitationId: string;
-  email: string;
-  userId: string;              // 생성된 사용자 ID
-  roleId: number;
-  invitedBy: string;
-  metadata?: Record<string, unknown>;
-}
-```
-
----
-
-### Subscribing to Events
-
-```typescript
-import { authLoginEvent, authRegisterEvent } from '@spfn/auth/server';
-
-// 로그인 이벤트 구독
-authLoginEvent.subscribe(async (payload) => {
-    console.log('User logged in:', payload.userId, payload.provider);
-    await analytics.trackLogin(payload.userId);
-});
-
-// 회원가입 이벤트 구독 (metadata 활용)
-authRegisterEvent.subscribe(async (payload) => {
-    console.log('New user registered:', payload.userId);
-    if (payload.email) {
-        await emailService.sendWelcome(payload.email);
-    }
-
-    // 레퍼럴 코드 처리
-    const refCode = payload.metadata?.refCode as string;
-    if (refCode) {
-        await referralService.link(payload.userId, refCode);
-    }
-});
-```
-
-클라이언트에서 metadata를 전달하는 방법:
-
-```typescript
-// 이메일/전화 가입
-authApi.register.call({
-    body: { email, password, metadata: { refCode: 'CODE', utm_source: 'google' } }
-});
-
-// OAuth 가입
-authApi.oauthStart.call({
-    body: { provider: 'google', returnUrl: '/dashboard', metadata: { refCode: 'CODE' } }
-});
-```
-
-#### 초대 이벤트 구독 (이메일 발송 연동)
-
-```typescript
-import { invitationCreatedEvent, invitationAcceptedEvent } from '@spfn/auth/server';
-
-// 초대 생성 시 이메일 발송
-invitationCreatedEvent.subscribe(async (payload) => {
-    const inviteUrl = `${APP_URL}/invite/${payload.token}`;
-
-    await notificationService.send({
-        channel: 'email',
-        to: payload.email,
-        subject: payload.isResend ? '초대가 재발송되었습니다' : '초대장이 도착했습니다',
-        html: renderInviteEmail({
-            inviteUrl,
-            inviterName: payload.metadata?.inviterName,
-            message: payload.metadata?.message,
-        }),
-        tracking: {
-            category: 'invitation',
-            metadata: { invitationId: payload.invitationId },
-        },
+    .use([optionalAuth])
+    .handler(async (c) =>
+    {
+        const auth = getOptionalAuth(c);   // AuthContext | undefined
+        return auth ? personalized(auth.userId) : publicList();
     });
-});
-
-// 초대 수락 시 온보딩 처리
-invitationAcceptedEvent.subscribe(async (payload) => {
-    await onboardingService.start(payload.userId);
-});
 ```
 
-초대 생성 시 커스텀 만료 시간 지정:
+Context helpers from `@spfn/auth/server`: `getAuth`, `getOptionalAuth`, `getUser`, `getUserId`,
+`getRole`, `getLocale`, `getKeyId`. Middleware: `authenticate`, `optionalAuth`,
+`requirePermissions`, `requireAnyPermission`, `requireRole`, `roleGuard`, `oneTimeTokenAuth`.
 
-```typescript
-// expiresAt이 expiresInDays보다 우선
-authApi.createInvitation.call({
-    body: {
-        email: 'user@example.com',
-        roleId: 2,
-        expiresAt: '2026-03-20T00:00:00Z',
-        metadata: { inviterName: '홍길동', message: '함께 일해요!' },
-    }
-});
-```
+## OAuth
 
----
+OAuth uses a **pluggable provider registry** — not hardcoded branches. The built-in `google`
+provider self-registers on module load. External packages add providers at runtime with
+`registerOAuthProvider()`. Google OAuth turns on automatically once both
+`SPFN_AUTH_GOOGLE_CLIENT_ID` and `SPFN_AUTH_GOOGLE_CLIENT_SECRET` are set.
 
-### Job Integration
-
-`@spfn/core/job`과 연동하여 백그라운드 작업을 실행할 수 있습니다.
-
-```typescript
-import { job, defineJobRouter } from '@spfn/core/job';
-import { authRegisterEvent } from '@spfn/auth/server';
-
-// 회원가입 시 환영 이메일 발송 Job
-const sendWelcomeEmailJob = job('send-welcome-email')
-    .on(authRegisterEvent)
-    .handler(async ({ userId, email }) => {
-        if (email) {
-            await emailService.sendWelcome(email);
-        }
-    });
-
-// 회원가입 시 기본 설정 생성 Job
-const createDefaultSettingsJob = job('create-default-settings')
-    .on(authRegisterEvent)
-    .handler(async ({ userId }) => {
-        await settingsService.createDefaults(userId);
-    });
-
-export const jobRouter = defineJobRouter({
-    sendWelcomeEmailJob,
-    createDefaultSettingsJob,
-});
-```
-
----
-
-### Event Flow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│              loginService() / registerService()                  │
-│                    oauthCallbackService()                        │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                    authLoginEvent.emit()
-                   authRegisterEvent.emit()
-                              │
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
-    ┌──────────┐       ┌──────────┐       ┌──────────┐
-    │ Backend  │       │   Job    │       │   SSE    │
-    │ Handler  │       │  Queue   │       │  Stream  │
-    └──────────┘       └──────────┘       └──────────┘
-    .subscribe()       .on(event)         (optional)
-          │                 │
-          ▼                 ▼
-    [Analytics,       [Background
-     Logging]          Processing]
-```
-
----
-
-### Type Exports
-
-```typescript
-import type {
-    AuthLoginPayload,
-    AuthRegisterPayload,
-} from '@spfn/auth/server';
-```
-
----
-
-## OAuth Authentication
-
-### Overview
-
-`@spfn/auth`는 OAuth 2.0 Authorization Code Flow를 지원합니다. 현재 Google OAuth가 구현되어 있으며, 다른 provider (GitHub, Kakao, Naver)는 동일한 패턴으로 확장 가능합니다.
-
-**핵심 설계:**
-- 환경 변수만으로 설정 (`SPFN_AUTH_GOOGLE_CLIENT_ID`, `SPFN_AUTH_GOOGLE_CLIENT_SECRET`)
-- Next.js 인터셉터 기반 자동 세션 관리 (키쌍 생성 → pending session → full session)
-- 기존 이메일 계정과 자동 연결 (Google verified_email 확인 시에만)
-
----
-
-### Authentication Flow
-
-```
-┌──────────┐     ┌──────────────┐     ┌──────────┐     ┌──────────┐
-│  Client  │     │  Next.js RPC │     │  Backend │     │  Google  │
-│ (Browser)│     │  (Interceptor)│     │  (SPFN)  │     │  OAuth   │
-└────┬─────┘     └──────┬───────┘     └────┬─────┘     └────┬─────┘
-     │                   │                  │                 │
-     │ 1. Click Login    │                  │                 │
-     ├──────────────────>│                  │                 │
-     │                   │                  │                 │
-     │    2. Generate keypair (ES256)       │                 │
-     │    3. Create encrypted state         │                 │
-     │       (publicKey, keyId in JWE)      │                 │
-     │    4. Save privateKey to             │                 │
-     │       pending session cookie         │                 │
-     │                   │                  │                 │
-     │                   │ 5. Forward with  │                 │
-     │                   │    state in body │                 │
-     │                   ├─────────────────>│                 │
-     │                   │                  │                 │
-     │                   │ 6. Return Google │                 │
-     │                   │    Auth URL      │                 │
-     │                   │<─────────────────┤                 │
-     │                   │                  │                 │
-     │ 7. Redirect to Google               │                 │
-     │<──────────────────┤                  │                 │
-     │                   │                  │                 │
-     │ 8. User consents  │                  │                 │
-     ├───────────────────┼──────────────────┼────────────────>│
-     │                   │                  │                 │
-     │                   │    9. Callback with code + state   │
-     │                   │                  │<────────────────┤
-     │                   │                  │                 │
-     │                   │  10. Verify state, exchange code   │
-     │                   │      Create/link user account      │
-     │                   │      Register publicKey             │
-     │                   │                  │                 │
-     │ 11. Redirect to /auth/callback       │                 │
-     │     ?userId=X&keyId=Y&returnUrl=/    │                 │
-     │<─────────────────────────────────────┤                 │
-     │                   │                  │                 │
-     │ 12. OAuthCallback │                  │                 │
-     │     component     │                  │                 │
-     │     calls finalize│                  │                 │
-     ├──────────────────>│                  │                 │
-     │                   │                  │                 │
-     │   13. Interceptor reads pending      │                 │
-     │       session cookie, verifies       │                 │
-     │       keyId match, creates full      │                 │
-     │       session cookie                 │                 │
-     │                   │                  │                 │
-     │ 14. Session set,  │                  │                 │
-     │     redirect to   │                  │                 │
-     │     returnUrl     │                  │                 │
-     │<──────────────────┤                  │                 │
-     │                   │                  │                 │
-```
-
----
-
-### Setup
-
-#### 1. Google Cloud Console
-
-1. [Google Cloud Console](https://console.cloud.google.com/) > APIs & Services > Credentials
-2. Create OAuth 2.0 Client ID (Web application)
-3. Add Authorized redirect URI: `http://localhost:8790/_auth/oauth/google/callback`
-4. Copy Client ID and Client Secret
-
-#### 2. Environment Variables
-
-```bash
-# Required
-SPFN_AUTH_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-your-secret
-
-# Next.js app URL (for OAuth callback redirect)
-SPFN_APP_URL=http://localhost:3000
-
-# Optional
-SPFN_AUTH_GOOGLE_SCOPES=email,profile  # default (comma-separated)
-SPFN_AUTH_GOOGLE_REDIRECT_URI=http://localhost:8790/_auth/oauth/google/callback  # default
-SPFN_AUTH_OAUTH_SUCCESS_URL=/auth/callback  # default
-```
-
-#### 3. Next.js Callback Page
+Client flow: call `authApi.getGoogleOAuthUrl.call({ body: { returnUrl } })`, redirect the browser
+to the returned `authUrl`, and render `OAuthCallback` on your success page. The Next.js interceptor
+manages the keypair → pending-session-cookie → full-session handoff transparently.
 
 ```tsx
 // app/auth/callback/page.tsx
 export { OAuthCallback as default } from '@spfn/auth/nextjs/client';
 ```
 
-#### 4. Login Button
-
 ```typescript
 import { authApi } from '@spfn/auth';
-
-const handleGoogleLogin = async () =>
-{
-    const response = await authApi.getGoogleOAuthUrl.call({
-        body: { returnUrl: '/dashboard' },
-    });
-    window.location.href = response.authUrl;
-};
+const { authUrl } = await authApi.getGoogleOAuthUrl.call({ body: { returnUrl: '/dashboard' } });
+window.location.href = authUrl;
 ```
 
----
+Built-in OAuth routes: `POST /_auth/oauth/google/url`, `GET /_auth/oauth/google` (redirect),
+`GET /_auth/oauth/google/callback`, `POST /_auth/oauth/finalize`, `GET /_auth/oauth/providers`,
+plus the provider-generic `POST /_auth/oauth/start`. `getGoogleAccessToken(userId)` returns a
+valid Google access token (auto-refreshing via stored refresh token when near expiry; throws if
+no Google account is linked or no refresh token is available).
 
-### OAuth Routes
+### Custom providers
 
-#### `GET /_auth/oauth/google`
-
-Google OAuth 시작 (리다이렉트 방식). 브라우저를 Google 로그인 페이지로 직접 리다이렉트합니다.
-
-**Query:**
-```typescript
-{
-  state: string;  // Encrypted OAuth state (JWE)
-}
-```
-
----
-
-#### `POST /_auth/oauth/google/url`
-
-Google OAuth URL 획득 (인터셉터 방식). 인터셉터가 state를 자동 생성하여 주입합니다.
-
-**Request:**
-```typescript
-{
-  returnUrl?: string;  // Default: '/'
-}
-```
-
-**Response:**
-```typescript
-{
-  authUrl: string;  // Google OAuth URL
-}
-```
-
----
-
-#### `GET /_auth/oauth/google/callback`
-
-Google에서 리다이렉트되는 콜백. code를 token으로 교환하고 사용자를 생성/연결합니다.
-
-**Query (from Google):**
-```typescript
-{
-  code?: string;              // Authorization code
-  state?: string;             // OAuth state
-  error?: string;             // Error code
-  error_description?: string; // Error description
-}
-```
-
-**Result:** Next.js 콜백 페이지로 리다이렉트 (`/auth/callback?userId=X&keyId=Y&returnUrl=/`)
-
----
-
-#### `POST /_auth/oauth/finalize`
-
-OAuth 세션 완료. 인터셉터가 pending session에서 full session을 생성합니다.
-
-**Request:**
-```typescript
-{
-  userId: string;
-  keyId: string;
-  returnUrl?: string;
-}
-```
-
-**Response:**
-```typescript
-{
-  success: boolean;
-  returnUrl: string;
-}
-```
-
----
-
-#### `GET /_auth/oauth/providers`
-
-활성화된 OAuth provider 목록을 반환합니다.
-
-**Response:**
-```typescript
-{
-  providers: ('google' | 'github' | 'kakao' | 'naver' | 'superself')[];
-}
-```
-
-> 등록(`registerOAuthProvider`)되고 `isEnabled()`가 true인 provider만 반환됩니다.
-
----
-
-### Google API Access
-
-OAuth 로그인 후 저장된 access token으로 Google API를 호출할 수 있습니다.
-
-#### Custom Scopes 설정
-
-`SPFN_AUTH_GOOGLE_SCOPES` 환경변수로 추가 스코프를 요청합니다. 미설정 시 `email,profile`이 기본값입니다.
-
-```bash
-# Gmail + Calendar 읽기 권한 추가
-SPFN_AUTH_GOOGLE_SCOPES=email,profile,https://www.googleapis.com/auth/gmail.readonly,https://www.googleapis.com/auth/calendar.readonly
-```
-
-> **Note:** Google Cloud Console에서 해당 API를 활성화해야 합니다.
-
-#### Access Token 사용
-
-`getGoogleAccessToken(userId)`은 유효한 access token을 반환합니다. 토큰이 만료 임박(5분 이내) 또는 만료 상태이면 자동으로 refresh token을 사용하여 갱신합니다.
+Implement `OAuthProvider` and register it. `SOCIAL_PROVIDERS` is `['google','github','kakao','naver','superself']`.
 
 ```typescript
-import { getGoogleAccessToken } from '@spfn/auth/server';
+import {
+    registerOAuthProvider, getOAuthProvider, getRegisteredProviders,
+    oauthCallbackService,
+    type OAuthProvider, type NormalizedIdentity, type OAuthTokens,
+} from '@spfn/auth/server';
 
-// 항상 유효한 토큰 반환 (만료 시 자동 갱신)
-const token = await getGoogleAccessToken(userId);
-
-// Gmail API 호출
-const response = await fetch(
-    'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10',
-    { headers: { Authorization: `Bearer ${token}` } }
-);
-const data = await response.json();
+registerOAuthProvider(myProvider);   // same id re-registers (override)
 ```
 
-**에러 케이스:**
-- Google 계정 미연결 → `'No Google account linked'`
-- Refresh token 없음 → `'Google refresh token not available'` (재로그인 필요)
+**Integration contract for custom providers:**
 
----
+- The package only ships google's callback route. A custom provider must expose its **own**
+  callback route that calls `oauthCallbackService({ provider, code, state })`.
+- **Wrap that callback route in `Transactional()`** (`import { Transactional } from '@spfn/core/db'`).
+  `oauthCallbackService` creates/links a user and stores the social account in sequence — without
+  a transaction, a mid-flow failure leaves an orphan user. The built-in google callback uses it.
+- The provider `id` must be in `SOCIAL_PROVIDERS` (`enumText`, plain text — adding a value needs **no**
+  DB migration).
+- `auth.login` / `auth.register` events now carry any `SOCIAL_PROVIDERS` value in `provider` —
+  update any `switch(provider)` in subscribers.
 
-### Custom OAuth Providers (Pluggable)
+## Sessions (Next.js)
 
-OAuth provider 분기는 하드코딩이 아니라 **registry 기반**입니다. 내장 `google` provider는 패키지 로드 시 자기 등록되며, 외부 패키지(예: `@superself/auth`)는 `registerOAuthProvider()`로 런타임에 provider를 끼울 수 있습니다.
-
-#### `OAuthProvider` 인터페이스
+Sessions are HttpOnly cookies encrypted with `SPFN_AUTH_SESSION_SECRET` (JWE), holding the
+client private key + `keyId` (`SessionData`: `{ userId, privateKey, keyId, algorithm }`). The
+interceptor reads them to sign outbound RPC JWTs. From `@spfn/auth/nextjs/server`:
 
 ```typescript
-import type { OAuthProvider, NormalizedIdentity, OAuthTokens } from '@spfn/auth/server';
+import { saveSession, getSession, clearSession } from '@spfn/auth/nextjs/server';
 
-interface NormalizedIdentity {
-    providerUserId: string;
-    email: string | null;
-    emailVerified: boolean;
-    name?: string;
-    avatar?: string;
-}
-
-interface OAuthTokens {
-    accessToken: string;
-    refreshToken?: string;
-    expiresIn: number;   // seconds
-}
-
-interface OAuthProvider {
-    id: SocialProvider;                                          // SOCIAL_PROVIDERS 중 하나
-    isEnabled(): boolean;                                        // 필수 설정 충족 여부
-    getAuthUrl(state: string, scopes?: string[]): string;        // authorize URL 생성
-    exchangeCodeForTokens(code: string): Promise<OAuthTokens>;   // code → token
-    getUserInfo(accessToken: string): Promise<NormalizedIdentity>; // 사용자 정보 정규화
-    refreshTokens?(refreshToken: string): Promise<OAuthTokens>;  // (선택) 토큰 갱신
-}
+await saveSession({ userId: '123', privateKey: '...', keyId: 'uuid', algorithm: 'ES256' });
+const session = await getSession();   // read-only, safe in Server Components
+await clearSession();
 ```
 
-#### 등록 API
-
-```typescript
-import { registerOAuthProvider, getOAuthProvider, getRegisteredProviders } from '@spfn/auth/server';
-
-registerOAuthProvider(myProvider);          // 동일 id 재등록 시 override
-getOAuthProvider('superself');              // OAuthProvider | undefined
-getRegisteredProviders();                   // OAuthProvider[]
-```
-
-provider를 등록하면 범용 시작 엔드포인트 `POST /_auth/oauth/start`(및 `oauthStartService`/`oauthCallbackService`)가 자동으로 해당 provider를 처리합니다.
-
-#### 통합 계약 ⚠️
-
-- **콜백 route는 소비 측 책임**입니다. 이 패키지는 `GET /_auth/oauth/google/callback`(google 고정)만 제공합니다. 커스텀 provider는 자신의 콜백 route에서 `oauthCallbackService({ provider, code, state })`를 호출해야 흐름이 완결됩니다.
-- **콜백 route는 `Transactional()`로 감싸세요.** `oauthCallbackService`는 사용자 생성/연결과 소셜 계정 저장을 순차로 수행하므로, 중간 실패 시 orphan user가 남지 않으려면 트랜잭션이 필요합니다. (내장 google 콜백 route도 `.use([Transactional()])`를 사용합니다.)
-- `SOCIAL_PROVIDERS` enum에 provider id가 포함되어 있어야 합니다. (현재: `google`, `github`, `kakao`, `naver`, `superself`)
-- 등록은 모듈 로드 시점의 side-effect입니다. 번들러에서 `package.json`에 `"sideEffects": false`를 추가하면 내장 google 등록이 tree-shake될 수 있으니 주의하세요.
-
-> **이벤트 영향**: `auth.login` / `auth.register` 이벤트의 `provider` 필드에 이제 모든 `SOCIAL_PROVIDERS` 값이 들어올 수 있습니다. 구독자의 `switch(provider)`에 새 값 처리를 추가하세요.
-
----
-
-### Security
-
-- **State 암호화**: JWE (A256GCM)로 state 파라미터 암호화. CSRF 방지용 nonce 포함.
-- **Pending Session**: OAuth 리다이렉트 중 privateKey를 JWE로 암호화한 HttpOnly 쿠키에 저장. 10분 TTL.
-- **KeyId 검증**: finalize 시 pending session의 keyId와 응답의 keyId 일치 확인.
-- **Email 검증**: `verified_email`이 true인 경우에만 기존 계정에 자동 연결. 미검증 이메일로 기존 계정 연결 시도 시 에러.
-- **Session Cookie**: `HttpOnly`, `Secure` (production), `SameSite=strict`.
-
----
-
-### OAuthCallback Component
-
-`@spfn/auth/nextjs/client`에서 제공하는 클라이언트 컴포넌트입니다.
+RSC guards (redirect when unmet) — `RequireAuth`, `RequireRole`, `RequirePermission`:
 
 ```tsx
-import { OAuthCallback } from '@spfn/auth/nextjs/client';
-
-// 기본 사용
-export default function CallbackPage()
-{
-    return <OAuthCallback />;
-}
-
-// 커스터마이징
-export default function CallbackPage()
-{
-    return (
-        <OAuthCallback
-            apiBasePath="/api/rpc"
-            loadingComponent={<MySpinner />}
-            errorComponent={(error) => <MyError message={error} />}
-            onSuccess={(userId) => console.log('Logged in:', userId)}
-            onError={(error) => console.error(error)}
-        />
-    );
-}
-```
-
-**Props:**
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `apiBasePath` | `string` | `'/api/rpc'` | RPC API base path |
-| `loadingComponent` | `ReactNode` | Built-in | 로딩 중 표시할 컴포넌트 |
-| `errorComponent` | `(error: string) => ReactNode` | Built-in | 에러 표시 컴포넌트 |
-| `onSuccess` | `(userId: string) => void` | - | 성공 콜백 |
-| `onError` | `(error: string) => void` | - | 에러 콜백 |
-
----
-
-## Database Schema
-
-### Core Tables
-
-#### `users`
-
-Main user identity table.
-
-```sql
-CREATE TABLE users (
-  id BIGSERIAL PRIMARY KEY,
-  public_id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
-  email TEXT UNIQUE,
-  phone TEXT UNIQUE,
-  username TEXT UNIQUE,
-  password_hash TEXT NOT NULL,
-  password_change_required BOOLEAN DEFAULT false,
-  role_id BIGINT REFERENCES roles(id) NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('active', 'inactive', 'suspended')),
-  email_verified_at TIMESTAMP,
-  phone_verified_at TIMESTAMP,
-  last_login_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-
-  CONSTRAINT users_identifier_check CHECK (
-    (email IS NOT NULL) OR (phone IS NOT NULL)
-  )
-);
-```
-
-**Key Points:**
-- `public_id` is a UUID v4 for external-facing URLs and APIs (never expose internal `id`)
-- At least one of `email` OR `phone` required
-- `username` is unique and nullable (optional display/mention identifier)
-- `passwordHash` is bcrypt ($2b$10$..., 60 chars)
-- `roleId` references roles table (NOT NULL)
-
----
-
-#### `user_public_keys`
-
-Stores client public keys for JWT verification.
-
-```sql
-CREATE TABLE user_public_keys (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
-  key_id TEXT UNIQUE NOT NULL,
-  public_key TEXT NOT NULL,
-  algorithm TEXT NOT NULL CHECK (algorithm IN ('ES256', 'RS256')),
-  fingerprint TEXT NOT NULL,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP DEFAULT NOW(),
-  last_used_at TIMESTAMP,
-  expires_at TIMESTAMP NOT NULL,
-  revoked_at TIMESTAMP,
-  revoked_reason TEXT
-);
-
-CREATE INDEX idx_user_public_keys_user_id ON user_public_keys(user_id);
-CREATE INDEX idx_user_public_keys_key_id ON user_public_keys(key_id);
-CREATE INDEX idx_user_public_keys_is_active ON user_public_keys(is_active);
-```
-
-**Key Points:**
-- `keyId` is client-generated UUID v4
-- `fingerprint` is SHA-256(publicKey) for verification
-- `expiresAt` defaults to 90 days from creation
-- `isActive` determines if key can be used
-
----
-
-#### `verification_codes`
-
-OTP codes for email/SMS verification.
-
-```sql
-CREATE TABLE verification_codes (
-  id BIGSERIAL PRIMARY KEY,
-  target TEXT NOT NULL,
-  target_type TEXT NOT NULL CHECK (target_type IN ('email', 'phone')),
-  code TEXT NOT NULL,
-  purpose TEXT NOT NULL CHECK (purpose IN ('registration', 'login', 'password_reset')),
-  expires_at TIMESTAMP NOT NULL,
-  used_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX idx_verification_codes_target ON verification_codes(target);
-```
-
-**Key Points:**
-- 6-digit numeric code
-- Expires in 5-10 minutes (configurable)
-- Single-use (marked via `usedAt`)
-
----
-
-### RBAC Tables
-
-#### `roles`
-
-```sql
-CREATE TABLE roles (
-  id BIGSERIAL PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
-  display_name TEXT NOT NULL,
-  description TEXT,
-  is_builtin BOOLEAN DEFAULT false,
-  is_system BOOLEAN DEFAULT false,
-  is_active BOOLEAN DEFAULT true,
-  priority INTEGER NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-**Built-in Roles:**
-- `user` (priority 10) - Default role
-- `admin` (priority 80)
-- `superadmin` (priority 100)
-
----
-
-#### `permissions`
-
-```sql
-CREATE TABLE permissions (
-  id BIGSERIAL PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
-  display_name TEXT NOT NULL,
-  description TEXT,
-  category TEXT,
-  is_builtin BOOLEAN DEFAULT false,
-  is_system BOOLEAN DEFAULT false,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-**Built-in Permissions:**
-- `auth:self:manage`
-- `user:read`, `user:write`, `user:delete`, `user:invite`
-- `rbac:role:manage`, `rbac:permission:manage`
-
----
-
-#### `role_permissions`
-
-Many-to-many mapping between roles and permissions.
-
-```sql
-CREATE TABLE role_permissions (
-  id BIGSERIAL PRIMARY KEY,
-  role_id BIGINT REFERENCES roles(id) ON DELETE CASCADE,
-  permission_id BIGINT REFERENCES permissions(id) ON DELETE CASCADE,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-
-  UNIQUE(role_id, permission_id)
-);
-```
-
----
-
-#### `user_permissions`
-
-User-specific permission overrides.
-
-```sql
-CREATE TABLE user_permissions (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
-  permission_id BIGINT REFERENCES permissions(id) ON DELETE CASCADE,
-  granted BOOLEAN NOT NULL,
-  reason TEXT,
-  expires_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-
-  UNIQUE(user_id, permission_id)
-);
-```
-
-**Use Cases:**
-- `granted: true` - Grant permission temporarily
-- `granted: false` - Revoke permission (even if role has it)
-- `expiresAt` - Temporary access with expiration
-
----
-
-### Supporting Tables
-
-#### `invitations`
-
-User invitation system.
-
-```sql
-CREATE TABLE invitations (
-  id BIGSERIAL PRIMARY KEY,
-  email TEXT NOT NULL,
-  token TEXT UNIQUE NOT NULL,
-  role_id BIGINT REFERENCES roles(id),
-  invited_by BIGINT REFERENCES users(id),
-  status TEXT CHECK (status IN ('pending', 'accepted', 'cancelled', 'expired')),
-  expires_at TIMESTAMP NOT NULL,
-  accepted_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
----
-
-#### `user_profiles`
-
-Extended user profile information.
-
-```sql
-CREATE TABLE user_profiles (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-  first_name TEXT,
-  last_name TEXT,
-  display_name TEXT,
-  avatar_url TEXT,
-  bio TEXT,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
-
----
-
-#### `user_social_accounts`
-
-OAuth provider accounts (Google, GitHub, etc.).
-
-```sql
-CREATE TABLE user_social_accounts (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
-  provider TEXT NOT NULL,
-  provider_id TEXT NOT NULL,
-  access_token TEXT,
-  refresh_token TEXT,
-  expires_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT NOW(),
-
-  UNIQUE(provider, provider_id)
-);
-```
-
----
-
-## RBAC System
-
-### Initialization
-
-```typescript
-import { initializeAuth } from '@spfn/auth/server';
-
-// Minimal setup (built-in roles only)
-await initializeAuth();
-
-// With presets
-await initializeAuth({
-  usePresets: true,  // Adds moderator, editor, viewer roles
-});
-
-// Custom roles and permissions
-await initializeAuth({
-  roles: [
-    {
-      name: 'content-creator',
-      displayName: 'Content Creator',
-      priority: 20,
-    },
-  ],
-  permissions: [
-    {
-      name: 'post:create',
-      displayName: 'Create Posts',
-      category: 'content',
-    },
-  ],
-  rolePermissions: {
-    'content-creator': ['post:create'],
-  },
-});
-```
-
----
-
-### Built-in System
-
-**Roles:**
-- `superadmin` (priority 100) - Full access
-- `admin` (priority 80) - User management
-- `user` (priority 10) - Self management
-
-**Permissions:**
-- `auth:self:manage` - Change password, rotate keys
-- `user:read`, `user:write`, `user:delete`, `user:invite`
-- `rbac:role:manage`, `rbac:permission:manage`
-
----
-
-### Middleware Usage
-
-```typescript
-import { authenticate, requirePermissions, requireAnyPermission, requireRole } from '@spfn/auth/server';
-
-// Single permission
-app.bind(
-  deleteUserContract,
-  [authenticate, requirePermissions('user:delete')],
-  async (c) => {
-    // Only users with user:delete permission
-  }
-);
-
-// Multiple permissions (all required)
-app.bind(
-  publishPostContract,
-  [authenticate, requirePermissions('post:write', 'post:publish')],
-  async (c) => {
-    // Needs both permissions
-  }
-);
-
-// Any of the permissions (at least one required)
-app.bind(
-  viewContentContract,
-  [authenticate, requireAnyPermission('content:read', 'admin:access')],
-  async (c) => {
-    // User has either content:read OR admin:access
-  }
-);
-
-// Role-based
-app.bind(
-  adminDashboardContract,
-  [authenticate, requireRole('admin', 'superadmin')],
-  async (c) => {
-    // Admin or superadmin only
-  }
-);
-```
-
----
-
-### Programmatic Checks
-
-```typescript
-import { hasPermission, hasRole, getUserPermissions } from '@spfn/auth/server';
-
-const canPublish = await hasPermission(userId, 'post:publish');
-const isAdmin = await hasRole(userId, 'admin');
-const permissions = await getUserPermissions(userId);
-
-if (canPublish)
-{
-  // Allow publish
-}
-```
-
----
-
-### Runtime Role Management
-
-```typescript
-import { createRole, addPermissionToRole } from '@spfn/auth/server';
-
-// Create role
-const role = await createRole({
-  name: 'moderator',
-  displayName: 'Moderator',
-  priority: 40,
-  permissionIds: [1n, 2n],
-});
-
-// Add permission
-await addPermissionToRole(role.id, 5n);
-
-// Delete (system roles protected)
-await deleteRole(role.id);
-```
-
----
-
-## Next.js Adapter
-
-### Session Management
-
-The Next.js adapter provides encrypted HttpOnly cookie-based sessions.
-
-**Configuration:**
-```bash
-# .env
-SPFN_AUTH_SESSION_SECRET=your-32-char-secret
-SPFN_AUTH_SESSION_TTL=7d  # Optional, default 7d
-```
-
-**Session Data:**
-```typescript
-interface SessionData {
-  userId: string;
-  privateKey: string;    // Encrypted in cookie
-  keyId: string;
-  algorithm: 'ES256' | 'RS256';
-}
-```
-
----
-
-### Server Component Guards
-
-```typescript
-// app/admin/page.tsx
 import { RequireAuth, RequireRole } from '@spfn/auth/nextjs/server';
 
 export default async function AdminPage()
 {
-  return (
-    <RequireAuth redirectTo="/login">
-      <RequireRole roles={['admin', 'superadmin']} redirectTo="/forbidden">
-        <div>Admin Dashboard</div>
-      </RequireRole>
-    </RequireAuth>
-  );
+    return (
+        <RequireAuth redirectTo="/login">
+            <RequireRole roles={['admin', 'superadmin']} redirectTo="/forbidden">
+                <Dashboard />
+            </RequireRole>
+        </RequireAuth>
+    );
 }
 ```
 
----
+Also exported: `getAuthSessionData`, `getUserRole`, `getUserPermissions`, `hasAnyRole`,
+`hasAnyPermission`, the OAuth pending-session helpers, and `createOAuthCallbackHandler`.
 
-### Interceptors (API Routes)
+## RBAC
 
-**Setup:**
+Built-in roles: `superadmin` (priority 100), `admin` (80), `user` (10). Built-in permissions:
+`auth:self:manage`, `user:read|write|delete|invite`, `rbac:role:manage`, `rbac:permission:manage`.
+Custom roles/permissions are declared on the lifecycle (preferred — runs on startup) or via
+`initializeAuth(options)`.
+
 ```typescript
-// Simply import to auto-register
+createAuthLifecycle({
+    roles: [{ name: 'editor', displayName: 'Editor', priority: 30 }],
+    permissions: [{ name: 'post:publish', displayName: 'Publish Posts', category: 'content' }],
+    rolePermissions: { editor: ['post:publish'] },
+});
+```
+
+Programmatic checks (server): `hasPermission`, `hasAnyPermission`, `hasAllPermissions`, `hasRole`,
+`hasAnyRole`, `getUserRole`, `getUserPermissions`. Runtime role admin: `createRole`, `updateRole`,
+`deleteRole`, `setRolePermissions`, `addPermissionToRole`, `removePermissionFromRole`,
+`getAllRoles`, `getRoleByName`, `getRolePermissions`.
+
+## Events
+
+`@spfn/auth` emits decoupled events (via `@spfn/core/event`). Subscribe for welcome emails,
+analytics, onboarding, etc. Client-supplied `metadata` on register/OAuth flows is forwarded verbatim.
+
+```typescript
+import { authLoginEvent, authRegisterEvent, invitationCreatedEvent, invitationAcceptedEvent } from '@spfn/auth/server';
+
+authRegisterEvent.subscribe(async ({ userId, email, provider, metadata }) =>
+{
+    if (email) await sendWelcome(email);
+});
+```
+
+Payload types: `AuthLoginPayload`, `AuthRegisterPayload`, `InvitationCreatedPayload`,
+`InvitationAcceptedPayload`. These events also bind to `@spfn/core/job` jobs via `.on(event)`.
+
+## One-Time Token
+
+For short-lived authenticated handshakes (e.g. SSE) where a `Bearer` header is awkward: issue
+with `authApi.issueOneTimeToken`, protect the consuming route with the `oneTimeTokenAuth`
+middleware. Call `initOneTimeTokenManager({ ttl, store })` during setup for a custom TTL/store.
+
+## Pitfalls & anti-patterns
+
+- **Wrong entry point.** `@spfn/auth/server` and `@spfn/auth/nextjs/*` are server-only (Node /
+  `server-only`). Importing them in a client component breaks the build. Entities, services, and
+  repositories are on `/server`, not on root `@spfn/auth`.
+- **No `app.bind(contract, ...)`.** That contract pattern is removed. Use the route DSL
+  (`route.get().handler()` + `defineRouter`). Any docs/snippets using `app.bind` are stale.
+- **Custom error classes must be registered.** Add them to an `ErrorRegistry` (mirror
+  `authErrorRegistry` in `src/errors/index.ts`) and pass it to your `createApi({ errorRegistry })`,
+  or the client receives a generic error instead of the typed one.
+- **Two env files, by audience.** `SPFN_AUTH_SESSION_SECRET` lives in `.env.local` (Next.js needs
+  it for cookie crypto); `SPFN_AUTH_VERIFICATION_TOKEN_SECRET` lives in `.env.server`. Splitting
+  them wrong yields "missing secret" failures only at runtime.
+- **`SPFN_AUTH_SESSION_SECRET` is validated.** Minimum 32 chars plus entropy/unique-char checks —
+  a short or low-entropy value fails startup, not just a warning.
+- **Forgetting the interceptor import.** Without `import '@spfn/auth/nextjs/api'` in the RPC proxy
+  route, the client sends no `Authorization` header and every protected call 401s. The
+  `authenticate` middleware error message points here.
+- **Custom OAuth callback without `Transactional()`.** A failure mid-callback leaves an orphan
+  user. Always wrap the callback route in `Transactional()` and call `oauthCallbackService`.
+- **`sideEffects: false` tree-shakes the google provider.** The built-in provider self-registers
+  via a module side-effect; an aggressive bundler config can drop it. Don't mark this package's
+  imports side-effect-free.
+- **Public routes need an explicit opt-out.** With global `authenticate`, any route without
+  `.skip(['auth'])` (or `optionalAuth`, which auto-skips) requires a valid token.
+- **`SOCIAL_PROVIDERS` is plain `enumText`.** Adding a provider value needs no DB migration, but
+  every `switch(provider)` over login/register events must handle the new value.
+- **Email/SMS is not here.** It moved to `@spfn/notification` (`import { sendEmail, sendSMS } from
+  '@spfn/notification/server'`). Wire verification-code / invitation emails through its events.
+
+## Complete example
+
+```typescript
+// server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { createAuthLifecycle } from '@spfn/auth/server';
+import { appRouter } from './router';
+
+export default defineServerConfig()
+    .port(8790)
+    .routes(appRouter)
+    .lifecycle(createAuthLifecycle({
+        roles: [{ name: 'editor', displayName: 'Editor', priority: 30 }],
+        permissions: [{ name: 'post:publish', displayName: 'Publish Posts', category: 'content' }],
+        rolePermissions: { editor: ['post:publish'] },
+    }))
+    .build();
+
+// router.ts
+import { defineRouter } from '@spfn/core/route';
+import { authRouter, authenticate } from '@spfn/auth/server';
+import { getMe } from './routes/me';
+
+export const appRouter = defineRouter({ getMe })
+    .packages([authRouter])
+    .use([authenticate]);
+export type AppRouter = typeof appRouter;
+
+// app/api/rpc/[routeName]/route.ts
 import '@spfn/auth/nextjs/api';
+import { appRouter } from '@/server/router';
+import { createRpcProxy } from '@spfn/core/nextjs/server';
+export const { GET, POST } = createRpcProxy({ router: appRouter });
+
+// any client component
+import { authApi } from '@spfn/auth';
+const session = await authApi.getAuthSession.call({});
 ```
 
-**How It Works:**
-1. Reads `session` HttpOnly cookie
-2. Unseals session data
-3. Generates JWT signed with `privateKey`
-4. Injects `Authorization: Bearer <jwt>` header
-
-**Target Routes:**
-- `/_auth/login`, `/_auth/register` - Login/register interceptor
-- `/_auth/keys/rotate` - Key rotation interceptor
-- `/_auth/oauth/:provider/url` - OAuth URL interceptor (keypair + state generation)
-- `/_auth/oauth/finalize` - OAuth finalize interceptor (pending session → full session)
-- All other authenticated routes - General auth interceptor
-
----
-
-### OAuth Client Component (`@spfn/auth/nextjs/client`)
-
-```typescript
-import { OAuthCallback, type OAuthCallbackProps } from '@spfn/auth/nextjs/client';
-```
-
-OAuth 콜백 페이지용 `'use client'` 컴포넌트. 자세한 사용법은 [OAuth Authentication](#oauth-authentication) 섹션 참조.
-
----
-
-## Testing
-
-### Setup Test Environment
-
-```bash
-# Start test database
-pnpm docker:test:up
-
-# Generate migrations
-pnpm db:generate
-
-# Run migrations (via @spfn/core)
-cd ../../
-pnpm spfn db migrate
-```
-
----
-
-### Run Tests
-
-```bash
-# All tests
-pnpm test
-
-# With coverage
-pnpm test:coverage
-
-# Route tests only
-pnpm test:routes
-
-# Watch mode
-pnpm test --watch
-```
-
----
-
-### Test Structure
-
-```
-src/
-├── __tests__/
-│   └── setup.ts              # Global test setup
-└── server/
-    ├── routes/
-    │   └── auth/
-    │       └── __tests__/
-    │           ├── login.test.ts
-    │           ├── register.test.ts
-    │           └── ...
-    └── services/
-        └── __tests__/
-            ├── auth.service.test.ts
-            └── ...
-```
-
----
-
-### Writing Tests
-
-```typescript
-import { describe, it, expect, beforeEach } from 'vitest';
-import { loginService } from '@/server/services';
-
-describe('loginService', () =>
-{
-  beforeEach(async () =>
-  {
-    // Setup test data
-  });
-
-  it('should login with valid credentials', async () =>
-  {
-    const result = await loginService({
-      email: 'test@example.com',
-      password: 'password123',
-      publicKey: '...',
-      keyId: '...',
-      fingerprint: '...',
-      algorithm: 'ES256',
-    });
-
-    expect(result.userId).toBeDefined();
-  });
-});
-```
-
----
-
-### Test Database
-
-**docker-compose.test.yml:**
-```yaml
-services:
-  postgres-test:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: spfn_auth_test
-      POSTGRES_USER: spfn
-      POSTGRES_PASSWORD: spfn_dev_password
-    ports:
-      - "5433:5432"
-```
-
-**Test env variables:**
-```bash
-DATABASE_URL=postgresql://spfn:spfn_dev_password@localhost:5433/spfn_auth_test
-```
-
----
-
-## Development Workflow
-
-### Initial Setup
-
-```bash
-# Install dependencies
-pnpm install
-
-# Generate migrations
-pnpm db:generate
-
-# Build package
-pnpm build
-```
-
----
-
-### Development
-
-```bash
-# Watch mode (auto-rebuild on changes)
-pnpm dev
-
-# Type checking
-pnpm type-check
-
-# Run tests
-pnpm test
-```
-
----
-
-### Build Process
-
-The package uses `tsup` for building:
-
-**tsup.config.ts:**
-```typescript
-export default defineConfig({
-  entry: {
-    index: 'src/index.ts',
-    server: 'src/server.ts',
-    client: 'src/client.ts',
-    // ... more entry points
-  },
-  format: ['esm'],
-  dts: true,
-  clean: true,
-  sourcemap: true,
-});
-```
-
-**Build outputs:**
-- `dist/index.js` + `dist/index.d.ts`
-- `dist/server.js` + `dist/server.d.ts`
-- `dist/client.js` + `dist/client.d.ts`
-- `dist/config/`, `dist/errors/`, `dist/nextjs/`
-
----
-
-### Database Migrations
-
-```bash
-# Generate new migration (after entity changes)
-pnpm db:generate
-
-# Apply migrations (via SPFN CLI)
-cd ../../
-pnpm spfn db migrate
-
-# View database
-pnpm spfn db studio
-```
-
-**Migration files:** `migrations/*.sql`
-
----
-
-### SPFN Plugin Integration
-
-**package.json:**
-```json
-{
-  "spfn": {
-    "schemas": ["./dist/server/entities/*.js"],
-    "routes": {
-      "basePath": "/_auth",
-      "dir": "./dist/server/routes"
-    },
-    "migrations": {
-      "dir": "./migrations"
-    }
-  }
-}
-```
-
-**How it works:**
-1. SPFN CLI discovers packages with `spfn` field
-2. Auto-loads database schemas
-3. Auto-registers routes at `basePath`
-4. Includes migrations in `db migrate` command
-
----
-
-### Code Style
-
-Follow the project's code style (see `/Users/launchscreen/PROJECTS/SPFN/workspaces/.claude/rules.md`):
-
-- **Brace placement:** Next line (Allman-style)
-- **Indentation:** 4 spaces
-- **Semicolons:** Always
-- **Type assertions:** Use `as`, not `<>`
-
-**Example:**
-```typescript
-export async function myFunction(): Promise<void>
-{
-    if (condition)
-    {
-        await operation();
-    }
-    else
-    {
-        handleError();
-    }
-}
-```
-
----
-
-### Environment Variables
-
-**Server-side:**
-```bash
-# Required
-SPFN_AUTH_JWT_SECRET=your-secret-key
-DATABASE_URL=postgresql://...
-
-# Optional
-SPFN_AUTH_JWT_EXPIRES_IN=7d
-SPFN_AUTH_BCRYPT_SALT_ROUNDS=10
-SPFN_AUTH_VERIFICATION_TOKEN_SECRET=separate-secret
-```
-
-**Next.js adapter:**
-```bash
-# Required
-SPFN_AUTH_SESSION_SECRET=your-32-char-secret
-
-# Optional
-SPFN_AUTH_SESSION_TTL=7d
-SPFN_API_URL=http://localhost:8790
-```
-
----
-
-### Debugging
-
-**Enable logging:**
-```typescript
-import { serverLogger } from '@/server/logger';
-
-serverLogger.info('Debug message', { context });
-serverLogger.error('Error occurred', error);
-```
-
-**Inspect database:**
-```bash
-pnpm spfn db studio
-```
-
-**Check migrations:**
-```bash
-ls migrations/
-```
-
----
-
-## Known Issues
-
-### 1. Client Crypto Functions Missing
-
-**Issue:** README documents `generateKeyPair` and `generateClientToken` in `@spfn/auth/client`, but they only exist in `@spfn/auth/server`.
-
-**Workaround:** Use server-side crypto functions or implement client-side crypto separately.
-
-**Status:** Needs design decision - keep server-only or implement browser-compatible version.
-
----
-
-### 2. Next.js Proxy Route Not Implemented
-
-**Issue:** Documentation mentions `@spfn/auth/nextjs/proxy` for client-side API proxying, but it doesn't exist.
-
-**Status:** Feature planned but not implemented. Current alternative: use server-side `createAuthInterceptor`.
-
----
-
-### 3. `lib/api` Client Functions Removed
-
-**Issue:** Old `src/lib/api/` directory was deleted during refactoring.
-
-**Status:** Intentional removal. Use services or HTTP routes directly.
-
----
-
-### 4. Test Coverage Below Target
-
-**Current:** ~83%
-**Target:** 90%+
-
-**Areas needing tests:**
-- Invitation service edge cases
-- RBAC permission checks
-- Key rotation scenarios
-- Session expiry handling
-
----
-
-## Roadmap
-
-### Short-term (Alpha → Beta)
-
-- [ ] **Client-side crypto** - Browser-compatible key generation
-- [ ] **Next.js proxy route** - Implement or remove from docs
-- [x] **High-level authApi** - Simplified Next.js auth functions (implemented in `@spfn/auth`)
-- [ ] **Test coverage** - Reach 90%+ coverage
-- [x] **Documentation** - Sync docs with actual code
-
----
-
-### Mid-term (Beta → v1.0)
-
-- [ ] **React hooks** - useAuth, useSession, usePermissions
-- [ ] **UI components** - LoginForm, RegisterForm, AuthProvider
-- [x] **OAuth integration** - Google (implemented), GitHub/Kakao/Naver (planned)
-- [ ] **2FA support** - TOTP/authenticator apps
-- [ ] **Password reset flow** - Complete email-based reset
-- [ ] **Email change flow** - Verification for email updates
-- [ ] **Phone change flow** - SMS verification for phone updates
-
----
-
-### Long-term (Post v1.0)
-
-- [ ] **Admin UI** - User/role/permission management dashboard
-- [ ] **Audit logging** - Track auth events
-- [ ] **Rate limiting** - Built-in protection against brute force
-- [ ] **Multi-tenancy** - Organization/workspace support
-- [ ] **SSO integration** - SAML, OIDC
-- [ ] **Biometric auth** - WebAuthn/FIDO2 support
-
----
-
-## Contributing
-
-### Before Contributing
-
-1. Read this documentation thoroughly
-2. Check existing issues/PRs
-3. Understand the architecture
-4. Follow code style guidelines
-
----
-
-### Pull Request Process
-
-1. **Create feature branch**
-   ```bash
-   git checkout -b feature/my-feature
-   ```
-
-2. **Make changes**
-   - Follow code style
-   - Add tests
-   - Update docs if needed
-
-3. **Run checks**
-   ```bash
-   pnpm type-check
-   pnpm test
-   pnpm build
-   ```
-
-4. **Commit with conventional commits**
-   ```bash
-   git commit -m "feat(auth): add password strength validation"
-   ```
-
-5. **Push and create PR**
-   ```bash
-   git push origin feature/my-feature
-   ```
-
----
-
-### Commit Message Format
-
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-**Types:**
-- `feat` - New feature
-- `fix` - Bug fix
-- `refactor` - Code refactoring
-- `test` - Test changes
-- `docs` - Documentation
-- `chore` - Maintenance
-
-**Example:**
-```
-feat(rbac): add permission inheritance
-
-Implement hierarchical permission inheritance where child roles
-automatically inherit parent role permissions.
-
-Closes #123
-```
-
----
-
-## Release Process
-
-### Version Naming
-
-- `0.1.0-alpha.x` - Alpha releases (current)
-- `0.1.0-beta.x` - Beta releases
-- `1.0.0` - Stable release
-
----
-
-### Publishing
-
-```bash
-# Alpha release
-pnpm run publish:alpha
-
-# Beta release
-pnpm run publish:beta
-
-# Production release
-pnpm run publish:latest
-```
-
-**Pre-publish checklist:**
-- [ ] All tests pass
-- [ ] Type checking passes
-- [ ] Build succeeds
-- [ ] CHANGELOG updated
-- [ ] Version bumped
-- [ ] Docs updated
-
----
-
-## Support
-
-### Internal Team
-
-- **Issues:** GitHub Issues
-- **Discussions:** GitHub Discussions
-- **Slack:** #spfn-auth channel
-
----
-
-## License
-
-MIT License - See LICENSE file for details.
-
----
-
-**Last Updated:** 2026-02-23
-**Document Version:** 2.6.0 (Technical Documentation)
-**Package Version:** 0.2.0-beta.15
+## Related
+
+- `@spfn/core` — route DSL (`route`, `defineRouter`), `createApi`, env (`@spfn/core/env`),
+  errors (`ErrorRegistry`), db (`Transactional`), events, jobs.
+- `@spfn/notification` — email/SMS/push (verification codes, invitation emails).
+- Full guide: `docs/guides/authentication.md`.

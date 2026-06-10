@@ -1,212 +1,358 @@
-# spfn
+# spfn — the SPFN CLI (backend layer for Next.js)
 
-> Superfunction CLI - The Backend Layer for Next.js
+`spfn` scaffolds and runs a Hono-based backend that lives inside a Next.js project.
+It creates the server structure, runs the dev/build/start lifecycle, manages the
+database (Drizzle Kit), generates the RPC route map, and validates environment variables.
 
-The official CLI tool for SPFN framework. Initialize projects, generate boilerplate code, and manage your database.
+> Beta: install with the `@beta` tag (`spfn@beta`). The binary is `spfn`.
+
+## Install
+
+No global install needed — run through your package manager's dlx/npx:
+
+```bash
+npx spfn@beta <command>
+pnpm dlx spfn@beta <command>
+```
+
+Or add it as a project dependency (`spfn init`/`spfn create` do this for you), then
+call it via `pnpm spfn <command>` / `npm run spfn:<script>`.
+
+Requirements: Node.js 22+, Next.js 15+ (App Router, `src/` dir), PostgreSQL (Redis optional).
 
 ## Usage
 
-> ⚠️ **Alpha Release**: SPFN is currently in alpha. Use `@alpha` tag for installation.
-
-### Quick Start (New Project)
 ```bash
-# Create new project with all SPFN features pre-configured
-npx spfn@alpha create my-app
+# New project (runs create-next-app + spfn init)
+npx spfn@beta create my-app
 cd my-app
-docker compose up -d
-npm run spfn:dev
+docker compose up -d            # Postgres + Redis
+cp .env.local.example .env.local
+pnpm spfn:dev                   # Next.js :3790 + SPFN API :8790
+
+# Add SPFN to an existing Next.js project
+npx spfn@beta init
 ```
 
-### Add to Existing Next.js Project
-```bash
-# Using npx (no installation required) - Recommended
-npx spfn@alpha init
+The package manager is auto-detected (pnpm > yarn > bun > npm) from lockfiles; override
+with `--pm`. In a pnpm workspace, `create` installs from the workspace root.
 
-# Or install globally (alpha version)
-npm install -g spfn@alpha
-spfn init
-```
+---
 
 ## Commands
 
-### Create New Project
+Registered top-level commands: `create`, `init`, `add`, `dev`, `build`, `start`,
+`codegen`, `db`, `env`, `key`, `setup`.
+
+### `spfn create <name>`
+
+Runs `create-next-app` with SPFN-recommended flags (TypeScript, App Router, `src/`,
+Tailwind, import alias `@/*`, no ESLint), sets up SVGR icons, then runs `init`.
+
+| Option | Description |
+|--------|-------------|
+| `--pm <manager>` | Force package manager: `npm` \| `pnpm` \| `yarn` \| `bun` |
+| `--shadcn` | Also run `shadcn init` |
+| `--skip-install` | Skip dependency install |
+| `--skip-git` | Skip `git init` |
+| `-y, --yes` | Skip prompts, use defaults |
+
+### `spfn init`
+
+Adds SPFN to an existing Next.js project: copies the server templates, wires the RPC
+proxy route, Docker files, deploy + codegen config, updates `package.json` scripts/deps,
+and installs. See [Scaffold structure](#scaffold-structure) for what lands on disk.
+
+| Option | Description |
+|--------|-------------|
+| `-y, --yes` | Skip prompts, use defaults |
+
+### `spfn add <package>`
+
+Installs an SPFN ecosystem package and applies its pre-built migrations. The package
+name must be scoped (contain `/`).
+
 ```bash
-spfn create <name>           # Create new Next.js project with SPFN (all-in-one)
-spfn create my-app           # Example: Create project with TypeScript, App Router, SVGR, and SPFN
-spfn create my-app --shadcn  # Include shadcn/ui component library
+pnpm spfn add @spfn/cms
+pnpm spfn add @mycompany/spfn-analytics
 ```
 
-### Project Initialization
+How it works: if not already present it installs the package, then reads the package's
+`spfn` field in its `package.json` (`migrations`, `setupMessage`) and applies any
+function migrations to `DATABASE_URL`. If `DATABASE_URL` is unset, migration is skipped
+with a hint to run `spfn db push` later. Works with published and workspace packages.
+
+### `spfn dev`
+
+Starts the SPFN server + Next.js (and a codegen watcher). The server must report ready
+(via a `.spfn/server-ready` signal file) before Next.js launches. Runs through `tsx`,
+no pre-build needed.
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--server-only` | Run only the SPFN/Hono server (also auto-selected if Next.js isn't a dependency) | off |
+| `--watch` | Restart the server on `src/server` changes (chokidar) | off |
+| `-p, --port <port>` | Server port | from `server.config.ts` / env (`4000` in server-only fallback) |
+| `-H, --host <host>` | Server host | `localhost` |
+| `--routes <path>` | Routes directory path | server default |
+
+Note: hot reload is **off by default** — pass `--watch` to restart on file changes.
+
+### `spfn build`
+
+Runs codegen, builds Next.js (via the project's `build` script), and compiles
+`src/server/**/*.ts` → `.spfn/server` with tsup. Also writes `.spfn/prod-server.mjs`
+(the production entry consumed by `spfn start`).
+
+| Option | Description |
+|--------|-------------|
+| `--server-only` | Build only the SPFN server (skip Next.js) |
+| `--next-only` | Build only Next.js (skip the SPFN server) |
+| `--turbo` | Use Turbopack for the Next.js build |
+
+### `spfn start`
+
+Starts the production servers from build output. Requires `spfn build` first — it errors
+if `.spfn/server`, `.spfn/prod-server.mjs`, or `.next` are missing.
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--server-only` | Run only the SPFN server | off |
+| `--next-only` | Run only Next.js | off |
+| `-p, --port <port>` | SPFN server port (sets `SPFN_PORT`) | `8790` |
+| `-h, --host <host>` | SPFN server host (sets `SPFN_HOST`) | `0.0.0.0` |
+
+Next.js is started on `0.0.0.0:3790`. Both run together via `concurrently --kill-others`.
+
+### `spfn codegen`
+
+Manages code generators driven by `.spfnrc.ts`. The default generator is
+`@spfn/core:route-map`, which emits `src/generated/route-map.ts` from `src/server/router.ts`
+so the RPC proxy can resolve routes without importing server code. Generators also run
+automatically during `spfn dev` and `spfn build`.
+
+| Subcommand | Description |
+|------------|-------------|
+| `codegen init` | Create `.spfnrc.ts` (`--with-example` shows custom-generator usage) |
+| `codegen list` (`ls`) | List configured generators and their watch patterns |
+| `codegen run` | Run all generators once (no watch) |
+
+`package.json` exposes this as the `codegen` script (`spfn codegen run`).
+
+To add a custom generator, implement the `Generator` interface from `@spfn/core/codegen`
+and reference it in `.spfnrc.ts`:
+
+```ts
+// .spfnrc.ts
+import { defineConfig, defineGenerator } from '@spfn/core/codegen';
+
+export default defineConfig({
+    generators: [
+        defineGenerator({
+            name: '@spfn/core:route-map',
+            routerPath: './src/server/router.ts',
+            outputPath: './src/generated/route-map.ts',
+        }),
+    ],
+});
+```
+
+### `spfn db`
+
+Wraps Drizzle Kit with auto-generated config. Most commands read `DATABASE_URL` from the
+loaded `.env` chain.
+
+| Subcommand | Description |
+|------------|-------------|
+| `db generate` (`g`) | Generate migrations from schema changes (timestamp-prefixed) |
+| `db push` | Apply schema to DB. Safe by default; destructive changes need confirmation. `--force` applies destructive changes, `--dry-run` previews |
+| `db migrate` (`m`) | Run pending migrations. `--with-backup` snapshots first |
+| `db studio` | Open Drizzle Studio. `-p, --port` (auto-finds a free port) |
+| `db check` | Verify the database connection |
+| `db drop` | Drop all tables — **destructive**, double-prompts (see [Pitfalls](#pitfalls)) |
+| `db backup` | Create a backup (`-f sql|custom`, `-o`, `-s`, `--data-only`, `--schema-only`, `--tag`, `--env`) |
+| `db restore [file]` | Restore from a backup (`--drop`, `-s`, `--data-only`, `--schema-only`, `-v`) |
+| `db backup:list` | List backups |
+| `db backup:clean` | Prune backups (`-k, --keep <n>`, `-o, --older-than <days>`) |
+| `db reindex` | Convert sequential migration prefixes to timestamps (`--dry-run`) |
+
+> `db push` is for development. For production, use `db generate` + `db migrate` to keep
+> migration history.
+
+### `spfn env`
+
+Schema-driven environment variable tooling (schema comes from a package's `envSchema`,
+default `@spfn/core`). Routes vars to the right file: `NEXT_PUBLIC_*` → `.env`/`.env.local`,
+server vars → `.env.server`.
+
+| Subcommand | Description |
+|------------|-------------|
+| `env list` | List vars from the schema (`-g` groups by target file) |
+| `env stats` | Show variable statistics |
+| `env search <query>` | Search vars by key or description |
+| `env init` | Generate `.env` template files (`-e <env>` for per-env, `-f` to overwrite) |
+| `env check` | Check `.env` files against the schema (`-e <env>` for a full env chain) |
+| `env validate` | Validate `process.env` against the schema — for CI/CD (`-e <env>`, `-s` strict) |
+
+All accept `-p, --package <pkg>` (`env validate` uses `-p, --packages <pkgs...>`).
+
+### `spfn key [preset]`
+
+Generate cryptographically random secrets (base64url, 256-bit default).
+
 ```bash
-spfn init              # Initialize SPFN in existing Next.js project
-spfn init -y           # Skip prompts, use defaults
+spfn key                       # generic 256-bit secret
+spfn key auth-encryption -c    # preset key, copy to clipboard
+spfn key --list                # list presets
+spfn key gen -b 64             # raw value only, no metadata (alias of `key generate`)
 ```
 
-**What `spfn init` creates:**
-- `src/lib/contracts/` - API contracts (shared between frontend and backend)
-- `src/server/routes/` - Backend route handlers
-- `src/server/entities/` - Database entities (Drizzle ORM)
-- `docker-compose.yml` - PostgreSQL + Redis for local development
-- `Dockerfile`, `.dockerignore`, `docker-compose.production.yml` - Production deployment
-- `.env.local.example` - Environment variable template
-- `spfn.config.js` - Deployment configuration with JSDoc type hints
-- `.spfnrc.json` - Code generation configuration
+Presets: `auth-encryption`, `nextauth-secret`, `jwt-secret`, `session-secret`, `api-key`.
+Options: `-l, --list`, `-b, --bytes <n>` (1–128), `-e, --env <name>`, `-c, --copy`.
+The command prints the value to stdout for you to paste into an env file — it does **not**
+write any file.
 
-**SPFN's Contract-Based Architecture:**
-- **Contracts** (`src/lib/contracts/`): Define API endpoints with absolute paths (e.g., `/users/:id`)
-- **Handlers** (`src/server/routes/`): Import contracts and implement business logic
-- **Frontend**: Import contracts for type-safe API calls
-- **Auto-generated Client**: `src/lib/api/` is auto-generated from contracts (via `spfn dev` or `spfn build`)
+### `spfn setup icons`
 
-### Install Ecosystem Packages
+Install and configure SVGR for SVG-as-component imports (Next.js only).
+
+---
+
+## Scaffold structure
+
+`spfn init` (and `create`, which calls it) produces:
+
+```
+src/
+  app/api/rpc/[routeName]/route.ts   # RPC proxy — re-exports { GET, POST } from @spfn/core/nextjs/server
+  generated/route-map.ts             # generated by codegen (run `spfn codegen run` if missing)
+  lib/
+    api-client.ts                    # createApi<AppRouter>() — the type-safe client
+  server/
+    router.ts                        # defineRouter({ ...routes }) → export type AppRouter
+    server.config.ts                 # defineServerConfig().port(8790).host('0.0.0.0').routes(appRouter)
+    config/env.config.ts             # environment schema
+    entities/                        # Drizzle tables (example.entity.ts, config.ts)
+    repositories/                    # BaseRepository subclasses (example.repository.ts)
+    routes/                          # route DSL handlers: root.ts, health.ts, examples.ts
+    tsconfig.json, tsup.config.ts
+.spfnrc.ts                           # codegen config (route-map generator)
+spfn.config.js                       # deployment config (subdomain/region/domains) — committed
+docker-compose.yml                   # Postgres + Redis (dev)
+docker-compose.production.yml
+Dockerfile, .dockerignore
+.env.example                         # committed, shared non-secret defaults
+.env.local.example                   # gitignored target template (Next.js local overrides)
+.env.server.example                  # → copy to .env.server (gitignored, server secrets)
+```
+
+`init` also patches `package.json` (scripts: `spfn:dev`, `spfn:server`, `spfn:next`,
+`spfn:build`, `spfn:start`, `codegen`; deps: `@spfn/core`, `spfn`, `drizzle-orm`,
+`@sinclair/typebox`, `concurrently`, etc.), excludes `src/server` from the root
+`tsconfig.json` (Vercel compat), and adds `.spfn/`, `.env.local`, `.env.server` to
+`.gitignore`.
+
+### Route DSL (the current architecture)
+
+Routes are defined with the `route` builder and collected by `defineRouter`. There is no
+separate "contract" layer — the router's type *is* the contract; the client infers from it.
+
+```ts
+// src/server/routes/examples.ts
+import { route } from '@spfn/core/route';
+import { Type } from '@sinclair/typebox';
+
+export const getExample = route.get('/examples/:id')
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        return { id: params.id };
+    });
+```
+
+```ts
+// src/server/router.ts
+import { defineRouter } from '@spfn/core/route';
+import { getExample } from './routes/examples';
+
+export const appRouter = defineRouter({ getExample });
+export type AppRouter = typeof appRouter;
+```
+
+```ts
+// src/lib/api-client.ts
+import { createApi } from '@spfn/core/nextjs';
+import type { AppRouter } from '@/server/router';
+
+export const api = createApi<AppRouter>();
+const example = await api.getExample.call({ params: { id: '123' } });
+```
+
+Client calls go through the Next.js RPC proxy (`/api/rpc/[routeName]`), which forwards to
+the SPFN API with cookie forwarding and interceptors, resolving routes via the generated
+`route-map.ts`.
+
+---
+
+## Deployment
+
+`spfn build` then `spfn start`, or use the generated Docker files.
+
 ```bash
-spfn add <package>         # Install SPFN ecosystem package with automatic DB setup
-spfn add @spfn/cms         # Install CMS package
-spfn add @company/plugin   # Install third-party SPFN package
+# Build + run locally
+pnpm spfn:build
+pnpm spfn:start                 # Next.js :3790 + SPFN API :8790
+
+# Docker (single image runs both)
+docker compose -f docker-compose.production.yml up --build -d
 ```
 
-**What `spfn add` does:**
-1. ✅ Installs the package via pnpm/npm
-2. ✅ Discovers package's pre-built migrations
-3. ✅ Applies package migrations to your database
-4. ✅ Shows package-specific setup guide
+The Dockerfile (`node:22-alpine`) installs with `pnpm --frozen-lockfile`, runs
+`pnpm run spfn:build`, prunes dev deps, exposes `3790`/`8790`, health-checks
+`http://localhost:8790/health`, and starts via `pnpm run spfn:start`.
 
-**Example: Installing @spfn/cms**
+Run migrations against the target DB before/with deploy:
+
 ```bash
-$ pnpm spfn add @spfn/cms
-
-📦 Setting up @spfn/cms...
-✓ Package installed
-
-🗄️  Setting up database for @spfn/cms...
-✓ Migrations applied
-
-✅ @spfn/cms installed successfully!
-
-📚 Setup Guide:
-  1. Import CMS components: import { useLabels } from '@spfn/cms'
-  2. View labels in Drizzle Studio: pnpm spfn db studio
-  3. Learn more: https://github.com/spfnio/spfn
+docker exec <container> npx spfn db migrate
 ```
 
-**How it works:**
-- SPFN automatically discovers schemas from packages via `package.json`:
-  ```json
-  {
-    "name": "@spfn/cms",
-    "spfn": {
-      "schemas": ["./dist/server/entities/*.js"],
-      "migrations": { "dir": "./migrations" },
-      "setupMessage": "📚 Next steps: ..."
-    }
-  }
-  ```
-- Packages include pre-built migrations in their `migrations/` directory
-- Package migrations are applied first, then project migrations
-- Works with both published npm packages and local development (workspace packages)
+`spfn.config.js` (committed) configures the managed `*.spfn.app` deployment: `subdomain`,
+`region` (`us` default, `kr`, …), `customDomains`, and non-secret `env`. Its `SpfnConfig`
+type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
 
-### Development & Production
-```bash
-# Development
-spfn dev                    # Start both Next.js (3790) + API server (8790)
-spfn dev --server-only      # Start API server only (8790)
-spfn dev --no-watch         # Disable hot reload
+---
 
-# Production
-spfn build                  # Build Next.js + compile server
-spfn start                  # Start production server
-spfn start --server-only    # Start API server only (no Next.js)
-```
+## Pitfalls
 
-### Database Management
-```bash
-spfn db generate      # Generate database migrations
-spfn db push          # Push schema to database (no migrations)
-spfn db migrate       # Run pending migrations
-spfn db studio        # Open Drizzle Studio (database GUI)
-spfn db check         # Check database connection
-spfn db drop          # Drop all tables (⚠️ dangerous!)
-```
+- **`.env.server` is gitignored and server-only.** Put DB/secret values there, not in
+  `.env` (committed) and not in `.env.local` (that's Next.js's local file). There is no
+  `.env.server.local`. Copy `.env.server.example` → `.env.server`. Load order is the
+  standard dotenv chain ending with `.env.server`.
+- **Never commit secrets in `spfn.config.js`.** It's checked into Git; its `env` block is
+  for non-sensitive values only. Use CI/CD secret management for credentials.
+- **`spfn dev` does not hot-reload by default.** Add `--watch` to restart on `src/server`
+  changes.
+- **`spfn start` needs a prior `spfn build`.** It hard-fails without `.spfn/server`,
+  `.spfn/prod-server.mjs`, and `.next`.
+- **Destructive DB commands are guarded.** `db drop` double-confirms (and verifies the
+  target); `db push` applies additive changes but withholds destructive ones unless
+  `--force`/confirmed. Prefer `db generate` + `db migrate` for production; `db push` is dev-only.
+- **`spfn add` requires a scoped package name** (must contain `/`) and only applies
+  migrations when `DATABASE_URL` is set — otherwise it skips with a hint.
+- **Package manager is auto-detected from lockfiles.** If detection is wrong (e.g. mixed
+  lockfiles), pass `--pm` to `create`. In a pnpm workspace, `create` installs from the
+  workspace root, not the new project dir.
+- **Regenerate the route map after route changes outside dev.** If
+  `src/generated/route-map.ts` is missing or stale, run `spfn codegen run` — the RPC proxy
+  depends on it.
 
-### Setup Features
-```bash
-spfn setup icons      # Setup SVGR for SVG icon management
-```
+---
 
-### Utilities
-```bash
-spfn key              # Generate encryption key for .env
-```
+## Related
 
-## Configuration
-
-### spfn.config.js
-
-SPFN uses `spfn.config.js` for deployment configuration with full JSDoc type support for IDE autocomplete.
-
-**Basic Configuration:**
-```javascript
-/**
- * @type {import('spfn').SpfnConfig}
- */
-export default {
-  packageManager: 'pnpm',
-  deployment: {
-    // Your app's subdomain on spfn.app
-    // Creates region-specific domains:
-    // - myapp.us.spfn.app (Next.js)
-    // - api-myapp.us.spfn.app (API)
-    subdomain: 'myapp',
-
-    // Optional: Deployment region (defaults to 'us')
-    // Available: 'us' (Virginia, default), 'kr' (Seoul), 'jp', 'sg', 'eu' (coming soon)
-    region: 'us',
-
-    // Optional: Add custom domains
-    customDomains: {
-      nextjs: ['www.example.com', 'example.com'],
-      spfn: ['api.example.com']
-    },
-
-    // Optional: Environment variables for both Next.js and SPFN backend
-    // ⚠️ WARNING: These values are committed to Git
-    // Do NOT put sensitive credentials here!
-    env: {
-      NEXT_PUBLIC_API_URL: 'https://api-myapp.us.spfn.app',
-      NODE_ENV: 'production'
-    }
-  }
-}
-```
-
-**Features:**
-- **JSDoc Type Hints** - IDE autocomplete via `@type {import('spfn').SpfnConfig}`
-- **Multi-Region Deployment** - Deploy to Seoul (kr), Virginia (us), and more
-- **Dual Domain Setup** - Automatic `{subdomain}.{region}.spfn.app` and `api-{subdomain}.{region}.spfn.app`
-- **Custom Domains** - Support for multiple custom domains
-- **Environment Variables** - Shared between Next.js and SPFN backend
-- **ESM/CJS Support** - Works with both module systems
-
-**Security Note:**
-- `spfn.config.js` is committed to Git
-- Only use for non-sensitive configuration
-- For secrets (DB passwords, API keys), use CI/CD secrets management
-
-## Documentation
-
-For complete documentation and guides, see:
-- **[SPFN Framework](../../README.md)** - Getting started
-- **[@spfn/core](../core/README.md)** - API reference and core concepts
-
-## Requirements
-
-- Node.js 18+
-- Next.js 15+ (App Router)
-- PostgreSQL (optional: Redis)
-
-## Links
-
-- 🌐 Website: [superfunction.xyz](https://superfunction.xyz)
-- 📦 npm: [spfn](https://npmjs.com/package/spfn) (CLI)
-- 📦 npm: [@spfn/core](https://npmjs.com/package/@spfn/core) (Core)
-- 💬 GitHub: [spfn/spfn](https://github.com/spfn/spfn)
+- `@spfn/core` — server, route DSL, codegen, db, client runtime.
+- Project root README — framework overview and getting started.
+</content>
+</invoke>

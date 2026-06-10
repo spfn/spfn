@@ -1,28 +1,54 @@
-# @spfn/monitor
+# @spfn/monitor — DB-backed error tracking, logging, and admin dashboard
 
-Error tracking, log management, and monitoring dashboard for SPFN applications.
+DB-persisted error tracking with fingerprint deduplication and state-based Slack
+notifications, a pluggable developer-log store, superadmin admin routes, and ready-made
+React dashboard components. Integrates into an SPFN server via `defineServerConfig()`
+(`onError` middleware + lifecycle) and a package router mounted with `.packages([...])`.
 
-## Features
-
-- **DB-backed error tracking**: Fingerprint-based deduplication with automatic grouping
-- **State-based notifications**: Slack alerts only on new errors and reopened errors (no duplicates)
-- **Developer logging**: Pluggable log storage with DB default
-- **Admin API**: Superadmin-only routes for managing errors and viewing logs
-- **React dashboard**: Ready-to-use monitoring UI components
-
-## Installation
+## Install
 
 ```bash
 pnpm add @spfn/monitor
 ```
 
-## Quick Start
+Peer dep: `next` (`^15 || ^16`, optional — only needed for the `nextjs/client` components).
+Workspace deps `@spfn/core`, `@spfn/auth`, `@spfn/notification` come transitively.
 
-### Server Configuration
+## Import paths
+
+There are **four** entry points (from `package.json` `exports`):
 
 ```typescript
+// Client-safe: API client + shared types/consts
+import { monitorApi, type MonitorRouter, type MonitorStats } from '@spfn/monitor';
+
+// Server-only: router, integrations, services, repos, entities (uses node:crypto, DB)
+import { monitorRouter, createMonitorErrorHandler, writeLog } from '@spfn/monitor/server';
+
+// Config: code-level overrides + env getters + schema
+import { configureMonitor, getMonitorConfig } from '@spfn/monitor/config';
+
+// React components ('use client') — Next.js only
+import { MonitorDashboard } from '@spfn/monitor/nextjs/client';
+```
+
+Importing `@spfn/monitor/server` runs `@spfn/monitor/config` as a side effect (env registry
+is built). Never import `/server` or `/config`'s `env`-touching code into client/edge bundles.
+
+---
+
+## Setup (SPFN server)
+
+Three integration points, all on `defineServerConfig()` + the app router:
+
+```typescript
+// src/server/server.config.ts
 import { defineServerConfig } from '@spfn/core/server';
-import { createMonitorErrorHandler, createMonitorLifecycle, monitorRouter } from '@spfn/monitor/server';
+import {
+    createMonitorErrorHandler,
+    createMonitorLifecycle,
+} from '@spfn/monitor/server';
+import { appRouter } from './router';
 
 export default defineServerConfig()
     .middleware({ onError: createMonitorErrorHandler() })
@@ -31,202 +57,398 @@ export default defineServerConfig()
     .build();
 ```
 
-Register the monitor router as a package router:
+Mount `monitorRouter` as a **package router** on your app router (so its `/_monitor/admin/*`
+routes are served, but stay out of `AppRouter`'s client types — call them via `monitorApi`):
 
 ```typescript
+// src/server/router.ts
+import { defineRouter } from '@spfn/core/route';
 import { monitorRouter } from '@spfn/monitor/server';
+import { authRouter } from '@spfn/auth/server';
 
-export const appRouter = defineRouter({ ... })
+export const appRouter = defineRouter({ /* your routes */ })
     .packages([authRouter, monitorRouter]);
 ```
 
-### Database Migration
+> `monitorRouter` is built with `defineRouter({...})` — there is no `mergeRouters` export in
+> `@spfn/core/route`. Use `.packages([monitorRouter])`, not `mergeRouters(...)`.
+
+### Database migration
+
+`monitorSchema = createSchema('@spfn/monitor')` → the PostgreSQL schema **`spfn_monitor`**
+with tables `error_groups`, `error_events`, `logs`.
 
 ```bash
-spfn db migrate
+pnpm spfn db push                       # dev: push schema directly
+# or, with migration history (production):
+pnpm spfn db generate && pnpm spfn db migrate
 ```
 
-This creates the `spfn_monitor` schema with `error_groups`, `error_events`, and `logs` tables.
+`@spfn/monitor` ships pre-generated SQL under `migrations/` (declared via `package.json`
+`spfn.migrations.dir`); SPFN's CLI picks up the package's entities (`spfn.schemas`).
+
+---
 
 ## Configuration
 
-### Environment Variables
+### Environment variables
 
-```bash
-# Slack webhook for error notifications (optional)
-SPFN_MONITOR_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+All optional. Resolution order is **code config > env > built-in default**.
 
-# Error retention in days (default: 90)
-SPFN_MONITOR_ERROR_RETENTION_DAYS=90
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SPFN_MONITOR_SLACK_WEBHOOK_URL` | — | Slack webhook for error notifications (falls back to `@spfn/notification` default) |
+| `SPFN_MONITOR_ERROR_RETENTION_DAYS` | `90` | Days to retain error events |
+| `SPFN_MONITOR_LOG_RETENTION_DAYS` | `30` | Days to retain logs |
+| `SPFN_MONITOR_MIN_STATUS_CODE` | `500` | Minimum HTTP status code tracked as an error |
 
-# Log retention in days (default: 30)
-SPFN_MONITOR_LOG_RETENTION_DAYS=30
+The webhook URL is a secret — keep it in `.env.server` (server-only), never a committed file.
 
-# Minimum HTTP status code to track (default: 500)
-SPFN_MONITOR_MIN_STATUS_CODE=500
-```
-
-### Code Configuration
+### Code config
 
 ```typescript
 import { configureMonitor } from '@spfn/monitor/config';
 
 configureMonitor({
-    slackWebhookUrl: 'https://hooks.slack.com/services/...',
+    slackWebhookUrl: process.env.SPFN_MONITOR_SLACK_WEBHOOK_URL, // override
     errorRetentionDays: 90,
     logRetentionDays: 30,
     minStatusCode: 500,
 });
 ```
 
-## Error Tracking
+`MonitorConfig` keys: `slackWebhookUrl?`, `errorRetentionDays?`, `logRetentionDays?`,
+`minStatusCode?`. Getters resolve config > env > default:
+`getMonitorConfig()`, `getSlackWebhookUrl()`, `getErrorRetentionDays()`,
+`getLogRetentionDays()`, `getMinStatusCode()`. The validated env proxy is exported as `env`,
+the schema as `monitorEnvSchema`.
 
-Errors are automatically tracked when using `createMonitorErrorHandler()`:
+> Retention values are *exposed* config, but this package does **not** ship a purge
+> scheduler. `LogStore.purge(olderThan)` and `logsRepository.deleteOlderThan(date)` exist;
+> wire up your own cron/job if you want automatic retention enforcement.
 
-1. **New error** - Creates error group + event, sends Slack notification
-2. **Repeated error** (active/ignored) - Increments count, records event, no notification
-3. **Reopened error** (was resolved) - Changes status to active, sends Slack notification
+---
+
+## Error tracking
+
+`createMonitorErrorHandler(options?)` returns an `onError` callback (signature
+`(err: Error, ctx) => Promise<void>`) — a drop-in replacement for
+`createErrorSlackNotifier` from `@spfn/notification`. On each error at/above `minStatusCode`
+it calls `trackError`, which does state-based deduplication:
+
+| Existing group state | Action | Slack? |
+|----------------------|--------|--------|
+| none (new fingerprint) | create group + event | yes (`new`) |
+| `active` / `ignored` | increment count + create event | no |
+| `resolved` | reopen → `active`, increment, create event | yes (`reopened`) |
+
+Errors below `minStatusCode` are skipped. Slack/event failures are caught and logged — they
+never break the response.
+
+```typescript
+createMonitorErrorHandler({
+    minStatusCode: 500,                 // default: getMinStatusCode() (env or 500)
+    environment: process.env.NODE_ENV,  // shown in the Slack title, e.g. "[production]"
+    extractMetadata: (err, ctx) => ({   // stored on the error_event row
+        serverInstance: process.env.HOSTNAME,
+    }),
+});
+```
+
+`MonitorErrorHandlerOptions`: `minStatusCode?`, `environment?`, `extractMetadata?(err, ctx)`.
 
 ### Fingerprinting
 
-Errors are grouped by a SHA-256 fingerprint of `name:message:path`, producing a 16-character hex ID.
+`generateFingerprint(name, message, path)` → `SHA-256(name:message:path)` sliced to the
+first **16 hex chars**. Same name+message+path ⇒ same group. The `path` component means the
+same error from different routes is grouped separately.
 
-### Manual Error Tracking
+### Manual tracking
 
 ```typescript
 import { trackError } from '@spfn/monitor/server';
 
-await trackError(error, {
-    statusCode: 500,
-    path: '/api/example',
-    method: 'POST',
-    requestId: 'req_123',
-});
+await trackError(
+    error,                              // Error
+    {                                   // ErrorTrackingContext
+        statusCode: 500,
+        path: '/api/example',
+        method: 'POST',
+        requestId: 'req_123',           // optional
+        userId: 'user_42',              // optional, string
+        headers: { /* ... */ },         // optional
+        query: { /* ... */ },           // optional
+        environment: 'production',      // optional
+    },
+    { custom: 'metadata' },             // optional 3rd arg → error_event.metadata
+);
 ```
 
-## Developer Logging
+`ErrorTrackingContext` requires `statusCode`, `path`, `method`; the rest are optional.
+
+### Status management
 
 ```typescript
-import { writeLog, queryLogs } from '@spfn/monitor/server';
+import { updateErrorGroupStatus } from '@spfn/monitor/server';
 
-// Write a log entry
+await updateErrorGroupStatus(groupId, 'resolved');  // sets resolved_at
+await updateErrorGroupStatus(groupId, 'ignored');
+await updateErrorGroupStatus(groupId, 'active');     // reopen
+```
+
+Throws if the group id does not exist. Statuses: `ERROR_GROUP_STATUSES` =
+`['active', 'resolved', 'ignored']` (type `ErrorGroupStatus`).
+
+---
+
+## Developer logging
+
+```typescript
+import { writeLog, queryLogs, monitor } from '@spfn/monitor/server';
+
 await writeLog({
-    level: 'info',
+    level: 'info',                      // LogLevel: debug|info|warn|error|fatal
     message: 'User signed in',
-    source: 'auth',
-    userId: 'user_123',
-    metadata: { provider: 'google' },
+    source: 'auth',                     // optional
+    requestId: 'req_123',               // optional
+    userId: 'user_42',                  // optional, string
+    metadata: { provider: 'google' },   // optional
 });
 
-// Query logs
-const logs = await queryLogs({
+await monitor.log({ level: 'warn', message: 'Rate limit approaching' }); // shorthand → writeLog
+
+const logs = await queryLogs({          // LogFilters
     level: 'error',
     source: 'payment',
-    limit: 50,
+    search: 'timeout',                  // ILIKE over message + source
+    requestId, userId,
+    dateFrom: new Date('2024-01-01'),
+    dateTo: new Date(),
+    limit: 50,                          // unbounded if omitted
+    offset: 0,
 });
 ```
 
-### Custom Log Store
+`writeLog` / `queryLogs` return `Log` / `Log[]`. `LOG_LEVELS` =
+`['debug','info','warn','error','fatal']` (type `LogLevel`).
 
-Replace the default DB storage with a custom implementation:
+### Custom log store
 
-```typescript
-import { setLogStore } from '@spfn/monitor/server';
-
-setLogStore({
-    async write(entry) { /* S3, ClickHouse, etc. */ },
-    async query(filters) { /* ... */ },
-    async purge(olderThan) { /* ... */ },
-});
-```
-
-## Admin API Routes
-
-All routes require `superadmin` role authentication.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/_monitor/admin/errors` | List error groups (filter by status, path, search) |
-| GET | `/_monitor/admin/errors/:id` | Error group detail + recent events |
-| PATCH | `/_monitor/admin/errors/:id` | Update error status (resolve/ignore/reopen) |
-| GET | `/_monitor/admin/errors/:id/events` | List events for an error group |
-| GET | `/_monitor/admin/logs` | Query logs (filter by level, source, search) |
-| GET | `/_monitor/admin/stats` | Dashboard statistics |
-
-## Dashboard Components
+Swap the default DB store for any backend implementing `LogStore`:
 
 ```typescript
-// In your Next.js page
-import { MonitorDashboard } from '@spfn/monitor/nextjs/client';
+import { setLogStore, getLogStore, type LogStore } from '@spfn/monitor/server';
 
-export default function MonitorPage() {
-    return <MonitorDashboard />;
-}
+const s3Store: LogStore = {
+    async write(entry)     { /* NewLog → Log */ },
+    async query(filters)   { /* LogFilters → Log[] */ },
+    async purge(olderThan) { /* Date → number deleted */ },
+};
+
+setLogStore(s3Store);
 ```
 
-Available components:
+`setLogStore` is process-global and affects `writeLog`/`queryLogs` immediately. The default
+store writes to the `logs` table. The admin `GET /_monitor/admin/logs` route also goes
+through the current store.
 
-- `MonitorDashboard` - Full dashboard with tabs (errors, logs) and stats
-- `StatsOverview` - Error/log count cards with trends
-- `ErrorListView` - Filterable error group table
-- `ErrorDetailView` - Error detail with event timeline and status actions
-- `LogViewer` - Searchable log list with expandable metadata
+---
 
-## API Client
+## Admin API routes
+
+Mounted by `monitorRouter`. Every route requires authentication **and** the `superadmin`
+role (`authenticate` + `requireRole('superadmin')` from `@spfn/auth/server`).
+
+| Method | Path | Query / body | Description |
+|--------|------|--------------|-------------|
+| GET | `/_monitor/admin/errors` | `status, path, search, dateFrom, dateTo, limit(1-100), offset` | List error groups (limit default 20) |
+| GET | `/_monitor/admin/errors/:id` | — | Group detail + recent 20 events |
+| PATCH | `/_monitor/admin/errors/:id` | body `{ status }` | Update status (resolve/ignore/reopen) |
+| GET | `/_monitor/admin/errors/:id/events` | `limit(1-100), offset` | Events for a group (limit default 20) |
+| GET | `/_monitor/admin/logs` | `level, source, search, requestId, userId, dateFrom, dateTo, limit(1-100), offset` | Query logs (limit default 50) |
+| GET | `/_monitor/admin/stats` | — | `MonitorStats` dashboard aggregate |
+
+`:id` and `limit`/`offset` are numbers; `dateFrom`/`dateTo` are ISO strings.
+
+### API client
 
 ```typescript
 import { monitorApi } from '@spfn/monitor';
 
-// Get dashboard stats
-const stats = await monitorApi.getStats.call({});
-
-// List active errors
-const errors = await monitorApi.listErrors.call({
-    query: { status: 'active', limit: 20 },
-});
-
-// Resolve an error
-await monitorApi.updateErrorStatus.call({
-    params: { id: 1 },
-    body: { status: 'resolved' },
-});
+const stats  = await monitorApi.getStats.call({});
+const errors = await monitorApi.listErrors.call({ query: { status: 'active', limit: 20 } });
+const detail = await monitorApi.getErrorDetail.call({ params: { id: 42 } });
+const events = await monitorApi.listErrorEvents.call({ params: { id: 42 }, query: { limit: 50 } });
+const logs   = await monitorApi.listLogs.call({ query: { level: 'error' } });
+await monitorApi.updateErrorStatus.call({ params: { id: 42 }, body: { status: 'resolved' } });
 ```
 
-## Exports
+`monitorApi` is built with `createApi<typeof monitorRouter>` from `@spfn/core/nextjs`.
+Route keys: `listErrors`, `getErrorDetail`, `updateErrorStatus`, `listErrorEvents`,
+`listLogs`, `getStats`.
+
+### `MonitorStats` shape
 
 ```typescript
-// From '@spfn/monitor'
-export { monitorApi };
-export type { MonitorRouter, MonitorStats, ErrorGroupStatus, LogLevel };
-
-// From '@spfn/monitor/server'
-export {
-    // Integration
-    monitorRouter,
-    createMonitorErrorHandler,
-    createMonitorLifecycle,
-
-    // Services
-    trackError, updateErrorGroupStatus,
-    writeLog, queryLogs,
-    getMonitorStats,
-    setLogStore,
-
-    // Entities & Repositories
-    errorGroups, errorEvents, logs,
-    errorGroupsRepository, errorEventsRepository, logsRepository,
-};
-
-// From '@spfn/monitor/config'
-export { configureMonitor };
-
-// From '@spfn/monitor/nextjs/client'
-export {
-    MonitorDashboard, StatsOverview,
-    ErrorListView, ErrorDetailView, LogViewer,
-};
+interface MonitorStats
+{
+    errors: { total: number; active: number; resolved: number; ignored: number };
+    recentErrors: ErrorGroup[];                       // latest 10 active groups
+    logs: { total: number; byLevel: Record<LogLevel, number> };
+    trends: { errorsLast24h: number; errorsLast7d: number; logsLast24h: number };
+}
 ```
 
-## License
+---
 
-MIT
+## Dashboard components
+
+`'use client'` React components from `@spfn/monitor/nextjs/client`. They fetch through
+`monitorApi` (so the admin routes must be served and the caller must be a superadmin) and
+style with Tailwind CSS (dark-mode aware).
+
+```tsx
+// app/admin/monitor/page.tsx
+import { MonitorDashboard } from '@spfn/monitor/nextjs/client';
+
+export default function MonitorPage()
+{
+    return <MonitorDashboard />;   // no props — tabs (errors/logs) + stats + drill-down
+}
+```
+
+Individual components and their props:
+
+| Component | Props | Notes |
+|-----------|-------|-------|
+| `MonitorDashboard` | — | Full dashboard: stats + Errors/Logs tabs + detail drill-down |
+| `StatsOverview` | — | Error/log count + trend cards |
+| `ErrorListView` | `onSelect?: (id: number) => void` | Filterable error-group table |
+| `ErrorDetailView` | `errorId: number`, `onBack?: () => void` | Detail + event timeline + status actions |
+| `LogViewer` | — | Searchable log list with expandable metadata |
+
+```tsx
+<ErrorListView onSelect={(id) => router.push(`/admin/monitor/errors/${id}`)} />
+<ErrorDetailView errorId={42} onBack={() => router.back()} />
+```
+
+---
+
+## Pitfalls & anti-patterns
+
+- **`mergeRouters` does not exist.** Some older docs/JSDoc show
+  `.routes(mergeRouters(appRouter, monitorRouter))` — `@spfn/core/route` exports no such
+  function. Mount the monitor router with `.packages([monitorRouter])` on your app router.
+- **Package routes are excluded from `AppRouter` client types.** After
+  `.packages([monitorRouter])`, the `/_monitor/admin/*` routes are served but **not** on the
+  `api` client — always call them through `monitorApi`, not `api`.
+- **Don't import `/server` or `/config` into client/edge bundles.** `/server` pulls in
+  `node:crypto`, DB access, and (via the config side-effect) the env registry. The only
+  browser-safe entry points are `@spfn/monitor` (client API + types) and
+  `@spfn/monitor/nextjs/client` (components).
+- **`onError` only fires for thrown/error responses ≥ `minStatusCode` (default 500).** 4xx
+  results that don't throw aren't tracked. Lower `minStatusCode` (env or option) to widen.
+- **Fingerprint includes `path`.** The *same* error surfacing on two routes becomes two
+  groups; a templated path with embedded ids (`/users/123`) fragments groups — normalize the
+  path before it reaches tracking if you need them merged.
+- **No automatic retention/purge.** `*_RETENTION_DAYS` are just config values read by getters;
+  nothing deletes old rows on its own. Schedule `logStore.purge()` /
+  `logsRepository.deleteOlderThan()` (and an equivalent for error events) yourself.
+- **No Slack webhook ⇒ silent skip, not an error.** `notifyErrorToSlack` logs a warning and
+  returns when the URL is unset; tracking still persists to the DB.
+- **`setLogStore` is global and unconditional.** It replaces the store for the whole process
+  (including the admin log route). There is no per-call store override.
+- **`userId` is a string everywhere here** (`error_events.user_id`, `logs.user_id`,
+  `WriteLogParams.userId`). The error handler stringifies the auth context's `userId` for you;
+  in manual calls pass a string.
+
+---
+
+## Complete example
+
+```typescript
+// src/server/router.ts
+import { defineRouter } from '@spfn/core/route';
+import { authRouter } from '@spfn/auth/server';
+import { monitorRouter } from '@spfn/monitor/server';
+
+export const appRouter = defineRouter({ /* app routes */ })
+    .packages([authRouter, monitorRouter]);
+```
+
+```typescript
+// src/server/server.config.ts
+import { defineServerConfig } from '@spfn/core/server';
+import { createMonitorErrorHandler, createMonitorLifecycle } from '@spfn/monitor/server';
+import { configureMonitor } from '@spfn/monitor/config';
+import { appRouter } from './router';
+
+configureMonitor({ minStatusCode: 500, logRetentionDays: 14 });
+
+export default defineServerConfig()
+    .middleware({
+        onError: createMonitorErrorHandler({ environment: process.env.NODE_ENV }),
+    })
+    .routes(appRouter)
+    .lifecycle(createMonitorLifecycle())
+    .build();
+```
+
+```tsx
+// app/admin/monitor/page.tsx — superadmin-gated route
+import { MonitorDashboard } from '@spfn/monitor/nextjs/client';
+
+export default function MonitorPage()
+{
+    return <MonitorDashboard />;
+}
+```
+
+```typescript
+// anywhere server-side: structured logging
+import { monitor } from '@spfn/monitor/server';
+
+await monitor.log({ level: 'info', message: 'job done', source: 'cron', metadata: { took: 120 } });
+```
+
+---
+
+## Exports reference
+
+```typescript
+// '@spfn/monitor' (client-safe)
+monitorApi
+type MonitorRouter, MonitorStats, ErrorGroupStatus, LogLevel
+ERROR_GROUP_STATUSES, LOG_LEVELS
+
+// '@spfn/monitor/server'
+monitorRouter
+createMonitorErrorHandler, createMonitorLifecycle              // integration
+trackError, updateErrorGroupStatus, generateFingerprint       // error tracking
+writeLog, queryLogs, setLogStore, getLogStore, monitor        // logging
+getMonitorStats                                               // stats
+errorGroupsRepository, errorEventsRepository, logsRepository  // repositories
+errorGroups, errorEvents, logs, monitorSchema                 // entities
+ERROR_GROUP_STATUSES, LOG_LEVELS, monitorLogger
+type ErrorTrackingContext, MonitorErrorHandlerOptions, MonitorLifecycleConfig,
+     LogStore, WriteLogParams, MonitorStats, ErrorGroupFilters, LogFilters,
+     ErrorGroup, NewErrorGroup, ErrorGroupStatus, ErrorEvent, NewErrorEvent,
+     Log, NewLog, LogLevel
+
+// '@spfn/monitor/config'
+configureMonitor, getMonitorConfig
+getSlackWebhookUrl, getErrorRetentionDays, getLogRetentionDays, getMinStatusCode
+env, monitorEnvSchema
+type MonitorConfig
+
+// '@spfn/monitor/nextjs/client'
+MonitorDashboard, StatsOverview, ErrorListView, ErrorDetailView, LogViewer
+```
+
+## Related
+
+- [@spfn/core/route](../core/src/route/README.md) — `defineRouter`, `.packages()`, route DSL
+- [@spfn/core/server](../core/src/server/README.md) — `defineServerConfig`, `onError` middleware
+- [@spfn/core/env](../core/src/env/README.md) — env schema / registry used by `/config`
+- [@spfn/notification](../notification/README.md) — `sendSlack`, `createErrorSlackNotifier`
+- [@spfn/auth](../auth/README.md) — `authenticate`, `requireRole` guarding the admin routes
