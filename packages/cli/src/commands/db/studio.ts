@@ -5,8 +5,6 @@ import { findAvailablePort } from './utils/database.js';
 
 import { env } from "@spfn/core/config";
 
-import "@spfn/core/config";
-
 /**
  * Open Drizzle Studio (database GUI)
  * Uses spawn instead of exec to handle long-running process

@@ -118,9 +118,11 @@ export const startCommand = new Command('start')
             return;
         }
 
-        // Run both Next.js + Hono server
+        // Run both Next.js + Hono server.
+        // Each command is a single argv element for concurrently, which spawns it
+        // through its own shell — quote the path so spaces in cwd survive.
         const nextCmd = 'next start -H 0.0.0.0 -p 3790';
-        const serverCmd = `node ${serverEntry}`;
+        const serverCmd = `node "${serverEntry}"`;
 
         console.log(chalk.blue.bold('\n🚀 Starting SPFN production server...\n'));
         logger.info('Next.js: http://0.0.0.0:3790');
@@ -130,12 +132,11 @@ export const startCommand = new Command('start')
         {
             await execa(pm === 'npm' ? 'npx' : pm,
                 pm === 'npm'
-                    ? ['concurrently', '--raw', '--kill-others', `"${nextCmd}"`, `"${serverCmd}"`]
-                    : ['exec', 'concurrently', '--raw', '--kill-others', `"${nextCmd}"`, `"${serverCmd}"`],
+                    ? ['concurrently', '--raw', '--kill-others', nextCmd, serverCmd]
+                    : ['exec', 'concurrently', '--raw', '--kill-others', nextCmd, serverCmd],
                 {
                     stdio: 'inherit',
                     cwd,
-                    shell: true,
                     env: { ...process.env }
                 }
             );
