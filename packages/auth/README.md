@@ -79,10 +79,11 @@ Import it for its side-effect (it self-registers); it must run before the proxy 
 ```typescript
 // app/api/rpc/[routeName]/route.ts
 import '@spfn/auth/nextjs/api';        // side-effect: registers auth interceptors
-import { appRouter } from '@/server/router';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
+import { authRouteMap } from '@spfn/auth';
+import { routeMap } from '@/generated/route-map';
 
-export const { GET, POST } = createRpcProxy({ router: appRouter });
+export const { GET, POST } = createRpcProxy({ routeMap: { ...routeMap, ...authRouteMap } });
 ```
 
 ### 4. Run migrations
@@ -421,9 +422,10 @@ export type AppRouter = typeof appRouter;
 
 // app/api/rpc/[routeName]/route.ts
 import '@spfn/auth/nextjs/api';
-import { appRouter } from '@/server/router';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
-export const { GET, POST } = createRpcProxy({ router: appRouter });
+import { authRouteMap } from '@spfn/auth';
+import { routeMap } from '@/generated/route-map';
+export const { GET, POST } = createRpcProxy({ routeMap: { ...routeMap, ...authRouteMap } });
 
 // any client component
 import { authApi } from '@spfn/auth';
