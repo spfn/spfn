@@ -40,6 +40,7 @@ const mockCtx = {
     path: '/api/test',
     method: 'GET',
     requestId: 'req-123',
+    environment: 'test',
 };
 
 const mockGroup = {
@@ -94,6 +95,7 @@ describe('trackError', () =>
             mockGroup,
             mockEvent,
             'new',
+            'test',
         );
     });
 
@@ -137,6 +139,7 @@ describe('trackError', () =>
             expect.objectContaining({ status: 'active' }),
             mockEvent,
             'reopened',
+            'test',
         );
     });
 
