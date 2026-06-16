@@ -48,6 +48,7 @@ export function matchPath(path: string, pattern: string | RegExp): boolean
         .replace(/\//g, '\\/');
 
     const regex = new RegExp(`^${regexPattern}$`);
+
     return regex.test(path);
 }
 
@@ -60,7 +61,7 @@ export function matchPath(path: string, pattern: string | RegExp): boolean
  */
 export function matchMethod(
     method: string,
-    pattern?: string | string[]
+    pattern?: string | string[],
 ): boolean
 {
     // No method filter = match all
@@ -90,10 +91,11 @@ export function matchMethod(
 export function filterMatchingInterceptors(
     rules: InterceptorRule[],
     path: string,
-    method: string
+    method: string,
 ): InterceptorRule[]
 {
-    return rules.filter((rule) => {
+    return rules.filter((rule) => 
+    {
         return matchPath(path, rule.pathPattern) && matchMethod(method, rule.method);
     });
 }
@@ -114,12 +116,13 @@ export function filterMatchingInterceptors(
  */
 export async function executeRequestInterceptors(
     context: RequestInterceptorContext,
-    interceptors: RequestInterceptor[]
+    interceptors: RequestInterceptor[],
 ): Promise<void>
 {
     let index = 0;
 
-    const next = async (): Promise<void> => {
+    const next = async (): Promise<void> => 
+    {
         if (index >= interceptors.length)
         {
             return;
@@ -150,12 +153,13 @@ export async function executeRequestInterceptors(
  */
 export async function executeResponseInterceptors(
     context: ResponseInterceptorContext,
-    interceptors: ResponseInterceptor[]
+    interceptors: ResponseInterceptor[],
 ): Promise<void>
 {
     let index = 0;
 
-    const next = async (): Promise<void> => {
+    const next = async (): Promise<void> => 
+    {
         if (index >= interceptors.length)
         {
             return;

@@ -38,7 +38,7 @@ export const errorEvents = monitorSchema.table('error_events',
         index('monitor_ee_group_id_idx').on(table.groupId),
         index('monitor_ee_created_at_idx').on(table.createdAt),
         index('monitor_ee_user_id_idx').on(table.userId),
-    ]
+    ],
 );
 
 export type ErrorEvent = typeof errorEvents.$inferSelect;

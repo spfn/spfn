@@ -233,10 +233,10 @@ async function showEnvStats(options: { package?: string }): Promise<void>
         const optional = allVars.filter(([_, schema]) => !schema.required && schema.default === undefined);
         const sensitive = allVars.filter(([_, schema]) => schema.sensitive);
         const nextjsVars = allVars.filter(([_, schema]) =>
-            schema.nextjs ?? schema.key?.startsWith('NEXT_PUBLIC_')
+            schema.nextjs ?? schema.key?.startsWith('NEXT_PUBLIC_'),
         );
         const serverOnlyVars = allVars.filter(([_, schema]) =>
-            !(schema.nextjs ?? schema.key?.startsWith('NEXT_PUBLIC_'))
+            !(schema.nextjs ?? schema.key?.startsWith('NEXT_PUBLIC_')),
         );
 
         const typeCount = allVars.reduce((acc, [_, schema]) =>
@@ -482,6 +482,7 @@ function writeEnvTemplate(cwd: string, file: string, vars: [string, any][], forc
     if (existsSync(filePath) && !force)
     {
         console.log(chalk.yellow(`  ⏭️  ${file} already exists (use --force to overwrite)`));
+
         return;
     }
 
@@ -611,14 +612,14 @@ async function checkEnvFiles(options: { package?: string; env?: string }): Promi
                 {
                     issues.push(
                         `${chalk.red('✗')} ${chalk.cyan(key)} is sensitive and should be in ${chalk.magenta(expectedFile)}, ` +
-                        `but found in ${chalk.yellow(found.file)} (security risk!)`
+                        `but found in ${chalk.yellow(found.file)} (security risk!)`,
                     );
                 }
                 else
                 {
                     warnings.push(
                         `${chalk.yellow('⚠')} ${chalk.cyan(key)} should be in ${chalk.magenta(expectedFile)}, ` +
-                        `but found in ${chalk.dim(found.file)}`
+                        `but found in ${chalk.dim(found.file)}`,
                     );
                 }
             }

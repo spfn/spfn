@@ -75,7 +75,6 @@ export const coreEnvSchema = defineEnvSchema({
         examples: ['postgresql://user:password@replica:5432/dbname'],
     }),
 
-
     // ========================================================================
     // Database - Connection Pool
     // ========================================================================
@@ -220,7 +219,7 @@ export const coreEnvSchema = defineEnvSchema({
 
     SPFN_LOG_LEVEL: envEnum(['debug', 'info', 'warn', 'error', 'fatal'] as const, {
         description: 'Minimum log level to output',
-        default: 'info'
+        default: 'info',
     }),
 
     // ========================================================================

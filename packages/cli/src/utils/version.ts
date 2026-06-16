@@ -20,6 +20,7 @@ export function getCliVersion(): string
 export function getTagFromVersion(version: string): string
 {
     const match = version.match(/-([a-z]+)\./i);
+
     return match ? match[1] : 'latest';
 }
 

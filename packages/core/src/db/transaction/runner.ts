@@ -133,7 +133,7 @@ export interface RunInTransactionOptions
  */
 export async function runInTransaction<T>(
     callback: (tx: TransactionDB) => Promise<T>,
-    options: RunInTransactionOptions = {}
+    options: RunInTransactionOptions = {},
 ): Promise<T>
 {
     // Get default timeout from environment variable (default: 30 seconds)
@@ -158,7 +158,7 @@ export async function runInTransaction<T>(
         condition: boolean,
         message: string,
         logMessage: string,
-        metadata: Record<string, unknown>
+        metadata: Record<string, unknown>,
     ): void =>
     {
         if (condition)
@@ -181,7 +181,7 @@ export async function runInTransaction<T>(
         typeof callback !== 'function',
         'Callback must be a function',
         'Invalid callback type',
-        { txId, context, callbackType: typeof callback }
+        { txId, context, callbackType: typeof callback },
     );
 
     // Validate slowThreshold
@@ -189,7 +189,7 @@ export async function runInTransaction<T>(
         !Number.isInteger(slowThreshold) || slowThreshold < 0,
         `Invalid slowThreshold value: ${slowThreshold}. Must be a non-negative integer.`,
         'Invalid slowThreshold',
-        { txId, context, slowThreshold }
+        { txId, context, slowThreshold },
     );
 
     // Validate timeout value for SQL safety
@@ -197,21 +197,21 @@ export async function runInTransaction<T>(
         !Number.isInteger(timeout),
         `Invalid timeout value: ${timeout}. Must be an integer.`,
         'Invalid timeout type',
-        { txId, context, timeout }
+        { txId, context, timeout },
     );
 
     validateAndThrow(
         timeout < 0,
         `Invalid timeout value: ${timeout}. Timeout must be non-negative (0 to disable, or 1-${MAX_TIMEOUT_MS}ms).`,
         'Invalid timeout range',
-        { txId, context, timeout }
+        { txId, context, timeout },
     );
 
     validateAndThrow(
         timeout > MAX_TIMEOUT_MS,
         `Invalid timeout value: ${timeout}. Maximum timeout is ${MAX_TIMEOUT_MS}ms.`,
         'Timeout exceeds maximum',
-        { txId, context, timeout, maxTimeout: MAX_TIMEOUT_MS }
+        { txId, context, timeout, maxTimeout: MAX_TIMEOUT_MS },
     );
 
     // Get write database instance (after all input validations)
@@ -221,7 +221,7 @@ export async function runInTransaction<T>(
         const error = new TransactionError({
             message: 'Database not initialized. Cannot start transaction.',
             statusCode: 500,
-            details: { txId, context }
+            details: { txId, context },
         });
 
         if (enableLogging)

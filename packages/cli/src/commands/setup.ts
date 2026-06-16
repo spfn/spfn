@@ -36,7 +36,7 @@ export async function setupIcons(): Promise<void>
     }
 
     const packageJson = JSON.parse(
-        readFileSync(packageJsonPath, 'utf-8')
+        readFileSync(packageJsonPath, 'utf-8'),
     ) as PackageJson;
 
     const hasNext = packageJson.dependencies?.next || packageJson.devDependencies?.next;
@@ -68,7 +68,7 @@ export async function setupIcons(): Promise<void>
             await execa(
                 pm,
                 pm === 'npm' ? ['install', '--save-dev', '@svgr/webpack'] : ['add', '-D', '@svgr/webpack'],
-                { cwd }
+                { cwd },
             );
 
             spinner.succeed('@svgr/webpack installed');
@@ -236,7 +236,7 @@ turbopack: {
                         // Replace empty config with SVGR config
                         configContent = configContent.replace(
                             emptyConfigPattern,
-                            `const nextConfig: NextConfig = {\n${webpackConfig}\n${turbopackConfig}\n};`
+                            `const nextConfig: NextConfig = {\n${webpackConfig}\n${turbopackConfig}\n};`,
                         );
                     }
                     else
@@ -262,7 +262,7 @@ turbopack: {
                                         // Empty object
                                         return `${opening}\n${webpackConfig}\n${turbopackConfig}\n${closing}`;
                                     }
-                                }
+                                },
                             );
                         }
                     }

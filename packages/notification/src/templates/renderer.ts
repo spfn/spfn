@@ -32,6 +32,7 @@ const filters: Record<string, (value: unknown, arg?: string) => string> = {
     {
         const num = typeof value === 'number' ? value : parseFloat(String(value));
         if (isNaN(num)) return String(value);
+
         return num.toLocaleString('ko-KR');
     },
 
@@ -68,6 +69,7 @@ const filters: Record<string, (value: unknown, arg?: string) => string> = {
         const str = String(value);
         const length = arg ? parseInt(arg, 10) : 50;
         if (str.length <= length) return str;
+
         return str.slice(0, length) + '...';
     },
 
@@ -81,6 +83,7 @@ const filters: Record<string, (value: unknown, arg?: string) => string> = {
         {
             return arg || '';
         }
+
         return String(value);
     },
 };

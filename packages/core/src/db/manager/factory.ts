@@ -116,7 +116,7 @@ async function createWriteReadClients(
     writeUrl: string,
     readUrl: string,
     poolConfig: PoolConfig,
-    retryConfig: RetryConfig
+    retryConfig: RetryConfig,
 ): Promise<DatabaseClients>
 {
     let writeClient: Sql | undefined;
@@ -157,7 +157,7 @@ async function createWriteReadClients(
                 error: errorObj.message,
                 readUrl: readUrl.replace(/:[^:@]+@/, ':***@'), // Mask password in logs
                 fallbackBehavior: 'Using write connection for both read and write operations',
-            }
+            },
         );
 
         // Use write connection for both read and write
@@ -181,7 +181,7 @@ async function createWriteReadClients(
 async function createSingleClient(
     url: string,
     poolConfig: PoolConfig,
-    retryConfig: RetryConfig
+    retryConfig: RetryConfig,
 ): Promise<DatabaseClients>
 {
     const client = await createDatabaseConnection(url, poolConfig, retryConfig);
@@ -230,7 +230,7 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
     if (!hasDatabaseConfig())
     {
         const error = new Error(
-            'No database configuration found. Please set DATABASE_URL, DATABASE_WRITE_URL, or DATABASE_READ_URL environment variable.'
+            'No database configuration found. Please set DATABASE_URL, DATABASE_WRITE_URL, or DATABASE_READ_URL environment variable.',
         );
 
         dbLogger.error('No database configuration found', {
@@ -256,7 +256,7 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
                     pattern.write,
                     pattern.read,
                     poolConfig,
-                    retryConfig
+                    retryConfig,
                 );
 
             case 'single':
@@ -274,7 +274,7 @@ export async function createDatabaseFromEnv(options?: DatabaseOptions): Promise<
                 hasWriteUrl: process.env.DATABASE_WRITE_URL !== undefined,
                 hasReadUrl: process.env.DATABASE_READ_URL !== undefined,
                 hasUrl: process.env.DATABASE_URL !== undefined,
-            }
+            },
         );
 
         throw new Error(`Database connection failed: ${errorObj.message}`, { cause: error });

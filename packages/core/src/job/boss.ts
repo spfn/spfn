@@ -22,6 +22,7 @@ function requiresSSLWithoutVerification(connectionString: string): boolean
     {
         const url = new URL(connectionString);
         const sslmode = url.searchParams.get('sslmode');
+
         return sslmode === 'require' || sslmode === 'prefer';
     }
     catch
@@ -40,6 +41,7 @@ function stripSslModeFromUrl(connectionString: string): string
 {
     const url = new URL(connectionString);
     url.searchParams.delete('sslmode');
+
     return url.toString();
 }
 
@@ -157,6 +159,7 @@ export async function initBoss(options: BossOptions): Promise<PgBoss>
     if (existing)
     {
         jobLogger.warn('pg-boss already initialized, returning existing instance');
+
         return existing;
     }
 

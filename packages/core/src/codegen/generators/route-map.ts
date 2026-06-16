@@ -96,7 +96,7 @@ function parseRouteFile(filePath: string): ParsedRoute[]
                 name,
                 method: method.toUpperCase(),
                 path,
-                file: filePath
+                file: filePath,
             });
         }
     }
@@ -204,7 +204,7 @@ function generateRouteMapContent(routes: ParsedRoute[]): string
         '    path: string;',
         '}',
         '',
-        'export const routeMap: Record<string, RouteInfo> = {'
+        'export const routeMap: Record<string, RouteInfo> = {',
     ];
 
     for (const route of routes)
@@ -230,7 +230,7 @@ export function createRouteMapGenerator(config: RouteMapGeneratorConfig): Genera
     const {
         routerPath,
         outputPath = './src/generated/route-map.ts',
-        additionalRouteDirs = []
+        additionalRouteDirs = [],
     } = config;
 
     if (!routerPath)
@@ -241,7 +241,7 @@ export function createRouteMapGenerator(config: RouteMapGeneratorConfig): Genera
             '  defineGenerator<RouteMapGeneratorConfig>({\n' +
             '    name: \'@spfn/core:route-map\',\n' +
             '    routerPath: \'./src/server/router.ts\',\n' +
-            '  })'
+            '  })',
         );
     }
 
@@ -252,7 +252,7 @@ export function createRouteMapGenerator(config: RouteMapGeneratorConfig): Genera
             routerPath,
             // Watch route directories derived from router imports
             'src/server/routes/**/*.ts',
-            ...additionalRouteDirs.map(dir => `${dir}/**/*.ts`)
+            ...additionalRouteDirs.map(dir => `${dir}/**/*.ts`),
         ],
 
         runOn: ['watch', 'build', 'start', 'manual'],
@@ -267,6 +267,7 @@ export function createRouteMapGenerator(config: RouteMapGeneratorConfig): Genera
             if (!existsSync(absoluteRouterPath))
             {
                 genLogger.warn(`Router file not found: ${absoluteRouterPath}`);
+
                 return;
             }
 
@@ -349,7 +350,7 @@ export function createRouteMapGenerator(config: RouteMapGeneratorConfig): Genera
             writeFileSync(absoluteOutputPath, content, 'utf-8');
 
             genLogger.info(`Generated route map: ${relative(cwd, absoluteOutputPath)} (${exportedRoutes.length} routes)`);
-        }
+        },
     };
 }
 

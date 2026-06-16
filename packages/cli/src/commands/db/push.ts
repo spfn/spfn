@@ -36,6 +36,7 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
     if (schemaFiles.length === 0)
     {
         console.log(chalk.yellow('No schema files found.'));
+
         return;
     }
 
@@ -90,12 +91,14 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
                 if (dropMatch && managedSchemaSet.has(dropMatch[1]))
                 {
                     console.log(chalk.dim(`  [skip] DROP SCHEMA "${dropMatch[1]}" — managed schema, ignoring`));
+
                     return false;
                 }
+
                 return true;
             })
             .map(s =>
-                s.replace(/^CREATE SCHEMA(?!\s+IF\s+NOT\s+EXISTS)/i, 'CREATE SCHEMA IF NOT EXISTS')
+                s.replace(/^CREATE SCHEMA(?!\s+IF\s+NOT\s+EXISTS)/i, 'CREATE SCHEMA IF NOT EXISTS'),
             );
 
         // Ensure CREATE SCHEMA IF NOT EXISTS for all non-public managed schemas
@@ -110,6 +113,7 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
         {
             console.log(chalk.green('✅ No changes detected — database is up to date\n'));
             await applyFunctionMigrations();
+
             return;
         }
 
@@ -120,6 +124,7 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
         if (options.dryRun)
         {
             displayDryRunSummary(result);
+
             return;
         }
 

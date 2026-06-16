@@ -16,8 +16,10 @@ import {
 } from '../manager';
 
 // Mock dependencies
-vi.mock('../../../env', async (importOriginal) => {
+vi.mock('../../../env', async (importOriginal) => 
+{
     const actual = await importOriginal<typeof import('../../../env')>();
+
     return {
         ...actual,
         loadEnvironment: vi.fn(() => ({
@@ -40,10 +42,14 @@ vi.mock('../../../logger', () => ({
 
 vi.mock('../factory', () => ({
     createDatabaseFromEnv: vi.fn(async () => ({
-        write: { execute: vi.fn(async () => {}), _type: 'write-db' },
-        read: { execute: vi.fn(async () => {}), _type: 'read-db' },
-        writeClient: { end: vi.fn(async () => {}), _type: 'write-client' },
-        readClient: { end: vi.fn(async () => {}), _type: 'read-client' },
+        write: { execute: vi.fn(async () => 
+        {}), _type: 'write-db' },
+        read: { execute: vi.fn(async () => 
+        {}), _type: 'read-db' },
+        writeClient: { end: vi.fn(async () => 
+        {}), _type: 'write-client' },
+        readClient: { end: vi.fn(async () => 
+        {}), _type: 'read-client' },
     })),
 }));
 
@@ -265,15 +271,18 @@ describe('Database Manager', () =>
         it('should test write connection', async () =>
         {
             const mockWrite: any = {
-                execute: vi.fn(async () => {}),
+                execute: vi.fn(async () => 
+                {}),
             };
 
             const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: mockWrite,
                 read: mockWrite,
-                writeClient: { end: vi.fn(async () => {}) } as any,
-                readClient: { end: vi.fn(async () => {}) } as any,
+                writeClient: { end: vi.fn(async () => 
+                {}) } as any,
+                readClient: { end: vi.fn(async () => 
+                {}) } as any,
             });
 
             await initDatabase();
@@ -283,15 +292,19 @@ describe('Database Manager', () =>
 
         it('should test read connection when different from write', async () =>
         {
-            const mockWrite: any = { execute: vi.fn(async () => {}) };
-            const mockRead: any = { execute: vi.fn(async () => {}) };
+            const mockWrite: any = { execute: vi.fn(async () => 
+            {}) };
+            const mockRead: any = { execute: vi.fn(async () => 
+            {}) };
 
             const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: mockWrite,
                 read: mockRead,
-                writeClient: { end: vi.fn(async () => {}) } as any,
-                readClient: { end: vi.fn(async () => {}) } as any,
+                writeClient: { end: vi.fn(async () => 
+                {}) } as any,
+                readClient: { end: vi.fn(async () => 
+                {}) } as any,
             });
 
             await initDatabase();
@@ -303,7 +316,8 @@ describe('Database Manager', () =>
         it('should cleanup and throw on connection test failure', async () =>
         {
             const mockWrite: any = {
-                execute: vi.fn(async () => {
+                execute: vi.fn(async () => 
+                {
                     throw new Error('Connection test failed');
                 }),
             };
@@ -312,12 +326,14 @@ describe('Database Manager', () =>
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: mockWrite,
                 read: mockWrite,
-                writeClient: { end: vi.fn(async () => {}) } as any,
-                readClient: { end: vi.fn(async () => {}) } as any,
+                writeClient: { end: vi.fn(async () => 
+                {}) } as any,
+                readClient: { end: vi.fn(async () => 
+                {}) } as any,
             });
 
             await expect(initDatabase()).rejects.toThrow(
-                'Database connection test failed'
+                'Database connection test failed',
             );
 
             // Should cleanup on failure
@@ -327,7 +343,8 @@ describe('Database Manager', () =>
         it('should handle non-Error objects in connection test', async () =>
         {
             const mockWrite: any = {
-                execute: vi.fn(async () => {
+                execute: vi.fn(async () => 
+                {
                     throw 'String error';
                 }),
             };
@@ -336,12 +353,14 @@ describe('Database Manager', () =>
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
                 write: mockWrite,
                 read: mockWrite,
-                writeClient: { end: vi.fn(async () => {}) } as any,
-                readClient: { end: vi.fn(async () => {}) } as any,
+                writeClient: { end: vi.fn(async () => 
+                {}) } as any,
+                readClient: { end: vi.fn(async () => 
+                {}) } as any,
             });
 
             await expect(initDatabase()).rejects.toThrow(
-                'Database connection test failed'
+                'Database connection test failed',
             );
         });
 
@@ -421,7 +440,8 @@ describe('Database Manager', () =>
 
         it('should close write client', async () =>
         {
-            const mockWriteClient = { end: vi.fn(async () => {}) };
+            const mockWriteClient = { end: vi.fn(async () => 
+            {}) };
 
             const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
@@ -439,8 +459,10 @@ describe('Database Manager', () =>
 
         it('should close read client when different from write', async () =>
         {
-            const mockWriteClient = { end: vi.fn(async () => {}) };
-            const mockReadClient = { end: vi.fn(async () => {}) };
+            const mockWriteClient = { end: vi.fn(async () => 
+            {}) };
+            const mockReadClient = { end: vi.fn(async () => 
+            {}) };
 
             const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValueOnce({
@@ -460,7 +482,8 @@ describe('Database Manager', () =>
         it('should clear instances even if close fails', async () =>
         {
             const mockWriteClient = {
-                end: vi.fn(async () => {
+                end: vi.fn(async () => 
+                {
                     throw new Error('Close failed');
                 }),
             };
@@ -485,7 +508,8 @@ describe('Database Manager', () =>
         it('should handle error during cleanup', async () =>
         {
             const mockWriteClient = {
-                end: vi.fn(async () => {
+                end: vi.fn(async () => 
+                {
                     throw new Error('Cleanup error');
                 }),
             };

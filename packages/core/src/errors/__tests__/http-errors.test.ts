@@ -22,7 +22,7 @@ describe('HttpError', () =>
         const error = new HttpError({
             message: 'Test error',
             statusCode: 500,
-            details: { test: 'data' }
+            details: { test: 'data' },
         });
 
         expect(error.name).toBe('HttpError');
@@ -84,12 +84,12 @@ describe('ValidationError', () =>
         const error = new ValidationError({
             message: 'Validation failed',
             details: {
-                fields: { email: 'Invalid format', age: 'Must be >= 18' }
-            }
+                fields: { email: 'Invalid format', age: 'Must be >= 18' },
+            },
         });
 
         expect(error.details).toEqual({
-            fields: { email: 'Invalid format', age: 'Must be >= 18' }
+            fields: { email: 'Invalid format', age: 'Must be >= 18' },
         });
     });
 

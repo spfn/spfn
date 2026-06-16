@@ -13,7 +13,7 @@
 export async function runWithConcurrency<T, R>(
     items: T[],
     fn: (item: T) => Promise<R>,
-    concurrency = 10
+    concurrency = 10,
 ): Promise<R[]>
 {
     const results: R[] = new Array(items.length);
@@ -30,9 +30,10 @@ export async function runWithConcurrency<T, R>(
 
     const workers = Array.from(
         { length: Math.min(concurrency, items.length) },
-        () => worker()
+        () => worker(),
     );
 
     await Promise.all(workers);
+
     return results;
 }

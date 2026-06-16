@@ -21,7 +21,7 @@ export class ErrorEventsRepository extends BaseRepository
 
     async findByGroupId(
         groupId: number,
-        options: { limit?: number; offset?: number } = {}
+        options: { limit?: number; offset?: number } = {},
     ): Promise<ErrorEvent[]>
     {
         const { limit = 20, offset = 0 } = options;

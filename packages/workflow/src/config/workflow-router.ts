@@ -107,7 +107,7 @@ interface WorkflowRouterState<TWorkflows extends WorkflowDef[]>
  * ```
  */
 export function defineWorkflowRouter<TWorkflows extends WorkflowDef[]>(
-    workflows: TWorkflows
+    workflows: TWorkflows,
 ): WorkflowRouter<TWorkflows>
 {
     const state: WorkflowRouterState<TWorkflows> = {
@@ -124,9 +124,10 @@ export function defineWorkflowRouter<TWorkflows extends WorkflowDef[]>(
             {
                 throw new Error(
                     'Workflow engine not initialized. ' +
-                    'Make sure the server is started with .workflows(router) configuration.'
+                    'Make sure the server is started with .workflows(router) configuration.',
                 );
             }
+
             return state.engine;
         },
 

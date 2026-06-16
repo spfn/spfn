@@ -264,7 +264,7 @@ describe('CmsLabelValuesRepository', () =>
             const results = await cmsLabelValuesRepository.findByLabelIdAndVersion(
                 label.id,
                 1,
-                { locale: 'ko' }
+                { locale: 'ko' },
             );
 
             expect(results).toHaveLength(1);
@@ -305,7 +305,7 @@ describe('CmsLabelValuesRepository', () =>
             const smResults = await cmsLabelValuesRepository.findByLabelIdAndVersion(
                 label.id,
                 1,
-                { breakpoint: 'sm' }
+                { breakpoint: 'sm' },
             );
 
             expect(smResults).toHaveLength(1);
@@ -314,7 +314,7 @@ describe('CmsLabelValuesRepository', () =>
             const nullResults = await cmsLabelValuesRepository.findByLabelIdAndVersion(
                 label.id,
                 1,
-                { breakpoint: null }
+                { breakpoint: null },
             );
 
             expect(nullResults).toHaveLength(1);

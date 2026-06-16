@@ -80,7 +80,7 @@ describe('Logger Configuration', () =>
             // Should not write any warnings about NODE_ENV
             const calls = stderrSpy.mock.calls.map(call => call[0]);
             const nodeEnvWarnings = calls.filter(call =>
-                typeof call === 'string' && call.includes('NODE_ENV')
+                typeof call === 'string' && call.includes('NODE_ENV'),
             );
             expect(nodeEnvWarnings).toHaveLength(0);
 
@@ -99,7 +99,7 @@ describe('Logger Configuration', () =>
             // Should write a warning about NODE_ENV
             const calls = stderrSpy.mock.calls.map(call => call[0]);
             const nodeEnvWarnings = calls.filter(call =>
-                typeof call === 'string' && call.includes('NODE_ENV')
+                typeof call === 'string' && call.includes('NODE_ENV'),
             );
             expect(nodeEnvWarnings).toHaveLength(1);
             expect(nodeEnvWarnings[0]).toContain('Warning: NODE_ENV is not set');

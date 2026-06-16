@@ -81,7 +81,7 @@ export class ShutdownManager
     onShutdown(
         name: string,
         handler: () => Promise<void>,
-        options?: ShutdownHookOptions
+        options?: ShutdownHookOptions,
     ): void
     {
         this.hooks.push({
@@ -200,6 +200,7 @@ export class ShutdownManager
         if (this.state === 'closed')
         {
             serverLogger.warn('ShutdownManager.execute() called but already closed');
+
             return;
         }
 
@@ -232,6 +233,7 @@ export class ShutdownManager
         if (this.operations.size === 0)
         {
             serverLogger.info('Shutdown manager: no active operations, drain skipped');
+
             return;
         }
 
@@ -290,7 +292,7 @@ export class ShutdownManager
                 await withTimeout(
                     hook.handler(),
                     hook.timeout,
-                    `Shutdown hook '${hook.name}' timeout after ${hook.timeout}ms`
+                    `Shutdown hook '${hook.name}' timeout after ${hook.timeout}ms`,
                 );
                 serverLogger.info(`Shutdown hook [${hook.name}] completed`);
             }
@@ -298,7 +300,7 @@ export class ShutdownManager
             {
                 serverLogger.error(
                     `Shutdown hook [${hook.name}] failed`,
-                    error as Error
+                    error as Error,
                 );
                 // Continue with next hook — don't block shutdown
             }
@@ -337,6 +339,7 @@ export function getShutdownManager(): ShutdownManager
     {
         instance = new ShutdownManager();
     }
+
     return instance;
 }
 
@@ -361,7 +364,7 @@ function sleep(ms: number): Promise<void>
 async function withTimeout<T>(
     promise: Promise<T>,
     timeout: number,
-    message: string
+    message: string,
 ): Promise<T>
 {
     let timeoutId: NodeJS.Timeout | undefined;

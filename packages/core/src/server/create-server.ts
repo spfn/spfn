@@ -54,7 +54,7 @@ export async function createServer(config?: ServerConfig): Promise<Hono>
 async function loadCustomApp(
     appPath: string,
     appJsPath: string,
-    config?: ServerConfig
+    config?: ServerConfig,
 ): Promise<Hono>
 {
     // Determine which path exists to avoid duplicate checks
@@ -135,7 +135,7 @@ function applyDefaultMiddleware(
     app: Hono,
     config: ServerConfig | undefined,
     enableLogger: boolean,
-    enableCors: boolean
+    enableCors: boolean,
 ): void
 {
     if (enableLogger)
@@ -202,6 +202,7 @@ function logRegisteredRoutes(routes: RegisteredRoute[], debug: boolean): void
         {
             serverLogger.warn('⚠️  No routes registered');
         }
+
         return;
     }
 
@@ -213,7 +214,7 @@ function logRegisteredRoutes(routes: RegisteredRoute[], debug: boolean): void
 
     // Build route list string
     const routeLines = sortedRoutes.map(r =>
-        `  ${r.method.padEnd(maxMethodLen)}  ${r.path}`
+        `  ${r.method.padEnd(maxMethodLen)}  ${r.path}`,
     ).join('\n');
 
     serverLogger.info(`✓ Routes registered (${routes.length}):\n${routeLines}`);
@@ -299,6 +300,7 @@ async function registerSSEEndpoint(app: Hono, config?: ServerConfig): Promise<vo
             }
 
             const token = await tokenManager!.issue(subject);
+
             return c.json({ token });
         });
 

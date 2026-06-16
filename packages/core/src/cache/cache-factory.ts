@@ -33,7 +33,7 @@ function hasCacheConfig(): boolean
  */
 function createClient(
     RedisClient: new (url: string, options?: RedisOptions) => Redis,
-    url: string
+    url: string,
 ): Redis
 {
     const options: RedisOptions = {};
@@ -86,6 +86,7 @@ export async function createCacheFromEnv(): Promise<CacheClients>
     if (!hasCacheConfig())
     {
         cacheLogger.info('No cache configuration found - running without cache');
+
         return { write: undefined, read: undefined };
     }
 
@@ -109,6 +110,7 @@ export async function createCacheFromEnv(): Promise<CacheClients>
         {
             const client = createClient(RedisClient, singleUrl);
             cacheLogger.debug('Created single cache instance', { url: singleUrl.replace(/:[^:@]+@/, ':***@') });
+
             return { write: client, read: client };
         }
 
@@ -118,6 +120,7 @@ export async function createCacheFromEnv(): Promise<CacheClients>
             const write = createClient(RedisClient, writeUrl);
             const read = createClient(RedisClient, readUrl);
             cacheLogger.debug('Created master-replica cache instances');
+
             return { write, read };
         }
 
@@ -127,6 +130,7 @@ export async function createCacheFromEnv(): Promise<CacheClients>
             const sentinels = sentinelHosts.split(',').map((host) =>
             {
                 const [hostname, port] = host.trim().split(':');
+
                 return { host: hostname, port: Number(port) || 26379 };
             });
 
@@ -138,6 +142,7 @@ export async function createCacheFromEnv(): Promise<CacheClients>
 
             const client = new RedisClient(options);
             cacheLogger.debug('Created sentinel cache instance', { masterName, sentinels: sentinels.length });
+
             return { write: client, read: client };
         }
 
@@ -147,6 +152,7 @@ export async function createCacheFromEnv(): Promise<CacheClients>
             const nodes = clusterNodes.split(',').map((node) =>
             {
                 const [host, port] = node.trim().split(':');
+
                 return { host, port: Number(port) || 6379 };
             });
 
@@ -158,6 +164,7 @@ export async function createCacheFromEnv(): Promise<CacheClients>
 
             const cluster = new RedisClient.Cluster(nodes, clusterOptions);
             cacheLogger.debug('Created cluster cache instance', { nodes: nodes.length });
+
             return { write: cluster, read: cluster };
         }
 
@@ -166,11 +173,13 @@ export async function createCacheFromEnv(): Promise<CacheClients>
         {
             const client = createClient(RedisClient, singleUrl);
             cacheLogger.debug('Created cache instance (fallback)', { url: singleUrl.replace(/:[^:@]+@/, ':***@') });
+
             return { write: client, read: client };
         }
 
         // No valid configuration
         cacheLogger.info('No valid cache configuration found - running without cache');
+
         return { write: undefined, read: undefined };
     }
     catch (error)
@@ -185,8 +194,8 @@ export async function createCacheFromEnv(): Promise<CacheClients>
                     error,
                     {
                         suggestion: 'Install ioredis to enable cache: pnpm install ioredis',
-                        mode: 'disabled'
-                    }
+                        mode: 'disabled',
+                    },
                 );
             }
             else
@@ -194,7 +203,7 @@ export async function createCacheFromEnv(): Promise<CacheClients>
                 cacheLogger.warn(
                     'Failed to create cache client',
                     error,
-                    { mode: 'disabled' }
+                    { mode: 'disabled' },
                 );
             }
         }
@@ -202,9 +211,10 @@ export async function createCacheFromEnv(): Promise<CacheClients>
         {
             cacheLogger.warn(
                 'Failed to create cache client',
-                { error: String(error), mode: 'disabled' }
+                { error: String(error), mode: 'disabled' },
             );
         }
+
         return { write: undefined, read: undefined };
     }
 }
@@ -216,5 +226,6 @@ export async function createCacheFromEnv(): Promise<CacheClients>
 export async function createSingleCacheFromEnv(): Promise<Redis | Cluster | undefined>
 {
     const { write } = await createCacheFromEnv();
+
     return write;
 }

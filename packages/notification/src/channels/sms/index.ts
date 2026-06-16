@@ -72,6 +72,7 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
         if (!hasTemplate(params.template))
         {
             log.warn(`Template not found: ${params.template}`);
+
             return {
                 success: false,
                 error: `Template not found: ${params.template}`,
@@ -90,6 +91,7 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
     if (!message)
     {
         log.warn('SMS message is required', { to: recipients });
+
         return {
             success: false,
             error: 'SMS message is required',
@@ -223,7 +225,7 @@ export interface BulkSMSOptions
  */
 export async function sendSMSBulk(
     items: SendSMSParams[],
-    options?: BulkSMSOptions
+    options?: BulkSMSOptions,
 ): Promise<BulkSMSResult>
 {
     if (items.length === 0)
@@ -295,7 +297,7 @@ export async function sendSMSBulk(
                     content: p.message,
                     providerName: provider.name,
                     batchId,
-                }))
+                })),
             );
         }
         catch (error)
@@ -358,7 +360,7 @@ export async function sendSMSBulk(
     const sendResults = await runWithConcurrency(
         prepared,
         (p) => provider.send({ to: p.phone, message: p.message }),
-        concurrency
+        concurrency,
     );
 
     // 5. Build per-item aggregated results + update history
@@ -394,7 +396,7 @@ export async function sendSMSBulk(
                 : markNotificationFailed(historyId, result.error || 'Unknown error');
 
             historyUpdates.push(
-                promise.catch((err) => log.warn('Failed to update notification history', err))
+                promise.catch((err) => log.warn('Failed to update notification history', err)),
             );
         }
     }

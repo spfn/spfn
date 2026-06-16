@@ -60,38 +60,38 @@ dbCommand
     .action(dbCheck);
 
 dbCommand
-	.command('backup')
-	.description('Create a database backup')
-	.option('-f, --format <format>', 'Backup format (sql or custom)', 'sql')
-	.option('-o, --output <path>', 'Custom output path')
-	.option('-s, --schema <name>', 'Backup specific schema only')
-	.option('--data-only', 'Backup data only (no schema)')
-	.option('--schema-only', 'Backup schema only (no data)')
-	.option('--tag <tags>', 'Comma-separated tags for this backup')
-	.option('--env <environment>', 'Environment label (e.g., production, staging)')
-	.action((options) => dbBackup(options));
+    .command('backup')
+    .description('Create a database backup')
+    .option('-f, --format <format>', 'Backup format (sql or custom)', 'sql')
+    .option('-o, --output <path>', 'Custom output path')
+    .option('-s, --schema <name>', 'Backup specific schema only')
+    .option('--data-only', 'Backup data only (no schema)')
+    .option('--schema-only', 'Backup schema only (no data)')
+    .option('--tag <tags>', 'Comma-separated tags for this backup')
+    .option('--env <environment>', 'Environment label (e.g., production, staging)')
+    .action((options) => dbBackup(options));
 
 dbCommand
-	.command('restore [file]')
-	.description('Restore database from backup')
-	.option('--drop', 'Drop existing tables before restore')
-	.option('-s, --schema <name>', 'Restore specific schema only')
-	.option('--data-only', 'Restore data only (requires custom format .dump file)')
-	.option('--schema-only', 'Restore schema only (requires custom format .dump file)')
-	.option('-v, --verbose', 'Show detailed restore progress')
-	.action((file, options) => dbRestore(file, options));
+    .command('restore [file]')
+    .description('Restore database from backup')
+    .option('--drop', 'Drop existing tables before restore')
+    .option('-s, --schema <name>', 'Restore specific schema only')
+    .option('--data-only', 'Restore data only (requires custom format .dump file)')
+    .option('--schema-only', 'Restore schema only (requires custom format .dump file)')
+    .option('-v, --verbose', 'Show detailed restore progress')
+    .action((file, options) => dbRestore(file, options));
 
 dbCommand
-	.command('backup:list')
-	.description('List all database backups')
-	.action(dbBackupList);
+    .command('backup:list')
+    .description('List all database backups')
+    .action(dbBackupList);
 
 dbCommand
-	.command('backup:clean')
-	.description('Clean old database backups')
-	.option('-k, --keep <number>', 'Keep N most recent backups', parseInt)
-	.option('-o, --older-than <days>', 'Delete backups older than N days', parseInt)
-	.action((options) => dbBackupClean(options));
+    .command('backup:clean')
+    .description('Clean old database backups')
+    .option('-k, --keep <number>', 'Keep N most recent backups', parseInt)
+    .option('-o, --older-than <days>', 'Delete backups older than N days', parseInt)
+    .action((options) => dbBackupClean(options));
 
 dbCommand
     .command('reindex')

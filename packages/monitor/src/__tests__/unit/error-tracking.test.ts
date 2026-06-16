@@ -93,7 +93,7 @@ describe('trackError', () =>
         expect(notifyErrorToSlack).toHaveBeenCalledWith(
             mockGroup,
             mockEvent,
-            'new'
+            'new',
         );
     });
 
@@ -136,7 +136,7 @@ describe('trackError', () =>
         expect(notifyErrorToSlack).toHaveBeenCalledWith(
             expect.objectContaining({ status: 'active' }),
             mockEvent,
-            'reopened'
+            'reopened',
         );
     });
 
@@ -149,7 +149,7 @@ describe('trackError', () =>
         await trackError(new Error('test error'), mockCtx, metadata);
 
         expect(errorEventsRepository.create).toHaveBeenCalledWith(
-            expect.objectContaining({ metadata })
+            expect.objectContaining({ metadata }),
         );
     });
 });

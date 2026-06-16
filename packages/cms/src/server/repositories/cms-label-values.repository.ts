@@ -42,14 +42,14 @@ export class CmsLabelValuesRepository extends BaseRepository
         options?: {
             locale?: string;
             breakpoint?: string | null;
-        }
+        },
     ): Promise<CmsLabelValue[]>
     {
         const { locale, breakpoint } = options || {};
 
         const conditions: SQL[] = [
             eq(cmsLabelValues.labelId, labelId),
-            eq(cmsLabelValues.version, version)
+            eq(cmsLabelValues.version, version),
         ];
 
         if (locale)
@@ -62,7 +62,7 @@ export class CmsLabelValuesRepository extends BaseRepository
             conditions.push(
                 breakpoint === null
                     ? isNull(cmsLabelValues.breakpoint)
-                    : eq(cmsLabelValues.breakpoint, breakpoint)
+                    : eq(cmsLabelValues.breakpoint, breakpoint),
             );
         }
 
@@ -95,8 +95,8 @@ export class CmsLabelValuesRepository extends BaseRepository
                     eq(cmsLabelValues.locale, data.locale || 'ko'),
                     data.breakpoint
                         ? eq(cmsLabelValues.breakpoint, data.breakpoint)
-                        : isNull(cmsLabelValues.breakpoint)
-                )
+                        : isNull(cmsLabelValues.breakpoint),
+                ),
             )
             .limit(1);
 
@@ -145,8 +145,8 @@ export class CmsLabelValuesRepository extends BaseRepository
             .where(
                 and(
                     eq(cmsLabelValues.labelId, labelId),
-                    isNull(cmsLabelValues.version)
-                )
+                    isNull(cmsLabelValues.version),
+                ),
             );
     }
 
@@ -162,6 +162,7 @@ export class CmsLabelValuesRepository extends BaseRepository
             const result = await this.upsert(value);
             results.push(result);
         }
+
         return results;
     }
 
@@ -180,8 +181,8 @@ export class CmsLabelValuesRepository extends BaseRepository
             .where(
                 and(
                     eq(cmsLabelValues.labelId, labelId),
-                    versionCondition
-                )
+                    versionCondition,
+                ),
             )
             .returning();
     }
@@ -204,7 +205,7 @@ export class CmsLabelValuesRepository extends BaseRepository
      * ```
      */
     async findByLabelVersions(
-        labelVersions: Array<{ labelId: number; version: number }>
+        labelVersions: Array<{ labelId: number; version: number }>,
     ): Promise<Map<number, CmsLabelValue[]>>
     {
         if (labelVersions.length === 0)
@@ -220,9 +221,9 @@ export class CmsLabelValuesRepository extends BaseRepository
                 and(
                     inArray(
                         cmsLabelValues.labelId,
-                        labelVersions.map(lv => lv.labelId)
-                    )
-                )
+                        labelVersions.map(lv => lv.labelId),
+                    ),
+                ),
             );
 
         // labelId와 version으로 필터링하여 Map 생성
@@ -254,7 +255,7 @@ export class CmsLabelValuesRepository extends BaseRepository
      */
     async findVersionHistoryByLabelId(
         labelId: number,
-        maxVersion: number
+        maxVersion: number,
     ): Promise<VersionHistory[]>
     {
         // 모든 버전의 값을 한 번에 조회
@@ -265,8 +266,8 @@ export class CmsLabelValuesRepository extends BaseRepository
                 and(
                     eq(cmsLabelValues.labelId, labelId),
                     gte(cmsLabelValues.version, 1),
-                    lte(cmsLabelValues.version, maxVersion)
-                )
+                    lte(cmsLabelValues.version, maxVersion),
+                ),
             )
             .orderBy(cmsLabelValues.version, cmsLabelValues.locale);
 
@@ -303,8 +304,8 @@ export class CmsLabelValuesRepository extends BaseRepository
                         locale: v.locale,
                         breakpoint: v.breakpoint,
                         value: v.value,
-                        createdAt: v.createdAt.toISOString()
-                    }))
+                        createdAt: v.createdAt.toISOString(),
+                    })),
                 });
             }
         }

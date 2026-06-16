@@ -190,6 +190,7 @@ describe('EnvRegistry', () =>
                         {
                             throw new Error('Port must be between 1 and 65535');
                         }
+
                         return num;
                     },
                 }),
@@ -215,6 +216,7 @@ describe('EnvRegistry', () =>
                         {
                             throw new Error('Port must be between 1 and 65535');
                         }
+
                         return num;
                     },
                 }),

@@ -50,6 +50,7 @@ export function templateSupportsChannel(name: string, channel: NotificationChann
 {
     const template = templates.get(name);
     if (!template) return false;
+
     return template.channels.includes(channel);
 }
 
@@ -59,7 +60,7 @@ export function templateSupportsChannel(name: string, channel: NotificationChann
 export function renderTemplate(
     name: string,
     data: TemplateData,
-    channel?: NotificationChannel
+    channel?: NotificationChannel,
 ): RenderedTemplate
 {
     const template = templates.get(name);
@@ -102,7 +103,7 @@ export function renderTemplate(
  */
 function renderEmailTemplate(
     template: EmailTemplateContent,
-    data: TemplateData
+    data: TemplateData,
 ): EmailTemplateContent
 {
     return {
@@ -117,7 +118,7 @@ function renderEmailTemplate(
  */
 function renderSmsTemplate(
     template: SmsTemplateContent,
-    data: TemplateData
+    data: TemplateData,
 ): SmsTemplateContent
 {
     return {
@@ -130,7 +131,7 @@ function renderSmsTemplate(
  */
 function renderSlackTemplate(
     template: SlackTemplateContent,
-    data: TemplateData
+    data: TemplateData,
 ): SlackTemplateContent
 {
     return {

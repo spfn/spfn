@@ -63,6 +63,7 @@ export function getTransactionContext(): TransactionContext | null
 export function getTransaction(): TransactionDB | null
 {
     const context = getTransactionContext();
+
     return context?.tx ?? null;
 }
 
@@ -74,6 +75,7 @@ export function getTransaction(): TransactionDB | null
 export function getTransactionId(): string | null
 {
     const context = getTransactionContext();
+
     return context?.txId ?? null;
 }
 
@@ -91,7 +93,7 @@ export function getTransactionId(): string | null
 export function runWithTransaction<T>(
     tx: TransactionDB,
     txId: string, // Add txId parameter
-    callback: () => Promise<T>
+    callback: () => Promise<T>,
 ): Promise<T>
 {
     const existingContext = getTransactionContext();
@@ -160,6 +162,7 @@ export function onAfterCommit(callback: AfterCommitCallback): void
                 error: err instanceof Error ? err.message : String(err),
             });
         });
+
         return;
     }
 

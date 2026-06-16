@@ -64,17 +64,17 @@ type WhereObject<T> = {
  */
 export async function findOne<T extends PgTable>(
     table: T,
-    where: WhereObject<InferSelectModel<T>>
+    where: WhereObject<InferSelectModel<T>>,
 ): Promise<InferSelectModel<T> | null>;
 
 export async function findOne<T extends PgTable>(
     table: T,
-    where: SQL | undefined
+    where: SQL | undefined,
 ): Promise<InferSelectModel<T> | null>;
 
 export async function findOne<T extends PgTable>(
     table: T,
-    where: WhereObject<InferSelectModel<T>> | SQL | undefined
+    where: WhereObject<InferSelectModel<T>> | SQL | undefined,
 ): Promise<InferSelectModel<T> | null>
 {
     const db = getDatabase('read');
@@ -93,6 +93,7 @@ export async function findOne<T extends PgTable>(
     }
 
     const results = await db.select().from(table as PgTable).where(whereClause).limit(1);
+
     return (results[0] as InferSelectModel<T>) ?? null;
 }
 
@@ -133,7 +134,7 @@ export async function findMany<T extends PgTable>(
         orderBy?: SQL | SQL[];
         limit?: number;
         offset?: number;
-    }
+    },
 ): Promise<InferSelectModel<T>[]>
 {
     const db = getDatabase('read');
@@ -196,7 +197,7 @@ export async function findMany<T extends PgTable>(
  */
 export async function create<T extends PgTable>(
     table: T,
-    data: InferInsertModel<T>
+    data: InferInsertModel<T>,
 ): Promise<InferSelectModel<T>>
 {
     const db = getDatabase('write');
@@ -206,6 +207,7 @@ export async function create<T extends PgTable>(
     }
 
     const [result] = await db.insert(table).values(data).returning();
+
     return result as InferSelectModel<T>;
 }
 
@@ -226,7 +228,7 @@ export async function create<T extends PgTable>(
  */
 export async function createMany<T extends PgTable>(
     table: T,
-    data: InferInsertModel<T>[]
+    data: InferInsertModel<T>[],
 ): Promise<InferSelectModel<T>[]>
 {
     const db = getDatabase('write');
@@ -236,6 +238,7 @@ export async function createMany<T extends PgTable>(
     }
 
     const results = await db.insert(table).values(data).returning();
+
     return results as InferSelectModel<T>[];
 }
 
@@ -278,7 +281,7 @@ export async function upsert<T extends PgTable>(
     options: {
         target: PgColumn[];
         set?: Partial<InferInsertModel<T>> | Record<string, SQL | any>;
-    }
+    },
 ): Promise<InferSelectModel<T>>
 {
     const db = getDatabase('write');
@@ -319,7 +322,7 @@ export async function upsert<T extends PgTable>(
 export async function updateOne<T extends PgTable>(
     table: T,
     where: WhereObject<InferSelectModel<T>> | SQL | undefined,
-    data: Partial<InferInsertModel<T>>
+    data: Partial<InferInsertModel<T>>,
 ): Promise<InferSelectModel<T> | null>
 {
     const db = getDatabase('write');
@@ -338,6 +341,7 @@ export async function updateOne<T extends PgTable>(
     }
 
     const [result] = await db.update(table).set(data).where(whereClause).returning();
+
     return (result as InferSelectModel<T>) ?? null;
 }
 
@@ -360,7 +364,7 @@ export async function updateOne<T extends PgTable>(
 export async function updateMany<T extends PgTable>(
     table: T,
     where: WhereObject<InferSelectModel<T>> | SQL | undefined,
-    data: Partial<InferInsertModel<T>>
+    data: Partial<InferInsertModel<T>>,
 ): Promise<InferSelectModel<T>[]>
 {
     const db = getDatabase('write');
@@ -379,6 +383,7 @@ export async function updateMany<T extends PgTable>(
     }
 
     const results = await db.update(table).set(data).where(whereClause).returning();
+
     return results as InferSelectModel<T>[];
 }
 
@@ -400,7 +405,7 @@ export async function updateMany<T extends PgTable>(
  */
 export async function deleteOne<T extends PgTable>(
     table: T,
-    where: WhereObject<InferSelectModel<T>> | SQL | undefined
+    where: WhereObject<InferSelectModel<T>> | SQL | undefined,
 ): Promise<InferSelectModel<T> | null>
 {
     const db = getDatabase('write');
@@ -419,6 +424,7 @@ export async function deleteOne<T extends PgTable>(
     }
 
     const [result] = await db.delete(table).where(whereClause).returning();
+
     return (result as InferSelectModel<T>) ?? null;
 }
 
@@ -436,7 +442,7 @@ export async function deleteOne<T extends PgTable>(
  */
 export async function deleteMany<T extends PgTable>(
     table: T,
-    where: WhereObject<InferSelectModel<T>> | SQL | undefined
+    where: WhereObject<InferSelectModel<T>> | SQL | undefined,
 ): Promise<InferSelectModel<T>[]>
 {
     const db = getDatabase('write');
@@ -455,6 +461,7 @@ export async function deleteMany<T extends PgTable>(
     }
 
     const results = await db.delete(table).where(whereClause).returning();
+
     return results as InferSelectModel<T>[];
 }
 
@@ -474,7 +481,7 @@ export async function deleteMany<T extends PgTable>(
  */
 export async function count<T extends PgTable>(
     table: T,
-    where?: WhereObject<InferSelectModel<T>> | SQL | undefined
+    where?: WhereObject<InferSelectModel<T>> | SQL | undefined,
 ): Promise<number>
 {
     const db = getDatabase('read');
@@ -498,5 +505,6 @@ export async function count<T extends PgTable>(
     }
 
     const [result] = await query;
+
     return Number(result?.count ?? 0);
 }

@@ -18,7 +18,7 @@ import {
  * Create notification record (pending status)
  */
 export async function createNotificationRecord(
-    data: Omit<NewNotification, 'id' | 'createdAt' | 'updatedAt'>
+    data: Omit<NewNotification, 'id' | 'createdAt' | 'updatedAt'>,
 ): Promise<Notification>
 {
     return await create(notifications, {
@@ -31,7 +31,7 @@ export async function createNotificationRecord(
  * Bulk create notification records (pending status)
  */
 export async function createNotificationRecords(
-    data: Omit<NewNotification, 'id' | 'createdAt' | 'updatedAt'>[]
+    data: Omit<NewNotification, 'id' | 'createdAt' | 'updatedAt'>[],
 ): Promise<Notification[]>
 {
     return await createMany(notifications, data.map((d) => ({
@@ -46,7 +46,7 @@ export async function createNotificationRecords(
 export async function createScheduledNotification(
     data: Omit<NewNotification, 'id' | 'createdAt' | 'updatedAt' | 'status'> & {
         scheduledAt: Date;
-    }
+    },
 ): Promise<Notification>
 {
     return await create(notifications, {
@@ -60,7 +60,7 @@ export async function createScheduledNotification(
  */
 export async function updateNotificationJobId(
     id: number,
-    jobId: string
+    jobId: string,
 ): Promise<Notification | null>
 {
     return await updateOne(notifications, { id }, { jobId });
@@ -71,7 +71,7 @@ export async function updateNotificationJobId(
  */
 export async function markNotificationSent(
     id: number,
-    providerMessageId?: string
+    providerMessageId?: string,
 ): Promise<Notification | null>
 {
     return await updateOne(
@@ -81,7 +81,7 @@ export async function markNotificationSent(
             status: 'sent',
             sentAt: new Date(),
             providerMessageId,
-        }
+        },
     );
 }
 
@@ -90,7 +90,7 @@ export async function markNotificationSent(
  */
 export async function markNotificationFailed(
     id: number,
-    errorMessage: string
+    errorMessage: string,
 ): Promise<Notification | null>
 {
     return await updateOne(
@@ -99,7 +99,7 @@ export async function markNotificationFailed(
         {
             status: 'failed',
             errorMessage,
-        }
+        },
     );
 }
 
@@ -107,13 +107,13 @@ export async function markNotificationFailed(
  * Mark scheduled notification as pending (job started)
  */
 export async function markNotificationPending(
-    id: number
+    id: number,
 ): Promise<Notification | null>
 {
     return await updateOne(
         notifications,
         { id },
-        { status: 'pending' }
+        { status: 'pending' },
     );
 }
 
@@ -121,13 +121,13 @@ export async function markNotificationPending(
  * Cancel scheduled notification
  */
 export async function cancelScheduledNotification(
-    id: number
+    id: number,
 ): Promise<Notification | null>
 {
     return await updateOne(
         notifications,
         { id },
-        { status: 'cancelled' }
+        { status: 'cancelled' },
     );
 }
 
@@ -135,7 +135,7 @@ export async function cancelScheduledNotification(
  * Find notification by job ID
  */
 export async function findNotificationByJobId(
-    jobId: string
+    jobId: string,
 ): Promise<Notification | null>
 {
     return await findOne(notifications, { jobId });
@@ -161,7 +161,7 @@ export interface FindNotificationsOptions
  * Find notifications with filters
  */
 export async function findNotifications(
-    options: FindNotificationsOptions = {}
+    options: FindNotificationsOptions = {},
 ): Promise<Notification[]>
 {
     const conditions = [];
@@ -207,7 +207,7 @@ export async function findNotifications(
  * Count notifications with filters
  */
 export async function countNotifications(
-    options: Omit<FindNotificationsOptions, 'limit' | 'offset'> = {}
+    options: Omit<FindNotificationsOptions, 'limit' | 'offset'> = {},
 ): Promise<number>
 {
     const conditions = [];
@@ -247,7 +247,7 @@ export interface NotificationStats
 }
 
 export async function getNotificationStats(
-    options: { channel?: NotificationChannel; from?: Date; to?: Date } = {}
+    options: { channel?: NotificationChannel; from?: Date; to?: Date } = {},
 ): Promise<NotificationStats>
 {
     const [total, scheduled, pending, sent, failed, cancelled] = await Promise.all([
@@ -272,7 +272,7 @@ export async function findScheduledNotifications(
         to?: Date;
         limit?: number;
         offset?: number;
-    } = {}
+    } = {},
 ): Promise<Notification[]>
 {
     const conditions = [eq(notifications.status, 'scheduled')];

@@ -51,7 +51,7 @@ export const errorGroups = monitorSchema.table('error_groups',
         index('monitor_eg_status_idx').on(table.status),
         index('monitor_eg_last_seen_at_idx').on(table.lastSeenAt),
         index('monitor_eg_path_idx').on(table.path),
-    ]
+    ],
 );
 
 export type ErrorGroup = typeof errorGroups.$inferSelect;

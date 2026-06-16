@@ -50,6 +50,7 @@ const MASKED_VALUE = '***MASKED***';
 function isSensitiveKey(key: string): boolean
 {
     const lowerKey = key.toLowerCase();
+
     return SENSITIVE_KEYS.some(sensitive => lowerKey.includes(sensitive));
 }
 
@@ -140,6 +141,7 @@ export function colorizeLevel(level: LogLevel): string
 {
     const color = COLORS[level];
     const levelStr = level.toUpperCase().padEnd(5);
+
     return `${color}${levelStr}${COLORS.reset}`;
 }
 

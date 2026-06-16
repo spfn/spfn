@@ -9,7 +9,7 @@ import {
     NotFoundError,
     ConflictError,
     ForbiddenError,
-    InternalServerError
+    InternalServerError,
 } from '@spfn/core/errors';
 
 /**
@@ -26,8 +26,8 @@ export class LabelNotFoundError extends NotFoundError
             details: {
                 labelKey: data.labelKey,
                 labelId: data.labelId,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'LabelNotFoundError';
     }
@@ -48,8 +48,8 @@ export class LabelValueNotFoundError extends NotFoundError
                 labelKey: data.labelKey,
                 locale: data.locale,
                 valueId: data.valueId,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'LabelValueNotFoundError';
     }
@@ -68,8 +68,8 @@ export class LocaleNotFoundError extends NotFoundError
             message: data.message || 'Locale not found',
             details: {
                 locale: data.locale,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'LocaleNotFoundError';
     }
@@ -88,8 +88,8 @@ export class PublishedCacheNotFoundError extends NotFoundError
             message: data.message || 'Published cache not found',
             details: {
                 locale: data.locale,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'PublishedCacheNotFoundError';
     }
@@ -108,8 +108,8 @@ export class DuplicateLabelError extends ConflictError
             message: data.message || 'Label already exists',
             details: {
                 labelKey: data.labelKey,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'DuplicateLabelError';
     }
@@ -129,8 +129,8 @@ export class DuplicateLabelValueError extends ConflictError
             details: {
                 labelKey: data.labelKey,
                 locale: data.locale,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'DuplicateLabelValueError';
     }
@@ -149,8 +149,8 @@ export class InvalidLocaleError extends ValidationError
             message: data.message || 'Invalid locale',
             details: {
                 locale: data.locale,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'InvalidLocaleError';
     }
@@ -169,8 +169,8 @@ export class InvalidLabelKeyError extends ValidationError
             message: data.message || 'Invalid label key format',
             details: {
                 labelKey: data.labelKey,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'InvalidLabelKeyError';
     }
@@ -190,8 +190,8 @@ export class InvalidPublishedCacheError extends ValidationError
             details: {
                 locale: data.locale,
                 reason: data.reason,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'InvalidPublishedCacheError';
     }
@@ -213,8 +213,8 @@ export class CMSOperationFailedError extends InternalServerError
             details: {
                 operation,
                 resource,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'CMSOperationFailedError';
     }
@@ -235,8 +235,8 @@ export class InsufficientCMSPermissionsError extends ForbiddenError
             details: {
                 requiredPermissions,
                 resource: data.resource,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'InsufficientCMSPermissionsError';
     }

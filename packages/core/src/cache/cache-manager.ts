@@ -110,7 +110,7 @@ export function isCacheDisabled(): boolean
  */
 export function setCache(
     write: Redis | Cluster | undefined,
-    read?: Redis | Cluster | undefined
+    read?: Redis | Cluster | undefined,
 ): void
 {
     state.write = write;
@@ -180,7 +180,7 @@ export async function initCache(): Promise<{
                 hasReplica
                     ? 'Cache connected (Master-Replica)'
                     : 'Cache connected',
-                { mode: 'enabled' }
+                { mode: 'enabled' },
             );
 
             return { write: state.write, read: state.read, disabled: false };
@@ -190,7 +190,7 @@ export async function initCache(): Promise<{
             cacheLogger.error(
                 'Cache connection failed - running in disabled mode',
                 error instanceof Error ? error : new Error(String(error)),
-                { mode: 'disabled' }
+                { mode: 'disabled' },
             );
 
             // Clean up failed connections
@@ -208,6 +208,7 @@ export async function initCache(): Promise<{
             }
 
             state.disabled = true;
+
             return { write: undefined, read: undefined, disabled: true };
         }
     }
@@ -215,6 +216,7 @@ export async function initCache(): Promise<{
     // No configuration or library not installed
     state.disabled = true;
     cacheLogger.info('Cache disabled - no configuration or library not installed', { mode: 'disabled' });
+
     return { write: undefined, read: undefined, disabled: true };
 }
 
@@ -234,6 +236,7 @@ export async function closeCache(): Promise<void>
     if (state.disabled)
     {
         cacheLogger.debug('Cache already disabled, nothing to close');
+
         return;
     }
 
@@ -245,7 +248,7 @@ export async function closeCache(): Promise<void>
             state.write.quit().catch((err: Error) =>
             {
                 cacheLogger.error('Error closing cache write instance', err);
-            })
+            }),
         );
     }
 
@@ -255,7 +258,7 @@ export async function closeCache(): Promise<void>
             state.read.quit().catch((err: Error) =>
             {
                 cacheLogger.error('Error closing cache read instance', err);
-            })
+            }),
         );
     }
 

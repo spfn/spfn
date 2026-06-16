@@ -29,7 +29,7 @@ export async function autoDetectServerCookies(): Promise<Record<string, string>>
         const allCookies = cookieStore.getAll();
 
         const result = Object.fromEntries(
-            allCookies.map(cookie => [cookie.name, cookie.value])
+            allCookies.map(cookie => [cookie.name, cookie.value]),
         );
 
         cookieLogger.debug('Server cookies detected', {
@@ -48,6 +48,7 @@ export async function autoDetectServerCookies(): Promise<Record<string, string>>
             message: err.message,
             name: err.name,
         });
+
         return {};
     }
 }
@@ -59,7 +60,7 @@ export async function executeFetchWithTimeout(
     url: string,
     init: RequestInit,
     timeout: number,
-    customFetch: typeof fetch = fetch
+    customFetch: typeof fetch = fetch,
 ): Promise<Response>
 {
     const controller = new AbortController();
@@ -73,6 +74,7 @@ export async function executeFetchWithTimeout(
         });
 
         clearTimeout(timeoutId);
+
         return response;
     }
     catch (error)
@@ -93,7 +95,7 @@ export async function handleErrorResponse(
     fullUrl: string,
     errorRegistry: ErrorRegistry | undefined,
     debug: boolean,
-    logger: Logger
+    logger: Logger,
 ): Promise<never>
 {
     if (debug)
@@ -155,7 +157,7 @@ export async function handleErrorResponse(
             '  1. Routes are registered in server.config.ts:\n' +
             '     → defineServerConfig().routes(appRouter)\n' +
             '  2. Delete .spfn cache if you recently added new routes:\n' +
-            '     → rm -rf .spfn\n'
+            '     → rm -rf .spfn\n',
         );
     }
 
@@ -164,6 +166,6 @@ export async function handleErrorResponse(
         response.status,
         fullUrl,
         body,
-        'http'
+        'http',
     );
 }

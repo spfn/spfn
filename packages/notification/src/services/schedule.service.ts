@@ -48,7 +48,7 @@ export interface ScheduleResult
  */
 export async function scheduleEmail(
     params: SendEmailParams,
-    options: ScheduleOptions
+    options: ScheduleOptions,
 ): Promise<ScheduleResult>
 {
     // Prepare recipients
@@ -126,7 +126,7 @@ export async function scheduleEmail(
                 from: params.from,
                 replyTo: params.replyTo,
             },
-            { startAfter: options.scheduledAt }
+            { startAfter: options.scheduledAt },
         );
 
         // Update notification with job ID
@@ -155,7 +155,7 @@ export async function scheduleEmail(
  */
 export async function scheduleSMS(
     params: SendSMSParams,
-    options: ScheduleOptions
+    options: ScheduleOptions,
 ): Promise<ScheduleResult>
 {
     // Prepare recipients
@@ -219,7 +219,7 @@ export async function scheduleSMS(
                 template: params.template,
                 data: params.data,
             },
-            { startAfter: options.scheduledAt }
+            { startAfter: options.scheduledAt },
         );
 
         // Update notification with job ID

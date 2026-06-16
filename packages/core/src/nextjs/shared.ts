@@ -87,6 +87,7 @@ export async function parseResponseBody(response: Response): Promise<any>
     if (contentType?.includes('application/json'))
     {
         const text = await response.text();
+
         return text ? JSON.parse(text) : null;
     }
     else

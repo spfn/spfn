@@ -26,10 +26,10 @@ async function initCodegen(options: { withExample?: boolean }): Promise<void>
             generators: [
                 {
                     name: '@spfn/core:contract',
-                    enabled: true
-                }
-            ]
-        }
+                    enabled: true,
+                },
+            ],
+        },
     };
 
     // Write .spfnrc.ts
@@ -80,6 +80,7 @@ async function listGenerators(): Promise<void>
     {
         logger.info('No generators configured');
         logger.info('Run "spfn codegen init" to initialize configuration');
+
         return;
     }
 
@@ -110,6 +111,7 @@ async function runGenerators(): Promise<void>
     {
         logger.warn('No generators configured');
         logger.info('Run "spfn codegen init" to initialize configuration');
+
         return;
     }
 
@@ -117,7 +119,7 @@ async function runGenerators(): Promise<void>
     const orchestrator = new CodegenOrchestrator({
         generators,
         cwd,
-        debug: true
+        debug: true,
     });
 
     await orchestrator.generateAll();

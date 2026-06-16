@@ -44,8 +44,9 @@ function getLogLevel(): LogLevel
     }
 
     process.stderr.write(
-        `[Logger] Invalid log level "${envLevel}", defaulting to "info"\n`
+        `[Logger] Invalid log level "${envLevel}", defaulting to "info"\n`,
     );
+
     return 'info';
 }
 

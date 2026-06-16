@@ -90,6 +90,7 @@ function deferred<T>()
         resolve = res;
         reject = rej;
     });
+
     return { promise, resolve, reject };
 }
 
@@ -99,6 +100,7 @@ function deferred<T>()
 
 const ping = defineEvent('ping', Type.Object({ n: Type.Number() }));
 const testRouter = defineEventRouter({ ping });
+
 type TestRouter = typeof testRouter;
 
 // ============================================================================
@@ -128,7 +130,8 @@ describe('SSE client — async connect + sync cleanup race', () =>
 
         const unsubscribe = client.subscribe({
             events: ['ping'],
-            handlers: { ping: () => {} },
+            handlers: { ping: () => 
+            {} },
         });
 
         // Cleanup fires while the token is still pending.
@@ -220,7 +223,8 @@ describe('SSE client — async connect + sync cleanup race', () =>
             acquireToken: () => token.promise,
         });
 
-        client.subscribe({ events: ['ping'], handlers: { ping: () => {} } });
+        client.subscribe({ events: ['ping'], handlers: { ping: () => 
+        {} } });
         client.close();
 
         token.resolve('tok');
@@ -246,7 +250,8 @@ describe('SSE client — async connect + sync cleanup race', () =>
 
         const unsubscribe = client.subscribe({
             events: ['ping'],
-            handlers: { ping: () => {} },
+            handlers: { ping: () => 
+            {} },
             onReconnect,
         });
 
@@ -277,7 +282,8 @@ describe('SSE client — async connect + sync cleanup race', () =>
 
         const unsubscribe = client.subscribe({
             events: ['ping'],
-            handlers: { ping: () => {} },
+            handlers: { ping: () => 
+            {} },
             onClose,
         });
 

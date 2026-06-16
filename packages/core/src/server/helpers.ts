@@ -138,6 +138,7 @@ export function createHealthCheckHandler(detailed: boolean): Handler
         }
 
         const statusCode = response.status === 'ok' ? 200 : 503;
+
         return c.json(response, statusCode);
     };
 }
@@ -148,7 +149,7 @@ export function applyServerTimeouts(
         request: number;
         keepAlive: number;
         headers: number;
-    }
+    },
 ): void
 {
     if ('timeout' in server)
@@ -263,7 +264,7 @@ export function buildStartupConfig(
         request: number;
         keepAlive: number;
         headers: number;
-    }
+    },
 ): StartupConfig
 {
     const middlewareConfig = config.middleware ?? {};

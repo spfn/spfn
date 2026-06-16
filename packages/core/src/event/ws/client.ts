@@ -76,7 +76,10 @@ function deriveWSHost(): string
 }
 
 const WS_DEFAULTS = {
-    get host() { return deriveWSHost(); },
+    get host() 
+    {
+        return deriveWSHost(); 
+    },
     pathname: '/ws',
 } as const;
 
@@ -88,7 +91,7 @@ const WS_DEFAULTS = {
  * Create a type-safe WebSocket client
  */
 export function createWSClient<TRouter extends WSRouterDef<any, any>>(
-    config: WSClientConfig = {}
+    config: WSClientConfig = {},
 ): WSClient<TRouter>
 {
     const {
@@ -119,6 +122,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         options: WSSubscribeOptions<TRouter>;
         active: boolean;
     };
+
     const subscriptions: Set<Subscription> = new Set();
 
     // ── Internal helpers ──
@@ -133,6 +137,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         const params = new URLSearchParams();
         params.set('events', events.join(','));
         if (token) params.set('token', token);
+
         return `${baseUrl}?${params.toString()}`;
     }
 
@@ -146,6 +151,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                 (sub.options.events as string[]).forEach(e => names.add(e));
             }
         }
+
         return [...names];
     }
 
@@ -174,6 +180,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         {
             intentionalReconnect = true;
             socket?.close();
+
             return;
         }
 
@@ -210,6 +217,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                 }
             }
             subscriptions.clear();
+
             return;
         }
 
@@ -218,6 +226,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         {
             intentionalReconnect = false;
             connect();
+
             return;
         }
 
@@ -237,6 +246,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                 }
                 subscriptions.clear();
             }
+
             return;
         }
 
@@ -252,6 +262,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                 }
             }
             subscriptions.clear();
+
             return;
         }
 
@@ -319,9 +330,13 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                     sentEvents = new Set();
                     for (const sub of subscriptions)
                     {
-                        if (sub.active) { sub.options.onClose?.(); sub.active = false; }
+                        if (sub.active) 
+                        {
+                            sub.options.onClose?.(); sub.active = false; 
+                        }
                     }
                     subscriptions.clear();
+
                     return;
                 }
 
@@ -332,6 +347,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                 }
                 if (reconnectTimer) clearTimeout(reconnectTimer);
                 reconnectTimer = setTimeout(() => connect(), reconnectDelay);
+
                 return;
             }
 
@@ -349,6 +365,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
                     }
                 }
                 subscriptions.clear();
+
                 return;
             }
 
@@ -358,6 +375,7 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
             {
                 setState('closed');
                 sentEvents = new Set();
+
                 return;
             }
             // Update sentEvents to reflect what we're actually connecting with
@@ -376,7 +394,10 @@ export function createWSClient<TRouter extends WSRouterDef<any, any>>(
         // current socket reference. This can happen when onError fires (state→'error'),
         // subscribe() immediately calls connect() creating a new socket, and then the
         // old socket's onclose finally arrives and sets socket = null on the new one.
-        socket.onclose = () => { if (socket === thisSocket) onClose(); };
+        socket.onclose = () => 
+        {
+            if (socket === thisSocket) onClose(); 
+        };
         socket.onmessage = onMessage;
     }
 

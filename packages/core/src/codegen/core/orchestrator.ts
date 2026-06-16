@@ -70,6 +70,7 @@ export class CodegenOrchestrator
     private shouldRun(generator: Generator, trigger: GeneratorTrigger): boolean
     {
         const runOn = generator.runOn ?? ['watch', 'manual', 'build'];
+
         return runOn.includes(trigger);
     }
 
@@ -86,12 +87,13 @@ export class CodegenOrchestrator
         if (activeGenerators.length === 0)
         {
             orchestratorLogger.info('No generators to run for this trigger', { trigger });
+
             return;
         }
 
         orchestratorLogger.info(`Running ${activeGenerators.length} generator(s)`, {
             generators: activeGenerators.map(g => g.name).join(', '),
-            trigger
+            trigger,
         });
 
         for (const generator of this.generators)
@@ -115,8 +117,8 @@ export class CodegenOrchestrator
                     cwd: this.cwd,
                     debug: this.debug,
                     trigger: {
-                        type: trigger
-                    }
+                        type: trigger,
+                    },
                 };
 
                 await generator.generate(genOptions);
@@ -146,6 +148,7 @@ export class CodegenOrchestrator
         if (allPatterns.length === 0)
         {
             orchestratorLogger.warn('No watch patterns defined, exiting watch mode');
+
             return;
         }
 
@@ -164,7 +167,7 @@ export class CodegenOrchestrator
         // Always log watch mode start
         orchestratorLogger.info('Watch mode started', {
             watching: watchDirs.length === 1 ? watchDirs[0] : `${watchDirs.length} directories`,
-            generators: this.generators.filter(g => this.shouldRun(g, 'watch')).map(g => g.name).join(', ')
+            generators: this.generators.filter(g => this.shouldRun(g, 'watch')).map(g => g.name).join(', '),
         });
 
         if (this.debug)
@@ -172,7 +175,7 @@ export class CodegenOrchestrator
             orchestratorLogger.info('Watch mode details', {
                 patterns: allPatterns,
                 watchDirs,
-                cwd: this.cwd
+                cwd: this.cwd,
             });
         }
 
@@ -182,8 +185,8 @@ export class CodegenOrchestrator
             ignoreInitial: true,
             awaitWriteFinish: {
                 stabilityThreshold: 100,
-                pollInterval: 50
-            }
+                pollInterval: 50,
+            },
         });
 
         const handleChange = async (absolutePath: string, event: 'add' | 'change' | 'unlink') =>
@@ -194,6 +197,7 @@ export class CodegenOrchestrator
             if (this.isGenerating)
             {
                 this.pendingRegenerations.add(absolutePath);
+
                 return;
             }
 
@@ -215,7 +219,7 @@ export class CodegenOrchestrator
                 }
 
                 const matches = generator.watchPatterns.some(pattern =>
-                    mm.isMatch(filePath, pattern)
+                    mm.isMatch(filePath, pattern),
                 );
 
                 if (matches)
@@ -232,9 +236,9 @@ export class CodegenOrchestrator
                                 type: 'watch',
                                 changedFile: {
                                     path: filePath,
-                                    event
-                                }
-                            }
+                                    event,
+                                },
+                            },
                         };
 
                         await generator.generate(genOptions);

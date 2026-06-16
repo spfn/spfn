@@ -135,6 +135,7 @@ export class InterceptorRegistry
         {
             total += interceptors.length;
         }
+
         return total;
     }
 }
@@ -186,7 +187,7 @@ export const interceptorRegistry = (() =>
  */
 export function registerInterceptors(
     packageName: string,
-    interceptors: InterceptorRule[]
+    interceptors: InterceptorRule[],
 ): void
 {
     interceptorRegistry.register(packageName, interceptors);

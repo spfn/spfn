@@ -47,7 +47,8 @@ describe('Transaction Middleware (Integration)', () =>
         it('should provide transaction context in route handler', async () =>
         {
             // This test always runs to ensure beforeAll is executed
-            if (!dbFixture.isAvailable) {
+            if (!dbFixture.isAvailable) 
+            {
                 return; // Skip silently if DB not available
             }
 
@@ -180,6 +181,7 @@ describe('Transaction Middleware (Integration)', () =>
             {
                 // Simulate slow operation
                 await new Promise(resolve => setTimeout(resolve, 150));
+
                 return c.json({ success: true });
             });
 
@@ -220,6 +222,7 @@ describe('Transaction Middleware (Integration)', () =>
                 // Use actual database query that exceeds timeout
                 // pg_sleep(0.2) = 200ms, but timeout is 100ms
                 await tx!.execute(sql`SELECT pg_sleep(0.2)`);
+
                 return c.json({ success: true });
             });
 
@@ -255,6 +258,7 @@ describe('Transaction Middleware (Integration)', () =>
             {
                 // Simulate long operation (no timeout)
                 await new Promise(resolve => setTimeout(resolve, 100));
+
                 return c.json({ success: true });
             });
 

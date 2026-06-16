@@ -62,7 +62,7 @@ export class LogsRepository extends BaseRepository
                 or(
                     ilike(logs.message, `%${filters.search}%`),
                     ilike(logs.source, `%${filters.search}%`),
-                )!
+                )!,
             );
         }
 

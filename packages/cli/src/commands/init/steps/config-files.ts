@@ -150,7 +150,7 @@ function updateGitignore(cwd: string): void
         {
             updated = updated.replace(
                 /# production\n\/build/,
-                '# production\n/build\n\n# spfn\n/.spfn/'
+                '# production\n/build\n\n# spfn\n/.spfn/',
             );
             changed = true;
         }

@@ -23,10 +23,14 @@ vi.mock('../../../logger', () => ({
 // Mock factory
 vi.mock('../factory', () => ({
     createDatabaseFromEnv: vi.fn(async () => ({
-        write: { execute: vi.fn(async () => {}) },
-        read: { execute: vi.fn(async () => {}) },
-        writeClient: { end: vi.fn(async () => {}) },
-        readClient: { end: vi.fn(async () => {}) },
+        write: { execute: vi.fn(async () => 
+        {}) },
+        read: { execute: vi.fn(async () => 
+        {}) },
+        writeClient: { end: vi.fn(async () => 
+        {}) },
+        readClient: { end: vi.fn(async () => 
+        {}) },
     })),
 }));
 
@@ -75,7 +79,8 @@ describe('Database Health Check', () =>
             };
 
             const getDatabase = vi.fn(() => ({
-                execute: vi.fn(async () => {}),
+                execute: vi.fn(async () => 
+                {}),
             })) as any;
 
             startHealthCheck(config, undefined, getDatabase);
@@ -95,7 +100,8 @@ describe('Database Health Check', () =>
             };
 
             const getDatabase = vi.fn(() => ({
-                execute: vi.fn(async () => {}),
+                execute: vi.fn(async () => 
+                {}),
             })) as any;
 
             // Mock existing interval
@@ -117,7 +123,8 @@ describe('Database Health Check', () =>
                 retryInterval: 5000,
             };
 
-            const mockExecute = vi.fn(async () => {});
+            const mockExecute = vi.fn(async () => 
+            {});
             const getDatabase = vi.fn(() => ({
                 execute: mockExecute,
             })) as any;
@@ -141,13 +148,16 @@ describe('Database Health Check', () =>
                 retryInterval: 5000,
             };
 
-            const writeDb = { execute: vi.fn(async () => {}), _id: 'write' };
-            const readDb = { execute: vi.fn(async () => {}), _id: 'read' };
+            const writeDb = { execute: vi.fn(async () => 
+            {}), _id: 'write' };
+            const readDb = { execute: vi.fn(async () => 
+            {}), _id: 'read' };
 
             const getDatabase = vi.fn((type?: string) =>
             {
                 if (type === 'write') return writeDb;
                 if (type === 'read') return readDb;
+
                 return writeDb;
             }) as any;
 
@@ -169,7 +179,8 @@ describe('Database Health Check', () =>
                 retryInterval: 5000,
             };
 
-            const mockDb = { execute: vi.fn(async () => {}), _id: 'db' };
+            const mockDb = { execute: vi.fn(async () => 
+            {}), _id: 'db' };
 
             const getDatabase = vi.fn(() => mockDb) as any;
 
@@ -196,7 +207,7 @@ describe('Database Health Check', () =>
             startHealthCheck(config, undefined, getDatabase);
 
             await expect(
-                vi.advanceTimersByTimeAsync(60000)
+                vi.advanceTimersByTimeAsync(60000),
             ).resolves.not.toThrow();
         });
 
@@ -211,7 +222,8 @@ describe('Database Health Check', () =>
             };
 
             const mockDb = {
-                execute: vi.fn(async () => {
+                execute: vi.fn(async () => 
+                {
                     throw new Error('Health check failed');
                 }),
             };
@@ -237,7 +249,8 @@ describe('Database Health Check', () =>
             };
 
             const mockDb = {
-                execute: vi.fn(async () => {
+                execute: vi.fn(async () => 
+                {
                     throw new Error('Health check failed');
                 }),
             };
@@ -246,10 +259,14 @@ describe('Database Health Check', () =>
 
             const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockResolvedValue({
-                write: { execute: vi.fn(async () => {}) } as any,
-                read: { execute: vi.fn(async () => {}) } as any,
-                writeClient: { end: vi.fn(async () => {}) } as any,
-                readClient: { end: vi.fn(async () => {}) } as any,
+                write: { execute: vi.fn(async () => 
+                {}) } as any,
+                read: { execute: vi.fn(async () => 
+                {}) } as any,
+                writeClient: { end: vi.fn(async () => 
+                {}) } as any,
+                readClient: { end: vi.fn(async () => 
+                {}) } as any,
             });
 
             startHealthCheck(config, undefined, getDatabase);
@@ -274,7 +291,8 @@ describe('Database Health Check', () =>
             };
 
             const mockDb = {
-                execute: vi.fn(async () => {
+                execute: vi.fn(async () => 
+                {
                     throw new Error('Health check failed');
                 }),
             };
@@ -283,7 +301,7 @@ describe('Database Health Check', () =>
 
             const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockRejectedValue(
-                new Error('Reconnection failed')
+                new Error('Reconnection failed'),
             );
 
             startHealthCheck(config, undefined, getDatabase);
@@ -311,7 +329,8 @@ describe('Database Health Check', () =>
             };
 
             const mockDb = {
-                execute: vi.fn(async () => {
+                execute: vi.fn(async () => 
+                {
                     throw new Error('Health check failed');
                 }),
             };
@@ -319,14 +338,17 @@ describe('Database Health Check', () =>
             const { getWriteInstance } = await import('../global-state');
 
             // getDatabase should return failing DB initially, then successful DB after reconnection
-            const getDatabase = vi.fn(() => {
+            const getDatabase = vi.fn(() => 
+            {
                 const currentWrite = getWriteInstance();
+
                 return currentWrite || mockDb;
             }) as any;
 
             const { createDatabaseFromEnv } = await import('../factory');
             let attempts = 0;
-            const successDb = { execute: vi.fn(async () => {}) } as any;
+            const successDb = { execute: vi.fn(async () => 
+            {}) } as any;
 
             vi.mocked(createDatabaseFromEnv).mockImplementation(async () =>
             {
@@ -337,8 +359,10 @@ describe('Database Health Check', () =>
                     return {
                         write: successDb,
                         read: successDb,
-                        writeClient: { end: vi.fn(async () => {}) } as any,
-                        readClient: { end: vi.fn(async () => {}) } as any,
+                        writeClient: { end: vi.fn(async () => 
+                        {}) } as any,
+                        readClient: { end: vi.fn(async () => 
+                        {}) } as any,
                     };
                 }
                 throw new Error('Reconnection failed');
@@ -368,7 +392,8 @@ describe('Database Health Check', () =>
             };
 
             const mockDb = {
-                execute: vi.fn(async () => {
+                execute: vi.fn(async () => 
+                {
                     throw new Error('Health check failed');
                 }),
             };
@@ -402,7 +427,8 @@ describe('Database Health Check', () =>
             };
 
             const mockDb = {
-                execute: vi.fn(async () => {
+                execute: vi.fn(async () => 
+                {
                     throw new Error('Health check failed');
                 }),
             };
@@ -443,7 +469,8 @@ describe('Database Health Check', () =>
             };
 
             const mockDb = {
-                execute: vi.fn(async () => {
+                execute: vi.fn(async () => 
+                {
                     throw new Error('Health check failed');
                 }),
             };
@@ -452,7 +479,7 @@ describe('Database Health Check', () =>
 
             const { createDatabaseFromEnv } = await import('../factory');
             vi.mocked(createDatabaseFromEnv).mockRejectedValue(
-                new Error('Reconnection failed')
+                new Error('Reconnection failed'),
             );
 
             startHealthCheck(config, undefined, getDatabase);
@@ -535,10 +562,14 @@ describe('Database Health Check', () =>
             vi.mocked(getWriteInstance).mockReturnValue({ execute: vi.fn() } as any);
             vi.mocked(getIsClosing).mockReturnValue(false);
             vi.mocked(createDatabaseFromEnv).mockResolvedValue({
-                write: { execute: vi.fn(async () => {}) } as any,
-                read: { execute: vi.fn(async () => {}) } as any,
-                writeClient: { end: vi.fn(async () => {}) } as any,
-                readClient: { end: vi.fn(async () => {}) } as any,
+                write: { execute: vi.fn(async () => 
+                {}) } as any,
+                read: { execute: vi.fn(async () => 
+                {}) } as any,
+                writeClient: { end: vi.fn(async () => 
+                {}) } as any,
+                readClient: { end: vi.fn(async () => 
+                {}) } as any,
             });
 
             const result = await triggerForceReconnect('manual');
@@ -560,11 +591,16 @@ describe('Database Health Check', () =>
             vi.mocked(createDatabaseFromEnv).mockImplementation(async () =>
             {
                 await new Promise(resolve => setTimeout(resolve, 2000));
+
                 return {
-                    write: { execute: vi.fn(async () => {}) } as any,
-                    read: { execute: vi.fn(async () => {}) } as any,
-                    writeClient: { end: vi.fn(async () => {}) } as any,
-                    readClient: { end: vi.fn(async () => {}) } as any,
+                    write: { execute: vi.fn(async () => 
+                    {}) } as any,
+                    read: { execute: vi.fn(async () => 
+                    {}) } as any,
+                    writeClient: { end: vi.fn(async () => 
+                    {}) } as any,
+                    readClient: { end: vi.fn(async () => 
+                    {}) } as any,
                 };
             });
 
@@ -605,11 +641,15 @@ describe('Database Health Check', () =>
                 .mockReturnValueOnce(false)  // reconnectAndRestore entry
                 .mockReturnValue(true);      // post-await check → bail
 
-            const writeEnd = vi.fn(async () => {});
-            const readEnd = vi.fn(async () => {});
+            const writeEnd = vi.fn(async () => 
+            {});
+            const readEnd = vi.fn(async () => 
+            {});
             vi.mocked(createDatabaseFromEnv).mockResolvedValue({
-                write: { execute: vi.fn(async () => {}) } as any,
-                read: { execute: vi.fn(async () => {}) } as any,
+                write: { execute: vi.fn(async () => 
+                {}) } as any,
+                read: { execute: vi.fn(async () => 
+                {}) } as any,
                 writeClient: { end: writeEnd } as any,
                 readClient: { end: readEnd } as any,
             });

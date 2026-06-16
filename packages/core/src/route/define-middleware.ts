@@ -128,19 +128,19 @@ export interface DefineMiddlewareOptions
 export function defineMiddleware<TName extends string>(
     name: TName,
     handler: MiddlewareHandler,
-    options?: DefineMiddlewareOptions
+    options?: DefineMiddlewareOptions,
 ): NamedMiddleware<TName>;
 
 export function defineMiddleware<TName extends string, TArgs extends any[]>(
     name: TName,
     factory: (...args: TArgs) => MiddlewareHandler,
-    options?: DefineMiddlewareOptions
+    options?: DefineMiddlewareOptions,
 ): NamedMiddlewareFactory<TName, TArgs>;
 
 export function defineMiddleware<TName extends string, TArgs extends any[] = []>(
     name: TName,
     handlerOrFactory: MiddlewareHandler | ((...args: TArgs) => MiddlewareHandler),
-    options?: DefineMiddlewareOptions
+    options?: DefineMiddlewareOptions,
 ): NamedMiddleware<TName> | NamedMiddlewareFactory<TName, TArgs>
 {
     const skips = options?.skips;
@@ -235,7 +235,7 @@ export function defineMiddleware<TName extends string, TArgs extends any[] = []>
  */
 export function defineMiddlewareFactory<TName extends string, TArgs extends unknown[]>(
     name: TName,
-    factory: (...args: TArgs) => MiddlewareHandler
+    factory: (...args: TArgs) => MiddlewareHandler,
 ): NamedMiddlewareFactory<TName, TArgs>
 {
     const wrapper = (...args: TArgs) => factory(...args);

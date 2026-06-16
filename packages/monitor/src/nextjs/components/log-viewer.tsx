@@ -49,7 +49,10 @@ export function LogViewer()
             }
         });
 
-        return () => { cancelled = true; };
+        return () => 
+        {
+            cancelled = true; 
+        };
     }, [level, search]);
 
     function toggleExpand(id: number)

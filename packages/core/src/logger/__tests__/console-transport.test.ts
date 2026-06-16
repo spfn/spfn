@@ -13,8 +13,10 @@ describe('ConsoleTransport', () =>
 
     beforeEach(() =>
     {
-        consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-        consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => 
+        {});
+        consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => 
+        {});
     });
 
     afterEach(() =>
@@ -191,7 +193,7 @@ describe('ConsoleTransport', () =>
             });
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining('2024-01-15')
+                expect.stringContaining('2024-01-15'),
             );
         });
 
@@ -210,7 +212,7 @@ describe('ConsoleTransport', () =>
             });
 
             expect(consoleErrorSpy).toHaveBeenCalledWith(
-                expect.stringContaining('ERROR')
+                expect.stringContaining('ERROR'),
             );
         });
 
@@ -230,7 +232,7 @@ describe('ConsoleTransport', () =>
             });
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[module=database]')
+                expect.stringContaining('[module=database]'),
             );
         });
 
@@ -250,7 +252,7 @@ describe('ConsoleTransport', () =>
             });
 
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining('userId')
+                expect.stringContaining('userId'),
             );
         });
 
@@ -272,7 +274,7 @@ describe('ConsoleTransport', () =>
             });
 
             expect(consoleErrorSpy).toHaveBeenCalledWith(
-                expect.stringContaining('Test error')
+                expect.stringContaining('Test error'),
             );
         });
     });
@@ -295,7 +297,7 @@ describe('ConsoleTransport', () =>
 
             // ANSI color codes should be present
             expect(consoleLogSpy).toHaveBeenCalledWith(
-                expect.stringContaining('\x1b[')
+                expect.stringContaining('\x1b['),
             );
         });
 

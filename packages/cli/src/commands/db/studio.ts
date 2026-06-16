@@ -3,7 +3,7 @@ import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { spawn } from 'child_process';
 import { findAvailablePort } from './utils/database.js';
 
-import { env } from "@spfn/core/config";
+import { env } from '@spfn/core/config';
 
 /**
  * Open Drizzle Studio (database GUI)
@@ -54,7 +54,7 @@ export async function dbStudio(requestedPort?: number): Promise<void>
             const configContent = generateDrizzleConfigFile({
                 cwd: process.cwd(),
                 disablePackageDiscovery: true,
-                expandGlobs: true  // Expand glob patterns for Studio compatibility
+                expandGlobs: true,  // Expand glob patterns for Studio compatibility
             });
 
             writeFileSync(tempConfigPath, configContent);
@@ -65,7 +65,7 @@ export async function dbStudio(requestedPort?: number): Promise<void>
         const studioProcess = spawn('drizzle-kit', ['studio', `--port=${port}`, `--config=${configPath}`], {
             stdio: 'inherit',
             shell: true,
-            env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' }
+            env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
         });
 
         // Handle process termination

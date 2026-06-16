@@ -9,8 +9,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { Logger } from '../logger';
 import type { Transport } from '../types';
 
-describe('Logger Context Detection', () => {
-    it('should treat {name, method, path} as context, not error', () => {
+describe('Logger Context Detection', () => 
+{
+    it('should treat {name, method, path} as context, not error', () => 
+    {
         const mockTransport: Transport = {
             name: 'mock',
             level: 'debug',
@@ -30,8 +32,10 @@ describe('Logger Context Detection', () => {
             path: '/teams/:id',
         });
 
-        return new Promise<void>(resolve => {
-            setTimeout(() => {
+        return new Promise<void>(resolve => 
+        {
+            setTimeout(() => 
+            {
                 expect(mockTransport.log).toHaveBeenCalledTimes(1);
                 expect(mockTransport.log).toHaveBeenCalledWith(
                     expect.objectContaining({
@@ -43,14 +47,15 @@ describe('Logger Context Detection', () => {
                             path: '/teams/:id',
                         },
                         error: undefined, // Should NOT be treated as error
-                    })
+                    }),
                 );
                 resolve();
             }, 50);
         });
     });
 
-    it('should treat {id, name} as context, not error', () => {
+    it('should treat {id, name} as context, not error', () => 
+    {
         const mockTransport: Transport = {
             name: 'mock',
             level: 'debug',
@@ -68,20 +73,23 @@ describe('Logger Context Detection', () => {
             name: 'John',
         });
 
-        return new Promise<void>(resolve => {
-            setTimeout(() => {
+        return new Promise<void>(resolve => 
+        {
+            setTimeout(() => 
+            {
                 expect(mockTransport.log).toHaveBeenCalledWith(
                     expect.objectContaining({
                         context: { id: 1, name: 'John' },
                         error: undefined,
-                    })
+                    }),
                 );
                 resolve();
             }, 50);
         });
     });
 
-    it('should treat {message} as context, not error', () => {
+    it('should treat {message} as context, not error', () => 
+    {
         const mockTransport: Transport = {
             name: 'mock',
             level: 'debug',
@@ -99,20 +107,23 @@ describe('Logger Context Detection', () => {
             status: 'pending',
         });
 
-        return new Promise<void>(resolve => {
-            setTimeout(() => {
+        return new Promise<void>(resolve => 
+        {
+            setTimeout(() => 
+            {
                 expect(mockTransport.log).toHaveBeenCalledWith(
                     expect.objectContaining({
                         context: { message: 'Processing started', status: 'pending' },
                         error: undefined,
-                    })
+                    }),
                 );
                 resolve();
             }, 50);
         });
     });
 
-    it('should treat Error with stack as error', () => {
+    it('should treat Error with stack as error', () => 
+    {
         const mockTransport: Transport = {
             name: 'mock',
             level: 'debug',
@@ -128,8 +139,10 @@ describe('Logger Context Detection', () => {
         const error = new Error('Test error');
         testLogger.error('Error occurred', error);
 
-        return new Promise<void>(resolve => {
-            setTimeout(() => {
+        return new Promise<void>(resolve => 
+        {
+            setTimeout(() => 
+            {
                 expect(mockTransport.log).toHaveBeenCalledWith(
                     expect.objectContaining({
                         message: 'Error occurred',
@@ -137,14 +150,15 @@ describe('Logger Context Detection', () => {
                             message: 'Test error',
                             stack: expect.stringContaining('Error: Test error'),
                         }),
-                    })
+                    }),
                 );
                 resolve();
             }, 50);
         });
     });
 
-    it('should treat error-like object with stack as error', () => {
+    it('should treat error-like object with stack as error', () => 
+    {
         const mockTransport: Transport = {
             name: 'mock',
             level: 'debug',
@@ -166,8 +180,10 @@ describe('Logger Context Detection', () => {
 
         testLogger.error('Error occurred', errorLike);
 
-        return new Promise<void>(resolve => {
-            setTimeout(() => {
+        return new Promise<void>(resolve => 
+        {
+            setTimeout(() => 
+            {
                 const call = (mockTransport.log as any).mock.calls[0][0];
                 expect(call.error).toBeDefined();
                 expect(call.error.message).toContain('Custom error');
@@ -176,7 +192,8 @@ describe('Logger Context Detection', () => {
         });
     });
 
-    it('should not treat object with non-string stack as error', () => {
+    it('should not treat object with non-string stack as error', () => 
+    {
         const mockTransport: Transport = {
             name: 'mock',
             level: 'debug',
@@ -195,13 +212,15 @@ describe('Logger Context Detection', () => {
             result: 'ok',
         });
 
-        return new Promise<void>(resolve => {
-            setTimeout(() => {
+        return new Promise<void>(resolve => 
+        {
+            setTimeout(() => 
+            {
                 expect(mockTransport.log).toHaveBeenCalledWith(
                     expect.objectContaining({
                         context: { stack: ['item1', 'item2'], result: 'ok' },
                         error: undefined,
-                    })
+                    }),
                 );
                 resolve();
             }, 50);

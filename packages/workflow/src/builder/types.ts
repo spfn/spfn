@@ -36,7 +36,7 @@ export interface WorkflowContext<TInput, TResults extends Record<string, unknown
 export type StepMapper<
     TInput,
     TResults extends Record<string, unknown>,
-    TStepInput
+    TStepInput,
 > = (ctx: WorkflowContext<TInput, TResults>) => TStepInput;
 
 /**

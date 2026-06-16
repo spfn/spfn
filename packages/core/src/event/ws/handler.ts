@@ -30,12 +30,12 @@ const wsLogger = logger.child('@spfn/core:ws');
  */
 export async function attachWSHandler<
     TEvents extends Record<string, EventDef<any>>,
-    TMessages extends WSMessageHandlers
+    TMessages extends WSMessageHandlers,
 >(
     server: Server,
     router: WSRouterDef<TEvents, TMessages>,
     config: WSHandlerConfig & { path?: string } = {},
-    tokenManager?: SSETokenManager
+    tokenManager?: SSETokenManager,
 ): Promise<() => Promise<void>>
 {
     const WebSocketServer = await loadWSServer();
@@ -50,7 +50,7 @@ export async function attachWSHandler<
     {
         throw new Error(
             'WebSocket auth.enabled=true requires a tokenManager. ' +
-            'Pass tokenManager or use .websockets(router, { auth: { enabled: true } }) via startServer.'
+            'Pass tokenManager or use .websockets(router, { auth: { enabled: true } }) via startServer.',
         );
     }
 
@@ -108,7 +108,7 @@ async function handleConnection(
     router: WSRouterDef<any, any>,
     authConfig: WSHandlerAuthConfig | undefined,
     tokenManager: SSETokenManager | undefined,
-    pingInterval: number
+    pingInterval: number,
 ): Promise<void>
 {
     // Register close handler before any await — ensures we never miss the event even during auth
@@ -127,6 +127,7 @@ async function handleConnection(
     if (!url)
     {
         ws.close(1002, 'Invalid request URL');
+
         return;
     }
 
@@ -135,11 +136,13 @@ async function handleConnection(
     if (subject === false)
     {
         ws.close(4001, 'Missing token');
+
         return;
     }
     if (subject === null)
     {
         ws.close(4001, 'Invalid or expired token');
+
         return;
     }
 
@@ -148,6 +151,7 @@ async function handleConnection(
     if (requestedEvents.length === 0)
     {
         ws.close(4000, 'No valid event names specified');
+
         return;
     }
 
@@ -156,6 +160,7 @@ async function handleConnection(
     if (allowedEvents === null)
     {
         ws.close(4003, 'Not authorized for any requested events');
+
         return;
     }
 
@@ -176,6 +181,7 @@ async function handleConnection(
     {
         connectionUnsubscribes.forEach(fn => fn());
         connectionUnsubscribes = [];
+
         return;
     }
 
@@ -227,7 +233,7 @@ function parseURL(req: any): URL | null
  */
 async function resolveSubject(
     url: URL,
-    tokenManager?: SSETokenManager
+    tokenManager?: SSETokenManager,
 ): Promise<string | undefined | false | null>
 {
     if (!tokenManager)
@@ -261,7 +267,7 @@ function parseRequestedEvents(url: URL, validEventNames: string[]): string[]
 async function resolveAllowedEvents(
     subject: string | undefined,
     requestedEvents: string[],
-    authConfig?: WSHandlerAuthConfig
+    authConfig?: WSHandlerAuthConfig,
 ): Promise<string[] | null>
 {
     if (!subject || !authConfig?.authorize)
@@ -270,6 +276,7 @@ async function resolveAllowedEvents(
     }
 
     const allowed = await authConfig.authorize(subject, requestedEvents);
+
     return allowed.length === 0 ? null : allowed;
 }
 
@@ -290,7 +297,7 @@ function subscribeEvents(
     router: WSRouterDef<any, any>,
     allowedEvents: string[],
     subject: string | undefined,
-    authConfig?: WSHandlerAuthConfig
+    authConfig?: WSHandlerAuthConfig,
 ): (() => void)[]
 {
     const unsubscribes: (() => void)[] = [];
@@ -329,7 +336,7 @@ async function onClientMessage(
     data: Buffer | string,
     router: WSRouterDef<any, any>,
     connection: WSRawConnection,
-    subject: string | undefined
+    subject: string | undefined,
 ): Promise<void>
 {
     let message: { type?: string; data?: unknown };
@@ -369,7 +376,7 @@ async function loadWSServer(): Promise<any>
     {
         // ws is a CJS package: module.exports = WebSocket, WebSocket.WebSocketServer is set on it.
         // ESM dynamic import wraps CJS default export under .default
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const mod = await import('ws') as any;
         const WS = mod.default ?? mod;
         const WSS = WS.WebSocketServer ?? WS.Server;
@@ -378,7 +385,7 @@ async function loadWSServer(): Promise<any>
         {
             throw new Error(
                 'WebSocketServer not found in ws module. ' +
-                'Ensure ws@^8 is installed: pnpm add ws'
+                'Ensure ws@^8 is installed: pnpm add ws',
             );
         }
 
@@ -392,7 +399,7 @@ async function loadWSServer(): Promise<any>
         }
         throw new Error(
             '@spfn/core WebSocket support requires the "ws" package.\n' +
-            'Install it with: pnpm add ws'
+            'Install it with: pnpm add ws',
         );
     }
 }

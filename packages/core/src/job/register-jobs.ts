@@ -73,7 +73,7 @@ export async function registerJobs(router: JobRouter<any>): Promise<void>
     if (!boss)
     {
         throw new Error(
-            'pg-boss not initialized. Call initBoss() before registerJobs()'
+            'pg-boss not initialized. Call initBoss() before registerJobs()',
         );
     }
 
@@ -122,7 +122,7 @@ async function ensureQueue(boss: PgBoss, queueName: string): Promise<void>
  */
 async function executeJobHandler(
     job: JobDef<any>,
-    pgBossJob: PgBoss.Job<any>
+    pgBossJob: PgBoss.Job<any>,
 ): Promise<void>
 {
     jobLogger.debug(`[Job:${job.name}] Executing...`, { jobId: pgBossJob.id });
@@ -168,7 +168,7 @@ async function executeJobHandler(
 async function registerWorker(
     boss: PgBoss,
     job: JobDef<any>,
-    queueName: string
+    queueName: string,
 ): Promise<void>
 {
     // Ensure queue exists before registering worker
@@ -185,12 +185,13 @@ async function registerWorker(
             {
                 // Single job — throw on error for pg-boss retry
                 await executeJobHandler(job, pgBossJobs[0]);
+
                 return;
             }
 
             // Batch — parallel execution with individual failure handling
             const results = await Promise.allSettled(
-                pgBossJobs.map((pgBossJob) => executeJobHandler(job, pgBossJob))
+                pgBossJobs.map((pgBossJob) => executeJobHandler(job, pgBossJob)),
             );
 
             // Collect failed job IDs and mark them individually.
@@ -213,7 +214,7 @@ async function registerWorker(
             }
 
             // Callback resolves → pg-boss auto-completes remaining 'active' jobs
-        }
+        },
     );
 }
 
@@ -223,7 +224,7 @@ async function registerWorker(
 function connectEventToQueue(
     boss: PgBoss,
     job: JobDef<any>,
-    queueName: string
+    queueName: string,
 ): void
 {
     if (!job._subscribedEventDef)
@@ -259,7 +260,7 @@ async function registerCronSchedule(boss: PgBoss, job: JobDef<any>): Promise<voi
         job.name,
         job.cronExpression,
         {},
-        getDefaultJobOptions(job.options)
+        getDefaultJobOptions(job.options),
     );
 
     jobLogger.info(`[Job:${job.name}] Cron scheduled: ${job.cronExpression}`);
@@ -286,7 +287,7 @@ async function queueRunOnceJob(boss: PgBoss, job: JobDef<any>): Promise<void>
         {
             ...getDefaultJobOptions(job.options),
             singletonKey: `runOnce:${job.name}`,
-        }
+        },
     );
 
     jobLogger.info(`[Job:${job.name}] runOnce job queued`);

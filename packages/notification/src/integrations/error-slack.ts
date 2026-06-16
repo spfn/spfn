@@ -137,6 +137,7 @@ function getEnvLabel(): string
     const host = hostname();
     const dbUrl = process.env.DATABASE_URL || '';
     const dbName = dbUrl.match(/\/([^/?]+)(\?|$)/)?.[1] || '(unknown)';
+
     return `${env} | ${host} | db:${dbName}`;
 }
 
@@ -226,7 +227,7 @@ export function createErrorSlackNotifier(options: ErrorSlackOptions = {})
 {
     console.warn(
         '[@spfn/notification] createErrorSlackNotifier() is deprecated. ' +
-        'Use createMonitorErrorHandler() from @spfn/monitor/server instead.'
+        'Use createMonitorErrorHandler() from @spfn/monitor/server instead.',
     );
 
     const { minStatusCode = 500, throttleMs = 60_000 } = options;
@@ -246,6 +247,7 @@ export function createErrorSlackNotifier(options: ErrorSlackOptions = {})
         if (entry && now - entry.lastSent < throttleMs)
         {
             entry.suppressed++;
+
             return;
         }
 

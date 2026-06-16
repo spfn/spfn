@@ -34,7 +34,7 @@ describe('Transaction Timeout Configuration', () =>
             });
         });
 
-         it('should successfully set timeout using sql.raw() with string concatenation', async () =>
+        it('should successfully set timeout using sql.raw() with string concatenation', async () =>
         {
             if (!dbFixture.isAvailable) return;
 
@@ -105,7 +105,7 @@ describe('Transaction Timeout Configuration', () =>
             await dbFixture.db.transaction(async (tx) =>
             {
                 // Simulate malicious input
-                const maliciousInput = "5000; DROP TABLE users; --";
+                const maliciousInput = '5000; DROP TABLE users; --';
 
                 // Our validation catches this
                 const timeout = parseInt(maliciousInput, 10);
@@ -127,7 +127,7 @@ describe('Transaction Timeout Configuration', () =>
         it('should demonstrate another SQL injection attempt blocked by type validation', async () =>
         {
             // Simulate malicious input that tries to bypass parseInt
-            const maliciousInput = { toString: () => "5000; DROP TABLE users;" };
+            const maliciousInput = { toString: () => '5000; DROP TABLE users;' };
 
             // Our validation requires integer type
             const timeout = parseInt(maliciousInput.toString(), 10);

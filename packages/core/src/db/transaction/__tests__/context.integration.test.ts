@@ -67,7 +67,8 @@ describe('Transaction Context (Integration)', () =>
         {
             // This test doesn't need DB, so it always runs
             // This ensures beforeAll is executed
-            if (!dbFixture.isAvailable) {
+            if (!dbFixture.isAvailable) 
+            {
                 return; // Skip silently if DB not available
             }
 

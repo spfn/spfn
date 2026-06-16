@@ -44,6 +44,6 @@ export async function dbDrop(): Promise<void>
         'Dropping all tables...',
         'drop',
         'All tables dropped',
-        'Failed to drop tables'
+        'Failed to drop tables',
     );
 }

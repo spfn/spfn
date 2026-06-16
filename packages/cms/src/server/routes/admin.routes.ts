@@ -51,7 +51,7 @@ export const saveSectionDraftRoute = route.put('/_cms/admin/sections/:section/dr
                 Type.Object({
                     id: Type.Number(),
                     values: Type.Record(Type.String(), Type.String()),
-                })
+                }),
             ),
         }),
     })

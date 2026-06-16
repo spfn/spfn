@@ -64,6 +64,7 @@ export async function sendSlack(params: SendSlackParams): Promise<SendResult>
     if (!webhookUrl)
     {
         log.warn('Slack webhook URL is required');
+
         return {
             success: false,
             error: 'Slack webhook URL is required. Set SPFN_NOTIFICATION_SLACK_WEBHOOK_URL or pass webhookUrl.',
@@ -80,6 +81,7 @@ export async function sendSlack(params: SendSlackParams): Promise<SendResult>
         if (!hasTemplate(params.template))
         {
             log.warn(`Template not found: ${params.template}`);
+
             return {
                 success: false,
                 error: `Template not found: ${params.template}`,
@@ -99,6 +101,7 @@ export async function sendSlack(params: SendSlackParams): Promise<SendResult>
     if (!text && !blocks)
     {
         log.warn('Slack message requires text or blocks');
+
         return {
             success: false,
             error: 'Slack message requires text or blocks',
@@ -213,7 +216,7 @@ export interface BulkSlackOptions
  */
 export async function sendSlackBulk(
     items: SendSlackParams[],
-    options?: BulkSlackOptions
+    options?: BulkSlackOptions,
 ): Promise<BulkSlackResult>
 {
     if (items.length === 0)
@@ -291,7 +294,7 @@ export async function sendSlackBulk(
                     content: p.text,
                     providerName: provider.name,
                     batchId,
-                }))
+                })),
             );
         }
         catch (error)
@@ -348,7 +351,7 @@ export async function sendSlackBulk(
     const sendResults = await runWithConcurrency(
         prepared,
         (p) => provider.send(p.params),
-        concurrency
+        concurrency,
     );
 
     // 5. Build results + update history records
@@ -389,7 +392,7 @@ export async function sendSlackBulk(
                 : markNotificationFailed(historyId, result.error || 'Unknown error');
 
             historyUpdates.push(
-                promise.catch((err) => log.warn('Failed to update notification history', err))
+                promise.catch((err) => log.warn('Failed to update notification history', err)),
             );
         }
     }

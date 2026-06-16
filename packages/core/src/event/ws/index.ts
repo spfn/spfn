@@ -85,7 +85,7 @@ export type {
  */
 export function defineWSRouter<
     TEvents extends Record<string, EventDef<any>>,
-    TMessages extends WSMessageHandlers = WSMessageHandlers
+    TMessages extends WSMessageHandlers = WSMessageHandlers,
 >(def: {
     events: TEvents;
     messages?: TMessages;

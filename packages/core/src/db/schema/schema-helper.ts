@@ -29,6 +29,7 @@ import { pgSchema } from 'drizzle-orm/pg-core';
 export function createSchema(packageName: string)
 {
     const schemaName = packageNameToSchema(packageName);
+
     return pgSchema(schemaName);
 }
 

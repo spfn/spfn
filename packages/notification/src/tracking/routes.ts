@@ -19,7 +19,7 @@ const log = logger.child('@spfn/notification:tracking:routes');
  */
 const TRANSPARENT_GIF = Buffer.from(
     'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-    'base64'
+    'base64',
 );
 
 /**

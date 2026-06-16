@@ -26,8 +26,8 @@ export class CmsPublishedCacheRepository extends BaseRepository
             .where(
                 and(
                     eq(cmsPublishedCache.section, section),
-                    eq(cmsPublishedCache.locale, locale)
-                )
+                    eq(cmsPublishedCache.locale, locale),
+                ),
             )
             .limit(1);
 
@@ -50,7 +50,7 @@ export class CmsPublishedCacheRepository extends BaseRepository
                     publishedAt: data.publishedAt,
                     publishedBy: data.publishedBy,
                     version: sql`${cmsPublishedCache.version} + 1`, // 버전 증가로 클라이언트 캐시 무효화
-                }
+                },
             })
             .returning();
 
@@ -74,8 +74,8 @@ export class CmsPublishedCacheRepository extends BaseRepository
             .where(
                 and(
                     inArray(cmsPublishedCache.section, sections),
-                    eq(cmsPublishedCache.locale, locale)
-                )
+                    eq(cmsPublishedCache.locale, locale),
+                ),
             );
     }
 
@@ -104,8 +104,8 @@ export class CmsPublishedCacheRepository extends BaseRepository
                 .where(
                     and(
                         eq(cmsPublishedCache.section, section),
-                        eq(cmsPublishedCache.locale, locale)
-                    )
+                        eq(cmsPublishedCache.locale, locale),
+                    ),
                 );
         }
         else

@@ -20,8 +20,7 @@ import type { EnvVarSchema, EnvSchemaCollection, InferEnvType } from './schema';
 import { isClientAccessible } from './schema';
 import { logger } from '@spfn/core/logger';
 
-const envLogger = logger.child('@spfn/core:env-registry')
-
+const envLogger = logger.child('@spfn/core:env-registry');
 
 /**
  * 환경변수 레지스트리
@@ -95,7 +94,7 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
      */
     private applyValidator<U>(
         value: string,
-        schema: EnvVarSchema<U>
+        schema: EnvVarSchema<U>,
     ): U
     {
         if (schema.validator)
@@ -127,7 +126,7 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
             if (isClientAccessible(key) && schema.sensitive)
             {
                 warnings.push(
-                    `${key} is marked as sensitive but accessible from client (NEXT_PUBLIC_*). Remove NEXT_PUBLIC_ prefix or unmark as sensitive.`
+                    `${key} is marked as sensitive but accessible from client (NEXT_PUBLIC_*). Remove NEXT_PUBLIC_ prefix or unmark as sensitive.`,
                 );
             }
         }
@@ -148,6 +147,7 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
     private shouldSkipValidation(): boolean
     {
         const skip = process.env.SKIP_ENV_VALIDATION;
+
         return skip === 'true' || skip === '1';
     }
 
@@ -315,7 +315,7 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
                     return {
                         enumerable: true,
                         configurable: true,
-                        get: () => this.getAndValidate(prop)
+                        get: () => this.getAndValidate(prop),
                     };
                 }
 
@@ -325,7 +325,7 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
             has: (_target, prop: string) =>
             {
                 return this.schemas.has(prop);
-            }
+            },
         });
     }
 }
@@ -354,7 +354,7 @@ export interface EnvValidationResult
  * ```
  */
 export function createEnvRegistry<T extends EnvSchemaCollection>(
-    schemas: T
+    schemas: T,
 ): EnvRegistry<T>
 {
     return new EnvRegistry(schemas);
@@ -378,7 +378,7 @@ export function createEnvRegistry<T extends EnvSchemaCollection>(
  * ```
  */
 export function validateAllEnv(
-    registries: EnvRegistry<any>[]
+    registries: EnvRegistry<any>[],
 ): EnvValidationResult
 {
     const errors: Array<{ key: string; message: string }> = [];

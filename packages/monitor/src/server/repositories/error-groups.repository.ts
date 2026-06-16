@@ -69,7 +69,7 @@ export class ErrorGroupsRepository extends BaseRepository
                     ilike(errorGroups.name, `%${filters.search}%`),
                     ilike(errorGroups.message, `%${filters.search}%`),
                     ilike(errorGroups.path, `%${filters.search}%`),
-                )!
+                )!,
             );
         }
 

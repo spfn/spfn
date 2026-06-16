@@ -15,5 +15,5 @@ export {
     InvalidLabelKeyError,
     InvalidPublishedCacheError,
     CMSOperationFailedError,
-    InsufficientCMSPermissionsError
+    InsufficientCMSPermissionsError,
 } from './cms-errors';

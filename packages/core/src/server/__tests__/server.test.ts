@@ -19,10 +19,13 @@ import { defineServerConfig } from '../config-builder';
 import { route, defineRouter, defineMiddleware } from '@spfn/core/route';
 import { createServer } from '../create-server';
 
-describe('Server Module', () => {
+describe('Server Module', () => 
+{
 
-    describe('Server Configuration', () => {
-        it('should have timeout configuration type', () => {
+    describe('Server Configuration', () => 
+    {
+        it('should have timeout configuration type', () => 
+        {
             const config: ServerConfig = {
                 timeout: {
                     request: 30000,
@@ -37,7 +40,8 @@ describe('Server Module', () => {
             expect(config.timeout!.headers).toBe(20000);
         });
 
-        it('should support partial timeout configuration', () => {
+        it('should support partial timeout configuration', () => 
+        {
             const config: ServerConfig = {
                 timeout: {
                     request: 60000,
@@ -49,7 +53,8 @@ describe('Server Module', () => {
             expect(config.timeout!.keepAlive).toBeUndefined();
         });
 
-        it('should support database configuration', () => {
+        it('should support database configuration', () => 
+        {
             const config: ServerConfig = {
                 database: {
                     pool: {
@@ -74,18 +79,22 @@ describe('Server Module', () => {
         });
     });
 
-    describe('Timeout Default Values', () => {
+    describe('Timeout Default Values', () => 
+    {
         let originalEnv: NodeJS.ProcessEnv;
 
-        beforeEach(() => {
+        beforeEach(() => 
+        {
             originalEnv = { ...process.env };
         });
 
-        afterEach(() => {
+        afterEach(() => 
+        {
             process.env = originalEnv;
         });
 
-        it('should use default timeout values when not specified', () => {
+        it('should use default timeout values when not specified', () => 
+        {
             // 환경변수 없이 기본값 테스트
             delete process.env.SERVER_TIMEOUT;
             delete process.env.SERVER_KEEPALIVE_TIMEOUT;
@@ -101,7 +110,8 @@ describe('Server Module', () => {
             expect(config.timeout).toBeUndefined(); // 명시적으로 설정하지 않으면 undefined
         });
 
-        it('should read timeout from environment variables', () => {
+        it('should read timeout from environment variables', () => 
+        {
             process.env.SERVER_TIMEOUT = '30000';
             process.env.SERVER_KEEPALIVE_TIMEOUT = '45000';
             process.env.SERVER_HEADERS_TIMEOUT = '20000';
@@ -112,7 +122,8 @@ describe('Server Module', () => {
             expect(process.env.SERVER_HEADERS_TIMEOUT).toBe('20000');
         });
 
-        it('should prioritize config over environment variables', () => {
+        it('should prioritize config over environment variables', () => 
+        {
             process.env.SERVER_TIMEOUT = '30000';
 
             const config: ServerConfig = {
@@ -126,8 +137,10 @@ describe('Server Module', () => {
         });
     });
 
-    describe('CORS Configuration', () => {
-        it('should support CORS configuration', () => {
+    describe('CORS Configuration', () => 
+    {
+        it('should support CORS configuration', () => 
+        {
             const config: ServerConfig = {
                 cors: {
                     origin: 'https://example.com',
@@ -140,7 +153,8 @@ describe('Server Module', () => {
             expect((config.cors as any).credentials).toBe(true);
         });
 
-        it('should disable CORS when set to false', () => {
+        it('should disable CORS when set to false', () => 
+        {
             const config: ServerConfig = {
                 cors: false,
             };
@@ -149,8 +163,10 @@ describe('Server Module', () => {
         });
     });
 
-    describe('Port and Host Configuration', () => {
-        it('should have port and host configuration', () => {
+    describe('Port and Host Configuration', () => 
+    {
+        it('should have port and host configuration', () => 
+        {
             const config: ServerConfig = {
                 port: 3000,
                 host: '0.0.0.0',
@@ -160,7 +176,8 @@ describe('Server Module', () => {
             expect(config.host).toBe('0.0.0.0');
         });
 
-        it('should support PORT environment variable', () => {
+        it('should support PORT environment variable', () => 
+        {
             process.env.PORT = '8080';
 
             // 환경변수가 설정되어 있으면 server.ts에서 읽어서 적용됨
@@ -169,7 +186,8 @@ describe('Server Module', () => {
             delete process.env.PORT;
         });
 
-        it('should support HOST environment variable', () => {
+        it('should support HOST environment variable', () => 
+        {
             process.env.HOST = '0.0.0.0';
 
             // 환경변수가 설정되어 있으면 server.ts에서 읽어서 적용됨
@@ -178,7 +196,8 @@ describe('Server Module', () => {
             delete process.env.HOST;
         });
 
-        it('should prioritize config over environment variables for port', () => {
+        it('should prioritize config over environment variables for port', () => 
+        {
             process.env.PORT = '8080';
 
             const config: ServerConfig = {
@@ -191,7 +210,8 @@ describe('Server Module', () => {
             delete process.env.PORT;
         });
 
-        it('should prioritize config over environment variables for host', () => {
+        it('should prioritize config over environment variables for host', () => 
+        {
             process.env.HOST = '0.0.0.0';
 
             const config: ServerConfig = {
@@ -205,13 +225,17 @@ describe('Server Module', () => {
         });
     });
 
-    describe('Middleware Configuration', () => {
-        it('should support named middlewares', () => {
-            const authMiddleware = defineMiddleware('auth', async (_c, next) => {
+    describe('Middleware Configuration', () => 
+    {
+        it('should support named middlewares', () => 
+        {
+            const authMiddleware = defineMiddleware('auth', async (_c, next) => 
+            {
                 await next();
             });
 
-            const rateLimitMiddleware = defineMiddleware('rateLimit', async (_c, next) => {
+            const rateLimitMiddleware = defineMiddleware('rateLimit', async (_c, next) => 
+            {
                 await next();
             });
 
@@ -226,8 +250,10 @@ describe('Server Module', () => {
         });
     });
 
-    describe('Shutdown Configuration', () => {
-        it('should support shutdown configuration', () => {
+    describe('Shutdown Configuration', () => 
+    {
+        it('should support shutdown configuration', () => 
+        {
             const config: ServerConfig = {
                 shutdown: {
                     timeout: 25000,
@@ -238,7 +264,8 @@ describe('Server Module', () => {
             expect(config.shutdown!.timeout).toBe(25000);
         });
 
-        it('should support partial shutdown configuration', () => {
+        it('should support partial shutdown configuration', () => 
+        {
             const config: ServerConfig = {
                 shutdown: {},
             };
@@ -247,7 +274,8 @@ describe('Server Module', () => {
             expect(config.shutdown!.timeout).toBeUndefined();
         });
 
-        it('should support SHUTDOWN_TIMEOUT environment variable', () => {
+        it('should support SHUTDOWN_TIMEOUT environment variable', () => 
+        {
             process.env.SHUTDOWN_TIMEOUT = '20000';
 
             // 환경변수가 설정되어 있으면 server.ts에서 읽어서 적용됨
@@ -257,8 +285,10 @@ describe('Server Module', () => {
         });
     });
 
-    describe('Health Check Configuration', () => {
-        it('should support health check configuration', () => {
+    describe('Health Check Configuration', () => 
+    {
+        it('should support health check configuration', () => 
+        {
             const config: ServerConfig = {
                 healthCheck: {
                     enabled: true,
@@ -273,7 +303,8 @@ describe('Server Module', () => {
             expect(config.healthCheck!.detailed).toBe(true);
         });
 
-        it('should support partial health check configuration', () => {
+        it('should support partial health check configuration', () => 
+        {
             const config: ServerConfig = {
                 healthCheck: {
                     enabled: false,
@@ -285,7 +316,8 @@ describe('Server Module', () => {
             expect(config.healthCheck!.path).toBeUndefined();
         });
 
-        it('should support custom health check path', () => {
+        it('should support custom health check path', () => 
+        {
             const config: ServerConfig = {
                 healthCheck: {
                     path: '/api/health',
@@ -296,7 +328,8 @@ describe('Server Module', () => {
             expect(config.healthCheck!.path).toBe('/api/health');
         });
 
-        it('should support detailed health check mode', () => {
+        it('should support detailed health check mode', () => 
+        {
             const config: ServerConfig = {
                 healthCheck: {
                     detailed: true,
@@ -307,7 +340,8 @@ describe('Server Module', () => {
             expect(config.healthCheck!.detailed).toBe(true);
         });
 
-        it('should support HEALTH_CHECK_ENABLED environment variable', () => {
+        it('should support HEALTH_CHECK_ENABLED environment variable', () => 
+        {
             process.env.HEALTH_CHECK_ENABLED = 'false';
 
             // 환경변수가 설정되어 있으면 server.ts에서 읽어서 적용됨
@@ -317,8 +351,10 @@ describe('Server Module', () => {
         });
     });
 
-    describe('ServerInstance Type', () => {
-        it('should have correct ServerInstance interface', () => {
+    describe('ServerInstance Type', () => 
+    {
+        it('should have correct ServerInstance interface', () => 
+        {
             // Type-only test - verifies interface structure
             const mockInstance: ServerInstance = {
                 server: {} as any,
@@ -327,7 +363,8 @@ describe('Server Module', () => {
                     port: 3000,
                     host: 'localhost',
                 },
-                close: async () => {},
+                close: async () => 
+                {},
             };
 
             expect(mockInstance.server).toBeDefined();
@@ -337,7 +374,8 @@ describe('Server Module', () => {
             expect(typeof mockInstance.close).toBe('function');
         });
 
-        it('should have config property with ServerConfig type', () => {
+        it('should have config property with ServerConfig type', () => 
+        {
             const mockInstance: ServerInstance = {
                 server: {} as any,
                 app: {} as any,
@@ -356,7 +394,8 @@ describe('Server Module', () => {
                         errorHandler: true,
                     },
                 },
-                close: async () => {},
+                close: async () => 
+                {},
             };
 
             expect(mockInstance.config.port).toBe(4000);
@@ -366,14 +405,16 @@ describe('Server Module', () => {
             expect(mockInstance.config.middleware?.logger).toBe(true);
         });
 
-        it('should have close method that returns Promise<void>', async () => {
+        it('should have close method that returns Promise<void>', async () => 
+        {
             let closeCalled = false;
 
             const mockInstance: ServerInstance = {
                 server: {} as any,
                 app: {} as any,
                 config: {},
-                close: async () => {
+                close: async () => 
+                {
                     closeCalled = true;
                 },
             };
@@ -386,8 +427,10 @@ describe('Server Module', () => {
         });
     });
 
-    describe('defineServerConfig() Builder', () => {
-        it('should create config with fluent API', () => {
+    describe('defineServerConfig() Builder', () => 
+    {
+        it('should create config with fluent API', () => 
+        {
             const config = defineServerConfig()
                 .port(3000)
                 .host('0.0.0.0')
@@ -399,7 +442,8 @@ describe('Server Module', () => {
             expect(config.debug).toBe(true);
         });
 
-        it('should support chaining multiple methods', () => {
+        it('should support chaining multiple methods', () => 
+        {
             const config = defineServerConfig()
                 .port(4000)
                 .middleware({ logger: true, cors: false })
@@ -415,7 +459,8 @@ describe('Server Module', () => {
             expect(config.healthCheck?.path).toBe('/health');
         });
 
-        it('should support routes configuration', () => {
+        it('should support routes configuration', () => 
+        {
             const testRoute = route.get('/test')
                 .handler(async (_c) => ({ message: 'test' }));
 
@@ -430,16 +475,20 @@ describe('Server Module', () => {
         });
     });
 
-    describe('define-route Integration', () => {
-        it('should register routes from config.routes', async () => {
+    describe('define-route Integration', () => 
+    {
+        it('should register routes from config.routes', async () => 
+        {
             // Define routes
             const getUser = route.get('/users/:id')
                 .input({
-                    params: Type.Object({ id: Type.String() })
+                    params: Type.Object({ id: Type.String() }),
                 })
-                .handler(async (c) => {
+                .handler(async (c) => 
+                {
                     const { params } = await c.data();
-                    return { id: params.id, name: 'John Doe' }
+
+                    return { id: params.id, name: 'John Doe' };
                 });
 
             const router = defineRouter({ getUser });
@@ -461,7 +510,8 @@ describe('Server Module', () => {
             expect(data).toEqual({ id: '123', name: 'John Doe' });
         });
 
-        it('should return structured data with params, query, and body', async () => {
+        it('should return structured data with params, query, and body', async () => 
+        {
             // Realistic scenario: POST with notification option in query
             const testRoute = route.post('/items/:id')
                 .input({
@@ -469,13 +519,15 @@ describe('Server Module', () => {
                     query: Type.Object({ notify: Type.Optional(Type.Boolean()) }),
                     body: Type.Object({ name: Type.String() }),
                 })
-                .handler(async (c) => {
+                .handler(async (c) => 
+                {
                     const { params, query, body } = await c.data();
+
                     return {
                         id: params.id,
                         notify: query.notify,
                         name: body.name,
-                    }
+                    };
                 });
 
             const router = defineRouter({ testRoute });
@@ -505,16 +557,19 @@ describe('Server Module', () => {
             });
         });
 
-        it('should validate input and return 400 on error', async () => {
+        it('should validate input and return 400 on error', async () => 
+        {
             const createUser = route.post('/users')
                 .input({
                     body: Type.Object({
                         name: Type.String(),
                         email: Type.String({ format: 'email' }),
-                    })
+                    }),
                 })
-                .handler(async (c) => {
+                .handler(async (c) => 
+                {
                     const { body } = await c.data();
+
                     return c.created(body);
                 });
 
@@ -542,7 +597,8 @@ describe('Server Module', () => {
             expect(data.message).toBeDefined();
         });
 
-        it('should support response helpers', async () => {
+        it('should support response helpers', async () => 
+        {
             const routes = {
                 getSuccess: route.get('/success')
                     .handler(async (_c) => ({ message: 'ok' })),
@@ -558,7 +614,7 @@ describe('Server Module', () => {
                         [{ id: 1 }, { id: 2 }],
                         1,
                         10,
-                        100
+                        100,
                     )),
             };
 
@@ -601,17 +657,21 @@ describe('Server Module', () => {
             });
         });
 
-        it('should support middleware in routes', async () => {
-            const authMiddleware = vi.fn(async (c, next) => {
+        it('should support middleware in routes', async () => 
+        {
+            const authMiddleware = vi.fn(async (c, next) => 
+            {
                 c.set('user', { id: 1, name: 'Test User' });
                 await next();
             });
 
             const protectedRoute = route.get('/protected')
                 .use([authMiddleware])
-                .handler(async (c) => {
+                .handler(async (c) => 
+                {
                     const user = c.raw.get('user');
-                    return { user }
+
+                    return { user };
                 });
 
             const router = defineRouter({ protectedRoute });
@@ -632,13 +692,16 @@ describe('Server Module', () => {
             expect(data.user).toEqual({ id: 1, name: 'Test User' });
         });
 
-        it('should apply server-level named middlewares to all routes', async () => {
-            const authMiddlewareFn = vi.fn(async (c, next) => {
+        it('should apply server-level named middlewares to all routes', async () => 
+        {
+            const authMiddlewareFn = vi.fn(async (c, next) => 
+            {
                 c.set('authenticated', true);
                 await next();
             });
 
-            const rateLimitMiddlewareFn = vi.fn(async (c, next) => {
+            const rateLimitMiddlewareFn = vi.fn(async (c, next) => 
+            {
                 c.set('rateLimited', true);
                 await next();
             });
@@ -647,10 +710,12 @@ describe('Server Module', () => {
             const rateLimitMiddleware = defineMiddleware('rateLimit', rateLimitMiddlewareFn);
 
             const protectedRoute = route.get('/users')
-                .handler(async (c) => {
+                .handler(async (c) => 
+                {
                     const authenticated = c.raw.get('authenticated');
                     const rateLimited = c.raw.get('rateLimited');
-                    return { authenticated, rateLimited }
+
+                    return { authenticated, rateLimited };
                 });
 
             const router = defineRouter({ protectedRoute });
@@ -673,13 +738,16 @@ describe('Server Module', () => {
             expect(data).toEqual({ authenticated: true, rateLimited: true });
         });
 
-        it('should skip specified middlewares for public routes', async () => {
-            const authMiddlewareFn = vi.fn(async (c, next) => {
+        it('should skip specified middlewares for public routes', async () => 
+        {
+            const authMiddlewareFn = vi.fn(async (c, next) => 
+            {
                 c.set('authenticated', true);
                 await next();
             });
 
-            const rateLimitMiddlewareFn = vi.fn(async (c, next) => {
+            const rateLimitMiddlewareFn = vi.fn(async (c, next) => 
+            {
                 c.set('rateLimited', true);
                 await next();
             });
@@ -689,20 +757,24 @@ describe('Server Module', () => {
 
             const publicRoute = route.get('/health')
                 .skip(['auth', 'rateLimit'])
-                .handler(async (c) => {
+                .handler(async (c) => 
+                {
                     const authenticated = c.raw.get('authenticated');
                     const rateLimited = c.raw.get('rateLimited');
+
                     return {
                         authenticated: authenticated ?? false,
-                        rateLimited: rateLimited ?? false
-                    }
+                        rateLimited: rateLimited ?? false,
+                    };
                 });
 
             const protectedRoute = route.get('/users')
-                .handler(async (c) => {
+                .handler(async (c) => 
+                {
                     const authenticated = c.raw.get('authenticated');
                     const rateLimited = c.raw.get('rateLimited');
-                    return { authenticated, rateLimited }
+
+                    return { authenticated, rateLimited };
                 });
 
             const router = defineRouter({ publicRoute, protectedRoute });
@@ -739,13 +811,16 @@ describe('Server Module', () => {
             expect(data2).toEqual({ authenticated: true, rateLimited: true });
         });
 
-        it('should partially skip middlewares (skip only auth)', async () => {
-            const authMiddlewareFn = vi.fn(async (c, next) => {
+        it('should partially skip middlewares (skip only auth)', async () => 
+        {
+            const authMiddlewareFn = vi.fn(async (c, next) => 
+            {
                 c.set('authenticated', true);
                 await next();
             });
 
-            const rateLimitMiddlewareFn = vi.fn(async (c, next) => {
+            const rateLimitMiddlewareFn = vi.fn(async (c, next) => 
+            {
                 c.set('rateLimited', true);
                 await next();
             });
@@ -755,13 +830,15 @@ describe('Server Module', () => {
 
             const publicDataRoute = route.get('/public-data')
                 .skip(['auth']) // Skip only auth, keep rateLimit
-                .handler(async (c) => {
+                .handler(async (c) => 
+                {
                     const authenticated = c.raw.get('authenticated');
                     const rateLimited = c.raw.get('rateLimited');
+
                     return {
                         authenticated: authenticated ?? false,
-                        rateLimited
-                    }
+                        rateLimited,
+                    };
                 });
 
             const router = defineRouter({ publicDataRoute });

@@ -74,7 +74,7 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
                         cwd: options.cwd,
                         labelsPath,
                         changedFilePath: changedFile.path,
-                        debug: options.debug
+                        debug: options.debug,
                     });
 
                     if (success)
@@ -83,6 +83,7 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
                         {
                             syncLogger.info('Incremental sync successful');
                         }
+
                         return;
                     }
 
@@ -103,6 +104,7 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
                 if (sections.length === 0)
                 {
                     syncLogger.warn(`No labels found in ${labelsPath}`);
+
                     return;
                 }
 
@@ -146,7 +148,7 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
                 syncLogger.error('Label sync failed', err);
                 throw err;
             }
-        }
+        },
     };
 }
 
@@ -203,7 +205,7 @@ async function attemptIncrementalSync(options: IncrementalSyncOptions): Promise<
         {
             syncLogger.info('Attempting incremental sync', {
                 section: sectionName,
-                file: changedFilePath
+                file: changedFilePath,
             });
         }
 
@@ -217,13 +219,14 @@ async function attemptIncrementalSync(options: IncrementalSyncOptions): Promise<
             {
                 syncLogger.warn('Section has no valid labels');
             }
+
             return false;
         }
 
         // Sync only this section
         const result = await syncSection(
             { section: sectionName, labels },
-            { verbose: debug, updateExisting: true }
+            { verbose: debug, updateExisting: true },
         );
 
         if (debug || result.created > 0 || result.updated > 0)
@@ -232,7 +235,7 @@ async function attemptIncrementalSync(options: IncrementalSyncOptions): Promise<
                 created: result.created,
                 updated: result.updated,
                 unchanged: result.unchanged,
-                errors: result.errors.length
+                errors: result.errors.length,
             });
         }
 
@@ -254,6 +257,7 @@ async function attemptIncrementalSync(options: IncrementalSyncOptions): Promise<
             const err = error instanceof Error ? error : new Error(String(error));
             syncLogger.warn('Incremental sync failed', err);
         }
+
         return false;
     }
 }

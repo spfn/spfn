@@ -56,16 +56,19 @@ function copyToClipboard(text: string): boolean
         if (process.platform === 'darwin')
         {
             execSync('pbcopy', { input: text });
+
             return true;
         }
         else if (process.platform === 'linux')
         {
             execSync('xclip -selection clipboard', { input: text });
+
             return true;
         }
         else if (process.platform === 'win32')
         {
             execSync('clip', { input: text });
+
             return true;
         }
 
@@ -210,6 +213,7 @@ export const keyCommand = new Command('key')
         if (options.list)
         {
             listPresets();
+
             return;
         }
 
@@ -238,7 +242,7 @@ export const keyCommand = new Command('key')
             bytes,
             preset as PresetName | undefined,
             options.env,
-            options.copy
+            options.copy,
         );
     });
 

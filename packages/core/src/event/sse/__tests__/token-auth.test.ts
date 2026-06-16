@@ -58,6 +58,7 @@ function createTestApp(config?: {
             // In real app, middleware would set this from JWT
             const subject = c.req.header('x-test-user') ?? 'test-user-1';
             const token = await tokenManager!.issue(subject);
+
             return c.json({ token });
         });
     }

@@ -6,36 +6,37 @@ import { listBackupFiles } from './utils/backup-files.js';
  */
 export async function dbBackupList(): Promise<void>
 {
-	console.log(chalk.blue('📋 Database backups:\n'));
+    console.log(chalk.blue('📋 Database backups:\n'));
 
-	const backups = await listBackupFiles();
+    const backups = await listBackupFiles();
 
-	if (backups.length === 0)
-	{
-		console.log(chalk.yellow('No backups found in ./backups directory'));
-		console.log(chalk.gray('\n💡 Create a backup with: pnpm spfn db backup\n'));
-		return;
-	}
+    if (backups.length === 0)
+    {
+        console.log(chalk.yellow('No backups found in ./backups directory'));
+        console.log(chalk.gray('\n💡 Create a backup with: pnpm spfn db backup\n'));
 
-	// Display backups in a table-like format
-	console.log(chalk.bold('  Date                  Size        File'));
-	console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+        return;
+    }
 
-	backups.forEach(backup =>
-	{
-		const date = backup.date.toLocaleString('en-US', {
-			year: 'numeric',
-			month: '2-digit',
-			day: '2-digit',
-			hour: '2-digit',
-			minute: '2-digit',
-			second: '2-digit',
-		});
+    // Display backups in a table-like format
+    console.log(chalk.bold('  Date                  Size        File'));
+    console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
 
-		const sizeStr = backup.size.padEnd(10);
+    backups.forEach(backup =>
+    {
+        const date = backup.date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        });
 
-		console.log(chalk.white(`  ${date}  ${sizeStr}  ${backup.name}`));
-	});
+        const sizeStr = backup.size.padEnd(10);
 
-	console.log(chalk.gray(`\n  Total: ${backups.length} backup(s)\n`));
+        console.log(chalk.white(`  ${date}  ${sizeStr}  ${backup.name}`));
+    });
+
+    console.log(chalk.gray(`\n  Total: ${backups.length} backup(s)\n`));
 }

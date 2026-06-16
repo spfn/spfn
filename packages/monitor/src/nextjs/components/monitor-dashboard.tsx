@@ -24,7 +24,10 @@ export function MonitorDashboard()
 
             {/* Tabs */}
             <div className="flex gap-1 border-b border-neutral-200 dark:border-neutral-800">
-                <TabButton active={tab === 'errors'} onClick={() => { setTab('errors'); setSelectedErrorId(null); }}>
+                <TabButton active={tab === 'errors'} onClick={() => 
+                {
+                    setTab('errors'); setSelectedErrorId(null); 
+                }}>
                     Errors
                 </TabButton>
                 <TabButton active={tab === 'logs'} onClick={() => setTab('logs')}>

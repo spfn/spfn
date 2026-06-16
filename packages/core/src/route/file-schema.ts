@@ -164,6 +164,7 @@ export function OptionalFileSchema(options?: FileSchemaOptions): TSchema
 export function isFileSchema(schema: TSchema): schema is FileSchemaType
 {
     const kind = (schema as any)[Symbol.for('TypeBox.Kind')];
+
     return kind === 'File';
 }
 
@@ -173,6 +174,7 @@ export function isFileSchema(schema: TSchema): schema is FileSchemaType
 export function isFileArraySchema(schema: TSchema): schema is FileArraySchemaType
 {
     const kind = (schema as any)[Symbol.for('TypeBox.Kind')];
+
     return kind === 'FileArray';
 }
 
@@ -201,5 +203,6 @@ export function formatFileSize(bytes: number): string
     {
         return `${(bytes / 1024).toFixed(1)}KB`;
     }
+
     return `${bytes}B`;
 }

@@ -55,13 +55,13 @@ export function generateFingerprint(name: string, message: string, path: string)
 export async function trackError(
     err: Error,
     ctx: ErrorTrackingContext,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
 ): Promise<void>
 {
     const fingerprint = generateFingerprint(
         err.name || 'Error',
         err.message,
-        ctx.path
+        ctx.path,
     );
 
     const existing = await errorGroupsRepository.findByFingerprint(fingerprint);
@@ -129,7 +129,7 @@ export async function trackError(
  */
 export async function updateErrorGroupStatus(
     groupId: number,
-    newStatus: ErrorGroupStatus
+    newStatus: ErrorGroupStatus,
 ): Promise<ErrorGroup>
 {
     const group = await errorGroupsRepository.findById(groupId);
@@ -160,7 +160,7 @@ async function safeCreateEvent(
     groupId: number,
     err: Error,
     ctx: ErrorTrackingContext,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
 )
 {
     try
@@ -182,6 +182,7 @@ async function safeCreateEvent(
             ? e.cause
             : e;
         logger.warn('Failed to create error event', cause as Error, { groupId });
+
         return null;
     }
 }

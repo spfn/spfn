@@ -12,7 +12,7 @@ export class ApiError extends Error
         public readonly status: number,
         public readonly url: string,
         public readonly response?: unknown,
-        public readonly errorType?: 'http' | 'network' | 'timeout'
+        public readonly errorType?: 'http' | 'network' | 'timeout',
     )
     {
         super(message);

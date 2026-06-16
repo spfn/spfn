@@ -15,19 +15,19 @@ describe('Type Safety - getLabel (single section)', () =>
             title: { en: 'Home', ko: '홈' },
             hero: {
                 title: { en: 'Welcome', ko: '환영합니다' },
-                subtitle: { en: 'Start your journey', ko: '여정을 시작하세요' }
-            }
+                subtitle: { en: 'Start your journey', ko: '여정을 시작하세요' },
+            },
         },
         signup: {
             title: { en: 'Sign Up', ko: '가입하기' },
-            userName: { en: 'User Name', ko: '사용자명' }
-        }
+            userName: { en: 'User Name', ko: '사용자명' },
+        },
     });
 
     const labelConfig = defineLabelConfig({
         locales: ['en', 'ko'] as const,
         defaultLocale: 'en',
-        fallbackLocale: 'en'
+        fallbackLocale: 'en',
     });
 
     const { getLabel } = createCmsClient(labelsDefinition, labelConfig);
@@ -55,19 +55,19 @@ describe('Type Safety - getLabels (multiple sections)', () =>
 {
     const labelsDefinition = defineLabels({
         home: {
-            title: { en: 'Home', ko: '홈' }
+            title: { en: 'Home', ko: '홈' },
         },
         about: {
-            title: { en: 'About', ko: '소개' }
+            title: { en: 'About', ko: '소개' },
         },
         contact: {
-            email: { en: 'Email', ko: '이메일' }
-        }
+            email: { en: 'Email', ko: '이메일' },
+        },
     });
 
     const labelConfig = defineLabelConfig({
         locales: ['en', 'ko'] as const,
-        defaultLocale: 'en'
+        defaultLocale: 'en',
     });
 
     const { getLabels } = createCmsClient(labelsDefinition, labelConfig);
@@ -96,7 +96,7 @@ describe('Type Safety - SectionKeys', () =>
     {
         const labelsDefinition = defineLabels({
             home: { title: { en: 'Home' } },
-            about: { title: { en: 'About' } }
+            about: { title: { en: 'About' } },
         });
 
         type Sections = SectionKeys<typeof labelsDefinition>;
@@ -116,17 +116,17 @@ describe('Type Safety - API Distinction', () =>
         home: {
             title: { en: 'Home', ko: '홈' },
             nested: {
-                value: { en: 'Nested', ko: '중첩' }
-            }
+                value: { en: 'Nested', ko: '중첩' },
+            },
         },
         about: {
-            title: { en: 'About', ko: '소개' }
-        }
+            title: { en: 'About', ko: '소개' },
+        },
     });
 
     const labelConfig = defineLabelConfig({
         locales: ['en', 'ko'] as const,
-        defaultLocale: 'en'
+        defaultLocale: 'en',
     });
 
     const { getLabel, getLabels } = createCmsClient(labelsDefinition, labelConfig);

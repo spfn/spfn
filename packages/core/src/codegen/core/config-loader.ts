@@ -95,7 +95,7 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
         {
             const jiti = createJiti(cwd, {
                 interopDefault: true,
-                moduleCache: false
+                moduleCache: false,
             });
 
             const module = jiti(rcTsPath);
@@ -104,6 +104,7 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
             if (config && typeof config === 'object')
             {
                 configLogger.info('Loaded config from .spfnrc.ts');
+
                 return config as CodegenConfig;
             }
         }
@@ -126,6 +127,7 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
             if (config.codegen)
             {
                 configLogger.info('Loaded config from .spfnrc.json');
+
                 return config.codegen as CodegenConfig;
             }
         }
@@ -147,6 +149,7 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
             if (pkg.spfn?.codegen)
             {
                 configLogger.info('Loaded config from package.json');
+
                 return pkg.spfn.codegen as CodegenConfig;
             }
         }
@@ -158,8 +161,9 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
 
     // 4. Default configuration (empty - no generators by default)
     configLogger.info('Using default config (no generators)');
+
     return {
-        generators: []
+        generators: [],
     };
 }
 
@@ -171,7 +175,7 @@ export function loadCodegenConfig(cwd: string): CodegenConfig
 async function loadGeneratorFromPackage(
     packageName: string,
     generatorName: string,
-    config: Record<string, any>
+    config: Record<string, any>,
 ): Promise<Generator | null>
 {
     try
@@ -179,7 +183,7 @@ async function loadGeneratorFromPackage(
         // Try to load package/generators export using jiti for better module resolution
         const jiti = createJiti(import.meta.url, {
             interopDefault: true,
-            moduleCache: false
+            moduleCache: false,
         });
 
         const generatorsModule = jiti(`${packageName}/codegen`);
@@ -190,6 +194,7 @@ async function loadGeneratorFromPackage(
             const createFn = generatorsModule.generators[generatorName];
             const generator = createFn(config);
             configLogger.info(`Loaded ${packageName}:${generatorName}`);
+
             return generator;
         }
 
@@ -200,12 +205,13 @@ async function loadGeneratorFromPackage(
             const createFn = generatorsModule[conventionalName];
             const generator = createFn(config);
             configLogger.info(`Loaded ${packageName}:${generatorName} (via ${conventionalName})`);
+
             return generator;
         }
 
         configLogger.warn(
             `Generator "${generatorName}" not found in ${packageName}/codegen. ` +
-            `Expected: generators.${generatorName} or ${conventionalName}`
+            `Expected: generators.${generatorName} or ${conventionalName}`,
         );
 
         return null;
@@ -215,8 +221,9 @@ async function loadGeneratorFromPackage(
         const err = error instanceof Error ? error : new Error(String(error));
         configLogger.warn(
             `Failed to load ${packageName}:${generatorName}. ` +
-            `Make sure ${packageName} is installed. Error: ${err.message}`
+            `Make sure ${packageName} is installed. Error: ${err.message}`,
         );
+
         return null;
     }
 }
@@ -269,7 +276,7 @@ export async function createGeneratorsFromConfig(config: CodegenConfig, cwd: str
                 if (generatorPath.endsWith('.ts'))
                 {
                     const jiti = createJiti(cwd, {
-                        interopDefault: true
+                        interopDefault: true,
                     });
                     module = jiti(generatorPath);
                 }
@@ -302,7 +309,7 @@ export async function createGeneratorsFromConfig(config: CodegenConfig, cwd: str
                     const generator = await loadGeneratorFromPackage(
                         packageName,
                         generatorName,
-                        generatorOptions
+                        generatorOptions,
                     );
 
                     if (generator)
@@ -316,7 +323,7 @@ export async function createGeneratorsFromConfig(config: CodegenConfig, cwd: str
             {
                 configLogger.warn(
                     `Invalid generator name "${generatorConfig.name}". ` +
-                    `Use package:name format (e.g., "@spfn/core:contract")`
+                    `Use package:name format (e.g., "@spfn/core:contract")`,
                 );
             }
         }

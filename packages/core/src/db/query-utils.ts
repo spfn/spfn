@@ -40,7 +40,7 @@ export function isSQLWrapper(value: unknown): value is SQL
  */
 export function buildWhereFromObject<T extends PgTable>(
     table: T,
-    where: Record<string, unknown>
+    where: Record<string, unknown>,
 ): SQL | undefined
 {
     const entries = Object.entries(where).filter(([_, value]) => value !== undefined);
@@ -51,7 +51,7 @@ export function buildWhereFromObject<T extends PgTable>(
     }
 
     const conditions = entries.map(([key, value]) =>
-        eq((table as any)[key], value)
+        eq((table as any)[key], value),
     );
 
     return conditions.length === 1 ? conditions[0] : and(...conditions);

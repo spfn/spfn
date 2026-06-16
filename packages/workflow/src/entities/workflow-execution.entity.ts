@@ -51,7 +51,7 @@ export const workflowExecutions = workflowSchema.table(
         index('wf_exec_status_idx').on(table.status),
         index('wf_exec_created_at_idx').on(table.createdAt),
         index('wf_exec_workflow_status_idx').on(table.workflowName, table.status),
-    ]
+    ],
 );
 
 export type WorkflowExecution = typeof workflowExecutions.$inferSelect;

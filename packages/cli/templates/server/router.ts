@@ -1,4 +1,3 @@
-
 /**
  * Application Router
  *
@@ -20,7 +19,7 @@ export const appRouter = defineRouter({
     getExample,
     createExample,
     updateExample,
-    deleteExample
+    deleteExample,
 });
 
 /**

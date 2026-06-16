@@ -236,7 +236,8 @@ describe('workflow-builder', () =>
         {
             const consoleProvider = {
                 name: 'console',
-                notify: async () => {},
+                notify: async () => 
+                {},
             };
 
             const wf = workflow('test-workflow')

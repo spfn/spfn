@@ -283,7 +283,8 @@ describe('reconnect-trigger', () =>
             expect(mockTriggerForceReconnect).toHaveBeenCalledTimes(1);
 
             // Let the rejected promise's .catch handler run.
-            await vi.runOnlyPendingTimersAsync().catch(() => {});
+            await vi.runOnlyPendingTimersAsync().catch(() => 
+            {});
         });
     });
 
@@ -348,6 +349,7 @@ describe('reconnect-trigger', () =>
                 const inner = Object.assign(new Error('net'), { code: 'ECONNRESET' });
                 const outer = new Error('wrapped');
                 (outer as { cause?: unknown }).cause = inner;
+
                 return outer;
             };
 
@@ -376,7 +378,7 @@ describe('reconnect-trigger', () =>
         it('handles frozen objects in the error chain', () =>
         {
             const inner = Object.freeze(
-                Object.assign(new Error('frozen'), { code: 'ECONNRESET' })
+                Object.assign(new Error('frozen'), { code: 'ECONNRESET' }),
             );
             expect(() => reportDatabaseError(inner)).not.toThrow();
         });

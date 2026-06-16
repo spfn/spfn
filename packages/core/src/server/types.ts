@@ -22,7 +22,7 @@ export interface WorkflowRouterLike
      *
      * @internal
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     _init: (db: any, options?: { largeOutputThreshold?: number }) => void;
 }
 
@@ -90,7 +90,7 @@ export interface ServerConfig
          */
         onError?: (
             err: Error,
-            context: OnErrorContext
+            context: OnErrorContext,
         ) => Promise<void> | void;
     };
 

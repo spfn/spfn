@@ -118,7 +118,7 @@ export const notifications = notificationSchema.table('history',
         index('noti_job_id_idx').on(table.jobId),
         index('noti_batch_id_idx').on(table.batchId),
         index('noti_reference_idx').on(table.referenceType, table.referenceId),
-    ]
+    ],
 );
 
 /**

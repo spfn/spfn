@@ -18,7 +18,7 @@ import type { SSETokenStore, SSETokenManager } from '../sse/token-manager';
  */
 export interface WSRouterDef<
     TEvents extends Record<string, EventDef<any>>,
-    TMessages extends WSMessageHandlers = WSMessageHandlers
+    TMessages extends WSMessageHandlers = WSMessageHandlers,
 > extends EventRouterDef<TEvents>
 {
     messages: TMessages;
@@ -103,12 +103,12 @@ export interface WSAuthConfig<TRouter extends WSRouterDef<any, any>>
     getSubject?: (c: Context) => string | null;
     authorize?: (
         subject: string,
-        events: InferEventNames<TRouter>[]
+        events: InferEventNames<TRouter>[],
     ) => Promise<InferEventNames<TRouter>[]> | InferEventNames<TRouter>[];
     filter?: {
         [K in InferEventNames<TRouter>]?: (
             subject: string,
-            payload: InferEventPayload<TRouter, K>
+            payload: InferEventPayload<TRouter, K>,
         ) => boolean;
     };
 }

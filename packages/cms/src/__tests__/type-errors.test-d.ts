@@ -12,20 +12,20 @@ const labelsDefinition = defineLabels({
     home: {
         title: { en: 'Home', ko: '홈' },
         hero: {
-            title: { en: 'Welcome', ko: '환영합니다' }
-        }
+            title: { en: 'Welcome', ko: '환영합니다' },
+        },
     },
     about: {
-        title: { en: 'About Us', ko: '회사 소개' }
+        title: { en: 'About Us', ko: '회사 소개' },
     },
     contact: {
-        email: { en: 'Email', ko: '이메일' }
-    }
+        email: { en: 'Email', ko: '이메일' },
+    },
 });
 
 const labelConfig = defineLabelConfig({
     locales: ['en', 'ko'] as const,
-    defaultLocale: 'en'
+    defaultLocale: 'en',
 });
 
 const { getLabel, getLabels } = createCmsClient(labelsDefinition, labelConfig);

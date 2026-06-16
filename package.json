@@ -11,23 +11,25 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
-    "lint": "turbo run lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "clean": "turbo run clean",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "test:init": "node scripts/test-init.mjs",
     "publish:packages": "pnpm build --filter=\"!./apps/*\" && pnpm --filter \"./packages/*\" publish --tag alpha --access public",
     "publish:alpha": "pnpm publish:packages",
     "version:bump": "pnpm --filter \"./packages/*\" version"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.10.0",
     "chalk": "^5.6.2",
     "dotenv-cli": "^10.0.0",
+    "eslint": "^10.5.0",
     "execa": "^9.6.1",
     "fs-extra": "^11.3.2",
     "ora": "^8.2.0",
-    "prettier": "^3.7.4",
     "turbo": "^2.6.3",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.61.1"
   },
   "packageManager": "pnpm@9.1.2",
   "engines": {

@@ -101,11 +101,11 @@ type ShouldBeRequired<T> = HasDefault<T> extends true ? true : IsRequired<T>;
 export type InferEnvType<T extends EnvSchemaCollection> = {
     // Required fields (required: true OR has default)
     [K in keyof T as ShouldBeRequired<T[K]> extends true ? K : never]:
-        T[K] extends EnvVarSchema<infer U> ? U : string;
+    T[K] extends EnvVarSchema<infer U> ? U : string;
 } & {
     // Optional fields (required: false OR not specified)
     [K in keyof T as ShouldBeRequired<T[K]> extends true ? never : K]?:
-        T[K] extends EnvVarSchema<infer U> ? U | undefined : string | undefined;
+    T[K] extends EnvVarSchema<infer U> ? U | undefined : string | undefined;
 };
 
 /**
@@ -122,7 +122,7 @@ export type InferEnvType<T extends EnvSchemaCollection> = {
  * ```
  */
 export function defineEnvSchema<T extends Record<string, any>>(
-    schema: T
+    schema: T,
 ): { [K in keyof T]: T[K] & { key: K } }
 {
     const result: any = {};
@@ -156,7 +156,7 @@ export function defineEnvSchema<T extends Record<string, any>>(
  * ```
  */
 export function envString<T extends Omit<EnvVarSchema, 'key' | 'type'>>(
-    options: T
+    options: T,
 ): T & { type: 'string'; validator: (value: string) => string }
 {
     return {
@@ -184,7 +184,7 @@ export function envString<T extends Omit<EnvVarSchema, 'key' | 'type'>>(
  * ```
  */
 export function envNumber<T extends Omit<EnvVarSchema<number>, 'key' | 'type'>>(
-    options: T
+    options: T,
 ): T & { type: 'number'; validator: (value: string) => number }
 {
     return {
@@ -211,7 +211,7 @@ export function envNumber<T extends Omit<EnvVarSchema<number>, 'key' | 'type'>>(
  * ```
  */
 export function envBoolean<T extends Omit<EnvVarSchema<boolean>, 'key' | 'type'>>(
-    options: T
+    options: T,
 ): T & { type: 'boolean'; validator: (value: string) => boolean }
 {
     return {
@@ -239,7 +239,7 @@ export function envBoolean<T extends Omit<EnvVarSchema<boolean>, 'key' | 'type'>
  * ```
  */
 export function envUrl<T extends Omit<EnvVarSchema, 'key' | 'type'>>(
-    options: T
+    options: T,
 ): T & { type: 'url' }
 {
     return {
@@ -266,10 +266,10 @@ export function envUrl<T extends Omit<EnvVarSchema, 'key' | 'type'>>(
  */
 export function envEnum<
     T extends string,
-    O extends Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'>
+    O extends Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'>,
 >(
     allowed: readonly T[],
-    options: O
+    options: O,
 ): O & { type: 'enum'; validator: (val: string) => T }
 {
     return {
@@ -305,9 +305,9 @@ export function envEnum<
  */
 export function envJson<
     T = any,
-    O extends Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'> = Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'>
+    O extends Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'> = Omit<EnvVarSchema<T>, 'key' | 'type' | 'validator'>,
 >(
-    options: O
+    options: O,
 ): O & { type: 'json'; validator: (val: string) => T }
 {
     return {

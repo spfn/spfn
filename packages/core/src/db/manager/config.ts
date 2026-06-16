@@ -13,8 +13,8 @@
  * - src/server/core/db/connection.ts (connection logic)
  * - src/server/core/db/index.ts (main exports)
  */
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import type { Sql } from "postgres";
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { Sql } from 'postgres';
 import { parseNumber, parseBoolean } from '@spfn/core/env';
 
 export interface DatabaseClients
@@ -128,7 +128,7 @@ export interface RetryConfig
 function parseEnvNumber(
     key: string,
     prodDefault: number,
-    devDefault: number
+    devDefault: number,
 ): number
 {
     const isProduction = process.env.NODE_ENV === 'production';

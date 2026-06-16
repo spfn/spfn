@@ -32,7 +32,7 @@ function validateEnvironment(): void
     if (!nodeEnv)
     {
         process.stderr.write(
-            '[Logger] Warning: NODE_ENV is not set. Defaulting to test environment.\n'
+            '[Logger] Warning: NODE_ENV is not set. Defaulting to test environment.\n',
         );
     }
     // Allow any NODE_ENV value (development, production, test, staging, local, etc.)

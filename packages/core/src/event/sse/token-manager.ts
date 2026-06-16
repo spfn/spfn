@@ -108,6 +108,7 @@ class InMemoryTokenStore implements SSETokenStore
         }
 
         this.tokens.delete(token);
+
         return data;
     }
 
@@ -150,7 +151,8 @@ export class CacheTokenStore implements SSETokenStore
 {
     private prefix = 'sse:token:';
 
-    constructor(private cache: CacheClient) {}
+    constructor(private cache: CacheClient) 
+    {}
 
     async set(token: string, data: SSEToken): Promise<void>
     {

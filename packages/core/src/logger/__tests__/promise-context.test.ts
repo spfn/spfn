@@ -16,7 +16,7 @@ describe('extractQueryInfo', () =>
     it('should extract query from Drizzle error message', () =>
     {
         const error = new Error(
-            'Failed query: update "spfn_storage"."legacy_cms_files" set "sync_status" = $1, "sync_progress" = $2'
+            'Failed query: update "spfn_storage"."legacy_cms_files" set "sync_status" = $1, "sync_progress" = $2',
         );
 
         const result = extractQueryInfo(error);
@@ -29,7 +29,7 @@ describe('extractQueryInfo', () =>
     it('should extract params from error message', () =>
     {
         const error = new Error(
-            'Failed query: update "users" set "name" = $1\nparams: John,Doe,123'
+            'Failed query: update "users" set "name" = $1\nparams: John,Doe,123',
         );
 
         const result = extractQueryInfo(error);
@@ -41,7 +41,7 @@ describe('extractQueryInfo', () =>
     it('should extract table from INSERT query', () =>
     {
         const error = new Error(
-            'Failed query: INSERT INTO "users" ("name", "email") VALUES ($1, $2)'
+            'Failed query: INSERT INTO "users" ("name", "email") VALUES ($1, $2)',
         );
 
         const result = extractQueryInfo(error);
@@ -53,7 +53,7 @@ describe('extractQueryInfo', () =>
     it('should extract table from schema-qualified query', () =>
     {
         const error = new Error(
-            'Failed query: UPDATE "spfn_storage"."files" SET "status" = $1'
+            'Failed query: UPDATE "spfn_storage"."files" SET "status" = $1',
         );
 
         const result = extractQueryInfo(error);
@@ -140,7 +140,8 @@ describe('formatUnhandledRejection', () =>
         reason.stack = `Error: Database connection failed
     at DatabaseManager.connect (/path/to/db-manager.ts:50:15)`;
 
-        const promise = Promise.reject(reason).catch(() => {}); // Prevent unhandled rejection
+        const promise = Promise.reject(reason).catch(() => 
+        {}); // Prevent unhandled rejection
         const result = formatUnhandledRejection(reason, promise);
 
         expect(result.error).toBeInstanceOf(Error);
@@ -152,7 +153,8 @@ describe('formatUnhandledRejection', () =>
     it('should format string rejection', () =>
     {
         const reason = 'Something went wrong';
-        const promise = Promise.reject(reason).catch(() => {}); // Prevent unhandled rejection
+        const promise = Promise.reject(reason).catch(() => 
+        {}); // Prevent unhandled rejection
         const result = formatUnhandledRejection(reason, promise);
 
         expect(result.error).toBeInstanceOf(Error);
@@ -162,12 +164,13 @@ describe('formatUnhandledRejection', () =>
     it('should extract DB query info when available', () =>
     {
         const reason = new Error(
-            'Failed query: update "users" set "status" = $1\nparams: active'
+            'Failed query: update "users" set "status" = $1\nparams: active',
         );
         reason.stack = `Error: Failed query...
     at UserRepository.updateStatus (/path/to/user.repository.ts:100:10)`;
 
-        const promise = Promise.reject(reason).catch(() => {}); // Prevent unhandled rejection
+        const promise = Promise.reject(reason).catch(() => 
+        {}); // Prevent unhandled rejection
         const result = formatUnhandledRejection(reason, promise);
 
         expect(result.context.queryInfo).toBeDefined();
@@ -180,7 +183,8 @@ describe('formatUnhandledRejection', () =>
         reason.stack = `Error: Query failed
     at LegacyCmsFilesRepository.updateStatus (/path/to/legacy-cms-files.repository.ts:266:18)`;
 
-        const promise = Promise.reject(reason).catch(() => {}); // Prevent unhandled rejection
+        const promise = Promise.reject(reason).catch(() => 
+        {}); // Prevent unhandled rejection
         const result = formatUnhandledRejection(reason, promise);
 
         expect(result.context.promiseContext).toBeDefined();

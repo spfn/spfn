@@ -97,7 +97,7 @@ function isLocaleRecord(obj: any): boolean
 export function bindLocale<T>(
     labels: T,
     locale: string,
-    fallbackLocale?: string
+    fallbackLocale?: string,
 ): BoundLabels<T>
 {
     return createProxy(labels, locale, fallbackLocale) as BoundLabels<T>;
@@ -136,6 +136,7 @@ function createProxy(obj: any, locale: string, fallbackLocale?: string): any
 
                 // If locale not found, return first available locale
                 const firstLocale = Object.keys(value)[0];
+
                 return value[firstLocale];
             }
 

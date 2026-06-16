@@ -23,7 +23,8 @@ export const startCommand = new Command('start')
     .action(async (options: StartOptions) =>
     {
         // Set NODE_ENV to production (Next.js style)
-        if (!process.env.NODE_ENV) {
+        if (!process.env.NODE_ENV) 
+        {
             process.env.NODE_ENV = 'production';
         }
 
@@ -85,7 +86,7 @@ export const startCommand = new Command('start')
                 await execa('node', [serverEntry], {
                     stdio: 'inherit',
                     cwd,
-                    env: { ...process.env }
+                    env: { ...process.env },
                 });
             }
             catch (error)
@@ -137,8 +138,8 @@ export const startCommand = new Command('start')
                 {
                     stdio: 'inherit',
                     cwd,
-                    env: { ...process.env }
-                }
+                    env: { ...process.env },
+                },
             );
         }
         catch (error)
