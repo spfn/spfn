@@ -235,4 +235,4 @@ export const appRouter = defineRouter({
 
 ## License
 
-MIT © INFLIKE Inc.
+MIT © FXY Inc.
