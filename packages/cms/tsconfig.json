@@ -13,6 +13,6 @@
             "@spfn/cms/*": ["./src/*"]
         }
     },
-    "include": ["src/**/*", ".spfnrc.ts"],
+    "include": ["src/**/*"],
     "exclude": ["node_modules", "dist"]
 }
