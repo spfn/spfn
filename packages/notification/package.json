@@ -46,6 +46,10 @@
     "url": "https://github.com/spfn/spfn.git",
     "directory": "packages/notification"
   },
+  "homepage": "https://github.com/spfn/spfn/tree/main/packages/notification#readme",
+  "bugs": {
+    "url": "https://github.com/spfn/spfn/issues"
+  },
   "peerDependencies": {
     "@spfn/core": ">=0.2.0-beta.49",
     "@aws-sdk/client-sesv2": "^3.0.0",
