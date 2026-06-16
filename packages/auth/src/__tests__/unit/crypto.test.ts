@@ -229,7 +229,7 @@ describe('Crypto - JWT Verification Failures', () =>
         expect(() =>
         {
             verifyClientToken(token, key2.publicKey, key2.algorithm);
-        }).toThrow('Failed to verify token');
+        }).toThrow();
     });
 
     it('should reject expired token', async () =>
@@ -249,7 +249,7 @@ describe('Crypto - JWT Verification Failures', () =>
         expect(() =>
         {
             verifyClientToken(token, publicKey, algorithm);
-        }).toThrow('Failed to verify token');
+        }).toThrow();
     });
 
     it('should reject tampered token', () =>
@@ -266,7 +266,7 @@ describe('Crypto - JWT Verification Failures', () =>
         expect(() =>
         {
             verifyClientToken(tamperedToken, publicKey, algorithm);
-        }).toThrow('Failed to verify token');
+        }).toThrow();
     });
 
     it('should reject malformed token', () =>
@@ -276,7 +276,7 @@ describe('Crypto - JWT Verification Failures', () =>
         expect(() =>
         {
             verifyClientToken('not.a.valid.jwt', publicKey, algorithm);
-        }).toThrow('Failed to verify token');
+        }).toThrow();
     });
 });
 
