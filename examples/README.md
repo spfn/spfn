@@ -9,8 +9,9 @@ brings. Every example is a runnable pnpm workspace member that depends on the lo
 | --- | --- | --- |
 | [01 · Minimal API](./01-minimal-api) | A route, a router, the typed `createApi` client, and the `/api/rpc` proxy — the core request path | No |
 | [02 · Database CRUD](./02-database-crud) | A Drizzle entity, a `BaseRepository`, CRUD routes, and a migration | Yes (Postgres) |
+| [03 · Auth](./03-auth) | `@spfn/auth` — global authentication, public/protected routes, sessions, and RBAC | Yes (Postgres) |
 
-More stages (auth, errors, and feature modules like CMS/monitoring/notifications)
+More stages (errors, and feature modules like CMS / monitoring / notifications)
 are on the way.
 
 ## Running any example

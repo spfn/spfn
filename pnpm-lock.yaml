@@ -158,6 +158,76 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  examples/03-auth:
+    dependencies:
+      '@sinclair/typebox':
+        specifier: ^0.34.0
+        version: 0.34.41
+      '@spfn/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@spfn/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      concurrently:
+        specifier: ^9.2.1
+        version: 9.2.1
+      drizzle-orm:
+        specifier: ^0.45.0
+        version: 0.45.0(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+      drizzle-typebox:
+        specifier: ^0.1.0
+        version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.0(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
+      next:
+        specifier: ^16.1.7
+        version: 16.2.2(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.3
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.3(react@19.2.3)
+      spfn:
+        specifier: workspace:*
+        version: link:../../packages/cli
+    devDependencies:
+      '@svgr/webpack':
+        specifier: ^8.1.0
+        version: 8.1.0(typescript@5.9.3)
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.1.16
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.25
+      '@types/react':
+        specifier: ^19
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.2(@types/react@19.2.2)
+      babel-plugin-react-compiler:
+        specifier: 1.0.0
+        version: 1.0.0
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      drizzle-kit:
+        specifier: ^0.31.5
+        version: 0.31.8
+      tailwindcss:
+        specifier: ^4
+        version: 4.1.16
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.8.2)
+      tsx:
+        specifier: ^4.20.6
+        version: 4.20.6
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   packages/auth:
     dependencies:
       bcryptjs:

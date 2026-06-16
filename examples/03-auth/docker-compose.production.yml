@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # Database migration service (runs before app starts)
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NODE_ENV=production
+    command: pnpm spfn db migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - spfn-network
+    restart: "no"  # Only run once
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3790:3790"  # Next.js
+      - "8790:8790"  # SPFN API
+    environment:
+      # Required: Set these via .env file or environment
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - NODE_ENV=production
+      # Optional: Frontend API URL
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8790}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - spfn-network
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-spfn_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-spfn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-spfn}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spfn-network
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - spfn-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  spfn-network:
+    driver: bridge
