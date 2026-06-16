@@ -155,7 +155,7 @@ describe('Crypto - JWT Signing with ES256', () =>
             { userId: '123' },
             privateKey,
             algorithm,
-            { expiresIn: '1h' }
+            { expiresIn: '1h' },
         );
 
         const decoded = verifyClientToken(token, publicKey, algorithm);
@@ -174,7 +174,7 @@ describe('Crypto - JWT Signing with ES256', () =>
             { userId: '123' },
             privateKey,
             algorithm,
-            { issuer: 'custom-issuer' }
+            { issuer: 'custom-issuer' },
         );
 
         // Note: verifyClientToken enforces 'spfn-client' issuer for security
@@ -240,7 +240,7 @@ describe('Crypto - JWT Verification Failures', () =>
             { userId: '123' },
             privateKey,
             algorithm,
-            { expiresIn: '1ms' } // 1 millisecond
+            { expiresIn: '1ms' }, // 1 millisecond
         );
 
         // Wait for token to expire

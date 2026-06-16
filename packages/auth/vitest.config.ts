@@ -65,5 +65,5 @@ export default defineConfig(
                 '@auth': resolve(__dirname, './src'),
             },
         },
-    }
+    },
 );

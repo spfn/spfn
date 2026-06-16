@@ -28,7 +28,6 @@ export const INVITATION_STATUSES = ['pending', 'accepted', 'expired', 'cancelled
  */
 export type InvitationStatus = typeof INVITATION_STATUSES[number];
 
-
 /**
  * User status enum values
  * Single source of truth for all user statuses
@@ -44,7 +43,7 @@ export type UserStatus = typeof USER_STATUSES[number];
  * Social provider enum values
  * Single source of truth for supported OAuth providers
  */
-export const SOCIAL_PROVIDERS = ['google', 'github', 'kakao', 'naver', 'superself'] as const;
+export const SOCIAL_PROVIDERS = ['google', 'apple', 'github', 'kakao', 'naver', 'superself'] as const;
 
 /**
  * Social provider type derived from the const array

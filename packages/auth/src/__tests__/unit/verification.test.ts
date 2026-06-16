@@ -103,7 +103,7 @@ describe('Verification Helpers', () =>
             };
 
             expect(() => createVerificationToken(payload)).toThrow(
-                'VERIFICATION_TOKEN_SECRET must be at least 32 characters long'
+                'VERIFICATION_TOKEN_SECRET must be at least 32 characters long',
             );
         });
     });
@@ -156,7 +156,7 @@ describe('Verification Helpers', () =>
                     expiresIn: '15m',
                     issuer: 'wrong-issuer', // Wrong issuer
                     audience: 'spfn-client',
-                }
+                },
             );
 
             const decoded = validateVerificationToken(token);
@@ -178,7 +178,7 @@ describe('Verification Helpers', () =>
                     expiresIn: '15m',
                     issuer: 'spfn-auth',
                     audience: 'wrong-audience', // Wrong audience
-                }
+                },
             );
 
             const decoded = validateVerificationToken(token);
@@ -200,7 +200,7 @@ describe('Verification Helpers', () =>
                     expiresIn: '-1s', // Already expired
                     issuer: 'spfn-auth',
                     audience: 'spfn-client',
-                }
+                },
             );
 
             const decoded = validateVerificationToken(token);
@@ -221,7 +221,7 @@ describe('Verification Helpers', () =>
                     expiresIn: '15m',
                     issuer: 'spfn-auth',
                     audience: 'spfn-client',
-                }
+                },
             );
 
             const decoded = validateVerificationToken(token);

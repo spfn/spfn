@@ -48,6 +48,7 @@ function getKeyExpiryDate(): Date
 {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 90);
+
     return expiresAt;
 }
 
@@ -55,7 +56,7 @@ function getKeyExpiryDate(): Date
  * Register a new public key for a user
  */
 export async function registerPublicKeyService(
-    params: RegisterPublicKeyParams
+    params: RegisterPublicKeyParams,
 ): Promise<void>
 {
     const { userId, keyId, publicKey, fingerprint, algorithm = 'ES256' } = params;
@@ -91,7 +92,7 @@ export async function registerPublicKeyService(
  * Rotate user's public key (revoke old, register new)
  */
 export async function rotateKeyService(
-    params: RotateKeyParams
+    params: RotateKeyParams,
 ): Promise<RotateKeyResult>
 {
     const { userId, oldKeyId, newKeyId, newPublicKey, fingerprint, algorithm = 'ES256' } = params;
@@ -107,7 +108,7 @@ export async function rotateKeyService(
     await keysRepository.revokeByKeyIdAndUserId(
         oldKeyId,
         userId,
-        'Replaced by key rotation'
+        'Replaced by key rotation',
     );
 
     // Store new public key (90 days expiry)
@@ -132,7 +133,7 @@ export async function rotateKeyService(
  * Revoke a user's public key
  */
 export async function revokeKeyService(
-    params: RevokeKeyParams
+    params: RevokeKeyParams,
 ): Promise<void>
 {
     const { userId, keyId, reason } = params;

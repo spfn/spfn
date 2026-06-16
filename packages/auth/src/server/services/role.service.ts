@@ -95,7 +95,7 @@ export async function updateRole(
         description?: string;
         priority?: number;
         isActive?: boolean;
-    }
+    },
 ): Promise<Role>
 {
     const roleIdNum = Number(roleId);
@@ -300,7 +300,7 @@ export async function getRolePermissions(roleId: number): Promise<string[]>
     // Get permissions by IDs
     const permissionIds = mappings.map(m => m.permissionId);
     const perms = await Promise.all(
-        permissionIds.map(id => permissionsRepository.findById(id))
+        permissionIds.map(id => permissionsRepository.findById(id)),
     );
 
     // Filter out nulls and return names

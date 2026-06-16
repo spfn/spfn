@@ -320,6 +320,33 @@ export const authEnvSchema = defineEnvSchema({
         }),
     },
 
+    // ============================================================================
+    // Native Social Login (mobile/web id_token verification)
+    //
+    // 네이티브 SDK가 받은 id_token을 서버가 JWKS로 검증하는 경로 전용 설정.
+    // authorization code 교환을 하지 않으므로 client secret이 필요 없다.
+    // audience(aud)로 허용할 client id 목록만 지정한다.
+    // ============================================================================
+    SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS: {
+        ...envString({
+            description: 'Comma-separated Google client IDs accepted as id_token audience for native sign-in (iOS, Android, web). When set, Google native sign-in is enabled. SPFN_AUTH_GOOGLE_CLIENT_ID is also accepted automatically.',
+            required: false,
+            examples: [
+                '123-ios.apps.googleusercontent.com,123-android.apps.googleusercontent.com',
+            ],
+        }),
+    },
+
+    SPFN_AUTH_APPLE_CLIENT_IDS: {
+        ...envString({
+            description: 'Comma-separated Apple client IDs accepted as id_token audience for native sign-in (iOS bundle ID, web/Android Services ID). When set, Apple native sign-in is enabled.',
+            required: false,
+            examples: [
+                'com.example.app,com.example.app.service',
+            ],
+        }),
+    },
+
     SPFN_AUTH_OAUTH_SUCCESS_URL: {
         ...envString({
             description: 'OAuth callback page URL. This page should use OAuthCallback component to finalize session.',

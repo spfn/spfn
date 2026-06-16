@@ -61,6 +61,7 @@ export function createOAuthCallbackHandler(options?: OAuthCallbackOptions)
         {
             const errorUrl = new URL(errorRedirect, request.url);
             errorUrl.searchParams.set('error', error);
+
             return NextResponse.redirect(errorUrl);
         }
 
@@ -70,6 +71,7 @@ export function createOAuthCallbackHandler(options?: OAuthCallbackOptions)
             logger.error('OAuth callback missing required params', { userId: !!userId, keyId: !!keyId });
             const errorUrl = new URL(errorRedirect, request.url);
             errorUrl.searchParams.set('error', 'Missing required parameters');
+
             return NextResponse.redirect(errorUrl);
         }
 
@@ -137,6 +139,7 @@ export function createOAuthCallbackHandler(options?: OAuthCallbackOptions)
 
             const errorUrl = new URL(errorRedirect, request.url);
             errorUrl.searchParams.set('error', err.message);
+
             return NextResponse.redirect(errorUrl);
         }
     };

@@ -76,5 +76,5 @@ export const requireRole = defineMiddleware('role',
         });
 
         await next();
-    }
+    },
 );

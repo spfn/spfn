@@ -5,8 +5,8 @@
  * Other modules import from this file to ensure consistency.
  */
 
-import { Type, Static } from "@sinclair/typebox";
-import { EMAIL_PATTERN, PHONE_PATTERN } from "@spfn/auth";
+import { Type, Static } from '@sinclair/typebox';
+import { EMAIL_PATTERN, PHONE_PATTERN } from '@spfn/auth';
 
 // ============================================================================
 // Basic Schemas
@@ -14,17 +14,17 @@ import { EMAIL_PATTERN, PHONE_PATTERN } from "@spfn/auth";
 
 export const EmailSchema = Type.String({
     pattern: EMAIL_PATTERN,
-    description: 'Email address'
+    description: 'Email address',
 });
 
 export const PhoneSchema = Type.String({
     pattern: PHONE_PATTERN,
-    description: 'Phone number in E.164 format (e.g., +821012345678)'
+    description: 'Phone number in E.164 format (e.g., +821012345678)',
 });
 
 export const PasswordSchema = Type.String({
     minLength: 8,
-    description: 'User password (minimum 8 characters)'
+    description: 'User password (minimum 8 characters)',
 });
 
 // ============================================================================
@@ -33,9 +33,9 @@ export const PasswordSchema = Type.String({
 
 export const TargetTypeSchema = Type.Union([
     Type.Literal('email'),
-    Type.Literal('phone')
+    Type.Literal('phone'),
 ], {
-    description: 'Type of target (email or phone)'
+    description: 'Type of target (email or phone)',
 });
 
 export type VerificationTargetType = Static<typeof TargetTypeSchema>;
@@ -51,9 +51,9 @@ export const VerificationPurposeSchema = Type.Union([
     Type.Literal('login'),
     Type.Literal('password_reset'),
     Type.Literal('email_change'),
-    Type.Literal('phone_change')
+    Type.Literal('phone_change'),
 ], {
-    description: 'Purpose of verification'
+    description: 'Purpose of verification',
 });
 
 export type VerificationPurpose = Static<typeof VerificationPurposeSchema>;

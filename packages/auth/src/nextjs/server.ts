@@ -1,4 +1,4 @@
-import "server-only";
+import 'server-only';
 
 export { RequireAuth } from './guards/require-auth';
 export type { RequireAuthProps } from './guards/require-auth';

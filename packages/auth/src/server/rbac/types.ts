@@ -13,7 +13,7 @@ export const PERMISSION_CATEGORIES = [
     'user',      // User management
     'rbac',      // Role & permission management
     'system',    // System administration
-    'custom'     // App-specific categories
+    'custom',     // App-specific categories
 ] as const;
 
 /**

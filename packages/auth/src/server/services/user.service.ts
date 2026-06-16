@@ -4,7 +4,7 @@
  * Handles user CRUD operations
  */
 
-import { type NewUser } from "../entities/users";
+import { type NewUser } from '../entities/users';
 import { usersRepository } from '../repositories';
 import { ValidationError } from '@spfn/core/errors';
 import { ReservedUsernameError, UsernameAlreadyTakenError } from '@spfn/auth/errors';
@@ -47,7 +47,7 @@ export async function updateLastLoginService(userId: number)
  */
 export async function updateUserService(
     userId: number,
-    updates: Partial<NewUser>
+    updates: Partial<NewUser>,
 ): Promise<void>
 {
     await usersRepository.updateById(userId, updates);
@@ -65,7 +65,7 @@ function getReservedUsernames(): Set<string>
     }
 
     return new Set(
-        raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+        raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
     );
 }
 
@@ -119,6 +119,7 @@ export async function checkUsernameAvailableService(username: string)
     }
 
     const existing = await usersRepository.findByUsername(username);
+
     return !existing;
 }
 

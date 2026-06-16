@@ -5,7 +5,7 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewRoleEntity, roles } from "../entities/roles";
+import { NewRoleEntity, roles } from '../entities/roles';
 import { BaseRepository } from '@spfn/core/db';
 import { eq, asc } from 'drizzle-orm';
 

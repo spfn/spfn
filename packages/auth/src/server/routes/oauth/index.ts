@@ -16,6 +16,7 @@ import { KEY_ALGORITHM, SOCIAL_PROVIDERS } from '../../types';
 import {
     oauthStartService,
     oauthCallbackService,
+    oauthNativeService,
     buildOAuthErrorUrl,
     getEnabledOAuthProviders,
     requireEnabledProvider,
@@ -56,6 +57,7 @@ export const oauthGoogleStart = route.get('/_auth/oauth/google')
         }
 
         const authUrl = getGoogleAuthUrl(query.state);
+
         return c.redirect(authUrl);
     });
 
@@ -92,6 +94,7 @@ export const oauthGoogleCallback = route.get('/_auth/oauth/google/callback')
         if (query.error)
         {
             const errorMessage = query.error_description || query.error;
+
             return c.redirect(buildOAuthErrorUrl(errorMessage));
         }
 
@@ -114,6 +117,7 @@ export const oauthGoogleCallback = route.get('/_auth/oauth/google/callback')
         catch (err)
         {
             const message = err instanceof Error ? err.message : 'OAuth callback failed';
+
             return c.redirect(buildOAuthErrorUrl(message));
         }
     });
@@ -156,6 +160,7 @@ export const oauthStart = route.post('/_auth/oauth/start')
         const { body } = await c.data();
 
         const result = await oauthStartService(body);
+
         return result;
     });
 
@@ -312,6 +317,7 @@ export const oauthProviderCallback = route.get('/_auth/oauth/:provider/callback'
         if (query.error)
         {
             const errorMessage = query.error_description || query.error;
+
             return c.redirect(buildOAuthErrorUrl(errorMessage));
         }
 
@@ -334,6 +340,7 @@ export const oauthProviderCallback = route.get('/_auth/oauth/:provider/callback'
         catch (err)
         {
             const message = err instanceof Error ? err.message : 'OAuth callback failed';
+
             return c.redirect(buildOAuthErrorUrl(message));
         }
     });
@@ -382,6 +389,48 @@ export const getProviderOAuthUrl = route.post('/_auth/oauth/:provider/url')
         return { authUrl: provider.getAuthUrl(body.state) };
     });
 
+/**
+ * POST /_auth/oauth/:provider/native - 네이티브/웹 id_token 로그인
+ *
+ * 네이티브 SDK(또는 웹 Sign in with Apple JS)가 받은 id_token을 서버가 JWKS로 검증하고,
+ * 클라이언트가 생성한 공개키를 등록한다. 토큰은 반환하지 않는다 — 클라이언트가 등록한
+ * 키로 client token을 직접 서명해 Bearer로 사용한다.
+ *
+ * Apple은 Android·웹에 네이티브 SDK가 없어 web 흐름(Custom Tab / Sign in with Apple JS)으로
+ * id_token을 얻은 뒤 이 엔드포인트로 보낸다. 어느 경로든 서버 계약은 동일하다.
+ */
+export const oauthNative = route.post('/_auth/oauth/:provider/native')
+    .input({
+        params: providerParams,
+        body: Type.Object({
+            idToken: Type.String({ description: 'id_token from native/web social SDK' }),
+            nonce: Type.String({ description: 'Raw nonce used when requesting the id_token' }),
+            publicKey: Type.String({ description: 'Client public key (Base64 DER)' }),
+            keyId: Type.String({ description: 'Key identifier (UUID)' }),
+            fingerprint: Type.String({ description: 'Key fingerprint (SHA-256 hex)' }),
+            algorithm: Type.Union(KEY_ALGORITHM.map(a => Type.Literal(a)), {
+                description: 'Key algorithm (ES256 or RS256)',
+            }),
+            profile: Type.Optional(Type.Object({
+                name: Type.Optional(Type.String()),
+            }, {
+                description: 'Optional profile. Apple provides name only on first sign-in.',
+            })),
+            metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), {
+                description: 'Custom metadata passed to auth events (e.g. referral code, UTM params)',
+            })),
+        }),
+    })
+    // Transactional 미들웨어를 쓰지 않는다. id_token 검증(외부 JWKS 조회)을 트랜잭션 밖에서
+    // 먼저 하고, DB 쓰기만 oauthNativeService 내부의 runInTransaction으로 감싼다.
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        const { params, body } = await c.data();
+
+        return await oauthNativeService({ provider: params.provider, ...body });
+    });
+
 // Export router
 export const oauthRouter = defineRouter({
     oauthGoogleStart,
@@ -393,6 +442,7 @@ export const oauthRouter = defineRouter({
     oauthProviderStart,
     oauthProviderCallback,
     getProviderOAuthUrl,
+    oauthNative,
 });
 
 export default oauthRouter;

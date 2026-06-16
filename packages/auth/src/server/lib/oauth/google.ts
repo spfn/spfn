@@ -81,6 +81,7 @@ function getDefaultScopes(): string[]
     {
         return envScopes.split(',').map(s => s.trim()).filter(Boolean);
     }
+
     return ['email', 'profile'];
 }
 
@@ -92,7 +93,7 @@ function getDefaultScopes(): string[]
  */
 export function getGoogleAuthUrl(
     state: string,
-    scopes?: string[]
+    scopes?: string[],
 ): string
 {
     const resolvedScopes = scopes ?? getDefaultScopes();

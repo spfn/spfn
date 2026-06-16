@@ -105,7 +105,7 @@ function tokenExpiryDate(expiresIn: number): Date
  * Next.js에서 키쌍을 생성한 후, publicKey를 state에 포함하여 호출
  */
 export async function oauthStartService(
-    params: OAuthStartParams
+    params: OAuthStartParams,
 ): Promise<OAuthStartResult>
 {
     const { provider, returnUrl, publicKey, keyId, fingerprint, algorithm, metadata } = params;
@@ -132,7 +132,7 @@ export async function oauthStartService(
  * Next.js는 반환된 userId, keyId로 세션을 구성
  */
 export async function oauthCallbackService(
-    params: OAuthCallbackParams
+    params: OAuthCallbackParams,
 ): Promise<OAuthCallbackResult>
 {
     const { provider, code, state } = params;
@@ -158,7 +158,7 @@ export async function oauthCallbackService(
     // 3. 기존 소셜 계정 확인
     const existingSocialAccount = await socialAccountsRepository.findByProviderAndProviderId(
         provider,
-        identity.providerUserId
+        identity.providerUserId,
     );
 
     let userId: number;
@@ -238,11 +238,13 @@ export async function oauthCallbackService(
  * 사용자 생성 또는 기존 사용자에 소셜 계정 연결
  *
  * 모든 OAuth provider 공통 경로. provider별 응답은 NormalizedIdentity로 정규화되어 들어온다.
+ * tokens는 web(code 교환) 흐름에서만 전달된다. native id_token 흐름은 provider 토큰이
+ * 없으므로 생략하며, social account의 토큰 컬럼은 null로 저장된다.
  */
-async function createOrLinkUser(
+export async function createOrLinkUser(
     provider: SocialProvider,
     identity: NormalizedIdentity,
-    tokens: OAuthTokens
+    tokens?: OAuthTokens,
 ): Promise<{ userId: number; isNewUser: boolean }>
 {
     // 이메일로 기존 사용자 검색
@@ -299,15 +301,15 @@ async function createOrLinkUser(
         isNewUser = true;
     }
 
-    // 소셜 계정 생성
+    // 소셜 계정 생성 (native 흐름은 provider 토큰이 없어 null로 저장)
     await socialAccountsRepository.create({
         userId,
         provider,
         providerUserId: identity.providerUserId,
         providerEmail: identity.email,
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken ?? null,
-        tokenExpiresAt: tokenExpiryDate(tokens.expiresIn),
+        accessToken: tokens?.accessToken ?? null,
+        refreshToken: tokens?.refreshToken ?? null,
+        tokenExpiresAt: tokens ? tokenExpiryDate(tokens.expiresIn) : null,
     });
 
     return { userId, isNewUser };
@@ -318,7 +320,7 @@ async function createOrLinkUser(
  */
 function buildRedirectUrl(
     baseUrl: string,
-    params: Record<string, string>
+    params: Record<string, string>,
 ): string
 {
     const url = new URL(baseUrl, 'http://placeholder');
@@ -342,6 +344,7 @@ function buildRedirectUrl(
 export function buildOAuthErrorUrl(error: string): string
 {
     const errorUrl = env.SPFN_AUTH_OAUTH_ERROR_URL || '/auth/error?error={error}';
+
     return errorUrl.replace('{error}', encodeURIComponent(error));
 }
 

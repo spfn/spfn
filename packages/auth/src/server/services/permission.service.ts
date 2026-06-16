@@ -48,7 +48,7 @@ export async function getUserPermissions(userId: string | number | bigint): Prom
     if (permIds.length > 0)
     {
         const rolePerms = await Promise.all(
-            permIds.map(id => permissionsRepository.findById(id))
+            permIds.map(id => permissionsRepository.findById(id)),
         );
 
         for (const perm of rolePerms)
@@ -99,10 +99,11 @@ export async function getUserPermissions(userId: string | number | bigint): Prom
  */
 export async function hasPermission(
     userId: string | number | bigint,
-    permissionName: string
+    permissionName: string,
 ): Promise<boolean>
 {
     const perms = await getUserPermissions(userId);
+
     return perms.includes(permissionName);
 }
 
@@ -122,10 +123,11 @@ export async function hasPermission(
  */
 export async function hasAnyPermission(
     userId: string | number | bigint,
-    permissionNames: string[]
+    permissionNames: string[],
 ): Promise<boolean>
 {
     const perms = await getUserPermissions(userId);
+
     return permissionNames.some(p => perms.includes(p));
 }
 
@@ -145,10 +147,11 @@ export async function hasAnyPermission(
  */
 export async function hasAllPermissions(
     userId: string | number | bigint,
-    permissionNames: string[]
+    permissionNames: string[],
 ): Promise<boolean>
 {
     const perms = await getUserPermissions(userId);
+
     return permissionNames.every(p => perms.includes(p));
 }
 
@@ -197,6 +200,7 @@ export async function getUserRole(userId: string | number | bigint): Promise<str
 export async function hasRole(userId: string | number | bigint, roleName: string): Promise<boolean>
 {
     const role = await getUserRole(userId);
+
     return role === roleName;
 }
 

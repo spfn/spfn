@@ -4,7 +4,7 @@
  * Thin route handlers for user invitation management
  */
 
-import { EMAIL_PATTERN, UUID_PATTERN } from "@spfn/auth";
+import { EMAIL_PATTERN, UUID_PATTERN } from '@spfn/auth';
 import { getAuth } from '../../helpers';
 import { authenticate, requirePermissions, requireRole } from '../../middleware';
 import { KEY_ALGORITHM } from '../../types';
@@ -17,7 +17,7 @@ import {
     cancelInvitation as _cancelInvitation,
     resendInvitation as _resendInvitation,
     deleteInvitation as _deleteInvitation,
-} from "../../services";
+} from '../../services';
 import { Type } from '@sinclair/typebox';
 import { defineRouter, route } from '@spfn/core/route';
 
@@ -39,9 +39,9 @@ export const getInvitation = route.get('/_auth/invitations/:token')
         params: Type.Object({
             token: Type.String({
                 pattern: UUID_PATTERN,
-                description: 'Invitation token (UUID v4)'
+                description: 'Invitation token (UUID v4)',
             }),
-        })
+        }),
     })
     .skip(['auth'])
     .handler(async (c) =>
@@ -83,13 +83,13 @@ export const acceptInvitation = route.post('/_auth/invitations/accept')
         body: Type.Object({
             token: Type.String({
                 pattern: UUID_PATTERN,
-                description: 'Invitation token'
+                description: 'Invitation token',
             }),
             password: Type.String({
                 minLength: 8,
-                description: 'User password (minimum 8 characters)'
+                description: 'User password (minimum 8 characters)',
             }),
-        })
+        }),
     })
     .interceptor({
         body: Type.Object({
@@ -97,7 +97,7 @@ export const acceptInvitation = route.post('/_auth/invitations/accept')
             keyId: Type.String({ description: 'Key identifier' }),
             fingerprint: Type.String({ description: 'Key fingerprint' }),
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
-        })
+        }),
     })
     .skip(['auth'])
     .handler(async (c) =>
@@ -127,24 +127,24 @@ export const createInvitation = route.post('/_auth/invitations')
         body: Type.Object({
             email: Type.String({
                 pattern: EMAIL_PATTERN,
-                description: 'Email address'
+                description: 'Email address',
             }),
             roleId: Type.Number({
-                description: 'Role ID to assign'
+                description: 'Role ID to assign',
             }),
             expiresInDays: Type.Optional(Type.Number({
                 minimum: 1,
                 maximum: 30,
-                description: 'Days until invitation expires (default: 7)'
+                description: 'Days until invitation expires (default: 7)',
             })),
             expiresAt: Type.Optional(Type.String({
                 format: 'date-time',
-                description: 'Exact expiration timestamp (ISO 8601). Takes precedence over expiresInDays.'
+                description: 'Exact expiration timestamp (ISO 8601). Takes precedence over expiresInDays.',
             })),
             metadata: Type.Optional(Type.Any({
-                description: 'Custom metadata (welcome message, department, etc.)'
+                description: 'Custom metadata (welcome message, department, etc.)',
             })),
-        })
+        }),
     })
     .use([authenticate, requirePermissions('user:invite')])
     .handler(async (c) =>
@@ -184,18 +184,18 @@ export const listInvitations = route.get('/_auth/invitations')
         query: Type.Object({
             status: Type.Optional(Type.Union(
                 INVITATION_STATUSES.map(s => Type.Literal(s)),
-                { description: 'Filter by status' }
+                { description: 'Filter by status' },
             )),
             page: Type.Optional(Type.Number({
                 minimum: 1,
-                description: 'Page number (default: 1)'
+                description: 'Page number (default: 1)',
             })),
             limit: Type.Optional(Type.Number({
                 minimum: 1,
                 maximum: 100,
-                description: 'Items per page (default: 20)'
+                description: 'Items per page (default: 20)',
             })),
-        })
+        }),
     })
     .use([authenticate, requirePermissions('user:read')])
     .handler(async (c) =>
@@ -225,12 +225,12 @@ export const cancelInvitation = route.post('/_auth/invitations/cancel')
     .input({
         body: Type.Object({
             id: Type.Number({
-                description: 'Invitation ID'
+                description: 'Invitation ID',
             }),
             reason: Type.Optional(Type.String({
-                description: 'Cancellation reason'
+                description: 'Cancellation reason',
             })),
-        })
+        }),
     })
     .use([authenticate, requirePermissions('user:invite')])
     .handler(async (c) =>
@@ -241,7 +241,7 @@ export const cancelInvitation = route.post('/_auth/invitations/cancel')
         await _cancelInvitation(
             body.id,
             Number(userId),
-            body.reason
+            body.reason,
         );
 
         return {
@@ -257,14 +257,14 @@ export const resendInvitation = route.post('/_auth/invitations/resend')
     .input({
         body: Type.Object({
             id: Type.Number({
-                description: 'Invitation ID'
+                description: 'Invitation ID',
             }),
             expiresInDays: Type.Optional(Type.Number({
                 minimum: 1,
                 maximum: 30,
-                description: 'New expiration period (default: 7)'
+                description: 'New expiration period (default: 7)',
             })),
-        })
+        }),
     })
     .use([authenticate, requirePermissions('user:invite')])
     .handler(async (c) =>
@@ -273,7 +273,7 @@ export const resendInvitation = route.post('/_auth/invitations/resend')
 
         const updated = await _resendInvitation(
             body.id,
-            body.expiresInDays
+            body.expiresInDays,
         );
 
         return {
@@ -289,9 +289,9 @@ export const deleteInvitation = route.post('/_auth/invitations/delete')
     .input({
         body: Type.Object({
             id: Type.Number({
-                description: 'Invitation ID'
+                description: 'Invitation ID',
             }),
-        })
+        }),
     })
     .use([authenticate, requireRole('superadmin')])
     .handler(async (c) =>

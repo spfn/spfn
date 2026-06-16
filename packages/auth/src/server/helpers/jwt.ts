@@ -87,7 +87,7 @@ export function verifyToken(token: string): TokenPayload
 export function verifyClientToken(
     token: string,
     publicKeyB64: string,
-    algorithm: KeyAlgorithmType
+    algorithm: KeyAlgorithmType,
 ): TokenPayload
 {
     // Convert Base64 DER to key object
@@ -180,7 +180,7 @@ export function decodeToken(token: string): TokenPayload | null
  */
 export function verifyKeyFingerprint(
     publicKeyB64: string,
-    expectedFingerprint: string
+    expectedFingerprint: string,
 ): boolean
 {
     try
@@ -196,6 +196,7 @@ export function verifyKeyFingerprint(
     catch (error)
     {
         console.error('Failed to verify key fingerprint:', error);
+
         return false;
     }
 }

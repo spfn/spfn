@@ -2,11 +2,12 @@
  * Auth Error Exports
  */
 
-import { ErrorRegistry } from "@spfn/core/errors";
+import { ErrorRegistry } from '@spfn/core/errors';
 
 import {
     InvalidCredentialsError,
     InvalidTokenError,
+    InvalidSocialTokenError,
     TokenExpiredError,
     KeyExpiredError,
     AccountDisabledError,
@@ -25,6 +26,7 @@ import {
 export {
     InvalidCredentialsError,
     InvalidTokenError,
+    InvalidSocialTokenError,
     TokenExpiredError,
     KeyExpiredError,
     AccountDisabledError,
@@ -44,6 +46,7 @@ export const authErrorRegistry = new ErrorRegistry();
 authErrorRegistry.append([
     InvalidCredentialsError,
     InvalidTokenError,
+    InvalidSocialTokenError,
     TokenExpiredError,
     KeyExpiredError,
     AccountDisabledError,

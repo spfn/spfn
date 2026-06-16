@@ -78,7 +78,7 @@ export const requirePermissions = defineMiddleware('permission',
         });
 
         await next();
-    }
+    },
 );
 
 /**
@@ -140,5 +140,5 @@ export const requireAnyPermission = defineMiddleware('anyPermission',
         });
 
         await next();
-    }
+    },
 );

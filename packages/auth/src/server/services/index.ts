@@ -140,6 +140,16 @@ export type {
     OAuthCallbackResult,
 } from './oauth.service';
 
+// Native Social Login Service
+export {
+    oauthNativeService,
+} from './oauth-native.service';
+
+export type {
+    OAuthNativeParams,
+    OAuthNativeResult,
+} from './oauth-native.service';
+
 // =============================================================================
 // Email & SMS - DEPRECATED: Use @spfn/notification instead
 // =============================================================================

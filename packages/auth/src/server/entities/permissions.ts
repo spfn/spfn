@@ -10,7 +10,7 @@
  * - Category grouping for organization
  */
 
-import { PERMISSION_CATEGORIES } from "../rbac";
+import { PERMISSION_CATEGORIES } from '../rbac';
 import { text, boolean, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, typedJsonb } from '@spfn/core/db';
 import { authSchema } from './schema';
@@ -87,7 +87,7 @@ export const permissions = authSchema.table('permissions',
         index('permissions_is_system_idx').on(table.isSystem),
         index('permissions_is_active_idx').on(table.isActive),
         index('permissions_is_builtin_idx').on(table.isBuiltin),
-    ]
+    ],
 );
 
 // Type exports

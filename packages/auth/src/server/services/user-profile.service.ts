@@ -77,7 +77,7 @@ export async function getUserProfileService(userId: string | number | bigint): P
  */
 export async function updateLocaleService(
     userId: string | number | bigint,
-    locale: string
+    locale: string,
 ): Promise<{ locale: string }>
 {
     const userIdNum = Number(userId);
@@ -97,6 +97,7 @@ function emptyToNull<T>(value: T): T | null
     {
         return null;
     }
+
     return value;
 }
 
@@ -121,7 +122,7 @@ function emptyToNull<T>(value: T): T | null
  */
 export async function updateUserProfileService(
     userId: string | number | bigint,
-    params: UpdateProfileParams
+    params: UpdateProfileParams,
 ): Promise<ProfileInfo>
 {
     const userIdNum = typeof userId === 'string' ? Number(userId) : Number(userId);

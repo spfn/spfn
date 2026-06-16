@@ -18,7 +18,7 @@ export const authMetadata = authSchema.table('auth_metadata',
 
         // Last updated timestamp
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-    }
+    },
 );
 
 // Type exports

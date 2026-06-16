@@ -12,7 +12,7 @@
  * - Email/phone verification
  */
 
-import { USER_STATUSES } from "../types";
+import { USER_STATUSES } from '../types';
 import { text, check, boolean, index, uuid } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp, foreignKey } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
@@ -82,7 +82,7 @@ export const users = authSchema.table('users',
         // Ensure at least one identifier exists (email OR phone)
         check(
             'email_or_phone_check',
-            sql`${table.email} IS NOT NULL OR ${table.phone} IS NOT NULL`
+            sql`${table.email} IS NOT NULL OR ${table.phone} IS NOT NULL`,
         ),
 
         // Indexes for query optimization
@@ -92,7 +92,7 @@ export const users = authSchema.table('users',
         index('users_username_idx').on(table.username),
         index('users_status_idx').on(table.status),
         index('users_role_id_idx').on(table.roleId),
-    ]
+    ],
 );
 
 // Type exports

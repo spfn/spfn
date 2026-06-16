@@ -67,7 +67,7 @@ export const userPermissions = authSchema.table('user_permissions',
 
         // Unique constraint: one user-permission pair only
         unique('user_permissions_unique').on(table.userId, table.permissionId),
-    ]
+    ],
 );
 
 // Type exports

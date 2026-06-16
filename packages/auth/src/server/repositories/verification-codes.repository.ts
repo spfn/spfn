@@ -5,8 +5,8 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewVerificationCode, verificationCodes } from "../entities/verification-codes";
-import type { VerificationPurpose } from "../routes/schema";
+import { NewVerificationCode, verificationCodes } from '../entities/verification-codes';
+import type { VerificationPurpose } from '../routes/schema';
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, lt, gt, isNull } from 'drizzle-orm';
 
@@ -27,8 +27,9 @@ export class VerificationCodesRepository extends BaseRepository
      */
     async findValidByTargetAndPurpose(
         target: string,
-        purpose: VerificationPurpose
-    ) {
+        purpose: VerificationPurpose,
+    ) 
+    {
         const now = new Date();
 
         const result = await this.readDb
@@ -39,8 +40,8 @@ export class VerificationCodesRepository extends BaseRepository
                     eq(verificationCodes.target, target),
                     eq(verificationCodes.purpose, purpose),
                     isNull(verificationCodes.usedAt),
-                    gt(verificationCodes.expiresAt, now)
-                )
+                    gt(verificationCodes.expiresAt, now),
+                ),
             )
             .limit(1);
 
@@ -136,8 +137,9 @@ export class VerificationCodesRepository extends BaseRepository
      */
     async invalidatePreviousCodes(
         target: string,
-        purpose: VerificationPurpose
-    ) {
+        purpose: VerificationPurpose,
+    ) 
+    {
         const result = await this.db
             .update(verificationCodes)
             .set({
@@ -148,8 +150,8 @@ export class VerificationCodesRepository extends BaseRepository
                 and(
                     eq(verificationCodes.target, target),
                     eq(verificationCodes.purpose, purpose),
-                    isNull(verificationCodes.usedAt)
-                )
+                    isNull(verificationCodes.usedAt),
+                ),
             )
             .returning();
 

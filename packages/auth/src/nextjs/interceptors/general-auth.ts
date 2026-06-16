@@ -41,242 +41,245 @@ function requiresAuth(path: string): boolean
  * - Clears expired sessions
  */
 export const generalAuthInterceptor: InterceptorRule =
-{
-    pathPattern: '*',  // Match all paths, filter by requiresAuth()
-    method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-
-    request: async (ctx, next) =>
     {
+        pathPattern: '*',  // Match all paths, filter by requiresAuth()
+        method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+
+        request: async (ctx, next) =>
+        {
         // Skip if path doesn't require auth
-        if (!requiresAuth(ctx.path))
-        {
-            authLogger.interceptor.general.debug(`Public path, skipping auth: ${ctx.path}`);
-            await next();
-            return;
-        }
-
-        // Log available cookies
-        const cookieNames = Array.from(ctx.cookies.keys());
-        authLogger.interceptor.general.debug('Available cookies:', {
-            cookieNames,
-            totalCount: cookieNames.length,
-            lookingFor: COOKIE_NAMES.SESSION,
-        });
-
-        const sessionCookie = ctx.cookies.get(COOKIE_NAMES.SESSION);
-
-        authLogger.interceptor.general.debug('Request', {
-            method: ctx.method,
-            path: ctx.path,
-            hasSession: !!sessionCookie,
-            sessionLength: sessionCookie?.length ?? 0,
-            sessionPrefix: sessionCookie?.slice(0, 20) ?? '',
-            sessionSuffix: sessionCookie?.slice(-10) ?? '',
-        });
-
-        // No session cookie
-        if (!sessionCookie)
-        {
-            authLogger.interceptor.general.debug('No session cookie, proceeding without auth');
-            // Let request proceed - server will return 401
-            await next();
-            return;
-        }
-
-        try
-        {
-            // Decrypt and validate session
-            const session = await unsealSession(sessionCookie);
-
-            authLogger.interceptor.general.debug('Session valid', {
-                userId: session.userId,
-                keyId: session.keyId,
-            });
-
-            // Check if session should be refreshed (within 24h of expiry)
-            const needsRefresh = await shouldRefreshSession(sessionCookie, 24);
-
-            if (needsRefresh)
+            if (!requiresAuth(ctx.path))
             {
-                authLogger.interceptor.general.debug('Session needs refresh (within 24h of expiry)');
-                // Mark for session renewal in response interceptor
-                ctx.metadata.refreshSession = true;
-                ctx.metadata.sessionData = session;
+                authLogger.interceptor.general.debug(`Public path, skipping auth: ${ctx.path}`);
+                await next();
+
+                return;
             }
 
-            // Generate JWT token
-            const token = generateClientToken(
-                {
-                    userId: session.userId,
-                    keyId: session.keyId,
-                    timestamp: Date.now(),
-                },
-                session.privateKey,
-                session.algorithm,
-                { expiresIn: '15m' }
-            );
+            // Log available cookies
+            const cookieNames = Array.from(ctx.cookies.keys());
+            authLogger.interceptor.general.debug('Available cookies:', {
+                cookieNames,
+                totalCount: cookieNames.length,
+                lookingFor: COOKIE_NAMES.SESSION,
+            });
 
-            authLogger.interceptor.general.debug('Generated JWT token (expires in 15m)');
+            const sessionCookie = ctx.cookies.get(COOKIE_NAMES.SESSION);
 
-            // Add authentication headers
-            ctx.headers['Authorization'] = `Bearer ${token}`;
-            ctx.headers['X-Key-Id'] = session.keyId;
+            authLogger.interceptor.general.debug('Request', {
+                method: ctx.method,
+                path: ctx.path,
+                hasSession: !!sessionCookie,
+                sessionLength: sessionCookie?.length ?? 0,
+                sessionPrefix: sessionCookie?.slice(0, 20) ?? '',
+                sessionSuffix: sessionCookie?.slice(-10) ?? '',
+            });
 
-            // Store session info in metadata
-            ctx.metadata.userId = session.userId;
-            ctx.metadata.sessionValid = true;
-        }
-        catch (error)
-        {
-            const err = error as Error;
-            const msg = err.message.toLowerCase();
-
-            // Session expired or invalid
-            if (msg.includes('expired') || msg.includes('invalid'))
+            // No session cookie
+            if (!sessionCookie)
             {
-                authLogger.interceptor.general.warn('Session expired or invalid', {
-                    message: err.message,
-                    cookieLength: sessionCookie.length,
-                    cookiePrefix: sessionCookie.slice(0, 20),
-                    cookieSuffix: sessionCookie.slice(-10),
-                });
-                authLogger.interceptor.general.debug('Marking session for cleanup');
+                authLogger.interceptor.general.debug('No session cookie, proceeding without auth');
+                // Let request proceed - server will return 401
+                await next();
 
-                // Mark for cleanup in response interceptor
-                ctx.metadata.clearSession = true;
-                ctx.metadata.sessionValid = false;
+                return;
             }
-            else
-            {
-                authLogger.interceptor.general.error('Failed to process session', err);
-            }
-        }
 
-        await next();
-    },
-
-    response: async (ctx, next) =>
-    {
-        // Backend returned 401 with a valid session — server rejected it
-        if (ctx.response.status === 401 && ctx.metadata.sessionValid)
-        {
-            authLogger.interceptor.general.warn('Backend returned 401, clearing session');
-
-            ctx.setCookies.push({
-                name: COOKIE_NAMES.SESSION,
-                value: '',
-                options: { maxAge: 0, path: '/' },
-            });
-
-            ctx.setCookies.push({
-                name: COOKIE_NAMES.SESSION_KEY_ID,
-                value: '',
-                options: { maxAge: 0, path: '/' },
-            });
-
-            await next();
-            return;
-        }
-
-        // Clear expired/invalid session
-        if (ctx.metadata.clearSession)
-        {
-            ctx.setCookies.push({
-                name: COOKIE_NAMES.SESSION,
-                value: '',
-                options: {
-                    maxAge: 0,
-                    path: '/',
-                },
-            });
-
-            ctx.setCookies.push({
-                name: COOKIE_NAMES.SESSION_KEY_ID,
-                value: '',
-                options: {
-                    maxAge: 0,
-                    path: '/',
-                },
-            });
-        }
-        // Refresh session if needed and request was successful
-        else if (ctx.metadata.refreshSession && ctx.response.status === 200)
-        {
             try
             {
-                const sessionData = ctx.metadata.sessionData;
-                const ttl = getSessionTtl();
+            // Decrypt and validate session
+                const session = await unsealSession(sessionCookie);
 
-                // Re-encrypt session with new TTL
-                const sealed = await sealSession(sessionData, ttl);
+                authLogger.interceptor.general.debug('Session valid', {
+                    userId: session.userId,
+                    keyId: session.keyId,
+                });
 
-                // Update session cookie
-                ctx.setCookies.push({
-                    name: COOKIE_NAMES.SESSION,
-                    value: sealed,
-                    options: {
-                        httpOnly: true,
-                        secure: cookieSecure,
-                        sameSite: 'strict',
-                        maxAge: ttl,
-                        path: '/',
+                // Check if session should be refreshed (within 24h of expiry)
+                const needsRefresh = await shouldRefreshSession(sessionCookie, 24);
+
+                if (needsRefresh)
+                {
+                    authLogger.interceptor.general.debug('Session needs refresh (within 24h of expiry)');
+                    // Mark for session renewal in response interceptor
+                    ctx.metadata.refreshSession = true;
+                    ctx.metadata.sessionData = session;
+                }
+
+                // Generate JWT token
+                const token = generateClientToken(
+                    {
+                        userId: session.userId,
+                        keyId: session.keyId,
+                        timestamp: Date.now(),
                     },
-                });
+                    session.privateKey,
+                    session.algorithm,
+                    { expiresIn: '15m' },
+                );
 
-                // Update keyId cookie
-                ctx.setCookies.push({
-                    name: COOKIE_NAMES.SESSION_KEY_ID,
-                    value: sessionData.keyId,
-                    options: {
-                        httpOnly: true,
-                        secure: cookieSecure,
-                        sameSite: 'strict',
-                        maxAge: ttl,
-                        path: '/',
-                    },
-                });
+                authLogger.interceptor.general.debug('Generated JWT token (expires in 15m)');
 
-                authLogger.interceptor.general.info('Session refreshed', {
-                    userId: sessionData.userId,
-                    sealedLength: sealed.length,
-                    sealedPrefix: sealed.slice(0, 20),
-                });
+                // Add authentication headers
+                ctx.headers['Authorization'] = `Bearer ${token}`;
+                ctx.headers['X-Key-Id'] = session.keyId;
+
+                // Store session info in metadata
+                ctx.metadata.userId = session.userId;
+                ctx.metadata.sessionValid = true;
             }
             catch (error)
             {
                 const err = error as Error;
-                authLogger.interceptor.general.error('Failed to refresh session', err);
+                const msg = err.message.toLowerCase();
+
+                // Session expired or invalid
+                if (msg.includes('expired') || msg.includes('invalid'))
+                {
+                    authLogger.interceptor.general.warn('Session expired or invalid', {
+                        message: err.message,
+                        cookieLength: sessionCookie.length,
+                        cookiePrefix: sessionCookie.slice(0, 20),
+                        cookieSuffix: sessionCookie.slice(-10),
+                    });
+                    authLogger.interceptor.general.debug('Marking session for cleanup');
+
+                    // Mark for cleanup in response interceptor
+                    ctx.metadata.clearSession = true;
+                    ctx.metadata.sessionValid = false;
+                }
+                else
+                {
+                    authLogger.interceptor.general.error('Failed to process session', err);
+                }
             }
-        }
-        // Handle logout (clear session)
-        else if (ctx.path === '/_auth/logout' && ctx.response.ok)
+
+            await next();
+        },
+
+        response: async (ctx, next) =>
         {
-            const base = {
-                httpOnly: true,
-                secure: cookieSecure,
-                maxAge: 0,
-                path: '/',
-            };
+        // Backend returned 401 with a valid session — server rejected it
+            if (ctx.response.status === 401 && ctx.metadata.sessionValid)
+            {
+                authLogger.interceptor.general.warn('Backend returned 401, clearing session');
 
-            ctx.setCookies.push({
-                name: COOKIE_NAMES.SESSION,
-                value: '',
-                options: { ...base, sameSite: 'strict' },
-            });
+                ctx.setCookies.push({
+                    name: COOKIE_NAMES.SESSION,
+                    value: '',
+                    options: { maxAge: 0, path: '/' },
+                });
 
-            ctx.setCookies.push({
-                name: COOKIE_NAMES.SESSION_KEY_ID,
-                value: '',
-                options: { ...base, sameSite: 'strict' },
-            });
+                ctx.setCookies.push({
+                    name: COOKIE_NAMES.SESSION_KEY_ID,
+                    value: '',
+                    options: { maxAge: 0, path: '/' },
+                });
 
-            ctx.setCookies.push({
-                name: COOKIE_NAMES.OAUTH_PENDING,
-                value: '',
-                options: { ...base, sameSite: 'lax' },
-            });
-        }
+                await next();
 
-        await next();
-    },
-};
+                return;
+            }
+
+            // Clear expired/invalid session
+            if (ctx.metadata.clearSession)
+            {
+                ctx.setCookies.push({
+                    name: COOKIE_NAMES.SESSION,
+                    value: '',
+                    options: {
+                        maxAge: 0,
+                        path: '/',
+                    },
+                });
+
+                ctx.setCookies.push({
+                    name: COOKIE_NAMES.SESSION_KEY_ID,
+                    value: '',
+                    options: {
+                        maxAge: 0,
+                        path: '/',
+                    },
+                });
+            }
+            // Refresh session if needed and request was successful
+            else if (ctx.metadata.refreshSession && ctx.response.status === 200)
+            {
+                try
+                {
+                    const sessionData = ctx.metadata.sessionData;
+                    const ttl = getSessionTtl();
+
+                    // Re-encrypt session with new TTL
+                    const sealed = await sealSession(sessionData, ttl);
+
+                    // Update session cookie
+                    ctx.setCookies.push({
+                        name: COOKIE_NAMES.SESSION,
+                        value: sealed,
+                        options: {
+                            httpOnly: true,
+                            secure: cookieSecure,
+                            sameSite: 'strict',
+                            maxAge: ttl,
+                            path: '/',
+                        },
+                    });
+
+                    // Update keyId cookie
+                    ctx.setCookies.push({
+                        name: COOKIE_NAMES.SESSION_KEY_ID,
+                        value: sessionData.keyId,
+                        options: {
+                            httpOnly: true,
+                            secure: cookieSecure,
+                            sameSite: 'strict',
+                            maxAge: ttl,
+                            path: '/',
+                        },
+                    });
+
+                    authLogger.interceptor.general.info('Session refreshed', {
+                        userId: sessionData.userId,
+                        sealedLength: sealed.length,
+                        sealedPrefix: sealed.slice(0, 20),
+                    });
+                }
+                catch (error)
+                {
+                    const err = error as Error;
+                    authLogger.interceptor.general.error('Failed to refresh session', err);
+                }
+            }
+            // Handle logout (clear session)
+            else if (ctx.path === '/_auth/logout' && ctx.response.ok)
+            {
+                const base = {
+                    httpOnly: true,
+                    secure: cookieSecure,
+                    maxAge: 0,
+                    path: '/',
+                };
+
+                ctx.setCookies.push({
+                    name: COOKIE_NAMES.SESSION,
+                    value: '',
+                    options: { ...base, sameSite: 'strict' },
+                });
+
+                ctx.setCookies.push({
+                    name: COOKIE_NAMES.SESSION_KEY_ID,
+                    value: '',
+                    options: { ...base, sameSite: 'strict' },
+                });
+
+                ctx.setCookies.push({
+                    name: COOKIE_NAMES.OAUTH_PENDING,
+                    value: '',
+                    options: { ...base, sameSite: 'lax' },
+                });
+            }
+
+            await next();
+        },
+    };

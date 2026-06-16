@@ -5,7 +5,7 @@
  */
 
 import crypto from 'crypto';
-import { Invitation } from "../entities/user-invitations";
+import { Invitation } from '../entities/user-invitations';
 import {
     invitationsRepository,
     usersRepository,
@@ -34,6 +34,7 @@ function calculateExpiresAt(days: number = 7): Date
 {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + days);
+
     return expiresAt;
 }
 
@@ -228,7 +229,8 @@ export async function acceptInvitation(params: {
     keyId: string;
     fingerprint: string;
     algorithm: KeyAlgorithmType;
-}) {
+}) 
+{
     const { token, password, publicKey, keyId, fingerprint, algorithm } = params;
 
     // Validate invitation
@@ -277,7 +279,7 @@ export async function acceptInvitation(params: {
     await invitationsRepository.updateStatus(
         invitation.id,
         'accepted',
-        new Date()
+        new Date(),
     );
 
     // Emit invitation accepted event
@@ -318,7 +320,8 @@ export async function listInvitations(params: {
     invitedBy?: number;
     page?: number;
     limit?: number;
-}) {
+}) 
+{
     return await invitationsRepository.list(params);
 }
 
@@ -335,8 +338,9 @@ export async function listInvitations(params: {
 export async function cancelInvitation(
     id: number,
     cancelledBy: number,
-    reason?: string
-) {
+    reason?: string,
+) 
+{
     // Get invitation
     const invitation = await invitationsRepository.findById(id);
 
@@ -402,8 +406,9 @@ export async function expireOldInvitations()
  */
 export async function resendInvitation(
     id: number,
-    expiresInDays: number = 7
-) {
+    expiresInDays: number = 7,
+) 
+{
     // Get invitation
     const invitation = await invitationsRepository.findById(id);
 

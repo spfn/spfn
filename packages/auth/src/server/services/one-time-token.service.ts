@@ -39,5 +39,6 @@ export async function issueOneTimeTokenService(userId: string): Promise<IssueOne
 export async function verifyOneTimeTokenService(token: string): Promise<string | null>
 {
     const manager = getOneTimeTokenManager();
+
     return await manager.verify(token);
 }

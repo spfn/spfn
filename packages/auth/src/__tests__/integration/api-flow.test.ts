@@ -46,7 +46,7 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
         const registerResponse = await app.request('/auth/register', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 email: 'test@example.com',
@@ -55,8 +55,8 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
                 keyId: 'mock-key-id',
                 fingerprint: 'mock-fingerprint',
                 algorithm: 'ES256',
-                keySize: 91
-            })
+                keySize: 91,
+            }),
         });
 
         // 2. Verify response
@@ -87,8 +87,8 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
                 keyId: 'register-key-id',
                 fingerprint: 'register-fingerprint',
                 algorithm: 'ES256',
-                keySize: 91
-            })
+                keySize: 91,
+            }),
         });
 
         // 2. Login with credentials
@@ -103,8 +103,8 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
                 fingerprint: 'login-fingerprint',
                 algorithm: 'ES256',
                 keySize: 91,
-                oldKeyId: 'register-key-id'  // Rotate from register key
-            })
+                oldKeyId: 'register-key-id',  // Rotate from register key
+            }),
         });
 
         expect(loginResponse.status).toBe(200);
@@ -122,8 +122,8 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
         const logoutResponse = await app.request('/auth/logout', {
             method: 'POST',
             headers: {
-                'Cookie': sessionCookie!
-            }
+                'Cookie': sessionCookie!,
+            },
         });
 
         expect(logoutResponse.status).toBe(200);
@@ -143,8 +143,8 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
                 keyId: 'test-key',
                 fingerprint: 'test-fingerprint',
                 algorithm: 'ES256',
-                keySize: 91
-            })
+                keySize: 91,
+            }),
         });
 
         expect(response.status).toBe(401);
@@ -166,8 +166,8 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
                 keyId: 'test-key',
                 fingerprint: 'test-fingerprint',
                 algorithm: 'ES256',
-                keySize: 91
-            })
+                keySize: 91,
+            }),
         });
 
         // Check if email exists
@@ -175,8 +175,8 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                email: 'exists@example.com'
-            })
+                email: 'exists@example.com',
+            }),
         });
 
         expect(existsResponse.status).toBe(200);
@@ -190,8 +190,8 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                email: 'notfound@example.com'
-            })
+                email: 'notfound@example.com',
+            }),
         });
 
         const notExistsData = await notExistsResponse.json();

@@ -22,6 +22,7 @@ export async function getAuthSessionData()
     catch (error)
     {
         authLogger.middleware.error('Failed to get auth session', { error });
+
         return null;
     }
 }
@@ -32,6 +33,7 @@ export async function getAuthSessionData()
 export async function getUserRole(): Promise<string | null>
 {
     const session = await getAuthSessionData();
+
     return session?.role?.name || null;
 }
 
@@ -77,5 +79,6 @@ export async function hasAnyPermission(requiredPermissions: string[]): Promise<b
     }
 
     const userPermissionNames = session.permissions?.map((p: any) => p.name) || [];
+
     return requiredPermissions.some(permission => userPermissionNames.includes(permission));
 }
