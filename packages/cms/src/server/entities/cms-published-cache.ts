@@ -12,7 +12,7 @@
  */
 
 import { text, integer, index, unique } from 'drizzle-orm/pg-core';
-import { id, publishingFields, typedJsonb } from "@spfn/core/db";
+import { id, publishingFields, typedJsonb } from '@spfn/core/db';
 import { cmsSchema } from './cms-schema';
 
 // Create isolated schema for @spfn/cms

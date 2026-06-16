@@ -51,7 +51,7 @@ declare module 'hono'
 export function createSSEHandler<TRouter extends EventRouterDef<any>>(
     router: TRouter,
     config: SSEHandlerConfig = {},
-    tokenManager?: SSETokenManager
+    tokenManager?: SSETokenManager,
 )
 {
     const {
@@ -243,7 +243,7 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
  */
 async function authenticateToken(
     c: Context,
-    tokenManager?: SSETokenManager
+    tokenManager?: SSETokenManager,
 ): Promise<string | undefined | false | null>
 {
     if (!tokenManager)
@@ -281,7 +281,7 @@ function parseRequestedEvents(c: Context): string[] | null
 async function authorizeEvents(
     subject: string | undefined,
     requestedEvents: string[],
-    authConfig?: SSEHandlerAuthConfig
+    authConfig?: SSEHandlerAuthConfig,
 ): Promise<string[] | null>
 {
     if (!subject || !authConfig?.authorize)

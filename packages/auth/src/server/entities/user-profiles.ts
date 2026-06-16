@@ -88,7 +88,7 @@ export const userProfiles = authSchema.table('user_profiles',
 
         // Index for locale-based queries (useful for i18n features)
         index('user_profiles_locale_idx').on(table.locale),
-    ]
+    ],
 );
 
 // Type exports

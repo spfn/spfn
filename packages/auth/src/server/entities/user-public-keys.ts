@@ -84,7 +84,7 @@ export const userPublicKeys = authSchema.table(
         index('user_public_keys_key_id_idx').on(table.keyId),
         index('user_public_keys_active_idx').on(table.isActive),
         index('user_public_keys_fingerprint_idx').on(table.fingerprint),
-    ]
+    ],
 );
 
 export type UserPublicKey = typeof userPublicKeys.$inferSelect;

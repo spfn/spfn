@@ -8,19 +8,25 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { MockInstance } from 'vitest';
 import { printBanner } from '../banner';
 
-describe('Server Banner', () => {
+describe('Server Banner', () => 
+{
     let consoleLogSpy: MockInstance;
 
-    beforeEach(() => {
-        consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    beforeEach(() => 
+    {
+        consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => 
+        {});
     });
 
-    afterEach(() => {
+    afterEach(() => 
+    {
         consoleLogSpy.mockRestore();
     });
 
-    describe('printBanner()', () => {
-        it('should print SPFN banner with development mode', () => {
+    describe('printBanner()', () => 
+    {
+        it('should print SPFN banner with development mode', () => 
+        {
             printBanner({
                 mode: 'Development',
                 host: 'localhost',
@@ -39,7 +45,8 @@ describe('Server Banner', () => {
             expect(output).toContain('http://localhost:4000');
         });
 
-        it('should print banner with production mode', () => {
+        it('should print banner with production mode', () => 
+        {
             printBanner({
                 mode: 'Production',
                 host: 'localhost',
@@ -55,7 +62,8 @@ describe('Server Banner', () => {
             expect(output).toContain('http://localhost:3000');
         });
 
-        it('should show local and network addresses when host is 0.0.0.0', () => {
+        it('should show local and network addresses when host is 0.0.0.0', () => 
+        {
             printBanner({
                 mode: 'Development',
                 host: '0.0.0.0',
@@ -72,7 +80,8 @@ describe('Server Banner', () => {
             expect(output).toContain('Local:');
         });
 
-        it('should handle custom host addresses', () => {
+        it('should handle custom host addresses', () => 
+        {
             printBanner({
                 mode: 'Development',
                 host: '192.168.1.100',
@@ -87,10 +96,12 @@ describe('Server Banner', () => {
             expect(output).toContain('http://192.168.1.100:8080');
         });
 
-        it('should handle different port numbers', () => {
+        it('should handle different port numbers', () => 
+        {
             const testPorts = [3000, 4000, 5000, 8000, 8080];
 
-            for (const port of testPorts) {
+            for (const port of testPorts) 
+            {
                 consoleLogSpy.mockClear();
 
                 printBanner({
@@ -106,7 +117,8 @@ describe('Server Banner', () => {
             }
         });
 
-        it('should print empty lines for formatting', () => {
+        it('should print empty lines for formatting', () => 
+        {
             printBanner({
                 mode: 'Development',
                 host: 'localhost',
@@ -120,7 +132,8 @@ describe('Server Banner', () => {
             expect(calls[calls.length - 1]).toBe('');
         });
 
-        it('should print complete SPFN ASCII logo', () => {
+        it('should print complete SPFN ASCII logo', () => 
+        {
             printBanner({
                 mode: 'Development',
                 host: 'localhost',
@@ -139,7 +152,8 @@ describe('Server Banner', () => {
             expect(output).toContain('|_____/|_|   |_|    |_| \\_|');
         });
 
-        it('should format URLs with proper protocol', () => {
+        it('should format URLs with proper protocol', () => 
+        {
             printBanner({
                 mode: 'Development',
                 host: 'localhost',
@@ -153,7 +167,8 @@ describe('Server Banner', () => {
             expect(output).toMatch(/http:\/\/localhost:4000/);
         });
 
-        it('should display triangle symbol (▲) for URLs', () => {
+        it('should display triangle symbol (▲) for URLs', () => 
+        {
             printBanner({
                 mode: 'Development',
                 host: 'localhost',

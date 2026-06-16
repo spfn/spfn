@@ -13,7 +13,7 @@ class TestRepository extends BaseRepository
     // Expose withContext for testing
     public async testWithContext<T>(
         queryFn: () => Promise<T>,
-        context: { method?: string; table?: string } = {}
+        context: { method?: string; table?: string } = {},
     ): Promise<T>
     {
         return this.withContext(queryFn, context);
@@ -30,7 +30,7 @@ describe('RepositoryError', () =>
             'UserRepository',
             'findById',
             'users',
-            originalError
+            originalError,
         );
 
         expect(error.name).toBe('RepositoryError');
@@ -51,7 +51,7 @@ describe('RepositoryError', () =>
             'UserRepository',
             'findById',
             'users',
-            originalError
+            originalError,
         );
 
         expect(error.stack).toBe(originalStack);
@@ -83,7 +83,7 @@ describe('BaseRepository.withContext', () =>
             repo.testWithContext(queryFn, {
                 method: 'findById',
                 table: 'users',
-            })
+            }),
         ).rejects.toThrow(RepositoryError);
 
         try
@@ -115,7 +115,7 @@ describe('BaseRepository.withContext', () =>
             repo.testWithContext(queryFn, {
                 method: 'findById',
                 table: 'users',
-            })
+            }),
         ).rejects.toThrow(RepositoryError);
 
         try
@@ -163,21 +163,21 @@ describe('BaseRepository.withContext', () =>
         // Test with object
         const objectResult = await repo.testWithContext(
             async () => ({ id: 1, name: 'John' }),
-            { method: 'findById' }
+            { method: 'findById' },
         );
         expect(objectResult).toEqual({ id: 1, name: 'John' });
 
         // Test with array
         const arrayResult = await repo.testWithContext(
             async () => [1, 2, 3],
-            { method: 'findMany' }
+            { method: 'findMany' },
         );
         expect(arrayResult).toEqual([1, 2, 3]);
 
         // Test with number
         const numberResult = await repo.testWithContext(
             async () => 42,
-            { method: 'count' }
+            { method: 'count' },
         );
         expect(numberResult).toBe(42);
     });

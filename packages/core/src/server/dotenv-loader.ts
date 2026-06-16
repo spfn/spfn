@@ -16,7 +16,7 @@ export function loadEnvFiles(): void
     {
         warned = true;
         console.warn(
-            '[SPFN] loadEnvFiles() is deprecated. Use loadEnv() from "@spfn/core/env/loader" instead.'
+            '[SPFN] loadEnvFiles() is deprecated. Use loadEnv() from "@spfn/core/env/loader" instead.',
         );
     }
 

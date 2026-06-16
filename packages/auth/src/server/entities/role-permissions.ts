@@ -42,7 +42,7 @@ export const rolePermissions = authSchema.table('role_permissions',
 
         // Unique constraint: one role-permission pair only
         unique('role_permissions_unique').on(table.roleId, table.permissionId),
-    ]
+    ],
 );
 
 // Type exports

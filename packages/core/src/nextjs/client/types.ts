@@ -2,9 +2,9 @@
 // Type Utilities
 // ============================================================================
 
-import type { Static, TSchema } from "@sinclair/typebox";
-import type { ErrorRegistry, ErrorRegistryInput } from "@spfn/core/errors";
-import type { RouteDef, RouteInput } from "@spfn/core/route";
+import type { Static, TSchema } from '@sinclair/typebox';
+import type { ErrorRegistry, ErrorRegistryInput } from '@spfn/core/errors';
+import type { RouteDef, RouteInput } from '@spfn/core/route';
 
 /**
  * Convert File types in schema to actual File for client usage
@@ -163,7 +163,7 @@ export interface SetCookie
  */
 export type RequestInterceptor = (
     url: string,
-    init: RequestInit
+    init: RequestInit,
 ) => Promise<RequestInit> | RequestInit;
 
 /**
@@ -171,7 +171,7 @@ export type RequestInterceptor = (
  */
 export type ResponseInterceptor = (
     response: Response,
-    body: any
+    body: any,
 ) => Promise<{ response: Response; body: any }> | { response: Response; body: any };
 
 /**

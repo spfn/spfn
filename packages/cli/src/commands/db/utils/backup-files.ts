@@ -10,41 +10,41 @@ import { loadBackupMetadata, type BackupMetadata } from './metadata.js';
  */
 async function ensureBackupInGitignore(): Promise<void>
 {
-	const gitignorePath = path.join(process.cwd(), '.gitignore');
+    const gitignorePath = path.join(process.cwd(), '.gitignore');
 
-	try
-	{
-		let content = '';
-		let exists = existsSync(gitignorePath);
+    try
+    {
+        let content = '';
+        let exists = existsSync(gitignorePath);
 
-		if (exists)
-		{
-			content = await fs.readFile(gitignorePath, 'utf-8');
-		}
+        if (exists)
+        {
+            content = await fs.readFile(gitignorePath, 'utf-8');
+        }
 
-		// Check if backups/ is already ignored
-		const lines = content.split('\n');
-		const hasBackupsIgnore = lines.some(line =>
-			line.trim() === 'backups/' ||
+        // Check if backups/ is already ignored
+        const lines = content.split('\n');
+        const hasBackupsIgnore = lines.some(line =>
+            line.trim() === 'backups/' ||
 			line.trim() === '/backups/' ||
-			line.trim() === 'backups'
-		);
+			line.trim() === 'backups',
+        );
 
-		if (!hasBackupsIgnore)
-		{
-			const entry = exists && content && !content.endsWith('\n')
-				? '\n\n# Database backups\nbackups/\n'
-				: '# Database backups\nbackups/\n';
+        if (!hasBackupsIgnore)
+        {
+            const entry = exists && content && !content.endsWith('\n')
+                ? '\n\n# Database backups\nbackups/\n'
+                : '# Database backups\nbackups/\n';
 
-			await fs.appendFile(gitignorePath, entry);
-			console.log(chalk.dim('✓ Added backups/ to .gitignore'));
-		}
-	}
-	catch (error)
-	{
-		// Non-critical error, just log it
-		console.log(chalk.dim('⚠️  Could not update .gitignore'));
-	}
+            await fs.appendFile(gitignorePath, entry);
+            console.log(chalk.dim('✓ Added backups/ to .gitignore'));
+        }
+    }
+    catch (error)
+    {
+        // Non-critical error, just log it
+        console.log(chalk.dim('⚠️  Could not update .gitignore'));
+    }
 }
 
 /**
@@ -52,30 +52,30 @@ async function ensureBackupInGitignore(): Promise<void>
  */
 export async function ensureBackupDir(): Promise<string>
 {
-	const backupDir = path.join(process.cwd(), 'backups');
+    const backupDir = path.join(process.cwd(), 'backups');
 
-	try
-	{
-		await fs.mkdir(backupDir, { recursive: true });
+    try
+    {
+        await fs.mkdir(backupDir, { recursive: true });
 
-		// Create .gitignore if it doesn't exist
-		const gitignorePath = path.join(backupDir, '.gitignore');
-		const gitignoreExists = existsSync(gitignorePath);
+        // Create .gitignore if it doesn't exist
+        const gitignorePath = path.join(backupDir, '.gitignore');
+        const gitignoreExists = existsSync(gitignorePath);
 
-		if (!gitignoreExists)
-		{
-			await fs.writeFile(gitignorePath, '# Ignore all backup files\n*.sql\n*.dump\n*.meta.json\n');
-		}
+        if (!gitignoreExists)
+        {
+            await fs.writeFile(gitignorePath, '# Ignore all backup files\n*.sql\n*.dump\n*.meta.json\n');
+        }
 
-		// Ensure project root .gitignore includes backups/
-		await ensureBackupInGitignore();
+        // Ensure project root .gitignore includes backups/
+        await ensureBackupInGitignore();
 
-		return backupDir;
-	}
-	catch (error)
-	{
-		throw new Error(`Failed to create backup directory: ${error instanceof Error ? error.message : 'Unknown error'}`);
-	}
+        return backupDir;
+    }
+    catch (error)
+    {
+        throw new Error(`Failed to create backup directory: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
 }
 
 /**
@@ -83,12 +83,12 @@ export async function ensureBackupDir(): Promise<string>
  */
 export interface BackupFile
 {
-	name: string;
-	path: string;
-	size: string;
-	sizeBytes: number;
-	date: Date;
-	metadata?: BackupMetadata;
+    name: string;
+    path: string;
+    size: string;
+    sizeBytes: number;
+    date: Date;
+    metadata?: BackupMetadata;
 }
 
 /**
@@ -96,44 +96,44 @@ export interface BackupFile
  */
 export async function listBackupFiles(): Promise<BackupFile[]>
 {
-	const backupDir = path.join(process.cwd(), 'backups');
+    const backupDir = path.join(process.cwd(), 'backups');
 
-	try
-	{
-		const files = await fs.readdir(backupDir);
+    try
+    {
+        const files = await fs.readdir(backupDir);
 
-		const backups = await Promise.all(
-			files
-				.filter(f => f.endsWith('.sql') || f.endsWith('.dump'))
-				.map(async (f) =>
-				{
-					const filepath = path.join(backupDir, f);
-					const stats = await fs.stat(filepath);
+        const backups = await Promise.all(
+            files
+                .filter(f => f.endsWith('.sql') || f.endsWith('.dump'))
+                .map(async (f) =>
+                {
+                    const filepath = path.join(backupDir, f);
+                    const stats = await fs.stat(filepath);
 
-					// Load metadata if available
-					const metadata = await loadBackupMetadata(filepath);
+                    // Load metadata if available
+                    const metadata = await loadBackupMetadata(filepath);
 
-					return {
-						name: f,
-						path: filepath,
-						size: formatBytes(stats.size),
-						sizeBytes: stats.size,
-						date: stats.mtime,
-						metadata
-					};
-				})
-		);
+                    return {
+                        name: f,
+                        path: filepath,
+                        size: formatBytes(stats.size),
+                        sizeBytes: stats.size,
+                        date: stats.mtime,
+                        metadata,
+                    };
+                }),
+        );
 
-		// Sort by date (newest first)
-		return backups.sort((a, b) => b.date.getTime() - a.date.getTime());
-	}
-	catch (error)
-	{
-		if ((error as NodeJS.ErrnoException).code === 'ENOENT')
-		{
-			return [];
-		}
+        // Sort by date (newest first)
+        return backups.sort((a, b) => b.date.getTime() - a.date.getTime());
+    }
+    catch (error)
+    {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+        {
+            return [];
+        }
 
-		throw error;
-	}
+        throw error;
+    }
 }

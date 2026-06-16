@@ -7,8 +7,8 @@
 import chalk from 'chalk';
 import { join } from 'path';
 
-import { env } from "@spfn/core/config";
-import { loadEnv } from "@spfn/core/server";
+import { env } from '@spfn/core/config';
+import { loadEnv } from '@spfn/core/server';
 import { existsSync, readdirSync, readFileSync } from 'fs';
 
 export type FunctionMigrationInfo = {
@@ -65,7 +65,7 @@ export function discoverFunctionMigrations(cwd: string = process.cwd()): Functio
             if (!existsSync(migrationsDir))
             {
                 console.warn(
-                    chalk.yellow(`⚠️  Package @spfn/${pkg} specifies migrations but directory not found: ${migrationsDir}`)
+                    chalk.yellow(`⚠️  Package @spfn/${pkg} specifies migrations but directory not found: ${migrationsDir}`),
                 );
                 continue;
             }
@@ -95,7 +95,7 @@ export function discoverFunctionMigrations(cwd: string = process.cwd()): Functio
  */
 async function migrateLegacyTable(
     db: any,
-    functionMigrations: FunctionMigrationInfo[]
+    functionMigrations: FunctionMigrationInfo[],
 ): Promise<void>
 {
     // Check if legacy table exists
@@ -103,7 +103,7 @@ async function migrateLegacyTable(
         `SELECT EXISTS (
             SELECT 1 FROM information_schema.tables
             WHERE table_schema = 'drizzle' AND table_name = '__spfn_fn_migrations'
-        ) AS "exists"`
+        ) AS "exists"`,
     );
 
     if (!legacyCheck[0]?.exists)
@@ -115,12 +115,13 @@ async function migrateLegacyTable(
 
     // Read all legacy records ordered by id
     const legacyRows: { hash: string; created_at: string }[] = await db.execute(
-        `SELECT hash, created_at FROM drizzle."__spfn_fn_migrations" ORDER BY id`
+        `SELECT hash, created_at FROM drizzle."__spfn_fn_migrations" ORDER BY id`,
     );
 
     if (legacyRows.length === 0)
     {
         await db.execute(`DROP TABLE drizzle."__spfn_fn_migrations"`);
+
         return;
     }
 
@@ -140,19 +141,19 @@ async function migrateLegacyTable(
 
         // Create per-package table if not exists
         await db.execute(
-            `CREATE SCHEMA IF NOT EXISTS drizzle`
+            `CREATE SCHEMA IF NOT EXISTS drizzle`,
         );
         await db.execute(
             `CREATE TABLE IF NOT EXISTS drizzle."${tableName}" (
                 id serial PRIMARY KEY,
                 hash text NOT NULL,
                 created_at bigint
-            )`
+            )`,
         );
 
         // Check if already has records (skip if so)
         const existing = await db.execute(
-            `SELECT COUNT(*) AS "count" FROM drizzle."${tableName}"`
+            `SELECT COUNT(*) AS "count" FROM drizzle."${tableName}"`,
         );
 
         if (Number(existing[0]?.count) > 0)
@@ -194,7 +195,7 @@ async function migrateLegacyTable(
             if (found)
             {
                 await db.execute(
-                    `INSERT INTO drizzle."${tableName}" (hash, created_at) VALUES ('${hash}', ${entry.when})`
+                    `INSERT INTO drizzle."${tableName}" (hash, created_at) VALUES ('${hash}', ${entry.when})`,
                 );
                 copied++;
             }
@@ -216,7 +217,7 @@ async function migrateLegacyTable(
  * Returns the number of migrations executed
  */
 export async function executeFunctionMigrations(
-    functionMigrations: FunctionMigrationInfo[]
+    functionMigrations: FunctionMigrationInfo[],
 ): Promise<number>
 {
     let executedCount = 0;

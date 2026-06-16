@@ -73,6 +73,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
         if (!hasTemplate(params.template))
         {
             log.warn(`Template not found: ${params.template}`);
+
             return {
                 success: false,
                 error: `Template not found: ${params.template}`,
@@ -93,6 +94,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
     if (!subject)
     {
         log.warn('Email subject is required', { to: recipients });
+
         return {
             success: false,
             error: 'Email subject is required',
@@ -102,6 +104,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
     if (!text && !html)
     {
         log.warn('Email content (text or html) is required', { to: recipients, subject });
+
         return {
             success: false,
             error: 'Email content (text or html) is required',
@@ -325,7 +328,7 @@ function prepareEmailItems(items: SendEmailParams[]): {
  */
 export async function sendEmailBulk(
     items: SendEmailParams[],
-    options?: BulkEmailOptions
+    options?: BulkEmailOptions,
 ): Promise<BulkEmailResult>
 {
     if (items.length === 0)
@@ -356,7 +359,7 @@ export async function sendEmailBulk(
                     content: p.text,
                     providerName: provider.name,
                     batchId,
-                }))
+                })),
             );
         }
         catch (error)
@@ -441,7 +444,7 @@ export async function sendEmailBulk(
     const sendResults = await runWithConcurrency(
         prepared,
         (p) => provider.send(p.params),
-        concurrency
+        concurrency,
     );
 
     // 6. Build results + update history records
@@ -482,7 +485,7 @@ export async function sendEmailBulk(
                 : markNotificationFailed(historyId, result.error || 'Unknown error');
 
             historyUpdates.push(
-                promise.catch((err) => log.warn('Failed to update notification history', err))
+                promise.catch((err) => log.warn('Failed to update notification history', err)),
             );
         }
     }

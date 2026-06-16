@@ -8,9 +8,9 @@ import { loadEnv } from '@spfn/core/server';
 import { parseDatabaseUrl, confirmDangerousTarget } from './utils/database.js';
 import { listBackupFiles } from './utils/backup-files.js';
 import {
-	loadBackupMetadata,
-	collectGitInfo,
-	collectMigrationInfo
+    loadBackupMetadata,
+    collectGitInfo,
+    collectMigrationInfo,
 } from './utils/metadata.js';
 
 /**
@@ -18,348 +18,348 @@ import {
  */
 export async function dbRestore(backupFile?: string, options: { drop?: boolean; schema?: string; dataOnly?: boolean; schemaOnly?: boolean; verbose?: boolean } = {}): Promise<void>
 {
-	console.log(chalk.blue('♻️  Restoring database from backup...\n'));
+    console.log(chalk.blue('♻️  Restoring database from backup...\n'));
 
-	loadEnv();
-	const dbUrl = env.DATABASE_URL;
-	if (!dbUrl)
-	{
-		console.error(chalk.red('❌ DATABASE_URL not found in environment'));
-		console.log(chalk.yellow('\n💡 Tip: Add DATABASE_URL to your .env file'));
-		process.exit(1);
-	}
+    loadEnv();
+    const dbUrl = env.DATABASE_URL;
+    if (!dbUrl)
+    {
+        console.error(chalk.red('❌ DATABASE_URL not found in environment'));
+        console.log(chalk.yellow('\n💡 Tip: Add DATABASE_URL to your .env file'));
+        process.exit(1);
+    }
 
-	let file = backupFile;
+    let file = backupFile;
 
-	// If no file specified, show list and let user select
-	if (!file)
-	{
-		const backups = await listBackupFiles();
+    // If no file specified, show list and let user select
+    if (!file)
+    {
+        const backups = await listBackupFiles();
 
-		if (backups.length === 0)
-		{
-			console.log(chalk.yellow('No backups found in ./backups directory'));
-			process.exit(0);
-		}
+        if (backups.length === 0)
+        {
+            console.log(chalk.yellow('No backups found in ./backups directory'));
+            process.exit(0);
+        }
 
-		const { selected } = await prompts({
-			type: 'select',
-			name: 'selected',
-			message: 'Select backup to restore:',
-			choices: backups.map(b => ({
-				title: `${b.name} (${b.size})`,
-				value: b.path,
-			})),
-		});
+        const { selected } = await prompts({
+            type: 'select',
+            name: 'selected',
+            message: 'Select backup to restore:',
+            choices: backups.map(b => ({
+                title: `${b.name} (${b.size})`,
+                value: b.path,
+            })),
+        });
 
-		if (!selected)
-		{
-			console.log(chalk.gray('Cancelled'));
-			process.exit(0);
-		}
+        if (!selected)
+        {
+            console.log(chalk.gray('Cancelled'));
+            process.exit(0);
+        }
 
-		file = selected;
-	}
+        file = selected;
+    }
 
-	// Type guard to ensure file is defined
-	if (!file)
-	{
-		console.error(chalk.red('❌ No backup file selected'));
-		process.exit(1);
-	}
+    // Type guard to ensure file is defined
+    if (!file)
+    {
+        console.error(chalk.red('❌ No backup file selected'));
+        process.exit(1);
+    }
 
-	// Load and check backup metadata
-	const metadata = await loadBackupMetadata(file);
+    // Load and check backup metadata
+    const metadata = await loadBackupMetadata(file);
 
-	if (metadata)
-	{
-		console.log(chalk.blue('\n📋 Backup Information:\n'));
-		console.log(chalk.dim(`  Database: ${metadata.database}`));
-		console.log(chalk.dim(`  Created: ${new Date(metadata.timestamp).toLocaleString()}`));
+    if (metadata)
+    {
+        console.log(chalk.blue('\n📋 Backup Information:\n'));
+        console.log(chalk.dim(`  Database: ${metadata.database}`));
+        console.log(chalk.dim(`  Created: ${new Date(metadata.timestamp).toLocaleString()}`));
 
-		if (metadata.environment)
-		{
-			console.log(chalk.dim(`  Environment: ${metadata.environment}`));
-		}
+        if (metadata.environment)
+        {
+            console.log(chalk.dim(`  Environment: ${metadata.environment}`));
+        }
 
-		if (metadata.tags && metadata.tags.length > 0)
-		{
-			console.log(chalk.dim(`  Tags: ${metadata.tags.join(', ')}`));
-		}
+        if (metadata.tags && metadata.tags.length > 0)
+        {
+            console.log(chalk.dim(`  Tags: ${metadata.tags.join(', ')}`));
+        }
 
-		if (metadata.backup.dataOnly)
-		{
-			console.log(chalk.yellow('  ⚠️  Data-only backup (no schema)'));
-		}
+        if (metadata.backup.dataOnly)
+        {
+            console.log(chalk.yellow('  ⚠️  Data-only backup (no schema)'));
+        }
 
-		if (metadata.backup.schemaOnly)
-		{
-			console.log(chalk.yellow('  ⚠️  Schema-only backup (no data)'));
-		}
+        if (metadata.backup.schemaOnly)
+        {
+            console.log(chalk.yellow('  ⚠️  Schema-only backup (no data)'));
+        }
 
-		// Check version compatibility
-		const warnings: string[] = [];
+        // Check version compatibility
+        const warnings: string[] = [];
 
-		// Get current git and migration info
-		const [currentGitInfo, currentMigrationInfo] = await Promise.all([
-			collectGitInfo(),
-			collectMigrationInfo(dbUrl)
-		]);
+        // Get current git and migration info
+        const [currentGitInfo, currentMigrationInfo] = await Promise.all([
+            collectGitInfo(),
+            collectMigrationInfo(dbUrl),
+        ]);
 
-		// Check Git version mismatch
-		if (metadata.git && currentGitInfo)
-		{
-			if (metadata.git.commit !== currentGitInfo.commit)
-			{
-				warnings.push(`Git commit mismatch: backup from ${metadata.git.commit.substring(0, 7)}, current is ${currentGitInfo.commit.substring(0, 7)}`);
-			}
+        // Check Git version mismatch
+        if (metadata.git && currentGitInfo)
+        {
+            if (metadata.git.commit !== currentGitInfo.commit)
+            {
+                warnings.push(`Git commit mismatch: backup from ${metadata.git.commit.substring(0, 7)}, current is ${currentGitInfo.commit.substring(0, 7)}`);
+            }
 
-			if (metadata.git.branch !== currentGitInfo.branch)
-			{
-				warnings.push(`Git branch mismatch: backup from '${metadata.git.branch}', current is '${currentGitInfo.branch}'`);
-			}
-		}
+            if (metadata.git.branch !== currentGitInfo.branch)
+            {
+                warnings.push(`Git branch mismatch: backup from '${metadata.git.branch}', current is '${currentGitInfo.branch}'`);
+            }
+        }
 
-		// Check Migration version mismatch
-		if (metadata.migrations && currentMigrationInfo)
-		{
-			if (metadata.migrations.hash !== currentMigrationInfo.hash)
-			{
-				warnings.push(`Migration version mismatch: backup has ${metadata.migrations.count} migrations, current has ${currentMigrationInfo.count}`);
-				warnings.push(`  Last migration in backup: ${metadata.migrations.hash}`);
-				warnings.push(`  Current last migration: ${currentMigrationInfo.hash}`);
-			}
-		}
+        // Check Migration version mismatch
+        if (metadata.migrations && currentMigrationInfo)
+        {
+            if (metadata.migrations.hash !== currentMigrationInfo.hash)
+            {
+                warnings.push(`Migration version mismatch: backup has ${metadata.migrations.count} migrations, current has ${currentMigrationInfo.count}`);
+                warnings.push(`  Last migration in backup: ${metadata.migrations.hash}`);
+                warnings.push(`  Current last migration: ${currentMigrationInfo.hash}`);
+            }
+        }
 
-		if (warnings.length > 0)
-		{
-			console.log(chalk.yellow('\n⚠️  Version Warnings:\n'));
-			warnings.forEach(warning => console.log(chalk.yellow(`  - ${warning}`)));
-			console.log('');
-		}
-	}
+        if (warnings.length > 0)
+        {
+            console.log(chalk.yellow('\n⚠️  Version Warnings:\n'));
+            warnings.forEach(warning => console.log(chalk.yellow(`  - ${warning}`)));
+            console.log('');
+        }
+    }
 
-	// Parse connection info (shown in the confirmation prompt)
-	const dbInfo = parseDatabaseUrl(dbUrl);
+    // Parse connection info (shown in the confirmation prompt)
+    const dbInfo = parseDatabaseUrl(dbUrl);
 
-	// Confirm before restore
-	const { confirm } = await prompts({
-		type: 'confirm',
-		name: 'confirm',
-		message: chalk.yellow(`⚠️  This will replace all data in "${dbInfo.database}" @ ${dbInfo.host}:${dbInfo.port}. Continue?`),
-		initial: false,
-	});
+    // Confirm before restore
+    const { confirm } = await prompts({
+        type: 'confirm',
+        name: 'confirm',
+        message: chalk.yellow(`⚠️  This will replace all data in "${dbInfo.database}" @ ${dbInfo.host}:${dbInfo.port}. Continue?`),
+        initial: false,
+    });
 
-	if (!confirm)
-	{
-		console.log(chalk.gray('Cancelled'));
-		process.exit(0);
-	}
+    if (!confirm)
+    {
+        console.log(chalk.gray('Cancelled'));
+        process.exit(0);
+    }
 
-	await confirmDangerousTarget(dbInfo);
+    await confirmDangerousTarget(dbInfo);
 
-	// Validate mutually exclusive options
-	if (options.dataOnly && options.schemaOnly)
-	{
-		console.error(chalk.red('❌ Cannot use --data-only and --schema-only together'));
-		process.exit(1);
-	}
+    // Validate mutually exclusive options
+    if (options.dataOnly && options.schemaOnly)
+    {
+        console.error(chalk.red('❌ Cannot use --data-only and --schema-only together'));
+        process.exit(1);
+    }
 
-	// Check file format
-	const ext = path.extname(file);
-	const isCustomFormat = ext === '.dump';
+    // Check file format
+    const ext = path.extname(file);
+    const isCustomFormat = ext === '.dump';
 
-	// Build restore command
-	const command = isCustomFormat ? 'pg_restore' : 'psql';
-	const args: string[] = [];
+    // Build restore command
+    const command = isCustomFormat ? 'pg_restore' : 'psql';
+    const args: string[] = [];
 
-	if (isCustomFormat)
-	{
-		args.push('-h', dbInfo.host);
-		args.push('-p', dbInfo.port);
-		args.push('-U', dbInfo.user);
-		args.push('-d', dbInfo.database);
-		args.push('--verbose');
+    if (isCustomFormat)
+    {
+        args.push('-h', dbInfo.host);
+        args.push('-p', dbInfo.port);
+        args.push('-U', dbInfo.user);
+        args.push('-d', dbInfo.database);
+        args.push('--verbose');
 
-		if (options.drop)
-		{
-			args.push('--clean', '--if-exists');
-		}
+        if (options.drop)
+        {
+            args.push('--clean', '--if-exists');
+        }
 
-		if (options.schema)
-		{
-			args.push('-n', options.schema);
-		}
+        if (options.schema)
+        {
+            args.push('-n', options.schema);
+        }
 
-		if (options.dataOnly)
-		{
-			args.push('--data-only');
-		}
+        if (options.dataOnly)
+        {
+            args.push('--data-only');
+        }
 
-		if (options.schemaOnly)
-		{
-			args.push('--schema-only');
-		}
+        if (options.schemaOnly)
+        {
+            args.push('--schema-only');
+        }
 
-		args.push(file);
-	}
-	else
-	{
-		// For plain SQL files, --data-only and --schema-only are not directly supported
-		// The backup file itself should have been created with these options
-		if (options.drop)
-		{
-			console.log(chalk.yellow('⚠️  Note: --drop only works with custom format backups (.dump) and was ignored.'));
-		}
+        args.push(file);
+    }
+    else
+    {
+        // For plain SQL files, --data-only and --schema-only are not directly supported
+        // The backup file itself should have been created with these options
+        if (options.drop)
+        {
+            console.log(chalk.yellow('⚠️  Note: --drop only works with custom format backups (.dump) and was ignored.'));
+        }
 
-		if (options.dataOnly || options.schemaOnly)
-		{
-			console.log(chalk.yellow('⚠️  Note: --data-only and --schema-only options only work with custom format backups (.dump)'));
-			console.log(chalk.yellow('    For SQL files, the backup must have been created with the desired option.\n'));
-		}
+        if (options.dataOnly || options.schemaOnly)
+        {
+            console.log(chalk.yellow('⚠️  Note: --data-only and --schema-only options only work with custom format backups (.dump)'));
+            console.log(chalk.yellow('    For SQL files, the backup must have been created with the desired option.\n'));
+        }
 
-		args.push('-h', dbInfo.host);
-		args.push('-p', dbInfo.port);
-		args.push('-U', dbInfo.user);
-		args.push('-d', dbInfo.database);
-		args.push('-v', 'ON_ERROR_STOP=1');
-		args.push('-f', file);
-	}
+        args.push('-h', dbInfo.host);
+        args.push('-p', dbInfo.port);
+        args.push('-U', dbInfo.user);
+        args.push('-d', dbInfo.database);
+        args.push('-v', 'ON_ERROR_STOP=1');
+        args.push('-f', file);
+    }
 
-	// Execute restore
-	const verbose = options.verbose ?? false;
-	const spinner = ora('Restoring backup...').start();
+    // Execute restore
+    const verbose = options.verbose ?? false;
+    const spinner = ora('Restoring backup...').start();
 
-	const restoreProcess = spawn(command, args, {
-		stdio: ['ignore', 'pipe', 'pipe'],
-		env: {
-			...process.env,
-			PGPASSWORD: dbInfo.password,
-		},
-	});
+    const restoreProcess = spawn(command, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: {
+            ...process.env,
+            PGPASSWORD: dbInfo.password,
+        },
+    });
 
-	const warnings: string[] = [];
-	const errors: string[] = [];
-	let objectCount = 0;
+    const warnings: string[] = [];
+    const errors: string[] = [];
+    let objectCount = 0;
 
-	restoreProcess.stderr?.on('data', (data) =>
-	{
-		const lines = data.toString().split('\n').filter((l: string) => l.trim());
+    restoreProcess.stderr?.on('data', (data) =>
+    {
+        const lines = data.toString().split('\n').filter((l: string) => l.trim());
 
-		for (const line of lines)
-		{
-			// Categorize by log level
-			if (/^pg_restore:.*warning:/i.test(line) || /^WARNING:/i.test(line))
-			{
-				warnings.push(line.trim());
-			}
-			else if (/^pg_restore:.*error:/i.test(line) || /^ERROR:/i.test(line) || /^psql:.*ERROR/i.test(line))
-			{
-				errors.push(line.trim());
-			}
+        for (const line of lines)
+        {
+            // Categorize by log level
+            if (/^pg_restore:.*warning:/i.test(line) || /^WARNING:/i.test(line))
+            {
+                warnings.push(line.trim());
+            }
+            else if (/^pg_restore:.*error:/i.test(line) || /^ERROR:/i.test(line) || /^psql:.*ERROR/i.test(line))
+            {
+                errors.push(line.trim());
+            }
 
-			// Parse pg_restore verbose output for progress
-			const objectMatch = line.match(/processing item (\d+)\/(\d+)/);
-			if (objectMatch)
-			{
-				objectCount = Number(objectMatch[2]);
-				const current = Number(objectMatch[1]);
-				const desc = line.replace(/^pg_restore:\s*/, '').trim();
-				spinner.text = `Restoring backup... [${current}/${objectCount}] ${desc}`;
-			}
-			else if (isCustomFormat)
-			{
-				// Other verbose lines from pg_restore (e.g., "creating TABLE ...", "restoring data for ...")
-				const desc = line.replace(/^pg_restore:\s*/, '').trim();
-				if (desc && !/warning:|error:/i.test(desc))
-				{
-					spinner.text = `Restoring backup... ${desc}`;
-				}
-			}
+            // Parse pg_restore verbose output for progress
+            const objectMatch = line.match(/processing item (\d+)\/(\d+)/);
+            if (objectMatch)
+            {
+                objectCount = Number(objectMatch[2]);
+                const current = Number(objectMatch[1]);
+                const desc = line.replace(/^pg_restore:\s*/, '').trim();
+                spinner.text = `Restoring backup... [${current}/${objectCount}] ${desc}`;
+            }
+            else if (isCustomFormat)
+            {
+                // Other verbose lines from pg_restore (e.g., "creating TABLE ...", "restoring data for ...")
+                const desc = line.replace(/^pg_restore:\s*/, '').trim();
+                if (desc && !/warning:|error:/i.test(desc))
+                {
+                    spinner.text = `Restoring backup... ${desc}`;
+                }
+            }
 
-			if (verbose)
-			{
-				spinner.stop();
-				console.log(chalk.dim(`  ${line.trim()}`));
-				spinner.start();
-			}
-		}
-	});
+            if (verbose)
+            {
+                spinner.stop();
+                console.log(chalk.dim(`  ${line.trim()}`));
+                spinner.start();
+            }
+        }
+    });
 
-	restoreProcess.stdout?.on('data', (data) =>
-	{
-		if (verbose)
-		{
-			spinner.stop();
-			console.log(chalk.dim(`  ${data.toString().trim()}`));
-			spinner.start();
-		}
-	});
+    restoreProcess.stdout?.on('data', (data) =>
+    {
+        if (verbose)
+        {
+            spinner.stop();
+            console.log(chalk.dim(`  ${data.toString().trim()}`));
+            spinner.start();
+        }
+    });
 
-	await new Promise<void>((resolve, reject) =>
-	{
-		restoreProcess.on('close', (code) =>
-		{
-			if (code === 0)
-			{
-				const summary = objectCount > 0 ? ` (${objectCount} objects)` : '';
-				spinner.succeed(`Restore completed${summary}`);
+    await new Promise<void>((resolve, reject) =>
+    {
+        restoreProcess.on('close', (code) =>
+        {
+            if (code === 0)
+            {
+                const summary = objectCount > 0 ? ` (${objectCount} objects)` : '';
+                spinner.succeed(`Restore completed${summary}`);
 
-				// Show warnings even on success
-				if (warnings.length > 0)
-				{
-					console.log(chalk.yellow(`\n⚠️  Warnings during restore (${warnings.length}):\n`));
-					for (const w of warnings)
-					{
-						console.log(chalk.yellow(`  - ${w}`));
-					}
-				}
+                // Show warnings even on success
+                if (warnings.length > 0)
+                {
+                    console.log(chalk.yellow(`\n⚠️  Warnings during restore (${warnings.length}):\n`));
+                    for (const w of warnings)
+                    {
+                        console.log(chalk.yellow(`  - ${w}`));
+                    }
+                }
 
-				console.log(chalk.green('\n✅ Database restored successfully'));
-				resolve();
-			}
-			else
-			{
-				spinner.fail('Restore failed');
+                console.log(chalk.green('\n✅ Database restored successfully'));
+                resolve();
+            }
+            else
+            {
+                spinner.fail('Restore failed');
 
-				if (errors.length > 0)
-				{
-					console.error(chalk.red(`\n❌ Errors (${errors.length}):\n`));
-					for (const e of errors)
-					{
-						console.error(chalk.red(`  - ${e}`));
-					}
-				}
+                if (errors.length > 0)
+                {
+                    console.error(chalk.red(`\n❌ Errors (${errors.length}):\n`));
+                    for (const e of errors)
+                    {
+                        console.error(chalk.red(`  - ${e}`));
+                    }
+                }
 
-				if (warnings.length > 0)
-				{
-					console.log(chalk.yellow(`\n⚠️  Warnings (${warnings.length}):\n`));
-					for (const w of warnings)
-					{
-						console.log(chalk.yellow(`  - ${w}`));
-					}
-				}
+                if (warnings.length > 0)
+                {
+                    console.log(chalk.yellow(`\n⚠️  Warnings (${warnings.length}):\n`));
+                    for (const w of warnings)
+                    {
+                        console.log(chalk.yellow(`  - ${w}`));
+                    }
+                }
 
-				const fallback = errors.length === 0 && warnings.length === 0
-					? 'Restore failed with no output'
-					: '';
+                const fallback = errors.length === 0 && warnings.length === 0
+                    ? 'Restore failed with no output'
+                    : '';
 
-				reject(new Error(fallback));
-			}
-		});
+                reject(new Error(fallback));
+            }
+        });
 
-		restoreProcess.on('error', (error) =>
-		{
-			spinner.fail('Restore failed');
-			reject(error);
-		});
-	}).catch((error) =>
-	{
-		const msg = error instanceof Error ? error.message : 'Unknown error';
-		if (msg)
-		{
-			console.error(chalk.red(`\n❌ ${msg}`));
-		}
-		process.exit(1);
-	});
+        restoreProcess.on('error', (error) =>
+        {
+            spinner.fail('Restore failed');
+            reject(error);
+        });
+    }).catch((error) =>
+    {
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        if (msg)
+        {
+            console.error(chalk.red(`\n❌ ${msg}`));
+        }
+        process.exit(1);
+    });
 }

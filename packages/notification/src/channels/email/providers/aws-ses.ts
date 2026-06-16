@@ -36,13 +36,14 @@ async function getSESClient()
         });
 
         log.debug('SES v2 client created', { region: env.AWS_REGION });
+
         return sesClient;
     }
     catch
     {
         throw new Error(
             '@aws-sdk/client-sesv2 is not installed. ' +
-            'Please install it: pnpm add @aws-sdk/client-sesv2'
+            'Please install it: pnpm add @aws-sdk/client-sesv2',
         );
     }
 }
@@ -101,6 +102,7 @@ export const awsSesProvider: EmailProvider = {
         {
             const err = error as Error;
             log.error('SES send failed', err, { to: params.to, from: params.from });
+
             return {
                 success: false,
                 error: err.message,

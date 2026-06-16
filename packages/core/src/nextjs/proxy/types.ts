@@ -2,8 +2,8 @@
 // Configuration
 // ============================================================================
 
-import { NextRequest } from "next/server";
-import { InterceptorRule } from "@spfn/core/nextjs/server";
+import { NextRequest } from 'next/server';
+import { InterceptorRule } from '@spfn/core/nextjs/server';
 
 /**
  * Request interceptor result
@@ -28,7 +28,7 @@ export interface ResponseInterceptorResult
  */
 export type ProxyRequestInterceptor = (
     req: NextRequest,
-    url: string
+    url: string,
 ) => Promise<RequestInterceptorResult> | RequestInterceptorResult;
 
 /**
@@ -36,7 +36,7 @@ export type ProxyRequestInterceptor = (
  */
 export type ProxyResponseInterceptor = (
     response: Response,
-    body: any
+    body: any,
 ) => Promise<ResponseInterceptorResult> | ResponseInterceptorResult;
 
 /**

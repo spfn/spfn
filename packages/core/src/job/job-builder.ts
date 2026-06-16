@@ -14,7 +14,7 @@ import { getBoss } from './boss';
  */
 function buildPgBossOptions(
     defaults?: JobOptions,
-    sendOptions?: JobSendOptions
+    sendOptions?: JobSendOptions,
 ): Record<string, unknown>
 {
     const options: Record<string, unknown> = {};
@@ -87,7 +87,7 @@ export class JobBuilder<TInput = void, TOutput = void>
      * Define input schema with TypeBox
      */
     input<TSchema extends import('@sinclair/typebox').TSchema>(
-        schema: TSchema
+        schema: TSchema,
     ): JobBuilder<Static<TSchema>, TOutput>
     {
         const builder = new JobBuilder<Static<TSchema>, TOutput>(this._name);
@@ -97,6 +97,7 @@ export class JobBuilder<TInput = void, TOutput = void>
         builder._runOnce = this._runOnce;
         builder._subscribedEvent = this._subscribedEvent;
         builder._options = this._options;
+
         return builder;
     }
 
@@ -104,7 +105,7 @@ export class JobBuilder<TInput = void, TOutput = void>
      * Define output schema with TypeBox (for workflow integration)
      */
     output<TSchema extends import('@sinclair/typebox').TSchema>(
-        schema: TSchema
+        schema: TSchema,
     ): JobBuilder<TInput, Static<TSchema>>
     {
         const builder = new JobBuilder<TInput, Static<TSchema>>(this._name);
@@ -114,6 +115,7 @@ export class JobBuilder<TInput = void, TOutput = void>
         builder._runOnce = this._runOnce;
         builder._subscribedEvent = this._subscribedEvent;
         builder._options = this._options;
+
         return builder;
     }
 
@@ -134,7 +136,7 @@ export class JobBuilder<TInput = void, TOutput = void>
      * ```
      */
     on<TEvent extends EventDef<any>>(
-        event: TEvent
+        event: TEvent,
     ): JobBuilder<InferEventPayload<TEvent>, TOutput>
     {
         const builder = new JobBuilder<InferEventPayload<TEvent>, TOutput>(this._name);
@@ -145,6 +147,7 @@ export class JobBuilder<TInput = void, TOutput = void>
         builder._cronExpression = this._cronExpression;
         builder._runOnce = this._runOnce;
         builder._options = this._options;
+
         return builder;
     }
 
@@ -154,6 +157,7 @@ export class JobBuilder<TInput = void, TOutput = void>
     cron(expression: string): this
     {
         this._cronExpression = expression;
+
         return this;
     }
 
@@ -163,6 +167,7 @@ export class JobBuilder<TInput = void, TOutput = void>
     runOnce(): this
     {
         this._runOnce = true;
+
         return this;
     }
 
@@ -172,6 +177,7 @@ export class JobBuilder<TInput = void, TOutput = void>
     options(options: JobOptions): this
     {
         this._options = options;
+
         return this;
     }
 
@@ -185,6 +191,7 @@ export class JobBuilder<TInput = void, TOutput = void>
             ...this._options,
             expireInSeconds: Math.ceil(ms / 1000),
         };
+
         return this;
     }
 
@@ -194,6 +201,7 @@ export class JobBuilder<TInput = void, TOutput = void>
     compensate(fn: CompensateHandler<TInput, TOutput>): this
     {
         this._compensate = fn;
+
         return this;
     }
 
@@ -218,7 +226,7 @@ export class JobBuilder<TInput = void, TOutput = void>
         // Create send function
         const send = async (
             inputOrOptions?: TInput | JobSendOptions,
-            maybeOptions?: JobSendOptions
+            maybeOptions?: JobSendOptions,
         ): Promise<string | null> =>
         {
             const boss = getBoss();
@@ -226,7 +234,7 @@ export class JobBuilder<TInput = void, TOutput = void>
             {
                 throw new Error(
                     `[Job:${name}] pg-boss not initialized. ` +
-                    'Ensure jobs are registered with defineServerConfig().jobs()'
+                    'Ensure jobs are registered with defineServerConfig().jobs()',
                 );
             }
 
@@ -238,7 +246,7 @@ export class JobBuilder<TInput = void, TOutput = void>
             return await boss.send(
                 name,
                 input ?? {},
-                buildPgBossOptions(options, sendOptions)
+                buildPgBossOptions(options, sendOptions),
             );
         };
 
@@ -258,7 +266,7 @@ export class JobBuilder<TInput = void, TOutput = void>
         // Create sendBatch function (bulk insert via pg-boss)
         const sendBatch = async (
             inputsOrOptions?: TInput[] | JobSendOptions,
-            maybeOptions?: JobSendOptions
+            maybeOptions?: JobSendOptions,
         ): Promise<void> =>
         {
             const boss = getBoss();
@@ -266,7 +274,7 @@ export class JobBuilder<TInput = void, TOutput = void>
             {
                 throw new Error(
                     `[Job:${name}] pg-boss not initialized. ` +
-                    'Ensure jobs are registered with defineServerConfig().jobs()'
+                    'Ensure jobs are registered with defineServerConfig().jobs()',
                 );
             }
 

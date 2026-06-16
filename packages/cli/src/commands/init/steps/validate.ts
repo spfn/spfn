@@ -34,7 +34,7 @@ export async function validateProject(cwd: string, skipPrompts: boolean): Promis
     }
 
     const packageJson = JSON.parse(await import('fs').then(fs =>
-        fs.promises.readFile(packageJsonPath, 'utf-8')
+        fs.promises.readFile(packageJsonPath, 'utf-8'),
     )) as PackageJson;
 
     const hasNext = packageJson.dependencies?.next || packageJson.devDependencies?.next;
@@ -46,12 +46,12 @@ export async function validateProject(cwd: string, skipPrompts: boolean): Promis
         if (!skipPrompts)
         {
             const { proceed } = await prompts(
-            {
-                type: 'confirm',
-                name: 'proceed',
-                message: 'Continue anyway?',
-                initial: false,
-            });
+                {
+                    type: 'confirm',
+                    name: 'proceed',
+                    message: 'Continue anyway?',
+                    initial: false,
+                });
 
             if (!proceed)
             {
@@ -70,12 +70,12 @@ export async function validateProject(cwd: string, skipPrompts: boolean): Promis
         if (!skipPrompts)
         {
             const { overwrite } = await prompts(
-            {
-                type: 'confirm',
-                name: 'overwrite',
-                message: 'Overwrite existing files?',
-                initial: false,
-            });
+                {
+                    type: 'confirm',
+                    name: 'overwrite',
+                    message: 'Overwrite existing files?',
+                    initial: false,
+                });
 
             if (!overwrite)
             {
@@ -90,12 +90,12 @@ export async function validateProject(cwd: string, skipPrompts: boolean): Promis
     if (!skipPrompts)
     {
         const { auth } = await prompts(
-        {
-            type: 'confirm',
-            name: 'auth',
-            message: 'Include authentication (@spfn/auth)?',
-            initial: true,
-        });
+            {
+                type: 'confirm',
+                name: 'auth',
+                message: 'Include authentication (@spfn/auth)?',
+                initial: true,
+            });
 
         includeAuth = auth;
     }

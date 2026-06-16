@@ -79,7 +79,7 @@ describe('Log Service', () =>
                     requestId: 'req-456',
                     userId: 'user-789',
                     metadata: { orderId: 123 },
-                })
+                }),
             );
         });
     });

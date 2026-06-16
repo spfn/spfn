@@ -16,7 +16,7 @@ import type { HttpMethod } from './types';
 export type RouteHandlerFn<
     TInput extends RouteInput = RouteInput,
     TInterceptor extends RouteInput = {},
-    TResponse = unknown
+    TResponse = unknown,
 > = (c: RouteBuilderContext<TInput, TInterceptor>) => Response | Promise<Response> | TResponse | Promise<TResponse>;
 
 /**
@@ -27,7 +27,7 @@ export type RouteHandlerFn<
 export type RouteDef<
     TInput extends RouteInput = RouteInput,
     TInterceptor extends RouteInput = {},
-    TResponse = unknown
+    TResponse = unknown,
 > = {
     method?: HttpMethod;
     path?: string;
@@ -49,7 +49,7 @@ export type RouteDef<
 export class RouteBuilder<
     TInput extends RouteInput = {},
     TInterceptor extends RouteInput = {},
-    TResponse = never
+    TResponse = never,
 >
 {
     public _method?: HttpMethod;
@@ -64,14 +64,14 @@ export class RouteBuilder<
      */
     private clone<
         TNewInput extends RouteInput = TInput,
-        TNewInterceptor extends RouteInput = TInterceptor
+        TNewInterceptor extends RouteInput = TInterceptor,
     >(
         overrides?: Partial<{
             input: TNewInput;
             interceptor: TNewInterceptor;
             middlewares: (MiddlewareHandler | NamedMiddleware<string>)[];
             skipMiddlewares: string[] | '*';
-        }>
+        }>,
     ): RouteBuilder<TNewInput, TNewInterceptor, TResponse>
     {
         const builder = new RouteBuilder<TNewInput, TNewInterceptor, TResponse>();
@@ -81,6 +81,7 @@ export class RouteBuilder<
         builder._interceptor = (overrides?.interceptor ?? this._interceptor) as TNewInterceptor | undefined;
         builder._middlewares = overrides?.middlewares ?? this._middlewares;
         builder._skipMiddlewares = overrides?.skipMiddlewares ?? this._skipMiddlewares;
+
         return builder;
     }
 
@@ -145,7 +146,7 @@ export class RouteBuilder<
      * ```
      */
     interceptor<TNewInterceptor extends RouteInput>(
-        interceptor: TNewInterceptor
+        interceptor: TNewInterceptor,
     ): RouteBuilder<TInput, TNewInterceptor, TResponse>
     {
         return this.clone({ interceptor });
@@ -278,7 +279,7 @@ export class RouteBuilder<
      * ```
      */
     handler<THandlerResponse>(
-        fn: RouteHandlerFn<TInput, TInterceptor, THandlerResponse>
+        fn: RouteHandlerFn<TInput, TInterceptor, THandlerResponse>,
     ): RouteDef<TInput, TInterceptor, THandlerResponse>
     {
         return {
@@ -306,6 +307,7 @@ function createMethodRoute(method: HttpMethod): (path: string) => RouteBuilder
         const builder = new RouteBuilder();
         builder._method = method;
         builder._path = path;
+
         return builder;
     };
 }

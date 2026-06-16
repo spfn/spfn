@@ -355,7 +355,7 @@ function discoverPackageSchemas(cwd: string): string[]
             const projectPkg = JSON.parse(readFileSync(projectPkgPath, 'utf-8'));
             directDeps = new Set([
                 ...Object.keys(projectPkg.dependencies || {}),
-                ...Object.keys(projectPkg.devDependencies || {})
+                ...Object.keys(projectPkg.devDependencies || {}),
             ]);
         }
         catch (error: unknown)
@@ -462,7 +462,7 @@ export function detectDialect(url: string): 'postgresql' | 'mysql' | 'sqlite'
     }
 
     throw new Error(
-        `Unsupported database URL format: ${url}. Supported: postgresql://, mysql://, sqlite://`
+        `Unsupported database URL format: ${url}. Supported: postgresql://, mysql://, sqlite://`,
     );
 }
 
@@ -492,7 +492,7 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
     if (!databaseUrl)
     {
         throw new Error(
-            'DATABASE_URL is required. Set it in .env or pass it to getDrizzleConfig()'
+            'DATABASE_URL is required. Set it in .env or pass it to getDrizzleConfig()',
         );
     }
 
@@ -508,14 +508,14 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
 
         // Filter to only the specified package
         const filteredSchemas = packageSchemas.filter(schemaPath =>
-            schemaPath.includes(`node_modules/${options.packageFilter}/`)
+            schemaPath.includes(`node_modules/${options.packageFilter}/`),
         );
 
         if (filteredSchemas.length === 0)
         {
             throw new Error(
                 `No schemas found for package ${options.packageFilter}. ` +
-                `Make sure the package is installed and has "spfn.schemas" in package.json.`
+                `Make sure the package is installed and has "spfn.schemas" in package.json.`,
             );
         }
 
@@ -607,6 +607,7 @@ function getDbCredentials(dialect: string, url: string)
         case 'sqlite':
             // Extract file path from sqlite:// URL
             const dbPath = url.replace('sqlite://', '').replace('sqlite:', '');
+
             return { url: dbPath };
 
         default:
@@ -633,6 +634,7 @@ export function generateDrizzleConfigFile(options: DrizzleConfigOptions = {}): s
         {
             return schemaPath;
         }
+
         // Convert relative to absolute
         return join(cwd, schemaPath);
     };

@@ -8,7 +8,7 @@ import {
     ValidationError,
     UnauthorizedError,
     ForbiddenError,
-    ConflictError
+    ConflictError,
 } from '@spfn/core/errors';
 
 /**
@@ -36,6 +36,21 @@ export class InvalidTokenError extends UnauthorizedError
     {
         super({ message: data.message || 'Invalid authentication token', details: data.details });
         this.name = 'InvalidTokenError';
+    }
+}
+
+/**
+ * Invalid Social Token Error (401)
+ *
+ * Thrown when a social provider id_token fails verification
+ * (bad signature, wrong issuer/audience, expired, or nonce mismatch).
+ */
+export class InvalidSocialTokenError extends UnauthorizedError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({ message: data.message || 'Invalid social id_token', details: data.details });
+        this.name = 'InvalidSocialTokenError';
     }
 }
 
@@ -79,7 +94,7 @@ export class AccountDisabledError extends ForbiddenError
         const status = data.status || 'disabled';
         super({
             message: data.message || `Account is ${status}`,
-            details: { status, ...data.details }
+            details: { status, ...data.details },
         });
         this.name = 'AccountDisabledError';
     }
@@ -99,8 +114,8 @@ export class AccountAlreadyExistsError extends ConflictError
             details: {
                 identifier: data.identifier,
                 identifierType: data.identifierType,
-                ...data.details
-            }
+                ...data.details,
+            },
         });
         this.name = 'AccountAlreadyExistsError';
     }
@@ -161,7 +176,7 @@ export class VerificationTokenPurposeMismatchError extends ValidationError
         const actual = data.actual || 'unknown';
         super({
             message: data.message || `Verification token is for ${actual}, but ${expected} was expected`,
-            details: { expected, actual, ...data.details }
+            details: { expected, actual, ...data.details },
         });
         this.name = 'VerificationTokenPurposeMismatchError';
     }
@@ -178,7 +193,7 @@ export class VerificationTokenTargetMismatchError extends ValidationError
     {
         super({
             message: data.message || 'Verification token does not match provided email/phone',
-            details: data.details
+            details: data.details,
         });
         this.name = 'VerificationTokenTargetMismatchError';
     }
@@ -195,7 +210,7 @@ export class ReservedUsernameError extends ValidationError
     {
         super({
             message: data.message || 'This username is reserved',
-            details: { username: data.username, ...data.details }
+            details: { username: data.username, ...data.details },
         });
         this.name = 'ReservedUsernameError';
     }
@@ -212,7 +227,7 @@ export class UsernameAlreadyTakenError extends ConflictError
     {
         super({
             message: data.message || 'Username is already taken',
-            details: { username: data.username, ...data.details }
+            details: { username: data.username, ...data.details },
         });
         this.name = 'UsernameAlreadyTakenError';
     }
@@ -230,7 +245,7 @@ export class InsufficientPermissionsError extends ForbiddenError
         const requiredPermissions = data.requiredPermissions || [];
         super({
             message: data.message || `Missing required permissions: ${requiredPermissions.join(', ')}`,
-            details: { requiredPermissions, ...data.details }
+            details: { requiredPermissions, ...data.details },
         });
         this.name = 'InsufficientPermissionsError';
     }
@@ -248,7 +263,7 @@ export class InsufficientRoleError extends ForbiddenError
         const requiredRoles = data.requiredRoles || [];
         super({
             message: data.message || `Required roles: ${requiredRoles.join(', ')}`,
-            details: { requiredRoles, ...data.details }
+            details: { requiredRoles, ...data.details },
         });
         this.name = 'InsufficientRoleError';
     }

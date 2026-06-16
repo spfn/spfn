@@ -30,28 +30,28 @@ export interface ClassificationResult
 // ============================================================================
 
 const DESTRUCTIVE_PATTERNS: Array<{ pattern: RegExp; reason: string }> =
-[
-    { pattern: /^\s*DROP\s+TABLE/i, reason: 'Drops entire table' },
-    { pattern: /^\s*DROP\s+INDEX/i, reason: 'Drops index' },
-    { pattern: /^\s*DROP\s+SCHEMA/i, reason: 'Drops schema' },
-    { pattern: /^\s*DROP\s+TYPE/i, reason: 'Drops custom type' },
-    { pattern: /ALTER\s+TABLE\s+.*\bDROP\s+COLUMN\b/i, reason: 'Drops column' },
-    { pattern: /ALTER\s+TABLE\s+.*\bDROP\s+CONSTRAINT\b/i, reason: 'Drops constraint' },
-    { pattern: /ALTER\s+TABLE\s+.*ALTER\s+COLUMN\s+.*\bTYPE\b/i, reason: 'Changes column type (potential data loss)' },
-    { pattern: /ALTER\s+TYPE\s+.*\bRENAME\s+VALUE\b/i, reason: 'Renames enum value' },
-    { pattern: /^\s*TRUNCATE\b/i, reason: 'Truncates table data' },
-    { pattern: /^\s*DELETE\s+FROM\b/i, reason: 'Deletes table data' },
-];
+    [
+        { pattern: /^\s*DROP\s+TABLE/i, reason: 'Drops entire table' },
+        { pattern: /^\s*DROP\s+INDEX/i, reason: 'Drops index' },
+        { pattern: /^\s*DROP\s+SCHEMA/i, reason: 'Drops schema' },
+        { pattern: /^\s*DROP\s+TYPE/i, reason: 'Drops custom type' },
+        { pattern: /ALTER\s+TABLE\s+.*\bDROP\s+COLUMN\b/i, reason: 'Drops column' },
+        { pattern: /ALTER\s+TABLE\s+.*\bDROP\s+CONSTRAINT\b/i, reason: 'Drops constraint' },
+        { pattern: /ALTER\s+TABLE\s+.*ALTER\s+COLUMN\s+.*\bTYPE\b/i, reason: 'Changes column type (potential data loss)' },
+        { pattern: /ALTER\s+TYPE\s+.*\bRENAME\s+VALUE\b/i, reason: 'Renames enum value' },
+        { pattern: /^\s*TRUNCATE\b/i, reason: 'Truncates table data' },
+        { pattern: /^\s*DELETE\s+FROM\b/i, reason: 'Deletes table data' },
+    ];
 
 // ============================================================================
 // Warning patterns (auto-applied but shown with caution)
 // ============================================================================
 
 const WARNING_PATTERNS: Array<{ pattern: RegExp; reason: string }> =
-[
-    { pattern: /ALTER\s+TABLE\s+.*ALTER\s+COLUMN\s+.*\bSET\s+NOT\s+NULL\b/i, reason: 'Adds NOT NULL (fails if NULLs exist)' },
-    { pattern: /ALTER\s+TABLE\s+.*\bRENAME\s+COLUMN\b/i, reason: 'Renames column' },
-];
+    [
+        { pattern: /ALTER\s+TABLE\s+.*ALTER\s+COLUMN\s+.*\bSET\s+NOT\s+NULL\b/i, reason: 'Adds NOT NULL (fails if NULLs exist)' },
+        { pattern: /ALTER\s+TABLE\s+.*\bRENAME\s+COLUMN\b/i, reason: 'Renames column' },
+    ];
 
 // ============================================================================
 // Public API

@@ -27,11 +27,11 @@ import {
  *
  * @example
  * ```typescript
- * import { authEnvSchema } from '@spfn/auth/config';
+ * import { envSchema } from '@spfn/auth/config';
  *
  * // Access schema information
- * console.log(authEnvSchema.SPFN_AUTH_SESSION_SECRET.description);
- * console.log(authEnvSchema.SPFN_AUTH_JWT_EXPIRES_IN.default);
+ * console.log(envSchema.SPFN_AUTH_SESSION_SECRET.description);
+ * console.log(envSchema.SPFN_AUTH_JWT_EXPIRES_IN.default);
  * ```
  */
 export const authEnvSchema = defineEnvSchema({
@@ -316,6 +316,33 @@ export const authEnvSchema = defineEnvSchema({
             examples: [
                 'https://api.example.com/_auth/oauth/google/callback',
                 'http://localhost:8790/_auth/oauth/google/callback',
+            ],
+        }),
+    },
+
+    // ============================================================================
+    // Native Social Login (mobile/web id_token verification)
+    //
+    // 네이티브 SDK가 받은 id_token을 서버가 JWKS로 검증하는 경로 전용 설정.
+    // authorization code 교환을 하지 않으므로 client secret이 필요 없다.
+    // audience(aud)로 허용할 client id 목록만 지정한다.
+    // ============================================================================
+    SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS: {
+        ...envString({
+            description: 'Comma-separated Google client IDs accepted as id_token audience for native sign-in (iOS, Android, web). When set, Google native sign-in is enabled. SPFN_AUTH_GOOGLE_CLIENT_ID is also accepted automatically.',
+            required: false,
+            examples: [
+                '123-ios.apps.googleusercontent.com,123-android.apps.googleusercontent.com',
+            ],
+        }),
+    },
+
+    SPFN_AUTH_APPLE_CLIENT_IDS: {
+        ...envString({
+            description: 'Comma-separated Apple client IDs accepted as id_token audience for native sign-in (iOS bundle ID, web/Android Services ID). When set, Apple native sign-in is enabled.',
+            required: false,
+            examples: [
+                'com.example.app,com.example.app.service',
             ],
         }),
     },

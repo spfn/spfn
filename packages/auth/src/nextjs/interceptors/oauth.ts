@@ -139,6 +139,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
         if (!ctx.response.ok)
         {
             await next();
+
             return;
         }
 
@@ -148,6 +149,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
             authLogger.interceptor.oauth?.warn?.('No pending session cookie found');
             setFinalizeError(ctx, 'OAuth session expired. Please try again.');
             await next();
+
             return;
         }
 
@@ -164,6 +166,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
                 authLogger.interceptor.oauth?.error?.('Missing userId or keyId in response');
                 setFinalizeError(ctx, 'OAuth finalize failed: missing credentials');
                 await next();
+
                 return;
             }
 
@@ -176,6 +179,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
                 });
                 setFinalizeError(ctx, 'OAuth session mismatch. Please try again.');
                 await next();
+
                 return;
             }
 

@@ -144,6 +144,6 @@ export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLif
             await initializeAuth(options);
             await ensureAdminExists();
             initOneTimeTokenManager(options.oneTimeToken);
-        }
+        },
     };
 }

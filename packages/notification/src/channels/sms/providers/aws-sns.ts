@@ -36,13 +36,14 @@ async function getSNSClient()
         });
 
         log.debug('SNS client created', { region: env.AWS_REGION });
+
         return snsClient;
     }
     catch
     {
         throw new Error(
             '@aws-sdk/client-sns is not installed. ' +
-            'Please install it: pnpm add @aws-sdk/client-sns'
+            'Please install it: pnpm add @aws-sdk/client-sns',
         );
     }
 }
@@ -82,6 +83,7 @@ export const awsSnsProvider: SMSProvider = {
         {
             const err = error as Error;
             log.error('SNS send failed', err, { to: params.to });
+
             return {
                 success: false,
                 error: err.message,

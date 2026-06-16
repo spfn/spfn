@@ -138,7 +138,7 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
         verifyClientToken(
             token,
             keyRecord.publicKey,
-            keyRecord.algorithm as KeyAlgorithmType // entity.algorithm is always defined
+            keyRecord.algorithm as KeyAlgorithmType, // entity.algorithm is always defined
         );
     }
     catch (err)
@@ -252,6 +252,7 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
     if (!authHeader || !authHeader.startsWith('Bearer '))
     {
         await next();
+
         return;
     }
 
@@ -264,6 +265,7 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
         if (!decoded || !decoded.keyId)
         {
             await next();
+
             return;
         }
 
@@ -274,19 +276,21 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
         if (!keyRecord)
         {
             await next();
+
             return;
         }
 
         if (keyRecord.expiresAt && new Date() > keyRecord.expiresAt)
         {
             await next();
+
             return;
         }
 
         verifyClientToken(
             token,
             keyRecord.publicKey,
-            keyRecord.algorithm as KeyAlgorithmType
+            keyRecord.algorithm as KeyAlgorithmType,
         );
 
         const [result, locale] = await Promise.all([
@@ -297,6 +301,7 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
         if (!result || result.user.status !== 'active')
         {
             await next();
+
             return;
         }
 

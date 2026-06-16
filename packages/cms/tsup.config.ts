@@ -6,7 +6,7 @@ export default defineConfig({
         actions: 'src/actions.ts',
         server: 'src/server.ts',
         config: 'src/config/index.ts',
-        errors: 'src/errors/index.ts'
+        errors: 'src/errors/index.ts',
     },
     format: ['esm'],
     dts: true,

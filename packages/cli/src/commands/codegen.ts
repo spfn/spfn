@@ -20,24 +20,32 @@ async function initCodegen(options: { withExample?: boolean }): Promise<void>
         process.exit(0);
     }
 
-    // Create basic configuration
-    const config = {
-        codegen: {
-            generators: [
-                {
-                    name: '@spfn/core:contract',
-                    enabled: true
-                }
-            ]
-        }
-    };
+    // Write .spfnrc.ts with the route-map generator (matches the `spfn init` scaffold)
+    const content = `import { defineConfig, defineGenerator } from '@spfn/core/codegen';
 
-    // Write .spfnrc.ts
-    writeFileSync(rcPath, JSON.stringify(config, null, 2) + '\n');
+/**
+ * SPFN Codegen Configuration
+ *
+ * Configure code generators here. Generators run during \`spfn dev\` and \`spfn codegen run\`.
+ */
+
+export default defineConfig({
+    generators: [
+        // Route map generator - generates routeName → {method, path} mappings
+        // Used by RPC proxy to resolve routes without importing server code
+        defineGenerator({
+            name: '@spfn/core:route-map',
+            routerPath: './src/server/router.ts',
+            outputPath: './src/generated/route-map.ts',
+        }),
+    ],
+});
+`;
+
+    writeFileSync(rcPath, content);
 
     console.log('\n' + chalk.green.bold('✓ Created .spfnrc.ts\n'));
-    console.log('Configuration:');
-    console.log(chalk.gray(JSON.stringify(config, null, 2)));
+    console.log(chalk.gray('Configured the @spfn/core:route-map generator.'));
 
     if (options.withExample)
     {
@@ -80,6 +88,7 @@ async function listGenerators(): Promise<void>
     {
         logger.info('No generators configured');
         logger.info('Run "spfn codegen init" to initialize configuration');
+
         return;
     }
 
@@ -110,6 +119,7 @@ async function runGenerators(): Promise<void>
     {
         logger.warn('No generators configured');
         logger.info('Run "spfn codegen init" to initialize configuration');
+
         return;
     }
 
@@ -117,7 +127,7 @@ async function runGenerators(): Promise<void>
     const orchestrator = new CodegenOrchestrator({
         generators,
         cwd,
-        debug: true
+        debug: true,
     });
 
     await orchestrator.generateAll();

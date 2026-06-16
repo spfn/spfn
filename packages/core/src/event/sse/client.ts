@@ -127,7 +127,7 @@ interface SSEConnection
 }
 
 export function createSSEClient<TRouter extends EventRouterDef<any>>(
-    config: SSEClientConfig = {}
+    config: SSEClientConfig = {},
 ): SSEClient<TRouter>
 {
     const {
@@ -255,7 +255,7 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
             names: string[],
             handlerMap: SSESubscribeOptions<TRouter>['handlers'],
             onOpenCb?: () => void,
-            onErrorCb?: (error: Event) => void
+            onErrorCb?: (error: Event) => void,
         )
         {
             es.onopen = () =>
@@ -357,6 +357,7 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
             if (maxReconnectAttempts > 0 && conn.reconnectAttempts >= maxReconnectAttempts)
             {
                 closeConn(conn);
+
                 return;
             }
 
@@ -431,7 +432,7 @@ export function createSSEClient<TRouter extends EventRouterDef<any>>(
 export function subscribeToEvents<TRouter extends EventRouterDef<any>>(
     events: InferEventNames<TRouter>[],
     handlers: SSESubscribeOptions<TRouter>['handlers'],
-    options?: SSEClientConfig
+    options?: SSEClientConfig,
 ): SSEUnsubscribe
 {
     const client = createSSEClient<TRouter>(options);
@@ -482,7 +483,7 @@ export interface AuthSSEClientConfig extends Omit<SSEClientConfig, 'acquireToken
  * ```
  */
 export function createAuthSSEClient<TRouter extends EventRouterDef<any>>(
-    config: AuthSSEClientConfig = {}
+    config: AuthSSEClientConfig = {},
 ): SSEClient<TRouter>
 {
     const { rpcBaseUrl = '/api/rpc', ...sseConfig } = config;
@@ -504,6 +505,7 @@ export function createAuthSSEClient<TRouter extends EventRouterDef<any>>(
             }
 
             const data = await res.json();
+
             return data.token;
         },
     });

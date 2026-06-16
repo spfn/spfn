@@ -42,7 +42,7 @@ export interface ErrorHandlerOptions
      */
     onError?: (
         err: Error,
-        context: OnErrorContext
+        context: OnErrorContext,
     ) => Promise<void> | void;
 }
 
@@ -162,7 +162,7 @@ function buildOnErrorContext(c: Context, statusCode: number): OnErrorContext
 function logError(
     err: Error,
     logData: ErrorLogData,
-    includeStack: boolean
+    includeStack: boolean,
 ): void
 {
     const logLevel = logData.statusCode >= 500 ? 'error' : 'warn';

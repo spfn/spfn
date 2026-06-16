@@ -116,7 +116,7 @@ describe('JWT - Verification Failures', () =>
             { userId: '123' },
             privateKey,
             algorithm,
-            { expiresIn: '1ms' }
+            { expiresIn: '1ms' },
         );
 
         await new Promise(resolve => setTimeout(resolve, 10));
@@ -264,7 +264,7 @@ describe('JWT - Token Decoding (without verification)', () =>
             { userId: '123' },
             privateKey,
             algorithm,
-            { expiresIn: '-1s' } // Already expired
+            { expiresIn: '-1s' }, // Already expired
         );
 
         const decoded = decodeToken(token);

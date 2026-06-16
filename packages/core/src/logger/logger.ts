@@ -90,13 +90,14 @@ export class Logger
         level: LogLevel,
         message: string,
         errorOrContext?: Error | unknown | Record<string, unknown>,
-        context?: Record<string, unknown>
+        context?: Record<string, unknown>,
     ): void
     {
         // printf-style format string: logger.info('url: %s', value)
         if (errorOrContext !== undefined && FORMAT_PATTERN.test(message))
         {
             this.log(level, format(message, errorOrContext), undefined, context);
+
             return;
         }
 

@@ -57,7 +57,7 @@ export const trackingEvents = notificationSchema.table('tracking_events',
         index('te_notification_id_idx').on(table.notificationId),
         index('te_type_idx').on(table.type),
         index('te_created_at_idx').on(table.createdAt),
-    ]
+    ],
 );
 
 /**

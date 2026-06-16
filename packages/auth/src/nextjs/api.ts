@@ -18,7 +18,7 @@
  */
 
 // Re-export interceptors for advanced usage
-import { registerInterceptors } from "@spfn/core/nextjs/server";
+import { registerInterceptors } from '@spfn/core/nextjs/server';
 import { authInterceptors } from './interceptors';
 
 // Auto-register interceptors on import

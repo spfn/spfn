@@ -83,7 +83,7 @@ export interface SaveSessionOptions
  */
 export async function saveSession(
     data: SessionData,
-    options?: SaveSessionOptions
+    options?: SaveSessionOptions,
 ): Promise<void>
 {
     // Calculate maxAge
@@ -110,7 +110,7 @@ export async function saveSession(
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         path: '/',
-        maxAge
+        maxAge,
     });
 }
 
@@ -133,6 +133,7 @@ export async function getSession(): Promise<PublicSession | null>
     {
         logger.debug('Validating session cookie', { cookie: sessionCookie.value });
         const session = await unsealSession(sessionCookie.value);
+
         // Return only public information
         return {
             userId: session.userId,
@@ -144,7 +145,7 @@ export async function getSession(): Promise<PublicSession | null>
         // Note: Cannot delete cookies in Server Components (read-only)
         // Use validateSessionMiddleware() in Next.js middleware for automatic cleanup
         logger.debug('Session validation failed', {
-            error: error instanceof Error ? error.message : String(error)
+            error: error instanceof Error ? error.message : String(error),
         });
 
         return null;
@@ -174,6 +175,7 @@ async function getPendingSessionKey(): Promise<Uint8Array>
     const encoder = new TextEncoder();
     const data = encoder.encode(`oauth-pending:${secret}`);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
     return new Uint8Array(hashBuffer);
 }
 
@@ -185,7 +187,7 @@ async function getPendingSessionKey(): Promise<Uint8Array>
  */
 export async function sealPendingSession(
     data: PendingSessionData,
-    ttl: number = 600
+    ttl: number = 600,
 ): Promise<string>
 {
     const key = await getPendingSessionKey();
@@ -238,6 +240,7 @@ export async function getPendingSession(): Promise<PendingSessionData | null>
         logger.debug('Pending session validation failed', {
             error: error instanceof Error ? error.message : String(error),
         });
+
         return null;
     }
 }

@@ -35,7 +35,7 @@ describe('Database Connection', () =>
         it('should create connection successfully on first attempt', async () =>
         {
             const mockClient: any = vi.fn((_sql: TemplateStringsArray) =>
-                Promise.resolve([{ test: 1 }])
+                Promise.resolve([{ test: 1 }]),
             );
 
             mockPostgres.mockReturnValue(mockClient);
@@ -51,7 +51,7 @@ describe('Database Connection', () =>
             const client = await createDatabaseConnection(
                 'postgresql://test:test@localhost:5432/test',
                 poolConfig,
-                retryConfig
+                retryConfig,
             );
 
             expect(mockPostgres).toHaveBeenCalledWith(
@@ -60,7 +60,7 @@ describe('Database Connection', () =>
                     max: 10,
                     idle_timeout: 20,
                     connect_timeout: 10,
-                }
+                },
             );
 
             expect(client).toBe(mockClient);
@@ -76,6 +76,7 @@ describe('Database Connection', () =>
                 {
                     throw new Error('Connection failed');
                 }
+
                 return Promise.resolve([{ test: 1 }]);
             });
 
@@ -92,7 +93,7 @@ describe('Database Connection', () =>
             const client = await createDatabaseConnection(
                 'postgresql://test:test@localhost:5432/test',
                 poolConfig,
-                retryConfig
+                retryConfig,
             );
 
             expect(callCount).toBe(2);
@@ -102,7 +103,7 @@ describe('Database Connection', () =>
         it('should throw ConnectionError after max retries', async () =>
         {
             const mockClient: any = vi.fn(() =>
-                Promise.reject(new Error('Connection failed'))
+                Promise.reject(new Error('Connection failed')),
             );
 
             mockPostgres.mockReturnValue(mockClient);
@@ -119,8 +120,8 @@ describe('Database Connection', () =>
                 createDatabaseConnection(
                     'postgresql://test:test@localhost:5432/test',
                     poolConfig,
-                    retryConfig
-                )
+                    retryConfig,
+                ),
             ).rejects.toThrow('Failed to connect to database');
 
             // Should attempt: initial + 2 retries = 3 total
@@ -139,6 +140,7 @@ describe('Database Connection', () =>
                 {
                     throw new Error('Connection failed');
                 }
+
                 return Promise.resolve([{ test: 1 }]);
             });
 
@@ -150,6 +152,7 @@ describe('Database Connection', () =>
             {
                 delays.push(delay);
                 fn();
+
                 return {} as any;
             }) as any;
 
@@ -164,7 +167,7 @@ describe('Database Connection', () =>
             await createDatabaseConnection(
                 'postgresql://test:test@localhost:5432/test',
                 poolConfig,
-                retryConfig
+                retryConfig,
             );
 
             global.setTimeout = originalSetTimeout;
@@ -191,6 +194,7 @@ describe('Database Connection', () =>
                 {
                     throw new Error('Connection failed');
                 }
+
                 return Promise.resolve([{ test: 1 }]);
             });
 
@@ -201,6 +205,7 @@ describe('Database Connection', () =>
             {
                 delays.push(delay);
                 fn();
+
                 return {} as any;
             }) as any;
 
@@ -215,7 +220,7 @@ describe('Database Connection', () =>
             await createDatabaseConnection(
                 'postgresql://test:test@localhost:5432/test',
                 poolConfig,
-                retryConfig
+                retryConfig,
             );
 
             global.setTimeout = originalSetTimeout;
@@ -239,6 +244,7 @@ describe('Database Connection', () =>
                 {
                     throw new Error('Connection failed');
                 }
+
                 return Promise.resolve([{ test: 1 }]);
             });
 
@@ -255,7 +261,7 @@ describe('Database Connection', () =>
             await createDatabaseConnection(
                 'postgresql://test:test@localhost:5432/test',
                 poolConfig,
-                retryConfig
+                retryConfig,
             );
 
             expect(callCount).toBe(2);
@@ -267,7 +273,7 @@ describe('Database Connection', () =>
         it('should return true for healthy connection', async () =>
         {
             const mockClient: any = vi.fn((_sql: TemplateStringsArray) =>
-                Promise.resolve([{ health_check: 1 }])
+                Promise.resolve([{ health_check: 1 }]),
             );
 
             const result = await checkConnection(mockClient);
@@ -279,7 +285,7 @@ describe('Database Connection', () =>
         it('should return false for failed connection', async () =>
         {
             const mockClient: any = vi.fn(() =>
-                Promise.reject(new Error('Connection failed'))
+                Promise.reject(new Error('Connection failed')),
             );
 
             const result = await checkConnection(mockClient);
@@ -290,7 +296,7 @@ describe('Database Connection', () =>
         it('should handle various error types', async () =>
         {
             const mockClient: any = vi.fn(() =>
-                Promise.reject('String error')
+                Promise.reject('String error'),
             );
 
             const result = await checkConnection(mockClient);

@@ -5,7 +5,7 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewUserPublicKey, userPublicKeys } from "../entities/user-public-keys";
+import { NewUserPublicKey, userPublicKeys } from '../entities/user-public-keys';
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and } from 'drizzle-orm';
 
@@ -31,8 +31,8 @@ export class KeysRepository extends BaseRepository
             .where(
                 and(
                     eq(userPublicKeys.keyId, keyId),
-                    eq(userPublicKeys.userId, userId)
-                )
+                    eq(userPublicKeys.userId, userId),
+                ),
             )
             .limit(1);
 
@@ -63,8 +63,8 @@ export class KeysRepository extends BaseRepository
             .where(
                 and(
                     eq(userPublicKeys.userId, userId),
-                    eq(userPublicKeys.isActive, true)
-                )
+                    eq(userPublicKeys.isActive, true),
+                ),
             );
     }
 
@@ -87,7 +87,7 @@ export class KeysRepository extends BaseRepository
     async revokeByKeyIdAndUserId(
         keyId: string,
         userId: number,
-        reason: string
+        reason: string,
     )
     {
         const result = await this.db
@@ -100,8 +100,8 @@ export class KeysRepository extends BaseRepository
             .where(
                 and(
                     eq(userPublicKeys.keyId, keyId),
-                    eq(userPublicKeys.userId, userId)
-                )
+                    eq(userPublicKeys.userId, userId),
+                ),
             )
             .returning();
 
@@ -119,8 +119,8 @@ export class KeysRepository extends BaseRepository
             .where(
                 and(
                     eq(userPublicKeys.keyId, keyId),
-                    eq(userPublicKeys.userId, userId)
-                )
+                    eq(userPublicKeys.userId, userId),
+                ),
             )
             .returning();
 
@@ -141,8 +141,8 @@ export class KeysRepository extends BaseRepository
             .where(
                 and(
                     eq(userPublicKeys.keyId, keyId),
-                    eq(userPublicKeys.userId, userId)
-                )
+                    eq(userPublicKeys.userId, userId),
+                ),
             )
             .returning();
 
@@ -161,8 +161,8 @@ export class KeysRepository extends BaseRepository
             .where(
                 and(
                     eq(userPublicKeys.keyId, keyId),
-                    eq(userPublicKeys.isActive, true)
-                )
+                    eq(userPublicKeys.isActive, true),
+                ),
             )
             .limit(1);
 

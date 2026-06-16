@@ -8,7 +8,7 @@ import { logger } from '@spfn/core/logger';
 import {
     cmsLabelsRepository,
     cmsLabelValuesRepository,
-    cmsPublishedCacheRepository
+    cmsPublishedCacheRepository,
 } from '../repositories';
 import { type CmsLabelValue } from '../entities';
 
@@ -19,7 +19,7 @@ const publishLogger = logger.child('@spfn/cms:publish');
  */
 export async function getSectionLabels(
     section: string,
-    locales: string[]
+    locales: string[],
 ): Promise<{
     section: string;
     locales: string[];
@@ -47,7 +47,7 @@ export async function getSectionLabels(
     // 2. 각 라벨의 Draft 값 조회 (version: null)
     const labelIds = labels.map(l => l.id);
     const draftValues = await Promise.all(
-        labelIds.map(id => cmsLabelValuesRepository.findDraftsByLabelId(id))
+        labelIds.map(id => cmsLabelValuesRepository.findDraftsByLabelId(id)),
     );
 
     // 3. 각 라벨의 Published 값 조회
@@ -71,6 +71,7 @@ export async function getSectionLabels(
             {
                 const value = d.value as any;
                 acc[d.locale] = value?.content ?? value;
+
                 return acc;
             }, {} as Record<string, string>)
             : null;
@@ -109,7 +110,7 @@ export async function saveSectionDraft(
     labels: Array<{
         id: number;
         values: Record<string, string>;
-    }>
+    }>,
 ): Promise<{ updated: number }>
 {
     publishLogger.debug('saveSectionDraft', { section, labelCount: labels.length });
@@ -145,7 +146,7 @@ export async function saveSectionDraft(
  */
 export async function publishSection(
     section: string,
-    locales: string[]
+    locales: string[],
 ): Promise<{
     published: number;
     version: number;

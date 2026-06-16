@@ -12,7 +12,7 @@ const { writeFileSync } = fse;
 export async function setupDeploymentConfig(
     cwd: string,
     packageJson: PackageJson,
-    packageManager: string
+    packageManager: string,
 ): Promise<void>
 {
     const deploymentConfigPath = join(cwd, 'spfn.config.js');

@@ -46,6 +46,7 @@ describe(':provider OAuth routes', () =>
             {
                 return c.json({ error: err.message }, err.statusCode as never);
             }
+
             return c.json({ error: 'Internal Server Error' }, 500);
         });
 

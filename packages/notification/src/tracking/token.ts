@@ -116,7 +116,7 @@ export function verifyOpenToken(token: string): { valid: boolean; notificationId
  * Verify a click tracking token
  */
 export function verifyClickToken(
-    token: string
+    token: string,
 ): { valid: boolean; notificationId?: number; linkIndex?: number }
 {
     const result = verify(token);

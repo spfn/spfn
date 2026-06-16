@@ -7,37 +7,38 @@ import prompts from 'prompts';
  */
 export interface DbConnectionInfo
 {
-	host: string;
-	port: string;
-	user: string;
-	password: string;
-	database: string;
+    host: string;
+    port: string;
+    user: string;
+    password: string;
+    database: string;
 }
 
 export function parseDatabaseUrl(dbUrl: string): DbConnectionInfo
 {
-	try
-	{
-		const url = new URL(dbUrl);
-		return {
-			host: url.hostname,
-			port: url.port || '5432',
-			user: url.username,
-			password: url.password,
-			database: url.pathname.slice(1), // Remove leading /
-		};
-	}
-	catch (error)
-	{
-		throw new Error(`Invalid DATABASE_URL format: ${error instanceof Error ? error.message : 'Unknown error'}`);
-	}
+    try
+    {
+        const url = new URL(dbUrl);
+
+        return {
+            host: url.hostname,
+            port: url.port || '5432',
+            user: url.username,
+            password: url.password,
+            database: url.pathname.slice(1), // Remove leading /
+        };
+    }
+    catch (error)
+    {
+        throw new Error(`Invalid DATABASE_URL format: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
 }
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 
 export function isRemoteHost(host: string): boolean
 {
-	return !LOCAL_HOSTS.has(host);
+    return !LOCAL_HOSTS.has(host);
 }
 
 /**
@@ -46,22 +47,22 @@ export function isRemoteHost(host: string): boolean
  */
 export async function confirmDangerousTarget(dbInfo: DbConnectionInfo): Promise<void>
 {
-	if (!isRemoteHost(dbInfo.host) && process.env.NODE_ENV !== 'production')
-	{
-		return;
-	}
+    if (!isRemoteHost(dbInfo.host) && process.env.NODE_ENV !== 'production')
+    {
+        return;
+    }
 
-	const { typed } = await prompts({
-		type: 'text',
-		name: 'typed',
-		message: `Remote/production database detected. Type the database name "${dbInfo.database}" to continue:`,
-	});
+    const { typed } = await prompts({
+        type: 'text',
+        name: 'typed',
+        message: `Remote/production database detected. Type the database name "${dbInfo.database}" to continue:`,
+    });
 
-	if (typed !== dbInfo.database)
-	{
-		console.log(chalk.gray('Cancelled (database name mismatch).'));
-		process.exit(0);
-	}
+    if (typed !== dbInfo.database)
+    {
+        console.log(chalk.gray('Cancelled (database name mismatch).'));
+        process.exit(0);
+    }
 }
 
 /**
@@ -69,24 +70,24 @@ export async function confirmDangerousTarget(dbInfo: DbConnectionInfo): Promise<
  */
 export async function isPortAvailable(port: number): Promise<boolean>
 {
-	return new Promise((resolve) =>
-	{
-		const server = net.createServer();
+    return new Promise((resolve) =>
+    {
+        const server = net.createServer();
 
-		server.once('error', () =>
-		{
-			server.close();
-			resolve(false);
-		});
+        server.once('error', () =>
+        {
+            server.close();
+            resolve(false);
+        });
 
-		server.once('listening', () =>
-		{
-			server.close();
-			resolve(true);
-		});
+        server.once('listening', () =>
+        {
+            server.close();
+            resolve(true);
+        });
 
-		server.listen(port, '127.0.0.1');
-	});
+        server.listen(port, '127.0.0.1');
+    });
 }
 
 /**
@@ -94,14 +95,14 @@ export async function isPortAvailable(port: number): Promise<boolean>
  */
 export async function findAvailablePort(startPort: number, maxAttempts: number = 10): Promise<number>
 {
-	for (let i = 0; i < maxAttempts; i++)
-	{
-		const port = startPort + i;
-		if (await isPortAvailable(port))
-		{
-			return port;
-		}
-	}
+    for (let i = 0; i < maxAttempts; i++)
+    {
+        const port = startPort + i;
+        if (await isPortAvailable(port))
+        {
+            return port;
+        }
+    }
 
-	throw new Error(`No available ports found between ${startPort} and ${startPort + maxAttempts - 1}`);
+    throw new Error(`No available ports found between ${startPort} and ${startPort + maxAttempts - 1}`);
 }

@@ -66,7 +66,7 @@ export function isJobRouter(value: unknown): value is JobRouter<any>
  * ```
  */
 export function defineJobRouter<
-    TJobs extends Record<string, JobRouterEntry>
+    TJobs extends Record<string, JobRouterEntry>,
 >(jobs: TJobs): JobRouter<TJobs>
 {
     return {
@@ -80,7 +80,7 @@ export function defineJobRouter<
  */
 export function collectJobs(
     router: JobRouter<any>,
-    prefix = ''
+    prefix = '',
 ): JobDef<any>[]
 {
     const jobs: JobDef<any>[] = [];

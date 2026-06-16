@@ -40,6 +40,7 @@ export async function isDatabaseAvailable(): Promise<boolean>
         await client.end();
 
         dbAvailable = true;
+
         return true;
     }
     catch (error)
@@ -48,6 +49,7 @@ export async function isDatabaseAvailable(): Promise<boolean>
         console.log(`[Test]    Expected database: ${TEST_DATABASE_URL}`);
         console.log(`[Test]    Error: ${(error as Error).message}`);
         dbAvailable = false;
+
         return false;
     }
 }
@@ -325,5 +327,6 @@ export function getTestDb()
     {
         throw new Error('Test database not initialized. Call setupTestDb() first.');
     }
+
     return testDb;
 }

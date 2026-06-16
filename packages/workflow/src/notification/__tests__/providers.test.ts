@@ -15,7 +15,8 @@ describe('notification providers', () =>
     {
         it('should log started event', async () =>
         {
-            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => 
+            {});
 
             await consoleProvider.notify({
                 ...baseEvent,
@@ -34,7 +35,8 @@ describe('notification providers', () =>
 
         it('should log completed event', async () =>
         {
-            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => 
+            {});
 
             await consoleProvider.notify({
                 ...baseEvent,
@@ -50,7 +52,8 @@ describe('notification providers', () =>
 
         it('should log failed event to console.error', async () =>
         {
-            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => 
+            {});
 
             await consoleProvider.notify({
                 ...baseEvent,
@@ -70,7 +73,8 @@ describe('notification providers', () =>
 
         it('should log step events', async () =>
         {
-            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => 
+            {});
 
             await consoleProvider.notify({
                 ...baseEvent,

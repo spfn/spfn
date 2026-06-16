@@ -1,0 +1,30 @@
+{
+    "name": "01-minimal-api",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "spfn:dev": "spfn dev",
+        "spfn:server": "spfn dev --server-only",
+        "spfn:next": "next dev --turbo --port 3790",
+        "codegen": "spfn codegen run"
+    },
+    "dependencies": {
+        "@sinclair/typebox": "^0.34.0",
+        "@spfn/core": "workspace:*",
+        "next": "^16.0.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "spfn": "workspace:*"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.0",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "tsx": "^4.20.6",
+        "typescript": "^5"
+    }
+}

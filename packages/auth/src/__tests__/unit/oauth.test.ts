@@ -480,7 +480,7 @@ describe('oauthStartService - provider resolution', () =>
     it('throws "Unsupported OAuth provider" for an unregistered provider', async () =>
     {
         await expect(
-            oauthStartService({ provider: 'superself', ...baseParams })
+            oauthStartService({ provider: 'superself', ...baseParams }),
         ).rejects.toThrow(/Unsupported OAuth provider/);
     });
 
@@ -489,7 +489,7 @@ describe('oauthStartService - provider resolution', () =>
         registerOAuthProvider(mockProvider('naver', false));
 
         await expect(
-            oauthStartService({ provider: 'naver', ...baseParams })
+            oauthStartService({ provider: 'naver', ...baseParams }),
         ).rejects.toThrow(/registered but not configured/);
     });
 

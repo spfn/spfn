@@ -35,6 +35,7 @@ async function getSessionSecretKey(): Promise<Uint8Array>
     const encoder = new TextEncoder();
     const data = encoder.encode(secret);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
     return new Uint8Array(hashBuffer);
 }
 
@@ -49,6 +50,7 @@ async function getSecretFingerprint(): Promise<string>
     const hex = Array.from(new Uint8Array(hash))
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
+
     return hex.slice(0, 8);
 }
 
@@ -61,7 +63,7 @@ async function getSecretFingerprint(): Promise<string>
  */
 export async function sealSession(
     data: SessionData,
-    ttl: number = 60 * 60 * 24 * 7 // 7 days
+    ttl: number = 60 * 60 * 24 * 7, // 7 days
 ): Promise<string>
 {
     const secret = await getSessionSecretKey();
@@ -187,7 +189,7 @@ export async function getSessionInfo(jwt: string): Promise<{
  */
 export async function shouldRefreshSession(
     jwt: string,
-    thresholdHours: number = 24
+    thresholdHours: number = 24,
 ): Promise<boolean>
 {
     const info = await getSessionInfo(jwt);

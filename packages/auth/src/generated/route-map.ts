@@ -44,6 +44,7 @@ export const routeMap: Record<string, RouteInfo> = {
     oauthProviderStart: { method: 'GET', path: '/_auth/oauth/:provider' },
     oauthProviderCallback: { method: 'GET', path: '/_auth/oauth/:provider/callback' },
     getProviderOAuthUrl: { method: 'POST', path: '/_auth/oauth/:provider/url' },
+    oauthNative: { method: 'POST', path: '/_auth/oauth/:provider/native' },
     listRoles: { method: 'GET', path: '/_auth/admin/roles' },
     createAdminRole: { method: 'POST', path: '/_auth/admin/roles' },
     updateAdminRole: { method: 'PATCH', path: '/_auth/admin/roles/:id' },

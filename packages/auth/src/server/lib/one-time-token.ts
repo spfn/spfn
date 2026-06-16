@@ -57,7 +57,7 @@ export function getOneTimeTokenManager(): SSETokenManager
     {
         throw new Error(
             'OneTimeTokenManager not initialized. '
-            + 'Ensure createAuthLifecycle() is configured in your server config.'
+            + 'Ensure createAuthLifecycle() is configured in your server config.',
         );
     }
 

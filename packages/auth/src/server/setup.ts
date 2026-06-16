@@ -64,6 +64,7 @@ function parseAdminAccounts(): AdminAccountConfig[]
             if (!Array.isArray(parsed))
             {
                 authLogger.setup.error('❌ SPFN_AUTH_ADMIN_ACCOUNTS must be an array');
+
                 return accounts;
             }
 
@@ -90,6 +91,7 @@ function parseAdminAccounts(): AdminAccountConfig[]
         {
             const err = error as Error;
             authLogger.setup.error('❌ Failed to parse SPFN_AUTH_ADMIN_ACCOUNTS:', err);
+
             return accounts;
         }
     }
@@ -107,6 +109,7 @@ function parseAdminAccounts(): AdminAccountConfig[]
         if (passwords.length !== emails.length)
         {
             authLogger.setup.error('❌ SPFN_AUTH_ADMIN_EMAILS and SPFN_AUTH_ADMIN_PASSWORDS length mismatch');
+
             return accounts;
         }
 

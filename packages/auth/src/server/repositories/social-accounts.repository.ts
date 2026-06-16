@@ -81,8 +81,8 @@ export class SocialAccountsRepository extends BaseRepository
             .where(
                 and(
                     eq(userSocialAccounts.provider, provider),
-                    eq(userSocialAccounts.providerUserId, providerUserId)
-                )
+                    eq(userSocialAccounts.providerUserId, providerUserId),
+                ),
             )
             .limit(1);
 
@@ -115,8 +115,8 @@ export class SocialAccountsRepository extends BaseRepository
             .where(
                 and(
                     eq(userSocialAccounts.userId, userId),
-                    eq(userSocialAccounts.provider, provider)
-                )
+                    eq(userSocialAccounts.provider, provider),
+                ),
             )
             .limit(1);
 
@@ -151,7 +151,7 @@ export class SocialAccountsRepository extends BaseRepository
             accessToken?: string | null;
             refreshToken?: string | null;
             tokenExpiresAt?: Date | null;
-        }
+        },
     )
     {
         const result = await this.db
@@ -193,8 +193,8 @@ export class SocialAccountsRepository extends BaseRepository
             .where(
                 and(
                     eq(userSocialAccounts.userId, userId),
-                    eq(userSocialAccounts.provider, provider)
-                )
+                    eq(userSocialAccounts.provider, provider),
+                ),
             )
             .returning();
 

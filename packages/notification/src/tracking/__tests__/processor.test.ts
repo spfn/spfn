@@ -50,7 +50,7 @@ describe('tracking/processor', () =>
             const { html: result, trackedLinks } = processTrackingHtml(html, OPTIONS);
 
             expect(result).toContain(
-                `href="${BASE_URL}/_noti/t/c/click-token-42-0?url=${encodeURIComponent('https://example.com/page')}"`
+                `href="${BASE_URL}/_noti/t/c/click-token-42-0?url=${encodeURIComponent('https://example.com/page')}"`,
             );
             expect(trackedLinks).toHaveLength(1);
             expect(trackedLinks[0]).toEqual({ index: 0, url: 'https://example.com/page' });

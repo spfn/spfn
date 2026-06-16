@@ -55,7 +55,7 @@ export type MergedInput<TInput extends RouteInput, TInterceptor extends RouteInp
  */
 export type RouteBuilderContext<
     TInput extends RouteInput = RouteInput,
-    TInterceptor extends RouteInput = {}
+    TInterceptor extends RouteInput = {},
 > = {
     /**
      * Get structured input data

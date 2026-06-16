@@ -39,12 +39,16 @@
     "aws-ses",
     "aws-sns"
   ],
-  "author": "Ray Im <rayim@inflike.com>",
+  "author": "Ray Im <rayim@fxy.global>",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/spfn/spfn.git",
     "directory": "packages/notification"
+  },
+  "homepage": "https://github.com/spfn/spfn/tree/main/packages/notification#readme",
+  "bugs": {
+    "url": "https://github.com/spfn/spfn/issues"
   },
   "peerDependencies": {
     "@spfn/core": ">=0.2.0-beta.49",

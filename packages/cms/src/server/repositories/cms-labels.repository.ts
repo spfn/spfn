@@ -223,4 +223,3 @@ export class CmsLabelsRepository extends BaseRepository
 
 // Default instance export
 export const cmsLabelsRepository = new CmsLabelsRepository();
-

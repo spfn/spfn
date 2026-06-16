@@ -9,5 +9,5 @@ const routerGen = defineGenerator({
 });
 
 export default defineConfig({
-    generators: [routerGen]
+    generators: [routerGen],
 });

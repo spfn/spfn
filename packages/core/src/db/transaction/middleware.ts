@@ -119,6 +119,7 @@ export function Transactional(options: TransactionalOptions = {})
                     // Detect if Hono caught an error and stored it in context.error
                     // Context type doesn't officially define error property, so we extend it
                     type ContextWithError = typeof c & { error?: Error };
+
                     const contextWithError = c as ContextWithError;
                     if (contextWithError.error)
                     {
@@ -129,7 +130,7 @@ export function Transactional(options: TransactionalOptions = {})
                 {
                     context: route,
                     ...options,
-                }
+                },
             );
         }
         catch (error)

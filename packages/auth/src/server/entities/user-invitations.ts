@@ -11,7 +11,7 @@
  * - Metadata support for custom data
  */
 
-import { INVITATION_STATUSES } from "../types";
+import { INVITATION_STATUSES } from '../types';
 import { text, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp, typedJsonb, foreignKey } from '@spfn/core/db';
 import { roles } from './roles';
@@ -82,7 +82,7 @@ export const userInvitations = authSchema.table('user_invitations',
         index('invitations_invited_by_idx').on(table.invitedBy),
         index('invitations_expires_at_idx').on(table.expiresAt), // For cleanup jobs
         index('invitations_role_id_idx').on(table.roleId),
-    ]
+    ],
 );
 
 // Type exports

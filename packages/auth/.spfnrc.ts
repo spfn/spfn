@@ -16,5 +16,5 @@ const routeMapGen = defineGenerator<RouteMapGeneratorConfig>({
 });
 
 export default defineConfig({
-    generators: [routerGen, routeMapGen]
+    generators: [routerGen, routeMapGen],
 });

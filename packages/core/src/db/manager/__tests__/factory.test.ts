@@ -66,12 +66,12 @@ describe('Database Factory', () =>
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://write:5432/db',
                     expect.any(Object),
-                    expect.any(Object)
+                    expect.any(Object),
                 );
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://read:5432/db',
                     expect.any(Object),
-                    expect.any(Object)
+                    expect.any(Object),
                 );
 
                 expect(result.write).toBeDefined();
@@ -90,7 +90,7 @@ describe('Database Factory', () =>
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
                     expect.any(Object),
-                    expect.any(Object)
+                    expect.any(Object),
                 );
 
                 expect(result.write).toBeDefined();
@@ -109,7 +109,7 @@ describe('Database Factory', () =>
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://write:5432/db',
                     expect.any(Object),
-                    expect.any(Object)
+                    expect.any(Object),
                 );
 
                 expect(result.write).toBe(result.read);
@@ -128,12 +128,12 @@ describe('Database Factory', () =>
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://write:5432/db',
                     expect.any(Object),
-                    expect.any(Object)
+                    expect.any(Object),
                 );
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://read:5432/db',
                     expect.any(Object),
-                    expect.any(Object)
+                    expect.any(Object),
                 );
             });
         });
@@ -151,7 +151,7 @@ describe('Database Factory', () =>
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
                     { max: 50, idleTimeout: 60 },
-                    expect.any(Object)
+                    expect.any(Object),
                 );
             });
 
@@ -165,7 +165,7 @@ describe('Database Factory', () =>
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
                     { max: 20, idleTimeout: 30 },
-                    expect.any(Object)
+                    expect.any(Object),
                 );
             });
 
@@ -182,7 +182,7 @@ describe('Database Factory', () =>
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
                     { max: 100, idleTimeout: 45 },
-                    expect.any(Object)
+                    expect.any(Object),
                 );
             });
         });
@@ -194,11 +194,11 @@ describe('Database Factory', () =>
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
 
                 vi.mocked(createDatabaseConnection).mockRejectedValueOnce(
-                    new Error('Connection failed')
+                    new Error('Connection failed'),
                 );
 
                 await expect(createDatabaseFromEnv()).rejects.toThrow(
-                    'Database connection failed'
+                    'Database connection failed',
                 );
             });
 
@@ -207,11 +207,11 @@ describe('Database Factory', () =>
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
 
                 vi.mocked(createDatabaseConnection).mockRejectedValueOnce(
-                    new Error('Network timeout')
+                    new Error('Network timeout'),
                 );
 
                 await expect(createDatabaseFromEnv()).rejects.toThrow(
-                    'Network timeout'
+                    'Network timeout',
                 );
             });
 
@@ -220,11 +220,11 @@ describe('Database Factory', () =>
                 process.env.DATABASE_URL = 'postgresql://localhost:5432/db';
 
                 vi.mocked(createDatabaseConnection).mockRejectedValueOnce(
-                    'String error'
+                    'String error',
                 );
 
                 await expect(createDatabaseFromEnv()).rejects.toThrow(
-                    'Database connection failed'
+                    'Database connection failed',
                 );
             });
         });

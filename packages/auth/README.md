@@ -79,10 +79,11 @@ Import it for its side-effect (it self-registers); it must run before the proxy 
 ```typescript
 // app/api/rpc/[routeName]/route.ts
 import '@spfn/auth/nextjs/api';        // side-effect: registers auth interceptors
-import { appRouter } from '@/server/router';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
+import { authRouteMap } from '@spfn/auth';
+import { routeMap } from '@/generated/route-map';
 
-export const { GET, POST } = createRpcProxy({ router: appRouter });
+export const { GET, POST } = createRpcProxy({ routeMap: { ...routeMap, ...authRouteMap } });
 ```
 
 ### 4. Run migrations
@@ -119,13 +120,15 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_GOOGLE_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | enables Google OAuth when both set |
 | `SPFN_AUTH_GOOGLE_SCOPES` | `.env.server` | — | comma-separated; default `email,profile` |
 | `SPFN_AUTH_GOOGLE_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_API_URL\|\|SPFN_API_URL}/_auth/oauth/google/callback` |
+| `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated client IDs accepted as native id_token audience (iOS/Android/web); enables Google native sign-in |
+| `SPFN_AUTH_APPLE_CLIENT_IDS` | `.env.server` | — | comma-separated Apple client IDs (bundle ID / Services ID); enables Apple native sign-in |
 | `SPFN_AUTH_OAUTH_SUCCESS_URL` | `.env.server` | — | default `/auth/callback` |
 | `SPFN_AUTH_OAUTH_ERROR_URL` | `.env.server` | — | default `/auth/error?error={error}` |
 | `SPFN_AUTH_RESERVED_USERNAMES` / `_USERNAME_MIN_LENGTH` / `_USERNAME_MAX_LENGTH` | `.env.server` | — | username rules |
 | `NEXT_PUBLIC_SPFN_API_URL` / `NEXT_PUBLIC_SPFN_APP_URL` | `.env.local` | — | browser-facing URLs for OAuth redirects |
 
 Read validated values via `import { env } from '@spfn/auth/config'` (a proxy validated at
-startup). `envSchema` (also exported as `authEnvSchema`) carries descriptions/defaults.
+startup). `envSchema` carries descriptions/defaults.
 
 ### Admin seeding
 
@@ -229,9 +232,36 @@ plus the provider-generic `POST /_auth/oauth/start`. `getGoogleAccessToken(userI
 valid Google access token (auto-refreshing via stored refresh token when near expiry; throws if
 no Google account is linked or no refresh token is available).
 
+### Native social sign-in (mobile / web id_token)
+
+For native apps — and for Apple on Android/web, which has no native SDK — the client obtains an
+`id_token` from the platform SDK and posts it to **`POST /_auth/oauth/:provider/native`**. No
+authorization code, no client secret: the server verifies the id_token against the provider's
+JWKS (signature, issuer, audience, expiry, nonce), links/creates the user, and **registers the
+client's public key**. It returns `{ userId, keyId, isNewUser }` — *not* a token. The client mints
+its own Bearer client token by signing with the on-device private key (the same client-signs /
+server-verifies model as the rest of auth).
+
+Enable per provider by declaring the accepted audiences: `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` for
+Google (the web `SPFN_AUTH_GOOGLE_CLIENT_ID` is also accepted) and `SPFN_AUTH_APPLE_CLIENT_IDS` for
+Apple. Apple is native-only here — its web OAuth (code-exchange) methods throw.
+
+```typescript
+await authApi.oauthNative.call({
+    params: { provider: 'apple' },                 // or 'google'
+    body: { idToken, nonce, publicKey, keyId, fingerprint, algorithm: 'ES256', profile: { name } },
+});
+// → { userId, keyId, isNewUser }; client then signs its own ES256 Bearer token with keyId
+```
+
+The `nonce` is the **raw** nonce the client used; Apple hashes it (SHA-256) into the token, so send
+the raw value for either provider. `profile.name` captures the name Apple returns only on first
+sign-in. Trade-off: skipping code exchange means no Apple refresh token / server-side revoke —
+revoke SPFN access by revoking the registered key instead.
+
 ### Custom providers
 
-Implement `OAuthProvider` and register it. `SOCIAL_PROVIDERS` is `['google','github','kakao','naver','superself']`.
+Implement `OAuthProvider` and register it. `SOCIAL_PROVIDERS` is `['google','apple','github','kakao','naver','superself']`. Implement the optional `verifyNativeIdToken(idToken, { nonce })` to support native id_token sign-in.
 
 ```typescript
 import {
@@ -392,9 +422,10 @@ export type AppRouter = typeof appRouter;
 
 // app/api/rpc/[routeName]/route.ts
 import '@spfn/auth/nextjs/api';
-import { appRouter } from '@/server/router';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
-export const { GET, POST } = createRpcProxy({ router: appRouter });
+import { authRouteMap } from '@spfn/auth';
+import { routeMap } from '@/generated/route-map';
+export const { GET, POST } = createRpcProxy({ routeMap: { ...routeMap, ...authRouteMap } });
 
 // any client component
 import { authApi } from '@spfn/auth';

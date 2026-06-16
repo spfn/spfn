@@ -84,6 +84,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             {
                 return c.json({ error: err.message }, err.statusCode as any);
             }
+
             return c.json({ error: 'Internal Server Error' }, 500);
         });
     });
@@ -101,11 +102,11 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
                 async (c: Context, next) =>
                 {
                     // Mock authenticate middleware
-                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key' });
+                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requirePermissions('user:read'),
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/admin-only');
@@ -124,11 +125,11 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/admin-only',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key' });
+                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requirePermissions('user:delete'), // user role doesn't have this
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/admin-only');
@@ -144,11 +145,11 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/protected',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key' });
+                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requirePermissions('user:read', 'user:write'), // admin has both
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/protected');
@@ -163,11 +164,11 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/protected',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key' });
+                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requirePermissions('user:read', 'rbac:permission:manage'), // admin doesn't have rbac:permission:manage
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/protected');
@@ -178,7 +179,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
         {
             app.get('/protected',
                 requirePermissions('user:read'),
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/protected');
@@ -196,11 +197,11 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/content',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key' });
+                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requireAnyPermission('auth:self:manage', 'admin:access'), // user has auth:self:manage
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/content');
@@ -215,11 +216,11 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/content',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key' });
+                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requireAnyPermission('user:delete', 'rbac:role:manage'), // user has neither
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/content');
@@ -237,11 +238,11 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/admin-dashboard',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key' });
+                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/admin-dashboard');
@@ -256,11 +257,11 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/admin-dashboard',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key' });
+                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/admin-dashboard');
@@ -275,11 +276,11 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/admin-dashboard',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key' });
+                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/admin-dashboard');
@@ -290,7 +291,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
         {
             app.get('/admin-dashboard',
                 requireRole('admin'),
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/admin-dashboard');
@@ -308,12 +309,12 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.post('/users/delete',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key' });
+                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
                 requirePermissions('user:delete'),
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/users/delete', { method: 'POST' });
@@ -328,12 +329,12 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.post('/users/delete',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key' });
+                    c.set('auth', { user: user, userId: String(user.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'), // user is not admin
                 requirePermissions('user:delete'),
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/users/delete', { method: 'POST' });
@@ -348,12 +349,12 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.post('/rbac/manage',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key' });
+                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key', role: null, locale: 'en' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'), // admin passes
                 requirePermissions('rbac:permission:manage'), // but doesn't have this permission
-                (c) => c.json({ success: true })
+                (c) => c.json({ success: true }),
             );
 
             const res = await app.request('/rbac/manage', { method: 'POST' });

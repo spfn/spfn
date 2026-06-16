@@ -68,6 +68,7 @@ function generateRequestId(): string
 {
     const timestamp = Date.now();
     const randomPart = randomBytes(6).toString('hex');
+
     return `req_${timestamp}_${randomPart}`;
 }
 
@@ -77,7 +78,7 @@ function generateRequestId(): string
 export function maskSensitiveData(
     obj: any,
     sensitiveFields: string[],
-    seen = new WeakSet()
+    seen = new WeakSet(),
 ): any
 {
     if (!obj || typeof obj !== 'object') return obj;
@@ -147,7 +148,7 @@ export function RequestLogger(options?: RequestLoggerOptions)
 
         // Support both exact match and prefix match for excluded paths
         const isExcluded = cfg.excludePaths.some(excludePath =>
-            path === excludePath || path.startsWith(excludePath + '/')
+            path === excludePath || path.startsWith(excludePath + '/'),
         );
 
         if (isExcluded)

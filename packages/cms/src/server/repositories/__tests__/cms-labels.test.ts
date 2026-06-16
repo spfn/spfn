@@ -61,7 +61,7 @@ describe('CmsLabelsRepository', () =>
                     key: 'home.hero.title',
                     type: 'text',
                     defaultValue: 'Duplicate',
-                })
+                }),
             ).rejects.toThrow();
         });
 
@@ -331,7 +331,7 @@ describe('CmsLabelsRepository', () =>
             // In a real scenario, this would have label_values, label_versions, etc.
             // The CASCADE constraint should delete them automatically
             await expect(
-                cmsLabelsRepository.deleteById(created.id)
+                cmsLabelsRepository.deleteById(created.id),
             ).resolves.not.toThrow();
         });
     });

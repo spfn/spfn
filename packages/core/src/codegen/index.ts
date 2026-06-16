@@ -10,29 +10,29 @@ export {
     loadCodegenConfig,
     createGeneratorsFromConfig,
     defineConfig,
-    defineGenerator
+    defineGenerator,
 } from './core/config-loader';
 
 export type {
     RouteContractMapping,
     ResourceRoutes,
     ClientGenerationOptions,
-    GenerationStats
+    GenerationStats,
 } from './core/types';
 
 export type {
     Generator,
     GeneratorOptions,
-    GeneratorTrigger
+    GeneratorTrigger,
 } from './core/generator';
 
 export type {
-    OrchestratorOptions
+    OrchestratorOptions,
 } from './core/orchestrator';
 
 export type {
     CodegenConfig,
-    GeneratorConfig
+    GeneratorConfig,
 } from './core/config-loader';
 
 export * from './generators';

@@ -19,7 +19,7 @@ const log = logger.child('@spfn/notification:tracking');
  */
 export function recordOpenEvent(
     notificationId: number,
-    meta?: { ipAddress?: string; userAgent?: string }
+    meta?: { ipAddress?: string; userAgent?: string },
 ): void
 {
     create(trackingEvents, {
@@ -40,7 +40,7 @@ export function recordClickEvent(
     notificationId: number,
     linkIndex: number,
     linkUrl: string,
-    meta?: { ipAddress?: string; userAgent?: string }
+    meta?: { ipAddress?: string; userAgent?: string },
 ): void
 {
     create(trackingEvents, {
@@ -113,7 +113,7 @@ export interface EngagementStats
  * Get engagement stats with optional filters
  */
 export async function getEngagementStats(
-    options: { channel?: NotificationChannel; from?: Date; to?: Date } = {}
+    options: { channel?: NotificationChannel; from?: Date; to?: Date } = {},
 ): Promise<EngagementStats>
 {
     const db = getDatabase('read');
@@ -217,8 +217,8 @@ export async function getClickDetails(notificationId: number): Promise<ClickDeta
         .where(
             and(
                 eq(trackingEvents.notificationId, notificationId),
-                eq(trackingEvents.type, 'click')
-            )
+                eq(trackingEvents.type, 'click'),
+            ),
         )
         .groupBy(trackingEvents.linkUrl, trackingEvents.linkIndex)
         .orderBy(trackingEvents.linkIndex);

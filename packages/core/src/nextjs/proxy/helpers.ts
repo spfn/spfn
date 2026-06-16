@@ -3,7 +3,7 @@
  * Separates utility logic from main proxy handler for better maintainability
  */
 import { NextRequest } from 'next/server';
-import type { CookieOptions, SetCookie } from "../client";
+import type { CookieOptions, SetCookie } from '../client';
 import type { InterceptorRule, RequestInterceptorContext, ResponseInterceptorContext } from './interceptors/types';
 import type { InterceptorRegistry } from './interceptors';
 
@@ -19,7 +19,7 @@ export { parseResponseBody } from '../shared';
  */
 export function buildProxyHeaders(
     sourceHeaders: Headers | Record<string, string>,
-    defaultHeaders: Record<string, string>
+    defaultHeaders: Record<string, string>,
 ): Headers
 {
     const headers = new Headers();
@@ -156,7 +156,7 @@ export function buildErrorResponse(
     errorType: string,
     message: string,
     debug: boolean,
-    error?: Error
+    error?: Error,
 ): any
 {
     return {
@@ -179,7 +179,7 @@ const headersToForward = [
  */
 export function forwardResponseHeaders(
     sourceHeaders: Headers,
-    targetHeaders: Headers
+    targetHeaders: Headers,
 ): void
 {
     for (const header of headersToForward)
@@ -199,7 +199,7 @@ export function collectInterceptors(
     autoDiscoverInterceptors: boolean,
     disableAutoInterceptors: string[] | undefined,
     configInterceptors: InterceptorRule[] | undefined,
-    registry: InterceptorRegistry
+    registry: InterceptorRegistry,
 ): InterceptorRule[]
 {
     const allInterceptors: InterceptorRule[] = [];
@@ -230,7 +230,7 @@ export function buildRequestContext(
     body: any,
     searchParams: URLSearchParams,
     cookiesMap: Map<string, string>,
-    request: NextRequest
+    request: NextRequest,
 ): RequestInterceptorContext
 {
     return {
@@ -256,7 +256,7 @@ export function buildResponseContext(
     response: Response,
     responseBody: any,
     requestMetadata: Record<string, any>,
-    cookies: Map<string, string>
+    cookies: Map<string, string>,
 ): ResponseInterceptorContext
 {
     return {

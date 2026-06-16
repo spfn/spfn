@@ -93,7 +93,7 @@ export class RepositoryError extends Error
         public readonly repository: string,
         public readonly method?: string,
         public readonly table?: string,
-        public readonly originalError?: Error
+        public readonly originalError?: Error,
     )
     {
         super(message);
@@ -211,7 +211,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      */
     protected async withContext<T>(
         queryFn: () => Promise<T>,
-        context: { method?: string; table?: string } = {}
+        context: { method?: string; table?: string } = {},
     ): Promise<T>
     {
         try
@@ -233,7 +233,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
                 repositoryName,
                 context.method,
                 context.table,
-                err
+                err,
             );
         }
     }
@@ -260,7 +260,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      */
     protected async _findOne<T extends PgTable>(
         table: T,
-        where: Record<string, any> | SQL | undefined
+        where: Record<string, any> | SQL | undefined,
     ): Promise<T['$inferSelect'] | null>
     {
         const whereClause = isSQLWrapper(where)
@@ -273,6 +273,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         }
 
         const results = await this.readDb.select().from(table as PgTable).where(whereClause).limit(1);
+
         return (results[0] as T['$inferSelect']) ?? null;
     }
 
@@ -299,7 +300,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
             orderBy?: SQL | SQL[];
             limit?: number;
             offset?: number;
-        }
+        },
     ): Promise<T['$inferSelect'][]>
     {
         let query = this.readDb.select().from(table as PgTable);
@@ -356,10 +357,11 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      */
     protected async _create<T extends PgTable>(
         table: T,
-        data: T['$inferInsert']
+        data: T['$inferInsert'],
     ): Promise<T['$inferSelect']>
     {
         const [result] = await this.db.insert(table).values(data).returning();
+
         return result as T['$inferSelect'];
     }
 
@@ -380,10 +382,11 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      */
     protected async _createMany<T extends PgTable>(
         table: T,
-        data: T['$inferInsert'][]
+        data: T['$inferInsert'][],
     ): Promise<T['$inferSelect'][]>
     {
         const results = await this.db.insert(table).values(data).returning();
+
         return results as T['$inferSelect'][];
     }
 
@@ -412,7 +415,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         options: {
             target: PgColumn[];
             set?: Partial<T['$inferInsert']> | Record<string, SQL | any>;
-        }
+        },
     ): Promise<T['$inferSelect']>
     {
         const [result] = await this.db
@@ -446,7 +449,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
     protected async _updateOne<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined,
-        data: Partial<T['$inferInsert']>
+        data: Partial<T['$inferInsert']>,
     ): Promise<T['$inferSelect'] | null>
     {
         const whereClause = isSQLWrapper(where)
@@ -459,6 +462,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         }
 
         const [result] = await this.db.update(table).set(data).where(whereClause).returning();
+
         return (result as T['$inferSelect']) ?? null;
     }
 
@@ -481,7 +485,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
     protected async _updateMany<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined,
-        data: Partial<T['$inferInsert']>
+        data: Partial<T['$inferInsert']>,
     ): Promise<T['$inferSelect'][]>
     {
         const whereClause = isSQLWrapper(where)
@@ -494,6 +498,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         }
 
         const results = await this.db.update(table).set(data).where(whereClause).returning();
+
         return results as T['$inferSelect'][];
     }
 
@@ -511,7 +516,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      */
     protected async _deleteOne<T extends PgTable>(
         table: T,
-        where: Record<string, any> | SQL | undefined
+        where: Record<string, any> | SQL | undefined,
     ): Promise<T['$inferSelect'] | null>
     {
         const whereClause = isSQLWrapper(where)
@@ -524,6 +529,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         }
 
         const [result] = await this.db.delete(table).where(whereClause).returning();
+
         return (result as T['$inferSelect']) ?? null;
     }
 
@@ -541,7 +547,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      */
     protected async _deleteMany<T extends PgTable>(
         table: T,
-        where: Record<string, any> | SQL | undefined
+        where: Record<string, any> | SQL | undefined,
     ): Promise<T['$inferSelect'][]>
     {
         const whereClause = isSQLWrapper(where)
@@ -554,6 +560,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         }
 
         const results = await this.db.delete(table).where(whereClause).returning();
+
         return results as T['$inferSelect'][];
     }
 
@@ -572,7 +579,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      */
     protected async _count<T extends PgTable>(
         table: T,
-        where?: Record<string, any> | SQL | undefined
+        where?: Record<string, any> | SQL | undefined,
     ): Promise<number>
     {
         let query = this.readDb.select({ count: sqlCount() }).from(table as PgTable);
@@ -590,6 +597,7 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         }
 
         const [result] = await query;
+
         return Number(result?.count ?? 0);
     }
 }

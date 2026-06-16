@@ -43,7 +43,7 @@ export const authLoginEvent = defineEvent(
         provider: AuthProviderSchema,
         email: Type.Optional(Type.String()),
         phone: Type.Optional(Type.String()),
-    })
+    }),
 );
 
 /**
@@ -68,7 +68,7 @@ export const authRegisterEvent = defineEvent(
         email: Type.Optional(Type.String()),
         phone: Type.Optional(Type.String()),
         metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-    })
+    }),
 );
 
 /**
@@ -102,7 +102,7 @@ export const invitationCreatedEvent = defineEvent(
         expiresAt: Type.String(),
         isResend: Type.Boolean(),
         metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-    })
+    }),
 );
 
 /**
@@ -127,7 +127,7 @@ export const invitationAcceptedEvent = defineEvent(
         roleId: Type.Number(),
         invitedBy: Type.String(),
         metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-    })
+    }),
 );
 
 /**

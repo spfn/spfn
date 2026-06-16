@@ -2,14 +2,14 @@
 // Route Call Builder (Structured Input API)
 // ============================================================================
 
-import type { RouteDef, Router } from "@spfn/core/route";
+import type { RouteDef, Router } from '@spfn/core/route';
 import type {
     CallOptions,
     InferRouteInput,
     InferRouteOutput,
     RequestInterceptor,
     ResponseInterceptor,
-} from "./types";
+} from './types';
 
 /**
  * Pick only non-empty fields from StructuredInput
@@ -84,7 +84,7 @@ type HasAnyRequiredFields<TInput> = {} extends CleanStructuredInput<TInput> ? fa
  */
 export class RouteCallBuilder<
     TInput,
-    TOutput
+    TOutput,
 >
 {
     private _headers?: Record<string, string>;
@@ -95,8 +95,9 @@ export class RouteCallBuilder<
 
     constructor(
         private readonly executor: (input: any, options: CallOptions) => Promise<TOutput>,
-        private readonly routeName: string
-    ) {}
+        private readonly routeName: string,
+    ) 
+    {}
 
     /**
      * Clone builder
@@ -105,13 +106,14 @@ export class RouteCallBuilder<
     {
         const builder = new RouteCallBuilder<TInput, TOutput>(
             this.executor,
-            this.routeName
+            this.routeName,
         );
         builder._headers = this._headers;
         builder._cookies = this._cookies;
         builder._fetchOptions = this._fetchOptions;
         builder._onRequest = this._onRequest;
         builder._onResponse = this._onResponse;
+
         return builder;
     }
 
@@ -122,6 +124,7 @@ export class RouteCallBuilder<
     {
         const builder = this.clone();
         builder._headers = { ...this._headers, ...headers };
+
         return builder;
     }
 
@@ -132,6 +135,7 @@ export class RouteCallBuilder<
     {
         const builder = this.clone();
         builder._cookies = { ...this._cookies, ...cookies };
+
         return builder;
     }
 
@@ -142,6 +146,7 @@ export class RouteCallBuilder<
     {
         const builder = this.clone();
         builder._fetchOptions = { ...this._fetchOptions, ...options };
+
         return builder;
     }
 
@@ -152,6 +157,7 @@ export class RouteCallBuilder<
     {
         const builder = this.clone();
         builder._onRequest = interceptor;
+
         return builder;
     }
 
@@ -162,6 +168,7 @@ export class RouteCallBuilder<
     {
         const builder = this.clone();
         builder._onResponse = interceptor;
+
         return builder;
     }
 

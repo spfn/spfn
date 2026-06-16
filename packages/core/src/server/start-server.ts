@@ -302,7 +302,7 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
         {
             throw new Error(
                 'Jobs require database connection. ' +
-                'Ensure DATABASE_URL is set or database is enabled.'
+                'Ensure DATABASE_URL is set or database is enabled.',
             );
         }
 
@@ -324,14 +324,14 @@ async function initializeInfrastructure(config: ServerConfig): Promise<void>
         {
             throw new Error(
                 'Workflows require database connection. ' +
-                'Ensure database is enabled in infrastructure config.'
+                'Ensure database is enabled in infrastructure config.',
             );
         }
 
         serverLogger.debug('Initializing workflow engine...');
         config.workflows._init(
             getDatabase(),
-            config.workflowsConfig
+            config.workflowsConfig,
         );
         serverLogger.info('Workflow engine initialized');
     }
@@ -355,7 +355,7 @@ function startHttpServer(app: Hono, host: string, port: number): ReturnType<type
 async function initializeWebSocket(
     server: Server,
     app: Hono,
-    config: ServerConfig
+    config: ServerConfig,
 ): Promise<() => Promise<void>>
 {
     const wsRouter = config.websockets!;
@@ -412,6 +412,7 @@ async function initializeWebSocket(
             }
 
             const token = await tokenManager!.issue(subject);
+
             return c.json({ token });
         });
 
@@ -447,7 +448,7 @@ function logServerStarted(
     host: string,
     port: number,
     config: ServerConfig,
-    timeouts: { request: number; keepAlive: number; headers: number }
+    timeouts: { request: number; keepAlive: number; headers: number },
 ): void
 {
     const startupConfig = buildStartupConfig(config, timeouts);
@@ -468,7 +469,7 @@ function createShutdownHandler(
     server: Server,
     config: ServerConfig,
     shutdownState: ShutdownState,
-    wsCleanup?: () => Promise<void>
+    wsCleanup?: () => Promise<void>,
 ): () => Promise<void>
 {
     return async () =>
@@ -477,6 +478,7 @@ function createShutdownHandler(
         if (shutdownState.isShuttingDown)
         {
             serverLogger.debug('Shutdown already in progress for this instance, skipping');
+
             return;
         }
 
@@ -607,7 +609,7 @@ async function closeHttpServer(server: Server): Promise<void>
 async function closeInfrastructure(
     closeFn: () => Promise<void>,
     name: string,
-    timeout: number
+    timeout: number,
 ): Promise<void>
 {
     let timeoutId: NodeJS.Timeout | undefined;
@@ -640,7 +642,7 @@ async function closeInfrastructure(
 function createGracefulShutdown(
     shutdownServer: () => Promise<void>,
     config: ServerConfig,
-    shutdownState: ShutdownState
+    shutdownState: ShutdownState,
 ): (signal: string) => Promise<void>
 {
     return async (signal: string) =>
@@ -649,6 +651,7 @@ function createGracefulShutdown(
         if (shutdownState.isShuttingDown)
         {
             serverLogger.warn(`${signal} received but shutdown already in progress, ignoring`);
+
             return;
         }
 
@@ -709,13 +712,14 @@ function handleProcessError(errorType: string): void
 }
 
 function registerProcessHandlers(
-    shutdown: (signal: string) => Promise<void>
+    shutdown: (signal: string) => Promise<void>,
 ): void
 {
     // Prevent duplicate registration
     if (processHandlersRegistered)
     {
         serverLogger.debug('Process handlers already registered, skipping');
+
         return;
     }
 

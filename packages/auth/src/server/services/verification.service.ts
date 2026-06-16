@@ -64,7 +64,7 @@ async function storeVerificationCode(
     target: string,
     targetType: VerificationTargetType,
     code: string,
-    purpose: VerificationPurpose
+    purpose: VerificationPurpose,
 )
 {
     // Calculate expiry time
@@ -96,7 +96,7 @@ async function storeVerificationCode(
 async function validateVerificationCode(
     target: string,
     code: string,
-    purpose: VerificationPurpose
+    purpose: VerificationPurpose,
 ): Promise<{ valid: boolean; codeId?: number; error?: string }>
 {
     // Find the verification code
@@ -112,6 +112,7 @@ async function validateVerificationCode(
     {
         // Increment attempt count
         await verificationCodesRepository.incrementAttempts(record.id);
+
         return { valid: false, error: 'Invalid verification code' };
     }
 
@@ -194,6 +195,7 @@ export function validateVerificationToken(token: string): VerificationTokenPaylo
     catch (error)
     {
         authLogger.service.error('Failed to validate verification token', { error });
+
         return null;
     }
 }
@@ -208,7 +210,7 @@ export function validateVerificationToken(token: string): VerificationTokenPaylo
 async function sendVerificationEmail(
     email: string,
     code: string,
-    purpose: string
+    purpose: string,
 ): Promise<void>
 {
     const result = await sendEmail({
@@ -241,7 +243,7 @@ async function sendVerificationEmail(
 async function sendVerificationSMS(
     phone: string,
     code: string,
-    purpose: string
+    purpose: string,
 ): Promise<void>
 {
     const result = await sendSMS({
@@ -294,7 +296,7 @@ export interface VerifyCodeResult
  * Send verification code via email or SMS
  */
 export async function sendVerificationCodeService(
-    params: SendVerificationCodeParams
+    params: SendVerificationCodeParams,
 ): Promise<SendVerificationCodeResult>
 {
     const { target, targetType, purpose } = params;

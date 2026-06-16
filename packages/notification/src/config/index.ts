@@ -118,6 +118,7 @@ export function isTrackingEnabled(): boolean
     {
         return globalConfig.tracking.enabled;
     }
+
     return env.SPFN_NOTIFICATION_TRACKING_ENABLED === 'true';
 }
 

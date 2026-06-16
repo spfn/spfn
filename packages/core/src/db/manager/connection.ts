@@ -19,6 +19,7 @@ function getSocketFamily(): 4 | 6 | undefined
     const family = process.env.DATABASE_SOCKET_FAMILY;
     if (family === '4') return 4;
     if (family === '6') return 6;
+
     return undefined;
 }
 
@@ -70,6 +71,7 @@ function maskConnectionString(connectionString: string): string
             // Replace password with ***
             return connectionString.replace(`:${url.password}@`, ':***@');
         }
+
         return connectionString;
     }
     catch
@@ -90,6 +92,7 @@ function maskConnectionString(connectionString: string): string
 function isAuthenticationError(error: Error): boolean
 {
     const message = error.message.toLowerCase();
+
     return message.includes('password authentication failed') ||
            message.includes('no password supplied') ||
            message.includes('authentication failed') ||
@@ -105,6 +108,7 @@ function isAuthenticationError(error: Error): boolean
 function isDatabaseNotFoundError(error: Error): boolean
 {
     const message = error.message.toLowerCase();
+
     return message.includes('database') && message.includes('does not exist');
 }
 
@@ -119,6 +123,7 @@ function isDatabaseNotFoundError(error: Error): boolean
 function isSSLError(error: Error): boolean
 {
     const message = error.message.toLowerCase();
+
     return message.includes('ssl') ||
            message.includes('tls') ||
            message.includes('certificate') ||
@@ -223,8 +228,9 @@ function validatePoolConfig(poolConfig: PoolConfig): void
 export async function createDatabaseConnection(
     connectionString: string,
     poolConfig: PoolConfig,
-    retryConfig: RetryConfig
-) {
+    retryConfig: RetryConfig,
+) 
+{
     // Validate input parameters
     if (!connectionString)
     {
@@ -255,7 +261,7 @@ export async function createDatabaseConnection(
                             socket.on('error', reject);
                             socket.connect(
                                 { port: port[0], host: host[0], family: socketFamily },
-                                () => resolve(socket)
+                                () => resolve(socket),
                             );
                         }),
                 }),
@@ -270,7 +276,7 @@ export async function createDatabaseConnection(
             {
                 dbLogger.info(
                     'Database connected successfully',
-                    { retriesNeeded: attempt }
+                    { retriesNeeded: attempt },
                 );
             }
             else
@@ -315,13 +321,13 @@ export async function createDatabaseConnection(
                         reason: isAuthenticationError(lastError)
                             ? 'authentication_failed'
                             : isDatabaseNotFoundError(lastError)
-                            ? 'database_not_found'
-                            : 'ssl_error',
-                    }
+                                ? 'database_not_found'
+                                : 'ssl_error',
+                    },
                 );
 
                 throw new ConnectionError({
-                    message: `Cannot connect to database: ${lastError.message}`
+                    message: `Cannot connect to database: ${lastError.message}`,
                 });
             }
 
@@ -331,7 +337,7 @@ export async function createDatabaseConnection(
                 // Calculate exponential backoff with jitter
                 const baseDelay = Math.min(
                     retryConfig.initialDelay * Math.pow(retryConfig.factor, attempt),
-                    retryConfig.maxDelay
+                    retryConfig.maxDelay,
                 );
                 // Jitter: randomize delay between 50-100% (prevents thundering herd)
                 const jitter = 0.5 + Math.random() * 0.5;
@@ -350,7 +356,7 @@ export async function createDatabaseConnection(
                             idleTimeout: poolConfig.idleTimeout,
                             connectTimeout: DEFAULT_CONNECT_TIMEOUT,
                         },
-                    }
+                    },
                 );
 
                 await delay(delayMs);
@@ -363,7 +369,7 @@ export async function createDatabaseConnection(
     if (!lastError)
     {
         throw new ConnectionError({
-            message: 'Unexpected error: no error recorded after failed connection attempts'
+            message: 'Unexpected error: no error recorded after failed connection attempts',
         });
     }
 
@@ -384,11 +390,11 @@ export async function createDatabaseConnection(
                 factor: retryConfig.factor,
                 maxDelay: retryConfig.maxDelay,
             },
-        }
+        },
     );
 
     throw new ConnectionError({
-        message: `Failed to connect to database after ${retryConfig.maxRetries + 1} attempts: ${lastError.message}`
+        message: `Failed to connect to database after ${retryConfig.maxRetries + 1} attempts: ${lastError.message}`,
     });
 }
 
@@ -426,7 +432,7 @@ export async function checkConnection(client: Sql): Promise<boolean>
         dbLogger.error(
             'Database health check failed',
             errorObj,
-            { errorType: errorObj.name }
+            { errorType: errorObj.name },
         );
 
         return false;

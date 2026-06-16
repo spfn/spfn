@@ -15,6 +15,7 @@ import * as jwtHelpers from '@/server/helpers/jwt';
 vi.mock('@spfn/core/db', async (importOriginal) =>
 {
     const actual = await importOriginal() as any;
+
     return {
         ...actual,
         getDatabase: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('@spfn/core/db', async (importOriginal) =>
 vi.mock('@/server/helpers/jwt', async (importOriginal) =>
 {
     const actual = await importOriginal() as any;
+
     return {
         ...actual,
         verifyClientToken: vi.fn(),
@@ -73,6 +75,7 @@ describe('Authenticate Middleware', () =>
             (mockContext.req!.header as any).mockImplementation((name: string) =>
             {
                 if (name === 'Authorization') return 'InvalidFormat token';
+
                 return undefined;
             });
 
@@ -88,6 +91,7 @@ describe('Authenticate Middleware', () =>
             (mockContext.req!.header as any).mockImplementation((name: string) =>
             {
                 if (name === 'Authorization') return 'Bearer validtoken';
+
                 return undefined;
             });
 
@@ -108,6 +112,7 @@ describe('Authenticate Middleware', () =>
             {
                 if (name === 'Authorization') return 'Bearer validtoken';
                 if (name === 'X-Key-Id') return 'test-key-id';
+
                 return undefined;
             });
         });
@@ -171,6 +176,7 @@ describe('Authenticate Middleware', () =>
             {
                 if (name === 'Authorization') return 'Bearer validtoken';
                 if (name === 'X-Key-Id') return 'test-key-id';
+
                 return undefined;
             });
 
@@ -265,7 +271,7 @@ describe('Authenticate Middleware', () =>
             const token = generateClientToken(
                 { userId: '1', action: 'test' },
                 privateKey,
-                algorithm
+                algorithm,
             );
 
             // Setup valid headers with real token
@@ -273,6 +279,7 @@ describe('Authenticate Middleware', () =>
             {
                 if (name === 'Authorization') return `Bearer ${token}`;
                 if (name === 'X-Key-Id') return keyId;
+
                 return undefined;
             });
 

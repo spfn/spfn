@@ -40,7 +40,7 @@ import { ErrorRegistry, errorRegistry as coreErrorRegistry } from '@spfn/core/er
 import { logger } from '@spfn/core/logger';
 import type { Router } from '@spfn/core/route';
 import * as debugLogs from './debug-logs';
-import { ApiError } from "./errors";
+import { ApiError } from './errors';
 import {
     parseResponseBody,
     executeFetchWithTimeout,
@@ -49,8 +49,8 @@ import {
     autoDetectServerCookies,
 } from './helpers';
 import { RouteCallBuilder } from './builder';
-import type { ApiConfig, CallOptions } from "./types";
-import type { Client } from "./builder";
+import type { ApiConfig, CallOptions } from './types';
+import type { Client } from './builder';
 
 const apiLogger = logger.child('@spfn/core:api-client');
 
@@ -77,7 +77,7 @@ const apiLogger = logger.child('@spfn/core:api-client');
  * ```
  */
 export function createApi<TRouter extends Router<any>>(
-    config: ApiConfig = {}
+    config: ApiConfig = {},
 ): Client<TRouter>
 {
     const {
@@ -112,7 +112,7 @@ export function createApi<TRouter extends Router<any>>(
     async function executeCall(
         routeName: string,
         input: any = {},
-        options: CallOptions = {}
+        options: CallOptions = {},
     ): Promise<any>
     {
         const hasBody = input.body !== undefined;
@@ -318,7 +318,7 @@ export function createApi<TRouter extends Router<any>>(
                     408,
                     fullUrl,
                     undefined,
-                    'timeout'
+                    'timeout',
                 );
             }
 
@@ -337,7 +337,7 @@ export function createApi<TRouter extends Router<any>>(
                 0,
                 fullUrl,
                 undefined,
-                'network'
+                'network',
             );
         }
 
@@ -368,10 +368,10 @@ export function createApi<TRouter extends Router<any>>(
                     // Return RouteCallBuilder that can either be called or chained
                     return new RouteCallBuilder(
                         (input: any, options: CallOptions) => executeCall(currentPath, input, options),
-                        currentPath
+                        currentPath,
                     );
                 },
-            }
+            },
         );
     }
 

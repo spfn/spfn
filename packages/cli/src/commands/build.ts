@@ -22,12 +22,14 @@ interface BuildOptions
 async function buildProject(options: BuildOptions): Promise<void>
 {
     // Set NODE_ENV to production (Next.js style)
-    if (!process.env.NODE_ENV) {
+    if (!process.env.NODE_ENV) 
+    {
         process.env.NODE_ENV = 'production';
     }
 
     // Suppress verbose logs during build (codegen, etc.)
-    if (!process.env.LOG_LEVEL) {
+    if (!process.env.LOG_LEVEL) 
+    {
         process.env.LOG_LEVEL = 'warn';
     }
 
@@ -41,7 +43,7 @@ async function buildProject(options: BuildOptions): Promise<void>
     if (existsSync(packageJsonPath))
     {
         const packageJson = JSON.parse(await import('fs').then(fs =>
-            fs.promises.readFile(packageJsonPath, 'utf-8')
+            fs.promises.readFile(packageJsonPath, 'utf-8'),
         ));
         hasNext = !!(packageJson.dependencies?.next || packageJson.devDependencies?.next);
     }
@@ -67,7 +69,7 @@ async function buildProject(options: BuildOptions): Promise<void>
             const orchestrator = new CodegenOrchestrator({
                 generators,
                 cwd,
-                debug: true
+                debug: true,
             });
 
             await orchestrator.generateAll();
@@ -144,7 +146,8 @@ async function buildProject(options: BuildOptions): Promise<void>
                     '@spfn/core',
                 ],
                 silent: true,
-                onSuccess: async () => {
+                onSuccess: async () => 
+                {
                     // Silently succeed
                 },
             });
@@ -226,14 +229,18 @@ await startServer({
             spinner.fail('SPFN server build failed');
 
             // Show detailed error information (type errors, syntax errors, etc.)
-            if (error instanceof Error) {
+            if (error instanceof Error) 
+            {
                 console.error('\n' + chalk.red(error.message));
 
                 // Show stack trace for debugging
-                if (error.stack) {
+                if (error.stack) 
+                {
                     console.error(chalk.dim('\n' + error.stack));
                 }
-            } else {
+            }
+            else 
+            {
                 logger.error(String(error));
             }
 

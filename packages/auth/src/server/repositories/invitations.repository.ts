@@ -8,10 +8,10 @@
 import { eq, and, lt, desc, sql } from 'drizzle-orm';
 import { BaseRepository } from '@spfn/core/db';
 
-import { users } from "../entities/users";
-import { roles } from "../entities/roles";
-import type { InvitationStatus } from "../types";
-import { userInvitations, NewInvitation } from "../entities/user-invitations";
+import { users } from '../entities/users';
+import { roles } from '../entities/roles';
+import type { InvitationStatus } from '../types';
+import { userInvitations, NewInvitation } from '../entities/user-invitations';
 
 /**
  * Invitations Repository 클래스
@@ -57,8 +57,8 @@ export class InvitationsRepository extends BaseRepository
             .where(
                 and(
                     eq(userInvitations.email, email),
-                    eq(userInvitations.status, 'pending')
-                )
+                    eq(userInvitations.status, 'pending'),
+                ),
             )
             .limit(1);
 
@@ -105,8 +105,9 @@ export class InvitationsRepository extends BaseRepository
     async updateStatus(
         id: number,
         status: InvitationStatus,
-        timestamp?: Date
-    ) {
+        timestamp?: Date,
+    ) 
+    {
         const updates: any = {
             status,
             updatedAt: new Date(),
@@ -162,8 +163,8 @@ export class InvitationsRepository extends BaseRepository
             .where(
                 and(
                     eq(userInvitations.status, 'pending'),
-                    lt(userInvitations.expiresAt, now)
-                )
+                    lt(userInvitations.expiresAt, now),
+                ),
             )
             .returning();
 
@@ -216,7 +217,8 @@ export class InvitationsRepository extends BaseRepository
         invitedBy?: number;
         page?: number;
         limit?: number;
-    }) {
+    }) 
+    {
         const { status, invitedBy, page = 1, limit = 20 } = params;
         const offset = (page - 1) * limit;
 
@@ -325,8 +327,9 @@ export class InvitationsRepository extends BaseRepository
         id: number,
         cancelledBy: number,
         reason?: string,
-        currentMetadata?: Record<string, any> | null
-    ) {
+        currentMetadata?: Record<string, any> | null,
+    ) 
+    {
         const newMetadata = currentMetadata
             ? { ...currentMetadata, cancelReason: reason, cancelledBy }
             : { cancelReason: reason, cancelledBy };

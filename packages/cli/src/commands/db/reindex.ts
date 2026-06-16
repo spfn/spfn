@@ -46,6 +46,7 @@ interface RenameAction
 function isTimestampPrefix(tag: string): boolean
 {
     const prefix = tag.split('_')[0];
+
     return /^\d{5,}$/.test(prefix);
 }
 
@@ -60,6 +61,7 @@ function parseTag(tag: string): { prefix: string; suffix: string }
     {
         return { prefix: tag, suffix: '' };
     }
+
     return {
         prefix: tag.substring(0, underscoreIdx),
         suffix: tag.substring(underscoreIdx + 1),
@@ -99,6 +101,7 @@ export async function dbReindex(options: ReindexOptions = {}): Promise<void>
     if (journal.entries.length === 0)
     {
         console.log(chalk.yellow('No migration entries found — nothing to reindex.'));
+
         return;
     }
 
@@ -145,6 +148,7 @@ export async function dbReindex(options: ReindexOptions = {}): Promise<void>
         {
             console.log(chalk.dim(`   (${skipped} entries already timestamp-prefixed)`));
         }
+
         return;
     }
 
@@ -157,7 +161,7 @@ export async function dbReindex(options: ReindexOptions = {}): Promise<void>
             chalk.dim(`  [${update.idx}]`),
             chalk.red(update.oldTag),
             chalk.dim('→'),
-            chalk.green(update.newTag)
+            chalk.green(update.newTag),
         );
     }
 
@@ -172,6 +176,7 @@ export async function dbReindex(options: ReindexOptions = {}): Promise<void>
     if (options.dryRun)
     {
         console.log(chalk.yellow('\n🔍 Dry run — no changes applied.'));
+
         return;
     }
 

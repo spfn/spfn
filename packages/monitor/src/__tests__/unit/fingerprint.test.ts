@@ -62,7 +62,7 @@ describe('generateFingerprint', () =>
         const fp = generateFingerprint(
             'Error',
             'Cannot read property "foo" of undefined',
-            '/api/users?id=123&name=test'
+            '/api/users?id=123&name=test',
         );
 
         expect(fp).toHaveLength(16);

@@ -204,5 +204,5 @@ Other SPFN packages build on `@spfn/core`:
 
 - [`@spfn/auth`](../auth/README.md) — auth/session; exports `authRouteMap` and auto-registers proxy
   interceptors (merge its route map into `createRpcProxy`).
-- `@spfn/nextjs`, `@spfn/cms`, `@spfn/workflow`, `@spfn/notification`, `@spfn/monitor`, `@spfn/cli`
+- `@spfn/cms`, `@spfn/workflow`, `@spfn/notification`, `@spfn/monitor`, `@spfn/cli`
   — see each package's README under `packages/`.

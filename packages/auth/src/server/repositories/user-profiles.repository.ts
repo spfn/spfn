@@ -5,7 +5,7 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewUserProfile, userProfiles } from "../entities/user-profiles";
+import { NewUserProfile, userProfiles } from '../entities/user-profiles';
 import { BaseRepository } from '@spfn/core/db';
 import { eq } from 'drizzle-orm';
 

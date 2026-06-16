@@ -24,6 +24,7 @@ export const getUserProfile = route.get('/_auth/users/profile')
     .handler(async (c) =>
     {
         const { userId } = getAuth(c);
+
         return await getUserProfileService(userId);
     });
 
@@ -53,12 +54,13 @@ export const updateUserProfile = route.patch('/_auth/users/profile')
             company: Type.Optional(Type.String({ description: 'Company name' })),
             jobTitle: Type.Optional(Type.String({ description: 'Job title' })),
             metadata: Type.Optional(Type.Record(Type.String(), Type.Any(), { description: 'Additional metadata' })),
-        })
+        }),
     })
     .handler(async (c) =>
     {
         const { userId } = getAuth(c);
         const { body } = await c.data();
+
         return await updateUserProfileService(userId, body);
     });
 
@@ -74,11 +76,12 @@ export const checkUsername = route.get('/_auth/users/username/check')
     .input({
         query: Type.Object({
             username: Type.String({ minLength: 1 }),
-        })
+        }),
     })
     .handler(async (c) =>
     {
         const { query } = await c.data();
+
         return { available: await checkUsernameAvailableService(query.username) };
     });
 
@@ -100,12 +103,13 @@ export const updateUsername = route.patch('/_auth/users/username')
                 Type.String({ minLength: 1 }),
                 Type.Null(),
             ], { description: 'New username or null to clear' }),
-        })
+        }),
     })
     .handler(async (c) =>
     {
         const { userId } = getAuth(c);
         const { body } = await c.data();
+
         return await updateUsernameService(userId, body.username);
     });
 
@@ -121,12 +125,13 @@ export const updateLocale = route.patch('/_auth/users/locale')
     .input({
         body: Type.Object({
             locale: Type.String({ minLength: 1, description: 'Locale code (e.g., en, ko, ja)' }),
-        })
+        }),
     })
     .handler(async (c) =>
     {
         const { userId } = getAuth(c);
         const { body } = await c.data();
+
         return await updateLocaleService(userId, body.locale);
     });
 

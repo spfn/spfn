@@ -75,9 +75,10 @@ export function createDbTestFixture(): DbTestFixture
             if (!_isAvailable)
             {
                 throw new Error(
-                    'Database not initialized. Did you call setup() in beforeAll()?'
+                    'Database not initialized. Did you call setup() in beforeAll()?',
                 );
             }
+
             return _db;
         },
 

@@ -18,6 +18,7 @@ import { serverLogger } from './logger';
 // ============================================================================
 
 type Lifecycle = NonNullable<ServerConfig['lifecycle']>;
+
 type LifecycleKey = keyof Lifecycle;
 
 // ============================================================================
@@ -26,7 +27,7 @@ type LifecycleKey = keyof Lifecycle;
 
 function collectHooks<K extends LifecycleKey>(
     lifecycles: Lifecycle[],
-    key: K
+    key: K,
 ): NonNullable<Lifecycle[K]>[]
 {
     return lifecycles
@@ -35,7 +36,7 @@ function collectHooks<K extends LifecycleKey>(
 }
 
 function createMergedHook<T extends (...args: any[]) => void | Promise<void>>(
-    hooks: T[]
+    hooks: T[],
 ): T | undefined
 {
     if (hooks.length === 0)
@@ -63,6 +64,7 @@ export class ServerConfigBuilder
     port(port: number): this
     {
         this.config.port = port;
+
         return this;
     }
 
@@ -72,6 +74,7 @@ export class ServerConfigBuilder
     host(host: string): this
     {
         this.config.host = host;
+
         return this;
     }
 
@@ -81,6 +84,7 @@ export class ServerConfigBuilder
     cors(cors: ServerConfig['cors']): this
     {
         this.config.cors = cors;
+
         return this;
     }
 
@@ -90,6 +94,7 @@ export class ServerConfigBuilder
     middleware(middleware: ServerConfig['middleware']): this
     {
         this.config.middleware = middleware;
+
         return this;
     }
 
@@ -99,6 +104,7 @@ export class ServerConfigBuilder
     use(handlers: MiddlewareHandler[]): this
     {
         this.config.use = handlers;
+
         return this;
     }
 
@@ -108,6 +114,7 @@ export class ServerConfigBuilder
     middlewares(middlewares: ServerConfig['middlewares']): this
     {
         this.config.middlewares = middlewares;
+
         return this;
     }
 
@@ -194,6 +201,7 @@ export class ServerConfigBuilder
         {
             this.config.jobsConfig = config;
         }
+
         return this;
     }
 
@@ -227,7 +235,7 @@ export class ServerConfigBuilder
      */
     events<TRouter extends EventRouterDef<any>>(
         router: TRouter,
-        config?: Omit<SSEHandlerConfig, 'auth'> & { path?: string; auth?: SSEAuthConfig<TRouter> }
+        config?: Omit<SSEHandlerConfig, 'auth'> & { path?: string; auth?: SSEAuthConfig<TRouter> },
     ): this
     {
         this.config.events = router;
@@ -236,6 +244,7 @@ export class ServerConfigBuilder
             // SSEAuthConfig<TRouter> is assignable to SSEHandlerAuthConfig at runtime
             this.config.eventsConfig = config as SSEHandlerConfig & { path?: string };
         }
+
         return this;
     }
 
@@ -269,10 +278,10 @@ export class ServerConfigBuilder
     websockets<
         TEvents extends Record<string, any>,
         TMessages extends WSMessageHandlers,
-        TRouter extends WSRouterDef<TEvents, TMessages>
+        TRouter extends WSRouterDef<TEvents, TMessages>,
     >(
         router: TRouter,
-        config?: Omit<WSHandlerConfig, 'auth'> & { path?: string; auth?: WSAuthConfig<TRouter> }
+        config?: Omit<WSHandlerConfig, 'auth'> & { path?: string; auth?: WSAuthConfig<TRouter> },
     ): this
     {
         this.config.websockets = router;
@@ -280,6 +289,7 @@ export class ServerConfigBuilder
         {
             this.config.websocketsConfig = config as WSHandlerConfig & { path?: string };
         }
+
         return this;
     }
 
@@ -289,6 +299,7 @@ export class ServerConfigBuilder
     debug(enabled: boolean): this
     {
         this.config.debug = enabled;
+
         return this;
     }
 
@@ -298,6 +309,7 @@ export class ServerConfigBuilder
     database(database: ServerConfig['database']): this
     {
         this.config.database = database;
+
         return this;
     }
 
@@ -307,6 +319,7 @@ export class ServerConfigBuilder
     timeout(timeout: ServerConfig['timeout']): this
     {
         this.config.timeout = timeout;
+
         return this;
     }
 
@@ -316,6 +329,7 @@ export class ServerConfigBuilder
     shutdown(shutdown: ServerConfig['shutdown']): this
     {
         this.config.shutdown = shutdown;
+
         return this;
     }
 
@@ -325,6 +339,7 @@ export class ServerConfigBuilder
     healthCheck(healthCheck: ServerConfig['healthCheck']): this
     {
         this.config.healthCheck = healthCheck;
+
         return this;
     }
 
@@ -334,6 +349,7 @@ export class ServerConfigBuilder
     infrastructure(infrastructure: ServerConfig['infrastructure']): this
     {
         this.config.infrastructure = infrastructure;
+
         return this;
     }
 
@@ -359,7 +375,7 @@ export class ServerConfigBuilder
      */
     workflows(
         router: ServerConfig['workflows'],
-        config?: ServerConfig['workflowsConfig']
+        config?: ServerConfig['workflowsConfig'],
     ): this
     {
         this.config.workflows = router;
@@ -367,6 +383,7 @@ export class ServerConfigBuilder
         {
             this.config.workflowsConfig = config;
         }
+
         return this;
     }
 
@@ -380,6 +397,7 @@ export class ServerConfigBuilder
         {
             this.lifecycles.push(lifecycle);
         }
+
         return this;
     }
 
@@ -401,22 +419,22 @@ export class ServerConfigBuilder
     {
         return {
             beforeInfrastructure: createMergedHook(
-                collectHooks(this.lifecycles, 'beforeInfrastructure')
+                collectHooks(this.lifecycles, 'beforeInfrastructure'),
             ),
             afterInfrastructure: createMergedHook(
-                collectHooks(this.lifecycles, 'afterInfrastructure')
+                collectHooks(this.lifecycles, 'afterInfrastructure'),
             ),
             beforeRoutes: createMergedHook(
-                collectHooks(this.lifecycles, 'beforeRoutes')
+                collectHooks(this.lifecycles, 'beforeRoutes'),
             ),
             afterRoutes: createMergedHook(
-                collectHooks(this.lifecycles, 'afterRoutes')
+                collectHooks(this.lifecycles, 'afterRoutes'),
             ),
             afterStart: createMergedHook(
-                collectHooks(this.lifecycles, 'afterStart')
+                collectHooks(this.lifecycles, 'afterStart'),
             ),
             beforeShutdown: createMergedHook(
-                collectHooks(this.lifecycles, 'beforeShutdown')
+                collectHooks(this.lifecycles, 'beforeShutdown'),
             ),
         };
     }

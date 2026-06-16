@@ -46,6 +46,7 @@ function computeConfigHash(
             .reduce((acc, key) =>
             {
                 acc[key] = [...allMappings[key]].sort();
+
                 return acc;
             }, {} as Record<string, string[]>),
     });
@@ -143,6 +144,7 @@ export async function initializeAuth(options: AuthInitOptions = {}): Promise<voi
     if (storedHash === configHash)
     {
         authLogger.service.info('✅ RBAC config unchanged, skipping initialization');
+
         return;
     }
 

@@ -5,7 +5,7 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewRolePermission, RolePermission, rolePermissions } from "../entities/role-permissions";
+import { NewRolePermission, RolePermission, rolePermissions } from '../entities/role-permissions';
 import { BaseRepository } from '@spfn/core/db';
 import { and, eq } from 'drizzle-orm';
 
@@ -70,7 +70,7 @@ export class RolePermissionsRepository extends BaseRepository
      */
     async deleteByRoleIdAndPermissionId(
         roleId: number,
-        permissionId: number
+        permissionId: number,
     ): Promise<RolePermission | null>
     {
         const result = await this.db
@@ -78,8 +78,8 @@ export class RolePermissionsRepository extends BaseRepository
             .where(
                 and(
                     eq(rolePermissions.roleId, roleId),
-                    eq(rolePermissions.permissionId, permissionId)
-                )
+                    eq(rolePermissions.permissionId, permissionId),
+                ),
             )
             .returning();
 

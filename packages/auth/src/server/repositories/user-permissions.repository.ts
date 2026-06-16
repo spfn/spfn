@@ -5,7 +5,7 @@
  * BaseRepository를 상속받아 자동 트랜잭션 컨텍스트 지원 및 Read/Write 분리
  */
 
-import { NewUserPermission, userPermissions } from "../entities/user-permissions";
+import { NewUserPermission, userPermissions } from '../entities/user-permissions';
 import { BaseRepository } from '@spfn/core/db';
 import { eq, and, or, isNull, isNotNull, lt, gt } from 'drizzle-orm';
 
@@ -41,9 +41,9 @@ export class UserPermissionsRepository extends BaseRepository
                     eq(userPermissions.userId, userId),
                     or(
                         isNull(userPermissions.expiresAt),
-                        gt(userPermissions.expiresAt, now)
-                    )
-                )
+                        gt(userPermissions.expiresAt, now),
+                    ),
+                ),
             );
     }
 
@@ -52,7 +52,7 @@ export class UserPermissionsRepository extends BaseRepository
      */
     async findByUserIdAndPermissionId(
         userId: number,
-        permissionId: number
+        permissionId: number,
     )
     {
         const result = await this.readDb
@@ -61,8 +61,8 @@ export class UserPermissionsRepository extends BaseRepository
             .where(
                 and(
                     eq(userPermissions.userId, userId),
-                    eq(userPermissions.permissionId, permissionId)
-                )
+                    eq(userPermissions.permissionId, permissionId),
+                ),
             )
             .limit(1);
 
@@ -100,15 +100,16 @@ export class UserPermissionsRepository extends BaseRepository
      */
     async deleteByUserIdAndPermissionId(
         userId: number,
-        permissionId: number
-    ) {
+        permissionId: number,
+    ) 
+    {
         const result = await this.db
             .delete(userPermissions)
             .where(
                 and(
                     eq(userPermissions.userId, userId),
-                    eq(userPermissions.permissionId, permissionId)
-                )
+                    eq(userPermissions.permissionId, permissionId),
+                ),
             )
             .returning();
 
@@ -140,8 +141,8 @@ export class UserPermissionsRepository extends BaseRepository
             .where(
                 and(
                     isNotNull(userPermissions.expiresAt),
-                    lt(userPermissions.expiresAt, now)
-                )
+                    lt(userPermissions.expiresAt, now),
+                ),
             )
             .returning();
 

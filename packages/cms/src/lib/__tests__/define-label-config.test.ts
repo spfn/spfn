@@ -116,6 +116,7 @@ describe('defineLabelConfig', () =>
 
             // Type test: This should work at compile time
             type AppLocale = typeof config.locales[number];
+
             const locale: AppLocale = 'en';
 
             expect(locale).toBe('en');
@@ -129,6 +130,7 @@ describe('defineLabelConfig', () =>
             });
 
             type LabelConfig = typeof config;
+
             const testConfig: LabelConfig = {
                 locales: ['en', 'ko'],
                 defaultLocale: 'en',

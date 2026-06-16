@@ -41,7 +41,7 @@ export const logs = monitorSchema.table('logs',
         index('monitor_log_level_idx').on(table.level),
         index('monitor_log_source_idx').on(table.source),
         index('monitor_log_created_at_idx').on(table.createdAt),
-    ]
+    ],
 );
 
 export type Log = typeof logs.$inferSelect;

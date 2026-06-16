@@ -160,6 +160,7 @@ describe('File Upload', () =>
                 .handler(async (c) =>
                 {
                     const { body } = await c.data();
+
                     return { created: true, name: body.name, email: body.email };
                 });
 
@@ -197,6 +198,7 @@ describe('File Upload', () =>
                 .handler(async (c) =>
                 {
                     const { formData } = await c.data();
+
                     return { size: (formData.file as File).size };
                 });
 
@@ -234,6 +236,7 @@ describe('File Upload', () =>
                 .handler(async (c) =>
                 {
                     const { formData } = await c.data();
+
                     return { type: (formData.image as File).type };
                 });
 
@@ -269,6 +272,7 @@ describe('File Upload', () =>
                 .handler(async (c) =>
                 {
                     const { formData } = await c.data();
+
                     return { count: (formData.files as File[]).length };
                 });
 
@@ -308,6 +312,7 @@ describe('File Upload', () =>
                 {
                     const { formData } = await c.data();
                     const file = formData.image as File;
+
                     return { name: file.name, type: file.type, size: file.size };
                 });
 

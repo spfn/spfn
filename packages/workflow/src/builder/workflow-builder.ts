@@ -19,7 +19,7 @@ import type {
 export class WorkflowBuilder<
     TName extends string,
     TInput = void,
-    TResults extends Record<string, unknown> = {}
+    TResults extends Record<string, unknown> = {},
 >
 {
     private readonly _name: TName;
@@ -38,7 +38,7 @@ export class WorkflowBuilder<
      * Define input schema
      */
     input<TSchema extends import('@sinclair/typebox').TSchema>(
-        schema: TSchema
+        schema: TSchema,
     ): WorkflowBuilder<TName, Static<TSchema>, TResults>
     {
         const builder = new WorkflowBuilder<TName, Static<TSchema>, TResults>(this._name);
@@ -47,6 +47,7 @@ export class WorkflowBuilder<
         builder._resumable = this._resumable;
         builder._rollbackEnabled = this._rollbackEnabled;
         builder._notifyConfigs = [...this._notifyConfigs];
+
         return builder;
     }
 
@@ -55,10 +56,10 @@ export class WorkflowBuilder<
      */
     pipe<
         TJob extends JobDef<any, any>,
-        TStepName extends string = TJob['name']
+        TStepName extends string = TJob['name'],
     >(
         job: TJob,
-        mapper: StepMapper<TInput, TResults, InferJobInput<TJob>>
+        mapper: StepMapper<TInput, TResults, InferJobInput<TJob>>,
     ): WorkflowBuilder<
         TName,
         TInput,
@@ -92,9 +93,9 @@ export class WorkflowBuilder<
      * Add parallel steps
      */
     parallel<
-        TParallel extends Record<string, [JobDef<any, any>, StepMapper<TInput, TResults, any>]>
+        TParallel extends Record<string, [JobDef<any, any>, StepMapper<TInput, TResults, any>]>,
     >(
-        steps: TParallel
+        steps: TParallel,
     ): WorkflowBuilder<
         TName,
         TInput,
@@ -135,6 +136,7 @@ export class WorkflowBuilder<
     resumable(enabled: boolean = true): this
     {
         this._resumable = enabled;
+
         return this;
     }
 
@@ -144,6 +146,7 @@ export class WorkflowBuilder<
     rollback(enabled: boolean = true): this
     {
         this._rollbackEnabled = enabled;
+
         return this;
     }
 
@@ -153,6 +156,7 @@ export class WorkflowBuilder<
     notify(config: NotifyConfig): this
     {
         this._notifyConfigs.push(config);
+
         return this;
     }
 

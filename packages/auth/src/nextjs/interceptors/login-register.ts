@@ -70,6 +70,7 @@ export const loginRegisterInterceptor: InterceptorRule =
             if (ctx.response.status !== 200)
             {
                 await next();
+
                 return;
             }
 
@@ -79,6 +80,7 @@ export const loginRegisterInterceptor: InterceptorRule =
             {
                 authLogger.interceptor.login.error('No userId in response');
                 await next();
+
                 return;
             }
 

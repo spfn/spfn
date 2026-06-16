@@ -297,7 +297,7 @@ describe('chain', () =>
     {
         const parser = chain(
             parseString,
-            createStringParser({ minLength: 3 })
+            createStringParser({ minLength: 3 }),
         );
 
         expect(parser('hello')).toBe('hello');

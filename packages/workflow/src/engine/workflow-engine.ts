@@ -35,7 +35,7 @@ const DEFAULT_LARGE_OUTPUT_THRESHOLD = 1024 * 1024;
  * Internal workflow engine implementation
  */
 class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
-    implements WorkflowEngine<TWorkflows>
+implements WorkflowEngine<TWorkflows>
 {
     private config: WorkflowEngineConfig;
     private workflows: Map<string, WorkflowDef>;
@@ -46,7 +46,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
 
     constructor(
         workflows: TWorkflows,
-        config: WorkflowEngineConfig
+        config: WorkflowEngineConfig,
     )
     {
         this.config = config;
@@ -65,7 +65,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
     /**
      * Get database instance
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     private get db(): any
     {
         return this.config.db;
@@ -76,7 +76,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
      */
     async start<TName extends TWorkflows[number]['name']>(
         name: TName,
-        input: ExtractWorkflowInput<TWorkflows, TName>
+        input: ExtractWorkflowInput<TWorkflows, TName>,
     ): Promise<ExecutionResult>
     {
         const workflow = this.workflows.get(name);
@@ -157,7 +157,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
     private async executeNextStep(
         executionId: string,
         workflow: WorkflowDef,
-        input: Record<string, unknown>
+        input: Record<string, unknown>,
     ): Promise<void>
     {
         while (true)
@@ -184,6 +184,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
             {
                 // All steps completed
                 await this.completeExecution(executionId);
+
                 return;
             }
 
@@ -204,12 +205,12 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
                 // Wait for ALL steps to complete before handling failures
                 // to prevent rollback from racing with still-running steps.
                 const parallelSteps = workflow.steps.filter(
-                    s => s.parallelGroup === stepDef.parallelGroup
+                    s => s.parallelGroup === stepDef.parallelGroup,
                 );
                 const errors = await Promise.all(
                     parallelSteps.map(step =>
-                        this.executeStep(executionId, workflow, step, input, results)
-                    )
+                        this.executeStep(executionId, workflow, step, input, results),
+                    ),
                 );
 
                 // Handle failure after all parallel steps have settled
@@ -217,6 +218,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
                 if (firstError)
                 {
                     await this.handleStepFailure(executionId, workflow, firstError);
+
                     return;
                 }
             }
@@ -227,6 +229,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
                 if (error)
                 {
                     await this.handleStepFailure(executionId, workflow, error);
+
                     return;
                 }
             }
@@ -243,7 +246,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
         workflow: WorkflowDef,
         step: WorkflowStepDef,
         input: Record<string, unknown>,
-        results: Record<string, unknown>
+        results: Record<string, unknown>,
     ): Promise<string | null>
     {
         const stepExecution = await this.getStepExecution(executionId, step.name);
@@ -327,7 +330,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
     private async handleStepFailure(
         executionId: string,
         workflow: WorkflowDef,
-        error: string
+        error: string,
     ): Promise<void>
     {
         // Update execution status
@@ -360,7 +363,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
      */
     private async executeRollback(
         executionId: string,
-        workflow: WorkflowDef
+        workflow: WorkflowDef,
     ): Promise<void>
     {
         await this.updateExecutionStatus(executionId, 'compensating');
@@ -395,7 +398,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
                 // Log but continue with other compensations
                 this.logger.error(
                     `[Workflow:${workflow.name}] Compensate error for step ${stepExecution.stepName}:`,
-                    compensateError
+                    compensateError,
                 );
             }
         }
@@ -454,7 +457,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
      */
     private async getStepExecution(
         executionId: string,
-        stepName: string
+        stepName: string,
     ): Promise<WorkflowStepExecution | null>
     {
         const [step] = await this.db
@@ -463,8 +466,8 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
             .where(
                 and(
                     eq(workflowStepExecutions.executionId, executionId),
-                    eq(workflowStepExecutions.stepName, stepName)
-                )
+                    eq(workflowStepExecutions.stepName, stepName),
+                ),
             ) as WorkflowStepExecution[];
 
         return step || null;
@@ -481,8 +484,8 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
             .where(
                 and(
                     eq(workflowStepExecutions.executionId, executionId),
-                    eq(workflowStepExecutions.status, 'completed')
-                )
+                    eq(workflowStepExecutions.status, 'completed'),
+                ),
             ) as WorkflowStepExecution[];
 
         const results: Record<string, unknown> = {};
@@ -490,6 +493,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
         {
             results[step.stepName] = await this.resolveOutput(step.output);
         }
+
         return results;
     }
 
@@ -498,7 +502,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
      */
     private async updateExecutionStatus(
         executionId: string,
-        status: WorkflowStatus
+        status: WorkflowStatus,
     ): Promise<void>
     {
         await this.db
@@ -517,7 +521,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
         stepId: string,
         status: WorkflowStepStatus,
         output?: unknown,
-        error?: string
+        error?: string,
     ): Promise<void>
     {
         const updates: Record<string, unknown> = {
@@ -561,6 +565,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
         if (Buffer.byteLength(json, 'utf8') > threshold)
         {
             const url = await this.config.storage.upload(output);
+
             return { $ref: url };
         }
 
@@ -656,10 +661,10 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
                     {
                         this.logger.error(
                             `[WorkflowEngine] Notification provider '${provider.name}' error:`,
-                            error
+                            error,
                         );
                     }
-                })
+                }),
             );
         }
     }
@@ -675,6 +680,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
     {
         const step = await this.getStepExecution(executionId, stepName);
         if (!step) return null;
+
         return this.resolveOutput(step.output);
     }
 
@@ -762,7 +768,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
         {
             throw new Error(
                 `Cannot retry execution '${executionId}' with status '${execution.status}'. ` +
-                `Only 'failed' or 'compensated' executions can be retried.`
+                `Only 'failed' or 'compensated' executions can be retried.`,
             );
         }
 
@@ -809,7 +815,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
             this.executeNextStep(
                 executionId,
                 workflow,
-                execution.input as Record<string, unknown>
+                execution.input as Record<string, unknown>,
             )
                 .catch((error) =>
                 {
@@ -867,7 +873,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
         {
             throw new Error(
                 `Cannot cancel execution '${executionId}' with status '${execution.status}'. ` +
-                `Only 'pending' or 'running' executions can be cancelled.`
+                `Only 'pending' or 'running' executions can be cancelled.`,
             );
         }
 
@@ -890,7 +896,7 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
 
     subscribe(
         executionId: string,
-        callback: (event: WorkflowEvent) => void
+        callback: (event: WorkflowEvent) => void,
     ): () => void
     {
         if (!this.subscribers.has(executionId))
@@ -926,9 +932,10 @@ class WorkflowEngineImpl<TWorkflows extends WorkflowDef[]>
 export function createWorkflowEngine<TWorkflows extends WorkflowDef<string, unknown>[]>(
     options: {
         workflows: TWorkflows;
-    } & WorkflowEngineConfig
+    } & WorkflowEngineConfig,
 ): WorkflowEngine<TWorkflows>
 {
     const { workflows, ...config } = options;
+
     return new WorkflowEngineImpl(workflows, config);
 }

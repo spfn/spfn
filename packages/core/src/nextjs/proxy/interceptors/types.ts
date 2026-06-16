@@ -1,5 +1,5 @@
-import { NextRequest } from "next/server";
-import { SetCookie } from "../../client";
+import { NextRequest } from 'next/server';
+import { SetCookie } from '../../client';
 
 /**
  * Interceptor Rule
@@ -182,7 +182,7 @@ export interface ResponseInterceptorContext
  */
 export type RequestInterceptor = (
     context: RequestInterceptorContext,
-    next: () => Promise<void>
+    next: () => Promise<void>,
 ) => Promise<void>;
 
 /**
@@ -211,7 +211,7 @@ export type RequestInterceptor = (
  */
 export type ResponseInterceptor = (
     context: ResponseInterceptorContext,
-    next: () => Promise<void>
+    next: () => Promise<void>,
 ) => Promise<void>;
 
 /**

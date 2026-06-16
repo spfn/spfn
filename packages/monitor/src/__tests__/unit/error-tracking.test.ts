@@ -40,6 +40,7 @@ const mockCtx = {
     path: '/api/test',
     method: 'GET',
     requestId: 'req-123',
+    environment: 'test',
 };
 
 const mockGroup = {
@@ -93,7 +94,8 @@ describe('trackError', () =>
         expect(notifyErrorToSlack).toHaveBeenCalledWith(
             mockGroup,
             mockEvent,
-            'new'
+            'new',
+            'test',
         );
     });
 
@@ -136,7 +138,8 @@ describe('trackError', () =>
         expect(notifyErrorToSlack).toHaveBeenCalledWith(
             expect.objectContaining({ status: 'active' }),
             mockEvent,
-            'reopened'
+            'reopened',
+            'test',
         );
     });
 
@@ -149,7 +152,7 @@ describe('trackError', () =>
         await trackError(new Error('test error'), mockCtx, metadata);
 
         expect(errorEventsRepository.create).toHaveBeenCalledWith(
-            expect.objectContaining({ metadata })
+            expect.objectContaining({ metadata }),
         );
     });
 });

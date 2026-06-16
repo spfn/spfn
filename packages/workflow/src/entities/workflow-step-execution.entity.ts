@@ -63,7 +63,7 @@ export const workflowStepExecutions = workflowSchema.table(
         index('wf_step_exec_execution_id_idx').on(table.executionId),
         index('wf_step_exec_status_idx').on(table.status),
         index('wf_step_exec_exec_step_idx').on(table.executionId, table.stepIndex),
-    ]
+    ],
 );
 
 export type WorkflowStepExecution = typeof workflowStepExecutions.$inferSelect;

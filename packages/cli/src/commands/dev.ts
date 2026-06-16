@@ -55,7 +55,8 @@ export const devCommand = new Command('dev')
         process.setMaxListeners(20);
 
         // Set NODE_ENV to development (Next.js style)
-        if (!process.env.NODE_ENV) {
+        if (!process.env.NODE_ENV) 
+        {
             process.env.NODE_ENV = 'development';
         }
 
@@ -249,7 +250,8 @@ catch (error)
                     try
                     {
                         serverProcess.kill('SIGTERM');
-                        await serverProcess.catch(() => {});
+                        await serverProcess.catch(() => 
+                        {});
                         // Wait for port to be released
                         await new Promise(resolve => setTimeout(resolve, 500));
                     }
@@ -320,9 +322,11 @@ catch (error)
             // Use setInterval to keep the event loop active without unsettled promises
             await new Promise<void>((resolve) =>
             {
-                const keepAlive = setInterval(() => {}, 1000000);
+                const keepAlive = setInterval(() => 
+                {}, 1000000);
                 // Cleanup will handle exit, but just in case:
-                process.once('beforeExit', () => {
+                process.once('beforeExit', () => 
+                {
                     clearInterval(keepAlive);
                     resolve();
                 });
@@ -418,7 +422,8 @@ catch (error)
                 try
                 {
                     serverProcess.kill('SIGTERM');
-                    await serverProcess.catch(() => {});
+                    await serverProcess.catch(() => 
+                    {});
                     // Wait for port to be released
                     await new Promise(resolve => setTimeout(resolve, 500));
                 }
@@ -505,9 +510,11 @@ catch (error)
         // Use setInterval to keep the event loop active without unsettled promises
         await new Promise<void>((resolve) =>
         {
-            const keepAlive = setInterval(() => {}, 1000000);
+            const keepAlive = setInterval(() => 
+            {}, 1000000);
             // Cleanup will handle exit, but just in case:
-            process.once('beforeExit', () => {
+            process.once('beforeExit', () => 
+            {
                 clearInterval(keepAlive);
                 resolve();
             });

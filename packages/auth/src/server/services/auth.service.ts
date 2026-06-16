@@ -14,7 +14,7 @@ import {
     VerificationTokenTargetMismatchError,
 } from '@spfn/auth/errors';
 
-import { type User } from "../entities/users";
+import { type User } from '../entities/users';
 import { usersRepository } from '../repositories';
 import { type KeyAlgorithmType } from '../types';
 import { hashPassword, verifyPassword } from '../helpers';
@@ -96,7 +96,7 @@ export interface ChangePasswordParams
  * Check if an account exists by email or phone
  */
 export async function checkAccountExistsService(
-    params: CheckAccountExistsParams
+    params: CheckAccountExistsParams,
 ): Promise<CheckAccountExistsResult>
 {
     const { email, phone } = params;
@@ -133,7 +133,7 @@ export async function checkAccountExistsService(
  * Register a new user account
  */
 export async function registerService(
-    params: RegisterParams
+    params: RegisterParams,
 ): Promise<RegisterResult>
 {
     const { email, phone, verificationToken, password, publicKey, keyId, fingerprint, algorithm, metadata } = params;
@@ -228,7 +228,7 @@ export async function registerService(
  * Authenticate user and create session
  */
 export async function loginService(
-    params: LoginParams
+    params: LoginParams,
 ): Promise<LoginResult>
 {
     const { email, phone, password, publicKey, keyId, fingerprint, oldKeyId, algorithm } = params;
@@ -304,7 +304,7 @@ export async function loginService(
  * Logout user (revoke current key)
  */
 export async function logoutService(
-    params: LogoutParams
+    params: LogoutParams,
 ): Promise<void>
 {
     const { userId, keyId } = params;
@@ -320,7 +320,7 @@ export async function logoutService(
  * Change user password
  */
 export async function changePasswordService(
-    params: ChangePasswordParams
+    params: ChangePasswordParams,
 ): Promise<void>
 {
     const { userId, currentPassword, newPassword, passwordHash: providedHash } = params;

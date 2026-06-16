@@ -43,7 +43,7 @@ export type FlatLabelWithDescription = Record<string, FlatLabelItem>;
  */
 export function flattenLabels<T extends Record<string, any>>(
     labels: T,
-    prefix = ''
+    prefix = '',
 ): FlatLabelWithDescription
 {
     const result: FlatLabelWithDescription = {};

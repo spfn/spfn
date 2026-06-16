@@ -38,6 +38,7 @@ export const webhookProvider: SlackProvider = {
         {
             const err = error as Error;
             log.error('Webhook request failed', err);
+
             return {
                 success: false,
                 error: err.message,

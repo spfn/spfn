@@ -52,7 +52,10 @@ export function ErrorListView({ onSelect }: ErrorListViewProps)
             }
         });
 
-        return () => { cancelled = true; };
+        return () => 
+        {
+            cancelled = true; 
+        };
     }, [status, search]);
 
     return (
@@ -152,5 +155,6 @@ function formatRelativeTime(date: string | Date): string
     }
 
     const days = Math.floor(hours / 24);
+
     return `${days}d ago`;
 }

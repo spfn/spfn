@@ -18,7 +18,7 @@ export function validateServerConfig(config: ServerConfig): void
         if (!Number.isInteger(config.port) || config.port < 0 || config.port > 65535)
         {
             throw new Error(
-                `Invalid port: ${config.port}. Port must be an integer between 0 and 65535.`
+                `Invalid port: ${config.port}. Port must be an integer between 0 and 65535.`,
             );
         }
     }
@@ -47,7 +47,7 @@ export function validateServerConfig(config: ServerConfig): void
         if (headers && request && headers > request)
         {
             throw new Error(
-                `Invalid timeout configuration: headers timeout (${headers}ms) cannot exceed request timeout (${request}ms).`
+                `Invalid timeout configuration: headers timeout (${headers}ms) cannot exceed request timeout (${request}ms).`,
             );
         }
     }
@@ -68,7 +68,7 @@ export function validateServerConfig(config: ServerConfig): void
         if (!config.healthCheck.path.startsWith('/'))
         {
             throw new Error(
-                `Invalid healthCheck.path: "${config.healthCheck.path}". Must start with "/".`
+                `Invalid healthCheck.path: "${config.healthCheck.path}". Must start with "/".`,
             );
         }
     }

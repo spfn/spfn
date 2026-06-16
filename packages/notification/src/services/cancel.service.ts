@@ -80,7 +80,7 @@ export async function cancelNotification(notificationId: number): Promise<Cancel
  */
 export async function cancelNotificationsByReference(
     referenceType: string,
-    referenceId: string
+    referenceId: string,
 ): Promise<{ cancelled: number; errors: number }>
 {
     const { findMany } = await import('@spfn/core/db');
@@ -90,7 +90,7 @@ export async function cancelNotificationsByReference(
         where: and(
             eq(notifications.referenceType, referenceType),
             eq(notifications.referenceId, referenceId),
-            eq(notifications.status, 'scheduled')
+            eq(notifications.status, 'scheduled'),
         ),
     });
 

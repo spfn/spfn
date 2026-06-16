@@ -19,8 +19,8 @@ export const getLabelCache = route.get('/_cms/labels/cache')
     .input({
         query: Type.Object({
             sections: Type.Array(Type.String()),
-            locale: Type.Optional(Type.String())
-        })
+            locale: Type.Optional(Type.String()),
+        }),
     })
     .handler(async (c) =>
     {
@@ -31,8 +31,10 @@ export const getLabelCache = route.get('/_cms/labels/cache')
         const results = await cmsPublishedCacheRepository.findBySections(sections, locale);
 
         // Record<section, content> 형태로 변환
-        return results.reduce((acc, item) => {
+        return results.reduce((acc, item) => 
+        {
             acc[item.section] = item.content;
+
             return acc;
         }, {} as Record<string, any>);
     });

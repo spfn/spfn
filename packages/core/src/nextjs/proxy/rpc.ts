@@ -37,7 +37,7 @@ import {
     buildRequestContext,
     buildResponseContext,
 } from './helpers';
-import type { TypedProxyConfig } from "./types";
+import type { TypedProxyConfig } from './types';
 
 const rpcLogger = logger.child('@spfn/core:rpc-proxy');
 
@@ -120,6 +120,7 @@ export function createRpcProxy(config: RpcProxyConfig)
         {
             return { method: entry.method, path: entry.path };
         }
+
         return null;
     }
 
@@ -128,7 +129,7 @@ export function createRpcProxy(config: RpcProxyConfig)
      */
     async function handleRpc(
         request: NextRequest,
-        context: { params: Promise<{ routeName?: string }> }
+        context: { params: Promise<{ routeName?: string }> },
     ): Promise<NextResponse>
     {
         const startTime = Date.now();
@@ -142,7 +143,7 @@ export function createRpcProxy(config: RpcProxyConfig)
             {
                 return NextResponse.json(
                     buildErrorResponse('Bad Request', 'Missing routeName parameter', debug),
-                    { status: 400 }
+                    { status: 400 },
                 );
             }
 
@@ -170,7 +171,7 @@ export function createRpcProxy(config: RpcProxyConfig)
                     {
                         return NextResponse.json(
                             buildErrorResponse('Bad Request', 'Invalid input parameter', debug),
-                            { status: 400 }
+                            { status: 400 },
                         );
                     }
                 }
@@ -227,7 +228,7 @@ export function createRpcProxy(config: RpcProxyConfig)
                     {
                         return NextResponse.json(
                             buildErrorResponse('Bad Request', 'Invalid form data', debug),
-                            { status: 400 }
+                            { status: 400 },
                         );
                     }
                 }
@@ -242,7 +243,7 @@ export function createRpcProxy(config: RpcProxyConfig)
                     {
                         return NextResponse.json(
                             buildErrorResponse('Bad Request', 'Invalid JSON body', debug),
-                            { status: 400 }
+                            { status: 400 },
                         );
                     }
                 }
@@ -254,9 +255,10 @@ export function createRpcProxy(config: RpcProxyConfig)
             if (!routeInfo)
             {
                 rpcLogger.warn(`Route not found: ${routeName}`);
+
                 return NextResponse.json(
                     buildErrorResponse('Not Found', `Route "${routeName}" not found`, debug),
-                    { status: 404 }
+                    { status: 404 },
                 );
             }
 
@@ -344,7 +346,7 @@ export function createRpcProxy(config: RpcProxyConfig)
                 inputBody,
                 new URLSearchParams(queryString.slice(1)), // Remove leading ?
                 cookiesMap,
-                request
+                request,
             );
 
             // Execute request interceptors
@@ -395,7 +397,7 @@ export function createRpcProxy(config: RpcProxyConfig)
                     response,
                     body,
                     requestCtx.metadata,
-                    requestCtx.cookies
+                    requestCtx.cookies,
                 );
 
                 // Execute response interceptors
@@ -463,7 +465,7 @@ export function createRpcProxy(config: RpcProxyConfig)
 
                     return NextResponse.json(
                         buildErrorResponse('Gateway Timeout', `Request timed out after ${timeout}ms`, debug, error),
-                        { status: 504 }
+                        { status: 504 },
                     );
                 }
 
@@ -477,7 +479,7 @@ export function createRpcProxy(config: RpcProxyConfig)
 
                 return NextResponse.json(
                     buildErrorResponse('Bad Gateway', fetchErr.message || 'Failed to connect to backend', debug, fetchErr),
-                    { status: 502 }
+                    { status: 502 },
                 );
             }
         }
@@ -494,7 +496,7 @@ export function createRpcProxy(config: RpcProxyConfig)
 
             return NextResponse.json(
                 buildErrorResponse('Internal Server Error', err.message || 'Unknown error', debug, err),
-                { status: 500 }
+                { status: 500 },
             );
         }
     }

@@ -4,7 +4,7 @@
  * Thin route handlers that delegate to services
  */
 
-import { EmailSchema, PhoneSchema, PasswordSchema, TargetTypeSchema, VerificationPurposeSchema } from "../schema";
+import { EmailSchema, PhoneSchema, PasswordSchema, TargetTypeSchema, VerificationPurposeSchema } from '../schema';
 import { getAuth, getUser } from '../../helpers';
 import { KEY_ALGORITHM } from '../../types';
 import {
@@ -32,13 +32,14 @@ export const checkAccountExists = route.post('/_auth/exists')
         body: Type.Union([
             Type.Object({ email: EmailSchema }),
             Type.Object({ phone: PhoneSchema }),
-        ])
+        ]),
     })
     .skip(['auth'])
     .handler(async (c) =>
     {
         const { body } = await c.data();
-        return await checkAccountExistsService(body)
+
+        return await checkAccountExistsService(body);
     });
 
 /**
@@ -49,17 +50,18 @@ export const sendVerificationCode = route.post('/_auth/codes')
     .input({
         body: Type.Object({
             target: Type.String({
-                description: 'Email address or phone number in E.164 format'
+                description: 'Email address or phone number in E.164 format',
             }),
             targetType: TargetTypeSchema,
             purpose: VerificationPurposeSchema,
-        })
+        }),
     })
     .skip(['auth'])
     .handler(async (c) =>
     {
         const { body } = await c.data();
-        return await sendVerificationCodeService(body)
+
+        return await sendVerificationCodeService(body);
     });
 
 /**
@@ -70,23 +72,24 @@ export const verifyCode = route.post('/_auth/codes/verify')
     .input({
         body: Type.Object({
             target: Type.String({
-                description: 'Email address or phone number'
+                description: 'Email address or phone number',
             }),
             targetType: TargetTypeSchema,
             code: Type.String({
                 minLength: 6,
                 maxLength: 6,
                 pattern: '^[0-9]{6}$',
-                description: '6-digit verification code'
+                description: '6-digit verification code',
             }),
             purpose: VerificationPurposeSchema,
-        })
+        }),
     })
     .skip(['auth'])
     .handler(async (c) =>
     {
         const { body } = await c.data();
-        return await verifyCodeService(body)
+
+        return await verifyCodeService(body);
     });
 
 /**
@@ -99,16 +102,16 @@ export const register = route.post('/_auth/register')
             email: Type.Optional(EmailSchema),
             phone: Type.Optional(PhoneSchema),
             verificationToken: Type.String({
-                description: 'Verification token obtained from /verify-code endpoint'
+                description: 'Verification token obtained from /verify-code endpoint',
             }),
             password: PasswordSchema,
             metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), {
-                description: 'Custom metadata passed to authRegisterEvent (e.g. referral code, UTM params)'
+                description: 'Custom metadata passed to authRegisterEvent (e.g. referral code, UTM params)',
             })),
         }, {
             minProperties: 3, // email/phone + verificationToken + password
-            description: 'Email or phone must be provided with verification token'
-        })
+            description: 'Email or phone must be provided with verification token',
+        }),
     })
     .interceptor({
         body: Type.Object({
@@ -116,14 +119,15 @@ export const register = route.post('/_auth/register')
             keyId: Type.String({ description: 'Key identifier' }),
             fingerprint: Type.String({ description: 'Key fingerprint' }),
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
-        })
+        }),
     })
     .use([Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {
         const { body } = await c.data();
-        return await registerService(body)
+
+        return await registerService(body);
     });
 
 /**
@@ -138,12 +142,12 @@ export const login = route.post('/_auth/login')
             phone: Type.Optional(PhoneSchema),
             password: Type.String({
                 minLength: 1,
-                description: 'User password'
+                description: 'User password',
             }),
         }, {
             minProperties: 2, // email/phone + password
-            description: 'Email or phone must be provided with password'
-        })
+            description: 'Email or phone must be provided with password',
+        }),
     })
     .interceptor({
         body: Type.Object({
@@ -152,14 +156,15 @@ export const login = route.post('/_auth/login')
             fingerprint: Type.String({ description: 'Key fingerprint' }),
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
             oldKeyId: Type.Optional(Type.String({ description: 'Previous key ID for rotation' })),
-        })
+        }),
     })
     .use([Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {
         const { body } = await c.data();
-        return await loginService(body)
+
+        return await loginService(body);
     });
 
 // ===== Authenticated Routes Below =====
@@ -181,6 +186,7 @@ export const logout = route.post('/_auth/logout')
 
         const { keyId, userId } = auth;
         await logoutService({ userId: Number(userId), keyId });
+
         return c.noContent();
     });
 
@@ -195,7 +201,7 @@ export const rotateKey = route.post('/_auth/keys/rotate')
             keyId: Type.String({ description: 'New key identifier' }),
             fingerprint: Type.String({ description: 'New key fingerprint' }),
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
-        })
+        }),
     })
     .use([Transactional()])
     .handler(async (c) =>
@@ -210,7 +216,7 @@ export const rotateKey = route.post('/_auth/keys/rotate')
             newPublicKey: body.publicKey,
             fingerprint: body.fingerprint,
             algorithm: body.algorithm,
-        })
+        });
     });
 
 /**
@@ -223,10 +229,10 @@ export const changePassword = route.put('/_auth/password')
         body: Type.Object({
             currentPassword: Type.Optional(Type.String({
                 minLength: 1,
-                description: 'Current password for verification (required when changing existing password)'
+                description: 'Current password for verification (required when changing existing password)',
             })),
             newPassword: PasswordSchema,
-        })
+        }),
     })
     .handler(async (c) =>
     {
@@ -259,7 +265,8 @@ export const getAuthSession = route.get('/_auth/session')
     .handler(async (c) =>
     {
         const { userId } = getAuth(c);
-        return await getAuthSessionService(userId)
+
+        return await getAuthSessionService(userId);
     });
 
 /**
@@ -272,6 +279,7 @@ export const issueOneTimeToken = route.post('/_auth/tokens')
     .handler(async (c) =>
     {
         const { userId } = getAuth(c);
+
         return await issueOneTimeTokenService(userId);
     });
 

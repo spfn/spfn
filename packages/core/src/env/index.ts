@@ -57,7 +57,7 @@ export {
     optional,
     //
     createSecureSecretParser,
-    createPasswordParser
+    createPasswordParser,
 } from './validator';
 
 // === Schema-based Environment Management (NEW) ===

@@ -7,9 +7,9 @@
 
 import { eq, and } from 'drizzle-orm';
 import { BaseRepository } from '@spfn/core/db';
-import { EntityNotFoundError, NotFoundError } from "@spfn/core/errors";
+import { EntityNotFoundError, NotFoundError } from '@spfn/core/errors';
 
-import { rolePermissions, roles, NewUser, users, permissions } from "../entities";
+import { rolePermissions, roles, NewUser, users, permissions } from '../entities';
 
 /**
  * Users Repository 클래스
@@ -183,8 +183,9 @@ export class UsersRepository extends BaseRepository
     async updatePassword(
         id: number,
         passwordHash: string,
-        clearPasswordChangeRequired: boolean = true
-    ) {
+        clearPasswordChangeRequired: boolean = true,
+    ) 
+    {
         const updateData: Partial<NewUser> = {
             passwordHash,
             updatedAt: new Date(),
@@ -277,8 +278,8 @@ export class UsersRepository extends BaseRepository
             .where(
                 and(
                     eq(rolePermissions.roleId, userWithRole.roleId),
-                    eq(permissions.isActive, true)
-                )
+                    eq(permissions.isActive, true),
+                ),
             );
 
         return {

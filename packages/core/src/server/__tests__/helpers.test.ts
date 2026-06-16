@@ -18,10 +18,13 @@ import {
 import type { ServerConfig } from '../types';
 import { Hono } from 'hono';
 
-describe('Server Helpers', () => {
+describe('Server Helpers', () => 
+{
 
-    describe('applyServerTimeouts()', () => {
-        it('should apply all timeout values to server', () => {
+    describe('applyServerTimeouts()', () => 
+    {
+        it('should apply all timeout values to server', () => 
+        {
             const mockServer = {
                 timeout: 0,
                 keepAliveTimeout: 0,
@@ -41,7 +44,8 @@ describe('Server Helpers', () => {
             expect(mockServer.headersTimeout).toBe(20000);
         });
 
-        it('should handle server without timeout properties gracefully', () => {
+        it('should handle server without timeout properties gracefully', () => 
+        {
             const mockServer = {} as Server;
 
             const timeouts = {
@@ -55,11 +59,13 @@ describe('Server Helpers', () => {
         });
     });
 
-    describe('getTimeoutConfig()', () => {
+    describe('getTimeoutConfig()', () => 
+    {
         // Note: env object is initialized at module load time with schema defaults
         // Environment variable tests are not applicable as env values are fixed
 
-        it('should return schema default timeout values when no config provided', () => {
+        it('should return schema default timeout values when no config provided', () => 
+        {
             const timeouts = getTimeoutConfig();
 
             // Values come from coreEnvSchema defaults
@@ -68,7 +74,8 @@ describe('Server Helpers', () => {
             expect(timeouts.headers).toBe(60000); // 60 seconds
         });
 
-        it('should prioritize config over env defaults', () => {
+        it('should prioritize config over env defaults', () => 
+        {
             const config = {
                 request: 60000,
                 keepAlive: 70000,
@@ -82,7 +89,8 @@ describe('Server Helpers', () => {
             expect(timeouts.headers).toBe(50000);
         });
 
-        it('should handle partial config with env fallback', () => {
+        it('should handle partial config with env fallback', () => 
+        {
             const config = {
                 request: 60000,
             };
@@ -95,16 +103,19 @@ describe('Server Helpers', () => {
         });
     });
 
-    describe('getShutdownTimeout()', () => {
+    describe('getShutdownTimeout()', () => 
+    {
         // Note: env object is initialized at module load time with schema defaults
 
-        it('should return schema default shutdown timeout when no config provided', () => {
+        it('should return schema default shutdown timeout when no config provided', () => 
+        {
             const timeout = getShutdownTimeout();
 
             expect(timeout).toBe(30000); // 30 seconds from schema default
         });
 
-        it('should prioritize config over env defaults', () => {
+        it('should prioritize config over env defaults', () => 
+        {
             const config = { timeout: 90000 };
             const timeout = getShutdownTimeout(config);
 
@@ -112,8 +123,10 @@ describe('Server Helpers', () => {
         });
     });
 
-    describe('buildMiddlewareOrder()', () => {
-        it('should build correct order with all middleware enabled', () => {
+    describe('buildMiddlewareOrder()', () => 
+    {
+        it('should build correct order with all middleware enabled', () => 
+        {
             const config: ServerConfig = {};
 
             const order = buildMiddlewareOrder(config);
@@ -126,7 +139,8 @@ describe('Server Helpers', () => {
             ]);
         });
 
-        it('should exclude disabled middleware', () => {
+        it('should exclude disabled middleware', () => 
+        {
             const config: ServerConfig = {
                 middleware: {
                     logger: false,
@@ -140,7 +154,8 @@ describe('Server Helpers', () => {
             expect(order).toEqual(['Routes']);
         });
 
-        it('should include custom middleware', () => {
+        it('should include custom middleware', () => 
+        {
             const config: ServerConfig = {
                 use: [
                     async (_c, next) => next(),
@@ -160,9 +175,11 @@ describe('Server Helpers', () => {
             ]);
         });
 
-        it('should include beforeRoutes hook', () => {
+        it('should include beforeRoutes hook', () => 
+        {
             const config = {
-                beforeRoutes: async () => {},
+                beforeRoutes: async () => 
+                {},
             };
 
             const order = buildMiddlewareOrder(config);
@@ -176,9 +193,11 @@ describe('Server Helpers', () => {
             ]);
         });
 
-        it('should include afterRoutes hook', () => {
+        it('should include afterRoutes hook', () => 
+        {
             const config = {
-                afterRoutes: async () => {},
+                afterRoutes: async () => 
+                {},
             };
 
             const order = buildMiddlewareOrder(config);
@@ -192,11 +211,14 @@ describe('Server Helpers', () => {
             ]);
         });
 
-        it('should build complete order with all features', () => {
+        it('should build complete order with all features', () => 
+        {
             const config = {
                 use: [async (_c: any, next: any) => next()],
-                beforeRoutes: async () => {},
-                afterRoutes: async () => {},
+                beforeRoutes: async () => 
+                {},
+                afterRoutes: async () => 
+                {},
             };
 
             const order = buildMiddlewareOrder(config);
@@ -213,8 +235,10 @@ describe('Server Helpers', () => {
         });
     });
 
-    describe('buildStartupConfig()', () => {
-        it('should build startup config with defaults', () => {
+    describe('buildStartupConfig()', () => 
+    {
+        it('should build startup config with defaults', () => 
+        {
             const config: ServerConfig = {};
             const timeouts = {
                 request: 120000,
@@ -251,7 +275,8 @@ describe('Server Helpers', () => {
             });
         });
 
-        it('should reflect disabled middleware', () => {
+        it('should reflect disabled middleware', () => 
+        {
             const config: ServerConfig = {
                 middleware: {
                     logger: false,
@@ -275,7 +300,8 @@ describe('Server Helpers', () => {
             });
         });
 
-        it('should reflect custom middleware count', () => {
+        it('should reflect custom middleware count', () => 
+        {
             const config: ServerConfig = {
                 use: [
                     async (_c, next) => next(),
@@ -294,10 +320,13 @@ describe('Server Helpers', () => {
             expect(startupConfig.middleware.custom).toBe(3);
         });
 
-        it('should reflect hooks configuration', () => {
+        it('should reflect hooks configuration', () => 
+        {
             const config = {
-                beforeRoutes: async () => {},
-                afterRoutes: async () => {},
+                beforeRoutes: async () => 
+                {},
+                afterRoutes: async () => 
+                {},
             };
             const timeouts = {
                 request: 120000,
@@ -313,7 +342,8 @@ describe('Server Helpers', () => {
             });
         });
 
-        it('should reflect custom health check configuration', () => {
+        it('should reflect custom health check configuration', () => 
+        {
             const config: ServerConfig = {
                 healthCheck: {
                     enabled: true,
@@ -336,7 +366,8 @@ describe('Server Helpers', () => {
             });
         });
 
-        it('should reflect disabled health check', () => {
+        it('should reflect disabled health check', () => 
+        {
             const config: ServerConfig = {
                 healthCheck: {
                     enabled: false,
@@ -355,7 +386,8 @@ describe('Server Helpers', () => {
             });
         });
 
-        it('should reflect custom shutdown timeout', () => {
+        it('should reflect custom shutdown timeout', () => 
+        {
             const config: ServerConfig = {
                 shutdown: {
                     timeout: 60000,
@@ -375,8 +407,10 @@ describe('Server Helpers', () => {
         });
     });
 
-    describe('createHealthCheckHandler()', () => {
-        it('should create basic health check handler', async () => {
+    describe('createHealthCheckHandler()', () => 
+    {
+        it('should create basic health check handler', async () => 
+        {
             const handler = createHealthCheckHandler(false);
             const app = new Hono();
 
@@ -393,7 +427,8 @@ describe('Server Helpers', () => {
             expect(data.services).toBeUndefined();
         });
 
-        it('should create detailed health check handler', async () => {
+        it('should create detailed health check handler', async () => 
+        {
             const handler = createHealthCheckHandler(true);
             const app = new Hono();
 
@@ -412,7 +447,8 @@ describe('Server Helpers', () => {
             expect(data.services.redis).toBeDefined();
         });
 
-        it('should return timestamp in ISO format', async () => {
+        it('should return timestamp in ISO format', async () => 
+        {
             const handler = createHealthCheckHandler(false);
             const app = new Hono();
 

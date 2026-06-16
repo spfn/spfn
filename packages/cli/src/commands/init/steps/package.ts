@@ -16,7 +16,7 @@ export async function setupPackageJson(
     packageJsonPath: string,
     packageJson: PackageJson,
     packageManager: string,
-    includeAuth: boolean
+    includeAuth: boolean,
 ): Promise<void>
 {
     const spinner = ora('Updating package.json...').start();

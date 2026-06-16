@@ -1,5 +1,5 @@
-import { createApi } from "@spfn/core/nextjs";
-import { logger } from "@spfn/core/logger";
+import { createApi } from '@spfn/core/nextjs';
+import { logger } from '@spfn/core/logger';
 import { type AppRouter } from './server/routes/index';
 import { bindLocale, type SectionKeys, type BoundLabelSection, type BoundLabelsSections } from './lib/bind-locale';
 import { setNestedValue } from './lib/helpers';
@@ -49,7 +49,7 @@ export function createCmsClient<T>(
         defaultLocale: string;
         fallbackLocale?: string;
         getLocale: () => Promise<string>;
-    }
+    },
 )
 {
     /**
@@ -81,8 +81,8 @@ export function createCmsClient<T>(
         const cache = await api.getLabelCache.call({
             query: {
                 sections: [section as string],
-                locale
-            }
+                locale,
+            },
         });
 
         // 2. Filter only requested section
@@ -132,8 +132,8 @@ export function createCmsClient<T>(
         const cache = await api.getLabelCache.call({
             query: {
                 sections: [...sections] as unknown as string[],
-                locale
-            }
+                locale,
+            },
         });
 
         cmsLogger.debug('Fetched from cache', {

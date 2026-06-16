@@ -6,7 +6,7 @@ import type { Logger } from '@spfn/core/logger';
 
 export function logCookieAutoDetection(
     logger: Logger,
-    cookies: Array<{ name: string; value: string }>
+    cookies: Array<{ name: string; value: string }>,
 ): void
 {
     logger.debug('Auto-detected server environment, forwarding cookies', {
@@ -20,7 +20,7 @@ export function logRequest(
     routeName: string,
     method: string,
     url: string,
-    hasBody: boolean
+    hasBody: boolean,
 ): void
 {
     logger.debug('→ Request', {
@@ -35,7 +35,7 @@ export function logResponse(
     logger: Logger,
     routeName: string,
     status: number,
-    hasBody: boolean
+    hasBody: boolean,
 ): void
 {
     logger.debug('← Response', {
@@ -48,7 +48,7 @@ export function logResponse(
 export function logErrorResponse(
     logger: Logger,
     status: number,
-    body: any
+    body: any,
 ): void
 {
     logger.debug('Error response received', {
@@ -63,7 +63,7 @@ export function logErrorResponse(
 export function logErrorDeserializationAttempt(
     logger: Logger,
     errorType: string,
-    registeredTypes: string[]
+    registeredTypes: string[],
 ): void
 {
     logger.debug('Attempting error deserialization', {
@@ -75,7 +75,7 @@ export function logErrorDeserializationAttempt(
 
 export function logErrorDeserializationSuccess(
     logger: Logger,
-    error: Error | null
+    error: Error | null,
 ): void
 {
     logger.debug('Error deserialized successfully', {
@@ -87,7 +87,7 @@ export function logErrorDeserializationSuccess(
 
 export function logErrorDeserializationFailure(
     logger: Logger,
-    error: unknown
+    error: unknown,
 ): void
 {
     logger.debug('Deserialization failed', {
@@ -99,7 +99,7 @@ export function logErrorDeserializationFailure(
 export function logErrorDeserializationSkipped(
     logger: Logger,
     errorRegistry: any,
-    body: any
+    body: any,
 ): void
 {
     const reason = !errorRegistry
@@ -117,7 +117,7 @@ export function logErrorDeserializationSkipped(
 
 export function logThrowingDeserializedError(
     logger: Logger,
-    error: Error
+    error: Error,
 ): void
 {
     logger.debug('Throwing deserialized error', {

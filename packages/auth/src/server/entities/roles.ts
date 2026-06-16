@@ -56,7 +56,7 @@ export const roles = authSchema.table('roles',
         index('roles_is_active_idx').on(table.isActive),
         index('roles_is_builtin_idx').on(table.isBuiltin),
         index('roles_priority_idx').on(table.priority),
-    ]
+    ],
 );
 
 // Type exports

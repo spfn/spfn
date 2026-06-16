@@ -43,6 +43,7 @@ function parseUniqueViolation(message: string): { field: string; value: string }
             // Clean up extracted values
             const field = match[1].trim().replace(/["'`]/g, '');
             const value = match[2].trim().replace(/["'`]/g, '');
+
             return { field, value };
         }
     }
@@ -103,6 +104,7 @@ export function fromPostgresError(error: any): DatabaseError
             {
                 return new DuplicateEntryError({ field: parsed.field, value: parsed.value });
             }
+
             return new DuplicateEntryError({ field: 'field', value: 'value' });
 
         case '23514': // check_violation

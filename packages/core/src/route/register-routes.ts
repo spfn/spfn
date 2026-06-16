@@ -93,7 +93,7 @@ export function registerRoutes<TRoutes extends Record<string, RouteDef<any> | Ro
     app: Hono,
     router: Router<TRoutes>,
     namedMiddlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>,
-    collectedRoutes?: RegisteredRoute[]
+    collectedRoutes?: RegisteredRoute[],
 ): RegisteredRoute[]
 {
     // Use provided array or create new one (top-level call)
@@ -149,7 +149,7 @@ function registerRoute(
     app: Hono,
     name: string,
     routeDef: RouteDef<any>,
-    namedMiddlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>
+    namedMiddlewares?: ReadonlyArray<{ name: string; handler: MiddlewareHandler }>,
 ): RegisteredRoute | null
 {
     const { method, path, input, middlewares = [], skipMiddlewares, handler } = routeDef;
@@ -307,7 +307,7 @@ interface ResponseMeta
  */
 async function createRouteBuilderContext<TInput extends RouteInput>(
     c: Context,
-    input: TInput
+    input: TInput,
 ): Promise<{ context: RouteBuilderContext<TInput>; responseMeta: ResponseMeta }>
 {
     // Validate and extract all input fields
@@ -354,6 +354,7 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
             {
                 cachedData = { params, query, body, formData, headers, cookies };
             }
+
             return cachedData;
         },
 
@@ -369,6 +370,7 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
             {
                 responseMeta.headers['Location'] = location;
             }
+
             return data;
         },
 
@@ -378,8 +380,10 @@ async function createRouteBuilderContext<TInput extends RouteInput>(
             if (data === undefined)
             {
                 responseMeta.isEmpty = true;
+
                 return undefined;
             }
+
             return data;
         },
 

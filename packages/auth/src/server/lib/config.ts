@@ -13,6 +13,7 @@ import { env } from '@spfn/auth/config';
 function getCookieSuffix(): string
 {
     const port = process.env.PORT;
+
     return port ? `_${port}` : '';
 }
 
@@ -24,11 +25,20 @@ function getCookieSuffix(): string
  */
 export const COOKIE_NAMES = {
     /** Encrypted session data (userId, privateKey, keyId, algorithm) */
-    get SESSION() { return `spfn_session${getCookieSuffix()}`; },
+    get SESSION() 
+    {
+        return `spfn_session${getCookieSuffix()}`; 
+    },
     /** Current key ID (for key rotation) */
-    get SESSION_KEY_ID() { return `spfn_session_key_id${getCookieSuffix()}`; },
+    get SESSION_KEY_ID() 
+    {
+        return `spfn_session_key_id${getCookieSuffix()}`; 
+    },
     /** Pending OAuth session (privateKey, keyId, algorithm) - temporary during OAuth flow */
-    get OAUTH_PENDING() { return `spfn_oauth_pending${getCookieSuffix()}`; },
+    get OAUTH_PENDING() 
+    {
+        return `spfn_oauth_pending${getCookieSuffix()}`; 
+    },
 };
 
 /**

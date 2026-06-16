@@ -125,6 +125,7 @@ export function validatePasswordStrength(password: string): {
     try
     {
         passwordValidator(password);
+
         return {
             valid: true,
             errors: [],

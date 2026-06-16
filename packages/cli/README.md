@@ -18,7 +18,7 @@ pnpm dlx spfn@beta <command>
 Or add it as a project dependency (`spfn init`/`spfn create` do this for you), then
 call it via `pnpm spfn <command>` / `npm run spfn:<script>`.
 
-Requirements: Node.js 22+, Next.js 15+ (App Router, `src/` dir), PostgreSQL (Redis optional).
+Requirements: Node.js 18.18+, Next.js 15+ (App Router, `src/` dir), PostgreSQL (Redis optional).
 
 ## Usage
 

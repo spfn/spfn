@@ -18,11 +18,11 @@ vi.mock('chokidar', () => ({
     watch: vi.fn(() => ({
         on: vi.fn((_event, _handler) => ({
             on: vi.fn((_event2, _handler2) => ({
-                on: vi.fn()
-            }))
+                on: vi.fn(),
+            })),
         })),
-        close: vi.fn()
-    }))
+        close: vi.fn(),
+    })),
 }));
 
 const mockedChokidarWatch = chokidarWatch as Mock;
@@ -52,13 +52,13 @@ describe('Orchestrator', () =>
                 async generate(_options: GeneratorOptions)
                 {
                     generated = true;
-                }
+                },
             };
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             await orchestrator.generateAll();
@@ -76,7 +76,7 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     results.push('gen-1');
-                }
+                },
             };
 
             const gen2: Generator = {
@@ -85,13 +85,13 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     results.push('gen-2');
-                }
+                },
             };
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [gen1, gen2],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             await orchestrator.generateAll();
@@ -109,7 +109,7 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     throw new Error('Generator failed');
-                }
+                },
             };
 
             const successGen: Generator = {
@@ -118,13 +118,13 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     results.push('success');
-                }
+                },
             };
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [failingGen, successGen],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             // Should not throw, should continue with other generators
@@ -135,7 +135,8 @@ describe('Orchestrator', () =>
 
         it('should log debug info when debug enabled', async () =>
         {
-            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => 
+            {});
 
             const mockGen: Generator = {
                 name: 'test-gen',
@@ -143,13 +144,13 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     // noop
-                }
+                },
             };
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
                 cwd: TEST_DIR,
-                debug: true
+                debug: true,
             });
 
             await orchestrator.generateAll();
@@ -167,13 +168,13 @@ describe('Orchestrator', () =>
                 async generate(options: GeneratorOptions)
                 {
                     receivedOptions = options;
-                }
+                },
             };
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
                 cwd: TEST_DIR,
-                debug: true
+                debug: true,
             });
 
             await orchestrator.generateAll();
@@ -182,8 +183,8 @@ describe('Orchestrator', () =>
                 cwd: TEST_DIR,
                 debug: true,
                 trigger: {
-                    type: 'manual'
-                }
+                    type: 'manual',
+                },
             });
         });
     });
@@ -200,13 +201,13 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     generated = true;
-                }
+                },
             };
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             // Start watch but don't await (it runs forever)
@@ -227,13 +228,13 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     // noop
-                }
+                },
             };
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             const watchPromise = orchestrator.watch();
@@ -251,13 +252,13 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     // noop
-                }
+                },
             };
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             const watchPromise = orchestrator.watch();
@@ -279,20 +280,22 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     changes.push('generated');
-                }
+                },
             };
 
             // Mock watcher to capture handlers
             let addHandler: ((path: string) => void) | null = null;
             const mockWatcher = {
-                on: vi.fn((event: string, handler: (path: string) => void) => {
+                on: vi.fn((event: string, handler: (path: string) => void) => 
+                {
                     if (event === 'add')
                     {
                         addHandler = handler;
                     }
+
                     return mockWatcher;
                 }),
-                close: vi.fn()
+                close: vi.fn(),
             };
 
             mockedChokidarWatch.mockReturnValue(mockWatcher as any);
@@ -300,7 +303,7 @@ describe('Orchestrator', () =>
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             const watchPromise = orchestrator.watch();
@@ -331,19 +334,21 @@ describe('Orchestrator', () =>
                 async generate(options: GeneratorOptions)
                 {
                     receivedTriggers.push(options.trigger);
-                }
+                },
             };
 
             let changeHandler: ((path: string) => void) | null = null;
             const mockWatcher = {
-                on: vi.fn((event: string, handler: (path: string) => void) => {
+                on: vi.fn((event: string, handler: (path: string) => void) => 
+                {
                     if (event === 'change')
                     {
                         changeHandler = handler;
                     }
+
                     return mockWatcher;
                 }),
-                close: vi.fn()
+                close: vi.fn(),
             };
 
             mockedChokidarWatch.mockReturnValue(mockWatcher as any);
@@ -351,7 +356,7 @@ describe('Orchestrator', () =>
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             const watchPromise = orchestrator.watch();
@@ -375,8 +380,8 @@ describe('Orchestrator', () =>
                 type: 'watch',
                 changedFile: {
                     path: 'test.ts',
-                    event: 'change'
-                }
+                    event: 'change',
+                },
             });
         });
 
@@ -391,7 +396,7 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     gen1Changes.push('gen1');
-                }
+                },
             };
 
             const gen2: Generator = {
@@ -400,13 +405,13 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     gen2Changes.push('gen2');
-                }
+                },
             };
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [gen1, gen2],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             const watchPromise = orchestrator.watch();
@@ -428,13 +433,13 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     // noop
-                }
+                },
             };
 
             const orchestrator = new CodegenOrchestrator({
                 generators: [mockGen],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             const watchPromise = orchestrator.watch();
@@ -457,19 +462,21 @@ describe('Orchestrator', () =>
                 async generate()
                 {
                     throw new Error('Generation failed');
-                }
+                },
             };
 
             let addHandler: ((path: string) => void) | null = null;
             const mockWatcher = {
-                on: vi.fn((event: string, handler: (path: string) => void) => {
+                on: vi.fn((event: string, handler: (path: string) => void) => 
+                {
                     if (event === 'add')
                     {
                         addHandler = handler;
                     }
+
                     return mockWatcher;
                 }),
-                close: vi.fn()
+                close: vi.fn(),
             };
 
             mockedChokidarWatch.mockReturnValue(mockWatcher as any);
@@ -477,7 +484,7 @@ describe('Orchestrator', () =>
             const orchestrator = new CodegenOrchestrator({
                 generators: [failingGen],
                 cwd: TEST_DIR,
-                debug: false
+                debug: false,
             });
 
             // Should not throw

@@ -126,7 +126,7 @@ describe('PostgreSQL Error Conversion', () =>
             {
                 const pgError = {
                     code: '23505',
-                    message: 'duplicate key value violates unique constraint "users_email_key"\nDetail: Key (email)=(test@example.com) already exists.'
+                    message: 'duplicate key value violates unique constraint "users_email_key"\nDetail: Key (email)=(test@example.com) already exists.',
                 };
                 const error = fromPostgresError(pgError);
 
@@ -139,7 +139,7 @@ describe('PostgreSQL Error Conversion', () =>
             {
                 const pgError = {
                     code: '23505',
-                    message: 'Key (username)=(john_doe) already exists.'
+                    message: 'Key (username)=(john_doe) already exists.',
                 };
                 const error = fromPostgresError(pgError);
 
@@ -152,7 +152,7 @@ describe('PostgreSQL Error Conversion', () =>
             {
                 const pgError = {
                     code: '23505',
-                    message: 'Key (user_id, tenant_id)=(123, 456) already exists.'
+                    message: 'Key (user_id, tenant_id)=(123, 456) already exists.',
                 };
                 const error = fromPostgresError(pgError);
 
@@ -163,7 +163,7 @@ describe('PostgreSQL Error Conversion', () =>
             {
                 const pgError = {
                     code: '23505',
-                    message: 'Key ("email")=(\'test@example.com\') already exists.'
+                    message: 'Key ("email")=(\'test@example.com\') already exists.',
                 };
                 const error = fromPostgresError(pgError);
 
@@ -174,7 +174,7 @@ describe('PostgreSQL Error Conversion', () =>
             {
                 const pgError = {
                     code: '23505',
-                    message: 'Unique constraint violated'
+                    message: 'Unique constraint violated',
                 };
                 const error = fromPostgresError(pgError);
 

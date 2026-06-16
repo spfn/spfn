@@ -67,7 +67,7 @@ export interface Router<TRoutes extends Record<string, RouteDef<any, any, any> |
 function createRouterInstance<TRoutes extends Record<string, RouteDef<any, any, any> | Router<any>>>(
     routes: TRoutes,
     packageRouters: Router<any>[] = [],
-    globalMiddlewares: NamedMiddleware<string>[] = []
+    globalMiddlewares: NamedMiddleware<string>[] = [],
 ): Router<TRoutes>
 {
     return {
@@ -137,7 +137,7 @@ function createRouterInstance<TRoutes extends Record<string, RouteDef<any, any, 
  * - Prevents confusion between app API and package APIs
  */
 export function defineRouter<TRoutes extends Record<string, RouteDef<any, any, any> | Router<any>>>(
-    routes: TRoutes
+    routes: TRoutes,
 ): Router<TRoutes>
 {
     return createRouterInstance(routes);

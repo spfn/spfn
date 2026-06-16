@@ -5,7 +5,7 @@
  * Codes expire after a configurable time period
  */
 
-import { VERIFICATION_PURPOSES, VERIFICATION_TARGET_TYPES } from "../routes/schema";
+import { VERIFICATION_PURPOSES, VERIFICATION_TARGET_TYPES } from '../routes/schema';
 import { text, index, integer, check } from 'drizzle-orm/pg-core';
 import { id, timestamps, enumText, utcTimestamp } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
@@ -55,7 +55,7 @@ export const verificationCodes = authSchema.table('verification_codes',
         // Index for quick lookup by target and purpose
         index('target_purpose_idx')
             .on(table.target, table.purpose, table.expiresAt),
-    ]
+    ],
 );
 
 // Type exports

@@ -34,6 +34,7 @@ async function getStateKey(): Promise<Uint8Array>
     const encoder = new TextEncoder();
     const data = encoder.encode(`oauth-state:${secret}`);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
     return new Uint8Array(hashBuffer);
 }
 
@@ -44,6 +45,7 @@ function generateNonce(): string
 {
     const array = new Uint8Array(16);
     crypto.getRandomValues(array);
+
     return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
 }
 

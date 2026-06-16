@@ -98,7 +98,7 @@ export function timestamps()
 export function foreignKey<T extends PgColumn>(
     name: string,
     reference: () => T,
-    options?: { onDelete?: 'cascade' | 'set null' | 'restrict' | 'no action' }
+    options?: { onDelete?: 'cascade' | 'set null' | 'restrict' | 'no action' },
 )
 {
     return pgBigint(`${name}_id`, { mode: 'number' })
@@ -126,7 +126,7 @@ export function foreignKey<T extends PgColumn>(
 export function optionalForeignKey<T extends PgColumn>(
     name: string,
     reference: () => T,
-    options?: { onDelete?: 'cascade' | 'set null' | 'restrict' | 'no action' }
+    options?: { onDelete?: 'cascade' | 'set null' | 'restrict' | 'no action' },
 )
 {
     return pgBigint(`${name}_id`, { mode: 'number' })
@@ -333,11 +333,12 @@ export function softDelete()
  */
 export function utcTimestamp(
     fieldName: string,
-    mode: 'date' | 'string' = 'date'
-) {
+    mode: 'date' | 'string' = 'date',
+) 
+{
     return timestamp(fieldName, {
         withTimezone: true,
-        mode
+        mode,
     });
 }
 
@@ -376,7 +377,7 @@ export function utcTimestamp(
  */
 export function enumText<T extends readonly [string, ...string[]]>(
     fieldName: string,
-    values: T
+    values: T,
 )
 {
     // readonly를 제거하되 타입 정보는 유지

@@ -80,7 +80,7 @@ function createHandlerManager<TPayload>(name: string)
         trigger: async (payload: TPayload): Promise<void> =>
         {
             const results = await Promise.allSettled(
-                [...handlers].map((handler) => handler(payload))
+                [...handlers].map((handler) => handler(payload)),
             );
 
             for (const result of results)
@@ -117,7 +117,7 @@ function createJobQueueManager(name: string)
 
             const entries = [...jobQueues.entries()];
             const results = await Promise.allSettled(
-                entries.map(([queueName, sender]) => sender(queueName, payload))
+                entries.map(([queueName, sender]) => sender(queueName, payload)),
             );
 
             for (const [i, result] of results.entries())
@@ -141,7 +141,7 @@ function createJobQueueManager(name: string)
  */
 function createEventImpl<TPayload>(
     name: string,
-    schema?: TSchema
+    schema?: TSchema,
 ): EventDef<TPayload>
 {
     const handlerManager = createHandlerManager<TPayload>(name);
@@ -175,6 +175,7 @@ function createEventImpl<TPayload>(
         if (cacheSubscribed)
         {
             eventLogger.warn(`Cache already configured for event: ${name}`);
+
             return self;
         }
 
@@ -188,6 +189,7 @@ function createEventImpl<TPayload>(
         });
 
         eventLogger.debug(`Cache subscription ready for event: ${name}`);
+
         return self;
     };
 
@@ -215,7 +217,7 @@ export function defineEvent(name: string): EventDef<void>;
  */
 export function defineEvent<T extends TSchema>(
     name: string,
-    schema: T
+    schema: T,
 ): EventDef<Static<T>>;
 
 /**
@@ -246,7 +248,7 @@ export function defineEvent<T extends TSchema>(
  */
 export function defineEvent<T extends TSchema>(
     name: string,
-    schema?: T
+    schema?: T,
 ): EventDef<Static<T>> | EventDef
 {
     if (schema)

@@ -96,7 +96,7 @@ describe('Database Helper Functions', () =>
         {
             const mockUser = { id: 1, name: 'Test', email: 'test@example.com', age: 25 };
             mockLimit.mockImplementation(() => ({
-                then: (cb: any) => cb([mockUser])
+                then: (cb: any) => cb([mockUser]),
             }));
 
             const result = await findOne(testUsers, { id: 1 });
@@ -113,7 +113,7 @@ describe('Database Helper Functions', () =>
         {
             const mockUser = { id: 1, name: 'Test', email: 'test@example.com', age: 25 };
             mockLimit.mockImplementation(() => ({
-                then: (cb: any) => cb([mockUser])
+                then: (cb: any) => cb([mockUser]),
             }));
 
             const result = await findOne(testUsers, eq(testUsers.id, 1));
@@ -125,7 +125,7 @@ describe('Database Helper Functions', () =>
         it('should return null when no record found', async () =>
         {
             mockLimit.mockImplementation(() => ({
-                then: (cb: any) => cb([])
+                then: (cb: any) => cb([]),
             }));
 
             const result = await findOne(testUsers, { id: 999 });
@@ -160,7 +160,7 @@ describe('Database Helper Functions', () =>
             mockWhere.mockReturnValue({ then: (cb: any) => cb(mockUsers) });
 
             const result = await findMany(testUsers, {
-                where: { age: 25 }
+                where: { age: 25 },
             });
 
             expect(managerModule.getDatabase).toHaveBeenCalledWith('read');
@@ -173,7 +173,7 @@ describe('Database Helper Functions', () =>
             mockWhere.mockReturnValue({ then: (cb: any) => cb(mockUsers) });
 
             const result = await findMany(testUsers, {
-                where: gt(testUsers.age, 20)
+                where: gt(testUsers.age, 20),
             });
 
             expect(result).toEqual(mockUsers);
@@ -185,7 +185,7 @@ describe('Database Helper Functions', () =>
 
             await findMany(testUsers, {
                 limit: 10,
-                offset: 20
+                offset: 20,
             });
 
             expect(mockLimit).toHaveBeenCalledWith(10);
@@ -197,7 +197,7 @@ describe('Database Helper Functions', () =>
             mockOrderBy.mockReturnValue({ then: (cb: any) => cb([]) });
 
             await findMany(testUsers, {
-                orderBy: eq(testUsers.id, 1) // Mock SQL
+                orderBy: eq(testUsers.id, 1), // Mock SQL
             });
 
             expect(mockOrderBy).toHaveBeenCalled();
@@ -424,7 +424,7 @@ describe('Database Helper Functions', () =>
         it('should handle multiple conditions with AND', async () =>
         {
             mockLimit.mockImplementation(() => ({
-                then: (cb: any) => cb([])
+                then: (cb: any) => cb([]),
             }));
 
             await findOne(testUsers, { name: 'Test', age: 25 });
@@ -436,7 +436,7 @@ describe('Database Helper Functions', () =>
         it('should filter out undefined values', async () =>
         {
             mockLimit.mockImplementation(() => ({
-                then: (cb: any) => cb([])
+                then: (cb: any) => cb([]),
             }));
 
             await findOne(testUsers, { name: 'Test', age: undefined as any });

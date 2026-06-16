@@ -4,7 +4,7 @@
  * File-based label sync with JSON definitions
  *
  * Structure:
- *   lib/labels/
+ *   src/lib/labels/
  *     layout/         # Section name
  *       nav.json      # Label definitions
  *       footer.json
@@ -21,8 +21,7 @@ import type { Generator, GeneratorOptions, GeneratorTrigger } from '@spfn/core/c
 import { join, relative, extname } from 'path';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 
-import { syncAll, syncSection, loadLabelsFromJson } from '../services/sync.service';
-import { env } from '@spfn/cms/config';
+import { syncLabels } from '../services/sync.service';
 
 const syncLogger = logger.child('@spfn/cms:label-sync');
 
@@ -39,7 +38,7 @@ export interface LabelSyncGeneratorConfig
  */
 export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}): Generator
 {
-    const labelsDir = config.labelsDir ?? env.SPFN_CMS_LABELS_DIR ?? 'src/lib/labels';
+    const labelsDir = config.labelsDir ?? 'src/lib/labels';
     const runOn = config.runOn ?? ['watch', 'manual', 'build'];
 
     return {
@@ -74,7 +73,7 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
                         cwd: options.cwd,
                         labelsPath,
                         changedFilePath: changedFile.path,
-                        debug: options.debug
+                        debug: options.debug,
                     });
 
                     if (success)
@@ -83,6 +82,7 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
                         {
                             syncLogger.info('Incremental sync successful');
                         }
+
                         return;
                     }
 
@@ -98,45 +98,29 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
                     syncLogger.info('Starting full label sync...');
                 }
 
-                const sections = loadLabelsFromJson(labelsPath);
+                // Load every section into one nested object keyed by section name,
+                // so flattened keys become `<section>.<...>` (matching the DB schema).
+                const sections = loadAllSections(labelsPath);
+                const sectionNames = Object.keys(sections);
 
-                if (sections.length === 0)
+                if (sectionNames.length === 0)
                 {
                     syncLogger.warn(`No labels found in ${labelsPath}`);
+
                     return;
                 }
 
-                syncLogger.info(`Found ${sections.length} sections`);
+                syncLogger.info(`Found ${sectionNames.length} sections`);
 
-                // Sync all sections
-                const results = await syncAll(sections, {
-                    verbose: options.debug ?? false,
-                    updateExisting: true,
-                });
+                const result = await syncLabels(sections, { removeOrphaned: false });
 
-                const totalCreated = results.reduce((sum, r) => sum + r.created, 0);
-                const totalUpdated = results.reduce((sum, r) => sum + r.updated, 0);
-                const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0);
-
-                if (options.debug || totalCreated > 0 || totalUpdated > 0)
+                if (options.debug || result.added.length > 0 || result.updated.length > 0)
                 {
                     syncLogger.info('Label sync completed', {
-                        sections: results.length,
-                        created: totalCreated,
-                        updated: totalUpdated,
-                        errors: totalErrors,
-                    });
-                }
-
-                // Log errors if any
-                if (totalErrors > 0)
-                {
-                    results.forEach((result) =>
-                    {
-                        result.errors.forEach((error) =>
-                        {
-                            syncLogger.error(`[${result.section}] ${error.key}: ${error.error}`);
-                        });
+                        sections: sectionNames.length,
+                        added: result.added.length,
+                        updated: result.updated.length,
+                        unchanged: result.unchanged.length,
                     });
                 }
             }
@@ -146,7 +130,7 @@ export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}):
                 syncLogger.error('Label sync failed', err);
                 throw err;
             }
-        }
+        },
     };
 }
 
@@ -165,7 +149,7 @@ interface IncrementalSyncOptions
  * Attempt incremental sync for a changed file
  *
  * Strategy:
- * 1. Extract section name from file path (e.g., lib/labels/layout/nav.json -> 'layout')
+ * 1. Extract section name from file path (e.g., src/lib/labels/layout/nav.json -> 'layout')
  * 2. Load only that section's labels
  * 3. Sync only that section
  *
@@ -186,8 +170,8 @@ async function attemptIncrementalSync(options: IncrementalSyncOptions): Promise<
         }
 
         // Extract section name from path
-        // Example: lib/labels/layout/nav.json
-        //          ^^^^^^^^^^ labelsDir   ^^^^^^ section  ^^^^^^^^ file
+        // Example: src/lib/labels/layout/nav.json
+        //          ^^^^^^^^^^^^^^ labelsDir   ^^^^^^ section  ^^^^^^^^ file
         const relativePath = relative(labelsPath, fullPath);
         const parts = relativePath.split('/');
 
@@ -203,7 +187,7 @@ async function attemptIncrementalSync(options: IncrementalSyncOptions): Promise<
         {
             syncLogger.info('Attempting incremental sync', {
                 section: sectionName,
-                file: changedFilePath
+                file: changedFilePath,
             });
         }
 
@@ -217,31 +201,19 @@ async function attemptIncrementalSync(options: IncrementalSyncOptions): Promise<
             {
                 syncLogger.warn('Section has no valid labels');
             }
+
             return false;
         }
 
-        // Sync only this section
-        const result = await syncSection(
-            { section: sectionName, labels },
-            { verbose: debug, updateExisting: true }
-        );
+        // Sync only this section (nested under its name so keys become `<section>.<...>`)
+        const result = await syncLabels({ [sectionName]: labels }, { removeOrphaned: false });
 
-        if (debug || result.created > 0 || result.updated > 0)
+        if (debug || result.added.length > 0 || result.updated.length > 0)
         {
             syncLogger.info(`[${sectionName}] Incremental sync completed`, {
-                created: result.created,
-                updated: result.updated,
-                unchanged: result.unchanged,
-                errors: result.errors.length
-            });
-        }
-
-        // Log errors if any
-        if (result.errors.length > 0)
-        {
-            result.errors.forEach((error) =>
-            {
-                syncLogger.error(`[${sectionName}] ${error.key}: ${error.error}`);
+                added: result.added.length,
+                updated: result.updated.length,
+                unchanged: result.unchanged.length,
             });
         }
 
@@ -254,14 +226,46 @@ async function attemptIncrementalSync(options: IncrementalSyncOptions): Promise<
             const err = error instanceof Error ? error : new Error(String(error));
             syncLogger.warn('Incremental sync failed', err);
         }
+
         return false;
     }
 }
 
 /**
- * Load labels from a section directory
- *
- * Extracted from loadLabelsFromJson for reuse
+ * Load every section directory under the labels path into one nested object,
+ * keyed by section name: `{ layout: {...}, homepage: {...} }`.
+ */
+function loadAllSections(labelsPath: string): Record<string, Record<string, any>>
+{
+    const sections: Record<string, Record<string, any>> = {};
+
+    if (!existsSync(labelsPath))
+    {
+        return sections;
+    }
+
+    for (const entry of readdirSync(labelsPath))
+    {
+        const sectionPath = join(labelsPath, entry);
+
+        if (!statSync(sectionPath).isDirectory())
+        {
+            continue;
+        }
+
+        const labels = loadSectionLabels(sectionPath);
+
+        if (Object.keys(labels).length > 0)
+        {
+            sections[entry] = labels;
+        }
+    }
+
+    return sections;
+}
+
+/**
+ * Load labels from a section directory (merges every JSON file in it).
  */
 function loadSectionLabels(sectionPath: string): Record<string, any>
 {

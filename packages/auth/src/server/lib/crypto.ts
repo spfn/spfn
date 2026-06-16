@@ -14,37 +14,37 @@ import crypto from 'crypto';
 import jwt, { type Algorithm, type SignOptions } from 'jsonwebtoken';
 
 type Unit =
-    | "Years"
-    | "Year"
-    | "Yrs"
-    | "Yr"
-    | "Y"
-    | "Weeks"
-    | "Week"
-    | "W"
-    | "Days"
-    | "Day"
-    | "D"
-    | "Hours"
-    | "Hour"
-    | "Hrs"
-    | "Hr"
-    | "H"
-    | "Minutes"
-    | "Minute"
-    | "Mins"
-    | "Min"
-    | "M"
-    | "Seconds"
-    | "Second"
-    | "Secs"
-    | "Sec"
-    | "s"
-    | "Milliseconds"
-    | "Millisecond"
-    | "Msecs"
-    | "Msec"
-    | "Ms";
+    | 'Years'
+    | 'Year'
+    | 'Yrs'
+    | 'Yr'
+    | 'Y'
+    | 'Weeks'
+    | 'Week'
+    | 'W'
+    | 'Days'
+    | 'Day'
+    | 'D'
+    | 'Hours'
+    | 'Hour'
+    | 'Hrs'
+    | 'Hr'
+    | 'H'
+    | 'Minutes'
+    | 'Minute'
+    | 'Mins'
+    | 'Min'
+    | 'M'
+    | 'Seconds'
+    | 'Second'
+    | 'Secs'
+    | 'Sec'
+    | 's'
+    | 'Milliseconds'
+    | 'Millisecond'
+    | 'Msecs'
+    | 'Msec'
+    | 'Ms';
 
 type UnitAnyCase = Unit | Uppercase<Unit> | Lowercase<Unit>;
 
@@ -142,7 +142,7 @@ export function generateKeyPairRS256(): KeyPair
  * Generate key pair (defaults to ES256)
  */
 export function generateKeyPair(
-    algorithm: KeyAlgorithmType = 'ES256'
+    algorithm: KeyAlgorithmType = 'ES256',
 ): KeyPair
 {
     return algorithm === 'ES256'
@@ -160,7 +160,7 @@ export function generateClientToken(
     options?: {
         expiresIn?: StringValue | number;
         issuer?: string;
-    }
+    },
 ): string
 {
     try
@@ -185,14 +185,14 @@ export function generateClientToken(
             algorithm,
             issuer: options?.issuer || 'spfn-client',
             expiresIn: options?.expiresIn ?? '15m', // Default to 15 minutes
-        }
+        };
 
         return jwt.sign(payload, privateKeyPEM, signOptions);
     }
     catch (error)
     {
         throw new Error(
-            `Failed to generate client token: ${error instanceof Error ? error.message : 'Unknown error'}`
+            `Failed to generate client token: ${error instanceof Error ? error.message : 'Unknown error'}`,
         );
     }
 }
@@ -218,7 +218,7 @@ export function getKeySize(publicKeyB64: string): {
  */
 export function shouldRotateKey(
     createdAt: Date,
-    rotationDays: number = 90
+    rotationDays: number = 90,
 ): {
     shouldRotate: boolean;
     daysRemaining: number;
@@ -226,7 +226,7 @@ export function shouldRotateKey(
 {
     const now = new Date();
     const ageInDays = Math.floor(
-        (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24)
+        (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24),
     );
     const daysRemaining = Math.max(0, rotationDays - ageInDays);
 

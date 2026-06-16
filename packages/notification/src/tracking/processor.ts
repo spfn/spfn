@@ -41,6 +41,7 @@ function shouldSkipUrl(url: string): boolean
     }
 
     const lower = trimmed.toLowerCase();
+
     return SKIP_PROTOCOLS.some((proto) => lower.startsWith(proto));
 }
 
@@ -52,7 +53,7 @@ function shouldSkipUrl(url: string): boolean
  */
 export function processTrackingHtml(
     html: string,
-    options: ProcessTrackingOptions
+    options: ProcessTrackingOptions,
 ): ProcessTrackingResult
 {
     const { notificationId, baseUrl } = options;
@@ -76,7 +77,7 @@ export function processTrackingHtml(
             trackedLinks.push({ index: currentIndex, url });
 
             return `<a ${before}href="${trackingUrl}"${after}>`;
-        }
+        },
     );
 
     // Insert tracking pixel before </body>

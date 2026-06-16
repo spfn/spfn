@@ -4,8 +4,8 @@ import { existsSync } from 'fs';
 import { validateDatabasePrerequisites } from './utils/drizzle.js';
 import { dbBackup } from './backup.js';
 
-import { env } from "@spfn/core/config";
-import { loadEnv } from "@spfn/core/server";
+import { env } from '@spfn/core/config';
+import { loadEnv } from '@spfn/core/server';
 
 /**
  * Project migrations use the default drizzle migrations table.
@@ -39,7 +39,7 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
         await dbBackup({
             format: 'custom',
             tag: 'pre-migration',
-            env: process.env.NODE_ENV
+            env: process.env.NODE_ENV,
         });
         console.log('');
     }

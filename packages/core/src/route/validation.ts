@@ -16,23 +16,23 @@ import { formatFileSize } from './file-schema';
 // ============================================
 
 FormatRegistry.Set('email', (value: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
 );
 
 FormatRegistry.Set('uri', (value: string) =>
-    /^https?:\/\/.+/.test(value)
+    /^https?:\/\/.+/.test(value),
 );
 
 FormatRegistry.Set('uuid', (value: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value),
 );
 
 FormatRegistry.Set('date', (value: string) =>
-    /^\d{4}-\d{2}-\d{2}$/.test(value)
+    /^\d{4}-\d{2}-\d{2}$/.test(value),
 );
 
 FormatRegistry.Set('date-time', (value: string) =>
-    !isNaN(Date.parse(value))
+    !isNaN(Date.parse(value)),
 );
 
 /**
@@ -65,6 +65,7 @@ function isFile(value: unknown): value is File
 function isFileSchemaDef(schema: TSchema): boolean
 {
     const kind = (schema as any)[Symbol.for('TypeBox.Kind')];
+
     return kind === 'File';
 }
 
@@ -74,6 +75,7 @@ function isFileSchemaDef(schema: TSchema): boolean
 function isFileArraySchemaDef(schema: TSchema): boolean
 {
     const kind = (schema as any)[Symbol.for('TypeBox.Kind')];
+
     return kind === 'FileArray';
 }
 
@@ -85,7 +87,6 @@ function getSchemaFileOptions(schema: TSchema): any | undefined
     return (schema as any).fileOptions;
 }
 
-
 /**
  * Validate a single file against schema options
  */
@@ -93,7 +94,7 @@ function validateSingleFile(
     file: File,
     fieldPath: string,
     options: { maxSize?: number; minSize?: number; allowedTypes?: string[] } | undefined,
-    errors: ValidationFieldError[]
+    errors: ValidationFieldError[],
 ): void
 {
     if (!options) return;
@@ -140,7 +141,7 @@ function validateSingleFile(
 export function validateField<T extends Record<string, unknown>>(
     schema: TSchema | undefined,
     rawValue: Record<string, unknown>,
-    fieldName: string
+    fieldName: string,
 ): T
 {
     if (!schema)
@@ -182,7 +183,7 @@ export function validateField<T extends Record<string, unknown>>(
 export function validateFormData<T extends Record<string, unknown>>(
     schema: TSchema | undefined,
     rawValue: Record<string, unknown>,
-    fieldName: string
+    fieldName: string,
 ): T
 {
     if (!schema)

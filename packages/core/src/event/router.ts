@@ -63,7 +63,7 @@ export type InferEventNames<T> = T extends EventRouterDef<infer E>
  */
 export type InferEventPayload<
     T extends EventRouterDef<any>,
-    K extends InferEventNames<T>
+    K extends InferEventNames<T>,
 > = T['_types'][K];
 
 /**
@@ -90,7 +90,7 @@ export type InferEventPayloads<T extends EventRouterDef<any>> = T['_types'];
  * ```
  */
 export function defineEventRouter<
-    TEvents extends Record<string, EventDef<any>>
+    TEvents extends Record<string, EventDef<any>>,
 >(events: TEvents): EventRouterDef<TEvents>
 {
     return {

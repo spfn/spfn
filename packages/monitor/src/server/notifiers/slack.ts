@@ -28,6 +28,7 @@ export async function notifyErrorToSlack(
     if (!webhookUrl)
     {
         logger.warn('Slack webhook URL not configured, skipping notification');
+
         return;
     }
 
@@ -108,7 +109,7 @@ function formatSlackMessage(
                     type: 'mrkdwn',
                     text: `*Stack Trace*\n\`\`\`${shortStack}\`\`\``,
                 },
-            }
+            },
         );
     }
 

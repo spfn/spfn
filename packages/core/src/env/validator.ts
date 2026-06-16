@@ -67,7 +67,7 @@ export function createStringParser(
         maxLength?: number;
         pattern?: RegExp;
         trim?: boolean;
-    } = {}
+    } = {},
 ): Parser<string>
 {
     return (value: string): string =>
@@ -140,7 +140,7 @@ export function parseBoolean(value: string): boolean
     }
 
     throw new Error(
-        `Must be a boolean value (true/false, 1/0, yes/no), got: ${value}`
+        `Must be a boolean value (true/false, 1/0, yes/no), got: ${value}`,
     );
 }
 
@@ -166,7 +166,7 @@ export function parseBoolean(value: string): boolean
  */
 export function parseNumber(
     value: string,
-    options: { min?: number; max?: number; integer?: boolean } = {}
+    options: { min?: number; max?: number; integer?: boolean } = {},
 ): number
 {
     const { min, max, integer = false } = options;
@@ -217,7 +217,7 @@ export function parseNumber(
  * ```
  */
 export function createNumberParser(
-    options: { min?: number; max?: number; integer?: boolean } = {}
+    options: { min?: number; max?: number; integer?: boolean } = {},
 ): Parser<number>
 {
     return (value: string) => parseNumber(value, options);
@@ -241,7 +241,7 @@ export function createNumberParser(
  */
 export function parseInteger(
     value: string,
-    options: { min?: number; max?: number } = {}
+    options: { min?: number; max?: number } = {},
 ): number
 {
     return parseNumber(value, { ...options, integer: true });
@@ -265,7 +265,7 @@ export function parseInteger(
  */
 export function parseDecimal(
     value: string,
-    options: { min?: number; max?: number } = {}
+    options: { min?: number; max?: number } = {},
 ): number
 {
     return parseNumber(value, { ...options, integer: false });
@@ -292,7 +292,7 @@ export function parseDecimal(
  */
 export function parseUrl(
     value: string,
-    options: { protocol?: 'http' | 'https' | 'any' } = {}
+    options: { protocol?: 'http' | 'https' | 'any' } = {},
 ): string
 {
     const { protocol = 'any' } = options;
@@ -380,7 +380,7 @@ export function parsePostgresUrl(value: string): string
     if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:')
     {
         throw new Error(
-            `Must be a PostgreSQL URL (postgres:// or postgresql://), got ${url.protocol}`
+            `Must be a PostgreSQL URL (postgres:// or postgresql://), got ${url.protocol}`,
         );
     }
 
@@ -423,7 +423,7 @@ export function parseRedisUrl(value: string): string
     if (url.protocol !== 'redis:' && url.protocol !== 'rediss:')
     {
         throw new Error(
-            `Must be a Redis URL (redis:// or rediss://), got ${url.protocol}`
+            `Must be a Redis URL (redis:// or rediss://), got ${url.protocol}`,
         );
     }
 
@@ -453,7 +453,7 @@ export function parseRedisUrl(value: string): string
 export function parseEnum(
     value: string,
     allowed: string[],
-    caseInsensitive = false
+    caseInsensitive = false,
 ): string
 {
     if (caseInsensitive)
@@ -465,7 +465,7 @@ export function parseEnum(
         if (index === -1)
         {
             throw new Error(
-                `Must be one of [${allowed.join(', ')}], got: ${value}`
+                `Must be one of [${allowed.join(', ')}], got: ${value}`,
             );
         }
 
@@ -475,7 +475,7 @@ export function parseEnum(
     if (!allowed.includes(value))
     {
         throw new Error(
-            `Must be one of [${allowed.join(', ')}], got: ${value}`
+            `Must be one of [${allowed.join(', ')}], got: ${value}`,
         );
     }
 
@@ -529,7 +529,7 @@ export function parseJson<T = any>(value: string): T
     catch (error)
     {
         throw new Error(
-            `Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`
+            `Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`,
         );
     }
 }
@@ -581,7 +581,7 @@ export function parseArray(
         separator?: string;
         trim?: boolean;
         filter?: (item: string) => boolean;
-    } = {}
+    } = {},
 ): string[]
 {
     const { separator = ',', trim = true, filter } = options;
@@ -626,7 +626,7 @@ export function parseArray(
  */
 export function createArrayParser<T>(
     itemParser: Parser<T>,
-    options: { separator?: string } = {}
+    options: { separator?: string } = {},
 ): Parser<T[]>
 {
     return (value: string): T[] =>
@@ -716,7 +716,7 @@ export function createSecureSecretParser(
         minLength?: number;
         minUniqueChars?: number;
         minEntropy?: number;
-    } = {}
+    } = {},
 ): Parser<string>
 {
     const {
@@ -735,7 +735,7 @@ export function createSecureSecretParser(
         if (length < minLength)
         {
             throw new Error(
-                `Secret too short: ${length} characters (minimum: ${minLength})`
+                `Secret too short: ${length} characters (minimum: ${minLength})`,
             );
         }
 
@@ -743,7 +743,7 @@ export function createSecureSecretParser(
         if (uniqueChars < minUniqueChars)
         {
             throw new Error(
-                `Secret has low diversity: ${uniqueChars} unique characters (minimum: ${minUniqueChars})`
+                `Secret has low diversity: ${uniqueChars} unique characters (minimum: ${minUniqueChars})`,
             );
         }
 
@@ -757,7 +757,7 @@ export function createSecureSecretParser(
         if (entropy < minEntropy)
         {
             throw new Error(
-                `Secret has low entropy: ${entropy.toFixed(2)} bits/char (minimum: ${minEntropy}). Use a more random secret.`
+                `Secret has low entropy: ${entropy.toFixed(2)} bits/char (minimum: ${minEntropy}). Use a more random secret.`,
             );
         }
 
@@ -798,7 +798,7 @@ export function createPasswordParser(
         requireLowercase?: boolean;
         requireNumber?: boolean;
         requireSpecial?: boolean;
-    } = {}
+    } = {},
 ): Parser<string>
 {
     const {

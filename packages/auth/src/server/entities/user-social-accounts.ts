@@ -4,7 +4,7 @@
  * Stores OAuth connections for social login providers
  */
 
-import { SOCIAL_PROVIDERS } from "../types";
+import { SOCIAL_PROVIDERS } from '../types';
 import { text, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { id, timestamps, foreignKey, enumText, utcTimestamp } from '@spfn/core/db';
 import { users } from './users';
@@ -78,7 +78,7 @@ export const userSocialAccounts = authSchema.table('user_social_accounts',
         // Prevents same OAuth account from being linked to multiple users
         uniqueIndex('provider_user_unique_idx')
             .on(table.provider, table.providerUserId),
-    ]
+    ],
 );
 
 // Type exports

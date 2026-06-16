@@ -119,5 +119,5 @@ export const roleGuard = defineMiddleware('roleGuard',
         });
 
         await next();
-    }
+    },
 );

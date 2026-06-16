@@ -38,7 +38,7 @@ export type { DrizzleConfigOptions } from './manager/config-generator';
 export * from './schema';
 
 // Transaction
-export { Transactional, getTransaction, runWithTransaction, runInTransaction, onAfterCommit } from './transaction';
+export { Transactional, getTransaction, getTransactionContext, runWithTransaction, runInTransaction, onAfterCommit } from './transaction';
 export type { TransactionContext, TransactionDB, TransactionalOptions, RunInTransactionOptions, AfterCommitCallback } from './transaction';
 
 // PostgreSQL Error Utilities

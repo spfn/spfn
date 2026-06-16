@@ -54,18 +54,18 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
                     email: 'super@example.com',
                     password: 'super-password',
                     role: 'superadmin',
-                    phone: '+821012345678'
+                    phone: '+821012345678',
                 },
                 {
                     email: 'admin@example.com',
                     password: 'admin-password',
-                    role: 'admin'
+                    role: 'admin',
                 },
                 {
                     email: 'user@example.com',
                     password: 'user-password',
-                    role: 'user'
-                }
+                    role: 'user',
+                },
             ]);
 
             await ensureAdminExists();
@@ -107,8 +107,8 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
             process.env.ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'default@example.com',
-                    password: 'password123'
-                }
+                    password: 'password123',
+                },
             ]);
 
             await ensureAdminExists();
@@ -127,13 +127,13 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
                 {
                     email: 'no-change@example.com',
                     password: 'password123',
-                    passwordChangeRequired: false
+                    passwordChangeRequired: false,
                 },
                 {
                     email: 'change@example.com',
                     password: 'password123',
-                    passwordChangeRequired: true
-                }
+                    passwordChangeRequired: true,
+                },
             ]);
 
             await ensureAdminExists();
@@ -148,21 +148,22 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should skip accounts with missing email or password', async () =>
         {
-            const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => 
+            {});
 
             process.env.ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'valid@example.com',
-                    password: 'password123'
+                    password: 'password123',
                 },
                 {
-                    email: 'no-password@example.com'
+                    email: 'no-password@example.com',
                     // Missing password
                 },
                 {
-                    password: 'no-email-password'
+                    password: 'no-email-password',
                     // Missing email
-                }
+                },
             ]);
 
             await ensureAdminExists();
@@ -179,7 +180,8 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should handle JSON parsing errors gracefully', async () =>
         {
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => 
+            {});
 
             process.env.ADMIN_ACCOUNTS = 'invalid-json{[';
 
@@ -196,11 +198,12 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should handle non-array JSON gracefully', async () =>
         {
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => 
+            {});
 
             process.env.ADMIN_ACCOUNTS = JSON.stringify({
                 email: 'single@example.com',
-                password: 'password123'
+                password: 'password123',
             });
 
             await ensureAdminExists();
@@ -210,7 +213,7 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
             expect(allUsers).toHaveLength(0);
             expect(consoleErrorSpy).toHaveBeenCalledWith(
-                expect.stringContaining('ADMIN_ACCOUNTS must be an array')
+                expect.stringContaining('ADMIN_ACCOUNTS must be an array'),
             );
 
             consoleErrorSpy.mockRestore();
@@ -282,7 +285,8 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should handle email/password length mismatch', async () =>
         {
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => 
+            {});
 
             process.env.ADMIN_EMAILS = 'admin@example.com,user@example.com';
             process.env.ADMIN_PASSWORDS = 'admin-pass'; // Only 1 password
@@ -294,7 +298,7 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
             expect(allUsers).toHaveLength(0);
             expect(consoleErrorSpy).toHaveBeenCalledWith(
-                expect.stringContaining('length mismatch')
+                expect.stringContaining('length mismatch'),
             );
 
             consoleErrorSpy.mockRestore();
@@ -302,7 +306,8 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should skip accounts with empty email or password', async () =>
         {
-            const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => 
+            {});
 
             process.env.ADMIN_EMAILS = 'valid@example.com,,user@example.com';
             process.env.ADMIN_PASSWORDS = 'valid-pass,,user-pass';
@@ -375,8 +380,8 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
                 {
                     email: 'json@example.com',
                     password: 'json-pass',
-                    role: 'superadmin'
-                }
+                    role: 'superadmin',
+                },
             ]);
             process.env.ADMIN_EMAILS = 'csv@example.com';
             process.env.ADMIN_PASSWORDS = 'csv-pass';
@@ -435,7 +440,8 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should log correct summary for mixed create/skip', async () =>
         {
-            const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => 
+            {});
 
             // Create first account
             process.env.ADMIN_EMAIL = 'existing@example.com';
@@ -448,18 +454,18 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
             process.env.ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'existing@example.com',
-                    password: 'password'
+                    password: 'password',
                 },
                 {
                     email: 'new@example.com',
-                    password: 'password'
-                }
+                    password: 'password',
+                },
             ]);
             await ensureAdminExists();
 
             // Check summary log
             const summaryLog = consoleLogSpy.mock.calls.find(
-                call => call[0]?.includes('Summary')
+                call => call[0]?.includes('Summary'),
             );
             expect(summaryLog).toBeDefined();
             expect(summaryLog![0]).toContain('1 created');
@@ -496,14 +502,15 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should handle database errors gracefully', async () =>
         {
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => 
+            {});
 
             process.env.ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'invalid-email-format', // Invalid email might cause DB error
                     password: 'password123',
-                    role: 'invalid-role' // Invalid role will cause check constraint error
-                }
+                    role: 'invalid-role', // Invalid role will cause check constraint error
+                },
             ]);
 
             await ensureAdminExists();
@@ -519,12 +526,12 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
             process.env.ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'admin1@example.com',
-                    password: 'password123'
+                    password: 'password123',
                 },
                 {
                     email: 'admin2@example.com',
-                    password: 'password123'
-                }
+                    password: 'password123',
+                },
             ]);
 
             await ensureAdminExists();

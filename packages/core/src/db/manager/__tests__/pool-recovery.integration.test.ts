@@ -215,7 +215,7 @@ describe('Pool Recovery (Integration)', () =>
             // has already been dispatched should still resolve successfully.
             const db = getDatabase('write');
             const queriesBefore = Array.from({ length: 10 }, () =>
-                db.execute('SELECT pg_sleep(0.01), 1')
+                db.execute('SELECT pg_sleep(0.01), 1'),
             );
 
             const rebuild = forceReconnectDatabase('live_traffic');
@@ -242,7 +242,7 @@ describe('Pool Recovery (Integration)', () =>
  */
 async function waitForClientSwap(
     previous: unknown,
-    timeoutMs: number
+    timeoutMs: number,
 ): Promise<void>
 {
     const deadline = Date.now() + timeoutMs;

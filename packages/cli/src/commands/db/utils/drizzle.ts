@@ -4,8 +4,8 @@ import { pathToFileURL } from 'url';
 import chalk from 'chalk';
 import ora from 'ora';
 
-import { env } from "@spfn/core/config";
-import { loadEnv } from "@spfn/core/server";
+import { env } from '@spfn/core/config';
+import { loadEnv } from '@spfn/core/server';
 
 /**
  * Validate prerequisites for database operations
@@ -52,7 +52,7 @@ export async function runDrizzleCommand(command: string): Promise<void>
             disablePackageDiscovery: true,
             // Expand globs and auto-detect PostgreSQL schemas for push/generate compatibility
             expandGlobs: true,
-            autoDetectSchemas: true
+            autoDetectSchemas: true,
         });
 
         writeFileSync(tempConfigPath, configContent);
@@ -68,7 +68,7 @@ export async function runDrizzleCommand(command: string): Promise<void>
         const drizzleProcess = spawn('drizzle-kit', args, {
             stdio: 'inherit', // Allow interactive input
             shell: true,
-            env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' }
+            env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
         });
 
         const cleanup = () =>
@@ -108,7 +108,7 @@ export async function runWithSpinner(
     spinnerText: string,
     command: string,
     successMessage: string,
-    failMessage: string
+    failMessage: string,
 ): Promise<void>
 {
     const spinner = ora(spinnerText).start();

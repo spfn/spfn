@@ -194,7 +194,7 @@ export interface WorkflowEngine<TWorkflows extends WorkflowDef<string, unknown>[
  */
 export type ExtractWorkflowInput<
     TWorkflows extends WorkflowDef<string, unknown>[],
-    TName extends string
+    TName extends string,
 > = TWorkflows extends (infer W)[]
     ? W extends WorkflowDef<TName, infer TInput>
         ? TInput

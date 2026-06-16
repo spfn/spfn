@@ -9,8 +9,8 @@ import type { Sql } from 'postgres';
 
 import { logger } from '@spfn/core/logger';
 import { createDatabaseFromEnv } from './factory';
-import type { DatabaseOptions, MonitoringConfig } from "./config.js";
-import { buildHealthCheckConfig, buildMonitoringConfig } from "./config.js";
+import type { DatabaseOptions, MonitoringConfig } from './config.js';
+import { buildHealthCheckConfig, buildMonitoringConfig } from './config.js';
 import { env } from '@spfn/core/config';
 import {
     getWriteInstance,
@@ -82,7 +82,7 @@ let initPromise: Promise<{
  */
 async function cleanupDatabaseConnections(
     writeClient: Sql | undefined,
-    readClient: Sql | undefined
+    readClient: Sql | undefined,
 ): Promise<void>
 {
     const cleanupPromises: Promise<void>[] = [];
@@ -90,18 +90,20 @@ async function cleanupDatabaseConnections(
     if (writeClient)
     {
         cleanupPromises.push(
-            writeClient.end({ timeout: DB_CONNECTION_CLOSE_TIMEOUT }).catch((err) => {
+            writeClient.end({ timeout: DB_CONNECTION_CLOSE_TIMEOUT }).catch((err) => 
+            {
                 dbLogger.debug('Write client cleanup failed', { error: err });
-            })
+            }),
         );
     }
 
     if (readClient && readClient !== writeClient)
     {
         cleanupPromises.push(
-            readClient.end({ timeout: DB_CONNECTION_CLOSE_TIMEOUT }).catch((err) => {
+            readClient.end({ timeout: DB_CONNECTION_CLOSE_TIMEOUT }).catch((err) => 
+            {
                 dbLogger.debug('Read client cleanup failed', { error: err });
-            })
+            }),
         );
     }
 
@@ -144,7 +146,7 @@ async function closeDatabaseClient(client: Sql, type: 'write' | 'read'): Promise
  */
 async function testDatabaseConnections(
     write: PostgresJsDatabase<Record<string, unknown>> | undefined,
-    read: PostgresJsDatabase<Record<string, unknown>> | undefined
+    read: PostgresJsDatabase<Record<string, unknown>> | undefined,
 ): Promise<void>
 {
     if (write)
@@ -188,8 +190,10 @@ function getCallerInfo(): string | undefined
                     if (srcIndex !== -1)
                     {
                         const relativePath = parts.slice(srcIndex).join('/');
+
                         return `${relativePath}:${match[2]}`;
                     }
+
                     return `${fullPath}:${match[2]}`;
                 }
                 break;
@@ -200,9 +204,10 @@ function getCallerInfo(): string | undefined
     {
         // Stack trace parsing failed - log for debugging
         dbLogger.debug('Failed to extract caller info from stack trace', {
-            error: error instanceof Error ? error.message : String(error)
+            error: error instanceof Error ? error.message : String(error),
         });
     }
+
     return undefined;
 }
 
@@ -217,7 +222,7 @@ function getCallerInfo(): string | undefined
 function createNotInitializedError(type: DbConnectionType): Error
 {
     return new Error(
-        `Database not initialized (type: ${type}). Call initDatabase() first or set DATABASE_URL environment variable.`
+        `Database not initialized (type: ${type}). Call initDatabase() first or set DATABASE_URL environment variable.`,
     );
 }
 
@@ -265,6 +270,7 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
         {
             throw createNotInitializedError('read');
         }
+
         return db;
     }
 
@@ -308,7 +314,7 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
  */
 export function setDatabase(
     write: PostgresJsDatabase<Record<string, unknown>> | undefined,
-    read?: PostgresJsDatabase<Record<string, unknown>> | undefined
+    read?: PostgresJsDatabase<Record<string, unknown>> | undefined,
 ): void
 {
     setWriteInstance(write);
@@ -377,6 +383,7 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
     if (writeInst)
     {
         dbLogger.debug('Database already initialized');
+
         return { write: writeInst, read: getReadInstance() };
     }
 
@@ -384,6 +391,7 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
     if (initPromise)
     {
         dbLogger.debug('Database initialization in progress, waiting...');
+
         return await initPromise;
     }
 
@@ -431,7 +439,7 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
             dbLogger.info(
                 hasReplica
                     ? 'Database connected (Primary + Replica)'
-                    : 'Database connected'
+                    : 'Database connected',
             );
 
             // Start health check (automatic)
@@ -492,6 +500,7 @@ export async function closeDatabase(): Promise<void>
     if (getIsClosing())
     {
         dbLogger.debug('Database close already in progress');
+
         return;
     }
 
@@ -521,6 +530,7 @@ export async function closeDatabase(): Promise<void>
     {
         dbLogger.debug('No database connections to close');
         setIsClosing(false);
+
         return;
     }
 

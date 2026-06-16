@@ -129,12 +129,12 @@ export interface SSEAuthConfig<TRouter extends EventRouterDef<any>>
     getSubject?: (c: Context) => string | null;
     authorize?: (
         subject: string,
-        events: InferEventNames<TRouter>[]
+        events: InferEventNames<TRouter>[],
     ) => Promise<InferEventNames<TRouter>[]> | InferEventNames<TRouter>[];
     filter?: {
         [K in InferEventNames<TRouter>]?: (
             subject: string,
-            payload: InferEventPayload<TRouter, K>
+            payload: InferEventPayload<TRouter, K>,
         ) => boolean;
     };
 }

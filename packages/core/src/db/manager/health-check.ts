@@ -68,7 +68,7 @@ export function isReconnectingNow(): boolean
  * @internal
  */
 async function testDatabaseConnection(
-    db: PostgresJsDatabase<Record<string, unknown>>
+    db: PostgresJsDatabase<Record<string, unknown>>,
 ): Promise<void>
 {
     await db.execute('SELECT 1');
@@ -128,7 +128,7 @@ async function closeClient(client: Sql): Promise<void>
  * @internal
  */
 async function reconnectAndRestore(
-    options: DatabaseOptions | undefined
+    options: DatabaseOptions | undefined,
 ): Promise<boolean>
 {
     // Bail out early if closeDatabase is already tearing down the pool.
@@ -139,6 +139,7 @@ async function reconnectAndRestore(
     if (getIsClosing())
     {
         dbLogger.debug('reconnectAndRestore aborted: database is closing');
+
         return false;
     }
 
@@ -172,6 +173,7 @@ async function reconnectAndRestore(
         {
             await closeClient(result.readClient);
         }
+
         return false;
     }
 
@@ -239,13 +241,14 @@ async function reconnectAndRestore(
 export function startHealthCheck(
     config: HealthCheckConfig,
     options: DatabaseOptions | undefined,
-    getDatabase: GetDatabaseFn
+    getDatabase: GetDatabaseFn,
 ): void
 {
     const healthCheck = getHealthCheckInterval();
     if (healthCheck)
     {
         dbLogger.debug('Health check already running');
+
         return;
     }
 
@@ -260,6 +263,7 @@ export function startHealthCheck(
         if (isReconnecting)
         {
             dbLogger.debug('Health check skipped: reconnection in progress');
+
             return;
         }
 
@@ -304,6 +308,7 @@ export async function triggerForceReconnect(reason: string): Promise<boolean>
     if (!getWriteInstance())
     {
         dbLogger.warn('Force reconnect skipped: database not initialized', { reason });
+
         return false;
     }
 
@@ -311,6 +316,7 @@ export async function triggerForceReconnect(reason: string): Promise<boolean>
     if (getIsClosing())
     {
         dbLogger.debug('Force reconnect skipped: database is closing', { reason });
+
         return false;
     }
 
@@ -344,13 +350,14 @@ export async function triggerForceReconnect(reason: string): Promise<boolean>
 async function attemptReconnection(
     config: HealthCheckConfig,
     options: DatabaseOptions | undefined,
-    reason: string
+    reason: string,
 ): Promise<boolean>
 {
     // Atomic check-and-set (sync, pre-await) — coalesces concurrent callers.
     if (isReconnecting)
     {
         dbLogger.debug('Reconnection coalesced: attempt already in progress', { reason });
+
         return false;
     }
     isReconnecting = true;
@@ -381,6 +388,7 @@ async function attemptReconnection(
                 if (success)
                 {
                     dbLogger.info('Database reconnection successful', { attempt });
+
                     return true;
                 }
                 else

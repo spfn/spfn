@@ -215,6 +215,7 @@ export function loadEnvOnce(options: LoadEnvOptions = {}): LoadEnvResult
     }
 
     isEnvLoaded = true;
+
     return loadEnv(options);
 }
 

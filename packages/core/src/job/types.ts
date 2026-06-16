@@ -88,7 +88,7 @@ export type JobHandler<TInput, TOutput = void> = TInput extends void
  */
 export type CompensateHandler<TInput, TOutput> = (
     input: TInput,
-    output: TOutput
+    output: TOutput,
 ) => Promise<void>;
 
 /**

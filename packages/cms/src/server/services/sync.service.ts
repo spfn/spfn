@@ -92,7 +92,7 @@ function compareLabels(dbLabels: DbLabelMap, codeLabels: FlatLabelWithDescriptio
  */
 export async function syncLabels<T extends Record<string, any>>(
     labels: T | T[],
-    options?: SyncOptions
+    options?: SyncOptions,
 ): Promise<SyncResult>
 {
     const { removeOrphaned = false, dryRun = false } = options || {};
@@ -173,5 +173,6 @@ export async function syncLabels<T extends Record<string, any>>(
 function extractSection(key: string): string
 {
     const parts = key.split('.');
+
     return parts[0] || key;
 }

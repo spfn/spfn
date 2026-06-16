@@ -5,8 +5,9 @@
  * - 내장 provider(google)는 패키지 로드 시점에 자기 등록(dogfood)
  * - 외부 패키지(@superself/auth 등)는 registerOAuthProvider()로 런타임 등록
  *
- * @spfn/auth는 토큰 issuer가 아니라 소비(client) 측이므로,
- * 이 추상화는 "authorize URL 생성 → code 교환 → 사용자 정보 정규화"까지만 다룬다.
+ * @spfn/auth는 토큰 issuer가 아니라 소비(client) 측이므로, 이 추상화는
+ * web 흐름("authorize URL 생성 → code 교환 → 사용자 정보 정규화")과
+ * native 흐름(네이티브/웹 SDK가 받은 id_token 직접 검증)을 다룬다.
  */
 
 import { type SocialProvider } from '../../types';
@@ -35,6 +36,15 @@ export interface OAuthTokens
     accessToken: string;
     refreshToken?: string;
     expiresIn: number;
+}
+
+/**
+ * 네이티브 id_token 검증 옵션
+ */
+export interface NativeVerifyOptions
+{
+    /** 클라이언트가 생성한 raw nonce. provider별 규약(raw 또는 SHA-256 해시)으로 대조된다. */
+    nonce: string;
 }
 
 /**
@@ -76,6 +86,15 @@ export interface OAuthProvider
      * 미구현 provider는 갱신 불가로 간주한다.
      */
     refreshTokens?(refreshToken: string): Promise<OAuthTokens>;
+
+    /**
+     * 네이티브/웹 SDK가 받은 id_token을 직접 검증하고 신원을 정규화한다.
+     *
+     * authorization code 교환 없이 provider JWKS로 서명을 검증하므로 client secret이
+     * 필요 없다. native sign-in을 지원하는 provider만 구현한다(Apple은 web SDK 부재로
+     * Android·웹도 이 경로를 쓴다).
+     */
+    verifyNativeIdToken?(idToken: string, options: NativeVerifyOptions): Promise<NormalizedIdentity>;
 }
 
 const registry = new Map<SocialProvider, OAuthProvider>();

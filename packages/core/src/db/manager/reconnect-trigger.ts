@@ -70,6 +70,7 @@ function isConnectionSqlState(code: string): boolean
     if (code.startsWith('08')) return true;
     if (code === '53300') return true;
     if (code === '57P01' || code === '57P02' || code === '57P03') return true;
+
     return false;
 }
 
@@ -234,6 +235,7 @@ function checkAndMarkReported(error: unknown): boolean
     {
         reportedErrors.add(obj);
     }
+
     return false;
 }
 

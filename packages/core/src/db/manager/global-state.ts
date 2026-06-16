@@ -51,7 +51,8 @@ export const getWriteInstance = (): PostgresJsDatabase<Record<string, unknown>> 
  *
  * @internal - This is an internal API used by the database manager.
  */
-export const setWriteInstance = (instance: PostgresJsDatabase<Record<string, unknown>> | undefined): void => {
+export const setWriteInstance = (instance: PostgresJsDatabase<Record<string, unknown>> | undefined): void => 
+{
     globalThis.__SPFN_DB_WRITE__ = instance;
 };
 
@@ -68,7 +69,8 @@ export const getReadInstance = (): PostgresJsDatabase<Record<string, unknown>> |
  *
  * @internal - This is an internal API used by the database manager.
  */
-export const setReadInstance = (instance: PostgresJsDatabase<Record<string, unknown>> | undefined): void => {
+export const setReadInstance = (instance: PostgresJsDatabase<Record<string, unknown>> | undefined): void => 
+{
     globalThis.__SPFN_DB_READ__ = instance;
 };
 
@@ -89,7 +91,8 @@ export const getWriteClient = (): Sql | undefined =>
  *
  * @internal - This is an internal API used by the database manager.
  */
-export const setWriteClient = (client: Sql | undefined): void => {
+export const setWriteClient = (client: Sql | undefined): void => 
+{
     globalThis.__SPFN_DB_WRITE_CLIENT__ = client;
 };
 
@@ -106,7 +109,8 @@ export const getReadClient = (): Sql | undefined =>
  *
  * @internal - This is an internal API used by the database manager.
  */
-export const setReadClient = (client: Sql | undefined): void => {
+export const setReadClient = (client: Sql | undefined): void => 
+{
     globalThis.__SPFN_DB_READ_CLIENT__ = client;
 };
 
@@ -127,7 +131,8 @@ export const getHealthCheckInterval = (): NodeJS.Timeout | undefined =>
  *
  * @internal - This is an internal API used by the database manager.
  */
-export const setHealthCheckInterval = (interval: NodeJS.Timeout | undefined): void => {
+export const setHealthCheckInterval = (interval: NodeJS.Timeout | undefined): void => 
+{
     globalThis.__SPFN_DB_HEALTH_CHECK__ = interval;
 };
 
@@ -148,7 +153,8 @@ export const getMonitoringConfig = (): MonitoringConfig | undefined =>
  *
  * @internal - This is an internal API used by the database manager.
  */
-export const setMonitoringConfig = (config: MonitoringConfig | undefined): void => {
+export const setMonitoringConfig = (config: MonitoringConfig | undefined): void => 
+{
     globalThis.__SPFN_DB_MONITORING__ = config;
 };
 
@@ -173,7 +179,8 @@ export const getInitOptions = (): DatabaseOptions | undefined =>
  *
  * @internal
  */
-export const setInitOptions = (options: DatabaseOptions | undefined): void => {
+export const setInitOptions = (options: DatabaseOptions | undefined): void => 
+{
     globalThis.__SPFN_DB_INIT_OPTIONS__ = options;
 };
 
@@ -198,6 +205,7 @@ export const getIsClosing = (): boolean =>
  *
  * @internal
  */
-export const setIsClosing = (closing: boolean): void => {
+export const setIsClosing = (closing: boolean): void => 
+{
     globalThis.__SPFN_DB_CLOSING__ = closing;
 };
