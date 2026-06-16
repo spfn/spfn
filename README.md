@@ -229,10 +229,22 @@ export const appRouter = defineRouter({
 
 ## Documentation
 
+- [Examples](./examples/README.md) — a step-by-step ladder, start at `01-minimal-api`
 - [Core API](./packages/core/README.md)
 - [CLI Guide](./packages/cli/README.md)
 - [Auth Package](./packages/auth/README.md)
 - [CMS Package](./packages/cms/README.md)
+
+---
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, the
+development workflow, and the PR checklist — and [AGENTS.md](./AGENTS.md) if you work
+with an AI coding agent. By participating you agree to our
+[Code of Conduct](./CODE_OF_CONDUCT.md).
+
+Found a security issue? Please report it privately — see [SECURITY.md](./SECURITY.md).
 
 ---
 
