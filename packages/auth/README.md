@@ -128,7 +128,7 @@ real secret values out of band, never commit them.
 | `NEXT_PUBLIC_SPFN_API_URL` / `NEXT_PUBLIC_SPFN_APP_URL` | `.env.local` | — | browser-facing URLs for OAuth redirects |
 
 Read validated values via `import { env } from '@spfn/auth/config'` (a proxy validated at
-startup). `envSchema` (also exported as `authEnvSchema`) carries descriptions/defaults.
+startup). `envSchema` carries descriptions/defaults.
 
 ### Admin seeding
 

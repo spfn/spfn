@@ -142,7 +142,7 @@ On rollback the middleware re-throws, but normalizes the error first:
 
 1. Reports the error to the DB reconnect-trigger (no-op for non-connection errors).
 2. `DatabaseError` and `TransactionError` instances are re-thrown unchanged.
-3. An object with a string `code` (a raw PostgreSQL error) is converted via `fromPostgresError(...)` → `UniqueConstraintError`, `ForeignKeyError`, `NotNullError`, `CheckConstraintError`, or `DatabaseError`.
+3. An object with a string `code` (a raw PostgreSQL error) is converted via `fromPostgresError(...)` → `DuplicateEntryError`, `ConstraintViolationError`, `DeadlockError`, `ConnectionError`, `TransactionError`, or `QueryError`.
 4. Anything else (e.g. business-logic errors like `InvalidCredentialsError`) is re-thrown as-is.
 
 ### `TransactionalOptions`

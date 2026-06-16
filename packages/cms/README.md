@@ -403,7 +403,7 @@ CMS 라벨을 관리하기 위한 Admin API를 제공합니다. 섹션별 테이
 | Route | Method | Description |
 |-------|--------|-------------|
 | `getSectionLabels` | GET | 섹션의 모든 라벨 조회 (Draft/Published 상태 포함) |
-| `saveSectionDraft` | POST | 섹션 라벨 일괄 Draft 저장 |
+| `saveSectionDraft` | PUT | 섹션 라벨 일괄 Draft 저장 |
 | `publishSection` | POST | 섹션 전체 발행 (Draft → Published) |
 | `resetSectionDraft` | DELETE | 섹션 Draft 초기화 |
 

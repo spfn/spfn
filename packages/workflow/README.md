@@ -490,7 +490,9 @@ const slackProvider: NotificationProvider = {
 
 #### Combined Notifications
 
-`.notify()` accepts a single configuration. To handle multiple event types with different providers, include all providers in one call and use the `when` condition for filtering:
+`.notify()` is chainable — each call adds a separate config, so you can register
+different providers/conditions per event set. You can also handle multiple event types
+in one call and use the `when` condition for filtering:
 
 ```typescript
 import { consoleProvider } from '@spfn/workflow';

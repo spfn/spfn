@@ -27,11 +27,11 @@ import {
  *
  * @example
  * ```typescript
- * import { authEnvSchema } from '@spfn/auth/config';
+ * import { envSchema } from '@spfn/auth/config';
  *
  * // Access schema information
- * console.log(authEnvSchema.SPFN_AUTH_SESSION_SECRET.description);
- * console.log(authEnvSchema.SPFN_AUTH_JWT_EXPIRES_IN.default);
+ * console.log(envSchema.SPFN_AUTH_SESSION_SECRET.description);
+ * console.log(envSchema.SPFN_AUTH_JWT_EXPIRES_IN.default);
  * ```
  */
 export const authEnvSchema = defineEnvSchema({
