@@ -115,7 +115,7 @@
     "dev": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --config vitest.unit.config.ts --coverage",
+    "test:coverage": "vitest run --coverage",
     "test:logger": "vitest run src/logger",
     "test:errors": "vitest run src/errors",
     "test:codegen": "vitest run src/codegen",
