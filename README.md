@@ -10,7 +10,10 @@ Next.js handles your frontend. SPFN handles your backend.
 [![npm cli](https://img.shields.io/npm/v/spfn/beta?label=spfn)](https://npmjs.com/package/spfn)
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
 
-> **Beta Release**: Install with `@beta` tag: `npm i @spfn/core@beta`
+> **Status — Beta (`0.x`).** SPFN is in active development and runs in production for its
+> authors. The public API is stabilizing, but **may still change between minor releases
+> before `1.0`** — pin your versions and skim the [CHANGELOG](./CHANGELOG.md) before
+> upgrading. Install from the `@beta` tag, e.g. `npm i @spfn/core@beta`.
 
 ---
 
