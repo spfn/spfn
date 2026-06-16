@@ -2,7 +2,9 @@
  * Login/Register Interceptor
  *
  * Automatically handles key generation and session management
- * for login and register endpoints
+ * for login, register, and invitation-accept endpoints.
+ * (Invitation acceptance creates the user account + key pair and
+ * logs the new user in, so it follows the same key/session flow.)
  */
 
 import type { InterceptorRule } from '@spfn/core/nextjs/server';
@@ -13,14 +15,14 @@ import { authLogger } from '../../server/logger';
 import { cookieSecure } from './cookie-options';
 
 /**
- * Login and Register Interceptor
+ * Login, Register, and Invitation-Accept Interceptor
  *
  * Request: Generates key pair and adds publicKey to request body
  * Response: Saves privateKey to HttpOnly cookie
  */
 export const loginRegisterInterceptor: InterceptorRule =
     {
-        pathPattern: /^\/_auth\/(login|register)$/,
+        pathPattern: /^\/_auth\/(login|register|invitations\/accept)$/,
         method: 'POST',
 
         request: async (ctx, next) =>

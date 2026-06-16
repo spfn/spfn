@@ -19,6 +19,7 @@ import {
     deleteInvitation as _deleteInvitation,
 } from '../../services';
 import { Type } from '@sinclair/typebox';
+import { Transactional } from '@spfn/core/db';
 import { defineRouter, route } from '@spfn/core/route';
 
 /**
@@ -99,6 +100,7 @@ export const acceptInvitation = route.post('/_auth/invitations/accept')
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
         }),
     })
+    .use([Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {
