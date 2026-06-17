@@ -1,223 +1,223 @@
 {
-  "name": "@spfn/core",
-  "version": "0.2.0-beta.50",
-  "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
-  "type": "module",
-  "exports": {
-    "./client": {
-      "types": "./dist/client/index.d.ts",
-      "import": "./dist/client/index.js",
-      "require": "./dist/client/index.js"
+    "name": "@spfn/core",
+    "version": "0.2.0-beta.51",
+    "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
+    "type": "module",
+    "exports": {
+        "./client": {
+            "types": "./dist/client/index.d.ts",
+            "import": "./dist/client/index.js",
+            "require": "./dist/client/index.js"
+        },
+        "./nextjs": {
+            "types": "./dist/nextjs/index.d.ts",
+            "import": "./dist/nextjs/index.js",
+            "require": "./dist/nextjs/index.js"
+        },
+        "./nextjs/server": {
+            "types": "./dist/nextjs/server.d.ts",
+            "import": "./dist/nextjs/server.js",
+            "require": "./dist/nextjs/server.js"
+        },
+        "./route": {
+            "types": "./dist/route/index.d.ts",
+            "import": "./dist/route/index.js",
+            "require": "./dist/route/index.js"
+        },
+        "./route/types": {
+            "types": "./dist/route/types.d.ts",
+            "import": "./dist/route/types.js",
+            "require": "./dist/route/types.js"
+        },
+        "./db": {
+            "types": "./dist/db/index.d.ts",
+            "import": "./dist/db/index.js",
+            "require": "./dist/db/index.js"
+        },
+        "./server": {
+            "types": "./dist/server/index.d.ts",
+            "import": "./dist/server/index.js",
+            "require": "./dist/server/index.js"
+        },
+        "./errors": {
+            "types": "./dist/errors/index.d.ts",
+            "import": "./dist/errors/index.js",
+            "require": "./dist/errors/index.js"
+        },
+        "./middleware": {
+            "types": "./dist/middleware/index.d.ts",
+            "import": "./dist/middleware/index.js",
+            "require": "./dist/middleware/index.js"
+        },
+        "./cache": {
+            "types": "./dist/cache/index.d.ts",
+            "import": "./dist/cache/index.js",
+            "require": "./dist/cache/index.js"
+        },
+        "./codegen": {
+            "types": "./dist/codegen/index.d.ts",
+            "import": "./dist/codegen/index.js",
+            "require": "./dist/codegen/index.js"
+        },
+        "./env": {
+            "types": "./dist/env/index.d.ts",
+            "import": "./dist/env/index.js",
+            "require": "./dist/env/index.js"
+        },
+        "./env/loader": {
+            "types": "./dist/env/loader.d.ts",
+            "import": "./dist/env/loader.js",
+            "require": "./dist/env/loader.js"
+        },
+        "./logger": {
+            "types": "./dist/logger/index.d.ts",
+            "import": "./dist/logger/index.js",
+            "require": "./dist/logger/index.js"
+        },
+        "./config": {
+            "types": "./dist/config/index.d.ts",
+            "import": "./dist/config/index.js",
+            "require": "./dist/config/index.js"
+        },
+        "./job": {
+            "types": "./dist/job/index.d.ts",
+            "import": "./dist/job/index.js",
+            "require": "./dist/job/index.js"
+        },
+        "./event": {
+            "types": "./dist/event/index.d.ts",
+            "import": "./dist/event/index.js",
+            "require": "./dist/event/index.js"
+        },
+        "./event/sse": {
+            "types": "./dist/event/sse/index.d.ts",
+            "import": "./dist/event/sse/index.js",
+            "require": "./dist/event/sse/index.js"
+        },
+        "./event/sse/client": {
+            "types": "./dist/event/sse/client.d.ts",
+            "import": "./dist/event/sse/client.js",
+            "require": "./dist/event/sse/client.js"
+        },
+        "./event/ws": {
+            "types": "./dist/event/ws/index.d.ts",
+            "import": "./dist/event/ws/index.js",
+            "require": "./dist/event/ws/index.js"
+        },
+        "./event/ws/client": {
+            "types": "./dist/event/ws/client.d.ts",
+            "import": "./dist/event/ws/client.js",
+            "require": "./dist/event/ws/client.js"
+        }
     },
-    "./nextjs": {
-      "types": "./dist/nextjs/index.d.ts",
-      "import": "./dist/nextjs/index.js",
-      "require": "./dist/nextjs/index.js"
+    "scripts": {
+        "build": "pnpm check:circular && tsup",
+        "dev": "tsup",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "test:logger": "vitest run src/logger",
+        "test:errors": "vitest run src/errors",
+        "test:codegen": "vitest run src/codegen",
+        "test:route": "vitest run src/route",
+        "test:client": "vitest run src/client",
+        "test:middleware": "vitest run src/middleware",
+        "test:env": "vitest run src/env",
+        "test:cache": "vitest run src/cache --config vitest.integration.config.ts",
+        "test:db": "vitest run src/db --config vitest.integration.config.ts",
+        "test:server": "vitest run src/server --config vitest.integration.config.ts",
+        "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
+        "docker:test:down": "docker compose -f docker-compose.test.yml down",
+        "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f",
+        "check:circular": "madge --circular --extensions ts src/",
+        "type-check": "tsc --noEmit"
     },
-    "./nextjs/server": {
-      "types": "./dist/nextjs/server.d.ts",
-      "import": "./dist/nextjs/server.js",
-      "require": "./dist/nextjs/server.js"
+    "keywords": [
+        "spfn",
+        "nextjs",
+        "backend",
+        "framework",
+        "typescript",
+        "type-safe",
+        "api",
+        "rest-api",
+        "crud",
+        "database",
+        "orm",
+        "drizzle-orm",
+        "postgres",
+        "redis",
+        "hono",
+        "fullstack",
+        "server",
+        "scalable",
+        "auto-generated",
+        "file-based-routing",
+        "transaction",
+        "repository-pattern"
+    ],
+    "author": "Ray Im <rayim@fxy.global>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/spfn/spfn.git",
+        "directory": "packages/core"
     },
-    "./route": {
-      "types": "./dist/route/index.d.ts",
-      "import": "./dist/route/index.js",
-      "require": "./dist/route/index.js"
+    "bugs": {
+        "url": "https://github.com/spfn/spfn/issues"
     },
-    "./route/types": {
-      "types": "./dist/route/types.d.ts",
-      "import": "./dist/route/types.js",
-      "require": "./dist/route/types.js"
+    "homepage": "https://github.com/spfn/spfn/tree/main/packages/core#readme",
+    "engines": {
+        "node": ">=18.18.0"
     },
-    "./db": {
-      "types": "./dist/db/index.d.ts",
-      "import": "./dist/db/index.js",
-      "require": "./dist/db/index.js"
+    "dependencies": {
+        "@hono/node-server": "^1.0.0",
+        "@sinclair/typebox": "^0.34.0",
+        "chalk": "^5.6.2",
+        "chokidar": "^4.0.3",
+        "dotenv": "^17.2.3",
+        "drizzle-orm": "^0.45.0",
+        "drizzle-typebox": "^0.1.0",
+        "hono": "^4.12.4",
+        "jiti": "^2.6.1",
+        "micromatch": "^4.0.8",
+        "pg-boss": "^11.1.2",
+        "postgres": "^3.4.0",
+        "typescript": "^5.3.3",
+        "undici": "^7.24.0",
+        "zod": "^4.1.11"
     },
-    "./server": {
-      "types": "./dist/server/index.d.ts",
-      "import": "./dist/server/index.js",
-      "require": "./dist/server/index.js"
+    "optionalDependencies": {
+        "ioredis": "^5.4.1",
+        "ws": "^8.0.0"
     },
-    "./errors": {
-      "types": "./dist/errors/index.d.ts",
-      "import": "./dist/errors/index.js",
-      "require": "./dist/errors/index.js"
+    "devDependencies": {
+        "@types/micromatch": "^4.0.9",
+        "@types/node": "^20.11.0",
+        "@types/ws": "^8.18.1",
+        "@vitest/coverage-v8": "^4.0.6",
+        "drizzle-kit": "^0.31.6",
+        "madge": "^8.0.0",
+        "next": "^16.0.0",
+        "tsup": "^8.5.0",
+        "vitest": "^4.0.6"
     },
-    "./middleware": {
-      "types": "./dist/middleware/index.d.ts",
-      "import": "./dist/middleware/index.js",
-      "require": "./dist/middleware/index.js"
+    "peerDependencies": {
+        "next": "^15.0.0 || ^16.0.0"
     },
-    "./cache": {
-      "types": "./dist/cache/index.d.ts",
-      "import": "./dist/cache/index.js",
-      "require": "./dist/cache/index.js"
+    "peerDependenciesMeta": {
+        "next": {
+            "optional": true
+        }
     },
-    "./codegen": {
-      "types": "./dist/codegen/index.d.ts",
-      "import": "./dist/codegen/index.js",
-      "require": "./dist/codegen/index.js"
-    },
-    "./env": {
-      "types": "./dist/env/index.d.ts",
-      "import": "./dist/env/index.js",
-      "require": "./dist/env/index.js"
-    },
-    "./env/loader": {
-      "types": "./dist/env/loader.d.ts",
-      "import": "./dist/env/loader.js",
-      "require": "./dist/env/loader.js"
-    },
-    "./logger": {
-      "types": "./dist/logger/index.d.ts",
-      "import": "./dist/logger/index.js",
-      "require": "./dist/logger/index.js"
-    },
-    "./config": {
-      "types": "./dist/config/index.d.ts",
-      "import": "./dist/config/index.js",
-      "require": "./dist/config/index.js"
-    },
-    "./job": {
-      "types": "./dist/job/index.d.ts",
-      "import": "./dist/job/index.js",
-      "require": "./dist/job/index.js"
-    },
-    "./event": {
-      "types": "./dist/event/index.d.ts",
-      "import": "./dist/event/index.js",
-      "require": "./dist/event/index.js"
-    },
-    "./event/sse": {
-      "types": "./dist/event/sse/index.d.ts",
-      "import": "./dist/event/sse/index.js",
-      "require": "./dist/event/sse/index.js"
-    },
-    "./event/sse/client": {
-      "types": "./dist/event/sse/client.d.ts",
-      "import": "./dist/event/sse/client.js",
-      "require": "./dist/event/sse/client.js"
-    },
-    "./event/ws": {
-      "types": "./dist/event/ws/index.d.ts",
-      "import": "./dist/event/ws/index.js",
-      "require": "./dist/event/ws/index.js"
-    },
-    "./event/ws/client": {
-      "types": "./dist/event/ws/client.d.ts",
-      "import": "./dist/event/ws/client.js",
-      "require": "./dist/event/ws/client.js"
+    "files": [
+        "dist",
+        "docs",
+        "README.md",
+        "LICENSE"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "tag": "beta"
     }
-  },
-  "scripts": {
-    "build": "pnpm check:circular && tsup",
-    "dev": "tsup",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:logger": "vitest run src/logger",
-    "test:errors": "vitest run src/errors",
-    "test:codegen": "vitest run src/codegen",
-    "test:route": "vitest run src/route",
-    "test:client": "vitest run src/client",
-    "test:middleware": "vitest run src/middleware",
-    "test:env": "vitest run src/env",
-    "test:cache": "vitest run src/cache --config vitest.integration.config.ts",
-    "test:db": "vitest run src/db --config vitest.integration.config.ts",
-    "test:server": "vitest run src/server --config vitest.integration.config.ts",
-    "docker:test:up": "docker compose -f docker-compose.test.yml up -d",
-    "docker:test:down": "docker compose -f docker-compose.test.yml down",
-    "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f",
-    "check:circular": "madge --circular --extensions ts src/",
-    "type-check": "tsc --noEmit"
-  },
-  "keywords": [
-    "spfn",
-    "nextjs",
-    "backend",
-    "framework",
-    "typescript",
-    "type-safe",
-    "api",
-    "rest-api",
-    "crud",
-    "database",
-    "orm",
-    "drizzle-orm",
-    "postgres",
-    "redis",
-    "hono",
-    "fullstack",
-    "server",
-    "scalable",
-    "auto-generated",
-    "file-based-routing",
-    "transaction",
-    "repository-pattern"
-  ],
-  "author": "Ray Im <rayim@fxy.global>",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/spfn/spfn.git",
-    "directory": "packages/core"
-  },
-  "bugs": {
-    "url": "https://github.com/spfn/spfn/issues"
-  },
-  "homepage": "https://github.com/spfn/spfn/tree/main/packages/core#readme",
-  "engines": {
-    "node": ">=18.18.0"
-  },
-  "dependencies": {
-    "@hono/node-server": "^1.0.0",
-    "@sinclair/typebox": "^0.34.0",
-    "chalk": "^5.6.2",
-    "chokidar": "^4.0.3",
-    "dotenv": "^17.2.3",
-    "drizzle-orm": "^0.45.0",
-    "drizzle-typebox": "^0.1.0",
-    "hono": "^4.12.4",
-    "jiti": "^2.6.1",
-    "micromatch": "^4.0.8",
-    "pg-boss": "^11.1.2",
-    "postgres": "^3.4.0",
-    "typescript": "^5.3.3",
-    "undici": "^7.24.0",
-    "zod": "^4.1.11"
-  },
-  "optionalDependencies": {
-    "ioredis": "^5.4.1",
-    "ws": "^8.0.0"
-  },
-  "devDependencies": {
-    "@types/micromatch": "^4.0.9",
-    "@types/node": "^20.11.0",
-    "@types/ws": "^8.18.1",
-    "@vitest/coverage-v8": "^4.0.6",
-    "drizzle-kit": "^0.31.6",
-    "madge": "^8.0.0",
-    "next": "^16.0.0",
-    "tsup": "^8.5.0",
-    "vitest": "^4.0.6"
-  },
-  "peerDependencies": {
-    "next": "^15.0.0 || ^16.0.0"
-  },
-  "peerDependenciesMeta": {
-    "next": {
-      "optional": true
-    }
-  },
-  "files": [
-    "dist",
-    "docs",
-    "README.md",
-    "LICENSE"
-  ],
-  "publishConfig": {
-    "access": "public",
-    "tag": "beta"
-  }
 }
