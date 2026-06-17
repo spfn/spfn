@@ -56,6 +56,12 @@ export interface EnvVarSchema<T = string>
     /** 민감정보 여부 (로깅 시 마스킹) */
     sensitive?: boolean;
 
+    /**
+     * 자동 생성 방식 — 값이 미지정이면 프로비저닝(secrets 관리 CLI)이 이 방식으로 생성한다.
+     * 외부에서 받아야 하는 시크릿(API 키 등)은 generate를 비워 사용자 입력으로 둔다.
+     */
+    generate?: 'hex32' | 'hex64' | 'uuid' | 'base64url32';
+
     /** 예시 값들 (타입과 일치해야 함) */
     examples?: T[];
 
@@ -162,6 +168,31 @@ export function envString<T extends Omit<EnvVarSchema, 'key' | 'type'>>(
     return {
         ...options,
         type: 'string',
+        validator: options.validator || ((value: string) => value),
+    };
+}
+
+/**
+ * 시크릿 스키마 헬퍼 — sensitive:true 자동.
+ *
+ * generate 지정 시 프로비저닝(secrets CLI)이 값을 자동 생성, 미지정이면 외부 입력(사용자가 붙여넣음).
+ * 이로써 env.config.ts가 "설정(envString) vs 외부 시크릿(envSecret) vs 자동 시크릿(envSecret+generate)"을
+ * 선언적으로 가른다 — CLI·프레임워크·프로비저닝이 한 원천을 읽는다.
+ *
+ * @example
+ * ```typescript
+ * SPFN_AUTH_SESSION_SECRET: envSecret({ description: '세션 서명 키', generate: 'base64url32' }),
+ * OPENAI_API_KEY: envSecret({ description: 'OpenAI API 키' }),  // generate 없음 → 외부 입력
+ * ```
+ */
+export function envSecret<T extends Omit<EnvVarSchema, 'key' | 'type' | 'sensitive'>>(
+    options: T,
+): T & { type: 'string'; sensitive: true; validator: (value: string) => string }
+{
+    return {
+        ...options,
+        type: 'string',
+        sensitive: true,
         validator: options.validator || ((value: string) => value),
     };
 }

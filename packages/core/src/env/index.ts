@@ -66,6 +66,7 @@ export {
 export {
     defineEnvSchema,
     envString,
+    envSecret,
     envNumber,
     envBoolean,
     envUrl,
