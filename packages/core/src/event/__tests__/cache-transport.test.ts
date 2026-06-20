@@ -21,6 +21,16 @@ import { createRedisPubSubCache, wireEventRouterCache, closeEventTransport } fro
 vi.mock('@spfn/core/cache', () => ({ getCache: vi.fn(() => undefined) }));
 import { getCache } from '@spfn/core/cache';
 
+// Mock the logger so the warn-throttle can be observed (single shared sink).
+vi.mock('@spfn/core/logger', () =>
+{
+    const sink: any = { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() };
+    sink.child = () => sink;
+
+    return { logger: sink };
+});
+import { logger } from '@spfn/core/logger';
+
 // Reset the global transport singleton between tests (wired set, cached pubSubCache).
 afterEach(async () =>
 {
@@ -264,6 +274,91 @@ describe('createRedisPubSubCache', () =>
         await expect(cache.publish('fn', fn)).resolves.toBeUndefined();
         expect(client.publish).not.toHaveBeenCalled();
         expect(received[0]).toBe(fn); // delivered locally (live object)
+    });
+
+    it('trips a circuit breaker so a sustained outage costs one timeout, not one per emit', async () =>
+    {
+        vi.useFakeTimers();
+
+        const subscriberStub = { subscribe: vi.fn().mockResolvedValue(undefined), on: vi.fn() };
+        const client = {
+            status: 'ready',
+            publish: vi.fn(() => new Promise(() => undefined)), // hangs every time
+            duplicate: vi.fn().mockReturnValue(subscriberStub),
+            subscribe: vi.fn(),
+            on: vi.fn(),
+        };
+
+        const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
+
+        const received: { n: number }[] = [];
+        await cache.subscribe('x', (payload) =>
+        {
+            received.push(payload);
+        });
+
+        const first = cache.publish('x', { n: 1 });
+        await vi.advanceTimersByTimeAsync(5000); // chunk1 trips the timeout, opens the breaker
+        await first;
+
+        // chunk2 & 3 within the cooldown → breaker open → skip publish → instant local.
+        await cache.publish('x', { n: 2 });
+        await cache.publish('x', { n: 3 });
+
+        expect(client.publish).toHaveBeenCalledTimes(1); // breaker prevented re-attempts
+        expect(received).toEqual([{ n: 1 }, { n: 2 }, { n: 3 }]); // all delivered locally
+    });
+
+    it('skips publish (no offline-queue duplicate) when the client is not connected', async () =>
+    {
+        const subscriberStub = { subscribe: vi.fn().mockResolvedValue(undefined), on: vi.fn() };
+        const client = {
+            status: 'connecting', // not ready
+            publish: vi.fn().mockResolvedValue(1),
+            duplicate: vi.fn().mockReturnValue(subscriberStub),
+            subscribe: vi.fn(),
+            on: vi.fn(),
+        };
+
+        const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
+
+        const received: unknown[] = [];
+        await cache.subscribe('x', (payload) =>
+        {
+            received.push(payload);
+        });
+
+        await cache.publish('x', { n: 1 });
+
+        expect(client.publish).not.toHaveBeenCalled(); // never queued → no late echo duplicate
+        expect(received).toEqual([{ n: 1 }]); // delivered locally
+    });
+
+    it('throttles repeated publish-failure warnings to one per window', async () =>
+    {
+        vi.useFakeTimers();
+
+        const subscriberStub = { subscribe: vi.fn().mockResolvedValue(undefined), on: vi.fn() };
+        const client = {
+            status: 'ready',
+            publish: vi.fn().mockRejectedValue(new Error('down')),
+            duplicate: vi.fn().mockReturnValue(subscriberStub),
+            subscribe: vi.fn(),
+            on: vi.fn(),
+        };
+
+        const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
+        await cache.subscribe('x', () => undefined);
+
+        const warn = (logger as unknown as { warn: Mock }).warn;
+        vi.advanceTimersByTime(31000); // expire any throttle state from earlier tests
+        warn.mockClear();
+
+        await cache.publish('x', { n: 1 }); // attempt → fail → WARN #1 (also opens breaker for 10s)
+        await vi.advanceTimersByTimeAsync(11000); // breaker expires; throttle window (30s) still open
+        await cache.publish('x', { n: 2 }); // attempt → fail → throttled (suppressed)
+
+        expect(warn).toHaveBeenCalledTimes(1);
     });
 
     it('falls back to local delivery when publish hangs (timeout-bound)', async () =>
@@ -512,6 +607,20 @@ describe('wireEventRouterCache', () =>
 
         // Must not throw — startup survives a per-event SUBSCRIBE failure.
         await expect(wireEventRouterCache(router)).resolves.toBe('redis');
+    });
+
+    it('returns in-process (not a false redis) when every event degrades', async () =>
+    {
+        const client = new FakeRedis(new FakeBus());
+        (getCache as unknown as Mock).mockReturnValue(client);
+
+        const a = defineEvent('allBadA', Type.Object({}));
+        const b = defineEvent('allBadB', Type.Object({}));
+        a.useCache = vi.fn().mockRejectedValue(new Error('SUBSCRIBE failed')) as typeof a.useCache;
+        b.useCache = vi.fn().mockRejectedValue(new Error('SUBSCRIBE failed')) as typeof b.useCache;
+
+        // No event wired → honest 'in-process', not a misleading 'redis'.
+        await expect(wireEventRouterCache(defineEventRouter({ a, b }))).resolves.toBe('in-process');
     });
 });
 

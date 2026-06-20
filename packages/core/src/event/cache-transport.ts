@@ -33,6 +33,13 @@ const SUBSCRIBE_TIMEOUT_MS = 5000;
 const WARN_THROTTLE_MS = 30000;
 
 /**
+ * After a publish failure, skip Redis entirely (deliver locally) for this long before
+ * probing again. Without it, a streaming `emit` loop pays the full PUBLISH_TIMEOUT_MS per
+ * chunk during a sustained outage (50 chunks × 5s = minutes of request hang).
+ */
+const PUBLISH_BREAKER_COOLDOWN_MS = 10000;
+
+/**
  * Reject if `promise` doesn't settle within `ms`. ioredis has no command timeout by
  * default, so a half-open socket leaves publish/subscribe pending indefinitely; this
  * bounds it so the caller can fall back instead of hanging.
@@ -98,6 +105,8 @@ type PubSubClient = {
     subscribe(...channels: string[]): Promise<unknown>;
     on(event: string, listener: (...args: any[]) => void): unknown;
     quit?(): Promise<unknown>;
+    /** ioredis connection status ('ready' | 'connecting' | 'close' | ...). */
+    status?: string;
 };
 
 type MessageHandler = (message: unknown) => void | Promise<void>;
@@ -155,6 +164,8 @@ export function createRedisPubSubCache(
 {
     let subscriber: PubSubClient | undefined;
     const handlers = new Map<string, MessageHandler>();
+    // Circuit breaker: epoch-ms until which Redis is treated as down (skip publish).
+    let degradedUntil = 0;
 
     const ensureSubscriber = (): PubSubClient =>
     {
@@ -262,19 +273,36 @@ export function createRedisPubSubCache(
                 return;
             }
 
+            // Skip Redis when the breaker is open (recent failure) or the client isn't
+            // connected. This (a) bounds a sustained outage to one timeout per cooldown
+            // instead of one per emit, and (b) avoids ioredis's offline queue buffering
+            // the publish and re-sending it on reconnect — which would deliver the event
+            // twice (local fallback now + echo later). Treat a status-less client (test
+            // mocks) as ready so behavior is unchanged there.
+            const ready = client.status === undefined || client.status === 'ready';
+            if (!ready || Date.now() < degradedUntil)
+            {
+                deliverLocal(channel, JSON.parse(serialized));
+
+                return;
+            }
+
             try
             {
                 // Timeout-bound: a wedged socket would otherwise leave this pending
                 // forever and hang `emit` (and the request that called it).
                 await withTimeout(client.publish(channel, serialized), PUBLISH_TIMEOUT_MS, 'pub/sub publish');
+                degradedUntil = 0; // success → close the breaker
             }
             catch (err)
             {
-                // Redis blip/timeout: the cross-pod echo won't arrive, so deliver to
-                // this pod's subscribers directly instead of dropping the event. Parse
-                // the serialized copy so handlers see the SAME shape as the echo path
-                // (a JSON round-trip), never the live mutable object. Throttled — a
-                // sustained outage emits one WARN per window, not one per chunk.
+                // Redis blip/timeout: open the breaker so subsequent emits fast-path to
+                // local delivery instead of each paying the timeout. The cross-pod echo
+                // won't arrive, so deliver to this pod's subscribers directly. Parse the
+                // serialized copy so handlers see the SAME shape as the echo path (a JSON
+                // round-trip), never the live mutable object. Throttled WARN — a sustained
+                // outage emits one line per window, not one per chunk.
+                degradedUntil = Date.now() + PUBLISH_BREAKER_COOLDOWN_MS;
                 throttledWarn('publish-failed', 'Pub/sub publish failed — local delivery only', {
                     channel,
                     error: err instanceof Error ? err.message : String(err),
@@ -349,7 +377,21 @@ export async function wireEventRouterCache(
     // whether cross-pod fan-out is actually live, and whether any event degraded.
     if (options.multiInstance === false)
     {
-        transportLogger.info('Event transport: in-process (multiInstance disabled)');
+        // A sibling router may have already wired shared events to Redis — this flag
+        // is process-global and can't un-wire them, so be honest about that.
+        const events = router.events as Record<string, WirableEvent>;
+        const stillRedis = Object.keys(events).filter(k => state.wired.has(events[k].name)).length;
+
+        if (stillRedis > 0)
+        {
+            transportLogger.warn('multiInstance:false has no effect on events already wired to redis by another router', {
+                redisWired: stillRedis,
+            });
+        }
+        else
+        {
+            transportLogger.info('Event transport: in-process (multiInstance disabled)');
+        }
 
         return 'in-process';
     }
