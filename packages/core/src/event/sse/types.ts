@@ -150,7 +150,7 @@ export interface SSEHandlerConfig
 {
     /**
      * Keep-alive ping interval in milliseconds
-     * @default 30000
+     * @default 10000
      */
     pingInterval?: number;
 
@@ -158,6 +158,26 @@ export interface SSEHandlerConfig
      * Custom headers for SSE response
      */
     headers?: Record<string, string>;
+
+    /**
+     * Cross-pod event broadcast via the cache (Redis/Valkey) pub/sub.
+     *
+     * When `true` (default) and a cache is configured (`CACHE_URL`), each event
+     * is auto-wired so an `emit` on one pod reaches subscribers on every pod.
+     * Without a cache this is a no-op (events stay in-process). Set `false` to
+     * force in-process even when a cache is present.
+     *
+     * @default true
+     */
+    multiInstance?: boolean;
+
+    /**
+     * Pub/sub channel prefix for cross-pod broadcast.
+     *
+     * Defaults to env `SPFN_SSE_CHANNEL_PREFIX`, else `spfn:sse:`. Use distinct
+     * prefixes to isolate apps/tenants that share one Redis instance.
+     */
+    channelPrefix?: string;
 
     /**
      * Authentication and authorization configuration

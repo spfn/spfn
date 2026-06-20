@@ -75,6 +75,13 @@ export interface EventDef<TPayload = void>
     _registerJobQueue: (queueName: string, sender: JobQueueSender) => void;
 
     /**
+     * Internal: Drop the cache binding (cache + subscribed flag).
+     * Called by the event cache transport on shutdown so a later useCache can
+     * rebind a fresh cache in the same process.
+     */
+    _resetCache: () => void;
+
+    /**
      * Type inference helper
      */
     _payload: TPayload;

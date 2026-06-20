@@ -116,8 +116,8 @@ There is **no validation in the builder** — validation runs inside `startServe
 | `.middleware({...})` | `middleware` | Toggle built-ins: `{ logger?, cors?, errorHandler?, onError? }` |
 | `.cors(opts \| false)` | `cors` | hono/cors options, or `false` to disable |
 | `.jobs(router, cfg?)` | `jobs` / `jobsConfig` | pg-boss job router (`@spfn/core/job`); `cfg` is `Omit<BossOptions, 'connectionString'>` |
-| `.events(router, cfg?)` | `events` / `eventsConfig` | SSE router (`@spfn/core/event`); `cfg.path` default `/events/stream`, `cfg.auth` for token-gated streams |
-| `.websockets(router, cfg?)` | `websockets` / `websocketsConfig` | WS router; `cfg.path` default `/ws`, `cfg.auth` for token auth |
+| `.events(router, cfg?)` | `events` / `eventsConfig` | SSE router (`@spfn/core/event`); `cfg.path` default `/events/stream`, `cfg.auth` for token-gated streams; cross-pod fan-out auto-wires when a cache is set (`cfg.multiInstance`/`cfg.channelPrefix`) |
+| `.websockets(router, cfg?)` | `websockets` / `websocketsConfig` | WS router; `cfg.path` default `/ws`, `cfg.auth` for token auth; same `multiInstance`/`channelPrefix` cross-pod knobs as `.events()` |
 | `.workflows(router, cfg?)` | `workflows` / `workflowsConfig` | `@spfn/workflow` router; inits engine after DB |
 | `.database({...})` | `database` | Pool / healthCheck / monitoring overrides |
 | `.timeout({...})` | `timeout` | `{ request?, keepAlive?, headers? }` (ms) |

@@ -15,6 +15,7 @@ import { closeDatabase, initDatabase, getDatabase } from '@spfn/core/db';
 import { initBoss, stopBoss, registerJobs } from '../job';
 import { attachWSHandler } from '../event/ws/handler';
 import { SSETokenManager, CacheTokenStore } from '../event/sse/token-manager';
+import { wireEventRouterCache, closeEventTransport } from '../event/cache-transport';
 import { serverLogger } from './logger';
 import { printBanner } from './banner';
 import { createServer } from './create-server';
@@ -419,6 +420,13 @@ async function initializeWebSocket(
         if (debug) serverLogger.info(`✓ WS token endpoint registered at POST ${tokenPath}`);
     }
 
+    // Auto-wire cross-pod event broadcast (Redis pub/sub) for WS events.
+    // Events shared with the SSE router are wired once; no-op without a cache.
+    await wireEventRouterCache(wsRouter, {
+        multiInstance: wsConfig.multiInstance,
+        channelPrefix: wsConfig.channelPrefix,
+    });
+
     return await attachWSHandler(server, wsRouter, wsConfig, tokenManager);
 }
 
@@ -556,6 +564,9 @@ function createShutdownHandler(
 
         if (infraConfig.redis)
         {
+            // Quit the event pub/sub subscriber (a duplicate connection) before
+            // the cache write/read connections it was duplicated from.
+            await closeEventTransport();
             await closeInfrastructure(closeCache, 'Redis', TIMEOUTS.REDIS_CLOSE);
         }
 
@@ -823,6 +834,7 @@ async function cleanupOnFailure(config: ServerConfig): Promise<void>
 
         if (infraConfig.redis)
         {
+            await closeEventTransport();
             await closeInfrastructure(closeCache, 'Redis', TIMEOUTS.REDIS_CLOSE);
         }
 
