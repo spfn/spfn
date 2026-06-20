@@ -174,13 +174,24 @@ export default defineServerConfig()
 // Custom path + ping interval:
 .events(eventRouter, {
     path: '/sse',                     // default: '/events/stream'
-    pingInterval: 30000,              // keep-alive interval, ms (default: 30000)
+    pingInterval: 10000,              // keep-alive interval, ms (default: 10000 — under proxy idle timeouts)
 })
 ```
 
 `.events(router, config)` accepts `Omit<SSEHandlerConfig, 'auth'> & { path?, auth?:
 SSEAuthConfig<TRouter> }`. The `auth` field is the **generic** `SSEAuthConfig<TRouter>` so
 `authorize`/`filter` get full event-name and payload inference from your router.
+
+`config` also carries the cross-pod transport knobs (see
+[Multi-instance broadcast](#multi-instance-broadcast-cross-pod-fan-out)):
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `multiInstance` | `boolean` | `true` | auto-wire Redis pub/sub when a cache is configured; `false` forces in-process |
+| `channelPrefix` | `string` | env `SPFN_SSE_CHANNEL_PREFIX` or `spfn:sse:` | pub/sub channel prefix; set distinct prefixes to isolate apps sharing one Redis |
+
+> `.websockets(router, config)` accepts the same `multiInstance` / `channelPrefix` knobs.
+> Events shared by both routers are wired once.
 
 > **Backpressure (`maxQueue`, default 1000).** Each connection's outbound frames go through a
 > single drain loop that `await`s every write, so a slow client applies real backpressure
@@ -434,11 +445,79 @@ It creates a throwaway client and subscribes once. For auth, prefer `createAuthS
 
 ---
 
-## Multi-instance broadcast (`useCache`)
+## Multi-instance broadcast (cross-pod fan-out)
 
-By default `emit` only reaches handlers in the **same process**. For multiple
-instances/pods, attach a `PubSubCache` so an emit on one instance fans out to all. **`await`
-`useCache` before emitting** — it must finish subscribing first.
+By default `emit` only reaches handlers in the **same process**. Across multiple pods, an
+`emit` on the pod that handles the chat POST must still reach the SSE stream pinned to a
+**different** pod — otherwise the stream silently stalls.
+
+**This is automatic.** When a cache is configured (`CACHE_URL` / `getCache()` returns a
+client), `.events(router)` and `.websockets(router)` wire every event to a Redis/Valkey
+pub/sub transport at startup. No code change in your app — register the router as usual and
+multi-pod fan-out just works. Without a cache it is a no-op and events stay in-process, so a
+single pod (or local dev) behaves exactly as before.
+
+```typescript
+export default defineServerConfig()
+    .events(eventRouter)          // CACHE_URL set → cross-pod fan-out; unset → in-process
+    .build();
+
+// Force in-process even when a cache is present, or set an isolation prefix:
+.events(eventRouter, {
+    multiInstance: false,         // default true
+    channelPrefix: 'my-app:',     // default: env SPFN_SSE_CHANNEL_PREFIX, else 'spfn:sse:'
+})
+```
+
+Mechanics (from `event.ts`): once a cache is wired, `emit` calls `cache.publish(name,
+payload)` **instead of** triggering local handlers directly — local handlers (including the
+SSE stream on the same pod) fire when the message comes back through the pub/sub `subscribe`
+callback. Auth `filter` still runs per-subscriber on the **receiving** pod's SSE handler —
+the transport only fans out by event name. Job queues receive the payload on every emit
+regardless of cache.
+
+> **Process-global.** `multiInstance` and `channelPrefix` are resolved **once per process**
+> (first `.events()`/`.websockets()` wiring wins); a second router can't change them. That's
+> correct because one process serves one app. An event shared by both routers is wired once.
+>
+> **Payloads must be JSON-serializable** when fan-out is on (they cross Redis as JSON). A
+> `Date` arrives as an ISO string; a void event arrives as `null` on remote pods (vs
+> `undefined` in-process). `bigint`/circular payloads can't serialize — see degrade below.
+>
+> **Ordering needs sequential `await` _and_ healthy publishes.** Per-channel order is preserved
+> end-to-end only if the producer awaits each emit in turn (`for (const c of chunks) await
+> event.emit(c)`). Fire-and-forget (`chunks.forEach(c => event.emit(c))`) races the publishes
+> and can reorder a token stream. Also: a mid-stream publish **failure** delivers its event via
+> the synchronous local fallback, which can land ahead of an earlier successful emit whose echo
+> is still in flight — so a Redis blip mid-stream may reorder relative to in-flight emits. The
+> transport adds no sequence number; if strict order matters across failures, carry one in the
+> payload and reorder on the client.
+>
+> **Channel isolation & receive-side trust.** The default prefix `spfn:sse:` is shared by every
+> SPFN app, so apps sharing **one** Redis with a colliding event name would cross-talk. Set
+> `channelPrefix` / `SPFN_SSE_CHANNEL_PREFIX` per app (the server logs a WARN at startup if
+> you're on the default); separate `CACHE_URL`s per app are isolated already. Note the receiving
+> pod does **not** re-validate a payload against the event schema before delivering it to
+> `filter`/handlers — anything with Redis access can publish to a channel, so treat Redis access
+> as a trust boundary (same level as the one-time-token store).
+
+**Degrade**: SSE is lossy (at-most-once). If a publish can't reach Redis (a blip) or the
+payload can't serialize, the event is **still delivered to this pod's own subscribers**
+(local fallback) and logged; only **remote** pods miss it. The same local fallback covers the
+asymmetric case where the publish succeeds but **this pod's subscriber socket is down** (its
+echo — the only path to same-pod streams — wouldn't arrive). A sustained publish outage trips
+a short circuit breaker so emits fast-path to local instead of each paying the publish timeout.
+A publish never crashes `emit` or kills a stream. ioredis auto-reconnects and re-subscribes
+(autoResubscribe, default true). A per-event SUBSCRIBE failure at
+startup degrades that event to in-process (logged) rather than aborting boot. Same-pod
+delivery costs one Redis round-trip — for a single-replica deploy with a cache, prefer
+`multiInstance: false` to skip it.
+
+### Manual `useCache` (advanced)
+
+You rarely need this — the server wires it for you. `EventDef.useCache(cache)` is the
+underlying primitive if you drive events outside `defineServerConfig` (e.g. a worker). The
+`PubSubCache` shape it expects:
 
 ```typescript
 import { getCache } from '@spfn/core/cache';
@@ -466,10 +545,10 @@ if (cache)
 await userCreated.emit({ userId: '123', email: 'a@b.com' }); // broadcasts to all instances
 ```
 
-Mechanics (from `event.ts`): once a cache is set, `emit` calls `cache.publish(name, payload)`
-**instead of** triggering local handlers directly — local handlers fire only when the
-message comes back through the cache `subscribe` callback. Job queues still receive the
-payload on every emit regardless of cache.
+**`await` `useCache` before emitting** — it must finish subscribing first. A direct second
+call on the same `EventDef` logs `Cache already configured` and is ignored. (Separately, the
+server's auto-wiring dedups by **event name** across the SSE and WS routers — tracked in the
+transport, so a shared event's `useCache` is invoked only once and the warn never fires.)
 
 ---
 

@@ -179,18 +179,33 @@ function createEventImpl<TPayload>(
             return self;
         }
 
-        cache = newCache;
-        cacheSubscribed = true;
-
+        // Subscribe FIRST, then flip to cache mode. If subscribe rejects, the
+        // event stays in-process (cache undefined) and cacheSubscribed stays
+        // false — so emit keeps delivering locally and a later useCache can retry.
+        // Setting these before the await would latch a half-broken state: emit
+        // would publish to a channel this instance never subscribed to.
         await newCache.subscribe(name, async (message: unknown) =>
         {
             eventLogger.debug(`Received event from cache: ${name}`);
             await handlerManager.trigger(message as TPayload);
         });
 
+        cache = newCache;
+        cacheSubscribed = true;
+
         eventLogger.debug(`Cache subscription ready for event: ${name}`);
 
         return self;
+    };
+
+    // Drop the cache binding so a later useCache can rebind a fresh transport.
+    // Without this, the cacheSubscribed latch would make a second server start in
+    // the same process (tests, hot-reload) a no-op while the event still points at
+    // a torn-down cache — cross-pod fan-out would silently stay dead.
+    const resetCache = (): void =>
+    {
+        cache = undefined;
+        cacheSubscribed = false;
     };
 
     const self: EventDef<TPayload> = {
@@ -201,6 +216,7 @@ function createEventImpl<TPayload>(
         emit: emit as EventDef<TPayload>['emit'],
         useCache,
         _registerJobQueue: jobQueueManager.register,
+        _resetCache: resetCache,
         _payload: undefined as unknown as TPayload,
     };
 

@@ -59,7 +59,10 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
 )
 {
     const {
-        pingInterval = 30000,
+        // 10s — keep-alive가 중간 프록시(GCP LB/nginx)의 idle 타임아웃(흔히 ~15-30s)보다 자주 와야
+        // 첫 ping 전 침묵 구간에 연결이 끊기지 않는다. 30s 기본은 idle 타임아웃보다 길어 SSE가
+        // 데이터 없는 동안 끊기던 문제가 있었다.
+        pingInterval = 10000,
         auth: authConfig,
         maxQueue = DEFAULT_MAX_QUEUE,
     } = config;
