@@ -22,8 +22,12 @@ import { logger } from '@spfn/core/logger';
 import type { EventRouterDef, InferEventNames } from '../router';
 import type { SSEHandlerConfig, SSEHandlerAuthConfig } from './types';
 import type { SSETokenManager } from './token-manager';
+import { createBoundedWriter } from './bounded-writer';
 
 const sseLogger = logger.child('@spfn/core:sse');
+
+/** Default outbound queue cap per connection before a slow consumer is dropped. */
+const DEFAULT_MAX_QUEUE = 1000;
 
 // Extend Hono context with SSE subject
 declare module 'hono'
@@ -57,6 +61,7 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
     const {
         pingInterval = 30000,
         auth: authConfig,
+        maxQueue = DEFAULT_MAX_QUEUE,
     } = config;
 
     return async (c: Context) =>
@@ -118,17 +123,37 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
             let messageId = 0;
             let connectionDead = false;
             let pingTimer: ReturnType<typeof setInterval>;
+            let writer: ReturnType<typeof createBoundedWriter>;
 
-            const cleanup = () =>
+            const cleanup = (reason?: string) =>
             {
                 if (connectionDead) return;
                 connectionDead = true;
                 clearInterval(pingTimer);
                 unsubscribes.forEach(fn => fn());
+                writer?.close();
                 sseLogger.info('SSE dead connection cleaned up', {
                     events: allowedEvents,
+                    reason,
                 });
             };
+
+            // All writes go through one bounded, backpressure-aware drain loop so a
+            // slow client can't pile frames up in memory (it's closed on overflow).
+            writer = createBoundedWriter(stream, maxQueue, (reason) =>
+            {
+                sseLogger.warn('SSE connection closed', { events: allowedEvents, reason });
+                cleanup(reason);
+            });
+
+            // Send initial connection message (first frame in the queue).
+            writer.enqueue({
+                event: 'connected',
+                data: JSON.stringify({
+                    subscribedEvents: allowedEvents,
+                    timestamp: Date.now(),
+                }),
+            });
 
             for (const eventName of allowedEvents as InferEventNames<TRouter>[])
             {
@@ -164,18 +189,10 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
                         messageId,
                     });
 
-                    stream.writeSSE({
+                    writer.enqueue({
                         id: String(messageId),
                         event: eventName as string,
                         data: JSON.stringify(message),
-                    }).catch((err) =>
-                    {
-                        sseLogger.warn('SSE write failed', {
-                            event: eventName,
-                            messageId,
-                            error: err.message,
-                        });
-                        cleanup();
                     });
                 });
 
@@ -187,29 +204,14 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
                 subscriptionCount: unsubscribes.length,
             });
 
-            // Send initial connection message
-            await stream.writeSSE({
-                event: 'connected',
-                data: JSON.stringify({
-                    subscribedEvents: allowedEvents,
-                    timestamp: Date.now(),
-                }),
-            });
-
             // Keep-alive ping
             pingTimer = setInterval(() =>
             {
                 if (connectionDead) return;
 
-                stream.writeSSE({
+                writer.enqueue({
                     event: 'ping',
                     data: JSON.stringify({ timestamp: Date.now() }),
-                }).catch((err) =>
-                {
-                    sseLogger.warn('SSE ping failed', {
-                        error: err.message,
-                    });
-                    cleanup();
                 });
             }, pingInterval);
 

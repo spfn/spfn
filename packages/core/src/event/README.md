@@ -182,9 +182,16 @@ export default defineServerConfig()
 SSEAuthConfig<TRouter> }`. The `auth` field is the **generic** `SSEAuthConfig<TRouter>` so
 `authorize`/`filter` get full event-name and payload inference from your router.
 
+> **Backpressure (`maxQueue`, default 1000).** Each connection's outbound frames go through a
+> single drain loop that `await`s every write, so a slow client applies real backpressure
+> instead of letting frames buffer unboundedly in memory. If the per-connection queue exceeds
+> `maxQueue`, the connection is **closed** (the client reconnects) rather than dropping frames —
+> dropping a chunk would corrupt an ordered token stream. Raise `maxQueue` for very bursty
+> producers; lower it to cap memory more aggressively.
+
 > `SSEHandlerConfig` also declares a `headers` field, but the current handler only reads
-> `pingInterval` and `auth`. Setting custom `headers` here is a no-op — set response headers
-> in middleware instead.
+> `pingInterval`, `auth`, and `maxQueue`. Setting custom `headers` here is a no-op — set
+> response headers in middleware instead.
 
 ---
 
@@ -514,7 +521,11 @@ fully decoupled.
   `emit` that runs before any `subscribe` simply has no handlers. Register handlers / jobs at
   startup, not lazily after the first emit.
 - **`auth.headers`/`SSEHandlerConfig.headers` does nothing.** The handler reads only
-  `pingInterval` and `auth`. Don't expect custom response headers from config.
+  `pingInterval`, `auth`, and `maxQueue`. Don't expect custom response headers from config.
+- **A slow client is dropped, not buffered forever.** Writes are bounded (`maxQueue`, default
+  1000): if a client can't keep up with a fast producer, its connection is closed instead of
+  growing memory without limit. Expect occasional reconnects under heavy streaming to slow
+  clients; that's the backpressure working, not a bug.
 - **Don't `new EventSource(...)` by hand.** You lose type inference, the `connected`/`ping`
   control-event handling, one-time-token reconnect, and StrictMode-safe teardown that the
   client implements. Use `createSSEClient` / `createAuthSSEClient`.
