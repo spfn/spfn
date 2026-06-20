@@ -291,7 +291,7 @@ describe('createRedisPubSubCache', () =>
 
         const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
 
-        const received: { n: number }[] = [];
+        const received: unknown[] = [];
         await cache.subscribe('x', (payload) =>
         {
             received.push(payload);
@@ -356,9 +356,44 @@ describe('createRedisPubSubCache', () =>
 
         await cache.publish('x', { n: 1 }); // attempt → fail → WARN #1 (also opens breaker for 10s)
         await vi.advanceTimersByTimeAsync(11000); // breaker expires; throttle window (30s) still open
-        await cache.publish('x', { n: 2 }); // attempt → fail → throttled (suppressed)
+        await cache.publish('x', { n: 2 }); // half-open probe → attempt → fail → throttled (suppressed)
 
+        // Pin the throttle path: publish #2 must have reached the wire (not skipped by an
+        // open breaker — otherwise a lengthened cooldown would silently pass this test).
+        expect(client.publish).toHaveBeenCalledTimes(2);
         expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('admits a single probe after cooldown — concurrent emits do not each re-probe', async () =>
+    {
+        vi.useFakeTimers();
+
+        const subscriberStub = { subscribe: vi.fn().mockResolvedValue(undefined), on: vi.fn() };
+        const client = {
+            status: 'ready',
+            publish: vi.fn(() => new Promise(() => undefined)), // hangs every time (sustained outage)
+            duplicate: vi.fn().mockReturnValue(subscriberStub),
+            subscribe: vi.fn(),
+            on: vi.fn(),
+        };
+
+        const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
+        await cache.subscribe('x', () => undefined);
+
+        const first = cache.publish('x', { n: 1 }); // probe #1
+        await vi.advanceTimersByTimeAsync(5000); // times out → breaker opens
+        await first;
+        expect(client.publish).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(10000); // cooldown elapses → half-open
+
+        // Fire many emits concurrently the instant the breaker reopens.
+        const burst = Promise.all([1, 2, 3, 4, 5].map((n) => cache.publish('x', { n })));
+        await vi.advanceTimersByTimeAsync(5000);
+        await burst;
+
+        // Exactly one of the burst probed; the rest fast-pathed to local.
+        expect(client.publish).toHaveBeenCalledTimes(2);
     });
 
     it('falls back to local delivery when publish hangs (timeout-bound)', async () =>

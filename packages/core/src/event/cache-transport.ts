@@ -280,11 +280,22 @@ export function createRedisPubSubCache(
             // twice (local fallback now + echo later). Treat a status-less client (test
             // mocks) as ready so behavior is unchanged there.
             const ready = client.status === undefined || client.status === 'ready';
-            if (!ready || Date.now() < degradedUntil)
+            const now = Date.now();
+            if (!ready || (degradedUntil > 0 && now < degradedUntil))
             {
+                // Not connected, or breaker open → skip Redis, deliver locally.
                 deliverLocal(channel, JSON.parse(serialized));
 
                 return;
+            }
+
+            // Healthy (degradedUntil === 0) → publish directly; concurrent emits all
+            // fan out. Half-open (breaker tripped but cooldown elapsed) → this emit is
+            // the single probe: arm the breaker for the probe's duration so CONCURRENT
+            // emits fast-path to local instead of each launching their own 5s probe.
+            if (degradedUntil > 0)
+            {
+                degradedUntil = now + PUBLISH_TIMEOUT_MS;
             }
 
             try
