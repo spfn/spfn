@@ -316,7 +316,6 @@ async function registerSSEEndpoint(app: Hono, config?: ServerConfig): Promise<vo
     const transport = await wireEventRouterCache(config.events, {
         multiInstance: eventsConfig.multiInstance,
         channelPrefix: eventsConfig.channelPrefix,
-        debug,
     });
 
     // Register SSE stream handler

@@ -477,15 +477,22 @@ regardless of cache.
 > `Date` arrives as an ISO string; a void event arrives as `null` on remote pods (vs
 > `undefined` in-process). `bigint`/circular payloads can't serialize — see degrade below.
 >
-> **Ordering needs sequential `await`.** Per-channel order is preserved end-to-end only if
-> the producer awaits each emit in turn (`for (const c of chunks) await event.emit(c)`).
-> Fire-and-forget (`chunks.forEach(c => event.emit(c))`) races the publishes and can reorder
-> a token stream. The transport adds no sequence number.
+> **Ordering needs sequential `await` _and_ healthy publishes.** Per-channel order is preserved
+> end-to-end only if the producer awaits each emit in turn (`for (const c of chunks) await
+> event.emit(c)`). Fire-and-forget (`chunks.forEach(c => event.emit(c))`) races the publishes
+> and can reorder a token stream. Also: a mid-stream publish **failure** delivers its event via
+> the synchronous local fallback, which can land ahead of an earlier successful emit whose echo
+> is still in flight — so a Redis blip mid-stream may reorder relative to in-flight emits. The
+> transport adds no sequence number; if strict order matters across failures, carry one in the
+> payload and reorder on the client.
 >
-> **Channel isolation.** The default prefix `spfn:sse:` is shared by every SPFN app, so apps
-> sharing **one** Redis with a colliding event name would cross-talk. Set `channelPrefix` /
-> `SPFN_SSE_CHANNEL_PREFIX` per app (the server logs a WARN at startup if you're on the
-> default). Separate `CACHE_URL`s per app are isolated already.
+> **Channel isolation & receive-side trust.** The default prefix `spfn:sse:` is shared by every
+> SPFN app, so apps sharing **one** Redis with a colliding event name would cross-talk. Set
+> `channelPrefix` / `SPFN_SSE_CHANNEL_PREFIX` per app (the server logs a WARN at startup if
+> you're on the default); separate `CACHE_URL`s per app are isolated already. Note the receiving
+> pod does **not** re-validate a payload against the event schema before delivering it to
+> `filter`/handlers — anything with Redis access can publish to a channel, so treat Redis access
+> as a trust boundary (same level as the one-time-token store).
 
 **Degrade**: SSE is lossy (at-most-once). If a publish can't reach Redis (a blip) or the
 payload can't serialize, the event is **still delivered to this pod's own subscribers**

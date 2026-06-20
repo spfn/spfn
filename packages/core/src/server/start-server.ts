@@ -425,7 +425,6 @@ async function initializeWebSocket(
     await wireEventRouterCache(wsRouter, {
         multiInstance: wsConfig.multiInstance,
         channelPrefix: wsConfig.channelPrefix,
-        debug,
     });
 
     return await attachWSHandler(server, wsRouter, wsConfig, tokenManager);

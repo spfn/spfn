@@ -23,6 +23,70 @@ const DEFAULT_CHANNEL_PREFIX = 'spfn:sse:';
 /** Cap on the subscriber `quit()` during shutdown so a wedged socket can't stall it. */
 const SUBSCRIBER_QUIT_TIMEOUT_MS = 5000;
 
+/** Cap a Redis PUBLISH so a wedged socket (half-open, no FIN) can't hang `emit` forever. */
+const PUBLISH_TIMEOUT_MS = 5000;
+
+/** Cap a Redis SUBSCRIBE so a wedged socket can't hang server startup; degrades to in-process. */
+const SUBSCRIBE_TIMEOUT_MS = 5000;
+
+/** Fold repeated transport warnings during a sustained outage into one line per window. */
+const WARN_THROTTLE_MS = 30000;
+
+/**
+ * Reject if `promise` doesn't settle within `ms`. ioredis has no command timeout by
+ * default, so a half-open socket leaves publish/subscribe pending indefinitely; this
+ * bounds it so the caller can fall back instead of hanging.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T>
+{
+    return new Promise<T>((resolve, reject) =>
+    {
+        const timer = setTimeout(() =>
+        {
+            reject(new Error(`${label} timed out after ${ms}ms`));
+        }, ms);
+        timer.unref?.();
+
+        promise.then(
+            (value) =>
+            {
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (err) =>
+            {
+                clearTimeout(timer);
+                reject(err);
+            },
+        );
+    });
+}
+
+const warnThrottle = new Map<string, { last: number; suppressed: number }>();
+
+/**
+ * Warn at most once per {@link WARN_THROTTLE_MS} per key, folding the suppressed count
+ * into the next line — a sustained Redis outage must not flood logs (one WARN per emit
+ * × a fast stream = thousands/sec).
+ */
+function throttledWarn(key: string, message: string, fields: Record<string, unknown>): void
+{
+    const now = Date.now();
+    const entry = warnThrottle.get(key);
+
+    if (entry && now - entry.last < WARN_THROTTLE_MS)
+    {
+        entry.suppressed++;
+
+        return;
+    }
+
+    transportLogger.warn(message, entry && entry.suppressed > 0
+        ? { ...fields, suppressedSinceLast: entry.suppressed }
+        : fields);
+    warnThrottle.set(key, { last: now, suppressed: 0 });
+}
+
 /**
  * Minimal pub/sub client interface (compatible with ioredis Redis | Cluster).
  * A duplicated connection is required for SUBSCRIBE — ioredis puts a connection
@@ -131,10 +195,11 @@ export function createRedisPubSubCache(
         });
 
         // ioredis auto-reconnects (and re-subscribes via autoResubscribe above);
-        // just surface the blip.
+        // surface the blip, throttled so a sustained outage's reconnect loop can't
+        // flood logs.
         subscriber.on('error', (err: Error) =>
         {
-            transportLogger.warn('Pub/sub subscriber error', { error: err.message });
+            throttledWarn('subscriber-error', 'Pub/sub subscriber error', { error: err.message });
         });
 
         return subscriber;
@@ -199,15 +264,18 @@ export function createRedisPubSubCache(
 
             try
             {
-                await client.publish(channel, serialized);
+                // Timeout-bound: a wedged socket would otherwise leave this pending
+                // forever and hang `emit` (and the request that called it).
+                await withTimeout(client.publish(channel, serialized), PUBLISH_TIMEOUT_MS, 'pub/sub publish');
             }
             catch (err)
             {
-                // Redis blip: the cross-pod echo won't arrive, so deliver to this
-                // pod's subscribers directly instead of dropping the event. Parse
-                // the serialized copy so handlers see the SAME shape as the echo
-                // path (a JSON round-trip), never the live mutable object.
-                transportLogger.warn('Pub/sub publish failed — local delivery only', {
+                // Redis blip/timeout: the cross-pod echo won't arrive, so deliver to
+                // this pod's subscribers directly instead of dropping the event. Parse
+                // the serialized copy so handlers see the SAME shape as the echo path
+                // (a JSON round-trip), never the live mutable object. Throttled — a
+                // sustained outage emits one WARN per window, not one per chunk.
+                throttledWarn('publish-failed', 'Pub/sub publish failed — local delivery only', {
                     channel,
                     error: err instanceof Error ? err.message : String(err),
                 });
@@ -222,7 +290,9 @@ export function createRedisPubSubCache(
 
             try
             {
-                await sub.subscribe(channel);
+                // Timeout-bound: at startup this is awaited before the HTTP listener,
+                // so a wedged subscriber would otherwise hang the entire boot.
+                await withTimeout(sub.subscribe(channel), SUBSCRIBE_TIMEOUT_MS, 'pub/sub subscribe');
             }
             catch (err)
             {
@@ -261,9 +331,6 @@ export interface WireEventCacheOptions
      * Use distinct prefixes to isolate apps/tenants sharing one Redis.
      */
     channelPrefix?: string;
-
-    /** Emit a debug log line describing the chosen transport. */
-    debug?: boolean;
 }
 
 /**
@@ -278,12 +345,11 @@ export async function wireEventRouterCache(
     options: WireEventCacheOptions = {},
 ): Promise<'in-process' | 'redis'>
 {
+    // Logged at INFO (not debug): operators must be able to confirm from prod logs
+    // whether cross-pod fan-out is actually live, and whether any event degraded.
     if (options.multiInstance === false)
     {
-        if (options.debug)
-        {
-            transportLogger.info('Event transport: in-process (multiInstance disabled)');
-        }
+        transportLogger.info('Event transport: in-process (multiInstance disabled)');
 
         return 'in-process';
     }
@@ -291,21 +357,22 @@ export async function wireEventRouterCache(
     const pubSubCache = await resolvePubSubCache(options.channelPrefix);
     if (!pubSubCache)
     {
-        if (options.debug)
-        {
-            transportLogger.info('Event transport: in-process (no cache configured)');
-        }
+        transportLogger.info('Event transport: in-process (no cache configured)');
 
         return 'in-process';
     }
 
     const events = router.events as Record<string, WirableEvent>;
+    let wired = 0;
+    let degraded = 0;
+    let alreadyWired = 0;
 
     for (const key of Object.keys(events))
     {
         const event = events[key];
         if (state.wired.has(event.name))
         {
+            alreadyWired++; // e.g. an event shared by the SSE and WS routers
             continue;
         }
 
@@ -313,12 +380,14 @@ export async function wireEventRouterCache(
         {
             await event.useCache(pubSubCache);
             state.wired.set(event.name, event);
+            wired++;
         }
         catch (err)
         {
             // Degrade this event to in-process rather than aborting startup — a
             // transient SUBSCRIBE failure must not crash the pod. Not marked
             // wired, so a later wiring pass can retry it.
+            degraded++;
             transportLogger.warn('Event cache wiring failed — staying in-process for this event', {
                 event: event.name,
                 error: err instanceof Error ? err.message : String(err),
@@ -326,12 +395,24 @@ export async function wireEventRouterCache(
         }
     }
 
-    if (options.debug)
+    // Every event degraded (and none were already wired) → fan-out is effectively
+    // dead for this router; report in-process honestly instead of a false 'redis'.
+    if (wired + alreadyWired === 0)
     {
-        transportLogger.info('Event transport: redis (cross-pod fan-out enabled)', {
-            events: Object.keys(events).length,
+        transportLogger.warn('Event transport: redis configured but no event wired — running in-process', {
+            total: Object.keys(events).length,
+            degraded,
         });
+
+        return 'in-process';
     }
+
+    transportLogger.info('Event transport: redis (cross-pod fan-out)', {
+        total: Object.keys(events).length,
+        wired,
+        degraded,
+        alreadyWired,
+    });
 
     return 'redis';
 }

@@ -24,6 +24,7 @@ import { getCache } from '@spfn/core/cache';
 // Reset the global transport singleton between tests (wired set, cached pubSubCache).
 afterEach(async () =>
 {
+    vi.useRealTimers(); // restore before closeEventTransport (which uses a real timer race)
     await closeEventTransport();
     (getCache as unknown as Mock).mockReturnValue(undefined);
 });
@@ -265,6 +266,102 @@ describe('createRedisPubSubCache', () =>
         expect(received[0]).toBe(fn); // delivered locally (live object)
     });
 
+    it('falls back to local delivery when publish hangs (timeout-bound)', async () =>
+    {
+        vi.useFakeTimers();
+
+        const subscriberStub = { subscribe: vi.fn().mockResolvedValue(undefined), on: vi.fn() };
+        const client = {
+            publish: vi.fn(() => new Promise(() => undefined)), // never settles (wedged socket)
+            duplicate: vi.fn().mockReturnValue(subscriberStub),
+            subscribe: vi.fn(),
+            on: vi.fn(),
+        };
+
+        const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
+
+        const received: unknown[] = [];
+        await cache.subscribe('x', (payload) =>
+        {
+            received.push(payload);
+        });
+
+        const pending = cache.publish('x', { a: 1 });
+        await vi.advanceTimersByTimeAsync(5000); // trip the publish timeout
+        await expect(pending).resolves.toBeUndefined(); // emit never hangs
+
+        expect(received).toEqual([{ a: 1 }]); // delivered locally after the timeout
+    });
+
+    it('rejects (degrades) when SUBSCRIBE hangs (timeout-bound)', async () =>
+    {
+        vi.useFakeTimers();
+
+        const subscriberStub = {
+            subscribe: vi.fn(() => new Promise(() => undefined)), // never settles
+            on: vi.fn(),
+            quit: vi.fn().mockResolvedValue('OK'),
+        };
+        const client = {
+            publish: vi.fn(),
+            duplicate: vi.fn().mockReturnValue(subscriberStub),
+            subscribe: vi.fn(),
+            on: vi.fn(),
+        };
+
+        const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
+
+        const pending = cache.subscribe('x', () => undefined);
+        const assertion = expect(pending).rejects.toThrow(/timed out/);
+        await vi.advanceTimersByTimeAsync(5000);
+        await assertion;
+
+        expect(subscriberStub.quit).toHaveBeenCalled(); // half-open connection torn down
+    });
+
+    it('drops malformed and unknown-channel redis messages without throwing', async () =>
+    {
+        let onMessage: ((channel: string, raw: string) => void) | undefined;
+        let onError: ((err: Error) => void) | undefined;
+        const subscriberStub = {
+            subscribe: vi.fn().mockResolvedValue(undefined),
+            on: vi.fn((event: string, fn: any) =>
+            {
+                if (event === 'message') onMessage = fn;
+                if (event === 'error') onError = fn;
+            }),
+        };
+        const client = {
+            publish: vi.fn(),
+            duplicate: vi.fn().mockReturnValue(subscriberStub),
+            subscribe: vi.fn(),
+            on: vi.fn(),
+        };
+
+        const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
+
+        const received: unknown[] = [];
+        await cache.subscribe('known', (payload) =>
+        {
+            received.push(payload);
+        });
+
+        // Listeners were attached.
+        expect(onMessage).toBeTypeOf('function');
+        expect(onError).toBeTypeOf('function');
+
+        // No handler for this channel → ignored, no throw.
+        expect(() => onMessage!('spfn:sse:unknown', '{"a":1}')).not.toThrow();
+        // Malformed JSON on a known channel → parse fails → dropped, no throw.
+        expect(() => onMessage!('spfn:sse:known', 'not json{')).not.toThrow();
+        // Subscriber error → logged (throttled), no throw.
+        expect(() => onError!(new Error('ECONNRESET'))).not.toThrow();
+        // A valid message still gets through.
+        onMessage!('spfn:sse:known', '{"a":2}');
+
+        expect(received).toEqual([{ a: 2 }]);
+    });
+
     it('tears down the subscriber when the first SUBSCRIBE fails so a retry rebuilds', async () =>
     {
         const deadSub = {
@@ -461,7 +558,7 @@ describe('closeEventTransport', () =>
     it('quits the subscriber connection and is a no-op when none was opened', async () =>
     {
         const quit = vi.fn().mockResolvedValue('OK');
-        const subscriber = { subscribe: vi.fn(), on: vi.fn(), quit };
+        const subscriber = { subscribe: vi.fn().mockResolvedValue(undefined), on: vi.fn(), quit };
         const client = {
             publish: vi.fn().mockResolvedValue(1),
             duplicate: vi.fn().mockReturnValue(subscriber),
@@ -483,5 +580,28 @@ describe('closeEventTransport', () =>
         // closeEventTransport only quits the singleton subscriber, not this local one,
         // so a bare call with nothing wired must not throw.
         await expect(closeEventTransport()).resolves.toBeUndefined();
+    });
+
+    it('does not hang shutdown when the subscriber quit() never resolves', async () =>
+    {
+        vi.useFakeTimers();
+
+        const hangingSub = {
+            subscribe: vi.fn().mockResolvedValue(undefined),
+            on: vi.fn(),
+            quit: vi.fn(() => new Promise(() => undefined)), // never settles (wedged socket)
+        };
+        const client = new FakeRedis(new FakeBus());
+        vi.spyOn(client, 'duplicate').mockReturnValue(hangingSub as any);
+        (getCache as unknown as Mock).mockReturnValue(client);
+
+        const evt = defineEvent('quitHang', Type.Object({}));
+        await wireEventRouterCache(defineEventRouter({ evt }));
+
+        const pending = closeEventTransport();
+        await vi.advanceTimersByTimeAsync(5000); // trip the quit timeout
+        await expect(pending).resolves.toBeUndefined(); // shutdown proceeds anyway
+
+        expect(hangingSub.quit).toHaveBeenCalled();
     });
 });
