@@ -240,6 +240,31 @@ describe('createRedisPubSubCache', () =>
         expect(received).toEqual([{ big: 10n }]); // but local subscriber still got it
     });
 
+    it('never rejects nor publishes when the payload serializes to undefined (function/symbol)', async () =>
+    {
+        const subscriberStub = { subscribe: vi.fn().mockResolvedValue(undefined), on: vi.fn() };
+        const client = {
+            publish: vi.fn().mockResolvedValue(1),
+            duplicate: vi.fn().mockReturnValue(subscriberStub),
+            subscribe: vi.fn(),
+            on: vi.fn(),
+        };
+
+        const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
+
+        const received: unknown[] = [];
+        await cache.subscribe('fn', (payload) =>
+        {
+            received.push(payload);
+        });
+
+        const fn = () => 'token';
+        // Must not reject (publish-never-kills-emit invariant) and must not reach the wire.
+        await expect(cache.publish('fn', fn)).resolves.toBeUndefined();
+        expect(client.publish).not.toHaveBeenCalled();
+        expect(received[0]).toBe(fn); // delivered locally (live object)
+    });
+
     it('tears down the subscriber when the first SUBSCRIBE fails so a retry rebuilds', async () =>
     {
         const deadSub = {
@@ -356,6 +381,24 @@ describe('wireEventRouterCache', () =>
         expect(pub2).toHaveBeenCalled();
         expect(pub1).not.toHaveBeenCalled();
         expect(received).toEqual([{ n: 7 }]);
+    });
+
+    it('keeps the first wiring channelPrefix process-global (a later, different prefix is ignored)', async () =>
+    {
+        const client = new FakeRedis(new FakeBus());
+        const pubSpy = vi.spyOn(client, 'publish');
+        (getCache as unknown as Mock).mockReturnValue(client);
+
+        const e1 = defineEvent('pfx1', Type.Object({}));
+        const e2 = defineEvent('pfx2', Type.Object({}));
+
+        await wireEventRouterCache(defineEventRouter({ e1 }), { channelPrefix: 'app-a:' });
+        await wireEventRouterCache(defineEventRouter({ e2 }), { channelPrefix: 'app-b:' });
+
+        await e2.emit({});
+
+        // e2 publishes on the FIRST prefix (app-a:), not its own app-b: — process-global.
+        expect(pubSpy).toHaveBeenCalledWith('app-a:pfx2', expect.any(String));
     });
 
     it('degrades a single event to in-process when its useCache rejects, without throwing', async () =>

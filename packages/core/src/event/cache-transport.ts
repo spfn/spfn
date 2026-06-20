@@ -55,6 +55,7 @@ interface TransportState
 {
     pubSubCache: PubSubCache | undefined;
     subscriber: PubSubClient | undefined;
+    channelPrefix: string | undefined;
     wired: Map<string, WirableEvent>;
 }
 
@@ -63,6 +64,7 @@ const STATE_KEY = Symbol.for('@spfn/core:event-transport');
 const state: TransportState = ((globalThis as any)[STATE_KEY] ??= {
     pubSubCache: undefined,
     subscriber: undefined,
+    channelPrefix: undefined,
     wired: new Map<string, WirableEvent>(),
 });
 
@@ -158,7 +160,10 @@ export function createRedisPubSubCache(
         {
             const channel = channelPrefix + name;
 
-            let serialized: string;
+            // `string | undefined`: JSON.stringify returns undefined (no throw) for a
+            // top-level function/symbol, and throws for bigint/circular. Both mean
+            // "can't cross Redis" — handle each as a local-only delivery.
+            let serialized: string | undefined;
             try
             {
                 // `?? null` so void-payload events serialize to "null" rather than
@@ -173,6 +178,19 @@ export function createRedisPubSubCache(
                 transportLogger.warn('Pub/sub payload serialization failed — local delivery only', {
                     channel,
                     error: err instanceof Error ? err.message : String(err),
+                });
+                deliverLocal(channel, message ?? null);
+
+                return;
+            }
+
+            if (serialized === undefined)
+            {
+                // Top-level function/symbol payload — JSON.stringify yields undefined.
+                // Publishing that is meaningless and re-parsing it later would throw,
+                // so deliver locally and stop (guards the "publish never kills emit").
+                transportLogger.warn('Pub/sub payload not serializable (function/symbol) — local delivery only', {
+                    channel,
                 });
                 deliverLocal(channel, message ?? null);
 
@@ -324,8 +342,21 @@ export async function wireEventRouterCache(
  */
 async function resolvePubSubCache(channelPrefix?: string): Promise<PubSubCache | undefined>
 {
+    const resolvedPrefix = resolveChannelPrefix(channelPrefix);
+
     if (state.pubSubCache)
     {
+        // The transport (and its prefix) is process-global, resolved once on the
+        // first wiring. Warn if a later router (.websockets() after .events())
+        // asks for a different prefix — it's silently ignored, not applied.
+        if (state.channelPrefix !== resolvedPrefix)
+        {
+            transportLogger.warn('Conflicting channelPrefix ignored — the transport prefix is process-global (first wiring wins).', {
+                active: state.channelPrefix,
+                ignored: resolvedPrefix,
+            });
+        }
+
         return state.pubSubCache;
     }
 
@@ -357,9 +388,10 @@ async function resolvePubSubCache(channelPrefix?: string): Promise<PubSubCache |
         );
     }
 
+    state.channelPrefix = resolvedPrefix;
     state.pubSubCache = createRedisPubSubCache(
         client,
-        resolveChannelPrefix(channelPrefix),
+        resolvedPrefix,
         (connection) =>
         {
             state.subscriber = connection;
@@ -392,6 +424,7 @@ export async function closeEventTransport(): Promise<void>
 
     state.subscriber = undefined;
     state.pubSubCache = undefined;
+    state.channelPrefix = undefined;
     state.wired.clear();
 
     if (!subscriber?.quit)

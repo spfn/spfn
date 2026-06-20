@@ -477,6 +477,11 @@ regardless of cache.
 > `Date` arrives as an ISO string; a void event arrives as `null` on remote pods (vs
 > `undefined` in-process). `bigint`/circular payloads can't serialize — see degrade below.
 >
+> **Ordering needs sequential `await`.** Per-channel order is preserved end-to-end only if
+> the producer awaits each emit in turn (`for (const c of chunks) await event.emit(c)`).
+> Fire-and-forget (`chunks.forEach(c => event.emit(c))`) races the publishes and can reorder
+> a token stream. The transport adds no sequence number.
+>
 > **Channel isolation.** The default prefix `spfn:sse:` is shared by every SPFN app, so apps
 > sharing **one** Redis with a colliding event name would cross-talk. Set `channelPrefix` /
 > `SPFN_SSE_CHANNEL_PREFIX` per app (the server logs a WARN at startup if you're on the
@@ -485,7 +490,7 @@ regardless of cache.
 **Degrade**: SSE is lossy (at-most-once). If a publish can't reach Redis (a blip) or the
 payload can't serialize, the event is **still delivered to this pod's own subscribers**
 (local fallback) and logged; only **remote** pods miss it. A publish never crashes `emit` or
-kills a stream. ioredis auto-reconnects and re-subscribes. A per-event SUBSCRIBE failure at
+kills a stream. ioredis auto-reconnects and re-subscribes (autoResubscribe, default true). A per-event SUBSCRIBE failure at
 startup degrades that event to in-process (logged) rather than aborting boot. Same-pod
 delivery costs one Redis round-trip — for a single-replica deploy with a cache, prefer
 `multiInstance: false` to skip it.
