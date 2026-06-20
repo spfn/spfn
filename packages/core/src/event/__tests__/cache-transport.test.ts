@@ -309,6 +309,57 @@ describe('createRedisPubSubCache', () =>
         expect(received).toEqual([{ n: 1 }, { n: 2 }, { n: 3 }]); // all delivered locally
     });
 
+    it('delivers same-pod locally on publish success when the subscriber connection is down', async () =>
+    {
+        const subscriberStub = { subscribe: vi.fn().mockResolvedValue(undefined), on: vi.fn(), status: 'close' };
+        const client = {
+            status: 'ready', // write client healthy
+            publish: vi.fn().mockResolvedValue(1), // PUBLISH succeeds (remote pods get it)
+            duplicate: vi.fn().mockReturnValue(subscriberStub),
+            subscribe: vi.fn(),
+            on: vi.fn(),
+        };
+
+        const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
+
+        const received: unknown[] = [];
+        await cache.subscribe('x', (payload) =>
+        {
+            received.push(payload);
+        });
+
+        await cache.publish('x', { n: 1 });
+
+        expect(client.publish).toHaveBeenCalledOnce(); // cross-pod send still happened
+        expect(received).toEqual([{ n: 1 }]); // same-pod covered locally (echo can't arrive)
+    });
+
+    it('does not double-deliver on publish success when the subscriber is healthy', async () =>
+    {
+        const subscriberStub = { subscribe: vi.fn().mockResolvedValue(undefined), on: vi.fn(), status: 'ready' };
+        const client = {
+            status: 'ready',
+            publish: vi.fn().mockResolvedValue(1),
+            duplicate: vi.fn().mockReturnValue(subscriberStub),
+            subscribe: vi.fn(),
+            on: vi.fn(),
+        };
+
+        const cache = createRedisPubSubCache(client as any, 'spfn:sse:');
+
+        const received: unknown[] = [];
+        await cache.subscribe('x', (payload) =>
+        {
+            received.push(payload);
+        });
+
+        await cache.publish('x', { n: 1 });
+
+        // Healthy subscriber → delivery comes via the echo, not local — no local push here.
+        expect(client.publish).toHaveBeenCalledOnce();
+        expect(received).toEqual([]);
+    });
+
     it('skips publish (no offline-queue duplicate) when the client is not connected', async () =>
     {
         const subscriberStub = { subscribe: vi.fn().mockResolvedValue(undefined), on: vi.fn() };

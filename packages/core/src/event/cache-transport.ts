@@ -222,6 +222,13 @@ export function createRedisPubSubCache(
     // race — Redis broadcast, then the publisher's reply dropped — can deliver
     // both here and via the echo. We accept that rare duplicate over dropping,
     // since SSE is lossy and a frozen stream is worse than a repeated chunk.
+    // Same-pod subscribers are fed ONLY by the echo on the subscriber connection
+    // (a separate socket from the write client). If it isn't connected, a successful
+    // publish still won't reach this pod's own streams — so they need the local
+    // fallback. A status-less subscriber (test mocks) is treated as healthy.
+    const subscriberHealthy = (): boolean =>
+        !!subscriber && (subscriber.status === undefined || subscriber.status === 'ready');
+
     const deliverLocal = (channel: string, message: unknown): void =>
     {
         const handler = handlers.get(channel);
@@ -304,6 +311,18 @@ export function createRedisPubSubCache(
                 // forever and hang `emit` (and the request that called it).
                 await withTimeout(client.publish(channel, serialized), PUBLISH_TIMEOUT_MS, 'pub/sub publish');
                 degradedUntil = 0; // success → close the breaker
+
+                // Publish reached Redis (remote pods get it via their echo), but if THIS
+                // pod's subscriber socket is down its echo won't arrive — cover same-pod
+                // subscribers locally. No double-delivery: Redis doesn't buffer for a
+                // disconnected subscriber, so the missed echo never arrives later.
+                if (!subscriberHealthy())
+                {
+                    throttledWarn('subscriber-down', 'Subscriber connection down — same-pod local fallback', {
+                        channel,
+                    });
+                    deliverLocal(channel, JSON.parse(serialized));
+                }
             }
             catch (err)
             {

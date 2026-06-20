@@ -496,8 +496,12 @@ regardless of cache.
 
 **Degrade**: SSE is lossy (at-most-once). If a publish can't reach Redis (a blip) or the
 payload can't serialize, the event is **still delivered to this pod's own subscribers**
-(local fallback) and logged; only **remote** pods miss it. A publish never crashes `emit` or
-kills a stream. ioredis auto-reconnects and re-subscribes (autoResubscribe, default true). A per-event SUBSCRIBE failure at
+(local fallback) and logged; only **remote** pods miss it. The same local fallback covers the
+asymmetric case where the publish succeeds but **this pod's subscriber socket is down** (its
+echo — the only path to same-pod streams — wouldn't arrive). A sustained publish outage trips
+a short circuit breaker so emits fast-path to local instead of each paying the publish timeout.
+A publish never crashes `emit` or kills a stream. ioredis auto-reconnects and re-subscribes
+(autoResubscribe, default true). A per-event SUBSCRIBE failure at
 startup degrades that event to in-process (logged) rather than aborting boot. Same-pod
 delivery costs one Redis round-trip — for a single-replica deploy with a cache, prefer
 `multiInstance: false` to skip it.
