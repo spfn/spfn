@@ -13,6 +13,7 @@ import { registerRoutes, type RegisteredRoute } from '@spfn/core/route';
 import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
 import { createSSEHandler } from '../event/sse/handler';
 import { SSETokenManager, CacheTokenStore } from '../event/sse/token-manager';
+import { wireEventRouterCache } from '../event/cache-transport';
 import { createHealthCheckHandler } from './helpers';
 import { serverLogger } from './logger';
 
@@ -310,6 +311,14 @@ async function registerSSEEndpoint(app: Hono, config?: ServerConfig): Promise<vo
         }
     }
 
+    // Auto-wire cross-pod event broadcast (Redis pub/sub) when a cache is present.
+    // Without a cache this is a no-op and events stay in-process.
+    const transport = await wireEventRouterCache(config.events, {
+        multiInstance: eventsConfig.multiInstance,
+        channelPrefix: eventsConfig.channelPrefix,
+        debug,
+    });
+
     // Register SSE stream handler
     app.get(streamPath, createSSEHandler(config.events, eventsConfig, tokenManager));
 
@@ -319,6 +328,7 @@ async function registerSSEEndpoint(app: Hono, config?: ServerConfig): Promise<vo
         serverLogger.info(`✓ SSE endpoint registered at ${streamPath}`, {
             events: eventNames,
             auth: !!authConfig?.enabled,
+            transport,
         });
     }
 }
