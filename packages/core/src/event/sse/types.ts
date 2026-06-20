@@ -160,6 +160,14 @@ export interface SSEHandlerConfig
     headers?: Record<string, string>;
 
     /**
+     * Max outbound frames buffered per connection before a slow consumer is
+     * dropped (connection closed). Bounds memory under a fast producer + slow
+     * client; the client reconnects rather than receiving corrupted/partial data.
+     * @default 1000
+     */
+    maxQueue?: number;
+
+    /**
      * Cross-pod event broadcast via the cache (Redis/Valkey) pub/sub.
      *
      * When `true` (default) and a cache is configured (`CACHE_URL`), each event
