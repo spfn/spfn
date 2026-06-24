@@ -139,6 +139,71 @@ describe('createProxyGuard', () =>
             const json = await res.json();
             expect(json.clientType).toBe('web');
         });
+
+        it('tags by signature only, ignoring the origin allowlist (no metric skew)', async () =>
+        {
+            const taggingGuard = createProxyGuard({
+                mode: 'tag',
+                secret: SECRET,
+                allowedOrigins: ['https://app.example.com'],
+            });
+            const app = buildApp(taggingGuard);
+            const body = JSON.stringify({ name: 'Ray' });
+
+            const res = await app.request('/users', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    origin: 'https://evil.example.com',
+                    ...signedHeaders('POST', '/users', body),
+                },
+                body,
+            });
+
+            // Valid signature from a non-allowlisted origin is still 'web' in tag mode.
+            expect((await res.json()).clientType).toBe('web');
+        });
+    });
+
+    describe('availability & limits', () =>
+    {
+        it('degrades to allow (not 500) when the nonce store throws', async () =>
+        {
+            const flakyStore: NonceStore = {
+                async checkAndSet()
+                {
+                    throw new Error('redis unreachable');
+                },
+            };
+            const guard = createProxyGuard({ mode: 'strict', secret: SECRET, nonceStore: flakyStore });
+            const app = buildApp(guard);
+
+            const res = await app.request('/users/9', {
+                method: 'GET',
+                headers: { ...signedHeaders('GET', '/users/9') },
+            });
+
+            expect(res.status).toBe(200);
+        });
+
+        it('rejects an oversized body with 413 before hashing (strict)', async () =>
+        {
+            const guard = createProxyGuard({ mode: 'strict', secret: SECRET, maxBodyBytes: 16 });
+            const app = buildApp(guard);
+            const body = JSON.stringify({ data: 'x'.repeat(200) });
+
+            const res = await app.request('/users', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    'content-length': String(body.length),
+                    ...signedHeaders('POST', '/users', body),
+                },
+                body,
+            });
+
+            expect(res.status).toBe(413);
+        });
     });
 
     describe('mode: off', () =>

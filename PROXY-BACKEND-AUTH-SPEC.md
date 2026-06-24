@@ -47,8 +47,13 @@
 
 - **fail-closed**: `strict`인데 키가 미설정이면 미들웨어 생성 시 throw(서버 시작 실패) — 검증 불가 상태로
   문이 열린 채 뜨지 않게. `tag`는 관측 모드라 키 없으면 전부 `untrusted` 태깅하고 통과(경고).
-- **자동 skip**: health·SSE(`/events/stream`, `/token`)·WS 경로와 OPTIONS preflight는 서명 없이 통과.
-  프록시를 거치지 않는 정상 트래픽(EventSource는 커스텀 헤더 불가, preflight는 비-mutating)이라 막으면 안 됨.
+- **자동 skip**: health·SSE 스트림(`/events/stream`)·WS 경로는 서명 없이 통과(EventSource는 커스텀 헤더 불가).
+  단 SSE **토큰(POST)** 은 프록시를 거치고 자격증명을 발급하므로 skip하지 않고 검증한다.
+  OPTIONS preflight는 서명 면제(비-mutating)하되 strict면 origin은 검사.
+- **모드별 차이**: origin allowlist는 **strict 게이트**(거부). `tag`는 origin을 무시하고 `clientType`을
+  *서명만으로* 결정해 관측 지표가 왜곡되지 않게 한다. nonce·body-cap도 strict에서만 동작.
+- **body-cap**: `maxBodyBytes` 설정 시 Content-Length 초과 요청을 해시 전에 413으로 거부(가드가 버퍼링하는
+  메모리 상한). multipart는 비대상. 미설정이면 무제한(기존 동작).
 
 ### B. Origin allowlist 검증
 
@@ -63,6 +68,8 @@
   한 번 쓴 nonce 거부.
 - **옵셔널**: 모두가 Redis를 쓰진 않음. `CACHE_URL`(SSE/토큰 store와 동일 컨벤션) 있을 때만 활성,
   없으면 timestamp 윈도우로만 동작. 옵션 플래그로 민감 라우트에만 켤 수도.
+- **degrade**: store가 잠깐 불통이면 timestamp 윈도우로 폴백(통과 + 경고). Redis blip이 정상 트래픽을
+  500으로 만들지 않게 — replay 하드닝이 가용성을 떨어뜨리면 안 됨.
 
 ### D. enforcement 모드 (config 옵션)
 

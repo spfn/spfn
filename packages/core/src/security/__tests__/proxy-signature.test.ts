@@ -52,6 +52,13 @@ describe('proxy-signature', () =>
                 { keyId: 'v0', secret: 'older' },
             ]);
         });
+
+        it('exposes the active key as [0] for a comma key set (proxy parity)', () =>
+        {
+            // The proxy signs with parseProxyKeySet([secret])[0]; it MUST match the
+            // active key the backend selects from the same env var.
+            expect(parseProxyKeySet(['v2:new,v1:old'])[0]).toEqual({ keyId: 'v2', secret: 'new' });
+        });
     });
 
     describe('sign → verify round-trip', () =>

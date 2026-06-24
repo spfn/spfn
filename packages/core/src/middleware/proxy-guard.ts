@@ -94,11 +94,18 @@ export interface ProxyGuardConfig
      */
     allowedOrigins?: string[];
 
-    /** Optional Redis-backed nonce store for hard replay rejection. */
+    /** Optional Redis-backed nonce store for hard replay rejection (strict mode only). */
     nonceStore?: NonceStore;
 
     /** Paths to skip entirely (e.g. health checks). */
     skipPaths?: string[];
+
+    /**
+     * Reject (413) requests whose Content-Length exceeds this many bytes BEFORE
+     * buffering the body for hashing — bounds the per-request memory the guard
+     * adds. Undefined = no cap (default). Does not apply to multipart (unsigned).
+     */
+    maxBodyBytes?: number;
 }
 
 // ============================================================================
@@ -148,6 +155,30 @@ async function readRawBody(c: Context): Promise<string | undefined>
     }
 }
 
+/**
+ * Whether the request's declared Content-Length exceeds the cap. Checked before
+ * the body is read so the guard never buffers an oversized payload. Multipart is
+ * exempt (the guard doesn't hash it).
+ */
+function isBodyOverLimit(c: Context, maxBytes: number): boolean
+{
+    const method = c.req.method;
+    if (method === 'GET' || method === 'HEAD')
+    {
+        return false;
+    }
+
+    const contentType = c.req.header('content-type') || '';
+    if (contentType.includes('multipart/form-data'))
+    {
+        return false;
+    }
+
+    const len = Number(c.req.header('content-length'));
+
+    return Number.isFinite(len) && len > maxBytes;
+}
+
 function isOriginAllowed(c: Context, allowedOrigins: string[] | undefined): boolean
 {
     if (!allowedOrigins || allowedOrigins.length === 0)
@@ -187,6 +218,7 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
     const allowedOrigins = config.allowedOrigins;
     const nonceStore = config.nonceStore;
     const skipPaths = new Set(config.skipPaths ?? []);
+    const maxBodyBytes = config.maxBodyBytes;
 
     // Accepted key set: active secret first (wins on keyId collision), then grace keys.
     const activeRaw = config.secret ?? env.SPFN_PROXY_SECRET;
@@ -223,19 +255,27 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
 
     return async (c: Context, next: Next) =>
     {
-        // OPTIONS (CORS preflight) carries no signature and is non-mutating — never block it.
-        if (mode === 'off' || c.req.method === 'OPTIONS' || skipPaths.has(c.req.path))
+        if (mode === 'off' || skipPaths.has(c.req.path))
         {
             return next();
         }
 
-        // 1. Origin allowlist (browser cross-origin guard)
-        if (!isOriginAllowed(c, allowedOrigins))
+        // 1. Origin allowlist is a STRICT-mode gate. In tag mode we don't gate on it —
+        //    clientType is decided purely by the signature, so observe-only metrics
+        //    aren't skewed by a valid-but-cross-origin request.
+        if (mode === 'strict' && !isOriginAllowed(c, allowedOrigins))
         {
             return reject(c, mode, next, 'origin-not-allowed');
         }
 
-        // 2. No accepted key — only reachable in tag mode (strict throws at construction).
+        // 2. OPTIONS preflight carries no signature and is non-mutating — exempt from
+        //    the signature check (the origin gate above still applied in strict).
+        if (c.req.method === 'OPTIONS')
+        {
+            return next();
+        }
+
+        // 3. No accepted key — only reachable in tag mode (strict throws at construction).
         if (keys.length === 0)
         {
             c.set('clientType', 'untrusted');
@@ -243,7 +283,21 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return next();
         }
 
-        // 3. HMAC over the wire request-target (raw path + query) and body. Use the raw
+        // 4. Bound the memory the guard buffers for hashing: reject oversized bodies
+        //    BEFORE reading them (multipart is unsigned and exempt).
+        if (maxBodyBytes && isBodyOverLimit(c, maxBodyBytes))
+        {
+            if (mode === 'strict')
+            {
+                return c.json({ error: 'Payload Too Large' }, 413);
+            }
+
+            c.set('clientType', 'untrusted');
+
+            return next();
+        }
+
+        // 5. HMAC over the wire request-target (raw path + query) and body. Use the raw
         //    URL, NOT the decoded c.req.path, so it matches the bytes the proxy signed.
         const url = new URL(c.req.url);
         const body = await readRawBody(c);
@@ -265,13 +319,24 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return reject(c, mode, next, result.reason);
         }
 
-        // 4. Optional hard replay rejection via nonce store
-        if (nonceStore && result.nonce)
+        // 6. Hard replay rejection via nonce store — STRICT only (tag never blocks, so
+        //    the round-trip would be wasted). Degrade to the timestamp window if the
+        //    store is briefly unavailable rather than 500-ing valid traffic.
+        if (mode === 'strict' && nonceStore && result.nonce)
         {
-            const fresh = await nonceStore.checkAndSet(result.nonce, windowMs * 2);
-            if (!fresh)
+            try
             {
-                return reject(c, mode, next, 'nonce-replay');
+                const fresh = await nonceStore.checkAndSet(result.nonce, windowMs * 2);
+                if (!fresh)
+                {
+                    return reject(c, mode, next, 'nonce-replay');
+                }
+            }
+            catch (err)
+            {
+                guardLogger.warn('Nonce store unavailable — falling back to timestamp window', {
+                    error: (err as Error).message,
+                });
             }
         }
 

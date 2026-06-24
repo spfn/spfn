@@ -194,13 +194,14 @@ async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
     }
 
     // Auto-skip endpoints that browsers reach WITHOUT going through the RPC proxy
-    // (so they carry no proxy signature): health probes, SSE streams (EventSource
-    // can't send custom headers), the SSE token endpoint, and WebSocket upgrades.
+    // (so they carry no proxy signature): health probes, the SSE stream (EventSource
+    // can't send custom headers), and WebSocket upgrades. The SSE *token* endpoint
+    // (POST) is deliberately NOT skipped — it goes through the proxy like any RPC
+    // call and mints credentials, so it must stay guarded.
     const autoSkip = [config?.healthCheck?.path ?? '/health'];
     if (config?.events)
     {
-        const streamPath = config.eventsConfig?.path ?? '/events/stream';
-        autoSkip.push(streamPath, streamPath.replace(/\/[^/]+$/, '/token'));
+        autoSkip.push(config.eventsConfig?.path ?? '/events/stream');
     }
     if (config?.websockets)
     {
@@ -214,6 +215,7 @@ async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
         previousSecrets: proxyGuardConfig?.previousSecrets,
         windowMs: proxyGuardConfig?.windowMs,
         allowedOrigins: proxyGuardConfig?.allowedOrigins,
+        maxBodyBytes: proxyGuardConfig?.maxBodyBytes,
         nonceStore,
         skipPaths,
     }));

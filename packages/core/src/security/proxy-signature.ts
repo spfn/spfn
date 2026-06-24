@@ -282,22 +282,16 @@ export interface VerifyInput
 }
 
 /**
- * Constant-time hex string comparison. Returns false on any length/format diff.
+ * Constant-time hex string comparison. Returns false on any length diff.
+ *
+ * Buffer.from(_, 'hex') does NOT throw on invalid hex — it silently truncates at
+ * the first bad char — so a malformed signature yields a shorter buffer that the
+ * length check rejects. No try/catch needed.
  */
 function safeEqualHex(a: string, b: string): boolean
 {
-    let bufA: Buffer;
-    let bufB: Buffer;
-
-    try
-    {
-        bufA = Buffer.from(a, 'hex');
-        bufB = Buffer.from(b, 'hex');
-    }
-    catch
-    {
-        return false;
-    }
+    const bufA = Buffer.from(a, 'hex');
+    const bufB = Buffer.from(b, 'hex');
 
     if (bufA.length === 0 || bufA.length !== bufB.length)
     {

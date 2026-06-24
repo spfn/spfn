@@ -23,7 +23,7 @@ import { env } from '@spfn/core/config';
 import { logger } from '@spfn/core/logger';
 import type { HttpMethod } from '@spfn/core/route';
 
-import { signProxyRequest, parseProxyKey } from '../../security/proxy-signature';
+import { signProxyRequest, parseProxyKeySet } from '../../security/proxy-signature';
 import { buildUrlWithParams, buildQueryString } from '../shared';
 import { interceptorRegistry } from './interceptors';
 import { executeRequestInterceptors, executeResponseInterceptors, filterMatchingInterceptors } from './interceptors';
@@ -124,7 +124,9 @@ export function createRpcProxy(config: RpcProxyConfig)
     } = config;
 
     // Parse the active signing key once — it's fixed for the proxy's lifetime.
-    const proxyKey = proxySecret ? parseProxyKey(proxySecret) : null;
+    // Use the SAME parser the backend uses (comma key set) and take the active key,
+    // so a `v2:new,v1:old` secret is interpreted identically on both sides.
+    const proxyKey = proxySecret ? (parseProxyKeySet([proxySecret])[0] ?? null) : null;
 
     /**
      * Resolve route info from routeMap
@@ -393,15 +395,15 @@ export function createRpcProxy(config: RpcProxyConfig)
             if (proxyKey)
             {
                 const signedBody = typeof fetchOptions.body === 'string' ? fetchOptions.body : undefined;
-                // Sign the FINAL target URL (parsed), so any base-path prefix in
-                // SPFN_API_URL is included exactly as the backend sees it via
-                // new URL(c.req.url).pathname/.search.
-                const signedUrl = new URL(targetUrl);
+                // Sign the route-relative path (no SPFN_API_URL base prefix) so it
+                // matches the backend's `new URL(c.req.url).pathname` whether the
+                // prefix is absent or stripped by an ingress. resolvedPath is already
+                // the percent-encoded wire form; queryString is the raw search.
                 const signatureHeaders = signProxyRequest({
                     key: proxyKey,
                     method: targetMethod,
-                    path: signedUrl.pathname,
-                    query: signedUrl.search,
+                    path: resolvedPath,
+                    query: queryString,
                     body: signedBody,
                 });
 

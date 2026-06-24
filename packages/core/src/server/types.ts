@@ -134,12 +134,19 @@ export interface ServerConfig
         /** Allowed clock skew / replay window in ms. @default 30000 */
         windowMs?: number;
 
-        /** Browser origin allowlist (cross-origin guard). */
+        /** Browser origin allowlist — enforced in strict mode only. */
         allowedOrigins?: string[];
 
         /**
-         * Enable hard replay rejection via a Redis nonce store. Requires a cache
-         * (CACHE_URL); without one, falls back to the timestamp window only.
+         * Reject (413) requests whose Content-Length exceeds this before the guard
+         * buffers the body for hashing. Bounds per-request memory. @default no cap
+         */
+        maxBodyBytes?: number;
+
+        /**
+         * Enable hard replay rejection via a Redis nonce store (strict mode only).
+         * Requires a cache (CACHE_URL); without one, falls back to the timestamp
+         * window. Degrades to the window if the store is briefly unavailable.
          * @default false
          */
         nonce?: boolean;
