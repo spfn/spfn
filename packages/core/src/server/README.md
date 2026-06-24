@@ -250,16 +250,21 @@ When there is no `app.ts`, `createServer` builds the app in this **fixed order**
 1. errorHandlerEnabled flag        (if middleware.errorHandler !== false)
 2. RequestLogger()                 (if middleware.logger !== false)
 3. cors(config.cors)               (if middleware.cors !== false && cors !== false)
-4. config.use[*]                   (raw custom middleware, in array order)
-5. health-check route              (GET config.healthCheck.path, default /health)
-6. lifecycle.beforeRoutes(app)
-7. registerRoutes(app, routes, middlewares)
-8. SSE endpoint                    (if .events(): GET /events/stream [+ POST token])
-9. lifecycle.afterRoutes(app)
-10. app.onError(ErrorHandler(...)) (if middleware.errorHandler !== false)
+4. proxyGuard                      (if proxyGuard.mode !== 'off')
+5. config.use[*]                   (raw custom middleware, in array order)
+6. health-check route              (GET config.healthCheck.path, default /health)
+7. lifecycle.beforeRoutes(app)
+8. registerRoutes(app, routes, middlewares)
+9. SSE endpoint                    (if .events(): GET /events/stream [+ POST token])
+10. lifecycle.afterRoutes(app)
+11. app.onError(ErrorHandler(...)) (if middleware.errorHandler !== false)
 ```
 
 - Each built-in is opt-out via `.middleware({ logger: false, cors: false, errorHandler: false })`.
+- **`proxyGuard`** is opt-in (`mode: 'off'` by default). When enabled via `.proxyGuard({...})`
+  it verifies the trusted-proxy HMAC signature + origin allowlist and tags `c.get('clientType')`.
+  The health-check path is skipped automatically so k8s probes are never blocked. See
+  `@spfn/core/middleware` and the root `PROXY-BACKEND-AUTH-SPEC.md`.
 - `.middleware({ onError })` forwards an error callback into `ErrorHandler` (e.g. Slack
   notifier) — it runs async and does not block the response.
 - Named `middlewares` (from `.middlewares()` / `.routes()`) are applied **per route** inside

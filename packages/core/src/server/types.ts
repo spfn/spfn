@@ -100,6 +100,55 @@ export interface ServerConfig
     use?: MiddlewareHandler[];
 
     /**
+     * Proxy-guard: verify requests came through the trusted Next.js RPC proxy
+     * (HMAC signature) and/or an allowed browser origin, then tag `clientType`.
+     * Lets the backend reject direct-to-backend calls that bypass the proxy.
+     *
+     * Disabled by default (`mode: 'off'`). Requires the same `SPFN_PROXY_SECRET`
+     * on the proxy and the backend. See PROXY-BACKEND-AUTH-SPEC.md.
+     *
+     * @example
+     * ```typescript
+     * .proxyGuard({ mode: 'strict', allowedOrigins: ['https://app.example.com'] })
+     * ```
+     */
+    proxyGuard?: {
+        /**
+         * Enforcement mode.
+         * - `off` (default): no-op.
+         * - `tag`: verify and set `clientType`, never reject (observe first).
+         * - `strict`: reject unverified requests with 403.
+         */
+        mode?: 'off' | 'tag' | 'strict';
+
+        /** Active shared HMAC secret (`<keyId>:<secret>`). @default env.SPFN_PROXY_SECRET */
+        secret?: string;
+
+        /**
+         * Previous (grace) keys still accepted during rotation — comma-separated
+         * `<keyId>:<secret>`. Verification-only; the proxy never signs with these.
+         * @default env.SPFN_PROXY_SECRET_PREVIOUS
+         */
+        previousSecrets?: string;
+
+        /** Allowed clock skew / replay window in ms. @default 30000 */
+        windowMs?: number;
+
+        /** Browser origin allowlist (cross-origin guard). */
+        allowedOrigins?: string[];
+
+        /**
+         * Enable hard replay rejection via a Redis nonce store. Requires a cache
+         * (CACHE_URL); without one, falls back to the timestamp window only.
+         * @default false
+         */
+        nonce?: boolean;
+
+        /** Paths to skip (health check path is always skipped automatically). */
+        skipPaths?: string[];
+    };
+
+    /**
      * Global middlewares with names for route-level skip control
      * Use defineMiddleware() for type-safe middleware definitions
      *

@@ -23,6 +23,7 @@ import { env } from '@spfn/core/config';
 import { logger } from '@spfn/core/logger';
 import type { HttpMethod } from '@spfn/core/route';
 
+import { signProxyRequest, parseProxyKey } from '../../security/proxy-signature';
 import { buildUrlWithParams, buildQueryString } from '../shared';
 import { interceptorRegistry } from './interceptors';
 import { executeRequestInterceptors, executeResponseInterceptors, filterMatchingInterceptors } from './interceptors';
@@ -81,6 +82,17 @@ export interface RpcProxyConfig extends Omit<TypedProxyConfig, 'onRequest' | 'on
      * ```
      */
     routeMap: RouteMap;
+
+    /**
+     * Shared secret for signing proxy→backend requests (HMAC-SHA256).
+     *
+     * When set, every forwarded request carries an HMAC signature the backend's
+     * proxy-guard middleware verifies, letting it reject direct-to-backend calls
+     * that bypass this proxy. Set the SAME value here and on the backend.
+     *
+     * @default process.env.SPFN_PROXY_SECRET (undefined → signing disabled)
+     */
+    proxySecret?: string;
 }
 
 // ============================================================================
@@ -107,6 +119,7 @@ export function createRpcProxy(config: RpcProxyConfig)
         interceptors,
         autoDiscoverInterceptors = true,
         disableAutoInterceptors,
+        proxySecret = env.SPFN_PROXY_SECRET,
         routeMap,
     } = config;
 
@@ -365,6 +378,28 @@ export function createRpcProxy(config: RpcProxyConfig)
                 if (requestCtx.body)
                 {
                     fetchOptions.body = JSON.stringify(requestCtx.body);
+                }
+            }
+
+            // ============================================================
+            // Proxy → Backend signature (proxy-guard)
+            // ============================================================
+            // Sign the FINAL request (after interceptors settled body/headers) so
+            // the backend can prove it came through this trusted proxy. JSON body
+            // is hashed into the signature; large multipart uploads are excluded.
+            if (proxySecret)
+            {
+                const signedBody = typeof fetchOptions.body === 'string' ? fetchOptions.body : undefined;
+                const signatureHeaders = signProxyRequest({
+                    key: parseProxyKey(proxySecret),
+                    method: targetMethod,
+                    path: resolvedPath,
+                    body: signedBody,
+                });
+
+                for (const [headerName, value] of Object.entries(signatureHeaders))
+                {
+                    headers.set(headerName, value);
                 }
             }
 

@@ -379,4 +379,24 @@ export const coreEnvSchema = defineEnvSchema({
         nextjs: true,
         examples: [60000, 120000, 280000],
     }),
+
+    // ========================================================================
+    // Proxy → Backend trust (HMAC signing)
+    // ========================================================================
+
+    SPFN_PROXY_SECRET: envString({
+        description: 'Shared secret for signing proxy→backend requests (HMAC-SHA256). Read by BOTH processes — the Next.js proxy (to sign) and the SPFN backend (to verify) — so it belongs in .env.local (loaded by both; the backend reads it via loadEnv, Next.js reads it server-side without exposing it to the browser). Set the SAME value on both. Leave unset to disable proxy-guard signing.',
+        required: false,
+        sensitive: true,
+        nextjs: true,
+        examples: ['<32+ byte random hex>', 'v2:<32+ byte random hex>'],
+    }),
+
+    SPFN_PROXY_SECRET_PREVIOUS: envString({
+        description: 'Previous (grace) proxy keys still accepted for verification during rotation — comma-separated <keyId>:<secret>. The proxy never signs with these; they only keep requests signed with the prior key verifying until a rollout settles. Backend-only (verification), so it belongs in .env.server, NOT exposed to the Next.js process.',
+        required: false,
+        sensitive: true,
+        nextjs: false,
+        examples: ['v1:<old secret>', 'v1:<old>,v0:<older>'],
+    }),
 });
