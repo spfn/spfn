@@ -203,6 +203,29 @@ describe('createProxyGuard', () =>
             expect(res.status).toBe(413);
         });
 
+        it('rejects with a clean 403 (not 500) when the body stream errors mid-read', async () =>
+        {
+            const guard = createProxyGuard({ mode: 'strict', secret: SECRET });
+            const app = buildApp(guard);
+            const stream = new ReadableStream({
+                start(controller)
+                {
+                    controller.error(new Error('client abort'));
+                },
+            });
+
+            const res = await app.request('/users', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', ...signedHeaders('POST', '/users', '{}') },
+                body: stream,
+                // @ts-expect-error duplex is required for a stream request body
+                duplex: 'half',
+            });
+
+            // A read failure is a clean reject, never a 500 / on-call page.
+            expect(res.status).toBe(403);
+        });
+
         it('caps oversized body via stream measurement (no truthful Content-Length)', async () =>
         {
             const guard = createProxyGuard({ mode: 'strict', secret: SECRET, maxBodyBytes: 16 });

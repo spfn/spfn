@@ -167,16 +167,21 @@ export function buildCanonicalString(parts: SignatureParts): string
 }
 
 /**
- * Hash a JSON body string. Returns '' for undefined/empty (no-body requests).
+ * Hash a request body. Accepts a string (proxy side, from JSON.stringify) or a
+ * Buffer (backend side, straight from the stream — avoids a bytes→string→bytes
+ * round-trip). Returns '' for empty/no body. A utf8 string and its Buffer hash
+ * identically, so both sides agree.
  */
-export function hashBody(body: string | undefined | null): string
+export function hashBody(body: string | Buffer | undefined | null): string
 {
-    if (!body)
+    if (!body || body.length === 0)
     {
         return '';
     }
 
-    return createHash('sha256').update(body, 'utf8').digest('hex');
+    return typeof body === 'string'
+        ? createHash('sha256').update(body, 'utf8').digest('hex')
+        : createHash('sha256').update(body).digest('hex');
 }
 
 /**
@@ -252,6 +257,9 @@ export type VerifyFailureReason =
     | 'unknown-key'
     | 'signature-mismatch';
 
+// ('body-read-error' / 'origin-not-allowed' / 'nonce-replay' are guard-level
+//  reasons carried separately by the middleware, not produced by verify itself.)
+
 export interface VerifyResult
 {
     valid: boolean;
@@ -271,8 +279,8 @@ export interface VerifyInput
     path: string;
     /** Raw (wire) query string from `new URL(c.req.url).search`, or '' for none. */
     query?: string;
-    /** Raw request body string as received, if any. */
-    body?: string | null;
+    /** Raw request body (string or Buffer) as received, if any. */
+    body?: string | Buffer | null;
     signature: string | null | undefined;
     timestamp: string | null | undefined;
     nonce: string | null | undefined;

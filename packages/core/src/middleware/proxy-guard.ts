@@ -128,6 +128,9 @@ declare module 'hono'
 /** Sentinel: body exceeded maxBodyBytes while streaming (never fully buffered). */
 export const BODY_OVERSIZE = Symbol('proxy-guard:body-oversize');
 
+/** Sentinel: the body stream errored mid-read (e.g. client abort). */
+export const BODY_READ_ERROR = Symbol('proxy-guard:body-read-error');
+
 /**
  * Read the raw request body without consuming it for downstream handlers.
  * Bound for ANY non-multipart content-type (not just application/json) so the
@@ -139,7 +142,10 @@ export const BODY_OVERSIZE = Symbol('proxy-guard:body-oversize');
  * limit — so a missing/chunked/under-reported Content-Length can't bypass the cap
  * (the header is never trusted). Returns BODY_OVERSIZE in that case.
  */
-async function readRawBody(c: Context, maxBytes?: number): Promise<string | undefined | typeof BODY_OVERSIZE>
+async function readRawBody(
+    c: Context,
+    maxBytes?: number,
+): Promise<Buffer | undefined | typeof BODY_OVERSIZE | typeof BODY_READ_ERROR>
 {
     const method = c.req.method;
     if (method === 'GET' || method === 'HEAD')
@@ -186,18 +192,17 @@ async function readRawBody(c: Context, maxBytes?: number): Promise<string | unde
             chunks.push(value);
         }
     }
-    catch (err)
+    catch
     {
-        // Don't swallow a mid-stream read error as an empty body — that would hash
-        // '' and 403 a validly-signed request as a phantom signature mismatch.
-        guardLogger.warn('Failed to read request body for signature verification', {
-            error: (err as Error).message,
-        });
+        // A mid-stream error (client abort, network blip) RETURNS a sentinel — not an
+        // empty body (would 403 valid traffic) and not a re-throw (would 500 + page
+        // on-call and break tag mode's never-reject contract).
+        guardLogger.debug('Request body read failed (client abort?)');
 
-        throw err;
+        return BODY_READ_ERROR;
     }
 
-    return Buffer.concat(chunks).toString('utf8');
+    return Buffer.concat(chunks);
 }
 
 function isOriginAllowed(c: Context, allowedOrigins: string[] | undefined): boolean
@@ -281,6 +286,17 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return next();
         }
 
+        // OPTIONS preflight belongs to the CORS layer, not the signature guard. Exempt
+        // it FIRST (before the origin gate) so a cross-origin preflight isn't 403'd here
+        // without CORS headers. Tagged 'untrusted' (unsigned) so downstream that reads
+        // clientType never sees it unset nor treats a bare preflight as trusted.
+        if (c.req.method === 'OPTIONS')
+        {
+            c.set('clientType', 'untrusted');
+
+            return next();
+        }
+
         // Every gate below is EVALUATED in both modes; only enforcement differs
         // (reject() = 403 in strict, tag clientType='untrusted' + continue in tag).
         // So tag mode observes exactly what strict would reject — no metric skew.
@@ -291,17 +307,7 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return reject(c, mode, next, 'origin-not-allowed');
         }
 
-        // 2. OPTIONS preflight carries no signature and is non-mutating — exempt from
-        //    the signature check (origin already checked). Tag 'untrusted' (it is
-        //    unsigned) so downstream never sees it unset NOR treats it as trusted.
-        if (c.req.method === 'OPTIONS')
-        {
-            c.set('clientType', 'untrusted');
-
-            return next();
-        }
-
-        // 3. No accepted key — only reachable in tag mode (strict throws at construction).
+        // 2. No accepted key — only reachable in tag mode (strict throws at construction).
         if (keys.length === 0)
         {
             c.set('clientType', 'untrusted');
@@ -309,7 +315,7 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return next();
         }
 
-        // 4. Cheap header-presence check BEFORE buffering the body, so unsigned requests
+        // 3. Cheap header-presence check BEFORE buffering the body, so unsigned requests
         //    (direct-to-backend attacks, tag-mode rollout traffic) reject/tag without
         //    paying the body read.
         const signature = c.req.header(PROXY_SIGNATURE_HEADER);
@@ -321,7 +327,7 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return reject(c, mode, next, 'missing-headers');
         }
 
-        // 5. Read body with a streaming size cap (Content-Length is never trusted, so a
+        // 4. Read body with a streaming size cap (Content-Length is never trusted, so a
         //    missing/chunked/under-reported length can't bypass the bound).
         const body = await readRawBody(c, maxBodyBytes);
         if (body === BODY_OVERSIZE)
@@ -335,8 +341,14 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
 
             return next();
         }
+        if (body === BODY_READ_ERROR)
+        {
+            // Body stream failed (client abort) — can't verify, so don't hash an empty
+            // body. Reject in strict / tag untrusted, never a 500.
+            return reject(c, mode, next, 'body-read-error');
+        }
 
-        // 6. HMAC over the wire request-target (raw path + query) and body. Use the raw
+        // 5. HMAC over the wire request-target (raw path + query) and body. Use the raw
         //    URL, NOT the decoded c.req.path, so it matches the bytes the proxy signed.
         const url = new URL(c.req.url);
         const result = verifyProxyRequest({
@@ -420,7 +432,7 @@ function reject(
     c: Context,
     mode: ProxyGuardMode,
     next: Next,
-    reason: VerifyFailureReason | 'origin-not-allowed' | 'nonce-replay' | undefined,
+    reason: VerifyFailureReason | 'origin-not-allowed' | 'nonce-replay' | 'body-read-error' | undefined,
 )
 {
     if (mode === 'strict')
