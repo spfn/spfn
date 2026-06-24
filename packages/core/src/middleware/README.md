@@ -1,10 +1,11 @@
-# @spfn/core/middleware — Built-in HTTP middleware (error handling + request logging)
+# @spfn/core/middleware — Built-in HTTP middleware (error handling + request logging + proxy-guard)
 
-Two production Hono middleware factories and a masking helper: `ErrorHandler` (serializes
-thrown errors into HTTP responses) and `RequestLogger` (structured request/response logging
-with request IDs, slow-request detection, and sensitive-data masking).
+Production Hono middleware factories and a masking helper: `ErrorHandler` (serializes
+thrown errors into HTTP responses), `RequestLogger` (structured request/response logging
+with request IDs, slow-request detection, and sensitive-data masking), and `createProxyGuard`
+(verifies a trusted-proxy HMAC signature + origin allowlist and tags `clientType`).
 
-> **These are the only exports of this module.** `defineMiddleware` (custom named
+> **These are the exports of this module.** `defineMiddleware` (custom named
 > middleware), `.use()` / `.skip()` (route-level wiring), and `Transactional` (DB
 > transaction middleware) are **not** here — they live in `@spfn/core/route` and
 > `@spfn/core/db`. See [Related](#related).
@@ -16,6 +17,8 @@ import {
     ErrorHandler,
     RequestLogger,
     maskSensitiveData,
+    createProxyGuard,
+    createCacheNonceStore,
 } from '@spfn/core/middleware';
 
 import type {
@@ -23,6 +26,10 @@ import type {
     OnErrorContext,
     RequestLoggerOptions,
     RequestLoggerConfig, // deprecated alias of RequestLoggerOptions
+    ProxyGuardConfig,
+    ProxyGuardMode,
+    ClientType,
+    NonceStore,
 } from '@spfn/core/middleware';
 ```
 
@@ -40,8 +47,21 @@ From `@spfn/core/middleware`:
 - `RequestLogger(options?: RequestLoggerOptions)` → Hono middleware `(c, next) => Promise<void>`
   — register with `app.use(...)`.
 - `maskSensitiveData(obj, sensitiveFields, seen?)` → deep-masked copy of `obj`.
+- `createProxyGuard(config?: ProxyGuardConfig)` → Hono middleware. Verifies the proxy→backend
+  HMAC signature (rotating key set, keyed by `keyId`) over `method+path+query+body`, plus an
+  optional origin allowlist, then sets `c.get('clientType')` (`'web'` | `'untrusted'`). Modes:
+  `off` (default) / `tag` / `strict` — every gate is evaluated in BOTH modes, only enforcement
+  differs (strict rejects 403/413, tag tags `untrusted` and continues). `maxBodyBytes` caps the
+  hashed body (stream-measured). Usually enabled via `defineServerConfig().proxyGuard({...})`,
+  not `app.use` directly.
+- `createCacheNonceStore(cache, prefix?)` → `NonceStore` for hard replay rejection (Redis
+  `SET … PX NX`). Pass to `proxyGuard.nonceStore` (auto-wired from a cache when `nonce: true`).
 
-Types: `ErrorHandlerOptions`, `OnErrorContext`, `RequestLoggerOptions`, `RequestLoggerConfig`.
+Types: `ErrorHandlerOptions`, `OnErrorContext`, `RequestLoggerOptions`, `RequestLoggerConfig`,
+`ProxyGuardConfig`, `ProxyGuardMode`, `ClientType`, `NonceStore`.
+
+See the root `PROXY-BACKEND-AUTH-SPEC.md` for the threat model, key rotation, and `.env`
+placement (`SPFN_PROXY_SECRET` in `.env.local`; grace `SPFN_PROXY_SECRET_PREVIOUS` in `.env.server`).
 
 > **`RequestLoggerConfig` is deprecated** — it is a type alias of `RequestLoggerOptions`.
 > Use `RequestLoggerOptions` in new code.

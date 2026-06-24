@@ -2,7 +2,7 @@ import type { Hono, MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
-import type { OnErrorContext } from '@spfn/core/middleware';
+import type { OnErrorContext, ProxyGuardConfig } from '@spfn/core/middleware';
 import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig } from '../event/sse/types';
@@ -98,6 +98,29 @@ export interface ServerConfig
      * Additional custom middleware
      */
     use?: MiddlewareHandler[];
+
+    /**
+     * Proxy-guard: verify requests came through the trusted Next.js RPC proxy
+     * (HMAC signature) and/or an allowed browser origin, then tag `clientType`.
+     * Lets the backend reject direct-to-backend calls that bypass the proxy.
+     *
+     * Disabled by default (`mode: 'off'`). Requires the same `SPFN_PROXY_SECRET`
+     * on the proxy and the backend. See PROXY-BACKEND-AUTH-SPEC.md.
+     *
+     * @example
+     * ```typescript
+     * .proxyGuard({ mode: 'strict', allowedOrigins: ['https://app.example.com'] })
+     * ```
+     */
+    proxyGuard?: Omit<ProxyGuardConfig, 'nonceStore'> & {
+        /**
+         * Enable hard replay rejection via a Redis nonce store. Evaluated in BOTH modes
+         * (tag observes replays, strict rejects). Requires a cache (CACHE_URL); without
+         * one, falls back to the timestamp window. Degrades to the window if the store
+         * is briefly unavailable. @default false
+         */
+        nonce?: boolean;
+    };
 
     /**
      * Global middlewares with names for route-level skip control

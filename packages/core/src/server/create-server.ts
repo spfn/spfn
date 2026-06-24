@@ -18,6 +18,7 @@ import { createHealthCheckHandler } from './helpers';
 import { serverLogger } from './logger';
 
 import type { ServerConfig, AppFactory } from './types';
+import type { NonceStore } from '@spfn/core/middleware';
 
 // Extend Hono context with error handler flag
 declare module 'hono'
@@ -102,6 +103,9 @@ async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
     // 2. Default middleware
     applyDefaultMiddleware(app, config, enableLogger, enableCors);
 
+    // 2.5 Proxy-guard (trusted-proxy signature + origin verification)
+    await applyProxyGuard(app, config);
+
     // 3. Custom middleware
     if (Array.isArray(config?.use))
     {
@@ -151,6 +155,72 @@ function applyDefaultMiddleware(
         const corsOptions = config?.cors !== false ? config?.cors : undefined;
         app.use('*', cors(corsOptions));
     }
+}
+
+async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
+{
+    const proxyGuardConfig = config?.proxyGuard;
+    const mode = proxyGuardConfig?.mode ?? 'off';
+
+    if (mode === 'off')
+    {
+        return;
+    }
+
+    const { createProxyGuard, createCacheNonceStore } = await import('@spfn/core/middleware');
+
+    // Optionally enable Redis-backed nonce replay rejection
+    let nonceStore: NonceStore | undefined;
+    if (proxyGuardConfig?.nonce)
+    {
+        try
+        {
+            const { getCache } = await import('@spfn/core/cache');
+            const cache = getCache();
+            if (cache)
+            {
+                nonceStore = createCacheNonceStore(cache);
+                serverLogger.info('Proxy-guard nonce replay rejection: cache (Redis/Valkey)');
+            }
+            else
+            {
+                serverLogger.warn('Proxy-guard nonce enabled but no cache available — using timestamp window only');
+            }
+        }
+        catch
+        {
+            serverLogger.warn('Proxy-guard nonce enabled but cache module unavailable — using timestamp window only');
+        }
+    }
+
+    // Auto-skip endpoints that browsers reach WITHOUT going through the RPC proxy
+    // (so they carry no proxy signature): health probes, the SSE stream (EventSource
+    // can't send custom headers), and WebSocket upgrades. The SSE *token* endpoint
+    // (POST) is deliberately NOT skipped — it goes through the proxy like any RPC
+    // call and mints credentials, so it must stay guarded.
+    const autoSkip = [config?.healthCheck?.path ?? '/health'];
+    if (config?.events)
+    {
+        autoSkip.push(config.eventsConfig?.path ?? '/events/stream');
+    }
+    if (config?.websockets)
+    {
+        autoSkip.push(config.websocketsConfig?.path ?? '/ws');
+    }
+    const skipPaths = [...(proxyGuardConfig?.skipPaths ?? []), ...autoSkip];
+
+    app.use('*', createProxyGuard({
+        mode,
+        secret: proxyGuardConfig?.secret,
+        previousSecrets: proxyGuardConfig?.previousSecrets,
+        windowMs: proxyGuardConfig?.windowMs,
+        allowedOrigins: proxyGuardConfig?.allowedOrigins,
+        maxBodyBytes: proxyGuardConfig?.maxBodyBytes,
+        nonceStore,
+        skipPaths,
+    }));
+
+    serverLogger.info(`✓ Proxy-guard enabled (mode: ${mode})`);
 }
 
 function registerHealthCheckEndpoint(app: Hono, config?: ServerConfig): void

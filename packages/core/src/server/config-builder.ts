@@ -119,6 +119,16 @@ export class ServerConfigBuilder
     }
 
     /**
+     * Configure proxy-guard (verify trusted-proxy signature + origin → clientType)
+     */
+    proxyGuard(proxyGuard: ServerConfig['proxyGuard']): this
+    {
+        this.config.proxyGuard = proxyGuard;
+
+        return this;
+    }
+
+    /**
      * Register define-route based router
      *
      * Automatically applies:

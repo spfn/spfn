@@ -32,6 +32,9 @@ export function buildProxyHeaders(
         'user-agent',
         'accept',
         'accept-language',
+        // Forwarded so the backend proxy-guard can enforce its origin allowlist on
+        // the real browser Origin; without this allowedOrigins would be a no-op.
+        'origin',
     ];
 
     for (const header of headersToForward)

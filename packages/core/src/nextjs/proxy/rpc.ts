@@ -23,6 +23,7 @@ import { env } from '@spfn/core/config';
 import { logger } from '@spfn/core/logger';
 import type { HttpMethod } from '@spfn/core/route';
 
+import { signProxyRequest, parseProxyKeySet } from '../../security/proxy-signature';
 import { buildUrlWithParams, buildQueryString } from '../shared';
 import { interceptorRegistry } from './interceptors';
 import { executeRequestInterceptors, executeResponseInterceptors, filterMatchingInterceptors } from './interceptors';
@@ -81,6 +82,17 @@ export interface RpcProxyConfig extends Omit<TypedProxyConfig, 'onRequest' | 'on
      * ```
      */
     routeMap: RouteMap;
+
+    /**
+     * Shared secret for signing proxy→backend requests (HMAC-SHA256).
+     *
+     * When set, every forwarded request carries an HMAC signature the backend's
+     * proxy-guard middleware verifies, letting it reject direct-to-backend calls
+     * that bypass this proxy. Set the SAME value here and on the backend.
+     *
+     * @default process.env.SPFN_PROXY_SECRET (undefined → signing disabled)
+     */
+    proxySecret?: string;
 }
 
 // ============================================================================
@@ -107,8 +119,37 @@ export function createRpcProxy(config: RpcProxyConfig)
         interceptors,
         autoDiscoverInterceptors = true,
         disableAutoInterceptors,
+        proxySecret = env.SPFN_PROXY_SECRET,
         routeMap,
     } = config;
+
+    // Parse the active signing key once — it's fixed for the proxy's lifetime.
+    // Use the SAME parser the backend uses (comma key set) and take the active key,
+    // so a `v2:new,v1:old` secret is interpreted identically on both sides.
+    const proxyKey = proxySecret ? (parseProxyKeySet([proxySecret])[0] ?? null) : null;
+
+    // proxy-guard signs route-relative paths; if SPFN_API_URL carries a base path the
+    // backend keeps (no ingress strip), the signed path won't match c.req.url and
+    // strict mode 403s everything. Warn loudly so it's diagnosable.
+    if (proxyKey)
+    {
+        try
+        {
+            const basePath = new URL(apiUrl).pathname;
+            if (basePath !== '/' && basePath !== '')
+            {
+                rpcLogger.warn(
+                    `SPFN_API_URL has a base path ("${basePath}"). proxy-guard signs route-relative paths, `
+                    + 'so the backend must receive paths WITHOUT this prefix (e.g. ingress strip) or strict '
+                    + 'mode will reject all signed requests with 403.',
+                );
+            }
+        }
+        catch
+        {
+            // invalid apiUrl is surfaced elsewhere
+        }
+    }
 
     /**
      * Resolve route info from routeMap
@@ -365,6 +406,33 @@ export function createRpcProxy(config: RpcProxyConfig)
                 if (requestCtx.body)
                 {
                     fetchOptions.body = JSON.stringify(requestCtx.body);
+                }
+            }
+
+            // ============================================================
+            // Proxy → Backend signature (proxy-guard)
+            // ============================================================
+            // Sign the FINAL request (after interceptors settled body/headers) so
+            // the backend can prove it came through this trusted proxy. JSON body
+            // is hashed into the signature; large multipart uploads are excluded.
+            if (proxyKey)
+            {
+                const signedBody = typeof fetchOptions.body === 'string' ? fetchOptions.body : undefined;
+                // Sign the route-relative path (no SPFN_API_URL base prefix) so it
+                // matches the backend's `new URL(c.req.url).pathname` whether the
+                // prefix is absent or stripped by an ingress. resolvedPath is already
+                // the percent-encoded wire form; queryString is the raw search.
+                const signatureHeaders = signProxyRequest({
+                    key: proxyKey,
+                    method: targetMethod,
+                    path: resolvedPath,
+                    query: queryString,
+                    body: signedBody,
+                });
+
+                for (const [headerName, value] of Object.entries(signatureHeaders))
+                {
+                    headers.set(headerName, value);
                 }
             }
 
