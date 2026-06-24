@@ -24,10 +24,12 @@
 
 프록시가 백엔드로 forward할 때 요청에 서명을 실어, 백엔드가 "정상 프록시 경유"를 검증한다.
 
-- **서명 대상**: `method + resolvedPath + timestamp + nonce + bodyHash`. path를 포함해야
-  캡처한 서명을 다른 라우트에 재사용하는 걸 막는다.
-- **bodyHash**: JSON body일 때만 SHA-256 포함. 대용량 formData는 서명 범위에서 제외
-  (method+path+timestamp+nonce만) — 업로드 성능 보호. SSE는 응답 스트리밍이라 무관.
+- **서명 대상**: `method + path + query + timestamp + nonce + bodyHash`. path·query는
+  **wire 표현**(프록시가 보내는 raw request-target). 백엔드는 디코드된 `c.req.path`가 아니라
+  `new URL(c.req.url).pathname`·`.search`로 재구성해 바이트를 일치시킨다(인코딩 드리프트 방지).
+  query를 서명에 넣어야 캡처한 서명을 쿼리만 바꿔 재전송하는 걸 막는다.
+- **bodyHash**: multipart(formData)만 제외(대용량·업로드 성능). 그 외 *모든* content-type의 body는
+  항상 SHA-256으로 바인딩 — content-type을 비-JSON으로 바꿔 body를 서명에서 푸는 우회를 차단. SSE는 응답 스트리밍이라 무관.
 - **헤더**: `X-SPFN-Proxy-Signature`, `X-SPFN-Proxy-Timestamp`, `X-SPFN-Proxy-Nonce`, `X-SPFN-Proxy-Key-Id`.
 - **알고리즘**: HMAC-SHA256. 요청당 마이크로초 단위 — 프록시↔백엔드 왕복 대비 무시 가능.
 - **공유 시크릿**: `SPFN_PROXY_SECRET`을 프록시·백엔드 양쪽에 주입(아래 E·F 참고).
@@ -38,10 +40,15 @@
 서명한 body와 실제 전송 body가 일치한다(인터셉터가 body 변경 가능, ~365행).
 `RpcProxyConfig`에 시크릿/on-off 옵션 추가.
 
-**백엔드 측 검증**: 라우트 등록 전 전역 미들웨어(파이프라인 4단계 `config.use[]` 자리).
-서명 재계산 일치 확인 + timestamp 윈도우(예 30s) 검사로 캡처-재전송 차단.
+**백엔드 측 검증**: 라우트 등록 전 전역 미들웨어(파이프라인 4단계, CORS 다음).
+서명 재계산 일치 + timestamp 윈도우(기본 30s) 검사로 캡처-재전송 차단.
 통과 시 컨텍스트에 `clientType: 'web'` 주입 → 라우트가 출처를 알 수 있고,
 이 자리가 후속 attestation 레벨 체크가 들어올 지점.
+
+- **fail-closed**: `strict`인데 키가 미설정이면 미들웨어 생성 시 throw(서버 시작 실패) — 검증 불가 상태로
+  문이 열린 채 뜨지 않게. `tag`는 관측 모드라 키 없으면 전부 `untrusted` 태깅하고 통과(경고).
+- **자동 skip**: health·SSE(`/events/stream`, `/token`)·WS 경로와 OPTIONS preflight는 서명 없이 통과.
+  프록시를 거치지 않는 정상 트래픽(EventSource는 커스텀 헤더 불가, preflight는 비-mutating)이라 막으면 안 됨.
 
 ### B. Origin allowlist 검증
 

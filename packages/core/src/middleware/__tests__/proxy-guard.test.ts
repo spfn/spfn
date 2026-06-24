@@ -25,13 +25,15 @@ function buildApp(guard: ReturnType<typeof createProxyGuard>)
         return c.json({ clientType: c.get('clientType'), echo: body });
     });
     app.get('/users/:id', (c) => c.json({ clientType: c.get('clientType'), id: c.req.param('id') }));
+    app.get('/files/:name', (c) => c.json({ clientType: c.get('clientType'), name: c.req.param('name') }));
+    app.get('/search', (c) => c.json({ clientType: c.get('clientType') }));
 
     return app;
 }
 
-function signedHeaders(method: string, path: string, body?: string, secret = SECRET)
+function signedHeaders(method: string, path: string, body?: string, secret = SECRET, query?: string)
 {
-    return signProxyRequest({ key: parseProxyKey(secret), method, path, body });
+    return signProxyRequest({ key: parseProxyKey(secret), method, path, query, body });
 }
 
 describe('createProxyGuard', () =>
@@ -231,6 +233,94 @@ describe('createProxyGuard', () =>
             // Same signed headers (same nonce) replayed → rejected
             const second = await app.request('/users/7', { method: 'GET', headers });
             expect(second.status).toBe(403);
+        });
+    });
+
+    describe('fail-closed on misconfiguration', () =>
+    {
+        it('throws at construction when strict mode has no key', () =>
+        {
+            expect(() => createProxyGuard({ mode: 'strict', secret: '' })).toThrow(/strict/);
+        });
+
+        it('does not throw in tag mode with no key (observe-only)', () =>
+        {
+            expect(() => createProxyGuard({ mode: 'tag', secret: '' })).not.toThrow();
+        });
+    });
+
+    describe('wire request-target binding', () =>
+    {
+        const guard = createProxyGuard({ mode: 'strict', secret: SECRET });
+
+        it('verifies a percent-encoded path without decode drift', async () =>
+        {
+            const app = buildApp(guard);
+            const res = await app.request('/files/a%2Fb', {
+                method: 'GET',
+                headers: { ...signedHeaders('GET', '/files/a%2Fb') },
+            });
+
+            expect(res.status).toBe(200);
+        });
+
+        it('verifies a matching query string', async () =>
+        {
+            const app = buildApp(guard);
+            const res = await app.request('/search?q=hi&limit=10', {
+                method: 'GET',
+                headers: { ...signedHeaders('GET', '/search', undefined, SECRET, '?q=hi&limit=10') },
+            });
+
+            expect(res.status).toBe(200);
+        });
+
+        it('rejects a tampered query param', async () =>
+        {
+            const app = buildApp(guard);
+            const res = await app.request('/search?limit=99999', {
+                method: 'GET',
+                headers: { ...signedHeaders('GET', '/search', undefined, SECRET, '?limit=10') },
+            });
+
+            expect(res.status).toBe(403);
+        });
+
+        it('binds the body even for a non-json content-type', async () =>
+        {
+            const app = buildApp(guard);
+            const signedBody = JSON.stringify({ amount: 100 });
+            const tampered = JSON.stringify({ amount: 999999 });
+
+            const res = await app.request('/users', {
+                method: 'POST',
+                headers: { 'content-type': 'text/plain', ...signedHeaders('POST', '/users', signedBody) },
+                body: tampered,
+            });
+
+            expect(res.status).toBe(403);
+        });
+    });
+
+    describe('bypass-path handling', () =>
+    {
+        it('skips OPTIONS preflight without a signature', async () =>
+        {
+            const app = buildApp(createProxyGuard({ mode: 'strict', secret: SECRET }));
+            const res = await app.request('/users', { method: 'OPTIONS' });
+
+            expect(res.status).not.toBe(403);
+        });
+
+        it('skips configured skipPaths without a signature', async () =>
+        {
+            const guard = createProxyGuard({ mode: 'strict', secret: SECRET, skipPaths: ['/events/stream'] });
+            const app = new Hono();
+            app.use('*', guard);
+            app.get('/events/stream', (c) => c.json({ ok: true }));
+
+            const res = await app.request('/events/stream', { method: 'GET' });
+            expect(res.status).toBe(200);
         });
     });
 

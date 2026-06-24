@@ -193,9 +193,20 @@ async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
         }
     }
 
-    // Always skip the health check path so k8s probes are not blocked
-    const healthPath = config?.healthCheck?.path ?? '/health';
-    const skipPaths = [...(proxyGuardConfig?.skipPaths ?? []), healthPath];
+    // Auto-skip endpoints that browsers reach WITHOUT going through the RPC proxy
+    // (so they carry no proxy signature): health probes, SSE streams (EventSource
+    // can't send custom headers), the SSE token endpoint, and WebSocket upgrades.
+    const autoSkip = [config?.healthCheck?.path ?? '/health'];
+    if (config?.events)
+    {
+        const streamPath = config.eventsConfig?.path ?? '/events/stream';
+        autoSkip.push(streamPath, streamPath.replace(/\/[^/]+$/, '/token'));
+    }
+    if (config?.websockets)
+    {
+        autoSkip.push(config.websocketsConfig?.path ?? '/ws');
+    }
+    const skipPaths = [...(proxyGuardConfig?.skipPaths ?? []), ...autoSkip];
 
     app.use('*', createProxyGuard({
         mode,

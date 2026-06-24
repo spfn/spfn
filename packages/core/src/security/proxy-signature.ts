@@ -112,8 +112,18 @@ export interface SignatureParts
     /** Resolved backend HTTP method (GET/POST/PUT/...) */
     method: string;
 
-    /** Resolved backend path including leading slash, WITHOUT query string */
+    /**
+     * Raw (wire) backend path, percent-encoding preserved, leading slash, NO query.
+     * Proxy signs its outbound request-target path; the backend reconstructs the
+     * SAME bytes from `new URL(c.req.url).pathname` (NOT the decoded `c.req.path`).
+     */
     path: string;
+
+    /**
+     * Raw (wire) query string including leading `?`, or '' when there is none.
+     * Both sides use the verbatim search string so query params are authenticated.
+     */
+    query: string;
 
     /** Unix epoch milliseconds, as a string */
     timestamp: string;
@@ -122,8 +132,9 @@ export interface SignatureParts
     nonce: string;
 
     /**
-     * SHA-256 hex of the raw JSON body, or empty string when there is no JSON
-     * body (GET requests, or large multipart uploads which are excluded by design).
+     * SHA-256 hex of the raw request body, or empty string when there is no body
+     * (GET/HEAD, or multipart uploads which are excluded by design). Bound for ANY
+     * non-multipart content-type, not just application/json.
      */
     bodyHash: string;
 }
@@ -150,7 +161,7 @@ export interface SignatureHeaders
  */
 export function buildCanonicalString(parts: SignatureParts): string
 {
-    return [parts.method.toUpperCase(), parts.path, parts.timestamp, parts.nonce, parts.bodyHash].join('\n');
+    return [parts.method.toUpperCase(), parts.path, parts.query, parts.timestamp, parts.nonce, parts.bodyHash].join('\n');
 }
 
 /**
@@ -191,8 +202,11 @@ export interface SignInput
     /** The active signing key. */
     key: ProxyKey;
     method: string;
+    /** Raw (wire) path, leading slash, percent-encoding preserved, NO query. */
     path: string;
-    /** Raw JSON body string, if any. Omit for GET / large uploads. */
+    /** Raw (wire) query string including leading `?`, or '' / omitted for none. */
+    query?: string;
+    /** Raw request body string, if any. Omit for GET / multipart uploads. */
     body?: string | null;
     /** Override the timestamp (testing). Defaults to Date.now(). */
     timestamp?: string;
@@ -211,6 +225,7 @@ export function signProxyRequest(input: SignInput): SignatureHeaders
     const signature = computeSignature(input.key.secret, {
         method: input.method,
         path: input.path,
+        query: input.query ?? '',
         timestamp,
         nonce,
         bodyHash: hashBody(input.body),
@@ -250,8 +265,11 @@ export interface VerifyInput
     /** Accepted keys (active + grace). Selected by the request's keyId header. */
     keys: ProxyKey[];
     method: string;
+    /** Raw (wire) path from `new URL(c.req.url).pathname` — NOT decoded `c.req.path`. */
     path: string;
-    /** Raw JSON body string as received, if any. */
+    /** Raw (wire) query string from `new URL(c.req.url).search`, or '' for none. */
+    query?: string;
+    /** Raw request body string as received, if any. */
     body?: string | null;
     signature: string | null | undefined;
     timestamp: string | null | undefined;
@@ -327,6 +345,7 @@ export function verifyProxyRequest(input: VerifyInput): VerifyResult
     const expected = computeSignature(key.secret, {
         method: input.method,
         path: input.path,
+        query: input.query ?? '',
         timestamp,
         nonce,
         bodyHash: hashBody(input.body),

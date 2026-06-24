@@ -19,7 +19,7 @@ import {
 
 const KEY: ProxyKey = { keyId: 'v1', secret: 'test-shared-secret-please-rotate' };
 
-function sign(opts: { key?: ProxyKey; method: string; path: string; body?: string; timestamp?: string })
+function sign(opts: { key?: ProxyKey; method: string; path: string; query?: string; body?: string; timestamp?: string })
 {
     return signProxyRequest({ key: opts.key ?? KEY, ...opts });
 }
@@ -213,6 +213,60 @@ describe('proxy-signature', () =>
 
             expect(result.valid).toBe(false);
             expect(result.reason).toBe('signature-mismatch');
+        });
+    });
+
+    describe('query + encoded path binding', () =>
+    {
+        it('verifies a matching query string', () =>
+        {
+            const headers = sign({ method: 'GET', path: '/users', query: '?limit=10&page=2' });
+            const result = verifyProxyRequest({
+                keys: [KEY],
+                method: 'GET',
+                path: '/users',
+                query: '?limit=10&page=2',
+                signature: headers[PROXY_SIGNATURE_HEADER],
+                timestamp: headers[PROXY_TIMESTAMP_HEADER],
+                nonce: headers[PROXY_NONCE_HEADER],
+                keyId: headers[PROXY_KEY_ID_HEADER],
+            });
+
+            expect(result.valid).toBe(true);
+        });
+
+        it('rejects an altered query param', () =>
+        {
+            const headers = sign({ method: 'GET', path: '/users', query: '?limit=10' });
+            const result = verifyProxyRequest({
+                keys: [KEY],
+                method: 'GET',
+                path: '/users',
+                query: '?limit=99999',
+                signature: headers[PROXY_SIGNATURE_HEADER],
+                timestamp: headers[PROXY_TIMESTAMP_HEADER],
+                nonce: headers[PROXY_NONCE_HEADER],
+                keyId: headers[PROXY_KEY_ID_HEADER],
+            });
+
+            expect(result.valid).toBe(false);
+            expect(result.reason).toBe('signature-mismatch');
+        });
+
+        it('verifies a percent-encoded path verbatim (no decode drift)', () =>
+        {
+            const headers = sign({ method: 'GET', path: '/files/a%2Fb' });
+            const result = verifyProxyRequest({
+                keys: [KEY],
+                method: 'GET',
+                path: '/files/a%2Fb',
+                signature: headers[PROXY_SIGNATURE_HEADER],
+                timestamp: headers[PROXY_TIMESTAMP_HEADER],
+                nonce: headers[PROXY_NONCE_HEADER],
+                keyId: headers[PROXY_KEY_ID_HEADER],
+            });
+
+            expect(result.valid).toBe(true);
         });
     });
 

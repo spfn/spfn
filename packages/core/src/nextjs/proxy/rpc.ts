@@ -123,6 +123,9 @@ export function createRpcProxy(config: RpcProxyConfig)
         routeMap,
     } = config;
 
+    // Parse the active signing key once — it's fixed for the proxy's lifetime.
+    const proxyKey = proxySecret ? parseProxyKey(proxySecret) : null;
+
     /**
      * Resolve route info from routeMap
      */
@@ -387,13 +390,18 @@ export function createRpcProxy(config: RpcProxyConfig)
             // Sign the FINAL request (after interceptors settled body/headers) so
             // the backend can prove it came through this trusted proxy. JSON body
             // is hashed into the signature; large multipart uploads are excluded.
-            if (proxySecret)
+            if (proxyKey)
             {
                 const signedBody = typeof fetchOptions.body === 'string' ? fetchOptions.body : undefined;
+                // Sign the FINAL target URL (parsed), so any base-path prefix in
+                // SPFN_API_URL is included exactly as the backend sees it via
+                // new URL(c.req.url).pathname/.search.
+                const signedUrl = new URL(targetUrl);
                 const signatureHeaders = signProxyRequest({
-                    key: parseProxyKey(proxySecret),
+                    key: proxyKey,
                     method: targetMethod,
-                    path: resolvedPath,
+                    path: signedUrl.pathname,
+                    query: signedUrl.search,
                     body: signedBody,
                 });
 

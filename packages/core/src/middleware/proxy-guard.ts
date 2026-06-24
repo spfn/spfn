@@ -21,6 +21,7 @@ import { logger } from '@spfn/core/logger';
 
 import {
     verifyProxyRequest,
+    parseProxyKey,
     parseProxyKeySet,
     PROXY_SIGNATURE_HEADER,
     PROXY_TIMESTAMP_HEADER,
@@ -117,11 +118,13 @@ declare module 'hono'
 // ============================================================================
 
 /**
- * Read the raw JSON body without consuming it for downstream handlers.
- * Returns undefined for non-JSON (GET, multipart uploads) — matching the proxy,
- * which excludes those from the signature.
+ * Read the raw request body without consuming it for downstream handlers.
+ * Bound for ANY non-multipart content-type (not just application/json) so the
+ * backend hashes exactly what the proxy signed — otherwise the body could be
+ * tampered by flipping content-type. Multipart uploads are excluded on both
+ * sides (their large bodies are never hashed).
  */
-async function readJsonBody(c: Context): Promise<string | undefined>
+async function readRawBody(c: Context): Promise<string | undefined>
 {
     const method = c.req.method;
     if (method === 'GET' || method === 'HEAD')
@@ -130,7 +133,7 @@ async function readJsonBody(c: Context): Promise<string | undefined>
     }
 
     const contentType = c.req.header('content-type') || '';
-    if (!contentType.includes('application/json'))
+    if (contentType.includes('multipart/form-data'))
     {
         return undefined;
     }
@@ -186,14 +189,42 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
     const skipPaths = new Set(config.skipPaths ?? []);
 
     // Accepted key set: active secret first (wins on keyId collision), then grace keys.
-    const keys = parseProxyKeySet([
-        config.secret ?? env.SPFN_PROXY_SECRET,
-        config.previousSecrets ?? env.SPFN_PROXY_SECRET_PREVIOUS,
-    ]);
+    const activeRaw = config.secret ?? env.SPFN_PROXY_SECRET;
+    const previousRaw = config.previousSecrets ?? env.SPFN_PROXY_SECRET_PREVIOUS;
+    const keys = parseProxyKeySet([activeRaw, previousRaw]);
+
+    // Fail CLOSED on misconfiguration: strict with no key would otherwise let every
+    // request (including direct-to-backend) through. Refuse to start instead.
+    if (mode === 'strict' && keys.length === 0)
+    {
+        throw new Error(
+            '[proxy-guard] mode "strict" requires a proxy key but none is configured '
+            + '(SPFN_PROXY_SECRET is empty/unset). Refusing to start with the guard open — '
+            + 'set the secret, or use mode "tag" / "off".',
+        );
+    }
+
+    // Warn when rotation can't work: bare secrets (no "keyId:" prefix) on both active
+    // and previous collapse to the same keyId, so the grace key is silently dropped.
+    if (activeRaw && previousRaw)
+    {
+        const activeId = parseProxyKey(activeRaw).keyId;
+        const collides = previousRaw.split(',').some(p => p.trim() && parseProxyKey(p.trim()).keyId === activeId);
+        if (collides)
+        {
+            guardLogger.warn(
+                'Previous proxy key shares keyId with the active key (likely bare secrets without a '
+                + '"keyId:" prefix) — grace key ignored, rotation will drop in-flight requests. '
+                + 'Use "<keyId>:<secret>" on both keys.',
+                { keyId: activeId },
+            );
+        }
+    }
 
     return async (c: Context, next: Next) =>
     {
-        if (mode === 'off' || skipPaths.has(c.req.path))
+        // OPTIONS (CORS preflight) carries no signature and is non-mutating — never block it.
+        if (mode === 'off' || c.req.method === 'OPTIONS' || skipPaths.has(c.req.path))
         {
             return next();
         }
@@ -204,7 +235,7 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return reject(c, mode, next, 'origin-not-allowed');
         }
 
-        // 2. Without any accepted key we cannot verify a signature — tag and move on.
+        // 2. No accepted key — only reachable in tag mode (strict throws at construction).
         if (keys.length === 0)
         {
             c.set('clientType', 'untrusted');
@@ -212,12 +243,15 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return next();
         }
 
-        // 3. HMAC signature
-        const body = await readJsonBody(c);
+        // 3. HMAC over the wire request-target (raw path + query) and body. Use the raw
+        //    URL, NOT the decoded c.req.path, so it matches the bytes the proxy signed.
+        const url = new URL(c.req.url);
+        const body = await readRawBody(c);
         const result = verifyProxyRequest({
             keys,
             method: c.req.method,
-            path: c.req.path,
+            path: url.pathname,
+            query: url.search,
             body,
             signature: c.req.header(PROXY_SIGNATURE_HEADER),
             timestamp: c.req.header(PROXY_TIMESTAMP_HEADER),
