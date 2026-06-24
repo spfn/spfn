@@ -321,7 +321,7 @@ describe('createProxyGuard', () =>
             // Preflight from a disallowed origin is NOT 403'd by the guard (CORS owns it)
             const preflight = await app.request('/users', {
                 method: 'OPTIONS',
-                headers: { origin: 'https://evil.example.com' },
+                headers: { origin: 'https://evil.example.com', 'access-control-request-method': 'POST' },
             });
             expect(preflight.status).not.toBe(403);
 
@@ -439,17 +439,32 @@ describe('createProxyGuard', () =>
 
     describe('bypass-path handling', () =>
     {
-        it('exempts OPTIONS from signature but tags it untrusted (unsigned, not trusted)', async () =>
+        it('exempts a genuine CORS preflight but tags it untrusted (unsigned, not trusted)', async () =>
         {
             const app = new Hono();
             app.use('*', createProxyGuard({ mode: 'strict', secret: SECRET }));
             app.options('/users', (c) => c.json({ clientType: c.get('clientType') }));
 
-            const res = await app.request('/users', { method: 'OPTIONS' });
+            const res = await app.request('/users', {
+                method: 'OPTIONS',
+                headers: { 'access-control-request-method': 'POST' },
+            });
 
             expect(res.status).toBe(200);
             // Set (never undefined) but NOT 'web' — a bare preflight isn't trusted.
             expect((await res.json()).clientType).toBe('untrusted');
+        });
+
+        it('verifies a NON-preflight OPTIONS — OPTIONS-as-API is not an unguarded bypass', async () =>
+        {
+            const app = new Hono();
+            app.use('*', createProxyGuard({ mode: 'strict', secret: SECRET }));
+            app.options('/data', (c) => c.json({ ok: true }));
+
+            // No Access-Control-Request-Method → not a preflight → must be verified.
+            const res = await app.request('/data', { method: 'OPTIONS' });
+
+            expect(res.status).toBe(403);
         });
 
         it('skips configured skipPaths without a signature', async () =>

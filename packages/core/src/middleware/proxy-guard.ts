@@ -286,11 +286,12 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return next();
         }
 
-        // OPTIONS preflight belongs to the CORS layer, not the signature guard. Exempt
-        // it FIRST (before the origin gate) so a cross-origin preflight isn't 403'd here
-        // without CORS headers. Tagged 'untrusted' (unsigned) so downstream that reads
-        // clientType never sees it unset nor treats a bare preflight as trusted.
-        if (c.req.method === 'OPTIONS')
+        // A genuine CORS preflight (OPTIONS + Access-Control-Request-Method) belongs to
+        // the CORS layer, not the signature guard — exempt it FIRST so it isn't 403'd
+        // here without CORS headers. A NON-preflight OPTIONS (rare OPTIONS-as-API) falls
+        // through to normal verification, so exempting preflight is never an unguarded
+        // bypass. Tagged 'untrusted' (unsigned) so downstream never sees it unset.
+        if (c.req.method === 'OPTIONS' && c.req.header('access-control-request-method'))
         {
             c.set('clientType', 'untrusted');
 

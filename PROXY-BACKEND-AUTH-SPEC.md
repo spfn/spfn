@@ -49,7 +49,8 @@
   문이 열린 채 뜨지 않게. `tag`는 관측 모드라 키 없으면 전부 `untrusted` 태깅하고 통과(경고).
 - **자동 skip**: health·SSE 스트림(`/events/stream`)·WS 경로는 서명 없이 통과(EventSource는 커스텀 헤더 불가).
   단 SSE **토큰(POST)** 은 프록시를 거치고 자격증명을 발급하므로 skip하지 않고 검증한다.
-  OPTIONS preflight는 CORS 레이어(`cors()`)의 영역이라 guard가 *가장 먼저* 면제한다(origin 검사도 안 함).
+  진짜 CORS preflight(`Access-Control-Request-Method` 동반)만 CORS 레이어(`cors()`) 영역으로 *가장 먼저*
+  면제한다(origin 검사도 안 함). 그 외 OPTIONS(드문 OPTIONS-as-API)는 정상 검증을 거치므로 우회가 아니다.
   허용되지 않은 origin은 preflight를 통과해도 뒤따르는 실제 요청에서 origin+서명으로 차단되므로 데이터 노출이 없다.
 - **모드별 차이**: origin·서명·nonce·body-cap 게이트는 *양 모드에서 평가*하고 enforcement만 다르다 —
   strict는 거부(403/413), tag는 `clientType='untrusted'`로 태깅하고 통과. 그래서 tag는 strict가 무엇을
