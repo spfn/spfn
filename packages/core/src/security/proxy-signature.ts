@@ -58,7 +58,9 @@ export function parseProxyKey(raw: string): ProxyKey
         return { keyId: DEFAULT_KEY_ID, secret: raw };
     }
 
-    return { keyId: raw.slice(0, idx), secret: raw.slice(idx + 1) };
+    // A leading colon (':secret') yields an empty keyId; the backend treats an empty
+    // keyId header as "missing" and rejects, so normalize it to DEFAULT_KEY_ID.
+    return { keyId: raw.slice(0, idx) || DEFAULT_KEY_ID, secret: raw.slice(idx + 1) };
 }
 
 /**

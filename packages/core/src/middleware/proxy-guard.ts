@@ -124,14 +124,21 @@ declare module 'hono'
 // Helpers
 // ============================================================================
 
+/** Sentinel: body exceeded maxBodyBytes while streaming (never fully buffered). */
+export const BODY_OVERSIZE = Symbol('proxy-guard:body-oversize');
+
 /**
  * Read the raw request body without consuming it for downstream handlers.
  * Bound for ANY non-multipart content-type (not just application/json) so the
  * backend hashes exactly what the proxy signed — otherwise the body could be
  * tampered by flipping content-type. Multipart uploads are excluded on both
  * sides (their large bodies are never hashed).
+ *
+ * When maxBytes is set the body is measured AS IT STREAMS and aborted past the
+ * limit — so a missing/chunked/under-reported Content-Length can't bypass the cap
+ * (the header is never trusted). Returns BODY_OVERSIZE in that case.
  */
-async function readRawBody(c: Context): Promise<string | undefined>
+async function readRawBody(c: Context, maxBytes?: number): Promise<string | undefined | typeof BODY_OVERSIZE>
 {
     const method = c.req.method;
     if (method === 'GET' || method === 'HEAD')
@@ -145,38 +152,45 @@ async function readRawBody(c: Context): Promise<string | undefined>
         return undefined;
     }
 
+    const stream = c.req.raw.clone().body;
+    if (!stream)
+    {
+        return undefined;
+    }
+
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+
     try
     {
-        return await c.req.raw.clone().text();
+        for (;;)
+        {
+            const { done, value } = await reader.read();
+            if (done)
+            {
+                break;
+            }
+
+            total += value.byteLength;
+            if (maxBytes !== undefined && total > maxBytes)
+            {
+                // Fire-and-forget: awaiting cancel() can hang under some stream
+                // implementations, and this is a clone so the original is untouched.
+                void reader.cancel().catch(() => undefined);
+
+                return BODY_OVERSIZE;
+            }
+
+            chunks.push(value);
+        }
     }
     catch
     {
         return undefined;
     }
-}
 
-/**
- * Whether the request's declared Content-Length exceeds the cap. Checked before
- * the body is read so the guard never buffers an oversized payload. Multipart is
- * exempt (the guard doesn't hash it).
- */
-function isBodyOverLimit(c: Context, maxBytes: number): boolean
-{
-    const method = c.req.method;
-    if (method === 'GET' || method === 'HEAD')
-    {
-        return false;
-    }
-
-    const contentType = c.req.header('content-type') || '';
-    if (contentType.includes('multipart/form-data'))
-    {
-        return false;
-    }
-
-    const len = Number(c.req.header('content-length'));
-
-    return Number.isFinite(len) && len > maxBytes;
+    return Buffer.concat(chunks).toString('utf8');
 }
 
 function isOriginAllowed(c: Context, allowedOrigins: string[] | undefined): boolean
@@ -260,18 +274,23 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return next();
         }
 
-        // 1. Origin allowlist is a STRICT-mode gate. In tag mode we don't gate on it —
-        //    clientType is decided purely by the signature, so observe-only metrics
-        //    aren't skewed by a valid-but-cross-origin request.
-        if (mode === 'strict' && !isOriginAllowed(c, allowedOrigins))
+        // Every gate below is EVALUATED in both modes; only enforcement differs
+        // (reject() = 403 in strict, tag clientType='untrusted' + continue in tag).
+        // So tag mode observes exactly what strict would reject — no metric skew.
+
+        // 1. Origin allowlist (browser cross-origin guard)
+        if (!isOriginAllowed(c, allowedOrigins))
         {
             return reject(c, mode, next, 'origin-not-allowed');
         }
 
         // 2. OPTIONS preflight carries no signature and is non-mutating — exempt from
-        //    the signature check (the origin gate above still applied in strict).
+        //    the signature check (origin already checked). Tag it so downstream that
+        //    reads clientType never sees it unset.
         if (c.req.method === 'OPTIONS')
         {
+            c.set('clientType', 'web');
+
             return next();
         }
 
@@ -283,9 +302,10 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return next();
         }
 
-        // 4. Bound the memory the guard buffers for hashing: reject oversized bodies
-        //    BEFORE reading them (multipart is unsigned and exempt).
-        if (maxBodyBytes && isBodyOverLimit(c, maxBodyBytes))
+        // 4. Read body with a streaming size cap (Content-Length is never trusted, so a
+        //    missing/chunked/under-reported length can't bypass the bound).
+        const body = await readRawBody(c, maxBodyBytes);
+        if (body === BODY_OVERSIZE)
         {
             if (mode === 'strict')
             {
@@ -300,7 +320,6 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
         // 5. HMAC over the wire request-target (raw path + query) and body. Use the raw
         //    URL, NOT the decoded c.req.path, so it matches the bytes the proxy signed.
         const url = new URL(c.req.url);
-        const body = await readRawBody(c);
         const result = verifyProxyRequest({
             keys,
             method: c.req.method,
@@ -319,10 +338,10 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return reject(c, mode, next, result.reason);
         }
 
-        // 6. Hard replay rejection via nonce store — STRICT only (tag never blocks, so
-        //    the round-trip would be wasted). Degrade to the timestamp window if the
-        //    store is briefly unavailable rather than 500-ing valid traffic.
-        if (mode === 'strict' && nonceStore && result.nonce)
+        // 6. Hard replay rejection via nonce store (both modes — tag observes replays).
+        //    Degrade to the timestamp window if the store is briefly unavailable rather
+        //    than 500-ing valid traffic.
+        if (nonceStore && result.nonce)
         {
             try
             {

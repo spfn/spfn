@@ -140,7 +140,7 @@ describe('createProxyGuard', () =>
             expect(json.clientType).toBe('web');
         });
 
-        it('tags by signature only, ignoring the origin allowlist (no metric skew)', async () =>
+        it('tags a cross-origin request untrusted (observes what strict would reject)', async () =>
         {
             const taggingGuard = createProxyGuard({
                 mode: 'tag',
@@ -160,8 +160,10 @@ describe('createProxyGuard', () =>
                 body,
             });
 
-            // Valid signature from a non-allowlisted origin is still 'web' in tag mode.
-            expect((await res.json()).clientType).toBe('web');
+            // tag mode evaluates the same gates strict would — a disallowed origin is
+            // observable as 'untrusted', not silently 'web'.
+            expect(res.status).toBe(200);
+            expect((await res.json()).clientType).toBe('untrusted');
         });
     });
 
@@ -186,7 +188,7 @@ describe('createProxyGuard', () =>
             expect(res.status).toBe(200);
         });
 
-        it('rejects an oversized body with 413 before hashing (strict)', async () =>
+        it('rejects an oversized body with 413 (strict)', async () =>
         {
             const guard = createProxyGuard({ mode: 'strict', secret: SECRET, maxBodyBytes: 16 });
             const app = buildApp(guard);
@@ -194,12 +196,32 @@ describe('createProxyGuard', () =>
 
             const res = await app.request('/users', {
                 method: 'POST',
-                headers: {
-                    'content-type': 'application/json',
-                    'content-length': String(body.length),
-                    ...signedHeaders('POST', '/users', body),
-                },
+                headers: { 'content-type': 'application/json', ...signedHeaders('POST', '/users', body) },
                 body,
+            });
+
+            expect(res.status).toBe(413);
+        });
+
+        it('caps oversized body via stream measurement (no truthful Content-Length)', async () =>
+        {
+            const guard = createProxyGuard({ mode: 'strict', secret: SECRET, maxBodyBytes: 16 });
+            const app = buildApp(guard);
+            const big = 'x'.repeat(500);
+            const stream = new ReadableStream({
+                start(controller)
+                {
+                    controller.enqueue(new TextEncoder().encode(big));
+                    controller.close();
+                },
+            });
+
+            const res = await app.request('/users', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', ...signedHeaders('POST', '/users', big) },
+                body: stream,
+                // @ts-expect-error duplex is required for a stream request body
+                duplex: 'half',
             });
 
             expect(res.status).toBe(413);
@@ -369,12 +391,17 @@ describe('createProxyGuard', () =>
 
     describe('bypass-path handling', () =>
     {
-        it('skips OPTIONS preflight without a signature', async () =>
+        it('skips OPTIONS preflight without a signature and tags clientType', async () =>
         {
-            const app = buildApp(createProxyGuard({ mode: 'strict', secret: SECRET }));
+            const app = new Hono();
+            app.use('*', createProxyGuard({ mode: 'strict', secret: SECRET }));
+            app.options('/users', (c) => c.json({ clientType: c.get('clientType') }));
+
             const res = await app.request('/users', { method: 'OPTIONS' });
 
-            expect(res.status).not.toBe(403);
+            expect(res.status).toBe(200);
+            // clientType must be set so downstream never sees it undefined
+            expect((await res.json()).clientType).toBe('web');
         });
 
         it('skips configured skipPaths without a signature', async () =>

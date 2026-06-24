@@ -50,10 +50,13 @@
 - **자동 skip**: health·SSE 스트림(`/events/stream`)·WS 경로는 서명 없이 통과(EventSource는 커스텀 헤더 불가).
   단 SSE **토큰(POST)** 은 프록시를 거치고 자격증명을 발급하므로 skip하지 않고 검증한다.
   OPTIONS preflight는 서명 면제(비-mutating)하되 strict면 origin은 검사.
-- **모드별 차이**: origin allowlist는 **strict 게이트**(거부). `tag`는 origin을 무시하고 `clientType`을
-  *서명만으로* 결정해 관측 지표가 왜곡되지 않게 한다. nonce·body-cap도 strict에서만 동작.
-- **body-cap**: `maxBodyBytes` 설정 시 Content-Length 초과 요청을 해시 전에 413으로 거부(가드가 버퍼링하는
-  메모리 상한). multipart는 비대상. 미설정이면 무제한(기존 동작).
+- **모드별 차이**: origin·서명·nonce·body-cap 게이트는 *양 모드에서 평가*하고 enforcement만 다르다 —
+  strict는 거부(403/413), tag는 `clientType='untrusted'`로 태깅하고 통과. 그래서 tag는 strict가 무엇을
+  거부할지 정확히 관측한다(지표 왜곡 없음). OPTIONS도 origin 검사 후 `clientType`을 태깅한다.
+- **body-cap**: `maxBodyBytes` 설정 시 body를 *스트리밍으로 측정*하다 초과하면 중단·413. Content-Length는
+  신뢰하지 않으므로 누락·chunked·과소보고로 우회할 수 없다. multipart는 비대상. 미설정이면 무제한.
+- **base path**: 프록시는 라우트 상대 경로를 서명하므로 `SPFN_API_URL`에 백엔드가 유지하는 base path가 있으면
+  서명이 어긋난다. 프록시 부팅 시 경고를 남기며, ingress가 prefix를 strip하는 구성을 전제로 한다.
 
 ### B. Origin allowlist 검증
 

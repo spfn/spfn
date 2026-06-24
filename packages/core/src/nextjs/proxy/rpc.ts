@@ -128,6 +128,29 @@ export function createRpcProxy(config: RpcProxyConfig)
     // so a `v2:new,v1:old` secret is interpreted identically on both sides.
     const proxyKey = proxySecret ? (parseProxyKeySet([proxySecret])[0] ?? null) : null;
 
+    // proxy-guard signs route-relative paths; if SPFN_API_URL carries a base path the
+    // backend keeps (no ingress strip), the signed path won't match c.req.url and
+    // strict mode 403s everything. Warn loudly so it's diagnosable.
+    if (proxyKey)
+    {
+        try
+        {
+            const basePath = new URL(apiUrl).pathname;
+            if (basePath !== '/' && basePath !== '')
+            {
+                rpcLogger.warn(
+                    `SPFN_API_URL has a base path ("${basePath}"). proxy-guard signs route-relative paths, `
+                    + 'so the backend must receive paths WITHOUT this prefix (e.g. ingress strip) or strict '
+                    + 'mode will reject all signed requests with 403.',
+                );
+            }
+        }
+        catch
+        {
+            // invalid apiUrl is surfaced elsewhere
+        }
+    }
+
     /**
      * Resolve route info from routeMap
      */

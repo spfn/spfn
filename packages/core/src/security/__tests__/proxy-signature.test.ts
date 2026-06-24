@@ -43,6 +43,11 @@ describe('proxy-signature', () =>
             expect(parseProxyKey('abc123')).toEqual({ keyId: DEFAULT_KEY_ID, secret: 'abc123' });
         });
 
+        it('normalizes a leading-colon secret to DEFAULT_KEY_ID (empty keyId footgun)', () =>
+        {
+            expect(parseProxyKey(':mysecret')).toEqual({ keyId: DEFAULT_KEY_ID, secret: 'mysecret' });
+        });
+
         it('builds a key set, active wins on keyId collision, skips blanks', () =>
         {
             const keys = parseProxyKeySet(['v2:new', 'v1:old, v0:older', undefined, '', 'v2:dupe']);
