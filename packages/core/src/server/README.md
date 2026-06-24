@@ -262,9 +262,11 @@ When there is no `app.ts`, `createServer` builds the app in this **fixed order**
 
 - Each built-in is opt-out via `.middleware({ logger: false, cors: false, errorHandler: false })`.
 - **`proxyGuard`** is opt-in (`mode: 'off'` by default). When enabled via `.proxyGuard({...})`
-  it verifies the trusted-proxy HMAC signature + origin allowlist and tags `c.get('clientType')`.
-  The health-check path is skipped automatically so k8s probes are never blocked. See
-  `@spfn/core/middleware` and the root `PROXY-BACKEND-AUTH-SPEC.md`.
+  it verifies the trusted-proxy HMAC signature (`method+path+query+body`) + origin allowlist and
+  tags `c.get('clientType')`. `tag` and `strict` evaluate every gate; only enforcement differs.
+  Health, SSE stream, and WS paths plus genuine CORS preflights are skipped automatically so
+  probes/EventSource/preflight are never blocked. See `@spfn/core/middleware` and the root
+  `PROXY-BACKEND-AUTH-SPEC.md`.
 - `.middleware({ onError })` forwards an error callback into `ErrorHandler` (e.g. Slack
   notifier) — it runs async and does not block the response.
 - Named `middlewares` (from `.middlewares()` / `.routes()`) are applied **per route** inside

@@ -48,9 +48,12 @@ From `@spfn/core/middleware`:
   — register with `app.use(...)`.
 - `maskSensitiveData(obj, sensitiveFields, seen?)` → deep-masked copy of `obj`.
 - `createProxyGuard(config?: ProxyGuardConfig)` → Hono middleware. Verifies the proxy→backend
-  HMAC signature (rotating key set, keyed by `keyId`) + optional origin allowlist, then sets
-  `c.get('clientType')` (`'web'` | `'untrusted'`). Modes: `off` (default) / `tag` / `strict`.
-  Usually enabled via `defineServerConfig().proxyGuard({...})`, not `app.use` directly.
+  HMAC signature (rotating key set, keyed by `keyId`) over `method+path+query+body`, plus an
+  optional origin allowlist, then sets `c.get('clientType')` (`'web'` | `'untrusted'`). Modes:
+  `off` (default) / `tag` / `strict` — every gate is evaluated in BOTH modes, only enforcement
+  differs (strict rejects 403/413, tag tags `untrusted` and continues). `maxBodyBytes` caps the
+  hashed body (stream-measured). Usually enabled via `defineServerConfig().proxyGuard({...})`,
+  not `app.use` directly.
 - `createCacheNonceStore(cache, prefix?)` → `NonceStore` for hard replay rejection (Redis
   `SET … PX NX`). Pass to `proxyGuard.nonceStore` (auto-wired from a cache when `nonce: true`).
 
