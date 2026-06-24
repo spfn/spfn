@@ -313,6 +313,31 @@ describe('createProxyGuard', () =>
 
             expect(res.status).toBe(200);
         });
+
+        it('exempts OPTIONS from the origin gate but still blocks the real cross-origin request', async () =>
+        {
+            const app = buildApp(guard);
+
+            // Preflight from a disallowed origin is NOT 403'd by the guard (CORS owns it)
+            const preflight = await app.request('/users', {
+                method: 'OPTIONS',
+                headers: { origin: 'https://evil.example.com' },
+            });
+            expect(preflight.status).not.toBe(403);
+
+            // ...but the actual cross-origin request is rejected — no data exposure.
+            const body = JSON.stringify({ name: 'Ray' });
+            const real = await app.request('/users', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    origin: 'https://evil.example.com',
+                    ...signedHeaders('POST', '/users', body),
+                },
+                body,
+            });
+            expect(real.status).toBe(403);
+        });
     });
 
     describe('nonce replay rejection', () =>

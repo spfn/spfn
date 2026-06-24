@@ -2,7 +2,7 @@ import type { Hono, MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
-import type { OnErrorContext } from '@spfn/core/middleware';
+import type { OnErrorContext, ProxyGuardConfig } from '@spfn/core/middleware';
 import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig } from '../event/sse/types';
@@ -112,41 +112,7 @@ export interface ServerConfig
      * .proxyGuard({ mode: 'strict', allowedOrigins: ['https://app.example.com'] })
      * ```
      */
-    proxyGuard?: {
-        /**
-         * Enforcement mode.
-         * - `off` (default): no-op.
-         * - `tag`: verify and set `clientType`, never reject (observe first).
-         * - `strict`: reject unverified requests with 403.
-         */
-        mode?: 'off' | 'tag' | 'strict';
-
-        /** Active shared HMAC secret (`<keyId>:<secret>`). @default env.SPFN_PROXY_SECRET */
-        secret?: string;
-
-        /**
-         * Previous (grace) keys still accepted during rotation — comma-separated
-         * `<keyId>:<secret>`. Verification-only; the proxy never signs with these.
-         * @default env.SPFN_PROXY_SECRET_PREVIOUS
-         */
-        previousSecrets?: string;
-
-        /** Allowed clock skew / replay window in ms. @default 30000 */
-        windowMs?: number;
-
-        /**
-         * Browser origin allowlist. Evaluated in BOTH modes: strict rejects a
-         * disallowed Origin, tag tags it `untrusted`. Requires the proxy to forward
-         * the Origin header (it does). Requests without an Origin defer to the signature.
-         */
-        allowedOrigins?: string[];
-
-        /**
-         * Reject (413) once the streamed body exceeds this many bytes. Measured as it
-         * streams (Content-Length not trusted). Bounds per-request memory. @default no cap
-         */
-        maxBodyBytes?: number;
-
+    proxyGuard?: Omit<ProxyGuardConfig, 'nonceStore'> & {
         /**
          * Enable hard replay rejection via a Redis nonce store. Evaluated in BOTH modes
          * (tag observes replays, strict rejects). Requires a cache (CACHE_URL); without
@@ -154,9 +120,6 @@ export interface ServerConfig
          * is briefly unavailable. @default false
          */
         nonce?: boolean;
-
-        /** Paths to skip (health check path is always skipped automatically). */
-        skipPaths?: string[];
     };
 
     /**

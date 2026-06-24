@@ -126,10 +126,10 @@ declare module 'hono'
 // ============================================================================
 
 /** Sentinel: body exceeded maxBodyBytes while streaming (never fully buffered). */
-export const BODY_OVERSIZE = Symbol('proxy-guard:body-oversize');
+const BODY_OVERSIZE = Symbol('proxy-guard:body-oversize');
 
 /** Sentinel: the body stream errored mid-read (e.g. client abort). */
-export const BODY_READ_ERROR = Symbol('proxy-guard:body-read-error');
+const BODY_READ_ERROR = Symbol('proxy-guard:body-read-error');
 
 /**
  * Read the raw request body without consuming it for downstream handlers.
