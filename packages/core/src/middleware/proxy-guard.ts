@@ -101,9 +101,10 @@ export interface ProxyGuardConfig
     skipPaths?: string[];
 
     /**
-     * Reject (413) requests whose Content-Length exceeds this many bytes BEFORE
-     * buffering the body for hashing — bounds the per-request memory the guard
-     * adds. Undefined = no cap (default). Does not apply to multipart (unsigned).
+     * Reject (413) once the streamed body exceeds this many bytes. Measured AS IT
+     * STREAMS — Content-Length is NOT trusted, so a missing/chunked/under-reported
+     * length can't bypass it. Bounds the per-request memory the guard buffers.
+     * Undefined = no cap (default). Multipart is exempt (unsigned).
      */
     maxBodyBytes?: number;
 }
@@ -185,9 +186,15 @@ async function readRawBody(c: Context, maxBytes?: number): Promise<string | unde
             chunks.push(value);
         }
     }
-    catch
+    catch (err)
     {
-        return undefined;
+        // Don't swallow a mid-stream read error as an empty body — that would hash
+        // '' and 403 a validly-signed request as a phantom signature mismatch.
+        guardLogger.warn('Failed to read request body for signature verification', {
+            error: (err as Error).message,
+        });
+
+        throw err;
     }
 
     return Buffer.concat(chunks).toString('utf8');
@@ -285,11 +292,11 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
         }
 
         // 2. OPTIONS preflight carries no signature and is non-mutating — exempt from
-        //    the signature check (origin already checked). Tag it so downstream that
-        //    reads clientType never sees it unset.
+        //    the signature check (origin already checked). Tag 'untrusted' (it is
+        //    unsigned) so downstream never sees it unset NOR treats it as trusted.
         if (c.req.method === 'OPTIONS')
         {
-            c.set('clientType', 'web');
+            c.set('clientType', 'untrusted');
 
             return next();
         }
@@ -302,7 +309,19 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return next();
         }
 
-        // 4. Read body with a streaming size cap (Content-Length is never trusted, so a
+        // 4. Cheap header-presence check BEFORE buffering the body, so unsigned requests
+        //    (direct-to-backend attacks, tag-mode rollout traffic) reject/tag without
+        //    paying the body read.
+        const signature = c.req.header(PROXY_SIGNATURE_HEADER);
+        const timestamp = c.req.header(PROXY_TIMESTAMP_HEADER);
+        const nonce = c.req.header(PROXY_NONCE_HEADER);
+        const keyId = c.req.header(PROXY_KEY_ID_HEADER);
+        if (!signature || !timestamp || !nonce || !keyId)
+        {
+            return reject(c, mode, next, 'missing-headers');
+        }
+
+        // 5. Read body with a streaming size cap (Content-Length is never trusted, so a
         //    missing/chunked/under-reported length can't bypass the bound).
         const body = await readRawBody(c, maxBodyBytes);
         if (body === BODY_OVERSIZE)
@@ -317,7 +336,7 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             return next();
         }
 
-        // 5. HMAC over the wire request-target (raw path + query) and body. Use the raw
+        // 6. HMAC over the wire request-target (raw path + query) and body. Use the raw
         //    URL, NOT the decoded c.req.path, so it matches the bytes the proxy signed.
         const url = new URL(c.req.url);
         const result = verifyProxyRequest({
@@ -326,10 +345,10 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             path: url.pathname,
             query: url.search,
             body,
-            signature: c.req.header(PROXY_SIGNATURE_HEADER),
-            timestamp: c.req.header(PROXY_TIMESTAMP_HEADER),
-            nonce: c.req.header(PROXY_NONCE_HEADER),
-            keyId: c.req.header(PROXY_KEY_ID_HEADER),
+            signature,
+            timestamp,
+            nonce,
+            keyId,
             windowMs,
         });
 

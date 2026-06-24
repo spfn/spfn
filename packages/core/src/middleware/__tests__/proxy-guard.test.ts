@@ -391,7 +391,7 @@ describe('createProxyGuard', () =>
 
     describe('bypass-path handling', () =>
     {
-        it('skips OPTIONS preflight without a signature and tags clientType', async () =>
+        it('exempts OPTIONS from signature but tags it untrusted (unsigned, not trusted)', async () =>
         {
             const app = new Hono();
             app.use('*', createProxyGuard({ mode: 'strict', secret: SECRET }));
@@ -400,8 +400,8 @@ describe('createProxyGuard', () =>
             const res = await app.request('/users', { method: 'OPTIONS' });
 
             expect(res.status).toBe(200);
-            // clientType must be set so downstream never sees it undefined
-            expect((await res.json()).clientType).toBe('web');
+            // Set (never undefined) but NOT 'web' — a bare preflight isn't trusted.
+            expect((await res.json()).clientType).toBe('untrusted');
         });
 
         it('skips configured skipPaths without a signature', async () =>

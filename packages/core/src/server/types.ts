@@ -134,20 +134,24 @@ export interface ServerConfig
         /** Allowed clock skew / replay window in ms. @default 30000 */
         windowMs?: number;
 
-        /** Browser origin allowlist — enforced in strict mode only. */
+        /**
+         * Browser origin allowlist. Evaluated in BOTH modes: strict rejects a
+         * disallowed Origin, tag tags it `untrusted`. Requires the proxy to forward
+         * the Origin header (it does). Requests without an Origin defer to the signature.
+         */
         allowedOrigins?: string[];
 
         /**
-         * Reject (413) requests whose Content-Length exceeds this before the guard
-         * buffers the body for hashing. Bounds per-request memory. @default no cap
+         * Reject (413) once the streamed body exceeds this many bytes. Measured as it
+         * streams (Content-Length not trusted). Bounds per-request memory. @default no cap
          */
         maxBodyBytes?: number;
 
         /**
-         * Enable hard replay rejection via a Redis nonce store (strict mode only).
-         * Requires a cache (CACHE_URL); without one, falls back to the timestamp
-         * window. Degrades to the window if the store is briefly unavailable.
-         * @default false
+         * Enable hard replay rejection via a Redis nonce store. Evaluated in BOTH modes
+         * (tag observes replays, strict rejects). Requires a cache (CACHE_URL); without
+         * one, falls back to the timestamp window. Degrades to the window if the store
+         * is briefly unavailable. @default false
          */
         nonce?: boolean;
 
