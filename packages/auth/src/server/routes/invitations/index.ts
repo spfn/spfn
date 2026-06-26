@@ -17,6 +17,7 @@ import {
     cancelInvitation as _cancelInvitation,
     resendInvitation as _resendInvitation,
     deleteInvitation as _deleteInvitation,
+    assertCanAssignRole,
 } from '../../services';
 import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
@@ -153,6 +154,10 @@ export const createInvitation = route.post('/_auth/invitations')
     {
         const { body } = await c.data();
         const { userId } = getAuth(c);
+
+        // Caller must have authority over the role being assigned — without this,
+        // a user:invite holder could invite with the superadmin roleId and self-accept
+        await assertCanAssignRole(userId, body.roleId);
 
         const invitation = await _createInvitation({
             email: body.email,

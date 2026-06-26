@@ -12,10 +12,9 @@ import {
     deleteRole as _deleteRole,
     updateUserService,
     getUserRole,
-    hasPermission,
+    assertCanAssignRole,
 } from '../../services';
 import { getAuth } from '../../helpers';
-import { rolesRepository } from '../../repositories';
 import { ForbiddenError } from '@spfn/core/errors';
 import { Type } from '@sinclair/typebox';
 import { route } from '@spfn/core/route';
@@ -144,7 +143,6 @@ export const updateUserRole = route.patch('/_auth/admin/users/:userId/role')
     {
         const { params, body } = await c.data();
         const auth = getAuth(c);
-        const callerRole = await getUserRole(auth.userId);
 
         if (params.userId === Number(auth.userId))
         {
@@ -157,25 +155,8 @@ export const updateUserRole = route.patch('/_auth/admin/users/:userId/role')
             throw new ForbiddenError({ message: 'Cannot modify superadmin role' });
         }
 
-        // admin 권한 검증: 대상 role에 따라 제한
-        if (callerRole !== 'superadmin')
-        {
-            const newRole = await rolesRepository.findById(body.roleId);
-
-            if (newRole?.name === 'superadmin')
-            {
-                throw new ForbiddenError({ message: 'Only superadmin can assign superadmin role' });
-            }
-
-            if (newRole?.name === 'admin')
-            {
-                const canPromote = await hasPermission(auth.userId, 'admin:promote');
-                if (!canPromote)
-                {
-                    throw new ForbiddenError({ message: 'admin:promote permission required to assign admin role' });
-                }
-            }
-        }
+        // Caller must have authority over the role being assigned
+        await assertCanAssignRole(auth.userId, body.roleId);
 
         await updateUserService(params.userId, { roleId: body.roleId });
 

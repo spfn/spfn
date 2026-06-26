@@ -76,6 +76,7 @@ export {
     getUserRole,
     hasRole,
     hasAnyRole,
+    assertCanAssignRole,
 } from './permission.service';
 
 // Role Service
