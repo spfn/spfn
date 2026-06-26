@@ -43,6 +43,10 @@ export async function attachWSHandler<
     const {
         pingInterval = 30000,
         path = '/ws',
+        maxPayload = 1_048_576,
+        maxBufferedBytes = 1_048_576,
+        maxConnections = 10_000,
+        maxConnectionsPerSubject = 0,
         auth: authConfig,
     } = config;
 
@@ -54,16 +58,31 @@ export async function attachWSHandler<
         );
     }
 
-    const wss = new WebSocketServer({ server, path });
+    const wss = new WebSocketServer({ server, path, maxPayload });
 
     // Track live connections for graceful shutdown
     const clients = new Set<any>();
+    // Live connection count per authenticated subject (for the per-subject cap)
+    const subjectCounts = new Map<string, number>();
 
     wss.on('connection', (ws: any, req: any) =>
     {
+        // Global connection cap — reject before doing any work
+        if (clients.size >= maxConnections)
+        {
+            ws.close(1013, 'Server at capacity');
+
+            return;
+        }
+
         clients.add(ws);
         ws.on('close', () => clients.delete(ws));
-        handleConnection(ws, req, router, authConfig, tokenManager, pingInterval)
+        handleConnection(ws, req, router, authConfig, tokenManager, {
+            pingInterval,
+            maxBufferedBytes,
+            maxConnectionsPerSubject,
+            subjectCounts,
+        })
             .catch((err: Error) =>
             {
                 wsLogger.error('WebSocket connection handler error', err);
@@ -102,15 +121,24 @@ export async function attachWSHandler<
 // Connection Handler
 // ============================================================================
 
+interface ConnectionOptions
+{
+    pingInterval: number;
+    maxBufferedBytes: number;
+    maxConnectionsPerSubject: number;
+    subjectCounts: Map<string, number>;
+}
+
 async function handleConnection(
     ws: any,
     req: any,
     router: WSRouterDef<any, any>,
     authConfig: WSHandlerAuthConfig | undefined,
     tokenManager: SSETokenManager | undefined,
-    pingInterval: number,
+    opts: ConnectionOptions,
 ): Promise<void>
 {
+    const { pingInterval, maxBufferedBytes, maxConnectionsPerSubject, subjectCounts } = opts;
     // Register close handler before any await — ensures we never miss the event even during auth
     let pingTimer: ReturnType<typeof setInterval> | undefined;
     let connectionUnsubscribes: (() => void)[] = [];
@@ -164,6 +192,26 @@ async function handleConnection(
         return;
     }
 
+    // ── Per-subject connection cap (authenticated subjects only) ──
+    if (maxConnectionsPerSubject > 0 && typeof subject === 'string')
+    {
+        const current = subjectCounts.get(subject) ?? 0;
+        if (current >= maxConnectionsPerSubject)
+        {
+            ws.close(1013, 'Too many connections for this subject');
+
+            return;
+        }
+
+        subjectCounts.set(subject, current + 1);
+        ws.on('close', () =>
+        {
+            const remaining = (subjectCounts.get(subject) ?? 1) - 1;
+            if (remaining <= 0) subjectCounts.delete(subject);
+            else subjectCounts.set(subject, remaining);
+        });
+    }
+
     subscribedEvents = allowedEvents;
     wsLogger.info('WebSocket connection established', {
         events: allowedEvents,
@@ -171,10 +219,10 @@ async function handleConnection(
     });
 
     // ── 4. Build connection wrapper ──
-    const connection = createConnection(ws);
+    const connection = createConnection(ws, maxBufferedBytes);
 
     // ── 5. Subscribe to server-push events ──
-    connectionUnsubscribes = subscribeEvents(ws, router, allowedEvents, subject, authConfig);
+    connectionUnsubscribes = subscribeEvents(ws, router, allowedEvents, subject, authConfig, maxBufferedBytes);
 
     // If socket closed during auth awaits, clean up and bail
     if (ws.readyState !== 1)
@@ -192,12 +240,31 @@ async function handleConnection(
             .catch((err: Error) => wsLogger.error('Unhandled message error', err));
     });
 
-    // ── 7. Keep-alive ping ──
+    // ── 7. Keep-alive ping with liveness (pong) tracking ──
+    // Without reaping un-ponged sockets, a half-open connection (sleeping device,
+    // NAT drop with no FIN) lingers with its subscriptions, timer, and buffers.
     if (pingInterval > 0)
     {
+        ws.isAlive = true;
+        ws.on('pong', () =>
+        {
+            ws.isAlive = true;
+        });
+
         pingTimer = setInterval(() =>
         {
-            if (ws.readyState === 1) ws.ping();
+            if (ws.readyState !== 1) return;
+
+            if (ws.isAlive === false)
+            {
+                // No pong since the previous tick — drop the dead/half-open socket
+                ws.terminate();
+
+                return;
+            }
+
+            ws.isAlive = false;
+            ws.ping();
         }, pingInterval);
     }
 
@@ -280,14 +347,37 @@ async function resolveAllowedEvents(
     return allowed.length === 0 ? null : allowed;
 }
 
-function createConnection(ws: any): WSRawConnection
+/**
+ * Send a JSON frame with backpressure protection. If the socket's outbound
+ * buffer is already past the cap, the consumer is too slow — close the
+ * connection (1013) instead of buffering more and risking OOM. The client
+ * reconnects and re-subscribes.
+ */
+export function safeSend(ws: any, frame: unknown, maxBufferedBytes: number): void
+{
+    if (ws.readyState !== 1) return;
+
+    if (ws.bufferedAmount > maxBufferedBytes)
+    {
+        ws.close(1013, 'Send buffer overflow');
+
+        return;
+    }
+
+    try
+    {
+        ws.send(JSON.stringify(frame));
+    }
+    catch
+    {
+        // Socket closed between the readyState check and send — ignore
+    }
+}
+
+function createConnection(ws: any, maxBufferedBytes: number): WSRawConnection
 {
     return {
-        send: (type, payload) =>
-        {
-            if (ws.readyState !== 1) return;
-            ws.send(JSON.stringify({ type, data: payload }));
-        },
+        send: (type, payload) => safeSend(ws, { type, data: payload }, maxBufferedBytes),
         close: (code, reason) => ws.close(code, reason),
     };
 }
@@ -297,7 +387,8 @@ function subscribeEvents(
     router: WSRouterDef<any, any>,
     allowedEvents: string[],
     subject: string | undefined,
-    authConfig?: WSHandlerAuthConfig,
+    authConfig: WSHandlerAuthConfig | undefined,
+    maxBufferedBytes: number,
 ): (() => void)[]
 {
     const unsubscribes: (() => void)[] = [];
@@ -316,14 +407,7 @@ function subscribeEvents(
                 if (!authConfig.filter[eventName](subject, payload)) return;
             }
 
-            try
-            {
-                ws.send(JSON.stringify({ type: eventName, data: payload }));
-            }
-            catch
-            {
-                // Socket closed between readyState check and send — ignore
-            }
+            safeSend(ws, { type: eventName, data: payload }, maxBufferedBytes);
         });
 
         unsubscribes.push(unsubscribe);
