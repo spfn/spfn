@@ -15,6 +15,7 @@ import {
 import type { InvitationStatus, KeyAlgorithmType } from '../types';
 import { hashPassword } from '../helpers';
 import { invitationCreatedEvent, invitationAcceptedEvent } from '../events';
+import { BadRequestError, NotFoundError, ConflictError } from '@spfn/core/errors';
 
 /**
  * Generate unique invitation token (UUID v4)
@@ -71,7 +72,7 @@ export async function createInvitation(params: {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email))
     {
-        throw new Error('Invalid email format');
+        throw new BadRequestError({ message: 'Invalid email format' });
     }
 
     // Check if user already exists
@@ -79,7 +80,7 @@ export async function createInvitation(params: {
 
     if (existingUser)
     {
-        throw new Error('User with this email already exists');
+        throw new ConflictError({ message: 'User with this email already exists' });
     }
 
     // Check if there's already a pending invitation for this email
@@ -87,7 +88,7 @@ export async function createInvitation(params: {
 
     if (existingInvitation)
     {
-        throw new Error('Pending invitation already exists for this email');
+        throw new ConflictError({ message: 'Pending invitation already exists for this email' });
     }
 
     // Verify role exists
@@ -95,7 +96,7 @@ export async function createInvitation(params: {
 
     if (!role)
     {
-        throw new Error(`Role with id ${roleId} not found`);
+        throw new NotFoundError({ message: `Role with id ${roleId} not found`, resource: 'Role' });
     }
 
     // Verify inviter exists
@@ -103,7 +104,7 @@ export async function createInvitation(params: {
 
     if (!inviter)
     {
-        throw new Error(`User with id ${invitedBy} not found`);
+        throw new NotFoundError({ message: `User with id ${invitedBy} not found`, resource: 'User' });
     }
 
     // Generate unique token
@@ -238,7 +239,7 @@ export async function acceptInvitation(params: {
 
     if (!validation.valid || !validation.invitation)
     {
-        throw new Error(validation.error || 'Invalid invitation');
+        throw new BadRequestError({ message: validation.error || 'Invalid invitation' });
     }
 
     const invitation = validation.invitation;
@@ -248,7 +249,7 @@ export async function acceptInvitation(params: {
 
     if (!role)
     {
-        throw new Error('Role not found');
+        throw new NotFoundError({ message: 'Role not found', resource: 'Role' });
     }
 
     // Hash password
@@ -346,12 +347,12 @@ export async function cancelInvitation(
 
     if (!invitation)
     {
-        throw new Error('Invitation not found');
+        throw new NotFoundError({ message: 'Invitation not found', resource: 'Invitation' });
     }
 
     if (invitation.status !== 'pending')
     {
-        throw new Error(`Cannot cancel ${invitation.status} invitation`);
+        throw new ConflictError({ message: `Cannot cancel ${invitation.status} invitation` });
     }
 
     // Cancel invitation with metadata
@@ -414,13 +415,13 @@ export async function resendInvitation(
 
     if (!invitation)
     {
-        throw new Error('Invitation not found');
+        throw new NotFoundError({ message: 'Invitation not found', resource: 'Invitation' });
     }
 
     // Can only resend pending or expired invitations
     if (!['pending', 'expired'].includes(invitation.status))
     {
-        throw new Error(`Cannot resend ${invitation.status} invitation`);
+        throw new ConflictError({ message: `Cannot resend ${invitation.status} invitation` });
     }
 
     // Update expiration and status
