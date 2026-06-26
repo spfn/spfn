@@ -4,7 +4,8 @@
  * Tests for server-side JWT verification, fingerprint validation, and token decoding
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import crypto from 'crypto';
 import {
     verifyClientToken,
     verifyKeyFingerprint,
@@ -433,5 +434,26 @@ describe('JWT - Performance', () =>
         const duration = Date.now() - start;
 
         expect(duration).toBeLessThan(5); // Should be nearly instant
+    });
+});
+
+describe('JWT - Public key cache', () =>
+{
+    it('parses each public key only once across verifications', () =>
+    {
+        const { privateKey, publicKey, algorithm } = generateKeyPair('ES256');
+        const token = generateClientToken({ userId: 'cache-test' }, privateKey, algorithm);
+
+        const spy = vi.spyOn(crypto, 'createPublicKey');
+
+        const first = verifyClientToken(token, publicKey, algorithm);
+        const second = verifyClientToken(token, publicKey, algorithm);
+
+        expect(first.userId).toBe('cache-test');
+        expect(second.userId).toBe('cache-test');
+        // First call parses the DER; the second reuses the cached KeyObject
+        expect(spy).toHaveBeenCalledTimes(1);
+
+        spy.mockRestore();
     });
 });
