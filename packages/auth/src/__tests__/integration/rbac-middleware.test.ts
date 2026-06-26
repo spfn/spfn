@@ -238,7 +238,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/admin-dashboard',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key', role: null, locale: 'en' });
+                    c.set('auth', { user: admin, userId: String(admin.id), keyId: 'test-key', role: 'admin', locale: 'en' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
@@ -276,7 +276,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.get('/admin-dashboard',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key', role: null, locale: 'en' });
+                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key', role: 'superadmin', locale: 'en' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
@@ -309,7 +309,7 @@ describe.skipIf(!dbAvailable)('RBAC Middleware', () =>
             app.post('/users/delete',
                 async (c: Context, next) =>
                 {
-                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key', role: null, locale: 'en' });
+                    c.set('auth', { user: superadmin, userId: String(superadmin.id), keyId: 'test-key', role: 'superadmin', locale: 'en' });
                     await next();
                 },
                 requireRole('admin', 'superadmin'),
