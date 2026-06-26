@@ -106,6 +106,22 @@ export interface RunInTransactionOptions
     timeout?: number;
 
     /**
+     * Idle-in-transaction timeout in milliseconds (root transactions only).
+     *
+     * Sets PostgreSQL `idle_in_transaction_session_timeout`: if the transaction
+     * sits open without running a query for longer than this — e.g. while the
+     * handler awaits external I/O inside the transaction — Postgres terminates
+     * the session and rolls back, reclaiming the pooled connection instead of
+     * letting one stuck request hold it (and its row locks) indefinitely.
+     *
+     * Do not put external I/O inside a transaction; this is a backstop, not a
+     * license. `0` disables it.
+     *
+     * @default 30000 (30s) or TRANSACTION_IDLE_TIMEOUT environment variable
+     */
+    idleTimeout?: number;
+
+    /**
      * Context string for logging (e.g., 'migration:add-user', 'script:cleanup')
      * @default 'transaction'
      */
@@ -147,6 +163,9 @@ export async function runInTransaction<T>(
 
     // Handle timeout: null/undefined → default, 0 → disabled, N → N milliseconds
     const timeout = options.timeout ?? defaultTimeout;
+
+    // Idle-in-transaction backstop: 0 disables, else default from env
+    const idleTimeout = options.idleTimeout ?? env.TRANSACTION_IDLE_TIMEOUT;
 
     // Generate transaction ID for debugging
     const txId = `tx_${randomUUID()}`;
@@ -278,6 +297,13 @@ export async function runInTransaction<T>(
                 await tx.execute(sql.raw(`SET LOCAL statement_timeout = ${timeout}`));
             }
 
+            // Idle-in-transaction backstop (root only): reclaims the pooled
+            // connection if the transaction sits idle (e.g. awaiting external I/O)
+            if (idleTimeout > 0 && !isNested)
+            {
+                await tx.execute(sql.raw(`SET LOCAL idle_in_transaction_session_timeout = ${idleTimeout}`));
+            }
+
             // Store transaction in AsyncLocalStorage
             return await runWithTransaction(tx, txId, async () =>
             {
@@ -309,6 +335,7 @@ export async function runInTransaction<T>(
                     context,
                     duration: `${duration}ms`,
                     threshold: `${slowThreshold}ms`,
+                    hint: 'A transaction holds a pooled connection (and row locks) for its whole duration. If this is slow because of non-DB work (external API, etc.) inside the transaction, move that work out — it starves the connection pool.',
                 });
             }
             else
@@ -364,6 +391,7 @@ export async function runInTransaction<T>(
                     threshold: `${slowThreshold}ms`,
                     error: error instanceof Error ? error.message : String(error),
                     errorType: error instanceof Error ? error.name : 'Unknown',
+                    hint: 'If the error is an idle-in-transaction timeout, the transaction held a pooled connection while awaiting non-DB work (external API, etc.). Move that work out of the transaction.',
                 });
             }
             else

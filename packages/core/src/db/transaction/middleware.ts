@@ -57,6 +57,16 @@ export interface TransactionalOptions
      * ```
      */
     timeout?: number;
+
+    /**
+     * Idle-in-transaction timeout in milliseconds — Postgres reclaims the pooled
+     * connection if the transaction sits idle (e.g. the handler awaits external
+     * I/O) longer than this. A backstop against pool starvation, not a license
+     * to do non-DB work inside a transaction. `0` disables it.
+     *
+     * @default 30000 (30s) or TRANSACTION_IDLE_TIMEOUT environment variable
+     */
+    idleTimeout?: number;
 }
 
 /**
