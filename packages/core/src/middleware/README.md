@@ -147,6 +147,14 @@ Converts a thrown error into a JSON HTTP response. Register it with **`app.onErr
 - **Standard `Error`** → falls back to `{ __type: 'Error', message }`, status from a
   `statusCode` property on the error if present, else `500`.
 - **`cause` chain** → the root cause message is extracted and added as `cause`.
+- **Production information disclosure** → when `includeStack` is `false` (the production
+  default), the client message is genericized for anything whose text may come from the DB
+  driver: standard (uncaught) `Error`s become `"Internal Server Error"` with no `cause`, and
+  any error exposing `internal === true` (the `DatabaseError` family — `QueryError`,
+  `ConnectionError`, `TransactionError`, … carrying raw SQL / table / column / parameter
+  text) becomes `"Internal server error"` with no `details`. Full detail is still logged
+  server-side. Errors with a safe, constructed message (`EntityNotFoundError`,
+  `DuplicateEntryError`, and all non-DB `SerializableError`s) are returned unchanged.
 - **Logging** (when `enableLogging`): `warn` for 4xx, `error` for 5xx, via the
   `@spfn/core:error-handler` logger.
 - **`onError` callback** → fired non-blocking (`Promise.resolve(...).catch(...)`); never

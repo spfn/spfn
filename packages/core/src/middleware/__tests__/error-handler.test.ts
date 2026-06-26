@@ -11,6 +11,9 @@ import {
     InternalServerError,
     ValidationError,
 } from '@spfn/core/errors';
+// Imported from source so the `internal` getter under test is exercised
+// regardless of the built dist freshness.
+import { QueryError, EntityNotFoundError } from '../../errors/database-errors';
 
 describe('ErrorHandler Middleware', () =>
 {
@@ -304,6 +307,95 @@ describe('ErrorHandler Middleware', () =>
             const res = await app.request('/error');
 
             expect(res.status).toBe(400);
+        });
+    });
+
+    describe('Production information disclosure', () =>
+    {
+        // Simulate a raw driver error as built by fromPostgresError
+        const RAW_SQL = 'column "secret_col" does not exist';
+
+        it('hides DB-driver message for internal errors in production (includeStack=false)', async () =>
+        {
+            const app = new Hono();
+            app.onError(ErrorHandler({ includeStack: false, enableLogging: false }));
+            app.get('/q', () =>
+            {
+                throw new QueryError({ message: RAW_SQL, statusCode: 500, details: { code: '42703' } });
+            });
+
+            const res = await app.request('/q');
+            const json: any = await res.json();
+
+            expect(res.status).toBe(500);
+            expect(json.__type).toBe('QueryError');
+            expect(json.message).toBe('Internal server error');
+            expect(JSON.stringify(json)).not.toContain('secret_col');
+            expect(json.details).toBeUndefined();
+        });
+
+        it('hides schema-revealing 4xx driver errors too', async () =>
+        {
+            const app = new Hono();
+            app.onError(ErrorHandler({ includeStack: false, enableLogging: false }));
+            app.get('/q', () =>
+            {
+                throw new QueryError({ message: RAW_SQL, statusCode: 400, details: { code: '42703' } });
+            });
+
+            const res = await app.request('/q');
+            const json: any = await res.json();
+
+            expect(res.status).toBe(400);
+            expect(json.message).toBe('Internal server error');
+            expect(JSON.stringify(json)).not.toContain('secret_col');
+        });
+
+        it('keeps the full driver message in development (includeStack=true)', async () =>
+        {
+            const app = new Hono();
+            app.onError(ErrorHandler({ includeStack: true, enableLogging: false }));
+            app.get('/q', () =>
+            {
+                throw new QueryError({ message: RAW_SQL, statusCode: 500 });
+            });
+
+            const json: any = await (await app.request('/q')).json();
+            expect(json.message).toBe(RAW_SQL);
+        });
+
+        it('still exposes errors with a safe constructed message (EntityNotFoundError) in production', async () =>
+        {
+            const app = new Hono();
+            app.onError(ErrorHandler({ includeStack: false, enableLogging: false }));
+            app.get('/e', () =>
+            {
+                throw new EntityNotFoundError({ resource: 'User', id: 42 });
+            });
+
+            const res = await app.request('/e');
+            const json: any = await res.json();
+
+            expect(res.status).toBe(404);
+            expect(json.message).toBe('User with id 42 not found');
+        });
+
+        it('genericizes uncaught standard errors and drops cause in production', async () =>
+        {
+            const app = new Hono();
+            app.onError(ErrorHandler({ includeStack: false, enableLogging: false }));
+            app.get('/raw', () =>
+            {
+                throw new Error('Failed query: select * from users\nparams: secret');
+            });
+
+            const res = await app.request('/raw');
+            const json: any = await res.json();
+
+            expect(res.status).toBe(500);
+            expect(json.message).toBe('Internal Server Error');
+            expect(json.cause).toBeUndefined();
+            expect(JSON.stringify(json)).not.toContain('secret');
         });
     });
 });

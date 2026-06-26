@@ -31,6 +31,18 @@ export class DatabaseError<TDetails extends Record<string, unknown> = Record<str
         this.details = data.details;
         Error.captureStackTrace(this, this.constructor);
     }
+
+    /**
+     * Whether this error's message/details are derived from the raw database
+     * driver (SQL text, table/column/constraint names, parameter values) and
+     * therefore must NOT be exposed to clients in production. Defined as a
+     * prototype getter so it is never serialized into the response by toJSON().
+     * Subclasses with a safe, constructed message override this to `false`.
+     */
+    get internal(): boolean
+    {
+        return true;
+    }
 }
 
 /**
@@ -89,6 +101,12 @@ export class EntityNotFoundError extends QueryError
         this.name = 'EntityNotFoundError';
         this.resource = data.resource;
         this.id = data.id;
+    }
+
+    // Message/details are constructed from the resource + id, not driver text
+    override get internal(): boolean
+    {
+        return false;
     }
 }
 
@@ -163,5 +181,11 @@ export class DuplicateEntryError extends QueryError
         this.name = 'DuplicateEntryError';
         this.field = data.field;
         this.value = data.value;
+    }
+
+    // Message/details are constructed from the parsed field/value, not raw SQL
+    override get internal(): boolean
+    {
+        return false;
     }
 }
