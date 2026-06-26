@@ -114,7 +114,7 @@ real secret values out of band, never commit them.
 | `SPFN_API_URL` | `.env.local` | — | default `http://localhost:8790` |
 | `SPFN_AUTH_SESSION_TTL` | both | — | default `7d` (e.g. `7d`, `12h`, `45m`) |
 | `SPFN_AUTH_JWT_SECRET` / `SPFN_AUTH_JWT_EXPIRES_IN` | `.env.server` | — | legacy server-signed JWT mode only |
-| `SPFN_AUTH_BCRYPT_SALT_ROUNDS` | `.env.server` | — | default `10` |
+| `SPFN_AUTH_BCRYPT_SALT_ROUNDS` | `.env.server` | — | default `12` (native bcrypt, off the event loop) |
 | `SPFN_AUTH_COOKIE_SECURE` | both | — | override Secure flag (defaults to `NODE_ENV==='production'`) |
 | `SPFN_AUTH_ADMIN_*` | `.env.server` | — | admin seeding (see below) |
 | `SPFN_AUTH_GOOGLE_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | enables Google OAuth when both set |

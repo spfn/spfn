@@ -103,7 +103,7 @@
     "setupMessage": "  📚 Next steps:\n    1. Add lifecycle: .lifecycle(createAuthLifecycle()) in server.config.ts\n    2. Register router: .packages([authRouter]).use([authenticate]) in router.ts\n    3. Add interceptor: import '@spfn/auth/nextjs/api' in RPC proxy route\n    4. Set env vars: SPFN_AUTH_SESSION_SECRET (.env.local), SPFN_AUTH_VERIFICATION_TOKEN_SECRET (.env.server)\n    5. Run migrations: pnpm spfn db migrate\n    6. Full guide: https://spfn.dev/docs/guides/authentication"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
+    "@node-rs/bcrypt": "^1.10.7",
     "drizzle-orm": "^0.45.0",
     "jose": "^6.1.0",
     "jsonwebtoken": "^9.0.2",
@@ -112,7 +112,6 @@
   "devDependencies": {
     "@spfn/core": "workspace:*",
     "@spfn/notification": "workspace:*",
-    "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.11.0",
     "@types/react": "^19.2.2",
