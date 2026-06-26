@@ -86,6 +86,13 @@ export interface PoolConfig
     max: number;
     /** Idle connection timeout in seconds */
     idleTimeout: number;
+    /**
+     * Maximum connections for the read-replica pool. Defaults to `max`. Set
+     * separately (DB_POOL_READ_MAX) so a master-replica app can size the two
+     * pools independently and keep `write.max + read.max` under the server's
+     * `max_connections` (otherwise each process opens up to 2 × max).
+     */
+    readMax?: number;
 }
 
 /**
@@ -220,9 +227,13 @@ function parseEnvBoolean(key: string, defaultValue: boolean): boolean
  */
 export function getPoolConfig(options?: Partial<PoolConfig>): PoolConfig
 {
+    const max = options?.max ?? parseEnvNumber('DB_POOL_MAX', 20, 10);
+
     return {
-        max: options?.max ?? parseEnvNumber('DB_POOL_MAX', 20, 10),
+        max,
         idleTimeout: options?.idleTimeout ?? parseEnvNumber('DB_POOL_IDLE_TIMEOUT', 30, 20),
+        // Defaults to the write `max`; DB_POOL_READ_MAX lets ops size the replica pool separately
+        readMax: options?.readMax ?? parseEnvNumber('DB_POOL_READ_MAX', max, max),
     };
 }
 

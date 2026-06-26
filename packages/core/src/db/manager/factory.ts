@@ -134,10 +134,14 @@ async function createWriteReadClients(
         throw new Error(`Write database connection failed: ${errorObj.message}`, { cause: error });
     }
 
-    // Read connection is optional - fallback to write if it fails
+    // Read connection is optional - fallback to write if it fails.
+    // The read pool can be sized independently (readMax) so the two pools don't
+    // each open `max` connections for a total of 2 × max per process.
+    const readPoolConfig = { ...poolConfig, max: poolConfig.readMax ?? poolConfig.max };
+
     try
     {
-        readClient = await createDatabaseConnection(readUrl, poolConfig, retryConfig);
+        readClient = await createDatabaseConnection(readUrl, readPoolConfig, retryConfig);
 
         return {
             write: drizzle(writeClient),
