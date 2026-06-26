@@ -53,6 +53,14 @@ export interface JobOptions
      * @default 1
      */
     batchSize?: number;
+
+    /**
+     * How often this worker polls the DB for new jobs, in seconds. Lower =
+     * faster pickup but more idle SELECT load; higher = less DB chatter but
+     * slower pickup. Overrides the JOB_POLLING_INTERVAL_SECONDS default.
+     * @default 2 (pg-boss default) or JOB_POLLING_INTERVAL_SECONDS
+     */
+    pollingIntervalSeconds?: number;
 }
 
 /**

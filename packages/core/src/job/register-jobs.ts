@@ -6,6 +6,7 @@
 
 import type PgBoss from 'pg-boss';
 import { logger } from '@spfn/core/logger';
+import { env } from '@spfn/core/config';
 import type { JobDef, JobOptions, JobRouter } from './types';
 import type { EventDef } from '@spfn/core/event';
 import { collectJobs } from './job-router';
@@ -175,10 +176,11 @@ async function registerWorker(
     await ensureQueue(boss, queueName);
 
     const batchSize = job.options?.batchSize ?? 1;
+    const pollingIntervalSeconds = job.options?.pollingIntervalSeconds ?? env.JOB_POLLING_INTERVAL_SECONDS;
 
     await boss.work(
         queueName,
-        { batchSize },
+        { batchSize, pollingIntervalSeconds },
         async (pgBossJobs) =>
         {
             if (batchSize <= 1)

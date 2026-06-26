@@ -85,6 +85,12 @@ export const coreEnvSchema = defineEnvSchema({
         examples: [10, 20, 50],
     }),
 
+    DB_POOL_READ_MAX: envNumber({
+        description: 'Maximum connections for the read-replica pool. Defaults to DB_POOL_MAX. Set lower so write.max + read.max stays under the server max_connections (each process otherwise opens up to 2 × DB_POOL_MAX when a replica is configured).',
+        required: false,
+        examples: [5, 10, 20],
+    }),
+
     DB_POOL_IDLE_TIMEOUT: envNumber({
         description: 'Database connection idle timeout in seconds',
         default: 30,
@@ -183,6 +189,16 @@ export const coreEnvSchema = defineEnvSchema({
         description: 'Transaction timeout in milliseconds',
         default: 30000,
         examples: [10000, 30000, 60000],
+    }),
+
+    // ========================================================================
+    // Jobs (pg-boss)
+    // ========================================================================
+
+    JOB_POLLING_INTERVAL_SECONDS: envNumber({
+        description: 'How often each pg-boss worker polls the DB for new jobs (seconds). Lower = faster pickup, more idle SELECT load; higher = less DB chatter, slower pickup. Per-job override via job options.',
+        default: 2,
+        examples: [1, 2, 10],
     }),
 
     // ========================================================================
