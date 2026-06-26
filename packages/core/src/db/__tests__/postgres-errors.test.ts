@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { fromPostgresError } from '../postgres-errors';
+import { DuplicateEntryError } from '../../errors/database-errors';
 
 describe('PostgreSQL Error Conversion', () =>
 {
@@ -132,7 +133,10 @@ describe('PostgreSQL Error Conversion', () =>
 
                 expect(error.name).toBe('DuplicateEntryError');
                 expect(error.message).toContain('email');
-                expect(error.message).toContain('test@example.com');
+                // The value must NOT leak into the client-facing message (enumeration)…
+                expect(error.message).not.toContain('test@example.com');
+                // …but is preserved on the instance for server-side handling.
+                expect((error as DuplicateEntryError).value).toBe('test@example.com');
             });
 
             it('should parse field and value from unique violation', () =>
@@ -145,7 +149,8 @@ describe('PostgreSQL Error Conversion', () =>
 
                 expect(error.name).toBe('DuplicateEntryError');
                 expect(error.message).toContain('username');
-                expect(error.message).toContain('john_doe');
+                expect(error.message).not.toContain('john_doe');
+                expect((error as DuplicateEntryError).value).toBe('john_doe');
             });
 
             it('should handle complex unique violations with multiple fields', () =>

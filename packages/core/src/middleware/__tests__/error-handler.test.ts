@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import { ErrorHandler } from '../error-handler';
+import { ErrorHandler, type OnErrorContext } from '../error-handler';
 import {
     NotFoundError,
     BadRequestError,
@@ -396,6 +396,32 @@ describe('ErrorHandler Middleware', () =>
             expect(json.message).toBe('Internal Server Error');
             expect(json.cause).toBeUndefined();
             expect(JSON.stringify(json)).not.toContain('secret');
+        });
+    });
+
+    describe('Request context masking (S-L8)', () =>
+    {
+        it('masks sensitive query params in the onError context', async () =>
+        {
+            let captured: OnErrorContext | undefined;
+
+            const app = new Hono();
+            app.onError(ErrorHandler({
+                enableLogging: false,
+                onError: (_err, ctx) => { captured = ctx; },
+            }));
+            app.get('/x', () =>
+            {
+                throw new Error('boom');
+            });
+
+            await app.request('/x?token=supersecret&code=abc123&page=2');
+            // onError fires asynchronously (fire-and-forget) — flush the microtask queue.
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(captured?.request.query.token).toBe('***');
+            expect(captured?.request.query.code).toBe('***');
+            expect(captured?.request.query.page).toBe('2');
         });
     });
 });

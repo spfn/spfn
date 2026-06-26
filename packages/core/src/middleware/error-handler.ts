@@ -135,6 +135,30 @@ function extractHeaders(c: Context): Record<string, string>
     return headers;
 }
 
+const SENSITIVE_QUERY_PARAMS = new Set([
+    'token', 'access_token', 'refresh_token', 'id_token', 'code',
+    'secret', 'client_secret', 'password', 'passwd', 'pwd',
+    'api_key', 'apikey', 'key', 'signature', 'sig',
+    'session', 'sessionid', 'auth', 'authorization',
+]);
+
+/**
+ * Extract query params from request, masking sensitive values so credentials in
+ * the URL (?token=…, ?code=…) don't reach error logs / the onError callback.
+ */
+function extractQuery(c: Context): Record<string, string>
+{
+    const query = c.req.query();
+    const masked: Record<string, string> = {};
+
+    for (const [key, value] of Object.entries(query))
+    {
+        masked[key] = SENSITIVE_QUERY_PARAMS.has(key.toLowerCase()) ? '***' : value;
+    }
+
+    return masked;
+}
+
 /**
  * Build onError context from Hono context
  */
@@ -151,7 +175,7 @@ function buildOnErrorContext(c: Context, statusCode: number): OnErrorContext
         userId: auth?.userId,
         request: {
             headers: extractHeaders(c),
-            query: c.req.query(),
+            query: extractQuery(c),
         },
     };
 }

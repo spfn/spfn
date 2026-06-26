@@ -173,17 +173,20 @@ export class DuplicateEntryError extends QueryError
 
     constructor(data: { field: string; value: string | number })
     {
+        // The client-facing message/details name the field but NOT the value: echoing
+        // the value back (e.g. an email) confirms it exists, an enumeration aid. The
+        // raw value stays on the instance for server-side handling/logging.
         super({
-            message: `${data.field} '${data.value}' already exists`,
+            message: `${data.field} already exists`,
             statusCode: 409,
-            details: { field: data.field, value: data.value },
+            details: { field: data.field },
         });
         this.name = 'DuplicateEntryError';
         this.field = data.field;
         this.value = data.value;
     }
 
-    // Message/details are constructed from the parsed field/value, not raw SQL
+    // Field-only message/details — safe to surface to the client (not internal)
     override get internal(): boolean
     {
         return false;
