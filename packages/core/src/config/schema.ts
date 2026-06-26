@@ -185,6 +185,12 @@ export const coreEnvSchema = defineEnvSchema({
         examples: [10000, 30000, 60000],
     }),
 
+    TRANSACTION_IDLE_TIMEOUT: envNumber({
+        description: 'Max time (ms) a transaction may sit idle (no running query) before Postgres terminates it and reclaims the pooled connection. Guards against external I/O held inside a transaction starving the connection pool. 0 disables.',
+        default: 30000,
+        examples: [10000, 30000, 0],
+    }),
+
     // ========================================================================
     // Database - Development
     // ========================================================================

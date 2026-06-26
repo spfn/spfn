@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createDbTestFixture } from '../../__tests__/helpers/db-fixture';
+import { runInTransaction } from '../runner';
 
 describe('Transaction Timeout Configuration', () =>
 {
@@ -265,6 +266,35 @@ describe('Transaction Timeout Configuration', () =>
                 const result = await tx.execute<{ statement_timeout: string }>(sql`SHOW statement_timeout`);
                 expect(result[0].statement_timeout).toBe('0');
             });
+        });
+    });
+
+    describe('Idle-in-transaction backstop', () =>
+    {
+        it('sets idle_in_transaction_session_timeout on a root transaction', async () =>
+        {
+            if (!dbFixture.isAvailable) return;
+
+            await runInTransaction(async (tx) =>
+            {
+                const result = await tx.execute<{ idle_in_transaction_session_timeout: string }>(
+                    sql`SHOW idle_in_transaction_session_timeout`,
+                );
+                expect(result[0].idle_in_transaction_session_timeout).toBe('7s');
+            }, { idleTimeout: 7000, timeout: 5000, enableLogging: false });
+        });
+
+        it('leaves it disabled when idleTimeout is 0', async () =>
+        {
+            if (!dbFixture.isAvailable) return;
+
+            await runInTransaction(async (tx) =>
+            {
+                const result = await tx.execute<{ idle_in_transaction_session_timeout: string }>(
+                    sql`SHOW idle_in_transaction_session_timeout`,
+                );
+                expect(result[0].idle_in_transaction_session_timeout).toBe('0');
+            }, { idleTimeout: 0, timeout: 5000, enableLogging: false });
         });
     });
 });

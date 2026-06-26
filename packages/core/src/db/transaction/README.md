@@ -189,6 +189,14 @@ transaction (via `sql.raw`, since `SET` can't be parameterized). Resolution orde
 Timeout is applied **only to root transactions**. In a nested call the timeout is ignored
 (and a `warn` is logged), because `SET LOCAL` would re-scope the entire outer transaction.
 
+`idleTimeout` is the companion knob: `SET LOCAL idle_in_transaction_session_timeout = <ms>`,
+also root-only, resolved as `options.idleTimeout ?? env.TRANSACTION_IDLE_TIMEOUT` (default
+30000). Where `statement_timeout` bounds a single query's run time, this bounds how long the
+transaction may sit **idle** (no query running) — e.g. while the handler awaits external I/O.
+On expiry Postgres terminates the session and rolls back, **reclaiming the pooled connection**
+instead of letting one stuck request hold it (and its row locks) indefinitely. `0` disables it.
+This is a backstop, not a license — see the anti-pattern below.
+
 ### Validation / errors
 
 `runInTransaction` fails fast with a `TransactionError` (before opening a transaction) when:
@@ -292,6 +300,17 @@ await db.transaction(async (tx) =>
 
 ## Pitfalls & anti-patterns
 
+- **Never do external I/O inside a transaction.** A transaction holds a pooled connection
+  (and any row locks taken) from `BEGIN` to `COMMIT`. If the handler awaits an external API,
+  queue, or other non-DB work while the transaction is open, that connection sits idle but
+  reserved — under load, in-flight requests cap out at the pool size and everything else
+  queues. Route-level `Transactional()` wraps the **whole handler**, so it's especially easy
+  to fall into; prefer scoping the transaction to the DB statements (call `runInTransaction`
+  inside a service around just the writes). The `idle_in_transaction_session_timeout` backstop
+  reaps the worst case, and a "Slow transaction" `warn` flags offenders — but the fix is to
+  move the I/O out. If you have a write → external-call → write flow where the external call
+  has a side effect (charge, send), don't span it with a transaction at all — commit intent,
+  call outside the transaction, then commit the result (outbox / saga).
 - **Import from `@spfn/core/db`, not `@spfn/core/db/transaction` or `@spfn/core`.** Neither
   of the latter is a real package export — they don't resolve.
 - **`runWithTransaction` is `(tx, txId, callback)`.** Calling it with two args silently
