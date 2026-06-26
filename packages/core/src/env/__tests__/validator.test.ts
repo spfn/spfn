@@ -203,6 +203,14 @@ describe('parsePostgresUrl', () =>
     {
         expect(() => parsePostgresUrl('mysql://localhost/db')).toThrow('Must be a PostgreSQL URL');
     });
+
+    it('does not echo the value (credentials) in the parse error', () =>
+    {
+        const malformed = 'not a url with s3cr3t-pw';
+        expect(() => parsePostgresUrl(malformed)).toThrow('Invalid PostgreSQL URL');
+        try { parsePostgresUrl(malformed); }
+        catch (e) { expect((e as Error).message).not.toContain('s3cr3t'); }
+    });
 });
 
 describe('parseRedisUrl', () =>
@@ -216,6 +224,14 @@ describe('parseRedisUrl', () =>
     it('should throw on non-Redis URL', () =>
     {
         expect(() => parseRedisUrl('http://localhost')).toThrow('Must be a Redis URL');
+    });
+
+    it('does not echo the value (credentials) in the parse error', () =>
+    {
+        const malformed = 'not a url with s3cr3t-pw';
+        expect(() => parseRedisUrl(malformed)).toThrow('Invalid Redis URL');
+        try { parseRedisUrl(malformed); }
+        catch (e) { expect((e as Error).message).not.toContain('s3cr3t'); }
     });
 });
 

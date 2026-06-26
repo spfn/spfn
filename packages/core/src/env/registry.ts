@@ -200,7 +200,12 @@ export class EnvRegistry<T extends EnvSchemaCollection = EnvSchemaCollection>
         }
         catch (error)
         {
-            const errorMsg = `${key} validation failed: ${error instanceof Error ? error.message : String(error)}`;
+            // For sensitive keys, never log the validator's message — it may have
+            // interpolated the secret value (e.g. a DB/Redis URL with credentials).
+            const detail = schema.sensitive
+                ? '(value hidden — sensitive key)'
+                : (error instanceof Error ? error.message : String(error));
+            const errorMsg = `${key} validation failed: ${detail}`;
             envLogger.error(`Environment validation failed:\n  - ${errorMsg}`);
             throw new Error('Environment validation failed');
         }
