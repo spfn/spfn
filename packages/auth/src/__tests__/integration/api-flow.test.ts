@@ -1,19 +1,41 @@
 /**
  * @spfn/auth - API Flow Integration Tests
  *
- * Real integration tests using actual HTTP requests to Hono app
- * Tests complete flow: register → login → authenticated requests
+ * Real HTTP requests against the mounted auth router. Registration now goes
+ * through the verification flow (send code → verify → token → register), so
+ * these tests drive that flow: the OTP delivery is mocked (the code is still
+ * persisted before sending) and read back from the database to complete the
+ * verify step. Real key pairs are generated so the fingerprint check passes.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
+import { and, eq, desc } from 'drizzle-orm';
 import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailable } from '../helpers/db';
-import { mainAuthRouter } from '@/server/routes';
-import { registerRoutes } from '@spfn/core/route';
-import { initializeAuth } from '@/server/services/rbac.service';
+import { verificationCodes } from '@/server/entities';
+import { generateKeyPair } from '@/server/lib/crypto';
 
-// Check if database is available before running tests
+// OTP delivery is a no-op in tests; the code is persisted before delivery, so
+// the verify step reads it straight from the database.
+vi.mock('@spfn/notification/server', async (importOriginal) =>
+{
+    const actual = await importOriginal<typeof import('@spfn/notification/server')>();
+
+    return {
+        ...actual,
+        sendEmail: vi.fn().mockResolvedValue({ success: true }),
+        sendSMS: vi.fn().mockResolvedValue({ success: true }),
+    };
+});
+
+const { mainAuthRouter } = await import('@/server/routes');
+const { registerRoutes } = await import('@spfn/core/route');
+const { ErrorHandler } = await import('@spfn/core/middleware');
+const { initializeAuth } = await import('@/server/services/rbac.service');
+
 const dbAvailable = await isDatabaseAvailable();
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 describe.skipIf(!dbAvailable)('API Flow Integration', () =>
 {
@@ -23,9 +45,13 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
     {
         await setupTestDb();
         process.env.SPFN_AUTH_SESSION_SECRET = 'test-secret-key-for-testing-only-min-32-chars';
+        process.env.SPFN_AUTH_VERIFICATION_TOKEN_SECRET = 'test-verification-token-secret-min-32-chars';
 
         app = new Hono();
         registerRoutes(app, mainAuthRouter);
+        // Bare Hono app: register the SPFN error handler so thrown SerializableErrors
+        // serialize to their real status (createServer does this automatically).
+        app.onError(ErrorHandler());
     });
 
     afterAll(async () =>
@@ -40,161 +66,136 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
         await initializeAuth();
     });
 
-    it('should complete full registration flow via HTTP', async () =>
+    /**
+     * Register a user through the full verification flow with a real key pair.
+     * Returns the register Response plus the registered keyId (for login rotation).
+     */
+    async function registerViaFlow(email: string, password: string)
     {
-        // 1. Register new user via HTTP POST
-        const registerResponse = await app.request('/auth/register', {
+        const key = generateKeyPair('ES256');
+
+        // 1. Request a verification code (persisted before the mocked delivery)
+        await app.request('/_auth/codes', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: JSON_HEADERS,
+            body: JSON.stringify({ target: email, targetType: 'email', purpose: 'registration' }),
+        });
+
+        // 2. Read the persisted code
+        const db = getTestDb();
+        const [codeRow] = await db.select().from(verificationCodes)
+            .where(and(eq(verificationCodes.target, email), eq(verificationCodes.purpose, 'registration')))
+            .orderBy(desc(verificationCodes.createdAt))
+            .limit(1);
+
+        // 3. Exchange the code for a verification token
+        const verifyRes = await app.request('/_auth/codes/verify', {
+            method: 'POST',
+            headers: JSON_HEADERS,
+            body: JSON.stringify({ target: email, targetType: 'email', code: codeRow.code, purpose: 'registration' }),
+        });
+        const { verificationToken } = await verifyRes.json();
+
+        // 4. Register with the verification token + real key material
+        const response = await app.request('/_auth/register', {
+            method: 'POST',
+            headers: JSON_HEADERS,
             body: JSON.stringify({
-                email: 'test@example.com',
-                password: 'SecurePassword123!',
-                publicKey: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...',  // Mock public key
-                keyId: 'mock-key-id',
-                fingerprint: 'mock-fingerprint',
-                algorithm: 'ES256',
-                keySize: 91,
+                email,
+                verificationToken,
+                password,
+                publicKey: key.publicKey,
+                keyId: key.keyId,
+                fingerprint: key.fingerprint,
+                algorithm: key.algorithm,
             }),
         });
 
-        // 2. Verify response
-        expect(registerResponse.status).toBe(200);
+        return { response, keyId: key.keyId };
+    }
 
-        const data = await registerResponse.json();
-        expect(data.success).toBe(true);
-        expect(data.data.userId).toBeDefined();
-        expect(data.data.email).toBe('test@example.com');
+    it('should complete the full registration flow via HTTP', async () =>
+    {
+        const { response } = await registerViaFlow('test@example.com', 'SecurePassword123!');
 
-        // 3. Verify session cookie was set
-        const setCookieHeader = registerResponse.headers.get('Set-Cookie');
-        expect(setCookieHeader).toBeTruthy();
-        expect(setCookieHeader).toContain('session=');
-        expect(setCookieHeader).toContain('HttpOnly');
+        expect(response.status).toBe(200);
+
+        const data = await response.json();
+        expect(data.userId).toBeDefined();
+        expect(data.email).toBe('test@example.com');
+        // Note: the session cookie is sealed by the Next.js API forwarding layer,
+        // not the backend router, so it is not asserted in this bare-router test.
     });
 
-    it('should complete login → authenticated request flow', async () =>
+    it('should complete the login → logout flow', async () =>
     {
-        // 1. First register a user
-        await app.request('/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: 'login@example.com',
-                password: 'Password123!',
-                publicKey: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...',
-                keyId: 'register-key-id',
-                fingerprint: 'register-fingerprint',
-                algorithm: 'ES256',
-                keySize: 91,
-            }),
-        });
+        const { keyId: registerKeyId } = await registerViaFlow('login@example.com', 'Password123!');
 
-        // 2. Login with credentials
-        const loginResponse = await app.request('/auth/login', {
+        // Login, rotating from the register key to a fresh one
+        const loginKey = generateKeyPair('ES256');
+        const loginResponse = await app.request('/_auth/login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: JSON_HEADERS,
             body: JSON.stringify({
                 email: 'login@example.com',
                 password: 'Password123!',
-                publicKey: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...',
-                keyId: 'login-key-id',
-                fingerprint: 'login-fingerprint',
-                algorithm: 'ES256',
-                keySize: 91,
-                oldKeyId: 'register-key-id',  // Rotate from register key
+                publicKey: loginKey.publicKey,
+                keyId: loginKey.keyId,
+                fingerprint: loginKey.fingerprint,
+                algorithm: loginKey.algorithm,
+                oldKeyId: registerKeyId,
             }),
         });
 
         expect(loginResponse.status).toBe(200);
 
         const loginData = await loginResponse.json();
-        expect(loginData.success).toBe(true);
-        expect(loginData.data.userId).toBeDefined();
+        expect(loginData.userId).toBeDefined();
 
-        // 3. Extract session cookie
-        const sessionCookie = loginResponse.headers.get('Set-Cookie');
-        expect(sessionCookie).toBeTruthy();
-
-        // 4. TODO: Test authenticated request with JWT
-        // For now, we can verify logout works with cookie
-        const logoutResponse = await app.request('/auth/logout', {
-            method: 'POST',
-            headers: {
-                'Cookie': sessionCookie!,
-            },
-        });
-
-        expect(logoutResponse.status).toBe(200);
-        const logoutData = await logoutResponse.json();
-        expect(logoutData.success).toBe(true);
+        // Logout returns 204 No Content (idempotent even without a valid session)
+        const logoutResponse = await app.request('/_auth/logout', { method: 'POST' });
+        expect(logoutResponse.status).toBe(204);
     });
 
     it('should reject invalid credentials', async () =>
     {
-        const response = await app.request('/auth/login', {
+        const key = generateKeyPair('ES256');
+        const response = await app.request('/_auth/login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: JSON_HEADERS,
             body: JSON.stringify({
                 email: 'nonexistent@example.com',
                 password: 'WrongPassword123!',
-                publicKey: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...',
-                keyId: 'test-key',
-                fingerprint: 'test-fingerprint',
-                algorithm: 'ES256',
-                keySize: 91,
+                publicKey: key.publicKey,
+                keyId: key.keyId,
+                fingerprint: key.fingerprint,
+                algorithm: key.algorithm,
             }),
         });
 
         expect(response.status).toBe(401);
-
-        const data = await response.json();
-        expect(data.success).toBe(false);
+        expect((await response.json()).__type).toBeDefined();
     });
 
-    it('should check if account exists', async () =>
+    it('should check if an account exists', async () =>
     {
-        // Register user first
-        await app.request('/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: 'exists@example.com',
-                password: 'Password123!',
-                publicKey: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...',
-                keyId: 'test-key',
-                fingerprint: 'test-fingerprint',
-                algorithm: 'ES256',
-                keySize: 91,
-            }),
-        });
+        await registerViaFlow('exists@example.com', 'Password123!');
 
-        // Check if email exists
-        const existsResponse = await app.request('/auth/exists', {
+        const existsResponse = await app.request('/_auth/exists', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: 'exists@example.com',
-            }),
+            headers: JSON_HEADERS,
+            body: JSON.stringify({ email: 'exists@example.com' }),
         });
 
         expect(existsResponse.status).toBe(200);
+        expect((await existsResponse.json()).exists).toBe(true);
 
-        const existsData = await existsResponse.json();
-        expect(existsData.success).toBe(true);
-        expect(existsData.data.exists).toBe(true);
-
-        // Check non-existent email
-        const notExistsResponse = await app.request('/auth/exists', {
+        const notExistsResponse = await app.request('/_auth/exists', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: 'notfound@example.com',
-            }),
+            headers: JSON_HEADERS,
+            body: JSON.stringify({ email: 'notfound@example.com' }),
         });
 
-        const notExistsData = await notExistsResponse.json();
-        expect(notExistsData.data.exists).toBe(false);
+        expect((await notExistsResponse.json()).exists).toBe(false);
     });
 });
