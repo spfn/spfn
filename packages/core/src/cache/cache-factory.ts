@@ -4,6 +4,24 @@
 
 import type { Redis, Cluster, RedisOptions, ClusterOptions } from 'ioredis';
 import { logger } from '@spfn/core/logger';
+import { env } from '@spfn/core/config';
+
+/**
+ * Connection-resilience options applied to every cache client.
+ *
+ * ioredis defaults to an unbounded offline command queue and 20 retries per
+ * request, so a post-startup cache outage can buffer every command and hang
+ * awaits. Bound retries (CACHE_MAX_RETRIES_PER_REQUEST, default 3) so commands
+ * fail fast instead of hanging; CACHE_ENABLE_OFFLINE_QUEUE (default true) can be
+ * set false for strict fail-fast (reject immediately while disconnected).
+ */
+function resilienceOptions(): Pick<RedisOptions, 'maxRetriesPerRequest' | 'enableOfflineQueue'>
+{
+    return {
+        maxRetriesPerRequest: env.CACHE_MAX_RETRIES_PER_REQUEST,
+        enableOfflineQueue: env.CACHE_ENABLE_OFFLINE_QUEUE,
+    };
+}
 
 const cacheLogger = logger.child('@spfn/core:cache');
 
@@ -36,7 +54,7 @@ function createClient(
     url: string,
 ): Redis
 {
-    const options: RedisOptions = {};
+    const options: RedisOptions = { ...resilienceOptions() };
 
     // TLS support for secure connections
     if (url.startsWith('rediss://'))
@@ -135,6 +153,7 @@ export async function createCacheFromEnv(): Promise<CacheClients>
             });
 
             const options: RedisOptions = {
+                ...resilienceOptions(),
                 sentinels,
                 name: masterName,
                 password,
@@ -158,6 +177,7 @@ export async function createCacheFromEnv(): Promise<CacheClients>
 
             const clusterOptions: ClusterOptions = {
                 redisOptions: {
+                    ...resilienceOptions(),
                     password,
                 },
             };

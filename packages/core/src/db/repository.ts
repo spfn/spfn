@@ -82,6 +82,7 @@ import { getDatabase } from './manager';
 import { reportDatabaseError } from './manager/reconnect-trigger';
 import { getTransaction } from './transaction';
 import { isSQLWrapper, buildWhereFromObject } from './query-utils';
+import { env } from '@spfn/core/config';
 
 /**
  * Enhanced error class that includes repository context
@@ -325,10 +326,18 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
             query = query.orderBy(...orderByArray) as any;
         }
 
-        // Apply limit
-        if (options?.limit)
+        // Apply limit, with an optional safety ceiling (DB_MAX_ROWS, 0 = off).
+        // When set, an unbounded _findMany is capped and an explicit limit is
+        // clamped — guards against accidentally loading a whole large table.
+        const maxRows = env.DB_MAX_ROWS;
+        const requestedLimit = options?.limit && options.limit > 0 ? options.limit : undefined;
+        const effectiveLimit = maxRows > 0
+            ? Math.min(requestedLimit ?? maxRows, maxRows)
+            : requestedLimit;
+
+        if (effectiveLimit)
         {
-            query = query.limit(options.limit) as any;
+            query = query.limit(effectiveLimit) as any;
         }
 
         // Apply offset

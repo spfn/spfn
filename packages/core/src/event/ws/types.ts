@@ -149,6 +149,34 @@ export interface WSHandlerConfig
     channelPrefix?: string;
 
     /**
+     * Maximum inbound message size in bytes. Frames larger than this are
+     * rejected by the ws library before they are buffered or parsed.
+     * @default 1048576 (1 MiB)
+     */
+    maxPayload?: number;
+
+    /**
+     * Backpressure cap: if a connection's outbound buffer (`bufferedAmount`)
+     * exceeds this many bytes, the connection is closed (1013) instead of
+     * buffering more — a slow consumer cannot drive the process to OOM.
+     * @default 1048576 (1 MiB)
+     */
+    maxBufferedBytes?: number;
+
+    /**
+     * Maximum number of concurrent connections accepted by this server. New
+     * connections beyond the cap are rejected with close code 1013.
+     * @default 10000
+     */
+    maxConnections?: number;
+
+    /**
+     * Maximum concurrent connections per authenticated subject (0 = unlimited).
+     * @default 0
+     */
+    maxConnectionsPerSubject?: number;
+
+    /**
      * Authentication and authorization configuration
      */
     auth?: WSHandlerAuthConfig;

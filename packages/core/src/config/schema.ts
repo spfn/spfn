@@ -85,6 +85,12 @@ export const coreEnvSchema = defineEnvSchema({
         examples: [10, 20, 50],
     }),
 
+    DB_POOL_READ_MAX: envNumber({
+        description: 'Maximum connections for the read-replica pool. Defaults to DB_POOL_MAX. Set lower so write.max + read.max stays under the server max_connections (each process otherwise opens up to 2 × DB_POOL_MAX when a replica is configured).',
+        required: false,
+        examples: [5, 10, 20],
+    }),
+
     DB_POOL_IDLE_TIMEOUT: envNumber({
         description: 'Database connection idle timeout in seconds',
         default: 30,
@@ -185,6 +191,22 @@ export const coreEnvSchema = defineEnvSchema({
         examples: [10000, 30000, 60000],
     }),
 
+    TRANSACTION_IDLE_TIMEOUT: envNumber({
+        description: 'Max time (ms) a transaction may sit idle (no running query) before Postgres terminates it and reclaims the pooled connection. Guards against external I/O held inside a transaction starving the connection pool. 0 disables.',
+        default: 30000,
+        examples: [10000, 30000, 0],
+    }),
+
+    // ========================================================================
+    // Jobs (pg-boss)
+    // ========================================================================
+
+    JOB_POLLING_INTERVAL_SECONDS: envNumber({
+        description: 'How often each pg-boss worker polls the DB for new jobs (seconds). Lower = faster pickup, more idle SELECT load; higher = less DB chatter, slower pickup. Per-job override via job options.',
+        default: 2,
+        examples: [1, 2, 10],
+    }),
+
     // ========================================================================
     // Database - Development
     // ========================================================================
@@ -279,6 +301,28 @@ export const coreEnvSchema = defineEnvSchema({
         description: 'Verify TLS certificates for secure Redis connections',
         default: true,
         examples: [true, false],
+    }),
+
+    CACHE_MAX_RETRIES_PER_REQUEST: envNumber({
+        description: 'Max ioredis retries per command before it rejects (fail fast instead of hanging on a cache outage). ioredis default is 20.',
+        default: 3,
+        examples: [1, 3, 20],
+    }),
+
+    CACHE_ENABLE_OFFLINE_QUEUE: envBoolean({
+        description: 'Queue commands while the cache is disconnected (true) vs reject immediately for strict fail-fast (false). Default true keeps resilience to brief blips.',
+        default: true,
+        examples: [true, false],
+    }),
+
+    // ========================================================================
+    // Database - Query limits
+    // ========================================================================
+
+    DB_MAX_ROWS: envNumber({
+        description: 'Safety ceiling for rows returned by repository findMany (0 = unlimited). When >0, an unbounded query is capped and an explicit limit is clamped, guarding against accidentally loading a whole large table.',
+        default: 0,
+        examples: [0, 1000, 10000],
     }),
 
     // ========================================================================

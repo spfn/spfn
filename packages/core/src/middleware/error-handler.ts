@@ -259,6 +259,17 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                     .catch(e => errorLogger.warn('onError callback failed', e as Error));
             }
 
+            // Internal (DB-driver-derived) errors must not leak SQL text, schema
+            // names, or parameter values to clients in production. Full detail is
+            // kept in the log above; the client gets a generic message.
+            if ((err as { internal?: boolean }).internal === true && !includeStack)
+            {
+                return c.json(
+                    { __type: err.constructor.name, message: 'Internal server error' },
+                    statusCode as ContentfulStatusCode,
+                );
+            }
+
             // Use toJSON() for automatic serialization
             const serialized = err.toJSON();
 
@@ -295,13 +306,15 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                 .catch(e => errorLogger.warn('onError callback failed', e as Error));
         }
 
-        // Standard error response
+        // Standard (non-SerializableError) errors are uncaught/internal — their
+        // message and cause may contain raw SQL or driver text (e.g. an uncaught
+        // Drizzle error), so only expose them in development.
         const response: StandardErrorResponse = {
             __type: 'Error',
-            message: err.message || 'Internal Server Error',
+            message: includeStack ? (err.message || 'Internal Server Error') : 'Internal Server Error',
         };
 
-        if (causeMessage)
+        if (causeMessage && includeStack)
         {
             response.cause = causeMessage;
         }

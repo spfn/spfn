@@ -665,6 +665,22 @@ client.send('ping', {});
 `{ payload, subject?, ws }` (`WSMessageContext`). See `@spfn/core/event/ws` exports for
 `WSHandlerConfig`, `WSAuthConfig`, `WSClientConfig`, etc.
 
+### Resource limits & backpressure (`WSHandlerConfig`)
+
+The WS server is hardened like the SSE path — a slow or dead client cannot exhaust memory
+or connection slots:
+
+| Option | Default | Effect |
+|---|---|---|
+| `maxPayload` | `1048576` (1 MiB) | Max inbound frame size; larger frames are rejected by `ws` before they are buffered/parsed. |
+| `maxBufferedBytes` | `1048576` (1 MiB) | Backpressure cap — if a connection's outbound buffer (`bufferedAmount`) exceeds this, the connection is closed with `1013` instead of buffering more (no OOM from a slow consumer). The client reconnects and re-subscribes. |
+| `maxConnections` | `10000` | Global concurrent-connection cap; connections beyond it are rejected with `1013`. |
+| `maxConnectionsPerSubject` | `0` (unlimited) | Per-authenticated-subject connection cap. |
+
+Keep-alive also tracks **pongs**: a socket that doesn't answer a ping by the next
+`pingInterval` tick is `terminate()`d, so half-open connections (sleeping device, NAT drop)
+are reaped instead of lingering with their subscriptions and buffers.
+
 ---
 
 ## Types reference

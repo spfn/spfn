@@ -7,7 +7,14 @@
 
 import { NewUserPublicKey, userPublicKeys } from '../entities/user-public-keys';
 import { BaseRepository } from '@spfn/core/db';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, or, isNull, lt } from 'drizzle-orm';
+
+/**
+ * Throttle window for lastUsedAt writes. The column is for audit / inactive-key
+ * detection, so minute granularity is plenty; this avoids a write (and hot-row
+ * lock / MVCC bloat) on every authenticated request.
+ */
+const LAST_USED_THROTTLE_MS = 60_000;
 
 /**
  * User Public Keys Repository 클래스
@@ -171,19 +178,29 @@ export class KeysRepository extends BaseRepository
 
     /**
      * Primary key로 마지막 사용 시간 업데이트 (authenticate용)
-     * Write primary 사용
+     * Write primary 사용.
+     *
+     * Throttled: only writes when lastUsedAt is stale (older than
+     * LAST_USED_THROTTLE_MS), so a busy key isn't UPDATEd on every request. The
+     * throttle lives in the WHERE clause — atomic, no read-then-write race. No
+     * RETURNING (callers fire-and-forget and discard the row).
      */
-    async updateLastUsedById(id: number)
+    async updateLastUsedById(id: number): Promise<void>
     {
-        const result = await this.db
+        const staleBefore = new Date(Date.now() - LAST_USED_THROTTLE_MS);
+
+        await this.db
             .update(userPublicKeys)
             .set({
                 lastUsedAt: new Date(),
             })
-            .where(eq(userPublicKeys.id, id))
-            .returning();
-
-        return result[0] ?? null;
+            .where(and(
+                eq(userPublicKeys.id, id),
+                or(
+                    isNull(userPublicKeys.lastUsedAt),
+                    lt(userPublicKeys.lastUsedAt, staleBefore),
+                ),
+            ));
     }
 }
 

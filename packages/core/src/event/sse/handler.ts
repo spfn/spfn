@@ -26,6 +26,40 @@ import { createBoundedWriter } from './bounded-writer';
 
 const sseLogger = logger.child('@spfn/core:sse');
 
+/**
+ * Serialize a fan-out frame once per (event, payload).
+ *
+ * One `emit` delivers the same payload object to every subscribed connection, so
+ * without memoization each connection re-`JSON.stringify`s the identical payload
+ * — O(N) for N subscribers on a hot broadcast. Keyed by the payload object
+ * (WeakMap → auto-GC after the emit); primitives are cheap to stringify directly.
+ */
+const frameCache = new WeakMap<object, Map<string, string>>();
+
+export function serializeFrame(eventName: string, payload: unknown): string
+{
+    if (payload === null || typeof payload !== 'object')
+    {
+        return JSON.stringify({ event: eventName, data: payload });
+    }
+
+    let byEvent = frameCache.get(payload);
+    if (!byEvent)
+    {
+        byEvent = new Map<string, string>();
+        frameCache.set(payload, byEvent);
+    }
+
+    let serialized = byEvent.get(eventName);
+    if (serialized === undefined)
+    {
+        serialized = JSON.stringify({ event: eventName, data: payload });
+        byEvent.set(eventName, serialized);
+    }
+
+    return serialized;
+}
+
 /** Default outbound queue cap per connection before a slow consumer is dropped. */
 const DEFAULT_MAX_QUEUE = 1000;
 
@@ -182,11 +216,6 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
 
                     messageId++;
 
-                    const message = {
-                        event: eventName,
-                        data: payload,
-                    };
-
                     sseLogger.debug('SSE sending event', {
                         event: eventName,
                         messageId,
@@ -195,7 +224,7 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
                     writer.enqueue({
                         id: String(messageId),
                         event: eventName as string,
-                        data: JSON.stringify(message),
+                        data: serializeFrame(eventName as string, payload),
                     });
                 });
 

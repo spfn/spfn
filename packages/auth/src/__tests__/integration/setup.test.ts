@@ -11,6 +11,7 @@ import { initializeAuth } from '@/server/services/rbac.service';
 import { getRoleByName } from '@/server/services/role.service';
 import { users } from '@/server/entities';
 import { verifyPassword } from '@/server/helpers/password';
+import { authLogger } from '@/server/logger';
 import { eq } from 'drizzle-orm';
 
 // Check if database is available before running tests
@@ -37,19 +38,19 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
         await initializeAuth();
 
         // Clear environment variables before each test
-        delete process.env.ADMIN_ACCOUNTS;
-        delete process.env.ADMIN_EMAILS;
-        delete process.env.ADMIN_PASSWORDS;
-        delete process.env.ADMIN_ROLES;
-        delete process.env.ADMIN_EMAIL;
-        delete process.env.ADMIN_PASSWORD;
+        delete process.env.SPFN_AUTH_ADMIN_ACCOUNTS;
+        delete process.env.SPFN_AUTH_ADMIN_EMAILS;
+        delete process.env.SPFN_AUTH_ADMIN_PASSWORDS;
+        delete process.env.SPFN_AUTH_ADMIN_ROLES;
+        delete process.env.SPFN_AUTH_ADMIN_EMAIL;
+        delete process.env.SPFN_AUTH_ADMIN_PASSWORD;
     });
 
     describe('JSON Format (ADMIN_ACCOUNTS)', () =>
     {
         it('should create multiple admin accounts from JSON', async () =>
         {
-            process.env.ADMIN_ACCOUNTS = JSON.stringify([
+            process.env.SPFN_AUTH_ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'super@example.com',
                     password: 'super-password',
@@ -104,7 +105,7 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should use default role "user" if not specified', async () =>
         {
-            process.env.ADMIN_ACCOUNTS = JSON.stringify([
+            process.env.SPFN_AUTH_ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'default@example.com',
                     password: 'password123',
@@ -123,7 +124,7 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should respect passwordChangeRequired flag', async () =>
         {
-            process.env.ADMIN_ACCOUNTS = JSON.stringify([
+            process.env.SPFN_AUTH_ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'no-change@example.com',
                     password: 'password123',
@@ -148,10 +149,10 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should skip accounts with missing email or password', async () =>
         {
-            const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => 
+            const consoleWarnSpy = vi.spyOn(authLogger.setup, 'warn').mockImplementation(() => 
             {});
 
-            process.env.ADMIN_ACCOUNTS = JSON.stringify([
+            process.env.SPFN_AUTH_ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'valid@example.com',
                     password: 'password123',
@@ -180,10 +181,10 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should handle JSON parsing errors gracefully', async () =>
         {
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => 
+            const consoleErrorSpy = vi.spyOn(authLogger.setup, 'error').mockImplementation(() => 
             {});
 
-            process.env.ADMIN_ACCOUNTS = 'invalid-json{[';
+            process.env.SPFN_AUTH_ADMIN_ACCOUNTS = 'invalid-json{[';
 
             await ensureAdminExists();
 
@@ -198,10 +199,10 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should handle non-array JSON gracefully', async () =>
         {
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => 
+            const consoleErrorSpy = vi.spyOn(authLogger.setup, 'error').mockImplementation(() => 
             {});
 
-            process.env.ADMIN_ACCOUNTS = JSON.stringify({
+            process.env.SPFN_AUTH_ADMIN_ACCOUNTS = JSON.stringify({
                 email: 'single@example.com',
                 password: 'password123',
             });
@@ -224,9 +225,9 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
     {
         it('should create multiple admin accounts from comma-separated values', async () =>
         {
-            process.env.ADMIN_EMAILS = 'super@example.com,admin@example.com,user@example.com';
-            process.env.ADMIN_PASSWORDS = 'super-pass,admin-pass,user-pass';
-            process.env.ADMIN_ROLES = 'superadmin,admin,user';
+            process.env.SPFN_AUTH_ADMIN_EMAILS = 'super@example.com,admin@example.com,user@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORDS = 'super-pass,admin-pass,user-pass';
+            process.env.SPFN_AUTH_ADMIN_ROLES = 'superadmin,admin,user';
 
             await ensureAdminExists();
 
@@ -252,9 +253,9 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should trim whitespace from values', async () =>
         {
-            process.env.ADMIN_EMAILS = ' admin@example.com , user@example.com ';
-            process.env.ADMIN_PASSWORDS = ' admin-pass , user-pass ';
-            process.env.ADMIN_ROLES = ' admin , user ';
+            process.env.SPFN_AUTH_ADMIN_EMAILS = ' admin@example.com , user@example.com ';
+            process.env.SPFN_AUTH_ADMIN_PASSWORDS = ' admin-pass , user-pass ';
+            process.env.SPFN_AUTH_ADMIN_ROLES = ' admin , user ';
 
             await ensureAdminExists();
 
@@ -268,8 +269,8 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should use default role "user" if ADMIN_ROLES not provided', async () =>
         {
-            process.env.ADMIN_EMAILS = 'admin@example.com,user@example.com';
-            process.env.ADMIN_PASSWORDS = 'admin-pass,user-pass';
+            process.env.SPFN_AUTH_ADMIN_EMAILS = 'admin@example.com,user@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORDS = 'admin-pass,user-pass';
             // No ADMIN_ROLES
 
             await ensureAdminExists();
@@ -285,11 +286,11 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should handle email/password length mismatch', async () =>
         {
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => 
+            const consoleErrorSpy = vi.spyOn(authLogger.setup, 'error').mockImplementation(() => 
             {});
 
-            process.env.ADMIN_EMAILS = 'admin@example.com,user@example.com';
-            process.env.ADMIN_PASSWORDS = 'admin-pass'; // Only 1 password
+            process.env.SPFN_AUTH_ADMIN_EMAILS = 'admin@example.com,user@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORDS = 'admin-pass'; // Only 1 password
 
             await ensureAdminExists();
 
@@ -306,11 +307,11 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should skip accounts with empty email or password', async () =>
         {
-            const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => 
+            const consoleWarnSpy = vi.spyOn(authLogger.setup, 'warn').mockImplementation(() => 
             {});
 
-            process.env.ADMIN_EMAILS = 'valid@example.com,,user@example.com';
-            process.env.ADMIN_PASSWORDS = 'valid-pass,,user-pass';
+            process.env.SPFN_AUTH_ADMIN_EMAILS = 'valid@example.com,,user@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORDS = 'valid-pass,,user-pass';
 
             await ensureAdminExists();
 
@@ -325,8 +326,8 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should set passwordChangeRequired to true by default', async () =>
         {
-            process.env.ADMIN_EMAILS = 'admin@example.com';
-            process.env.ADMIN_PASSWORDS = 'admin-pass';
+            process.env.SPFN_AUTH_ADMIN_EMAILS = 'admin@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORDS = 'admin-pass';
 
             await ensureAdminExists();
 
@@ -341,8 +342,8 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
     {
         it('should create single superadmin account from ADMIN_EMAIL', async () =>
         {
-            process.env.ADMIN_EMAIL = 'admin@example.com';
-            process.env.ADMIN_PASSWORD = 'admin-password';
+            process.env.SPFN_AUTH_ADMIN_EMAIL = 'admin@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORD = 'AdminPass1!';
 
             await ensureAdminExists();
 
@@ -359,15 +360,15 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should verify password is correctly hashed', async () =>
         {
-            process.env.ADMIN_EMAIL = 'admin@example.com';
-            process.env.ADMIN_PASSWORD = 'my-secure-password';
+            process.env.SPFN_AUTH_ADMIN_EMAIL = 'admin@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORD = 'MySecurePass1!';
 
             await ensureAdminExists();
 
             const db = getTestDb();
             const [admin] = await db.select().from(users).where(eq(users.email, 'admin@example.com'));
 
-            const isValid = await verifyPassword('my-secure-password', admin.passwordHash!);
+            const isValid = await verifyPassword('MySecurePass1!', admin.passwordHash!);
             expect(isValid).toBe(true);
         });
     });
@@ -376,15 +377,15 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
     {
         it('should prioritize JSON format over comma-separated', async () =>
         {
-            process.env.ADMIN_ACCOUNTS = JSON.stringify([
+            process.env.SPFN_AUTH_ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'json@example.com',
                     password: 'json-pass',
                     role: 'superadmin',
                 },
             ]);
-            process.env.ADMIN_EMAILS = 'csv@example.com';
-            process.env.ADMIN_PASSWORDS = 'csv-pass';
+            process.env.SPFN_AUTH_ADMIN_EMAILS = 'csv@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORDS = 'csv-pass';
 
             await ensureAdminExists();
 
@@ -397,10 +398,10 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should prioritize comma-separated over single account', async () =>
         {
-            process.env.ADMIN_EMAILS = 'csv@example.com';
-            process.env.ADMIN_PASSWORDS = 'csv-pass';
-            process.env.ADMIN_EMAIL = 'single@example.com';
-            process.env.ADMIN_PASSWORD = 'single-pass';
+            process.env.SPFN_AUTH_ADMIN_EMAILS = 'csv@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORDS = 'csv-pass';
+            process.env.SPFN_AUTH_ADMIN_EMAIL = 'single@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORD = 'single-pass';
 
             await ensureAdminExists();
 
@@ -419,20 +420,20 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
             const db = getTestDb();
 
             // Create existing user manually
-            process.env.ADMIN_EMAIL = 'existing@example.com';
-            process.env.ADMIN_PASSWORD = 'first-password';
+            process.env.SPFN_AUTH_ADMIN_EMAIL = 'existing@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORD = 'FirstPass1!';
             await ensureAdminExists();
 
             // Try to create again with different password
-            process.env.ADMIN_PASSWORD = 'second-password';
+            process.env.SPFN_AUTH_ADMIN_PASSWORD = 'SecondPass1!';
             await ensureAdminExists();
 
             const allUsers = await db.select().from(users);
             expect(allUsers).toHaveLength(1);
 
             // Password should still be the first one
-            const isValidFirst = await verifyPassword('first-password', allUsers[0].passwordHash!);
-            const isValidSecond = await verifyPassword('second-password', allUsers[0].passwordHash!);
+            const isValidFirst = await verifyPassword('FirstPass1!', allUsers[0].passwordHash!);
+            const isValidSecond = await verifyPassword('SecondPass1!', allUsers[0].passwordHash!);
 
             expect(isValidFirst).toBe(true);
             expect(isValidSecond).toBe(false);
@@ -440,18 +441,18 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should log correct summary for mixed create/skip', async () =>
         {
-            const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => 
+            const consoleLogSpy = vi.spyOn(authLogger.setup, 'info').mockImplementation(() => 
             {});
 
             // Create first account
-            process.env.ADMIN_EMAIL = 'existing@example.com';
-            process.env.ADMIN_PASSWORD = 'password';
+            process.env.SPFN_AUTH_ADMIN_EMAIL = 'existing@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORD = 'AdminPass1!';
             await ensureAdminExists();
 
             consoleLogSpy.mockClear();
 
             // Try to create multiple, one existing
-            process.env.ADMIN_ACCOUNTS = JSON.stringify([
+            process.env.SPFN_AUTH_ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'existing@example.com',
                     password: 'password',
@@ -489,7 +490,7 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should do nothing if only ADMIN_EMAIL is set without password', async () =>
         {
-            process.env.ADMIN_EMAIL = 'admin@example.com';
+            process.env.SPFN_AUTH_ADMIN_EMAIL = 'admin@example.com';
             // No ADMIN_PASSWORD
 
             await ensureAdminExists();
@@ -502,10 +503,10 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should handle database errors gracefully', async () =>
         {
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => 
+            const consoleErrorSpy = vi.spyOn(authLogger.setup, 'error').mockImplementation(() => 
             {});
 
-            process.env.ADMIN_ACCOUNTS = JSON.stringify([
+            process.env.SPFN_AUTH_ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'invalid-email-format', // Invalid email might cause DB error
                     password: 'password123',
@@ -523,7 +524,7 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should auto-verify email for all created accounts', async () =>
         {
-            process.env.ADMIN_ACCOUNTS = JSON.stringify([
+            process.env.SPFN_AUTH_ADMIN_ACCOUNTS = JSON.stringify([
                 {
                     email: 'admin1@example.com',
                     password: 'password123',
@@ -548,8 +549,8 @@ describe.skipIf(!dbAvailable)('Setup - ensureAdminExists()', () =>
 
         it('should set status to active for all created accounts', async () =>
         {
-            process.env.ADMIN_EMAILS = 'admin1@example.com,admin2@example.com';
-            process.env.ADMIN_PASSWORDS = 'pass1,pass2';
+            process.env.SPFN_AUTH_ADMIN_EMAILS = 'admin1@example.com,admin2@example.com';
+            process.env.SPFN_AUTH_ADMIN_PASSWORDS = 'pass1,pass2';
 
             await ensureAdminExists();
 

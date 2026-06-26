@@ -21,6 +21,7 @@ import {
 } from '../../services';
 import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
+import { rateLimit } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 
 /**
@@ -34,6 +35,7 @@ export const checkAccountExists = route.post('/_auth/exists')
             Type.Object({ phone: PhoneSchema }),
         ]),
     })
+    .use([rateLimit({ limit: 30, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -56,6 +58,7 @@ export const sendVerificationCode = route.post('/_auth/codes')
             purpose: VerificationPurposeSchema,
         }),
     })
+    .use([rateLimit({ limit: 5, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -84,6 +87,7 @@ export const verifyCode = route.post('/_auth/codes/verify')
             purpose: VerificationPurposeSchema,
         }),
     })
+    .use([rateLimit({ limit: 10, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -158,7 +162,7 @@ export const login = route.post('/_auth/login')
             oldKeyId: Type.Optional(Type.String({ description: 'Previous key ID for rotation' })),
         }),
     })
-    .use([Transactional()])
+    .use([rateLimit({ limit: 10, windowMs: 60_000 }), Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {

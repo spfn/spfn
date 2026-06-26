@@ -1,38 +1,54 @@
 /**
- * @spfn/auth - Authentication Middleware Integration Tests
+ * @spfn/auth - Authentication Middleware Tests
  *
- * Tests for authenticate middleware with database operations
+ * Exercises the authenticate middleware step by step. The middleware decodes
+ * the Bearer token to read its embedded keyId, loads the key + user via the
+ * repositories, and verifies the signature — so we mock the jwt helpers and the
+ * repositories the middleware actually depends on and drive each branch.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { authenticate } from '@/server/middleware/authenticate';
-import { generateKeyPair, generateClientToken } from '@/server/lib/crypto';
-import type { Context, Next } from 'hono';
-import * as dbModule from '@spfn/core/db';
-import * as jwtHelpers from '@/server/helpers/jwt';
 
-// Mock database functions
-vi.mock('@spfn/core/db', async (importOriginal) =>
+// The middleware imports decodeToken / verifyClientToken / the repositories from
+// the '@spfn/auth/server' barrel (which resolves to the built package, not src),
+// so the mock has to target that barrel for the middleware to see it.
+vi.mock('@spfn/auth/server', async (importOriginal) =>
 {
-    const actual = await importOriginal() as any;
+    const actual = await importOriginal<typeof import('@spfn/auth/server')>();
 
     return {
         ...actual,
-        getDatabase: vi.fn(),
-        findOne: vi.fn(),
-    };
-});
-
-// Mock JWT verification
-vi.mock('@/server/helpers/jwt', async (importOriginal) =>
-{
-    const actual = await importOriginal() as any;
-
-    return {
-        ...actual,
+        decodeToken: vi.fn(),
         verifyClientToken: vi.fn(),
+        keysRepository: { findActiveByKeyId: vi.fn(), updateLastUsedById: vi.fn().mockResolvedValue(undefined) },
+        usersRepository: { findByIdWithRole: vi.fn() },
+        userProfilesRepository: { findLocaleByUserId: vi.fn().mockResolvedValue('en') },
     };
 });
+
+import { authenticate } from '@/server/middleware/authenticate';
+import { decodeToken, verifyClientToken, keysRepository, usersRepository, userProfilesRepository } from '@spfn/auth/server';
+import type { Context, Next } from 'hono';
+
+const KEY_ID = 'test-key-id';
+
+/** A valid, unexpired key record as returned by keysRepository.findActiveByKeyId. */
+function validKeyRecord(overrides: Record<string, unknown> = {})
+{
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 90);
+
+    return {
+        id: 1,
+        keyId: KEY_ID,
+        userId: 1,
+        publicKey: 'mock-public-key',
+        algorithm: 'ES256',
+        isActive: true,
+        expiresAt: futureDate,
+        ...overrides,
+    };
+}
 
 describe('Authenticate Middleware', () =>
 {
@@ -41,64 +57,55 @@ describe('Authenticate Middleware', () =>
 
     beforeEach(() =>
     {
-        // Reset mocks
         vi.clearAllMocks();
+        vi.mocked(keysRepository.updateLastUsedById).mockResolvedValue(undefined as never);
+        vi.mocked(userProfilesRepository.findLocaleByUserId).mockResolvedValue('en' as never);
 
-        // Mock next function
         mockNext = vi.fn();
-
-        // Mock context
         mockContext = {
-            req: {
-                header: vi.fn(),
-            } as any,
-            json: vi.fn((data, status) => ({ data, status })) as any,
+            req: { header: vi.fn() } as never,
+            json: vi.fn((data, status) => ({ data, status })) as never,
             set: vi.fn(),
-        } as any;
+        } as never;
     });
+
+    /** Make the request present `Authorization: Bearer <token>`. */
+    function withBearer(token = 'valid-token')
+    {
+        (mockContext.req!.header as ReturnType<typeof vi.fn>).mockImplementation(
+            (name: string) => (name === 'Authorization' ? `Bearer ${token}` : undefined),
+        );
+    }
 
     describe('Header Validation', () =>
     {
-        it('should reject request without Authorization header', async () =>
+        it('rejects a request without an Authorization header', async () =>
         {
-            (mockContext.req!.header as any).mockReturnValue(undefined);
+            (mockContext.req!.header as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 
             await expect(authenticate.handler(mockContext as Context, mockNext))
-                .rejects
-                .toThrow('Missing or invalid authorization header');
-
+                .rejects.toThrow('Authentication header missing or invalid');
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-        it('should reject request with invalid Authorization format', async () =>
+        it('rejects a request with a non-Bearer Authorization header', async () =>
         {
-            (mockContext.req!.header as any).mockImplementation((name: string) =>
-            {
-                if (name === 'Authorization') return 'InvalidFormat token';
-
-                return undefined;
-            });
+            (mockContext.req!.header as ReturnType<typeof vi.fn>).mockImplementation(
+                (name: string) => (name === 'Authorization' ? 'InvalidFormat token' : undefined),
+            );
 
             await expect(authenticate.handler(mockContext as Context, mockNext))
-                .rejects
-                .toThrow('Missing or invalid authorization header');
-
+                .rejects.toThrow('Authentication header missing or invalid');
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-        it('should reject request without X-Key-Id header', async () =>
+        it('rejects a token whose payload has no keyId', async () =>
         {
-            (mockContext.req!.header as any).mockImplementation((name: string) =>
-            {
-                if (name === 'Authorization') return 'Bearer validtoken';
-
-                return undefined;
-            });
+            withBearer();
+            vi.mocked(decodeToken).mockReturnValue({} as never);
 
             await expect(authenticate.handler(mockContext as Context, mockNext))
-                .rejects
-                .toThrow('Missing X-Key-Id header');
-
+                .rejects.toThrow('Invalid token: missing keyId');
             expect(mockNext).not.toHaveBeenCalled();
         });
     });
@@ -107,62 +114,29 @@ describe('Authenticate Middleware', () =>
     {
         beforeEach(() =>
         {
-            // Setup valid headers
-            (mockContext.req!.header as any).mockImplementation((name: string) =>
-            {
-                if (name === 'Authorization') return 'Bearer validtoken';
-                if (name === 'X-Key-Id') return 'test-key-id';
-
-                return undefined;
-            });
+            withBearer();
+            vi.mocked(decodeToken).mockReturnValue({ keyId: KEY_ID } as never);
         });
 
-        it('should reject request with invalid or revoked key', async () =>
+        it('rejects an invalid or revoked key', async () =>
         {
-            // Mock database to return empty result (key not found)
-            vi.mocked(dbModule.getDatabase).mockReturnValue({
-                select: vi.fn().mockReturnValue({
-                    from: vi.fn().mockReturnValue({
-                        where: vi.fn().mockResolvedValue([]), // No key found
-                    }),
-                }),
-            } as any);
+            vi.mocked(keysRepository.findActiveByKeyId).mockResolvedValue(null as never);
 
             await expect(authenticate.handler(mockContext as Context, mockNext))
-                .rejects
-                .toThrow('Invalid or revoked key');
-
+                .rejects.toThrow('Invalid or revoked key');
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-        it('should reject request with expired key', async () =>
+        it('rejects an expired key', async () =>
         {
-            // Mock database to return expired key
             const expiredDate = new Date();
-            expiredDate.setDate(expiredDate.getDate() - 1); // Yesterday
-
-            vi.mocked(dbModule.getDatabase).mockReturnValue({
-                select: vi.fn().mockReturnValue({
-                    from: vi.fn().mockReturnValue({
-                        where: vi.fn().mockResolvedValue([
-                            {
-                                id: 1,
-                                keyId: 'test-key-id',
-                                userId: 1,
-                                publicKey: 'mock-public-key',
-                                algorithm: 'ES256',
-                                isActive: true,
-                                expiresAt: expiredDate,
-                            },
-                        ]),
-                    }),
-                }),
-            } as any);
+            expiredDate.setDate(expiredDate.getDate() - 1);
+            vi.mocked(keysRepository.findActiveByKeyId).mockResolvedValue(
+                validKeyRecord({ expiresAt: expiredDate }) as never,
+            );
 
             await expect(authenticate.handler(mockContext as Context, mockNext))
-                .rejects
-                .toThrow('Public key has expired');
-
+                .rejects.toThrow('Public key has expired');
             expect(mockNext).not.toHaveBeenCalled();
         });
     });
@@ -171,163 +145,68 @@ describe('Authenticate Middleware', () =>
     {
         beforeEach(() =>
         {
-            // Setup valid headers
-            (mockContext.req!.header as any).mockImplementation((name: string) =>
-            {
-                if (name === 'Authorization') return 'Bearer validtoken';
-                if (name === 'X-Key-Id') return 'test-key-id';
-
-                return undefined;
-            });
-
-            // Mock JWT verification to succeed
-            vi.mocked(jwtHelpers.verifyClientToken).mockReturnValue({
-                userId: '1',
-                keyId: 'test-key-id',
-                iss: 'spfn-client',
-            });
-
-            // Mock valid key
-            const futureDate = new Date();
-            futureDate.setDate(futureDate.getDate() + 90);
-
-            vi.mocked(dbModule.getDatabase).mockReturnValue({
-                select: vi.fn().mockReturnValue({
-                    from: vi.fn().mockReturnValue({
-                        where: vi.fn().mockResolvedValue([
-                            {
-                                id: 1,
-                                keyId: 'test-key-id',
-                                userId: 1,
-                                publicKey: 'mock-public-key',
-                                algorithm: 'ES256',
-                                isActive: true,
-                                expiresAt: futureDate,
-                            },
-                        ]),
-                    }),
-                }),
-                update: vi.fn().mockReturnValue({
-                    set: vi.fn().mockReturnValue({
-                        where: vi.fn().mockReturnValue({
-                            execute: vi.fn().mockResolvedValue(undefined),
-                        }),
-                    }),
-                }),
-            } as any);
+            withBearer();
+            vi.mocked(decodeToken).mockReturnValue({ keyId: KEY_ID } as never);
+            vi.mocked(keysRepository.findActiveByKeyId).mockResolvedValue(validKeyRecord() as never);
+            // Signature verification passes for these tests
+            vi.mocked(verifyClientToken).mockReturnValue({ keyId: KEY_ID, iss: 'spfn-client' } as never);
         });
 
-        it('should reject request if user not found', async () =>
+        it('rejects when the user is not found', async () =>
         {
-            // Mock findOne to return null (user not found)
-            vi.mocked(dbModule.findOne).mockResolvedValue(null);
+            vi.mocked(usersRepository.findByIdWithRole).mockResolvedValue(null as never);
 
             await expect(authenticate.handler(mockContext as Context, mockNext))
-                .rejects
-                .toThrow('User not found');
-
+                .rejects.toThrow('User not found');
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-        it('should reject request if user account is inactive', async () =>
+        it('rejects when the user account is inactive', async () =>
         {
-            // Mock findOne to return inactive user
-            vi.mocked(dbModule.findOne).mockResolvedValue({
-                id: 1,
-                email: 'test@example.com',
-                status: 'inactive',
-            } as any);
+            vi.mocked(usersRepository.findByIdWithRole).mockResolvedValue({
+                user: { id: 1, email: 'test@example.com', status: 'inactive' },
+                role: null,
+            } as never);
 
             await expect(authenticate.handler(mockContext as Context, mockNext))
-                .rejects
-                .toThrow('Account is inactive');
-
+                .rejects.toThrow('Account is inactive');
             expect(mockNext).not.toHaveBeenCalled();
         });
 
-        it('should reject request if user account is suspended', async () =>
+        it('rejects when the user account is suspended', async () =>
         {
-            // Mock findOne to return suspended user
-            vi.mocked(dbModule.findOne).mockResolvedValue({
-                id: 1,
-                email: 'test@example.com',
-                status: 'suspended',
-            } as any);
+            vi.mocked(usersRepository.findByIdWithRole).mockResolvedValue({
+                user: { id: 1, email: 'test@example.com', status: 'suspended' },
+                role: null,
+            } as never);
 
             await expect(authenticate.handler(mockContext as Context, mockNext))
-                .rejects
-                .toThrow('Account is suspended');
-
+                .rejects.toThrow('Account is suspended');
             expect(mockNext).not.toHaveBeenCalled();
         });
     });
 
     describe('Successful Authentication', () =>
     {
-        it('should pass authentication with valid token and active user', async () =>
+        it('attaches the auth context and calls next for a valid token + active user', async () =>
         {
-            // Generate real key pair for valid token
-            const { privateKey, publicKey, keyId, algorithm } = generateKeyPair('ES256');
-            const token = generateClientToken(
-                { userId: '1', action: 'test' },
-                privateKey,
-                algorithm,
-            );
-
-            // Setup valid headers with real token
-            (mockContext.req!.header as any).mockImplementation((name: string) =>
-            {
-                if (name === 'Authorization') return `Bearer ${token}`;
-                if (name === 'X-Key-Id') return keyId;
-
-                return undefined;
-            });
-
-            // Mock valid key with real public key
-            const futureDate = new Date();
-            futureDate.setDate(futureDate.getDate() + 90);
-
-            vi.mocked(dbModule.getDatabase).mockReturnValue({
-                select: vi.fn().mockReturnValue({
-                    from: vi.fn().mockReturnValue({
-                        where: vi.fn().mockResolvedValue([
-                            {
-                                id: 1,
-                                keyId,
-                                userId: 1,
-                                publicKey,
-                                algorithm,
-                                isActive: true,
-                                expiresAt: futureDate,
-                            },
-                        ]),
-                    }),
-                }),
-                update: vi.fn().mockReturnValue({
-                    set: vi.fn().mockReturnValue({
-                        where: vi.fn().mockReturnValue({
-                            execute: vi.fn().mockResolvedValue(undefined),
-                        }),
-                    }),
-                }),
-            } as any);
-
-            // Mock active user
-            vi.mocked(dbModule.findOne).mockResolvedValue({
-                id: 1,
-                email: 'test@example.com',
-                status: 'active',
-            } as any);
+            withBearer();
+            vi.mocked(decodeToken).mockReturnValue({ keyId: KEY_ID } as never);
+            vi.mocked(keysRepository.findActiveByKeyId).mockResolvedValue(validKeyRecord() as never);
+            vi.mocked(verifyClientToken).mockReturnValue({ keyId: KEY_ID, iss: 'spfn-client' } as never);
+            vi.mocked(usersRepository.findByIdWithRole).mockResolvedValue({
+                user: { id: 1, email: 'test@example.com', status: 'active' },
+                role: { name: 'user' },
+            } as never);
 
             await authenticate.handler(mockContext as Context, mockNext);
 
-            // Should set user data in context
             expect(mockContext.set).toHaveBeenCalledWith('auth', expect.objectContaining({
                 userId: '1',
-                keyId,
+                keyId: KEY_ID,
+                role: 'user',
+                locale: 'en',
             }));
-
-            // Should call next middleware
             expect(mockNext).toHaveBeenCalled();
         });
     });

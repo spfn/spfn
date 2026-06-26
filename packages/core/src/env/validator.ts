@@ -371,7 +371,8 @@ export function parsePostgresUrl(value: string): string
     {
         if (error instanceof TypeError)
         {
-            throw new Error(`Invalid PostgreSQL URL: ${value}`);
+            // Never echo the value — these URLs carry embedded credentials
+            throw new Error('Invalid PostgreSQL URL');
         }
         throw error;
     }
@@ -414,7 +415,8 @@ export function parseRedisUrl(value: string): string
     {
         if (error instanceof TypeError)
         {
-            throw new Error(`Invalid Redis URL: ${value}`);
+            // Never echo the value — these URLs carry embedded credentials
+            throw new Error('Invalid Redis URL');
         }
         throw error;
     }
