@@ -19,7 +19,7 @@ describe('Password - Hashing', () =>
         const hash = await hashPassword(password);
 
         expect(hash).toBeTruthy();
-        expect(hash).toMatch(/^\$2[ab]\$\d+\$/); // bcrypt format ($2a or $2b)
+        expect(hash).toMatch(/^\$2[aby]\$\d+\$/); // bcrypt format ($2a/$2b/$2y)
         expect(hash.length).toBe(60); // bcrypt always produces 60-char hashes
     });
 
@@ -38,10 +38,10 @@ describe('Password - Hashing', () =>
         await expect(hashPassword('')).rejects.toThrow('Password cannot be empty');
     });
 
-    it('should use default 10 salt rounds', async () =>
+    it('should use default 12 salt rounds', async () =>
     {
         const hash = await hashPassword('test123');
-        expect(hash).toMatch(/^\$2[ab]\$10\$/); // Default: 10 rounds
+        expect(hash).toMatch(/^\$2[aby]\$12\$/); // Default: 12 rounds
     });
 });
 

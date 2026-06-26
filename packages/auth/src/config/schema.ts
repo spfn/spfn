@@ -106,7 +106,7 @@ export const authEnvSchema = defineEnvSchema({
     SPFN_AUTH_BCRYPT_SALT_ROUNDS: {
         ...envNumber({
             description: 'Bcrypt salt rounds (cost factor, higher = more secure but slower)',
-            default: 10,
+            default: 12,
             required: false,
             examples: [10, 12, 14],
         }),

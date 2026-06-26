@@ -1,16 +1,23 @@
 /**
  * @spfn/auth - Password Helpers
  *
- * Password hashing and verification using bcrypt
+ * Password hashing and verification using bcrypt (@node-rs/bcrypt).
+ *
+ * Uses the native (Rust/napi) implementation, which runs the CPU-bound key
+ * derivation on the libuv threadpool instead of the main event loop — so
+ * concurrent logins run in parallel and don't head-of-line-block other requests.
+ * Hashes are standard bcrypt ($2*$) and verify against existing bcryptjs hashes.
+ * For very high concurrent-login load, raise UV_THREADPOOL_SIZE toward the core
+ * count (default pool is 4).
  *
  * Security:
- * - Adaptive hashing (configurable rounds)
+ * - Adaptive hashing (configurable rounds, default 12)
  * - Automatic salt generation (per-password)
  * - Constant-time comparison (timing attack protection)
  * - Rainbow table protection
  */
 
-import bcrypt from 'bcryptjs';
+import * as bcrypt from '@node-rs/bcrypt';
 import { env } from '@spfn/auth/config';
 import { createPasswordParser } from '@spfn/core/env';
 
@@ -22,10 +29,10 @@ import { createPasswordParser } from '@spfn/core/env';
  * 2. Apply bcrypt key derivation (2^rounds iterations)
  * 3. Return $2b$rounds$[salt][hash] (60 chars)
  *
- * Salt rounds are configured via SPFN_AUTH_BCRYPT_SALT_ROUNDS:
- * - 10 rounds: ~100ms (default, balanced)
- * - 12 rounds: ~400ms (more secure, slower)
- * - 14 rounds: ~1600ms (very secure, too slow for most apps)
+ * Salt rounds are configured via SPFN_AUTH_BCRYPT_SALT_ROUNDS (native timings):
+ * - 12 rounds: ~200ms (default — OWASP-aligned, off the event loop)
+ * - 10 rounds: ~55ms (faster, lower work factor)
+ * - 14 rounds: ~800ms (very secure, heavy)
  *
  * @param password - Plain text password to hash
  * @returns Bcrypt hash string (includes salt)
@@ -79,7 +86,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
         throw new Error('Hash cannot be empty');
     }
 
-    return bcrypt.compare(password, hash);
+    return bcrypt.verify(password, hash);
 }
 
 /**

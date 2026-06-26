@@ -53,7 +53,7 @@ SPFN_AUTH_ADMIN_ACCOUNTS='[{"email":"admin@example.com","password":"Admin!@34","
 # ── Optional ─────────────────────────────────────────────────────────
 SPFN_AUTH_JWT_SECRET=your-jwt-secret        # Default: dev-secret (change in production!)
 SPFN_AUTH_JWT_EXPIRES_IN=7d                 # Default: 7d
-SPFN_AUTH_BCRYPT_SALT_ROUNDS=10             # Default: 10
+SPFN_AUTH_BCRYPT_SALT_ROUNDS=12             # Default: 12 (native bcrypt, off the event loop)
 SPFN_AUTH_SESSION_TTL=7d                    # Default: 7d
 
 # ── Email Service (AWS SES) ──────────────────────────────────────────
