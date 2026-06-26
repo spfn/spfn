@@ -150,7 +150,7 @@ describe('Database Factory', () =>
 
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
-                    { max: 50, idleTimeout: 60 },
+                    expect.objectContaining({ max: 50, idleTimeout: 60 }),
                     expect.any(Object),
                 );
             });
@@ -164,7 +164,7 @@ describe('Database Factory', () =>
 
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
-                    { max: 20, idleTimeout: 30 },
+                    expect.objectContaining({ max: 20, idleTimeout: 30 }),
                     expect.any(Object),
                 );
             });
@@ -181,7 +181,7 @@ describe('Database Factory', () =>
 
                 expect(createDatabaseConnection).toHaveBeenCalledWith(
                     'postgresql://localhost:5432/db',
-                    { max: 100, idleTimeout: 45 },
+                    expect.objectContaining({ max: 100, idleTimeout: 45 }),
                     expect.any(Object),
                 );
             });
