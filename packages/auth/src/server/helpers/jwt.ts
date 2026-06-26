@@ -14,6 +14,44 @@ import crypto from 'crypto';
 import { env } from '@spfn/auth/config';
 import { type KeyAlgorithmType } from '../types';
 
+/**
+ * Parsed public-key cache.
+ *
+ * `createPublicKey` re-parses the DER (ASN.1/SPKI) on every call, which would run
+ * on every authenticated request. The base64 DER fully identifies the key, so we
+ * cache the resulting KeyObject by it. Bounded with FIFO eviction — a miss just
+ * re-parses, so a small cap is safe.
+ */
+const PUBLIC_KEY_CACHE_MAX = 1000;
+const publicKeyCache = new Map<string, crypto.KeyObject>();
+
+function getPublicKeyObject(publicKeyB64: string): crypto.KeyObject
+{
+    const cached = publicKeyCache.get(publicKeyB64);
+    if (cached)
+    {
+        return cached;
+    }
+
+    const keyObject = crypto.createPublicKey({
+        key: Buffer.from(publicKeyB64, 'base64'),
+        format: 'der',
+        type: 'spki',
+    });
+
+    if (publicKeyCache.size >= PUBLIC_KEY_CACHE_MAX)
+    {
+        const oldest = publicKeyCache.keys().next().value;
+        if (oldest !== undefined)
+        {
+            publicKeyCache.delete(oldest);
+        }
+    }
+    publicKeyCache.set(publicKeyB64, keyObject);
+
+    return keyObject;
+}
+
 export interface SessionPayload
 {
     userId: string;
@@ -90,13 +128,8 @@ export function verifyClientToken(
     algorithm: KeyAlgorithmType,
 ): TokenPayload
 {
-    // Convert Base64 DER to key object
-    const publicKeyDER = Buffer.from(publicKeyB64, 'base64');
-    const publicKeyObject = crypto.createPublicKey({
-        key: publicKeyDER,
-        format: 'der',
-        type: 'spki',
-    });
+    // Parse (or reuse a cached) key object from the Base64 DER
+    const publicKeyObject = getPublicKeyObject(publicKeyB64);
 
     let decoded;
 
