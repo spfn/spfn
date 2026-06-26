@@ -303,6 +303,28 @@ export const coreEnvSchema = defineEnvSchema({
         examples: [true, false],
     }),
 
+    CACHE_MAX_RETRIES_PER_REQUEST: envNumber({
+        description: 'Max ioredis retries per command before it rejects (fail fast instead of hanging on a cache outage). ioredis default is 20.',
+        default: 3,
+        examples: [1, 3, 20],
+    }),
+
+    CACHE_ENABLE_OFFLINE_QUEUE: envBoolean({
+        description: 'Queue commands while the cache is disconnected (true) vs reject immediately for strict fail-fast (false). Default true keeps resilience to brief blips.',
+        default: true,
+        examples: [true, false],
+    }),
+
+    // ========================================================================
+    // Database - Query limits
+    // ========================================================================
+
+    DB_MAX_ROWS: envNumber({
+        description: 'Safety ceiling for rows returned by repository findMany (0 = unlimited). When >0, an unbounded query is capped and an explicit limit is clamped, guarding against accidentally loading a whole large table.',
+        default: 0,
+        examples: [0, 1000, 10000],
+    }),
+
     // ========================================================================
     // Server - Core
     // ========================================================================
