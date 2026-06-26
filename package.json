@@ -46,8 +46,11 @@
       "react-dom": "^19.0.0",
       "@types/react": "^19",
       "@types/react-dom": "^19",
-      "drizzle-orm": "^0.45.0",
-      "next": "^16.1.7"
+      "drizzle-orm": "^0.45.2",
+      "next": "^16.1.7",
+      "picomatch": "^2.3.2",
+      "shell-quote": "^1.8.4",
+      "jws": "^3.2.3"
     }
   }
 }

@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import crypto from 'crypto';
 import {
     generateVerificationCode,
     createVerificationToken,
@@ -35,14 +36,13 @@ describe('Verification Helpers', () =>
 
         it('should pad codes with leading zeros', () =>
         {
-            // Mock Math.random to return small numbers
-            const originalRandom = Math.random;
-            Math.random = () => 0.000001; // Will produce "000001"
+            // CSPRNG returns a small number -> code must be zero-padded to 6 digits
+            const spy = vi.spyOn(crypto, 'randomInt').mockReturnValue(1 as never);
 
             const code = generateVerificationCode();
             expect(code).toBe('000001');
 
-            Math.random = originalRandom;
+            spy.mockRestore();
         });
     });
 

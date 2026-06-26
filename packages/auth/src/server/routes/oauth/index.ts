@@ -10,6 +10,7 @@
 import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
 import { ValidationError } from '@spfn/core/errors';
+import { rateLimit } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 
 import { KEY_ALGORITHM, SOCIAL_PROVIDERS } from '../../types';
@@ -46,6 +47,7 @@ export const oauthGoogleStart = route.get('/_auth/oauth/google')
             }),
         }),
     })
+    .use([rateLimit({ limit: 20, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -154,6 +156,7 @@ export const oauthStart = route.post('/_auth/oauth/start')
             })),
         }),
     })
+    .use([rateLimit({ limit: 20, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -268,6 +271,7 @@ export const oauthProviderStart = route.get('/_auth/oauth/:provider')
             }),
         }),
     })
+    .use([rateLimit({ limit: 20, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {

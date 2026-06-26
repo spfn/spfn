@@ -1,9 +1,10 @@
-# @spfn/core/middleware — Built-in HTTP middleware (error handling + request logging + proxy-guard)
+# @spfn/core/middleware — Built-in HTTP middleware (error handling + request logging + proxy-guard + rate limiting)
 
 Production Hono middleware factories and a masking helper: `ErrorHandler` (serializes
 thrown errors into HTTP responses), `RequestLogger` (structured request/response logging
-with request IDs, slow-request detection, and sensitive-data masking), and `createProxyGuard`
-(verifies a trusted-proxy HMAC signature + origin allowlist and tags `clientType`).
+with request IDs, slow-request detection, and sensitive-data masking), `createProxyGuard`
+(verifies a trusted-proxy HMAC signature + origin allowlist and tags `clientType`), and
+`rateLimit` (Redis-backed fixed-window limiter for brute-force / DoS protection).
 
 > **These are the exports of this module.** `defineMiddleware` (custom named
 > middleware), `.use()` / `.skip()` (route-level wiring), and `Transactional` (DB
@@ -19,6 +20,8 @@ import {
     maskSensitiveData,
     createProxyGuard,
     createCacheNonceStore,
+    rateLimit,
+    getClientIp,
 } from '@spfn/core/middleware';
 
 import type {
@@ -30,6 +33,7 @@ import type {
     ProxyGuardMode,
     ClientType,
     NonceStore,
+    RateLimitOptions,
 } from '@spfn/core/middleware';
 ```
 
@@ -56,9 +60,14 @@ From `@spfn/core/middleware`:
   not `app.use` directly.
 - `createCacheNonceStore(cache, prefix?)` → `NonceStore` for hard replay rejection (Redis
   `SET … PX NX`). Pass to `proxyGuard.nonceStore` (auto-wired from a cache when `nonce: true`).
+- `rateLimit(options: RateLimitOptions)` → Hono middleware. Redis-backed fixed-window limiter,
+  registered under the named `'rateLimit'` slot so routes can `.skip(['rateLimit'])`. Attach
+  with `.use([rateLimit({...})])`. See [rateLimit](#ratelimit).
+- `getClientIp(c)` → best-effort client IP from the proxy chain (leftmost `X-Forwarded-For`,
+  then `X-Real-IP`, else `'unknown'`). Spoofable — see the caveat in [rateLimit](#ratelimit).
 
 Types: `ErrorHandlerOptions`, `OnErrorContext`, `RequestLoggerOptions`, `RequestLoggerConfig`,
-`ProxyGuardConfig`, `ProxyGuardMode`, `ClientType`, `NonceStore`.
+`ProxyGuardConfig`, `ProxyGuardMode`, `ClientType`, `NonceStore`, `RateLimitOptions`.
 
 See the root `PROXY-BACKEND-AUTH-SPEC.md` for the threat model, key rotation, and `.env`
 placement (`SPFN_PROXY_SECRET` in `.env.local`; grace `SPFN_PROXY_SECRET_PREVIOUS` in `.env.server`).
@@ -320,6 +329,58 @@ maskSensitiveData(
 - Non-objects (`null`, primitives) are returned as-is.
 
 Replacement token is the literal string `'***MASKED***'`.
+
+---
+
+## rateLimit
+
+Redis-backed **fixed-window** rate limiter. Registered under the named `'rateLimit'`
+middleware so a route can opt out with `.skip(['rateLimit'])`. Attach per-route with
+`.use([rateLimit({...})])`.
+
+```typescript
+import { rateLimit, getClientIp } from '@spfn/core/middleware';
+
+// 10 requests / minute per client IP (the default dimension)
+route.post('/_auth/login')
+    .use([rateLimit({ limit: 10, windowMs: 60_000 })])
+    .handler(/* ... */);
+
+// limit on more than one dimension — the strictest wins
+route.post('/_auth/codes')
+    .use([rateLimit({
+        limit: 5,
+        windowMs: 60_000,
+        by: (c) => [getClientIp(c)],
+    })])
+    .handler(/* ... */);
+```
+
+### Options (`RateLimitOptions`)
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `limit` | `number` | — | Max requests per window, applied to **each** dimension. |
+| `windowMs` | `number` | — | Window length in milliseconds. |
+| `scope` | `string` | `` `${method} ${routePath}` `` | Counter-key namespace; defaults to per-route. |
+| `by` | `(c) => (string \| null \| undefined)[]` | `[getClientIp(c)]` | Identity dimensions; each non-empty value is counted separately. |
+| `failClosed` | `boolean` | `false` | Reject with 429 when the cache is unavailable instead of allowing through. |
+| `message` | `string` | generic | 429 response message. |
+
+### Behavior
+
+- **Atomic**: counts via a single Lua `INCR` + `PEXPIRE`, so the expiry is never lost in
+  a race between two requests.
+- **Fail-open by default**: when no cache is configured (or it is disabled), requests pass
+  and a warning is logged — matching the proxy-guard nonce store's graceful degradation, so
+  local dev without Redis still works. Set `failClosed: true` to reject instead.
+- **On exceed**: throws `TooManyRequestsError` (429) and sets a `Retry-After` header derived
+  from the key's remaining TTL.
+- **Storage**: keys are `ratelimit:{scope}:{dimension}` in the shared cache.
+
+> **IP trust caveat**: `getClientIp` reads the leftmost `X-Forwarded-For` hop, which a client
+> can spoof unless a trusted proxy overwrites it. For security-sensitive limits, pair the IP
+> dimension with an account/target dimension rather than relying on IP alone.
 
 ---
 

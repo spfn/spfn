@@ -11,6 +11,7 @@ import {
     rolePermissionsRepository,
     userPermissionsRepository,
 } from '../repositories';
+import { ForbiddenError } from '@spfn/core/errors';
 
 /**
  * Get all permissions for a user
@@ -222,4 +223,51 @@ export async function hasAnyRole(userId: string | number | bigint, roleNames: st
     }
 
     return false;
+}
+
+/**
+ * Assert that the caller is allowed to assign the given role.
+ *
+ * Centralizes the privilege rule shared by direct role assignment and invitation:
+ * a non-superadmin caller may never grant the superadmin role, and may grant the
+ * admin role only when they hold the `admin:promote` permission. Assigning any
+ * lower role is unrestricted (the route's own permission guard still applies).
+ *
+ * @param callerUserId - User performing the assignment
+ * @param targetRoleId - Role being assigned
+ * @throws ForbiddenError when the caller lacks the authority for the target role
+ *
+ * @example
+ * ```typescript
+ * await assertCanAssignRole(auth.userId, body.roleId);
+ * ```
+ */
+export async function assertCanAssignRole(
+    callerUserId: string | number | bigint,
+    targetRoleId: number,
+): Promise<void>
+{
+    const callerRole = await getUserRole(callerUserId);
+
+    if (callerRole === 'superadmin')
+    {
+        return;
+    }
+
+    const targetRole = await rolesRepository.findById(targetRoleId);
+
+    if (targetRole?.name === 'superadmin')
+    {
+        throw new ForbiddenError({ message: 'Only superadmin can assign superadmin role' });
+    }
+
+    if (targetRole?.name === 'admin')
+    {
+        const canPromote = await hasPermission(callerUserId, 'admin:promote');
+
+        if (!canPromote)
+        {
+            throw new ForbiddenError({ message: 'admin:promote permission required to assign admin role' });
+        }
+    }
 }
