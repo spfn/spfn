@@ -6,7 +6,6 @@
 
 // Auth Service
 export {
-    checkAccountExistsService,
     registerService,
     loginService,
     logoutService,
@@ -14,8 +13,6 @@ export {
 } from './auth.service';
 
 export type {
-    CheckAccountExistsParams,
-    CheckAccountExistsResult,
     RegisterParams,
     RegisterResult,
     LoginParams,

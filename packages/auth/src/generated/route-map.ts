@@ -13,7 +13,6 @@ export interface RouteInfo
 }
 
 export const routeMap: Record<string, RouteInfo> = {
-    checkAccountExists: { method: 'POST', path: '/_auth/exists' },
     sendVerificationCode: { method: 'POST', path: '/_auth/codes' },
     verifyCode: { method: 'POST', path: '/_auth/codes/verify' },
     register: { method: 'POST', path: '/_auth/register' },
