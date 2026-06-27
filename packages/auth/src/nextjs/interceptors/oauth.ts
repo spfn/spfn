@@ -183,7 +183,12 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
                 return;
             }
 
-            // 세션 생성
+            // 세션 생성.
+            // `userId` here is the value reflected by /_auth/oauth/finalize (a UI
+            // convenience, not a trust anchor). It's safe to seal: keyId was matched
+            // against the pending cookie above, the session is sealed, and the
+            // backend re-derives identity from keyId on every request — see the
+            // SECURITY note on the oauthFinalize route handler.
             const ttl = getSessionTtl();
             const sessionToken = await sealSession({
                 userId,

@@ -242,8 +242,20 @@ export const oauthFinalize = route.post('/_auth/oauth/finalize')
     {
         const { body } = await c.data();
 
-        // 인터셉터가 세션을 저장함
-        // userId, keyId를 반환해야 인터셉터가 처리 가능
+        // 인터셉터가 세션을 저장함 — userId, keyId를 반환해야 인터셉터가 처리 가능.
+        //
+        // SECURITY (not a vuln — read before "fixing"): this unauthenticated route
+        // reflects the client-supplied userId. That is intentional and safe — the
+        // reflected userId is a convenience value, never a trust anchor:
+        //   1. The interceptor seals it into the session only after matching keyId
+        //      against the server-sealed `oauth_pending` cookie, and the session is
+        //      sealed with SPFN_AUTH_SESSION_SECRET (the client can't forge/tamper it).
+        //   2. Identity on every backend request is re-derived in `authenticate`
+        //      from the keyId → public-key → DB-owner binding (signature-verified),
+        //      never from this userId. That keyId↔userId binding is created
+        //      server-side in oauthCallbackService from the OAuth-verified identity.
+        // A substituted userId therefore cannot grant another user's identity; it
+        // only populates getSession().userId for client-side UI without a backend call.
         return {
             success: true,
             userId: body.userId,
