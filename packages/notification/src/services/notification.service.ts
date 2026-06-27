@@ -4,8 +4,8 @@
  * Core service for tracking notification history
  */
 
-import { create, createMany, findOne, findMany, updateOne, count } from '@spfn/core/db';
-import { desc, eq, and, gte, lte } from 'drizzle-orm';
+import { create, createMany, findOne, findMany, updateOne, count, getDatabase } from '@spfn/core/db';
+import { desc, eq, and, gte, lte, count as drizzleCount } from 'drizzle-orm';
 import {
     notifications,
     type Notification,
@@ -250,16 +250,43 @@ export async function getNotificationStats(
     options: { channel?: NotificationChannel; from?: Date; to?: Date } = {},
 ): Promise<NotificationStats>
 {
-    const [total, scheduled, pending, sent, failed, cancelled] = await Promise.all([
-        countNotifications(options),
-        countNotifications({ ...options, status: 'scheduled' }),
-        countNotifications({ ...options, status: 'pending' }),
-        countNotifications({ ...options, status: 'sent' }),
-        countNotifications({ ...options, status: 'failed' }),
-        countNotifications({ ...options, status: 'cancelled' }),
-    ]);
+    // One GROUP BY instead of six separate COUNT(*) scans. Also honours from/to
+    // (the previous per-status countNotifications path ignored the date range).
+    const conditions = [];
+    if (options.channel)
+    {
+        conditions.push(eq(notifications.channel, options.channel));
+    }
+    if (options.from)
+    {
+        conditions.push(gte(notifications.createdAt, options.from));
+    }
+    if (options.to)
+    {
+        conditions.push(lte(notifications.createdAt, options.to));
+    }
 
-    return { total, scheduled, pending, sent, failed, cancelled };
+    const rows = await getDatabase('read')
+        .select({ status: notifications.status, count: drizzleCount() })
+        .from(notifications)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .groupBy(notifications.status);
+
+    const stats: NotificationStats = {
+        total: 0, scheduled: 0, pending: 0, sent: 0, failed: 0, cancelled: 0,
+    };
+
+    for (const row of rows)
+    {
+        const n = Number(row.count);
+        stats.total += n;
+        if (row.status && row.status in stats)
+        {
+            stats[row.status as keyof Omit<NotificationStats, 'total'>] = n;
+        }
+    }
+
+    return stats;
 }
 
 /**

@@ -9,8 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { valuesSpy, insertSpy } = vi.hoisted(() =>
 {
-    const valuesSpy = vi.fn(async () => undefined);
-    const insertSpy = vi.fn(() => ({ values: valuesSpy }));
+    const valuesSpy = vi.fn(async (_rows: unknown[]) => undefined);
+    const insertSpy = vi.fn((_table: unknown) => ({ values: valuesSpy }));
 
     return { valuesSpy, insertSpy };
 });
