@@ -8,7 +8,7 @@
 import { route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
 import { defineRouter } from '@spfn/core/route';
-import { verifyOpenToken, verifyClickToken } from './token';
+import { verifyOpenToken, verifyClickToken, hashClickUrl } from './token';
 import { recordOpenEvent, recordClickEvent } from './tracking.service';
 import { logger } from '@spfn/core/logger';
 
@@ -83,19 +83,46 @@ export const trackClick = route.get('/_noti/t/c/:token')
         const targetUrl = query.url;
         const result = verifyClickToken(params.token);
 
-        if (result.valid && result.notificationId != null && result.linkIndex != null)
-        {
-            recordClickEvent(result.notificationId, result.linkIndex, targetUrl, {
-                ipAddress: c.raw.req.header('x-forwarded-for') ?? c.raw.req.header('x-real-ip'),
-                userAgent: c.raw.req.header('user-agent'),
-            });
-        }
-        else
+        // Invalid token → do NOT redirect. The endpoint is .skip(['auth']), so
+        // redirecting on an unverified token would make it an open redirect
+        // (GET /_noti/t/c/<garbage>?url=https://evil.com).
+        if (!result.valid || result.notificationId == null || result.linkIndex == null)
         {
             log.warn('Invalid click tracking token');
+
+            return new Response('Not found', { status: 404 });
         }
 
-        // Always redirect (UX protection)
+        // Only http(s) destinations — block javascript:/data:/relative-protocol.
+        let parsed: URL;
+        try
+        {
+            parsed = new URL(targetUrl);
+        }
+        catch
+        {
+            return new Response('Not found', { status: 404 });
+        }
+
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+        {
+            return new Response('Not found', { status: 404 });
+        }
+
+        // New tokens bind the destination URL; reject a swapped target. Legacy
+        // tokens (no urlHash) predate binding and are allowed through.
+        if (result.urlHash && hashClickUrl(targetUrl) !== result.urlHash)
+        {
+            log.warn('Click URL does not match signed token');
+
+            return new Response('Not found', { status: 404 });
+        }
+
+        recordClickEvent(result.notificationId, result.linkIndex, targetUrl, {
+            ipAddress: c.raw.req.header('x-forwarded-for') ?? c.raw.req.header('x-real-ip'),
+            userAgent: c.raw.req.header('user-agent'),
+        });
+
         return new Response(null, {
             status: 302,
             headers: {
