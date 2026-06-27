@@ -49,6 +49,16 @@ function generateNonce(): string
     return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * Generate a CSRF nonce for the OAuth flow. The caller passes it to
+ * createOAuthState AND sets it as the oauth_csrf cookie, so the callback can
+ * double-submit-verify the flow was initiated by this same browser.
+ */
+export function generateOAuthNonce(): string
+{
+    return generateNonce();
+}
+
 export interface CreateOAuthStateParams
 {
     provider: string;
@@ -58,6 +68,11 @@ export interface CreateOAuthStateParams
     fingerprint: string;
     algorithm: KeyAlgorithmType;
     metadata?: Record<string, unknown>;
+    /**
+     * CSRF nonce bound into the state. Pass the same value as the oauth_csrf
+     * cookie. Defaults to a fresh nonce (unbound — legacy/no-CSRF callers).
+     */
+    nonce?: string;
 }
 
 /**
@@ -72,7 +87,7 @@ export async function createOAuthState(params: CreateOAuthStateParams): Promise<
 
     const state: OAuthState = {
         returnUrl: params.returnUrl,
-        nonce: generateNonce(),
+        nonce: params.nonce ?? generateNonce(),
         provider: params.provider,
         publicKey: params.publicKey,
         keyId: params.keyId,

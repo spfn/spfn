@@ -35,6 +35,8 @@ export interface OAuthStartParams
     fingerprint: string;
     algorithm: KeyAlgorithmType;
     metadata?: Record<string, unknown>;
+    /** CSRF nonce bound into the state; the route sets the matching oauth_csrf cookie. */
+    nonce?: string;
 }
 
 export interface OAuthStartResult
@@ -47,6 +49,13 @@ export interface OAuthCallbackParams
     provider: SocialProvider;
     code: string;
     state: string;
+    /**
+     * Value of the oauth_csrf cookie from the callback request. Must equal the
+     * nonce bound into the (encrypted) state — otherwise the flow wasn't initiated
+     * by this browser (login CSRF). Pass `undefined` when the cookie is absent;
+     * verification then fails closed.
+     */
+    expectedNonce: string | undefined;
 }
 
 export interface OAuthCallbackResult
@@ -108,7 +117,7 @@ export async function oauthStartService(
     params: OAuthStartParams,
 ): Promise<OAuthStartResult>
 {
-    const { provider, returnUrl, publicKey, keyId, fingerprint, algorithm, metadata } = params;
+    const { provider, returnUrl, publicKey, keyId, fingerprint, algorithm, metadata, nonce } = params;
 
     const oauthProvider = requireEnabledProvider(provider);
 
@@ -120,6 +129,7 @@ export async function oauthStartService(
         fingerprint,
         algorithm,
         metadata,
+        nonce,
     });
 
     return { authUrl: oauthProvider.getAuthUrl(state) };
@@ -135,10 +145,20 @@ export async function oauthCallbackService(
     params: OAuthCallbackParams,
 ): Promise<OAuthCallbackResult>
 {
-    const { provider, code, state } = params;
+    const { provider, code, state, expectedNonce } = params;
 
-    // State 검증 및 복호화
+    // State 검증 및 복호화 (jose enforces the 10m expiry on decrypt)
     const stateData = await verifyOAuthState(state);
+
+    // CSRF: the state's nonce must match the oauth_csrf cookie from THIS browser.
+    // A login-CSRF victim (handed the attacker's state) has no matching cookie, so
+    // this fails closed before any account is created or any key is registered.
+    if (!expectedNonce || stateData.nonce !== expectedNonce)
+    {
+        throw new ValidationError({
+            message: 'OAuth state validation failed',
+        });
+    }
 
     if (stateData.provider !== provider)
     {

@@ -7,7 +7,7 @@
 
 import type { InterceptorRule, ResponseInterceptorContext } from '@spfn/core/nextjs/server';
 import { generateKeyPair } from '../../server/lib/crypto';
-import { createOAuthState } from '../../server/lib/oauth/state';
+import { createOAuthState, generateOAuthNonce } from '../../server/lib/oauth/state';
 import { sealSession } from '../../server/lib/session';
 import { COOKIE_NAMES, getSessionTtl } from '../../server/lib/config';
 import { authLogger } from '../../server/logger';
@@ -32,6 +32,10 @@ export const oauthUrlInterceptor: InterceptorRule = {
         // 키쌍 생성
         const keyPair = generateKeyPair('ES256');
 
+        // CSRF nonce: bound into the state AND set as the oauth_csrf cookie below,
+        // so the backend callback can confirm the flow started in THIS browser.
+        const csrfNonce = generateOAuthNonce();
+
         // state 생성 (publicKey 포함)
         const state = await createOAuthState({
             provider,
@@ -40,6 +44,7 @@ export const oauthUrlInterceptor: InterceptorRule = {
             keyId: keyPair.keyId,
             fingerprint: keyPair.fingerprint,
             algorithm: keyPair.algorithm,
+            nonce: csrfNonce,
         });
 
         // body에 state 주입
@@ -55,6 +60,7 @@ export const oauthUrlInterceptor: InterceptorRule = {
             keyId: keyPair.keyId,
             algorithm: keyPair.algorithm,
         };
+        ctx.metadata.oauthCsrf = csrfNonce;
 
         authLogger.interceptor.oauth?.debug?.('OAuth state created', {
             provider,
@@ -84,6 +90,22 @@ export const oauthUrlInterceptor: InterceptorRule = {
                         path: '/',
                     },
                 });
+
+                // CSRF nonce cookie (double-submit against the state.nonce at callback)
+                if (ctx.metadata.oauthCsrf)
+                {
+                    ctx.setCookies.push({
+                        name: COOKIE_NAMES.OAUTH_CSRF,
+                        value: ctx.metadata.oauthCsrf,
+                        options: {
+                            httpOnly: true,
+                            secure: cookieSecure,
+                            sameSite: 'lax',
+                            maxAge: 600,
+                            path: '/',
+                        },
+                    });
+                }
 
                 authLogger.interceptor.oauth?.debug?.('Pending session cookie set', {
                     keyId: ctx.metadata.pendingSession.keyId,

@@ -35,9 +35,14 @@ export const COOKIE_NAMES = {
         return `spfn_session_key_id${getCookieSuffix()}`; 
     },
     /** Pending OAuth session (privateKey, keyId, algorithm) - temporary during OAuth flow */
-    get OAUTH_PENDING() 
+    get OAUTH_PENDING()
     {
-        return `spfn_oauth_pending${getCookieSuffix()}`; 
+        return `spfn_oauth_pending${getCookieSuffix()}`;
+    },
+    /** OAuth CSRF nonce — double-submit against the (encrypted) state.nonce at callback */
+    get OAUTH_CSRF()
+    {
+        return `spfn_oauth_csrf${getCookieSuffix()}`;
     },
 };
 

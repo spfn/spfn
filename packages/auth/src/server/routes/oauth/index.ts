@@ -8,12 +8,14 @@
  */
 
 import { Type } from '@sinclair/typebox';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Transactional } from '@spfn/core/db';
 import { ValidationError } from '@spfn/core/errors';
 import { rateLimit } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 
 import { KEY_ALGORITHM, SOCIAL_PROVIDERS } from '../../types';
+import { COOKIE_NAMES } from '../../lib/config';
 import {
     oauthStartService,
     oauthCallbackService,
@@ -23,6 +25,7 @@ import {
     requireEnabledProvider,
 } from '../../services';
 import { isGoogleOAuthEnabled, getGoogleAuthUrl, getOAuthProvider } from '../../lib/oauth';
+import { generateOAuthNonce } from '../../lib/oauth/state';
 
 /**
  * path param의 provider 타입 (등록 가능한 모든 소셜 provider)
@@ -106,12 +109,16 @@ export const oauthGoogleCallback = route.get('/_auth/oauth/google/callback')
             return c.redirect(buildOAuthErrorUrl('Missing authorization code or state'));
         }
 
+        const expectedNonce = getCookie(c.raw, COOKIE_NAMES.OAUTH_CSRF);
+        deleteCookie(c.raw, COOKIE_NAMES.OAUTH_CSRF, { path: '/' });
+
         try
         {
             const result = await oauthCallbackService({
                 provider: 'google',
                 code: query.code,
                 state: query.state,
+                expectedNonce,
             });
 
             return c.redirect(result.redirectUrl);
@@ -162,7 +169,17 @@ export const oauthStart = route.post('/_auth/oauth/start')
     {
         const { body } = await c.data();
 
-        const result = await oauthStartService(body);
+        // CSRF: bind the flow to this browser via a cookie matched at the callback.
+        const nonce = generateOAuthNonce();
+        setCookie(c.raw, COOKIE_NAMES.OAUTH_CSRF, nonce, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Lax',
+            maxAge: 600,
+            path: '/',
+        });
+
+        const result = await oauthStartService({ ...body, nonce });
 
         return result;
     });
@@ -343,12 +360,16 @@ export const oauthProviderCallback = route.get('/_auth/oauth/:provider/callback'
             return c.redirect(buildOAuthErrorUrl('Missing authorization code or state'));
         }
 
+        const expectedNonce = getCookie(c.raw, COOKIE_NAMES.OAUTH_CSRF);
+        deleteCookie(c.raw, COOKIE_NAMES.OAUTH_CSRF, { path: '/' });
+
         try
         {
             const result = await oauthCallbackService({
                 provider: params.provider,
                 code: query.code,
                 state: query.state,
+                expectedNonce,
             });
 
             return c.redirect(result.redirectUrl);
