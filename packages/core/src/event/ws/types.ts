@@ -177,6 +177,19 @@ export interface WSHandlerConfig
     maxConnectionsPerSubject?: number;
 
     /**
+     * Allow-list of `Origin` header values permitted to open a WebSocket. A
+     * browser sends Origin on the upgrade, so this blocks cross-site scripts from
+     * connecting with the user's ambient cookies (WebSocket has no same-origin
+     * policy / CORS of its own). Connections whose Origin isn't listed are closed
+     * with 1008. Undefined/empty = no Origin check (default; non-browser clients
+     * such as native apps send no Origin and are always allowed).
+     *
+     * @example ['https://app.example.com', 'https://admin.example.com']
+     * @default undefined (disabled)
+     */
+    allowedOrigins?: string[];
+
+    /**
      * Authentication and authorization configuration
      */
     auth?: WSHandlerAuthConfig;
