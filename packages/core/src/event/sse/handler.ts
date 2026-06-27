@@ -161,6 +161,9 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
             let connectionDead = false;
             let pingTimer: ReturnType<typeof setInterval>;
             let writer: ReturnType<typeof createBoundedWriter>;
+            // Resolves the disconnect wait below when the connection is closed
+            // server-side (overflow/error), so teardown doesn't wait for the loop.
+            let onClosed: (() => void) | undefined;
 
             const cleanup = (reason?: string) =>
             {
@@ -169,6 +172,7 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
                 clearInterval(pingTimer);
                 unsubscribes.forEach(fn => fn());
                 writer?.close();
+                onClosed?.();
                 sseLogger.info('SSE dead connection cleaned up', {
                     events: allowedEvents,
                     reason,
@@ -247,15 +251,27 @@ export function createSSEHandler<TRouter extends EventRouterDef<any>>(
                 });
             }, pingInterval);
 
-            // Wait for client disconnect using abort signal
+            // Wait for client disconnect (abort) or a server-side close. Waiting on
+            // the abort event instead of polling sleep(pingInterval) means a dropped
+            // client is torn down immediately, not up to one ping interval later.
             const abortSignal = c.req.raw.signal;
 
-            while (!abortSignal.aborted && !connectionDead)
+            if (!abortSignal.aborted && !connectionDead)
             {
-                await stream.sleep(pingInterval);
+                await new Promise<void>((resolve) =>
+                {
+                    const onAbort = () => resolve();
+                    abortSignal.addEventListener('abort', onAbort, { once: true });
+                    // Server-side close (cleanup) resolves the wait and drops the listener.
+                    onClosed = () =>
+                    {
+                        abortSignal.removeEventListener('abort', onAbort);
+                        resolve();
+                    };
+                });
             }
 
-            // Cleanup (normal disconnect path)
+            // Cleanup (normal disconnect path; idempotent if already closed)
             cleanup();
         }, async (err: Error) =>
         {
