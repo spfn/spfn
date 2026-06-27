@@ -6,6 +6,7 @@
  */
 
 import { text, integer, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { id, timestamps, enumText, utcTimestamp } from '@spfn/core/db';
 import { monitorSchema } from './schema';
 
@@ -51,6 +52,14 @@ export const errorGroups = monitorSchema.table('error_groups',
         index('monitor_eg_status_idx').on(table.status),
         index('monitor_eg_last_seen_at_idx').on(table.lastSeenAt),
         index('monitor_eg_path_idx').on(table.path),
+        // pg_trgm GIN indexes make the admin search's leading-wildcard ILIKE
+        // (%term%) on name/message/path sargable instead of a seq scan. Error
+        // groups are fingerprint-deduped, so insert volume is low — the write cost
+        // of these GIN indexes is acceptable here (NOT applied to the high-volume
+        // logs table). Requires the pg_trgm extension (see the migration).
+        index('monitor_eg_name_trgm_idx').using('gin', sql`${table.name} gin_trgm_ops`),
+        index('monitor_eg_message_trgm_idx').using('gin', sql`${table.message} gin_trgm_ops`),
+        index('monitor_eg_path_trgm_idx').using('gin', sql`${table.path} gin_trgm_ops`),
     ],
 );
 
