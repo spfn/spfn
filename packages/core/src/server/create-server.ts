@@ -167,7 +167,7 @@ async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
         return;
     }
 
-    const { createProxyGuard, createCacheNonceStore } = await import('@spfn/core/middleware');
+    const { createProxyGuard, createCacheNonceStore, createInMemoryNonceStore } = await import('@spfn/core/middleware');
 
     // Optionally enable Redis-backed nonce replay rejection
     let nonceStore: NonceStore | undefined;
@@ -184,12 +184,14 @@ async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
             }
             else
             {
-                serverLogger.warn('Proxy-guard nonce enabled but no cache available — using timestamp window only');
+                nonceStore = createInMemoryNonceStore();
+                serverLogger.info('Proxy-guard nonce replay rejection: in-memory (single instance only — use a cache for multi-instance)');
             }
         }
         catch
         {
-            serverLogger.warn('Proxy-guard nonce enabled but cache module unavailable — using timestamp window only');
+            nonceStore = createInMemoryNonceStore();
+            serverLogger.warn('Proxy-guard nonce: cache module unavailable — using in-memory store (single instance only)');
         }
     }
 
@@ -217,6 +219,7 @@ async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
         allowedOrigins: proxyGuardConfig?.allowedOrigins,
         maxBodyBytes: proxyGuardConfig?.maxBodyBytes,
         nonceStore,
+        nonceFailClosed: proxyGuardConfig?.nonceFailClosed,
         skipPaths,
     }));
 
