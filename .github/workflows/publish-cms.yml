@@ -79,9 +79,9 @@ jobs:
             exit 1
           fi
 
-      - name: Build @spfn/cms (with core dependency)
+      - name: Build @spfn/cms (with dependencies)
         if: ${{ steps.check-npm.outputs.exists == 'false' }}
-        run: pnpm --filter @spfn/core --filter @spfn/cms build
+        run: pnpm --filter @spfn/core --filter @spfn/auth --filter @spfn/cms build
 
       - name: Create git tag
         if: ${{ inputs.create_tag && steps.check-npm.outputs.exists == 'false' }}
