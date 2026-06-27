@@ -10,8 +10,15 @@ import { InvalidVerificationCodeError } from '@spfn/auth/errors';
 import jwt from 'jsonwebtoken';
 import { sendEmail, sendSMS } from '@spfn/notification/server';
 import { authLogger } from '../logger';
-import { verificationCodesRepository } from '../repositories';
+import { verificationCodesRepository, usersRepository } from '../repositories';
 import type { VerificationTargetType, VerificationPurpose } from '../routes/schema';
+
+/**
+ * How long to suppress repeat "account already exists" notices to the same target.
+ * Bounds the notice to ~once per window so the signup endpoint can't be used to
+ * email-bomb an existing account's owner.
+ */
+const ACCOUNT_EXISTS_NOTICE_DEDUPE_MINUTES = 60;
 
 /**
  * Verification token expiry (15 minutes)
@@ -267,6 +274,41 @@ async function sendVerificationSMS(
     }
 }
 
+/**
+ * Whether an account already exists for the given target.
+ */
+async function accountExistsForTarget(
+    target: string,
+    targetType: VerificationTargetType,
+): Promise<boolean>
+{
+    const user = targetType === 'email'
+        ? await usersRepository.findByEmail(target)
+        : await usersRepository.findByPhone(target);
+
+    return !!user;
+}
+
+/**
+ * Notify the owner that someone tried to sign up with their (already-registered)
+ * address — instead of sending a usable signup code. UX hint + security tripwire.
+ */
+async function sendAccountExistsNotice(
+    target: string,
+    targetType: VerificationTargetType,
+): Promise<void>
+{
+    const result = targetType === 'email'
+        ? await sendEmail({ to: target, template: 'account-exists', data: {} })
+        : await sendSMS({ to: target, template: 'account-exists', data: {} });
+
+    if (!result.success)
+    {
+        const log = targetType === 'email' ? authLogger.email : authLogger.sms;
+        log.error('Failed to send account-exists notice', { target, error: result.error });
+    }
+}
+
 export interface SendVerificationCodeParams
 {
     target: string;
@@ -302,6 +344,40 @@ export async function sendVerificationCodeService(
 ): Promise<SendVerificationCodeResult>
 {
     const { target, targetType, purpose } = params;
+
+    // Registration to an already-registered target: don't send a usable signup code
+    // (the account exists). Notify the owner instead — but return the SAME response
+    // as the new-account path so existence can't be probed (no enumeration), and
+    // dedupe so this can't be used to email-bomb the owner.
+    if (purpose === 'registration' && await accountExistsForTarget(target, targetType))
+    {
+        const recentNotice = await verificationCodesRepository.findValidByTargetAndPurpose(target, purpose);
+
+        if (!recentNotice)
+        {
+            // Undelivered marker row — a dedupe timestamp only. Long expiry so the
+            // dedupe window holds; the code is never sent and is unusable (register
+            // rejects an existing account regardless).
+            const dedupeExpiresAt = new Date(Date.now() + ACCOUNT_EXISTS_NOTICE_DEDUPE_MINUTES * 60_000);
+            await verificationCodesRepository.invalidatePreviousCodes(target, purpose);
+            await verificationCodesRepository.create({
+                target,
+                targetType,
+                code: generateVerificationCode(),
+                purpose,
+                expiresAt: dedupeExpiresAt,
+                attempts: 0,
+            });
+
+            await sendAccountExistsNotice(target, targetType);
+        }
+
+        // Uniform response shape (indistinguishable from a real code send).
+        return {
+            success: true,
+            expiresAt: new Date(Date.now() + VERIFICATION_CODE_EXPIRY_MINUTES * 60_000).toISOString(),
+        };
+    }
 
     // Generate 6-digit verification code
     const code = generateVerificationCode();
