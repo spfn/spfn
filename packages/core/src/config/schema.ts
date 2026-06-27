@@ -443,4 +443,11 @@ export const coreEnvSchema = defineEnvSchema({
         nextjs: false,
         examples: ['v1:<old secret>', 'v1:<old>,v0:<older>'],
     }),
+
+    TRUSTED_PROXY_HOPS: envNumber({
+        description: 'Number of trusted reverse proxies in front of the Next.js proxy (e.g. cloud LB + nginx = 2). Read by the proxy to extract the real client IP from the inbound X-Forwarded-For (counting from the right, which your own infra appends and a client cannot spoof) and forward it to the backend for rate limiting. Set it to your actual hop count; too low trusts a client-spoofable entry, too high collapses users behind a shared proxy IP.',
+        default: 1,
+        nextjs: true,
+        examples: [1, 2, 3],
+    }),
 });

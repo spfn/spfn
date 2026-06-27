@@ -13,6 +13,7 @@
  */
 
 import type { Context, MiddlewareHandler } from 'hono';
+import { PROXY_CLIENT_IP_HEADER } from '../security/proxy-signature';
 import { defineMiddlewareFactory } from '../route/define-middleware';
 import { getCache, isCacheDisabled } from '../cache';
 import { TooManyRequestsError } from '../errors';
@@ -62,12 +63,28 @@ export interface RateLimitOptions
 }
 
 /**
- * Best-effort client IP from the proxy chain. Mirrors the request logger; the
- * leftmost X-Forwarded-For hop is client-spoofable, so pair this with an
- * account/target dimension for anything security-sensitive.
+ * Best-effort client IP for rate-limit keying.
+ *
+ * Prefers the proxy-forwarded real client IP, but ONLY when proxy-guard verified
+ * the request came through our proxy (`clientType` set and not 'untrusted') — on a
+ * verified request the proxy is the sole hop, so the value is the true client and
+ * isn't client-spoofable. Otherwise (no proxy-guard, or unverified/direct request)
+ * the forwarded header is attacker-settable, so fall back to the raw chain — whose
+ * leftmost hop is itself spoofable, so still pair with an account/target dimension
+ * for anything security-sensitive.
  */
 export function getClientIp(c: Context): string
 {
+    const clientType = c.get('clientType');
+    if (clientType && clientType !== 'untrusted')
+    {
+        const forwarded = c.req.header(PROXY_CLIENT_IP_HEADER);
+        if (forwarded)
+        {
+            return forwarded;
+        }
+    }
+
     const forwardedFor = c.req.header('x-forwarded-for');
 
     return forwardedFor?.split(',')[0]?.trim()

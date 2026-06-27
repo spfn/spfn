@@ -28,6 +28,12 @@ export const PROXY_SIGNATURE_HEADER = 'x-spfn-proxy-signature';
 export const PROXY_TIMESTAMP_HEADER = 'x-spfn-proxy-timestamp';
 export const PROXY_NONCE_HEADER = 'x-spfn-proxy-nonce';
 export const PROXY_KEY_ID_HEADER = 'x-spfn-proxy-key-id';
+/**
+ * The real client IP, forwarded by the proxy. The backend trusts this only when
+ * the request is proxy-verified (proxy-guard `clientType` ≠ untrusted) — the proxy
+ * itself sees no spoofable hop, so a verified request's value is the true client.
+ */
+export const PROXY_CLIENT_IP_HEADER = 'x-spfn-proxy-client-ip';
 
 /** keyId used when a raw secret carries no `keyId:` prefix (back-compat). */
 export const DEFAULT_KEY_ID = 'default';
