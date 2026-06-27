@@ -102,10 +102,9 @@ export async function registerJobs(router: JobRouter<any>): Promise<void>
         jobLogger.info('Existing jobs cleared');
     }
 
-    for (const job of jobs)
-    {
-        await registerJob(job);
-    }
+    // Each job registers an independent pg-boss queue/worker, so register them
+    // concurrently — sequential awaits made startup scale linearly with job count.
+    await Promise.all(jobs.map((job) => registerJob(job)));
 
     jobLogger.info('All jobs registered successfully');
 }
