@@ -24,6 +24,14 @@ export interface JobOptions
     retryDelay?: number;
 
     /**
+     * Exponential backoff between retries (retryDelay * 2^attempt). Defaults to
+     * true so a failed cohort (e.g. on a provider 429) doesn't all retry at the
+     * same fixed offset — a thundering herd. Set false for fixed retryDelay.
+     * @default true
+     */
+    retryBackoff?: boolean;
+
+    /**
      * Job expiration in seconds
      * @default 300 (5 minutes)
      */
