@@ -14,7 +14,7 @@ import {
     VerificationTokenTargetMismatchError,
 } from '@spfn/auth/errors';
 
-import { usersRepository } from '../repositories';
+import { usersRepository, keysRepository } from '../repositories';
 import { type KeyAlgorithmType } from '../types';
 import { hashPassword, verifyPassword } from '../helpers';
 import { validateVerificationToken } from './verification.service';
@@ -330,4 +330,10 @@ export async function changePasswordService(
 
     // Update password and clear passwordChangeRequired flag
     await usersRepository.updatePassword(userId, newPasswordHash, true);
+
+    // Revoke all existing sessions on password change (incident-response intent:
+    // "change password" should log the user out everywhere). authenticate verifies
+    // against active keys only, so revoked keys' requests immediately fail — no
+    // per-request cost beyond what auth already pays. The user re-authenticates.
+    await keysRepository.revokeAllActiveByUserId(userId, 'Revoked by password change');
 }
