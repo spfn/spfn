@@ -14,6 +14,7 @@ vi.mock('../../server/repositories', () =>
         create: vi.fn(),
         incrementCount: vi.fn(),
         updateStatus: vi.fn(),
+        reactivate: vi.fn(),
     };
 
     const mockErrorEventsRepo = {
@@ -132,8 +133,7 @@ describe('trackError', () =>
 
         await trackError(new Error('test error'), mockCtx);
 
-        expect(errorGroupsRepository.updateStatus).toHaveBeenCalledWith(1, 'active');
-        expect(errorGroupsRepository.incrementCount).toHaveBeenCalledWith(1);
+        expect(errorGroupsRepository.reactivate).toHaveBeenCalledWith(1);
         expect(errorEventsRepository.create).toHaveBeenCalledTimes(1);
         expect(notifyErrorToSlack).toHaveBeenCalledWith(
             expect.objectContaining({ status: 'active' }),
