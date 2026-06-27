@@ -10,6 +10,8 @@ import {
     verifyClientToken,
     verifyKeyFingerprint,
     decodeToken,
+    generateToken,
+    verifyToken,
 } from '@/server/helpers/jwt';
 import { generateKeyPair, generateClientToken } from '@/server/lib/crypto';
 
@@ -337,6 +339,22 @@ describe('JWT - Algorithm Enforcement', () =>
         {
             verifyClientToken(token, publicKey, 'RS256');
         }).toThrow();
+    });
+
+    it('legacy verifyToken round-trips an HS256 server-signed token', () =>
+    {
+        const token = generateToken({ userId: '777' });
+
+        expect(verifyToken(token).userId).toBe('777');
+    });
+
+    it('legacy verifyToken rejects an alg:none (unsigned) token', () =>
+    {
+        const jwt = require('jsonwebtoken');
+        // Classic algorithm-confusion: an unsigned token. The HS256 allow-list must reject it.
+        const token = jwt.sign({ userId: '777' }, '', { algorithm: 'none' });
+
+        expect(() => verifyToken(token)).toThrow();
     });
 });
 

@@ -95,7 +95,10 @@ export function generateToken(payload: SessionPayload): string
  */
 export function verifyToken(token: string): TokenPayload
 {
-    return jwt.verify(token, env.SPFN_AUTH_JWT_SECRET) as TokenPayload;
+    // Pin the algorithm to the symmetric HMAC this secret signs with — without an
+    // allow-list, jsonwebtoken accepts whatever alg the token header claims
+    // (algorithm-confusion risk).
+    return jwt.verify(token, env.SPFN_AUTH_JWT_SECRET, { algorithms: ['HS256'] }) as TokenPayload;
 }
 
 /**
