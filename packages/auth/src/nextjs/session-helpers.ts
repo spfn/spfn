@@ -131,7 +131,8 @@ export async function getSession(): Promise<PublicSession | null>
 
     try
     {
-        logger.debug('Validating session cookie', { cookie: sessionCookie.value });
+        // Never log the cookie value — it's the sealed session token.
+        logger.debug('Validating session cookie', { present: true });
         const session = await unsealSession(sessionCookie.value);
 
         // Return only public information
