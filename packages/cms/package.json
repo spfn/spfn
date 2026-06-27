@@ -1,6 +1,6 @@
 {
   "name": "@spfn/cms",
-  "version": "0.2.0-beta.21",
+  "version": "0.2.0-beta.22",
   "description": "SPFN CMS - Content Management System with type-safe labels and Next.js integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -39,6 +39,7 @@
   ],
   "scripts": {
     "build": "pnpm check:circular && tsup",
+    "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\"",
     "watch": "tsup --watch",
     "clean": "rm -rf dist",
     "db:generate": "drizzle-kit generate",
