@@ -30,6 +30,9 @@ function getDefaultJobOptions(options?: JobOptions): PgBoss.SendOptions
     return {
         retryLimit: options?.retryLimit ?? 3,
         retryDelay: options?.retryDelay ?? 1000,
+        // Exponential backoff by default — a failed cohort (e.g. a provider 429)
+        // would otherwise all retry at the same fixed offset (thundering herd).
+        retryBackoff: options?.retryBackoff ?? true,
         expireInSeconds: options?.expireInSeconds ?? 300,
     };
 }
