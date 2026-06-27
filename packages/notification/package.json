@@ -78,7 +78,8 @@
   "files": [
     "dist",
     "migrations",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public",

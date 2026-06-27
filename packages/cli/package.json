@@ -9,7 +9,8 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "bin"
+    "bin",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup && node scripts/copy-templates.js",

@@ -51,7 +51,8 @@
   "files": [
     "dist",
     "migrations",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "pnpm check:circular && tsup && tsup --config tsup.client.config.ts",
