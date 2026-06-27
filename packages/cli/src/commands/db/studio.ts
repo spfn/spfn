@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { spawn } from 'child_process';
 import { findAvailablePort } from './utils/database.js';
+import { shouldRelaxDbTls } from './utils/drizzle.js';
 
 import { env } from '@spfn/core/config';
 
@@ -65,7 +66,9 @@ export async function dbStudio(requestedPort?: number): Promise<void>
         const studioProcess = spawn('drizzle-kit', ['studio', `--port=${port}`, `--config=${configPath}`], {
             stdio: 'inherit',
             shell: true,
-            env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+            env: shouldRelaxDbTls(env.DATABASE_URL)
+                ? { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' }
+                : { ...process.env },
         });
 
         // Handle process termination
