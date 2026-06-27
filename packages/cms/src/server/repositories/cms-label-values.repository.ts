@@ -6,7 +6,7 @@
  */
 
 import { BaseRepository } from '@spfn/core/db';
-import { eq, and, SQL, isNull, gte, lte, inArray, sql } from 'drizzle-orm';
+import { eq, and, or, SQL, isNull, gte, lte, inArray, sql } from 'drizzle-orm';
 import { cmsLabelValues, type CmsLabelValue, type NewCmsLabelValue } from '../entities';
 
 /**
@@ -236,6 +236,51 @@ export class CmsLabelValuesRepository extends BaseRepository
     }
 
     /**
+     * 특정 (labelId, locale) 쌍들의 Draft(breakpoint = null) 일괄 삭제.
+     * saveSectionDraft의 delete-then-insert 배치용 — 저장 대상 locale만 교체한다.
+     * Write primary 사용
+     */
+    async deleteDraftsByLabelLocales(pairs: Array<{ labelId: number; locale: string }>): Promise<void>
+    {
+        if (pairs.length === 0)
+        {
+            return;
+        }
+
+        await this.db
+            .delete(cmsLabelValues)
+            .where(
+                and(
+                    isNull(cmsLabelValues.version),
+                    isNull(cmsLabelValues.breakpoint),
+                    or(
+                        ...pairs.map(p =>
+                            and(
+                                eq(cmsLabelValues.labelId, p.labelId),
+                                eq(cmsLabelValues.locale, p.locale),
+                            ),
+                        ),
+                    ),
+                ),
+            );
+    }
+
+    /**
+     * Draft 값들을 한 번에 multi-row INSERT (saveSectionDraft 배치용).
+     * 호출 전에 같은 (labelId, locale) draft를 삭제한 상태를 전제로 한다.
+     * Write primary 사용
+     */
+    async insertDraftValues(rows: (NewCmsLabelValue & { labelId: number })[]): Promise<void>
+    {
+        if (rows.length === 0)
+        {
+            return;
+        }
+
+        await this.db.insert(cmsLabelValues).values(rows);
+    }
+
+    /**
      * 특정 버전의 모든 값 삭제
      * Write primary 사용
      */
@@ -282,35 +327,36 @@ export class CmsLabelValuesRepository extends BaseRepository
             return new Map();
         }
 
-        // 모든 label의 publishedVersion 값들을 한 번에 조회
+        // (labelId, version) 쌍을 SQL에서 직접 필터 — 예전엔 labelId만으로 모든
+        // 버전을 끌어와 JS로 걸렀다. published 버전은 불변·누적이라 v50을 요청하면
+        // v1..50을 전부 전송하는 read amplification이 발생했다. composite index
+        // (labelId, version)를 타도록 OR(AND(labelId, version))로 좁힌다.
         const allValues = await this.readDb
             .select()
             .from(cmsLabelValues)
             .where(
-                and(
-                    inArray(
-                        cmsLabelValues.labelId,
-                        labelVersions.map(lv => lv.labelId),
+                or(
+                    ...labelVersions.map(lv =>
+                        and(
+                            eq(cmsLabelValues.labelId, lv.labelId),
+                            eq(cmsLabelValues.version, lv.version),
+                        ),
                     ),
                 ),
             );
 
-        // labelId와 version으로 필터링하여 Map 생성
-        const versionMap = new Map(labelVersions.map(lv => [lv.labelId, lv.version]));
         const resultMap = new Map<number, CmsLabelValue[]>();
 
         for (const value of allValues)
         {
-            const expectedVersion = versionMap.get(value.labelId);
-
-            // 해당 labelId의 version이 일치하는 경우만 포함
-            if (expectedVersion !== undefined && value.version === expectedVersion)
+            const list = resultMap.get(value.labelId);
+            if (list)
             {
-                if (!resultMap.has(value.labelId))
-                {
-                    resultMap.set(value.labelId, []);
-                }
-                resultMap.get(value.labelId)!.push(value);
+                list.push(value);
+            }
+            else
+            {
+                resultMap.set(value.labelId, [value]);
             }
         }
 
