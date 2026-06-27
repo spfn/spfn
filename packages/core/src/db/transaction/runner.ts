@@ -233,6 +233,30 @@ export async function runInTransaction<T>(
         { txId, context, timeout, maxTimeout: MAX_TIMEOUT_MS },
     );
 
+    // Validate idleTimeout the same way — it is interpolated into
+    // `SET LOCAL idle_in_transaction_session_timeout` via sql.raw (SET commands
+    // don't support bind params), so a non-integer would be an injection vector.
+    validateAndThrow(
+        !Number.isInteger(idleTimeout),
+        `Invalid idleTimeout value: ${idleTimeout}. Must be an integer.`,
+        'Invalid idleTimeout type',
+        { txId, context, idleTimeout },
+    );
+
+    validateAndThrow(
+        idleTimeout < 0,
+        `Invalid idleTimeout value: ${idleTimeout}. Must be non-negative (0 to disable).`,
+        'Invalid idleTimeout range',
+        { txId, context, idleTimeout },
+    );
+
+    validateAndThrow(
+        idleTimeout > MAX_TIMEOUT_MS,
+        `Invalid idleTimeout value: ${idleTimeout}. Maximum is ${MAX_TIMEOUT_MS}ms.`,
+        'idleTimeout exceeds maximum',
+        { txId, context, idleTimeout, maxTimeout: MAX_TIMEOUT_MS },
+    );
+
     // Get write database instance (after all input validations)
     const writeDb = getDatabase('write');
     if (!writeDb)
