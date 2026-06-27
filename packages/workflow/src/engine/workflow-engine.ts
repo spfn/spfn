@@ -160,6 +160,10 @@ implements WorkflowEngine<TWorkflows>
         input: Record<string, unknown>,
     ): Promise<void>
     {
+        // Resolve each completed step's output at most once across the whole loop
+        // (resolveOutput can hit object storage). See getCompletedResults.
+        const resolvedCache = new Map<string, unknown>();
+
         while (true)
         {
             // Get current execution state
@@ -175,8 +179,8 @@ implements WorkflowEngine<TWorkflows>
                 await this.updateExecutionStatus(executionId, 'running');
             }
 
-            // Get completed results
-            const results = await this.getCompletedResults(executionId);
+            // Get completed results (resolveOutput memoized across iterations)
+            const results = await this.getCompletedResults(executionId, resolvedCache);
 
             // Find next pending steps
             const pendingSteps = execution.steps.filter(s => s.status === 'pending');
@@ -476,7 +480,10 @@ implements WorkflowEngine<TWorkflows>
     /**
      * Get completed step results
      */
-    private async getCompletedResults(executionId: string): Promise<Record<string, unknown>>
+    private async getCompletedResults(
+        executionId: string,
+        resolvedCache: Map<string, unknown>,
+    ): Promise<Record<string, unknown>>
     {
         const steps = await this.db
             .select()
@@ -491,7 +498,16 @@ implements WorkflowEngine<TWorkflows>
         const results: Record<string, unknown> = {};
         for (const step of steps)
         {
-            results[step.stepName] = await this.resolveOutput(step.output);
+            // resolveOutput may download large offloaded outputs from object
+            // storage. A completed step's output is immutable, so resolve it once
+            // per execution — the loop calls this every iteration, which would
+            // otherwise re-download every prior output O(N^2) times.
+            if (!resolvedCache.has(step.stepName))
+            {
+                resolvedCache.set(step.stepName, await this.resolveOutput(step.output));
+            }
+
+            results[step.stepName] = resolvedCache.get(step.stepName);
         }
 
         return results;
