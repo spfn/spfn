@@ -30,6 +30,7 @@ function makeCtx(headers: Record<string, string> = {})
             method: 'POST',
             routePath: '/_auth/login',
         },
+        get: () => undefined,
         header: (name: string, value: string) => { setHeaders[name] = value; },
         _setHeaders: setHeaders,
     } as never;

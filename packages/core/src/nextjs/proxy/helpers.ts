@@ -6,9 +6,46 @@ import { NextRequest } from 'next/server';
 import type { CookieOptions, SetCookie } from '../client';
 import type { InterceptorRule, RequestInterceptorContext, ResponseInterceptorContext } from './interceptors/types';
 import type { InterceptorRegistry } from './interceptors';
+import { PROXY_CLIENT_IP_HEADER } from '../../security/proxy-signature';
 
 // Re-export from shared
 export { parseResponseBody } from '../shared';
+
+/**
+ * Resolve the real client IP from a forwarded chain.
+ *
+ * `X-Forwarded-For` is `client, proxy1, proxy2, …` — each trusted hop appends the
+ * address it received the connection from, so the rightmost `trustedHops` entries
+ * are added by our own infra and can't be spoofed. The client as the outermost
+ * trusted hop saw it is `parts[len - trustedHops]`. A client that prepends a fake
+ * value just lengthens the chain to the left and is ignored.
+ *
+ * @param xff - raw X-Forwarded-For header value
+ * @param trustedHops - number of trusted proxies in front (e.g. LB + nginx = 2)
+ */
+export function clientIpFromForwardedChain(
+    xff: string | null | undefined,
+    trustedHops: number,
+): string | undefined
+{
+    if (!xff) return undefined;
+
+    const parts = xff.split(',').map(s => s.trim()).filter(Boolean);
+    if (parts.length === 0) return undefined;
+
+    const idx = parts.length - Math.max(1, trustedHops);
+
+    // Fewer entries than configured hops (misconfig / fewer real hops): best-effort
+    // to the leftmost rather than returning nothing.
+    return parts[idx] ?? parts[0];
+}
+
+function trustedProxyHops(): number
+{
+    const raw = Number.parseInt(process.env.TRUSTED_PROXY_HOPS ?? '', 10);
+
+    return Number.isFinite(raw) && raw > 0 ? raw : 1;
+}
 
 /**
  * Build request headers for proxying
@@ -47,6 +84,18 @@ export function buildProxyHeaders(
         {
             headers.set(header, value);
         }
+    }
+
+    // Forward the real client IP so the backend can rate-limit per user. The
+    // backend trusts this header only on proxy-verified requests, so a direct
+    // caller can't spoof it. Resolved hop-aware from the inbound X-Forwarded-For.
+    const xff = sourceHeaders instanceof Headers
+        ? sourceHeaders.get('x-forwarded-for')
+        : sourceHeaders['x-forwarded-for'];
+    const clientIp = clientIpFromForwardedChain(xff, trustedProxyHops());
+    if (clientIp)
+    {
+        headers.set(PROXY_CLIENT_IP_HEADER, clientIp);
     }
 
     // Add default headers

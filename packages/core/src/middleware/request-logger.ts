@@ -6,6 +6,7 @@
 import { randomBytes } from 'crypto';
 import type { Context, Next } from 'hono';
 import { logger } from '@spfn/core/logger';
+import { getClientIp } from './rate-limit';
 
 /**
  * Options for RequestLogger middleware
@@ -162,11 +163,9 @@ export function RequestLogger(options?: RequestLoggerOptions)
         const method = c.req.method;
         const userAgent = c.req.header('user-agent');
 
-        // Extract client IP from proxy chain (first IP is the original client)
-        const forwardedFor = c.req.header('x-forwarded-for');
-        const ip = forwardedFor?.split(',')[0]?.trim()
-            || c.req.header('x-real-ip')
-            || 'unknown';
+        // Same resolution as rate limiting: the proxy-forwarded client IP when the
+        // request is proxy-verified, else the (spoofable) raw chain.
+        const ip = getClientIp(c);
 
         const startTime = Date.now();
 
