@@ -1,6 +1,6 @@
 {
   "name": "@spfn/notification",
-  "version": "0.1.0-beta.21",
+  "version": "0.1.0-beta.22",
   "type": "module",
   "description": "Multi-channel notification system for SPFN - Email, SMS, Slack, Push",
   "exports": {
@@ -22,6 +22,7 @@
   },
   "scripts": {
     "build": "pnpm check:circular && tsup",
+    "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\"",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",

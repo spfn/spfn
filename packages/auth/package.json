@@ -1,6 +1,6 @@
 {
   "name": "@spfn/auth",
-  "version": "0.2.0-beta.69",
+  "version": "0.2.0-beta.70",
   "type": "module",
   "description": "Authentication, authorization, and RBAC module for SPFN",
   "author": "Ray Im <rayim@fxy.global>",
@@ -55,6 +55,7 @@
   ],
   "scripts": {
     "build": "pnpm check:circular && tsup && tsup --config tsup.client.config.ts",
+    "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\"",
     "watch": "tsup --watch",
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",

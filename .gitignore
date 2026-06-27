@@ -55,3 +55,6 @@ packages/*/.guide/
 .woodpecker.main.yml
 /apps/
 .supervibe/notes/
+
+# Per-package LICENSE is generated from the root LICENSE at pack time (prepack)
+packages/*/LICENSE
