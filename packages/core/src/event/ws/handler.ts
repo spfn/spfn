@@ -19,6 +19,31 @@ import { logger } from '@spfn/core/logger';
 
 const wsLogger = logger.child('@spfn/core:ws');
 
+/**
+ * Decide whether a WebSocket upgrade's Origin is permitted.
+ *
+ * - no allow-list configured → allowed (check disabled)
+ * - no Origin header (native/non-browser client) → allowed
+ * - Origin present → must be in the allow-list
+ */
+export function isOriginAllowed(
+    origin: string | undefined,
+    allowList: Set<string> | null,
+): boolean
+{
+    if (!allowList)
+    {
+        return true;
+    }
+
+    if (!origin)
+    {
+        return true;
+    }
+
+    return allowList.has(origin);
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -47,8 +72,13 @@ export async function attachWSHandler<
         maxBufferedBytes = 1_048_576,
         maxConnections = 10_000,
         maxConnectionsPerSubject = 0,
+        allowedOrigins,
         auth: authConfig,
     } = config;
+
+    const originAllowList = allowedOrigins && allowedOrigins.length > 0
+        ? new Set(allowedOrigins)
+        : null;
 
     if (authConfig?.enabled && !tokenManager)
     {
@@ -67,6 +97,18 @@ export async function attachWSHandler<
 
     wss.on('connection', (ws: any, req: any) =>
     {
+        // Origin allow-list (cross-site WebSocket hijacking protection). Browsers
+        // always send Origin on the upgrade; reject one that isn't allowed before
+        // doing any work. A missing Origin (native/non-browser client, which can't
+        // be CSRF'd into using ambient cookies) passes through.
+        if (!isOriginAllowed(req.headers?.origin, originAllowList))
+        {
+            wsLogger.warn('WebSocket rejected: disallowed origin', { origin: req.headers?.origin });
+            ws.close(1008, 'Origin not allowed');
+
+            return;
+        }
+
         // Global connection cap — reject before doing any work
         if (clients.size >= maxConnections)
         {
