@@ -238,9 +238,11 @@ describe('DuplicateEntryError', () =>
         const error = new DuplicateEntryError({ field: 'email', value: 'test@example.com' });
 
         expect(error.name).toBe('DuplicateEntryError');
-        expect(error.message).toBe("email 'test@example.com' already exists");
+        // The value is NOT echoed in the client-facing message/details (enumeration);
+        // it stays on the instance for server-side handling.
+        expect(error.message).toBe('email already exists');
         expect(error.statusCode).toBe(409);
-        expect(error.details).toEqual({ field: 'email', value: 'test@example.com' });
+        expect(error.details).toEqual({ field: 'email' });
         expect(error.field).toBe('email');
         expect(error.value).toBe('test@example.com');
     });
@@ -249,8 +251,8 @@ describe('DuplicateEntryError', () =>
     {
         const error = new DuplicateEntryError({ field: 'user_id', value: 123 });
 
-        expect(error.message).toBe("user_id '123' already exists");
-        expect(error.details).toEqual({ field: 'user_id', value: 123 });
+        expect(error.message).toBe('user_id already exists');
+        expect(error.details).toEqual({ field: 'user_id' });
         expect(error.field).toBe('user_id');
         expect(error.value).toBe(123);
     });
