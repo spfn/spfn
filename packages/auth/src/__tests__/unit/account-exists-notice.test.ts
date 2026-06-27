@@ -11,8 +11,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { sendEmail, sendSMS } = vi.hoisted(() => ({
-    sendEmail: vi.fn(async () => ({ success: true })),
-    sendSMS: vi.fn(async () => ({ success: true })),
+    sendEmail: vi.fn(async (_opts: { to: string; template: string; data?: unknown }) => ({ success: true })),
+    sendSMS: vi.fn(async (_opts: { to: string; template: string; data?: unknown }) => ({ success: true })),
 }));
 
 vi.mock('@spfn/notification/server', () => ({ sendEmail, sendSMS }));
