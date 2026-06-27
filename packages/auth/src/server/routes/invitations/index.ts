@@ -89,7 +89,8 @@ export const acceptInvitation = route.post('/_auth/invitations/accept')
             }),
             password: Type.String({
                 minLength: 8,
-                description: 'User password (minimum 8 characters)',
+                maxLength: 72,
+                description: 'User password (8–72 characters). bcrypt silently ignores bytes past 72, so longer inputs are rejected rather than truncated.',
             }),
         }),
     })

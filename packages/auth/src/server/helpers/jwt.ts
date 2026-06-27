@@ -68,6 +68,30 @@ export interface TokenPayload extends SessionPayload
 }
 
 /**
+ * The placeholder default shipped for local DX. It is public knowledge, so it must
+ * never sign or verify real tokens — anyone could forge legacy JWTs with it.
+ */
+const INSECURE_JWT_SECRET = 'dev-secret-key-change-in-production';
+
+/**
+ * Resolve the legacy JWT secret, failing closed in production if it was left at
+ * the public default (or unset). Dev keeps the default for convenience.
+ */
+function getJwtSecret(): string
+{
+    const secret = env.SPFN_AUTH_JWT_SECRET;
+
+    if ((!secret || secret === INSECURE_JWT_SECRET) && process.env.NODE_ENV === 'production')
+    {
+        throw new Error(
+            'SPFN_AUTH_JWT_SECRET must be set to a strong secret in production (the default is public).',
+        );
+    }
+
+    return secret;
+}
+
+/**
  * Generate a JWT token (legacy server-signed)
  *
  * @deprecated Use client-side signing with private keys instead
@@ -78,7 +102,7 @@ export interface TokenPayload extends SessionPayload
  */
 export function generateToken(payload: SessionPayload): string
 {
-    return jwt.sign(payload, env.SPFN_AUTH_JWT_SECRET, {
+    return jwt.sign(payload, getJwtSecret(), {
         expiresIn: env.SPFN_AUTH_JWT_EXPIRES_IN,
     } as SignOptions);
 }
@@ -98,7 +122,7 @@ export function verifyToken(token: string): TokenPayload
     // Pin the algorithm to the symmetric HMAC this secret signs with — without an
     // allow-list, jsonwebtoken accepts whatever alg the token header claims
     // (algorithm-confusion risk).
-    return jwt.verify(token, env.SPFN_AUTH_JWT_SECRET, { algorithms: ['HS256'] }) as TokenPayload;
+    return jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] }) as TokenPayload;
 }
 
 /**
