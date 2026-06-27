@@ -21,6 +21,9 @@ export interface LogFilters
     offset?: number;
 }
 
+// Default cap so a caller that omits `limit` can't pull the whole table.
+const DEFAULT_FIND_LIMIT = 100;
+
 export class LogsRepository extends BaseRepository
 {
     async create(data: NewLog): Promise<Log>
@@ -89,10 +92,7 @@ export class LogsRepository extends BaseRepository
             query = query.where(where);
         }
 
-        if (filters.limit)
-        {
-            query = query.limit(filters.limit);
-        }
+        query = query.limit(filters.limit ?? DEFAULT_FIND_LIMIT);
 
         if (filters.offset)
         {
