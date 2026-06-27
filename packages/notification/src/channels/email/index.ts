@@ -179,24 +179,15 @@ export async function sendEmail(params: SendEmailParams): Promise<SendResult>
         log.error('Email send failed', { to: recipients, subject, error: result.error });
     }
 
-    // Update history record
+    // Update history record (fire-and-forget — best-effort history must not add a
+    // serial DB round trip to the send path, e.g. a signup OTP).
     if (historyId && isHistoryEnabled())
     {
-        try
-        {
-            if (result.success)
-            {
-                await markNotificationSent(historyId, result.messageId);
-            }
-            else
-            {
-                await markNotificationFailed(historyId, result.error || 'Unknown error');
-            }
-        }
-        catch (error)
-        {
-            log.warn('Failed to update notification history record', error as Error);
-        }
+        const update = result.success
+            ? markNotificationSent(historyId, result.messageId)
+            : markNotificationFailed(historyId, result.error || 'Unknown error');
+
+        update.catch(error => log.warn('Failed to update notification history record', error as Error));
     }
 
     return result;

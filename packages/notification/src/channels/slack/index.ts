@@ -152,24 +152,15 @@ export async function sendSlack(params: SendSlackParams): Promise<SendResult>
         log.error('Slack send failed', { error: result.error });
     }
 
-    // Update history record
+    // Update history record (fire-and-forget — best-effort history must not add a
+    // serial DB round trip to the send path).
     if (historyId && isHistoryEnabled())
     {
-        try
-        {
-            if (result.success)
-            {
-                await markNotificationSent(historyId, result.messageId);
-            }
-            else
-            {
-                await markNotificationFailed(historyId, result.error || 'Unknown error');
-            }
-        }
-        catch (error)
-        {
-            log.warn('Failed to update notification history record', error as Error);
-        }
+        const update = result.success
+            ? markNotificationSent(historyId, result.messageId)
+            : markNotificationFailed(historyId, result.error || 'Unknown error');
+
+        update.catch(error => log.warn('Failed to update notification history record', error as Error));
     }
 
     return result;
