@@ -11,7 +11,7 @@ import {
     cmsLabelValuesRepository,
     cmsPublishedCacheRepository,
 } from '../repositories';
-import { type CmsLabelValue, type NewCmsLabelValue } from '../entities';
+import { type CmsLabel, type CmsLabelValue, type NewCmsLabelValue } from '../entities';
 
 const publishLogger = logger.child('@spfn/cms:publish');
 
@@ -259,8 +259,15 @@ export async function publishSection(
             }
         });
 
-        // 5. cms_published_cache 갱신
-        await rebuildSectionCache(section, locales);
+        // 5. cms_published_cache 갱신 — 방금 발행한 새 publishedVersion을 라벨에
+        //    머지해 넘긴다(rebuild가 다시 SELECT하지 않게; 발행 안 된 라벨은 기존 버전).
+        const newVersionById = new Map(versionUpdates.map(v => [v.id, v.version]));
+        const labelsAfterPublish = labels.map(l => ({
+            ...l,
+            publishedVersion: newVersionById.get(l.id) ?? l.publishedVersion,
+        }));
+
+        await rebuildSectionCache(section, locales, labelsAfterPublish);
     }
 
     publishLogger.info('Section published', {
@@ -308,12 +315,17 @@ export async function resetSectionDraft(section: string): Promise<{ reset: numbe
 /**
  * 섹션의 Published Cache 재구축
  */
-async function rebuildSectionCache(section: string, locales: string[]): Promise<void>
+async function rebuildSectionCache(
+    section: string,
+    locales: string[],
+    preloadedLabels?: CmsLabel[],
+): Promise<void>
 {
     publishLogger.debug('rebuildSectionCache', { section, locales });
 
-    // 1. 섹션의 모든 라벨 조회
-    const labels = await cmsLabelsRepository.findBySection(section);
+    // 1. 섹션의 모든 라벨 — 호출자가 (방금 갱신된 publishedVersion까지 반영된)
+    //    라벨을 갖고 있으면 재사용해 publish당 중복 full-section SELECT를 없앤다.
+    const labels = preloadedLabels ?? await cmsLabelsRepository.findBySection(section);
 
     // 2. Published 값이 있는 라벨들 조회
     const labelVersions = labels
