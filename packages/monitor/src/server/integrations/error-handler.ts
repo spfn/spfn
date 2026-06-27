@@ -19,6 +19,32 @@ import { getMinStatusCode } from '@spfn/monitor/config';
 import { trackError, type ErrorTrackingContext } from '../services';
 import { monitorLogger } from '../logger';
 
+// Headers/query params whose VALUES must never be persisted to the error store or
+// posted to Slack. The upstream core error-handler masks a smaller set; the
+// monitor re-redacts a broader denylist here because it durably stores and
+// forwards this data (don't rely on the upstream mask).
+const SENSITIVE_HEADERS = new Set([
+    'authorization', 'proxy-authorization', 'cookie', 'set-cookie',
+    'x-api-key', 'x-auth-token', 'x-csrf-token', 'x-xsrf-token',
+    'x-spfn-proxy-signature', 'x-amz-security-token',
+]);
+const SENSITIVE_QUERY = new Set([
+    'token', 'access_token', 'refresh_token', 'id_token', 'code',
+    'secret', 'client_secret', 'password', 'passwd', 'pwd',
+    'api_key', 'apikey', 'key', 'signature', 'sig', 'session', 'sessionid', 'auth',
+]);
+
+function redact(obj: Record<string, string>, deny: Set<string>): Record<string, string>
+{
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(obj))
+    {
+        out[k] = deny.has(k.toLowerCase()) ? '***' : v;
+    }
+
+    return out;
+}
+
 const logger = monitorLogger.errorTracking;
 
 export interface MonitorErrorHandlerOptions
@@ -78,8 +104,10 @@ export function createMonitorErrorHandler(options: MonitorErrorHandlerOptions = 
             method: ctx.method,
             requestId: ctx.requestId,
             userId: ctx.userId != null ? String(ctx.userId) : undefined,
-            headers: ctx.request.headers,
-            query: ctx.request.query,
+            // Redact secrets before they are persisted (error_events.headers) and
+            // forwarded to Slack (S-H3 / S-M2 / S-L3).
+            headers: redact(ctx.request.headers, SENSITIVE_HEADERS),
+            query: redact(ctx.request.query, SENSITIVE_QUERY),
             environment: options.environment,
         };
 
