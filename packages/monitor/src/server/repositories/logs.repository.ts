@@ -130,12 +130,17 @@ export class LogsRepository extends BaseRepository
 
     async deleteOlderThan(date: Date): Promise<number>
     {
+        // No .returning() — a retention sweep can match millions of rows, and
+        // RETURNING * would materialize every one (jsonb columns + payloads) into
+        // memory just to count them. Read the affected-row count from the driver
+        // result instead (postgres-js: .count, node-postgres: .rowCount).
         const result = await this.db
             .delete(logs)
-            .where(lt(logs.createdAt, date))
-            .returning();
+            .where(lt(logs.createdAt, date));
 
-        return result.length;
+        return (result as { rowCount?: number; count?: number }).rowCount
+            ?? (result as { count?: number }).count
+            ?? 0;
     }
 }
 

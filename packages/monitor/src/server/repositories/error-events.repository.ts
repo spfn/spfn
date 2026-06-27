@@ -37,12 +37,15 @@ export class ErrorEventsRepository extends BaseRepository
 
     async deleteOlderThan(date: Date): Promise<number>
     {
+        // No .returning() — see logs.repository: avoid materializing every aged
+        // row (jsonb headers/query/metadata + full stackTrace) just to count them.
         const result = await this.db
             .delete(errorEvents)
-            .where(lt(errorEvents.createdAt, date))
-            .returning();
+            .where(lt(errorEvents.createdAt, date));
 
-        return result.length;
+        return (result as { rowCount?: number; count?: number }).rowCount
+            ?? (result as { count?: number }).count
+            ?? 0;
     }
 }
 

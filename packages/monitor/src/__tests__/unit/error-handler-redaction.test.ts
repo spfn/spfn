@@ -7,7 +7,9 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { trackError } = vi.hoisted(() => ({ trackError: vi.fn(async () => undefined) }));
+const { trackError } = vi.hoisted(() => ({
+    trackError: vi.fn(async (_err: Error, _ctx: unknown, _meta?: unknown) => undefined),
+}));
 
 vi.mock('../../server/services', () => ({ trackError }));
 vi.mock('@spfn/monitor/config', () => ({ getMinStatusCode: () => 500 }));
