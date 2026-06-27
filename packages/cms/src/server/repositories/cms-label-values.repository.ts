@@ -6,7 +6,7 @@
  */
 
 import { BaseRepository } from '@spfn/core/db';
-import { eq, and, SQL, isNull, gte, lte, inArray } from 'drizzle-orm';
+import { eq, and, SQL, isNull, gte, lte, inArray, sql } from 'drizzle-orm';
 import { cmsLabelValues, type CmsLabelValue, type NewCmsLabelValue } from '../entities';
 
 /**
@@ -164,6 +164,75 @@ export class CmsLabelValuesRepository extends BaseRepository
         }
 
         return results;
+    }
+
+    /**
+     * 여러 라벨의 Draft 값들을 한 번에 조회 (version = null) — publish N+1 제거
+     * Read replica 사용
+     */
+    async findDraftsByLabelIds(labelIds: number[]): Promise<CmsLabelValue[]>
+    {
+        if (labelIds.length === 0)
+        {
+            return [];
+        }
+
+        return this.readDb
+            .select()
+            .from(cmsLabelValues)
+            .where(
+                and(
+                    inArray(cmsLabelValues.labelId, labelIds),
+                    isNull(cmsLabelValues.version),
+                ),
+            );
+    }
+
+    /**
+     * 새 published 버전 값들을 한 번에 multi-row INSERT (publish 배치용).
+     * unique(labelId, version, locale, breakpoint) 충돌 시 value 갱신(멱등).
+     * Write primary 사용
+     */
+    async insertPublishedValues(rows: (NewCmsLabelValue & { labelId: number })[]): Promise<void>
+    {
+        if (rows.length === 0)
+        {
+            return;
+        }
+
+        await this.db
+            .insert(cmsLabelValues)
+            .values(rows)
+            .onConflictDoUpdate({
+                target: [
+                    cmsLabelValues.labelId,
+                    cmsLabelValues.version,
+                    cmsLabelValues.locale,
+                    cmsLabelValues.breakpoint,
+                ],
+                set: { value: sql`excluded.value` },
+            });
+    }
+
+    /**
+     * 여러 라벨의 Draft 값들을 한 번에 삭제 (version = null) — publish 배치용
+     * Write primary 사용
+     */
+    async deleteDraftsByLabelIds(labelIds: number[]): Promise<void>
+    {
+        if (labelIds.length === 0)
+        {
+            return;
+        }
+
+        await this.db
+            .delete(cmsLabelValues)
+            .where(
+                and(
+                    inArray(cmsLabelValues.labelId, labelIds),
+                    isNull(cmsLabelValues.version),
+                ),
+            );
     }
 
     /**
