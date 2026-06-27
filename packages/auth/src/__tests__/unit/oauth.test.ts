@@ -94,6 +94,15 @@ describe('OAuth State - Create/Verify', () =>
         expect(verified1.nonce).not.toBe(verified2.nonce);
     });
 
+    it('binds an explicit CSRF nonce into the state (round-trips for cookie match)', async () =>
+    {
+        const state = await createOAuthState({ ...mockStateParams, nonce: 'csrf-nonce-123' });
+        const verified = await verifyOAuthState(state);
+
+        // The callback double-submits this against the oauth_csrf cookie.
+        expect(verified.nonce).toBe('csrf-nonce-123');
+    });
+
     it('should reject tampered state', async () =>
     {
         const state = await createOAuthState(mockStateParams);
