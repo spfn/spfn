@@ -8,6 +8,38 @@ import { env } from '@spfn/core/config';
 import { loadEnv } from '@spfn/core/server';
 
 /**
+ * Whether to relax TLS certificate verification for the DB connection.
+ *
+ * Only for explicit local hosts (localhost/127.0.0.1/::1) or an opt-in env
+ * (SPFN_DB_INSECURE_TLS=1) — NEVER unconditionally. Disabling verification for a
+ * remote/production DATABASE_URL lets a network MITM capture the credentials and
+ * tamper with migration traffic.
+ */
+export function shouldRelaxDbTls(databaseUrl: string | undefined): boolean
+{
+    if (process.env.SPFN_DB_INSECURE_TLS === '1' || process.env.SPFN_DB_INSECURE_TLS === 'true')
+    {
+        return true;
+    }
+
+    if (!databaseUrl)
+    {
+        return false;
+    }
+
+    try
+    {
+        const host = new URL(databaseUrl).hostname.replace(/^\[|\]$/g, '');
+
+        return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+/**
  * Validate prerequisites for database operations
  * Ensures DATABASE_URL is available
  * @throws Error if DATABASE_URL is not found
@@ -68,7 +100,9 @@ export async function runDrizzleCommand(command: string): Promise<void>
         const drizzleProcess = spawn('drizzle-kit', args, {
             stdio: 'inherit', // Allow interactive input
             shell: true,
-            env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' },
+            env: shouldRelaxDbTls(env.DATABASE_URL)
+                ? { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' }
+                : { ...process.env },
         });
 
         const cleanup = () =>
@@ -190,15 +224,15 @@ export async function createPushConnection(): Promise<{ db: any; close: () => Pr
         throw new Error('DATABASE_URL is required');
     }
 
-    // Allow self-signed certificates (same as runDrizzleCommand)
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
     const pg = await import('pg');
     const { drizzle } = await import('drizzle-orm/node-postgres');
 
+    // Relax TLS verification only for local/opt-in connections — per-connection,
+    // not by mutating process.env (which would weaken every TLS client in-process).
     const pool = new pg.default.Pool({
         connectionString: env.DATABASE_URL,
         max: 1,
+        ...(shouldRelaxDbTls(env.DATABASE_URL) ? { ssl: { rejectUnauthorized: false } } : {}),
     });
     const db = drizzle(pool);
 
