@@ -7,7 +7,7 @@
  * Token format: base64url(payload).base64url(hmac)
  */
 
-import { createHmac, createHash } from 'node:crypto';
+import { createHmac, createHash, timingSafeEqual } from 'node:crypto';
 import { getTrackingSecret } from '../config';
 
 /**
@@ -78,7 +78,11 @@ function verify(token: string): { valid: boolean; payload?: string }
     const expectedHmac = createHmac('sha256', secret).update(payload).digest();
     const expectedHmacEncoded = toBase64Url(expectedHmac);
 
-    if (hmacEncoded !== expectedHmacEncoded)
+    // Constant-time compare to avoid a timing side-channel on token verification.
+    const provided = Buffer.from(hmacEncoded);
+    const expected = Buffer.from(expectedHmacEncoded);
+
+    if (provided.length !== expected.length || !timingSafeEqual(provided, expected))
     {
         return { valid: false };
     }
