@@ -108,7 +108,8 @@ function renderEmailTemplate(
 {
     return {
         subject: render(template.subject, data),
-        html: template.html ? render(template.html, data) : undefined,
+        // Escape interpolated values on the HTML path (caller data → markup injection).
+        html: template.html ? render(template.html, data, { escape: true }) : undefined,
         text: template.text ? render(template.text, data) : undefined,
     };
 }

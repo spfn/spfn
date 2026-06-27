@@ -117,6 +117,25 @@ function parseExpression(expr: string): { variable: string; filter?: string; arg
     };
 }
 
+const BLOCKED_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
+
+const HTML_ESCAPES: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    '\'': '&#39;',
+};
+
+/**
+ * HTML-escape interpolated values so caller data (e.g. a display name like
+ * `<img src=x onerror=...>`) can't inject markup into app-branded email.
+ */
+function escapeHtml(value: string): string
+{
+    return value.replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
+}
+
 /**
  * Get nested value from object
  * e.g., getValue({ user: { name: "John" } }, "user.name") -> "John"
@@ -128,6 +147,12 @@ function getValue(data: TemplateData, path: string): unknown
 
     for (const part of parts)
     {
+        // Block prototype-pollution path segments (read-only walk, but defense in depth).
+        if (BLOCKED_PATH_SEGMENTS.has(part))
+        {
+            return undefined;
+        }
+
         if (value === null || value === undefined)
         {
             return undefined;
@@ -138,16 +163,27 @@ function getValue(data: TemplateData, path: string): unknown
     return value;
 }
 
+export interface RenderOptions
+{
+    /**
+     * HTML-escape interpolated values (the email `html` path). Use the `| raw`
+     * filter to opt a template-author-controlled block out — never caller data.
+     */
+    escape?: boolean;
+}
+
 /**
  * Render template string with data
  */
-export function render(template: string, data: TemplateData): string
+export function render(template: string, data: TemplateData, options: RenderOptions = {}): string
 {
+    const escape = options.escape ?? false;
+
     // Match {{...}} patterns
     return template.replace(/\{\{([^}]+)\}\}/g, (match, expr) =>
     {
         const { variable, filter, arg } = parseExpression(expr.trim());
-        let value = getValue(data, variable);
+        const value = getValue(data, variable);
 
         if (value === undefined)
         {
@@ -155,12 +191,15 @@ export function render(template: string, data: TemplateData): string
             return match;
         }
 
-        if (filter && filters[filter])
+        // `raw` opts out of escaping (template-author blocks only).
+        if (filter === 'raw')
         {
-            return filters[filter](value, arg);
+            return String(value);
         }
 
-        return String(value);
+        const rendered = (filter && filters[filter]) ? filters[filter](value, arg) : String(value);
+
+        return escape ? escapeHtml(rendered) : rendered;
     });
 }
 
