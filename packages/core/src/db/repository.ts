@@ -76,7 +76,7 @@
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { SQL } from 'drizzle-orm';
-import { count as sqlCount } from 'drizzle-orm';
+import { count as sqlCount, and, gt, lt, asc, desc } from 'drizzle-orm';
 import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
 import { getDatabase } from './manager';
 import { reportDatabaseError } from './manager/reconnect-trigger';
@@ -345,6 +345,68 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
         {
             query = query.offset(options.offset) as any;
         }
+
+        return query as Promise<T['$inferSelect'][]>;
+    }
+
+    /**
+     * Keyset (cursor) pagination — O(limit) instead of OFFSET's O(offset).
+     *
+     * Pages by a strictly-ordered, unique column instead of a numeric offset, so a
+     * deep page doesn't scan and discard everything before it. Pass the cursor
+     * column's value from the last row of the previous page as `after`; omit it for
+     * the first page. The column must be unique and the sole sort key (e.g. an
+     * auto-increment id or a ULID).
+     *
+     * @example
+     * ```typescript
+     * const page1 = await this._findManyKeyset(users, { cursorColumn: users.id, limit: 20 });
+     * const page2 = await this._findManyKeyset(users, {
+     *     cursorColumn: users.id,
+     *     after: page1.at(-1)?.id,
+     *     limit: 20,
+     * });
+     * ```
+     */
+    protected async _findManyKeyset<T extends PgTable>(
+        table: T,
+        options: {
+            cursorColumn: PgColumn;
+            limit: number;
+            after?: string | number | bigint | Date;
+            order?: 'asc' | 'desc';
+            where?: Record<string, any> | SQL | undefined;
+        },
+    ): Promise<T['$inferSelect'][]>
+    {
+        const { cursorColumn, after, order = 'asc', where } = options;
+
+        // Clamp the page size to the same safety ceiling as _findMany (0 = off)
+        const maxRows = env.DB_MAX_ROWS;
+        const limit = maxRows > 0 ? Math.min(options.limit, maxRows) : options.limit;
+
+        const baseWhere = where
+            ? (isSQLWrapper(where) ? where : buildWhereFromObject(table, where as Record<string, any>))
+            : undefined;
+
+        // Cursor predicate: rows strictly past `after` in the sort direction
+        const cursorPredicate = after !== undefined
+            ? (order === 'desc' ? lt(cursorColumn, after as any) : gt(cursorColumn, after as any))
+            : undefined;
+
+        const whereClause = baseWhere && cursorPredicate
+            ? and(baseWhere, cursorPredicate)
+            : (cursorPredicate ?? baseWhere);
+
+        let query = this.readDb.select().from(table as PgTable);
+
+        if (whereClause)
+        {
+            query = query.where(whereClause) as any;
+        }
+
+        query = query.orderBy(order === 'desc' ? desc(cursorColumn) : asc(cursorColumn)) as any;
+        query = query.limit(limit) as any;
 
         return query as Promise<T['$inferSelect'][]>;
     }
