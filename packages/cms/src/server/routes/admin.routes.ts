@@ -6,12 +6,19 @@
 
 import { Type } from '@sinclair/typebox';
 import { defineRouter, route } from '@spfn/core/route';
+import { authenticate, requireRole } from '@spfn/auth/server';
 import {
     getSectionLabels,
     saveSectionDraft,
     publishSection,
     resetSectionDraft,
 } from '../services/publish.service';
+
+// These routes rewrite/publish site-wide CMS content, so they must be gated.
+// Authenticate AND require an admin-tier role at the package level — do NOT rely on
+// the consumer's global auth for authorization (fail closed). requireRole is an
+// exact match, so both admin tiers are listed explicitly.
+const ADMIN_GUARD = [authenticate, requireRole('admin', 'superadmin')];
 
 /**
  * 섹션의 모든 라벨 조회 (테이블 뷰용)
@@ -27,6 +34,7 @@ export const getSectionLabelsRoute = route.get('/_cms/admin/sections/:section/la
             locales: Type.Optional(Type.String()), // comma-separated: "en,ko"
         }),
     })
+    .use(ADMIN_GUARD)
     .handler(async (c) =>
     {
         const { params, query } = await c.data();
@@ -55,6 +63,7 @@ export const saveSectionDraftRoute = route.put('/_cms/admin/sections/:section/dr
             ),
         }),
     })
+    .use(ADMIN_GUARD)
     .handler(async (c) =>
     {
         const { params, body } = await c.data();
@@ -80,6 +89,7 @@ export const publishSectionRoute = route.post('/_cms/admin/sections/:section/pub
             locales: Type.Array(Type.String()),
         }),
     })
+    .use(ADMIN_GUARD)
     .handler(async (c) =>
     {
         const { params, body } = await c.data();
@@ -102,6 +112,7 @@ export const resetSectionDraftRoute = route.delete('/_cms/admin/sections/:sectio
             section: Type.String(),
         }),
     })
+    .use(ADMIN_GUARD)
     .handler(async (c) =>
     {
         const { params } = await c.data();
