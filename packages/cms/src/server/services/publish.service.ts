@@ -45,11 +45,23 @@ export async function getSectionLabels(
         return { section, locales, labels: [] };
     }
 
-    // 2. 각 라벨의 Draft 값 조회 (version: null)
+    // 2. 모든 라벨의 Draft 값을 한 번에 조회 (라벨당 1쿼리 → 1쿼리, N+1/풀고갈 제거)
     const labelIds = labels.map(l => l.id);
-    const draftValues = await Promise.all(
-        labelIds.map(id => cmsLabelValuesRepository.findDraftsByLabelId(id)),
-    );
+    const allDrafts = await cmsLabelValuesRepository.findDraftsByLabelIds(labelIds);
+
+    const draftsByLabel = new Map<number, CmsLabelValue[]>();
+    for (const draft of allDrafts)
+    {
+        const list = draftsByLabel.get(draft.labelId);
+        if (list)
+        {
+            list.push(draft);
+        }
+        else
+        {
+            draftsByLabel.set(draft.labelId, [draft]);
+        }
+    }
 
     // 3. 각 라벨의 Published 값 조회
     const labelVersions = labels
@@ -61,9 +73,9 @@ export async function getSectionLabels(
         : new Map();
 
     // 4. 결과 조합
-    const result = labels.map((label, index) =>
+    const result = labels.map((label) =>
     {
-        const drafts = draftValues[index];
+        const drafts = draftsByLabel.get(label.id) || [];
         const published = publishedValuesMap.get(label.id) || [];
 
         // Draft를 locale별 Record로 변환
@@ -116,22 +128,36 @@ export async function saveSectionDraft(
 {
     publishLogger.debug('saveSectionDraft', { section, labelCount: labels.length });
 
-    let updated = 0;
+    // 저장 대상 (labelId, locale) 쌍과 새 draft 행을 모은다. 라벨×locale마다
+    // upsert(SELECT+write)를 직렬로 돌리던 것을, 해당 쌍의 draft만 한 번에 삭제하고
+    // 새 값들을 한 번에 INSERT하는 배치로 바꾼다 (트랜잭션으로 원자적).
+    const pairs: Array<{ labelId: number; locale: string }> = [];
+    const rows: (NewCmsLabelValue & { labelId: number })[] = [];
 
     for (const { id, values } of labels)
     {
-        // 각 locale별로 Draft 저장 (version: null)
         for (const [locale, value] of Object.entries(values))
         {
-            await cmsLabelValuesRepository.upsert({
+            pairs.push({ labelId: id, locale });
+            rows.push({
                 labelId: id,
                 version: null,
                 locale,
                 value: { type: 'text', content: value },
             });
-            updated++;
         }
     }
+
+    if (rows.length > 0)
+    {
+        await runInTransaction(async () =>
+        {
+            await cmsLabelValuesRepository.deleteDraftsByLabelLocales(pairs);
+            await cmsLabelValuesRepository.insertDraftValues(rows);
+        });
+    }
+
+    const updated = rows.length;
 
     publishLogger.info('Draft saved', { section, updated });
 
