@@ -179,8 +179,9 @@ implements WorkflowEngine<TWorkflows>
                 await this.updateExecutionStatus(executionId, 'running');
             }
 
-            // Get completed results (resolveOutput memoized across iterations)
-            const results = await this.getCompletedResults(executionId, resolvedCache);
+            // Get completed results from the already-loaded steps (resolveOutput
+            // memoized across iterations)
+            const results = await this.getCompletedResults(execution.steps, resolvedCache);
 
             // Find next pending steps
             const pendingSteps = execution.steps.filter(s => s.status === 'pending');
@@ -213,7 +214,7 @@ implements WorkflowEngine<TWorkflows>
                 );
                 const errors = await Promise.all(
                     parallelSteps.map(step =>
-                        this.executeStep(executionId, workflow, step, input, results),
+                        this.executeStep(executionId, workflow, step, input, results, execution.steps),
                     ),
                 );
 
@@ -229,7 +230,7 @@ implements WorkflowEngine<TWorkflows>
             else
             {
                 // Execute sequential step
-                const error = await this.executeStep(executionId, workflow, stepDef, input, results);
+                const error = await this.executeStep(executionId, workflow, stepDef, input, results, execution.steps);
                 if (error)
                 {
                     await this.handleStepFailure(executionId, workflow, error);
@@ -251,9 +252,11 @@ implements WorkflowEngine<TWorkflows>
         step: WorkflowStepDef,
         input: Record<string, unknown>,
         results: Record<string, unknown>,
+        loadedSteps: WorkflowStepExecution[],
     ): Promise<string | null>
     {
-        const stepExecution = await this.getStepExecution(executionId, step.name);
+        // Use the step rows already loaded this iteration instead of re-SELECTing.
+        const stepExecution = loadedSteps.find(s => s.stepName === step.name);
         if (!stepExecution || stepExecution.status !== 'pending')
         {
             return null;
@@ -481,23 +484,20 @@ implements WorkflowEngine<TWorkflows>
      * Get completed step results
      */
     private async getCompletedResults(
-        executionId: string,
+        steps: WorkflowStepExecution[],
         resolvedCache: Map<string, unknown>,
     ): Promise<Record<string, unknown>>
     {
-        const steps = await this.db
-            .select()
-            .from(workflowStepExecutions)
-            .where(
-                and(
-                    eq(workflowStepExecutions.executionId, executionId),
-                    eq(workflowStepExecutions.status, 'completed'),
-                ),
-            ) as WorkflowStepExecution[];
-
+        // Derive from the steps already loaded by getExecution this iteration —
+        // re-SELECTing them here was a third read of the step table per step.
         const results: Record<string, unknown> = {};
         for (const step of steps)
         {
+            if (step.status !== 'completed')
+            {
+                continue;
+            }
+
             // resolveOutput may download large offloaded outputs from object
             // storage. A completed step's output is immutable, so resolve it once
             // per execution — the loop calls this every iteration, which would
