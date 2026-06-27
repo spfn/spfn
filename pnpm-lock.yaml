@@ -390,6 +390,9 @@ importers:
         specifier: ^5.0.8
         version: 5.0.8(@types/react@19.2.2)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
     devDependencies:
+      '@spfn/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@spfn/core':
         specifier: workspace:*
         version: link:../core
