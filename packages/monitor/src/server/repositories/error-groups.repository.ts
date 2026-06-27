@@ -133,6 +133,30 @@ export class ErrorGroupsRepository extends BaseRepository
         return result[0] ?? null;
     }
 
+    /**
+     * Reopen a resolved group: set active, clear resolvedAt, and bump count +
+     * lastSeenAt in a SINGLE UPDATE (the reopen path used to do updateStatus then
+     * incrementCount — two round trips writing the same row, the second clobbering
+     * the first).
+     */
+    async reactivate(id: number): Promise<ErrorGroup | null>
+    {
+        const now = new Date();
+        const result = await this.db
+            .update(errorGroups)
+            .set({
+                status: 'active',
+                resolvedAt: null,
+                count: sql`${errorGroups.count} + 1`,
+                lastSeenAt: now,
+                updatedAt: now,
+            })
+            .where(eq(errorGroups.id, id))
+            .returning();
+
+        return result[0] ?? null;
+    }
+
     async updateStatus(id: number, status: ErrorGroupStatus): Promise<ErrorGroup | null>
     {
         const now = new Date();

@@ -98,9 +98,8 @@ export async function trackError(
 
     if (existing.status === 'resolved')
     {
-        // Reopened — change status back to active + increment + notify
-        await errorGroupsRepository.updateStatus(existing.id, 'active');
-        await errorGroupsRepository.incrementCount(existing.id);
+        // Reopened — back to active + increment + notify (single UPDATE)
+        await errorGroupsRepository.reactivate(existing.id);
 
         const event = await safeCreateEvent(existing.id, err, ctx, metadata);
 
