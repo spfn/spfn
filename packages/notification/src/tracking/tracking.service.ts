@@ -4,7 +4,7 @@
  * Records engagement events and provides analytics queries.
  */
 
-import { create, getDatabase } from '@spfn/core/db';
+import { getDatabase } from '@spfn/core/db';
 import { eq, and, gte, lte, count as drizzleCount, countDistinct } from 'drizzle-orm';
 import { trackingEvents, type TrackingEventType } from '../entities';
 import { notifications, type NotificationChannel } from '../entities';
@@ -12,29 +12,90 @@ import { logger } from '@spfn/core/logger';
 
 const log = logger.child('@spfn/notification:tracking');
 
-// ─── Record Functions (fire-and-forget) ───────────────────────────
+// ─── Record Functions (fire-and-forget, buffered) ─────────────────
+//
+// Open/click routes are public (.skip(['auth'])) and email clients prefetch them,
+// so a blast can fire tens of thousands of hits. One INSERT per hit would contend
+// for the bounded write pool. Buffer hits and flush as a single multi-row INSERT
+// on size/interval. Best-effort analytics: a crash may drop the unflushed tail,
+// and a hard cap sheds excess under a blast rather than growing unbounded.
+
+type PendingTrackingEvent = typeof trackingEvents.$inferInsert;
+
+const FLUSH_SIZE = 200;
+const FLUSH_INTERVAL_MS = 2000;
+const MAX_BUFFER = 10_000;
+
+const buffer: PendingTrackingEvent[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function flushTrackingEvents(): Promise<void>
+{
+    if (flushTimer)
+    {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+    }
+
+    if (buffer.length === 0)
+    {
+        return;
+    }
+
+    const batch = buffer.splice(0, buffer.length);
+
+    try
+    {
+        await getDatabase('write').insert(trackingEvents).values(batch);
+    }
+    catch (error)
+    {
+        log.warn(`Failed to flush ${batch.length} tracking events`, error as Error);
+    }
+}
+
+function enqueueTrackingEvent(event: PendingTrackingEvent): void
+{
+    if (buffer.length >= MAX_BUFFER)
+    {
+        // Shed load instead of growing the heap unbounded under a blast.
+        log.warn('Tracking buffer full — dropping event');
+
+        return;
+    }
+
+    buffer.push(event);
+
+    if (buffer.length >= FLUSH_SIZE)
+    {
+        void flushTrackingEvents();
+    }
+    else if (!flushTimer)
+    {
+        flushTimer = setTimeout(() => void flushTrackingEvents(), FLUSH_INTERVAL_MS);
+        // Don't keep the process alive just for a pending flush.
+        flushTimer.unref?.();
+    }
+}
 
 /**
- * Record an open event (fire-and-forget)
+ * Record an open event (fire-and-forget, buffered)
  */
 export function recordOpenEvent(
     notificationId: number,
     meta?: { ipAddress?: string; userAgent?: string },
 ): void
 {
-    create(trackingEvents, {
+    enqueueTrackingEvent({
         notificationId,
         type: 'open',
         ipAddress: meta?.ipAddress,
         userAgent: meta?.userAgent,
-    }).catch((error) =>
-    {
-        log.warn('Failed to record open event', error as Error);
     });
 }
 
 /**
- * Record a click event (fire-and-forget)
+ * Record a click event (fire-and-forget, buffered)
  */
 export function recordClickEvent(
     notificationId: number,
@@ -43,16 +104,13 @@ export function recordClickEvent(
     meta?: { ipAddress?: string; userAgent?: string },
 ): void
 {
-    create(trackingEvents, {
+    enqueueTrackingEvent({
         notificationId,
         type: 'click',
         linkUrl,
         linkIndex,
         ipAddress: meta?.ipAddress,
         userAgent: meta?.userAgent,
-    }).catch((error) =>
-    {
-        log.warn('Failed to record click event', error as Error);
     });
 }
 
