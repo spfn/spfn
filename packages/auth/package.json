@@ -1,6 +1,6 @@
 {
   "name": "@spfn/auth",
-  "version": "0.2.0-beta.68",
+  "version": "0.2.0-beta.69",
   "type": "module",
   "description": "Authentication, authorization, and RBAC module for SPFN",
   "author": "Ray Im <rayim@fxy.global>",
@@ -128,8 +128,8 @@
     "vitest": "^4.0.6"
   },
   "peerDependencies": {
-    "@spfn/core": ">=0.2.0-beta.49",
-    "@spfn/notification": ">=0.1.0-beta.18",
+    "@spfn/core": ">=0.2.0-beta.54",
+    "@spfn/notification": ">=0.1.0-beta.21",
     "next": "^15.0.0 || ^16.0.0"
   },
   "peerDependenciesMeta": {

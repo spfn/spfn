@@ -1,6 +1,6 @@
 {
   "name": "@spfn/monitor",
-  "version": "0.1.0-beta.19",
+  "version": "0.1.0-beta.20",
   "type": "module",
   "description": "Error tracking, log management, and monitoring dashboard for SPFN",
   "main": "./dist/index.js",
@@ -88,9 +88,9 @@
     "vitest": "^4.0.6"
   },
   "peerDependencies": {
-    "@spfn/auth": ">=0.2.0-beta.66",
-    "@spfn/core": ">=0.2.0-beta.49",
-    "@spfn/notification": ">=0.1.0-beta.18",
+    "@spfn/auth": ">=0.2.0-beta.69",
+    "@spfn/core": ">=0.2.0-beta.54",
+    "@spfn/notification": ">=0.1.0-beta.21",
     "next": "^15.0.0 || ^16.0.0"
   },
   "peerDependenciesMeta": {
