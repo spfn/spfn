@@ -20,7 +20,18 @@
  * ```
  */
 
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
+
+/**
+ * Hash a token for storage. The raw token is a bearer secret — storing it at rest
+ * (e.g. as a Redis key/value) means a store dump hands out live tokens. We persist
+ * only sha256(token) and look up by the same hash; the raw token exists only in
+ * transit and in the issue() return value.
+ */
+function hashToken(token: string): string
+{
+    return createHash('sha256').update(token).digest('hex');
+}
 
 /**
  * Minimal cache client interface (compatible with ioredis Redis | Cluster)
@@ -41,7 +52,6 @@ type CacheClient = {
  */
 export interface SSEToken
 {
-    token: string;
     subject: string;
     expiresAt: number;
 }
@@ -96,18 +106,19 @@ class InMemoryTokenStore implements SSETokenStore
 
     async set(token: string, data: SSEToken): Promise<void>
     {
-        this.tokens.set(token, data);
+        this.tokens.set(hashToken(token), data);
     }
 
     async consume(token: string): Promise<SSEToken | null>
     {
-        const data = this.tokens.get(token);
+        const key = hashToken(token);
+        const data = this.tokens.get(key);
         if (!data)
         {
             return null;
         }
 
-        this.tokens.delete(token);
+        this.tokens.delete(key);
 
         return data;
     }
@@ -116,11 +127,11 @@ class InMemoryTokenStore implements SSETokenStore
     {
         const now = Date.now();
 
-        for (const [token, data] of this.tokens)
+        for (const [key, data] of this.tokens)
         {
             if (data.expiresAt <= now)
             {
-                this.tokens.delete(token);
+                this.tokens.delete(key);
             }
         }
     }
@@ -158,7 +169,7 @@ export class CacheTokenStore implements SSETokenStore
     {
         const ttlSeconds = Math.max(1, Math.ceil((data.expiresAt - Date.now()) / 1000));
         await this.cache.set(
-            this.prefix + token,
+            this.prefix + hashToken(token),
             JSON.stringify(data),
             'EX',
             ttlSeconds,
@@ -167,7 +178,7 @@ export class CacheTokenStore implements SSETokenStore
 
     async consume(token: string): Promise<SSEToken | null>
     {
-        const key = this.prefix + token;
+        const key = this.prefix + hashToken(token);
 
         // GETDEL (Redis 6.2+) for atomic consume, fallback to GET+DEL
         let raw: string | null = null;
@@ -226,8 +237,8 @@ export class SSETokenManager
     {
         const token = randomBytes(32).toString('hex');
 
+        // The store keys by sha256(token); the raw token is never persisted.
         await this.store.set(token, {
-            token,
             subject,
             expiresAt: Date.now() + this.ttl,
         });
