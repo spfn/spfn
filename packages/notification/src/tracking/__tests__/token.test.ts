@@ -14,6 +14,7 @@ vi.mock('../../config', () => ({
 import {
     generateOpenToken,
     generateClickToken,
+    hashClickUrl,
     verifyOpenToken,
     verifyClickToken,
 } from '../token';
@@ -50,7 +51,7 @@ describe('tracking/token', () =>
 
         it('should reject a click token as open token', () =>
         {
-            const clickToken = generateClickToken(42, 3);
+            const clickToken = generateClickToken(42, 3, 'https://example.com/x');
             const result = verifyOpenToken(clickToken);
 
             expect(result.valid).toBe(false);
@@ -70,17 +71,28 @@ describe('tracking/token', () =>
     {
         it('should generate and verify a valid click token', () =>
         {
-            const token = generateClickToken(42, 5);
+            const token = generateClickToken(42, 5, 'https://example.com/x');
             const result = verifyClickToken(token);
 
             expect(result.valid).toBe(true);
             expect(result.notificationId).toBe(42);
             expect(result.linkIndex).toBe(5);
+            // The destination URL is bound into the token.
+            expect(result.urlHash).toBe(hashClickUrl('https://example.com/x'));
+        });
+
+        it('binds the destination: different URLs produce different hashes', () =>
+        {
+            const a = verifyClickToken(generateClickToken(1, 0, 'https://good.example.com'));
+            const b = verifyClickToken(generateClickToken(1, 0, 'https://evil.example.com'));
+
+            expect(a.urlHash).toBeDefined();
+            expect(a.urlHash).not.toBe(b.urlHash);
         });
 
         it('should reject a tampered click token', () =>
         {
-            const token = generateClickToken(42, 5);
+            const token = generateClickToken(42, 5, 'https://example.com/x');
             const tampered = 'x' + token.slice(1);
             const result = verifyClickToken(tampered);
 
@@ -97,7 +109,7 @@ describe('tracking/token', () =>
 
         it('should preserve linkIndex 0', () =>
         {
-            const token = generateClickToken(1, 0);
+            const token = generateClickToken(1, 0, 'https://example.com/x');
             const result = verifyClickToken(token);
 
             expect(result.valid).toBe(true);

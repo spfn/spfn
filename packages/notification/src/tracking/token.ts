@@ -7,8 +7,18 @@
  * Token format: base64url(payload).base64url(hmac)
  */
 
-import { createHmac } from 'node:crypto';
+import { createHmac, createHash } from 'node:crypto';
 import { getTrackingSecret } from '../config';
+
+/**
+ * Short, stable hash of a click destination, bound into the click token so the
+ * redirect target can't be swapped (open redirect). 64 bits is ample to bind a
+ * specific URL; the token's HMAC over the whole payload authenticates it.
+ */
+export function hashClickUrl(url: string): string
+{
+    return createHash('sha256').update(url).digest('hex').slice(0, 16);
+}
 
 /**
  * Base64url encode a buffer
@@ -85,11 +95,12 @@ export function generateOpenToken(notificationId: number): string
 }
 
 /**
- * Generate a click tracking token
+ * Generate a click tracking token. The destination URL is bound into the signed
+ * payload (as a hash) so the redirect target cannot be swapped at click time.
  */
-export function generateClickToken(notificationId: number, linkIndex: number): string
+export function generateClickToken(notificationId: number, linkIndex: number, url: string): string
 {
-    return sign(`c:${notificationId}:${linkIndex}`);
+    return sign(`c:${notificationId}:${linkIndex}:${hashClickUrl(url)}`);
 }
 
 /**
@@ -117,7 +128,7 @@ export function verifyOpenToken(token: string): { valid: boolean; notificationId
  */
 export function verifyClickToken(
     token: string,
-): { valid: boolean; notificationId?: number; linkIndex?: number }
+): { valid: boolean; notificationId?: number; linkIndex?: number; urlHash?: string }
 {
     const result = verify(token);
     if (!result.valid || !result.payload)
@@ -125,7 +136,9 @@ export function verifyClickToken(
         return { valid: false };
     }
 
-    const match = result.payload.match(/^c:(\d+):(\d+)$/);
+    // New tokens bind the destination URL hash (c:id:index:hash); legacy tokens
+    // (c:id:index) from already-sent emails are still accepted but unbound.
+    const match = result.payload.match(/^c:(\d+):(\d+)(?::([0-9a-f]{16}))?$/);
     if (!match)
     {
         return { valid: false };
@@ -135,5 +148,6 @@ export function verifyClickToken(
         valid: true,
         notificationId: Number(match[1]),
         linkIndex: Number(match[2]),
+        urlHash: match[3],
     };
 }

@@ -9,7 +9,7 @@ import { describe, it, expect, vi } from 'vitest';
 // Mock token module to return predictable tokens
 vi.mock('../token', () => ({
     generateOpenToken: vi.fn((id: number) => `open-token-${id}`),
-    generateClickToken: vi.fn((id: number, idx: number) => `click-token-${id}-${idx}`),
+    generateClickToken: vi.fn((id: number, idx: number, _url: string) => `click-token-${id}-${idx}`),
 }));
 
 import { processTrackingHtml } from '../processor';

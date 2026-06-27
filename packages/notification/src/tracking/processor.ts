@@ -71,7 +71,7 @@ export function processTrackingHtml(
             }
 
             const currentIndex = linkIndex++;
-            const clickToken = generateClickToken(notificationId, currentIndex);
+            const clickToken = generateClickToken(notificationId, currentIndex, url);
             const trackingUrl = `${baseUrl}/_noti/t/c/${clickToken}?url=${encodeURIComponent(url)}`;
 
             trackedLinks.push({ index: currentIndex, url });
