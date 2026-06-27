@@ -100,9 +100,8 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
 
     // Send to each recipient
     const provider = getProvider();
-    const results: SendResult[] = [];
-
-    for (const recipient of recipients)
+    // Send one recipient: create history, send, then update history fire-and-forget.
+    const sendOne = async (recipient: string): Promise<SendResult> =>
     {
         const normalizedPhone = normalizePhoneNumber(recipient);
 
@@ -144,28 +143,21 @@ export async function sendSMS(params: SendSMSParams): Promise<SendResult>
             log.error('SMS send failed', { to: normalizedPhone, error: result.error });
         }
 
-        // Update history record
+        // Update history record (fire-and-forget — best-effort, off the send path)
         if (historyId && isHistoryEnabled())
         {
-            try
-            {
-                if (result.success)
-                {
-                    await markNotificationSent(historyId, result.messageId);
-                }
-                else
-                {
-                    await markNotificationFailed(historyId, result.error || 'Unknown error');
-                }
-            }
-            catch (error)
-            {
-                log.warn('Failed to update notification history record', error as Error);
-            }
+            const update = result.success
+                ? markNotificationSent(historyId, result.messageId)
+                : markNotificationFailed(historyId, result.error || 'Unknown error');
+
+            update.catch(error => log.warn('Failed to update notification history record', error as Error));
         }
 
-        results.push(result);
-    }
+        return result;
+    };
+
+    // Process recipients concurrently (was a fully sequential for-of loop).
+    const results: SendResult[] = await runWithConcurrency(recipients, sendOne);
 
     // Return aggregated result
     const allSuccess = results.every(r => r.success);
