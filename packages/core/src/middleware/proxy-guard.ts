@@ -94,8 +94,15 @@ export interface ProxyGuardConfig
      */
     allowedOrigins?: string[];
 
-    /** Optional Redis-backed nonce store for hard replay rejection (strict mode only). */
+    /** Optional nonce store for hard replay rejection. Redis (multi-instance) or in-memory (single). */
     nonceStore?: NonceStore;
+
+    /**
+     * When the nonce store throws (e.g. Redis down), reject the request instead of
+     * falling back to the timestamp window. Trades availability for strictness.
+     * @default false (fall back to the timestamp window)
+     */
+    nonceFailClosed?: boolean;
 
     /** Paths to skip entirely (e.g. health checks). */
     skipPaths?: string[];
@@ -243,6 +250,7 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
     const windowMs = config.windowMs ?? 30_000;
     const allowedOrigins = config.allowedOrigins;
     const nonceStore = config.nonceStore;
+    const nonceFailClosed = config.nonceFailClosed ?? false;
     const skipPaths = new Set(config.skipPaths ?? []);
     const maxBodyBytes = config.maxBodyBytes;
 
@@ -385,6 +393,15 @@ export function createProxyGuard(config: ProxyGuardConfig = {}): MiddlewareHandl
             }
             catch (err)
             {
+                if (nonceFailClosed)
+                {
+                    guardLogger.warn('Nonce store unavailable — rejecting (fail-closed)', {
+                        error: (err as Error).message,
+                    });
+
+                    return reject(c, mode, next, 'nonce-store-unavailable');
+                }
+
                 guardLogger.warn('Nonce store unavailable — falling back to timestamp window', {
                     error: (err as Error).message,
                 });
@@ -426,6 +443,47 @@ export function createCacheNonceStore(cache: CacheClient, prefix = 'spfn:proxy-n
 }
 
 /**
+ * In-process nonce store for hard replay rejection without Redis.
+ *
+ * Good enough for a single instance — each process only knows its own nonces, so
+ * across multiple instances a replay routed to a different pod isn't caught. Use a
+ * cache-backed store (createCacheNonceStore) for multi-instance hard rejection.
+ * Entries self-expire after their TTL; the map is swept opportunistically so it
+ * stays bounded by the request rate within the replay window.
+ */
+export function createInMemoryNonceStore(): NonceStore
+{
+    const seen = new Map<string, number>(); // nonce -> expiry (epoch ms)
+    let lastSweep = 0;
+
+    return {
+        async checkAndSet(nonce: string, ttlMs: number): Promise<boolean>
+        {
+            const now = Date.now();
+
+            if (now - lastSweep > 60_000)
+            {
+                for (const [n, exp] of seen)
+                {
+                    if (exp <= now) seen.delete(n);
+                }
+                lastSweep = now;
+            }
+
+            const existing = seen.get(nonce);
+            if (existing !== undefined && existing > now)
+            {
+                return false; // replay within window
+            }
+
+            seen.set(nonce, now + ttlMs);
+
+            return true;
+        },
+    };
+}
+
+/**
  * Reject (strict) or tag-and-continue (tag). Keeps the rejection response generic
  * so it leaks no detail about why verification failed.
  */
@@ -433,7 +491,7 @@ function reject(
     c: Context,
     mode: ProxyGuardMode,
     next: Next,
-    reason: VerifyFailureReason | 'origin-not-allowed' | 'nonce-replay' | 'body-read-error' | undefined,
+    reason: VerifyFailureReason | 'origin-not-allowed' | 'nonce-replay' | 'nonce-store-unavailable' | 'body-read-error' | undefined,
 )
 {
     if (mode === 'strict')

@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
 
-import { createProxyGuard, type NonceStore } from '../proxy-guard';
+import { createProxyGuard, createInMemoryNonceStore, type NonceStore } from '../proxy-guard';
 import { signProxyRequest, parseProxyKey } from '../../security/proxy-signature';
 
 const SECRET = 'test-shared-secret';
@@ -186,6 +186,41 @@ describe('createProxyGuard', () =>
             });
 
             expect(res.status).toBe(200);
+        });
+
+        it('rejects (fail-closed) when the nonce store throws and nonceFailClosed is set', async () =>
+        {
+            const flakyStore: NonceStore = {
+                async checkAndSet()
+                {
+                    throw new Error('redis unreachable');
+                },
+            };
+            const guard = createProxyGuard({
+                mode: 'strict', secret: SECRET, nonceStore: flakyStore, nonceFailClosed: true,
+            });
+            const app = buildApp(guard);
+
+            const res = await app.request('/users/9', {
+                method: 'GET',
+                headers: { ...signedHeaders('GET', '/users/9') },
+            });
+
+            expect(res.status).toBe(403);
+        });
+
+        it('rejects a replayed nonce with the in-memory store', async () =>
+        {
+            const guard = createProxyGuard({ mode: 'strict', secret: SECRET, nonceStore: createInMemoryNonceStore() });
+            const app = buildApp(guard);
+            // Reuse the SAME signed headers (same nonce) for both requests.
+            const headers = { ...signedHeaders('GET', '/users/9') };
+
+            const first = await app.request('/users/9', { method: 'GET', headers });
+            const replay = await app.request('/users/9', { method: 'GET', headers });
+
+            expect(first.status).toBe(200);
+            expect(replay.status).toBe(403);
         });
 
         it('rejects an oversized body with 413 (strict)', async () =>

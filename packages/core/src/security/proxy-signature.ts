@@ -143,6 +143,16 @@ export interface SignatureParts
      * SHA-256 hex of the raw request body, or empty string when there is no body
      * (GET/HEAD, or multipart uploads which are excluded by design). Bound for ANY
      * non-multipart content-type, not just application/json.
+     *
+     * Multipart is excluded so the proxy can stream large uploads without buffering
+     * them to hash. The signature therefore proves *provenance* (came through the
+     * trusted proxy) and binds method/path/query/timestamp for a multipart request,
+     * but NOT the body bytes. Two consequences, by design:
+     *   - Multipart *content* integrity/validation is the application's job (size,
+     *     type, checksum, business rules) — not the transport signature's.
+     *   - If you don't trust the proxy→backend hop itself, secure it with TLS/mTLS;
+     *     signing a prefix of the stream would be a half-measure (the tail stays
+     *     unprotected) and is intentionally not done.
      */
     bodyHash: string;
 }
