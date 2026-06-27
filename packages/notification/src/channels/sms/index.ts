@@ -13,6 +13,8 @@ import {
     createNotificationRecords,
     markNotificationSent,
     markNotificationFailed,
+    markManySent,
+    markManyFailed,
 } from '../../services/notification.service';
 import { runWithConcurrency } from '../concurrency';
 import { sendBulkSmsItemJob } from '../../jobs/send-bulk-sms-item';
@@ -357,7 +359,8 @@ export async function sendSMSBulk(
 
     // 5. Build per-item aggregated results + update history
     const resultsMap = new Map<number, SendResult[]>();
-    const historyUpdates: Promise<unknown>[] = [];
+    const sentItems: Array<{ id: number; providerMessageId?: string }> = [];
+    const failedItems: Array<{ id: number; errorMessage: string }> = [];
 
     for (let i = 0; i < prepared.length; i++)
     {
@@ -383,17 +386,21 @@ export async function sendSMSBulk(
 
         if (historyId && isHistoryEnabled())
         {
-            const promise = result.success
-                ? markNotificationSent(historyId, result.messageId)
-                : markNotificationFailed(historyId, result.error || 'Unknown error');
-
-            historyUpdates.push(
-                promise.catch((err) => log.warn('Failed to update notification history', err)),
-            );
+            if (result.success)
+            {
+                sentItems.push({ id: historyId, providerMessageId: result.messageId });
+            }
+            else
+            {
+                failedItems.push({ id: historyId, errorMessage: result.error || 'Unknown error' });
+            }
         }
     }
 
-    await Promise.all(historyUpdates);
+    await Promise.all([
+        markManySent(sentItems).catch(err => log.warn('Failed to update notification history', err)),
+        markManyFailed(failedItems).catch(err => log.warn('Failed to update notification history', err)),
+    ]);
 
     // 6. Aggregate results per original item
     const results: SendResult[] = new Array(items.length);

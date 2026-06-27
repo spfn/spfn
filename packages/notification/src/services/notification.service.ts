@@ -5,7 +5,7 @@
  */
 
 import { create, createMany, findOne, findMany, updateOne, count, getDatabase } from '@spfn/core/db';
-import { desc, eq, and, gte, lte, count as drizzleCount } from 'drizzle-orm';
+import { desc, eq, and, gte, lte, inArray, sql, count as drizzleCount } from 'drizzle-orm';
 import {
     notifications,
     type Notification,
@@ -101,6 +101,63 @@ export async function markNotificationFailed(
             errorMessage,
         },
     );
+}
+
+/**
+ * Mark many notifications as sent in a SINGLE UPDATE, preserving each row's
+ * providerMessageId via a CASE (a bulk send used to fan out N concurrent
+ * single-row UPDATEs). drizzle handles column names/escaping; values are bound.
+ */
+export async function markManySent(
+    items: Array<{ id: number; providerMessageId?: string }>,
+): Promise<void>
+{
+    if (items.length === 0)
+    {
+        return;
+    }
+
+    const cases = sql.join(
+        items.map(it => sql`when ${it.id} then ${it.providerMessageId ?? null}`),
+        sql` `,
+    );
+
+    await getDatabase('write')
+        .update(notifications)
+        .set({
+            status: 'sent',
+            sentAt: new Date(),
+            // ELSE keeps the existing value and anchors the CASE result type to text.
+            providerMessageId: sql`case ${notifications.id} ${cases} else ${notifications.providerMessageId} end`,
+        })
+        .where(inArray(notifications.id, items.map(it => it.id)));
+}
+
+/**
+ * Mark many notifications as failed in a SINGLE UPDATE, preserving each row's
+ * errorMessage via a CASE.
+ */
+export async function markManyFailed(
+    items: Array<{ id: number; errorMessage: string }>,
+): Promise<void>
+{
+    if (items.length === 0)
+    {
+        return;
+    }
+
+    const cases = sql.join(
+        items.map(it => sql`when ${it.id} then ${it.errorMessage}`),
+        sql` `,
+    );
+
+    await getDatabase('write')
+        .update(notifications)
+        .set({
+            status: 'failed',
+            errorMessage: sql`case ${notifications.id} ${cases} else ${notifications.errorMessage} end`,
+        })
+        .where(inArray(notifications.id, items.map(it => it.id)));
 }
 
 /**
