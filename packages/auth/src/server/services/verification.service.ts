@@ -116,6 +116,17 @@ async function validateVerificationCode(
         return { valid: false, error: 'Invalid verification code' };
     }
 
+    // Enforce the attempt cap on EVERY attempt — BEFORE the code comparison.
+    // Previously this ran only after a correct match (the wrong-code branch returns
+    // early), so it was dead code: wrong guesses incremented `attempts` forever but
+    // were never blocked — unlimited OTP brute force (account takeover via
+    // password_reset). findValidByTargetAndPurpose does not filter on attempts, so
+    // the cap must be enforced here.
+    if (record.attempts >= MAX_VERIFICATION_ATTEMPTS)
+    {
+        return { valid: false, error: 'Too many attempts, please request a new code' };
+    }
+
     // Check if code matches
     if (record.code !== code)
     {
@@ -135,12 +146,6 @@ async function validateVerificationCode(
     if (new Date() > new Date(record.expiresAt))
     {
         return { valid: false, error: 'Verification code expired' };
-    }
-
-    // Check attempt count
-    if (record.attempts >= MAX_VERIFICATION_ATTEMPTS)
-    {
-        return { valid: false, error: 'Too many attempts, please request a new code' };
     }
 
     return { valid: true, codeId: record.id };
