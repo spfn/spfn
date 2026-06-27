@@ -176,26 +176,4 @@ describe.skipIf(!dbAvailable)('API Flow Integration', () =>
         expect(response.status).toBe(401);
         expect((await response.json()).__type).toBeDefined();
     });
-
-    it('should check if an account exists', async () =>
-    {
-        await registerViaFlow('exists@example.com', 'Password123!');
-
-        const existsResponse = await app.request('/_auth/exists', {
-            method: 'POST',
-            headers: JSON_HEADERS,
-            body: JSON.stringify({ email: 'exists@example.com' }),
-        });
-
-        expect(existsResponse.status).toBe(200);
-        expect((await existsResponse.json()).exists).toBe(true);
-
-        const notExistsResponse = await app.request('/_auth/exists', {
-            method: 'POST',
-            headers: JSON_HEADERS,
-            body: JSON.stringify({ email: 'notfound@example.com' }),
-        });
-
-        expect((await notExistsResponse.json()).exists).toBe(false);
-    });
 });

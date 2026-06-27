@@ -9,7 +9,6 @@ import { getAuth, getUser } from '../../helpers';
 import { KEY_ALGORITHM } from '../../types';
 import {
     changePasswordService,
-    checkAccountExistsService,
     loginService,
     logoutService,
     registerService,
@@ -24,25 +23,10 @@ import { Transactional } from '@spfn/core/db';
 import { rateLimit } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 
-/**
- * POST /_auth/exists - Check if account exists
- * Checks if an email or phone number is already registered
- */
-export const checkAccountExists = route.post('/_auth/exists')
-    .input({
-        body: Type.Union([
-            Type.Object({ email: EmailSchema }),
-            Type.Object({ phone: PhoneSchema }),
-        ]),
-    })
-    .use([rateLimit({ limit: 30, windowMs: 60_000 })])
-    .skip(['auth'])
-    .handler(async (c) =>
-    {
-        const { body } = await c.data();
-
-        return await checkAccountExistsService(body);
-    });
+// NOTE: a POST /_auth/exists endpoint was removed deliberately — it answered
+// account existence directly (user enumeration). Existence is no longer exposed;
+// the login path is also timing-equalized (see loginService). Don't reintroduce
+// an existence check without revisiting that posture.
 
 /**
  * POST /_auth/codes - Send verification code
@@ -289,7 +273,6 @@ export const issueOneTimeToken = route.post('/_auth/tokens')
 
 // Export router
 export const authRouter = defineRouter({
-    checkAccountExists: checkAccountExists,
     sendVerificationCode: sendVerificationCode,
     verifyCode: verifyCode,
     register: register,

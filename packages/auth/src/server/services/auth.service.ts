@@ -14,7 +14,6 @@ import {
     VerificationTokenTargetMismatchError,
 } from '@spfn/auth/errors';
 
-import { type User } from '../entities/users';
 import { usersRepository } from '../repositories';
 import { type KeyAlgorithmType } from '../types';
 import { hashPassword, verifyPassword } from '../helpers';
@@ -23,17 +22,21 @@ import { registerPublicKeyService, revokeKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
 import { authLoginEvent, authRegisterEvent } from '../events';
 
-export interface CheckAccountExistsParams
+/**
+ * Dummy bcrypt hash for login timing equalization. A login attempt for a
+ * non-existent account verifies against this so it costs the same as one for a
+ * real account — without it, skipping bcrypt leaks account existence by timing.
+ * Computed once at the configured cost (matches new users' hashes) and reused.
+ */
+let dummyHashPromise: Promise<string> | null = null;
+function getDummyHash(): Promise<string>
 {
-    email?: string;
-    phone?: string;
-}
+    if (!dummyHashPromise)
+    {
+        dummyHashPromise = hashPassword('spfn-nonexistent-account-timing-equalizer');
+    }
 
-export interface CheckAccountExistsResult
-{
-    exists: boolean;
-    identifier: string;
-    identifierType: 'email' | 'phone';
+    return dummyHashPromise;
 }
 
 export interface RegisterParams
@@ -90,43 +93,6 @@ export interface ChangePasswordParams
     currentPassword?: string;
     newPassword: string;
     passwordHash?: string; // Optional: pass user's password hash to avoid re-fetch
-}
-
-/**
- * Check if an account exists by email or phone
- */
-export async function checkAccountExistsService(
-    params: CheckAccountExistsParams,
-): Promise<CheckAccountExistsResult>
-{
-    const { email, phone } = params;
-
-    let identifier: string;
-    let identifierType: 'email' | 'phone';
-    let user: User | null;
-
-    if (email)
-    {
-        identifier = email;
-        identifierType = 'email';
-        user = await usersRepository.findByEmail(email);
-    }
-    else if (phone)
-    {
-        identifier = phone;
-        identifierType = 'phone';
-        user = await usersRepository.findByPhone(phone);
-    }
-    else
-    {
-        throw new ValidationError({ message: 'Either email or phone must be provided' });
-    }
-
-    return {
-        exists: !!user,
-        identifier,
-        identifierType,
-    };
 }
 
 /**
@@ -243,6 +209,10 @@ export async function loginService(
 
     if (!user || !user.passwordHash)
     {
+        // Spend the same time as the real verify path so a non-existent account
+        // can't be told apart from a wrong password by response timing (user
+        // enumeration). The dummy hash is computed once and reused.
+        await verifyPassword(password, await getDummyHash());
         throw new InvalidCredentialsError();
     }
 
