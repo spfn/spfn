@@ -118,9 +118,13 @@ export async function trackError(
         return;
     }
 
-    // Active or ignored — just increment count + create event (no notification)
-    await errorGroupsRepository.incrementCount(existing.id);
-    await safeCreateEvent(existing.id, err, ctx, metadata);
+    // Active or ignored — just increment count + create event (no notification).
+    // No data dependency between the two writes (the event insert is isolated),
+    // so fire them together instead of serially.
+    await Promise.all([
+        errorGroupsRepository.incrementCount(existing.id),
+        safeCreateEvent(existing.id, err, ctx, metadata),
+    ]);
 }
 
 /**
