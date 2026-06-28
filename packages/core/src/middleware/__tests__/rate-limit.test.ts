@@ -100,6 +100,38 @@ describe('rateLimit middleware', () =>
         expect(next).not.toHaveBeenCalled();
         expect(evalMock).toHaveBeenCalledTimes(2);
     });
+
+    it('honors a per-dimension limit — loose IP passes, tight account trips', async () =>
+    {
+        evalMock.mockResolvedValue([6, 30_000]);
+        const next = vi.fn();
+
+        await expect(
+            rateLimit({
+                limit: 5,
+                windowMs: 60_000,
+                by: () => [{ key: 'ip:1.2.3.4', limit: 100 }, 'acct:a@b.com'],
+            })(makeCtx(), next),
+        ).rejects.toBeInstanceOf(TooManyRequestsError);
+
+        // IP dim (limit 100) allowed at count 6; account dim (top-level limit 5) tripped.
+        expect(evalMock).toHaveBeenCalledTimes(2);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it('a loose per-dimension limit lets through what the top-level limit would reject', async () =>
+    {
+        evalMock.mockResolvedValue([6, 30_000]);
+        const next = vi.fn().mockResolvedValue(undefined);
+
+        await rateLimit({
+            limit: 5,
+            windowMs: 60_000,
+            by: () => [{ key: 'ip:1.2.3.4', limit: 100 }],
+        })(makeCtx(), next);
+
+        expect(next).toHaveBeenCalledTimes(1); // 6 <= 100
+    });
 });
 
 describe('rateLimitPolicy named policies', () =>

@@ -35,9 +35,16 @@ end
 return { count, redis.call('PTTL', KEYS[1]) }
 `;
 
+/**
+ * One identity dimension to limit on. A bare string uses the top-level `limit`;
+ * an object can carry its own `limit` so dimensions can differ (e.g. a loose
+ * per-IP cap alongside a tight per-account cap).
+ */
+export type RateLimitDimension = string | { key: string; limit?: number };
+
 export interface RateLimitOptions
 {
-    /** Max requests allowed per window, applied to each identity dimension. */
+    /** Max requests allowed per window, applied to each dimension without its own `limit`. */
     limit: number;
 
     /** Window length in milliseconds. */
@@ -51,10 +58,11 @@ export interface RateLimitOptions
 
     /**
      * Identity dimensions to limit on. Each non-empty value is counted
-     * separately and the strictest wins (e.g. by IP and by account). Defaults
-     * to the client IP only.
+     * separately and the strictest wins (e.g. by IP and by account). A dimension
+     * may override the top-level `limit` via `{ key, limit }`. Defaults to the
+     * client IP only.
      */
-    by?: (c: Context) => (string | null | undefined)[] | Promise<(string | null | undefined)[]>;
+    by?: (c: Context) => (RateLimitDimension | null | undefined)[] | Promise<(RateLimitDimension | null | undefined)[]>;
 
     /** Reject with 429 instead of allowing through when the cache is unavailable. */
     failClosed?: boolean;
@@ -128,20 +136,28 @@ export const rateLimit = defineMiddlewareFactory(
             }
 
             const dimensions = (by ? await by(c) : [getClientIp(c)])
-                .filter((d): d is string => Boolean(d));
+                .filter((d): d is RateLimitDimension => Boolean(d));
 
             const ns = scope || `${c.req.method} ${c.req.routePath || c.req.path}`;
 
             for (const dimension of dimensions)
             {
+                const key = typeof dimension === 'string' ? dimension : dimension.key;
+                if (!key)
+                {
+                    continue;
+                }
+
+                const dimLimit = typeof dimension === 'string' ? limit : (dimension.limit ?? limit);
+
                 const [count, pttl] = await cache.eval(
                     FIXED_WINDOW_LUA,
                     1,
-                    `ratelimit:${ns}:${dimension}`,
+                    `ratelimit:${ns}:${key}`,
                     String(windowMs),
                 ) as [number, number];
 
-                if (count > limit)
+                if (count > dimLimit)
                 {
                     const retryAfter = Math.max(1, Math.ceil((pttl > 0 ? pttl : windowMs) / 1000));
                     c.header('Retry-After', String(retryAfter));

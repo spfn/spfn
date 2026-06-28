@@ -21,6 +21,7 @@ import {
 import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
 import { rateLimitPolicy } from '@spfn/core/middleware';
+import { byIpAndAccount, byIpAndTarget } from '../../lib/rate-limit-keys';
 import { defineRouter, route } from '@spfn/core/route';
 
 // NOTE: a POST /_auth/exists endpoint was removed deliberately — it answered
@@ -42,7 +43,7 @@ export const sendVerificationCode = route.post('/_auth/codes')
             purpose: VerificationPurposeSchema,
         }),
     })
-    .use([rateLimitPolicy('auth-code-send', { limit: 5, windowMs: 60_000 })])
+    .use([rateLimitPolicy('auth-code-send', { limit: 5, windowMs: 60_000, by: byIpAndTarget({ ipLimit: 20 }) })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -71,7 +72,7 @@ export const verifyCode = route.post('/_auth/codes/verify')
             purpose: VerificationPurposeSchema,
         }),
     })
-    .use([rateLimitPolicy('auth-code-verify', { limit: 10, windowMs: 60_000 })])
+    .use([rateLimitPolicy('auth-code-verify', { limit: 10, windowMs: 60_000, by: byIpAndTarget({ ipLimit: 50 }) })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -109,7 +110,7 @@ export const register = route.post('/_auth/register')
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
         }),
     })
-    .use([rateLimitPolicy('auth-register', { limit: 10, windowMs: 60_000 }), Transactional()])
+    .use([rateLimitPolicy('auth-register', { limit: 10, windowMs: 60_000, by: byIpAndAccount({ ipLimit: 100 }) }), Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -146,7 +147,7 @@ export const login = route.post('/_auth/login')
             oldKeyId: Type.Optional(Type.String({ description: 'Previous key ID for rotation' })),
         }),
     })
-    .use([rateLimitPolicy('auth-login', { limit: 10, windowMs: 60_000 }), Transactional()])
+    .use([rateLimitPolicy('auth-login', { limit: 10, windowMs: 60_000, by: byIpAndAccount({ ipLimit: 100 }) }), Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {

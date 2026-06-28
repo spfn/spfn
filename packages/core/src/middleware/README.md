@@ -365,7 +365,26 @@ route.post('/_auth/codes')
 | `limit` | `number` | — | Max requests per window, applied to **each** dimension. |
 | `windowMs` | `number` | — | Window length in milliseconds. |
 | `scope` | `string` | `` `${method} ${routePath}` `` | Counter-key namespace; defaults to per-route. |
-| `by` | `(c) => (string \| null \| undefined)[]` | `[getClientIp(c)]` | Identity dimensions; each non-empty value is counted separately. |
+| `by` | `(c) => (Dimension \| null \| undefined)[]` | `[getClientIp(c)]` | Identity dimensions; each non-empty value is counted separately, strictest wins. A `Dimension` is a `string` (uses `limit`) or `{ key, limit? }` to give that dimension its own limit. |
+
+Per-dimension limits let one limiter be loose on IP and tight on account/target — so a
+shared NAT isn't throttled as one user while a single account stays protected:
+
+```typescript
+rateLimit({
+    limit: 5,                 // default for dimensions without their own limit
+    windowMs: 60_000,
+    by: (c) => [
+        { key: `ip:${getClientIp(c)}`, limit: 100 }, // loose per-IP floor
+        accountKey(c),                               // tight per-account (uses limit: 5)
+    ],
+});
+```
+
+`@spfn/auth` ships `byIpAndAccount()` / `byIpAndTarget()` builders for exactly this on its
+login, register, and verification-code routes (per-account / per-target tight, per-IP loose),
+so distributed brute force and SMS-bombing are limited by the thing being attacked, not only
+by source IP.
 | `failClosed` | `boolean` | `false` | Reject with 429 when the cache is unavailable instead of allowing through. |
 | `message` | `string` | generic | 429 response message. |
 
@@ -442,13 +461,12 @@ export default defineServerConfig()
 
 Read these before relying on rate limiting as a security control:
 
-- **Keyed by client IP only (unless you set `by`).** Default identity is `getClientIp(c)`.
-  Consequences: a distributed attacker (many source IPs) is **not** stopped per-account —
-  each IP gets its own bucket; and a shared NAT/CGNAT can throttle many real users as one.
-  For account/target protection (credential stuffing, OTP/SMS-bombing) add a `by` dimension
-  that returns a stable account or target key in addition to the IP. The bundled `@spfn/auth`
-  policies are **IP-keyed** — they raise the bar for single-source brute force, not for
-  distributed attacks.
+- **Default identity is the client IP.** A limiter with no `by` keys only on `getClientIp(c)`,
+  so a distributed attacker (many source IPs) isn't stopped per-account and a shared NAT/CGNAT
+  can be throttled as one user. For account/target protection (credential stuffing,
+  OTP/SMS-bombing) add a `by` dimension returning a stable account/target key alongside the IP
+  — ideally with a per-dimension limit (loose IP, tight account). The bundled `@spfn/auth`
+  login/register/code routes already do this via `byIpAndAccount()` / `byIpAndTarget()`.
 - **`getClientIp` trusts forwarded headers.** Behind a verified proxy (proxy-guard) it uses
   the real client IP; otherwise it reads `X-Forwarded-For`/`X-Real-IP`, which a direct client
   can spoof (rotate to bypass, or pin to a victim to DoS them). If neither header is present
