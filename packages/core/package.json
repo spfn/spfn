@@ -54,6 +54,11 @@
             "import": "./dist/security/index.js",
             "require": "./dist/security/index.js"
         },
+        "./authz": {
+            "types": "./dist/authz/index.d.ts",
+            "import": "./dist/authz/index.js",
+            "require": "./dist/authz/index.js"
+        },
         "./cache": {
             "types": "./dist/cache/index.d.ts",
             "import": "./dist/cache/index.js",

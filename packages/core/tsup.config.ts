@@ -11,6 +11,7 @@ export default defineConfig({
         'errors/index': 'src/errors/index.ts',
         'middleware/index': 'src/middleware/index.ts',
         'security/index': 'src/security/index.ts',
+        'authz/index': 'src/authz/index.ts',
         'cache/index': 'src/cache/index.ts',
         'codegen/index': 'src/codegen/index.ts',
         'env/index': 'src/env/index.ts',
