@@ -81,6 +81,10 @@ export interface RateLimitOptions
  * the forwarded header is attacker-settable, so fall back to the raw chain — whose
  * leftmost hop is itself spoofable, so still pair with an account/target dimension
  * for anything security-sensitive.
+ *
+ * Last resort before giving up is the TCP peer address from the Node adapter
+ * socket. Without it, a deployment that sets no forwarding header would collapse
+ * every client onto a single `'unknown'` bucket.
  */
 export function getClientIp(c: Context): string
 {
@@ -98,7 +102,24 @@ export function getClientIp(c: Context): string
 
     return forwardedFor?.split(',')[0]?.trim()
         || c.req.header('x-real-ip')
+        || socketRemoteAddress(c)
         || 'unknown';
+}
+
+/**
+ * TCP peer address from the @hono/node-server adapter, when present. Mirrors the
+ * adapter's own getConnInfo access path and degrades to undefined on other
+ * runtimes (Bun/edge) so callers fall through to 'unknown'.
+ */
+function socketRemoteAddress(c: Context): string | undefined
+{
+    const env = c.env as {
+        server?: { incoming?: { socket?: { remoteAddress?: string } } };
+        incoming?: { socket?: { remoteAddress?: string } };
+    } | undefined;
+    const bindings = env?.server ?? env;
+
+    return bindings?.incoming?.socket?.remoteAddress;
 }
 
 /**

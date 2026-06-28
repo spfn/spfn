@@ -16,7 +16,7 @@ vi.mock('../../cache', () => ({
     isCacheDisabled: () => cacheDisabled,
 }));
 
-import { rateLimit, rateLimitPolicy, setRateLimitPolicies, getRateLimitPolicy, setRateLimitFailClosedDefault } from '../rate-limit';
+import { rateLimit, rateLimitPolicy, getClientIp, setRateLimitPolicies, getRateLimitPolicy, setRateLimitFailClosedDefault } from '../rate-limit';
 import { TooManyRequestsError } from '../../errors';
 
 function makeCtx(headers: Record<string, string> = {})
@@ -224,5 +224,44 @@ describe('rateLimitPolicy named policies', () =>
 
         setRateLimitPolicies(undefined);
         expect(getRateLimitPolicy('p')).toBeUndefined();
+    });
+});
+
+describe('getClientIp socket fallback', () =>
+{
+    function ipCtx(opts: { headers?: Record<string, string>; env?: unknown; clientType?: string } = {})
+    {
+        const headers = opts.headers ?? {};
+
+        return {
+            req: { header: (name: string) => headers[name.toLowerCase()] },
+            get: (key: string) => (key === 'clientType' ? opts.clientType : undefined),
+            env: opts.env,
+        } as never;
+    }
+
+    it('uses the TCP peer address when no forwarding header is present', () =>
+    {
+        expect(getClientIp(ipCtx({ env: { incoming: { socket: { remoteAddress: '203.0.113.9' } } } }))).toBe('203.0.113.9');
+    });
+
+    it('reads the socket via env.server when the adapter nests bindings', () =>
+    {
+        expect(getClientIp(ipCtx({ env: { server: { incoming: { socket: { remoteAddress: '203.0.113.9' } } } } }))).toBe('203.0.113.9');
+    });
+
+    it('prefers X-Forwarded-For over the socket address', () =>
+    {
+        const c = ipCtx({
+            headers: { 'x-forwarded-for': '198.51.100.1' },
+            env: { incoming: { socket: { remoteAddress: '203.0.113.9' } } },
+        });
+
+        expect(getClientIp(c)).toBe('198.51.100.1');
+    });
+
+    it('returns "unknown" only when nothing identifies the client', () =>
+    {
+        expect(getClientIp(ipCtx())).toBe('unknown');
     });
 });

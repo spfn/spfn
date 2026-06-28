@@ -469,9 +469,10 @@ Read these before relying on rate limiting as a security control:
   login/register/code routes already do this via `byIpAndAccount()` / `byIpAndTarget()`.
 - **`getClientIp` trusts forwarded headers.** Behind a verified proxy (proxy-guard) it uses
   the real client IP; otherwise it reads `X-Forwarded-For`/`X-Real-IP`, which a direct client
-  can spoof (rotate to bypass, or pin to a victim to DoS them). If neither header is present
-  it falls back to the literal `'unknown'` — i.e. **all clients share one bucket**. Only
-  enable the global default behind a proxy that sets a trustworthy client IP.
+  can spoof (rotate to bypass, or pin to a victim to DoS them). With no forwarding header it
+  falls back to the TCP peer address (Node adapter), and only to the literal `'unknown'` when
+  even that is unavailable (non-Node runtime). Still: enable the global default behind a proxy
+  that sets a trustworthy client IP, since the header — when present — is taken on trust.
 - **Fail-open by default.** When the cache (Redis) is down, limiters pass requests through.
   Set `RATE_LIMIT_FAIL_CLOSED=true` to reject instead — this now applies to **both** the
   global default and named policy tags (a tag may still opt back to fail-open with
