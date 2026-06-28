@@ -11,6 +11,7 @@ import { join } from 'path';
 
 import { registerRoutes, defineMiddleware, type RegisteredRoute } from '@spfn/core/route';
 import { ErrorHandler, RequestLogger, rateLimit, setRateLimitPolicies } from '@spfn/core/middleware';
+import { setDefaultSafeFetchPolicy } from '@spfn/core/security';
 import { env } from '@spfn/core/config';
 import { createSSEHandler } from '../event/sse/handler';
 import { SSETokenManager, CacheTokenStore } from '../event/sse/token-manager';
@@ -40,6 +41,9 @@ declare module 'hono'
  */
 export async function createServer(config?: ServerConfig): Promise<Hono>
 {
+    // Publish the outbound SSRF policy before any route or handler can call safeFetch.
+    applyOutboundFetch(config);
+
     const cwd = process.cwd();
     const appPath = join(cwd, 'src', 'server', 'app.ts');
     const appJsPath = join(cwd, 'src', 'server', 'app');
@@ -267,6 +271,17 @@ function applyRateLimit(config?: ServerConfig): void
     config.middlewares = [globalRateLimit, ...(config.middlewares ?? [])];
 
     serverLogger.info(`✓ Rate limit default enabled (${defaultPolicy.limit} per ${defaultPolicy.windowMs}ms)`);
+}
+
+/**
+ * Publish the process-wide SSRF policy used by `safeFetch` (`@spfn/core/security`).
+ * App config wins; otherwise the `SAFE_FETCH_BLOCK_PRIVATE_IPS` env sets the default.
+ */
+function applyOutboundFetch(config?: ServerConfig): void
+{
+    const policy = config?.outboundFetch ?? { blockPrivateIps: env.SAFE_FETCH_BLOCK_PRIVATE_IPS };
+
+    setDefaultSafeFetchPolicy(policy);
 }
 
 function registerHealthCheckEndpoint(app: Hono, config?: ServerConfig): void

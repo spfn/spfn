@@ -6,6 +6,7 @@
 
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { Value } from '@sinclair/typebox/value';
+import { assertSafeUrl } from '@spfn/core/security';
 import type { WorkflowDef, WorkflowEvent, WorkflowStepDef } from '../builder';
 import type { WorkflowStatus, WorkflowStepStatus } from '../types';
 import {
@@ -598,6 +599,17 @@ implements WorkflowEngine<TWorkflows>
         const ref = output as { $ref?: string };
         if (ref.$ref && this.config.storage)
         {
+            // A $ref normally comes from our own storage.upload(), but step output
+            // is data — a malicious step could shape it as { $ref: 'http://169.254...' }
+            // to make download() fetch an internal address (SSRF). storage.download
+            // is app-provided so we can't pin its connection; validate http(s) refs
+            // against the SSRF policy before handing them over. Non-HTTP refs
+            // (storage keys, s3://, …) are left to the backend's own scheme.
+            if (/^https?:\/\//i.test(ref.$ref))
+            {
+                await assertSafeUrl(ref.$ref);
+            }
+
             return await this.config.storage.download(ref.$ref);
         }
 

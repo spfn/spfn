@@ -149,6 +149,22 @@ export class ServerConfigBuilder
     }
 
     /**
+     * Configure the SSRF policy for outbound `safeFetch` calls (webhooks,
+     * callbacks). Private/reserved IPs are blocked by default.
+     *
+     * @example
+     * ```typescript
+     * .outboundFetch({ allowHosts: ['hooks.slack.com'] })
+     * ```
+     */
+    outboundFetch(outboundFetch: ServerConfig['outboundFetch']): this
+    {
+        this.config.outboundFetch = outboundFetch;
+
+        return this;
+    }
+
+    /**
      * Register define-route based router
      *
      * Automatically applies:

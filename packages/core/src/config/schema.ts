@@ -476,4 +476,13 @@ export const coreEnvSchema = defineEnvSchema({
         description: 'When the cache (Redis/Valkey) backing the limiter is unavailable, reject with 429 instead of allowing requests through. Default false (fail open) so development without a cache still works.',
         default: false,
     }),
+
+    // ========================================================================
+    // Outbound request safety (SSRF)
+    // ========================================================================
+
+    SAFE_FETCH_BLOCK_PRIVATE_IPS: envBoolean({
+        description: 'Default for safeFetch (@spfn/core/security): block outbound requests that resolve to private/reserved IP ranges, including the cloud metadata address. Keep true in production; set false only for trusted internal-network calls in development. Overridden by defineServerConfig().outboundFetch({ blockPrivateIps }).',
+        default: true,
+    }),
 });

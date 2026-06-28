@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
 import type { OnErrorContext, ProxyGuardConfig, RateLimitOptions } from '@spfn/core/middleware';
+import type { SafeFetchPolicy } from '@spfn/core/security';
 import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig } from '../event/sse/types';
@@ -150,6 +151,19 @@ export interface ServerConfig
         /** Named policies referenced by `rateLimitPolicy(name, fallback)` tags. */
         policies?: Record<string, RateLimitOptions>;
     };
+
+    /**
+     * SSRF policy for outbound requests made via `safeFetch` (`@spfn/core/security`).
+     * Sets the process-wide default used by webhook/callback senders. Private and
+     * reserved IPs are blocked by default; set `allowHosts` to restrict to a known
+     * set of upstreams, or `blockPrivateIps: false` for trusted internal calls.
+     *
+     * @example
+     * ```typescript
+     * .outboundFetch({ allowHosts: ['hooks.slack.com'] })
+     * ```
+     */
+    outboundFetch?: SafeFetchPolicy;
 
     /**
      * Global middlewares with names for route-level skip control
