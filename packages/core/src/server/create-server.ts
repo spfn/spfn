@@ -9,8 +9,10 @@ import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { registerRoutes, type RegisteredRoute } from '@spfn/core/route';
-import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
+import { registerRoutes, defineMiddleware, type RegisteredRoute } from '@spfn/core/route';
+import { ErrorHandler, RequestLogger, rateLimit, setRateLimitPolicies, setRateLimitFailClosedDefault } from '@spfn/core/middleware';
+import { setDefaultSafeFetchPolicy } from '@spfn/core/security';
+import { env } from '@spfn/core/config';
 import { createSSEHandler } from '../event/sse/handler';
 import { SSETokenManager, CacheTokenStore } from '../event/sse/token-manager';
 import { wireEventRouterCache } from '../event/cache-transport';
@@ -18,7 +20,11 @@ import { createHealthCheckHandler } from './helpers';
 import { serverLogger } from './logger';
 
 import type { ServerConfig, AppFactory } from './types';
-import type { NonceStore } from '@spfn/core/middleware';
+import type { NonceStore, RateLimitOptions } from '@spfn/core/middleware';
+
+// Tracks configs whose global rate-limit middleware has already been injected,
+// so a repeated createServer on the same config doesn't prepend it twice.
+const rateLimitApplied = new WeakSet<object>();
 
 // Extend Hono context with error handler flag
 declare module 'hono'
@@ -39,6 +45,9 @@ declare module 'hono'
  */
 export async function createServer(config?: ServerConfig): Promise<Hono>
 {
+    // Publish the outbound SSRF policy before any route or handler can call safeFetch.
+    applyOutboundFetch(config);
+
     const cwd = process.cwd();
     const appPath = join(cwd, 'src', 'server', 'app.ts');
     const appJsPath = join(cwd, 'src', 'server', 'app');
@@ -70,6 +79,11 @@ async function loadCustomApp(
     }
 
     const app = await appFactory();
+
+    // Always run: registers policies + fail-closed default even for a custom app
+    // that wires its own routes (so rateLimitPolicy tags still resolve). Injection
+    // of the global default only takes effect when routes are registered below.
+    applyRateLimit(config);
 
     // Register routes (if provided via config)
     if (config?.routes)
@@ -105,6 +119,9 @@ async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
 
     // 2.5 Proxy-guard (trusted-proxy signature + origin verification)
     await applyProxyGuard(app, config);
+
+    // 2.6 Rate limit: register named policies + optional global default limiter
+    applyRateLimit(config);
 
     // 3. Custom middleware
     if (Array.isArray(config?.use))
@@ -224,6 +241,61 @@ async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
     }));
 
     serverLogger.info(`✓ Proxy-guard enabled (mode: ${mode})`);
+}
+
+/**
+ * Wire rate limiting before routes register.
+ *
+ * Always publishes the named-policy registry (so `rateLimitPolicy()` tags resolve
+ * even when the global default is off). When enabled, prepends a named 'rateLimit'
+ * middleware carrying the default policy — routes opt out with `.skip(['rateLimit'])`
+ * and policy tags override it via their `skips: ['rateLimit']`. Health, SSE and
+ * WebSocket endpoints register outside the named-middleware pipeline, so they are
+ * naturally exempt from the global default.
+ */
+function applyRateLimit(config?: ServerConfig): void
+{
+    const rl = config?.rateLimit;
+
+    // These are idempotent (plain reassignment) and must run on every path —
+    // including a Level-3 custom app — so policy tags resolve and fail-closed
+    // reaches them whether or not the global default limiter is enabled.
+    setRateLimitPolicies(rl?.policies);
+    setRateLimitFailClosedDefault(env.RATE_LIMIT_FAIL_CLOSED);
+
+    const enabled = (rl?.mode ?? env.RATE_LIMIT_MODE) === 'on';
+    if (!enabled || !config || rateLimitApplied.has(config))
+    {
+        return;
+    }
+
+    // Guard against a second prepend if createServer runs twice on the same config
+    // (register-routes does not dedup server-level middlewares against each other,
+    // so two 'rateLimit' entries would silently halve the effective limit).
+    rateLimitApplied.add(config);
+
+    const defaultPolicy: RateLimitOptions = {
+        limit: rl?.default?.limit ?? env.RATE_LIMIT_DEFAULT_LIMIT,
+        windowMs: rl?.default?.windowMs ?? env.RATE_LIMIT_DEFAULT_WINDOW_MS,
+        failClosed: rl?.default?.failClosed ?? env.RATE_LIMIT_FAIL_CLOSED,
+    };
+
+    const globalRateLimit = defineMiddleware('rateLimit', rateLimit(defaultPolicy));
+
+    config.middlewares = [globalRateLimit, ...(config.middlewares ?? [])];
+
+    serverLogger.info(`✓ Rate limit default enabled (${defaultPolicy.limit} per ${defaultPolicy.windowMs}ms)`);
+}
+
+/**
+ * Publish the process-wide SSRF policy used by `safeFetch` (`@spfn/core/security`).
+ * App config wins; otherwise the `SAFE_FETCH_BLOCK_PRIVATE_IPS` env sets the default.
+ */
+function applyOutboundFetch(config?: ServerConfig): void
+{
+    const policy = config?.outboundFetch ?? { blockPrivateIps: env.SAFE_FETCH_BLOCK_PRIVATE_IPS };
+
+    setDefaultSafeFetchPolicy(policy);
 }
 
 function registerHealthCheckEndpoint(app: Hono, config?: ServerConfig): void

@@ -16,7 +16,7 @@ vi.mock('../../cache', () => ({
     isCacheDisabled: () => cacheDisabled,
 }));
 
-import { rateLimit } from '../rate-limit';
+import { rateLimit, rateLimitPolicy, getClientIp, setRateLimitPolicies, getRateLimitPolicy, setRateLimitFailClosedDefault } from '../rate-limit';
 import { TooManyRequestsError } from '../../errors';
 
 function makeCtx(headers: Record<string, string> = {})
@@ -99,5 +99,169 @@ describe('rateLimit middleware', () =>
         ).rejects.toBeInstanceOf(TooManyRequestsError);
         expect(next).not.toHaveBeenCalled();
         expect(evalMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('honors a per-dimension limit — loose IP passes, tight account trips', async () =>
+    {
+        evalMock.mockResolvedValue([6, 30_000]);
+        const next = vi.fn();
+
+        await expect(
+            rateLimit({
+                limit: 5,
+                windowMs: 60_000,
+                by: () => [{ key: 'ip:1.2.3.4', limit: 100 }, 'acct:a@b.com'],
+            })(makeCtx(), next),
+        ).rejects.toBeInstanceOf(TooManyRequestsError);
+
+        // IP dim (limit 100) allowed at count 6; account dim (top-level limit 5) tripped.
+        expect(evalMock).toHaveBeenCalledTimes(2);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it('a loose per-dimension limit lets through what the top-level limit would reject', async () =>
+    {
+        evalMock.mockResolvedValue([6, 30_000]);
+        const next = vi.fn().mockResolvedValue(undefined);
+
+        await rateLimit({
+            limit: 5,
+            windowMs: 60_000,
+            by: () => [{ key: 'ip:1.2.3.4', limit: 100 }],
+        })(makeCtx(), next);
+
+        expect(next).toHaveBeenCalledTimes(1); // 6 <= 100
+    });
+});
+
+describe('rateLimitPolicy named policies', () =>
+{
+    beforeEach(() =>
+    {
+        evalMock.mockReset();
+        cacheClient = { eval: evalMock };
+        cacheDisabled = false;
+        setRateLimitPolicies(undefined);
+        setRateLimitFailClosedDefault(false);
+    });
+
+    it('registers under a distinct name and layers over (does not skip) the global default', () =>
+    {
+        const tag = rateLimitPolicy('p', { limit: 5, windowMs: 60_000 });
+
+        expect(tag.name).toBe('rateLimit:p');
+        expect(tag.skips).toBeUndefined();
+        expect(typeof tag.handler).toBe('function');
+    });
+
+    it('defaults the counter scope to the policy name (shared bucket, no collision with global)', async () =>
+    {
+        evalMock.mockResolvedValue([1, 60_000]);
+
+        await rateLimitPolicy('auth-login', { limit: 5, windowMs: 60_000 })
+            .handler(makeCtx({ 'x-forwarded-for': '1.2.3.4' }), vi.fn());
+
+        // key is `ratelimit:${scope}:${dimension}` — scope defaults to the policy name
+        expect(evalMock.mock.calls[0][2]).toBe('ratelimit:auth-login:1.2.3.4');
+    });
+
+    it('uses the fallback when the app configured no policy', async () =>
+    {
+        // fallback limit 1, count 2 → over → reject
+        evalMock.mockResolvedValue([2, 60_000]);
+        const next = vi.fn();
+
+        await expect(
+            rateLimitPolicy('p', { limit: 1, windowMs: 60_000 }).handler(makeCtx(), next),
+        ).rejects.toBeInstanceOf(TooManyRequestsError);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it('lets a configured policy override the fallback', async () =>
+    {
+        // app raises the limit to 10; count 2 is now under → allowed
+        setRateLimitPolicies({ p: { limit: 10, windowMs: 60_000 } });
+        evalMock.mockResolvedValue([2, 60_000]);
+        const next = vi.fn().mockResolvedValue(undefined);
+
+        await rateLimitPolicy('p', { limit: 1, windowMs: 60_000 }).handler(makeCtx(), next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('shallow-merges configured fields over the fallback', () =>
+    {
+        setRateLimitPolicies({ p: { limit: 50 } as never });
+
+        expect(getRateLimitPolicy('p')).toEqual({ limit: 50 });
+        expect(getRateLimitPolicy('missing')).toBeUndefined();
+    });
+
+    it('applies the app-wide fail-closed default to a tag (reaches named policies)', async () =>
+    {
+        setRateLimitFailClosedDefault(true);
+        cacheClient = undefined; // cache unavailable
+
+        await expect(rateLimitPolicy('p', { limit: 5, windowMs: 60_000 }).handler(makeCtx(), vi.fn()))
+            .rejects.toBeInstanceOf(TooManyRequestsError);
+    });
+
+    it('a tag/policy may still opt to fail open despite the default', async () =>
+    {
+        setRateLimitFailClosedDefault(true);
+        cacheClient = undefined;
+        const next = vi.fn().mockResolvedValue(undefined);
+
+        await rateLimitPolicy('p', { limit: 5, windowMs: 60_000, failClosed: false }).handler(makeCtx(), next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('setRateLimitPolicies(undefined) clears the registry', () =>
+    {
+        setRateLimitPolicies({ p: { limit: 1, windowMs: 1000 } });
+        expect(getRateLimitPolicy('p')).toBeDefined();
+
+        setRateLimitPolicies(undefined);
+        expect(getRateLimitPolicy('p')).toBeUndefined();
+    });
+});
+
+describe('getClientIp socket fallback', () =>
+{
+    function ipCtx(opts: { headers?: Record<string, string>; env?: unknown; clientType?: string } = {})
+    {
+        const headers = opts.headers ?? {};
+
+        return {
+            req: { header: (name: string) => headers[name.toLowerCase()] },
+            get: (key: string) => (key === 'clientType' ? opts.clientType : undefined),
+            env: opts.env,
+        } as never;
+    }
+
+    it('uses the TCP peer address when no forwarding header is present', () =>
+    {
+        expect(getClientIp(ipCtx({ env: { incoming: { socket: { remoteAddress: '203.0.113.9' } } } }))).toBe('203.0.113.9');
+    });
+
+    it('reads the socket via env.server when the adapter nests bindings', () =>
+    {
+        expect(getClientIp(ipCtx({ env: { server: { incoming: { socket: { remoteAddress: '203.0.113.9' } } } } }))).toBe('203.0.113.9');
+    });
+
+    it('prefers X-Forwarded-For over the socket address', () =>
+    {
+        const c = ipCtx({
+            headers: { 'x-forwarded-for': '198.51.100.1' },
+            env: { incoming: { socket: { remoteAddress: '203.0.113.9' } } },
+        });
+
+        expect(getClientIp(c)).toBe('198.51.100.1');
+    });
+
+    it('returns "unknown" only when nothing identifies the client', () =>
+    {
+        expect(getClientIp(ipCtx())).toBe('unknown');
     });
 });

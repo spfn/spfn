@@ -334,9 +334,11 @@ Replacement token is the literal string `'***MASKED***'`.
 
 ## rateLimit
 
-Redis-backed **fixed-window** rate limiter. Registered under the named `'rateLimit'`
-middleware so a route can opt out with `.skip(['rateLimit'])`. Attach per-route with
-`.use([rateLimit({...})])`.
+Redis-backed **fixed-window** rate limiter. Three ways to apply it: attach per-route with
+`.use([rateLimit({...})])`; enable a [global default](#global-default-limiter) for every route;
+or tag a route with a [named policy](#named-policies--ratelimitpolicyname-fallback) the
+consuming app tunes centrally. The global default and policy tags use the named `'rateLimit'`
+middleware, so routes opt out with `.skip(['rateLimit'])`.
 
 ```typescript
 import { rateLimit, getClientIp } from '@spfn/core/middleware';
@@ -363,7 +365,26 @@ route.post('/_auth/codes')
 | `limit` | `number` | — | Max requests per window, applied to **each** dimension. |
 | `windowMs` | `number` | — | Window length in milliseconds. |
 | `scope` | `string` | `` `${method} ${routePath}` `` | Counter-key namespace; defaults to per-route. |
-| `by` | `(c) => (string \| null \| undefined)[]` | `[getClientIp(c)]` | Identity dimensions; each non-empty value is counted separately. |
+| `by` | `(c) => (Dimension \| null \| undefined)[]` | `[getClientIp(c)]` | Identity dimensions; each non-empty value is counted separately, strictest wins. A `Dimension` is a `string` (uses `limit`) or `{ key, limit? }` to give that dimension its own limit. |
+
+Per-dimension limits let one limiter be loose on IP and tight on account/target — so a
+shared NAT isn't throttled as one user while a single account stays protected:
+
+```typescript
+rateLimit({
+    limit: 5,                 // default for dimensions without their own limit
+    windowMs: 60_000,
+    by: (c) => [
+        { key: `ip:${getClientIp(c)}`, limit: 100 }, // loose per-IP floor
+        accountKey(c),                               // tight per-account (uses limit: 5)
+    ],
+});
+```
+
+`@spfn/auth` ships `byIpAndAccount()` / `byIpAndTarget()` builders for exactly this on its
+login, register, and verification-code routes (per-account / per-target tight, per-IP loose),
+so distributed brute force and SMS-bombing are limited by the thing being attacked, not only
+by source IP.
 | `failClosed` | `boolean` | `false` | Reject with 429 when the cache is unavailable instead of allowing through. |
 | `message` | `string` | generic | 429 response message. |
 
@@ -381,6 +402,87 @@ route.post('/_auth/codes')
 > **IP trust caveat**: `getClientIp` reads the leftmost `X-Forwarded-For` hop, which a client
 > can spoof unless a trusted proxy overwrites it. For security-sensitive limits, pair the IP
 > dimension with an account/target dimension rather than relying on IP alone.
+
+### Global default limiter
+
+Turn on a default limiter for **every** route from one place — no per-route `.use()`. It is
+registered as the named `'rateLimit'` middleware, so a route opts out with `.skip(['rateLimit'])`.
+Disabled by default (`mode: 'off'`).
+
+```typescript
+export default defineServerConfig()
+    .rateLimit({
+        mode: 'on',
+        default: { limit: 100, windowMs: 60_000 },
+    })
+    .routes(appRouter)
+    .build();
+```
+
+Or via env: `RATE_LIMIT_MODE=on`, `RATE_LIMIT_DEFAULT_LIMIT`, `RATE_LIMIT_DEFAULT_WINDOW_MS`,
+`RATE_LIMIT_FAIL_CLOSED`. Health, SSE and WebSocket endpoints register outside the
+named-middleware pipeline, so they are always exempt.
+
+### Named policies — `rateLimitPolicy(name, fallback)`
+
+Lets a **package** tag a sensitive route while the **consuming app** tunes the numbers
+centrally. The package ships the tag with a safe fallback; the app overrides it by name.
+
+```typescript
+// in a package (e.g. @spfn/auth)
+route.post('/_auth/login')
+    .use([rateLimitPolicy('auth-login', { limit: 5, windowMs: 60_000 })])
+    .handler(/* ... */);
+
+// in the consuming app — tune every policy in one place
+export default defineServerConfig()
+    .rateLimit({
+        policies: {
+            'auth-login': { limit: 10, windowMs: 60_000 },
+        },
+    })
+    .routes(appRouter)
+    .build();
+```
+
+- **Resolution**: configured policy (by name) wins, shallow-merged over the fallback; with no
+  config the fallback applies, so the route is protected out of the box.
+- **Layered**: the tag registers under a distinct name (`rateLimit:<name>`) and does **not**
+  skip the global default, so a tagged route gets both — the global per-IP floor (when
+  enabled) *and* this policy's own bucket; whichever is stricter trips first. Opt out of the
+  floor on a route with `.skip(['rateLimit'])`.
+- **Shared bucket**: a policy's counter scope defaults to its name, so every route sharing a
+  policy shares one bucket (e.g. all OAuth start routes share `oauth-start`). It also keeps
+  the key from colliding with the global default's per-route scope. Pass an explicit `scope`
+  to override.
+- Policies are registered at server boot whether or not the global default is enabled.
+
+### Limitations & operational notes
+
+Read these before relying on rate limiting as a security control:
+
+- **Default identity is the client IP.** A limiter with no `by` keys only on `getClientIp(c)`,
+  so a distributed attacker (many source IPs) isn't stopped per-account and a shared NAT/CGNAT
+  can be throttled as one user. For account/target protection (credential stuffing,
+  OTP/SMS-bombing) add a `by` dimension returning a stable account/target key alongside the IP
+  — ideally with a per-dimension limit (loose IP, tight account). The bundled `@spfn/auth`
+  login/register/code routes already do this via `byIpAndAccount()` / `byIpAndTarget()`.
+- **`getClientIp` trusts forwarded headers.** Behind a verified proxy (proxy-guard) it uses
+  the real client IP; otherwise it reads `X-Forwarded-For`/`X-Real-IP`, which a direct client
+  can spoof (rotate to bypass, or pin to a victim to DoS them). With no forwarding header it
+  falls back to the TCP peer address (Node adapter), and only to the literal `'unknown'` when
+  even that is unavailable (non-Node runtime). Still: enable the global default behind a proxy
+  that sets a trustworthy client IP, since the header — when present — is taken on trust.
+- **Fail-open by default.** When the cache (Redis) is down, limiters pass requests through.
+  Set `RATE_LIMIT_FAIL_CLOSED=true` to reject instead — this now applies to **both** the
+  global default and named policy tags (a tag may still opt back to fail-open with
+  `failClosed: false`).
+- **Counter scopes differ by layer.** The global default is keyed per-route
+  (`${method} ${routePath}`); a named policy is keyed by its **name**, so routes sharing a
+  policy share one bucket. Pass an explicit `scope` to change either.
+- **The SSE token endpoint is not exempt.** Only the SSE *stream*, WebSocket, and health
+  endpoints (registered outside the named-middleware pipeline) bypass the global default;
+  `POST /events/token` runs `config.middlewares`, so it receives the limiter too.
 
 ---
 

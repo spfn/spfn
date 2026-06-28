@@ -4,6 +4,7 @@
 
 import { getAuth } from '../../helpers';
 import { getUserProfileService, updateUserProfileService, checkUsernameAvailableService, updateUsernameService, updateLocaleService } from '../../services';
+import { rateLimitPolicy } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 import { Type } from '@sinclair/typebox';
 
@@ -78,6 +79,7 @@ export const checkUsername = route.get('/_auth/users/username/check')
             username: Type.String({ minLength: 1 }),
         }),
     })
+    .use([rateLimitPolicy('auth-username-check', { limit: 30, windowMs: 60_000 })])
     .handler(async (c) =>
     {
         const { query } = await c.data();

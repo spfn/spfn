@@ -49,6 +49,11 @@
             "import": "./dist/middleware/index.js",
             "require": "./dist/middleware/index.js"
         },
+        "./security": {
+            "types": "./dist/security/index.d.ts",
+            "import": "./dist/security/index.js",
+            "require": "./dist/security/index.js"
+        },
         "./cache": {
             "types": "./dist/cache/index.d.ts",
             "import": "./dist/cache/index.js",

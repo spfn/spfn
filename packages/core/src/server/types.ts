@@ -2,7 +2,8 @@ import type { Hono, MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
-import type { OnErrorContext, ProxyGuardConfig } from '@spfn/core/middleware';
+import type { OnErrorContext, ProxyGuardConfig, RateLimitOptions } from '@spfn/core/middleware';
+import type { SafeFetchPolicy } from '@spfn/core/security';
 import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig } from '../event/sse/types';
@@ -121,6 +122,48 @@ export interface ServerConfig
          */
         nonce?: boolean;
     };
+
+    /**
+     * Rate limiting: an optional global default limiter plus named policies.
+     *
+     * `mode: 'on'` applies `default` to every named-middleware route (opt out
+     * with `.skip(['rateLimit'])`); `policies` lets packages tag sensitive routes
+     * via `rateLimitPolicy(name, fallback)` while this app tunes the numbers in
+     * one place. Backed by the shared cache (CACHE_URL); without a cache it fails
+     * open unless `default.failClosed` is set. Disabled by default (`mode: 'off'`).
+     *
+     * @example
+     * ```typescript
+     * .rateLimit({
+     *     mode: 'on',
+     *     default: { limit: 100, windowMs: 60_000 },
+     *     policies: { 'auth-login': { limit: 5, windowMs: 60_000 } },
+     * })
+     * ```
+     */
+    rateLimit?: {
+        /** 'on' applies the default limiter to every route. @default 'off' */
+        mode?: 'off' | 'on';
+
+        /** Default policy applied to all routes when `mode` is 'on'. */
+        default?: RateLimitOptions;
+
+        /** Named policies referenced by `rateLimitPolicy(name, fallback)` tags. */
+        policies?: Record<string, RateLimitOptions>;
+    };
+
+    /**
+     * SSRF policy for outbound requests made via `safeFetch` (`@spfn/core/security`).
+     * Sets the process-wide default used by webhook/callback senders. Private and
+     * reserved IPs are blocked by default; set `allowHosts` to restrict to a known
+     * set of upstreams, or `blockPrivateIps: false` for trusted internal calls.
+     *
+     * @example
+     * ```typescript
+     * .outboundFetch({ allowHosts: ['hooks.slack.com'] })
+     * ```
+     */
+    outboundFetch?: SafeFetchPolicy;
 
     /**
      * Global middlewares with names for route-level skip control

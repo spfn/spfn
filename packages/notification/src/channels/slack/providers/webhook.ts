@@ -5,6 +5,7 @@
 import type { SlackProvider, InternalSendSlackParams } from '../types';
 import type { SendResult } from '../../types';
 import { logger } from '@spfn/core/logger';
+import { safeFetch } from '@spfn/core/security';
 
 const log = logger.child('@spfn/notification:slack-webhook');
 
@@ -20,7 +21,10 @@ export const webhookProvider: SlackProvider = {
     {
         try
         {
-            const res = await fetch(params.webhookUrl, {
+            // safeFetch: webhookUrl can be operator- or dynamically-supplied, so
+            // guard against SSRF to private/metadata addresses. Blocked targets
+            // throw and are reported as a failed send by the catch below.
+            const res = await safeFetch(params.webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
