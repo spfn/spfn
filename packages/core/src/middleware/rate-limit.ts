@@ -214,9 +214,15 @@ export function getRateLimitPolicy(name: string): RateLimitOptions | undefined
  * app configures the policy, its fields override the fallback (shallow merge);
  * otherwise the fallback applies, so the route is protected out of the box.
  *
- * Carries `skips: ['rateLimit']` so that on a route which would also receive the
- * global default limiter, this tag replaces it rather than stacking — no double
- * counting.
+ * LAYERS on top of the global default limiter rather than replacing it: the tag
+ * has a distinct name (`rateLimit:<name>`) and does not skip the global, so a
+ * route gets both the global per-IP floor (when enabled) and this policy's own
+ * bucket — whichever is stricter trips first. Opt out of the global floor on a
+ * route with `.skip(['rateLimit'])`.
+ *
+ * The counter scope defaults to the policy name, so (a) every route sharing a
+ * policy shares one bucket, and (b) the key never collides with the global
+ * default's per-route `${method} ${path}` scope.
  *
  * @example
  * ```typescript
@@ -225,7 +231,7 @@ export function getRateLimitPolicy(name: string): RateLimitOptions | undefined
  *     .handler(...);
  * ```
  */
-export function rateLimitPolicy(name: string, fallback: RateLimitOptions): NamedMiddleware<'rateLimit'>
+export function rateLimitPolicy(name: string, fallback: RateLimitOptions): NamedMiddleware<string>
 {
     // Resolution is deferred to the first request: the registry is populated at
     // server boot, which runs after route modules are imported. Cached after the
@@ -239,6 +245,11 @@ export function rateLimitPolicy(name: string, fallback: RateLimitOptions): Named
             const configured = getRateLimitPolicy(name);
             const merged: RateLimitOptions = configured ? { ...fallback, ...configured } : { ...fallback };
 
+            if (merged.scope === undefined)
+            {
+                merged.scope = name;
+            }
+
             if (merged.failClosed === undefined)
             {
                 merged.failClosed = policyFailClosedDefault;
@@ -250,5 +261,5 @@ export function rateLimitPolicy(name: string, fallback: RateLimitOptions): Named
         return resolved(c, next);
     };
 
-    return defineMiddleware('rateLimit', handler, { skips: ['rateLimit'] });
+    return defineMiddleware(`rateLimit:${name}`, handler);
 }

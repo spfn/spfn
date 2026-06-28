@@ -113,13 +113,24 @@ describe('rateLimitPolicy named policies', () =>
         setRateLimitFailClosedDefault(false);
     });
 
-    it('registers as a named "rateLimit" middleware that auto-skips the global default', () =>
+    it('registers under a distinct name and layers over (does not skip) the global default', () =>
     {
         const tag = rateLimitPolicy('p', { limit: 5, windowMs: 60_000 });
 
-        expect(tag.name).toBe('rateLimit');
-        expect(tag.skips).toEqual(['rateLimit']);
+        expect(tag.name).toBe('rateLimit:p');
+        expect(tag.skips).toBeUndefined();
         expect(typeof tag.handler).toBe('function');
+    });
+
+    it('defaults the counter scope to the policy name (shared bucket, no collision with global)', async () =>
+    {
+        evalMock.mockResolvedValue([1, 60_000]);
+
+        await rateLimitPolicy('auth-login', { limit: 5, windowMs: 60_000 })
+            .handler(makeCtx({ 'x-forwarded-for': '1.2.3.4' }), vi.fn());
+
+        // key is `ratelimit:${scope}:${dimension}` — scope defaults to the policy name
+        expect(evalMock.mock.calls[0][2]).toBe('ratelimit:auth-login:1.2.3.4');
     });
 
     it('uses the fallback when the app configured no policy', async () =>

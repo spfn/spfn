@@ -428,8 +428,14 @@ export default defineServerConfig()
 
 - **Resolution**: configured policy (by name) wins, shallow-merged over the fallback; with no
   config the fallback applies, so the route is protected out of the box.
-- **Override**: the tag carries `skips: ['rateLimit']`, so on a route that would also get the
-  global default, the tag replaces it — no double counting.
+- **Layered**: the tag registers under a distinct name (`rateLimit:<name>`) and does **not**
+  skip the global default, so a tagged route gets both — the global per-IP floor (when
+  enabled) *and* this policy's own bucket; whichever is stricter trips first. Opt out of the
+  floor on a route with `.skip(['rateLimit'])`.
+- **Shared bucket**: a policy's counter scope defaults to its name, so every route sharing a
+  policy shares one bucket (e.g. all OAuth start routes share `oauth-start`). It also keeps
+  the key from colliding with the global default's per-route scope. Pass an explicit `scope`
+  to override.
 - Policies are registered at server boot whether or not the global default is enabled.
 
 ### Limitations & operational notes
@@ -452,9 +458,9 @@ Read these before relying on rate limiting as a security control:
   Set `RATE_LIMIT_FAIL_CLOSED=true` to reject instead — this now applies to **both** the
   global default and named policy tags (a tag may still opt back to fail-open with
   `failClosed: false`).
-- **Counters are per-route.** `scope` defaults to `${method} ${routePath}`, so several routes
-  sharing one policy name (e.g. the OAuth start routes) each get their **own** bucket — the
-  name tunes the numbers, it does not pool the counter. Set an explicit `scope` to share one.
+- **Counter scopes differ by layer.** The global default is keyed per-route
+  (`${method} ${routePath}`); a named policy is keyed by its **name**, so routes sharing a
+  policy share one bucket. Pass an explicit `scope` to change either.
 - **The SSE token endpoint is not exempt.** Only the SSE *stream*, WebSocket, and health
   endpoints (registered outside the named-middleware pipeline) bypass the global default;
   `POST /events/token` runs `config.middlewares`, so it receives the limiter too.
