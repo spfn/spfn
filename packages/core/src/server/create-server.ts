@@ -9,8 +9,9 @@ import { cors } from 'hono/cors';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-import { registerRoutes, type RegisteredRoute } from '@spfn/core/route';
-import { ErrorHandler, RequestLogger } from '@spfn/core/middleware';
+import { registerRoutes, defineMiddleware, type RegisteredRoute } from '@spfn/core/route';
+import { ErrorHandler, RequestLogger, rateLimit, setRateLimitPolicies } from '@spfn/core/middleware';
+import { env } from '@spfn/core/config';
 import { createSSEHandler } from '../event/sse/handler';
 import { SSETokenManager, CacheTokenStore } from '../event/sse/token-manager';
 import { wireEventRouterCache } from '../event/cache-transport';
@@ -18,7 +19,7 @@ import { createHealthCheckHandler } from './helpers';
 import { serverLogger } from './logger';
 
 import type { ServerConfig, AppFactory } from './types';
-import type { NonceStore } from '@spfn/core/middleware';
+import type { NonceStore, RateLimitOptions } from '@spfn/core/middleware';
 
 // Extend Hono context with error handler flag
 declare module 'hono'
@@ -74,6 +75,10 @@ async function loadCustomApp(
     // Register routes (if provided via config)
     if (config?.routes)
     {
+        // Populate rate-limit policies and (optionally) the global default limiter
+        // before routes are registered, so policy tags resolve and skip works.
+        applyRateLimit(config);
+
         const routes = registerRoutes(app, config.routes, config.middlewares);
         logRegisteredRoutes(routes, config?.debug ?? false);
     }
@@ -105,6 +110,9 @@ async function createAutoConfiguredApp(config?: ServerConfig): Promise<Hono>
 
     // 2.5 Proxy-guard (trusted-proxy signature + origin verification)
     await applyProxyGuard(app, config);
+
+    // 2.6 Rate limit: register named policies + optional global default limiter
+    applyRateLimit(config);
 
     // 3. Custom middleware
     if (Array.isArray(config?.use))
@@ -224,6 +232,41 @@ async function applyProxyGuard(app: Hono, config?: ServerConfig): Promise<void>
     }));
 
     serverLogger.info(`✓ Proxy-guard enabled (mode: ${mode})`);
+}
+
+/**
+ * Wire rate limiting before routes register.
+ *
+ * Always publishes the named-policy registry (so `rateLimitPolicy()` tags resolve
+ * even when the global default is off). When enabled, prepends a named 'rateLimit'
+ * middleware carrying the default policy — routes opt out with `.skip(['rateLimit'])`
+ * and policy tags override it via their `skips: ['rateLimit']`. Health, SSE and
+ * WebSocket endpoints register outside the named-middleware pipeline, so they are
+ * naturally exempt from the global default.
+ */
+function applyRateLimit(config?: ServerConfig): void
+{
+    const rl = config?.rateLimit;
+
+    setRateLimitPolicies(rl?.policies);
+
+    const enabled = (rl?.mode ?? env.RATE_LIMIT_MODE) === 'on';
+    if (!enabled || !config)
+    {
+        return;
+    }
+
+    const defaultPolicy: RateLimitOptions = rl?.default ?? {
+        limit: env.RATE_LIMIT_DEFAULT_LIMIT,
+        windowMs: env.RATE_LIMIT_DEFAULT_WINDOW_MS,
+        failClosed: env.RATE_LIMIT_FAIL_CLOSED,
+    };
+
+    const globalRateLimit = defineMiddleware('rateLimit', rateLimit(defaultPolicy));
+
+    config.middlewares = [globalRateLimit, ...(config.middlewares ?? [])];
+
+    serverLogger.info(`✓ Rate limit default enabled (${defaultPolicy.limit} per ${defaultPolicy.windowMs}ms)`);
 }
 
 function registerHealthCheckEndpoint(app: Hono, config?: ServerConfig): void

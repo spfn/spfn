@@ -334,9 +334,11 @@ Replacement token is the literal string `'***MASKED***'`.
 
 ## rateLimit
 
-Redis-backed **fixed-window** rate limiter. Registered under the named `'rateLimit'`
-middleware so a route can opt out with `.skip(['rateLimit'])`. Attach per-route with
-`.use([rateLimit({...})])`.
+Redis-backed **fixed-window** rate limiter. Three ways to apply it: attach per-route with
+`.use([rateLimit({...})])`; enable a [global default](#global-default-limiter) for every route;
+or tag a route with a [named policy](#named-policies--ratelimitpolicyname-fallback) the
+consuming app tunes centrally. The global default and policy tags use the named `'rateLimit'`
+middleware, so routes opt out with `.skip(['rateLimit'])`.
 
 ```typescript
 import { rateLimit, getClientIp } from '@spfn/core/middleware';
@@ -381,6 +383,54 @@ route.post('/_auth/codes')
 > **IP trust caveat**: `getClientIp` reads the leftmost `X-Forwarded-For` hop, which a client
 > can spoof unless a trusted proxy overwrites it. For security-sensitive limits, pair the IP
 > dimension with an account/target dimension rather than relying on IP alone.
+
+### Global default limiter
+
+Turn on a default limiter for **every** route from one place — no per-route `.use()`. It is
+registered as the named `'rateLimit'` middleware, so a route opts out with `.skip(['rateLimit'])`.
+Disabled by default (`mode: 'off'`).
+
+```typescript
+export default defineServerConfig()
+    .rateLimit({
+        mode: 'on',
+        default: { limit: 100, windowMs: 60_000 },
+    })
+    .routes(appRouter)
+    .build();
+```
+
+Or via env: `RATE_LIMIT_MODE=on`, `RATE_LIMIT_DEFAULT_LIMIT`, `RATE_LIMIT_DEFAULT_WINDOW_MS`,
+`RATE_LIMIT_FAIL_CLOSED`. Health, SSE and WebSocket endpoints register outside the
+named-middleware pipeline, so they are always exempt.
+
+### Named policies — `rateLimitPolicy(name, fallback)`
+
+Lets a **package** tag a sensitive route while the **consuming app** tunes the numbers
+centrally. The package ships the tag with a safe fallback; the app overrides it by name.
+
+```typescript
+// in a package (e.g. @spfn/auth)
+route.post('/_auth/login')
+    .use([rateLimitPolicy('auth-login', { limit: 5, windowMs: 60_000 })])
+    .handler(/* ... */);
+
+// in the consuming app — tune every policy in one place
+export default defineServerConfig()
+    .rateLimit({
+        policies: {
+            'auth-login': { limit: 10, windowMs: 60_000 },
+        },
+    })
+    .routes(appRouter)
+    .build();
+```
+
+- **Resolution**: configured policy (by name) wins, shallow-merged over the fallback; with no
+  config the fallback applies, so the route is protected out of the box.
+- **Override**: the tag carries `skips: ['rateLimit']`, so on a route that would also get the
+  global default, the tag replaces it — no double counting.
+- Policies are registered at server boot whether or not the global default is enabled.
 
 ---
 

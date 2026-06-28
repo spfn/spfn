@@ -2,7 +2,7 @@ import type { Hono, MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import type { serve } from '@hono/node-server';
 import type { Router, NamedMiddleware } from '@spfn/core/route';
-import type { OnErrorContext, ProxyGuardConfig } from '@spfn/core/middleware';
+import type { OnErrorContext, ProxyGuardConfig, RateLimitOptions } from '@spfn/core/middleware';
 import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig } from '../event/sse/types';
@@ -120,6 +120,35 @@ export interface ServerConfig
          * is briefly unavailable. @default false
          */
         nonce?: boolean;
+    };
+
+    /**
+     * Rate limiting: an optional global default limiter plus named policies.
+     *
+     * `mode: 'on'` applies `default` to every named-middleware route (opt out
+     * with `.skip(['rateLimit'])`); `policies` lets packages tag sensitive routes
+     * via `rateLimitPolicy(name, fallback)` while this app tunes the numbers in
+     * one place. Backed by the shared cache (CACHE_URL); without a cache it fails
+     * open unless `default.failClosed` is set. Disabled by default (`mode: 'off'`).
+     *
+     * @example
+     * ```typescript
+     * .rateLimit({
+     *     mode: 'on',
+     *     default: { limit: 100, windowMs: 60_000 },
+     *     policies: { 'auth-login': { limit: 5, windowMs: 60_000 } },
+     * })
+     * ```
+     */
+    rateLimit?: {
+        /** 'on' applies the default limiter to every route. @default 'off' */
+        mode?: 'off' | 'on';
+
+        /** Default policy applied to all routes when `mode` is 'on'. */
+        default?: RateLimitOptions;
+
+        /** Named policies referenced by `rateLimitPolicy(name, fallback)` tags. */
+        policies?: Record<string, RateLimitOptions>;
     };
 
     /**

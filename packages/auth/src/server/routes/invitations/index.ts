@@ -21,6 +21,7 @@ import {
 } from '../../services';
 import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
+import { rateLimitPolicy } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 
 /**
@@ -45,6 +46,7 @@ export const getInvitation = route.get('/_auth/invitations/:token')
             }),
         }),
     })
+    .use([rateLimitPolicy('auth-invitation-lookup', { limit: 30, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -102,7 +104,7 @@ export const acceptInvitation = route.post('/_auth/invitations/accept')
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
         }),
     })
-    .use([Transactional()])
+    .use([rateLimitPolicy('auth-invitation-accept', { limit: 10, windowMs: 60_000 }), Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {

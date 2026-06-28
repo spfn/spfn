@@ -450,4 +450,30 @@ export const coreEnvSchema = defineEnvSchema({
         nextjs: true,
         examples: [1, 2, 3],
     }),
+
+    // ========================================================================
+    // Rate limiting (global default limiter)
+    // ========================================================================
+
+    RATE_LIMIT_MODE: envEnum(['off', 'on'] as const, {
+        description: 'Global default rate limiter. "off": only routes tagged with rateLimitPolicy() are limited. "on": every named-middleware route gets the default limit too (opt out per route with .skip([\'rateLimit\'])). Health/SSE/WebSocket endpoints are always exempt. Overridden by defineServerConfig().rateLimit({ mode }).',
+        default: 'off',
+    }),
+
+    RATE_LIMIT_DEFAULT_LIMIT: envNumber({
+        description: 'Max requests per window for the global default limiter (RATE_LIMIT_MODE=on), counted per route and per client IP.',
+        default: 100,
+        examples: [60, 100, 300],
+    }),
+
+    RATE_LIMIT_DEFAULT_WINDOW_MS: envNumber({
+        description: 'Window length in milliseconds for the global default limiter.',
+        default: 60000,
+        examples: [1000, 60000],
+    }),
+
+    RATE_LIMIT_FAIL_CLOSED: envBoolean({
+        description: 'When the cache (Redis/Valkey) backing the limiter is unavailable, reject with 429 instead of allowing requests through. Default false (fail open) so development without a cache still works.',
+        default: false,
+    }),
 });

@@ -20,7 +20,7 @@ import {
 } from '../../services';
 import { Type } from '@sinclair/typebox';
 import { Transactional } from '@spfn/core/db';
-import { rateLimit } from '@spfn/core/middleware';
+import { rateLimitPolicy } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 
 // NOTE: a POST /_auth/exists endpoint was removed deliberately — it answered
@@ -42,7 +42,7 @@ export const sendVerificationCode = route.post('/_auth/codes')
             purpose: VerificationPurposeSchema,
         }),
     })
-    .use([rateLimit({ limit: 5, windowMs: 60_000 })])
+    .use([rateLimitPolicy('auth-code-send', { limit: 5, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -71,7 +71,7 @@ export const verifyCode = route.post('/_auth/codes/verify')
             purpose: VerificationPurposeSchema,
         }),
     })
-    .use([rateLimit({ limit: 10, windowMs: 60_000 })])
+    .use([rateLimitPolicy('auth-code-verify', { limit: 10, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -109,7 +109,7 @@ export const register = route.post('/_auth/register')
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
         }),
     })
-    .use([Transactional()])
+    .use([rateLimitPolicy('auth-register', { limit: 10, windowMs: 60_000 }), Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -146,7 +146,7 @@ export const login = route.post('/_auth/login')
             oldKeyId: Type.Optional(Type.String({ description: 'Previous key ID for rotation' })),
         }),
     })
-    .use([rateLimit({ limit: 10, windowMs: 60_000 }), Transactional()])
+    .use([rateLimitPolicy('auth-login', { limit: 10, windowMs: 60_000 }), Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -222,6 +222,7 @@ export const changePassword = route.put('/_auth/password')
             newPassword: PasswordSchema,
         }),
     })
+    .use([rateLimitPolicy('auth-password-change', { limit: 10, windowMs: 60_000 })])
     .handler(async (c) =>
     {
         const { body } = await c.data();

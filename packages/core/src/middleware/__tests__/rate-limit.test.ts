@@ -16,7 +16,7 @@ vi.mock('../../cache', () => ({
     isCacheDisabled: () => cacheDisabled,
 }));
 
-import { rateLimit } from '../rate-limit';
+import { rateLimit, rateLimitPolicy, setRateLimitPolicies, getRateLimitPolicy } from '../rate-limit';
 import { TooManyRequestsError } from '../../errors';
 
 function makeCtx(headers: Record<string, string> = {})
@@ -99,5 +99,66 @@ describe('rateLimit middleware', () =>
         ).rejects.toBeInstanceOf(TooManyRequestsError);
         expect(next).not.toHaveBeenCalled();
         expect(evalMock).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('rateLimitPolicy named policies', () =>
+{
+    beforeEach(() =>
+    {
+        evalMock.mockReset();
+        cacheClient = { eval: evalMock };
+        cacheDisabled = false;
+        setRateLimitPolicies(undefined);
+    });
+
+    it('registers as a named "rateLimit" middleware that auto-skips the global default', () =>
+    {
+        const tag = rateLimitPolicy('p', { limit: 5, windowMs: 60_000 });
+
+        expect(tag.name).toBe('rateLimit');
+        expect(tag.skips).toEqual(['rateLimit']);
+        expect(typeof tag.handler).toBe('function');
+    });
+
+    it('uses the fallback when the app configured no policy', async () =>
+    {
+        // fallback limit 1, count 2 → over → reject
+        evalMock.mockResolvedValue([2, 60_000]);
+        const next = vi.fn();
+
+        await expect(
+            rateLimitPolicy('p', { limit: 1, windowMs: 60_000 }).handler(makeCtx(), next),
+        ).rejects.toBeInstanceOf(TooManyRequestsError);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it('lets a configured policy override the fallback', async () =>
+    {
+        // app raises the limit to 10; count 2 is now under → allowed
+        setRateLimitPolicies({ p: { limit: 10, windowMs: 60_000 } });
+        evalMock.mockResolvedValue([2, 60_000]);
+        const next = vi.fn().mockResolvedValue(undefined);
+
+        await rateLimitPolicy('p', { limit: 1, windowMs: 60_000 }).handler(makeCtx(), next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('shallow-merges configured fields over the fallback', () =>
+    {
+        setRateLimitPolicies({ p: { limit: 50 } as never });
+
+        expect(getRateLimitPolicy('p')).toEqual({ limit: 50 });
+        expect(getRateLimitPolicy('missing')).toBeUndefined();
+    });
+
+    it('setRateLimitPolicies(undefined) clears the registry', () =>
+    {
+        setRateLimitPolicies({ p: { limit: 1, windowMs: 1000 } });
+        expect(getRateLimitPolicy('p')).toBeDefined();
+
+        setRateLimitPolicies(undefined);
+        expect(getRateLimitPolicy('p')).toBeUndefined();
     });
 });

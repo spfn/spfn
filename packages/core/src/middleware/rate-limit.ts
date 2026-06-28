@@ -14,7 +14,8 @@
 
 import type { Context, MiddlewareHandler } from 'hono';
 import { PROXY_CLIENT_IP_HEADER } from '../security/proxy-signature';
-import { defineMiddlewareFactory } from '../route/define-middleware';
+import { defineMiddleware, defineMiddlewareFactory } from '../route/define-middleware';
+import type { NamedMiddleware } from '../route/define-middleware';
 import { getCache, isCacheDisabled } from '../cache';
 import { TooManyRequestsError } from '../errors';
 import { logger } from '../logger';
@@ -156,3 +157,77 @@ export const rateLimit = defineMiddlewareFactory(
         };
     },
 );
+
+/**
+ * Named rate-limit policies, populated once at boot from
+ * `defineServerConfig().rateLimit({ policies })`. A package tags a route with
+ * rateLimitPolicy() and the consuming app supplies the numbers here, so policy
+ * tuning lives in one place rather than being hard-coded in each package.
+ */
+const policyRegistry = new Map<string, RateLimitOptions>();
+
+/**
+ * Replace the named-policy registry. Called by the server at boot; passing
+ * undefined clears it (so a restart without policies doesn't keep stale ones).
+ */
+export function setRateLimitPolicies(policies?: Record<string, RateLimitOptions>): void
+{
+    policyRegistry.clear();
+
+    if (!policies)
+    {
+        return;
+    }
+
+    for (const [name, options] of Object.entries(policies))
+    {
+        policyRegistry.set(name, options);
+    }
+}
+
+/** Look up a configured policy by name — undefined when the app didn't set it. */
+export function getRateLimitPolicy(name: string): RateLimitOptions | undefined
+{
+    return policyRegistry.get(name);
+}
+
+/**
+ * Rate-limit a route under a named policy.
+ *
+ * A package author tags a sensitive route with a policy name plus a safe
+ * fallback; the consuming app tunes the numbers centrally via
+ * `defineServerConfig().rateLimit({ policies: { [name]: {...} } })`. When the
+ * app configures the policy, its fields override the fallback (shallow merge);
+ * otherwise the fallback applies, so the route is protected out of the box.
+ *
+ * Carries `skips: ['rateLimit']` so that on a route which would also receive the
+ * global default limiter, this tag replaces it rather than stacking — no double
+ * counting.
+ *
+ * @example
+ * ```typescript
+ * route.post('/_auth/login')
+ *     .use([rateLimitPolicy('auth-login', { limit: 5, windowMs: 60_000 })])
+ *     .handler(...);
+ * ```
+ */
+export function rateLimitPolicy(name: string, fallback: RateLimitOptions): NamedMiddleware<'rateLimit'>
+{
+    // Resolution is deferred to the first request: the registry is populated at
+    // server boot, which runs after route modules are imported. Cached after the
+    // first hit since the registry is static once the server is up.
+    let resolved: MiddlewareHandler | undefined;
+
+    const handler: MiddlewareHandler = (c, next) =>
+    {
+        if (!resolved)
+        {
+            const configured = getRateLimitPolicy(name);
+            resolved = rateLimit(configured ? { ...fallback, ...configured } : fallback);
+        }
+
+        return resolved(c, next);
+    };
+
+    return defineMiddleware('rateLimit', handler, { skips: ['rateLimit'] });
+}

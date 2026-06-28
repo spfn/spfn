@@ -129,6 +129,26 @@ export class ServerConfigBuilder
     }
 
     /**
+     * Configure rate limiting: an optional global default limiter plus the named
+     * policies that `rateLimitPolicy(name, fallback)` tags resolve against.
+     *
+     * @example
+     * ```typescript
+     * .rateLimit({
+     *     mode: 'on',
+     *     default: { limit: 100, windowMs: 60_000 },
+     *     policies: { 'auth-login': { limit: 5, windowMs: 60_000 } },
+     * })
+     * ```
+     */
+    rateLimit(rateLimit: ServerConfig['rateLimit']): this
+    {
+        this.config.rateLimit = rateLimit;
+
+        return this;
+    }
+
+    /**
      * Register define-route based router
      *
      * Automatically applies:

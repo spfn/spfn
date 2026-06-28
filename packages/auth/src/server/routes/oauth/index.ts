@@ -11,7 +11,7 @@ import { Type } from '@sinclair/typebox';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Transactional } from '@spfn/core/db';
 import { ValidationError } from '@spfn/core/errors';
-import { rateLimit } from '@spfn/core/middleware';
+import { rateLimitPolicy } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 
 import { KEY_ALGORITHM, SOCIAL_PROVIDERS } from '../../types';
@@ -50,7 +50,7 @@ export const oauthGoogleStart = route.get('/_auth/oauth/google')
             }),
         }),
     })
-    .use([rateLimit({ limit: 20, windowMs: 60_000 })])
+    .use([rateLimitPolicy('oauth-start', { limit: 20, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -89,7 +89,7 @@ export const oauthGoogleCallback = route.get('/_auth/oauth/google/callback')
             })),
         }),
     })
-    .use([Transactional()])
+    .use([rateLimitPolicy('oauth-callback', { limit: 30, windowMs: 60_000 }), Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -163,7 +163,7 @@ export const oauthStart = route.post('/_auth/oauth/start')
             })),
         }),
     })
-    .use([rateLimit({ limit: 20, windowMs: 60_000 })])
+    .use([rateLimitPolicy('oauth-start', { limit: 20, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -220,6 +220,7 @@ export const getGoogleOAuthUrl = route.post('/_auth/oauth/google/url')
             })),
         }),
     })
+    .use([rateLimitPolicy('oauth-start', { limit: 20, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -254,6 +255,7 @@ export const oauthFinalize = route.post('/_auth/oauth/finalize')
             returnUrl: Type.Optional(Type.String({ description: 'URL to redirect after login' })),
         }),
     })
+    .use([rateLimitPolicy('oauth-start', { limit: 20, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -300,7 +302,7 @@ export const oauthProviderStart = route.get('/_auth/oauth/:provider')
             }),
         }),
     })
-    .use([rateLimit({ limit: 20, windowMs: 60_000 })])
+    .use([rateLimitPolicy('oauth-start', { limit: 20, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -340,7 +342,7 @@ export const oauthProviderCallback = route.get('/_auth/oauth/:provider/callback'
             })),
         }),
     })
-    .use([Transactional()])
+    .use([rateLimitPolicy('oauth-callback', { limit: 30, windowMs: 60_000 }), Transactional()])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -408,6 +410,7 @@ export const getProviderOAuthUrl = route.post('/_auth/oauth/:provider/url')
             })),
         }),
     })
+    .use([rateLimitPolicy('oauth-start', { limit: 20, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
@@ -460,6 +463,7 @@ export const oauthNative = route.post('/_auth/oauth/:provider/native')
     })
     // Transactional 미들웨어를 쓰지 않는다. id_token 검증(외부 JWKS 조회)을 트랜잭션 밖에서
     // 먼저 하고, DB 쓰기만 oauthNativeService 내부의 runInTransaction으로 감싼다.
+    .use([rateLimitPolicy('oauth-native', { limit: 20, windowMs: 60_000 })])
     .skip(['auth'])
     .handler(async (c) =>
     {
