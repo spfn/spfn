@@ -23,7 +23,13 @@ Same signature as `fetch`. It:
 2. resolves the hostname and rejects if it points at a private/reserved range;
 3. **pins** the connection to a validated IP via a custom undici `lookup`, closing the
    rebinding window between check and connect;
-4. re-validates every redirect hop (they go through the same dispatcher).
+4. follows redirects **manually** and re-validates **every hop** — including a hop whose
+   target is a bare IP literal (which undici would otherwise connect to directly, skipping
+   the pinning lookup). Capped at `maxRedirects` (default 5).
+
+The original method, body, and headers are **not** replayed across a redirect: the next
+hop may be attacker-chosen, so forwarding the payload or auth headers would leak them — the
+redirected request is issued as a header-less `GET`.
 
 Blocked targets throw `SsrfBlockedError`.
 
@@ -56,11 +62,19 @@ const fetchSlack = createSafeFetch({ allowHosts: ['hooks.slack.com'] });
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `allowedProtocols` | `string[]` | `['http:','https:']` | Permitted URL schemes. |
-| `blockPrivateIps` | `boolean` | `true` | Block private/reserved ranges (loopback, link-local/metadata, RFC1918, ULA, multicast). |
-| `allowHosts` | `string[]` | — | Exact hostname allowlist (case-insensitive). Strongest control for a known upstream set. |
+| `blockPrivateIps` | `boolean` | `true` | Block private/reserved ranges (loopback, link-local/metadata, RFC1918, CGNAT, ULA, multicast, NAT64/6to4). |
+| `allowHosts` | `string[]` | — | Exact hostname allowlist (case-insensitive), enforced on every redirect hop. Strongest control for a known upstream set. |
+| `maxRedirects` | `number` | `5` | Redirects to follow, each re-validated. |
 
 Env: `SAFE_FETCH_BLOCK_PRIVATE_IPS` sets the boot default for `blockPrivateIps`
 (keep `true` in production; `false` only for trusted internal-network calls in dev).
+
+> **Compatibility note.** The Slack webhook sender (`@spfn/notification`) now routes
+> through `safeFetch`, so a webhook pointed at a **private/internal address** (self-hosted
+> Mattermost, an internal Slack-compatible endpoint on `10.x`/`192.168.x`, etc.) will now
+> fail to send. Allow it explicitly with `outboundFetch({ allowHosts: ['your.host'] })`, or
+> — if the target is a raw private IP — `outboundFetch({ blockPrivateIps: false })` (which
+> relaxes the check for *all* outbound calls, so prefer `allowHosts`).
 
 ## `assertSafeUrl(url, policy?)`
 

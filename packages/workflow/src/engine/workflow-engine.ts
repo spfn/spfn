@@ -6,7 +6,10 @@
 
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { Value } from '@sinclair/typebox/value';
-import { assertSafeUrl } from '@spfn/core/security';
+import { assertSafeUrl, SsrfBlockedError } from '@spfn/core/security';
+
+/** URL schemes never legitimate for a storage $ref — classic SSRF/LFI vectors. */
+const DANGEROUS_REF_SCHEMES = new Set(['file', 'gopher', 'data', 'ftp', 'ftps', 'dict', 'tftp', 'ldap', 'jar', 'netdoc']);
 import type { WorkflowDef, WorkflowEvent, WorkflowStepDef } from '../builder';
 import type { WorkflowStatus, WorkflowStepStatus } from '../types';
 import {
@@ -601,13 +604,21 @@ implements WorkflowEngine<TWorkflows>
         {
             // A $ref normally comes from our own storage.upload(), but step output
             // is data — a malicious step could shape it as { $ref: 'http://169.254...' }
-            // to make download() fetch an internal address (SSRF). storage.download
-            // is app-provided so we can't pin its connection; validate http(s) refs
-            // against the SSRF policy before handing them over. Non-HTTP refs
-            // (storage keys, s3://, …) are left to the backend's own scheme.
-            if (/^https?:\/\//i.test(ref.$ref))
+            // (SSRF) or { $ref: 'file:///etc/passwd' } (LFI) to abuse download().
+            // storage.download is app-provided so we can't pin its connection; instead
+            // validate the ref's scheme before handing it over:
+            //   - http(s): full SSRF check (still TOCTOU vs download's own resolve)
+            //   - known dangerous schemes (file/gopher/…): reject outright
+            //   - plain keys ('uploads/x') and other schemes (s3://, gs://): left to
+            //     the backend, which owns its scheme.
+            const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(ref.$ref)?.[1]?.toLowerCase();
+            if (scheme === 'http' || scheme === 'https')
             {
                 await assertSafeUrl(ref.$ref);
+            }
+            else if (scheme && DANGEROUS_REF_SCHEMES.has(scheme))
+            {
+                throw new SsrfBlockedError(`Refusing to resolve output $ref with scheme "${scheme}:"`);
             }
 
             return await this.config.storage.download(ref.$ref);

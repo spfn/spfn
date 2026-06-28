@@ -167,6 +167,20 @@ export const rateLimit = defineMiddlewareFactory(
 const policyRegistry = new Map<string, RateLimitOptions>();
 
 /**
+ * App-wide fail-closed default applied to policy tags that don't set `failClosed`
+ * themselves. Set at boot from RATE_LIMIT_FAIL_CLOSED so operators can make ALL
+ * limiters (including named policies on auth routes) reject on cache outage — the
+ * env flag would otherwise only reach the global default limiter.
+ */
+let policyFailClosedDefault = false;
+
+/** Set the fail-closed default for named policies. Called by the server at boot. */
+export function setRateLimitFailClosedDefault(failClosed: boolean): void
+{
+    policyFailClosedDefault = failClosed;
+}
+
+/**
  * Replace the named-policy registry. Called by the server at boot; passing
  * undefined clears it (so a restart without policies doesn't keep stale ones).
  */
@@ -223,7 +237,14 @@ export function rateLimitPolicy(name: string, fallback: RateLimitOptions): Named
         if (!resolved)
         {
             const configured = getRateLimitPolicy(name);
-            resolved = rateLimit(configured ? { ...fallback, ...configured } : fallback);
+            const merged: RateLimitOptions = configured ? { ...fallback, ...configured } : { ...fallback };
+
+            if (merged.failClosed === undefined)
+            {
+                merged.failClosed = policyFailClosedDefault;
+            }
+
+            resolved = rateLimit(merged);
         }
 
         return resolved(c, next);

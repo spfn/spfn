@@ -16,7 +16,7 @@ vi.mock('../../cache', () => ({
     isCacheDisabled: () => cacheDisabled,
 }));
 
-import { rateLimit, rateLimitPolicy, setRateLimitPolicies, getRateLimitPolicy } from '../rate-limit';
+import { rateLimit, rateLimitPolicy, setRateLimitPolicies, getRateLimitPolicy, setRateLimitFailClosedDefault } from '../rate-limit';
 import { TooManyRequestsError } from '../../errors';
 
 function makeCtx(headers: Record<string, string> = {})
@@ -110,6 +110,7 @@ describe('rateLimitPolicy named policies', () =>
         cacheClient = { eval: evalMock };
         cacheDisabled = false;
         setRateLimitPolicies(undefined);
+        setRateLimitFailClosedDefault(false);
     });
 
     it('registers as a named "rateLimit" middleware that auto-skips the global default', () =>
@@ -151,6 +152,26 @@ describe('rateLimitPolicy named policies', () =>
 
         expect(getRateLimitPolicy('p')).toEqual({ limit: 50 });
         expect(getRateLimitPolicy('missing')).toBeUndefined();
+    });
+
+    it('applies the app-wide fail-closed default to a tag (reaches named policies)', async () =>
+    {
+        setRateLimitFailClosedDefault(true);
+        cacheClient = undefined; // cache unavailable
+
+        await expect(rateLimitPolicy('p', { limit: 5, windowMs: 60_000 }).handler(makeCtx(), vi.fn()))
+            .rejects.toBeInstanceOf(TooManyRequestsError);
+    });
+
+    it('a tag/policy may still opt to fail open despite the default', async () =>
+    {
+        setRateLimitFailClosedDefault(true);
+        cacheClient = undefined;
+        const next = vi.fn().mockResolvedValue(undefined);
+
+        await rateLimitPolicy('p', { limit: 5, windowMs: 60_000, failClosed: false }).handler(makeCtx(), next);
+
+        expect(next).toHaveBeenCalledTimes(1);
     });
 
     it('setRateLimitPolicies(undefined) clears the registry', () =>

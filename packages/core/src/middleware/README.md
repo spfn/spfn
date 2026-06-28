@@ -432,6 +432,33 @@ export default defineServerConfig()
   global default, the tag replaces it — no double counting.
 - Policies are registered at server boot whether or not the global default is enabled.
 
+### Limitations & operational notes
+
+Read these before relying on rate limiting as a security control:
+
+- **Keyed by client IP only (unless you set `by`).** Default identity is `getClientIp(c)`.
+  Consequences: a distributed attacker (many source IPs) is **not** stopped per-account —
+  each IP gets its own bucket; and a shared NAT/CGNAT can throttle many real users as one.
+  For account/target protection (credential stuffing, OTP/SMS-bombing) add a `by` dimension
+  that returns a stable account or target key in addition to the IP. The bundled `@spfn/auth`
+  policies are **IP-keyed** — they raise the bar for single-source brute force, not for
+  distributed attacks.
+- **`getClientIp` trusts forwarded headers.** Behind a verified proxy (proxy-guard) it uses
+  the real client IP; otherwise it reads `X-Forwarded-For`/`X-Real-IP`, which a direct client
+  can spoof (rotate to bypass, or pin to a victim to DoS them). If neither header is present
+  it falls back to the literal `'unknown'` — i.e. **all clients share one bucket**. Only
+  enable the global default behind a proxy that sets a trustworthy client IP.
+- **Fail-open by default.** When the cache (Redis) is down, limiters pass requests through.
+  Set `RATE_LIMIT_FAIL_CLOSED=true` to reject instead — this now applies to **both** the
+  global default and named policy tags (a tag may still opt back to fail-open with
+  `failClosed: false`).
+- **Counters are per-route.** `scope` defaults to `${method} ${routePath}`, so several routes
+  sharing one policy name (e.g. the OAuth start routes) each get their **own** bucket — the
+  name tunes the numbers, it does not pool the counter. Set an explicit `scope` to share one.
+- **The SSE token endpoint is not exempt.** Only the SSE *stream*, WebSocket, and health
+  endpoints (registered outside the named-middleware pipeline) bypass the global default;
+  `POST /events/token` runs `config.middlewares`, so it receives the limiter too.
+
 ---
 
 ## Pitfalls & anti-patterns

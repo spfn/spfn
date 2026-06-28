@@ -40,9 +40,15 @@ export interface SafeFetchPolicy
     /**
      * Exact hostname allowlist (case-insensitive). When set, only these hosts
      * are reachable — the strongest control for a known set of upstreams.
+     * Enforced on every redirect hop, not just the first URL.
      */
     allowHosts?: string[];
+
+    /** Max redirects to follow, each re-validated. @default 5 */
+    maxRedirects?: number;
 }
+
+const DEFAULT_MAX_REDIRECTS = 5;
 
 const DEFAULTS: Required<Pick<SafeFetchPolicy, 'allowedProtocols' | 'blockPrivateIps'>> = {
     allowedProtocols: ['http:', 'https:'],
@@ -81,6 +87,9 @@ const blockedRanges = (() =>
     list.addSubnet('fe80::', 10, 'ipv6');       // link-local
     list.addSubnet('ff00::', 8, 'ipv6');        // multicast
     list.addSubnet('2001:db8::', 32, 'ipv6');   // documentation
+    list.addSubnet('64:ff9b::', 96, 'ipv6');    // NAT64 well-known prefix (can wrap private v4)
+    list.addSubnet('2002::', 16, 'ipv6');       // 6to4 (can wrap private v4)
+    list.addSubnet('192.88.99.0', 24, 'ipv4');  // 6to4 anycast relay
 
     return list;
 })();
@@ -249,21 +258,58 @@ function urlOf(input: FetchInput): string
     return (input as { url: string }).url;
 }
 
+type SafeFetchFn = ((input: FetchInput, init?: FetchInit) => FetchReturn) & { _dispatcher: Agent };
+
 /**
  * Build an SSRF-safe fetch bound to a policy. Reuse the returned function (it
  * owns a pooled dispatcher) rather than calling this per request.
+ *
+ * Redirects are followed manually so EVERY hop is validated — including a hop
+ * whose target is a bare IP literal, which undici would otherwise connect to
+ * directly without invoking the pinning lookup. The original method/body and
+ * headers are NOT replayed across a redirect: the next hop may be attacker-
+ * chosen, so forwarding the payload or auth headers would leak them.
  */
-export function createSafeFetch(policy: SafeFetchPolicy = {})
+export function createSafeFetch(policy: SafeFetchPolicy = {}): SafeFetchFn
 {
     const merged = { ...DEFAULTS, ...policy };
+    const maxRedirects = merged.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
     const dispatcher = new Agent({ connect: { lookup: pinnedLookup(merged) } });
 
-    return (input: FetchInput, init?: FetchInit): FetchReturn =>
+    const run = async (input: FetchInput, init?: FetchInit): Promise<Awaited<FetchReturn>> =>
     {
-        assertUrlAllowed(urlOf(input), merged);
+        let url = urlOf(input);
+        let hopInit: FetchInit = init;
 
-        return undiciFetch(input, { ...init, dispatcher });
+        for (let hop = 0; ; hop++)
+        {
+            assertUrlAllowed(url, merged);
+
+            const res = await undiciFetch(url, { ...hopInit, dispatcher, redirect: 'manual' });
+
+            const location = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
+            if (!location)
+            {
+                return res;
+            }
+
+            await res.body?.cancel().catch(() => 
+            {});
+
+            if (hop >= maxRedirects)
+            {
+                throw new SsrfBlockedError(`Too many redirects (> ${maxRedirects})`);
+            }
+
+            url = new URL(location, url).href;
+            hopInit = { method: 'GET' };
+        }
     };
+
+    const fn = ((input: FetchInput, init?: FetchInit) => run(input, init)) as SafeFetchFn;
+    fn._dispatcher = dispatcher;
+
+    return fn;
 }
 
 // ---------------------------------------------------------------------------
@@ -271,7 +317,7 @@ export function createSafeFetch(policy: SafeFetchPolicy = {})
 // ---------------------------------------------------------------------------
 
 let configuredPolicy: SafeFetchPolicy = {};
-let cachedDefaultFetch: ReturnType<typeof createSafeFetch> | undefined;
+let cachedDefaultFetch: SafeFetchFn | undefined;
 
 /**
  * Replace the default policy used by {@link safeFetch}. Called by the server at
@@ -280,6 +326,10 @@ let cachedDefaultFetch: ReturnType<typeof createSafeFetch> | undefined;
  */
 export function setDefaultSafeFetchPolicy(policy?: SafeFetchPolicy): void
 {
+    // Close the previous dispatcher's connection pool so repeated boots
+    // (tests, multi-app processes) don't leak Agents.
+    cachedDefaultFetch?._dispatcher.close().catch(() => 
+    {});
     configuredPolicy = policy ?? {};
     cachedDefaultFetch = undefined;
 }

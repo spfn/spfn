@@ -10,7 +10,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 
 import { registerRoutes, defineMiddleware, type RegisteredRoute } from '@spfn/core/route';
-import { ErrorHandler, RequestLogger, rateLimit, setRateLimitPolicies } from '@spfn/core/middleware';
+import { ErrorHandler, RequestLogger, rateLimit, setRateLimitPolicies, setRateLimitFailClosedDefault } from '@spfn/core/middleware';
 import { setDefaultSafeFetchPolicy } from '@spfn/core/security';
 import { env } from '@spfn/core/config';
 import { createSSEHandler } from '../event/sse/handler';
@@ -21,6 +21,10 @@ import { serverLogger } from './logger';
 
 import type { ServerConfig, AppFactory } from './types';
 import type { NonceStore, RateLimitOptions } from '@spfn/core/middleware';
+
+// Tracks configs whose global rate-limit middleware has already been injected,
+// so a repeated createServer on the same config doesn't prepend it twice.
+const rateLimitApplied = new WeakSet<object>();
 
 // Extend Hono context with error handler flag
 declare module 'hono'
@@ -76,13 +80,14 @@ async function loadCustomApp(
 
     const app = await appFactory();
 
+    // Always run: registers policies + fail-closed default even for a custom app
+    // that wires its own routes (so rateLimitPolicy tags still resolve). Injection
+    // of the global default only takes effect when routes are registered below.
+    applyRateLimit(config);
+
     // Register routes (if provided via config)
     if (config?.routes)
     {
-        // Populate rate-limit policies and (optionally) the global default limiter
-        // before routes are registered, so policy tags resolve and skip works.
-        applyRateLimit(config);
-
         const routes = registerRoutes(app, config.routes, config.middlewares);
         logRegisteredRoutes(routes, config?.debug ?? false);
     }
@@ -252,18 +257,27 @@ function applyRateLimit(config?: ServerConfig): void
 {
     const rl = config?.rateLimit;
 
+    // These are idempotent (plain reassignment) and must run on every path —
+    // including a Level-3 custom app — so policy tags resolve and fail-closed
+    // reaches them whether or not the global default limiter is enabled.
     setRateLimitPolicies(rl?.policies);
+    setRateLimitFailClosedDefault(env.RATE_LIMIT_FAIL_CLOSED);
 
     const enabled = (rl?.mode ?? env.RATE_LIMIT_MODE) === 'on';
-    if (!enabled || !config)
+    if (!enabled || !config || rateLimitApplied.has(config))
     {
         return;
     }
 
-    const defaultPolicy: RateLimitOptions = rl?.default ?? {
-        limit: env.RATE_LIMIT_DEFAULT_LIMIT,
-        windowMs: env.RATE_LIMIT_DEFAULT_WINDOW_MS,
-        failClosed: env.RATE_LIMIT_FAIL_CLOSED,
+    // Guard against a second prepend if createServer runs twice on the same config
+    // (register-routes does not dedup server-level middlewares against each other,
+    // so two 'rateLimit' entries would silently halve the effective limit).
+    rateLimitApplied.add(config);
+
+    const defaultPolicy: RateLimitOptions = {
+        limit: rl?.default?.limit ?? env.RATE_LIMIT_DEFAULT_LIMIT,
+        windowMs: rl?.default?.windowMs ?? env.RATE_LIMIT_DEFAULT_WINDOW_MS,
+        failClosed: rl?.default?.failClosed ?? env.RATE_LIMIT_FAIL_CLOSED,
     };
 
     const globalRateLimit = defineMiddleware('rateLimit', rateLimit(defaultPolicy));
