@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import fse from 'fs-extra';
 import { logger } from '../../../utils/logger.js';
@@ -18,8 +18,7 @@ NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
 SPFN_APP_URL=http://localhost:3790
 `;
 
-// .env.server template — SPFN backend only; secrets live here, never loaded by
-// Next.js. SERVER_ENV_KEYS is derived from it so the two never drift.
+// .env.server template — SPFN backend only; secrets live here, never loaded by Next.js.
 const ENV_SERVER_TEMPLATE = `# SPFN backend environment
 # Loaded ONLY by the SPFN server, never by Next.js. Keep all server-only config
 # and secrets here so they never reach the Next.js process.
@@ -50,12 +49,21 @@ DB_POOL_IDLE_TIMEOUT=30
 // key list never drifts from what init actually generates. Documentation only:
 // real values go in .env.local / .env.server (gitignored). Because it is committed,
 // concrete DB credentials are replaced with placeholders (AGENTS.md hard rule #4).
-const ENV_EXAMPLE_TEMPLATE = `# Example environment — committed reference for the variables SPFN uses.
+const ENV_EXAMPLE_TEMPLATE = withPlaceholderCreds(`# Example environment — committed reference for the variables SPFN uses.
 # Real values live in .env.local (Next.js) and .env.server (backend secrets),
 # both gitignored. This file documents the keys; it is not loaded by anything.
 
 ${ENV_LOCAL_TEMPLATE}
-${ENV_SERVER_TEMPLATE}`.replace(/(postgresql:\/\/)[^@\s/]+@/g, '$1user:password@');
+${ENV_SERVER_TEMPLATE}`);
+
+/**
+ * Replace concrete DB credentials with a placeholder, for any example file that
+ * may be committed (AGENTS.md hard rule #4: committed *.example carry placeholders).
+ */
+function withPlaceholderCreds(text: string): string
+{
+    return text.replace(/(postgresql:\/\/)[^@\s/]+@/g, '$1user:password@');
+}
 
 /**
  * Setup configuration files:
@@ -114,10 +122,32 @@ export default defineConfig({
  */
 function generateEnvFiles(cwd: string): void
 {
+    // .env.local holds only our Next.js-facing URLs (SPFN_API_URL, NEXT_PUBLIC_*),
+    // safe to add to an existing file — so create it, or merge missing keys.
     writeEnvFile(cwd, '.env.local', ENV_LOCAL_TEMPLATE);
-    writeEnvFile(cwd, '.env.server', ENV_SERVER_TEMPLATE);
+    writeServerEnv(cwd);
     writeExampleEnv(cwd, ENV_EXAMPLE_TEMPLATE);
-    warnOverriddenServerKeys(cwd);
+}
+
+/**
+ * Write .env.server only when absent. If the user already has one it holds their
+ * real secrets, so never touch it — drop SPFN's template beside it as
+ * .env.server.example (credentials placeholdered) and tell them to reconcile.
+ */
+function writeServerEnv(cwd: string): void
+{
+    const filePath = join(cwd, '.env.server');
+
+    if (!existsSync(filePath))
+    {
+        writeFileSync(filePath, ENV_SERVER_TEMPLATE);
+        logger.success('Created .env.server');
+
+        return;
+    }
+
+    writeFileSync(join(cwd, '.env.server.example'), withPlaceholderCreds(ENV_SERVER_TEMPLATE));
+    logger.warn('.env.server already exists — left it untouched; wrote SPFN\'s reference to .env.server.example, add any missing keys manually');
 }
 
 /**
@@ -136,80 +166,9 @@ function writeExampleEnv(cwd: string, content: string): void
     logger.success('Created .env.example (committed reference)');
 }
 
-// Active (uncommented) keys .env.server owns, derived from its template so the
-// two never drift. Used to warn when one is already set in an earlier-loaded file.
-const SERVER_ENV_KEYS = collectEnvKeys(ENV_SERVER_TEMPLATE);
-
-// Matches the dotenv files @spfn/core's loadEnv reads (.env, .env.local,
-// .env.<nodeEnv>[.local]) for ANY NODE_ENV, but NOT non-dotenv names like
-// direnv's .envrc. .env.server (what we generate) is excluded separately.
-const DOTENV_FILE = /^\.env(\.[a-z0-9_-]+)?(\.local)?$/i;
-
 /**
- * Warn when a key .env.server owns is already set in another env file the backend
- * loads earlier. .env.server loads last and wins, so the user's existing value
- * (e.g. a real DATABASE_URL in .env.local) is silently overridden at runtime.
- * Best-effort: an unreadable entry is skipped, never fatal to init.
- */
-function warnOverriddenServerKeys(cwd: string): void
-{
-    for (const file of overridableEnvFiles(cwd))
-    {
-        const content = readEnvFileSafe(join(cwd, file));
-
-        if (content === null)
-        {
-            continue;
-        }
-
-        const keys = collectEnvKeys(content);
-        const clashing = [...SERVER_ENV_KEYS].filter((key) => keys.has(key));
-
-        if (clashing.length > 0)
-        {
-            // .env and .env.local load for every NODE_ENV; the env-specific files
-            // (.env.production etc.) only load when that NODE_ENV is active, so don't
-            // claim an unconditional override for them.
-            const alwaysLoaded = file === '.env' || file === '.env.local';
-            const when = alwaysLoaded ? 'its value wins at runtime' : 'its value wins when that NODE_ENV is active';
-            logger.warn(`${file} also sets ${clashing.join(', ')} — .env.server loads last and ${when}`);
-        }
-    }
-}
-
-/**
- * The dotenv files loadEnv reads before .env.server, excluding .env.server itself
- * and the committed .env.example / *.example references.
- */
-function overridableEnvFiles(cwd: string): string[]
-{
-    return readdirSync(cwd).filter((name) =>
-        DOTENV_FILE.test(name)
-        && name !== '.env.server'
-        && name !== '.env.example'
-        && !name.endsWith('.example'));
-}
-
-/**
- * Read a file as text, or null when it's absent, a directory, or unreadable —
- * so a stray `.env`-named directory never crashes init.
- */
-function readEnvFileSafe(filePath: string): string | null
-{
-    try
-    {
-        return readFileSync(filePath, 'utf-8');
-    }
-    catch
-    {
-        return null;
-    }
-}
-
-/**
- * Write an env file. When it already exists we never overwrite user values —
- * instead we append any SPFN keys the file is missing, so required vars like
- * SPFN_API_URL are added even on a project that already has its own env file.
+ * Write .env.local, or merge any missing SPFN keys into an existing one. Only used
+ * for .env.local, whose values (Next.js-facing URLs) are safe to add.
  */
 function writeEnvFile(cwd: string, filename: string, content: string): void
 {
@@ -268,29 +227,19 @@ function envKeyOf(line: string): string | null
     return match ? match[1] : null;
 }
 
-function collectEnvKeys(content: string): Set<string>
-{
-    return collectKeys(content, false);
-}
-
 /**
- * Like collectEnvKeys but also counts commented `# KEY=` declarations, so a
- * deliberately-disabled key is treated as already present and not re-added.
+ * Keys declared in the file, counting commented `# KEY=` lines too, so a
+ * deliberately-disabled key is treated as present and not re-added by the merge.
  */
 function collectDeclaredKeys(content: string): Set<string>
-{
-    return collectKeys(content, true);
-}
-
-function collectKeys(content: string, includeCommented: boolean): Set<string>
 {
     const keys = new Set<string>();
 
     for (const line of content.split('\n'))
     {
-        // includeCommented strips a leading `# ` first, so `# DATABASE_URL=` and
-        // `DATABASE_URL=` both parse through the same envKeyOf rule.
-        const key = envKeyOf(includeCommented ? line.replace(/^\s*#\s*/, '') : line);
+        // Strip a leading `# ` first so `# DATABASE_URL=` and `DATABASE_URL=` both
+        // parse through the same envKeyOf rule.
+        const key = envKeyOf(line.replace(/^\s*#\s*/, ''));
         if (key !== null)
         {
             keys.add(key);
