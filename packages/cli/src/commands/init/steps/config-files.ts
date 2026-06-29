@@ -153,7 +153,9 @@ function mergeMissingEnvKeys(filePath: string, filename: string, template: strin
  */
 function envKeyOf(line: string): string | null
 {
-    const match = line.match(/^([A-Z_][A-Z0-9_]*)=/);
+    // Tolerate dotenv's `export ` prefix and surrounding whitespace, so a key
+    // already present as `export DATABASE_URL=` isn't re-appended with our default.
+    const match = line.match(/^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=/);
 
     return match ? match[1] : null;
 }
@@ -192,12 +194,15 @@ function updateGitignore(cwd: string): void
         let updated = content;
         let changed = false;
 
-        // Add .spfn directory
-        if (!hasIgnoreRule(content, '/.spfn/'))
+        // Add .spfn directory. Substring match so an existing `.spfn`, `.spfn/`
+        // or `/.spfn/` rule all count — gitignore line order is irrelevant, so we
+        // just append rather than splicing after a `/build` anchor.
+        if (!content.includes('.spfn'))
         {
-            updated = /# production\r?\n\/build/.test(updated)
-                ? updated.replace(/# production(\r?\n)\/build/, '# production$1/build$1$1# spfn$1/.spfn/')
-                : `${updated.replace(/\n*$/, '\n')}\n# spfn\n/.spfn/\n`;
+            updated += `
+# spfn
+/.spfn/
+`;
             changed = true;
         }
 
@@ -233,7 +238,7 @@ function updateGitignore(cwd: string): void
     }
     catch (error)
     {
-        logger.warn('Could not update .gitignore (you can add patterns manually)');
+        logger.warn('Could not update .gitignore — add .env.local and .env.server manually before committing, so the generated .env.server secrets are not tracked');
     }
 }
 
