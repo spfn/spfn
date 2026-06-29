@@ -1,9 +1,37 @@
-import { existsSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import fse from 'fs-extra';
 import { logger } from '../../../utils/logger.js';
 
 const { writeFileSync } = fse;
+
+// .env.server template — SPFN backend only; secrets live here, never loaded by
+// Next.js. SERVER_ENV_KEYS is derived from it so the two never drift.
+const ENV_SERVER_TEMPLATE = `# SPFN backend environment
+# Loaded ONLY by the SPFN server, never by Next.js. Keep all server-only config
+# and secrets here so they never reach the Next.js process.
+
+# Environment
+NODE_ENV=local
+
+# Logging
+SPFN_LOG_LEVEL=info
+
+# Database (matches docker-compose.yml) — secret, server-only
+DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
+
+# Cache — Redis/Valkey (optional)
+CACHE_URL=redis://localhost:6379
+
+# Database pool
+DB_POOL_MAX=10
+DB_POOL_IDLE_TIMEOUT=30
+
+# --- Optional secrets (uncomment and set as needed) ---
+# DATABASE_WRITE_URL=postgresql://user:password@master:5432/dbname
+# DATABASE_READ_URL=postgresql://user:password@replica:5432/dbname
+# CACHE_PASSWORD=your-redis-password
+`;
 
 /**
  * Setup configuration files:
@@ -16,6 +44,9 @@ const { writeFileSync } = fse;
  */
 export async function setupConfigFiles(cwd: string): Promise<void>
 {
+    // Update .gitignore first so the secret-bearing .env.server is written under
+    // an existing ignore rule, never tracked even briefly.
+    updateGitignore(cwd);
     generateEnvFiles(cwd);
 
     // Create .spfnrc.ts for codegen configuration
@@ -46,7 +77,6 @@ export default defineConfig({
         logger.success('Created .spfnrc.ts (codegen configuration)');
     }
 
-    updateGitignore(cwd);
     updateTsconfig(cwd);
 }
 
@@ -74,31 +104,7 @@ SPFN_APP_URL=http://localhost:3790
 `);
 
     // .env.server — SPFN backend only; secrets live here, never loaded by Next.js
-    writeEnvFile(cwd, '.env.server', `# SPFN backend environment
-# Loaded ONLY by the SPFN server, never by Next.js. Keep all server-only config
-# and secrets here so they never reach the Next.js process.
-
-# Environment
-NODE_ENV=local
-
-# Logging
-SPFN_LOG_LEVEL=info
-
-# Database (matches docker-compose.yml) — secret, server-only
-DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
-
-# Cache — Redis/Valkey (optional)
-CACHE_URL=redis://localhost:6379
-
-# Database pool
-DB_POOL_MAX=10
-DB_POOL_IDLE_TIMEOUT=30
-
-# --- Optional secrets (uncomment and set as needed) ---
-# DATABASE_WRITE_URL=postgresql://user:password@master:5432/dbname
-# DATABASE_READ_URL=postgresql://user:password@replica:5432/dbname
-# CACHE_PASSWORD=your-redis-password
-`);
+    writeEnvFile(cwd, '.env.server', ENV_SERVER_TEMPLATE);
 
     // .env.example — committed, placeholder-only reference for the vars above.
     // Documentation only: real values go in .env.local / .env.server (gitignored).
@@ -144,22 +150,41 @@ function writeExampleEnv(cwd: string, content: string): void
     logger.success('Created .env.example (committed reference)');
 }
 
-// Active (uncommented) keys .env.server sets — listed so we can warn when one is
-// already defined elsewhere and would be overridden. See loadEnv: .env.server
-// loads last, so its value wins.
-const SERVER_ENV_KEYS = ['NODE_ENV', 'SPFN_LOG_LEVEL', 'DATABASE_URL', 'CACHE_URL', 'DB_POOL_MAX', 'DB_POOL_IDLE_TIMEOUT'];
+// Active (uncommented) keys .env.server owns, derived from its template so the
+// two never drift. Used to warn when one is already set in an earlier-loaded file.
+const SERVER_ENV_KEYS = collectEnvKeys(ENV_SERVER_TEMPLATE);
+
+// The env files @spfn/core's loadEnv reads BEFORE .env.server (so an existing value
+// would be overridden). Limited to this known set — never a bare `.env*` glob — so
+// unrelated files like direnv's .envrc are not mistaken for SPFN env sources.
+const LOADER_ENV_FILES = [
+    '.env',
+    '.env.local',
+    '.env.development',
+    '.env.development.local',
+    '.env.production',
+    '.env.production.local',
+];
 
 /**
  * Warn when a key .env.server owns is already set in another env file the backend
  * loads earlier. .env.server loads last and wins, so the user's existing value
  * (e.g. a real DATABASE_URL in .env.local) is silently overridden at runtime.
+ * Best-effort: an unreadable entry is skipped, never fatal to init.
  */
 function warnOverriddenServerKeys(cwd: string): void
 {
-    for (const file of otherEnvFiles(cwd))
+    for (const file of LOADER_ENV_FILES)
     {
-        const keys = collectEnvKeys(readFileSync(join(cwd, file), 'utf-8'));
-        const clashing = SERVER_ENV_KEYS.filter((key) => keys.has(key));
+        const content = readEnvFileSafe(join(cwd, file));
+
+        if (content === null)
+        {
+            continue;
+        }
+
+        const keys = collectEnvKeys(content);
+        const clashing = [...SERVER_ENV_KEYS].filter((key) => keys.has(key));
 
         if (clashing.length > 0)
         {
@@ -169,16 +194,19 @@ function warnOverriddenServerKeys(cwd: string): void
 }
 
 /**
- * Existing env files the backend loads before .env.server, excluding the
- * generated reference and any .example templates.
+ * Read a file as text, or null when it's absent, a directory, or unreadable —
+ * so a stray `.env`-named directory never crashes init.
  */
-function otherEnvFiles(cwd: string): string[]
+function readEnvFileSafe(filePath: string): string | null
 {
-    return readdirSync(cwd).filter((name) =>
-        name.startsWith('.env')
-        && name !== '.env.server'
-        && name !== '.env.example'
-        && !name.endsWith('.example'));
+    try
+    {
+        return readFileSync(filePath, 'utf-8');
+    }
+    catch
+    {
+        return null;
+    }
 }
 
 /**
@@ -208,7 +236,9 @@ function writeEnvFile(cwd: string, filename: string, content: string): void
 function mergeMissingEnvKeys(filePath: string, filename: string, template: string): void
 {
     const existing = readFileSync(filePath, 'utf-8');
-    const existingKeys = collectEnvKeys(existing);
+    // Count commented keys as present too: a user who commented out DATABASE_URL
+    // did so deliberately — don't re-append an active default over their choice.
+    const existingKeys = collectDeclaredKeys(existing);
 
     const missing = template
         .split('\n')
@@ -258,6 +288,26 @@ function collectEnvKeys(content: string): Set<string>
 }
 
 /**
+ * Like collectEnvKeys but also counts commented `# KEY=` declarations, so a
+ * deliberately-disabled key is treated as already present and not re-added.
+ */
+function collectDeclaredKeys(content: string): Set<string>
+{
+    const keys = new Set<string>();
+
+    for (const line of content.split('\n'))
+    {
+        const match = line.match(/^\s*#?\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=/);
+        if (match)
+        {
+            keys.add(match[1]);
+        }
+    }
+
+    return keys;
+}
+
+/**
  * Update .gitignore with SPFN patterns, creating the file if it doesn't exist.
  *
  * The env files generated above are real, secret-bearing files (.env.server holds
@@ -272,75 +322,85 @@ function updateGitignore(cwd: string): void
     try
     {
         const content = existed ? readFileSync(gitignorePath, 'utf-8') : '';
-        let updated = content;
-        let changed = false;
+        const additions = pendingIgnoreRules(content);
 
-        // Add .spfn directory. Substring match so an existing `.spfn`, `.spfn/`
-        // or `/.spfn/` rule all count — gitignore line order is irrelevant, so we
-        // just append rather than splicing after a `/build` anchor.
-        if (!content.includes('.spfn'))
+        if (additions.length === 0)
         {
-            updated += `
-# spfn
-/.spfn/
-`;
-            changed = true;
+            return;
         }
 
-        // Add env local patterns (Next.js)
-        if (!hasIgnoreRule(content, '.env.local') && !hasIgnoreRule(content, '.env.*.local'))
-        {
-            updated += `
-# environment secrets (local overrides)
-.env.local
-.env.*.local
-`;
-            changed = true;
-        }
-
-        // Add .env.server independently — it holds server secrets and must be
-        // ignored regardless of whether the .env.local block above was added.
-        if (!hasIgnoreRule(content, '.env.server'))
-        {
-            updated += `
-# spfn server env (secrets)
-.env.server
-`;
-            changed = true;
-        }
-
-        // Keep the committed .env.example reference tracked even when a broad
-        // `.env*` glob (create-next-app ships one) would otherwise ignore it.
-        if (!hasIgnoreRule(content, '!.env.example'))
-        {
-            updated += `
-# spfn env reference (committed)
-!.env.example
-`;
-            changed = true;
-        }
-
-        if (changed)
-        {
-            writeFileSync(gitignorePath, updated);
-            logger.success(existed
-                ? 'Updated .gitignore with .spfn directory and env patterns'
-                : 'Created .gitignore with .spfn directory and env patterns');
-        }
+        writeFileSync(gitignorePath, content + additions.join(''));
+        logger.success(existed
+            ? 'Updated .gitignore with .spfn directory and env patterns'
+            : 'Created .gitignore with .spfn directory and env patterns');
     }
-    catch (error)
+    catch
     {
         logger.warn('Could not update .gitignore — add .env.local and .env.server manually before committing, so the generated .env.server secrets are not tracked');
     }
 }
 
 /**
- * True when `pattern` is present as its own line (ignoring surrounding
- * whitespace), so `.env.server` does not match `.env.server.example`.
+ * The ignore blocks not already covered by the .gitignore, ready to append.
  */
-function hasIgnoreRule(content: string, pattern: string): boolean
+function pendingIgnoreRules(content: string): string[]
 {
-    return content.split('\n').some((line) => line.trim() === pattern);
+    const rules: string[] = [];
+
+    if (!gitignoreCovers(content, '.spfn'))
+    {
+        rules.push('\n# spfn\n/.spfn/\n');
+    }
+
+    if (!gitignoreCovers(content, '.env.local'))
+    {
+        rules.push('\n# environment secrets (local overrides)\n.env.local\n.env.*.local\n');
+    }
+
+    if (!gitignoreCovers(content, '.env.server'))
+    {
+        rules.push('\n# spfn server env (secrets)\n.env.server\n');
+    }
+
+    // Keep the committed .env.example reference tracked even when a broad `.env*`
+    // glob (create-next-app ships one) would otherwise ignore it.
+    if (!content.split('\n').some((line) => line.trim() === '!.env.example'))
+    {
+        rules.push('\n# spfn env reference (committed)\n!.env.example\n');
+    }
+
+    return rules;
+}
+
+/**
+ * True when some ignore line already covers `target`. Matches an exact rule
+ * (ignoring leading/trailing slashes) or a trailing-`*` glob like `.env*`, but
+ * not a comment, a negation, or a longer name such as `.spfnrc.ts` /
+ * `.env.server.example`.
+ */
+function gitignoreCovers(content: string, target: string): boolean
+{
+    const normalized = stripSlashes(target);
+
+    return content.split('\n').some((raw) =>
+    {
+        const line = raw.trim();
+
+        if (line === '' || line.startsWith('#') || line.startsWith('!'))
+        {
+            return false;
+        }
+
+        const rule = stripSlashes(line);
+
+        return rule === normalized
+            || (rule.endsWith('*') && normalized.startsWith(rule.slice(0, -1)));
+    });
+}
+
+function stripSlashes(value: string): string
+{
+    return value.replace(/^\//, '').replace(/\/$/, '');
 }
 
 /**
@@ -372,7 +432,7 @@ function updateTsconfig(cwd: string): void
             logger.success('Updated tsconfig.json (excluded src/server for Vercel compatibility)');
         }
     }
-    catch (error)
+    catch
     {
         logger.warn('Could not update tsconfig.json (you can add "src/server" to exclude manually)');
     }

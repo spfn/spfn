@@ -52,7 +52,7 @@ export async function setupReadme(cwd: string, ctx: ReadmeContext): Promise<void
     {
         template = readFileSync(templatePath, 'utf-8');
     }
-    catch (error)
+    catch
     {
         logger.warn('README template not found — skipping README generation');
 
