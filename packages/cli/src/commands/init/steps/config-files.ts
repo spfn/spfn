@@ -48,13 +48,14 @@ DB_POOL_IDLE_TIMEOUT=30
 
 // .env.example — committed reference, derived from the two templates above so its
 // key list never drifts from what init actually generates. Documentation only:
-// real values go in .env.local / .env.server (gitignored).
+// real values go in .env.local / .env.server (gitignored). Because it is committed,
+// concrete DB credentials are replaced with placeholders (AGENTS.md hard rule #4).
 const ENV_EXAMPLE_TEMPLATE = `# Example environment — committed reference for the variables SPFN uses.
 # Real values live in .env.local (Next.js) and .env.server (backend secrets),
 # both gitignored. This file documents the keys; it is not loaded by anything.
 
 ${ENV_LOCAL_TEMPLATE}
-${ENV_SERVER_TEMPLATE}`;
+${ENV_SERVER_TEMPLATE}`.replace(/(postgresql:\/\/)[^@\s/]+@/g, '$1user:password@');
 
 /**
  * Setup configuration files:
@@ -166,7 +167,12 @@ function warnOverriddenServerKeys(cwd: string): void
 
         if (clashing.length > 0)
         {
-            logger.warn(`${file} also sets ${clashing.join(', ')} — .env.server loads last and its value will win at runtime`);
+            // .env and .env.local load for every NODE_ENV; the env-specific files
+            // (.env.production etc.) only load when that NODE_ENV is active, so don't
+            // claim an unconditional override for them.
+            const alwaysLoaded = file === '.env' || file === '.env.local';
+            const when = alwaysLoaded ? 'its value wins at runtime' : 'its value wins when that NODE_ENV is active';
+            logger.warn(`${file} also sets ${clashing.join(', ')} — .env.server loads last and ${when}`);
         }
     }
 }
@@ -264,18 +270,7 @@ function envKeyOf(line: string): string | null
 
 function collectEnvKeys(content: string): Set<string>
 {
-    const keys = new Set<string>();
-
-    for (const line of content.split('\n'))
-    {
-        const key = envKeyOf(line);
-        if (key !== null)
-        {
-            keys.add(key);
-        }
-    }
-
-    return keys;
+    return collectKeys(content, false);
 }
 
 /**
@@ -284,13 +279,18 @@ function collectEnvKeys(content: string): Set<string>
  */
 function collectDeclaredKeys(content: string): Set<string>
 {
+    return collectKeys(content, true);
+}
+
+function collectKeys(content: string, includeCommented: boolean): Set<string>
+{
     const keys = new Set<string>();
 
     for (const line of content.split('\n'))
     {
-        // Strip a leading comment marker, then reuse envKeyOf so `# DATABASE_URL=`
-        // and `DATABASE_URL=` parse through the same rule.
-        const key = envKeyOf(line.replace(/^\s*#\s*/, ''));
+        // includeCommented strips a leading `# ` first, so `# DATABASE_URL=` and
+        // `DATABASE_URL=` both parse through the same envKeyOf rule.
+        const key = envKeyOf(includeCommented ? line.replace(/^\s*#\s*/, '') : line);
         if (key !== null)
         {
             keys.add(key);
@@ -348,7 +348,14 @@ function pendingIgnoreRules(content: string): string[]
 
     if (!gitignoreCovers(lines, '.env.local'))
     {
-        rules.push('\n# environment secrets (local overrides)\n.env.local\n.env.*.local\n');
+        rules.push('\n# environment secrets (local overrides)\n.env.local\n');
+    }
+
+    // Checked independently: a project may already ignore .env.local but not the
+    // .env.*.local glob (e.g. a future .env.production.local with real secrets).
+    if (!gitignoreCovers(lines, '.env.*.local'))
+    {
+        rules.push('\n# environment secrets (env-specific local overrides)\n.env.*.local\n');
     }
 
     if (!gitignoreCovers(lines, '.env.server'))
@@ -389,7 +396,8 @@ function gitignoreCovers(lines: string[], target: string): boolean
 
         if (line.startsWith('!'))
         {
-            if (stripSlashes(line.slice(1)) === normalized)
+            const negated = stripSlashes(line.slice(1));
+            if (negated === normalized || (negated.endsWith('*') && normalized.startsWith(negated.slice(0, -1))))
             {
                 return false;
             }
