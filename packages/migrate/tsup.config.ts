@@ -1,0 +1,20 @@
+import { defineConfig } from 'tsup';
+
+export default defineConfig({
+    entry: {
+        index: 'src/index.ts',
+    },
+    format: ['esm'],
+    dts: true,
+    sourcemap: true,
+    clean: true,
+    splitting: false,
+    external: [
+        '@spfn/migrate',
+        '@spfn/core',
+        '@spfn/core/db',
+        '@spfn/core/logger',
+        'drizzle-orm',
+        'drizzle-orm/pg-core',
+    ],
+});
