@@ -9,6 +9,7 @@ import { setupDockerFiles } from './steps/docker.js';
 import { setupDeploymentConfig } from './steps/deployment-config.js';
 import { setupPackageJson } from './steps/package.js';
 import { setupConfigFiles } from './steps/config-files.js';
+import { setupReadme } from './steps/readme.js';
 
 interface InitOptions
 {
@@ -46,6 +47,9 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
 
     // Step 8: Setup configuration files (.env, .spfnrc.ts, .gitignore, tsconfig)
     await setupConfigFiles(cwd);
+
+    // Step 9: Create README.md (only when one doesn't already exist)
+    await setupReadme(cwd, { pm, packageJson, includeAuth });
 
     // Done - Show success message and next steps
     console.log('\n' + chalk.green.bold('✓ SPFN initialized successfully!\n'));

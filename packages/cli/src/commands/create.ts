@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { existsSync } from 'fs';
+import { existsSync, rmSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import prompts from 'prompts';
 import ora from 'ora';
@@ -136,6 +136,15 @@ async function createProject(projectName: string, options: CreateOptions): Promi
         });
 
         ora().succeed('Next.js project created');
+
+        // Drop the create-next-app README so `spfn init` writes the SPFN one.
+        // init only creates a README when none exists; standalone init keeps any
+        // README the project already has.
+        const cnaReadme = join(projectPath, 'README.md');
+        if (existsSync(cnaReadme))
+        {
+            rmSync(cnaReadme);
+        }
     }
     catch (error: any)
     {
