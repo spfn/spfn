@@ -27,7 +27,7 @@ Requirements: Node.js 18.18+, Next.js 15+ (App Router, `src/` dir), PostgreSQL (
 npx spfn@beta create my-app
 cd my-app
 docker compose up -d            # Postgres + Redis
-cp .env.local.example .env.local
+# .env.local & .env.server are generated — put server secrets in .env.server
 pnpm spfn:dev                   # Next.js :3790 + SPFN API :8790
 
 # Add SPFN to an existing Next.js project
@@ -241,9 +241,9 @@ spfn.config.js                       # deployment config (subdomain/region/domai
 docker-compose.yml                   # Postgres + Redis (dev)
 docker-compose.production.yml
 Dockerfile, .dockerignore
-.env.example                         # committed, shared non-secret defaults
-.env.local.example                   # gitignored target template (Next.js local overrides)
-.env.server.example                  # → copy to .env.server (gitignored, server secrets)
+.env.example                         # committed reference — every key, placeholder values
+.env.local                           # generated, gitignored (Next.js-facing URLs)
+.env.server                          # generated, gitignored (server secrets: DB, cache)
 ```
 
 `init` also patches `package.json` (scripts: `spfn:dev`, `spfn:server`, `spfn:next`,
@@ -328,8 +328,8 @@ type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
 
 - **`.env.server` is gitignored and server-only.** Put DB/secret values there, not in
   `.env` (committed) and not in `.env.local` (that's Next.js's local file). There is no
-  `.env.server.local`. Copy `.env.server.example` → `.env.server`. Load order is the
-  standard dotenv chain ending with `.env.server`.
+  `.env.server.local`. `spfn init` generates `.env.server`; put DB/secret values there.
+  Load order is the standard dotenv chain ending with `.env.server`.
 - **Never commit secrets in `spfn.config.js`.** It's checked into Git; its `env` block is
   for non-sensitive values only. Use CI/CD secret management for credentials.
 - **`spfn dev` does not hot-reload by default.** Add `--watch` to restart on `src/server`

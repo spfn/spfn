@@ -81,9 +81,11 @@ function renderReadme(template: string, vars: RenderVars): string
 {
     const authBlock = /\r?\n?<!-- \{\{#auth\}\} -->\r?\n([\s\S]*?)\r?\n<!-- \{\{\/auth\}\} -->\r?\n/;
 
+    // Function replacers so a value containing `$` (e.g. a directory name used as
+    // projectName) is inserted literally, not read as a $1/$& replacement pattern.
     return template
         .replace(authBlock, vars.includeAuth ? '\n$1\n' : '\n')
-        .replaceAll('{{projectName}}', vars.projectName)
-        .replaceAll('{{pmRun}}', vars.pmRun)
-        .replaceAll('{{pm}}', vars.pm);
+        .replaceAll('{{projectName}}', () => vars.projectName)
+        .replaceAll('{{pmRun}}', () => vars.pmRun)
+        .replaceAll('{{pm}}', () => vars.pm);
 }

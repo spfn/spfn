@@ -1,9 +1,22 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import fse from 'fs-extra';
 import { logger } from '../../../utils/logger.js';
 
 const { writeFileSync } = fse;
+
+// .env.local template — Next.js-facing values (non-secret URLs).
+const ENV_LOCAL_TEMPLATE = `# Next.js environment
+# Loaded by Next.js (and the SPFN backend). Only non-secret, Next.js-facing
+# values belong here — server secrets go in .env.server.
+
+# SPFN API endpoint — browser + Next.js SSR/proxy target
+SPFN_API_URL=http://localhost:8790
+NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
+
+# Next.js app URL (used by the SPFN server for CORS/redirects)
+SPFN_APP_URL=http://localhost:3790
+`;
 
 // .env.server template — SPFN backend only; secrets live here, never loaded by
 // Next.js. SERVER_ENV_KEYS is derived from it so the two never drift.
@@ -32,6 +45,16 @@ DB_POOL_IDLE_TIMEOUT=30
 # DATABASE_READ_URL=postgresql://user:password@replica:5432/dbname
 # CACHE_PASSWORD=your-redis-password
 `;
+
+// .env.example — committed reference, derived from the two templates above so its
+// key list never drifts from what init actually generates. Documentation only:
+// real values go in .env.local / .env.server (gitignored).
+const ENV_EXAMPLE_TEMPLATE = `# Example environment — committed reference for the variables SPFN uses.
+# Real values live in .env.local (Next.js) and .env.server (backend secrets),
+# both gitignored. This file documents the keys; it is not loaded by anything.
+
+${ENV_LOCAL_TEMPLATE}
+${ENV_SERVER_TEMPLATE}`;
 
 /**
  * Setup configuration files:
@@ -90,47 +113,9 @@ export default defineConfig({
  */
 function generateEnvFiles(cwd: string): void
 {
-    // .env.local — Next.js-facing values (non-secret URLs)
-    writeEnvFile(cwd, '.env.local', `# Next.js environment
-# Loaded by Next.js (and the SPFN backend). Only non-secret, Next.js-facing
-# values belong here — server secrets go in .env.server.
-
-# SPFN API endpoint — browser + Next.js SSR/proxy target
-SPFN_API_URL=http://localhost:8790
-NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
-
-# Next.js app URL (used by the SPFN server for CORS/redirects)
-SPFN_APP_URL=http://localhost:3790
-`);
-
-    // .env.server — SPFN backend only; secrets live here, never loaded by Next.js
+    writeEnvFile(cwd, '.env.local', ENV_LOCAL_TEMPLATE);
     writeEnvFile(cwd, '.env.server', ENV_SERVER_TEMPLATE);
-
-    // .env.example — committed, placeholder-only reference for the vars above.
-    // Documentation only: real values go in .env.local / .env.server (gitignored).
-    writeExampleEnv(cwd, `# Example environment — committed reference for the variables SPFN uses.
-# Real values live in .env.local (Next.js) and .env.server (backend secrets),
-# both gitignored. This file documents the keys; it is not loaded by anything.
-
-# --- Next.js-facing (.env.local) ---
-SPFN_API_URL=http://localhost:8790
-NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
-SPFN_APP_URL=http://localhost:3790
-
-# --- SPFN backend (.env.server) ---
-NODE_ENV=local
-SPFN_LOG_LEVEL=info
-DATABASE_URL=postgresql://user:password@localhost:5432/dbname
-CACHE_URL=redis://localhost:6379
-DB_POOL_MAX=10
-DB_POOL_IDLE_TIMEOUT=30
-
-# --- Optional secrets (uncomment and set as needed) ---
-# DATABASE_WRITE_URL=postgresql://user:password@master:5432/dbname
-# DATABASE_READ_URL=postgresql://user:password@replica:5432/dbname
-# CACHE_PASSWORD=your-redis-password
-`);
-
+    writeExampleEnv(cwd, ENV_EXAMPLE_TEMPLATE);
     warnOverriddenServerKeys(cwd);
 }
 
@@ -154,17 +139,10 @@ function writeExampleEnv(cwd: string, content: string): void
 // two never drift. Used to warn when one is already set in an earlier-loaded file.
 const SERVER_ENV_KEYS = collectEnvKeys(ENV_SERVER_TEMPLATE);
 
-// The env files @spfn/core's loadEnv reads BEFORE .env.server (so an existing value
-// would be overridden). Limited to this known set — never a bare `.env*` glob — so
-// unrelated files like direnv's .envrc are not mistaken for SPFN env sources.
-const LOADER_ENV_FILES = [
-    '.env',
-    '.env.local',
-    '.env.development',
-    '.env.development.local',
-    '.env.production',
-    '.env.production.local',
-];
+// Matches the dotenv files @spfn/core's loadEnv reads (.env, .env.local,
+// .env.<nodeEnv>[.local]) for ANY NODE_ENV, but NOT non-dotenv names like
+// direnv's .envrc. .env.server (what we generate) is excluded separately.
+const DOTENV_FILE = /^\.env(\.[a-z0-9_-]+)?(\.local)?$/i;
 
 /**
  * Warn when a key .env.server owns is already set in another env file the backend
@@ -174,7 +152,7 @@ const LOADER_ENV_FILES = [
  */
 function warnOverriddenServerKeys(cwd: string): void
 {
-    for (const file of LOADER_ENV_FILES)
+    for (const file of overridableEnvFiles(cwd))
     {
         const content = readEnvFileSafe(join(cwd, file));
 
@@ -191,6 +169,19 @@ function warnOverriddenServerKeys(cwd: string): void
             logger.warn(`${file} also sets ${clashing.join(', ')} — .env.server loads last and its value will win at runtime`);
         }
     }
+}
+
+/**
+ * The dotenv files loadEnv reads before .env.server, excluding .env.server itself
+ * and the committed .env.example / *.example references.
+ */
+function overridableEnvFiles(cwd: string): string[]
+{
+    return readdirSync(cwd).filter((name) =>
+        DOTENV_FILE.test(name)
+        && name !== '.env.server'
+        && name !== '.env.example'
+        && !name.endsWith('.example'));
 }
 
 /**
@@ -297,10 +288,12 @@ function collectDeclaredKeys(content: string): Set<string>
 
     for (const line of content.split('\n'))
     {
-        const match = line.match(/^\s*#?\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=/);
-        if (match)
+        // Strip a leading comment marker, then reuse envKeyOf so `# DATABASE_URL=`
+        // and `DATABASE_URL=` parse through the same rule.
+        const key = envKeyOf(line.replace(/^\s*#\s*/, ''));
+        if (key !== null)
         {
-            keys.add(match[1]);
+            keys.add(key);
         }
     }
 
@@ -345,26 +338,27 @@ function updateGitignore(cwd: string): void
  */
 function pendingIgnoreRules(content: string): string[]
 {
+    const lines = content.split('\n');
     const rules: string[] = [];
 
-    if (!gitignoreCovers(content, '.spfn'))
+    if (!gitignoreCovers(lines, '.spfn'))
     {
         rules.push('\n# spfn\n/.spfn/\n');
     }
 
-    if (!gitignoreCovers(content, '.env.local'))
+    if (!gitignoreCovers(lines, '.env.local'))
     {
         rules.push('\n# environment secrets (local overrides)\n.env.local\n.env.*.local\n');
     }
 
-    if (!gitignoreCovers(content, '.env.server'))
+    if (!gitignoreCovers(lines, '.env.server'))
     {
         rules.push('\n# spfn server env (secrets)\n.env.server\n');
     }
 
     // Keep the committed .env.example reference tracked even when a broad `.env*`
     // glob (create-next-app ships one) would otherwise ignore it.
-    if (!content.split('\n').some((line) => line.trim() === '!.env.example'))
+    if (!lines.some((line) => line.trim() === '!.env.example'))
     {
         rules.push('\n# spfn env reference (committed)\n!.env.example\n');
     }
@@ -375,27 +369,41 @@ function pendingIgnoreRules(content: string): string[]
 /**
  * True when some ignore line already covers `target`. Matches an exact rule
  * (ignoring leading/trailing slashes) or a trailing-`*` glob like `.env*`, but
- * not a comment, a negation, or a longer name such as `.spfnrc.ts` /
- * `.env.server.example`.
+ * not a comment or a longer name such as `.spfnrc.ts` / `.env.server.example`.
+ * An explicit `!target` negation forces "not covered" so we re-add the rule —
+ * otherwise a negated secret file would be left git-tracked.
  */
-function gitignoreCovers(content: string, target: string): boolean
+function gitignoreCovers(lines: string[], target: string): boolean
 {
     const normalized = stripSlashes(target);
+    let covered = false;
 
-    return content.split('\n').some((raw) =>
+    for (const raw of lines)
     {
         const line = raw.trim();
 
-        if (line === '' || line.startsWith('#') || line.startsWith('!'))
+        if (line === '' || line.startsWith('#'))
         {
-            return false;
+            continue;
+        }
+
+        if (line.startsWith('!'))
+        {
+            if (stripSlashes(line.slice(1)) === normalized)
+            {
+                return false;
+            }
+            continue;
         }
 
         const rule = stripSlashes(line);
+        if (rule === normalized || (rule.endsWith('*') && normalized.startsWith(rule.slice(0, -1))))
+        {
+            covered = true;
+        }
+    }
 
-        return rule === normalized
-            || (rule.endsWith('*') && normalized.startsWith(rule.slice(0, -1)));
-    });
+    return covered;
 }
 
 function stripSlashes(value: string): string
