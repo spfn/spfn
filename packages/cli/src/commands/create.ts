@@ -274,7 +274,7 @@ async function createProject(projectName: string, options: CreateOptions): Promi
     console.log(chalk.bold('Next steps:\n'));
     console.log(`  ${chalk.cyan('cd')} ${projectName}`);
     console.log(`  ${chalk.cyan('docker compose up -d')}  ${chalk.gray('# Start PostgreSQL & Redis')}`);
-    console.log(`  ${chalk.cyan('cp .env.local.example .env.local')}  ${chalk.gray('# Configure environment')}`);
+    console.log(`  ${chalk.gray('# .env.local & .env.server are generated — put server secrets in .env.server')}`);
     console.log(`  ${chalk.cyan(`${pm === 'npm' ? 'npm run' : pm + ' run'} spfn:dev`)}  ${chalk.gray('# Start dev server')}\n`);
 
     console.log(chalk.bold('Your app will be available at:\n'));

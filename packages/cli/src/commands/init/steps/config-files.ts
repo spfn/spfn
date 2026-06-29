@@ -7,16 +7,15 @@ const { writeFileSync } = fse;
 
 /**
  * Setup configuration files:
- * - .env.example (shared defaults, committed)
- * - .env.local.example (local overrides with secrets, gitignored)
- * - .env.server.example (server-only template incl. secrets; copy to .env.server, gitignored)
+ * - .env.local (Next.js-facing env: API/app URLs — non-secret, gitignored)
+ * - .env.server (SPFN backend env + secrets: DB, cache, pool — never loaded by Next.js, gitignored)
  * - .spfnrc.ts (codegen configuration)
  * - .gitignore (add .spfn directory + env patterns)
  * - tsconfig.json (exclude src/server for Vercel)
  */
 export async function setupConfigFiles(cwd: string): Promise<void>
 {
-    generateEnvExamples(cwd);
+    generateEnvFiles(cwd);
 
     // Create .spfnrc.ts for codegen configuration
     const spfnrcPath = join(cwd, '.spfnrc.ts');
@@ -51,13 +50,32 @@ export default defineConfig({
 }
 
 /**
- * Generate separated .env example files
+ * Generate ready-to-use env files, split by which process loads them.
+ *
+ * .env.local is loaded by Next.js (and also the SPFN backend), so only
+ * non-secret, Next.js-facing values go there. .env.server is loaded ONLY by the
+ * SPFN backend, so every server secret (DB URL, cache, credentials) lives there
+ * and never reaches the Next.js process. Both files are gitignored.
  */
-function generateEnvExamples(cwd: string): void
+function generateEnvFiles(cwd: string): void
 {
-    // .env.example — shared defaults (committed, non-sensitive)
-    writeEnvExample(cwd, '.env.example', `# Shared defaults (committed)
-# These values are shared across all environments.
+    // .env.local — Next.js-facing values (non-secret URLs)
+    writeEnvFile(cwd, '.env.local', `# Next.js environment
+# Loaded by Next.js (and the SPFN backend). Only non-secret, Next.js-facing
+# values belong here — server secrets go in .env.server.
+
+# SPFN API endpoint — browser + Next.js SSR/proxy target
+SPFN_API_URL=http://localhost:8790
+NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
+
+# Next.js app URL (used by the SPFN server for CORS/redirects)
+SPFN_APP_URL=http://localhost:3790
+`);
+
+    // .env.server — SPFN backend only; secrets live here, never loaded by Next.js
+    writeEnvFile(cwd, '.env.server', `# SPFN backend environment
+# Loaded ONLY by the SPFN server, never by Next.js. Keep all server-only config
+# and secrets here so they never reach the Next.js process.
 
 # Environment
 NODE_ENV=local
@@ -65,56 +83,27 @@ NODE_ENV=local
 # Logging
 SPFN_LOG_LEVEL=info
 
-# Server
-PORT=4000
-
-# SPFN API Server URL (for API Route Proxy and SSR)
-SPFN_API_URL=http://localhost:8790
-NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
-`);
-
-    // .env.local.example — local overrides (gitignored, sensitive)
-    writeEnvExample(cwd, '.env.local.example', `# Local overrides (gitignored)
-# Developer-specific values that should NOT be committed.
-
-# Database (matches docker-compose.yml)
+# Database (matches docker-compose.yml) — secret, server-only
 DATABASE_URL=postgresql://spfn:spfn@localhost:5432/spfn_dev
 
-# Cache - Redis/Valkey (optional)
+# Cache — Redis/Valkey (optional)
 CACHE_URL=redis://localhost:6379
-
-# SPFN App URL (optional, for CORS and redirects)
-# SPFN_APP_URL=http://localhost:3790
-`);
-
-    // .env.server.example — server-only template (copy to .env.server, gitignored)
-    writeEnvExample(cwd, '.env.server.example', `# Server-only environment (template)
-# Copy to .env.server (gitignored) and fill in real values.
-# These values are only loaded by the SPFN server, not by Next.js.
 
 # Database pool
 DB_POOL_MAX=10
 DB_POOL_IDLE_TIMEOUT=30
 
-# Server timeouts
-SERVER_TIMEOUT=120000
-SHUTDOWN_TIMEOUT=30000
-
-# --- Secrets (never commit .env.server) ---
-
-# Database write/read URLs (master-replica pattern, optional)
+# --- Optional secrets (uncomment and set as needed) ---
 # DATABASE_WRITE_URL=postgresql://user:password@master:5432/dbname
 # DATABASE_READ_URL=postgresql://user:password@replica:5432/dbname
-
-# Cache password (optional)
 # CACHE_PASSWORD=your-redis-password
 `);
 }
 
 /**
- * Write a single .env example file (skip if exists)
+ * Write an env file (skip if it already exists, to preserve user values)
  */
-function writeEnvExample(cwd: string, filename: string, content: string): void
+function writeEnvFile(cwd: string, filename: string, content: string): void
 {
     const filePath = join(cwd, filename);
 

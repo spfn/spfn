@@ -57,8 +57,8 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
     console.log('Next steps:');
     console.log('  1. Start PostgreSQL & Redis (if not installed locally):');
     console.log('     ' + chalk.cyan('docker compose up -d'));
-    console.log('  2. Copy .env.local.example to .env.local');
-    console.log('     ' + chalk.cyan('cp .env.local.example .env.local'));
+    console.log('  2. Review the generated env files (.env.local, .env.server)');
+    console.log('     ' + chalk.dim('server secrets belong in .env.server — Next.js never loads it'));
     console.log('  3. Run: ' + chalk.cyan(pm === 'npm' ? 'npm run spfn:dev' : `${pm} run spfn:dev`));
     console.log('  4. Visit:');
     console.log('     - Next.js: ' + chalk.cyan('http://localhost:3790'));

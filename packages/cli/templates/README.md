@@ -17,11 +17,10 @@ A full-stack app built with [SPFN](https://github.com/spfn/spfn) — a
    docker compose up -d
    ```
 
-2. Configure environment variables:
-
-   ```bash
-   cp .env.local.example .env.local
-   ```
+2. Environment files are already generated — `.env.local` for Next.js and
+   `.env.server` for backend secrets (database, cache). The defaults match the
+   bundled `docker compose`, so no copying is needed. Edit them as your app grows;
+   keep server secrets in `.env.server` (Next.js never loads it).
 
 3. Start the dev server (Next.js + SPFN backend together):
 
