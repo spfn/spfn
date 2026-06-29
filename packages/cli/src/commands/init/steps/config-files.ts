@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import fse from 'fs-extra';
 import { logger } from '../../../utils/logger.js';
@@ -9,6 +9,7 @@ const { writeFileSync } = fse;
  * Setup configuration files:
  * - .env.local (Next.js-facing env: API/app URLs — non-secret, gitignored)
  * - .env.server (SPFN backend env + secrets: DB, cache, pool — never loaded by Next.js, gitignored)
+ * - .env.example (committed, placeholder-only reference for the variables above)
  * - .spfnrc.ts (codegen configuration)
  * - .gitignore (add .spfn directory + env patterns)
  * - tsconfig.json (exclude src/server for Vercel)
@@ -98,6 +99,86 @@ DB_POOL_IDLE_TIMEOUT=30
 # DATABASE_READ_URL=postgresql://user:password@replica:5432/dbname
 # CACHE_PASSWORD=your-redis-password
 `);
+
+    // .env.example — committed, placeholder-only reference for the vars above.
+    // Documentation only: real values go in .env.local / .env.server (gitignored).
+    writeExampleEnv(cwd, `# Example environment — committed reference for the variables SPFN uses.
+# Real values live in .env.local (Next.js) and .env.server (backend secrets),
+# both gitignored. This file documents the keys; it is not loaded by anything.
+
+# --- Next.js-facing (.env.local) ---
+SPFN_API_URL=http://localhost:8790
+NEXT_PUBLIC_SPFN_API_URL=http://localhost:8790
+SPFN_APP_URL=http://localhost:3790
+
+# --- SPFN backend (.env.server) ---
+NODE_ENV=local
+SPFN_LOG_LEVEL=info
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+CACHE_URL=redis://localhost:6379
+DB_POOL_MAX=10
+DB_POOL_IDLE_TIMEOUT=30
+
+# --- Optional secrets (uncomment and set as needed) ---
+# DATABASE_WRITE_URL=postgresql://user:password@master:5432/dbname
+# DATABASE_READ_URL=postgresql://user:password@replica:5432/dbname
+# CACHE_PASSWORD=your-redis-password
+`);
+
+    warnOverriddenServerKeys(cwd);
+}
+
+/**
+ * Write the committed .env.example reference, but never clobber a user's own.
+ */
+function writeExampleEnv(cwd: string, content: string): void
+{
+    const filePath = join(cwd, '.env.example');
+
+    if (existsSync(filePath))
+    {
+        return;
+    }
+
+    writeFileSync(filePath, content);
+    logger.success('Created .env.example (committed reference)');
+}
+
+// Active (uncommented) keys .env.server sets — listed so we can warn when one is
+// already defined elsewhere and would be overridden. See loadEnv: .env.server
+// loads last, so its value wins.
+const SERVER_ENV_KEYS = ['NODE_ENV', 'SPFN_LOG_LEVEL', 'DATABASE_URL', 'CACHE_URL', 'DB_POOL_MAX', 'DB_POOL_IDLE_TIMEOUT'];
+
+/**
+ * Warn when a key .env.server owns is already set in another env file the backend
+ * loads earlier. .env.server loads last and wins, so the user's existing value
+ * (e.g. a real DATABASE_URL in .env.local) is silently overridden at runtime.
+ */
+function warnOverriddenServerKeys(cwd: string): void
+{
+    for (const file of otherEnvFiles(cwd))
+    {
+        const keys = collectEnvKeys(readFileSync(join(cwd, file), 'utf-8'));
+        const clashing = SERVER_ENV_KEYS.filter((key) => keys.has(key));
+
+        if (clashing.length > 0)
+        {
+            logger.warn(`${file} also sets ${clashing.join(', ')} — .env.server loads last and its value will win at runtime`);
+        }
+    }
+}
+
+/**
+ * Existing env files the backend loads before .env.server, excluding the
+ * generated reference and any .example templates.
+ */
+function otherEnvFiles(cwd: string): string[]
+{
+    return readdirSync(cwd).filter((name) =>
+        name.startsWith('.env')
+        && name !== '.env.server'
+        && name !== '.env.example'
+        && !name.endsWith('.example'));
 }
 
 /**
@@ -224,6 +305,17 @@ function updateGitignore(cwd: string): void
             updated += `
 # spfn server env (secrets)
 .env.server
+`;
+            changed = true;
+        }
+
+        // Keep the committed .env.example reference tracked even when a broad
+        // `.env*` glob (create-next-app ships one) would otherwise ignore it.
+        if (!hasIgnoreRule(content, '!.env.example'))
+        {
+            updated += `
+# spfn env reference (committed)
+!.env.example
 `;
             changed = true;
         }
