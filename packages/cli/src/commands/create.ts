@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { existsSync, rmSync } from 'fs';
+import { existsSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import prompts from 'prompts';
 import ora from 'ora';
@@ -7,7 +7,8 @@ import { execa } from 'execa';
 import chalk from 'chalk';
 
 import { logger } from '../utils/logger.js';
-import { detectPackageManager } from '../utils/package-manager.js';
+import { detectPackageManager, getRunCommand } from '../utils/package-manager.js';
+import { ENV_FILES_HINT } from '../utils/messages.js';
 
 interface CreateOptions
 {
@@ -136,15 +137,6 @@ async function createProject(projectName: string, options: CreateOptions): Promi
         });
 
         ora().succeed('Next.js project created');
-
-        // Drop the create-next-app README so `spfn init` writes the SPFN one.
-        // init only creates a README when none exists; standalone init keeps any
-        // README the project already has.
-        const cnaReadme = join(projectPath, 'README.md');
-        if (existsSync(cnaReadme))
-        {
-            rmSync(cnaReadme);
-        }
     }
     catch (error: any)
     {
@@ -257,7 +249,7 @@ async function createProject(projectName: string, options: CreateOptions): Promi
     {
         // Run spfn init programmatically
         const { initializeSpfn } = await import('./init/index.js');
-        await initializeSpfn({ yes: true });
+        await initializeSpfn({ yes: true, overwriteReadme: true });
 
         initSpinner.succeed('SPFN initialized');
     }
@@ -274,8 +266,8 @@ async function createProject(projectName: string, options: CreateOptions): Promi
     console.log(chalk.bold('Next steps:\n'));
     console.log(`  ${chalk.cyan('cd')} ${projectName}`);
     console.log(`  ${chalk.cyan('docker compose up -d')}  ${chalk.gray('# Start PostgreSQL & Redis')}`);
-    console.log(`  ${chalk.gray('# .env.local & .env.server are generated — put server secrets in .env.server')}`);
-    console.log(`  ${chalk.cyan(`${pm === 'npm' ? 'npm run' : pm + ' run'} spfn:dev`)}  ${chalk.gray('# Start dev server')}\n`);
+    console.log(`  ${chalk.gray(`# .env.local & .env.server are generated — ${ENV_FILES_HINT}`)}`);
+    console.log(`  ${chalk.cyan(`${getRunCommand(pm)} spfn:dev`)}  ${chalk.gray('# Start dev server')}\n`);
 
     console.log(chalk.bold('Your app will be available at:\n'));
     console.log(`  ${chalk.cyan('http://localhost:3790')}  ${chalk.gray('(Next.js)')}`);
@@ -284,8 +276,8 @@ async function createProject(projectName: string, options: CreateOptions): Promi
     // Production deployment guidance
     console.log(chalk.bold('🚀 Ready for production?\n'));
     console.log('  ' + chalk.cyan('Build for production:'));
-    console.log(`    ${chalk.cyan(pm === 'npm' ? 'npm run' : pm + ' run')} spfn:build`);
-    console.log(`    ${chalk.cyan(pm === 'npm' ? 'npm run' : pm + ' run')} spfn:start\n`);
+    console.log(`    ${chalk.cyan(getRunCommand(pm))} spfn:build`);
+    console.log(`    ${chalk.cyan(getRunCommand(pm))} spfn:start\n`);
 
     console.log('  ' + chalk.cyan('Or deploy with Docker:'));
     console.log(`    ${chalk.cyan('docker compose -f docker-compose.production.yml up --build -d')}\n`);

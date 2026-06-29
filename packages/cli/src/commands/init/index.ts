@@ -1,7 +1,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { detectPackageManager } from '../../utils/package-manager.js';
+import { detectPackageManager, getRunCommand } from '../../utils/package-manager.js';
 import { logger } from '../../utils/logger.js';
+import { ENV_FILES_HINT } from '../../utils/messages.js';
 import { validateProject } from './steps/validate.js';
 import { setupServerStructure } from './steps/server-structure.js';
 import { setupApiProxy } from './steps/api-proxy.js';
@@ -14,6 +15,8 @@ import { setupReadme } from './steps/readme.js';
 interface InitOptions
 {
     yes?: boolean;
+    // Set by `spfn create` to replace the create-next-app README with the SPFN one.
+    overwriteReadme?: boolean;
 }
 
 /**
@@ -49,7 +52,7 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
     await setupConfigFiles(cwd);
 
     // Step 9: Create README.md (only when one doesn't already exist)
-    await setupReadme(cwd, { pm, packageJson, includeAuth });
+    await setupReadme(cwd, { pm, packageJson, includeAuth, overwrite: options.overwriteReadme ?? false });
 
     // Done - Show success message and next steps
     console.log('\n' + chalk.green.bold('✓ SPFN initialized successfully!\n'));
@@ -58,13 +61,13 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
     console.log('  1. Start PostgreSQL & Redis (if not installed locally):');
     console.log('     ' + chalk.cyan('docker compose up -d'));
     console.log('  2. Review the generated env files (.env.local, .env.server)');
-    console.log('     ' + chalk.dim('server secrets belong in .env.server — Next.js never loads it'));
-    console.log('  3. Run: ' + chalk.cyan(pm === 'npm' ? 'npm run spfn:dev' : `${pm} run spfn:dev`));
+    console.log('     ' + chalk.dim(ENV_FILES_HINT));
+    console.log('  3. Run: ' + chalk.cyan(`${getRunCommand(pm)} spfn:dev`));
     console.log('  4. Visit:');
     console.log('     - Next.js: ' + chalk.cyan('http://localhost:3790'));
     console.log('     - API:     ' + chalk.cyan('http://localhost:8790/health'));
     console.log('\nAvailable commands:');
-    console.log('  • ' + chalk.cyan(pm === 'npm' ? 'npm run spfn:dev' : `${pm} spfn:dev`) + '       - Start SPFN + Next.js');
+    console.log('  • ' + chalk.cyan(`${getRunCommand(pm)} spfn:dev`) + '       - Start SPFN + Next.js');
     console.log('  • ' + chalk.cyan('spfn env:validate') + '   - Validate environment variables');
     console.log('  • ' + chalk.cyan('spfn env:docs') + '       - Generate env documentation');
     console.log('  • ' + chalk.cyan('spfn env:check') + '      - Check environment status');

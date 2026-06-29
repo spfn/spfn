@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import { build } from 'tsup';
 
 import { logger } from '../utils/logger.js';
-import { detectPackageManager } from '../utils/package-manager.js';
+import { detectPackageManager, getRunCommand } from '../utils/package-manager.js';
 
 interface BuildOptions
 {
@@ -258,7 +258,7 @@ await startServer({
 
     console.log(chalk.bold('Next steps:\n'));
     console.log('  ' + chalk.cyan('Start production server:'));
-    console.log(`    ${chalk.cyan(pm === 'npm' ? 'npm run' : pm + ' run')} spfn:start  ${chalk.gray('# Start SPFN + Next.js')}\n`);
+    console.log(`    ${chalk.cyan(getRunCommand(pm))} spfn:start  ${chalk.gray('# Start SPFN + Next.js')}\n`);
 
     console.log('  ' + chalk.cyan('Or deploy with Docker:'));
     console.log(`    ${chalk.cyan('docker compose -f docker-compose.production.yml up --build -d')}\n`);

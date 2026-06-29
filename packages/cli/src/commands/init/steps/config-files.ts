@@ -101,51 +101,108 @@ DB_POOL_IDLE_TIMEOUT=30
 }
 
 /**
- * Write an env file (skip if it already exists, to preserve user values)
+ * Write an env file. When it already exists we never overwrite user values —
+ * instead we append any SPFN keys the file is missing, so required vars like
+ * SPFN_API_URL are added even on a project that already has its own env file.
  */
 function writeEnvFile(cwd: string, filename: string, content: string): void
 {
     const filePath = join(cwd, filename);
 
-    if (existsSync(filePath))
+    if (!existsSync(filePath))
+    {
+        writeFileSync(filePath, content);
+        logger.success(`Created ${filename}`);
+
+        return;
+    }
+
+    mergeMissingEnvKeys(filePath, filename, content);
+}
+
+/**
+ * Append the assignment lines from `template` whose keys are absent from the
+ * existing file, preserving everything the user already has.
+ */
+function mergeMissingEnvKeys(filePath: string, filename: string, template: string): void
+{
+    const existing = readFileSync(filePath, 'utf-8');
+    const existingKeys = collectEnvKeys(existing);
+
+    const missing = template
+        .split('\n')
+        .filter((line) =>
+        {
+            const key = envKeyOf(line);
+
+            return key !== null && !existingKeys.has(key);
+        });
+
+    if (missing.length === 0)
     {
         return;
     }
 
-    writeFileSync(filePath, content);
-    logger.success(`Created ${filename}`);
+    const block = `\n# Added by spfn init\n${missing.join('\n')}\n`;
+    writeFileSync(filePath, existing.replace(/\n*$/, '\n') + block);
+    logger.success(`Updated ${filename} (added ${missing.length} SPFN key(s))`);
 }
 
 /**
- * Update .gitignore with SPFN patterns
+ * Extract the variable name from an `KEY=value` line, or null for comments/blanks.
+ */
+function envKeyOf(line: string): string | null
+{
+    const match = line.match(/^([A-Z_][A-Z0-9_]*)=/);
+
+    return match ? match[1] : null;
+}
+
+function collectEnvKeys(content: string): Set<string>
+{
+    const keys = new Set<string>();
+
+    for (const line of content.split('\n'))
+    {
+        const key = envKeyOf(line);
+        if (key !== null)
+        {
+            keys.add(key);
+        }
+    }
+
+    return keys;
+}
+
+/**
+ * Update .gitignore with SPFN patterns, creating the file if it doesn't exist.
+ *
+ * The env files generated above are real, secret-bearing files (.env.server holds
+ * DB/cache credentials), so the ignore rules must be guaranteed even in a project
+ * that ships without a .gitignore.
  */
 function updateGitignore(cwd: string): void
 {
     const gitignorePath = join(cwd, '.gitignore');
-
-    if (!existsSync(gitignorePath))
-    {
-        return;
-    }
+    const existed = existsSync(gitignorePath);
 
     try
     {
-        const content = readFileSync(gitignorePath, 'utf-8');
+        const content = existed ? readFileSync(gitignorePath, 'utf-8') : '';
         let updated = content;
         let changed = false;
 
         // Add .spfn directory
-        if (!content.includes('.spfn'))
+        if (!hasIgnoreRule(content, '/.spfn/'))
         {
-            updated = updated.replace(
-                /# production\n\/build/,
-                '# production\n/build\n\n# spfn\n/.spfn/',
-            );
+            updated = /# production\r?\n\/build/.test(updated)
+                ? updated.replace(/# production(\r?\n)\/build/, '# production$1/build$1$1# spfn$1/.spfn/')
+                : `${updated.replace(/\n*$/, '\n')}\n# spfn\n/.spfn/\n`;
             changed = true;
         }
 
         // Add env local patterns (Next.js)
-        if (!content.includes('.env.local') && !content.includes('.env.*.local'))
+        if (!hasIgnoreRule(content, '.env.local') && !hasIgnoreRule(content, '.env.*.local'))
         {
             updated += `
 # environment secrets (local overrides)
@@ -157,7 +214,7 @@ function updateGitignore(cwd: string): void
 
         // Add .env.server independently — it holds server secrets and must be
         // ignored regardless of whether the .env.local block above was added.
-        if (!content.includes('.env.server'))
+        if (!hasIgnoreRule(content, '.env.server'))
         {
             updated += `
 # spfn server env (secrets)
@@ -169,13 +226,24 @@ function updateGitignore(cwd: string): void
         if (changed)
         {
             writeFileSync(gitignorePath, updated);
-            logger.success('Updated .gitignore with .spfn directory and env patterns');
+            logger.success(existed
+                ? 'Updated .gitignore with .spfn directory and env patterns'
+                : 'Created .gitignore with .spfn directory and env patterns');
         }
     }
     catch (error)
     {
         logger.warn('Could not update .gitignore (you can add patterns manually)');
     }
+}
+
+/**
+ * True when `pattern` is present as its own line (ignoring surrounding
+ * whitespace), so `.env.server` does not match `.env.server.example`.
+ */
+function hasIgnoreRule(content: string, pattern: string): boolean
+{
+    return content.split('\n').some((line) => line.trim() === pattern);
 }
 
 /**
