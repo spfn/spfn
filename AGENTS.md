@@ -114,4 +114,32 @@ will rewrite the entire codebase to the wrong style. Style is enforced via ESLin
 ## Versioning
 
 Packages are in **beta** (`0.x.y-beta.N`) / alpha. Do not bump a package to a stable
-(non-pre-release) version. Publishing is automated from `main` via GitHub Actions.
+(non-pre-release) version.
+
+## Publishing
+
+Packages are published **manually to the private Gitea registry**
+(`git.superfunction.xyz/api/packages/superfunction/npm/`) — *not* to public npm, and
+*not* through the `.github/workflows/publish-*.yml` GitHub Actions (those target public
+npm and are not the path this project uses). Auth is the `~/.npmrc` token for that
+registry; no `npm login` to npmjs.org is needed.
+
+To release a package:
+
+1. Bump `packages/<pkg>/package.json` `version` (npm rejects re-publishing an existing
+   version). Build it (`pnpm --filter <pkg> build`; for `@spfn/auth` also build its
+   deps `@spfn/core` + `@spfn/notification` first).
+2. Publish from the package dir with the **named script**, e.g.
+   `cd packages/<pkg> && npm run publish:beta` (also `publish:alpha` / `publish:latest`).
+3. Commit the version bump to `main` and push to `origin` (Gitea).
+
+Gotchas:
+
+- **Never run a bare `pnpm publish` / `npm publish`.** `publishConfig.tag` is ignored by
+  the npm/pnpm here, so a bare publish lands on the `latest` dist-tag regardless — use
+  the `publish:beta` script (it passes `--tag beta`) for a beta release.
+- `@spfn/*` scoped packages resolve to the Gitea registry automatically via the
+  `@spfn:registry` scope in `~/.npmrc`. The unscoped `spfn` CLI is pinned to Gitea via
+  its own `publishConfig.registry`.
+- `RELEASE.md` / `.github/PUBLISHING.md` still describe the old public-npm + GitHub
+  Actions flow; the process above supersedes them.

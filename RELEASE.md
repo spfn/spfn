@@ -1,5 +1,12 @@
 # Release SPFN Packages to npm
 
+> ⚠️ **OUTDATED — current process differs.** This guide describes a public-npm,
+> tag-triggered GitHub Actions flow that the project no longer uses. Packages are now
+> published **manually to the private Gitea registry** via the `publish:beta` scripts.
+> See **[.github/PUBLISHING.md](./.github/PUBLISHING.md)** and the *Publishing* section
+> of [AGENTS.md](./AGENTS.md) for the real process. The steps below are kept for
+> historical reference only.
+
 Release guide for @spfn/core, @spfn/auth, @spfn/cms, and spfn CLI packages.
 
 ## Deployment Strategies
