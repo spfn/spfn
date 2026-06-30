@@ -36,6 +36,13 @@
       "when": 1773000695014,
       "tag": "0004_concerned_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782729129000,
+      "tag": "0005_lethal_lifeguard",
+      "breakpoints": true
     }
   ]
 }
