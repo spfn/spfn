@@ -42,7 +42,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "alpha",
+    "tag": "beta",
     "registry": "https://git.superfunction.xyz/api/packages/superfunction/npm/"
   },
   "bugs": {
