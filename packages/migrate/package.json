@@ -1,6 +1,6 @@
 {
     "name": "@spfn/migrate",
-    "version": "0.1.0-beta.0",
+    "version": "0.1.0-beta.1",
     "description": "Code-based data migrations with a run-once ledger for SPFN apps.",
     "type": "module",
     "exports": {
