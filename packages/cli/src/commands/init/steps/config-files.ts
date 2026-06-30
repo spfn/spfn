@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import fse from 'fs-extra';
 import { logger } from '../../../utils/logger.js';
-import { envKeyOf, collectDeclaredKeys, gitignoreCovers } from '../../../utils/env-file.js';
+import { envKeyOf, collectDeclaredKeys, gitignoreCovers, restrictEnvFilePerms } from '../../../utils/env-file.js';
 
 const { writeFileSync } = fse;
 
@@ -142,6 +142,7 @@ function writeServerEnv(cwd: string): void
     if (!existsSync(filePath))
     {
         writeFileSync(filePath, ENV_SERVER_TEMPLATE);
+        restrictEnvFilePerms(filePath);
         logger.success('Created .env.server');
 
         return;

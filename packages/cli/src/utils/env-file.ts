@@ -5,9 +5,26 @@
  * same parsing/merge/ignore rules back both `spfn init` and `spfn secret`.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, chmodSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'dotenv';
+
+/**
+ * Best-effort tighten a secret-bearing env file to owner read/write only (0600), so
+ * `.env.server` is never left world-readable. A no-op on filesystems without POSIX
+ * modes (Windows, some mounts).
+ */
+export function restrictEnvFilePerms(filePath: string): void
+{
+    try
+    {
+        chmodSync(filePath, 0o600);
+    }
+    catch
+    {
+        // No POSIX permissions here — leave the file as the OS created it.
+    }
+}
 
 /**
  * Extract the variable name from a `KEY=value` line, or null for comments/blanks.
@@ -93,7 +110,8 @@ export function upsertEnvVar(filePath: string, key: string, value: string): 'add
 /**
  * True when some ignore line already covers `target`. Matches an exact rule
  * (ignoring leading/trailing slashes) or a trailing-`*` glob like `.env*`, but not
- * a comment or a longer name. An explicit `!target` negation forces "not covered".
+ * a comment or a longer name. Follows gitignore's last-match-wins rule: a later
+ * `!target` negation un-covers, and a later positive rule can re-cover again.
  */
 export function gitignoreCovers(lines: string[], target: string): boolean
 {
@@ -109,20 +127,12 @@ export function gitignoreCovers(lines: string[], target: string): boolean
             continue;
         }
 
-        if (line.startsWith('!'))
-        {
-            const negated = stripSlashes(line.slice(1));
-            if (negated === normalized || (negated.endsWith('*') && normalized.startsWith(negated.slice(0, -1))))
-            {
-                return false;
-            }
-            continue;
-        }
+        const negation = line.startsWith('!');
+        const rule = stripSlashes(negation ? line.slice(1) : line);
 
-        const rule = stripSlashes(line);
         if (rule === normalized || (rule.endsWith('*') && normalized.startsWith(rule.slice(0, -1))))
         {
-            covered = true;
+            covered = !negation;
         }
     }
 

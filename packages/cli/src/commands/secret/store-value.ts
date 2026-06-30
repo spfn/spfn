@@ -10,13 +10,28 @@
 import { join } from 'path';
 import { logger } from '../../utils/logger.js';
 import { detectStore, keychainName, keychainRef } from '../../utils/secret-store/index.js';
-import { upsertEnvVar, ensureGitignored } from '../../utils/env-file.js';
+import { upsertEnvVar, ensureGitignored, restrictEnvFilePerms } from '../../utils/env-file.js';
 import { ensureSopsInstalled, sopsSetValue } from '../../utils/sops.js';
 import { getSopsFile, hasSopsConfig } from '../../utils/secret-config.js';
 
 export function isLocalEnv(env: string): boolean
 {
     return env === 'local';
+}
+
+/** Env-var name shape — the only keys we let into a keychain item or a SOPS path. */
+const KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * Reject a malformed secret key before it reaches the keychain or the SOPS `["key"]`
+ * path expression, where a stray quote would corrupt the encrypted file.
+ */
+export function assertValidKey(key: string): void
+{
+    if (!KEY_PATTERN.test(key))
+    {
+        throw new Error(`Invalid secret key "${key}". Use an env-var name: letters, digits, and underscores, not starting with a digit.`);
+    }
 }
 
 /** Human-readable description of where a value will be stored for an environment. */
@@ -35,6 +50,8 @@ export async function describeTarget(env: string): Promise<string>
  */
 export async function storeSecret(cwd: string, env: string, key: string, value: string): Promise<void>
 {
+    assertValidKey(key);
+
     if (isLocalEnv(env))
     {
         const store = detectStore();
@@ -49,7 +66,9 @@ export async function storeSecret(cwd: string, env: string, key: string, value: 
 
         await store.set(keychainName(key), value);
 
-        const result = upsertEnvVar(join(cwd, '.env.server'), key, keychainRef(key));
+        const serverEnvPath = join(cwd, '.env.server');
+        const result = upsertEnvVar(serverEnvPath, key, keychainRef(key));
+        restrictEnvFilePerms(serverEnvPath);
         ensureGitignored(cwd, [{ pattern: '.env.server', comment: 'spfn server env (secrets)' }]);
 
         logger.success(`Stored ${key} in ${store.label}; .env.server ${result} the reference.`);

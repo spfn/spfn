@@ -424,6 +424,7 @@ catch (error)
                 cwd,
                 stdio: 'inherit',
                 reject: false,
+                env: serverEnv,
             });
 
             // Don't await or catch - let it run independently

@@ -17,6 +17,9 @@ import { ensureSopsInstalled, sopsUpdateKeys } from '../../utils/sops.js';
 const SOPS_CONFIG = '.sops.yaml';
 const DEFAULT_PATH_REGEX = 'secrets/.*\\.enc\\.json$';
 
+/** age public-key (recipient) shape: `age1` + bech32 body. */
+const AGE_RECIPIENT = /^age1[0-9a-z]+$/;
+
 interface CreationRule
 {
     path_regex?: string;
@@ -64,6 +67,12 @@ export async function secretRecipients(
 
     if (action === 'add')
     {
+        if (!AGE_RECIPIENT.test(key))
+        {
+            logger.error(`"${key}" is not an age recipient (expected age1…). Run \`spfn secret keygen\` to mint one.`);
+            process.exit(1);
+        }
+
         recipients.add(key);
     }
     else
