@@ -22,7 +22,10 @@ export interface DataMigration
 {
     /** 전역 유일·정렬 키. 타임스탬프 프리픽스 권장: 'YYYYMMDD_slug'(번호 머지충돌 회피). */
     name: string;
-    /** false면 자체 배치/트랜잭션 관리(거대 테이블). 기본 true = 적용+ledger 기록 한 트랜잭션. */
+    /**
+     * false면 자체 배치/트랜잭션 관리(거대 테이블). 기본 true = 적용+ledger 기록 한 트랜잭션.
+     * [주의] false 설정 시, up 로직은 반드시 멱등성(Idempotency)이 보장되어야 합니다.
+     */
     transaction?: boolean;
     up: (ctx: DataMigrationContext) => Promise<void>;
     down?: (ctx: DataMigrationContext) => Promise<void>;

@@ -18,7 +18,16 @@
         "build": "tsup",
         "dev": "tsup --watch",
         "type-check": "tsc --noEmit",
+        "db:generate": "drizzle-kit generate",
         "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
+    },
+    "spfn": {
+        "schemas": [
+            "./dist/server/entities/*.js"
+        ],
+        "migrations": {
+            "dir": "./migrations"
+        }
     },
     "peerDependencies": {
         "@spfn/core": "*",
@@ -27,6 +36,7 @@
     "devDependencies": {
         "@spfn/core": "workspace:*",
         "@types/node": "^20.11.0",
+        "drizzle-kit": "^0.31.10",
         "drizzle-orm": "^0.45.0",
         "tsup": "^8.5.0",
         "typescript": "^5.3.3"
