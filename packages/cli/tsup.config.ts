@@ -14,7 +14,7 @@ export default defineConfig({
     splitting: false,
     target: 'es2022',
     outDir: 'dist',
-    external: ['tsup', 'tsx', 'drizzle-kit', 'drizzle-orm', 'postgres', 'dotenv', '@spfn/core'],
+    external: ['tsup', 'tsx', 'drizzle-kit', 'drizzle-orm', 'postgres', 'dotenv', '@spfn/core', '@napi-rs/keyring'],
     noExternal: [],
     define: {
         '__CLI_VERSION__': JSON.stringify(packageJson.version),

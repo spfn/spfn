@@ -10,6 +10,7 @@ import { setupCommand } from './commands/setup.js';
 import { dbCommand } from './commands/db';
 import { addCommand } from './commands/add.js';
 import { envCommand } from './commands/env.js';
+import { secretCommand } from './commands/secret/index.js';
 import { getCliVersion } from './utils/version.js';
 
 // Export types
@@ -41,6 +42,7 @@ program.addCommand(keyCommand);
 program.addCommand(setupCommand);
 program.addCommand(dbCommand);
 program.addCommand(envCommand);
+program.addCommand(secretCommand);
 
 export async function run(): Promise<void>
 {

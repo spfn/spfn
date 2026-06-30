@@ -3,10 +3,10 @@
  */
 
 import { Command } from 'commander';
-import { randomBytes } from 'crypto';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { logger } from '../utils/logger.js';
+import { randomBase64Url } from '../utils/secret-gen.js';
 
 /**
  * Preset configurations for common use cases
@@ -87,11 +87,7 @@ function generateSecret(bytes: number, preset?: PresetName, envVarName?: string,
 {
     // Use base64url encoding for higher character diversity (satisfies minUniqueChars >= 16)
     // base64url uses: A-Z, a-z, 0-9, -, _ (64 chars) vs hex: 0-9, a-f (16 chars)
-    const key = randomBytes(bytes)
-        .toString('base64')
-        .replace(/\+/g, '-')    // Replace + with - (URL-safe)
-        .replace(/\//g, '_')    // Replace / with _ (URL-safe)
-        .replace(/=/g, '');     // Remove padding
+    const key = randomBase64Url(bytes);
     const config = preset ? PRESETS[preset] : null;
 
     console.log('\n' + chalk.green.bold('✓ Generated secret key:'));
@@ -173,11 +169,7 @@ const generateValueCommand = new Command('generate')
         }
 
         // Use base64url encoding for higher character diversity
-        const value = randomBytes(bytes)
-            .toString('base64')
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_')
-            .replace(/=/g, '');
+        const value = randomBase64Url(bytes);
 
         // Simple output - just the value
         console.log(value);

@@ -3,11 +3,7 @@ import chalk from 'chalk';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse } from 'dotenv';
-
-/**
- * Valid NODE_ENV values
- */
-const VALID_ENVS = ['local', 'development', 'staging', 'production', 'test'] as const;
+import { VALID_ENVS, loadEnvSchema, getTargetFile } from '../utils/env-schema.js';
 
 /**
  * Base environment file targets (no NODE_ENV)
@@ -42,50 +38,6 @@ function getEnvFilesForEnvironment(nodeEnv?: string): string[]
     files.push('.env.server');
 
     return files;
-}
-
-/**
- * Determine which file an env var should be in
- */
-function getTargetFile(schema: any): string
-{
-    const isNextjs = schema.nextjs ?? schema.key?.startsWith('NEXT_PUBLIC_');
-
-    if (isNextjs)
-    {
-        return schema.sensitive ? '.env.local' : '.env';
-    }
-
-    return '.env.server';
-}
-
-/**
- * Load envSchema from a package
- */
-async function loadEnvSchema(packageName: string): Promise<Record<string, any>>
-{
-    try
-    {
-        const schemaPath = `${packageName}/config`;
-        const module = await import(schemaPath);
-
-        if (!module.envSchema)
-        {
-            throw new Error(`Package ${packageName} does not export envSchema from config`);
-        }
-
-        return module.envSchema;
-    }
-    catch (error)
-    {
-        if (error instanceof Error && error.message.includes('does not export envSchema'))
-        {
-            throw error;
-        }
-
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(`Failed to load package ${packageName}: ${errorMessage}`);
-    }
 }
 
 /**

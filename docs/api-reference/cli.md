@@ -884,6 +884,67 @@ spfn env search database
 spfn env search url
 ```
 
+## spfn secret
+
+로컬·운영 시크릿을 하나의 스키마·하나의 CLI로 관리합니다. 로컬은 OS 키체인,
+운영(deployed)은 SOPS 암호화 파일에 저장합니다. 런타임은 참조를 직접 보지 않습니다 —
+로컬은 `spfn dev`가, 운영은 GitOps가 실제 값을 프로세스 env로 주입하므로 앱은 항상
+평문 `process.env`만 읽습니다.
+
+```bash
+# 로컬 시크릿을 키체인에 저장 (값은 마스킹 프롬프트로 입력)
+spfn secret set DATABASE_URL
+
+# 운영 시크릿을 SOPS 파일(secrets/production.enc.json)에 암호화 저장
+spfn secret set DATABASE_URL --env production
+
+# 선언된 시크릿과 환경별 상태 (값은 출력하지 않음)
+spfn secret list --env production
+
+# generate 전략이 있는 시크릿을 자동 생성/회전
+spfn secret generate --all
+spfn secret rotate JWT_SECRET
+
+# age 키 생성 + .sops.yaml recipient 등록 (no-cloud 백엔드)
+spfn secret keygen
+spfn secret recipients add age1...
+
+# 평문 시크릿 유출 정적 점검
+spfn secret check
+```
+
+### 로컬 (키체인)
+
+`secret set <KEY>`는 값을 OS 키체인(macOS `security`, Windows Credential Manager —
+옵션 `@napi-rs/keyring`, Linux libsecret)에 저장하고, `.env.server`에
+`secret:keychain:spfn_<KEY>` 참조만 기록합니다. 참조는 민감정보가 아니며 실제 값은
+repo에 들어가지 않습니다. `spfn dev`가 참조를 풀어 서버 자식 프로세스에 주입합니다.
+
+### 운영 (SOPS)
+
+`secret set <KEY> --env production`은 값을 `secrets/<env>.enc.json`에 SOPS로 암호화해
+기록합니다. 백엔드(age / GCP KMS / AWS KMS)는 `.sops.yaml` creation rule이 파일 경로로
+선택합니다. KMS는 로컬 키 파일이 필요 없고(IAM + 클라우드 인증), age는 키 파일을
+직접 다루는 no-cloud 폴백입니다. 암호화 파일을 커밋하면 GitOps가 배포 시 복호화해
+env로 주입합니다. `sops`/`age` 바이너리는 운영 env에만 필요하고 로컬 키체인 사용엔
+필요 없습니다.
+
+### 스키마 기반 generate / rotate
+
+`envSecret({ generate: 'base64url32' })`로 선언한 시크릿은 우리가 만들어내는
+회전 가능한 값이라 `secret generate`/`rotate`가 자동 생성합니다. `generate`가 없는
+시크릿은 외부에서 받아 붙여넣는 값(`secret set`)입니다. rotate는 출처만 바꾸므로
+반영하려면 배포가 필요하고, 토큰·서명 키처럼 겹침 구간이 필요한 값은 앱이 current +
+previous를 함께 검증하도록 받쳐줘야 합니다.
+
+#### Options
+
+| Option | 설명 |
+|--------|------|
+| `-e, --env <env>` | 대상 환경 (기본 `local`; `development`/`staging`/`production`) |
+| `-p, --package <pkg>` | env 스키마를 읽을 패키지 (기본 `@spfn/core`) |
+| `-a, --all` | (`generate`/`rotate`) 대상 시크릿 일괄 처리 |
+
 ## Environment Variables
 
 CLI 명령어는 6-layer 우선순위로 `.env` 파일들을 로드합니다.
