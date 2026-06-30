@@ -43,7 +43,7 @@
   "publishConfig": {
     "access": "public",
     "tag": "alpha",
-    "registry": "https://registry.npmjs.org"
+    "registry": "https://git.superfunction.xyz/api/packages/superfunction/npm/"
   },
   "bugs": {
     "url": "https://github.com/spfn/spfn/issues"
