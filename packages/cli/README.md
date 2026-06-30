@@ -27,7 +27,7 @@ Requirements: Node.js 18.18+, Next.js 15+ (App Router, `src/` dir), PostgreSQL (
 npx spfn@beta create my-app
 cd my-app
 docker compose up -d            # Postgres + Redis
-cp .env.local.example .env.local
+# .env.local & .env.server are generated — put server secrets in .env.server
 pnpm spfn:dev                   # Next.js :3790 + SPFN API :8790
 
 # Add SPFN to an existing Next.js project
@@ -212,6 +212,45 @@ Options: `-l, --list`, `-b, --bytes <n>` (1–128), `-e, --env <name>`, `-c, --c
 The command prints the value to stdout for you to paste into an env file — it does **not**
 write any file.
 
+### `spfn secret`
+
+Unified secret management: local secrets live in the OS keychain, deployed secrets in
+encrypted SOPS files. The runtime never sees a reference — `spfn dev` injects local
+values into the server process and GitOps injects them in production, so the app always
+reads plain `process.env`.
+
+| Subcommand | Description |
+|------------|-------------|
+| `secret set [key]` | Store a value (masked prompt). `--env local` → keychain; other envs → SOPS |
+| `secret list` | List declared secrets and their status per env (never prints values) |
+| `secret generate [key]` | Mint values for schema secrets with a `generate` strategy (`-a/--all`) |
+| `secret rotate [key]` | Rotate values; external secrets are flagged for manual reissue (`-a/--all`) |
+| `secret keygen` | Generate an age key pair for the SOPS no-cloud backend |
+| `secret recipients <add\|remove\|list> [age1…]` | Manage `.sops.yaml` recipients + re-encrypt |
+| `secret check` | Static lint — flag plaintext secret leaks |
+
+Options: `-e, --env <env>` (`local` default; also `development`/`staging`/`production`),
+`-p, --package <pkg>` (schema source, default `@spfn/core`).
+
+**Local (keychain).** `spfn secret set DB_URL` stores the value in the OS keychain
+(macOS `security`, Windows Credential Manager via optional `@napi-rs/keyring`, Linux
+libsecret) and writes a `secret:keychain:spfn_DB_URL` reference into `.env.server`. The
+reference is not sensitive; the real value never lands in the repo. `spfn dev` resolves
+and injects it. Note: injection happens only when the server is started via `spfn dev` —
+running the app another way (a bare `node`, tests) would see the raw reference, so use
+`spfn dev` locally (a runtime resolver for other runners is planned).
+
+**Deployed (SOPS).** `spfn secret set DB_URL --env production` writes the value into
+`secrets/production.enc.json`, encrypted by SOPS. The backend (age / GCP KMS / AWS KMS)
+is chosen by `.sops.yaml` creation rules — KMS needs no local key file (IAM + cloud
+auth), age is the no-cloud fallback (`secret keygen` + `secret recipients add`). Commit
+the encrypted file; your GitOps step decrypts it into env at deploy time. `sops`/`age`
+are needed only for the deployed envs, never for local keychain use.
+
+Schema-driven: a secret declared with `envSecret({ generate: 'base64url32' })` can be
+minted/rotated automatically (`secret generate`/`rotate`); one without `generate` is an
+external value you paste in (`secret set`).
+
 ### `spfn setup icons`
 
 Install and configure SVGR for SVG-as-component imports (Next.js only).
@@ -241,9 +280,9 @@ spfn.config.js                       # deployment config (subdomain/region/domai
 docker-compose.yml                   # Postgres + Redis (dev)
 docker-compose.production.yml
 Dockerfile, .dockerignore
-.env.example                         # committed, shared non-secret defaults
-.env.local.example                   # gitignored target template (Next.js local overrides)
-.env.server.example                  # → copy to .env.server (gitignored, server secrets)
+.env.example                         # committed reference — every key, placeholder values
+.env.local                           # generated, gitignored (Next.js-facing URLs)
+.env.server                          # generated, gitignored (server secrets: DB, cache)
 ```
 
 `init` also patches `package.json` (scripts: `spfn:dev`, `spfn:server`, `spfn:next`,
@@ -328,8 +367,8 @@ type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
 
 - **`.env.server` is gitignored and server-only.** Put DB/secret values there, not in
   `.env` (committed) and not in `.env.local` (that's Next.js's local file). There is no
-  `.env.server.local`. Copy `.env.server.example` → `.env.server`. Load order is the
-  standard dotenv chain ending with `.env.server`.
+  `.env.server.local`. `spfn init` generates `.env.server`; put DB/secret values there.
+  Load order is the standard dotenv chain ending with `.env.server`.
 - **Never commit secrets in `spfn.config.js`.** It's checked into Git; its `env` block is
   for non-sensitive values only. Use CI/CD secret management for credentials.
 - **`spfn dev` does not hot-reload by default.** Add `--watch` to restart on `src/server`

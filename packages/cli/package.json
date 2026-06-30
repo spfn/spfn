@@ -74,7 +74,11 @@
     "pg": "^8.16.3",
     "postgres": "^3.4.0",
     "prompts": "^2.4.2",
-    "tsup": "^8.5.0"
+    "tsup": "^8.5.0",
+    "yaml": "^2.5.0"
+  },
+  "optionalDependencies": {
+    "@napi-rs/keyring": "^1.1.0"
   },
   "devDependencies": {
     "@spfn/core": "workspace:*",

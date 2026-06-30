@@ -5,6 +5,7 @@ import { execa, type ExecaChildProcess } from 'execa';
 import chokidar from 'chokidar';
 import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
+import { resolveKeychainEnv } from '../utils/secret-store/index.js';
 
 /**
  * Wait for a file to be created (server writes ready signal to it)
@@ -70,6 +71,24 @@ export const devCommand = new Command('dev')
             logger.info('Run "spfn init" first to initialize SPFN in your project.');
             process.exit(1);
         }
+
+        // Resolve any secret:keychain: references in .env.server and inject the real
+        // values into the server child process — mirrors GitOps env injection in prod,
+        // so the app always reads plain process.env.
+        const { env: keychainEnv, missing: keychainMissing } = await resolveKeychainEnv(cwd);
+        const injectedCount = Object.keys(keychainEnv).length;
+
+        if (injectedCount > 0)
+        {
+            logger.info(`[SPFN] Injecting ${injectedCount} secret(s) from the keychain`);
+        }
+
+        if (keychainMissing.length > 0)
+        {
+            logger.warn(`[SPFN] Could not resolve keychain secret(s): ${keychainMissing.join(', ')} — run \`spfn secret set <KEY>\``);
+        }
+
+        const serverEnv = { ...process.env, ...keychainEnv };
 
         // Check if Next.js project
         const packageJsonPath = join(cwd, 'package.json');
@@ -232,6 +251,7 @@ catch (error)
                     cwd,
                     stdio: 'inherit',
                     reject: false,
+                    env: serverEnv,
                 });
 
                 // Don't await or catch - let it run independently
@@ -404,6 +424,7 @@ catch (error)
                 cwd,
                 stdio: 'inherit',
                 reject: false,
+                env: serverEnv,
             });
 
             // Don't await or catch - let it run independently
