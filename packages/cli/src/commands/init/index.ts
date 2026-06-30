@@ -1,7 +1,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { detectPackageManager } from '../../utils/package-manager.js';
+import { detectPackageManager, getRunCommand } from '../../utils/package-manager.js';
 import { logger } from '../../utils/logger.js';
+import { ENV_FILES_HINT } from '../../utils/messages.js';
 import { validateProject } from './steps/validate.js';
 import { setupServerStructure } from './steps/server-structure.js';
 import { setupApiProxy } from './steps/api-proxy.js';
@@ -9,10 +10,13 @@ import { setupDockerFiles } from './steps/docker.js';
 import { setupDeploymentConfig } from './steps/deployment-config.js';
 import { setupPackageJson } from './steps/package.js';
 import { setupConfigFiles } from './steps/config-files.js';
+import { setupReadme } from './steps/readme.js';
 
 interface InitOptions
 {
     yes?: boolean;
+    // Set by `spfn create` to replace the create-next-app README with the SPFN one.
+    overwriteReadme?: boolean;
 }
 
 /**
@@ -47,23 +51,26 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
     // Step 8: Setup configuration files (.env, .spfnrc.ts, .gitignore, tsconfig)
     await setupConfigFiles(cwd);
 
+    // Step 9: Create README.md (only when one doesn't already exist)
+    await setupReadme(cwd, { pm, packageJson, includeAuth, overwrite: options.overwriteReadme ?? false });
+
     // Done - Show success message and next steps
     console.log('\n' + chalk.green.bold('✓ SPFN initialized successfully!\n'));
 
     console.log('Next steps:');
     console.log('  1. Start PostgreSQL & Redis (if not installed locally):');
     console.log('     ' + chalk.cyan('docker compose up -d'));
-    console.log('  2. Copy .env.local.example to .env.local');
-    console.log('     ' + chalk.cyan('cp .env.local.example .env.local'));
-    console.log('  3. Run: ' + chalk.cyan(pm === 'npm' ? 'npm run spfn:dev' : `${pm} run spfn:dev`));
+    console.log('  2. Review the generated env files (.env.local, .env.server)');
+    console.log('     ' + chalk.dim(ENV_FILES_HINT));
+    console.log('  3. Run: ' + chalk.cyan(`${getRunCommand(pm)} spfn:dev`));
     console.log('  4. Visit:');
     console.log('     - Next.js: ' + chalk.cyan('http://localhost:3790'));
     console.log('     - API:     ' + chalk.cyan('http://localhost:8790/health'));
     console.log('\nAvailable commands:');
-    console.log('  • ' + chalk.cyan(pm === 'npm' ? 'npm run spfn:dev' : `${pm} spfn:dev`) + '       - Start SPFN + Next.js');
-    console.log('  • ' + chalk.cyan('spfn env:validate') + '   - Validate environment variables');
-    console.log('  • ' + chalk.cyan('spfn env:docs') + '       - Generate env documentation');
-    console.log('  • ' + chalk.cyan('spfn env:check') + '      - Check environment status');
+    console.log('  • ' + chalk.cyan(`${getRunCommand(pm)} spfn:dev`) + '       - Start SPFN + Next.js');
+    console.log('  • ' + chalk.cyan('spfn env validate') + '  - Validate environment variables');
+    console.log('  • ' + chalk.cyan('spfn env list') + '      - List env vars from the schema');
+    console.log('  • ' + chalk.cyan('spfn secret set') + '    - Store a secret (keychain / SOPS)');
     console.log('\n' + chalk.blue('💡 Tip:') + ' Edit ' + chalk.cyan('src/server/config/env.config.ts') + ' to manage environment variables');
 }
 

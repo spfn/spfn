@@ -73,6 +73,11 @@ export function getInstallCommand(pm: PackageManager): string
     }
 }
 
+export function getRunCommand(pm: PackageManager): string
+{
+    return pm === 'npm' ? 'npm run' : `${pm} run`;
+}
+
 export function getAddCommand(pm: PackageManager, packages: string[]): string
 {
     const pkgs = packages.join(' ');
