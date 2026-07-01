@@ -171,6 +171,12 @@ API_PORT=8790
 # Next.js
 NODE_ENV=production
 
+# Proxy → backend trust (see "Client IP behind a proxy" below).
+# Set the SAME value on the Next.js app and the API backend.
+SPFN_PROXY_SECRET=your-shared-proxy-secret
+# Number of trusted proxies in front (LB + nginx = 2). Default 1.
+TRUSTED_PROXY_HOPS=1
+
 # Optional: Monitoring
 SENTRY_DSN=your-sentry-dsn
 LOG_LEVEL=info
@@ -436,6 +442,32 @@ services:
     expose:
       - "3790"
 ```
+
+### 5. Client IP behind a proxy
+
+Requests reach the SPFN backend through the RPC proxy (`createRpcProxy`), not directly from the
+browser. The proxy does **not** forward the raw `X-Forwarded-For` header; it resolves the real
+client IP from the forwarded chain and re-emits it under a dedicated header,
+`x-spfn-proxy-client-ip`. The backend (`getClientIp`, used by rate limiting) trusts that header
+**only on requests it can verify came through the proxy** — otherwise a direct caller could
+spoof any IP.
+
+To make verified client IPs work in production, set two environment variables:
+
+- **`SPFN_PROXY_SECRET`** — the same value on the Next.js app and the API backend. The proxy
+  HMAC-signs each forwarded request; the backend's proxy-guard verifies the signature and then
+  trusts `x-spfn-proxy-client-ip`. Without it, requests are unsigned, the backend won't trust
+  the header, and the visitor IP falls back to the TCP peer address or `'unknown'`.
+- **`TRUSTED_PROXY_HOPS`** — how many trusted proxies sit in front of the app (e.g. load
+  balancer + nginx = `2`; default `1`). This tells the proxy how many rightmost
+  `X-Forwarded-For` entries are your own infra so it picks the correct client entry.
+
+> **Don't** work around a missing client IP by forwarding raw `X-Forwarded-For` from the proxy —
+> that header is client-controllable and reintroduces IP spoofing. Set `SPFN_PROXY_SECRET`
+> instead. Rotate with a grace window via `SPFN_PROXY_SECRET_PREVIOUS` on the backend.
+
+For the full mechanism, see the `@spfn/core/nextjs` package README (*Header forwarding & client
+IP*) and `@spfn/core/middleware` (proxy-guard + `getClientIp`).
 
 ## Monitoring and Debugging
 
