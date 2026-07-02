@@ -26,6 +26,21 @@ function getSocketFamily(): 4 | 6 | undefined
 const dbLogger = logger.child('@spfn/core:database');
 
 /**
+ * Detect a transaction-mode connection pooler (PgBouncer / Supabase Supavisor).
+ *
+ * postgres-js caches a server-side prepared statement per connection and reuses
+ * it. A transaction pooler rotates the underlying backend between transactions,
+ * so the cached statement is absent on the next backend and queries hang or
+ * fail (`prepared statement "sN" does not exist`). Such connections must run
+ * with `prepare: false`. Signals: the pooler port 6543, an explicit
+ * `pgbouncer=true`, or a Supabase pooler host.
+ */
+function isTransactionPooler(connectionString: string): boolean
+{
+    return /:6543(?:[/?]|$)|[?&]pgbouncer=true\b|pooler\.supabase\.com/i.test(connectionString);
+}
+
+/**
  * Connection timeout in seconds
  *
  * Timeout for PostgreSQL server connection and initial query execution.
@@ -249,10 +264,14 @@ export async function createDatabaseConnection(
         {
             // Create PostgreSQL client
             const socketFamily = getSocketFamily();
+            // Explicit config/env wins; otherwise disable prepared statements on
+            // transaction poolers (see isTransactionPooler) and keep them on elsewhere.
+            const prepare = poolConfig.prepare ?? !isTransactionPooler(connectionString);
             client = postgres(connectionString, {
                 max: poolConfig.max,
                 idle_timeout: poolConfig.idleTimeout,
                 connect_timeout: DEFAULT_CONNECT_TIMEOUT,
+                prepare,
                 ...(socketFamily && {
                     socket: ({ host, port }: { host: string[]; port: number[] }) =>
                         new Promise<net.Socket>((resolve, reject) =>

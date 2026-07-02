@@ -93,6 +93,14 @@ export interface PoolConfig
      * `max_connections` (otherwise each process opens up to 2 × max).
      */
     readMax?: number;
+    /**
+     * Use server-side prepared statements (postgres-js `prepare`). When
+     * `undefined`, the connection layer auto-detects: it is disabled for
+     * transaction-mode poolers (PgBouncer/Supavisor, e.g. Supabase :6543),
+     * where cached statements break as the pooler rotates backends, and
+     * enabled otherwise. Set explicitly (or via `SPFN_DB_PREPARE`) to override.
+     */
+    prepare?: boolean;
 }
 
 /**
@@ -196,6 +204,32 @@ function parseEnvBoolean(key: string, defaultValue: boolean): boolean
     }
 }
 
+/**
+ * Parse a boolean env var, returning `undefined` when it is not set.
+ *
+ * Unlike {@link parseEnvBoolean}, this preserves the "unset" state so callers
+ * can fall back to their own auto-detection (e.g. pooler-based `prepare`).
+ */
+function parseEnvBooleanOptional(key: string): boolean | undefined
+{
+    const value = process.env[key];
+
+    if (value === undefined)
+    {
+        return undefined;
+    }
+
+    try
+    {
+        return parseBoolean(value);
+    }
+    catch (error)
+    {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`${key}: ${message}`);
+    }
+}
+
 // ============================================================================
 // Configuration Builders
 // ============================================================================
@@ -234,6 +268,8 @@ export function getPoolConfig(options?: Partial<PoolConfig>): PoolConfig
         idleTimeout: options?.idleTimeout ?? parseEnvNumber('DB_POOL_IDLE_TIMEOUT', 30, 20),
         // Defaults to the write `max`; DB_POOL_READ_MAX lets ops size the replica pool separately
         readMax: options?.readMax ?? parseEnvNumber('DB_POOL_READ_MAX', max, max),
+        // Left undefined for connection-layer auto-detection unless explicitly overridden.
+        prepare: options?.prepare ?? parseEnvBooleanOptional('SPFN_DB_PREPARE'),
     };
 }
 
