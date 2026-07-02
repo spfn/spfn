@@ -27,6 +27,7 @@ import '@spfn/core/config';
 export { loadEnvFiles } from './dotenv-loader';
 export { loadEnv } from '../env/loader';
 export { createServer, startServer } from './server';
+export { createServerlessApp, resetServerlessApp, provisionInfrastructure } from './serverless';
 export { getShutdownManager } from './shutdown-manager';
 
 // Config builder
