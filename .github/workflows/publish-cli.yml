@@ -98,7 +98,12 @@ jobs:
       - name: Publish spfn to npm
         if: ${{ !inputs.dry_run && steps.check-npm.outputs.exists == 'false' }}
         working-directory: packages/cli
-        run: pnpm publish --access public --tag ${{ steps.pkg.outputs.tag }} --provenance --no-git-checks
+        # publishConfig.registry pins the internal registry for local `npm run publish:*`
+        # flows; drop it here so this workflow publishes to npmjs (and the published
+        # artifact doesn't carry an internal registry pin).
+        run: |
+          npm pkg delete publishConfig.registry
+          pnpm publish --access public --tag ${{ steps.pkg.outputs.tag }} --provenance --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
