@@ -28,13 +28,20 @@ else
 
 async function tryRelaunchWithTsx()
 {
-    // Verify tsx is resolvable
-    await import('tsx/esm/api');
+    // Resolve tsx to an absolute URL from THIS package's location. A bare
+    // '--import tsx' is resolved by Node against the child's CWD, so running
+    // outside a project (no node_modules/tsx up the tree) crashes the child
+    // with ERR_MODULE_NOT_FOUND even though the guard import above succeeds
+    // (it resolves package-relative). Resolving here also doubles as the
+    // availability check — a throw falls back to running without tsx.
+    const { createRequire } = await import('module');
+    const { pathToFileURL } = await import('url');
+    const tsxUrl = pathToFileURL(createRequire(import.meta.url).resolve(TSX_MODULE)).href;
 
     const { spawn } = await import('child_process');
     const child = spawn(
         process.execPath,
-        [TSX_FLAG, TSX_MODULE, ...process.execArgv, process.argv[1], ...process.argv.slice(2)],
+        [TSX_FLAG, tsxUrl, ...process.execArgv, process.argv[1], ...process.argv.slice(2)],
         { stdio: 'inherit' },
     );
 
