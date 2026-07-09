@@ -16,7 +16,7 @@ import { runInTransaction, onAfterCommit } from '@spfn/core/db';
 import { socialAccountsRepository } from '../repositories';
 import { type SocialProvider, type KeyAlgorithmType } from '../types';
 import { getOAuthProvider, type NormalizedIdentity } from '../lib/oauth';
-import { createOrLinkUser } from './oauth.service';
+import { createOrLinkUser, assertActiveForOAuthSession } from './oauth.service';
 import { registerPublicKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
 import { authLoginEvent, authRegisterEvent } from '../events';
@@ -102,6 +102,9 @@ async function persistNativeLogin(
             userId = result.userId;
             isNewUser = result.isNewUser;
         }
+
+        // 세션(공개키) 발급 전 계정 상태 검사 — oauth.service.ts의 web 흐름과 동일한 지점
+        await assertActiveForOAuthSession(userId);
 
         // 공개키 등록 (idempotent — 같은 keyId 재등록은 무시됨)
         await registerPublicKeyService({

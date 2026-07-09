@@ -561,6 +561,46 @@ Admin endpoints for managing roles are available at `/_auth/admin/*` (requires `
 
 ---
 
+## Account Deletion & Recovery
+
+Grace-period deletion with in-window recovery: `active → pending_deletion → deleted` (anonymize)
+or row removal (hard-delete), with a `cancel` step back to `active` at any point before the purge
+runs. Full config (`gracePeriodDays`, `purgeStrategy`, `allowSelfImmediate`, `onBeforePurge`,
+notifications) and the purge job registration caveat live in the package README — see
+[`packages/auth/README.md#account-deletion--recovery`](../../packages/auth/README.md#account-deletion--recovery).
+
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/_auth/deletion/request` | POST | Required | Request deletion (password or verification-code re-auth) |
+| `/_auth/deletion/cancel` | POST | Public | Cancel a pending deletion (credential-based — sessions were revoked at request time) |
+
+```typescript
+// Request (client already holds a valid session)
+await authApi.requestAccountDeletion.call({ body: { password } });
+// -> { purgeScheduledAt: '2026-08-08T00:00:00.000Z' }
+
+// A blocked login surfaces the scheduled purge date so you can offer recovery:
+try
+{
+    await authApi.login.call({ body: { email, password, publicKey, keyId, fingerprint, algorithm } });
+}
+catch (error)
+{
+    if (error instanceof AuthError.AccountPendingDeletionError)
+    {
+        // error.details.purgeScheduledAt
+    }
+}
+
+// Cancel (no Bearer token — the account's sessions were revoked on request)
+await authApi.cancelAccountDeletion.call({ body: { email, password } });
+```
+
+The purge job (`authJobRouter` from `@spfn/auth/server`) must be registered explicitly with
+`.jobs(authJobRouter)` — it is not wired up by `createAuthLifecycle()` automatically.
+
+---
+
 ## OAuth
 
 ### Configuration
@@ -807,6 +847,10 @@ catch (error)
 | `TokenExpiredError` | 401 | JWT has expired |
 | `KeyExpiredError` | 401 | Public key has expired |
 | `AccountDisabledError` | 403 | Account is suspended/inactive |
+| `AccountPendingDeletionError` | 403 | Account is within its deletion grace period (`details.purgeScheduledAt`) |
+| `DeletionAlreadyRequestedError` | 409 | Deletion already requested (or account already purged) |
+| `DeletionNotRequestedError` | 404 | No pending deletion request to cancel/purge |
+| `ImmediateDeletionNotAllowedError` | 403 | Self-service `immediate: true` without `deletion.allowSelfImmediate` |
 | `AccountAlreadyExistsError` | 409 | Email/phone already registered |
 | `InsufficientRoleError` | 403 | Missing required role |
 | `InsufficientPermissionsError` | 403 | Missing required permission |

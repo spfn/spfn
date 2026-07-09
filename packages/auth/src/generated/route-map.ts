@@ -49,6 +49,8 @@ export const routeMap: Record<string, RouteInfo> = {
     updateAdminRole: { method: 'PATCH', path: '/_auth/admin/roles/:id' },
     deleteAdminRole: { method: 'DELETE', path: '/_auth/admin/roles/:id' },
     updateUserRole: { method: 'PATCH', path: '/_auth/admin/users/:userId/role' },
+    requestAccountDeletion: { method: 'POST', path: '/_auth/deletion/request' },
+    cancelAccountDeletion: { method: 'POST', path: '/_auth/deletion/cancel' },
 };
 
 export type RouteMap = typeof routeMap;

@@ -21,3 +21,4 @@ export * from './session';
 export * from './config';
 export * from './oauth';
 export * from './one-time-token';
+export * from './deletion-config';

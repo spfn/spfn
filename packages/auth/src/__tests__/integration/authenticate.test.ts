@@ -23,11 +23,19 @@ vi.mock('@spfn/auth/server', async (importOriginal) =>
         keysRepository: { findActiveByKeyId: vi.fn(), updateLastUsedById: vi.fn().mockResolvedValue(undefined) },
         usersRepository: { findByIdWithRole: vi.fn() },
         userProfilesRepository: { findLocaleByUserId: vi.fn().mockResolvedValue('en') },
+        getPendingDeletionInfo: vi.fn(),
     };
 });
 
 import { authenticate } from '@/server/middleware/authenticate';
-import { decodeToken, verifyClientToken, keysRepository, usersRepository, userProfilesRepository } from '@spfn/auth/server';
+import {
+    decodeToken,
+    verifyClientToken,
+    keysRepository,
+    usersRepository,
+    userProfilesRepository,
+    getPendingDeletionInfo,
+} from '@spfn/auth/server';
 import type { Context, Next } from 'hono';
 
 const KEY_ID = 'test-key-id';
@@ -182,6 +190,25 @@ describe('Authenticate Middleware', () =>
 
             await expect(authenticate.handler(mockContext as Context, mockNext))
                 .rejects.toThrow('Account is suspended');
+            expect(mockNext).not.toHaveBeenCalled();
+        });
+
+        it('rejects a pending_deletion account with AccountPendingDeletionError, carrying purgeScheduledAt', async () =>
+        {
+            vi.mocked(usersRepository.findByIdWithRole).mockResolvedValue({
+                user: { id: 1, email: 'test@example.com', status: 'pending_deletion' },
+                role: null,
+            } as never);
+            const purgeScheduledAt = new Date('2030-01-01T00:00:00.000Z');
+            vi.mocked(getPendingDeletionInfo).mockResolvedValue({ purgeScheduledAt } as never);
+
+            const error = await authenticate.handler(mockContext as Context, mockNext).catch((e) => e);
+
+            expect(error.name).toBe('AccountPendingDeletionError');
+            expect(error.details).toMatchObject({
+                status: 'pending_deletion',
+                purgeScheduledAt: purgeScheduledAt.toISOString(),
+            });
             expect(mockNext).not.toHaveBeenCalled();
         });
     });

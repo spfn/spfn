@@ -9,6 +9,7 @@
 
 import { env } from '@spfn/auth/config';
 import { ValidationError } from '@spfn/core/errors';
+import { AccountDisabledError, AccountPendingDeletionError } from '@spfn/auth/errors';
 
 import { usersRepository, socialAccountsRepository } from '../repositories';
 import { type SocialProvider, type KeyAlgorithmType } from '../types';
@@ -24,6 +25,7 @@ import {
 } from '../lib/oauth';
 import { registerPublicKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
+import { getPendingDeletionInfo } from './account-deletion.service';
 import { authLoginEvent, authRegisterEvent } from '../events';
 
 export interface OAuthStartParams
@@ -203,6 +205,12 @@ export async function oauthCallbackService(
         isNewUser = result.isNewUser;
     }
 
+    // 3.5. 세션(공개키) 발급 전 계정 상태 검사 — 기존에는 검사 없이 세션이 발급됐다
+    // (기존 버그: 정지/탈퇴예정 계정도 OAuth로 로그인 가능했음). 두 분기(기존 소셜
+    // 연결 재로그인 / createOrLinkUser 신규·연결) 모두 여기서 합류하므로 한 번의
+    // 검사로 양쪽을 다 막는다.
+    await assertActiveForOAuthSession(userId);
+
     // 4. state에서 추출한 publicKey 등록
     await registerPublicKeyService({
         userId,
@@ -252,6 +260,42 @@ export async function oauthCallbackService(
         keyId: stateData.keyId,
         isNewUser,
     };
+}
+
+/**
+ * OAuth 세션(공개키 등록) 발급 전 계정 상태 검사
+ *
+ * web(code 교환)·native(id_token) 두 흐름 모두 "기존 소셜 연결 재로그인" 또는
+ * "createOrLinkUser 신규·이메일 연결" 두 분기로 userId를 얻은 뒤, 같은 지점에서
+ * registerPublicKeyService를 호출해 세션을 발급한다. 그 직전에 호출해 양쪽 분기를
+ * 한 번에 막는다 — 이전에는 이 검사가 아예 없어 정지/탈퇴예정 계정도 OAuth로
+ * 로그인 세션을 얻을 수 있었다(기존 버그).
+ *
+ * status는 replica가 아닌 primary에서 읽는다: 삭제 요청 직후(세션 revoke + status
+ * 전이가 막 커밋된 시점) 복제 지연 창에서 OAuth 로그인이 stale 'active' 상태를 보고
+ * 새 세션 키를 발급받는 것을 막기 위함.
+ */
+export async function assertActiveForOAuthSession(userId: number): Promise<void>
+{
+    const user = await usersRepository.findByIdOnPrimary(userId);
+
+    if (!user)
+    {
+        throw new ValidationError({ message: 'User not found' });
+    }
+
+    if (user.status === 'active')
+    {
+        return;
+    }
+
+    if (user.status === 'pending_deletion')
+    {
+        const pending = await getPendingDeletionInfo(user.id);
+        throw new AccountPendingDeletionError({ purgeScheduledAt: pending?.purgeScheduledAt.toISOString() });
+    }
+
+    throw new AccountDisabledError({ status: user.status });
 }
 
 /**

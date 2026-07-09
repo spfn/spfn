@@ -45,6 +45,7 @@ import {
     deleteAdminRole,
     updateUserRole,
 } from './admin';
+import { requestAccountDeletion, cancelAccountDeletion } from './deletion';
 
 /**
  * Main auth router
@@ -55,6 +56,7 @@ import {
  * - OAuth: /_auth/oauth/google, /_auth/oauth/google/callback, etc.
  * - Invitations: /_auth/invitations/*
  * - Users: /_auth/users/*
+ * - Deletion: /_auth/deletion/request, /_auth/deletion/cancel
  * - Admin: /_auth/admin/* (superadmin only)
  */
 export const mainAuthRouter = defineRouter({
@@ -69,6 +71,9 @@ export const mainAuthRouter = defineRouter({
     getAuthSession,
     // One-Time Token routes
     issueOneTimeToken,
+    // Account deletion routes
+    requestAccountDeletion,
+    cancelAccountDeletion,
     // OAuth routes
     oauthGoogleStart,
     oauthGoogleCallback,

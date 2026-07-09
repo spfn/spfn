@@ -37,6 +37,24 @@ export class UsersRepository extends BaseRepository
     }
 
     /**
+     * ID로 사용자 조회 — Write primary에서 직접 읽는다.
+     *
+     * 복제 지연 창에서 status 전이(예: 삭제 요청으로 pending_deletion 전환)를 놓치면
+     * 안 되는 게이트(OAuth 세션 발급 등)가 사용한다. 일반 조회는 `findById`(replica)를
+     * 계속 사용할 것.
+     */
+    async findByIdOnPrimary(id: number)
+    {
+        const result = await this.db
+            .select()
+            .from(users)
+            .where(eq(users.id, id))
+            .limit(1);
+
+        return result[0] ?? null;
+    }
+
+    /**
      * 이메일로 사용자 조회
      * Read replica 사용
      */
@@ -171,6 +189,31 @@ export class UsersRepository extends BaseRepository
             .update(users)
             .set({ ...data, updatedAt: new Date() })
             .where(eq(users.id, id))
+            .returning();
+
+        return result[0] ?? null;
+    }
+
+    /**
+     * 계정 삭제 취소(복구) — `WHERE status = 'pending_deletion'` 조건부 UPDATE.
+     *
+     * cancelAccountDeletionService가 account_deletion_requests claim(조건부
+     * markCancelled)에 성공한 **이후에만** 호출한다. 그 claim이 이미 purge와의
+     * 경합을 해결하므로 이 조건은 방어적 이중 안전장치 — 0 row 매치(= 이미
+     * status가 바뀐 상태) 시 null을 반환하며 예외를 던지지 않는다.
+     * Write primary 사용
+     */
+    async reactivateFromPendingDeletion(id: number)
+    {
+        const result = await this.db
+            .update(users)
+            .set({ status: 'active', updatedAt: new Date() })
+            .where(
+                and(
+                    eq(users.id, id),
+                    eq(users.status, 'pending_deletion'),
+                ),
+            )
             .returning();
 
         return result[0] ?? null;

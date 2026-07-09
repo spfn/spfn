@@ -90,6 +90,32 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 /**
+ * Dummy bcrypt hash for timing equalization.
+ *
+ * A credential check for a non-existent account (or one with no passwordHash to
+ * compare against) should still spend roughly the same time as a real bcrypt
+ * verify — otherwise skipping the hash leaks account existence/state via
+ * response timing (user enumeration). Callers verify the supplied password
+ * against this dummy hash on the "no real hash to check" branch. Computed once
+ * at the configured cost (matches real users' hashes) and reused.
+ *
+ * Shared by `loginService` (auth.service.ts) and `cancelAccountDeletionService`
+ * (account-deletion.service.ts) — kept here rather than in either service to
+ * avoid a circular import between the two (they already import from each other
+ * for `getPendingDeletionInfo`).
+ */
+let dummyHashPromise: Promise<string> | null = null;
+export function getDummyPasswordHash(): Promise<string>
+{
+    if (!dummyHashPromise)
+    {
+        dummyHashPromise = hashPassword('spfn-nonexistent-account-timing-equalizer');
+    }
+
+    return dummyHashPromise;
+}
+
+/**
  * Password strength validator (uses core validator internally)
  *
  * Uses @spfn/core/env/validator for consistent validation logic.

@@ -14,7 +14,7 @@
 
 import { USER_STATUSES } from '../types';
 import { text, check, boolean, index, uuid } from 'drizzle-orm/pg-core';
-import { id, timestamps, enumText, utcTimestamp, foreignKey } from '@spfn/core/db';
+import { id, timestamps, enumText, utcTimestamp, foreignKey, softDelete } from '@spfn/core/db';
 import { sql } from 'drizzle-orm';
 import { roles } from './roles';
 import { authSchema } from './schema';
@@ -60,6 +60,8 @@ export const users = authSchema.table('users',
         // - active: Normal operation (default)
         // - inactive: Deactivated (user request, dormant)
         // - suspended: Locked (security incident, ToS violation)
+        // - pending_deletion: Deletion requested, within the grace period (recoverable)
+        // - deleted: Grace period elapsed and the account was purged (anonymize mode)
         status: enumText('status', USER_STATUSES).default('active').notNull(),
 
         // Verification timestamps
@@ -76,6 +78,11 @@ export const users = authSchema.table('users',
         lastLoginAt: utcTimestamp('last_login_at'),
 
         ...timestamps(),
+
+        // Soft delete (deletedAt / deletedBy) — set when the account deletion purge job
+        // anonymizes the row (status -> 'deleted'). Hard-delete mode removes the row
+        // instead, so these stay null for that strategy.
+        ...softDelete(),
     },
     (table) => [
         // Database constraints

@@ -131,9 +131,66 @@ export const invitationAcceptedEvent = defineEvent(
 );
 
 /**
+ * auth.deletion.requested - 계정 탈퇴 요청 이벤트
+ *
+ * 발행 시점:
+ * - requestAccountDeletionService() 성공 시 (self/admin 공통)
+ *
+ * @example
+ * ```typescript
+ * authDeletionRequestedEvent.subscribe(async (payload) => {
+ *     await analytics.trackChurnRisk(payload.userId);
+ * });
+ * ```
+ */
+export const authDeletionRequestedEvent = defineEvent(
+    'auth.deletion.requested',
+    Type.Object({
+        userId: Type.String(),
+        userPublicId: Type.String(),
+        purgeScheduledAt: Type.String(),
+        requestedBy: Type.Union([Type.Literal('self'), Type.Literal('admin')]),
+    }),
+);
+
+/**
+ * auth.deletion.cancelled - 계정 탈퇴 복구 이벤트
+ *
+ * 발행 시점:
+ * - cancelAccountDeletionService() 성공 시 (유예 기간 내 복구)
+ */
+export const authDeletionCancelledEvent = defineEvent(
+    'auth.deletion.cancelled',
+    Type.Object({
+        userId: Type.String(),
+        userPublicId: Type.String(),
+    }),
+);
+
+/**
+ * auth.deletion.completed - 계정 파기 완료 이벤트
+ *
+ * 발행 시점:
+ * - purge job(또는 즉시 파기 경로)이 유저를 파기한 직후
+ *
+ * PII를 담지 않는다 — userId(내부 순번)/email/phone 없이 userPublicId만 실어
+ * 파기 완료 이후에도 구독자가 식별 정보를 다시 축적하지 않도록 한다.
+ */
+export const authDeletionCompletedEvent = defineEvent(
+    'auth.deletion.completed',
+    Type.Object({
+        userPublicId: Type.String(),
+        purgeStrategy: Type.Union([Type.Literal('anonymize'), Type.Literal('hard-delete')]),
+    }),
+);
+
+/**
  * Auth event payload types
  */
 export type AuthLoginPayload = typeof authLoginEvent._payload;
 export type AuthRegisterPayload = typeof authRegisterEvent._payload;
 export type InvitationCreatedPayload = typeof invitationCreatedEvent._payload;
 export type InvitationAcceptedPayload = typeof invitationAcceptedEvent._payload;
+export type AuthDeletionRequestedPayload = typeof authDeletionRequestedEvent._payload;
+export type AuthDeletionCancelledPayload = typeof authDeletionCancelledEvent._payload;
+export type AuthDeletionCompletedPayload = typeof authDeletionCompletedEvent._payload;

@@ -148,6 +148,25 @@ export type {
     OAuthNativeResult,
 } from './oauth-native.service';
 
+// Account Deletion Service
+export {
+    requestAccountDeletionService,
+    cancelAccountDeletionService,
+    purgeUserService,
+    sweepDuePurges,
+    getPendingDeletionInfo,
+} from './account-deletion.service';
+
+export type {
+    RequestAccountDeletionParams,
+    RequestAccountDeletionResult,
+    CancelAccountDeletionParams,
+    CancelAccountDeletionResult,
+    PurgeUserResult,
+    SweepDuePurgesResult,
+    PendingDeletionInfo,
+} from './account-deletion.service';
+
 // =============================================================================
 // Email & SMS - DEPRECATED: Use @spfn/notification instead
 // =============================================================================

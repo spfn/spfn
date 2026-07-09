@@ -6,9 +6,12 @@
 
 import type { AuthInitOptions } from './rbac';
 import type { SSETokenStore } from '@spfn/core/event/sse';
+import type { PurgeStrategy } from './types';
+import type { AccountDeletionPurgeUser } from './lib/deletion-config';
 import { ensureAdminExists } from './setup';
 import { initializeAuth } from './services';
 import { initOneTimeTokenManager } from './lib/one-time-token';
+import { configureDeletion } from './lib/deletion-config';
 
 /**
  * Auth lifecycle configuration
@@ -126,10 +129,89 @@ export interface AuthLifecycleOptions extends AuthInitOptions
          */
         store?: SSETokenStore;
     };
+
+    /**
+     * Account deletion/recovery lifecycle configuration
+     *
+     * Controls the grace-period request → recover → purge flow exposed by
+     * `POST /_auth/deletion/request` and `POST /_auth/deletion/cancel`.
+     * Registering the purge job itself is a separate step — see `authJobRouter`
+     * (`@spfn/auth/server`) and the README, since job registration happens after
+     * this lifecycle hook runs and can't be triggered from here.
+     *
+     * @example
+     * ```typescript
+     * createAuthLifecycle({
+     *     deletion: {
+     *         gracePeriodDays: 14,
+     *         purgeStrategy: 'anonymize',
+     *         allowSelfImmediate: false,
+     *         sendNotifications: true,
+     *         onBeforePurge: async (user) => {
+     *             await appDataCleanup(user.id); // throw to skip this user this sweep
+     *         },
+     *     },
+     * })
+     * ```
+     */
+    deletion?: {
+        /**
+         * Days between a deletion request and the purge becoming eligible.
+         * 0 = immediate (still goes through the same request/purge pipeline).
+         * @default 30
+         */
+        gracePeriodDays?: number;
+
+        /**
+         * How the purge job destroys the account once the grace period elapses.
+         * - 'anonymize': scrub PII, keep the row (status -> 'deleted') — recommended default
+         * - 'hard-delete': physically remove the `users` row (cascades to child rows)
+         * @default 'anonymize'
+         */
+        purgeStrategy?: PurgeStrategy;
+
+        /**
+         * Whether a self-service caller may pass `immediate: true` on
+         * `POST /_auth/deletion/request` to skip the grace period entirely.
+         * @default false
+         */
+        allowSelfImmediate?: boolean;
+
+        /**
+         * Cron schedule for the purge sweep. NOTE: this does not reach the static
+         * `authJobRouter` export automatically — job schedules are fixed at
+         * module-import time, before this lifecycle hook runs. For a non-default
+         * cron, build the router yourself after this call with
+         * `createAuthDeletionJobRouter({ purgeCron })` (see `@spfn/auth/server`).
+         * @default '0 4 * * *'
+         */
+        purgeCron?: string;
+
+        /**
+         * Whether to email users (when they have one on file) at request,
+         * recovery, and final-purge time.
+         * @default true
+         */
+        sendNotifications?: boolean;
+
+        /**
+         * Invoked immediately before a user is purged (both the immediate inline
+         * path and the cron sweep). Throw to skip that user for this run — they
+         * stay `pending` and are retried on the next sweep.
+         */
+        onBeforePurge?: (user: AccountDeletionPurgeUser) => Promise<void>;
+    };
 }
 
 export function createAuthLifecycle(options: AuthLifecycleOptions = {}): AuthLifecycleConfig
 {
+    // Synchronous, not inside afterInfrastructure: readers of getDeletionConfig()
+    // (routes, the purge job handler) only run later, at request/handler time — but
+    // createAuthDeletionJobRouter() may be called by the app right after this
+    // constructor returns (same builder chain), and it needs the resolved config
+    // immediately. See lib/deletion-config.ts for the full ordering rationale.
+    configureDeletion(options.deletion);
+
     return {
         /**
          * Initialize auth system after database is ready

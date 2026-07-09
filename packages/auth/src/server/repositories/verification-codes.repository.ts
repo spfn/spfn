@@ -132,6 +132,23 @@ export class VerificationCodesRepository extends BaseRepository
     }
 
     /**
+     * Target(email/phone)의 모든 인증 코드 삭제 (계정 파기용)
+     *
+     * verificationCodes는 userId FK가 없고 target 텍스트로만 연결되므로, 파기 시
+     * 원래 email/phone을 이 메서드로 직접 정리해야 한다.
+     * Write primary 사용
+     */
+    async deleteByTarget(target: string): Promise<number>
+    {
+        const result = await this.db
+            .delete(verificationCodes)
+            .where(eq(verificationCodes.target, target))
+            .returning();
+
+        return result.length;
+    }
+
+    /**
      * Target의 모든 이전 코드 무효화 (새 코드 발급 시)
      * Write primary 사용
      */

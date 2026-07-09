@@ -160,6 +160,23 @@ export class KeysRepository extends BaseRepository
     }
 
     /**
+     * 사용자의 모든 공개키 삭제 (계정 익명화 파기용)
+     *
+     * hard-delete는 FK cascade로 자동 처리되지만, anonymize 모드는 users row를
+     * 남기므로 자식 row를 직접 지워야 한다.
+     * Write primary 사용
+     */
+    async deleteAllByUserId(userId: number): Promise<number>
+    {
+        const result = await this.db
+            .delete(userPublicKeys)
+            .where(eq(userPublicKeys.userId, userId))
+            .returning();
+
+        return result.length;
+    }
+
+    /**
      * 마지막 사용 시간 업데이트
      * Write primary 사용
      */
