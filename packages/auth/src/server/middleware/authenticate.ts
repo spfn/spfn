@@ -24,12 +24,13 @@ import { defineMiddleware } from '@spfn/core/route';
 import { UnauthorizedError } from '@spfn/core/errors';
 
 import type { User, KeyAlgorithmType } from '@spfn/auth/server';
-import { verifyClientToken, decodeToken, authLogger, keysRepository, usersRepository, userProfilesRepository } from '@spfn/auth/server';
+import { verifyClientToken, decodeToken, authLogger, keysRepository, usersRepository, userProfilesRepository, getPendingDeletionInfo } from '@spfn/auth/server';
 import {
     InvalidTokenError,
     TokenExpiredError,
     KeyExpiredError,
     AccountDisabledError,
+    AccountPendingDeletionError,
 } from '@spfn/auth/errors';
 
 // Auth context type
@@ -176,9 +177,15 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
     const { user, role } = result;
 
     // 6. Check if user account is active
-    // Status can be: active, inactive, suspended
+    // Status can be: active, inactive, suspended, pending_deletion, deleted
     if (user.status !== 'active')
     {
+        if (user.status === 'pending_deletion')
+        {
+            const pending = await getPendingDeletionInfo(user.id);
+            throw new AccountPendingDeletionError({ purgeScheduledAt: pending?.purgeScheduledAt.toISOString() });
+        }
+
         throw new AccountDisabledError({ status: user.status });
     }
 

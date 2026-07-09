@@ -53,10 +53,11 @@ export const VerificationPurposeSchema = Type.Union([
     Type.Literal('password_reset'),
     Type.Literal('email_change'),
     Type.Literal('phone_change'),
+    Type.Literal('account_deletion'),
 ], {
     description: 'Purpose of verification',
 });
 
 export type VerificationPurpose = Static<typeof VerificationPurposeSchema>;
 
-export const VERIFICATION_PURPOSES = ['registration', 'login', 'password_reset', 'email_change', 'phone_change'] as const;
+export const VERIFICATION_PURPOSES = ['registration', 'login', 'password_reset', 'email_change', 'phone_change', 'account_deletion'] as const;

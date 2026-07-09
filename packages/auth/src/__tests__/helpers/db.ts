@@ -118,6 +118,7 @@ export async function clearTables(db: ReturnType<typeof drizzle>)
     await db.execute(sql`TRUNCATE TABLE spfn_auth.user_permissions CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.role_permissions CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.user_invitations CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE spfn_auth.account_deletion_requests CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.users CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.permissions CASCADE`);
     await db.execute(sql`TRUNCATE TABLE spfn_auth.roles CASCADE`);

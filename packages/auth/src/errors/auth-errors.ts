@@ -9,6 +9,7 @@ import {
     UnauthorizedError,
     ForbiddenError,
     ConflictError,
+    NotFoundError,
 } from '@spfn/core/errors';
 
 /**
@@ -97,6 +98,70 @@ export class AccountDisabledError extends ForbiddenError
             details: { status, ...data.details },
         });
         this.name = 'AccountDisabledError';
+    }
+}
+
+/**
+ * Account Pending Deletion Error (403)
+ *
+ * Thrown on login (password/OAuth/authenticate) when the account is within its
+ * deletion grace period. Carries `purgeScheduledAt` so the client can offer a
+ * recovery flow instead of a generic "disabled" message.
+ */
+export class AccountPendingDeletionError extends ForbiddenError
+{
+    constructor(data: { purgeScheduledAt?: string; message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'Account is scheduled for deletion',
+            details: { status: 'pending_deletion', purgeScheduledAt: data.purgeScheduledAt, ...data.details },
+        });
+        this.name = 'AccountPendingDeletionError';
+    }
+}
+
+/**
+ * Deletion Already Requested Error (409)
+ *
+ * Thrown when requesting deletion for an account that already has a pending
+ * deletion request (or has already been purged).
+ */
+export class DeletionAlreadyRequestedError extends ConflictError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({ message: data.message || 'Account deletion has already been requested', details: data.details });
+        this.name = 'DeletionAlreadyRequestedError';
+    }
+}
+
+/**
+ * Deletion Not Requested Error (404)
+ *
+ * Thrown when trying to cancel/purge a deletion for an account that has no
+ * pending deletion request.
+ */
+export class DeletionNotRequestedError extends NotFoundError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({ message: data.message || 'No pending account deletion request found', details: data.details });
+        this.name = 'DeletionNotRequestedError';
+    }
+}
+
+/**
+ * Immediate Deletion Not Allowed Error (403)
+ *
+ * Thrown when a self-service caller requests `immediate: true` but the server
+ * has not enabled `deletion.allowSelfImmediate`.
+ */
+export class ImmediateDeletionNotAllowedError extends ForbiddenError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({ message: data.message || 'Immediate self-service deletion is not enabled', details: data.details });
+        this.name = 'ImmediateDeletionNotAllowedError';
     }
 }
 

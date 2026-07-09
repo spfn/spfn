@@ -56,6 +56,9 @@ export {
     INVITATION_STATUSES,
     USER_STATUSES,
     SOCIAL_PROVIDERS,
+    ACCOUNT_DELETION_REQUEST_STATUSES,
+    ACCOUNT_DELETION_REQUESTED_BY,
+    PURGE_STRATEGIES,
 } from './server/types';
 
 // Export verification types & constants from schema.ts (single source of truth)

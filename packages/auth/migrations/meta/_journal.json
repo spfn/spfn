@@ -43,6 +43,13 @@
       "when": 1782729129000,
       "tag": "0005_lethal_lifeguard",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783582531948,
+      "tag": "0006_easy_hardball",
+      "breakpoints": true
     }
   ]
 }

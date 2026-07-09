@@ -159,6 +159,8 @@ routes use `.skip(['auth'])`; the rest require `Authorization: Bearer <client-si
 | `checkUsername` / `updateUsername` / `updateLocale` | — | mixed | username availability/update, locale |
 | `getUserProfile` / `updateUserProfile` | — | yes | profile read/update |
 | `createInvitation` / `acceptInvitation` / `listInvitations` / `cancelInvitation` / `resendInvitation` / `deleteInvitation` / `getInvitation` | — | mixed | invitation flow |
+| `requestAccountDeletion` | POST `/_auth/deletion/request` | yes | request account deletion (re-auth gated) — see [Account Deletion & Recovery](#account-deletion--recovery) |
+| `cancelAccountDeletion` | POST `/_auth/deletion/cancel` | public | cancel a pending deletion (credential-based recovery) |
 | `listRoles` / `createAdminRole` / `updateAdminRole` / `deleteAdminRole` / `updateUserRole` | — | superadmin | admin RBAC management |
 | OAuth routes | — | — | see OAuth section |
 
@@ -354,13 +356,99 @@ authRegisterEvent.subscribe(async ({ userId, email, provider, metadata }) =>
 ```
 
 Payload types: `AuthLoginPayload`, `AuthRegisterPayload`, `InvitationCreatedPayload`,
-`InvitationAcceptedPayload`. These events also bind to `@spfn/core/job` jobs via `.on(event)`.
+`InvitationAcceptedPayload`, `AuthDeletionRequestedPayload`, `AuthDeletionCancelledPayload`,
+`AuthDeletionCompletedPayload`. These events also bind to `@spfn/core/job` jobs via `.on(event)`.
 
 ## One-Time Token
 
 For short-lived authenticated handshakes (e.g. SSE) where a `Bearer` header is awkward: issue
 with `authApi.issueOneTimeToken`, protect the consuming route with the `oneTimeTokenAuth`
 middleware. Call `initOneTimeTokenManager({ ttl, store })` during setup for a custom TTL/store.
+
+## Account Deletion & Recovery
+
+Grace-period deletion with in-window recovery, an admin/GDPR-response entry point for immediate
+purge, and a pluggable app-data cleanup hook. Not covered by this feature: re-signup email
+blind-index/hashing (a purged account's email becomes reusable immediately — see the project's
+PII protection track for blind-index re-signup prevention), backup beyond-use handling, DSR
+intake/response workflows, and webhook fan-out — those are app/ops concerns.
+
+```
+active ──request (re-auth)──> pending_deletion ──grace period elapses (cron)──> deleted (anonymize) | row removed (hard-delete)
+  ^                                  │
+  └───────────cancel (re-auth)───────┘        immediate = grace period of 0, same pipeline
+```
+
+- **Request** — `POST /_auth/deletion/request` (authenticated). Step-up re-auth: password
+  holders confirm with `password`; OAuth-only/passwordless accounts confirm with a
+  `verificationToken` from `/_auth/codes` + `/_auth/codes/verify` (`purpose: 'account_deletion'`).
+  On success: status → `pending_deletion`, every active session key is revoked, a
+  `account_deletion_requests` audit row is created, `auth.deletion.requested` fires, and (if
+  the user has an email and `sendNotifications` is on) a notice is sent with the scheduled purge
+  date.
+- **Login is blocked while pending** — password login, OAuth login, and the `authenticate`
+  middleware all reject a `pending_deletion` account with `AccountPendingDeletionError` (403,
+  `details.purgeScheduledAt`) instead of the generic `AccountDisabledError`, so the client can
+  show a recovery prompt.
+- **Cancel (recovery)** — `POST /_auth/deletion/cancel` (public — sessions were revoked at
+  request time, so there's no Bearer token to authenticate with). Credential-based: email/phone
+  plus `password` or a fresh `verificationToken`. On success, status → `active`; the user still
+  needs to log in separately afterward.
+- **Purge job** — sweeps `account_deletion_requests` for rows past their grace period and
+  destroys the account. Register it explicitly (see below); it is **not** wired up by
+  `createAuthLifecycle()` automatically.
+- **Admin / GDPR-response entry points** — `requestAccountDeletionService(userId, { requestedBy: 'admin', immediate })`
+  and `purgeUserService(userId)` are exported for app-side admin routes / DSR handling; the app
+  owns the route and its authorization.
+
+```typescript
+import { defineServerConfig } from '@spfn/core/server';
+import { createAuthLifecycle, authJobRouter } from '@spfn/auth/server';
+
+export default defineServerConfig()
+    .lifecycle(createAuthLifecycle({
+        deletion: {
+            gracePeriodDays: 30,               // default; 0 = immediate
+            purgeStrategy: 'anonymize',        // default; or 'hard-delete'
+            allowSelfImmediate: false,         // default; self-service immediate: true
+            sendNotifications: true,           // default
+            onBeforePurge: async (user) =>
+            {
+                // throw to skip this user for the current sweep (retried next run)
+                await appDataCleanup(user.id);
+            },
+        },
+    }))
+    .jobs(authJobRouter)   // registers the daily (04:00 UTC) purge sweep
+    .routes(appRouter)
+    .build();
+```
+
+**Purge strategies:**
+
+- `anonymize` (default) — scrubs PII, keeps the row: `email` → `deleted-{publicId}@deleted.invalid`,
+  `phone`/`username`/`passwordHash` → `null`, `status` → `'deleted'`, `deletedAt`/`deletedBy` set
+  (`softDelete()` on `users`). Social accounts and public keys are deleted (frees the provider
+  link and revokes access), the profile's PII columns are cleared, and any leftover verification
+  codes for the original email/phone are removed. The freed email/phone can be re-registered
+  immediately.
+- `hard-delete` — physically removes the `users` row; child rows (`user_profiles`,
+  `user_public_keys`, `user_social_accounts`, `user_permissions`) cascade-delete via their FK.
+  The `account_deletion_requests` audit row survives either strategy — its `userId` FK is
+  `set null` (not cascade), by design, so "who requested/purged what, when" outlives the user row.
+
+**Cron schedule caveat.** `deletion.purgeCron` (default `0 4 * * *`) is stored for reference, but
+the static `authJobRouter` export above always runs on the *default* cron — `job(...).cron(...)`
+is fixed at module-import time, which happens before `createAuthLifecycle()` runs in your
+`server.config.ts`. For a non-default schedule, build the router yourself, after the
+`createAuthLifecycle()` call, and register that instead:
+
+```typescript
+import { createAuthDeletionJobRouter } from '@spfn/auth/server';
+
+// ... after .lifecycle(createAuthLifecycle({ deletion: { purgeCron: '0 3 * * *' } }))
+.jobs(createAuthDeletionJobRouter({ purgeCron: '0 3 * * *' }))
+```
 
 ## Pitfalls & anti-patterns
 
@@ -391,6 +479,13 @@ middleware. Call `initOneTimeTokenManager({ ttl, store })` during setup for a cu
   every `switch(provider)` over login/register events must handle the new value.
 - **Email/SMS is not here.** It moved to `@spfn/notification` (`import { sendEmail, sendSMS } from
   '@spfn/notification/server'`). Wire verification-code / invitation emails through its events.
+- **`authJobRouter` isn't registered for you.** `createAuthLifecycle()`'s `afterInfrastructure`
+  hook runs *before* `@spfn/core` initializes pg-boss and registers jobs, so the lifecycle has no
+  opportunity to auto-register the account-deletion purge job. Call `.jobs(authJobRouter)`
+  yourself — see [Account Deletion & Recovery](#account-deletion--recovery).
+- **`USER_STATUSES` gained `pending_deletion` / `deleted`.** Any code with a `switch(user.status)`
+  or an exhaustive status union must handle both — `enumText` is plain `text` with no DB `CHECK`,
+  so nothing enforces this at the database layer.
 
 ## Complete example
 

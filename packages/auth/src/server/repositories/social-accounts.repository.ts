@@ -200,6 +200,23 @@ export class SocialAccountsRepository extends BaseRepository
 
         return result[0] ?? null;
     }
+
+    /**
+     * 사용자의 모든 소셜 계정 삭제 (계정 익명화 파기용)
+     *
+     * provider unique index(provider, providerUserId)를 해제해 같은 소셜 계정으로
+     * 재가입할 수 있게 한다.
+     * Write primary 사용
+     */
+    async deleteAllByUserId(userId: number): Promise<number>
+    {
+        const result = await this.db
+            .delete(userSocialAccounts)
+            .where(eq(userSocialAccounts.userId, userId))
+            .returning();
+
+        return result.length;
+    }
 }
 
 // Default instance export

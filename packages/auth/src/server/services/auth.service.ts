@@ -8,6 +8,7 @@ import { ValidationError } from '@spfn/core/errors';
 import {
     InvalidCredentialsError,
     AccountDisabledError,
+    AccountPendingDeletionError,
     AccountAlreadyExistsError,
     InvalidVerificationTokenError,
     VerificationTokenPurposeMismatchError,
@@ -20,6 +21,7 @@ import { hashPassword, verifyPassword } from '../helpers';
 import { validateVerificationToken } from './verification.service';
 import { registerPublicKeyService, revokeKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
+import { getPendingDeletionInfo } from './account-deletion.service';
 import { authLoginEvent, authRegisterEvent } from '../events';
 
 /**
@@ -226,6 +228,12 @@ export async function loginService(
     // Check if user is active
     if (user.status !== 'active')
     {
+        if (user.status === 'pending_deletion')
+        {
+            const pending = await getPendingDeletionInfo(user.id);
+            throw new AccountPendingDeletionError({ purgeScheduledAt: pending?.purgeScheduledAt.toISOString() });
+        }
+
         throw new AccountDisabledError({ status: user.status });
     }
 

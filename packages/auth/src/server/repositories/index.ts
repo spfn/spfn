@@ -16,3 +16,4 @@ export * from './user-profiles.repository';
 export * from './invitations.repository';
 export * from './social-accounts.repository';
 export * from './auth-metadata.repository';
+export * from './account-deletion-requests.repository';

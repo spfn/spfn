@@ -79,6 +79,17 @@ export { createAuthLifecycle } from './server/lifecycle';
 export type { AuthLifecycleOptions, AuthLifecycleConfig } from './server/lifecycle';
 
 // ============================================================================
+// Jobs
+// ============================================================================
+
+/**
+ * Register with `.jobs(authJobRouter)` in `server.config.ts` — job registration
+ * is not automatic (see `server/jobs/deletion-purge.ts` for why). For a non-default
+ * `deletion.purgeCron`, use `createAuthDeletionJobRouter({ purgeCron })` instead.
+ */
+export { authJobRouter, createAuthDeletionJobRouter, createAuthDeletionPurgeJob } from './server/jobs';
+
+// ============================================================================
 // Events
 // ============================================================================
 
@@ -87,6 +98,9 @@ export {
     authRegisterEvent,
     invitationCreatedEvent,
     invitationAcceptedEvent,
+    authDeletionRequestedEvent,
+    authDeletionCancelledEvent,
+    authDeletionCompletedEvent,
     AuthProviderSchema,
 } from './server/events';
 
@@ -95,4 +109,7 @@ export type {
     AuthRegisterPayload,
     InvitationCreatedPayload,
     InvitationAcceptedPayload,
+    AuthDeletionRequestedPayload,
+    AuthDeletionCancelledPayload,
+    AuthDeletionCompletedPayload,
 } from './server/events';
