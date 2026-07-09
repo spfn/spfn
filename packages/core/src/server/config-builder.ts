@@ -11,6 +11,7 @@ import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig, SSEAuthConfig } from '../event/sse/types';
 import type { WSRouterDef, WSHandlerConfig, WSAuthConfig, WSMessageHandlers } from '../event/ws/types';
+import type { EventDef } from '../event/types';
 import { serverLogger } from './logger';
 
 // ============================================================================
@@ -322,12 +323,11 @@ export class ServerConfigBuilder
      * ```
      */
     websockets<
-        TEvents extends Record<string, any>,
+        TEvents extends Record<string, EventDef<any>>,
         TMessages extends WSMessageHandlers,
-        TRouter extends WSRouterDef<TEvents, TMessages>,
     >(
-        router: TRouter,
-        config?: Omit<WSHandlerConfig, 'auth'> & { path?: string; auth?: WSAuthConfig<TRouter> },
+        router: WSRouterDef<TEvents, TMessages>,
+        config?: Omit<WSHandlerConfig, 'auth'> & { path?: string; auth?: WSAuthConfig<WSRouterDef<TEvents, TMessages>> },
     ): this
     {
         this.config.websockets = router;
