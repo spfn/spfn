@@ -17,6 +17,7 @@ vi.mock('../../server/repositories', () => ({
 vi.mock('../../server/helpers', () => ({
     hashPassword: vi.fn(async () => '$2b$12$dummydummydummydummydummydummydummydummydummydummydu'),
     verifyPassword: vi.fn(async () => false),
+    getDummyPasswordHash: vi.fn(async () => '$2b$12$dummydummydummydummydummydummydummydummydummydummydu'),
 }));
 
 vi.mock('../../server/events', () => ({

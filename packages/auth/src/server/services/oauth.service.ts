@@ -270,10 +270,14 @@ export async function oauthCallbackService(
  * registerPublicKeyService를 호출해 세션을 발급한다. 그 직전에 호출해 양쪽 분기를
  * 한 번에 막는다 — 이전에는 이 검사가 아예 없어 정지/탈퇴예정 계정도 OAuth로
  * 로그인 세션을 얻을 수 있었다(기존 버그).
+ *
+ * status는 replica가 아닌 primary에서 읽는다: 삭제 요청 직후(세션 revoke + status
+ * 전이가 막 커밋된 시점) 복제 지연 창에서 OAuth 로그인이 stale 'active' 상태를 보고
+ * 새 세션 키를 발급받는 것을 막기 위함.
  */
 export async function assertActiveForOAuthSession(userId: number): Promise<void>
 {
-    const user = await usersRepository.findById(userId);
+    const user = await usersRepository.findByIdOnPrimary(userId);
 
     if (!user)
     {

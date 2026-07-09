@@ -437,6 +437,18 @@ export default defineServerConfig()
   The `account_deletion_requests` audit row survives either strategy — its `userId` FK is
   `set null` (not cascade), by design, so "who requested/purged what, when" outlives the user row.
 
+The final "your account has been deleted" notice is sent **after** the purge transaction commits
+(never before, and never on a purge that aborted or rolled back — see below), using the address
+captured before the destructive step ran. This holds for `hard-delete` too: the row is already
+gone by send time, but the address was captured beforehand, so the notice still goes out.
+
+**Concurrency.** The purge job re-verifies the user is still `pending_deletion` on the write
+primary immediately before any destructive DML, inside the same transaction as the DML itself —
+closing the window between a stale read (the sweep's own batch, or replica lag) and a concurrent
+`cancel`. The `account_deletion_requests` claim (`markCompleted`) is a conditional `UPDATE ...
+WHERE status = 'pending'`; if a concurrent cancel already moved the row off `pending`, the claim
+matches zero rows and the purge aborts with no destructive DML and no overwritten audit row.
+
 **Cron schedule caveat.** `deletion.purgeCron` (default `0 4 * * *`) is stored for reference, but
 the static `authJobRouter` export above always runs on the *default* cron — `job(...).cron(...)`
 is fixed at module-import time, which happens before `createAuthLifecycle()` runs in your
@@ -449,6 +461,10 @@ import { createAuthDeletionJobRouter } from '@spfn/auth/server';
 // ... after .lifecycle(createAuthLifecycle({ deletion: { purgeCron: '0 3 * * *' } }))
 .jobs(createAuthDeletionJobRouter({ purgeCron: '0 3 * * *' }))
 ```
+
+Register **only one** of `authJobRouter` / `createAuthDeletionJobRouter(...)` — both build a job
+named `auth.deletion.purge`, so registering both (e.g. the static export *and* a custom-cron
+router) double-registers the same job name against pg-boss instead of overriding it.
 
 ## Pitfalls & anti-patterns
 

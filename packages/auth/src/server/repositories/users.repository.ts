@@ -37,6 +37,24 @@ export class UsersRepository extends BaseRepository
     }
 
     /**
+     * ID로 사용자 조회 — Write primary에서 직접 읽는다.
+     *
+     * 복제 지연 창에서 status 전이(예: 삭제 요청으로 pending_deletion 전환)를 놓치면
+     * 안 되는 게이트(OAuth 세션 발급 등)가 사용한다. 일반 조회는 `findById`(replica)를
+     * 계속 사용할 것.
+     */
+    async findByIdOnPrimary(id: number)
+    {
+        const result = await this.db
+            .select()
+            .from(users)
+            .where(eq(users.id, id))
+            .limit(1);
+
+        return result[0] ?? null;
+    }
+
+    /**
      * 이메일로 사용자 조회
      * Read replica 사용
      */

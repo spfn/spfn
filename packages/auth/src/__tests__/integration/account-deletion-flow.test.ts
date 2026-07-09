@@ -7,6 +7,9 @@
  * - request -> login blocked (403, AccountPendingDeletionError) -> cancel -> login succeeds
  * - purge sweep, anonymize strategy: PII scrubbed, same email/social account reusable
  * - purge sweep, hard-delete strategy: row physically removed, audit row survives (userId -> null)
+ * - B1 regression: cancel-during-sweep — a request already read into a sweep's batch,
+ *   but cancelled before that batch item is processed, must not be purged and must
+ *   not have its (now 'cancelled') audit row overwritten back to 'completed'
  *
  * OAuth-login status gate coverage lives in the unit test
  * `unit/oauth-status-gate.test.ts` (mocked — a full code-exchange OAuth round trip
@@ -22,13 +25,17 @@ import { setupTestDb, teardownTestDb, clearTables, getTestDb, isDatabaseAvailabl
 import { verificationCodes, users, accountDeletionRequests } from '@/server/entities';
 import { generateKeyPair, generateClientToken, type KeyPair } from '@/server/lib/crypto';
 
+const { sendEmailMock } = vi.hoisted(() => ({
+    sendEmailMock: vi.fn().mockResolvedValue({ success: true }),
+}));
+
 vi.mock('@spfn/notification/server', async (importOriginal) =>
 {
     const actual = await importOriginal<typeof import('@spfn/notification/server')>();
 
     return {
         ...actual,
-        sendEmail: vi.fn().mockResolvedValue({ success: true }),
+        sendEmail: sendEmailMock,
         sendSMS: vi.fn().mockResolvedValue({ success: true }),
     };
 });
@@ -38,7 +45,8 @@ const { defineRouter, registerRoutes } = await import('@spfn/core/route');
 const { ErrorHandler } = await import('@spfn/core/middleware');
 const { initializeAuth } = await import('@/server/services/rbac.service');
 const { configureDeletion } = await import('@/server/lib/deletion-config');
-const { sweepDuePurges } = await import('@/server/services/account-deletion.service');
+const { sweepDuePurges, purgePendingRequest } = await import('@/server/services/account-deletion.service');
+const { accountDeletionRequestsRepository } = await import('@/server/repositories');
 const { authenticate } = await import('@/server/middleware/authenticate');
 
 const dbAvailable = await isDatabaseAvailable();
@@ -77,6 +85,7 @@ describe.skipIf(!dbAvailable)('Account Deletion Lifecycle Integration', () =>
         await clearTables(db);
         await initializeAuth();
         configureDeletion(); // reset to defaults between tests
+        sendEmailMock.mockClear();
     });
 
     /** Register a user through the full verification flow with a real key pair. */
@@ -237,10 +246,71 @@ describe.skipIf(!dbAvailable)('Account Deletion Lifecycle Integration', () =>
         expect(row.passwordHash).toBeNull();
         expect(row.deletedAt).not.toBeNull();
 
+        // m3: the final-notice email was sent, only after the purge actually
+        // committed. `onAfterCommit` callbacks are fire-and-forget (not awaited by
+        // the transaction helper), so poll rather than assert synchronously.
+        // 3 calls total by this point: the registration-flow verification code,
+        // the "requested" notice from the request step above, and this "final" one
+        // (call count, not content, is asserted).
+        const emailCallsAfterFirstPurge = 3;
+        await vi.waitFor(() => expect(sendEmailMock).toHaveBeenCalledTimes(emailCallsAfterFirstPurge));
+
+        // A second sweep tick must not re-process (or re-notify) an already-completed
+        // request — findDueForPurge only matches status='pending'. Nothing async is
+        // queued on this path (0 due requests), so this is safe to assert synchronously.
+        const secondSweep = await sweepDuePurges();
+        expect(secondSweep).toEqual({ processed: 0, purged: 0, skipped: 0 });
+        expect(sendEmailMock).toHaveBeenCalledTimes(emailCallsAfterFirstPurge);
+
         // The original email is free again — same-email re-registration succeeds.
         const reRegistered = await registerViaFlow(email, 'AnotherPassword123!');
         expect(reRegistered.userId).toBeDefined();
         expect(reRegistered.userId).not.toBe(userId);
+    });
+
+    it('B1: cancel-during-sweep — a request cancelled after the sweep read its batch is not purged, and its audit row is not overwritten back to completed', async () =>
+    {
+        const email = 'cancel-during-sweep@example.com';
+        const password = 'SecurePassword123!';
+        const { userId, key } = await registerViaFlow(email, password);
+
+        const requestRes = await app.request('/_auth/deletion/request', {
+            method: 'POST',
+            headers: { ...JSON_HEADERS, Authorization: bearerFor(key) },
+            body: JSON.stringify({ password }),
+        });
+        expect(requestRes.status).toBe(200);
+
+        const db = getTestDb();
+        await db.update(accountDeletionRequests)
+            .set({ purgeScheduledAt: new Date(Date.now() - 1000) })
+            .where(eq(accountDeletionRequests.userId, Number(userId)));
+
+        // Simulate the sweep having already read its batch (a stale reference)...
+        const staleBatch = await accountDeletionRequestsRepository.findDueForPurge(new Date());
+        expect(staleBatch).toHaveLength(1);
+
+        // ...then the user cancels (recovers) before the sweep processes that row.
+        const cancelRes = await app.request('/_auth/deletion/cancel', {
+            method: 'POST',
+            headers: JSON_HEADERS,
+            body: JSON.stringify({ email, password }),
+        });
+        expect(cancelRes.status).toBe(204);
+
+        // The sweep now processes the STALE row it already had in hand.
+        const purgeResult = await purgePendingRequest(staleBatch[0]);
+        expect(purgeResult.outcome).not.toBe('purged');
+
+        const [userRow] = await db.select().from(users).where(eq(users.id, Number(userId)));
+        expect(userRow.status).toBe('active'); // recovered, not purged
+        expect(userRow.email).toBe(email);     // not anonymized
+        expect(userRow.deletedAt).toBeNull();
+
+        const [requestRow] = await db.select().from(accountDeletionRequests)
+            .where(eq(accountDeletionRequests.id, staleBatch[0].id));
+        expect(requestRow.status).toBe('cancelled'); // not overwritten back to 'completed'
+        expect(requestRow.purgeStrategy).toBeNull();
     });
 
     it('purge sweep (hard-delete): removes the row; the audit request row survives with userId -> null', async () =>

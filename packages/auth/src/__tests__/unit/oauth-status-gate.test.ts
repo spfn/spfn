@@ -13,7 +13,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { usersRepository, getPendingDeletionInfo } = vi.hoisted(() => ({
-    usersRepository: { findById: vi.fn() },
+    usersRepository: { findByIdOnPrimary: vi.fn() },
     getPendingDeletionInfo: vi.fn(),
 }));
 
@@ -32,21 +32,21 @@ describe('assertActiveForOAuthSession', () =>
 
     it('allows an active user through', async () =>
     {
-        usersRepository.findById.mockResolvedValue({ id: 1, status: 'active' });
+        usersRepository.findByIdOnPrimary.mockResolvedValue({ id: 1, status: 'active' });
 
         await expect(assertActiveForOAuthSession(1)).resolves.toBeUndefined();
     });
 
     it('blocks a suspended user with AccountDisabledError', async () =>
     {
-        usersRepository.findById.mockResolvedValue({ id: 2, status: 'suspended' });
+        usersRepository.findByIdOnPrimary.mockResolvedValue({ id: 2, status: 'suspended' });
 
         await expect(assertActiveForOAuthSession(2)).rejects.toBeInstanceOf(AccountDisabledError);
     });
 
     it('blocks a pending_deletion user with AccountPendingDeletionError, carrying purgeScheduledAt', async () =>
     {
-        usersRepository.findById.mockResolvedValue({ id: 3, status: 'pending_deletion' });
+        usersRepository.findByIdOnPrimary.mockResolvedValue({ id: 3, status: 'pending_deletion' });
         const purgeScheduledAt = new Date('2030-01-01T00:00:00.000Z');
         getPendingDeletionInfo.mockResolvedValue({ purgeScheduledAt });
 
@@ -61,8 +61,20 @@ describe('assertActiveForOAuthSession', () =>
 
     it('throws for a userId that no longer resolves to a user', async () =>
     {
-        usersRepository.findById.mockResolvedValue(null);
+        usersRepository.findByIdOnPrimary.mockResolvedValue(null);
 
         await expect(assertActiveForOAuthSession(999)).rejects.toThrow(/user not found/i);
+    });
+
+    it('reads the status from the write primary, not a replica (replica-lag guard)', async () =>
+    {
+        usersRepository.findByIdOnPrimary.mockResolvedValue({ id: 4, status: 'active' });
+
+        await assertActiveForOAuthSession(4);
+
+        // findByIdOnPrimary (not findById/readDb) — a mock providing only the
+        // former would throw here if the implementation ever fell back to a
+        // replica read.
+        expect(usersRepository.findByIdOnPrimary).toHaveBeenCalledWith(4);
     });
 });

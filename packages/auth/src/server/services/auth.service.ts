@@ -17,29 +17,12 @@ import {
 
 import { usersRepository, keysRepository } from '../repositories';
 import { type KeyAlgorithmType } from '../types';
-import { hashPassword, verifyPassword } from '../helpers';
+import { hashPassword, verifyPassword, getDummyPasswordHash } from '../helpers';
 import { validateVerificationToken } from './verification.service';
 import { registerPublicKeyService, revokeKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
 import { getPendingDeletionInfo } from './account-deletion.service';
 import { authLoginEvent, authRegisterEvent } from '../events';
-
-/**
- * Dummy bcrypt hash for login timing equalization. A login attempt for a
- * non-existent account verifies against this so it costs the same as one for a
- * real account — without it, skipping bcrypt leaks account existence by timing.
- * Computed once at the configured cost (matches new users' hashes) and reused.
- */
-let dummyHashPromise: Promise<string> | null = null;
-function getDummyHash(): Promise<string>
-{
-    if (!dummyHashPromise)
-    {
-        dummyHashPromise = hashPassword('spfn-nonexistent-account-timing-equalizer');
-    }
-
-    return dummyHashPromise;
-}
 
 export interface RegisterParams
 {
@@ -214,7 +197,7 @@ export async function loginService(
         // Spend the same time as the real verify path so a non-existent account
         // can't be told apart from a wrong password by response timing (user
         // enumeration). The dummy hash is computed once and reused.
-        await verifyPassword(password, await getDummyHash());
+        await verifyPassword(password, await getDummyPasswordHash());
         throw new InvalidCredentialsError();
     }
 
