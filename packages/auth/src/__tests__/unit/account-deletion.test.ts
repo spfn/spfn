@@ -32,6 +32,7 @@ const {
         findByEmailOrPhone: vi.fn(),
         updateById: vi.fn(async () => undefined),
         deleteById: vi.fn(async () => undefined),
+        reactivateFromPendingDeletion: vi.fn(),
     },
     keysRepository: {
         revokeAllActiveByUserId: vi.fn(async () => []),
@@ -132,6 +133,7 @@ describe('account-deletion.service', () =>
         // Individual tests override this to simulate the "0 rows matched" race.
         accountDeletionRequestsRepository.markCompleted.mockResolvedValue(claimedRow());
         accountDeletionRequestsRepository.markCancelled.mockResolvedValue(claimedRow({ status: 'cancelled' }));
+        usersRepository.reactivateFromPendingDeletion.mockResolvedValue({ status: 'active' });
     });
 
     describe('requestAccountDeletionService — self, password re-auth', () =>
@@ -331,7 +333,7 @@ describe('account-deletion.service', () =>
 
     describe('cancelAccountDeletionService', () =>
     {
-        it('recovers a pending_deletion account back to active', async () =>
+        it('recovers a pending_deletion account back to active, claiming the request row before touching users', async () =>
         {
             const user = makeUser({ status: 'pending_deletion' });
             usersRepository.findByEmailOrPhone.mockResolvedValue(user);
@@ -339,8 +341,17 @@ describe('account-deletion.service', () =>
 
             await cancelAccountDeletionService({ email: user.email, password: 'correct-password' });
 
-            expect(usersRepository.updateById).toHaveBeenCalledWith(user.id, { status: 'active' });
             expect(accountDeletionRequestsRepository.markCancelled).toHaveBeenCalledWith(5);
+            expect(usersRepository.reactivateFromPendingDeletion).toHaveBeenCalledWith(user.id);
+            // The unconditional users.updateById path this used to take is gone —
+            // reactivation only happens via the conditional reactivateFromPendingDeletion.
+            expect(usersRepository.updateById).not.toHaveBeenCalled();
+
+            // Claim (request row) strictly precedes the users reactivation, matching
+            // purge's own claim-then-DML lock order.
+            const claimOrder = accountDeletionRequestsRepository.markCancelled.mock.invocationCallOrder[0];
+            const reactivateOrder = usersRepository.reactivateFromPendingDeletion.mock.invocationCallOrder[0];
+            expect(claimOrder).toBeLessThan(reactivateOrder);
         });
 
         it('rejects when the account has no pending deletion request (after verifying the credential)', async () =>
@@ -352,6 +363,27 @@ describe('account-deletion.service', () =>
                 cancelAccountDeletionService({ email: user.email, password: 'correct-password' }),
             ).rejects.toBeInstanceOf(DeletionNotRequestedError);
             expect(verifyPassword).toHaveBeenCalledWith('correct-password', user.passwordHash);
+        });
+
+        it('B1 (cancel side): when the purge already won the race and claimed the request row, cancel throws DeletionNotRequestedError and never reactivates the (already-purged) user', async () =>
+        {
+            // The user row has already been anonymized by a purge that committed
+            // between our credential check and this claim attempt — status is
+            // 'deleted' here purely to prove reactivateFromPendingDeletion is never
+            // even called; the real defense is the request-row claim below.
+            const user = makeUser({ status: 'pending_deletion' });
+            usersRepository.findByEmailOrPhone.mockResolvedValue(user);
+            accountDeletionRequestsRepository.findPendingByUserId.mockResolvedValue({ id: 5 });
+            // The conditional UPDATE (WHERE status='pending') matches 0 rows because
+            // the purge's own claim already flipped this row to 'completed'.
+            accountDeletionRequestsRepository.markCancelled.mockResolvedValue(null);
+
+            await expect(
+                cancelAccountDeletionService({ email: user.email, password: 'correct-password' }),
+            ).rejects.toBeInstanceOf(DeletionNotRequestedError);
+
+            expect(usersRepository.reactivateFromPendingDeletion).not.toHaveBeenCalled();
+            expect(usersRepository.updateById).not.toHaveBeenCalled();
         });
 
         it('m1: a wrong credential on a non-pending account fails with InvalidCredentialsError, not DeletionNotRequestedError', async () =>

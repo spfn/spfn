@@ -349,6 +349,10 @@ export interface CancelAccountDeletionResult
  * account exists / is pending deletion — otherwise this endpoint could be used
  * to enumerate accounts or probe deletion status without a valid credential,
  * the same posture `loginService` takes for missing accounts.
+ *
+ * Claims the `account_deletion_requests` row (conditional `WHERE status =
+ * 'pending'`) before touching `users` — see the comment at that claim below for
+ * why the `users` row must not move until the claim succeeds.
  */
 export async function cancelAccountDeletionService(
     params: CancelAccountDeletionParams,
@@ -387,17 +391,35 @@ export async function cancelAccountDeletionService(
 
     await verifyReauthCredential(user, { password, verificationToken });
 
-    await usersRepository.updateById(user.id, { status: 'active' });
-
-    // Conditional on status='pending' — see markCancelled's doc comment. A no-op
-    // (null) here just means the purge job already won the race for this row (B1);
-    // cancelling the user's own status back to 'active' above is still correct
-    // recovery UX for the (already-anonymized) account in that edge case.
+    // Claim-first, in the same row order the purge job locks in (B1): the
+    // account_deletion_requests row before the users row. Reactivating `users`
+    // first (the previous ordering) raced the purge — if the purge's own claim +
+    // destructive DML committed in the gap between our credential check and our
+    // (unconditional) users UPDATE, this would revive an already-anonymized row
+    // (status='deleted', PII scrubbed, passwordHash null) back to 'active': a
+    // "zombie" account, and a recovery success response for an account that was
+    // actually just destroyed. Claiming the request row first — with the same
+    // conditional `WHERE status = 'pending'` markCompleted uses — means whichever
+    // of cancel/purge locks this row first wins; the loser sees a row already
+    // moved off 'pending' and backs off before touching `users` at all.
     const pendingRequest = await accountDeletionRequestsRepository.findPendingByUserId(user.id);
-    if (pendingRequest)
+    if (!pendingRequest)
     {
-        await accountDeletionRequestsRepository.markCancelled(pendingRequest.id);
+        throw new DeletionNotRequestedError();
     }
+
+    const claimed = await accountDeletionRequestsRepository.markCancelled(pendingRequest.id);
+    if (!claimed)
+    {
+        // The purge won the race and already claimed/completed this row — same
+        // surface as retrying cancel after the account was actually purged.
+        throw new DeletionNotRequestedError();
+    }
+
+    // Only now touch `users` — the claim above guarantees the purge did not win.
+    // Conditional on status='pending_deletion' too, defensively (belt-and-suspenders
+    // alongside the request-row claim, not a race this alone needs to close).
+    await usersRepository.reactivateFromPendingDeletion(user.id);
 
     onAfterCommit(() =>
         authDeletionCancelledEvent.emit({

@@ -195,6 +195,31 @@ export class UsersRepository extends BaseRepository
     }
 
     /**
+     * 계정 삭제 취소(복구) — `WHERE status = 'pending_deletion'` 조건부 UPDATE.
+     *
+     * cancelAccountDeletionService가 account_deletion_requests claim(조건부
+     * markCancelled)에 성공한 **이후에만** 호출한다. 그 claim이 이미 purge와의
+     * 경합을 해결하므로 이 조건은 방어적 이중 안전장치 — 0 row 매치(= 이미
+     * status가 바뀐 상태) 시 null을 반환하며 예외를 던지지 않는다.
+     * Write primary 사용
+     */
+    async reactivateFromPendingDeletion(id: number)
+    {
+        const result = await this.db
+            .update(users)
+            .set({ status: 'active', updatedAt: new Date() })
+            .where(
+                and(
+                    eq(users.id, id),
+                    eq(users.status, 'pending_deletion'),
+                ),
+            )
+            .returning();
+
+        return result[0] ?? null;
+    }
+
+    /**
      * 비밀번호 업데이트
      * Write primary 사용
      */
