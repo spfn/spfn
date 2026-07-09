@@ -101,3 +101,18 @@ deletion?: {
 - `initializeAuth`/`afterInfrastructure`(`lifecycle.ts:142`)에서 job 등록 가능 여부.
 - `userProfiles`·`userPermissions`·`userInvitations(invitedBy)` FK의 onDelete 실제 지정값 — 익명화 모드에서 스크럽/삭제 대상 확정.
 - `AccountDisabledError` 선례(`auth-errors.ts:90`)와 상태코드 일관성.
+
+## 구현 확정 사항 (감사 반영 후, 2026-07-09 — PR #11)
+
+계획 대비 확정·변경된 설계 판단. 이 절이 사후 정본이다.
+
+- **OAuth 게이트 위치**: 계획의 `createOrLinkUser`가 아니라 공유 함수 `assertActiveForOAuthSession`으로 — 기존 소셜 계정 재로그인 분기가 `createOrLinkUser`를 타지 않아, 두 플로우(web 콜백·native)의 모든 분기가 세션 키 등록 직전에 합류하는 지점에 두는 것이 정확하다.
+- **파기 동시성 가드(감사 blocker 수정)**: 파기와 복구 양쪽 모두 "조건부 claim UPDATE(`WHERE status='pending'`) → 0 row면 후퇴"를 트랜잭션 안 첫 단계로 둔다. 락 순서는 두 경로 동일(요청 row → users row). 파기 판단 읽기는 트랜잭션 커넥션(primary)에서. 복구는 claim 실패 시 `DeletionNotRequestedError`.
+- **부수효과는 커밋 후**: 이벤트 emit(`auth.deletion.*`)·알림 이메일은 전부 `onAfterCommit`. `onBeforePurge` 앱 훅만 의미상 트랜잭션 진입 전에 실행(throw → 해당 유저 skip, 다음 스윕 재시도).
+- **상태 게이트 읽기는 primary**: `assertActiveForOAuthSession`·`getPendingDeletionInfo`는 replica가 아닌 primary에서 읽는다(복제 지연 창 차단).
+- **purgeCron 설정 한계**: `job().cron()`이 모듈 import 시점에 고정되므로 `deletion.purgeCron`은 정적 `authJobRouter`에 반영 불가. 커스텀 cron은 `createAuthDeletionJobRouter({ purgeCron })` 사용, 잡 이름이 같으므로 둘 중 하나만 등록(README 명시).
+- **잡 등록은 앱 책임**: core가 `afterInfrastructure`를 잡 등록보다 먼저 실행하므로 lifecycle 자동 등록 불가. 앱이 `.jobs(authJobRouter)` 명시 등록(README 문서화).
+- **알림은 named-template 없이 `sendEmail({subject, text})` 직접 호출** (verification.service 선례). 파기 최종 안내는 커밋 성공 후 발송, hard-delete 모드에도 파기 전 캡처한 주소로 발송(README 명시).
+- **cancel의 계정 열거 방어**: credential 검증을 상태 분기보다 먼저, 미존재 계정엔 dummy hash로 타이밍 균등화(`getDummyPasswordHash`는 순환 import 방지로 `helpers/password.ts`로 이동).
+- **동시 중복 요청**: partial unique 위반(23505)을 잡아 `DeletionAlreadyRequestedError`(409)로 변환.
+- coding-context 등록: `reliability/side-effects-inside-transaction`(신규), `reliability/propose-apply-toctou`(배치 스윕 사례 추가).
