@@ -12,6 +12,7 @@ import { ValidationError } from '@spfn/core/errors';
 import { AccountDisabledError, AccountPendingDeletionError } from '@spfn/auth/errors';
 
 import { usersRepository, socialAccountsRepository } from '../repositories';
+import { getAuthConfig } from '../lib/config';
 import { type SocialProvider, type KeyAlgorithmType } from '../types';
 import {
     refreshAccessToken,
@@ -200,7 +201,7 @@ export async function oauthCallbackService(
     else
     {
         // 신규 사용자 또는 이메일로 기존 사용자 연결
-        const result = await createOrLinkUser(provider, identity, tokens);
+        const result = await createOrLinkUser(provider, identity, tokens, stateData.metadata);
         userId = result.userId;
         isNewUser = result.isNewUser;
     }
@@ -304,11 +305,13 @@ export async function assertActiveForOAuthSession(userId: number): Promise<void>
  * 모든 OAuth provider 공통 경로. provider별 응답은 NormalizedIdentity로 정규화되어 들어온다.
  * tokens는 web(code 교환) 흐름에서만 전달된다. native id_token 흐름은 provider 토큰이
  * 없으므로 생략하며, social account의 토큰 컬럼은 null로 저장된다.
+ * metadata는 앱이 OAuth 시작 시 실은 값 — 신규 가입일 때만 beforeRegister 훅에 전달된다.
  */
 export async function createOrLinkUser(
     provider: SocialProvider,
     identity: NormalizedIdentity,
     tokens?: OAuthTokens,
+    metadata?: Record<string, unknown>,
 ): Promise<{ userId: number; isNewUser: boolean }>
 {
     // 이메일로 기존 사용자 검색
@@ -342,6 +345,18 @@ export async function createOrLinkUser(
     }
     else
     {
+        // 앱 주입 사전 검증 훅 — throw 시 가입 거부 (기존 계정 연결에는 적용 안 함)
+        const { beforeRegister } = getAuthConfig();
+        if (beforeRegister)
+        {
+            await beforeRegister({
+                channel: 'oauth',
+                provider,
+                email: identity.email ?? undefined,
+                metadata,
+            });
+        }
+
         // 신규 사용자 생성
         const { getRoleByName } = await import('./role.service');
         const userRole = await getRoleByName('user');

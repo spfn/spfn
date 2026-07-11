@@ -13,6 +13,7 @@ import {
     keysRepository,
 } from '../repositories';
 import type { InvitationStatus, KeyAlgorithmType } from '../types';
+import { getAuthConfig } from '../lib/config';
 import { hashPassword } from '../helpers';
 import { invitationCreatedEvent, invitationAcceptedEvent } from '../events';
 import { BadRequestError, NotFoundError, ConflictError } from '@spfn/core/errors';
@@ -250,6 +251,17 @@ export async function acceptInvitation(params: {
     if (!role)
     {
         throw new NotFoundError({ message: 'Role not found', resource: 'Role' });
+    }
+
+    // App-level pre-registration policy gate — throws to reject
+    const { beforeRegister } = getAuthConfig();
+    if (beforeRegister)
+    {
+        await beforeRegister({
+            channel: 'invitation',
+            email: invitation.email,
+            metadata: invitation.metadata as Record<string, unknown> | undefined,
+        });
     }
 
     // Hash password

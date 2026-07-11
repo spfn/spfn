@@ -187,6 +187,21 @@ export class AccountAlreadyExistsError extends ConflictError
 }
 
 /**
+ * Registration Rejected Error (403)
+ *
+ * Thrown by the app-injected beforeRegister hook to reject a registration
+ * (age gate, domain restriction, block list, ...)
+ */
+export class RegistrationRejectedError extends ForbiddenError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({ message: data.message || 'Registration rejected', details: data.details });
+        this.name = 'RegistrationRejectedError';
+    }
+}
+
+/**
  * Invalid Verification Code Error (400)
  *
  * Thrown when verification code is invalid, expired, or already used

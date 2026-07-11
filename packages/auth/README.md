@@ -359,6 +359,38 @@ Payload types: `AuthLoginPayload`, `AuthRegisterPayload`, `InvitationCreatedPayl
 `InvitationAcceptedPayload`, `AuthDeletionRequestedPayload`, `AuthDeletionCancelledPayload`,
 `AuthDeletionCompletedPayload`. These events also bind to `@spfn/core/job` jobs via `.on(event)`.
 
+## Registration gate (`beforeRegister`)
+
+Events fire *after* the user exists — they cannot reject a registration. For server-enforced
+signup policy (age gate, invite-only domains, block lists) inject a validator with
+`configureAuth`; it runs **before the user row is created** on every registration channel:
+`credentials` (email/phone register), `oauth` (new-user social signup, web + native), and
+`invitation` (acceptance). Throwing rejects the registration; `RegistrationRejectedError` (403)
+is the recommended error. The hook receives the same `metadata` the app supplied to
+`register` / OAuth start / the invitation — never credentials.
+
+```typescript
+import { configureAuth, RegistrationRejectedError } from '@spfn/auth/server';
+
+configureAuth({
+    beforeRegister: async ({ channel, provider, email, phone, metadata }) =>
+    {
+        if (!isOldEnough(metadata?.birthDate))
+        {
+            throw new RegistrationRejectedError({ message: 'Age requirement not met' });
+        }
+    },
+});
+```
+
+Notes:
+- Runs after built-in checks (verification token, duplicate account) — existing error
+  precedence is unchanged, and the hook cannot be probed without a valid verification token.
+- Not called when an OAuth login links a social account to an existing user, nor for admin
+  seeding in `initializeAuth()`.
+- OAuth signups have no client-typed fields unless you pass `metadata` at OAuth start — decide
+  per channel (reject, or allow and collect during onboarding).
+
 ## One-Time Token
 
 For short-lived authenticated handshakes (e.g. SSE) where a `Bearer` header is awkward: issue

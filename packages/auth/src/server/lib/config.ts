@@ -6,6 +6,8 @@
 
 import { env } from '@spfn/auth/config';
 
+import type { SocialProvider } from '../types';
+
 /**
  * Cookie name suffix derived from PORT to isolate sessions across
  * multiple local dev instances running on the same domain (localhost).
@@ -89,6 +91,32 @@ export function parseDuration(duration: string | number): number
 }
 
 /**
+ * Registration channel passed to the beforeRegister hook
+ *
+ * - credentials: email/phone + password registration
+ * - oauth: new-user signup through a social provider (web or native flow)
+ * - invitation: invitation acceptance
+ */
+export type RegisterChannel = 'credentials' | 'oauth' | 'invitation';
+
+/**
+ * Context passed to the beforeRegister hook
+ *
+ * Credentials (password, keys) are intentionally excluded — the hook is a
+ * policy gate, not a credential handler.
+ */
+export interface BeforeRegisterContext
+{
+    channel: RegisterChannel;
+    /** Social provider — only set when channel is 'oauth' */
+    provider?: SocialProvider;
+    email?: string;
+    phone?: string;
+    /** App-supplied registration metadata (register params / OAuth start params / invitation) */
+    metadata?: Record<string, unknown>;
+}
+
+/**
  * Auth configuration
  */
 export interface AuthConfig
@@ -103,6 +131,32 @@ export interface AuthConfig
      * @default 7d (7 days)
      */
     sessionTtl?: string | number;
+
+    /**
+     * App-injected validator that runs before a new user row is created,
+     * on every registration channel (credentials, oauth, invitation).
+     *
+     * Throw to reject the registration — RegistrationRejectedError (403) is
+     * the recommended error; any HttpError subclass keeps its own status.
+     * Runs after built-in checks (verification token, duplicate account),
+     * so existing error precedence is unchanged. Not called for admin
+     * seeding (initializeAuth) or when linking a social account to an
+     * existing user.
+     *
+     * @example
+     * ```typescript
+     * configureAuth({
+     *     beforeRegister: async ({ channel, metadata }) =>
+     *     {
+     *         if (channel === 'credentials' && !isOldEnough(metadata?.birthDate))
+     *         {
+     *             throw new RegistrationRejectedError({ message: 'Age requirement not met' });
+     *         }
+     *     },
+     * });
+     * ```
+     */
+    beforeRegister?: (context: BeforeRegisterContext) => void | Promise<void>;
 }
 
 /**
