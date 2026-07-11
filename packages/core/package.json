@@ -1,6 +1,6 @@
 {
     "name": "@spfn/core",
-    "version": "0.2.0-beta.61",
+    "version": "0.2.0-beta.62",
     "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
     "type": "module",
     "exports": {
@@ -141,7 +141,10 @@
         "docker:test:down": "docker compose -f docker-compose.test.yml down",
         "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f",
         "check:circular": "madge --circular --extensions ts src/",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsc --noEmit",
+        "publish:alpha": "npm publish --access public --tag alpha",
+        "publish:beta": "npm publish --access public --tag beta",
+        "publish:latest": "npm publish --access public"
     },
     "keywords": [
         "spfn",

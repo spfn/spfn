@@ -496,36 +496,47 @@ async function onClientMessage(
 // Dynamic import for optional 'ws' dependency
 // ============================================================================
 
+/**
+ * Resolve the WebSocketServer constructor from the 'ws' module object.
+ *
+ * ws is a dual package, so the module shape depends on the loader path:
+ * - ESM (exports.import → wrapper.mjs): WebSocketServer is a named export;
+ *   the default export is the bare WebSocket class with no properties on it.
+ * - CJS (require interop): module.exports = WebSocket with
+ *   WebSocket.WebSocketServer attached, surfaced under .default.
+ * Named exports must win — checking .default first crashes on the ESM path.
+ */
+export function resolveWSServerCtor(mod: any): any
+{
+    return mod.WebSocketServer ?? mod.Server
+        ?? mod.default?.WebSocketServer ?? mod.default?.Server;
+}
+
 async function loadWSServer(): Promise<any>
 {
+    let mod: any;
+
     try
     {
-        // ws is a CJS package: module.exports = WebSocket, WebSocket.WebSocketServer is set on it.
-        // ESM dynamic import wraps CJS default export under .default
-         
-        const mod = await import('ws') as any;
-        const WS = mod.default ?? mod;
-        const WSS = WS.WebSocketServer ?? WS.Server;
-
-        if (typeof WSS !== 'function')
-        {
-            throw new Error(
-                'WebSocketServer not found in ws module. ' +
-                'Ensure ws@^8 is installed: pnpm add ws',
-            );
-        }
-
-        return WSS;
+        mod = await import('ws');
     }
-    catch (err)
+    catch
     {
-        if (err instanceof Error && err.message.includes('WebSocketServer not found'))
-        {
-            throw err;
-        }
         throw new Error(
             '@spfn/core WebSocket support requires the "ws" package.\n' +
             'Install it with: pnpm add ws',
         );
     }
+
+    const WSS = resolveWSServerCtor(mod);
+
+    if (typeof WSS !== 'function')
+    {
+        throw new Error(
+            'WebSocketServer not found in ws module. ' +
+            'Ensure ws@^8 is installed: pnpm add ws',
+        );
+    }
+
+    return WSS;
 }
