@@ -53,12 +53,15 @@ export interface OAuthCallbackParams
     code: string;
     state: string;
     /**
-     * Value of the oauth_csrf cookie from the callback request. Must equal the
-     * nonce bound into the (encrypted) state — otherwise the flow wasn't initiated
-     * by this browser (login CSRF). Pass `undefined` when the cookie is absent;
-     * verification then fails closed.
+     * Value(s) of the oauth_csrf cookie from the callback request. One of them
+     * must equal the nonce bound into the (encrypted) state — otherwise the flow
+     * wasn't initiated by this browser (login CSRF). An array arises because the
+     * cookie name carries the PORT suffix of the process that set it (the Next.js
+     * web process), which differs from the API process in a split deployment, so
+     * the callback collects every spfn_oauth_csrf* candidate. Pass `undefined` or
+     * an empty array when absent; verification then fails closed.
      */
-    expectedNonce: string | undefined;
+    expectedNonce: string | string[] | undefined;
 }
 
 export interface OAuthCallbackResult
@@ -153,10 +156,11 @@ export async function oauthCallbackService(
     // State 검증 및 복호화 (jose enforces the 10m expiry on decrypt)
     const stateData = await verifyOAuthState(state);
 
-    // CSRF: the state's nonce must match the oauth_csrf cookie from THIS browser.
+    // CSRF: the state's nonce must match an oauth_csrf cookie from THIS browser.
     // A login-CSRF victim (handed the attacker's state) has no matching cookie, so
     // this fails closed before any account is created or any key is registered.
-    if (!expectedNonce || stateData.nonce !== expectedNonce)
+    const nonceCandidates = typeof expectedNonce === 'string' ? [expectedNonce] : expectedNonce ?? [];
+    if (!stateData.nonce || !nonceCandidates.includes(stateData.nonce))
     {
         throw new ValidationError({
             message: 'OAuth state validation failed',

@@ -119,7 +119,7 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_ADMIN_*` | `.env.server` | — | admin seeding (see below) |
 | `SPFN_AUTH_GOOGLE_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | enables Google OAuth when both set |
 | `SPFN_AUTH_GOOGLE_SCOPES` | `.env.server` | — | comma-separated; default `email,profile` |
-| `SPFN_AUTH_GOOGLE_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_API_URL\|\|SPFN_API_URL}/_auth/oauth/google/callback` |
+| `SPFN_AUTH_GOOGLE_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_APP_URL\|\|SPFN_APP_URL}/_auth/oauth/google/callback` — see [OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite) |
 | `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated client IDs accepted as native id_token audience (iOS/Android/web); enables Google native sign-in |
 | `SPFN_AUTH_APPLE_CLIENT_IDS` | `.env.server` | — | comma-separated Apple client IDs (bundle ID / Services ID); enables Apple native sign-in |
 | `SPFN_AUTH_OAUTH_SUCCESS_URL` | `.env.server` | — | default `/auth/callback` |
@@ -233,6 +233,44 @@ Built-in OAuth routes: `POST /_auth/oauth/google/url`, `GET /_auth/oauth/google`
 plus the provider-generic `POST /_auth/oauth/start`. `getGoogleAccessToken(userId)` returns a
 valid Google access token (auto-refreshing via stored refresh token when near expiry; throws if
 no Google account is linked or no refresh token is available).
+
+### OAuth callback origin (web app host + rewrite)
+
+The callback's CSRF check is a double-submit: the Next.js interceptor sets an `oauth_csrf`
+cookie on the **web app host**, and the callback compares it against the nonce sealed in the
+state. Host-only cookies never reach a different host, so **the provider callback must return
+to the web app origin** — the redirect URI default is
+`{NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/google/callback`.
+
+The app forwards `/_auth/*` to the API with a standard rewrite (**required** — without it the
+callback 404s on the web host, including in local dev):
+
+```javascript
+// next.config.js
+const nextConfig = {
+    async rewrites()
+    {
+        return [
+            {
+                source: '/_auth/:path*',
+                destination: `${process.env.SPFN_API_URL}/_auth/:path*`,
+            },
+        ];
+    },
+};
+```
+
+Register the **web app host** callback URL in the provider console (e.g.
+`https://app.example.com/_auth/oauth/google/callback` for Google).
+
+The cookie name also carries a `_${PORT}` suffix from the process that set it (the Next.js
+process), which differs from the API process in a split deployment — the callback therefore
+matches every `spfn_oauth_csrf*` cookie candidate against the state nonce, so no PORT
+coordination is needed.
+
+One caveat: the direct `POST /_auth/oauth/start` flow (no Next.js interceptor) sets its CSRF
+cookie on the **API host**. If you use that flow in a split deployment, set
+`SPFN_AUTH_GOOGLE_REDIRECT_URI` explicitly to the API host callback instead.
 
 ### Native social sign-in (mobile / web id_token)
 

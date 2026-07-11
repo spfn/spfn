@@ -615,9 +615,37 @@ SPFN_AUTH_GOOGLE_CLIENT_SECRET=GOCSPX-...
 SPFN_AUTH_GOOGLE_SCOPES=email,profile               # Default: email,profile
 SPFN_AUTH_OAUTH_SUCCESS_URL=/auth/callback           # Default: /auth/callback
 SPFN_AUTH_OAUTH_ERROR_URL=/auth/error?error={error}  # Default: /auth/error?error={error}
+SPFN_AUTH_GOOGLE_REDIRECT_URI=                       # Default: {NEXT_PUBLIC_SPFN_APP_URL||SPFN_APP_URL}/_auth/oauth/google/callback
 ```
 
 OAuth routes are **automatically enabled** when `SPFN_AUTH_GOOGLE_CLIENT_ID` is set.
+
+### Callback origin & required rewrite
+
+The OAuth CSRF cookie is set on the **web app host** by the Next.js interceptor, so the
+provider callback must return to that same origin — the redirect URI defaults to the app URL,
+not the API URL. The app must forward `/_auth/*` to the API with a rewrite (without it the
+callback 404s, including in local dev):
+
+```javascript
+// next.config.js
+const nextConfig = {
+    async rewrites()
+    {
+        return [
+            {
+                source: '/_auth/:path*',
+                destination: `${process.env.SPFN_API_URL}/_auth/:path*`,
+            },
+        ];
+    },
+};
+```
+
+Register the web app host callback URL in the Google console (e.g.
+`https://app.example.com/_auth/oauth/google/callback`). If you use the direct
+`POST /_auth/oauth/start` flow (no Next.js interceptor), set `SPFN_AUTH_GOOGLE_REDIRECT_URI`
+to the API host callback instead — that flow sets its CSRF cookie on the API host.
 
 ### OAuth Flow
 

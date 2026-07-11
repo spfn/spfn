@@ -15,7 +15,7 @@ import { rateLimitPolicy } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 
 import { KEY_ALGORITHM, SOCIAL_PROVIDERS } from '../../types';
-import { COOKIE_NAMES } from '../../lib/config';
+import { COOKIE_NAMES, matchOAuthCsrfCookies } from '../../lib/config';
 import {
     oauthStartService,
     oauthCallbackService,
@@ -109,8 +109,13 @@ export const oauthGoogleCallback = route.get('/_auth/oauth/google/callback')
             return c.redirect(buildOAuthErrorUrl('Missing authorization code or state'));
         }
 
-        const expectedNonce = getCookie(c.raw, COOKIE_NAMES.OAUTH_CSRF);
-        deleteCookie(c.raw, COOKIE_NAMES.OAUTH_CSRF, { path: '/' });
+        // 심는 프로세스(Next)와 읽는 프로세스(API)의 PORT가 달라 쿠키 이름
+        // 접미사가 어긋날 수 있으므로 spfn_oauth_csrf* 후보를 전부 대조한다.
+        const csrfCookies = matchOAuthCsrfCookies(getCookie(c.raw));
+        for (const cookie of csrfCookies)
+        {
+            deleteCookie(c.raw, cookie.name, { path: '/' });
+        }
 
         try
         {
@@ -118,7 +123,7 @@ export const oauthGoogleCallback = route.get('/_auth/oauth/google/callback')
                 provider: 'google',
                 code: query.code,
                 state: query.state,
-                expectedNonce,
+                expectedNonce: csrfCookies.map(cookie => cookie.value),
             });
 
             return c.redirect(result.redirectUrl);
@@ -362,8 +367,13 @@ export const oauthProviderCallback = route.get('/_auth/oauth/:provider/callback'
             return c.redirect(buildOAuthErrorUrl('Missing authorization code or state'));
         }
 
-        const expectedNonce = getCookie(c.raw, COOKIE_NAMES.OAUTH_CSRF);
-        deleteCookie(c.raw, COOKIE_NAMES.OAUTH_CSRF, { path: '/' });
+        // 심는 프로세스(Next)와 읽는 프로세스(API)의 PORT가 달라 쿠키 이름
+        // 접미사가 어긋날 수 있으므로 spfn_oauth_csrf* 후보를 전부 대조한다.
+        const csrfCookies = matchOAuthCsrfCookies(getCookie(c.raw));
+        for (const cookie of csrfCookies)
+        {
+            deleteCookie(c.raw, cookie.name, { path: '/' });
+        }
 
         try
         {
@@ -371,7 +381,7 @@ export const oauthProviderCallback = route.get('/_auth/oauth/:provider/callback'
                 provider: params.provider,
                 code: query.code,
                 state: query.state,
-                expectedNonce,
+                expectedNonce: csrfCookies.map(cookie => cookie.value),
             });
 
             return c.redirect(result.redirectUrl);

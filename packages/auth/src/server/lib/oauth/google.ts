@@ -57,7 +57,12 @@ export function getGoogleOAuthConfig()
         throw new Error('Google OAuth is not configured. Set SPFN_AUTH_GOOGLE_CLIENT_ID and SPFN_AUTH_GOOGLE_CLIENT_SECRET.');
     }
 
-    const baseUrl = env.NEXT_PUBLIC_SPFN_API_URL || env.SPFN_API_URL;
+    // 콜백은 CSRF 쿠키(oauth_csrf)를 심은 웹 앱 origin으로 돌아와야 한다.
+    // web/api가 다른 호스트인 분리 배포에서 API 호스트로 돌아오면 호스트 전용
+    // 쿠키가 전달되지 않아 콜백 CSRF 검증이 항상 실패한다. 앱에는
+    // /_auth/:path* → API rewrite가 표준 구성이다(README의 OAuth 절 참고).
+    // SPFN_APP_URL은 기본값(http://localhost:3000)이 있어 항상 해석된다.
+    const baseUrl = env.NEXT_PUBLIC_SPFN_APP_URL || env.SPFN_APP_URL;
     const redirectUri = env.SPFN_AUTH_GOOGLE_REDIRECT_URI
         || `${baseUrl}/_auth/oauth/google/callback`;
 
