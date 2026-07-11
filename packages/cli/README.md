@@ -61,7 +61,9 @@ Tailwind, import alias `@/*`, no ESLint), sets up SVGR icons, then runs `init`.
 
 Adds SPFN to an existing Next.js project: copies the server templates, wires the RPC
 proxy route, Docker files, deploy + codegen config, updates `package.json` scripts/deps,
-and installs. See [Scaffold structure](#scaffold-structure) for what lands on disk.
+and installs. With auth enabled it also adds the `/_auth/:path*` → SPFN API rewrite to
+`next.config` (OAuth callbacks return to the app origin; merged manually if a `rewrites()`
+already exists). See [Scaffold structure](#scaffold-structure) for what lands on disk.
 
 | Option | Description |
 |--------|-------------|
@@ -280,6 +282,7 @@ spfn.config.js                       # deployment config (subdomain/region/domai
 docker-compose.yml                   # Postgres + Redis (dev)
 docker-compose.production.yml
 Dockerfile, .dockerignore
+next.config.ts                       # patched when auth is enabled: /_auth/:path* rewrite → SPFN API
 .env.example                         # committed reference — every key, placeholder values
 .env.local                           # generated, gitignored (Next.js-facing URLs)
 .env.server                          # generated, gitignored (server secrets: DB, cache)
