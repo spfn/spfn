@@ -208,8 +208,14 @@ describe('parsePostgresUrl', () =>
     {
         const malformed = 'not a url with s3cr3t-pw';
         expect(() => parsePostgresUrl(malformed)).toThrow('Invalid PostgreSQL URL');
-        try { parsePostgresUrl(malformed); }
-        catch (e) { expect((e as Error).message).not.toContain('s3cr3t'); }
+        try 
+        {
+            parsePostgresUrl(malformed); 
+        }
+        catch (e) 
+        {
+            expect((e as Error).message).not.toContain('s3cr3t'); 
+        }
     });
 });
 
@@ -230,8 +236,14 @@ describe('parseRedisUrl', () =>
     {
         const malformed = 'not a url with s3cr3t-pw';
         expect(() => parseRedisUrl(malformed)).toThrow('Invalid Redis URL');
-        try { parseRedisUrl(malformed); }
-        catch (e) { expect((e as Error).message).not.toContain('s3cr3t'); }
+        try 
+        {
+            parseRedisUrl(malformed); 
+        }
+        catch (e) 
+        {
+            expect((e as Error).message).not.toContain('s3cr3t'); 
+        }
     });
 });
 

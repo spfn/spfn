@@ -53,7 +53,10 @@ describe('safeSend (WS backpressure)', () =>
 
     it('swallows a send that throws (socket closed mid-send)', () =>
     {
-        const ws = fakeWs({ send: vi.fn(() => { throw new Error('closed'); }) });
+        const ws = fakeWs({ send: vi.fn(() => 
+        {
+            throw new Error('closed'); 
+        }) });
 
         expect(() => safeSend(ws, { type: 'x' }, 1000)).not.toThrow();
     });
