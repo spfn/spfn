@@ -245,7 +245,7 @@ export const authEnvSchema = defineEnvSchema({
 
     NEXT_PUBLIC_SPFN_API_URL: {
         ...envString({
-            description: 'Public-facing API URL used for browser-facing redirects (e.g. OAuth callback). Falls back to SPFN_API_URL if not set.',
+            description: 'Public-facing API URL used for browser-facing redirects. Falls back to SPFN_API_URL if not set.',
             required: false,
             examples: [
                 'https://api.example.com',
@@ -311,11 +311,11 @@ export const authEnvSchema = defineEnvSchema({
 
     SPFN_AUTH_GOOGLE_REDIRECT_URI: {
         ...envString({
-            description: 'Google OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_API_URL || SPFN_API_URL}/_auth/oauth/google/callback',
+            description: 'Google OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/google/callback — the callback must return to the web app origin that set the oauth_csrf cookie (the app rewrites /_auth/:path* to the API). Set this explicitly only when the callback should hit a different host (e.g. the API host for the direct oauthStart flow).',
             required: false,
             examples: [
-                'https://api.example.com/_auth/oauth/google/callback',
-                'http://localhost:8790/_auth/oauth/google/callback',
+                'https://app.example.com/_auth/oauth/google/callback',
+                'http://localhost:3000/_auth/oauth/google/callback',
             ],
         }),
     },

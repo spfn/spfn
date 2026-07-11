@@ -6,6 +6,7 @@ import { ENV_FILES_HINT } from '../../utils/messages.js';
 import { validateProject } from './steps/validate.js';
 import { setupServerStructure } from './steps/server-structure.js';
 import { setupApiProxy } from './steps/api-proxy.js';
+import { setupNextConfig } from './steps/next-config.js';
 import { setupDockerFiles } from './steps/docker.js';
 import { setupDeploymentConfig } from './steps/deployment-config.js';
 import { setupPackageJson } from './steps/package.js';
@@ -38,6 +39,9 @@ export async function initializeSpfn(options: InitOptions = {}): Promise<void>
 
     // Step 4: Create API proxy route
     await setupApiProxy(cwd, includeAuth);
+
+    // Step 4.5: Ensure the /_auth/* → API rewrite (OAuth callbacks land on the app origin)
+    await setupNextConfig(cwd, includeAuth);
 
     // Step 5: Copy Docker files
     await setupDockerFiles(cwd, pm);

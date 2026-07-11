@@ -21,7 +21,8 @@ import {
     getRegisteredProviders,
     type OAuthProvider,
 } from '../../server/lib/oauth';
-import { oauthStartService } from '../../server/services/oauth.service';
+import { oauthStartService, oauthCallbackService } from '../../server/services/oauth.service';
+import { matchOAuthCsrfCookies } from '../../server/lib/config';
 import {
     sealPendingSession,
     unsealPendingSession,
@@ -195,13 +196,14 @@ describe('Google OAuth Config', () =>
     {
         vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_ID', 'test-client-id.apps.googleusercontent.com');
         vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_SECRET', 'GOCSPX-test-secret');
-        vi.stubEnv('SPFN_API_URL', 'http://localhost:8790');
 
         const config = getGoogleOAuthConfig();
 
         expect(config.clientId).toBe('test-client-id.apps.googleusercontent.com');
         expect(config.clientSecret).toBe('GOCSPX-test-secret');
-        expect(config.redirectUri).toBe('http://localhost:8790/_auth/oauth/google/callback');
+        // SPFN_APP_URL 기본값(http://localhost:3000) 기반 — 콜백은 CSRF 쿠키가
+        // 심긴 웹 앱 origin으로 돌아온다.
+        expect(config.redirectUri).toBe('http://localhost:3000/_auth/oauth/google/callback');
     });
 
     it('should use custom redirect URI when provided', () =>
@@ -215,27 +217,31 @@ describe('Google OAuth Config', () =>
         expect(config.redirectUri).toBe('https://custom.example.com/callback');
     });
 
-    it('should prefer NEXT_PUBLIC_SPFN_API_URL over SPFN_API_URL for redirect URI', () =>
+    it('should prefer NEXT_PUBLIC_SPFN_APP_URL over SPFN_APP_URL for redirect URI', () =>
     {
         vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_ID', 'test-client-id');
         vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_SECRET', 'test-secret');
-        vi.stubEnv('SPFN_API_URL', 'http://localhost:8790');
+        vi.stubEnv('SPFN_APP_URL', 'http://localhost:3000');
+        vi.stubEnv('NEXT_PUBLIC_SPFN_APP_URL', 'https://app.example.com');
+
+        const config = getGoogleOAuthConfig();
+
+        expect(config.redirectUri).toBe('https://app.example.com/_auth/oauth/google/callback');
+    });
+
+    it('should base the redirect URI on the app URL, not the API URL', () =>
+    {
+        vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_ID', 'test-client-id');
+        vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_SECRET', 'test-secret');
+        vi.stubEnv('SPFN_APP_URL', 'https://app.example.com');
+        vi.stubEnv('SPFN_API_URL', 'https://api.example.com');
         vi.stubEnv('NEXT_PUBLIC_SPFN_API_URL', 'https://api.example.com');
 
         const config = getGoogleOAuthConfig();
 
-        expect(config.redirectUri).toBe('https://api.example.com/_auth/oauth/google/callback');
-    });
-
-    it('should fall back to SPFN_API_URL when NEXT_PUBLIC_SPFN_API_URL is not set', () =>
-    {
-        vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_ID', 'test-client-id');
-        vi.stubEnv('SPFN_AUTH_GOOGLE_CLIENT_SECRET', 'test-secret');
-        vi.stubEnv('SPFN_API_URL', 'http://localhost:8790');
-
-        const config = getGoogleOAuthConfig();
-
-        expect(config.redirectUri).toBe('http://localhost:8790/_auth/oauth/google/callback');
+        // 분리 배포 회귀 가드: API 호스트로 돌아오면 web 호스트 전용 CSRF
+        // 쿠키가 전달되지 않는다 (issue #17).
+        expect(config.redirectUri).toBe('https://app.example.com/_auth/oauth/google/callback');
     });
 });
 
@@ -270,7 +276,101 @@ describe('Google Auth URL', () =>
     {
         const authUrl = getGoogleAuthUrl('state');
 
-        expect(authUrl).toContain(encodeURIComponent('http://localhost:8790/_auth/oauth/google/callback'));
+        expect(authUrl).toContain(encodeURIComponent('http://localhost:3000/_auth/oauth/google/callback'));
+    });
+});
+
+describe('OAuth CSRF cookie matching (matchOAuthCsrfCookies)', () =>
+{
+    it('should match the base name and any PORT-suffixed variant', () =>
+    {
+        const matched = matchOAuthCsrfCookies({
+            spfn_oauth_csrf: 'nonce-base',
+            spfn_oauth_csrf_3790: 'nonce-web',
+            spfn_oauth_csrf_8790: 'nonce-api',
+        });
+
+        expect(matched).toEqual([
+            { name: 'spfn_oauth_csrf', value: 'nonce-base' },
+            { name: 'spfn_oauth_csrf_3790', value: 'nonce-web' },
+            { name: 'spfn_oauth_csrf_8790', value: 'nonce-api' },
+        ]);
+    });
+
+    it('should ignore unrelated and malformed cookie names', () =>
+    {
+        const matched = matchOAuthCsrfCookies({
+            spfn_oauth_pending_3790: 'pending',
+            spfn_session: 'session',
+            spfn_oauth_csrf_abc: 'bad-suffix',
+            spfn_oauth_csrf_3790_extra: 'bad-shape',
+        });
+
+        expect(matched).toEqual([]);
+    });
+});
+
+describe('OAuth Callback - CSRF nonce candidates', () =>
+{
+    const mockStateParams = {
+        provider: 'google',
+        returnUrl: '/dashboard',
+        publicKey: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...',
+        keyId: 'key-uuid-123',
+        fingerprint: 'abc123def456',
+        algorithm: 'ES256' as const,
+    };
+
+    beforeEach(() =>
+    {
+        vi.stubEnv('SPFN_AUTH_SESSION_SECRET', 'test-secret-with-at-least-32-characters-for-security-testing');
+    });
+
+    afterEach(() =>
+    {
+        vi.unstubAllEnvs();
+    });
+
+    it('should reject when no candidate is present (fails closed)', async () =>
+    {
+        const state = await createOAuthState({ ...mockStateParams, nonce: 'nonce-a' });
+
+        await expect(oauthCallbackService({
+            provider: 'google', code: 'code', state, expectedNonce: [],
+        })).rejects.toThrow('OAuth state validation failed');
+
+        await expect(oauthCallbackService({
+            provider: 'google', code: 'code', state, expectedNonce: undefined,
+        })).rejects.toThrow('OAuth state validation failed');
+    });
+
+    it('should reject when no candidate matches the state nonce', async () =>
+    {
+        const state = await createOAuthState({ ...mockStateParams, nonce: 'nonce-a' });
+
+        await expect(oauthCallbackService({
+            provider: 'google', code: 'code', state, expectedNonce: ['nonce-b', 'nonce-c'],
+        })).rejects.toThrow('OAuth state validation failed');
+    });
+
+    it('should pass the CSRF gate when one of several candidates matches', async () =>
+    {
+        const state = await createOAuthState({ ...mockStateParams, nonce: 'nonce-a' });
+
+        // CSRF 게이트를 통과하면 다음 단계(provider 설정 검사)에서 실패한다 —
+        // 접미사가 다른 여분 쿠키가 섞여 있어도 대조가 성공함을 고정한다.
+        await expect(oauthCallbackService({
+            provider: 'google', code: 'code', state, expectedNonce: ['stale-nonce', 'nonce-a'],
+        })).rejects.toThrow(/registered but not configured/);
+    });
+
+    it('should keep accepting a single string nonce (backward compat)', async () =>
+    {
+        const state = await createOAuthState({ ...mockStateParams, nonce: 'nonce-a' });
+
+        await expect(oauthCallbackService({
+            provider: 'google', code: 'code', state, expectedNonce: 'nonce-a',
+        })).rejects.toThrow(/registered but not configured/);
     });
 });
 
