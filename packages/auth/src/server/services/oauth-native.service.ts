@@ -98,7 +98,7 @@ async function persistNativeLogin(
         }
         else
         {
-            const result = await createOrLinkUser(params.provider, identity);
+            const result = await createOrLinkUser(params.provider, identity, undefined, params.metadata);
             userId = result.userId;
             isNewUser = result.isNewUser;
         }

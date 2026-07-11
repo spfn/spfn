@@ -13,6 +13,7 @@ import {
     keysRepository,
 } from '../repositories';
 import type { InvitationStatus, KeyAlgorithmType } from '../types';
+import { runBeforeRegister } from '../lib/config';
 import { hashPassword } from '../helpers';
 import { invitationCreatedEvent, invitationAcceptedEvent } from '../events';
 import { BadRequestError, NotFoundError, ConflictError } from '@spfn/core/errors';
@@ -251,6 +252,14 @@ export async function acceptInvitation(params: {
     {
         throw new NotFoundError({ message: 'Role not found', resource: 'Role' });
     }
+
+    // App-level pre-registration policy gate — throws to reject
+    // metadata 컬럼은 nullable — SQL NULL을 계약 타입(Record | undefined)에 맞게 정규화
+    await runBeforeRegister({
+        channel: 'invitation',
+        email: invitation.email,
+        metadata: (invitation.metadata ?? undefined) as Record<string, unknown> | undefined,
+    });
 
     // Hash password
     const passwordHash = await hashPassword(password);

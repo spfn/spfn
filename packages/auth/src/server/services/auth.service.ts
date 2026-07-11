@@ -16,6 +16,7 @@ import {
 } from '@spfn/auth/errors';
 
 import { usersRepository, keysRepository } from '../repositories';
+import { runBeforeRegister } from '../lib/config';
 import { type KeyAlgorithmType } from '../types';
 import { hashPassword, verifyPassword, getDummyPasswordHash } from '../helpers';
 import { validateVerificationToken } from './verification.service';
@@ -124,6 +125,9 @@ export async function registerService(
         const identifierType = email ? 'email' : 'phone';
         throw new AccountAlreadyExistsError({ identifier: email || phone!, identifierType });
     }
+
+    // App-level pre-registration policy gate — throws to reject
+    await runBeforeRegister({ channel: 'credentials', email, phone, metadata });
 
     // Hash password
     const passwordHash = await hashPassword(password);
