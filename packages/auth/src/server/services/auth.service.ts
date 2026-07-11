@@ -16,7 +16,7 @@ import {
 } from '@spfn/auth/errors';
 
 import { usersRepository, keysRepository } from '../repositories';
-import { getAuthConfig } from '../lib/config';
+import { runBeforeRegister } from '../lib/config';
 import { type KeyAlgorithmType } from '../types';
 import { hashPassword, verifyPassword, getDummyPasswordHash } from '../helpers';
 import { validateVerificationToken } from './verification.service';
@@ -127,11 +127,7 @@ export async function registerService(
     }
 
     // App-level pre-registration policy gate — throws to reject
-    const { beforeRegister } = getAuthConfig();
-    if (beforeRegister)
-    {
-        await beforeRegister({ channel: 'credentials', email, phone, metadata });
-    }
+    await runBeforeRegister({ channel: 'credentials', email, phone, metadata });
 
     // Hash password
     const passwordHash = await hashPassword(password);

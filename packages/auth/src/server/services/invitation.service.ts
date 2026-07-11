@@ -13,7 +13,7 @@ import {
     keysRepository,
 } from '../repositories';
 import type { InvitationStatus, KeyAlgorithmType } from '../types';
-import { getAuthConfig } from '../lib/config';
+import { runBeforeRegister } from '../lib/config';
 import { hashPassword } from '../helpers';
 import { invitationCreatedEvent, invitationAcceptedEvent } from '../events';
 import { BadRequestError, NotFoundError, ConflictError } from '@spfn/core/errors';
@@ -254,15 +254,12 @@ export async function acceptInvitation(params: {
     }
 
     // App-level pre-registration policy gate — throws to reject
-    const { beforeRegister } = getAuthConfig();
-    if (beforeRegister)
-    {
-        await beforeRegister({
-            channel: 'invitation',
-            email: invitation.email,
-            metadata: invitation.metadata as Record<string, unknown> | undefined,
-        });
-    }
+    // metadata 컬럼은 nullable — SQL NULL을 계약 타입(Record | undefined)에 맞게 정규화
+    await runBeforeRegister({
+        channel: 'invitation',
+        email: invitation.email,
+        metadata: (invitation.metadata ?? undefined) as Record<string, unknown> | undefined,
+    });
 
     // Hash password
     const passwordHash = await hashPassword(password);

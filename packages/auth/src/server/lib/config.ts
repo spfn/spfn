@@ -111,6 +111,13 @@ export interface BeforeRegisterContext
     /** Social provider — only set when channel is 'oauth' */
     provider?: SocialProvider;
     email?: string;
+    /**
+     * Whether the email is verified — only set when channel is 'oauth'.
+     * OAuth providers may report an unverified (spoofable) email; the created
+     * account stores it as null in that case, so email-based policies must
+     * check this flag. credentials/invitation emails are already verified.
+     */
+    emailVerified?: boolean;
     phone?: string;
     /** App-supplied registration metadata (register params / OAuth start params / invitation) */
     metadata?: Record<string, unknown>;
@@ -142,6 +149,10 @@ export interface AuthConfig
      * so existing error precedence is unchanged. Not called for admin
      * seeding (initializeAuth) or when linking a social account to an
      * existing user.
+     *
+     * Runs inside the registration DB transaction on every channel — keep it
+     * fast. A slow call (e.g. an external policy API) holds a pooled DB
+     * connection open for its full duration on every signup.
      *
      * @example
      * ```typescript
@@ -192,6 +203,23 @@ export function configureAuth(config: AuthConfig): void
 export function getAuthConfig(): AuthConfig
 {
     return { ...globalConfig };
+}
+
+/**
+ * Run the app-injected beforeRegister hook if configured — throws to reject.
+ *
+ * Single entry point for every registration channel so a new channel cannot
+ * forget the configured-check. Callers invoke this right before creating the
+ * user row.
+ */
+export async function runBeforeRegister(context: BeforeRegisterContext): Promise<void>
+{
+    const { beforeRegister } = globalConfig;
+
+    if (beforeRegister)
+    {
+        await beforeRegister(context);
+    }
 }
 
 /**

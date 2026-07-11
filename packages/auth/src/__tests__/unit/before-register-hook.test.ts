@@ -18,9 +18,6 @@ const {
     usersRepository,
     keysRepository,
     socialAccountsRepository,
-    userProfilesRepository,
-    verificationCodesRepository,
-    accountDeletionRequestsRepository,
     invitationsRepository,
     rolesRepository,
     validateVerificationToken,
@@ -43,9 +40,6 @@ const {
         },
         keysRepository: { create: vi.fn() },
         socialAccountsRepository: { create: vi.fn() },
-        userProfilesRepository: {},
-        verificationCodesRepository: {},
-        accountDeletionRequestsRepository: {},
         invitationsRepository: {
             findByToken: vi.fn(),
             updateStatus: vi.fn(),
@@ -62,9 +56,6 @@ const {
             authRegisterEvent: emitMock(),
             invitationCreatedEvent: emitMock(),
             invitationAcceptedEvent: emitMock(),
-            authDeletionRequestedEvent: emitMock(),
-            authDeletionCancelledEvent: emitMock(),
-            authDeletionCompletedEvent: emitMock(),
         },
     };
 });
@@ -73,9 +64,6 @@ vi.mock('../../server/repositories', () => ({
     usersRepository,
     keysRepository,
     socialAccountsRepository,
-    userProfilesRepository,
-    verificationCodesRepository,
-    accountDeletionRequestsRepository,
     invitationsRepository,
     rolesRepository,
 }));
@@ -209,10 +197,26 @@ describe('beforeRegister hook', () =>
                 channel: 'oauth',
                 provider: 'google',
                 email: 'kid@example.com',
+                emailVerified: true,
                 metadata: { birthDate: '2015-01-01' },
             });
             expect(usersRepository.create).not.toHaveBeenCalled();
             expect(socialAccountsRepository.create).not.toHaveBeenCalled();
+        });
+
+        it('signals an unverified provider email so email-based policies can tell', async () =>
+        {
+            const { hook, contexts } = rejectAll();
+            configureAuth({ beforeRegister: hook });
+
+            await expect(createOrLinkUser('google', { ...identity, emailVerified: false }))
+                .rejects.toBeInstanceOf(RegistrationRejectedError);
+
+            expect(contexts[0]).toMatchObject({
+                channel: 'oauth',
+                email: 'kid@example.com',
+                emailVerified: false,
+            });
         });
 
         it('does not run when linking a social account to an existing user', async () =>
@@ -261,6 +265,33 @@ describe('beforeRegister hook', () =>
             });
             expect(usersRepository.create).not.toHaveBeenCalled();
             expect(invitationsRepository.updateStatus).not.toHaveBeenCalled();
+        });
+
+        it('normalizes a NULL metadata column to undefined (contract type)', async () =>
+        {
+            const { hook, contexts } = rejectAll();
+            configureAuth({ beforeRegister: hook });
+            invitationsRepository.findByToken.mockResolvedValue({
+                id: 6,
+                email: 'invitee@example.com',
+                status: 'pending',
+                expiresAt: new Date(Date.now() + 86_400_000),
+                roleId: 2,
+                invitedBy: 7,
+                metadata: null,
+            });
+            rolesRepository.findById.mockResolvedValue({ id: 2, name: 'member' });
+
+            await expect(acceptInvitation({
+                token: 'invite-token',
+                password: 'secret',
+                publicKey: 'pub',
+                keyId: 'key-3',
+                fingerprint: 'fp',
+                algorithm: 'ES256',
+            })).rejects.toBeInstanceOf(RegistrationRejectedError);
+
+            expect(contexts[0].metadata).toBeUndefined();
         });
     });
 });

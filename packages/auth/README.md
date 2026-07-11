@@ -390,6 +390,14 @@ Notes:
   seeding in `initializeAuth()`.
 - OAuth signups have no client-typed fields unless you pass `metadata` at OAuth start — decide
   per channel (reject, or allow and collect during onboarding).
+- On the `oauth` channel `email` is the provider-reported address and may be **unverified**
+  (the created account then stores `email` as `null`). The context carries
+  `emailVerified` — an email-based allow/block policy must check it before trusting `email`.
+- The hook runs **inside the registration DB transaction** on every channel — keep it fast.
+  A slow call (e.g. an external policy API) holds a pooled DB connection open per signup.
+- On the **web** OAuth flow a rejection surfaces as the standard OAuth error redirect
+  (302 to the app's OAuth error URL, message only) — not a 403 JSON response. The native
+  OAuth flow, credentials, and invitation channels return the error status (403) directly.
 
 ## One-Time Token
 

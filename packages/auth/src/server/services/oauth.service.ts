@@ -12,7 +12,7 @@ import { ValidationError } from '@spfn/core/errors';
 import { AccountDisabledError, AccountPendingDeletionError } from '@spfn/auth/errors';
 
 import { usersRepository, socialAccountsRepository } from '../repositories';
-import { getAuthConfig } from '../lib/config';
+import { runBeforeRegister } from '../lib/config';
 import { type SocialProvider, type KeyAlgorithmType } from '../types';
 import {
     refreshAccessToken,
@@ -346,16 +346,15 @@ export async function createOrLinkUser(
     else
     {
         // 앱 주입 사전 검증 훅 — throw 시 가입 거부 (기존 계정 연결에는 적용 안 함)
-        const { beforeRegister } = getAuthConfig();
-        if (beforeRegister)
-        {
-            await beforeRegister({
-                channel: 'oauth',
-                provider,
-                email: identity.email ?? undefined,
-                metadata,
-            });
-        }
+        // email은 provider가 보고한 값 그대로 — 미검증이면 계정에는 null로 저장되므로
+        // 이메일 기반 정책이 판별할 수 있게 emailVerified를 함께 넘긴다
+        await runBeforeRegister({
+            channel: 'oauth',
+            provider,
+            email: identity.email ?? undefined,
+            emailVerified: identity.emailVerified,
+            metadata,
+        });
 
         // 신규 사용자 생성
         const { getRoleByName } = await import('./role.service');
