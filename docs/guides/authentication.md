@@ -890,6 +890,31 @@ authRegisterEvent.on((payload) =>
 | `invitationCreatedEvent` | `{ invitationId, email, token, roleId, invitedBy, expiresAt, isResend, metadata? }` |
 | `invitationAcceptedEvent` | `{ invitationId, email, userId, roleId, invitedBy, metadata? }` |
 
+### Rejecting a Registration (`beforeRegister`)
+
+Events fire after the user already exists, so they cannot reject a signup. For
+server-enforced signup policy (age gate, invite-only domains, block lists), inject a
+validator with `configureAuth` — it runs before the user row is created on every
+registration channel (`credentials`, `oauth`, `invitation`) and throwing rejects the
+registration:
+
+```typescript
+import { configureAuth, RegistrationRejectedError } from '@spfn/auth/server';
+
+configureAuth({
+    beforeRegister: async ({ channel, provider, email, phone, metadata }) =>
+    {
+        if (!isOldEnough(metadata?.birthDate))
+        {
+            throw new RegistrationRejectedError({ message: 'Age requirement not met' });
+        }
+    },
+});
+```
+
+See the [`@spfn/auth` README](../../packages/auth/README.md#registration-gate-beforeregister)
+for ordering guarantees and per-channel notes.
+
 ---
 
 ## Troubleshooting
