@@ -5,7 +5,7 @@
 import { getDatabase, runInTransaction } from '@spfn/core/db';
 import { logger } from '@spfn/core/logger';
 import { DataMigrationRepository } from './repositories';
-import type { DataMigration, MigrationDb } from './types';
+import type { DataMigration } from './types';
 
 export interface DataMigratorOptions
 {
@@ -34,10 +34,10 @@ export function createDataMigrator(migrations: DataMigration[], opts: DataMigrat
 {
     const log = logger.child(opts.logLabel ?? 'data-migrate');
 
-    function getRepo(db: MigrationDb)
-    {
-        return new DataMigrationRepository(db);
-    }
+    // BaseRepository resolves the ambient transaction context (AsyncLocalStorage)
+    // first, so a single instance writes on the tx inside runInTransaction and on
+    // the global write instance otherwise.
+    const repo = new DataMigrationRepository();
 
     function pendingOf(applied: Set<string>): DataMigration[]
     {
@@ -52,7 +52,6 @@ export function createDataMigrator(migrations: DataMigration[], opts: DataMigrat
         {
             log.warn('applying non-transactional migration; ensure idempotency', { name: m.name });
             const db = getDatabase('write');
-            const repo = getRepo(db);
 
             await m.up({ db, log });
             await repo.recordApplied(m.name);
@@ -61,7 +60,6 @@ export function createDataMigrator(migrations: DataMigration[], opts: DataMigrat
         {
             await runInTransaction(async (tx) =>
             {
-                const repo = getRepo(tx);
                 await m.up({ db: tx, log });
                 await repo.recordApplied(m.name);
             });
@@ -72,7 +70,6 @@ export function createDataMigrator(migrations: DataMigration[], opts: DataMigrat
     return {
         async apply(): Promise<MigrateResult>
         {
-            const repo = getRepo(getDatabase('read'));
             const applied = new Set(await repo.findAppliedNames());
             const pending = pendingOf(applied);
 
@@ -80,20 +77,21 @@ export function createDataMigrator(migrations: DataMigration[], opts: DataMigrat
             {
                 await applyOne(m);
             }
+
             return { applied: pending.map((m) => m.name), pending: [] };
         },
 
         async check(): Promise<MigrateResult>
         {
-            const repo = getRepo(getDatabase('read'));
             const applied = new Set(await repo.findAppliedNames());
+
             return { applied: [], pending: pendingOf(applied).map((m) => m.name) };
         },
 
         async status(): Promise<{ applied: string[]; pending: string[] }>
         {
-            const repo = getRepo(getDatabase('read'));
             const applied = new Set(await repo.findAppliedNames());
+
             return {
                 applied: migrations.filter((m) => applied.has(m.name)).map((m) => m.name).sort(),
                 pending: pendingOf(applied).map((m) => m.name),
@@ -102,14 +100,14 @@ export function createDataMigrator(migrations: DataMigration[], opts: DataMigrat
 
         async baseline(): Promise<string[]>
         {
-            const repo = getRepo(getDatabase('write'));
-            const applied = new Set(await repo.findAppliedNames());
+            const applied = new Set(await repo.findAppliedNamesOnPrimary());
             const toMark = migrations.filter((m) => !applied.has(m.name));
 
             for (const m of toMark)
             {
                 await repo.recordApplied(m.name);
             }
+
             return toMark.map((m) => m.name);
         },
     };

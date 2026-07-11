@@ -30,7 +30,7 @@ const {
     usersRepository: {
         findById: vi.fn(),
         findByEmailOrPhone: vi.fn(),
-        updateById: vi.fn(async () => undefined),
+        updateById: vi.fn(async (_id: number, _data: Record<string, unknown>): Promise<unknown> => undefined),
         deleteById: vi.fn(async () => undefined),
         reactivateFromPendingDeletion: vi.fn(),
     },
@@ -51,7 +51,7 @@ const {
         create: vi.fn(),
         findPendingByUserId: vi.fn(),
         findPendingByUserIdOnPrimary: vi.fn(),
-        findDueForPurge: vi.fn(async () => []),
+        findDueForPurge: vi.fn(async (): Promise<Array<{ id: number; userId: number; userPublicId: string }>> => []),
         markCancelled: vi.fn(),
         markCompleted: vi.fn(),
     },

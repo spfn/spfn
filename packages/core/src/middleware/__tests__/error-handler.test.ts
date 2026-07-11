@@ -408,7 +408,10 @@ describe('ErrorHandler Middleware', () =>
             const app = new Hono();
             app.onError(ErrorHandler({
                 enableLogging: false,
-                onError: (_err, ctx) => { captured = ctx; },
+                onError: (_err, ctx) => 
+                {
+                    captured = ctx; 
+                },
             }));
             app.get('/x', () =>
             {
