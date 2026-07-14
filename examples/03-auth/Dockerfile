@@ -25,11 +25,11 @@ RUN pnpm prune --prod
 ENV NODE_ENV=production
 
 # Expose ports
-EXPOSE 3790 8790
+EXPOSE 3790 8890
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8790/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+  CMD node -e "require('http').get('http://localhost:8890/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start application
 CMD ["pnpm", "run", "spfn:start"]

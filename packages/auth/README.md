@@ -1,7 +1,7 @@
 # @spfn/auth — Authentication, OAuth, and RBAC for SPFN
 
 Asymmetric client-signed JWT auth (ES256/RS256), OTP verification, OAuth 2.0 (pluggable
-provider registry, Google built-in), session cookies for Next.js, and runtime RBAC.
+provider registry; Google, Kakao, and Naver built in), session cookies for Next.js, and runtime RBAC.
 Routes are exposed under the `/_auth/*` namespace and reached through a type-safe `authApi`
 client. Requires `@spfn/core`; Next.js is an optional peer (`^15 || ^16`).
 
@@ -121,6 +121,10 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_GOOGLE_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | enables Google OAuth when both set |
 | `SPFN_AUTH_GOOGLE_SCOPES` | `.env.server` | — | comma-separated; default `email,profile` |
 | `SPFN_AUTH_GOOGLE_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_APP_URL\|\|SPFN_APP_URL}/_auth/oauth/google/callback` — see [OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite) |
+| `SPFN_AUTH_KAKAO_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | REST API key enables Kakao Login; secret is included when configured |
+| `SPFN_AUTH_KAKAO_SCOPES` / `_REDIRECT_URI` | `.env.server` | — | default scope `account_email`; callback `/_auth/oauth/kakao/callback` |
+| `SPFN_AUTH_NAVER_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | both values enable Naver Login |
+| `SPFN_AUTH_NAVER_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_APP_URL\|\|SPFN_APP_URL}/_auth/oauth/naver/callback` |
 | `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated client IDs accepted as native id_token audience (iOS/Android/web); enables Google native sign-in |
 | `SPFN_AUTH_APPLE_CLIENT_IDS` | `.env.server` | — | comma-separated Apple client IDs (bundle ID / Services ID); enables Apple native sign-in |
 | `SPFN_AUTH_OAUTH_SUCCESS_URL` | `.env.server` | — | default `/auth/callback` |
@@ -209,10 +213,11 @@ Context helpers from `@spfn/auth/server`: `getAuth`, `getOptionalAuth`, `getUser
 
 ## OAuth
 
-OAuth uses a **pluggable provider registry** — not hardcoded branches. The built-in `google`
-provider self-registers on module load. External packages add providers at runtime with
-`registerOAuthProvider()`. Google OAuth turns on automatically once both
-`SPFN_AUTH_GOOGLE_CLIENT_ID` and `SPFN_AUTH_GOOGLE_CLIENT_SECRET` are set.
+OAuth uses a **pluggable provider registry** — not hardcoded branches. The built-in `google`,
+`kakao`, and `naver` web providers self-register on module load; `apple` provides native
+`id_token` sign-in. External packages add providers at runtime with `registerOAuthProvider()`.
+Google requires its client ID and secret, Kakao requires its REST API key (and sends its optional
+client secret when configured), and Naver requires its client ID and secret.
 
 Client flow: call `authApi.getGoogleOAuthUrl.call({ body: { returnUrl } })`, redirect the browser
 to the returned `authUrl`, and render `OAuthCallback` on your success page. The Next.js interceptor
@@ -229,19 +234,35 @@ const { authUrl } = await authApi.getGoogleOAuthUrl.call({ body: { returnUrl: '/
 window.location.href = authUrl;
 ```
 
+Kakao and Naver use the provider-generic URL route:
+
+```typescript
+const { authUrl } = await authApi.getProviderOAuthUrl.call({
+    params: { provider: 'kakao' }, // or 'naver'
+    body: { returnUrl: '/dashboard' },
+});
+window.location.href = authUrl;
+```
+
 Built-in OAuth routes: `POST /_auth/oauth/google/url`, `GET /_auth/oauth/google` (redirect),
 `GET /_auth/oauth/google/callback`, `POST /_auth/oauth/finalize`, `GET /_auth/oauth/providers`,
 plus the provider-generic `POST /_auth/oauth/start`. `getGoogleAccessToken(userId)` returns a
 valid Google access token (auto-refreshing via stored refresh token when near expiry; throws if
 no Google account is linked or no refresh token is available).
 
+Kakao's `is_email_valid` and `is_email_verified` claims are both required before its email can
+link an existing SPFN account. Naver provides an email address but no verified-email claim, so
+Naver login never links an existing account by email; new Naver users can verify and add their
+email through the application's normal onboarding flow. Until then, the OAuth account is identified
+by its provider and provider user ID, so its user row may have both email and phone unset.
+
 ### OAuth callback origin (web app host + rewrite)
 
 The callback's CSRF check is a double-submit: the Next.js interceptor sets an `oauth_csrf`
 cookie on the **web app host**, and the callback compares it against the nonce sealed in the
 state. Host-only cookies never reach a different host, so **the provider callback must return
-to the web app origin** — the redirect URI default is
-`{NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/google/callback`.
+to the web app origin** — redirect URIs default to
+`{NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/<provider>/callback`.
 
 The app forwards `/_auth/*` to the API with a standard rewrite (**required** — without it the
 callback 404s on the web host, including in local dev):
@@ -261,8 +282,9 @@ const nextConfig = {
 };
 ```
 
-Register the **web app host** callback URL in the provider console (e.g.
-`https://app.example.com/_auth/oauth/google/callback` for Google).
+Register each **web app host** callback URL in its provider console, for example
+`https://app.example.com/_auth/oauth/kakao/callback` and
+`https://app.example.com/_auth/oauth/naver/callback`.
 
 The cookie name also carries a `_${PORT}` suffix from the process that set it (the Next.js
 process), which differs from the API process in a split deployment — the callback therefore
@@ -271,7 +293,7 @@ coordination is needed.
 
 One caveat: the direct `POST /_auth/oauth/start` flow (no Next.js interceptor) sets its CSRF
 cookie on the **API host**. If you use that flow in a split deployment, set
-`SPFN_AUTH_GOOGLE_REDIRECT_URI` explicitly to the API host callback instead.
+the corresponding provider redirect URI explicitly to the API host callback instead.
 
 ### Native social sign-in (mobile / web id_token)
 

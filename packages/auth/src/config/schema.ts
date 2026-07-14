@@ -332,6 +332,70 @@ export const authEnvSchema = defineEnvSchema({
     },
 
     // ============================================================================
+    // OAuth Configuration - Kakao
+    // ============================================================================
+    SPFN_AUTH_KAKAO_CLIENT_ID: {
+        ...envString({
+            description: 'Kakao Login REST API key. Used as the OAuth client_id.',
+            required: false,
+            examples: ['your-kakao-rest-api-key'],
+        }),
+    },
+
+    SPFN_AUTH_KAKAO_CLIENT_SECRET: {
+        ...envString({
+            description: 'Kakao Login client secret. Required when the Kakao client-secret feature is enabled.',
+            required: false,
+            sensitive: true,
+            examples: ['your-kakao-client-secret'],
+        }),
+    },
+
+    SPFN_AUTH_KAKAO_SCOPES: {
+        ...envString({
+            description: 'Comma-separated Kakao consent scopes. Defaults to account_email.',
+            required: false,
+            examples: ['account_email'],
+        }),
+    },
+
+    SPFN_AUTH_KAKAO_REDIRECT_URI: {
+        ...envString({
+            description: 'Kakao OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/kakao/callback.',
+            required: false,
+            examples: ['https://app.example.com/_auth/oauth/kakao/callback'],
+        }),
+    },
+
+    // ============================================================================
+    // OAuth Configuration - Naver
+    // ============================================================================
+    SPFN_AUTH_NAVER_CLIENT_ID: {
+        ...envString({
+            description: 'Naver Login OAuth client ID.',
+            required: false,
+            examples: ['your-naver-client-id'],
+        }),
+    },
+
+    SPFN_AUTH_NAVER_CLIENT_SECRET: {
+        ...envString({
+            description: 'Naver Login OAuth client secret.',
+            required: false,
+            sensitive: true,
+            examples: ['your-naver-client-secret'],
+        }),
+    },
+
+    SPFN_AUTH_NAVER_REDIRECT_URI: {
+        ...envString({
+            description: 'Naver OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/naver/callback.',
+            required: false,
+            examples: ['https://app.example.com/_auth/oauth/naver/callback'],
+        }),
+    },
+
+    // ============================================================================
     // Native Social Login (mobile/web id_token verification)
     //
     // 네이티브 SDK가 받은 id_token을 서버가 JWKS로 검증하는 경로 전용 설정.

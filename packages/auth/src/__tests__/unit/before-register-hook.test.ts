@@ -219,6 +219,28 @@ describe('beforeRegister hook', () =>
             });
         });
 
+        it('creates an OAuth-only user without trusting an unverified provider email', async () =>
+        {
+            const unverifiedIdentity = {
+                providerUserId: 'naver-1',
+                email: 'naver-user@example.com',
+                emailVerified: false,
+            };
+
+            const result = await createOrLinkUser('naver', unverifiedIdentity);
+
+            expect(result).toEqual({ userId: 10, isNewUser: true });
+            expect(usersRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+                email: null,
+                phone: null,
+            }));
+            expect(socialAccountsRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+                provider: 'naver',
+                providerUserId: 'naver-1',
+                providerEmail: 'naver-user@example.com',
+            }));
+        });
+
         it('does not run when linking a social account to an existing user', async () =>
         {
             const { hook } = rejectAll();

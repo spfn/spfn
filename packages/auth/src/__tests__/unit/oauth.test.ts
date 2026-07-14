@@ -372,6 +372,25 @@ describe('OAuth Callback - CSRF nonce candidates', () =>
             provider: 'google', code: 'code', state, expectedNonce: 'nonce-a',
         })).rejects.toThrow(/registered but not configured/);
     });
+
+    it('passes the original callback state to providers that require it for token exchange', async () =>
+    {
+        const exchangeCodeForTokens = vi.fn().mockRejectedValue(new Error('stop-after-exchange'));
+        registerOAuthProvider({
+            ...mockProvider('naver'),
+            exchangeCodeForTokens,
+        });
+        const state = await createOAuthState({
+            ...mockStateParams,
+            provider: 'naver',
+            nonce: 'nonce-a',
+        });
+
+        await expect(oauthCallbackService({
+            provider: 'naver', code: 'authorization-code', state, expectedNonce: 'nonce-a',
+        })).rejects.toThrow('stop-after-exchange');
+        expect(exchangeCodeForTokens).toHaveBeenCalledWith('authorization-code', { state });
+    });
 });
 
 describe('Pending Session - Seal/Unseal', () =>
@@ -531,13 +550,11 @@ describe('OAuth Interceptor Logic', () =>
 describe('OAuth Provider Registry', () =>
 {
     // 회귀 방어: side-effect import가 tree-shake되거나 wiring이 깨지면 이 테스트가 실패한다.
-    it('auto-registers the built-in google provider on module load', () =>
+    it('auto-registers all built-in providers on module load', () =>
     {
-        const google = getOAuthProvider('google');
+        const registered = getRegisteredProviders().map(provider => provider.id);
 
-        expect(google).toBeDefined();
-        expect(google?.id).toBe('google');
-        expect(getRegisteredProviders().map(p => p.id)).toContain('google');
+        expect(registered).toEqual(expect.arrayContaining(['google', 'apple', 'kakao', 'naver']));
     });
 
     it('register/get round-trips a custom provider', () =>

@@ -9,7 +9,7 @@ import { createAuthLifecycle } from '@spfn/auth/server';
 import { appRouter } from '@/server/router';
 
 export default defineServerConfig()
-    .port(8790)
+    .port(8890)
     .host('0.0.0.0')
     .routes(appRouter)
     .lifecycle(createAuthLifecycle())

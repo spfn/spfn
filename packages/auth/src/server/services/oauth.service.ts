@@ -177,7 +177,7 @@ export async function oauthCallbackService(
     const oauthProvider = requireEnabledProvider(provider);
 
     // 1. Code를 Token으로 교환
-    const tokens = await oauthProvider.exchangeCodeForTokens(code);
+    const tokens = await oauthProvider.exchangeCodeForTokens(code, { state });
 
     // 2. 사용자 정보 조회 (provider별 응답을 공통 형태로 정규화)
     const identity = await oauthProvider.getUserInfo(tokens.accessToken);

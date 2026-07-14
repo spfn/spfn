@@ -47,6 +47,12 @@ export interface NativeVerifyOptions
     nonce: string;
 }
 
+export interface OAuthCodeExchangeOptions
+{
+    /** Provider가 callback에 돌려준 원본 state. 일부 provider는 token 교환에도 요구한다. */
+    state: string;
+}
+
 /**
  * OAuth provider 구현 인터페이스
  *
@@ -72,7 +78,7 @@ export interface OAuthProvider
     /**
      * authorization code를 토큰으로 교환
      */
-    exchangeCodeForTokens(code: string): Promise<OAuthTokens>;
+    exchangeCodeForTokens(code: string, options: OAuthCodeExchangeOptions): Promise<OAuthTokens>;
 
     /**
      * access token으로 사용자 정보를 조회하고 공통 형태로 정규화

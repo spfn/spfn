@@ -11,6 +11,7 @@ exactly what auth wires in — four small edits and one protected route.
 - **A protected route** (`src/server/routes/me.ts`) reading the user via `getAuth(c)`.
 - **Session-aware UI** (`src/app/page.tsx`) using `getSession()` in a Server Component.
 - The full `authApi` surface (register / login / session / logout / …) mounted at `/_auth/*`.
+- **Real Kakao and Naver OAuth buttons**, provider-status detection, callback finalization, and logout.
 
 ## The four wiring points
 
@@ -28,6 +29,8 @@ public key. The server never holds a private key.
 ## Getting started
 
 > Prerequisites: Node ≥ 18.18, pnpm, Docker (Postgres).
+> The example uses `3890` for Next.js and `8890` for the SPFN API. It maps
+> Postgres to `55432` and Redis to `56379` to avoid common port conflicts.
 
 From the repo root, `pnpm install`. Then in this directory:
 
@@ -37,18 +40,24 @@ docker compose up -d
 
 # 2. Configure environment — secrets are split across two files by audience
 cp .env.local.example .env.local      # SPFN_AUTH_SESSION_SECRET lives here (Next.js)
-cp .env.server.example .env.server    # SPFN_AUTH_VERIFICATION_TOKEN_SECRET lives here (server)
+cp .env.server.example .env.server    # provider/token secrets live here (server only)
+
+# Replace every <...> placeholder. Generate independent random values; do not reuse them.
+openssl rand -base64 48               # session or verification secret
+openssl rand -base64 32               # OAuth token encryption key material
 
 # 3. Generate the client route map + run migrations
 pnpm codegen
 pnpm spfn db migrate
 
-# 4. Run the API server + Next.js
-pnpm spfn:dev
+# 4. Run these in separate terminals. This example uses 3890 because 3790-3799
+#    may be reserved by other SPFN workspaces on a development machine.
+pnpm spfn:server
+pnpm spfn:next
 ```
 
-Open the app: the examples list (public) renders immediately and the session banner shows
-you're signed out. Register and log in through the client:
+Open `http://localhost:3890`: the examples list (public) renders immediately and the session
+banner shows whether Kakao and Naver are configured. Register and log in through the client:
 
 ```typescript
 import { authApi } from '@spfn/auth';
@@ -66,7 +75,36 @@ key-exchange flow, OAuth, and RBAC.
 Auth secrets are split by audience (see `packages/auth/README.md`):
 
 - `.env.local` — `SPFN_AUTH_SESSION_SECRET` (≥32 chars, validated), `DATABASE_URL`, `SPFN_API_URL`
-- `.env.server` — `SPFN_AUTH_VERIFICATION_TOKEN_SECRET`, `DATABASE_URL`, optional admin/OAuth
+- `.env.server` — verification/token-encryption secrets, `DATABASE_URL`, provider credentials
+
+## End-to-end Kakao/Naver login
+
+The example calls `authApi.oauthProviders` to enable only configured buttons, then starts login
+through `authApi.getProviderOAuthUrl`. The Next.js interceptor generates the client key pair and
+OAuth state. Provider callbacks return to the web origin and are forwarded to SPFN by the rewrite
+in `next.config.ts`; `/auth/callback` then finalizes the encrypted session cookie.
+
+### Kakao developer console
+
+1. Enable Kakao Login and register the web platform for `http://localhost:3890`.
+2. Register `http://localhost:3890/_auth/oauth/kakao/callback` as a redirect URI.
+3. Enable the email consent item (`account_email`) used by the example.
+4. Put the REST API key in `SPFN_AUTH_KAKAO_CLIENT_ID`. If the client-secret feature is enabled,
+   also set `SPFN_AUTH_KAKAO_CLIENT_SECRET`.
+
+### Naver developer console
+
+1. Create a Naver Login application and select the profile fields you want to test.
+2. Register `http://localhost:3890/_auth/oauth/naver/callback` as the callback URL.
+3. Set `SPFN_AUTH_NAVER_CLIENT_ID` and `SPFN_AUTH_NAVER_CLIENT_SECRET`.
+
+Restart `pnpm spfn:server` after changing `.env.server`; keep `pnpm spfn:next` running in the
+other terminal. A configured button becomes enabled on the home page. After provider consent, a
+successful test returns to `/auth/callback`, stores the SPFN session, redirects to `/`, and
+displays the internal user ID with a sign-out button.
+
+Naver does not provide a verified-email claim. The example therefore creates/links the account by
+Naver's provider user ID and does not automatically attach its email to an existing SPFN account.
 
 ## Public vs protected
 

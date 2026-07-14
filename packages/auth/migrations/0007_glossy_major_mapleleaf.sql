@@ -1,0 +1,1 @@
+ALTER TABLE "spfn_auth"."users" DROP CONSTRAINT "email_or_phone_check";

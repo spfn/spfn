@@ -8,7 +8,7 @@
     "start": "next start",
     "spfn:dev": "spfn dev",
     "spfn:server": "spfn dev --server-only",
-    "spfn:next": "next dev --turbo --port 3790",
+    "spfn:next": "next dev --turbo --port 3890",
     "spfn:start": "spfn start",
     "spfn:build": "spfn build",
     "codegen": "spfn codegen run"

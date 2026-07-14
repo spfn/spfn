@@ -1,4 +1,6 @@
 import { api } from '@/lib/api-client';
+import { LogoutButton } from '@/app/components/logout-button';
+import { OAuthLoginButtons } from '@/app/components/oauth-login-buttons';
 import { getSession } from '@spfn/auth/nextjs/server';
 
 // Reads the session cookie per-request — must be dynamic.
@@ -21,7 +23,7 @@ export default async function Home()
     }
     catch
     {
-        error = 'Could not reach the SPFN API server. Run `docker compose up -d` and `pnpm spfn:dev`.';
+        error = 'Could not reach the SPFN API server. Run `docker compose up -d` and `pnpm spfn:server`.';
     }
 
     const examples = result?.examples ?? [];
@@ -35,16 +37,22 @@ export default async function Home()
             >
                 {session
                     ? (
-                        <p style={{ margin: 0 }}>
-                            ✅ Signed in as user <strong>{session.userId}</strong>. Protected routes
-                            (e.g. <code>api.getMe</code>) and <code>POST /examples</code> now work.
-                        </p>
+                        <div>
+                            <p style={{ margin: 0 }}>
+                                ✅ Signed in as user <strong>{session.userId}</strong>. Protected routes
+                                (e.g. <code>api.getMe</code>) and <code>POST /examples</code> now work.
+                            </p>
+                            <LogoutButton />
+                        </div>
                     )
                     : (
-                        <p style={{ margin: 0, color: '#666' }}>
-                            Not signed in. Register/login via <code>authApi.register</code> /{' '}
-                            <code>authApi.login</code> — then writes and <code>api.getMe</code> become available.
-                        </p>
+                        <div>
+                            <p style={{ margin: '0 0 1rem', color: '#666' }}>
+                                Sign in with a configured OAuth provider. The callback finalizes the encrypted
+                                session cookie, then returns to this page.
+                            </p>
+                            <OAuthLoginButtons />
+                        </div>
                     )}
             </section>
 

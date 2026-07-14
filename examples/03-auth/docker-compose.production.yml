@@ -23,14 +23,14 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3790:3790"  # Next.js
-      - "8790:8790"  # SPFN API
+      - "8890:8890"  # SPFN API
     environment:
       # Required: Set these via .env file or environment
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - NODE_ENV=production
       # Optional: Frontend API URL
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8790}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8890}
     restart: unless-stopped
     depends_on:
       postgres:

@@ -21,7 +21,7 @@ export default {
      *
      * This will automatically create region-specific domains:
      * - {subdomain}.{region}.spfn.app → Next.js frontend (port 3790)
-     * - api-{subdomain}.{region}.spfn.app → SPFN backend (port 8790)
+     * - api-{subdomain}.{region}.spfn.app → SPFN backend (port 8890)
      *
      * Example: subdomain: 'vertical-integration-demo', region: 'us' creates:
      * - vertical-integration-demo.us.spfn.app
@@ -74,7 +74,7 @@ export default {
      * 🔧 Auto-generated variables (leave env empty for defaults):
      * - NEXT_PUBLIC_API_URL: https://api-{subdomain}.{region}.spfn.app
      *   (Used by browser/client-side code)
-     * - API_URL: http://localhost:8790
+     * - API_URL: http://localhost:8890
      *   (Used by Next.js SSR/API Routes - same container, internal)
      *
      * 📋 When to add custom env:

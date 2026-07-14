@@ -50,6 +50,13 @@
       "when": 1783582531948,
       "tag": "0006_easy_hardball",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784016874297,
+      "tag": "0007_glossy_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

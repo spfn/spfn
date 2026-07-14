@@ -47,7 +47,7 @@ export const envSchema = defineEnvSchema({
  * import env from '@/server/config/env.config';
  *
  * const dbUrl = env.DATABASE_URL;   // throws if required and missing
- * const port = env.PORT ?? 8790;    // optional with fallback
+ * const port = env.PORT ?? 8890;    // optional with fallback
  * ```
  *
  * For explicit upfront validation (e.g. in a CLI script), call
