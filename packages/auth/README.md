@@ -230,7 +230,12 @@ export { OAuthCallback as default } from '@spfn/auth/nextjs/client';
 
 ```typescript
 import { authApi } from '@spfn/auth';
-const { authUrl } = await authApi.getGoogleOAuthUrl.call({ body: { returnUrl: '/dashboard' } });
+const { authUrl } = await authApi.getGoogleOAuthUrl.call({
+    body: {
+        returnUrl: '/dashboard',
+        metadata: { birthDate: '2000-01-01', termsAgreed: true },
+    },
+});
 window.location.href = authUrl;
 ```
 
@@ -239,10 +244,17 @@ Kakao and Naver use the provider-generic URL route:
 ```typescript
 const { authUrl } = await authApi.getProviderOAuthUrl.call({
     params: { provider: 'kakao' }, // or 'naver'
-    body: { returnUrl: '/dashboard' },
+    body: {
+        returnUrl: '/dashboard',
+        metadata: { birthDate: '2000-01-01', termsAgreed: true },
+    },
 });
 window.location.href = authUrl;
 ```
+
+Both convenience URL APIs seal `metadata` into the encrypted OAuth state. On a new social
+signup, the callback passes it to `beforeRegister` and `authRegisterEvent`; existing-account
+logins do not run the registration hook.
 
 Built-in OAuth routes: `POST /_auth/oauth/google/url`, `GET /_auth/oauth/google` (redirect),
 `GET /_auth/oauth/google/callback`, `POST /_auth/oauth/finalize`, `GET /_auth/oauth/providers`,

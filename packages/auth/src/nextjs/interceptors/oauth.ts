@@ -28,6 +28,7 @@ export const oauthUrlInterceptor: InterceptorRule = {
     {
         const provider = ctx.path.split('/')[3]; // google, github, etc.
         const returnUrl = ctx.body?.returnUrl || '/';
+        const metadata = ctx.body?.metadata as Record<string, unknown> | undefined;
 
         // 키쌍 생성
         const keyPair = generateKeyPair('ES256');
@@ -45,6 +46,7 @@ export const oauthUrlInterceptor: InterceptorRule = {
             fingerprint: keyPair.fingerprint,
             algorithm: keyPair.algorithm,
             nonce: csrfNonce,
+            metadata,
         });
 
         // body에 state 주입

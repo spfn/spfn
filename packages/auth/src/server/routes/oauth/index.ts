@@ -220,6 +220,9 @@ export const getGoogleOAuthUrl = route.post('/_auth/oauth/google/url')
             returnUrl: Type.Optional(Type.String({
                 description: 'URL to redirect after OAuth success',
             })),
+            metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), {
+                description: 'Custom signup metadata sealed into OAuth state and passed to beforeRegister',
+            })),
             state: Type.Optional(Type.String({
                 description: 'Encrypted OAuth state (injected by interceptor)',
             })),
@@ -414,6 +417,9 @@ export const getProviderOAuthUrl = route.post('/_auth/oauth/:provider/url')
         body: Type.Object({
             returnUrl: Type.Optional(Type.String({
                 description: 'URL to redirect after OAuth success',
+            })),
+            metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), {
+                description: 'Custom signup metadata sealed into OAuth state and passed to beforeRegister',
             })),
             state: Type.Optional(Type.String({
                 description: 'Encrypted OAuth state (injected by interceptor)',

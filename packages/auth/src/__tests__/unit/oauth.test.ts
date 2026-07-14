@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { RequestInterceptorContext } from '@spfn/core/nextjs/server';
 import {
     createOAuthState,
     verifyOAuthState,
@@ -28,6 +29,7 @@ import {
     unsealPendingSession,
     type PendingSessionData,
 } from '../../nextjs/session-helpers';
+import { oauthUrlInterceptor } from '../../nextjs/interceptors/oauth';
 
 /**
  * 테스트용 mock provider 생성 헬퍼
@@ -527,6 +529,38 @@ describe('OAuth Interceptor Logic', () =>
         expect(verified.keyId).toBe(stateParams.keyId);
         expect(verified.fingerprint).toBe(stateParams.fingerprint);
         expect(verified.algorithm).toBe('ES256');
+    });
+
+    it.each([
+        ['getGoogleOAuthUrl', '/_auth/oauth/google/url', 'google'],
+        ['getProviderOAuthUrl', '/_auth/oauth/naver/url', 'naver'],
+    ])('should seal metadata from %s into OAuth state', async (_name, path, provider) =>
+    {
+        const ctx = {
+            path,
+            body: {
+                returnUrl: '/signup/complete',
+                metadata: {
+                    birthDate: '2000-01-01',
+                    termsAgreed: true,
+                },
+            },
+            metadata: {},
+        } as unknown as RequestInterceptorContext;
+        const next = vi.fn(async () => undefined);
+
+        await oauthUrlInterceptor.request?.(ctx, next);
+
+        expect(next).toHaveBeenCalledOnce();
+        expect(ctx.body.state).toEqual(expect.any(String));
+
+        const verified = await verifyOAuthState(ctx.body.state);
+        expect(verified.provider).toBe(provider);
+        expect(verified.returnUrl).toBe('/signup/complete');
+        expect(verified.metadata).toEqual({
+            birthDate: '2000-01-01',
+            termsAgreed: true,
+        });
     });
 
     it('pending session should preserve key info for finalization', async () =>
