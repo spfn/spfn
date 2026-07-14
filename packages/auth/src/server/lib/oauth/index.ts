@@ -6,6 +6,7 @@ export * from './google';
 export * from './state';
 export * from './provider';
 export * from './jwks-verify';
+export * from './token-cipher';
 
 // provider 자기 등록(side-effect). 이 import로 registry에 google/apple이 채워진다.
 import './google-provider';

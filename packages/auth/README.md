@@ -111,6 +111,7 @@ real secret values out of band, never commit them.
 | `DATABASE_URL` | both | yes | Postgres connection |
 | `SPFN_AUTH_VERIFICATION_TOKEN_SECRET` | `.env.server` | yes | OTP / verification token signing |
 | `SPFN_AUTH_SESSION_SECRET` | `.env.local` | yes | ≥32 chars, AES-256 session cookie encryption (validated: entropy/unique-char checks) |
+| `SPFN_AUTH_TOKEN_ENCRYPTION_KEYS` | `.env.server` | web OAuth | OAuth token keyring: comma-separated `<keyId>:<base64-32-byte-key>` entries; first key is active |
 | `SPFN_API_URL` | `.env.local` | — | default `http://localhost:8790` |
 | `SPFN_AUTH_SESSION_TTL` | both | — | default `7d` (e.g. `7d`, `12h`, `45m`) |
 | `SPFN_AUTH_JWT_SECRET` / `SPFN_AUTH_JWT_EXPIRES_IN` | `.env.server` | — | legacy server-signed JWT mode only |
@@ -313,13 +314,40 @@ import {
 registerOAuthProvider(myProvider);   // same id re-registers (override)
 ```
 
+### OAuth token encryption and key rotation
+
+Web OAuth access and refresh tokens are encrypted at rest with AES-256-GCM. Token encryption is
+separate from session-cookie encryption: `SPFN_AUTH_TOKEN_ENCRYPTION_KEYS` is backend-only and
+must never be exposed to the Next.js process. Generate a key with `openssl rand -base64 32` and
+assign it a non-secret key ID:
+
+```dotenv
+SPFN_AUTH_TOKEN_ENCRYPTION_KEYS=v2:<base64-32-byte-key>
+```
+
+For zero-downtime rotation, prepend the new key and retain old keys for decryption:
+
+```dotenv
+SPFN_AUTH_TOKEN_ENCRYPTION_KEYS=v3:<new-key>,v2:<old-key>
+```
+
+New writes use the first key. Reads using an older key, the legacy session-secret-derived `enc:v1`
+format, or historical plaintext are automatically re-encrypted with the active key. Keep every old
+key available until all rows have been read or explicitly migrated; removing a referenced key makes
+those tokens undecryptable. Ciphertext is bound to `provider`, `providerUserId`, and token type
+(`access` or `refresh`) with authenticated data, preventing ciphertext from being moved to another
+account or field.
+
+Deployments that need a KMS or per-account envelope encryption can call
+`configureOAuthTokenCipher()` from `@spfn/auth/server` before the server starts. The custom cipher
+receives the same account/token context and owns its key rotation policy.
+
 **Integration contract for custom providers:**
 
-- The package only ships google's callback route. A custom provider must expose its **own**
-  callback route that calls `oauthCallbackService({ provider, code, state })`.
-- **Wrap that callback route in `Transactional()`** (`import { Transactional } from '@spfn/core/db'`).
-  `oauthCallbackService` creates/links a user and stores the social account in sequence — without
-  a transaction, a mid-flow failure leaves an orphan user. The built-in google callback uses it.
+- The built-in provider-generic callback route handles any registered provider. A custom callback is
+  only needed when the provider does not follow the standard `code` / `state` response contract.
+- If a custom callback calls `oauthCallbackService()` directly, wrap the route in `Transactional()`
+  (`import { Transactional } from '@spfn/core/db'`).
 - The provider `id` must be in `SOCIAL_PROVIDERS` (`enumText`, plain text — adding a value needs **no**
   DB migration).
 - `auth.login` / `auth.register` events now carry any `SOCIAL_PROVIDERS` value in `provider` —
@@ -555,8 +583,9 @@ router) double-registers the same job name against pg-boss instead of overriding
   `authErrorRegistry` in `src/errors/index.ts`) and pass it to your `createApi({ errorRegistry })`,
   or the client receives a generic error instead of the typed one.
 - **Two env files, by audience.** `SPFN_AUTH_SESSION_SECRET` lives in `.env.local` (Next.js needs
-  it for cookie crypto); `SPFN_AUTH_VERIFICATION_TOKEN_SECRET` lives in `.env.server`. Splitting
-  them wrong yields "missing secret" failures only at runtime.
+  it for cookie crypto); `SPFN_AUTH_VERIFICATION_TOKEN_SECRET` and
+  `SPFN_AUTH_TOKEN_ENCRYPTION_KEYS` live in `.env.server`. Token encryption keys are backend-only;
+  putting them in `.env.local` unnecessarily gives the Next.js process token-decryption authority.
 - **`SPFN_AUTH_SESSION_SECRET` is validated.** Minimum 32 chars plus entropy/unique-char checks —
   a short or low-entropy value fails startup, not just a warning.
 - **Forgetting the interceptor import.** Without `import '@spfn/auth/nextjs/api'` in the RPC proxy

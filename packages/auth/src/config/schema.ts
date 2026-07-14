@@ -124,6 +124,17 @@ export const authEnvSchema = defineEnvSchema({
         }),
     },
 
+    SPFN_AUTH_TOKEN_ENCRYPTION_KEYS: {
+        ...envString({
+            description: 'Backend-only OAuth token encryption keyring. Comma-separated <keyId>:<base64-encoded 32-byte key> entries; the first key encrypts new values and remaining keys decrypt during rotation.',
+            required: false,
+            sensitive: true,
+            examples: [
+                'v2:<base64-encoded-32-byte-key>,v1:<previous-base64-encoded-32-byte-key>',
+            ],
+        }),
+    },
+
     // ============================================================================
     // Admin Account Configuration
     // ============================================================================

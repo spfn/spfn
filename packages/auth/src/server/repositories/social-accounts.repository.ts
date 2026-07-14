@@ -10,7 +10,11 @@ import { BaseRepository } from '@spfn/core/db';
 
 import { userSocialAccounts, NewUserSocialAccount, UserSocialAccount } from '../entities';
 import { type SocialProvider } from '../types';
-import { encryptToken, decryptToken, isEncrypted } from '../lib/oauth/token-cipher';
+import {
+    encryptToken,
+    decryptToken,
+    type OAuthTokenContext,
+} from '../lib/oauth/token-cipher';
 
 /**
  * Social Accounts Repository 클래스
@@ -31,30 +35,48 @@ export class SocialAccountsRepository extends BaseRepository
             return account;
         }
 
+        const context = (tokenType: OAuthTokenContext['tokenType']): OAuthTokenContext => ({
+            provider: account.provider,
+            providerUserId: account.providerUserId,
+            tokenType,
+        });
+        const access = account.accessToken
+            ? await decryptToken(account.accessToken, context('access'))
+            : null;
+        const refresh = account.refreshToken
+            ? await decryptToken(account.refreshToken, context('refresh'))
+            : null;
         const heal: { accessToken?: string; refreshToken?: string } = {};
 
-        if (account.accessToken && !isEncrypted(account.accessToken))
-        {
-            heal.accessToken = encryptToken(account.accessToken);
-        }
-
-        if (account.refreshToken && !isEncrypted(account.refreshToken))
-        {
-            heal.refreshToken = encryptToken(account.refreshToken);
-        }
-
-        // self-healing 재암호화는 best-effort 다. OAuth 콜백은 Transactional 안에서
-        // 돌기 때문에(readDb 가 tx=primary 로 귀결), 이 write 가 throw 하면 로그인
-        // 트랜잭션 전체가 롤백된다. heal 실패가 read 흐름을 깨지 않도록 격리한다.
-        // 전환을 놓쳐도 다음 updateTokens(토큰 refresh) 시 암호화되므로 결국 전환된다.
-        if (heal.accessToken || heal.refreshToken)
+        // Self-healing is best-effort: a key-rotation write must not break a read.
+        // Compare the original ciphertext in the WHERE clause so a concurrent token
+        // refresh cannot be overwritten with the older value read above.
+        if (access?.needsRotation || refresh?.needsRotation)
         {
             try
             {
+                if (access?.needsRotation)
+                {
+                    heal.accessToken = await encryptToken(access.value, context('access'));
+                }
+
+                if (refresh?.needsRotation)
+                {
+                    heal.refreshToken = await encryptToken(refresh.value, context('refresh'));
+                }
+
                 await this.db
                     .update(userSocialAccounts)
                     .set(heal)
-                    .where(eq(userSocialAccounts.id, account.id));
+                    .where(and(
+                        eq(userSocialAccounts.id, account.id),
+                        access?.needsRotation && account.accessToken !== null
+                            ? eq(userSocialAccounts.accessToken, account.accessToken)
+                            : undefined,
+                        refresh?.needsRotation && account.refreshToken !== null
+                            ? eq(userSocialAccounts.refreshToken, account.refreshToken)
+                            : undefined,
+                    ));
             }
             catch
             {
@@ -64,8 +86,8 @@ export class SocialAccountsRepository extends BaseRepository
 
         return {
             ...account,
-            accessToken: account.accessToken ? decryptToken(account.accessToken) : account.accessToken,
-            refreshToken: account.refreshToken ? decryptToken(account.refreshToken) : account.refreshToken,
+            accessToken: access?.value ?? account.accessToken,
+            refreshToken: refresh?.value ?? account.refreshToken,
         };
     }
 
@@ -129,10 +151,19 @@ export class SocialAccountsRepository extends BaseRepository
      */
     async create(data: NewUserSocialAccount)
     {
+        const context = (tokenType: OAuthTokenContext['tokenType']): OAuthTokenContext => ({
+            provider: data.provider,
+            providerUserId: data.providerUserId,
+            tokenType,
+        });
         const created = await this._create(userSocialAccounts, {
             ...data,
-            accessToken: data.accessToken ? encryptToken(data.accessToken) : data.accessToken,
-            refreshToken: data.refreshToken ? encryptToken(data.refreshToken) : data.refreshToken,
+            accessToken: data.accessToken
+                ? await encryptToken(data.accessToken, context('access'))
+                : data.accessToken,
+            refreshToken: data.refreshToken
+                ? await encryptToken(data.refreshToken, context('refresh'))
+                : data.refreshToken,
             createdAt: new Date(),
             updatedAt: new Date(),
         });
@@ -154,12 +185,36 @@ export class SocialAccountsRepository extends BaseRepository
         },
     )
     {
+        const accounts = await this.db
+            .select({
+                provider: userSocialAccounts.provider,
+                providerUserId: userSocialAccounts.providerUserId,
+            })
+            .from(userSocialAccounts)
+            .where(eq(userSocialAccounts.id, id))
+            .limit(1);
+        const account = accounts[0];
+
+        if (!account)
+        {
+            return null;
+        }
+
+        const context = (tokenType: OAuthTokenContext['tokenType']): OAuthTokenContext => ({
+            provider: account.provider,
+            providerUserId: account.providerUserId,
+            tokenType,
+        });
         const result = await this.db
             .update(userSocialAccounts)
             .set({
                 ...data,
-                accessToken: data.accessToken ? encryptToken(data.accessToken) : data.accessToken,
-                refreshToken: data.refreshToken ? encryptToken(data.refreshToken) : data.refreshToken,
+                accessToken: data.accessToken
+                    ? await encryptToken(data.accessToken, context('access'))
+                    : data.accessToken,
+                refreshToken: data.refreshToken
+                    ? await encryptToken(data.refreshToken, context('refresh'))
+                    : data.refreshToken,
                 updatedAt: new Date(),
             })
             .where(eq(userSocialAccounts.id, id))

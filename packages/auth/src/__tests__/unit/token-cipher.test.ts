@@ -1,75 +1,139 @@
 /**
- * @spfn/auth - Social Token At-Rest Encryption Unit Tests
- *
- * AES-256-GCM round-trip, 레거시 평문 하위 호환, 변조 감지 검증.
- * ⚠️ 토큰/키 평문 값은 출력하지 않는다 — 길이·존재·일치 여부만 단언.
+ * OAuth token keyring encryption tests.
+ * Token and key material must never be printed by these tests.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { encryptToken, decryptToken, isEncrypted } from '@/server/lib/oauth/token-cipher';
+import crypto from 'node:crypto';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+    decryptToken,
+    encryptToken,
+    isEncrypted,
+    type OAuthTokenContext,
+} from '@/server/lib/oauth/token-cipher';
 
-const TEST_SECRET = 'test-secret-with-at-least-32-characters-for-security-testing';
-const SAMPLE = 'ya29.a0AfH6SMexample-access-token-value';
+const LEGACY_SECRET = 'test-secret-with-at-least-32-characters-for-security-testing';
+const ACTIVE_KEY = Buffer.alloc(32, 1).toString('base64');
+const PREVIOUS_KEY = Buffer.alloc(32, 2).toString('base64');
+const SAMPLE = 'sample-access-token-value';
+const CONTEXT: OAuthTokenContext = {
+    provider: 'google',
+    providerUserId: 'provider-user-123',
+    tokenType: 'access',
+};
 
-describe('Token Cipher - AES-256-GCM', () =>
+function encryptLegacyV1(value: string): string
+{
+    const key = crypto.createHash('sha256').update(`social-token:${LEGACY_SECRET}`).digest();
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+
+    return `enc:v1:${Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString('base64')}`;
+}
+
+describe('OAuth token cipher - rotating AES-256-GCM keyring', () =>
 {
     beforeEach(() =>
     {
-        vi.stubEnv('SPFN_AUTH_SESSION_SECRET', TEST_SECRET);
+        vi.stubEnv('SPFN_AUTH_SESSION_SECRET', LEGACY_SECRET);
+        vi.stubEnv('SPFN_AUTH_TOKEN_ENCRYPTION_KEYS', `v2:${ACTIVE_KEY},v1:${PREVIOUS_KEY}`);
     });
 
-    it('암호화 결과는 enc:v1: 마커를 가지며 평문과 다르다', () =>
+    afterEach(() =>
     {
-        const encrypted = encryptToken(SAMPLE);
+        vi.unstubAllEnvs();
+    });
+
+    it('encrypts with the active key ID and restores the value', async () =>
+    {
+        const encrypted = await encryptToken(SAMPLE, CONTEXT);
+        const decrypted = await decryptToken(encrypted, CONTEXT);
 
         expect(isEncrypted(encrypted)).toBe(true);
-        expect(encrypted.startsWith('enc:v1:')).toBe(true);
-        expect(encrypted).not.toBe(SAMPLE);
+        expect(encrypted.startsWith('enc:v2:v2:')).toBe(true);
         expect(encrypted).not.toContain(SAMPLE);
+        expect(decrypted).toEqual({ value: SAMPLE, needsRotation: false });
     });
 
-    it('round-trip 으로 원본 평문이 복원된다', () =>
+    it('uses a random IV for each encryption', async () =>
     {
-        expect(decryptToken(encryptToken(SAMPLE))).toBe(SAMPLE);
+        expect(await encryptToken(SAMPLE, CONTEXT)).not.toBe(await encryptToken(SAMPLE, CONTEXT));
     });
 
-    it('같은 평문도 매번 다른 암호문을 낸다 (random IV)', () =>
+    it('binds ciphertext to provider account and token type with AAD', async () =>
     {
-        expect(encryptToken(SAMPLE)).not.toBe(encryptToken(SAMPLE));
+        const encrypted = await encryptToken(SAMPLE, CONTEXT);
+
+        await expect(decryptToken(encrypted, { ...CONTEXT, providerUserId: 'different-user' }))
+            .rejects.toThrow();
+        await expect(decryptToken(encrypted, { ...CONTEXT, tokenType: 'refresh' }))
+            .rejects.toThrow();
     });
 
-    it('마커 없는 레거시 평문은 그대로 반환된다 (하위 호환)', () =>
+    it('decrypts a previous key and marks it for rotation', async () =>
+    {
+        vi.stubEnv('SPFN_AUTH_TOKEN_ENCRYPTION_KEYS', `v1:${PREVIOUS_KEY}`);
+        const encrypted = await encryptToken(SAMPLE, CONTEXT);
+
+        vi.stubEnv('SPFN_AUTH_TOKEN_ENCRYPTION_KEYS', `v2:${ACTIVE_KEY},v1:${PREVIOUS_KEY}`);
+        await expect(decryptToken(encrypted, CONTEXT)).resolves.toEqual({
+            value: SAMPLE,
+            needsRotation: true,
+        });
+    });
+
+    it('decrypts legacy v1 ciphertext and marks it for rotation', async () =>
+    {
+        await expect(decryptToken(encryptLegacyV1(SAMPLE), CONTEXT)).resolves.toEqual({
+            value: SAMPLE,
+            needsRotation: true,
+        });
+    });
+
+    it('returns legacy plaintext and marks it for rotation', async () =>
     {
         expect(isEncrypted(SAMPLE)).toBe(false);
-        expect(decryptToken(SAMPLE)).toBe(SAMPLE);
+        await expect(decryptToken(SAMPLE, CONTEXT)).resolves.toEqual({
+            value: SAMPLE,
+            needsRotation: true,
+        });
     });
 
-    it('암호문 변조 시 복호화가 실패한다', () =>
+    it('rejects ciphertext tampering', async () =>
     {
-        const encrypted = encryptToken(SAMPLE);
-        const tampered = encrypted.slice(0, -4) + 'AAAA';
+        const encrypted = await encryptToken(SAMPLE, CONTEXT);
+        const tampered = `${encrypted.slice(0, -4)}AAAA`;
 
-        expect(() => decryptToken(tampered)).toThrow();
+        await expect(decryptToken(tampered, CONTEXT)).rejects.toThrow();
     });
 
-    it('마커는 있으나 본문이 짧으면(손상) 복호화가 실패한다', () =>
+    it('rejects an unavailable key ID', async () =>
     {
-        expect(() => decryptToken('enc:v1:QUFB')).toThrow();
+        const encrypted = await encryptToken(SAMPLE, CONTEXT);
+        vi.stubEnv('SPFN_AUTH_TOKEN_ENCRYPTION_KEYS', `v3:${PREVIOUS_KEY}`);
+
+        await expect(decryptToken(encrypted, CONTEXT)).rejects.toThrow(/unavailable key ID/);
     });
 
-    it('이미 암호화된 값을 다시 암호화해도 이중 암호화되지 않는다', () =>
+    it('fails closed for new encryption when the dedicated keyring is missing', async () =>
     {
-        const once = encryptToken(SAMPLE);
+        vi.stubEnv('SPFN_AUTH_TOKEN_ENCRYPTION_KEYS', '');
 
-        expect(encryptToken(once)).toBe(once);
-        expect(decryptToken(encryptToken(once))).toBe(SAMPLE);
+        await expect(encryptToken(SAMPLE, CONTEXT)).rejects.toThrow(/not configured/);
     });
 
-    it('다른 secret 으로는 복호화되지 않는다', () =>
+    it('rejects malformed or non-32-byte key material', async () =>
     {
-        const encrypted = encryptToken(SAMPLE);
+        vi.stubEnv('SPFN_AUTH_TOKEN_ENCRYPTION_KEYS', 'bad-key');
+        await expect(encryptToken(SAMPLE, CONTEXT)).rejects.toThrow(/expected <keyId>/);
 
-        vi.stubEnv('SPFN_AUTH_SESSION_SECRET', 'different-secret-with-at-least-32-characters-here!!');
-        expect(() => decryptToken(encrypted)).toThrow();
+        vi.stubEnv('SPFN_AUTH_TOKEN_ENCRYPTION_KEYS', `v2:${Buffer.alloc(16).toString('base64')}`);
+        await expect(encryptToken(SAMPLE, CONTEXT)).rejects.toThrow(/exactly 32 bytes/);
+    });
+
+    it('rejects unknown encrypted formats instead of treating them as plaintext', async () =>
+    {
+        await expect(decryptToken('enc:v99:not-supported', CONTEXT)).rejects.toThrow(/Unsupported/);
     });
 });
