@@ -1,0 +1,80 @@
+# @spfn/storage
+
+Provider-agnostic object storage for S3-compatible services, Google Cloud Storage,
+and the local filesystem. The package exposes presigned upload, direct upload and
+download, public URL, finalization, and object deletion APIs without owning a database.
+
+## Deleting objects
+
+Deletion accepts an object key, never an arbitrary URL:
+
+```ts
+import { getStorageService } from '@spfn/storage/server';
+
+const storage = await getStorageService();
+
+await storage.delete('public/question-cards/card-id.webp');
+```
+
+`delete(key)` is idempotent. Deleting a key that does not exist succeeds. Other
+provider errors are not suppressed; the promise rejects so callers can retry or
+leave the item in a deletion outbox.
+
+All bundled providers also implement optional batch deletion:
+
+```ts
+const result = await storage.deleteMany?.(keys);
+
+for (const failure of result?.failed ?? [])
+{
+    await scheduleRetry(failure.key, failure.error);
+}
+```
+
+`deleteMany()` returns per-key partial results. GCS and Local execute idempotent
+single-key deletions and collect failures. S3-compatible storage uses `DeleteObjects`
+in batches of at most 1,000 keys. If an entire S3 batch request fails, every key in
+that batch appears in `failed`; the batch method does not throw after work may have
+partially completed. An empty input returns empty `deleted` and `failed` arrays.
+
+Do not log object contents, signed URLs, or storage credentials when processing a
+failure. Treat returned error text as operational data with the same log-scrubbing
+policy used for provider exceptions.
+
+## Provider behavior
+
+- **GCS:** `file.delete({ ignoreNotFound: true })`. Public keys (`public/*`) use the
+  public bucket and all other keys use the private bucket.
+- **S3, R2, MinIO, Wasabi:** `DeleteObject` for one key and `DeleteObjects` for a
+  batch. S3 delete markers make missing-key deletion idempotent.
+- **Local:** `unlink` below `LOCAL_STORAGE_DIR`. Lexical traversal, absolute paths,
+  and parent-directory symlinks escaping the storage root are rejected. Missing
+  files and missing parent directories succeed.
+
+## CDN and versioning caveats
+
+Deleting an origin object does not purge already cached public responses. A CDN or
+browser may continue serving the object until its cache TTL expires unless the
+application separately issues a CDN purge. Prefer immutable, content-addressed keys
+for public assets and account for cache retention in privacy deletion procedures.
+
+With S3 Versioning enabled, these APIs delete the current view by creating a delete
+marker; older versions remain until lifecycle rules or a separate version-aware
+purge removes them. With GCS Object Versioning enabled, deleting the live generation
+makes it noncurrent; archived generations remain. These APIs intentionally do not
+enumerate or permanently delete every version. Configure provider lifecycle policies
+or implement an audited version-purge workflow when permanent erasure of all versions
+is required.
+
+## Consistency with database deletion
+
+Database and object storage changes cannot share one transaction. A retryable flow is:
+
+1. Record the rows and storage keys to delete, preferably in a `pending_deletion`
+   state or deletion outbox.
+2. Delete storage objects.
+3. Delete or mark complete only the database records whose object deletion succeeded.
+4. Retry failures. Repeated execution is safe because deletion is idempotent.
+
+This ordering also works as compensation when an upload succeeds but the related
+database write fails.
