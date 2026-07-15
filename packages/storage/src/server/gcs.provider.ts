@@ -12,6 +12,7 @@ import { assertStorageKey, deleteManyIndividually } from './delete-many';
 import { isPublicKey } from './keys';
 import type {
     DeleteManyResult,
+    GcsProviderConfig,
     IStorageProvider,
     PresignedUrlParams,
     PublicUploadParams,
@@ -25,16 +26,16 @@ export class GcsStorageProvider implements IStorageProvider
     private privateBucket: Bucket;
     private publicBucketName: string;
 
-    constructor()
+    constructor(config: GcsProviderConfig = {})
     {
-        const credentials = decodeCredentials(process.env.GCS_CREDENTIALS_JSON_BASE64 ?? '');
+        const credentials = decodeCredentials(config.credentialsJsonBase64 ?? process.env.GCS_CREDENTIALS_JSON_BASE64 ?? '');
         this.storage = new Storage({
-            projectId: process.env.GCS_PROJECT_ID || undefined,
+            projectId: (config.projectId ?? process.env.GCS_PROJECT_ID) || undefined,
             ...(credentials ? { credentials } : {}),
         });
-        this.publicBucketName = process.env.GCS_PUBLIC_BUCKET ?? '';
+        this.publicBucketName = config.publicBucket ?? process.env.GCS_PUBLIC_BUCKET ?? '';
         this.publicBucket = this.storage.bucket(this.publicBucketName);
-        this.privateBucket = this.storage.bucket(process.env.GCS_PRIVATE_BUCKET ?? '');
+        this.privateBucket = this.storage.bucket(config.privateBucket ?? process.env.GCS_PRIVATE_BUCKET ?? '');
     }
 
     private resolveBucket(key: string): Bucket

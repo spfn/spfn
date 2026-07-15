@@ -21,6 +21,7 @@ import type {
     PresignedUrlParams,
     PublicUploadParams,
     PresignedUrlResult,
+    S3ProviderConfig,
 } from '../shared/index';
 
 const MAX_DELETE_OBJECTS = 1000;
@@ -31,20 +32,20 @@ export class S3StorageProvider implements IStorageProvider
     private bucket: string;
     private publicBaseUrl: string;
 
-    constructor()
+    constructor(config: S3ProviderConfig = {})
     {
-        const region = process.env.S3_REGION ?? 'us-east-1';
-        const endpoint = process.env.S3_ENDPOINT;
-        this.bucket = process.env.S3_BUCKET ?? '';
+        const region = config.region ?? process.env.S3_REGION ?? 'us-east-1';
+        const endpoint = config.endpoint ?? process.env.S3_ENDPOINT;
+        this.bucket = config.bucket ?? process.env.S3_BUCKET ?? '';
         this.client = new S3Client({
             region,
             credentials: {
-                accessKeyId: process.env.S3_ACCESS_KEY_ID ?? '',
-                secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? '',
+                accessKeyId: config.accessKeyId ?? process.env.S3_ACCESS_KEY_ID ?? '',
+                secretAccessKey: config.secretAccessKey ?? process.env.S3_SECRET_ACCESS_KEY ?? '',
             },
             ...(endpoint ? { endpoint, forcePathStyle: true } : {}),
         });
-        this.publicBaseUrl = (process.env.S3_PUBLIC_BASE_URL
+        this.publicBaseUrl = (config.publicBaseUrl ?? process.env.S3_PUBLIC_BASE_URL
             ?? `https://${this.bucket}.s3.${region}.amazonaws.com`).replace(/\/+$/, '');
     }
 

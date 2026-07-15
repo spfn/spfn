@@ -14,6 +14,7 @@ import { assertStorageKey, deleteManyIndividually } from './delete-many';
 import type {
     DeleteManyResult,
     IStorageProvider,
+    LocalProviderConfig,
     PresignedUrlParams,
     PublicUploadParams,
     PresignedUrlResult,
@@ -24,10 +25,10 @@ export class LocalStorageProvider implements IStorageProvider
     private baseDir: string;
     private baseUrl: string;
 
-    constructor()
+    constructor(config: LocalProviderConfig = {})
     {
-        this.baseDir = resolve(process.cwd(), process.env.LOCAL_STORAGE_DIR ?? '.storage');
-        this.baseUrl = (process.env.LOCAL_STORAGE_BASE_URL ?? '/api/storage').replace(/\/+$/, '');
+        this.baseDir = resolve(process.cwd(), config.dir ?? process.env.LOCAL_STORAGE_DIR ?? '.storage');
+        this.baseUrl = (config.baseUrl ?? process.env.LOCAL_STORAGE_BASE_URL ?? '/api/storage').replace(/\/+$/, '');
     }
 
     /** key를 baseDir 안의 실제 경로로. traversal(`..` 등)은 차단. */

@@ -36,6 +36,45 @@ export interface DeleteManyResult
     failed: Array<{ key: string; error: string }>;
 }
 
+/** S3/S3-호환 프로바이더 설정. 미지정 필드는 process.env(S3_*)로 fallback. */
+export interface S3ProviderConfig
+{
+    region?: string;
+    endpoint?: string;
+    bucket?: string;
+    accessKeyId?: string;
+    secretAccessKey?: string;
+    publicBaseUrl?: string;
+}
+
+/** GCS 프로바이더 설정. 미지정 필드는 process.env(GCS_*)로 fallback. */
+export interface GcsProviderConfig
+{
+    projectId?: string;
+    publicBucket?: string;
+    privateBucket?: string;
+    credentialsJsonBase64?: string;
+}
+
+/** 로컬 프로바이더 설정. 미지정 필드는 process.env(LOCAL_STORAGE_*)로 fallback. */
+export interface LocalProviderConfig
+{
+    dir?: string;
+    baseUrl?: string;
+}
+
+/**
+ * getStorageService 옵션 — 앱의 검증된 설정(env 스키마 등)을 주입하는 경로.
+ * provider 미지정 시 STORAGE_PROVIDER env, 그것도 없으면 dev=local/prod=s3.
+ */
+export interface StorageServiceOptions
+{
+    provider?: 'local' | 's3' | 'gcs';
+    s3?: S3ProviderConfig;
+    gcs?: GcsProviderConfig;
+    local?: LocalProviderConfig;
+}
+
 export interface IStorageProvider
 {
     /** presigned PUT URL. temp=true면 임시 태그(버킷 lifecycle이 정리). */
