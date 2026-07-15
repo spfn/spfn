@@ -10,7 +10,7 @@ import { env } from '@spfn/core/config';
 import type { JobDef, JobOptions, JobRouter } from './types';
 import type { EventDef } from '@spfn/core/event';
 import { collectJobs } from './job-router';
-import { getBoss, shouldClearOnStart } from './boss';
+import { getBoss, shouldClearOnStart, shouldSweepOrphanSchedules } from './boss';
 
 const jobLogger = logger.child('@spfn/core:job');
 
@@ -109,7 +109,94 @@ export async function registerJobs(router: JobRouter<any>): Promise<void>
     // concurrently — sequential awaits made startup scale linearly with job count.
     await Promise.all(jobs.map((job) => registerJob(job)));
 
+    for (const job of jobs)
+    {
+        if (job.cronExpression)
+        {
+            registeredCronNames.add(job.name);
+        }
+    }
+
+    if (shouldSweepOrphanSchedules())
+    {
+        await sweepOrphanSchedules(boss);
+    }
+
     jobLogger.info('All jobs registered successfully');
+}
+
+// Cron names accumulate across registerJobs() calls so a sweep in one call
+// never treats another router's schedules (registered earlier in the same
+// process) as orphans.
+const registeredCronNames = new Set<string>();
+
+/**
+ * Reset sweep state accumulated by registerJobs()
+ *
+ * @internal test-only
+ */
+export function resetOrphanSweepState(): void
+{
+    registeredCronNames.clear();
+}
+
+/**
+ * Unschedule pg-boss schedules that are no longer declared on any router
+ * registered in this process (opt-in via `sweepOrphanSchedules`)
+ *
+ * The router is the only sanctioned way to create cron schedules, so any
+ * schedule whose name is not a declared cron job is an orphan: pg-boss keeps
+ * creating jobs for it on every cron tick, and without a worker they
+ * accumulate forever. Unscheduling stops the pile-up; the queue and its
+ * existing job rows are left untouched so nothing is destroyed if the name
+ * belongs to another app, an ad-hoc getBoss() schedule, or a newer deploy.
+ *
+ * Skipped entirely when no cron job has been declared — an empty router says
+ * nothing about which schedules are orphans. Runs once after registration;
+ * failures are logged per orphan and never block startup.
+ */
+async function sweepOrphanSchedules(boss: PgBoss): Promise<void>
+{
+    if (registeredCronNames.size === 0)
+    {
+        jobLogger.debug('No cron jobs declared; skipping orphan schedule sweep');
+
+        return;
+    }
+
+    try
+    {
+        const schedules = await boss.getSchedules();
+        const orphans = schedules.filter((schedule) => !registeredCronNames.has(schedule.name));
+
+        if (orphans.length === 0)
+        {
+            jobLogger.debug('No orphan schedules found');
+
+            return;
+        }
+
+        await Promise.all(orphans.map(async (orphan) =>
+        {
+            try
+            {
+                await boss.unschedule(orphan.name, orphan.key);
+                jobLogger.info(`Removed orphan schedule: ${orphan.name}`);
+            }
+            catch (error)
+            {
+                jobLogger.error(`Failed to remove orphan schedule: ${orphan.name}`, {
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            }
+        }));
+    }
+    catch (error)
+    {
+        jobLogger.error('Orphan schedule sweep failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
 }
 
 /**

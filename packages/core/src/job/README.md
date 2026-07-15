@@ -156,6 +156,9 @@ const dailyReport = job('daily-report')
 
 Cron jobs take **no input** — pg-boss invokes the handler with `{}`.
 
+Removing a cron job from the router leaves its schedule behind in the DB; the opt-in
+[orphan schedule sweep](#orphan-schedule-sweep) unschedules it on the next boot.
+
 ### RunOnce — once per server start
 
 ```typescript
@@ -345,6 +348,25 @@ server start throws `"Jobs require database connection."`.
 | `maintenanceIntervalSeconds` | number | 120 | cleanup/archive interval |
 | `monitorIntervalSeconds` | number | — | state-change events; must be `>= 1` |
 | `clearOnStart` | boolean | false | delete pending jobs on boot (dev only) |
+| `sweepOrphanSchedules` | boolean | false | unschedule crons no longer declared on any registered router (see below) |
+
+### Orphan schedule sweep
+
+`boss.schedule` rows persist in the DB, so removing a cron job from the router leaves its
+schedule behind — pg-boss keeps creating jobs on every cron tick with no worker to consume
+them, and they pile up forever. With `sweepOrphanSchedules: true`, `registerJobs` runs a
+sweep once after registration: any schedule whose name is not a cron job declared on a
+router registered in this process is unscheduled. Queues and existing job rows are never
+deleted — the sweep only stops the pile-up. Cron names accumulate across `registerJobs`
+calls, so registering several routers is safe. When no cron job has been declared at all,
+the sweep is skipped. Failures only log an error; startup is never blocked.
+
+Leave the sweep disabled (the default) when any of these apply, because the sweep only
+knows the routers registered in this process and would unschedule everything else:
+
+- multiple apps share the same pg-boss schema,
+- schedules are created directly via `getBoss().schedule(...)`,
+- rolling deploys can boot an older router version while a newer one is live.
 
 `sslmode=require`/`prefer` in the URL is rewritten to `ssl: { rejectUnauthorized: false }`
 so self-signed certs work.
