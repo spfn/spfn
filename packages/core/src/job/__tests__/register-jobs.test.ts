@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Type } from '@sinclair/typebox';
 import { job } from '../job-builder';
 import { defineJobRouter } from '../job-router';
-import { registerJobs, getEventQueueName } from '../register-jobs';
+import { defineEvent } from '@spfn/core/event';
+import { registerJobs, resetOrphanSweepState, getEventQueueName } from '../register-jobs';
 
 const { mockBoss, bossState } = vi.hoisted(() =>
 {
@@ -40,14 +42,15 @@ describe('registerJobs orphan schedule sweep', () =>
     {
         vi.clearAllMocks();
         bossState.sweepEnabled = true;
+        resetOrphanSweepState();
         mockBoss.getSchedules.mockResolvedValue([]);
     });
 
-    it('removes schedules not declared as cron jobs and deletes their orphan queues', async () =>
+    it('unschedules orphans without ever deleting their queues', async () =>
     {
         const cronJob = job('daily-report')
             .cron('0 9 * * *')
-            .handler(async () => 
+            .handler(async () =>
             {});
 
         const router = defineJobRouter({ cronJob });
@@ -61,15 +64,14 @@ describe('registerJobs orphan schedule sweep', () =>
 
         expect(mockBoss.unschedule).toHaveBeenCalledTimes(1);
         expect(mockBoss.unschedule).toHaveBeenCalledWith('legacy-reaper', 'legacy-key');
-        expect(mockBoss.deleteQueue).toHaveBeenCalledTimes(1);
-        expect(mockBoss.deleteQueue).toHaveBeenCalledWith('legacy-reaper');
+        expect(mockBoss.deleteQueue).not.toHaveBeenCalled();
     });
 
     it('keeps schedules of declared cron jobs', async () =>
     {
         const cronJob = job('daily-report')
             .cron('0 9 * * *')
-            .handler(async () => 
+            .handler(async () =>
             {});
 
         const router = defineJobRouter({ cronJob });
@@ -82,10 +84,10 @@ describe('registerJobs orphan schedule sweep', () =>
         expect(mockBoss.deleteQueue).not.toHaveBeenCalled();
     });
 
-    it('unschedules a declared non-cron job without deleting its active queue', async () =>
+    it('skips the sweep entirely when no cron job is declared', async () =>
     {
         const plainJob = job('send-email')
-            .handler(async () => 
+            .handler(async () =>
             {});
 
         const router = defineJobRouter({ plainJob });
@@ -94,26 +96,57 @@ describe('registerJobs orphan schedule sweep', () =>
 
         await registerJobs(router);
 
-        expect(mockBoss.unschedule).toHaveBeenCalledWith('send-email', '');
-        expect(mockBoss.deleteQueue).not.toHaveBeenCalled();
+        expect(mockBoss.getSchedules).not.toHaveBeenCalled();
+        expect(mockBoss.unschedule).not.toHaveBeenCalled();
     });
 
-    it('never deletes an event queue a declared job subscribes to', async () =>
+    it('unschedules a stray schedule on an event queue without touching the queue', async () =>
     {
+        const userSignup = defineEvent('user.signup', Type.Object({}));
         const eventJob = job('on-signup')
-            .handler(async () => 
+            .on(userSignup)
+            .handler(async () =>
             {});
-        (eventJob as any).subscribedEvent = 'user.signup';
+        const cronJob = job('daily-report')
+            .cron('0 9 * * *')
+            .handler(async () =>
+            {});
 
-        const router = defineJobRouter({ eventJob });
+        const router = defineJobRouter({ eventJob, cronJob });
         const eventQueue = getEventQueueName('user.signup');
 
-        mockBoss.getSchedules.mockResolvedValue([schedule(eventQueue)]);
+        mockBoss.getSchedules.mockResolvedValue([
+            schedule('daily-report'),
+            schedule(eventQueue),
+        ]);
 
         await registerJobs(router);
 
         expect(mockBoss.unschedule).toHaveBeenCalledWith(eventQueue, '');
         expect(mockBoss.deleteQueue).not.toHaveBeenCalled();
+    });
+
+    it('never treats crons from an earlier registerJobs call as orphans', async () =>
+    {
+        const appCron = job('app-report')
+            .cron('0 9 * * *')
+            .handler(async () =>
+            {});
+        const authCron = job('auth-purge')
+            .cron('0 3 * * *')
+            .handler(async () =>
+            {});
+
+        await registerJobs(defineJobRouter({ authCron }));
+
+        mockBoss.getSchedules.mockResolvedValue([
+            schedule('auth-purge'),
+            schedule('app-report'),
+        ]);
+
+        await registerJobs(defineJobRouter({ appCron }));
+
+        expect(mockBoss.unschedule).not.toHaveBeenCalled();
     });
 
     it('does nothing when sweepOrphanSchedules is disabled', async () =>
@@ -122,7 +155,7 @@ describe('registerJobs orphan schedule sweep', () =>
 
         const cronJob = job('daily-report')
             .cron('0 9 * * *')
-            .handler(async () => 
+            .handler(async () =>
             {});
 
         const router = defineJobRouter({ cronJob });
@@ -133,11 +166,37 @@ describe('registerJobs orphan schedule sweep', () =>
         expect(mockBoss.unschedule).not.toHaveBeenCalled();
     });
 
+    it('sweeps the remaining orphans when one unschedule fails', async () =>
+    {
+        const cronJob = job('daily-report')
+            .cron('0 9 * * *')
+            .handler(async () =>
+            {});
+
+        const router = defineJobRouter({ cronJob });
+
+        mockBoss.getSchedules.mockResolvedValue([
+            schedule('broken-orphan'),
+            schedule('other-orphan'),
+        ]);
+        mockBoss.unschedule.mockImplementation(async (name: string) =>
+        {
+            if (name === 'broken-orphan')
+            {
+                throw new Error('db hiccup');
+            }
+        });
+
+        await expect(registerJobs(router)).resolves.toBeUndefined();
+
+        expect(mockBoss.unschedule).toHaveBeenCalledWith('other-orphan', '');
+    });
+
     it('does not block startup when the sweep fails', async () =>
     {
         const cronJob = job('daily-report')
             .cron('0 9 * * *')
-            .handler(async () => 
+            .handler(async () =>
             {});
 
         const router = defineJobRouter({ cronJob });

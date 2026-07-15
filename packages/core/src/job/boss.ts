@@ -132,13 +132,16 @@ export interface BossOptions
     clearOnStart?: boolean;
 
     /**
-     * Remove cron schedules (and their orphaned queues) that are no longer
-     * declared on the job router, once at startup after job registration.
+     * Unschedule cron schedules that are no longer declared on any registered
+     * job router, once at startup after job registration. Queues and job rows
+     * are never deleted — only the schedule row is removed.
      *
-     * Set to false when multiple apps share the same pg-boss schema —
-     * the sweep would remove the other apps' schedules.
+     * Leave disabled when multiple apps share the same pg-boss schema, when
+     * schedules are created directly via getBoss(), or during rolling deploys
+     * that mix router versions — the sweep only knows the routers registered
+     * in this process and would unschedule everything else.
      *
-     * @default true
+     * @default false
      */
     sweepOrphanSchedules?: boolean;
 }
@@ -277,5 +280,5 @@ export function shouldClearOnStart(): boolean
  */
 export function shouldSweepOrphanSchedules(): boolean
 {
-    return getBossConfig()?.sweepOrphanSchedules ?? true;
+    return getBossConfig()?.sweepOrphanSchedules ?? false;
 }

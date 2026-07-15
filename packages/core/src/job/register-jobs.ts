@@ -109,39 +109,65 @@ export async function registerJobs(router: JobRouter<any>): Promise<void>
     // concurrently — sequential awaits made startup scale linearly with job count.
     await Promise.all(jobs.map((job) => registerJob(job)));
 
+    for (const job of jobs)
+    {
+        if (job.cronExpression)
+        {
+            registeredCronNames.add(job.name);
+        }
+    }
+
     if (shouldSweepOrphanSchedules())
     {
-        await sweepOrphanSchedules(boss, jobs);
+        await sweepOrphanSchedules(boss);
     }
 
     jobLogger.info('All jobs registered successfully');
 }
 
+// Cron names accumulate across registerJobs() calls so a sweep in one call
+// never treats another router's schedules (registered earlier in the same
+// process) as orphans.
+const registeredCronNames = new Set<string>();
+
 /**
- * Remove pg-boss schedules that are no longer declared on the router
+ * Reset sweep state accumulated by registerJobs()
+ *
+ * @internal test-only
+ */
+export function resetOrphanSweepState(): void
+{
+    registeredCronNames.clear();
+}
+
+/**
+ * Unschedule pg-boss schedules that are no longer declared on any router
+ * registered in this process (opt-in via `sweepOrphanSchedules`)
  *
  * The router is the only sanctioned way to create cron schedules, so any
  * schedule whose name is not a declared cron job is an orphan: pg-boss keeps
  * creating jobs for it on every cron tick, and without a worker they
- * accumulate forever. Runs once after registration; failures are logged but
- * never block startup.
+ * accumulate forever. Unscheduling stops the pile-up; the queue and its
+ * existing job rows are left untouched so nothing is destroyed if the name
+ * belongs to another app, an ad-hoc getBoss() schedule, or a newer deploy.
  *
- * When the orphaned name is not a declared job at all, its queue has no
- * worker either — the queue (and its piled-up job rows) is deleted too.
+ * Skipped entirely when no cron job has been declared — an empty router says
+ * nothing about which schedules are orphans. Runs once after registration;
+ * failures are logged per orphan and never block startup.
  */
-async function sweepOrphanSchedules(boss: PgBoss, jobs: JobDef<any>[]): Promise<void>
+async function sweepOrphanSchedules(boss: PgBoss): Promise<void>
 {
+    if (registeredCronNames.size === 0)
+    {
+        jobLogger.debug('No cron jobs declared; skipping orphan schedule sweep');
+
+        return;
+    }
+
     try
     {
-        const cronJobNames = new Set(
-            jobs.filter((job) => job.cronExpression).map((job) => job.name),
-        );
-        const activeQueueNames = new Set(jobs.flatMap((job) => job.subscribedEvent
-            ? [job.name, getEventQueueName(job.subscribedEvent)]
-            : [job.name]));
-
         const schedules = await boss.getSchedules();
-        const orphans = schedules.filter((schedule) => !cronJobNames.has(schedule.name));
+        const orphans = schedules.filter((schedule) => !registeredCronNames.has(schedule.name));
 
         if (orphans.length === 0)
         {
@@ -150,17 +176,20 @@ async function sweepOrphanSchedules(boss: PgBoss, jobs: JobDef<any>[]): Promise<
             return;
         }
 
-        for (const orphan of orphans)
+        await Promise.all(orphans.map(async (orphan) =>
         {
-            await boss.unschedule(orphan.name, orphan.key);
-            jobLogger.info(`Removed orphan schedule: ${orphan.name}`);
-
-            if (!activeQueueNames.has(orphan.name))
+            try
             {
-                await boss.deleteQueue(orphan.name);
-                jobLogger.info(`Deleted orphan queue: ${orphan.name}`);
+                await boss.unschedule(orphan.name, orphan.key);
+                jobLogger.info(`Removed orphan schedule: ${orphan.name}`);
             }
-        }
+            catch (error)
+            {
+                jobLogger.error(`Failed to remove orphan schedule: ${orphan.name}`, {
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            }
+        }));
     }
     catch (error)
     {

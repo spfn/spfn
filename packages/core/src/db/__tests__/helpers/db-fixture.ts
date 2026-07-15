@@ -8,6 +8,11 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { initDatabase, getDatabase, closeDatabase } from '../../manager';
 
+/**
+ * Connection string for the throwaway test postgres (docker-compose.test.yml)
+ */
+export const TEST_DATABASE_URL = 'postgresql://testuser:testpass@localhost:5532/spfn_test';
+
 export interface DbTestFixture
 {
     /**
@@ -91,7 +96,7 @@ export function createDbTestFixture(): DbTestFixture
         {
             try
             {
-                process.env.DATABASE_URL='postgresql://testuser:testpass@localhost:5532/spfn_test';
+                process.env.DATABASE_URL = TEST_DATABASE_URL;
                 await initDatabase();
                 _db = getDatabase();
                 _isAvailable = true;
