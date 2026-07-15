@@ -15,6 +15,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { DEFAULT_EXPIRES_IN, MAX_FILE_SIZE } from '../shared/index';
 import { assertStorageKey, errorMessage } from './delete-many';
+import { assertSizeLimits } from './size-limit';
 import type {
     DeleteManyResult,
     IStorageProvider,
@@ -49,32 +50,50 @@ export class S3StorageProvider implements IStorageProvider
             ?? `https://${this.bucket}.s3.${region}.amazonaws.com`).replace(/\/+$/, '');
     }
 
+    /** maxBytes는 presigned PUT 서명 조건에 넣을 수 없어 무시된다 — 크기 강제는 contentLength로. */
     async getUploadUrl(params: PresignedUrlParams & { temp?: boolean }): Promise<PresignedUrlResult>
     {
-        const { key, contentType, expiresIn = DEFAULT_EXPIRES_IN, temp } = params;
+        const { key, contentType, expiresIn = DEFAULT_EXPIRES_IN, temp, maxBytes, contentLength } = params;
+        assertSizeLimits(maxBytes, contentLength);
         const command = new PutObjectCommand({
             Bucket: this.bucket,
             Key: key,
             ContentType: contentType,
             ...(temp ? { Tagging: 'lifecycle=temp' } : {}),
+            ...(contentLength !== undefined ? { ContentLength: contentLength } : {}),
         });
+        const requiredHeaders = {
+            ...(temp ? { 'x-amz-tagging': 'lifecycle=temp' } : {}),
+            ...(contentLength !== undefined ? { 'content-length': String(contentLength) } : {}),
+        };
 
-        return { uploadUrl: await getSignedUrl(this.client, command, { expiresIn }), key, expiresIn };
+        return {
+            uploadUrl: await getSignedUrl(this.client, command, { expiresIn }), key, expiresIn,
+            ...(Object.keys(requiredHeaders).length > 0 ? { requiredHeaders } : {}),
+        };
     }
 
+    /** maxBytes는 presigned PUT 서명 조건에 넣을 수 없어 무시된다 — 크기 강제는 contentLength로. */
     async getPublicUploadUrl(params: PublicUploadParams): Promise<PresignedUrlResult>
     {
-        const { key, contentType, contentLength, maxAge = 2592000, expiresIn = DEFAULT_EXPIRES_IN } = params;
+        const { key, contentType, contentLength, maxBytes, maxAge = 2592000, expiresIn = DEFAULT_EXPIRES_IN } = params;
+        assertSizeLimits(maxBytes, contentLength);
+        const cacheControl = `public, max-age=${maxAge}, immutable`;
         const command = new PutObjectCommand({
             Bucket: this.bucket,
             Key: key,
             ContentType: contentType,
-            CacheControl: `public, max-age=${maxAge}, immutable`,
+            CacheControl: cacheControl,
             Tagging: 'lifecycle=temp',
             ...(contentLength ? { ContentLength: contentLength } : {}),
         });
+        const requiredHeaders = {
+            'cache-control': cacheControl,
+            'x-amz-tagging': 'lifecycle=temp',
+            ...(contentLength ? { 'content-length': String(contentLength) } : {}),
+        };
 
-        return { uploadUrl: await getSignedUrl(this.client, command, { expiresIn }), key, expiresIn };
+        return { uploadUrl: await getSignedUrl(this.client, command, { expiresIn }), key, expiresIn, requiredHeaders };
     }
 
     async getDownloadUrl(key: string, expiresIn = DEFAULT_EXPIRES_IN): Promise<string>

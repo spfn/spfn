@@ -77,6 +77,84 @@ describe('GcsStorageProvider deletion', () =>
     });
 });
 
+describe('GcsStorageProvider presigned upload size limits', () =>
+{
+    afterEach(() =>
+    {
+        vi.restoreAllMocks();
+    });
+
+    it('signs x-goog-content-length-range 0,max for maxBytes and returns it as a required header', async () =>
+    {
+        const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example']);
+        const provider = providerWithSignedUrl(getSignedUrl);
+
+        const result = await provider.getUploadUrl({ key: 'private/a.webp', contentType: 'image/webp', maxBytes: 10485760 });
+
+        expect(getSignedUrl.mock.calls[0]?.[0]).toMatchObject({
+            extensionHeaders: { 'x-goog-content-length-range': '0,10485760' },
+        });
+        expect(result.requiredHeaders).toEqual({ 'x-goog-content-length-range': '0,10485760' });
+    });
+
+    it('signs an exact range for contentLength', async () =>
+    {
+        const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example']);
+        const provider = providerWithSignedUrl(getSignedUrl);
+
+        const result = await provider.getUploadUrl({ key: 'private/a.webp', contentType: 'image/webp', contentLength: 1234 });
+
+        expect(result.requiredHeaders).toEqual({ 'x-goog-content-length-range': '1234,1234' });
+    });
+
+    it('omits size headers and requiredHeaders when no limit is given', async () =>
+    {
+        const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example']);
+        const provider = providerWithSignedUrl(getSignedUrl);
+
+        const result = await provider.getUploadUrl({ key: 'private/a.webp', contentType: 'image/webp' });
+
+        expect(getSignedUrl.mock.calls[0]?.[0]).not.toHaveProperty('extensionHeaders');
+        expect(result).not.toHaveProperty('requiredHeaders');
+    });
+
+    it('includes cache-control and the size range in public upload required headers', async () =>
+    {
+        const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example']);
+        const provider = providerWithSignedUrl(getSignedUrl);
+
+        const result = await provider.getPublicUploadUrl({ key: 'public/a.webp', contentType: 'image/webp', maxBytes: 512 });
+
+        expect(result.requiredHeaders).toEqual({
+            'cache-control': 'public, max-age=2592000, immutable',
+            'x-goog-content-length-range': '0,512',
+        });
+    });
+
+    it('rejects invalid size limits before signing', async () =>
+    {
+        const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example']);
+        const provider = providerWithSignedUrl(getSignedUrl);
+
+        await expect(provider.getUploadUrl({ key: 'a', contentType: 'image/webp', maxBytes: -1 }))
+            .rejects.toThrow('maxBytes must be a positive integer');
+        await expect(provider.getUploadUrl({ key: 'a', contentType: 'image/webp', maxBytes: 10, contentLength: 11 }))
+            .rejects.toThrow('exceeds maxBytes');
+        expect(getSignedUrl).not.toHaveBeenCalled();
+    });
+});
+
+function providerWithSignedUrl(getSignedUrl: (options: unknown) => Promise<string[]>): GcsStorageProvider
+{
+    const provider = new GcsStorageProvider({ publicBucket: 'public-test-bucket', privateBucket: 'private-test-bucket' });
+    const bucket = { file: (_key: string) => ({ getSignedUrl }) };
+    const internals = provider as unknown as { publicBucket: unknown; privateBucket: unknown };
+    internals.publicBucket = bucket;
+    internals.privateBucket = bucket;
+
+    return provider;
+}
+
 function providerWithDelete(deleteObject: (options: { ignoreNotFound: boolean }) => Promise<unknown>): GcsStorageProvider
 {
     const provider = new GcsStorageProvider();

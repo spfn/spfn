@@ -10,6 +10,7 @@ import { Storage, type Bucket } from '@google-cloud/storage';
 import { DEFAULT_EXPIRES_IN, MAX_FILE_SIZE } from '../shared/index';
 import { assertStorageKey, deleteManyIndividually } from './delete-many';
 import { isPublicKey } from './keys';
+import { assertSizeLimits, gcsContentLengthRange } from './size-limit';
 import type {
     DeleteManyResult,
     GcsProviderConfig,
@@ -45,23 +46,31 @@ export class GcsStorageProvider implements IStorageProvider
 
     async getUploadUrl(params: PresignedUrlParams & { temp?: boolean }): Promise<PresignedUrlResult>
     {
-        const { key, contentType, expiresIn = DEFAULT_EXPIRES_IN } = params;
+        const { key, contentType, expiresIn = DEFAULT_EXPIRES_IN, maxBytes, contentLength } = params;
+        assertSizeLimits(maxBytes, contentLength);
+        const extensionHeaders = sizeExtensionHeaders(maxBytes, contentLength);
         const [uploadUrl] = await this.resolveBucket(key).file(key).getSignedUrl({
             version: 'v4', action: 'write', expires: Date.now() + expiresIn * 1000, contentType,
+            ...(extensionHeaders ? { extensionHeaders } : {}),
         });
 
-        return { uploadUrl, key, expiresIn };
+        return { uploadUrl, key, expiresIn, ...(extensionHeaders ? { requiredHeaders: extensionHeaders } : {}) };
     }
 
     async getPublicUploadUrl(params: PublicUploadParams): Promise<PresignedUrlResult>
     {
-        const { key, contentType, maxAge = 2592000, expiresIn = DEFAULT_EXPIRES_IN } = params;
+        const { key, contentType, maxAge = 2592000, expiresIn = DEFAULT_EXPIRES_IN, maxBytes, contentLength } = params;
+        assertSizeLimits(maxBytes, contentLength);
+        const extensionHeaders = {
+            'cache-control': `public, max-age=${maxAge}, immutable`,
+            ...sizeExtensionHeaders(maxBytes, contentLength),
+        };
         const [uploadUrl] = await this.resolveBucket(key).file(key).getSignedUrl({
             version: 'v4', action: 'write', expires: Date.now() + expiresIn * 1000, contentType,
-            extensionHeaders: { 'cache-control': `public, max-age=${maxAge}, immutable` },
+            extensionHeaders,
         });
 
-        return { uploadUrl, key, expiresIn };
+        return { uploadUrl, key, expiresIn, requiredHeaders: extensionHeaders };
     }
 
     async getDownloadUrl(key: string, expiresIn = DEFAULT_EXPIRES_IN): Promise<string>
@@ -113,6 +122,13 @@ export class GcsStorageProvider implements IStorageProvider
     {
         return MAX_FILE_SIZE;
     }
+}
+
+function sizeExtensionHeaders(maxBytes?: number, contentLength?: number): Record<string, string> | null
+{
+    const range = gcsContentLengthRange(maxBytes, contentLength);
+
+    return range ? { 'x-goog-content-length-range': range } : null;
 }
 
 function decodeCredentials(base64: string): Record<string, unknown> | null

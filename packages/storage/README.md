@@ -4,6 +4,37 @@ Provider-agnostic object storage for S3-compatible services, Google Cloud Storag
 and the local filesystem. The package exposes presigned upload, direct upload and
 download, public URL, finalization, and object deletion APIs without owning a database.
 
+## Presigned upload size limits
+
+Server-side checks of a client-declared file size do not bind the upload itself —
+a client can declare 1 byte and PUT gigabytes to the presigned URL. To enforce size
+at the storage layer, pass a limit when presigning:
+
+```ts
+const { uploadUrl, requiredHeaders } = await storage.getUploadUrl({
+    key: 'private/attachments/id.webp',
+    contentType: 'image/webp',
+    maxBytes: 10 * 1024 * 1024,   // upper bound
+    // or contentLength: exactSize — exact size, strictest
+});
+```
+
+When `requiredHeaders` is returned, the client must send those headers verbatim on
+the PUT request; the signature is invalid (or the provider rejects the upload) without
+them. Enforcement by provider:
+
+- **GCS:** both `maxBytes` (`x-goog-content-length-range: 0,max`) and `contentLength`
+  (exact range) are signed. Uploads outside the range are rejected with HTTP 400.
+- **S3, R2, MinIO, Wasabi:** presigned PUT cannot sign a size *range*, so `maxBytes`
+  is **not enforceable and is ignored**. `contentLength` is signed (`Content-Length`
+  becomes a signed header) and a mismatched size fails the signature check. If you
+  only know an upper bound and must enforce it on S3, use a presigned POST policy
+  (not provided by this package) or verify size after upload.
+- **Local:** presigned upload is not supported at all (`getUploadUrl` throws).
+
+`getPublicUploadUrl` behaves the same and additionally always returns its signed
+`cache-control` (and S3 `x-amz-tagging`) in `requiredHeaders`.
+
 ## Deleting objects
 
 Deletion accepts an object key, never an arbitrary URL:

@@ -68,3 +68,52 @@ describe('S3StorageProvider deletion', () =>
         });
     });
 });
+
+describe('S3StorageProvider presigned upload size limits', () =>
+{
+    const provider = new S3StorageProvider({
+        region: 'us-east-1',
+        bucket: 'test-bucket',
+        accessKeyId: 'test-access-key',
+        secretAccessKey: 'test-secret-key',
+    });
+
+    it('signs content-length when contentLength is given and returns it as a required header', async () =>
+    {
+        const result = await provider.getUploadUrl({ key: 'private/a.webp', contentType: 'image/webp', contentLength: 1234 });
+
+        expect(signedHeaders(result.uploadUrl)).toContain('content-length');
+        expect(result.requiredHeaders).toMatchObject({ 'content-length': '1234' });
+    });
+
+    it('does not sign content-length for maxBytes alone (not enforceable on presigned PUT)', async () =>
+    {
+        const result = await provider.getUploadUrl({ key: 'private/a.webp', contentType: 'image/webp', maxBytes: 10485760 });
+
+        expect(signedHeaders(result.uploadUrl)).not.toContain('content-length');
+        expect(result).not.toHaveProperty('requiredHeaders');
+    });
+
+    it('returns tagging and cache-control required headers for public uploads', async () =>
+    {
+        const result = await provider.getPublicUploadUrl({ key: 'public/a.webp', contentType: 'image/webp', contentLength: 99 });
+
+        expect(signedHeaders(result.uploadUrl)).toContain('content-length');
+        expect(result.requiredHeaders).toEqual({
+            'cache-control': 'public, max-age=2592000, immutable',
+            'x-amz-tagging': 'lifecycle=temp',
+            'content-length': '99',
+        });
+    });
+
+    it('rejects invalid size limits before signing', async () =>
+    {
+        await expect(provider.getUploadUrl({ key: 'a', contentType: 'image/webp', contentLength: 1.5 }))
+            .rejects.toThrow('contentLength must be a positive integer');
+    });
+});
+
+function signedHeaders(uploadUrl: string): string[]
+{
+    return (new URL(uploadUrl).searchParams.get('X-Amz-SignedHeaders') ?? '').split(';');
+}

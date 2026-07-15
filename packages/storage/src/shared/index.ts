@@ -10,13 +10,20 @@ export interface PresignedUrlParams
     key: string;
     contentType: string;
     expiresIn?: number;
+    /** 업로드 크기 상한(bytes). GCS는 서명으로 강제, S3 presigned PUT은 강제 불가(README 참고). */
+    maxBytes?: number;
+    /** 정확한 업로드 크기(bytes). S3·GCS 모두 서명으로 강제. */
+    contentLength?: number;
 }
 
 export interface PublicUploadParams
 {
     key: string;
     contentType: string;
+    /** 정확한 업로드 크기(bytes). S3·GCS 모두 서명으로 강제. */
     contentLength?: number;
+    /** 업로드 크기 상한(bytes). GCS는 서명으로 강제, S3 presigned PUT은 강제 불가(README 참고). */
+    maxBytes?: number;
     maxAge?: number;
     expiresIn?: number;
 }
@@ -28,6 +35,8 @@ export interface PresignedUrlResult
     /** 업로드된 객체 key (provider-중립 이름) */
     key: string;
     expiresIn: number;
+    /** 서명에 포함된 헤더 — 클라이언트가 PUT 요청에 그대로 보내야 서명이 유효하다. */
+    requiredHeaders?: Record<string, string>;
 }
 
 export interface DeleteManyResult
