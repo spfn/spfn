@@ -144,15 +144,88 @@ describe('GcsStorageProvider presigned upload size limits', () =>
     });
 });
 
-function providerWithSignedUrl(getSignedUrl: (options: unknown) => Promise<string[]>): GcsStorageProvider
+describe('GcsStorageProvider temp upload and finalize', () =>
+{
+    it('signs tmp/<key> for temp uploads and keeps the final key in the result', async () =>
+    {
+        const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example']);
+        const { provider, file } = providerWithFiles({ getSignedUrl });
+
+        const result = await provider.getUploadUrl({ key: 'private/a.webp', contentType: 'image/webp', temp: true });
+
+        expect(file).toHaveBeenCalledWith('tmp/private/a.webp');
+        expect(result.key).toBe('private/a.webp');
+    });
+
+    it('signs the final key directly without temp', async () =>
+    {
+        const getSignedUrl = vi.fn().mockResolvedValue(['https://signed.example']);
+        const { provider, file } = providerWithFiles({ getSignedUrl });
+
+        await provider.getUploadUrl({ key: 'private/a.webp', contentType: 'image/webp' });
+
+        expect(file).toHaveBeenCalledWith('private/a.webp');
+    });
+
+    it('finalizeObject moves tmp/<key> to the final key', async () =>
+    {
+        const move = vi.fn().mockResolvedValue([]);
+        const { provider, file } = providerWithFiles({ move });
+
+        await provider.finalizeObject('private/a.webp');
+
+        expect(file).toHaveBeenCalledWith('tmp/private/a.webp');
+        expect(move).toHaveBeenCalledWith('private/a.webp');
+    });
+
+    it('finalizeObject succeeds when already finalized', async () =>
+    {
+        const move = vi.fn().mockRejectedValue(notFoundError());
+        const exists = vi.fn().mockResolvedValue([true]);
+        const { provider } = providerWithFiles({ move, exists });
+
+        await expect(provider.finalizeObject('private/a.webp')).resolves.toBeUndefined();
+    });
+
+    it('finalizeObject rejects when neither temp nor final object exists', async () =>
+    {
+        const move = vi.fn().mockRejectedValue(notFoundError());
+        const exists = vi.fn().mockResolvedValue([false]);
+        const { provider } = providerWithFiles({ move, exists });
+
+        await expect(provider.finalizeObject('private/a.webp')).rejects.toMatchObject({ code: 404 });
+    });
+
+    it('finalizeObject propagates non-404 move errors without an existence check', async () =>
+    {
+        const move = vi.fn().mockRejectedValue(new Error('gcs unavailable'));
+        const exists = vi.fn();
+        const { provider } = providerWithFiles({ move, exists });
+
+        await expect(provider.finalizeObject('private/a.webp')).rejects.toThrow('gcs unavailable');
+        expect(exists).not.toHaveBeenCalled();
+    });
+});
+
+function notFoundError(): Error & { code: number }
+{
+    return Object.assign(new Error('No such object'), { code: 404 });
+}
+
+function providerWithFiles(handlers: Record<string, unknown>): { provider: GcsStorageProvider; file: ReturnType<typeof vi.fn> }
 {
     const provider = new GcsStorageProvider({ publicBucket: 'public-test-bucket', privateBucket: 'private-test-bucket' });
-    const bucket = { file: (_key: string) => ({ getSignedUrl }) };
+    const file = vi.fn().mockReturnValue(handlers);
     const internals = provider as unknown as { publicBucket: unknown; privateBucket: unknown };
-    internals.publicBucket = bucket;
-    internals.privateBucket = bucket;
+    internals.publicBucket = { file };
+    internals.privateBucket = { file };
 
-    return provider;
+    return { provider, file };
+}
+
+function providerWithSignedUrl(getSignedUrl: (options: unknown) => Promise<string[]>): GcsStorageProvider
+{
+    return providerWithFiles({ getSignedUrl }).provider;
 }
 
 function providerWithDelete(deleteObject: (options: { ignoreNotFound: boolean }) => Promise<unknown>): GcsStorageProvider

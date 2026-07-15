@@ -86,7 +86,11 @@ export interface StorageServiceOptions
 
 export interface IStorageProvider
 {
-    /** presigned PUT URL. temp=true면 임시 태그(버킷 lifecycle이 정리). */
+    /**
+     * presigned PUT URL. temp=true면 임시 업로드로 표시 — S3는 `lifecycle=temp` 태그,
+     * GCS는 `tmp/<key>` prefix에 서명. 고아는 버킷 lifecycle 규칙이 정리(README 참고).
+     * temp 객체는 finalizeObject 전에는 읽기가 보장되지 않는다(GCS는 최종 key에 없음).
+     */
     getUploadUrl(params: PresignedUrlParams & { temp?: boolean }): Promise<PresignedUrlResult>;
     /** 공개 캐시 헤더가 붙은 presigned PUT URL. */
     getPublicUploadUrl(params: PublicUploadParams): Promise<PresignedUrlResult>;
@@ -102,7 +106,10 @@ export interface IStorageProvider
     delete(key: string): Promise<void>;
     /** 여러 객체를 삭제하고 key별 성공/실패 결과를 반환한다. */
     deleteMany?(keys: string[]): Promise<DeleteManyResult>;
-    /** 임시 객체를 영구화(temp 태그 제거 등). */
+    /**
+     * 임시 객체를 영구화 — S3는 태그 제거, GCS는 `tmp/<key>` → `key` 이동. 멱등:
+     * 이미 finalize된 key는 성공, temp·최종 어디에도 없으면(업로드 미완료) 에러.
+     */
     finalizeObject(key: string): Promise<void>;
     getMaxFileSize(): number;
 }

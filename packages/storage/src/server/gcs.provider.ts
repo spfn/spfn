@@ -1,7 +1,8 @@
 /**
  * Google Cloud Storage 프로바이더.
  * `public/*` 키 → 공개 버킷, 그 외 → 비공개 버킷(V4 signed). presigned는 GCS V4 native.
- * temp/finalize는 인프라 lifecycle(customTime)로 처리 — finalizeObject는 no-op.
+ * temp 업로드는 `tmp/<key>`에 서명하고 finalizeObject가 최종 key로 이동(rewrite).
+ * 고아 정리는 버킷 lifecycle 규칙(matchesPrefix: tmp/ + age) — README 참고.
  *
  * @google-cloud/storage는 optional dependency — STORAGE_PROVIDER=gcs일 때만 동적 로드된다.
  */
@@ -44,12 +45,13 @@ export class GcsStorageProvider implements IStorageProvider
         return isPublicKey(key) ? this.publicBucket : this.privateBucket;
     }
 
+    /** temp=true면 `tmp/<key>`에 서명 — finalizeObject 전에는 최종 key로 읽을 수 없다. */
     async getUploadUrl(params: PresignedUrlParams & { temp?: boolean }): Promise<PresignedUrlResult>
     {
-        const { key, contentType, expiresIn = DEFAULT_EXPIRES_IN, maxBytes, contentLength } = params;
+        const { key, contentType, expiresIn = DEFAULT_EXPIRES_IN, temp, maxBytes, contentLength } = params;
         assertSizeLimits(maxBytes, contentLength);
         const extensionHeaders = sizeExtensionHeaders(maxBytes, contentLength);
-        const [uploadUrl] = await this.resolveBucket(key).file(key).getSignedUrl({
+        const [uploadUrl] = await this.resolveBucket(key).file(temp ? TEMP_KEY_PREFIX + key : key).getSignedUrl({
             version: 'v4', action: 'write', expires: Date.now() + expiresIn * 1000, contentType,
             ...(extensionHeaders ? { extensionHeaders } : {}),
         });
@@ -113,15 +115,39 @@ export class GcsStorageProvider implements IStorageProvider
         return deleteManyIndividually(keys, key => this.delete(key));
     }
 
-    async finalizeObject(_key: string): Promise<void>
+    /** `tmp/<key>` → `key` 이동(서버사이드 rewrite). 이미 finalize된 경우 멱등 성공. */
+    async finalizeObject(key: string): Promise<void>
     {
-        // GCS는 인프라 lifecycle로 정리 — 의도적 no-op.
+        const bucket = this.resolveBucket(key);
+        const moveError = await bucket.file(TEMP_KEY_PREFIX + key).move(key)
+            .then(() => null, (error: unknown) => error);
+        if (moveError === null)
+        {
+            return;
+        }
+        if (isGcsNotFound(moveError))
+        {
+            const [exists] = await bucket.file(key).exists();
+            if (exists)
+            {
+                return;
+            }
+        }
+
+        throw moveError;
     }
 
     getMaxFileSize(): number
     {
         return MAX_FILE_SIZE;
     }
+}
+
+const TEMP_KEY_PREFIX = 'tmp/';
+
+function isGcsNotFound(error: unknown): boolean
+{
+    return typeof error === 'object' && error !== null && 'code' in error && error.code === 404;
 }
 
 function sizeExtensionHeaders(maxBytes?: number, contentLength?: number): Record<string, string> | null

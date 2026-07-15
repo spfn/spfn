@@ -35,6 +35,29 @@ them. Enforcement by provider:
 `getPublicUploadUrl` behaves the same and additionally always returns its signed
 `cache-control` (and S3 `x-amz-tagging`) in `requiredHeaders`.
 
+## Temp uploads and orphan cleanup
+
+`getUploadUrl({ temp: true })` marks the upload as unconfirmed so that objects whose
+owning flow never completes (the client uploads but the confirming API call never
+arrives) do not accumulate forever. `finalizeObject(key)` confirms the upload.
+
+- **S3, R2, MinIO, Wasabi:** the object is tagged `lifecycle=temp`; `finalizeObject`
+  removes the tag. Configure a bucket lifecycle rule that expires objects with that
+  tag after e.g. 1 day. Temp objects are readable at their final key before
+  finalization.
+- **GCS:** the presigned URL targets `tmp/<key>`; `finalizeObject` moves it to the
+  final key (server-side rewrite). **The object is not readable at its final key
+  until finalized.** Configure a lifecycle rule on *both* buckets (public and
+  private): `matchesPrefix: ["tmp/"]`, `age: 1` → Delete.
+- **Local:** presigned upload is not supported.
+
+`finalizeObject` is idempotent — finalizing an already-finalized key succeeds. If
+neither the temp nor the final object exists (the client never finished the PUT),
+it rejects so the caller can surface the failed upload.
+
+`getPublicUploadUrl` has no orphan protection on GCS today: the upload lands directly
+on the final key. On S3 it is always tagged `lifecycle=temp` and must be finalized.
+
 ## Deleting objects
 
 Deletion accepts an object key, never an arbitrary URL:
