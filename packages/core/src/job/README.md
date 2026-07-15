@@ -156,6 +156,9 @@ const dailyReport = job('daily-report')
 
 Cron jobs take **no input** — pg-boss invokes the handler with `{}`.
 
+Removing a cron job from the router unschedules it (and deletes its orphaned queue) on the
+next boot — see [Orphan schedule sweep](#orphan-schedule-sweep).
+
 ### RunOnce — once per server start
 
 ```typescript
@@ -345,6 +348,19 @@ server start throws `"Jobs require database connection."`.
 | `maintenanceIntervalSeconds` | number | 120 | cleanup/archive interval |
 | `monitorIntervalSeconds` | number | — | state-change events; must be `>= 1` |
 | `clearOnStart` | boolean | false | delete pending jobs on boot (dev only) |
+| `sweepOrphanSchedules` | boolean | true | remove schedules no longer declared on the router (see below) |
+
+### Orphan schedule sweep
+
+`boss.schedule` rows persist in the DB, so removing a cron job from the router used to leave
+its schedule behind — pg-boss kept creating jobs on every cron tick with no worker to consume
+them, and they piled up forever. Since this sweep, `registerJobs` runs once after registration:
+any schedule whose name is not a declared cron job is unscheduled, and if the name is not a
+declared job (or subscribed event queue) at all, its queue and piled-up job rows are deleted
+too. Failures only log an error; startup is never blocked.
+
+Set `sweepOrphanSchedules: false` when **multiple apps share the same pg-boss schema** — the
+sweep only knows this app's router and would remove the other apps' schedules.
 
 `sslmode=require`/`prefer` in the URL is rewritten to `ssl: { rejectUnauthorized: false }`
 so self-signed certs work.

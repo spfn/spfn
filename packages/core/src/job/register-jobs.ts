@@ -10,7 +10,7 @@ import { env } from '@spfn/core/config';
 import type { JobDef, JobOptions, JobRouter } from './types';
 import type { EventDef } from '@spfn/core/event';
 import { collectJobs } from './job-router';
-import { getBoss, shouldClearOnStart } from './boss';
+import { getBoss, shouldClearOnStart, shouldSweepOrphanSchedules } from './boss';
 
 const jobLogger = logger.child('@spfn/core:job');
 
@@ -109,7 +109,65 @@ export async function registerJobs(router: JobRouter<any>): Promise<void>
     // concurrently — sequential awaits made startup scale linearly with job count.
     await Promise.all(jobs.map((job) => registerJob(job)));
 
+    if (shouldSweepOrphanSchedules())
+    {
+        await sweepOrphanSchedules(boss, jobs);
+    }
+
     jobLogger.info('All jobs registered successfully');
+}
+
+/**
+ * Remove pg-boss schedules that are no longer declared on the router
+ *
+ * The router is the only sanctioned way to create cron schedules, so any
+ * schedule whose name is not a declared cron job is an orphan: pg-boss keeps
+ * creating jobs for it on every cron tick, and without a worker they
+ * accumulate forever. Runs once after registration; failures are logged but
+ * never block startup.
+ *
+ * When the orphaned name is not a declared job at all, its queue has no
+ * worker either — the queue (and its piled-up job rows) is deleted too.
+ */
+async function sweepOrphanSchedules(boss: PgBoss, jobs: JobDef<any>[]): Promise<void>
+{
+    try
+    {
+        const cronJobNames = new Set(
+            jobs.filter((job) => job.cronExpression).map((job) => job.name),
+        );
+        const activeQueueNames = new Set(jobs.flatMap((job) => job.subscribedEvent
+            ? [job.name, getEventQueueName(job.subscribedEvent)]
+            : [job.name]));
+
+        const schedules = await boss.getSchedules();
+        const orphans = schedules.filter((schedule) => !cronJobNames.has(schedule.name));
+
+        if (orphans.length === 0)
+        {
+            jobLogger.debug('No orphan schedules found');
+
+            return;
+        }
+
+        for (const orphan of orphans)
+        {
+            await boss.unschedule(orphan.name, orphan.key);
+            jobLogger.info(`Removed orphan schedule: ${orphan.name}`);
+
+            if (!activeQueueNames.has(orphan.name))
+            {
+                await boss.deleteQueue(orphan.name);
+                jobLogger.info(`Deleted orphan queue: ${orphan.name}`);
+            }
+        }
+    }
+    catch (error)
+    {
+        jobLogger.error('Orphan schedule sweep failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
 }
 
 /**
