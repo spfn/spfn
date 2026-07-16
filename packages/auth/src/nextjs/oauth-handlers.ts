@@ -111,7 +111,7 @@ export function createOAuthCallbackHandler(options?: OAuthCallbackOptions)
             response.cookies.set(COOKIE_NAMES.SESSION, sessionToken, {
                 httpOnly: true,
                 secure: env.NODE_ENV === 'production',
-                sameSite: 'strict',
+                sameSite: 'lax',
                 maxAge: ttl,
                 path: '/',
             });
@@ -120,7 +120,7 @@ export function createOAuthCallbackHandler(options?: OAuthCallbackOptions)
             response.cookies.set(COOKIE_NAMES.SESSION_KEY_ID, keyId, {
                 httpOnly: true,
                 secure: env.NODE_ENV === 'production',
-                sameSite: 'strict',
+                sameSite: 'lax',
                 maxAge: ttl,
                 path: '/',
             });

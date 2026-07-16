@@ -228,7 +228,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
                 options: {
                     httpOnly: true,
                     secure: cookieSecure,
-                    sameSite: 'strict',
+                    sameSite: 'lax',
                     maxAge: ttl,
                     path: '/',
                 },
@@ -241,7 +241,7 @@ export const oauthFinalizeInterceptor: InterceptorRule = {
                 options: {
                     httpOnly: true,
                     secure: cookieSecure,
-                    sameSite: 'strict',
+                    sameSite: 'lax',
                     maxAge: ttl,
                     path: '/',
                 },

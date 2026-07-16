@@ -220,7 +220,7 @@ export const generalAuthInterceptor: InterceptorRule =
                         options: {
                             httpOnly: true,
                             secure: cookieSecure,
-                            sameSite: 'strict',
+                            sameSite: 'lax',
                             maxAge: ttl,
                             path: '/',
                         },
@@ -233,7 +233,7 @@ export const generalAuthInterceptor: InterceptorRule =
                         options: {
                             httpOnly: true,
                             secure: cookieSecure,
-                            sameSite: 'strict',
+                            sameSite: 'lax',
                             maxAge: ttl,
                             path: '/',
                         },
@@ -264,13 +264,13 @@ export const generalAuthInterceptor: InterceptorRule =
                 ctx.setCookies.push({
                     name: COOKIE_NAMES.SESSION,
                     value: '',
-                    options: { ...base, sameSite: 'strict' },
+                    options: { ...base, sameSite: 'lax' },
                 });
 
                 ctx.setCookies.push({
                     name: COOKIE_NAMES.SESSION_KEY_ID,
                     value: '',
-                    options: { ...base, sameSite: 'strict' },
+                    options: { ...base, sameSite: 'lax' },
                 });
 
                 ctx.setCookies.push({
