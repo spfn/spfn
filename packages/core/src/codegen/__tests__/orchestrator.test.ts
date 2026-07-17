@@ -269,6 +269,40 @@ describe('Orchestrator', () =>
             expect(chokidarWatch).toHaveBeenCalled();
         });
 
+        it('should not ignore watch roots under a dot directory (issue #26)', async () =>
+        {
+            const dotCwd = join(TEST_DIR, '.claude', 'worktrees', 'app');
+            mkdirSync(dotCwd, { recursive: true });
+
+            const mockGen: Generator = {
+                name: 'test-gen',
+                watchPatterns: ['src/server/routes/**/*.ts'],
+                async generate()
+                {
+                    // noop
+                },
+            };
+
+            const orchestrator = new CodegenOrchestrator({
+                generators: [mockGen],
+                cwd: dotCwd,
+                debug: false,
+            });
+
+            orchestrator.watch();
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const ignored = mockedChokidarWatch.mock.calls[0][1].ignored as (path: string) => boolean;
+
+            // Paths whose only dot segments lie above cwd must stay watched
+            expect(ignored(join(dotCwd, 'src', 'server', 'routes'))).toBe(false);
+            expect(ignored(join(dotCwd, 'src', 'server', 'routes', 'a.ts'))).toBe(false);
+
+            // Dotfiles under cwd are still ignored
+            expect(ignored(join(dotCwd, 'src', 'server', 'routes', '.hidden'))).toBe(true);
+            expect(ignored(join(dotCwd, '.spfn', 'watcher.mjs'))).toBe(true);
+        });
+
         it('should handle file changes', async () =>
         {
             

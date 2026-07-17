@@ -5,7 +5,7 @@
  */
 
 import { watch as chokidarWatch } from 'chokidar';
-import { join, relative } from 'path';
+import { join, relative, sep } from 'path';
 import mm from 'micromatch';
 import type { Generator, GeneratorOptions, GeneratorTrigger } from './generator';
 import { logger } from '@spfn/core/logger';
@@ -180,7 +180,12 @@ export class CodegenOrchestrator
         }
 
         this.watcher = chokidarWatch(watchDirs, {
-            ignored: /(^|[\/\\])\../, // ignore dotfiles
+            // Ignore dotfiles by path segments relative to cwd — matching the absolute
+            // path would ignore everything when the checkout itself lives under a dot
+            // directory (e.g. .claude/worktrees/<name>), leaving zero watched files
+            ignored: (watchedPath: string) => relative(this.cwd, watchedPath)
+                .split(sep)
+                .some(segment => segment.startsWith('.') && segment !== '.' && segment !== '..'),
             persistent: true,
             ignoreInitial: true,
             awaitWriteFinish: {

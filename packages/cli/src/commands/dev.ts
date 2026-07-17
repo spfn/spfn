@@ -1,11 +1,23 @@
 import { Command } from 'commander';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, rmSync, watch } from 'fs';
-import { join } from 'path';
+import { join, relative, sep } from 'path';
 import { execa, type ExecaChildProcess } from 'execa';
 import chokidar from 'chokidar';
 import { logger } from '../utils/logger.js';
 import { detectPackageManager } from '../utils/package-manager.js';
 import { resolveKeychainEnv } from '../utils/secret-store/index.js';
+
+/**
+ * Chokidar `ignored` that skips dotfiles by path segments relative to the watch
+ * root — matching the absolute path would ignore everything when the checkout
+ * itself lives under a dot directory (e.g. .claude/worktrees/<name>)
+ */
+function ignoreDotfilesUnder(root: string)
+{
+    return (watchedPath: string) => relative(root, watchedPath)
+        .split(sep)
+        .some(segment => segment.startsWith('.') && segment !== '.' && segment !== '..');
+}
 
 /**
  * Wait for a file to be created (server writes ready signal to it)
@@ -234,7 +246,7 @@ catch (error)
                     if (result.exitCode !== 0 && result.exitCode !== 130)
                     {
                         logger.error(`Codegen watcher exited with code ${result.exitCode}`);
-                        process.exit(1);
+                        logger.warn('[SPFN] Codegen watch is disabled for this session — the server keeps running. Run codegen manually after route changes.');
                     }
                 });
             };
@@ -289,7 +301,7 @@ catch (error)
             if (watchMode)
             {
                 const watcher = chokidar.watch(serverDir, {
-                    ignored: /(^|[\/\\])\../, // ignore dotfiles
+                    ignored: ignoreDotfilesUnder(serverDir),
                     persistent: true,
                     ignoreInitial: true,
                     awaitWriteFinish: {
@@ -383,7 +395,7 @@ catch (error)
                 if (result.exitCode !== 0 && result.exitCode !== 130)
                 {
                     logger.error(`Codegen watcher exited with code ${result.exitCode}`);
-                    process.exit(1);
+                    logger.warn('[SPFN] Codegen watch is disabled for this session — the server keeps running. Run codegen manually after route changes.');
                 }
             });
         };
@@ -462,7 +474,7 @@ catch (error)
         if (watchMode)
         {
             const watcher = chokidar.watch(serverDir, {
-                ignored: /(^|[\/\\])\../, // ignore dotfiles
+                ignored: ignoreDotfilesUnder(serverDir),
                 persistent: true,
                 ignoreInitial: true,
                 awaitWriteFinish: {
