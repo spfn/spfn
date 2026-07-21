@@ -40,7 +40,7 @@ describe('buildSections', () =>
     {
         const sections = buildSections(
             [doc('/packages/core/db', '@spfn/core/db')],
-            [{ slug: '/packages/core', sourcePath: 'site/pages/packages/core.html', title: '@spfn/core', html: '' }]
+            [{ slug: '/packages/core', sourcePath: 'site/pages/packages/core.html', title: '@spfn/core', html: '' }],
         );
         const core = sections[0].children[0];
 
@@ -57,5 +57,15 @@ describe('buildSections', () =>
         ]);
 
         expect(sections[0].children.map(c => c.title)).toEqual(['Zeta', 'Mid', 'Alpha']);
+    });
+
+    it('labels a node with navTitle over title', () =>
+    {
+        const page = doc('/docs/packages/db', '@spfn/core/db');
+        page.frontmatter.navTitle = 'db';
+
+        const sections = buildSections([page]);
+
+        expect(sections[0].children[0].children[0]).toMatchObject({ route: '/docs/packages/db', title: 'db' });
     });
 });

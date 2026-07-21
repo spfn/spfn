@@ -32,5 +32,6 @@ export const FrontmatterSchema = Type.Object({
     draft: Type.Optional(Type.Boolean()),
     og: Type.Optional(Type.String()),
     order: Type.Optional(Type.Number()),
+    navTitle: Type.Optional(Type.String({ minLength: 1 })),
     source: Type.Optional(Type.String({ pattern: '\\.md$' })),
 });

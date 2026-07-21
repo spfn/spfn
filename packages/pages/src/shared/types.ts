@@ -62,6 +62,8 @@ export interface PageFrontmatter
     og?: string;
     /** Sidebar position among siblings — ascending, unordered pages after, then title. */
     order?: number;
+    /** Short sidebar label when `title` is too long for navigation; falls back to `title`. */
+    navTitle?: string;
     /**
      * Repo-relative `.md` file whose content this page serves at its own route —
      * the curated alternative to a directory mount. The page body (optional)

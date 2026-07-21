@@ -110,6 +110,7 @@ date: 2026-07-21      # YYYY-MM-DD; posts convention
 draft: true           # optional — excluded from the loaded site
 og: cover.png         # optional — OG image path inside public/
 order: 1              # optional — sidebar position among siblings (unordered pages sort after, by title)
+navTitle: db          # optional — short sidebar label when title is too long for navigation
 source: packages/core/src/db/README.md   # optional — repo doc served at this page's route
 ```
 

@@ -30,6 +30,7 @@ export function parseDocument(source: string, defaultLayout: PageLayout): Parsed
             draft: normalized.draft ?? false,
             og: normalized.og,
             order: normalized.order,
+            navTitle: normalized.navTitle,
             source: normalized.source,
         },
         body: content,

@@ -12,9 +12,10 @@ interface TreeNode
  * Section navigation trees derived from served slugs — markdown docs and raw
  * HTML pages alike (an HTML landing anchors its subtree even though it renders
  * outside the layout). The first path segment is the section, deeper segments
- * nest. A segment nobody serves becomes a label-only group node. Siblings (and
+ * nest. A segment nobody serves becomes a label-only group node. Node labels
+ * come from frontmatter `navTitle` (falling back to `title`). Siblings (and
  * sections themselves) order by frontmatter `order` ascending, unordered nodes
- * after, ties by title; HTML pages have no frontmatter and sort by title.
+ * after, ties by label; HTML pages have no frontmatter and sort by title.
  */
 export function buildSections(docs: PageDoc[], htmlPages: HtmlPage[] = []): NavNode[]
 {
@@ -24,7 +25,7 @@ export function buildSections(docs: PageDoc[], htmlPages: HtmlPage[] = []): NavN
     {
         if (doc.slug !== '/')
         {
-            insert(root, doc.slug, doc.frontmatter.title, doc.frontmatter.order);
+            insert(root, doc.slug, doc.frontmatter.navTitle ?? doc.frontmatter.title, doc.frontmatter.order);
         }
     }
     for (const page of htmlPages)
