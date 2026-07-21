@@ -22,6 +22,7 @@ export function parseSiteConfig(yamlText: string): SiteConfig
         locale: raw.locale,
         nav: raw.nav ?? [],
         social: raw.social ?? {},
+        footerNote: raw.footerNote,
         mounts: (raw.mounts ?? []).map(mount => ({
             source: mount.source.replace(/^\.?\//, '').replace(/\/+$/, ''),
             route: `/${mount.route.replace(/^\/+/, '').replace(/\/+$/, '')}`,

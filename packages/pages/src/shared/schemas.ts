@@ -21,6 +21,7 @@ export const SiteConfigSchema = Type.Object({
     locale: Type.Optional(Type.String({ minLength: 2 })),
     nav: Type.Optional(Type.Array(NavItemSchema)),
     social: Type.Optional(Type.Record(Type.String(), Type.String())),
+    footerNote: Type.Optional(Type.String({ minLength: 1 })),
     mounts: Type.Optional(Type.Array(MountSchema)),
 });
 

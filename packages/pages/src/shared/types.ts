@@ -46,6 +46,8 @@ export interface SiteConfig
     locale?: string;
     nav: NavItem[];
     social: Record<string, string>;
+    /** Short footer line (e.g. a copyright notice) rendered after the footer nav. */
+    footerNote?: string;
     /** Repo docs served as site routes — see MountConfig. */
     mounts: MountConfig[];
 }

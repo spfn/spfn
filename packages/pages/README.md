@@ -56,6 +56,7 @@ nav:                         # optional
     path: /docs
 social:                      # optional — lowercase keys; renderers display brand
   github: https://github.com/spfn/spfn   # casing via socialLabel() ('github' → 'GitHub')
+footerNote: © 2026 FXY Inc.  # optional — short footer line (copyright etc.)
 mounts:                      # optional — repo docs served as site routes
   - source: packages/core/README.md      # a .md file, or a directory
     route: /packages/core
