@@ -35,12 +35,18 @@ Collect references with a distinct point of view (see ground rules). Present
 named references, palette, type specimen, and a signature motif. Discuss;
 record the picked (or mixed) direction at the top of the file.
 
-### 2 — Design system → `system.html` + `system.md`
+### 2 — IA diagram & design system → `ia.html` + `system.html` + `system.md`
 
-Turn the picked direction into a system: color tokens, type scale, spacing,
-voice & copy rules, motif usage. `system.html` is the human-visible specimen;
-`system.md` is the same system written for agents to read while building
-pages. Sync final tokens to `../theme/tokens.json`.
+Two artifacts, both discussed before phase 3:
+
+- **`ia.html`** — the full IA as a structure diagram (drawn in the picked
+  design language): every route, its content source (html / md / virtual /
+  future mount), the navigation model, and the main user journeys. `ia.md`
+  from phase 0 is updated to match the agreed diagram.
+- **`system.html` + `system.md`** — the design system: color tokens, type
+  scale, spacing, voice & copy rules, motif usage. `system.html` is the
+  human-visible specimen; `system.md` is the same system written for agents
+  to read while building pages. Sync final tokens to `../theme/tokens.json`.
 
 ### 3 — Landing → `../pages/index.html`
 

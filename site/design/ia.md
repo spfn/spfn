@@ -1,6 +1,9 @@
-# superfunction.xyz — story & IA (phase 0)
+# superfunction.xyz — story & IA (phase 0 → phase 2)
 
-Status: **v1 agreed** (2026-07-21, discussion in session).
+Status: **v2 agreed** (2026-07-21), drawn in `ia.html`. Decisions: docs starts
+with `pattern` + `packages`; `/posts` is deferred until the first release note
+is published (nav item appears then); package doc mounts (`/docs/<pkg>` from
+repo READMEs) are in scope as renderer feature work, not deferred.
 
 ## Story axes
 
@@ -17,13 +20,30 @@ Status: **v1 agreed** (2026-07-21, discussion in session).
 - A developer who builds primarily with AI agents and wants a codebase
   structure agents don't get lost in.
 
-## Sitemap
+## Sitemap (v2 draft — see ia.html for the diagram)
 
-| Route  | Source                  | Notes                                   |
-| ------ | ----------------------- | --------------------------------------- |
-| `/`    | `pages/index.html`      | Designed landing (phase 3)              |
-| `/docs`| `pages/docs.md`         | Get started — markdown, exists          |
-| `/posts` | `posts/*.md`          | Later — changelog / release notes       |
+| Route            | Source                    | Notes                                          |
+| ---------------- | ------------------------- | ---------------------------------------------- |
+| `/`              | `pages/index.html`        | Designed landing (phase 3 draft exists)        |
+| `/docs`          | `pages/docs.md`           | Get started — exists                           |
+| `/docs/pattern`  | `pages/docs/pattern.md`   | NEW — SPFN pattern deep-dive (slice anatomy, codegen, errors) |
+| `/docs/packages` | `pages/docs/packages.md`  | NEW — package index; links to GitHub READMEs   |
+| `/docs/<pkg>`    | —                         | FUTURE — repo README mounts (needs docs-mount) |
+| `/posts`         | renderer virtual index    | Appears with the first post                    |
+| `/posts/<slug>`  | `posts/YYYY-MM-DD-*.md`   | NEW — release notes / changelog                |
+
+## Journeys
+
+- **J1 Evaluator**: `/` → `/docs` → `npx spfn create` → GitHub.
+- **J2 Builder** (returning): `/docs` → `/docs/pattern` → `/docs/packages` → package README.
+- **J3 Follower**: `/posts` → post → `/docs`.
+
+## Navigation
+
+Header on every page: brand → `/`, Docs, Posts (once posts exist), GitHub —
+renderer nav for md pages, hand-written on the html landing (keep in sync with
+`spfn.site.yaml`). Footer: mono ink band. No docs sidebar until the docs tree
+outgrows ~5 pages.
 
 ## Landing narrative (top to bottom)
 

@@ -4,7 +4,7 @@ root: site
 url: https://superfunction.xyz
 locale: en
 nav:
-  - label: Get Started
+  - label: Docs
     path: /docs
 social:
   github: https://github.com/spfn/spfn

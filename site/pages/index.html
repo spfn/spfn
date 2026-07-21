@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superfunction — Ship full-stack TypeScript, typed end to end</title>
+<meta name="description" content="TypeScript framework for full-stack apps — a typed SPFN backend inside your Next.js project.">
+<meta property="og:title" content="Superfunction">
+<meta property="og:description" content="TypeScript framework for full-stack apps — a typed SPFN backend inside your Next.js project.">
+<meta property="og:image" content="https://superfunction.xyz/og.png">
+<meta property="og:url" content="https://superfunction.xyz/">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+    /* superfunction.xyz landing — design system "Poster" v2 (site/design/system.md) */
+    * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
+    :root
+    {
+        --cobalt: #1d34f3;
+        --ink: #10161a;
+        --white: #ffffff;
+        --signal: #ff3b1f;
+        --gray: #8a9096;
+        --gray-line: #d9dce0;
+        --grotesk: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--white); color: var(--ink); font-family: var(--grotesk); }
+    a { text-decoration: none; color: inherit; }
+    .inner { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+    /* header */
+    header { border-bottom: 1px solid var(--ink); }
+    .nav { display: flex; align-items: center; height: 64px; }
+    .brand { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .nav nav { margin-left: auto; display: flex; gap: 28px; font-size: 14.5px; font-weight: 600; }
+    .nav nav a:hover { color: var(--cobalt); }
+
+    /* hero */
+    .hero { padding: 96px 0 0; }
+    .kicker { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.12em; margin-bottom: 30px; }
+    .display
+    {
+        font-size: clamp(52px, 8.5vw, 108px);
+        font-weight: 800; letter-spacing: -0.03em; line-height: 0.96; text-transform: uppercase;
+        color: var(--cobalt);
+    }
+    .display .inkline { color: var(--ink); }
+    .hero .sub { margin-top: 30px; font-size: 17px; line-height: 1.6; max-width: 58ch; }
+    .cta-row { margin-top: 36px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; }
+    .btn-cobalt { background: var(--cobalt); color: var(--white); }
+    .btn-cobalt:hover { background: var(--ink); }
+    .btn-outline { border: 1px solid var(--ink); }
+    .btn-outline:hover { border-color: var(--cobalt); color: var(--cobalt); }
+    .codebar { background: var(--ink); color: var(--white); font-family: var(--mono); font-size: 13px; padding: 14px 18px; }
+    .strip { margin-top: 72px; height: 14px; display: flex; }
+    .strip .s1 { flex: 2.5; background: var(--cobalt); }
+    .strip .s2 { flex: 1.2; background: var(--ink); }
+    .strip .s3 { flex: 0.35; background: var(--signal); }
+
+    /* sections */
+    section { padding: 88px 0; }
+    .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 44px; }
+    .sec-head .idx { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; }
+    .sec-head .rule { flex: 1; height: 1px; background: var(--ink); }
+    .sec-head .name { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+    .sec-title { font-size: clamp(28px, 3.4vw, 40px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.08; margin-bottom: 40px; }
+    .sec-title em { font-style: normal; color: var(--cobalt); }
+
+    /* why grid */
+    .why-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--ink); }
+    .why { padding: 26px 24px 30px; border-left: 1px solid var(--ink); }
+    .why:first-child { border-left: none; }
+    .why .num { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
+    .why h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin: 14px 0 10px; }
+    .why p { font-size: 13.5px; line-height: 1.6; color: #3c4248; }
+    .why code { font-family: var(--mono); font-size: 12px; }
+
+    /* flow: wire diagram + code panels */
+    .wireflow { display: flex; align-items: center; font-family: var(--mono); font-size: 12px; margin-bottom: 44px; }
+    .wnode { border: 1px solid var(--ink); padding: 9px 14px; white-space: nowrap; }
+    .wnode.hot { border-color: var(--cobalt); color: var(--cobalt); font-weight: 600; }
+    .wwire { flex: 1; min-width: 18px; height: 1px; background: var(--ink); position: relative; }
+    .wwire::after { content: ''; position: absolute; right: 0; top: -2px; width: 5px; height: 5px; background: var(--ink); }
+    .wwire.tohot::after { background: var(--cobalt); }
+    .code-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .code-col .clabel { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); margin-bottom: 10px; text-transform: uppercase; }
+    .codeblock
+    {
+        background: var(--ink); color: #e8eaec;
+        font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
+        padding: 18px 20px; overflow-x: auto; height: 100%;
+    }
+    .codeblock .kw { color: #8fa1ff; }
+    .codeblock .str { color: #a8d8b0; }
+    .codeblock .dim { color: #6d747c; }
+    .codeblock .hot { color: #b9c4ff; }
+    .flow-note { margin-top: 28px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
+
+    /* packages */
+    .pkg-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); border-left: 1px solid var(--ink); }
+    .pkg { border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 20px 20px 24px; min-height: 118px; }
+    .pkg:hover { background: var(--cobalt); color: var(--white); }
+    .pkg:hover p { color: var(--white); }
+    .pkg .pname { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+    .pkg p { margin-top: 8px; font-size: 12.5px; line-height: 1.55; color: #3c4248; }
+
+    /* CTA band */
+    .cta-band { background: var(--cobalt); color: var(--white); padding: 56px 0; }
+    .cta-band .inner { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+    .cta-band h2 { font-size: clamp(28px, 3.6vw, 44px); font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase; }
+    .cta-band .btns { margin-left: auto; display: flex; gap: 12px; }
+    .btn-white { background: var(--white); color: var(--cobalt); }
+    .btn-white:hover { background: var(--ink); color: var(--white); }
+    .btn-outline-w { border: 1px solid var(--white); color: var(--white); }
+    .btn-outline-w:hover { background: var(--white); color: var(--cobalt); }
+
+    /* footer */
+    footer { background: var(--ink); color: var(--white); padding: 34px 0; }
+    footer .inner { display: flex; align-items: center; gap: 26px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; }
+    footer a { text-decoration: underline; text-underline-offset: 3px; }
+    footer .dim { color: #6d747c; margin-left: auto; }
+
+    @media (max-width: 900px)
+    {
+        .why-grid { grid-template-columns: 1fr 1fr; }
+        .why:nth-child(3) { border-left: none; }
+        .why { border-top: 1px solid var(--ink); }
+        .why:nth-child(-n+2) { border-top: none; }
+        .code-cols { grid-template-columns: 1fr; gap: 28px; }
+        .pkg-grid { grid-template-columns: 1fr 1fr; }
+        .wireflow { flex-wrap: wrap; row-gap: 10px; }
+    }
+    @media (max-width: 600px)
+    {
+        .why-grid { grid-template-columns: 1fr; }
+        .why { border-left: none; border-top: 1px solid var(--ink); }
+        .why:first-child { border-top: none; }
+        .pkg-grid { grid-template-columns: 1fr; }
+        section { padding: 64px 0; }
+        .hero { padding-top: 64px; }
+    }
+</style>
+</head>
+<body>
+
+    <header>
+        <div class="inner nav">
+            <a class="brand" href="/">Superfunction</a>
+            <nav>
+                <a href="/docs">Docs</a>
+                <a href="https://github.com/spfn/spfn">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="hero">
+        <div class="inner">
+            <div class="kicker">SUPERFUNCTION — A BACKEND INSIDE NEXT.JS</div>
+            <h1 class="display">Typed<br>end to <span class="inkline">end.</span></h1>
+            <p class="sub">A real backend inside your Next.js project — entities, repositories, routes, and
+               a generated RPC client sharing one type system. No separate server repo, no hand-written API
+               contracts. Change a route and the client type changes with it.</p>
+            <div class="cta-row">
+                <a class="btn btn-cobalt" href="/docs">Get started</a>
+                <a class="btn btn-outline" href="https://github.com/spfn/spfn">GitHub</a>
+                <span class="codebar">$ npx spfn@beta create my-app</span>
+            </div>
+        </div>
+        <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
+    </div>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">Why SPFN</span></div>
+            <h2 class="sec-title">The compiler catches what<br>integration tests <em>used to.</em></h2>
+            <div class="why-grid">
+                <div class="why">
+                    <div class="num">01</div>
+                    <h3>Typed end to end</h3>
+                    <p>Drizzle entities → TypeBox-validated routes → a generated
+                       <code>createApi&lt;AppRouter&gt;()</code> client. One type system, zero drift.</p>
+                </div>
+                <div class="why">
+                    <div class="num">02</div>
+                    <h3>One slice per feature</h3>
+                    <p>Entity, Repository, Route, Router — each in its own file. Humans and AI agents both
+                       know exactly where things go.</p>
+                </div>
+                <div class="why">
+                    <div class="num">03</div>
+                    <h3>Batteries as packages</h3>
+                    <p>Auth, storage, notifications, monitoring, CMS, workflow — composable
+                       <code>@spfn/*</code> packages, not a monolith.</p>
+                </div>
+                <div class="why">
+                    <div class="num">04</div>
+                    <h3>Next.js native</h3>
+                    <p>One repo, one dev command. The backend runs beside your app with its own port and
+                       lifecycle.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section style="padding-top: 0;">
+        <div class="inner">
+            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">Type flow</span></div>
+            <h2 class="sec-title">Change the route.<br>The client <em>follows.</em></h2>
+            <div class="wireflow">
+                <div class="wnode">entity</div><div class="wwire"></div>
+                <div class="wnode">repository</div><div class="wwire"></div>
+                <div class="wnode">route</div><div class="wwire tohot"></div>
+                <div class="wnode hot">typed client</div>
+            </div>
+            <div class="code-cols">
+                <div class="code-col">
+                    <div class="clabel">entities/todo.ts</div>
+                    <div class="codeblock"><span class="kw">export const</span> todos = pgTable(<span class="str">'todos'</span>, {
+    id: bigserial(<span class="str">'id'</span>),
+    title: text(<span class="str">'title'</span>).notNull(),
+    done: boolean(<span class="str">'done'</span>)
+});</div>
+                </div>
+                <div class="code-col">
+                    <div class="clabel">routes/todos.ts</div>
+                    <div class="codeblock">route.post(<span class="str">'/todos'</span>, {
+    body: Type.Object({
+        title: Type.String()
+    })
+}, <span class="kw">async</span> c =&gt; repo.save(c.body));</div>
+                </div>
+                <div class="code-col">
+                    <div class="clabel">app — generated client</div>
+                    <div class="codeblock"><span class="kw">const</span> api = createApi&lt;AppRouter&gt;();
+
+<span class="kw">await</span> api.todos.post({
+    title: <span class="str">'ship it'</span>
+}); <span class="dim">// ← body type-checked</span></div>
+                </div>
+            </div>
+            <div class="flow-note">FIG 01 — TYPE FLOW · EDIT THE ROUTE, RUN CODEGEN, EVERY CONSUMER IS RE-CHECKED</div>
+        </div>
+    </section>
+
+    <section style="padding-top: 0;">
+        <div class="inner">
+            <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">Packages</span></div>
+            <h2 class="sec-title">Take what you need.</h2>
+            <div class="pkg-grid">
+                <a class="pkg" href="https://github.com/spfn/spfn/tree/main/packages/core#readme">
+                    <div class="pname">@spfn/core</div>
+                    <p>Server, routing, database, codegen — the framework kernel.</p>
+                </a>
+                <a class="pkg" href="https://github.com/spfn/spfn/tree/main/packages/auth#readme">
+                    <div class="pname">@spfn/auth</div>
+                    <p>Sessions, OAuth, RBAC, invitations.</p>
+                </a>
+                <a class="pkg" href="https://github.com/spfn/spfn/tree/main/packages/storage#readme">
+                    <div class="pname">@spfn/storage</div>
+                    <p>File uploads — local and GCS drivers.</p>
+                </a>
+                <a class="pkg" href="https://github.com/spfn/spfn/tree/main/packages/notification#readme">
+                    <div class="pname">@spfn/notification</div>
+                    <p>Email and messaging, pluggable providers.</p>
+                </a>
+                <a class="pkg" href="https://github.com/spfn/spfn/tree/main/packages/monitor#readme">
+                    <div class="pname">@spfn/monitor</div>
+                    <p>Health checks, metrics, request tracing.</p>
+                </a>
+                <a class="pkg" href="https://github.com/spfn/spfn/tree/main/packages/cms#readme">
+                    <div class="pname">@spfn/cms</div>
+                    <p>Content models and admin endpoints.</p>
+                </a>
+                <a class="pkg" href="https://github.com/spfn/spfn/tree/main/packages/workflow#readme">
+                    <div class="pname">@spfn/workflow</div>
+                    <p>Background jobs and step workflows.</p>
+                </a>
+                <a class="pkg" href="https://github.com/spfn/spfn/tree/main/packages/pages#readme">
+                    <div class="pname">@spfn/pages</div>
+                    <p>Serve a website from a repo — this site runs on it.</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="cta-band">
+        <div class="inner">
+            <h2>Ship it typed.</h2>
+            <div class="btns">
+                <a class="btn btn-white" href="/docs">Get started</a>
+                <a class="btn btn-outline-w" href="https://github.com/spfn/spfn">GitHub</a>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="inner">
+            <span>SUPERFUNCTION</span>
+            <a href="/docs">DOCS</a>
+            <a href="https://github.com/spfn/spfn">GITHUB</a>
+            <span class="dim">@SPFN/* — BETA</span>
+        </div>
+    </footer>
+
+</body>
+</html>

@@ -36,12 +36,8 @@ The route map and client types are generated — edit the source route, run
 
 ## Go deeper
 
-Package-level docs are maintained in the repo and are the source of truth:
-
-- [Core concepts and the full pattern](https://github.com/spfn/spfn/tree/main/docs)
-- [`@spfn/core`](https://github.com/spfn/spfn/tree/main/packages/core#readme) —
-  server, routing, database, codegen
-- [`@spfn/auth`](https://github.com/spfn/spfn/tree/main/packages/auth#readme) —
-  sessions, OAuth, RBAC
+- [The SPFN pattern](./docs/pattern.md) — slice anatomy, codegen, the typed
+  client loop
+- [Packages](./docs/packages.md) — the `@spfn/*` family, one line each
 - [Runnable examples](https://github.com/spfn/spfn/tree/main/examples) — from a
   minimal API to auth, end to end

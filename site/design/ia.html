@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>superfunction.xyz — IA structure (phase 2)</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
+    :root
+    {
+        --cobalt: #1d34f3;
+        --ink: #10161a;
+        --white: #ffffff;
+        --signal: #ff3b1f;
+        --gray: #8a9096;
+        --gray-line: #d9dce0;
+        --grotesk: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+    body { background: var(--white); color: var(--ink); font-family: var(--grotesk); padding: 64px 48px 96px; }
+    .inner { max-width: 1120px; margin: 0 auto; }
+    .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; margin-bottom: 18px; }
+    h1 { font-size: 44px; font-weight: 800; letter-spacing: -0.025em; }
+    h1 em { font-style: normal; color: var(--cobalt); }
+    .status { margin-top: 14px; font-family: var(--mono); font-size: 12px; color: #b08900; letter-spacing: 0.06em; }
+
+    .sec-head { display: flex; align-items: center; gap: 14px; margin: 56px 0 30px; }
+    .sec-head .idx { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; }
+    .sec-head .rule { flex: 1; height: 1px; background: var(--ink); }
+    .sec-head .name { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    /* tree */
+    .tree ul { list-style: none; padding-left: 34px; }
+    .tree > ul { padding-left: 0; }
+    .tree li { position: relative; padding: 7px 0; }
+    .tree ul ul li::before
+    {
+        content: ''; position: absolute; left: -22px; top: 0; bottom: 50%;
+        border-left: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
+        width: 18px;
+    }
+    .tree ul ul li:not(:last-child)::after
+    {
+        content: ''; position: absolute; left: -22px; top: 50%; bottom: 0;
+        border-left: 1px solid var(--ink);
+    }
+    .node
+    {
+        display: inline-flex; align-items: center; gap: 10px;
+        border: 1px solid var(--ink); padding: 9px 14px;
+        font-family: var(--mono); font-size: 13px;
+    }
+    .node.hot { border-color: var(--cobalt); color: var(--cobalt); font-weight: 600; }
+    .node.ghost { border-style: dashed; color: var(--gray); border-color: var(--gray); }
+    .badge
+    {
+        font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em; font-weight: 600;
+        padding: 3px 7px; color: var(--white); background: var(--ink);
+    }
+    .badge.b-html { background: var(--cobalt); }
+    .badge.b-md { background: var(--ink); }
+    .badge.b-virtual { background: var(--gray); }
+    .badge.b-new { background: var(--white); color: var(--ink); border: 1px solid var(--ink); }
+    .badge.b-future { background: var(--white); color: var(--gray); border: 1px dashed var(--gray); }
+    .note { font-size: 12.5px; color: var(--gray); margin-left: 12px; font-family: var(--grotesk); }
+
+    .legend { display: flex; gap: 18px; margin-top: 26px; flex-wrap: wrap; align-items: center; font-family: var(--mono); font-size: 11px; color: #3c4248; }
+    .legend .badge { transform: none; }
+
+    /* journeys */
+    .journey { margin-bottom: 26px; }
+    .journey .jname { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); margin-bottom: 10px; text-transform: uppercase; }
+    .jflow { display: flex; align-items: center; font-family: var(--mono); font-size: 12px; flex-wrap: wrap; row-gap: 10px; }
+    .jnode { border: 1px solid var(--ink); padding: 8px 12px; white-space: nowrap; }
+    .jnode.hot { border-color: var(--cobalt); color: var(--cobalt); font-weight: 600; }
+    .jnode.ext { border-style: dashed; color: var(--gray); border-color: var(--gray); }
+    .jwire { width: 34px; height: 1px; background: var(--ink); position: relative; flex-shrink: 0; }
+    .jwire::after { content: ''; position: absolute; right: 0; top: -2px; width: 5px; height: 5px; background: var(--ink); }
+
+    /* nav model */
+    .nav-model { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--ink); }
+    .nav-cell { padding: 22px 24px 26px; }
+    .nav-cell + .nav-cell { border-left: 1px solid var(--ink); }
+    .nav-cell h4 { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); margin-bottom: 12px; }
+    .nav-cell p { font-size: 14px; line-height: 1.7; }
+    .nav-cell code { font-family: var(--mono); font-size: 12.5px; }
+</style>
+</head>
+<body>
+    <div class="inner">
+        <div class="kicker">SUPERFUNCTION.XYZ — PHASE 2 · IA STRUCTURE</div>
+        <h1>Site structure, <em>drawn.</em></h1>
+        <p class="status">STATUS: AGREED (2026-07-21) — DOCS STARTS WITH PATTERN + PACKAGES · /POSTS DEFERRED
+           UNTIL THE FIRST RELEASE NOTE · PACKAGE DOC MOUNTS ARE IN SCOPE (RENDERER FEATURE, IN PROGRESS)</p>
+
+        <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">Route tree</span></div>
+        <div class="tree">
+            <ul>
+                <li>
+                    <span class="node hot">/ <span class="badge b-html">HTML</span></span>
+                    <span class="note">Landing — phase 3 draft exists. Poster hero, why, type flow, packages, CTA.</span>
+                    <ul>
+                        <li>
+                            <span class="node">/docs <span class="badge b-md">MD</span></span>
+                            <span class="note">Get started — install, first slice. Exists.</span>
+                            <ul>
+                                <li>
+                                    <span class="node">/docs/pattern <span class="badge b-md">MD</span> <span class="badge b-new">NEW</span></span>
+                                    <span class="note">The SPFN pattern deep-dive: slice anatomy, codegen, errors.</span>
+                                </li>
+                                <li>
+                                    <span class="node">/docs/packages <span class="badge b-md">MD</span> <span class="badge b-new">NEW</span></span>
+                                    <span class="note">Package index — one line + link per @spfn/* package.</span>
+                                    <ul>
+                                        <li>
+                                            <span class="node ghost">/docs/&lt;pkg&gt; <span class="badge b-future">FUTURE — REPO MOUNT</span></span>
+                                            <span class="note">Package READMEs mounted from the repo once docs-mount ships; until then the index links to GitHub.</span>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                        <li>
+                            <span class="node">/posts <span class="badge b-virtual">VIRTUAL</span></span>
+                            <span class="note">Release notes index — renderer built-in, appears with the first post.</span>
+                            <ul>
+                                <li>
+                                    <span class="node">/posts/&lt;slug&gt; <span class="badge b-md">MD</span> <span class="badge b-new">NEW</span></span>
+                                    <span class="note">Changelog / release posts, dated files.</span>
+                                </li>
+                            </ul>
+                        </li>
+                        <li>
+                            <span class="node ghost">github.com/spfn/spfn <span class="badge b-future">EXTERNAL</span></span>
+                            <span class="note">Source, examples, package READMEs — the docs long-tail until mounts.</span>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+        <div class="legend">
+            <span class="badge b-html">HTML</span> designed page (escape hatch, own head)
+            <span class="badge b-md">MD</span> markdown via renderer layout
+            <span class="badge b-virtual">VIRTUAL</span> renderer built-in
+            <span class="badge b-new">NEW</span> to be written (phase 4)
+            <span class="badge b-future">FUTURE</span> needs docs-mount feature / external
+        </div>
+
+        <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">User journeys</span></div>
+        <div class="journey">
+            <div class="jname">J1 — Evaluator (first visit)</div>
+            <div class="jflow">
+                <span class="jnode hot">/</span><span class="jwire"></span>
+                <span class="jnode">/docs</span><span class="jwire"></span>
+                <span class="jnode">npx spfn create</span><span class="jwire"></span>
+                <span class="jnode ext">github</span>
+            </div>
+        </div>
+        <div class="journey">
+            <div class="jname">J2 — Builder (returning)</div>
+            <div class="jflow">
+                <span class="jnode">/docs</span><span class="jwire"></span>
+                <span class="jnode">/docs/pattern</span><span class="jwire"></span>
+                <span class="jnode">/docs/packages</span><span class="jwire"></span>
+                <span class="jnode ext">package README</span>
+            </div>
+        </div>
+        <div class="journey">
+            <div class="jname">J3 — Follower (release watcher)</div>
+            <div class="jflow">
+                <span class="jnode">/posts</span><span class="jwire"></span>
+                <span class="jnode">/posts/&lt;slug&gt;</span><span class="jwire"></span>
+                <span class="jnode">/docs</span>
+            </div>
+        </div>
+
+        <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">Navigation model</span></div>
+        <div class="nav-model">
+            <div class="nav-cell">
+                <h4>HEADER — EVERY PAGE</h4>
+                <p>Brand → <code>/</code> · <code>Docs</code> · <code>Posts</code> (appears with first post) ·
+                   <code>GitHub</code>. Markdown pages get this from the renderer (<code>spfn.site.yaml</code>
+                   nav); the html landing hand-writes the same header.</p>
+            </div>
+            <div class="nav-cell">
+                <h4>FOOTER — EVERY PAGE</h4>
+                <p><code>SUPERFUNCTION · DOCS · GITHUB · @SPFN/* — BETA</code>, ink ground, mono. Docs
+                   sidebar is out of scope until the docs tree grows past ~5 pages.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
