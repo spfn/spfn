@@ -1,0 +1,17 @@
+{
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "composite": false,
+        "lib": ["ES2022"],
+        "noEmit": false,
+        "baseUrl": ".",
+        "paths": {
+            "@spfn/pages": ["./src/shared/index.ts"],
+            "@spfn/pages/server": ["./src/server/index.ts"]
+        }
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist"]
+}
