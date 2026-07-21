@@ -5,4 +5,5 @@ export { renderMarkdown } from './markdown';
 export { rehypeRewriteRefs, type RewriteContext } from './rewrite';
 export { tokensToCss, buildThemeCss } from './theme';
 export { MemoryContentSource, type ContentSource } from './content-source';
+export { FsContentSource } from './fs-source';
 export { GithubContentSource, parseGithubUrl, type GithubRepoRef, type GithubSourceOptions } from './github-source';

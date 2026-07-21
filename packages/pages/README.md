@@ -127,7 +127,9 @@ site.problems;   // per-file failures (file skipped, site still loads)
 
 ## Status / roadmap
 
-Beta. This package is the renderer core (stage 1). Coming next: Next.js layout
-components + catch-all route integration, the site template repo (with
-`site/AGENTS.md` authoring contract), then the hosted tenant edge
+Beta. This package is the renderer core. The Next.js integration (layouts,
+catch-all route helpers, static export + sync CLI) lives in
+[`@spfn/pages-next`](../pages-next/README.md); self-deploy targets are Vercel,
+Cloudflare Pages, and any static host. Coming next: the site template repo
+(with `site/AGENTS.md` authoring contract), then the hosted tenant edge
 (registration, `*.spfn.app` subdomains, custom domains).
