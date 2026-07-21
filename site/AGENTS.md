@@ -7,7 +7,7 @@ This file is the contract — read it before touching anything under `site/`.
 ## Structure
 
 ```
-../spfn.site.yaml   # site meta + nav — repo root, edit to change name/nav/social
+../spfn.site.yaml   # site meta + nav — repo root, edit to change name/url/nav/social
 pages/              # '/', '/about', '/docs/intro' … from the file path
   index.md          # '/' — layout defaults to `landing`
   *.md              # other pages — layout defaults to `doc`
@@ -18,6 +18,8 @@ theme/
   tokens.json       # design tokens → `--sf-*` CSS variables
   custom.css        # free-form CSS, layered after tokens
 public/             # static assets, served from '/' ('public/img/x.png' → '/img/x.png')
+  favicon.svg       # WELL-KNOWN: auto-linked favicon (or .png/.ico/.jpg — svg/png work as-is, no .ico needed)
+  og.png            # WELL-KNOWN: site-wide OG image, 1200×630 (or .jpg/.webp); frontmatter `og:` overrides per page
 ```
 
 ## Frontmatter (all fields except `title` optional)

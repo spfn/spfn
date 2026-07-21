@@ -17,6 +17,7 @@ export function parseSiteConfig(yamlText: string): SiteConfig
         name: raw.name,
         description: raw.description,
         root: normalizeRoot(raw.root ?? 'site'),
+        url: raw.url?.replace(/\/+$/, ''),
         locale: raw.locale,
         nav: raw.nav ?? [],
         social: raw.social ?? {},

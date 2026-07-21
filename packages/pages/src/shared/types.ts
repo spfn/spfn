@@ -24,6 +24,8 @@ export interface SiteConfig
     description?: string;
     /** Content root inside the repo, normalized without leading/trailing slashes. '' = repo root. */
     root: string;
+    /** Canonical site origin (e.g. 'https://example.com') — makes og:image URLs absolute. */
+    url?: string;
     locale?: string;
     nav: NavItem[];
     social: Record<string, string>;
@@ -86,5 +88,9 @@ export interface SiteContent
     htmlPages: HtmlPage[];
     /** Theme tokens as CSS variables + custom.css, ready to inline. */
     themeCss: string;
+    /** Served URL of `public/favicon.{svg,png,ico,jpg,jpeg}` when present, e.g. '/favicon.svg'. */
+    favicon?: string;
+    /** Served URL of `public/og.{png,jpg,jpeg,webp}` when present — the site-wide OG image default. */
+    ogImage?: string;
     problems: SiteProblem[];
 }

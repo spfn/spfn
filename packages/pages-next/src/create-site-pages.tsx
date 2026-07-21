@@ -146,20 +146,39 @@ function buildMetadata(site: SiteContent, doc: PageDoc | null, slug: string): Me
     const name = site.config.name;
     if (!doc)
     {
-        return slug === POSTS_INDEX ? { title: `Posts — ${name}` } : {};
+        return slug === POSTS_INDEX ? { title: `Posts — ${name}`, ...siteMetadata(site) } : {};
     }
 
     const title = doc.slug === '/' ? name : `${doc.frontmatter.title} — ${name}`;
     const description = doc.frontmatter.description ?? site.config.description;
+    const ogImage = doc.frontmatter.og ? `/${doc.frontmatter.og}` : site.ogImage;
 
     return {
         title,
         description,
+        ...siteMetadata(site),
         openGraph: {
             title,
             description,
             ...(site.config.locale ? { locale: site.config.locale } : {}),
-            ...(doc.frontmatter.og ? { images: [`/${doc.frontmatter.og}`] } : {}),
+            ...(ogImage ? { images: [ogImage] } : {}),
         },
     };
+}
+
+/** Site-wide metadata: favicon and the base URL that makes og:image absolute. */
+function siteMetadata(site: SiteContent): Metadata
+{
+    return {
+        ...(site.config.url ? { metadataBase: new URL(site.config.url) } : {}),
+        ...(site.favicon ? { icons: { icon: [{ url: site.favicon, type: iconMimeType(site.favicon) }] } } : {}),
+    };
+}
+
+function iconMimeType(path: string): string
+{
+    const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+    const types: Record<string, string> = { svg: 'image/svg+xml', png: 'image/png', ico: 'image/x-icon', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
+
+    return types[extension] ?? 'image/x-icon';
 }

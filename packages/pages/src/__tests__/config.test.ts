@@ -39,6 +39,12 @@ describe('parseSiteConfig', () =>
         expect(parseSiteConfig('name: X\nroot: .\n').root).toBe('');
     });
 
+    it('accepts a canonical url and strips its trailing slash', () =>
+    {
+        expect(parseSiteConfig('name: X\nurl: https://example.com/\n').url).toBe('https://example.com');
+        expect(() => parseSiteConfig('name: X\nurl: example.com\n')).toThrow(SiteConfigError);
+    });
+
     it('rejects config without a name', () =>
     {
         expect(() => parseSiteConfig('description: no name\n')).toThrow(SiteConfigError);

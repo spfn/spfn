@@ -72,4 +72,24 @@ describe('createSitePages', () =>
         expect(about.title).toBe('About — Demo');
         expect(about.openGraph?.images).toEqual(['/cover.png']);
     });
+
+    it('applies well-known assets and canonical url: favicon link, og fallback, metadataBase', async () =>
+    {
+        const app = createSitePages({
+            source: () => new MemoryContentSource({
+                'spfn.site.yaml': 'name: Demo\nurl: https://demo.example\nsocial:\n  github: https://github.com/spfn/spfn\n',
+                'site/pages/index.md': '---\ntitle: Home\n---\n# Welcome\n',
+                'site/public/favicon.svg': '<svg/>',
+                'site/public/og.png': 'png-bytes',
+            }),
+        });
+
+        const home = await app.generateMetadata({ params: Promise.resolve({ slug: [] }) });
+        expect(home.metadataBase?.href).toBe('https://demo.example/');
+        expect(home.icons).toEqual({ icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }] });
+        expect(home.openGraph?.images).toEqual(['/og.png']);
+
+        const html = await renderSlug(app, []);
+        expect(html).toContain('>GitHub</a>');
+    });
 });

@@ -10,6 +10,7 @@ export const SiteConfigSchema = Type.Object({
     name: Type.String({ minLength: 1 }),
     description: Type.Optional(Type.String()),
     root: Type.Optional(Type.String({ minLength: 1 })),
+    url: Type.Optional(Type.String({ pattern: '^https?://' })),
     locale: Type.Optional(Type.String({ minLength: 2 })),
     nav: Type.Optional(Type.Array(NavItemSchema)),
     social: Type.Optional(Type.Record(Type.String(), Type.String())),

@@ -35,6 +35,8 @@ export async function loadSite(source: ContentSource): Promise<SiteContent>
         posts,
         htmlPages: await loadHtmlPages(source, tree, config, usedSlugs(pages, posts), problems),
         themeCss: await loadTheme(source, config, problems),
+        favicon: findWellKnownAsset(tree, config, FAVICON_NAMES),
+        ogImage: findWellKnownAsset(tree, config, OG_IMAGE_NAMES),
         problems,
     };
 }
@@ -213,6 +215,21 @@ function stripDatePrefix(name: string): string
 function sortByDateDesc(docs: PageDoc[]): PageDoc[]
 {
     return [...docs].sort((a, b) => (b.frontmatter.date ?? '').localeCompare(a.frontmatter.date ?? ''));
+}
+
+/** SVG and PNG favicons are natively supported by browsers — no .ico conversion needed. */
+const FAVICON_NAMES = ['favicon.svg', 'favicon.png', 'favicon.ico', 'favicon.jpg', 'favicon.jpeg'];
+const OG_IMAGE_NAMES = ['og.png', 'og.jpg', 'og.jpeg', 'og.webp'];
+
+/**
+ * Well-known `public/` assets, detected by convention: the first candidate name
+ * present wins, returned as its served URL (`public/` maps to the site root).
+ */
+function findWellKnownAsset(tree: string[], config: SiteConfig, names: string[]): string | undefined
+{
+    const name = names.find(candidate => tree.includes(contentPath(config, 'public', candidate)));
+
+    return name && `/${name}`;
 }
 
 async function loadTheme(source: ContentSource, config: SiteConfig, problems: SiteProblem[]): Promise<string>

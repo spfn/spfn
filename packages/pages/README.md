@@ -28,7 +28,15 @@ site/                 # content root (config `root`, default 'site'; existing re
     tokens.json       # design tokens → CSS variables (--sf-*)
     custom.css        # free-form CSS layered after the variables
   public/             # static assets
+    favicon.svg       # well-known: auto-detected favicon (also .png/.ico/.jpg/.jpeg, in that order after svg)
+    og.png            # well-known: site-wide OG image default (also .jpg/.jpeg/.webp)
 ```
+
+Well-known `public/` assets surface on the loaded site as `site.favicon` /
+`site.ogImage` (served URLs, e.g. `/favicon.svg`) — renderers emit the
+`<link rel="icon">` and default `og:image` from them. SVG/PNG favicons are
+natively supported by browsers, so no `.ico` conversion is ever needed. A page's
+frontmatter `og:` overrides the site-wide OG image.
 
 ### `spfn.site.yaml`
 
@@ -40,12 +48,13 @@ phishing subdomain).
 name: Superfunction          # required
 description: ...             # optional
 root: site                   # optional, default 'site' ('.' = repo root)
+url: https://example.com     # optional — canonical origin; makes og:image URLs absolute
 locale: ko                   # optional
 nav:                         # optional
   - label: Docs
     path: /docs
-social:                      # optional
-  github: https://github.com/spfn/spfn
+social:                      # optional — lowercase keys; renderers display brand
+  github: https://github.com/spfn/spfn   # casing via socialLabel() ('github' → 'GitHub')
 ```
 
 ### Frontmatter (minimal by design)

@@ -55,7 +55,14 @@ is the host's standard deploy hook wired to the repo.
 
 Conventions the layouts assume: `doc`/`post` pages render the frontmatter
 `title` as the page `<h1>`, so markdown bodies start at `##`; a virtual
-`/posts` index is served when no page claims that slug.
+`/posts` index is served when no page claims that slug; footer social links
+display brand casing via `socialLabel` (`github` → `GitHub`).
+
+`generateMetadata` also emits the site's well-known assets: `site.favicon`
+becomes the `<link rel="icon">` (svg/png/ico/jpg, typed by extension) and
+`site.ogImage` the default `og:image` (frontmatter `og:` wins per page). When
+`spfn.site.yaml` sets `url:`, it becomes `metadataBase` so OG image URLs
+resolve absolute.
 
 ## Status
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { socialLabel } from '@spfn/pages';
 import type { PageDoc, SiteContent } from '@spfn/pages';
 import { DEFAULT_CSS } from './default-css';
 
@@ -26,7 +27,7 @@ export function SiteShell({ site, children }: { site: SiteContent; children: Rea
             </header>
             <main className="sf-main">{children}</main>
             <footer className="sf-footer">
-                {Object.entries(site.config.social).map(([name, url]) => <a key={name} href={url}>{name}</a>)}
+                {Object.entries(site.config.social).map(([name, url]) => <a key={name} href={url}>{socialLabel(name)}</a>)}
             </footer>
         </div>
     );

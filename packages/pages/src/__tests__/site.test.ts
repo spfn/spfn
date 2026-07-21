@@ -83,6 +83,28 @@ describe('loadSite', () =>
 
         await expect(loadSite(source)).rejects.toThrow(SiteConfigError);
     });
+
+    it('leaves favicon and ogImage unset without well-known public assets', async () =>
+    {
+        const site = await loadSite(fixtureSource());
+
+        expect(site.favicon).toBeUndefined();
+        expect(site.ogImage).toBeUndefined();
+    });
+
+    it('detects well-known public assets by convention, svg favicon first', async () =>
+    {
+        const site = await loadSite(new MemoryContentSource({
+            'spfn.site.yaml': 'name: X\n',
+            'site/pages/index.md': '---\ntitle: Home\n---\nhi\n',
+            'site/public/favicon.png': 'png-bytes',
+            'site/public/favicon.svg': '<svg/>',
+            'site/public/og.png': 'png-bytes',
+        }));
+
+        expect(site.favicon).toBe('/favicon.svg');
+        expect(site.ogImage).toBe('/og.png');
+    });
 });
 
 describe('validateSite', () =>
