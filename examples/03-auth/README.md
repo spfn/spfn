@@ -10,8 +10,19 @@ exactly what auth wires in — four small edits and one protected route.
   public via `.skip(['auth'])`; writes and `getMe` require a signed-in user.
 - **A protected route** (`src/server/routes/me.ts`) reading the user via `getAuth(c)`.
 - **Session-aware UI** (`src/app/page.tsx`) using `getSession()` in a Server Component.
+- **Admin seeding from env** (`SPFN_AUTH_ADMIN_EMAIL`/`_PASSWORD` in `.env.server`) — the
+  account is created on boot with the `superadmin` role.
+- **A login page** (`src/app/login/page.tsx`): email/password form for seeded accounts
+  (`authApi.login` — the interceptor saves the session cookie) plus the OAuth buttons.
+- **Layout guards**: `/dashboard` wraps its children in `RequireAuth`
+  (`src/app/dashboard/layout.tsx`), `/admin` in `RequireRole roles={['admin','superadmin']}`
+  (`src/app/admin/layout.tsx`) — nested pages inherit protection, no per-page checks.
 - The full `authApi` surface (register / login / session / logout / …) mounted at `/_auth/*`.
 - **Real Kakao and Naver OAuth buttons**, provider-status detection, callback finalization, and logout.
+
+This example is the finished code for the site tutorial
+([superfunction.xyz/docs/tutorial](https://superfunction.xyz/docs/tutorial), source
+`site/pages/docs/tutorial.md`).
 
 ## The four wiring points
 
@@ -57,15 +68,27 @@ pnpm spfn:next
 ```
 
 Open `http://localhost:3890`: the examples list (public) renders immediately and the session
-banner shows whether Kakao and Naver are configured. Register and log in through the client:
+banner shows whether Kakao and Naver are configured. Then walk the auth loop:
+
+1. `/dashboard` signed out → `RequireAuth` redirects to `/login`.
+2. Sign in with the seeded admin (`SPFN_AUTH_ADMIN_EMAIL` / `_PASSWORD` from `.env.server`)
+   → `/dashboard` shows your email and role via the protected `getMe` call.
+3. `/admin` → `RequireRole` lets `admin`/`superadmin` through; a social-login `user` is
+   sent back to `/dashboard`.
+4. Sign out → `/dashboard` bounces to `/login` again.
+
+Programmatic login is one call — the interceptor generates keys and saves the session cookie:
 
 ```typescript
 import { authApi } from '@spfn/auth';
 
-await authApi.register.call({ body: { email: 'me@example.com', password: 'secret123' /* + client public key */ } });
-await authApi.login.call({ body: { email: 'me@example.com', password: 'secret123' } });
+await authApi.login.call({ body: { email: 'admin@example.com', password: '…' } });
 // now api.getMe.call({}) and POST /examples succeed
 ```
+
+(Email/password *registration* additionally requires the `/_auth/verify-code` flow — a
+verification token from a mail/SMS provider — which this example skips; normal users
+register via OAuth.)
 
 See [`packages/auth/README.md`](../../packages/auth/README.md) for the full register/login
 key-exchange flow, OAuth, and RBAC.

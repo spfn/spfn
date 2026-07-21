@@ -41,6 +41,7 @@ export default async function Home()
                             <p style={{ margin: 0 }}>
                                 ✅ Signed in as user <strong>{session.userId}</strong>. Protected routes
                                 (e.g. <code>api.getMe</code>) and <code>POST /examples</code> now work.
+                                {' '}Try the guarded <a href="/dashboard">/dashboard</a> and <a href="/admin">/admin</a>.
                             </p>
                             <LogoutButton />
                         </div>
@@ -48,8 +49,9 @@ export default async function Home()
                     : (
                         <div>
                             <p style={{ margin: '0 0 1rem', color: '#666' }}>
-                                Sign in with a configured OAuth provider. The callback finalizes the encrypted
-                                session cookie, then returns to this page.
+                                Sign in on the <a href="/login">/login</a> page (email/password for the seeded
+                                admin, or OAuth below). The guarded <a href="/dashboard">/dashboard</a> redirects
+                                there until you do.
                             </p>
                             <OAuthLoginButtons />
                         </div>
