@@ -85,11 +85,19 @@ function countDocs(node: NavNode): number
     return (node.hasDoc ? 1 : 0) + node.children.reduce((sum, child) => sum + countDocs(child), 0);
 }
 
+/** The section root renders as the first flat item — its children are the list, not a nesting level. */
 function SectionSidebar({ section, current }: { section: NavNode; current: string })
 {
     return (
         <nav className="sf-sidebar" aria-label="Section navigation">
-            <ul><SidebarItem node={section} current={current} /></ul>
+            <ul>
+                <li>
+                    {section.hasDoc
+                        ? <a href={section.route} aria-current={section.route === current ? 'page' : undefined}>{section.title}</a>
+                        : <span className="sf-sidebar-group">{section.title}</span>}
+                </li>
+                {section.children.map(child => <SidebarItem key={child.route} node={child} current={current} />)}
+            </ul>
         </nav>
     );
 }
