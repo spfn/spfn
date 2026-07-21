@@ -57,6 +57,7 @@ body
 .sf-footer a { color: inherit; }
 .sf-footer-brand { font-weight: 700; }
 .sf-footer-nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+.sf-footer-note { margin-left: auto; }
 
 .sf-title { font-size: 2rem; line-height: 1.2; margin: 0 0 0.5rem; }
 .sf-date { color: var(--sf-color-muted, #555); font-size: 0.875rem; }

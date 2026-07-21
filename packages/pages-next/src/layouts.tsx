@@ -14,6 +14,12 @@ export interface SiteLayoutProps
  * the site's CSS (baseline + theme). Styles ride inside the shell so the template
  * repo's `layout.tsx` stays a bare html/body — React hoists them into <head>.
  */
+/** External nav/social targets leave the site — open them in a new tab. */
+function externalProps(url: string)
+{
+    return /^https?:\/\//.test(url) ? { target: '_blank', rel: 'noopener' } : {};
+}
+
 export function SiteShell({ site, children }: { site: SiteContent; children: ReactNode })
 {
     // Social entries whose URL already sits in the nav would render twice in the footer.
@@ -26,16 +32,17 @@ export function SiteShell({ site, children }: { site: SiteContent; children: Rea
             <header className="sf-header">
                 <a className="sf-brand" href="/">{site.config.name}</a>
                 <nav className="sf-nav">
-                    {site.config.nav.map(item => <a key={item.path} href={item.path}>{item.label}</a>)}
+                    {site.config.nav.map(item => <a key={item.path} href={item.path} {...externalProps(item.path)}>{item.label}</a>)}
                 </nav>
             </header>
             <main className="sf-main">{children}</main>
             <footer className="sf-footer">
                 <span className="sf-footer-brand">{site.config.name}</span>
                 <nav className="sf-footer-nav">
-                    {site.config.nav.map(item => <a key={item.path} href={item.path}>{item.label}</a>)}
-                    {social.map(([name, url]) => <a key={name} href={url}>{socialLabel(name)}</a>)}
+                    {site.config.nav.map(item => <a key={item.path} href={item.path} {...externalProps(item.path)}>{item.label}</a>)}
+                    {social.map(([name, url]) => <a key={name} href={url} {...externalProps(url)}>{socialLabel(name)}</a>)}
                 </nav>
+                {site.config.footerNote && <span className="sf-footer-note">{site.config.footerNote}</span>}
             </footer>
         </div>
     );

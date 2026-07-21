@@ -64,7 +64,10 @@ Conventions the layouts assume: `doc`/`post` pages render the frontmatter
 (`.sf-footer`) repeats the site brand (`.sf-footer-brand`) and nav
 (`.sf-footer-nav`), then appends social links — skipping any social entry
 whose URL already appears in the nav — with brand casing via `socialLabel`
-(`github` → `GitHub`).
+(`github` → `GitHub`). Header/footer nav and social links with an absolute
+`http(s)` URL open in a new tab (`target="_blank" rel="noopener"`); internal
+paths stay in-tab. A `footerNote` in `spfn.site.yaml` renders after the
+footer nav as `.sf-footer-note` (right-aligned by default).
 
 `DocLayout` shows a **section sidebar** from `site.sections` (the navigation
 trees `loadSite` derives from doc slugs): the tree for the page's first path
