@@ -36,6 +36,8 @@ The route map and client types are generated — edit the source route, run
 
 ## Go deeper
 
+- [Tutorial: Full-Stack Auth](./docs/tutorial.md) — build the whole thing once:
+  seeded admin, login form, social login, and layout guards, running locally
 - [The SPFN pattern](./docs/pattern.md) — slice anatomy, codegen, the typed
   client loop
 - [Packages](./docs/packages.md) — the `@spfn/*` family, documented on this site
