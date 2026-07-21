@@ -36,6 +36,18 @@ describe('buildSections', () =>
         expect(guides.children[0]).toMatchObject({ route: '/docs/guides/setup', title: 'Setup', hasDoc: true });
     });
 
+    it('anchors html pages in the tree so a landing links its subtree', () =>
+    {
+        const sections = buildSections(
+            [doc('/packages/core/db', '@spfn/core/db')],
+            [{ slug: '/packages/core', sourcePath: 'site/pages/packages/core.html', title: '@spfn/core', html: '' }]
+        );
+        const core = sections[0].children[0];
+
+        expect(core).toMatchObject({ route: '/packages/core', title: '@spfn/core', hasDoc: true });
+        expect(core.children.map(c => c.route)).toEqual(['/packages/core/db']);
+    });
+
     it('orders siblings by frontmatter order, unordered after, ties by title', () =>
     {
         const sections = buildSections([

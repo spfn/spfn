@@ -28,8 +28,8 @@ repo READMEs) are in scope as renderer feature work, not deferred.
 | `/docs`           | `pages/docs.md`           | Get started                                    |
 | `/docs/pattern`   | `pages/docs/pattern.md`   | SPFN pattern deep-dive                         |
 | `/packages`       | `pages/packages.md`       | Package index — all links internal             |
-| `/packages/<pkg>` | repo `packages/*/README.md` via `mounts` | 11 packages, served on-site     |
-| `/packages/<pkg>` landing | —                 | PHASE C — designed html landing per package; README moves beneath it |
+| `/packages/<pkg>` | `pages/packages/<pkg>.md` (frontmatter `source:` → repo README) | 10 packages, served on-site |
+| `/packages/core`  | `pages/packages/core.html` | PHASE C shipped for core (2026-07-21): designed landing; README at `/packages/core/readme`, modules at `/packages/core/<mod>`. Other packages pending. |
 | `/posts`          | renderer virtual index    | Deferred until the first release note          |
 | `/posts/<slug>`   | `posts/YYYY-MM-DD-*.md`   | Deferred                                       |
 

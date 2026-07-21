@@ -10,37 +10,3 @@ nav:
     path: /packages
 social:
   github: https://github.com/spfn/spfn
-mounts:
-  - source: packages/core/README.md
-    route: /packages/core
-    title: "@spfn/core"
-  - source: packages/auth/README.md
-    route: /packages/auth
-    title: "@spfn/auth"
-  - source: packages/cli/README.md
-    route: /packages/cli
-    title: "spfn (CLI)"
-  - source: packages/storage/README.md
-    route: /packages/storage
-    title: "@spfn/storage"
-  - source: packages/notification/README.md
-    route: /packages/notification
-    title: "@spfn/notification"
-  - source: packages/monitor/README.md
-    route: /packages/monitor
-    title: "@spfn/monitor"
-  - source: packages/cms/README.md
-    route: /packages/cms
-    title: "@spfn/cms"
-  - source: packages/workflow/README.md
-    route: /packages/workflow
-    title: "@spfn/workflow"
-  - source: packages/migrate/README.md
-    route: /packages/migrate
-    title: "@spfn/migrate"
-  - source: packages/pages/README.md
-    route: /packages/pages
-    title: "@spfn/pages"
-  - source: packages/pages-next/README.md
-    route: /packages/pages-next
-    title: "@spfn/pages-next"

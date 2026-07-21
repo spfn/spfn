@@ -14,7 +14,7 @@ the code.
 
 | Package | What it does |
 | ------- | ------------ |
-| [`@spfn/core`](../../packages/core/README.md) | Server, routing, database, codegen — the kernel every app uses |
+| [`@spfn/core`](/packages/core) | Server, routing, database, codegen — the kernel every app uses |
 | [`spfn` (CLI)](../../packages/cli/README.md) | `create`, `init`, `codegen`, dev workflow |
 | [`@spfn/migrate`](../../packages/migrate/README.md) | Database migration tooling |
 

@@ -46,13 +46,15 @@ export async function loadSite(source: ContentSource): Promise<SiteContent>
     const posts = sortByDateDesc(await renderCollection(source, postFiles, shared));
     const mounted = await loadMounted(source, shared, mountFiles, problems);
 
+    const htmlPages = await loadHtmlPages(source, tree, config, usedSlugs(pages, posts, mounted), problems);
+
     return {
         config,
         pages,
         posts,
         mounted,
-        sections: buildSections([...pages, ...mounted]),
-        htmlPages: await loadHtmlPages(source, tree, config, usedSlugs(pages, posts, mounted), problems),
+        sections: buildSections([...pages, ...mounted], htmlPages),
+        htmlPages,
         themeCss: await loadTheme(source, config, problems),
         favicon: findWellKnownAsset(tree, config, FAVICON_NAMES),
         ogImage: findWellKnownAsset(tree, config, OG_IMAGE_NAMES),

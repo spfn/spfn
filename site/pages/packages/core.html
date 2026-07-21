@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@spfn/core</title>
+<meta name="description" content="The framework kernel — HTTP server, typed route DSL, Drizzle data access, codegen, env, jobs, events. One import path per concern.">
+<meta property="og:title" content="@spfn/core — the framework kernel">
+<meta property="og:description" content="HTTP server, typed route DSL, Drizzle data access, codegen, env, jobs, events. One import path per concern.">
+<meta property="og:image" content="https://superfunction.xyz/og.png">
+<meta property="og:url" content="https://superfunction.xyz/packages/core">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+    /* @spfn/core package landing — design system "Poster" v2 (site/design/system.md) */
+    * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
+    :root
+    {
+        --cobalt: #1d34f3;
+        --ink: #10161a;
+        --white: #ffffff;
+        --signal: #ff3b1f;
+        --gray: #8a9096;
+        --gray-line: #d9dce0;
+        --grotesk: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--white); color: var(--ink); font-family: var(--grotesk); }
+    a { text-decoration: none; color: inherit; }
+    .inner { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+    /* header */
+    header { border-bottom: 1px solid var(--ink); }
+    .nav { display: flex; align-items: center; height: 64px; }
+    .brand { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .nav nav { margin-left: auto; display: flex; gap: 28px; font-size: 14.5px; font-weight: 600; }
+    .nav nav a:hover { color: var(--cobalt); }
+
+    /* hero */
+    .hero { padding: 88px 0 0; }
+    .kicker { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.12em; margin-bottom: 26px; }
+    .kicker a { color: var(--cobalt); }
+    .display
+    {
+        font-size: clamp(44px, 7vw, 88px);
+        font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; text-transform: uppercase;
+        color: var(--cobalt);
+    }
+    .display .inkline { color: var(--ink); }
+    .hero .sub { margin-top: 28px; font-size: 17px; line-height: 1.6; max-width: 58ch; }
+    .cta-row { margin-top: 34px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; }
+    .btn-cobalt { background: var(--cobalt); color: var(--white); }
+    .btn-cobalt:hover { background: var(--ink); }
+    .btn-outline { border: 1px solid var(--ink); }
+    .btn-outline:hover { border-color: var(--cobalt); color: var(--cobalt); }
+    .codebar { background: var(--ink); color: var(--white); font-family: var(--mono); font-size: 13px; padding: 14px 18px; }
+    .strip { margin-top: 64px; height: 14px; display: flex; }
+    .strip .s1 { flex: 2.5; background: var(--cobalt); }
+    .strip .s2 { flex: 1.2; background: var(--ink); }
+    .strip .s3 { flex: 0.35; background: var(--signal); }
+
+    /* sections */
+    section { padding: 88px 0; }
+    .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 44px; }
+    .sec-head .idx { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; }
+    .sec-head .rule { flex: 1; height: 1px; background: var(--ink); }
+    .sec-head .name { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+    .sec-title { font-size: clamp(28px, 3.4vw, 40px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.08; margin-bottom: 40px; }
+    .sec-title em { font-style: normal; color: var(--cobalt); }
+
+    /* import wire */
+    .wireflow { display: flex; align-items: center; font-family: var(--mono); font-size: 12px; margin-bottom: 44px; }
+    .wnode { border: 1px solid var(--ink); padding: 9px 14px; white-space: nowrap; }
+    .wnode.hot { border-color: var(--cobalt); color: var(--cobalt); font-weight: 600; }
+    .wwire { flex: 1; min-width: 18px; height: 1px; background: var(--ink); position: relative; }
+    .wwire::after { content: ''; position: absolute; right: 0; top: -2px; width: 5px; height: 5px; background: var(--ink); }
+    .wwire.tohot::after { background: var(--cobalt); }
+    .flow-note { margin-top: 28px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
+
+    /* module grid */
+    .mod-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); border-left: 1px solid var(--ink); }
+    .mod { border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 20px 20px 24px; min-height: 118px; }
+    .mod:hover { background: var(--cobalt); color: var(--white); }
+    .mod:hover p { color: var(--white); }
+    .mod .mname { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+    .mod p { margin-top: 8px; font-size: 12.5px; line-height: 1.55; color: #3c4248; }
+
+    /* CTA band */
+    .cta-band { background: var(--cobalt); color: var(--white); padding: 56px 0; }
+    .cta-band .inner { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+    .cta-band h2 { font-size: clamp(28px, 3.6vw, 44px); font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase; }
+    .cta-band .btns { margin-left: auto; display: flex; gap: 12px; }
+    .btn-white { background: var(--white); color: var(--cobalt); }
+    .btn-white:hover { background: var(--ink); color: var(--white); }
+    .btn-outline-w { border: 1px solid var(--white); color: var(--white); }
+    .btn-outline-w:hover { background: var(--white); color: var(--cobalt); }
+
+    /* footer */
+    footer { background: var(--ink); color: var(--white); padding: 34px 0; }
+    footer .inner { display: flex; align-items: center; gap: 26px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; }
+    footer a { text-decoration: underline; text-underline-offset: 3px; }
+    footer .dim { color: #6d747c; margin-left: auto; }
+
+    @media (max-width: 900px)
+    {
+        .mod-grid { grid-template-columns: 1fr 1fr; }
+        .wireflow { flex-wrap: wrap; row-gap: 10px; }
+    }
+    @media (max-width: 600px)
+    {
+        .mod-grid { grid-template-columns: 1fr; }
+        section { padding: 64px 0; }
+        .hero { padding-top: 64px; }
+    }
+</style>
+</head>
+<body>
+
+    <header>
+        <div class="inner nav">
+            <a class="brand" href="/">Superfunction</a>
+            <nav>
+                <a href="/docs">Docs</a>
+                <a href="/packages">Packages</a>
+                <a href="https://github.com/spfn/spfn">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="hero">
+        <div class="inner">
+            <div class="kicker"><a href="/packages">PACKAGES</a> / @SPFN/CORE — THE FRAMEWORK KERNEL</div>
+            <h1 class="display">The <span class="inkline">kernel.</span></h1>
+            <p class="sub">Everything an SPFN backend runs on: the HTTP server, the typed route DSL,
+               Drizzle data access, codegen, validated env, background jobs, events, cache, and the
+               Next.js RPC client. The only required package — everything else is opt-in.</p>
+            <div class="cta-row">
+                <a class="btn btn-cobalt" href="/packages/core/readme">Read the reference</a>
+                <a class="btn btn-outline" href="/docs">Get started</a>
+                <span class="codebar">$ pnpm add @spfn/core</span>
+            </div>
+        </div>
+        <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
+    </div>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">Anatomy</span></div>
+            <h2 class="sec-title">One import path<br><em>per concern.</em></h2>
+            <div class="wireflow">
+                <div class="wnode">@spfn/core/server</div><div class="wwire"></div>
+                <div class="wnode">@spfn/core/route</div><div class="wwire"></div>
+                <div class="wnode">@spfn/core/db</div><div class="wwire tohot"></div>
+                <div class="wnode hot">@spfn/core/nextjs</div>
+            </div>
+            <div class="flow-note">FIG 01 — A REQUEST'S PATH THROUGH THE KERNEL · EACH MODULE DOCUMENTED BELOW</div>
+        </div>
+    </section>
+
+    <section style="padding-top: 0;">
+        <div class="inner">
+            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">Modules</span></div>
+            <h2 class="sec-title">Fourteen modules.<br>Documented <em>on-site.</em></h2>
+            <div class="mod-grid">
+                <a class="mod" href="/packages/core/server">
+                    <div class="mname">server</div>
+                    <p>HTTP server entry point — config builder and lifecycle.</p>
+                </a>
+                <a class="mod" href="/packages/core/route">
+                    <div class="mname">route</div>
+                    <p>Type-safe route DSL and router composition.</p>
+                </a>
+                <a class="mod" href="/packages/core/db">
+                    <div class="mname">db</div>
+                    <p>Type-safe PostgreSQL data access on Drizzle ORM.</p>
+                </a>
+                <a class="mod" href="/packages/core/nextjs">
+                    <div class="mname">nextjs</div>
+                    <p>Type-safe Next.js RPC client and proxy.</p>
+                </a>
+                <a class="mod" href="/packages/core/codegen">
+                    <div class="mname">codegen</div>
+                    <p>Route-map generation and custom generators.</p>
+                </a>
+                <a class="mod" href="/packages/core/env">
+                    <div class="mname">env</div>
+                    <p>Schema-validated environment variable management.</p>
+                </a>
+                <a class="mod" href="/packages/core/config">
+                    <div class="mname">config</div>
+                    <p>The kernel's own validated env config.</p>
+                </a>
+                <a class="mod" href="/packages/core/errors">
+                    <div class="mname">errors</div>
+                    <p>Serializable HTTP/DB error classes, cross-boundary.</p>
+                </a>
+                <a class="mod" href="/packages/core/middleware">
+                    <div class="mname">middleware</div>
+                    <p>Error handling, request logging, proxy-guard, rate limiting.</p>
+                </a>
+                <a class="mod" href="/packages/core/event">
+                    <div class="mname">event</div>
+                    <p>Decoupled pub/sub events and SSE streaming.</p>
+                </a>
+                <a class="mod" href="/packages/core/job">
+                    <div class="mname">job</div>
+                    <p>pg-boss background jobs, typed payloads.</p>
+                </a>
+                <a class="mod" href="/packages/core/cache">
+                    <div class="mname">cache</div>
+                    <p>Singleton Valkey/Redis connection, graceful-degrading.</p>
+                </a>
+                <a class="mod" href="/packages/core/logger">
+                    <div class="mname">logger</div>
+                    <p>Zero-dependency structured logger, child loggers.</p>
+                </a>
+                <a class="mod" href="/packages/core/security">
+                    <div class="mname">security</div>
+                    <p>Safe outbound requests — SSRF-hardened safeFetch.</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="cta-band">
+        <div class="inner">
+            <h2>Read it all.</h2>
+            <div class="btns">
+                <a class="btn btn-white" href="/packages/core/readme">Full reference</a>
+                <a class="btn btn-outline-w" href="/docs">Get started</a>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="inner">
+            <span>SUPERFUNCTION</span>
+            <a href="/docs">DOCS</a>
+            <a href="/packages">PACKAGES</a>
+            <a href="https://github.com/spfn/spfn">GITHUB</a>
+            <span class="dim">@SPFN/CORE — BETA</span>
+        </div>
+    </footer>
+
+</body>
+</html>

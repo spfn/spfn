@@ -1,4 +1,4 @@
-import type { NavNode, PageDoc } from '../shared/types';
+import type { HtmlPage, NavNode, PageDoc } from '../shared/types';
 
 interface TreeNode
 {
@@ -9,12 +9,14 @@ interface TreeNode
 }
 
 /**
- * Section navigation trees derived from served doc slugs: the first path
- * segment is the section, deeper segments nest. A segment nobody serves a doc
- * at becomes a label-only group node. Siblings (and sections themselves) order
- * by frontmatter `order` ascending, unordered nodes after, ties by title.
+ * Section navigation trees derived from served slugs — markdown docs and raw
+ * HTML pages alike (an HTML landing anchors its subtree even though it renders
+ * outside the layout). The first path segment is the section, deeper segments
+ * nest. A segment nobody serves becomes a label-only group node. Siblings (and
+ * sections themselves) order by frontmatter `order` ascending, unordered nodes
+ * after, ties by title; HTML pages have no frontmatter and sort by title.
  */
-export function buildSections(docs: PageDoc[]): NavNode[]
+export function buildSections(docs: PageDoc[], htmlPages: HtmlPage[] = []): NavNode[]
 {
     const root: TreeNode = { title: '', hasDoc: false, children: new Map() };
 
@@ -22,17 +24,24 @@ export function buildSections(docs: PageDoc[]): NavNode[]
     {
         if (doc.slug !== '/')
         {
-            insert(root, doc);
+            insert(root, doc.slug, doc.frontmatter.title, doc.frontmatter.order);
+        }
+    }
+    for (const page of htmlPages)
+    {
+        if (page.slug !== '/')
+        {
+            insert(root, page.slug, page.title, undefined);
         }
     }
 
     return toNavNodes(root, '');
 }
 
-function insert(root: TreeNode, doc: PageDoc): void
+function insert(root: TreeNode, slug: string, title: string, order: number | undefined): void
 {
     let node = root;
-    for (const segment of doc.slug.slice(1).split('/'))
+    for (const segment of slug.slice(1).split('/'))
     {
         const child = node.children.get(segment) ?? { title: segment, hasDoc: false, children: new Map() };
         node.children.set(segment, child);
@@ -40,8 +49,8 @@ function insert(root: TreeNode, doc: PageDoc): void
     }
 
     node.hasDoc = true;
-    node.title = doc.frontmatter.title;
-    node.order = doc.frontmatter.order;
+    node.title = title;
+    node.order = order;
 }
 
 function toNavNodes(node: TreeNode, route: string): NavNode[]
