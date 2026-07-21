@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cobalt field options — phase 2 iteration</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
+    :root
+    {
+        --ink: #10161a;
+        --white: #ffffff;
+        --signal: #ff3b1f;
+        --gray: #8a9096;
+        --grotesk: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+    body { background: #161618; color: #e8e8ec; font-family: var(--grotesk); padding: 48px; }
+    .intro { max-width: 900px; margin-bottom: 40px; }
+    .intro h1 { font-size: 24px; font-weight: 700; }
+    .intro p { color: #8b8b95; margin-top: 8px; font-size: 14px; line-height: 1.6; }
+    .option { margin-bottom: 44px; }
+    .opt-label { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; color: #c8b26a; margin-bottom: 10px; }
+    .frame { border: 1px solid #333; }
+
+    .hero { padding: 64px 56px 58px; }
+    .kicker { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.12em; margin-bottom: 22px; }
+    .display { font-size: 58px; font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; text-transform: uppercase; }
+    .sub { margin-top: 20px; font-size: 15px; line-height: 1.6; max-width: 52ch; }
+    .cta-row { margin-top: 26px; display: flex; align-items: center; gap: 12px; }
+    .btn { display: inline-block; padding: 12px 24px; font-size: 14px; font-weight: 700; }
+    .codebar { font-family: var(--mono); font-size: 12.5px; padding: 12px 16px; }
+
+    /* A — deeper cobalt field */
+    .a-hero { background: #1526c9; color: var(--white); }
+    .a-hero .display .dim { color: #0c1470; }
+    .a-hero .btn-1 { background: var(--white); color: #1526c9; }
+    .a-hero .btn-2 { border: 1px solid var(--white); color: var(--white); }
+    .a-hero .codebar { background: #0c1470; color: var(--white); }
+
+    /* B — white ground, cobalt type & blocks */
+    .b-hero { background: var(--white); color: var(--ink); }
+    .b-hero .kicker { color: var(--ink); }
+    .b-hero .display { color: #1d34f3; }
+    .b-hero .display .inkline { color: var(--ink); }
+    .b-hero .sub { color: var(--ink); }
+    .b-hero .btn-1 { background: #1d34f3; color: var(--white); }
+    .b-hero .btn-2 { border: 1px solid var(--ink); color: var(--ink); }
+    .b-hero .codebar { background: var(--ink); color: var(--white); }
+    .b-strip { height: 14px; display: flex; }
+    .b-strip .s1 { flex: 2.5; background: #1d34f3; }
+    .b-strip .s2 { flex: 1.2; background: var(--ink); }
+    .b-strip .s3 { flex: 0.35; background: var(--signal); }
+
+    /* C — ink field, cobalt accents */
+    .c-hero { background: var(--ink); color: var(--white); }
+    .c-hero .display .blue { color: #4d61ff; }
+    .c-hero .btn-1 { background: #1d34f3; color: var(--white); }
+    .c-hero .btn-2 { border: 1px solid var(--white); color: var(--white); }
+    .c-hero .codebar { background: #060a0d; color: var(--white); border-left: 3px solid #1d34f3; }
+</style>
+</head>
+<body>
+    <div class="intro">
+        <h1>Cobalt field options — 눈 아픔 피드백 반영안</h1>
+        <p>같은 히어로를 3가지 지면 전략으로. A는 필드 유지 + 명도만 낮춘 딥 코발트(#1526c9),
+           B는 흰 지면에 코발트를 타입·블록으로만, C는 잉크 지면에 코발트 액센트.</p>
+        <p style="color:#c8b26a; margin-top:10px;">DECIDED (2026-07-21): B — white-first. system.md/system.html v2에 반영됨.</p>
+    </div>
+
+    <div class="option">
+        <div class="opt-label">A — DEEP COBALT FIELD (#1526c9, 채도·명도 한 단계 다운)</div>
+        <div class="frame">
+            <div class="hero a-hero">
+                <div class="kicker">SUPERFUNCTION — A BACKEND INSIDE NEXT.JS</div>
+                <div class="display">Typed<br>end to <span class="dim">end.</span></div>
+                <p class="sub">A real backend inside your Next.js project — entities, routes, and a generated
+                   client sharing one type system.</p>
+                <div class="cta-row">
+                    <span class="btn btn-1">Get started</span>
+                    <span class="btn btn-2">GitHub</span>
+                    <span class="codebar">$ npx spfn@beta create my-app</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="option">
+        <div class="opt-label">B — WHITE GROUND · COBALT AS TYPE &amp; BLOCKS (필드는 스트립·CTA만)</div>
+        <div class="frame">
+            <div class="hero b-hero">
+                <div class="kicker">SUPERFUNCTION — A BACKEND INSIDE NEXT.JS</div>
+                <div class="display">Typed<br>end to <span class="inkline">end.</span></div>
+                <p class="sub">A real backend inside your Next.js project — entities, routes, and a generated
+                   client sharing one type system.</p>
+                <div class="cta-row">
+                    <span class="btn btn-1">Get started</span>
+                    <span class="btn btn-2">GitHub</span>
+                    <span class="codebar">$ npx spfn@beta create my-app</span>
+                </div>
+            </div>
+            <div class="b-strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
+        </div>
+    </div>
+
+    <div class="option">
+        <div class="opt-label">C — INK FIELD · COBALT ACCENTS (다크 지면, 파랑은 포인트)</div>
+        <div class="frame">
+            <div class="hero c-hero">
+                <div class="kicker">SUPERFUNCTION — A BACKEND INSIDE NEXT.JS</div>
+                <div class="display">Typed<br>end to <span class="blue">end.</span></div>
+                <p class="sub">A real backend inside your Next.js project — entities, routes, and a generated
+                   client sharing one type system.</p>
+                <div class="cta-row">
+                    <span class="btn btn-1">Get started</span>
+                    <span class="btn btn-2">GitHub</span>
+                    <span class="codebar">$ npx spfn@beta create my-app</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

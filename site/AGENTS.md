@@ -18,6 +18,7 @@ theme/
   tokens.json       # design tokens → `--sf-*` CSS variables
   custom.css        # free-form CSS, layered after tokens
 public/             # static assets, served from '/' ('public/img/x.png' → '/img/x.png')
+design/             # NOT SERVED — design workflow workspace, see design/WORKFLOW.md
   favicon.svg       # WELL-KNOWN: auto-linked favicon (or .png/.ico/.jpg — svg/png work as-is, no .ico needed)
   og.png            # WELL-KNOWN: site-wide OG image, 1200×630 (or .jpg/.webp); frontmatter `og:` overrides per page
 ```

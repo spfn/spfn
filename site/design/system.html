@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>superfunction.xyz — design system "Poster" (phase 2)</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
+    :root
+    {
+        --cobalt: #1d34f3;
+        --ink: #10161a;
+        --white: #ffffff;
+        --signal: #ff3b1f;
+        --gray: #8a9096;
+        --gray-line: #d9dce0;
+        --grotesk: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+    body { background: var(--white); color: var(--ink); font-family: var(--grotesk); }
+    section { padding: 72px 48px; }
+    .inner { max-width: 1120px; margin: 0 auto; }
+
+    .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 36px; }
+    .sec-head .idx { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; }
+    .sec-head .rule { flex: 1; height: 1px; background: var(--ink); }
+    .sec-head .name { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    /* 00 cover — white-first (v2): cobalt in type and strips, not fields */
+    .cover { background: var(--white); color: var(--ink); padding: 88px 48px 0; }
+    .cover .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; margin-bottom: 26px; }
+    .cover h1 { font-size: 76px; font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; text-transform: uppercase; color: var(--cobalt); }
+    .cover h1 .inkline { color: var(--ink); }
+    .cover .sub { margin-top: 26px; font-size: 16px; line-height: 1.6; max-width: 56ch; }
+    .cover .strip { margin-top: 56px; height: 14px; display: flex; }
+    .cover .strip .s1 { flex: 2.5; background: var(--cobalt); }
+    .cover .strip .s2 { flex: 1.2; background: var(--ink); }
+    .cover .strip .s3 { flex: 0.35; background: var(--signal); }
+
+    /* palette */
+    .swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; border: 1px solid var(--ink); }
+    .swatch { height: 128px; position: relative; }
+    .swatch + .swatch { border-left: 1px solid var(--ink); }
+    .swatch .label
+    {
+        position: absolute; left: 10px; bottom: 8px;
+        font-family: var(--mono); font-size: 11px; line-height: 1.5;
+    }
+    .usage { margin-top: 14px; font-size: 13.5px; color: var(--gray); line-height: 1.55; max-width: 80ch; }
+
+    /* type */
+    .type-row { display: flex; align-items: baseline; gap: 28px; padding: 18px 0; border-bottom: 1px solid var(--gray-line); }
+    .type-row .meta { font-family: var(--mono); font-size: 11px; color: var(--gray); width: 210px; flex-shrink: 0; }
+    .t-display { font-size: 76px; font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; text-transform: uppercase; }
+    .t-h1 { font-size: 48px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.05; }
+    .t-h2 { font-size: 30px; font-weight: 700; letter-spacing: -0.015em; }
+    .t-h3 { font-size: 19px; font-weight: 700; }
+    .t-body { font-size: 16px; line-height: 1.6; max-width: 62ch; }
+    .t-mono { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    /* grounds */
+    .grounds { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 1px solid var(--ink); }
+    .ground { padding: 26px 24px 30px; min-height: 190px; }
+    .ground + .ground { border-left: 1px solid var(--ink); }
+    .ground .gname { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; margin-bottom: 14px; }
+    .ground h3 { font-size: 22px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.15; }
+    .ground p { margin-top: 10px; font-size: 13.5px; line-height: 1.55; }
+    .ground a { font-weight: 600; }
+    .g-white { background: var(--white); color: var(--ink); }
+    .g-white a { color: var(--cobalt); }
+    .g-cobalt { background: var(--cobalt); color: var(--white); }
+    .g-cobalt a { color: var(--white); }
+    .g-ink { background: var(--ink); color: var(--white); }
+    .g-ink a { color: var(--white); }
+
+    /* components */
+    .comp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px 48px; }
+    .comp .cname { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); margin-bottom: 14px; text-transform: uppercase; }
+    .btn { display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; cursor: default; }
+    .btn-ink { background: var(--ink); color: var(--white); }
+    .btn-outline { border: 1px solid var(--ink); color: var(--ink); margin-left: 12px; }
+    .oncobalt { background: var(--cobalt); padding: 22px; }
+    .btn-white { background: var(--white); color: var(--cobalt); }
+    .btn-outline-w { border: 1px solid var(--white); color: var(--white); margin-left: 12px; }
+
+    .bar-row { display: flex; height: 40px; }
+    .bar-row .b1 { flex: 2.4; background: var(--cobalt); }
+    .bar-row .b2 { flex: 1.4; background: var(--ink); }
+    .bar-row .b3 { flex: 0.4; background: var(--signal); }
+
+    .codeblock
+    {
+        background: var(--ink); color: var(--white);
+        font-family: var(--mono); font-size: 13.5px; line-height: 1.7;
+        padding: 18px 22px;
+        border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
+    }
+    .codeblock .dim { color: #6d747c; }
+
+    .secheader-demo { }
+    .secheader-demo .demo-h2 { font-size: 30px; font-weight: 700; letter-spacing: -0.015em; margin-top: 14px; }
+
+    /* wire diagram */
+    .wire-demo { border: 1px solid var(--gray-line); padding: 34px 30px 26px; }
+    .wireflow { display: flex; align-items: center; font-family: var(--mono); font-size: 12px; }
+    .wnode { border: 1px solid var(--ink); padding: 8px 12px; white-space: nowrap; }
+    .wnode.hot { border-color: var(--cobalt); color: var(--cobalt); }
+    .wwire { flex: 1; min-width: 20px; height: 1px; background: var(--ink); position: relative; }
+    .wwire::after { content: ''; position: absolute; right: 0; top: -2px; width: 5px; height: 5px; background: var(--ink); }
+    .wwire.tohot::after { background: var(--cobalt); }
+    .wcaption { margin-top: 16px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
+
+    /* voice */
+    .voice-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+    .voice h4 { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; margin-bottom: 12px; }
+    .voice .do h4 { color: var(--cobalt); }
+    .voice .dont h4 { color: var(--signal); }
+    .voice p { font-size: 15px; line-height: 1.65; }
+    .voice .sample { font-size: 22px; font-weight: 800; letter-spacing: -0.015em; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+    <div class="cover">
+        <div class="inner">
+            <div class="kicker">SUPERFUNCTION.XYZ — DESIGN SYSTEM "POSTER" · V2 AGREED (WHITE-FIRST)</div>
+            <h1>Poster,<br>not <span class="inkline">app.</span></h1>
+            <p class="sub">White ground, hard edges, big grotesk type, wire diagrams. No gradients, no
+               shadows, no rounded corners. Cobalt lives in type and blocks — strips and a short CTA band
+               are the only cobalt fields; large washes are banned (eye strain, round-2 decision).</p>
+        </div>
+        <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
+    </div>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">Color</span></div>
+            <div class="swatches">
+                <div class="swatch" style="background:#1d34f3"><div class="label" style="color:#fff">cobalt<br>#1d34f3</div></div>
+                <div class="swatch" style="background:#10161a"><div class="label" style="color:#fff">ink<br>#10161a</div></div>
+                <div class="swatch" style="background:#ffffff"><div class="label">white<br>#ffffff</div></div>
+                <div class="swatch" style="background:#ff3b1f"><div class="label" style="color:#fff">signal<br>#ff3b1f</div></div>
+                <div class="swatch" style="background:#8a9096"><div class="label" style="color:#fff">gray<br>#8a9096</div></div>
+                <div class="swatch" style="background:#d9dce0"><div class="label">gray-line<br>#d9dce0</div></div>
+            </div>
+            <p class="usage">Grounds: white (reading) / cobalt (impact) / ink (code, breaks). signal is a
+               micro-accent — small bars and marks, at most one per view, never text. Links: cobalt on white,
+               underlined white on cobalt/ink.</p>
+        </div>
+    </section>
+
+    <section style="padding-top: 24px;">
+        <div class="inner">
+            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">Type</span></div>
+            <div class="type-row"><span class="meta">DISPLAY · 76/0.98 · 800 · CAPS</span><span class="t-display">Typed end to end.</span></div>
+            <div class="type-row"><span class="meta">H1 · 48/1.05 · 800</span><span class="t-h1">A backend inside Next.js</span></div>
+            <div class="type-row"><span class="meta">H2 · 30/1.15 · 700</span><span class="t-h2">One vertical slice per feature</span></div>
+            <div class="type-row"><span class="meta">H3 · 19/1.3 · 700</span><span class="t-h3">Entity, Repository, Route, Router</span></div>
+            <div class="type-row"><span class="meta">BODY · 16/1.6 · 400</span><span class="t-body">Change a route and the client type changes with it — the compiler catches what integration tests used to.</span></div>
+            <div class="type-row" style="border-bottom: none;"><span class="meta">MONO-LABEL · 12 · +0.1em</span><span class="t-mono">FIG 01 — Type flow</span></div>
+        </div>
+    </section>
+
+    <section style="padding-top: 24px;">
+        <div class="inner">
+            <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">Grounds</span></div>
+            <div class="grounds">
+                <div class="ground g-white">
+                    <div class="gname">WHITE — THE PAGE</div>
+                    <h3>Default ground.</h3>
+                    <p>Everything reads on white. Cobalt is <a href="#">type and blocks</a> here — never a wash.</p>
+                </div>
+                <div class="ground g-cobalt">
+                    <div class="gname">COBALT — BAND ONLY</div>
+                    <h3>Strips &amp; CTA band.</h3>
+                    <p>≤220px tall. Big type, white blocks. Links are <a href="#">underlined white</a>.</p>
+                </div>
+                <div class="ground g-ink">
+                    <div class="gname">INK — CODE / FOOTER</div>
+                    <h3>Code &amp; contrast.</h3>
+                    <p>Code walkthroughs and the footer. Mono carries the voice here.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section style="padding-top: 24px;">
+        <div class="inner">
+            <div class="sec-head"><span class="idx">04</span><div class="rule"></div><span class="name">Components</span></div>
+            <div class="comp-grid">
+                <div class="comp">
+                    <div class="cname">Block buttons — on white</div>
+                    <span class="btn btn-ink">Get started</span><span class="btn btn-outline">GitHub</span>
+                </div>
+                <div class="comp">
+                    <div class="cname">Block buttons — on cobalt</div>
+                    <div class="oncobalt"><span class="btn btn-white">Get started</span><span class="btn btn-outline-w">GitHub</span></div>
+                </div>
+                <div class="comp">
+                    <div class="cname">Bar row — poster divider</div>
+                    <div class="bar-row"><div class="b1"></div><div class="b2"></div><div class="b3"></div></div>
+                </div>
+                <div class="comp">
+                    <div class="cname">Section header</div>
+                    <div class="secheader-demo">
+                        <div class="sec-head" style="margin-bottom: 0;"><span class="idx">02</span><div class="rule"></div><span class="name">Why SPFN</span></div>
+                        <div class="demo-h2">The compiler does the reviewing</div>
+                    </div>
+                </div>
+                <div class="comp" style="grid-column: 1 / -1;">
+                    <div class="cname">Code block — ink ground</div>
+                    <div class="codeblock">
+                        <div>$ npx spfn@beta create my-app</div>
+                        <div>$ pnpm spfn:dev   <span class="dim"># Next.js :3790 + SPFN API :8790</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section style="padding-top: 24px;">
+        <div class="inner">
+            <div class="sec-head"><span class="idx">05</span><div class="rule"></div><span class="name">Wire diagram</span></div>
+            <div class="wire-demo">
+                <div class="wireflow">
+                    <div class="wnode">entity</div><div class="wwire"></div>
+                    <div class="wnode">repository</div><div class="wwire"></div>
+                    <div class="wnode">route</div><div class="wwire tohot"></div>
+                    <div class="wnode hot">typed client</div>
+                </div>
+                <div class="wcaption">FIG 01 — TYPE FLOW · 1PX STROKES · HOT NODE TAKES THE GROUND'S ACCENT</div>
+            </div>
+        </div>
+    </section>
+
+    <section style="padding-top: 24px; padding-bottom: 96px;">
+        <div class="inner">
+            <div class="sec-head"><span class="idx">06</span><div class="rule"></div><span class="name">Voice</span></div>
+            <div class="voice voice-cols">
+                <div class="do">
+                    <h4>DO</h4>
+                    <p class="sample">Typed end to end.</p>
+                    <p>Declarative, short, confident. Captions read like figure labels. Display lines may
+                       break mid-phrase for composition.</p>
+                </div>
+                <div class="dont">
+                    <h4>DON'T</h4>
+                    <p class="sample">We help you build faster! 🚀</p>
+                    <p>No marketing-we, no exclamation marks, no emoji in display copy, no "blazingly fast".</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</body>
+</html>

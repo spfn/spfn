@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>superfunction.xyz — moodboard (phase 1, round 2)</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root
+    {
+        --canvas: #161618;
+        --canvas-fg: #e8e8ec;
+        --canvas-muted: #8b8b95;
+    }
+    body
+    {
+        background: var(--canvas);
+        color: var(--canvas-fg);
+        font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        padding: 56px 48px 96px;
+    }
+    .intro { max-width: 920px; margin-bottom: 48px; }
+    .intro h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; }
+    .intro p { color: var(--canvas-muted); margin-top: 10px; font-size: 15px; line-height: 1.6; }
+    .intro .status { margin-top: 14px; font-size: 13px; color: #c8b26a; }
+    .intro .dropped { margin-top: 6px; font-size: 13px; color: #6f6f78; }
+
+    .board
+    {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
+        gap: 28px;
+        max-width: 1400px;
+    }
+    .card { border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+    .card .body { padding: 28px 30px 30px; flex: 1; display: flex; flex-direction: column; gap: 20px; }
+    .tag { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.65; }
+    .card h2 { font-size: 24px; letter-spacing: -0.01em; margin-top: 4px; }
+    .essence { font-size: 14px; line-height: 1.55; opacity: 0.82; }
+    .refs { font-size: 12.5px; opacity: 0.6; }
+    .chips { display: flex; gap: 8px; }
+    .chip { flex: 1; height: 44px; border-radius: 7px; position: relative; }
+    .chip span
+    {
+        position: absolute; bottom: 4px; left: 7px;
+        font-size: 10px; font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+        opacity: 0.8;
+    }
+    .fits { font-size: 13px; line-height: 1.55; padding-top: 14px; border-top: 1px solid; }
+    .specimen { border-radius: 9px; padding: 22px 24px; }
+
+    /* E — Poster Swiss: solid cobalt field, grotesk, hard edges */
+    .e { background: #1d34f3; color: #ffffff; }
+    .e .fits { border-color: rgba(255,255,255,0.25); }
+    .e .specimen { background: #1d34f3; border: none; padding: 10px 0 0; border-radius: 0; }
+    .e .spec-head
+    {
+        font-size: 44px; font-weight: 800; letter-spacing: -0.035em; line-height: 0.98;
+        text-transform: uppercase;
+    }
+    .e .spec-head .flip { color: #10161a; }
+    .e .bar-row { margin-top: 20px; display: flex; align-items: stretch; gap: 0; height: 44px; }
+    .e .bar-a { background: #ffffff; color: #1d34f3; flex: 2.2; display: flex; align-items: center; padding: 0 14px; font-weight: 700; font-size: 14px; }
+    .e .bar-b { background: #10161a; color: #ffffff; flex: 1.6; display: flex; align-items: center; padding: 0 14px; font-family: ui-monospace, monospace; font-size: 12px; }
+    .e .bar-c { background: #ff3b1f; flex: 0.5; }
+    .e .foot { margin-top: 12px; font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.1em; opacity: 0.8; }
+
+    /* F — Retro OS: desktop metaphor, window chrome */
+    .f { background: #b8bcb6; color: #17181a; }
+    .f .fits { border-color: #9a9e98; }
+    .f .specimen { background: transparent; padding: 0; }
+    .f .window
+    {
+        background: #ececea; border: 2px solid #17181a; border-radius: 8px;
+        box-shadow: 5px 5px 0 #17181a;
+        overflow: hidden;
+    }
+    .f .titlebar
+    {
+        display: flex; align-items: center; gap: 8px;
+        border-bottom: 2px solid #17181a; padding: 8px 12px;
+        background: repeating-linear-gradient(180deg, #ececea 0 2px, #d6d6d2 2px 4px);
+    }
+    .f .titlebar .dot { width: 12px; height: 12px; border: 2px solid #17181a; border-radius: 50%; background: #ececea; }
+    .f .titlebar .name { margin-left: auto; margin-right: auto; font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em; }
+    .f .win-body { padding: 18px 20px 20px; }
+    .f .spec-head { font-size: 26px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.15; }
+    .f .spec-head em { font-style: normal; color: #d64500; }
+    .f .subwin
+    {
+        margin-top: 14px; background: #ffffff; border: 2px solid #17181a; border-radius: 6px;
+        padding: 10px 13px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.7;
+    }
+    .f .subwin .ok { color: #0b7a3e; }
+    .f .menu { display: flex; gap: 16px; font-size: 12.5px; font-weight: 600; margin-bottom: 12px; }
+    .f .menu span:first-child { font-weight: 800; }
+
+    /* G — Volt Wireframe: black, hairlines, acid accent */
+    .g { background: #0a0a0a; color: #f2f2f0; border: 1px solid #2a2a2a; }
+    .g .fits { border-color: #2a2a2a; }
+    .g .specimen { background: #0a0a0a; border: 1px solid #3a3a3a; }
+    .g .spec-head
+    {
+        font-size: 30px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.12;
+    }
+    .g .spec-head em { font-style: normal; color: #d4ff00; }
+    .g .wireflow
+    {
+        margin-top: 18px; display: flex; align-items: center;
+        font-family: ui-monospace, monospace; font-size: 11.5px;
+    }
+    .g .wnode
+    {
+        border: 1px solid #f2f2f0; padding: 7px 12px; white-space: nowrap; border-radius: 2px;
+    }
+    .g .wnode.hot { border-color: #d4ff00; color: #d4ff00; }
+    .g .wwire { flex: 1; min-width: 16px; height: 1px; background: #4a4a4a; position: relative; }
+    .g .wwire::after
+    {
+        content: ''; position: absolute; right: 0; top: -2px;
+        width: 5px; height: 5px; background: #d4ff00; border-radius: 50%;
+    }
+    .g .caption { margin-top: 12px; font-family: ui-monospace, monospace; font-size: 10.5px; color: #6a6a66; letter-spacing: 0.08em; }
+
+    /* C — Blueprint (round 1 survivor) */
+    .c
+    {
+        background: #0c2340;
+        background-image: linear-gradient(rgba(127, 209, 255, 0.07) 1px, transparent 1px),
+                          linear-gradient(90deg, rgba(127, 209, 255, 0.07) 1px, transparent 1px);
+        background-size: 26px 26px;
+        color: #e6f3fc;
+    }
+    .c .fits { border-color: #1d3f63; }
+    .c .specimen { background: rgba(9, 26, 47, 0.85); border: 1px solid #1d3f63; }
+    .c .spec-head { font-size: 25px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.22; }
+    .c .spec-head em { font-style: normal; color: #7fd1ff; }
+    .c .schematic { margin-top: 18px; display: flex; align-items: center; font-family: ui-monospace, monospace; font-size: 11.5px; letter-spacing: 0.04em; }
+    .c .node { border: 1.5px solid #7fd1ff; border-radius: 4px; padding: 7px 11px; color: #cfeaff; white-space: nowrap; }
+    .c .wire { flex: 1; min-width: 18px; border-top: 1.5px dashed #4d7ba6; position: relative; }
+    .c .wire::after { content: '▸'; position: absolute; right: -3px; top: -9px; color: #4d7ba6; font-size: 11px; }
+    .c .anno { margin-top: 10px; font-family: ui-monospace, monospace; font-size: 10.5px; color: #6f9cc4; letter-spacing: 0.08em; }
+</style>
+</head>
+<body>
+    <div class="intro">
+        <h1>superfunction.xyz — moodboard · round 2</h1>
+        <p>Feedback from round 1: paper/cream editorial (A, D) is the new AI-design default — escape the
+           AI grammar entirely. Pastel terminal (B) dropped for the same reason. Round 2 keeps C for
+           comparison and adds three languages rarely used by dev-tool sites.</p>
+        <p class="status">Status: DECIDED (2026-07-21) — E Poster Swiss as base + G's wire-diagram language
+           for figures, revised to WHITE-FIRST after field-options discussion (large cobalt washes strain
+           the eye): cobalt lives in display type, buttons, and thin strips; ink fields carry code and the
+           footer. See field-options.html (B) and system.md / system.html v2.</p>
+        <p class="dropped">dropped — A Field Manual · B Terminal Warmth · D Press Humanist (round 1)</p>
+    </div>
+
+    <div class="board">
+
+        <div class="card e">
+            <div class="body">
+                <div>
+                    <div class="tag">Direction E</div>
+                    <h2>Poster Swiss</h2>
+                </div>
+                <p class="essence">A solid cobalt field and nothing to hide behind — huge grotesk caps, hard
+                   blocks of white/black/red, zero gradients, zero cards, zero glow. The confidence of a
+                   printed poster, on screen.</p>
+                <p class="refs">refs — Josef Müller-Brockmann, Bauhaus posters, international typographic style</p>
+                <div class="chips">
+                    <div class="chip" style="background:#1d34f3; border: 1px solid rgba(255,255,255,0.35)"><span>#1d34f3</span></div>
+                    <div class="chip" style="background:#ffffff"><span style="color:#1d34f3">#ffffff</span></div>
+                    <div class="chip" style="background:#10161a"><span style="color:#fff">#10161a</span></div>
+                    <div class="chip" style="background:#ff3b1f"><span style="color:#fff">#ff3b1f</span></div>
+                </div>
+                <div class="specimen">
+                    <div class="spec-head">Typed<br>end to <span class="flip">end.</span></div>
+                    <div class="bar-row">
+                        <div class="bar-a">Ship full-stack TypeScript</div>
+                        <div class="bar-b">npx spfn@beta create</div>
+                        <div class="bar-c"></div>
+                    </div>
+                    <div class="foot">SUPERFUNCTION — A BACKEND INSIDE NEXT.JS</div>
+                </div>
+                <p class="fits">Fits: maximal differentiation — no dev-tool site commits to a full color field.
+                   The hard-block language systematizes cleanly into tokens and components.</p>
+            </div>
+        </div>
+
+        <div class="card f">
+            <div class="body">
+                <div>
+                    <div class="tag">Direction F</div>
+                    <h2>Retro OS</h2>
+                </div>
+                <p class="essence">The site as a friendly operating system — window chrome, menu bar, hard
+                   2px borders and offset shadows on warm gray. "A backend inside your app" told literally:
+                   windows inside windows.</p>
+                <p class="refs">refs — poolside.fm, System 7 / classic Mac revival, teenage engineering OS</p>
+                <div class="chips">
+                    <div class="chip" style="background:#b8bcb6"><span>#b8bcb6</span></div>
+                    <div class="chip" style="background:#ececea"><span>#ececea</span></div>
+                    <div class="chip" style="background:#17181a"><span style="color:#ececea">#17181a</span></div>
+                    <div class="chip" style="background:#d64500"><span style="color:#fff">#d64500</span></div>
+                </div>
+                <div class="specimen">
+                    <div class="menu"><span>⌘ superfunction</span><span>Docs</span><span>GitHub</span></div>
+                    <div class="window">
+                        <div class="titlebar"><div class="dot"></div><div class="name">my-app — spfn:dev</div></div>
+                        <div class="win-body">
+                            <div class="spec-head">A <em>real backend</em> inside your Next.js app.</div>
+                            <div class="subwin">
+                                <div>$ npx spfn@beta create my-app</div>
+                                <div><span class="ok">✓</span> entity → route → typed client</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <p class="fits">Fits: memorable and warm without paper or pastel; the window metaphor mirrors
+                   the product ("backend inside your app"). Risk: reads playful, needs discipline to stay credible.</p>
+            </div>
+        </div>
+
+        <div class="card g">
+            <div class="body">
+                <div>
+                    <div class="tag">Direction G</div>
+                    <h2>Volt Wireframe</h2>
+                </div>
+                <p class="essence">Near-black canvas, 1px hairline strokes, one acid-volt accent. No fills, no
+                   gradients, no glass — structure drawn as wires, like a CAD model of the framework. Cold,
+                   precise, fashionable in design circles but absent from dev tools.</p>
+                <p class="refs">refs — cargo.site portfolios, are.na aesthetics, teenage engineering hardware UI</p>
+                <div class="chips">
+                    <div class="chip" style="background:#0a0a0a; border: 1px solid #3a3a3a"><span style="color:#f2f2f0">#0a0a0a</span></div>
+                    <div class="chip" style="background:#f2f2f0"><span style="color:#0a0a0a">#f2f2f0</span></div>
+                    <div class="chip" style="background:#d4ff00"><span style="color:#0a0a0a">#d4ff00</span></div>
+                    <div class="chip" style="background:#4a4a4a"><span style="color:#f2f2f0">#4a4a4a</span></div>
+                </div>
+                <div class="specimen">
+                    <div class="spec-head">One type system,<br><em>entity to client</em>.</div>
+                    <div class="wireflow">
+                        <div class="wnode">entity</div><div class="wwire"></div>
+                        <div class="wnode">route</div><div class="wwire"></div>
+                        <div class="wnode hot">typed client</div>
+                    </div>
+                    <div class="caption">TYPE FLOW — CHANGE A ROUTE, THE CLIENT TYPE FOLLOWS</div>
+                </div>
+                <p class="fits">Fits: both story axes at once — the wire diagram is the typed pipeline AND the
+                   structure agents navigate. Hairline discipline keeps it serious.</p>
+            </div>
+        </div>
+
+        <div class="card c">
+            <div class="body">
+                <div>
+                    <div class="tag">Direction C — round 1 survivor</div>
+                    <h2>Blueprint</h2>
+                </div>
+                <p class="essence">The architecture drawing is the identity. Engineering-schematic motifs —
+                   grid paper, stencil caps, dashed wires, part annotations — on deep drawing-board blue.</p>
+                <p class="refs">refs — teenage engineering manuals, circuit schematics, architectural blueprints</p>
+                <div class="chips">
+                    <div class="chip" style="background:#0c2340"><span style="color:#e6f3fc">#0c2340</span></div>
+                    <div class="chip" style="background:#7fd1ff"><span>#7fd1ff</span></div>
+                    <div class="chip" style="background:#e6f3fc"><span>#e6f3fc</span></div>
+                    <div class="chip" style="background:#f5b53f"><span>#f5b53f</span></div>
+                </div>
+                <div class="specimen">
+                    <div class="spec-head">One type system, <em>entity to client</em>.</div>
+                    <div class="schematic">
+                        <div class="node">ENTITY</div><div class="wire"></div>
+                        <div class="node">ROUTE</div><div class="wire"></div>
+                        <div class="node">CLIENT</div>
+                    </div>
+                    <div class="anno">FIG 2.1 — VERTICAL SLICE, ONE FILE PER LAYER</div>
+                </div>
+                <p class="fits">Fits: "agents know where things go" — but the blue-grid look borders on
+                   gimmick next to G's stricter take on the same idea.</p>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
