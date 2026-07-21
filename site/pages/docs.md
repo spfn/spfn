@@ -38,6 +38,6 @@ The route map and client types are generated — edit the source route, run
 
 - [The SPFN pattern](./docs/pattern.md) — slice anatomy, codegen, the typed
   client loop
-- [Packages](./packages.md) — the `@spfn/*` family, documented on this site
+- [Packages](./docs/packages.md) — the `@spfn/*` family, documented on this site
 - [Runnable examples](https://github.com/spfn/spfn/tree/main/examples) — from a
   minimal API to auth, end to end

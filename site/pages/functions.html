@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Functions — Superfunction</title>
+<meta name="description" content="The @spfn/* package family — composable functions for full-stack TypeScript apps.">
+<meta property="og:title" content="Functions — Superfunction">
+<meta property="og:description" content="The @spfn/* package family — composable functions for full-stack TypeScript apps.">
+<meta property="og:image" content="https://superfunction.xyz/og.png">
+<meta property="og:url" content="https://superfunction.xyz/functions">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+    /* superfunction.xyz functions index — design system "Poster" v2 (site/design/system.md) */
+    * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
+    :root
+    {
+        --cobalt: #1d34f3;
+        --ink: #10161a;
+        --white: #ffffff;
+        --signal: #ff3b1f;
+        --gray: #8a9096;
+        --gray-line: #d9dce0;
+        --grotesk: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+    body { background: var(--white); color: var(--ink); font-family: var(--grotesk); }
+    a { text-decoration: none; color: inherit; }
+    .inner { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+    /* header */
+    header { border-bottom: 1px solid var(--ink); }
+    .nav { display: flex; align-items: center; height: 64px; }
+    .brand { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .nav nav { margin-left: auto; display: flex; gap: 28px; font-size: 14.5px; font-weight: 600; }
+    .nav nav a:hover { color: var(--cobalt); }
+
+    /* hero */
+    .hero { padding: 72px 0 0; }
+    .kicker { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.12em; margin-bottom: 26px; }
+    .display
+    {
+        font-size: clamp(40px, 6vw, 76px);
+        font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; text-transform: uppercase;
+    }
+    .display em { font-style: normal; color: var(--cobalt); }
+    .hero .sub { margin-top: 26px; font-size: 17px; line-height: 1.6; max-width: 58ch; }
+    .strip { margin-top: 56px; height: 14px; display: flex; }
+    .strip .s1 { flex: 2.5; background: var(--cobalt); }
+    .strip .s2 { flex: 1.2; background: var(--ink); }
+    .strip .s3 { flex: 0.35; background: var(--signal); }
+
+    section { padding: 72px 0 96px; }
+    .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 44px; }
+    .sec-head .idx { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; }
+    .sec-head .rule { flex: 1; height: 1px; background: var(--ink); }
+    .sec-head .name { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    .pkg-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); border-left: 1px solid var(--ink); }
+    .pkg { border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 20px 20px 24px; min-height: 132px; display: flex; flex-direction: column; }
+    .pkg:hover { background: var(--cobalt); color: var(--white); }
+    .pkg:hover p, .pkg:hover .tag { color: var(--white); }
+    .pkg .pname { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+    .pkg p { margin-top: 8px; font-size: 12.5px; line-height: 1.55; color: #3c4248; }
+    .pkg .tag { margin-top: auto; padding-top: 14px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
+
+    /* footer */
+    footer { background: var(--ink); color: var(--white); padding: 34px 0; }
+    footer .inner { display: flex; align-items: center; gap: 26px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; }
+    footer a { text-decoration: underline; text-underline-offset: 3px; }
+    footer .dim { color: #6d747c; margin-left: auto; }
+
+    @media (max-width: 900px)
+    {
+        .pkg-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 600px)
+    {
+        .pkg-grid { grid-template-columns: 1fr; }
+        section { padding: 56px 0 72px; }
+        .hero { padding-top: 56px; }
+    }
+</style>
+</head>
+<body>
+
+    <header>
+        <div class="inner nav">
+            <a class="brand" href="/">Superfunction</a>
+            <nav>
+                <a href="/docs">Docs</a>
+                <a href="/functions">Functions</a>
+                <a href="https://github.com/spfn/spfn">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="hero">
+        <div class="inner">
+            <div class="kicker">FUNCTIONS — THE @SPFN/* FAMILY</div>
+            <h1 class="display">Take what<br>you <em>need.</em></h1>
+            <p class="sub">SPFN ships as composable packages, not a monolith. <code>@spfn/core</code> is the
+               only required piece; everything else is opt-in. Every function is documented on this site,
+               straight from the repo.</p>
+        </div>
+        <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
+    </div>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">All functions</span></div>
+            <div class="pkg-grid">
+                <a class="pkg" href="/functions/core">
+                    <div class="pname">@spfn/core</div>
+                    <p>Server, routing, database, codegen — the framework kernel.</p>
+                    <div class="tag">FUNCTION →</div>
+                </a>
+                <a class="pkg" href="/docs/packages/auth">
+                    <div class="pname">@spfn/auth</div>
+                    <p>Sessions, OAuth providers, RBAC, invitations.</p>
+                    <div class="tag">DOCS →</div>
+                </a>
+                <a class="pkg" href="/docs/packages/storage">
+                    <div class="pname">@spfn/storage</div>
+                    <p>File uploads — local and GCS drivers.</p>
+                    <div class="tag">DOCS →</div>
+                </a>
+                <a class="pkg" href="/docs/packages/notification">
+                    <div class="pname">@spfn/notification</div>
+                    <p>Email and messaging with pluggable providers.</p>
+                    <div class="tag">DOCS →</div>
+                </a>
+                <a class="pkg" href="/docs/packages/monitor">
+                    <div class="pname">@spfn/monitor</div>
+                    <p>Health checks, metrics, request tracing.</p>
+                    <div class="tag">DOCS →</div>
+                </a>
+                <a class="pkg" href="/docs/packages/cms">
+                    <div class="pname">@spfn/cms</div>
+                    <p>Content models and admin endpoints.</p>
+                    <div class="tag">DOCS →</div>
+                </a>
+                <a class="pkg" href="/docs/packages/workflow">
+                    <div class="pname">@spfn/workflow</div>
+                    <p>Background jobs and step workflows.</p>
+                    <div class="tag">DOCS →</div>
+                </a>
+                <a class="pkg" href="/docs/packages/pages">
+                    <div class="pname">@spfn/pages</div>
+                    <p>Serve a website from a repo — this site runs on it.</p>
+                    <div class="tag">DOCS →</div>
+                </a>
+                <a class="pkg" href="/docs/packages/pages-next">
+                    <div class="pname">@spfn/pages-next</div>
+                    <p>Next.js integration — layouts, catch-all helpers, static export sync.</p>
+                    <div class="tag">DOCS →</div>
+                </a>
+                <a class="pkg" href="/docs/packages/migrate">
+                    <div class="pname">@spfn/migrate</div>
+                    <p>Database migration tooling.</p>
+                    <div class="tag">DOCS →</div>
+                </a>
+                <a class="pkg" href="/docs/packages/cli">
+                    <div class="pname">spfn (CLI)</div>
+                    <p>create, init, codegen — the dev workflow.</p>
+                    <div class="tag">DOCS →</div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="inner">
+            <span>SUPERFUNCTION</span>
+            <a href="/docs">DOCS</a>
+            <a href="/functions">FUNCTIONS</a>
+            <a href="https://github.com/spfn/spfn">GITHUB</a>
+            <span class="dim">@SPFN/* — BETA</span>
+        </div>
+    </footer>
+
+</body>
+</html>

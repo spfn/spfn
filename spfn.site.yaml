@@ -6,8 +6,8 @@ repo: https://github.com/spfn/spfn
 nav:
   - label: Docs
     path: /docs
-  - label: Packages
-    path: /packages
+  - label: Functions
+    path: /functions
   - label: GitHub
     path: https://github.com/spfn/spfn
 social:
