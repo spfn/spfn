@@ -10,7 +10,7 @@ description: Build a full-stack app with @spfn/core and @spfn/auth — seeded ad
 A Next.js app with a real SPFN backend and working authentication:
 
 - an **admin account seeded from env** at boot,
-- a **login page** — email/password for the admin, **Kakao/Naver social login** for everyone else,
+- a **login page** — email/password for the admin, **Google social login** for everyone else,
 - a **signed-in dashboard** guarded by `RequireAuth`,
 - an **admin-only area** guarded by `RequireRole`,
 
@@ -284,29 +284,39 @@ export default function AdminLayout({ children }: { children: ReactNode })
 matching role go to `redirectTo`. A `fallback` prop renders in place instead of
 redirecting, and `RequirePermission` does the same for fine-grained permissions.
 
-## 7. Social login
+## 7. Social login — Google
 
-Register an OAuth app with the provider (Kakao/Naver here — Google & others plug in
-the same way), point its redirect URI at your app origin, and put the credentials in
-`.env.server`:
+Create an OAuth client in the [Google Cloud console](https://console.cloud.google.com/apis/credentials)
+(type: *Web application*) and register the redirect URI:
 
-```bash
-SPFN_AUTH_KAKAO_CLIENT_ID=<REST API key>
-SPFN_AUTH_KAKAO_REDIRECT_URI=http://localhost:3890/_auth/oauth/kakao/callback
+```text
+http://localhost:3890/_auth/oauth/google/callback
 ```
 
-The login button asks the backend for the provider's auth URL and follows it:
+That URI is the default — `{app origin}/_auth/oauth/google/callback` — and it hits
+your **Next.js origin**, not the API server: the scaffolded `next.config.ts`
+rewrites `/_auth/:path*` to the SPFN API. Then two lines in `.env.server`:
+
+```bash
+SPFN_AUTH_GOOGLE_CLIENT_ID=<client id>.apps.googleusercontent.com
+SPFN_AUTH_GOOGLE_CLIENT_SECRET=<client secret>
+```
+
+(Kakao, Naver, and Apple are built in the same way — `SPFN_AUTH_KAKAO_*` etc.; more
+providers plug in via the OAuth provider registry.)
+
+The login button asks the backend for Google's auth URL and follows it:
 
 ```tsx
 'use client';
 
 import { authApi } from '@spfn/auth';
 
-async function startOAuth(provider: string)
+async function startLogin()
 {
     const { authUrl } = await authApi.getProviderOAuthUrl.call({
-        params: { provider },
-        query: { redirectUrl: `${window.location.origin}/auth/callback` },
+        params: { provider: 'google' },
+        body: { returnUrl: '/' },
     });
     window.location.assign(authUrl);
 }
@@ -323,7 +333,8 @@ export { OAuthCallback as default } from '@spfn/auth/nextjs/client';
 Social users are registered automatically on first login with the `user` role — so
 they reach `/dashboard` but bounce off `/admin`, which is exactly the RBAC split
 this tutorial is after. `authApi.oauthProviders.call({})` reports which providers
-are configured, letting the UI hide unconfigured buttons.
+are configured, letting the UI disable unconfigured buttons (the example's
+`OAuthLoginButtons` does exactly this).
 
 ## 8. Run the loop
 
@@ -338,7 +349,7 @@ Then walk the same loop this example was verified with:
    showing your email and `superadmin` role via the protected `getMe` call.
 3. Open `/admin` → `RequireRole` lets the seeded admin through.
 4. Sign out (`authApi.logout`) → `/dashboard` bounces to `/login` again.
-5. Sign in with Kakao/Naver → `/dashboard` works, `/admin` redirects back — a
+5. Sign in with Google → `/dashboard` works, `/admin` redirects back — a
    `user`-role account in an admin-only area.
 
 ## Where next
