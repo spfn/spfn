@@ -29,6 +29,7 @@ export function parseDocument(source: string, defaultLayout: PageLayout): Parsed
             date: normalized.date,
             draft: normalized.draft ?? false,
             og: normalized.og,
+            order: normalized.order,
             source: normalized.source,
         },
         body: content,

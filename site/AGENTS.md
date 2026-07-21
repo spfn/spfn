@@ -32,6 +32,7 @@ layout: doc                   # landing | doc | post — defaults by location
 date: 2026-07-21              # posts convention (also in the file name)
 draft: true                   # excluded from the published site
 og: img/cover.png             # OG image path inside public/
+order: 1                      # sidebar position among siblings (unordered pages after, by title)
 source: packages/core/src/db/README.md   # serve this repo doc at the page's route (see rule 7)
 ```
 

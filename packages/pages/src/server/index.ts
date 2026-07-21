@@ -1,4 +1,5 @@
 export { loadSite, validateSite } from './site';
+export { buildSections } from './sections';
 export { parseSiteConfig } from './config';
 export { parseDocument, type ParsedDocument } from './frontmatter';
 export { renderMarkdown } from './markdown';

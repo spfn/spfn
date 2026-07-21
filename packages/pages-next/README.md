@@ -58,6 +58,15 @@ Conventions the layouts assume: `doc`/`post` pages render the frontmatter
 `/posts` index is served when no page claims that slug; footer social links
 display brand casing via `socialLabel` (`github` → `GitHub`).
 
+`DocLayout` shows a **section sidebar** from `site.sections` (the navigation
+trees `loadSite` derives from doc slugs): the tree for the page's first path
+segment, current page marked `aria-current`, label-only group nodes for
+segments nobody serves. Sections with fewer than two docs render no sidebar
+(a lone page navigates nowhere). Layout is sticky-aside on wide screens and
+stacks above the content below `56rem`; styling rides on `.sf-sidebar` /
+`.sf-doc-shell` in `DEFAULT_CSS`, overridable via theme tokens and
+`custom.css`.
+
 `generateMetadata` also emits the site's well-known assets: `site.favicon`
 becomes the `<link rel="icon">` (svg/png/ico/jpg, typed by extension) and
 `site.ogImage` the default `og:image` (frontmatter `og:` wins per page). When

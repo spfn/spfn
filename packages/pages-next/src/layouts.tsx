@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { socialLabel } from '@spfn/pages';
-import type { PageDoc, SiteContent } from '@spfn/pages';
+import type { NavNode, PageDoc, SiteContent } from '@spfn/pages';
 import { DEFAULT_CSS } from './default-css';
 
 export interface SiteLayoutProps
@@ -46,13 +46,57 @@ export function LandingLayout({ site, page }: SiteLayoutProps)
 /** Docs render the frontmatter title as the page heading — bodies start at `##`. */
 export function DocLayout({ site, page }: SiteLayoutProps)
 {
+    const section = sidebarSection(site, page);
+    const article = (
+        <article className="sf-doc">
+            <h1 className="sf-title">{page.frontmatter.title}</h1>
+            <div className="sf-content" dangerouslySetInnerHTML={{ __html: page.html }} />
+        </article>
+    );
+
     return (
         <SiteShell site={site}>
-            <article className="sf-doc">
-                <h1 className="sf-title">{page.frontmatter.title}</h1>
-                <div className="sf-content" dangerouslySetInnerHTML={{ __html: page.html }} />
-            </article>
+            {section
+                ? <div className="sf-doc-shell"><SectionSidebar section={section} current={page.slug} />{article}</div>
+                : article}
         </SiteShell>
+    );
+}
+
+/** The page's section tree — shown only when it navigates somewhere (two or more docs). */
+function sidebarSection(site: SiteContent, page: PageDoc): NavNode | null
+{
+    const top = `/${page.slug.slice(1).split('/')[0]}`;
+    const section = site.sections.find(candidate => candidate.route === top);
+
+    return section && countDocs(section) >= 2 ? section : null;
+}
+
+function countDocs(node: NavNode): number
+{
+    return (node.hasDoc ? 1 : 0) + node.children.reduce((sum, child) => sum + countDocs(child), 0);
+}
+
+function SectionSidebar({ section, current }: { section: NavNode; current: string })
+{
+    return (
+        <nav className="sf-sidebar" aria-label="Section navigation">
+            <ul><SidebarItem node={section} current={current} /></ul>
+        </nav>
+    );
+}
+
+function SidebarItem({ node, current }: { node: NavNode; current: string })
+{
+    return (
+        <li>
+            {node.hasDoc
+                ? <a href={node.route} aria-current={node.route === current ? 'page' : undefined}>{node.title}</a>
+                : <span className="sf-sidebar-group">{node.title}</span>}
+            {node.children.length > 0 && (
+                <ul>{node.children.map(child => <SidebarItem key={child.route} node={child} current={current} />)}</ul>
+            )}
+        </li>
     );
 }
 

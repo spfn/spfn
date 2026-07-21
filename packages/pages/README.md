@@ -109,6 +109,7 @@ layout: doc           # optional — landing | doc | post (defaults by location)
 date: 2026-07-21      # YYYY-MM-DD; posts convention
 draft: true           # optional — excluded from the loaded site
 og: cover.png         # optional — OG image path inside public/
+order: 1              # optional — sidebar position among siblings (unordered pages sort after, by title)
 source: packages/core/src/db/README.md   # optional — repo doc served at this page's route
 ```
 
@@ -159,6 +160,7 @@ site.config;     // SiteConfig (name, nav, ...)
 site.pages;      // PageDoc[] — slug, frontmatter, sanitized html
 site.posts;      // PageDoc[] — newest first
 site.htmlPages;  // HtmlPage[] — raw full documents, served verbatim
+site.sections;   // NavNode[] — per-section nav trees derived from doc slugs (sidebar source)
 site.themeCss;   // code-theme flip + :root { --sf-* } variables + custom.css, ready to inline
 site.problems;   // per-file failures (file skipped, site still loads)
 ```

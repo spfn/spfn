@@ -1,6 +1,7 @@
 import { SITE_CONFIG_FILE, type HtmlPage, type MountConfig, type PageDoc, type PageLayout, type SiteConfig, type SiteContent, type SiteProblem } from '../shared/types';
 import { SiteConfigError } from '../shared/errors';
 import { parseSiteConfig } from './config';
+import { buildSections } from './sections';
 import { parseDocument, parseMountedDocument, type ParsedDocument } from './frontmatter';
 import { renderMarkdown } from './markdown';
 import { CODE_DARK_CSS, buildThemeCss } from './theme';
@@ -50,6 +51,7 @@ export async function loadSite(source: ContentSource): Promise<SiteContent>
         pages,
         posts,
         mounted,
+        sections: buildSections([...pages, ...mounted]),
         htmlPages: await loadHtmlPages(source, tree, config, usedSlugs(pages, posts, mounted), problems),
         themeCss: await loadTheme(source, config, problems),
         favicon: findWellKnownAsset(tree, config, FAVICON_NAMES),

@@ -57,6 +57,28 @@ describe('createSitePages', () =>
         expect(await renderSlug(app, ['posts'])).toContain('href="/posts/launch"');
     });
 
+    it('shows a section sidebar on doc pages when the section has two or more docs', async () =>
+    {
+        const app = createSitePages({
+            source: () => new MemoryContentSource({
+                'spfn.site.yaml': 'name: Demo\n',
+                'site/pages/index.md': '---\ntitle: Home\n---\n# Welcome\n',
+                'site/pages/docs.md': '---\ntitle: Docs\n---\nStart.\n',
+                'site/pages/docs/intro.md': '---\ntitle: Intro\norder: 1\n---\nhi\n',
+                'site/pages/docs/deep/dive.md': '---\ntitle: Deep Dive\n---\nhi\n',
+                'site/pages/about.md': '---\ntitle: About\n---\nAlone.\n',
+            }),
+        });
+
+        const intro = await renderSlug(app, ['docs', 'intro']);
+        expect(intro).toContain('class="sf-sidebar"');
+        expect(intro).toContain('href="/docs/intro" aria-current="page"');
+        expect(intro).toContain('href="/docs/deep/dive"');
+        expect(intro).toContain('<span class="sf-sidebar-group">deep</span>');
+
+        expect(await renderSlug(app, ['about'])).not.toContain('class="sf-sidebar"');
+    });
+
     it('throws notFound for an unknown slug', async () =>
     {
         await expect(fixtureSite().Page({ params: Promise.resolve({ slug: ['nope'] }) })).rejects.toThrow();
@@ -85,7 +107,7 @@ describe('createSitePages', () =>
         });
 
         const home = await app.generateMetadata({ params: Promise.resolve({ slug: [] }) });
-        expect(home.metadataBase?.href).toBe('https://demo.example/');
+        expect(home.metadataBase).toEqual(new URL('https://demo.example/'));
         expect(home.icons).toEqual({ icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }] });
         expect(home.openGraph?.images).toEqual(['/og.png']);
 

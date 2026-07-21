@@ -60,6 +60,8 @@ export interface PageFrontmatter
     draft: boolean;
     /** Path to an OG image inside `public/`. */
     og?: string;
+    /** Sidebar position among siblings — ascending, unordered pages after, then title. */
+    order?: number;
     /**
      * Repo-relative `.md` file whose content this page serves at its own route —
      * the curated alternative to a directory mount. The page body (optional)
@@ -68,6 +70,22 @@ export interface PageFrontmatter
      * the referenced doc's frontmatter is not consulted beyond heading stripping.
      */
     source?: string;
+}
+
+/**
+ * One node of a section navigation tree, derived from served doc slugs: the
+ * first path segment is the section, deeper segments nest beneath it.
+ */
+export interface NavNode
+{
+    /** Route of this node's position, e.g. '/packages/core' — always present. */
+    route: string;
+    /** The doc's frontmatter title, or the path segment for label-only group nodes. */
+    title: string;
+    /** True when a document is served at `route`; group nodes are labels only. */
+    hasDoc: boolean;
+    /** Ordered by frontmatter `order` (ascending, unordered last), then title. */
+    children: NavNode[];
 }
 
 export interface PageDoc
@@ -115,6 +133,12 @@ export interface SiteContent
     htmlPages: HtmlPage[];
     /** Docs mounted from the repo (config `mounts`), routable like pages. */
     mounted: PageDoc[];
+    /**
+     * Top-level section navigation trees derived from doc slugs (pages +
+     * mounted; the root landing, posts, and HTML pages are excluded). Renderers
+     * show a section's tree as the sidebar on doc pages.
+     */
+    sections: NavNode[];
     /** Theme tokens as CSS variables + custom.css, ready to inline. */
     themeCss: string;
     /** Served URL of `public/favicon.{svg,png,ico,jpg,jpeg}` when present, e.g. '/favicon.svg'. */
