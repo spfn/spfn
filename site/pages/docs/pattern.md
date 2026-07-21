@@ -1,5 +1,6 @@
 ---
 title: The SPFN Pattern
+order: 1
 description: One vertical slice per feature — entity, repository, route, router, generated client.
 ---
 

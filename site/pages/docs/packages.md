@@ -1,5 +1,6 @@
 ---
 title: Packages
+order: 2
 description: The @spfn/* package family — take what you need, documented right here.
 ---
 
