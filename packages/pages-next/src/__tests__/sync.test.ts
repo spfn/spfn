@@ -38,6 +38,22 @@ describe('syncSite', () =>
         expect(await fs.readFile(join(out, 'theme.css'), 'utf8')).toContain('.shiki');
     });
 
+    it('removes outputs whose source is gone, keeping files it never wrote', async () =>
+    {
+        await syncSite({ root, out });
+        await fs.writeFile(join(out, 'hand-placed.txt'), 'mine');
+
+        await fs.rm(join(root, 'site/pages/playground.html'));
+        await fs.rm(join(root, 'site/public/img/logo.png'));
+        const result = await syncSite({ root, out });
+
+        expect(result.removedStale).toBe(2);
+        await expect(fs.access(join(out, 'playground'))).rejects.toThrow();
+        await expect(fs.access(join(out, 'img'))).rejects.toThrow();
+        expect(await fs.readFile(join(out, 'hand-placed.txt'), 'utf8')).toBe('mine');
+        expect(await fs.readFile(join(out, 'theme.css'), 'utf8')).toContain('.shiki');
+    });
+
     it('reports no public dir without failing', async () =>
     {
         await fs.rm(join(root, 'site/public'), { recursive: true });

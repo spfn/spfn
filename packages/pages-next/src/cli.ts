@@ -16,7 +16,8 @@ async function main(): Promise<void>
     {
         console.warn(`warn: ${problem.path} — ${problem.message}`);
     }
-    console.log(`synced ${result.htmlPages} html page(s), theme.css${result.copiedAssets ? ', site public/ assets' : ' (site has no public/ dir)'}`);
+    const stale = result.removedStale > 0 ? `, removed ${result.removedStale} stale output(s)` : '';
+    console.log(`synced ${result.htmlPages} html page(s), theme.css${result.copiedAssets ? ', site public/ assets' : ' (site has no public/ dir)'}${stale}`);
 }
 
 function parseArgs(argv: string[]): SyncOptions

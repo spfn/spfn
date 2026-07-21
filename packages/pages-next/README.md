@@ -42,6 +42,11 @@ site model into `public/` before the build:
 - raw HTML escape-hatch pages (`site/pages/*.html` → `public/<slug>/index.html`)
 - `site/public/` assets (copied as-is, binary-safe)
 
+Every output is recorded in `public/.spfn-pages-sync.json`; the next run deletes
+recorded outputs it no longer produces (a moved landing, a removed asset), so
+stale pages never ghost into the static export. Files sync never wrote — things
+you placed in `public/` by hand — are left alone.
+
 For Cloudflare Pages / any static host, set `output: 'export'` in
 `next.config.js`. On Vercel the default runtime build works too. Push-to-update
 is the host's standard deploy hook wired to the repo.
