@@ -32,6 +32,7 @@ layout: doc                   # landing | doc | post — defaults by location
 date: 2026-07-21              # posts convention (also in the file name)
 draft: true                   # excluded from the published site
 og: img/cover.png             # OG image path inside public/
+source: packages/core/src/db/README.md   # serve this repo doc at the page's route (see rule 7)
 ```
 
 ## Rules
@@ -52,3 +53,11 @@ og: img/cover.png             # OG image path inside public/
    server-side, light and dark.
 6. **Do not touch the renderer scaffolding** (`website/` in this repo) or
    generated dirs (`website/public/` is build output of `spfn-pages sync`).
+7. **Curate repo docs with `source:` pages, not directory mounts.** A page whose
+   frontmatter has `source: <repo-path>.md` serves that doc at the page's own
+   route — the file's location picks the URL (`pages/packages/core/db.md` →
+   `/packages/core/db`, no `src/` leakage). The page body is an optional preface
+   rendered before the doc; the page's `title`/`description` win (the doc's first
+   `#` heading is stripped). Links anywhere to the referenced repo file
+   automatically land on the curated page. Single-file `mounts:` in
+   `spfn.site.yaml` remain for serve-as-is docs (package READMEs).

@@ -183,6 +183,69 @@ describe('loadSite — mounts', () =>
     });
 });
 
+describe('loadSite — source pages', () =>
+{
+    function referencingSource(): MemoryContentSource
+    {
+        return new MemoryContentSource({
+            'spfn.site.yaml': 'name: X\nrepo: https://github.com/spfn/spfn\n',
+            'site/pages/index.md': '---\ntitle: Home\n---\nSee [db](../../packages/core/src/db/README.md).\n',
+            'site/pages/packages/core/db.md': '---\ntitle: Database\nsource: packages/core/src/db/README.md\n---\nCurated intro.\n',
+            'site/pages/packages/core/env.md': '---\ntitle: Env\nsource: packages/core/src/env/README.md\n---\n',
+            'site/pages/missing.md': '---\ntitle: Missing\nsource: packages/nope/README.md\n---\n',
+            'packages/core/src/db/README.md': '# DB\n\nUses [env](../env/README.md) and [helpers](./helpers.ts).\n',
+            'packages/core/src/db/helpers.ts': 'export {};',
+            'packages/core/src/env/README.md': '# Env vars\n\nhi\n',
+        });
+    }
+
+    it('serves the referenced doc at the page route, preface first, source heading stripped', async () =>
+    {
+        const site = await loadSite(referencingSource());
+        const db = site.pages.find(p => p.slug === '/packages/core/db');
+
+        expect(db?.frontmatter.title).toBe('Database');
+        expect(db?.html).not.toContain('DB</h1>');
+        expect(db?.html.indexOf('Curated intro.')).toBeLessThan(db!.html.indexOf('Uses'));
+    });
+
+    it('resolves links in referenced content from the referenced file location', async () =>
+    {
+        const site = await loadSite(referencingSource());
+        const db = site.pages.find(p => p.slug === '/packages/core/db');
+
+        expect(db?.html).toContain('href="/packages/core/env"');
+        expect(db?.html).toContain('href="https://github.com/spfn/spfn/blob/main/packages/core/src/db/helpers.ts"');
+    });
+
+    it('rewrites links to a referenced repo file onto the curated page', async () =>
+    {
+        const site = await loadSite(referencingSource());
+
+        expect(site.pages.find(p => p.slug === '/')?.html).toContain('href="/packages/core/db"');
+    });
+
+    it('reports a missing source and skips the page', async () =>
+    {
+        const site = await loadSite(referencingSource());
+
+        expect(site.pages.find(p => p.slug === '/missing')).toBeUndefined();
+        expect(site.problems.some(p => p.path === 'site/pages/missing.md' && p.message.includes('packages/nope/README.md'))).toBe(true);
+    });
+
+    it('rejects a source that is not a markdown file', async () =>
+    {
+        const site = await loadSite(new MemoryContentSource({
+            'spfn.site.yaml': 'name: X\n',
+            'site/pages/bad.md': '---\ntitle: Bad\nsource: packages/core/src/db/helpers.ts\n---\n',
+            'packages/core/src/db/helpers.ts': 'export {};',
+        }));
+
+        expect(site.pages).toEqual([]);
+        expect(site.problems.some(p => p.path === 'site/pages/bad.md')).toBe(true);
+    });
+});
+
 describe('validateSite', () =>
 {
     it('reports a missing opt-in file as a problem instead of throwing', async () =>

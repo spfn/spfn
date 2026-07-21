@@ -1,7 +1,7 @@
 import { SITE_CONFIG_FILE, type HtmlPage, type MountConfig, type PageDoc, type PageLayout, type SiteConfig, type SiteContent, type SiteProblem } from '../shared/types';
 import { SiteConfigError } from '../shared/errors';
 import { parseSiteConfig } from './config';
-import { parseDocument, parseMountedDocument } from './frontmatter';
+import { parseDocument, parseMountedDocument, type ParsedDocument } from './frontmatter';
 import { renderMarkdown } from './markdown';
 import { CODE_DARK_CSS, buildThemeCss } from './theme';
 import type { ContentSource } from './content-source';
@@ -26,15 +26,23 @@ export async function loadSite(source: ContentSource): Promise<SiteContent>
     const problems: SiteProblem[] = [];
     const repoFiles = new Set(tree);
     const slugBySourcePath = mapSlugs(tree, config);
+
+    const pageFiles = await readCollection(source, tree, config, 'pages', problems);
+    const postFiles = await readCollection(source, tree, config, 'posts', problems);
+    registerReferences([...pageFiles, ...postFiles], repoFiles, slugBySourcePath, problems);
+
     const mountFiles = resolveMounts(tree, config, slugBySourcePath, problems);
     for (const file of mountFiles)
     {
-        slugBySourcePath.set(file.path, file.route);
+        if (!slugBySourcePath.has(file.path))
+        {
+            slugBySourcePath.set(file.path, file.route);
+        }
     }
 
     const shared: SharedContext = { config, repoFiles, slugBySourcePath };
-    const pages = await loadCollection(source, tree, shared, 'pages', problems);
-    const posts = await loadCollection(source, tree, shared, 'posts', problems);
+    const pages = await renderCollection(source, pageFiles, shared);
+    const posts = sortByDateDesc(await renderCollection(source, postFiles, shared));
     const mounted = await loadMounted(source, shared, mountFiles, problems);
 
     return {
@@ -102,21 +110,114 @@ function mapSlugs(tree: string[], config: SiteConfig): Map<string, string>
     return slugs;
 }
 
-async function loadCollection(source: ContentSource, tree: string[], shared: SharedContext, collection: Collection, problems: SiteProblem[]): Promise<PageDoc[]>
+/** A collection file read and parsed, awaiting render once every link target is known. */
+interface AuthoredFile
 {
-    const prefix = contentPath(shared.config, collection) + '/';
-    const docs: PageDoc[] = [];
+    path: string;
+    slug: string;
+    parsed: ParsedDocument;
+}
 
-    for (const path of collectionFiles(tree, shared.config, collection, '.md'))
+async function readCollection(source: ContentSource, tree: string[], config: SiteConfig, collection: Collection, problems: SiteProblem[]): Promise<AuthoredFile[]>
+{
+    const prefix = contentPath(config, collection) + '/';
+    const files: AuthoredFile[] = [];
+
+    for (const path of collectionFiles(tree, config, collection, '.md'))
     {
-        const doc = await loadDocument(source, path, prefix, collection, rewriteContext(shared, path), problems);
-        if (doc && !doc.frontmatter.draft)
+        const raw = await source.getFile(path);
+        if (raw === null)
         {
-            docs.push(doc);
+            continue;
+        }
+
+        const relative = path.slice(prefix.length);
+        try
+        {
+            files.push({ path, slug: docSlug(collection, relative), parsed: parseDocument(raw, defaultLayout(collection, relative)) });
+        }
+        catch (error)
+        {
+            problems.push({ path, message: (error as Error).message });
         }
     }
 
-    return collection === 'posts' ? sortByDateDesc(docs) : docs;
+    return files;
+}
+
+/**
+ * A page with frontmatter `source:` serves that repo file's content at the page's
+ * own route — register the mapping so links to the repo file land on the curated
+ * page instead of GitHub. First claim wins (mounts register after, without
+ * overriding). A missing source is reported here; the page is skipped at render.
+ */
+function registerReferences(files: AuthoredFile[], repoFiles: ReadonlySet<string>, slugBySourcePath: Map<string, string>, problems: SiteProblem[]): void
+{
+    for (const file of files)
+    {
+        const reference = file.parsed.frontmatter.source;
+        if (!reference)
+        {
+            continue;
+        }
+        if (!repoFiles.has(reference))
+        {
+            problems.push({ path: file.path, message: `source '${reference}' not found in the repo` });
+            continue;
+        }
+        if (!slugBySourcePath.has(reference))
+        {
+            slugBySourcePath.set(reference, file.slug);
+        }
+    }
+}
+
+async function renderCollection(source: ContentSource, files: AuthoredFile[], shared: SharedContext): Promise<PageDoc[]>
+{
+    const docs: PageDoc[] = [];
+
+    for (const file of files)
+    {
+        if (file.parsed.frontmatter.draft)
+        {
+            continue;
+        }
+
+        const html = await renderAuthored(source, file, shared);
+        if (html !== null)
+        {
+            docs.push({ slug: file.slug, sourcePath: file.path, frontmatter: file.parsed.frontmatter, html });
+        }
+    }
+
+    return docs;
+}
+
+/**
+ * The authored body, plus — when frontmatter `source:` points at a repo doc —
+ * that doc's content after it, links resolved from the referenced file's own
+ * repo location (the body's from the page's). A source missing from the repo
+ * was already reported at registration; the page is dropped here.
+ */
+async function renderAuthored(source: ContentSource, file: AuthoredFile, shared: SharedContext): Promise<string | null>
+{
+    const preface = file.parsed.body.trim() === '' ? '' : await renderMarkdown(file.parsed.body, rewriteContext(shared, file.path));
+    const reference = file.parsed.frontmatter.source;
+    if (!reference)
+    {
+        return preface;
+    }
+
+    const raw = await source.getFile(reference);
+    if (raw === null)
+    {
+        return null;
+    }
+
+    const fallback = reference.split('/').pop()?.replace(/\.md$/, '') ?? reference;
+    const parsed = parseMountedDocument(raw, fallback);
+
+    return preface + await renderMarkdown(parsed.body, rewriteContext(shared, reference));
 }
 
 function rewriteContext(shared: SharedContext, sourcePath: string): RewriteContext
@@ -128,35 +229,6 @@ function rewriteContext(shared: SharedContext, sourcePath: string): RewriteConte
         repoUrl: shared.config.repo,
         repoFiles: shared.repoFiles,
     };
-}
-
-async function loadDocument(source: ContentSource, path: string, prefix: string, collection: Collection, context: RewriteContext, problems: SiteProblem[]): Promise<PageDoc | null>
-{
-    const raw = await source.getFile(path);
-    if (raw === null)
-    {
-        return null;
-    }
-
-    const relative = path.slice(prefix.length);
-
-    try
-    {
-        const parsed = parseDocument(raw, defaultLayout(collection, relative));
-
-        return {
-            slug: docSlug(collection, relative),
-            sourcePath: path,
-            frontmatter: parsed.frontmatter,
-            html: await renderMarkdown(parsed.body, context),
-        };
-    }
-    catch (error)
-    {
-        problems.push({ path, message: (error as Error).message });
-
-        return null;
-    }
 }
 
 function usedSlugs(...collections: PageDoc[][]): Set<string>

@@ -73,12 +73,32 @@ falls back to the first `#` heading (stripped from the body), then the file
 name. Loaded docs surface as `site.mounted`, routable like pages.
 
 Link resolution inside any rendered markdown, in order: a relative link to a
-served markdown file (authored or mounted) → its route; a `public/` asset →
-its served URL; any other existing repo file → `<repo>/blob/main/<path>`
+served markdown file (authored, referenced, or mounted) → its route; a `public/`
+asset → its served URL; any other existing repo file → `<repo>/blob/main/<path>`
 (images use `/raw/`), which is why mounts want `repo` set — without it those
 links stay as written and a problem is reported. Conflicts (a mount route
 already served by a page, post, or earlier mount) skip the file and land in
 `problems`.
+
+### Source pages — curated references
+
+The curated alternative to a directory mount: a page whose frontmatter has
+`source: <repo-path>.md` serves that repo doc's content at the page's own
+route. The page file's location picks the URL — `pages/packages/core/db.md`
+referencing `packages/core/src/db/README.md` serves at `/packages/core/db`,
+with no `src/` leaking into the URL the way a directory mount would.
+
+- The page body is an **optional preface**, rendered before the referenced doc.
+- Links inside the referenced content resolve from the *referenced file's* repo
+  location; links in the preface resolve from the page's.
+- The page's frontmatter governs `title`/`description`/`layout`/`draft`; the
+  referenced doc is parsed leniently like a mount (its first `#` heading is
+  stripped — the layout renders the page title).
+- Relative links anywhere on the site to the referenced repo file rewrite to
+  the curated page's route (a source page's claim beats a mount's for the same
+  file; the first page to reference a file wins).
+- A `source` that is missing from the repo or not a `.md` file is a per-file
+  problem: reported, page skipped.
 
 ### Frontmatter (minimal by design)
 
@@ -89,6 +109,7 @@ layout: doc           # optional — landing | doc | post (defaults by location)
 date: 2026-07-21      # YYYY-MM-DD; posts convention
 draft: true           # optional — excluded from the loaded site
 og: cover.png         # optional — OG image path inside public/
+source: packages/core/src/db/README.md   # optional — repo doc served at this page's route
 ```
 
 ### Markdown rendering

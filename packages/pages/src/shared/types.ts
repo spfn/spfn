@@ -60,6 +60,14 @@ export interface PageFrontmatter
     draft: boolean;
     /** Path to an OG image inside `public/`. */
     og?: string;
+    /**
+     * Repo-relative `.md` file whose content this page serves at its own route —
+     * the curated alternative to a directory mount. The page body (optional)
+     * renders first as a preface; the referenced doc follows, its links resolved
+     * from its own repo location. The page's frontmatter governs title/layout/draft;
+     * the referenced doc's frontmatter is not consulted beyond heading stripping.
+     */
+    source?: string;
 }
 
 export interface PageDoc
