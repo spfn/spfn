@@ -35,6 +35,7 @@ describe('syncSite', () =>
         expect(result.copiedAssets).toBe(true);
         expect(await fs.readFile(join(out, 'playground/index.html'), 'utf8')).toContain('<title>PG</title>');
         expect(await fs.readFile(join(out, 'img/logo.png'), 'utf8')).toBe('binaryish');
+        expect(await fs.readFile(join(out, 'theme.css'), 'utf8')).toContain('.shiki');
     });
 
     it('reports no public dir without failing', async () =>

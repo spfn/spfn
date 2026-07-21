@@ -36,6 +36,10 @@ export async function syncSite({ root, out }: SyncOptions): Promise<SyncResult>
         await fs.writeFile(target, page.html, 'utf8');
     }
 
+    // '/theme.css' — the well-known URL html escape-hatch pages can opt into
+    await fs.mkdir(out, { recursive: true });
+    await fs.writeFile(join(out, 'theme.css'), site.themeCss, 'utf8');
+
     return { htmlPages: site.htmlPages.length, copiedAssets, problems: site.problems };
 }
 

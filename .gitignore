@@ -58,3 +58,8 @@ packages/*/.guide/
 
 # Per-package LICENSE is generated from the root LICENSE at pack time (prepack)
 packages/*/LICENSE
+
+# website (tenant 0) build artifacts
+website/public/
+website/out/
+website/next-env.d.ts

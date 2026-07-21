@@ -1,0 +1,25 @@
+{
+  "name": "superfunction-website",
+  "private": true,
+  "version": "0.0.0",
+  "description": "superfunction.xyz — this repo's site/ rendered by @spfn/pages (tenant 0 of the serving primitive).",
+  "scripts": {
+    "predev": "spfn-pages sync --root .. --out public",
+    "dev": "next dev",
+    "build": "spfn-pages sync --root .. --out public && next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@spfn/pages": "workspace:*",
+    "@spfn/pages-next": "workspace:*",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "typescript": "^5.9.3"
+  }
+}
