@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@spfn/pages-next</title>
+<meta name="description" content="Next.js integration for @spfn/pages — one optional catch-all route, shared layouts, manifest-tracked static sync. Self-deploy anywhere Next.js runs, or the same code on SPFN hosting.">
+<meta property="og:title" content="@spfn/pages-next — one route, whole site">
+<meta property="og:description" content="A validated site model becomes a deployable Next.js site: single catch-all route, five layouts, spfn-pages sync with a manifest that keeps static exports clean.">
+<meta property="og:image" content="https://superfunction.xyz/og.png">
+<meta property="og:url" content="https://superfunction.xyz/functions/pages-next">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+    /* @spfn/pages-next package landing — design system "Poster" v2 (site/design/system.md) */
+    * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
+    :root
+    {
+        --cobalt: #1d34f3;
+        --ink: #10161a;
+        --white: #ffffff;
+        --signal: #ff3b1f;
+        --gray: #8a9096;
+        --gray-line: #d9dce0;
+        --grotesk: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--white); color: var(--ink); font-family: var(--grotesk); }
+    a { text-decoration: none; color: inherit; }
+    .inner { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+    /* header */
+    header { border-bottom: 1px solid var(--ink); }
+    .nav { display: flex; align-items: center; height: 64px; }
+    .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .brand svg { height: 19px; width: auto; color: var(--cobalt); }
+    .nav nav { margin-left: auto; display: flex; gap: 28px; font-size: 14.5px; font-weight: 600; }
+    .nav nav a:hover { color: var(--cobalt); }
+
+    /* hero */
+    .hero { padding: 72px 0 0; }
+    .kicker { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.12em; margin-bottom: 26px; }
+    .kicker a { color: var(--cobalt); }
+    .display
+    {
+        font-size: clamp(44px, 7vw, 88px);
+        font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; text-transform: uppercase;
+        color: var(--cobalt);
+    }
+    .display .inkline { color: var(--ink); }
+    .hero .sub { margin-top: 26px; font-size: 17px; line-height: 1.6; max-width: 58ch; }
+    .cta-row { margin-top: 34px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; }
+    .btn-cobalt { background: var(--cobalt); color: var(--white); }
+    .btn-cobalt:hover { background: var(--ink); }
+    .btn-outline { border: 1px solid var(--ink); }
+    .btn-outline:hover { border-color: var(--cobalt); color: var(--cobalt); }
+    .codebar { background: var(--ink); color: var(--white); font-family: var(--mono); font-size: 13px; padding: 14px 18px; }
+    .strip { margin-top: 56px; height: 14px; display: flex; }
+    .strip .s1 { flex: 2.5; background: var(--cobalt); }
+    .strip .s2 { flex: 1.2; background: var(--ink); }
+    .strip .s3 { flex: 0.35; background: var(--signal); }
+
+    /* sections */
+    section { padding: 120px 0 0; }
+    section:last-of-type { padding-bottom: 120px; }
+    .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 44px; }
+    .sec-head .idx { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; }
+    .sec-head .rule { flex: 1; height: 1px; background: var(--ink); }
+    .sec-head .name { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+    .sec-title { font-size: clamp(28px, 3.4vw, 40px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.08; margin-bottom: 40px; }
+    .sec-title em { font-style: normal; color: var(--cobalt); }
+
+    /* premise */
+    .premise-copy { font-size: 17px; line-height: 1.65; max-width: 62ch; margin-bottom: 44px; }
+    .premise-copy code { font-family: var(--mono); font-size: 14.5px; }
+    .wireflow { display: flex; align-items: center; font-family: var(--mono); font-size: 12px; }
+    .wnode { border: 1px solid var(--ink); padding: 9px 14px; white-space: nowrap; }
+    .wnode.hot { border-color: var(--cobalt); color: var(--cobalt); font-weight: 600; }
+    .wwire { flex: 1; min-width: 18px; height: 1px; background: var(--ink); position: relative; }
+    .wwire::after { content: ''; position: absolute; right: 0; top: -2px; width: 5px; height: 5px; background: var(--ink); }
+    .wwire.tohot::after { background: var(--cobalt); }
+    .flow-note { margin-top: 28px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
+
+    /* capability grid */
+    .mod-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); border-left: 1px solid var(--ink); }
+    .mod { border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 20px 20px 24px; min-height: 118px; }
+    .mod:hover { background: var(--cobalt); color: var(--white); }
+    .mod:hover p { color: var(--white); }
+    .mod .mname { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+    .mod p { margin-top: 8px; font-size: 12.5px; line-height: 1.55; color: #3c4248; }
+
+    /* CTA band */
+    .cta-band { background: var(--cobalt); color: var(--white); padding: 56px 0; }
+    .cta-band .inner { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+    .cta-band h2 { font-size: clamp(28px, 3.6vw, 44px); font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase; }
+    .cta-band .btns { margin-left: auto; display: flex; gap: 12px; }
+    .btn-white { background: var(--white); color: var(--cobalt); }
+    .btn-white:hover { background: var(--ink); color: var(--white); }
+    .btn-outline-w { border: 1px solid var(--white); color: var(--white); }
+    .btn-outline-w:hover { background: var(--white); color: var(--cobalt); }
+
+    /* footer */
+    footer { background: var(--ink); color: var(--white); padding: 34px 0; }
+    footer .inner { display: flex; align-items: center; gap: 26px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; }
+    footer a { text-decoration: underline; text-underline-offset: 3px; }
+    footer .dim { color: #6d747c; margin-left: auto; }
+
+    @media (max-width: 900px)
+    {
+        .mod-grid { grid-template-columns: 1fr 1fr; }
+        .wireflow { flex-wrap: wrap; row-gap: 10px; }
+    }
+    @media (max-width: 600px)
+    {
+        .mod-grid { grid-template-columns: 1fr; }
+        section { padding: 80px 0 0; }
+        section:last-of-type { padding-bottom: 80px; }
+        .hero { padding-top: 56px; }
+    }
+</style>
+</head>
+<body>
+
+    <header>
+        <div class="inner nav">
+            <a class="brand" href="/"><svg viewBox="0 0 166 192" fill="none" aria-hidden="true"><path d="M137.954 26.8921C133.611 24.0908 129.082 22.0243 124.451 20.6696C120.622 15.8133 116.032 11.5655 110.752 8.16724C84.6518 -8.64033 51.2852 1.32481 36.2178 30.4281C21.1606 59.5313 30.1043 96.7514 56.2048 113.559C61.4948 116.969 67.0937 119.265 72.7645 120.539C57.728 101.481 54.4757 73.1244 66.4864 49.9221C78.4972 26.7313 102.128 15.687 124.451 20.6811C141.412 39.8077 145.58 69.9098 132.942 94.329L158.033 110.494C173.183 81.2182 164.198 43.7915 137.954 26.8921Z" fill="currentColor"/><path d="M108.874 78.4409C103.584 75.0312 97.9952 72.7236 92.314 71.4492C107.351 90.5185 110.603 118.876 98.5921 142.078C86.5814 165.28 62.951 176.324 40.6278 171.33C23.7798 152.284 19.7042 122.239 32.3427 97.8201L7.39499 81.7473C-7.75478 111.023 1.1169 148.369 27.207 165.177H27.1967C31.5194 167.955 36.0272 169.999 40.6278 171.342C44.4564 176.187 49.0466 180.423 54.3264 183.833C80.4268 200.64 113.793 190.675 128.861 161.572C143.918 132.469 134.974 95.2485 108.874 78.4409Z" fill="currentColor"/></svg>Superfunction</a>
+            <nav>
+                <a href="/docs">Docs</a>
+                <a href="/functions">Functions</a>
+                <a href="/about">About</a>
+                <a href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="hero">
+        <div class="inner">
+            <div class="kicker"><a href="/functions">FUNCTIONS</a> / @SPFN/PAGES-NEXT — NEXT.JS FOR THE SITE MODEL</div>
+            <h1 class="display">One route,<br><span class="inkline">whole site.</span></h1>
+            <p class="sub">The Next.js side of <code>@spfn/pages</code>: a validated site model becomes a
+               deployable site through a single optional catch-all route. Self-deploy carries a ~4-file
+               scaffold and runs anywhere Next.js or static output runs; SPFN hosting reuses the same
+               layouts and helpers, resolving the tenant per request.</p>
+            <div class="cta-row">
+                <a class="btn btn-cobalt" href="/docs/packages/pages-next">Read the reference</a>
+                <a class="btn btn-outline" href="/docs">Get started</a>
+                <span class="codebar">$ spfn-pages sync &amp;&amp; next build</span>
+            </div>
+        </div>
+        <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
+    </div>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">The premise</span></div>
+            <h2 class="sec-title">One package.<br>Two ways to <em>ship.</em></h2>
+            <p class="premise-copy">The whole route surface is <code>app/[[...slug]]/page.tsx</code> —
+               <code>createSitePages</code> returns <code>generateStaticParams</code>,
+               <code>generateMetadata</code>, and the page component, and the content repo needs nothing
+               more than that ~4-file scaffold. Deploy it to Vercel, Cloudflare Pages, or your own
+               server; static export (<code>output: 'export'</code>) is fully supported. The
+               multi-tenant hosted edge runs the same layouts and helpers with no scaffold in the repo
+               at all — registering the repo link is enough.</p>
+            <div class="wireflow">
+                <div class="wnode">site model</div><div class="wwire"></div>
+                <div class="wnode">createSitePages</div><div class="wwire"></div>
+                <div class="wnode">app/[[...slug]]</div><div class="wwire tohot"></div>
+                <div class="wnode hot">deployed site</div>
+            </div>
+            <div class="flow-note">FIG 01 — SELF-DEPLOY OR SPFN HOSTING · SAME LAYOUTS, SAME HELPERS</div>
+        </div>
+    </section>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">Core technique</span></div>
+            <h2 class="sec-title">The build that cleans up<br><em>after itself.</em></h2>
+            <p class="premise-copy">Two things in the site model can't be rendered by Next.js — raw HTML
+               escape-hatch pages and <code>site/public/</code> assets — so <code>spfn-pages sync</code>
+               materializes them into <code>public/</code> before the build and records every output in
+               <code>public/.spfn-pages-sync.json</code>. The next run deletes recorded outputs it no
+               longer produces — a moved landing, a removed asset — so stale pages never ghost into the
+               static export, while files sync never wrote are left alone. The content itself comes from
+               <code>FsContentSource('.')</code>, which reads the checked-out repo directly: builds see
+               exactly the commit they run on, no GitHub API calls, no rate limits.</p>
+            <div class="wireflow">
+                <div class="wnode">materialize to public/</div><div class="wwire"></div>
+                <div class="wnode">record every output</div><div class="wwire"></div>
+                <div class="wnode">next run compares</div><div class="wwire tohot"></div>
+                <div class="wnode hot">stale outputs deleted</div>
+            </div>
+            <div class="flow-note">FIG 02 — MANIFEST: public/.spfn-pages-sync.json · HAND-PLACED FILES UNTOUCHED · NO GITHUB API AT BUILD</div>
+        </div>
+    </section>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">What's inside</span></div>
+            <h2 class="sec-title">The rendering layer,<br>already <em>assembled.</em></h2>
+            <div class="mod-grid">
+                <a class="mod" href="/docs/packages/pages-next#exports">
+                    <div class="mname">createSitePages</div>
+                    <p>One factory returns generateStaticParams, generateMetadata, Page, getSite.</p>
+                </a>
+                <a class="mod" href="/docs/packages/pages-next#self-deploy-usage">
+                    <div class="mname">catch-all route</div>
+                    <p>The whole route surface as one optional app/[[...slug]]/page.tsx.</p>
+                </a>
+                <a class="mod" href="/docs/packages/pages-next#exports">
+                    <div class="mname">layouts</div>
+                    <p>SiteShell, LandingLayout, DocLayout, PostLayout, PostsIndexLayout.</p>
+                </a>
+                <a class="mod" href="/docs/packages/pages-next#exports">
+                    <div class="mname">section sidebar</div>
+                    <p>DocLayout navigates site.sections — aria-current, navTitle labels, sticky aside.</p>
+                </a>
+                <a class="mod" href="/docs/packages/pages-next#self-deploy-usage">
+                    <div class="mname">spfn-pages sync</div>
+                    <p>Raw HTML pages and site/public assets into public/, manifest-tracked. Also programmatic as syncSite.</p>
+                </a>
+                <a class="mod" href="/docs/packages/pages-next#exports">
+                    <div class="mname">DEFAULT_CSS</div>
+                    <p>Baseline stylesheet — every value overridable via --sf-* tokens.</p>
+                </a>
+                <a class="mod" href="/docs/packages/pages-next#exports">
+                    <div class="mname">metadata &amp; OG</div>
+                    <p>site.favicon as the icon link, site.ogImage as default og:image, url: as metadataBase.</p>
+                </a>
+                <a class="mod" href="/docs/packages/pages-next#self-deploy-usage">
+                    <div class="mname">static export</div>
+                    <p>output: 'export' fully supported — Cloudflare Pages, Vercel, your own server.</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="cta-band">
+        <div class="inner">
+            <h2>Ship the site.</h2>
+            <div class="btns">
+                <a class="btn btn-white" href="/docs/packages/pages-next">Full reference</a>
+                <a class="btn btn-outline-w" href="/docs">Get started</a>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="inner">
+            <span>SUPERFUNCTION</span>
+            <a href="/docs">DOCS</a>
+            <a href="/functions">FUNCTIONS</a>
+            <a href="/about">ABOUT</a>
+            <a href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GITHUB</a>
+            <span class="dim">© 2026 FXY INC. · @SPFN/PAGES-NEXT — BETA</span>
+        </div>
+    </footer>
+
+</body>
+</html>

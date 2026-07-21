@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@spfn/notification</title>
+<meta name="description" content="Multi-channel notifications for SPFN — email, SMS, and Slack with pluggable providers, templates with filters, scheduled and bulk delivery via pg-boss, history, and email tracking.">
+<meta property="og:title" content="@spfn/notification — one send(), every channel">
+<meta property="og:description" content="Email, SMS, and Slack behind the same call shape — pluggable providers, template system, pg-boss scheduling and distributed bulk, notification history, open and click tracking.">
+<meta property="og:image" content="https://superfunction.xyz/og.png">
+<meta property="og:url" content="https://superfunction.xyz/functions/notification">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+    /* @spfn/notification package landing — design system "Poster" v2 (site/design/system.md) */
+    * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
+    :root
+    {
+        --cobalt: #1d34f3;
+        --ink: #10161a;
+        --white: #ffffff;
+        --signal: #ff3b1f;
+        --gray: #8a9096;
+        --gray-line: #d9dce0;
+        --grotesk: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--white); color: var(--ink); font-family: var(--grotesk); }
+    a { text-decoration: none; color: inherit; }
+    .inner { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+    /* header */
+    header { border-bottom: 1px solid var(--ink); }
+    .nav { display: flex; align-items: center; height: 64px; }
+    .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .brand svg { height: 19px; width: auto; color: var(--cobalt); }
+    .nav nav { margin-left: auto; display: flex; gap: 28px; font-size: 14.5px; font-weight: 600; }
+    .nav nav a:hover { color: var(--cobalt); }
+
+    /* hero */
+    .hero { padding: 72px 0 0; }
+    .kicker { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.12em; margin-bottom: 26px; }
+    .kicker a { color: var(--cobalt); }
+    .display
+    {
+        font-size: clamp(44px, 7vw, 88px);
+        font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; text-transform: uppercase;
+        color: var(--cobalt);
+    }
+    .display .inkline { color: var(--ink); }
+    .hero .sub { margin-top: 26px; font-size: 17px; line-height: 1.6; max-width: 58ch; }
+    .cta-row { margin-top: 34px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; }
+    .btn-cobalt { background: var(--cobalt); color: var(--white); }
+    .btn-cobalt:hover { background: var(--ink); }
+    .btn-outline { border: 1px solid var(--ink); }
+    .btn-outline:hover { border-color: var(--cobalt); color: var(--cobalt); }
+    .codebar { background: var(--ink); color: var(--white); font-family: var(--mono); font-size: 13px; padding: 14px 18px; }
+    .strip { margin-top: 56px; height: 14px; display: flex; }
+    .strip .s1 { flex: 2.5; background: var(--cobalt); }
+    .strip .s2 { flex: 1.2; background: var(--ink); }
+    .strip .s3 { flex: 0.35; background: var(--signal); }
+
+    /* sections */
+    section { padding: 120px 0 0; }
+    section:last-of-type { padding-bottom: 120px; }
+    .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 44px; }
+    .sec-head .idx { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; }
+    .sec-head .rule { flex: 1; height: 1px; background: var(--ink); }
+    .sec-head .name { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+    .sec-title { font-size: clamp(28px, 3.4vw, 40px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.08; margin-bottom: 40px; }
+    .sec-title em { font-style: normal; color: var(--cobalt); }
+
+    /* premise */
+    .premise-copy { font-size: 17px; line-height: 1.65; max-width: 62ch; margin-bottom: 44px; }
+    .premise-copy code { font-family: var(--mono); font-size: 14.5px; }
+    .wireflow { display: flex; align-items: center; font-family: var(--mono); font-size: 12px; }
+    .wnode { border: 1px solid var(--ink); padding: 9px 14px; white-space: nowrap; }
+    .wnode.hot { border-color: var(--cobalt); color: var(--cobalt); font-weight: 600; }
+    .wwire { flex: 1; min-width: 18px; height: 1px; background: var(--ink); position: relative; }
+    .wwire::after { content: ''; position: absolute; right: 0; top: -2px; width: 5px; height: 5px; background: var(--ink); }
+    .wwire.tohot::after { background: var(--cobalt); }
+    .flow-note { margin-top: 28px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
+
+    /* capability grid */
+    .mod-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); border-left: 1px solid var(--ink); }
+    .mod { border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 20px 20px 24px; min-height: 118px; }
+    .mod:hover { background: var(--cobalt); color: var(--white); }
+    .mod:hover p { color: var(--white); }
+    .mod .mname { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+    .mod p { margin-top: 8px; font-size: 12.5px; line-height: 1.55; color: #3c4248; }
+
+    /* CTA band */
+    .cta-band { background: var(--cobalt); color: var(--white); padding: 56px 0; }
+    .cta-band .inner { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+    .cta-band h2 { font-size: clamp(28px, 3.6vw, 44px); font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase; }
+    .cta-band .btns { margin-left: auto; display: flex; gap: 12px; }
+    .btn-white { background: var(--white); color: var(--cobalt); }
+    .btn-white:hover { background: var(--ink); color: var(--white); }
+    .btn-outline-w { border: 1px solid var(--white); color: var(--white); }
+    .btn-outline-w:hover { background: var(--white); color: var(--cobalt); }
+
+    /* footer */
+    footer { background: var(--ink); color: var(--white); padding: 34px 0; }
+    footer .inner { display: flex; align-items: center; gap: 26px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; }
+    footer a { text-decoration: underline; text-underline-offset: 3px; }
+    footer .dim { color: #6d747c; margin-left: auto; }
+
+    @media (max-width: 900px)
+    {
+        .mod-grid { grid-template-columns: 1fr 1fr; }
+        .wireflow { flex-wrap: wrap; row-gap: 10px; }
+    }
+    @media (max-width: 600px)
+    {
+        .mod-grid { grid-template-columns: 1fr; }
+        section { padding: 80px 0 0; }
+        section:last-of-type { padding-bottom: 80px; }
+        .hero { padding-top: 56px; }
+    }
+</style>
+</head>
+<body>
+
+    <header>
+        <div class="inner nav">
+            <a class="brand" href="/"><svg viewBox="0 0 166 192" fill="none" aria-hidden="true"><path d="M137.954 26.8921C133.611 24.0908 129.082 22.0243 124.451 20.6696C120.622 15.8133 116.032 11.5655 110.752 8.16724C84.6518 -8.64033 51.2852 1.32481 36.2178 30.4281C21.1606 59.5313 30.1043 96.7514 56.2048 113.559C61.4948 116.969 67.0937 119.265 72.7645 120.539C57.728 101.481 54.4757 73.1244 66.4864 49.9221C78.4972 26.7313 102.128 15.687 124.451 20.6811C141.412 39.8077 145.58 69.9098 132.942 94.329L158.033 110.494C173.183 81.2182 164.198 43.7915 137.954 26.8921Z" fill="currentColor"/><path d="M108.874 78.4409C103.584 75.0312 97.9952 72.7236 92.314 71.4492C107.351 90.5185 110.603 118.876 98.5921 142.078C86.5814 165.28 62.951 176.324 40.6278 171.33C23.7798 152.284 19.7042 122.239 32.3427 97.8201L7.39499 81.7473C-7.75478 111.023 1.1169 148.369 27.207 165.177H27.1967C31.5194 167.955 36.0272 169.999 40.6278 171.342C44.4564 176.187 49.0466 180.423 54.3264 183.833C80.4268 200.64 113.793 190.675 128.861 161.572C143.918 132.469 134.974 95.2485 108.874 78.4409Z" fill="currentColor"/></svg>Superfunction</a>
+            <nav>
+                <a href="/docs">Docs</a>
+                <a href="/functions">Functions</a>
+                <a href="/about">About</a>
+                <a href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="hero">
+        <div class="inner">
+            <div class="kicker"><a href="/functions">FUNCTIONS</a> / @SPFN/NOTIFICATION — EMAIL, SMS &amp; SLACK</div>
+            <h1 class="display">One send(),<br><span class="inkline">every channel.</span></h1>
+            <p class="sub">Email, SMS, Slack — <code>@spfn/notification</code> gives each channel the
+               same call shape: recipient, template, data in; a <code>SendResult</code> back, never a
+               throw. Providers plug in, templates render with filters, and pg-boss carries the
+               scheduled and the bulk.</p>
+            <div class="cta-row">
+                <a class="btn btn-cobalt" href="/docs/packages/notification">Read the reference</a>
+                <a class="btn btn-outline" href="/docs">Get started</a>
+                <span class="codebar">$ pnpm add @spfn/notification</span>
+            </div>
+        </div>
+        <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
+    </div>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">The premise</span></div>
+            <h2 class="sec-title">Not three integrations.<br>One <em>delivery surface.</em></h2>
+            <p class="premise-copy">Notifications are the same job in every app: render a message, hand
+               it to a vendor, remember what happened. This package ships that job as one surface — a
+               template system with variable substitution and filters, delivery through pluggable
+               providers, scheduling and distributed bulk sending on pg-boss, and an optional history
+               table with engagement tracking on top. It configures from environment variables by
+               default, with <code>configureNotification</code> for code-level overrides, and every
+               send resolves to a <code>SendResult</code> you check instead of an exception you catch.</p>
+            <div class="wireflow">
+                <div class="wnode">sendEmail / sendSMS / sendSlack</div><div class="wwire"></div>
+                <div class="wnode">template + filters</div><div class="wwire"></div>
+                <div class="wnode">provider</div><div class="wwire tohot"></div>
+                <div class="wnode hot">SendResult</div>
+            </div>
+            <div class="flow-note">FIG 01 — ONE PIPELINE PER CHANNEL · RESULTS, NOT EXCEPTIONS</div>
+        </div>
+    </section>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">Core technique</span></div>
+            <h2 class="sec-title">The vendor is<br>a <em>plug-in.</em></h2>
+            <p class="premise-copy">A provider is a name and a <code>send()</code> function — nothing
+               more. AWS SES and SNS come built in, but as optional dependencies: their SDKs install
+               only if you use them. Adding SendGrid or Twilio means implementing that one function and
+               calling <code>registerEmailProvider</code> or <code>registerSMSProvider</code>; picking
+               a vendor is a config value (<code>provider: 'aws-ses'</code>) or an environment
+               variable. Your application code — <code>sendEmail</code>, template, data — never
+               mentions the vendor, so swapping the delivery service is a registration and a config
+               line, not a rewrite.</p>
+            <div class="wireflow">
+                <div class="wnode">your code: sendEmail()</div><div class="wwire"></div>
+                <div class="wnode">provider registry</div><div class="wwire tohot"></div>
+                <div class="wnode hot">{ name, send() }</div>
+            </div>
+            <div class="flow-note">FIG 02 — PROVIDER = NAME + SEND() · AWS SDKS OPTIONAL · SWITCHED BY ONE CONFIG VALUE</div>
+        </div>
+    </section>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">What's inside</span></div>
+            <h2 class="sec-title">The parts you'd otherwise<br>build <em>again.</em></h2>
+            <div class="mod-grid">
+                <a class="mod" href="/docs/packages/notification#sending-notifications">
+                    <div class="mname">multi-channel send</div>
+                    <p>sendEmail, sendSMS, sendSlack — template or direct content, phone numbers normalized to E.164.</p>
+                </a>
+                <a class="mod" href="/docs/packages/notification#custom-providers">
+                    <div class="mname">providers</div>
+                    <p>AWS SES and SNS built in as optional deps; register your own with name + send().</p>
+                </a>
+                <a class="mod" href="/docs/packages/notification#template-system">
+                    <div class="mname">templates &amp; filters</div>
+                    <p>Variable substitution with filters — currency, date, truncate, default — plus custom filters.</p>
+                </a>
+                <a class="mod" href="/docs/packages/notification#scheduled-notifications">
+                    <div class="mname">scheduled delivery</div>
+                    <p>scheduleEmail and scheduleSMS via pg-boss; cancel by notification id.</p>
+                </a>
+                <a class="mod" href="/docs/packages/notification#bulk-sending">
+                    <div class="mname">bulk sending</div>
+                    <p>In-process with concurrency control, or distributed across instances via pg-boss with per-item retry.</p>
+                </a>
+                <a class="mod" href="/docs/packages/notification#notification-history">
+                    <div class="mname">history</div>
+                    <p>Store every notification; query by channel, status, recipient; per-channel stats.</p>
+                </a>
+                <a class="mod" href="/docs/packages/notification#email-tracking">
+                    <div class="mname">email tracking</div>
+                    <p>Open pixel and click redirect with HMAC-signed tokens; open, click, and engagement analytics.</p>
+                </a>
+                <a class="mod" href="/docs/packages/notification#logging--error-handling">
+                    <div class="mname">results, not throws</div>
+                    <p>send* returns a SendResult instead of throwing; logs tagged per channel via @spfn/core/logger.</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="cta-band">
+        <div class="inner">
+            <h2>Plug it in.</h2>
+            <div class="btns">
+                <a class="btn btn-white" href="/docs/packages/notification">Full reference</a>
+                <a class="btn btn-outline-w" href="/docs">Get started</a>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="inner">
+            <span>SUPERFUNCTION</span>
+            <a href="/docs">DOCS</a>
+            <a href="/functions">FUNCTIONS</a>
+            <a href="/about">ABOUT</a>
+            <a href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GITHUB</a>
+            <span class="dim">© 2026 FXY INC. · @SPFN/NOTIFICATION — BETA</span>
+        </div>
+    </footer>
+
+</body>
+</html>
