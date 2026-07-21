@@ -108,13 +108,19 @@
                                     <span class="node">/docs/pattern <span class="badge b-md">MD</span> <span class="badge b-new">NEW</span></span>
                                     <span class="note">The SPFN pattern deep-dive: slice anatomy, codegen, errors.</span>
                                 </li>
+                            </ul>
+                        </li>
+                        <li>
+                            <span class="node">/packages <span class="badge b-md">MD</span></span>
+                            <span class="note">Package index — every link internal. Packages are their own namespace.</span>
+                            <ul>
                                 <li>
-                                    <span class="node">/docs/packages <span class="badge b-md">MD</span> <span class="badge b-new">NEW</span></span>
-                                    <span class="note">Package index — one line + link per @spfn/* package.</span>
+                                    <span class="node">/packages/&lt;pkg&gt; <span class="badge b-md">MOUNT</span></span>
+                                    <span class="note">11 package READMEs mounted from the repo (spfn.site.yaml mounts). SHIPPED.</span>
                                     <ul>
                                         <li>
-                                            <span class="node ghost">/docs/&lt;pkg&gt; <span class="badge b-future">FUTURE — REPO MOUNT</span></span>
-                                            <span class="note">Package READMEs mounted from the repo once docs-mount ships; until then the index links to GitHub.</span>
+                                            <span class="node ghost">/packages/&lt;pkg&gt; landing <span class="badge b-future">PHASE C</span></span>
+                                            <span class="note">Designed html landing per package; README moves under it as guide docs.</span>
                                         </li>
                                     </ul>
                                 </li>
@@ -132,7 +138,7 @@
                         </li>
                         <li>
                             <span class="node ghost">github.com/spfn/spfn <span class="badge b-future">EXTERNAL</span></span>
-                            <span class="note">Source, examples, package READMEs — the docs long-tail until mounts.</span>
+                            <span class="note">Source code only — docs are consumed on-site; code links auto-resolve to repo blob URLs.</span>
                         </li>
                     </ul>
                 </li>

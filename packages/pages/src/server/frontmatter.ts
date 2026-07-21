@@ -44,3 +44,33 @@ function normalizeDate(data: Record<string, unknown>): Record<string, unknown>
 
     return data;
 }
+
+/**
+ * Lenient parse for mounted repo docs (READMEs, guides) that were not written
+ * for the site: frontmatter is optional, the title falls back to the first
+ * `#` heading (which is then stripped — the doc layout renders the title),
+ * then to the file name.
+ */
+export function parseMountedDocument(source: string, fallbackTitle: string): ParsedDocument
+{
+    const { data, content } = matter(source);
+    const heading = firstHeading(content);
+    const title = typeof data.title === 'string' && data.title ? data.title : heading?.text ?? fallbackTitle;
+
+    return {
+        frontmatter: {
+            title,
+            description: typeof data.description === 'string' ? data.description : undefined,
+            layout: 'doc',
+            draft: data.draft === true,
+        },
+        body: heading && !data.title ? content.replace(heading.line, '') : content,
+    };
+}
+
+function firstHeading(content: string): { line: string; text: string } | null
+{
+    const match = /^#\s+(.+)\s*$/m.exec(content);
+
+    return match ? { line: match[0], text: match[1].trim() } : null;
+}

@@ -49,13 +49,36 @@ name: Superfunction          # required
 description: ...             # optional
 root: site                   # optional, default 'site' ('.' = repo root)
 url: https://example.com     # optional — canonical origin; makes og:image URLs absolute
+repo: https://github.com/spfn/spfn   # optional — canonical repo; non-doc links resolve here
 locale: ko                   # optional
 nav:                         # optional
   - label: Docs
     path: /docs
 social:                      # optional — lowercase keys; renderers display brand
   github: https://github.com/spfn/spfn   # casing via socialLabel() ('github' → 'GitHub')
+mounts:                      # optional — repo docs served as site routes
+  - source: packages/core/README.md      # a .md file, or a directory
+    route: /packages/core
+    title: "@spfn/core"                  # optional title override
 ```
+
+### Mounts — repo docs served on-site
+
+Mounts pull documentation that lives with the code (READMEs, guide trees)
+into the site, so docs are consumed on-site instead of on GitHub. A `.md`
+source serves that one file at `route`; a directory source serves every `.md`
+beneath it at `route/<relative-path>` (README/index files collapse onto their
+directory). Mounted docs are parsed leniently: frontmatter optional, title
+falls back to the first `#` heading (stripped from the body), then the file
+name. Loaded docs surface as `site.mounted`, routable like pages.
+
+Link resolution inside any rendered markdown, in order: a relative link to a
+served markdown file (authored or mounted) → its route; a `public/` asset →
+its served URL; any other existing repo file → `<repo>/blob/main/<path>`
+(images use `/raw/`), which is why mounts want `repo` set — without it those
+links stay as written and a problem is reported. Conflicts (a mount route
+already served by a page, post, or earlier mount) skip the file and land in
+`problems`.
 
 ### Frontmatter (minimal by design)
 

@@ -18,9 +18,15 @@ export function parseSiteConfig(yamlText: string): SiteConfig
         description: raw.description,
         root: normalizeRoot(raw.root ?? 'site'),
         url: raw.url?.replace(/\/+$/, ''),
+        repo: raw.repo?.replace(/\/+$/, '').replace(/\.git$/, ''),
         locale: raw.locale,
         nav: raw.nav ?? [],
         social: raw.social ?? {},
+        mounts: (raw.mounts ?? []).map(mount => ({
+            source: mount.source.replace(/^\.?\//, '').replace(/\/+$/, ''),
+            route: `/${mount.route.replace(/^\/+/, '').replace(/\/+$/, '')}`,
+            title: mount.title,
+        })),
     };
 }
 

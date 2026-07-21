@@ -107,6 +107,82 @@ describe('loadSite', () =>
     });
 });
 
+describe('loadSite — mounts', () =>
+{
+    function mountedSource(): MemoryContentSource
+    {
+        return new MemoryContentSource({
+            'spfn.site.yaml': [
+                'name: X',
+                'repo: https://github.com/spfn/spfn',
+                'mounts:',
+                '  - source: packages/core/README.md',
+                '    route: /packages/core',
+                '    title: "@spfn/core"',
+                '  - source: guides',
+                '    route: /docs/guides',
+            ].join('\n'),
+            'site/pages/index.md': '---\ntitle: Home\n---\nSee [core](../../packages/core/README.md).\n',
+            'packages/core/README.md': '# Core\n\nRead the [setup guide](../../guides/setup.md) or [the source](./src/server.ts).\n',
+            'packages/core/src/server.ts': 'export {};',
+            'guides/setup.md': '# Setup Guide\n\nBack to [core](../packages/core/README.md).\n',
+            'guides/nested/README.md': '# Nested\n\nhi\n',
+        });
+    }
+
+    it('serves file and directory mounts as routable docs', async () =>
+    {
+        const site = await loadSite(mountedSource());
+        const slugs = site.mounted.map(doc => doc.slug).sort();
+
+        expect(slugs).toEqual(['/docs/guides/nested', '/docs/guides/setup', '/packages/core']);
+    });
+
+    it('takes titles from mount config, then first heading (stripped from the body)', async () =>
+    {
+        const site = await loadSite(mountedSource());
+        const core = site.mounted.find(doc => doc.slug === '/packages/core');
+        const setup = site.mounted.find(doc => doc.slug === '/docs/guides/setup');
+
+        expect(core?.frontmatter.title).toBe('@spfn/core');
+        expect(setup?.frontmatter.title).toBe('Setup Guide');
+        expect(setup?.html).not.toContain('Setup Guide</h1>');
+    });
+
+    it('resolves links between mounted docs, from site pages into mounts, and code files to the repo', async () =>
+    {
+        const site = await loadSite(mountedSource());
+        const core = site.mounted.find(doc => doc.slug === '/packages/core');
+        const setup = site.mounted.find(doc => doc.slug === '/docs/guides/setup');
+        const home = site.pages.find(doc => doc.slug === '/');
+
+        expect(core?.html).toContain('href="/docs/guides/setup"');
+        expect(setup?.html).toContain('href="/packages/core"');
+        expect(home?.html).toContain('href="/packages/core"');
+        expect(core?.html).toContain('href="https://github.com/spfn/spfn/blob/main/packages/core/src/server.ts"');
+    });
+
+    it('reports missing sources, route conflicts, and mounts without repo', async () =>
+    {
+        const site = await loadSite(new MemoryContentSource({
+            'spfn.site.yaml': [
+                'name: X',
+                'mounts:',
+                '  - source: missing/README.md',
+                '    route: /gone',
+                '  - source: real/README.md',
+                '    route: /about',
+            ].join('\n'),
+            'site/pages/index.md': '---\ntitle: Home\n---\nhi\n',
+            'site/pages/about.md': '---\ntitle: About\n---\nhi\n',
+            'real/README.md': '# Real\n',
+        }));
+
+        expect(site.mounted).toEqual([]);
+        expect(site.problems.map(p => p.path)).toEqual(expect.arrayContaining(['spfn.site.yaml', 'missing/README.md', 'real/README.md']));
+    });
+});
+
 describe('validateSite', () =>
 {
     it('reports a missing opt-in file as a problem instead of throwing', async () =>

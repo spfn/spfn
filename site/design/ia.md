@@ -20,17 +20,21 @@ repo READMEs) are in scope as renderer feature work, not deferred.
 - A developer who builds primarily with AI agents and wants a codebase
   structure agents don't get lost in.
 
-## Sitemap (v2 draft — see ia.html for the diagram)
+## Sitemap (v3 — everything consumed on-site; see ia.html)
 
-| Route            | Source                    | Notes                                          |
-| ---------------- | ------------------------- | ---------------------------------------------- |
-| `/`              | `pages/index.html`        | Designed landing (phase 3 draft exists)        |
-| `/docs`          | `pages/docs.md`           | Get started — exists                           |
-| `/docs/pattern`  | `pages/docs/pattern.md`   | NEW — SPFN pattern deep-dive (slice anatomy, codegen, errors) |
-| `/docs/packages` | `pages/docs/packages.md`  | NEW — package index; links to GitHub READMEs   |
-| `/docs/<pkg>`    | —                         | FUTURE — repo README mounts (needs docs-mount) |
-| `/posts`         | renderer virtual index    | Appears with the first post                    |
-| `/posts/<slug>`  | `posts/YYYY-MM-DD-*.md`   | NEW — release notes / changelog                |
+| Route             | Source                    | Notes                                          |
+| ----------------- | ------------------------- | ---------------------------------------------- |
+| `/`               | `pages/index.html`        | Designed landing                               |
+| `/docs`           | `pages/docs.md`           | Get started                                    |
+| `/docs/pattern`   | `pages/docs/pattern.md`   | SPFN pattern deep-dive                         |
+| `/packages`       | `pages/packages.md`       | Package index — all links internal             |
+| `/packages/<pkg>` | repo `packages/*/README.md` via `mounts` | 11 packages, served on-site     |
+| `/packages/<pkg>` landing | —                 | PHASE C — designed html landing per package; README moves beneath it |
+| `/posts`          | renderer virtual index    | Deferred until the first release note          |
+| `/posts/<slug>`   | `posts/YYYY-MM-DD-*.md`   | Deferred                                       |
+
+GitHub remains the source only: docs are consumed on-site; relative links to
+code files auto-resolve to repo blob URLs (renderer `repo` config).
 
 ## Journeys
 

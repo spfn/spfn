@@ -14,6 +14,10 @@ export interface RewriteContext
     slugBySourcePath: ReadonlyMap<string, string>;
     /** Repo-relative public dir (e.g. 'site/public'); assets under it are served from '/'. */
     publicPrefix: string;
+    /** Canonical repo URL — relative links to unserved repo files resolve here. */
+    repoUrl?: string;
+    /** Every path in the repo tree; gates the repoUrl fallback to real files. */
+    repoFiles?: ReadonlySet<string>;
 }
 
 /** Rehype plugin: rewrite relative hrefs/srcs to served routes and asset URLs. */
@@ -26,7 +30,7 @@ export function rehypeRewriteRefs(context: RewriteContext)
             const attribute = refAttribute(node);
             if (attribute && typeof node.properties[attribute] === 'string')
             {
-                node.properties[attribute] = rewriteRef(node.properties[attribute] as string, context);
+                node.properties[attribute] = rewriteRef(node.properties[attribute] as string, context, attribute);
             }
         });
     };
@@ -42,7 +46,7 @@ function refAttribute(node: Element): 'href' | 'src' | null
     return node.tagName === 'img' ? 'src' : null;
 }
 
-function rewriteRef(ref: string, context: RewriteContext): string
+function rewriteRef(ref: string, context: RewriteContext, attribute: 'href' | 'src'): string
 {
     if (!isRelative(ref))
     {
@@ -60,6 +64,10 @@ function rewriteRef(ref: string, context: RewriteContext): string
     if (resolved.startsWith(`${context.publicPrefix}/`))
     {
         return `/${resolved.slice(context.publicPrefix.length + 1)}${suffix}`;
+    }
+    if (context.repoUrl && context.repoFiles?.has(resolved))
+    {
+        return `${context.repoUrl}/${attribute === 'src' ? 'raw' : 'blob'}/main/${resolved}${suffix}`;
     }
 
     return ref;

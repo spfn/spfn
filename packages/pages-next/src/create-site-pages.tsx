@@ -104,7 +104,7 @@ function siteLoader({ source, revalidate = 60 }: SitePagesOptions): () => Promis
 
 function routableSlugs(site: SiteContent): string[]
 {
-    const slugs = [...site.pages, ...site.posts].map(doc => doc.slug);
+    const slugs = [...site.pages, ...site.posts, ...site.mounted].map(doc => doc.slug);
     if (site.posts.length > 0 && !slugs.includes(POSTS_INDEX))
     {
         slugs.push(POSTS_INDEX);
@@ -125,7 +125,7 @@ function slugPath(slugSegments: string[] | undefined): string
 
 function findDoc(site: SiteContent, slug: string): PageDoc | null
 {
-    return [...site.pages, ...site.posts].find(doc => doc.slug === slug) ?? null;
+    return [...site.pages, ...site.posts, ...site.mounted].find(doc => doc.slug === slug) ?? null;
 }
 
 function renderDoc(site: SiteContent, doc: PageDoc): ReactElement

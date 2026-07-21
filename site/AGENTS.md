@@ -7,7 +7,7 @@ This file is the contract — read it before touching anything under `site/`.
 ## Structure
 
 ```
-../spfn.site.yaml   # site meta + nav — repo root, edit to change name/url/nav/social
+../spfn.site.yaml   # site meta — name/url/repo/nav/social + mounts (repo docs served as routes)
 pages/              # '/', '/about', '/docs/intro' … from the file path
   index.md          # '/' — layout defaults to `landing`
   *.md              # other pages — layout defaults to `doc`

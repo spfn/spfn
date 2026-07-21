@@ -18,6 +18,21 @@ export interface NavItem
     path: string;
 }
 
+/**
+ * A repo file or directory served as site routes. File mounts serve one
+ * markdown file at `route`; directory mounts serve every `.md` under `source`
+ * at `route/<relative-path>` (README/index files collapse onto their dir).
+ */
+export interface MountConfig
+{
+    /** Repo-relative path — a `.md` file or a directory. */
+    source: string;
+    /** Served route the mount maps onto, e.g. '/packages/core'. */
+    route: string;
+    /** Title override for the doc served exactly at `route`. */
+    title?: string;
+}
+
 export interface SiteConfig
 {
     name: string;
@@ -26,9 +41,13 @@ export interface SiteConfig
     root: string;
     /** Canonical site origin (e.g. 'https://example.com') — makes og:image URLs absolute. */
     url?: string;
+    /** Canonical repo URL (e.g. 'https://github.com/spfn/spfn') — non-doc relative links resolve here. */
+    repo?: string;
     locale?: string;
     nav: NavItem[];
     social: Record<string, string>;
+    /** Repo docs served as site routes — see MountConfig. */
+    mounts: MountConfig[];
 }
 
 export interface PageFrontmatter
@@ -86,6 +105,8 @@ export interface SiteContent
     posts: PageDoc[];
     /** Raw HTML pages served verbatim, outside the layout/sanitize path. */
     htmlPages: HtmlPage[];
+    /** Docs mounted from the repo (config `mounts`), routable like pages. */
+    mounted: PageDoc[];
     /** Theme tokens as CSS variables + custom.css, ready to inline. */
     themeCss: string;
     /** Served URL of `public/favicon.{svg,png,ico,jpg,jpeg}` when present, e.g. '/favicon.svg'. */

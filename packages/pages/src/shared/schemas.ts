@@ -6,14 +6,22 @@ export const NavItemSchema = Type.Object({
     path: Type.String({ minLength: 1 }),
 });
 
+export const MountSchema = Type.Object({
+    source: Type.String({ minLength: 1 }),
+    route: Type.String({ pattern: '^/' }),
+    title: Type.Optional(Type.String({ minLength: 1 })),
+});
+
 export const SiteConfigSchema = Type.Object({
     name: Type.String({ minLength: 1 }),
     description: Type.Optional(Type.String()),
     root: Type.Optional(Type.String({ minLength: 1 })),
     url: Type.Optional(Type.String({ pattern: '^https?://' })),
+    repo: Type.Optional(Type.String({ pattern: '^https?://' })),
     locale: Type.Optional(Type.String({ minLength: 2 })),
     nav: Type.Optional(Type.Array(NavItemSchema)),
     social: Type.Optional(Type.Record(Type.String(), Type.String())),
+    mounts: Type.Optional(Type.Array(MountSchema)),
 });
 
 export const FrontmatterSchema = Type.Object({

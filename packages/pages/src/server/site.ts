@@ -1,7 +1,7 @@
-import { SITE_CONFIG_FILE, type HtmlPage, type PageDoc, type PageLayout, type SiteConfig, type SiteContent, type SiteProblem } from '../shared/types';
+import { SITE_CONFIG_FILE, type HtmlPage, type MountConfig, type PageDoc, type PageLayout, type SiteConfig, type SiteContent, type SiteProblem } from '../shared/types';
 import { SiteConfigError } from '../shared/errors';
 import { parseSiteConfig } from './config';
-import { parseDocument } from './frontmatter';
+import { parseDocument, parseMountedDocument } from './frontmatter';
 import { renderMarkdown } from './markdown';
 import { CODE_DARK_CSS, buildThemeCss } from './theme';
 import type { ContentSource } from './content-source';
@@ -24,21 +24,38 @@ export async function loadSite(source: ContentSource): Promise<SiteContent>
     const config = parseSiteConfig(configText);
     const tree = await source.getTree();
     const problems: SiteProblem[] = [];
+    const repoFiles = new Set(tree);
     const slugBySourcePath = mapSlugs(tree, config);
+    const mountFiles = resolveMounts(tree, config, slugBySourcePath, problems);
+    for (const file of mountFiles)
+    {
+        slugBySourcePath.set(file.path, file.route);
+    }
 
-    const pages = await loadCollection(source, tree, config, 'pages', slugBySourcePath, problems);
-    const posts = await loadCollection(source, tree, config, 'posts', slugBySourcePath, problems);
+    const shared: SharedContext = { config, repoFiles, slugBySourcePath };
+    const pages = await loadCollection(source, tree, shared, 'pages', problems);
+    const posts = await loadCollection(source, tree, shared, 'posts', problems);
+    const mounted = await loadMounted(source, shared, mountFiles, problems);
 
     return {
         config,
         pages,
         posts,
-        htmlPages: await loadHtmlPages(source, tree, config, usedSlugs(pages, posts), problems),
+        mounted,
+        htmlPages: await loadHtmlPages(source, tree, config, usedSlugs(pages, posts, mounted), problems),
         themeCss: await loadTheme(source, config, problems),
         favicon: findWellKnownAsset(tree, config, FAVICON_NAMES),
         ogImage: findWellKnownAsset(tree, config, OG_IMAGE_NAMES),
         problems,
     };
+}
+
+/** Everything document loading needs besides the file itself. */
+interface SharedContext
+{
+    config: SiteConfig;
+    repoFiles: ReadonlySet<string>;
+    slugBySourcePath: Map<string, string>;
 }
 
 /** Registration-time check: every problem the site has, without throwing. */
@@ -85,19 +102,14 @@ function mapSlugs(tree: string[], config: SiteConfig): Map<string, string>
     return slugs;
 }
 
-async function loadCollection(source: ContentSource, tree: string[], config: SiteConfig, collection: Collection, slugBySourcePath: ReadonlyMap<string, string>, problems: SiteProblem[]): Promise<PageDoc[]>
+async function loadCollection(source: ContentSource, tree: string[], shared: SharedContext, collection: Collection, problems: SiteProblem[]): Promise<PageDoc[]>
 {
-    const prefix = contentPath(config, collection) + '/';
+    const prefix = contentPath(shared.config, collection) + '/';
     const docs: PageDoc[] = [];
 
-    for (const path of collectionFiles(tree, config, collection, '.md'))
+    for (const path of collectionFiles(tree, shared.config, collection, '.md'))
     {
-        const context: RewriteContext = {
-            sourcePath: path,
-            slugBySourcePath,
-            publicPrefix: contentPath(config, 'public'),
-        };
-        const doc = await loadDocument(source, path, prefix, collection, context, problems);
+        const doc = await loadDocument(source, path, prefix, collection, rewriteContext(shared, path), problems);
         if (doc && !doc.frontmatter.draft)
         {
             docs.push(doc);
@@ -105,6 +117,17 @@ async function loadCollection(source: ContentSource, tree: string[], config: Sit
     }
 
     return collection === 'posts' ? sortByDateDesc(docs) : docs;
+}
+
+function rewriteContext(shared: SharedContext, sourcePath: string): RewriteContext
+{
+    return {
+        sourcePath,
+        slugBySourcePath: shared.slugBySourcePath,
+        publicPrefix: contentPath(shared.config, 'public'),
+        repoUrl: shared.config.repo,
+        repoFiles: shared.repoFiles,
+    };
 }
 
 async function loadDocument(source: ContentSource, path: string, prefix: string, collection: Collection, context: RewriteContext, problems: SiteProblem[]): Promise<PageDoc | null>
@@ -136,9 +159,128 @@ async function loadDocument(source: ContentSource, path: string, prefix: string,
     }
 }
 
-function usedSlugs(pages: PageDoc[], posts: PageDoc[]): Set<string>
+function usedSlugs(...collections: PageDoc[][]): Set<string>
 {
-    return new Set([...pages, ...posts].map(doc => doc.slug));
+    return new Set(collections.flat().map(doc => doc.slug));
+}
+
+interface MountFile
+{
+    path: string;
+    route: string;
+    mount: MountConfig;
+}
+
+/**
+ * Expand config mounts against the repo tree. A `.md` source is a file mount;
+ * anything else is a directory mount serving every `.md` beneath it, with
+ * README/index files collapsing onto their directory's route. Conflicts with
+ * authored pages/posts (or earlier mounts) are reported and skipped.
+ */
+function resolveMounts(tree: string[], config: SiteConfig, taken: ReadonlyMap<string, string>, problems: SiteProblem[]): MountFile[]
+{
+    if (config.mounts.length > 0 && !config.repo)
+    {
+        problems.push({ path: SITE_CONFIG_FILE, message: 'mounts without repo: relative links to unserved repo files will not be rewritten' });
+    }
+
+    const claimed = new Set(taken.values());
+    const files: MountFile[] = [];
+
+    for (const mount of config.mounts)
+    {
+        for (const file of expandMount(tree, mount, problems))
+        {
+            if (claimed.has(file.route))
+            {
+                problems.push({ path: file.path, message: `mount route '${file.route}' is already served — rename the route or the conflicting file` });
+                continue;
+            }
+
+            claimed.add(file.route);
+            files.push(file);
+        }
+    }
+
+    return files;
+}
+
+function expandMount(tree: string[], mount: MountConfig, problems: SiteProblem[]): MountFile[]
+{
+    if (mount.source.endsWith('.md'))
+    {
+        if (!tree.includes(mount.source))
+        {
+            problems.push({ path: mount.source, message: `mount source not found in the repo` });
+
+            return [];
+        }
+
+        return [{ path: mount.source, route: mount.route, mount }];
+    }
+
+    const prefix = mount.source + '/';
+    const found = tree.filter(path => path.startsWith(prefix) && path.endsWith('.md'));
+    if (found.length === 0)
+    {
+        problems.push({ path: mount.source, message: `mount source has no markdown files` });
+    }
+
+    return found.map(path => ({ path, route: mountedRoute(mount.route, path.slice(prefix.length)), mount }));
+}
+
+/** 'guides/setup.md' → '<route>/guides/setup'; README/index files collapse onto their directory. */
+function mountedRoute(route: string, relative: string): string
+{
+    const segments = relative.replace(/\.md$/, '').split('/');
+    const last = segments[segments.length - 1].toLowerCase();
+    if (last === 'readme' || last === 'index')
+    {
+        segments.pop();
+    }
+
+    return segments.length === 0 ? route : `${route}/${segments.join('/')}`;
+}
+
+async function loadMounted(source: ContentSource, shared: SharedContext, mountFiles: MountFile[], problems: SiteProblem[]): Promise<PageDoc[]>
+{
+    const docs: PageDoc[] = [];
+
+    for (const file of mountFiles)
+    {
+        const raw = await source.getFile(file.path);
+        if (raw === null)
+        {
+            continue;
+        }
+
+        try
+        {
+            const fallback = file.path.split('/').pop()?.replace(/\.md$/, '') ?? file.path;
+            const parsed = parseMountedDocument(raw, fallback);
+            if (parsed.frontmatter.draft)
+            {
+                continue;
+            }
+            if (file.route === file.mount.route && file.mount.title)
+            {
+                parsed.frontmatter.title = file.mount.title;
+            }
+
+            docs.push({
+                slug: file.route,
+                sourcePath: file.path,
+                frontmatter: parsed.frontmatter,
+                html: await renderMarkdown(parsed.body, rewriteContext(shared, file.path)),
+            });
+        }
+        catch (error)
+        {
+            problems.push({ path: file.path, message: (error as Error).message });
+        }
+    }
+
+    return docs;
 }
 
 /**
