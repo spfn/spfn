@@ -25,6 +25,7 @@ repo READMEs) are in scope as renderer feature work, not deferred.
 | Route             | Source                    | Notes                                          |
 | ----------------- | ------------------------- | ---------------------------------------------- |
 | `/`               | `pages/index.html`        | Designed landing                               |
+| `/about`          | `pages/about.html`        | Designed manifesto — why SPFN exists (2026-07-22) |
 | `/docs`           | `pages/docs.md`           | Get started                                    |
 | `/docs/pattern`   | `pages/docs/pattern.md`   | SPFN pattern deep-dive                         |
 | `/packages`       | `pages/packages.md`       | Package index — all links internal             |

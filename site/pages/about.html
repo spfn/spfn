@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About — Superfunction</title>
+<meta name="description" content="Why Superfunction exists — packaged architecture for the AI era, so human time and tokens go to creative problems.">
+<meta property="og:title" content="About — Superfunction">
+<meta property="og:description" content="Why Superfunction exists — packaged architecture for the AI era, so human time and tokens go to creative problems.">
+<meta property="og:image" content="https://superfunction.xyz/og.png">
+<meta property="og:url" content="https://superfunction.xyz/about">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+    /* superfunction.xyz about — design system "Poster" v2 (site/design/system.md) */
+    * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
+    :root
+    {
+        --cobalt: #1d34f3;
+        --ink: #10161a;
+        --white: #ffffff;
+        --signal: #ff3b1f;
+        --gray: #8a9096;
+        --gray-line: #d9dce0;
+        --grotesk: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+    body { background: var(--white); color: var(--ink); font-family: var(--grotesk); }
+    a { text-decoration: none; color: inherit; }
+    .inner { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+    /* header */
+    header { border-bottom: 1px solid var(--ink); }
+    .nav { display: flex; align-items: center; height: 64px; }
+    .brand { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .nav nav { margin-left: auto; display: flex; gap: 28px; font-size: 14.5px; font-weight: 600; }
+    .nav nav a:hover { color: var(--cobalt); }
+
+    /* hero */
+    .hero { padding: 72px 0 0; }
+    .kicker { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.12em; margin-bottom: 26px; }
+    .display
+    {
+        font-size: clamp(40px, 6vw, 76px);
+        font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; text-transform: uppercase;
+    }
+    .display em { font-style: normal; color: var(--cobalt); }
+    .hero .sub { margin-top: 26px; font-size: 17px; line-height: 1.6; max-width: 58ch; }
+    .strip { margin-top: 56px; height: 14px; display: flex; }
+    .strip .s1 { flex: 2.5; background: var(--cobalt); }
+    .strip .s2 { flex: 1.2; background: var(--ink); }
+    .strip .s3 { flex: 0.35; background: var(--signal); }
+
+    /* sections */
+    section { padding: 120px 0 0; }
+    section:last-of-type { padding-bottom: 120px; }
+    .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 44px; }
+    .sec-head .idx { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; }
+    .sec-head .rule { flex: 1; height: 1px; background: var(--ink); }
+    .sec-head .name { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+    .sec-title { font-size: clamp(28px, 3.4vw, 40px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.08; margin-bottom: 40px; }
+    .sec-title em { font-style: normal; color: var(--cobalt); }
+
+    /* split — starting point */
+    .split { display: grid; grid-template-columns: 1fr 1fr; }
+    .split > div { padding: 4px 32px 8px 0; }
+    .split > div + div { border-left: 1px solid var(--ink); padding-left: 32px; padding-right: 0; }
+    .split .slabel { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); text-transform: uppercase; }
+    .split h3 { font-size: 22px; font-weight: 700; letter-spacing: -0.015em; margin: 14px 0 12px; }
+    .split p { font-size: 15px; line-height: 1.65; color: #3c4248; max-width: 52ch; }
+
+    /* observation grid — the AI era */
+    .obs-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .obs { padding: 4px 24px 8px 0; border-left: 1px solid var(--gray-line); }
+    .obs:first-child { border-left: none; padding-left: 0; }
+    .obs + .obs { padding-left: 24px; }
+    .obs .num { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
+    .obs h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin: 14px 0 10px; }
+    .obs p { font-size: 13.5px; line-height: 1.6; color: #3c4248; }
+
+    /* proposal */
+    .proposal-copy { font-size: 17px; line-height: 1.65; max-width: 62ch; margin-bottom: 44px; }
+    .proposal-copy code { font-family: var(--mono); font-size: 14.5px; }
+    .wireflow { display: flex; align-items: center; font-family: var(--mono); font-size: 12px; }
+    .wnode { border: 1px solid var(--ink); padding: 9px 14px; white-space: nowrap; }
+    .wnode.hot { border-color: var(--cobalt); color: var(--cobalt); font-weight: 600; }
+    .wwire { flex: 1; min-width: 18px; height: 1px; background: var(--ink); position: relative; }
+    .wwire::after { content: ''; position: absolute; right: 0; top: -2px; width: 5px; height: 5px; background: var(--ink); }
+    .wwire.tohot::after { background: var(--cobalt); }
+    .flow-note { margin-top: 28px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
+    .module-row { margin-top: 44px; border-top: 1px solid var(--gray-line); padding: 18px 0 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; display: flex; gap: 10px 26px; flex-wrap: wrap; }
+    .module-row .mlabel { color: var(--gray); }
+    .module-row a:hover { color: var(--cobalt); }
+
+    /* belief */
+    .belief { font-size: clamp(26px, 3vw, 36px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+    .belief em { font-style: normal; color: var(--cobalt); }
+    .belief-sub { margin-top: 26px; font-size: 16px; line-height: 1.65; color: #3c4248; max-width: 58ch; }
+    .status-note { margin-top: 52px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
+
+    /* CTA band */
+    .cta-band { background: var(--cobalt); color: var(--white); padding: 56px 0; }
+    .cta-band .inner { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+    .cta-band h2 { font-size: clamp(28px, 3.6vw, 44px); font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase; }
+    .cta-band .btns { margin-left: auto; display: flex; gap: 12px; }
+    .btn { display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; }
+    .btn-white { background: var(--white); color: var(--cobalt); }
+    .btn-white:hover { background: var(--ink); color: var(--white); }
+    .btn-outline-w { border: 1px solid var(--white); color: var(--white); }
+    .btn-outline-w:hover { background: var(--white); color: var(--cobalt); }
+
+    /* footer */
+    footer { background: var(--ink); color: var(--white); padding: 34px 0; }
+    footer .inner { display: flex; align-items: center; gap: 26px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; }
+    footer a { text-decoration: underline; text-underline-offset: 3px; }
+    footer .dim { color: #6d747c; margin-left: auto; }
+
+    @media (max-width: 900px)
+    {
+        .obs-grid { grid-template-columns: 1fr 1fr; }
+        .obs { border-top: 1px solid var(--gray-line); padding-top: 24px; }
+        .obs:nth-child(-n+2) { border-top: none; padding-top: 4px; }
+        .obs:nth-child(3) { border-left: none; padding-left: 0; }
+        .obs:nth-child(-n+2) { padding-bottom: 28px; }
+        .wireflow { flex-wrap: wrap; row-gap: 10px; }
+    }
+    @media (max-width: 600px)
+    {
+        .split { grid-template-columns: 1fr; }
+        .split > div { padding: 4px 0 28px; }
+        .split > div + div { border-left: none; border-top: 1px solid var(--gray-line); padding-left: 0; padding-top: 28px; }
+        .obs-grid { grid-template-columns: 1fr; }
+        .obs { border-left: none; border-top: 1px solid var(--gray-line); padding: 24px 0 28px; }
+        .obs:first-child { border-top: none; padding-top: 4px; }
+        section { padding: 80px 0 0; }
+        section:last-of-type { padding-bottom: 80px; }
+        .hero { padding-top: 56px; }
+    }
+</style>
+</head>
+<body>
+
+    <header>
+        <div class="inner nav">
+            <a class="brand" href="/">Superfunction</a>
+            <nav>
+                <a href="/docs">Docs</a>
+                <a href="/functions">Functions</a>
+                <a href="/about">About</a>
+                <a href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="hero">
+        <div class="inner">
+            <div class="kicker">ABOUT — WHY SUPERFUNCTION EXISTS</div>
+            <h1 class="display">Architecture,<br><em>packaged.</em></h1>
+            <p class="sub">The AI era changed who builds software, and how. Superfunction is our answer:
+               the architecture every full-stack product needs, shipped as packages — so the
+               non-creative work is already done.</p>
+        </div>
+        <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
+    </div>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">The starting point</span></div>
+            <h2 class="sec-title">Next.js is the right place.<br>The backend is the <em>hard part.</em></h2>
+            <div class="split">
+                <div>
+                    <div class="slabel">What works</div>
+                    <h3>One project, frontend and server together</h3>
+                    <p>For building on the web — especially when you need backend features — Next.js is one
+                       of the best choices there is. Frontend and server live in one project, one dev
+                       command. That integration is a real advantage, and it is where SPFN lives. It pays
+                       off for mobile apps too: one project carries the marketing page and the app's
+                       backend together.</p>
+                </div>
+                <div>
+                    <div class="slabel">What doesn't</div>
+                    <h3>A real backend is still hard</h3>
+                    <p>Transactions, connection pools, background jobs, auth. The moment an app becomes a
+                       product, simple API routes stop being enough — and the hard part was never the
+                       endpoint. It is the architecture around it.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">The AI era</span></div>
+            <h2 class="sec-title">AI made everyone full-stack.<br>It didn't make <em>architecture.</em></h2>
+            <div class="obs-grid">
+                <div class="obs">
+                    <div class="num">01</div>
+                    <h3>Everyone ships full-stack</h3>
+                    <p>Millions of people now build complete products with AI — many shipping their
+                       first backend.</p>
+                </div>
+                <div class="obs">
+                    <div class="num">02</div>
+                    <h3>Generation is non-deterministic</h3>
+                    <p>Ask an AI for the same feature twice and you get two different shapes. Codebases
+                       drift, run by run.</p>
+                </div>
+                <div class="obs">
+                    <div class="num">03</div>
+                    <h3>Architecture is scarce</h3>
+                    <p>The people who can hold a system together with good architecture are very few.
+                       Most projects never get one.</p>
+                </div>
+                <div class="obs">
+                    <div class="num">04</div>
+                    <h3>Everything is rebuilt</h3>
+                    <p>Every project needs login, uploads, jobs, email — and every project rebuilds them
+                       from scratch, differently. The same problem, again.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">The proposal</span></div>
+            <h2 class="sec-title">So we packaged<br>the <em>architecture.</em></h2>
+            <p class="proposal-copy">Superfunction is an opinionated answer: one fixed vertical slice per
+               feature — entity, repository, route, typed client — and the modules every product needs,
+               shipped as <code>@spfn/*</code> packages. The structure is deterministic. Humans and AI
+               agents both know exactly where things go, and login never gets built from scratch again.</p>
+            <div class="wireflow">
+                <div class="wnode">entity</div><div class="wwire"></div>
+                <div class="wnode">repository</div><div class="wwire"></div>
+                <div class="wnode">route</div><div class="wwire tohot"></div>
+                <div class="wnode hot">typed client</div>
+            </div>
+            <div class="flow-note">FIG 01 — ONE DETERMINISTIC SLICE PER FEATURE, WHOEVER (OR WHATEVER) WRITES IT</div>
+            <div class="module-row">
+                <span class="mlabel">ALREADY BUILT —</span>
+                <a href="/docs/packages/auth">AUTH</a>
+                <a href="/docs/packages/storage">STORAGE</a>
+                <a href="/docs/packages/notification">NOTIFICATION</a>
+                <a href="/docs/packages/cms">CMS</a>
+                <a href="/docs/packages/workflow">WORKFLOW</a>
+                <a href="/docs/packages/monitor">MONITOR</a>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">04</span><div class="rule"></div><span class="name">The belief</span></div>
+            <p class="belief">Human time — and tokens —<br>belong to <em>creative problems.</em></p>
+            <p class="belief-sub">That is the bet behind Superfunction. In the AI era, human attention
+               should move up the stack: not writing another session store, but deciding what to build,
+               for whom, and why. SPFN takes the solved problems off your desk so your time and your
+               tokens go where they matter.</p>
+            <div class="status-note">WHERE WE ARE — BETA · RUNS IN PRODUCTION FOR ITS AUTHORS · STABILIZING TOWARD 1.0</div>
+            <div class="status-note" style="margin-top: 10px;">ON THE ROADMAP — PACKAGES FOR MOBILE APP DEVELOPMENT</div>
+        </div>
+    </section>
+
+    <div class="cta-band">
+        <div class="inner">
+            <h2>Build the creative part.</h2>
+            <div class="btns">
+                <a class="btn btn-white" href="/docs">Get started</a>
+                <a class="btn btn-outline-w" href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GitHub</a>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="inner">
+            <span>SUPERFUNCTION</span>
+            <a href="/docs">DOCS</a>
+            <a href="/functions">FUNCTIONS</a>
+            <a href="/about">ABOUT</a>
+            <a href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GITHUB</a>
+            <span class="dim">@SPFN/* — BETA</span>
+        </div>
+    </footer>
+
+</body>
+</html>

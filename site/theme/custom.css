@@ -19,7 +19,14 @@
     border-bottom: 1px solid var(--sf-color-fg);
 }
 
-.sf-brand { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.sf-brand { display: inline-flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.sf-brand::before
+{
+    content: '';
+    width: 17px;
+    height: 19px;
+    background: url('/logo.svg') no-repeat center / contain;
+}
 
 .sf-nav { gap: 28px; font-size: 14.5px; font-weight: 600; }
 .sf-nav a { color: var(--sf-color-fg); }
@@ -41,6 +48,7 @@
 .sf-footer a:hover { color: var(--sf-color-bg); }
 .sf-footer-brand { font-weight: 500; }
 .sf-footer-nav { gap: 26px; }
+.sf-footer-note { color: #6d747c; }
 
 .sf-main, .sf-main:has(> .sf-doc-shell)
 {

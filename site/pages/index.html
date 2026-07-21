@@ -33,7 +33,8 @@
     /* header */
     header { border-bottom: 1px solid var(--ink); }
     .nav { display: flex; align-items: center; height: 64px; }
-    .brand { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .brand svg { height: 19px; width: auto; color: var(--cobalt); }
     .nav nav { margin-left: auto; display: flex; gap: 28px; font-size: 14.5px; font-weight: 600; }
     .nav nav a:hover { color: var(--cobalt); }
 
@@ -61,7 +62,8 @@
     .strip .s3 { flex: 0.35; background: var(--signal); }
 
     /* sections */
-    section { padding: 88px 0; }
+    section { padding: 120px 0 0; }
+    section:last-of-type { padding-bottom: 120px; }
     .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 44px; }
     .sec-head .idx { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.1em; }
     .sec-head .rule { flex: 1; height: 1px; background: var(--ink); }
@@ -139,7 +141,8 @@
         .why { border-left: none; border-top: 1px solid var(--ink); }
         .why:first-child { border-top: none; }
         .pkg-grid { grid-template-columns: 1fr; }
-        section { padding: 64px 0; }
+        section { padding: 80px 0 0; }
+        section:last-of-type { padding-bottom: 80px; }
         .hero { padding-top: 64px; }
     }
 </style>
@@ -148,11 +151,12 @@
 
     <header>
         <div class="inner nav">
-            <a class="brand" href="/">Superfunction</a>
+            <a class="brand" href="/"><svg viewBox="0 0 166 192" fill="none" aria-hidden="true"><path d="M137.954 26.8921C133.611 24.0908 129.082 22.0243 124.451 20.6696C120.622 15.8133 116.032 11.5655 110.752 8.16724C84.6518 -8.64033 51.2852 1.32481 36.2178 30.4281C21.1606 59.5313 30.1043 96.7514 56.2048 113.559C61.4948 116.969 67.0937 119.265 72.7645 120.539C57.728 101.481 54.4757 73.1244 66.4864 49.9221C78.4972 26.7313 102.128 15.687 124.451 20.6811C141.412 39.8077 145.58 69.9098 132.942 94.329L158.033 110.494C173.183 81.2182 164.198 43.7915 137.954 26.8921Z" fill="currentColor"/><path d="M108.874 78.4409C103.584 75.0312 97.9952 72.7236 92.314 71.4492C107.351 90.5185 110.603 118.876 98.5921 142.078C86.5814 165.28 62.951 176.324 40.6278 171.33C23.7798 152.284 19.7042 122.239 32.3427 97.8201L7.39499 81.7473C-7.75478 111.023 1.1169 148.369 27.207 165.177H27.1967C31.5194 167.955 36.0272 169.999 40.6278 171.342C44.4564 176.187 49.0466 180.423 54.3264 183.833C80.4268 200.64 113.793 190.675 128.861 161.572C143.918 132.469 134.974 95.2485 108.874 78.4409Z" fill="currentColor"/></svg>Superfunction</a>
             <nav>
                 <a href="/docs">Docs</a>
                 <a href="/functions">Functions</a>
-                <a href="https://github.com/spfn/spfn">GitHub</a>
+                <a href="/about">About</a>
+                <a href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GitHub</a>
             </nav>
         </div>
     </header>
@@ -166,7 +170,7 @@
                contracts. Change a route and the client type changes with it.</p>
             <div class="cta-row">
                 <a class="btn btn-cobalt" href="/docs">Get started</a>
-                <a class="btn btn-outline" href="https://github.com/spfn/spfn">GitHub</a>
+                <a class="btn btn-outline" href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GitHub</a>
                 <span class="codebar">$ npx spfn@beta create my-app</span>
             </div>
         </div>
@@ -206,7 +210,7 @@
         </div>
     </section>
 
-    <section style="padding-top: 0;">
+    <section>
         <div class="inner">
             <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">Type flow</span></div>
             <h2 class="sec-title">Change the route.<br>The client <em>follows.</em></h2>
@@ -246,7 +250,7 @@
         </div>
     </section>
 
-    <section style="padding-top: 0;">
+    <section>
         <div class="inner">
             <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">Packages</span></div>
             <h2 class="sec-title">Take what you need.</h2>
@@ -292,7 +296,7 @@
             <h2>Ship it typed.</h2>
             <div class="btns">
                 <a class="btn btn-white" href="/docs">Get started</a>
-                <a class="btn btn-outline-w" href="https://github.com/spfn/spfn">GitHub</a>
+                <a class="btn btn-outline-w" href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GitHub</a>
             </div>
         </div>
     </div>
@@ -302,8 +306,9 @@
             <span>SUPERFUNCTION</span>
             <a href="/docs">DOCS</a>
             <a href="/functions">FUNCTIONS</a>
-            <a href="https://github.com/spfn/spfn">GITHUB</a>
-            <span class="dim">@SPFN/* — BETA</span>
+            <a href="/about">ABOUT</a>
+            <a href="https://github.com/spfn/spfn" target="_blank" rel="noopener">GITHUB</a>
+            <span class="dim">© 2026 FXY INC. · @SPFN/* — BETA</span>
         </div>
     </footer>
 

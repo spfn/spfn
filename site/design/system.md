@@ -54,7 +54,10 @@ headlines on white may be set in cobalt, ink, or a mix of both.
 
 ## Spacing & layout
 
-- Base unit 8px; section padding 96px top/bottom (64px on mobile).
+- Base unit 8px. **Section rhythm (2026-07-22)**: sections stack with a single
+  top padding of 120px (80px mobile); only the last section before a band
+  (CTA/footer) carries the same bottom padding. No per-section inline padding
+  overrides. Inside a section: sec-head → 44px → title → 40px → content.
 - Content max-width 1120px, gutter 24px; body copy max-width 62ch.
 - Grid: CSS grid per section; poster sections may use hard column splits
   (e.g. 7/5) with a 1px rule between columns.
