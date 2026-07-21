@@ -21,6 +21,7 @@ site/                 # content root (config `root`, default 'site'; existing re
     index.md          # '/' — default layout: landing
     about.md          # '/about' — default layout: doc
     docs/intro.md     # '/docs/intro'
+    playground.html   # '/playground' — escape hatch: full document served verbatim
   posts/
     2026-07-21-launch.md   # '/posts/launch' — default layout: post, sorted by date desc
   theme/
@@ -58,8 +59,36 @@ draft: true           # optional — excluded from the loaded site
 og: cover.png         # optional — OG image path inside public/
 ```
 
+### Markdown rendering
+
 Markdown bodies are rendered with GFM and **sanitized** (script tags, iframes,
-event handlers stripped) — published repos are untrusted input.
+event handlers stripped) — published repos are untrusted input. On top of that
+the pipeline produces, in order:
+
+- **Repo-aware links** — relative references are rewritten to served routes:
+  `./about.md` → `/about`, `../../posts/2026-07-21-launch.md` → `/posts/launch`,
+  `../public/img/cover.png` → `/img/cover.png`. Absolute URLs, site-absolute
+  paths, and `#anchors` pass through untouched; authors link files the way the
+  repo is laid out and the site just works.
+- **Heading anchor ids** — GitHub-style slugs (`## Getting Started` →
+  `id="getting-started"`), added after sanitization and without a clobber prefix
+  so plain `#getting-started` links work with no client JS.
+- **Code highlighting** — shiki dual-theme output (`github-light` inline,
+  `github-dark` via `--shiki-*` CSS variables; the flip is included in
+  `site.themeCss`). Unknown languages fall back to plain text.
+
+### HTML pages (the escape hatch)
+
+`pages/*.html` files are served **verbatim as full standalone documents** — no
+layout wrapping, no sanitization, scripts included; the author owns the content.
+Slug rules match markdown pages (`pages/playground.html` → `/playground`); a slug
+already taken by a markdown page or post is a per-file conflict (the HTML file is
+skipped and reported). The title comes from the document's `<title>` tag. Theme
+tokens are opt-in: link the site's theme stylesheet if you want them.
+
+Because HTML pages run author scripts, tenant isolation (serving each site on
+its own registrable subdomain — Public Suffix List registration for the hosted
+edge) is a prerequisite before opening registration to third parties.
 
 ## Usage
 
@@ -73,11 +102,12 @@ const problems = await validateSite(source);
 
 // Serving: full site model
 const site = await loadSite(source);
-site.config;    // SiteConfig (name, nav, ...)
-site.pages;     // PageDoc[] — slug, frontmatter, sanitized html
-site.posts;     // PageDoc[] — newest first
-site.themeCss;  // :root { --sf-* } variables + custom.css, ready to inline
-site.problems;  // per-file failures (file skipped, site still loads)
+site.config;     // SiteConfig (name, nav, ...)
+site.pages;      // PageDoc[] — slug, frontmatter, sanitized html
+site.posts;      // PageDoc[] — newest first
+site.htmlPages;  // HtmlPage[] — raw full documents, served verbatim
+site.themeCss;   // code-theme flip + :root { --sf-* } variables + custom.css, ready to inline
+site.problems;   // per-file failures (file skipped, site still loads)
 ```
 
 - `GithubContentSource` fetches the tree via the GitHub API and files via
@@ -91,8 +121,9 @@ site.problems;  // per-file failures (file skipped, site still loads)
 
 - `@spfn/pages` — types, TypeBox schemas (`SiteConfigSchema`, `FrontmatterSchema`), errors
 - `@spfn/pages/server` — `loadSite`, `validateSite`, `renderMarkdown`,
-  `parseSiteConfig`, `parseDocument`, `tokensToCss`, `buildThemeCss`,
-  `GithubContentSource`, `parseGithubUrl`, `MemoryContentSource`, `ContentSource`
+  `rehypeRewriteRefs`, `parseSiteConfig`, `parseDocument`, `tokensToCss`,
+  `buildThemeCss`, `GithubContentSource`, `parseGithubUrl`,
+  `MemoryContentSource`, `ContentSource`
 
 ## Status / roadmap
 

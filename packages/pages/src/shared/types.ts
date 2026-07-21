@@ -52,6 +52,23 @@ export interface PageDoc
     html: string;
 }
 
+/**
+ * A raw HTML page under `pages/` — the escape hatch. Served verbatim as a full,
+ * standalone document: no layout wrapping, no sanitization, the author owns the
+ * content (scripts included). Theme tokens are opt-in via a linked stylesheet.
+ */
+export interface HtmlPage
+{
+    /** URL path the document is served at — same slug rules as markdown pages. */
+    slug: string;
+    /** Repo-relative source path, e.g. 'site/pages/playground.html'. */
+    sourcePath: string;
+    /** Extracted from the document's `<title>`, falling back to the file name. */
+    title: string;
+    /** The full document, exactly as committed. */
+    html: string;
+}
+
 /** A per-file validation failure — the file is skipped, the site still loads. */
 export interface SiteProblem
 {
@@ -65,6 +82,8 @@ export interface SiteContent
     pages: PageDoc[];
     /** Sorted by date, newest first. */
     posts: PageDoc[];
+    /** Raw HTML pages served verbatim, outside the layout/sanitize path. */
+    htmlPages: HtmlPage[];
     /** Theme tokens as CSS variables + custom.css, ready to inline. */
     themeCss: string;
     problems: SiteProblem[];

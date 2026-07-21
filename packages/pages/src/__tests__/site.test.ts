@@ -16,6 +16,9 @@ function fixtureSource(): MemoryContentSource
         'site/posts/2026-07-21-launch.md': '---\ntitle: Launch\ndate: 2026-07-21\n---\nnewer\n',
         'site/theme/tokens.json': '{"color":{"bg":"#101010"}}',
         'site/theme/custom.css': 'body { margin: 0; }',
+        'site/pages/playground.html': '<!doctype html><html><head><title>Playground</title></head><body><script>run()</script></body></html>',
+        'site/pages/untitled.html': '<!doctype html><html><body>bare</body></html>',
+        'site/pages/about.html': '<!doctype html><html><head><title>Shadow</title></head><body>conflict</body></html>',
     });
 }
 
@@ -46,15 +49,32 @@ describe('loadSite', () =>
         const site = await loadSite(fixtureSource());
 
         expect(site.pages.find(p => p.slug === '/hidden')).toBeUndefined();
-        expect(site.problems).toHaveLength(1);
-        expect(site.problems[0].path).toBe('site/pages/broken.md');
+        expect(site.problems.map(p => p.path)).toEqual(['site/pages/broken.md', 'site/pages/about.html']);
+    });
+
+    it('serves html pages verbatim with titles from <title>', async () =>
+    {
+        const site = await loadSite(fixtureSource());
+        const playground = site.htmlPages.find(p => p.slug === '/playground');
+
+        expect(playground?.title).toBe('Playground');
+        expect(playground?.html).toContain('<script>run()</script>');
+        expect(site.htmlPages.find(p => p.slug === '/untitled')?.title).toBe('untitled');
+    });
+
+    it('reports an html page whose slug collides with a markdown page and skips it', async () =>
+    {
+        const site = await loadSite(fixtureSource());
+
+        expect(site.htmlPages.find(p => p.slug === '/about')).toBeUndefined();
+        expect(site.problems.some(p => p.path === 'site/pages/about.html')).toBe(true);
     });
 
     it('renders sanitized html bodies', async () =>
     {
         const site = await loadSite(fixtureSource());
 
-        expect(site.pages.find(p => p.slug === '/')?.html).toContain('<h1>Welcome</h1>');
+        expect(site.pages.find(p => p.slug === '/')?.html).toContain('Welcome</h1>');
     });
 
     it('throws when spfn.site.yaml is missing — no opt-in, no site', async () =>
@@ -79,6 +99,6 @@ describe('validateSite', () =>
     {
         const problems = await validateSite(fixtureSource());
 
-        expect(problems.map(p => p.path)).toEqual(['site/pages/broken.md']);
+        expect(problems.map(p => p.path)).toEqual(['site/pages/broken.md', 'site/pages/about.html']);
     });
 });
