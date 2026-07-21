@@ -49,7 +49,9 @@ source: packages/core/src/db/README.md   # serve this repo doc at the page's rou
    Link the theme with `<link rel="stylesheet" href="/theme.css">` if wanted.
 4. **Theme changes go through `theme/tokens.json` first** (`--sf-color-accent`,
    `--sf-width-content`, `--sf-font-body`, …); use `custom.css` only for what
-   tokens can't express.
+   tokens can't express. The current `custom.css` implements the Poster chrome
+   for md pages (see `design/system.md` § Theme sync) — keep edits consistent
+   with that contract instead of rewriting it ad hoc.
 5. **Code fences get languages** (` ```ts `) — they are syntax-highlighted
    server-side, light and dark.
 6. **Do not touch the renderer scaffolding** (`website/` in this repo) or

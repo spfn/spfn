@@ -8,5 +8,7 @@ nav:
     path: /docs
   - label: Packages
     path: /packages
+  - label: GitHub
+    path: https://github.com/spfn/spfn
 social:
   github: https://github.com/spfn/spfn

@@ -83,6 +83,20 @@ headlines on white may be set in cobalt, ink, or a mix of both.
 
 ## Theme sync
 
-`theme/tokens.json` carries the docs-facing subset: bg white, fg ink, accent
-cobalt, muted gray. Docs pages stay white-ground; cobalt appears only as
-links/accents there.
+The md-rendered pages (docs, packages, sidebar) are matched to this system by
+the theme layer — synced 2026-07-21:
+
+- `theme/tokens.json` — colors (bg white, fg ink, accent cobalt, muted gray,
+  border gray-line; `*-dark` pinned to the same values so the site never
+  dark-flips, matching the landings), `width.frame: 1120px` (chrome width,
+  consumed by custom.css), and the grotesk/mono font stacks.
+- `theme/custom.css` — the Poster chrome: full-bleed header with ink rule and
+  footer ink band whose inner edges align to `--sf-width-frame`; type scale
+  (H1 48/800, H2 30/700, mono labels); code blocks on ink ground (shiki's dark
+  palette forced in all schemes); `border-radius: 0` everywhere; cobalt links
+  and sidebar accents.
+- Footer content (brand + nav + social, nav-duplicate social links skipped) is
+  rendered by `@spfn/pages-next` `SiteShell`; GitHub sits in `spfn.site.yaml`
+  `nav:` so header and footer both carry it.
+
+Docs pages stay white-ground; cobalt appears only as links/accents there.
