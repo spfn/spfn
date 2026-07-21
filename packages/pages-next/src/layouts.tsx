@@ -10,12 +10,16 @@ export interface SiteLayoutProps
 }
 
 /**
- * Common chrome: header (brand + nav), main, footer (social), and the site's CSS
- * (baseline + theme). Styles ride inside the shell so the template repo's
- * `layout.tsx` stays a bare html/body — React hoists them into <head>.
+ * Common chrome: header (brand + nav), main, footer (brand + nav + social), and
+ * the site's CSS (baseline + theme). Styles ride inside the shell so the template
+ * repo's `layout.tsx` stays a bare html/body — React hoists them into <head>.
  */
 export function SiteShell({ site, children }: { site: SiteContent; children: ReactNode })
 {
+    // Social entries whose URL already sits in the nav would render twice in the footer.
+    const navUrls = new Set(site.config.nav.map(item => item.path));
+    const social = Object.entries(site.config.social).filter(([, url]) => !navUrls.has(url));
+
     return (
         <div className="sf-site">
             <style dangerouslySetInnerHTML={{ __html: `${DEFAULT_CSS}\n${site.themeCss}` }} />
@@ -27,7 +31,11 @@ export function SiteShell({ site, children }: { site: SiteContent; children: Rea
             </header>
             <main className="sf-main">{children}</main>
             <footer className="sf-footer">
-                {Object.entries(site.config.social).map(([name, url]) => <a key={name} href={url}>{socialLabel(name)}</a>)}
+                <span className="sf-footer-brand">{site.config.name}</span>
+                <nav className="sf-footer-nav">
+                    {site.config.nav.map(item => <a key={item.path} href={item.path}>{item.label}</a>)}
+                    {social.map(([name, url]) => <a key={name} href={url}>{socialLabel(name)}</a>)}
+                </nav>
             </footer>
         </div>
     );

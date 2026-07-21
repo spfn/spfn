@@ -79,6 +79,24 @@ describe('createSitePages', () =>
         expect(await renderSlug(app, ['about'])).not.toContain('class="sf-sidebar"');
     });
 
+    it('renders footer brand and nav, deduplicating social links already in the nav', async () =>
+    {
+        const app = createSitePages({
+            source: () => new MemoryContentSource({
+                'spfn.site.yaml': 'name: Demo\nnav:\n  - label: Docs\n    path: /docs\n  - label: GitHub\n    path: https://github.com/spfn/spfn\nsocial:\n  github: https://github.com/spfn/spfn\n  x: https://x.com/spfn\n',
+                'site/pages/index.md': '---\ntitle: Home\n---\n# Welcome\n',
+            }),
+        });
+
+        const html = await renderSlug(app, []);
+        const footer = html.slice(html.indexOf('<footer'));
+
+        expect(footer).toContain('<span class="sf-footer-brand">Demo</span>');
+        expect(footer).toContain('href="/docs"');
+        expect(footer).toContain('>X</a>');
+        expect(footer.match(/github\.com\/spfn\/spfn/g)).toHaveLength(1);
+    });
+
     it('throws notFound for an unknown slug', async () =>
     {
         await expect(fixtureSite().Page({ params: Promise.resolve({ slug: ['nope'] }) })).rejects.toThrow();

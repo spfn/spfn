@@ -55,8 +55,11 @@ is the host's standard deploy hook wired to the repo.
 
 Conventions the layouts assume: `doc`/`post` pages render the frontmatter
 `title` as the page `<h1>`, so markdown bodies start at `##`; a virtual
-`/posts` index is served when no page claims that slug; footer social links
-display brand casing via `socialLabel` (`github` → `GitHub`).
+`/posts` index is served when no page claims that slug. The footer
+(`.sf-footer`) repeats the site brand (`.sf-footer-brand`) and nav
+(`.sf-footer-nav`), then appends social links — skipping any social entry
+whose URL already appears in the nav — with brand casing via `socialLabel`
+(`github` → `GitHub`).
 
 `DocLayout` shows a **section sidebar** from `site.sections` (the navigation
 trees `loadSite` derives from doc slugs): the tree for the page's first path

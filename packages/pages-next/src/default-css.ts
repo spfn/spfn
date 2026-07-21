@@ -50,10 +50,13 @@ body
     margin: 0 auto;
     padding: 1.5rem 1.25rem;
     display: flex;
+    align-items: center;
     gap: 1rem;
     color: var(--sf-color-muted, #555);
 }
 .sf-footer a { color: inherit; }
+.sf-footer-brand { font-weight: 700; }
+.sf-footer-nav { display: flex; gap: 1rem; flex-wrap: wrap; }
 
 .sf-title { font-size: 2rem; line-height: 1.2; margin: 0 0 0.5rem; }
 .sf-date { color: var(--sf-color-muted, #555); font-size: 0.875rem; }
