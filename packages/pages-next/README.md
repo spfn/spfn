@@ -87,6 +87,38 @@ becomes the `<link rel="icon">` (svg/png/ico/jpg, typed by extension) and
 `spfn.site.yaml` sets `url:`, it becomes `metadataBase` so OG image URLs
 resolve absolute.
 
+## Dev serving for html pages (`@spfn/pages-next/dev`)
+
+`next dev` resolves the app catch-all before `public/`, so synced html pages
+404 in dev and were previously previewable only through a static build. The
+`/dev` subpath (import it — not the package root — in `next.config`, which
+cannot load `next/navigation`) fixes that with two pieces:
+
+- `devHtmlRewrites(root)` — dev-only `beforeFiles` rewrites mapping each
+  `<root>/pages/**/*.html` route to the dev handler. Scanned once at
+  dev-server start: a **new** html file needs a restart, edits do not.
+- `createDevHtmlHandler({ root })` — a route handler that reads the source
+  html per request (`no-store`), mounted as a **dev-only route file**
+  `app/spfn-dev-html/[...slug]/route.dev.ts`:
+
+  ```ts
+  export const { GET } = createDevHtmlHandler({ root: '../site' });
+  ```
+
+  ```ts
+  // next.config.ts
+  const isDev = process.env.NODE_ENV === 'development';
+  pageExtensions: isDev ? ['ts', 'tsx', 'dev.ts'] : ['ts', 'tsx'],
+  ...(isDev ? {} : { output: 'export' as const }),
+  ...(isDev ? { rewrites: async () => ({ beforeFiles: await devHtmlRewrites('../site') }) } : {}),
+  ```
+
+Why this exact shape: an `_`-prefixed app folder is private (unrouted), route
+handlers support only required catch-alls (`/` arrives as the `index` slug),
+and `output: 'export'` refuses route handlers whose `generateStaticParams` it
+cannot statically see — so both the export mode and the `.dev.ts` route
+extension are gated to keep the route out of production builds entirely.
+
 ## Status
 
 Beta, stage 3 of the frontend serving primitive. Deploy targets being
