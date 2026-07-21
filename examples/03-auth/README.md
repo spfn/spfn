@@ -18,7 +18,7 @@ exactly what auth wires in — four small edits and one protected route.
   (`src/app/dashboard/layout.tsx`), `/admin` in `RequireRole roles={['admin','superadmin']}`
   (`src/app/admin/layout.tsx`) — nested pages inherit protection, no per-page checks.
 - The full `authApi` surface (register / login / session / logout / …) mounted at `/_auth/*`.
-- **Real Kakao and Naver OAuth buttons**, provider-status detection, callback finalization, and logout.
+- **Real Google, Kakao, and Naver OAuth buttons**, provider-status detection, callback finalization, and logout.
 
 This example is the finished code for the site tutorial
 ([superfunction.xyz/docs/tutorial](https://superfunction.xyz/docs/tutorial), source
@@ -68,7 +68,7 @@ pnpm spfn:next
 ```
 
 Open `http://localhost:3890`: the examples list (public) renders immediately and the session
-banner shows whether Kakao and Naver are configured. Then walk the auth loop:
+banner shows which social providers are configured. Then walk the auth loop:
 
 1. `/dashboard` signed out → `RequireAuth` redirects to `/login`.
 2. Sign in with the seeded admin (`SPFN_AUTH_ADMIN_EMAIL` / `_PASSWORD` from `.env.server`)
@@ -100,12 +100,19 @@ Auth secrets are split by audience (see `packages/auth/README.md`):
 - `.env.local` — `SPFN_AUTH_SESSION_SECRET` (≥32 chars, validated), `DATABASE_URL`, `SPFN_API_URL`
 - `.env.server` — verification/token-encryption secrets, `DATABASE_URL`, provider credentials
 
-## End-to-end Kakao/Naver login
+## End-to-end social login (Google · Kakao · Naver)
 
 The example calls `authApi.oauthProviders` to enable only configured buttons, then starts login
 through `authApi.getProviderOAuthUrl`. The Next.js interceptor generates the client key pair and
 OAuth state. Provider callbacks return to the web origin and are forwarded to SPFN by the rewrite
 in `next.config.ts`; `/auth/callback` then finalizes the encrypted session cookie.
+
+### Google Cloud console
+
+1. Create an OAuth client (type: Web application) under APIs & Services → Credentials.
+2. Register `http://localhost:3890/_auth/oauth/google/callback` as an authorized redirect URI
+   (this is the default callback — `{app origin}/_auth/oauth/google/callback`).
+3. Set `SPFN_AUTH_GOOGLE_CLIENT_ID` and `SPFN_AUTH_GOOGLE_CLIENT_SECRET`.
 
 ### Kakao developer console
 

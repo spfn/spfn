@@ -3,12 +3,15 @@
 import { authApi } from '@spfn/auth';
 import { useEffect, useState } from 'react';
 
-type DemoProvider = 'kakao' | 'naver';
+type DemoProvider = 'google' | 'kakao' | 'naver';
 
-const PROVIDERS: Array<{ id: DemoProvider; label: string; color: string; textColor: string }> = [
+const PROVIDERS: Array<{ id: DemoProvider; label: string; color: string; textColor: string; border?: string }> = [
+    { id: 'google', label: 'Continue with Google', color: '#FFFFFF', textColor: '#1F1F1F', border: '1px solid #d4d4d4' },
     { id: 'kakao', label: 'Continue with Kakao', color: '#FEE500', textColor: '#191919' },
     { id: 'naver', label: 'Continue with Naver', color: '#03C75A', textColor: '#FFFFFF' },
 ];
+
+const DEMO_PROVIDER_IDS: readonly string[] = PROVIDERS.map(provider => provider.id);
 
 export function OAuthLoginButtons()
 {
@@ -22,7 +25,7 @@ export function OAuthLoginButtons()
             .then(({ providers }) =>
             {
                 const configured = providers.filter(
-                    (provider): provider is DemoProvider => provider === 'kakao' || provider === 'naver',
+                    (provider): provider is DemoProvider => DEMO_PROVIDER_IDS.includes(provider),
                 );
                 setEnabled(configured);
                 setStatus(configured.length > 0
@@ -70,7 +73,7 @@ export function OAuthLoginButtons()
                         disabled={!isEnabled || pending !== null}
                         onClick={() => startLogin(provider.id)}
                         style={{
-                            border: 0,
+                            border: provider.border ?? '0',
                             borderRadius: 8,
                             padding: '0.85rem 1rem',
                             background: provider.color,
