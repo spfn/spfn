@@ -155,9 +155,16 @@ caches site models under `repo@sha`. A SHA-keyed model is immutable, so pods
 never coordinate invalidation; a push shows up within one TTL. When GitHub is
 unreachable the last known commit keeps serving. `serveSiteRequest` resolves,
 in order: raw html page → rendered doc (with full head metadata — title,
-description, og, favicon) → virtual `/posts` index → `public/` asset; `null`
-means the edge renders its own not-found page. Path traversal is rejected
-before any read.
+description, og, favicon) → virtual `/posts` index → `public/` asset →
+generated SEO file; `null` means the edge renders its own not-found page.
+Path traversal is rejected before any read.
+
+The edge emits the same SEO surface as sync, per request instead of at build
+time: when the config sets `url:`, rendered docs carry a canonical link,
+`og:url`, and `og:site_name`, html pages get a canonical injected unless they
+declare one, and `/sitemap.xml` + `/robots.txt` are generated on demand — a
+file of the same name in the site's `public/` wins, since assets resolve
+first. Without `url:` none of this appears.
 
 ## Status
 

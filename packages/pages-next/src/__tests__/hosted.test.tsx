@@ -93,6 +93,63 @@ describe('serveSiteRequest', () =>
         expect(await serveSiteRequest(site, source, '/../spfn.site.yaml')).toBeNull();
         expect(await serveSiteRequest(site, source, '/%2e%2e/secret.txt')).toBeNull();
     });
+
+    it('emits canonical, og:url, and og:site_name on rendered docs', async () =>
+    {
+        const { site, source } = await fixtureSite();
+
+        const body = (await serveSiteRequest(site, source, '/about'))?.body as string;
+        expect(body).toContain('<link rel="canonical" href="https://demo.example/about">');
+        expect(body).toContain('<meta property="og:url" content="https://demo.example/about">');
+        expect(body).toContain('<meta property="og:site_name" content="Demo">');
+
+        const home = (await serveSiteRequest(site, source, '/'))?.body as string;
+        expect(home).toContain('<link rel="canonical" href="https://demo.example/">');
+    });
+
+    it('injects a canonical link into html pages that lack one', async () =>
+    {
+        const { site, source } = await fixtureSite();
+
+        const body = (await serveSiteRequest(site, source, '/playground'))?.body as string;
+        expect(body).toContain('<link rel="canonical" href="https://demo.example/playground">');
+        expect(body).toContain('<body>raw</body>');
+    });
+
+    it('generates sitemap.xml and robots.txt, letting a site-shipped file win', async () =>
+    {
+        const { site, source } = await fixtureSite();
+
+        const sitemap = await serveSiteRequest(site, source, '/sitemap.xml');
+        expect(sitemap?.contentType).toBe('application/xml');
+        expect(sitemap?.body).toContain('<loc>https://demo.example/</loc>');
+        expect(sitemap?.body).toContain('<loc>https://demo.example/playground</loc>');
+        expect(sitemap?.body).toContain('<loc>https://demo.example/posts/launch</loc>');
+
+        const robots = await serveSiteRequest(site, source, '/robots.txt');
+        expect(robots?.body).toContain('Sitemap: https://demo.example/sitemap.xml');
+
+        const shipped = new MemoryContentSource({
+            'spfn.site.yaml': 'name: Demo\nurl: https://demo.example\n',
+            'site/pages/index.md': '---\ntitle: Home\n---\nhi\n',
+            'site/public/robots.txt': 'User-agent: *\nDisallow: /private\n',
+        });
+        const own = await serveSiteRequest(await loadSite(shipped), shipped, '/robots.txt');
+        expect(new TextDecoder().decode(own?.body as Uint8Array)).toContain('Disallow: /private');
+    });
+
+    it('omits the seo surface when the config has no url', async () =>
+    {
+        const source = new MemoryContentSource({
+            'spfn.site.yaml': 'name: Demo\n',
+            'site/pages/about.md': '---\ntitle: About\n---\nHi.\n',
+        });
+        const site = await loadSite(source);
+
+        expect((await serveSiteRequest(site, source, '/about'))?.body).not.toContain('canonical');
+        expect(await serveSiteRequest(site, source, '/sitemap.xml')).toBeNull();
+        expect(await serveSiteRequest(site, source, '/robots.txt')).toBeNull();
+    });
 });
 
 function githubFetchMock(state: { sha: string; files: Record<string, string> })

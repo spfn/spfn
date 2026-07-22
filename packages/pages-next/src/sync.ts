@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 import { FsContentSource, loadSite } from '@spfn/pages/server';
 import type { SiteContent, SiteProblem } from '@spfn/pages';
+import { pageUrl, robotsTxt, siteBaseUrl, sitemapXml, withCanonical } from './seo';
 
 /** Records what sync wrote, so the next run can remove outputs whose source is gone. */
 const MANIFEST_NAME = '.spfn-pages-sync.json';
@@ -38,7 +39,7 @@ export async function syncSite({ root, out }: SyncOptions): Promise<SyncResult>
 {
     const site = await loadSite(new FsContentSource(root));
     const written: string[] = [];
-    const baseUrl = site.config.url?.replace(/\/+$/, '');
+    const baseUrl = siteBaseUrl(site);
 
     const copiedAssets = await copyPublicAssets(root, site.config.root, out, written);
     for (const page of site.htmlPages)
@@ -59,52 +60,26 @@ export async function syncSite({ root, out }: SyncOptions): Promise<SyncResult>
     return { htmlPages: site.htmlPages.length, copiedAssets, removedStale, seoFiles, problems: site.problems };
 }
 
-/** The absolute served URL for a slug — the homepage keeps its trailing slash. */
-function pageUrl(baseUrl: string, slug: string): string
-{
-    return slug === '/' ? `${baseUrl}/` : `${baseUrl}${slug}`;
-}
-
-/** Inject a canonical link into an html escape-hatch page that doesn't declare one. */
-function withCanonical(html: string, href: string): string
-{
-    if (/rel=["']canonical["']/i.test(html))
-    {
-        return html;
-    }
-    const headEnd = html.search(/<\/head>/i);
-
-    return headEnd === -1 ? html : `${html.slice(0, headEnd)}<link rel="canonical" href="${href}">\n${html.slice(headEnd)}`;
-}
-
 /**
- * sitemap.xml + robots.txt, derived from the loaded site model — the one place
- * that sees every served route (markdown docs and html pages alike). A file the
- * site ships in its own `public/` wins; generation is skipped for it.
+ * sitemap.xml + robots.txt from the shared SEO helpers — sync's static
+ * counterpart of the hosted edge's per-request generation. A file the site
+ * ships in its own `public/` wins; generation is skipped for it.
  */
 async function writeSeoFiles(site: SiteContent, baseUrl: string, out: string, written: string[]): Promise<number>
 {
     let generated = 0;
     if (!written.includes('sitemap.xml'))
     {
-        const slugs = [...site.pages, ...site.mounted, ...site.posts, ...site.htmlPages].map(doc => doc.slug);
-        const urls = [...new Set(slugs)].sort().map(slug => `    <url><loc>${escapeXml(pageUrl(baseUrl, slug))}</loc></url>`);
-        const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
-        await writeOutput(out, 'sitemap.xml', xml, written);
+        await writeOutput(out, 'sitemap.xml', sitemapXml(site, baseUrl), written);
         generated += 1;
     }
     if (!written.includes('robots.txt'))
     {
-        await writeOutput(out, 'robots.txt', `User-agent: *\nAllow: /\n\nSitemap: ${baseUrl}/sitemap.xml\n`, written);
+        await writeOutput(out, 'robots.txt', robotsTxt(baseUrl), written);
         generated += 1;
     }
 
     return generated;
-}
-
-function escapeXml(value: string): string
-{
-    return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 async function writeOutput(out: string, relativePath: string, content: string, written: string[]): Promise<void>

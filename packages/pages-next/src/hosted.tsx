@@ -4,6 +4,7 @@ import { GithubContentSource, loadSite } from '@spfn/pages/server';
 import type { ContentSource } from '@spfn/pages/server';
 import type { PageDoc, SiteContent } from '@spfn/pages';
 import { DocLayout, LandingLayout, PostLayout, PostsIndexLayout } from './layouts';
+import { pageUrl, robotsTxt, siteBaseUrl, sitemapXml, withCanonical } from './seo';
 
 /**
  * Hosted-edge helpers — multi-tenant serving without Next.
@@ -35,10 +36,11 @@ export async function serveSiteRequest(site: SiteContent, source: ContentSource,
         return null;
     }
 
+    const baseUrl = siteBaseUrl(site);
     const htmlPage = site.htmlPages.find(page => page.slug === path);
     if (htmlPage)
     {
-        return html(htmlPage.html);
+        return html(baseUrl ? withCanonical(htmlPage.html, pageUrl(baseUrl, htmlPage.slug)) : htmlPage.html);
     }
 
     const doc = findDoc(site, path);
@@ -51,7 +53,27 @@ export async function serveSiteRequest(site: SiteContent, source: ContentSource,
         return html(renderDocument(site, <PostsIndexLayout site={site} />, postsIndexHead(site)));
     }
 
-    return await serveAsset(site, source, path);
+    // a site-shipped public/ file wins; generation only fills the gap
+    return await serveAsset(site, source, path) ?? generatedSeoFile(site, path);
+}
+
+function generatedSeoFile(site: SiteContent, path: string): SiteResponse | null
+{
+    const baseUrl = siteBaseUrl(site);
+    if (!baseUrl)
+    {
+        return null;
+    }
+    if (path === '/sitemap.xml')
+    {
+        return { status: 200, contentType: 'application/xml', body: sitemapXml(site, baseUrl) };
+    }
+    if (path === '/robots.txt')
+    {
+        return { status: 200, contentType: 'text/plain; charset=utf-8', body: robotsTxt(baseUrl) };
+    }
+
+    return null;
 }
 
 function html(body: string): SiteResponse
@@ -107,6 +129,8 @@ interface HeadContent
     title: string;
     description?: string;
     ogImage?: string;
+    /** Absolute canonical URL — present only when the config sets `url:`. */
+    canonicalUrl?: string;
 }
 
 function docHead(site: SiteContent, doc: PageDoc): HeadContent
@@ -115,12 +139,20 @@ function docHead(site: SiteContent, doc: PageDoc): HeadContent
         title: doc.slug === '/' ? site.config.name : `${doc.frontmatter.title} — ${site.config.name}`,
         description: doc.frontmatter.description ?? site.config.description,
         ogImage: doc.frontmatter.og ? `/${doc.frontmatter.og}` : site.ogImage,
+        canonicalUrl: canonicalFor(site, doc.slug),
     };
 }
 
 function postsIndexHead(site: SiteContent): HeadContent
 {
-    return { title: `Posts — ${site.config.name}`, description: site.config.description, ogImage: site.ogImage };
+    return { title: `Posts — ${site.config.name}`, description: site.config.description, ogImage: site.ogImage, canonicalUrl: canonicalFor(site, POSTS_INDEX) };
+}
+
+function canonicalFor(site: SiteContent, slug: string): string | undefined
+{
+    const baseUrl = siteBaseUrl(site);
+
+    return baseUrl ? pageUrl(baseUrl, slug) : undefined;
 }
 
 /** Full document assembly — the hosted counterpart of Next's metadata emission. */
@@ -132,8 +164,11 @@ function renderDocument(site: SiteContent, element: ReactElement, head: HeadCont
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         `<title>${escapeText(head.title)}</title>`,
         ...(head.description ? [`<meta name="description" content="${escapeAttribute(head.description)}">`] : []),
+        ...(head.canonicalUrl ? [`<link rel="canonical" href="${escapeAttribute(head.canonicalUrl)}">`] : []),
         `<meta property="og:title" content="${escapeAttribute(head.title)}">`,
         ...(head.description ? [`<meta property="og:description" content="${escapeAttribute(head.description)}">`] : []),
+        `<meta property="og:site_name" content="${escapeAttribute(site.config.name)}">`,
+        ...(head.canonicalUrl ? [`<meta property="og:url" content="${escapeAttribute(head.canonicalUrl)}">`] : []),
         ...(site.config.locale ? [`<meta property="og:locale" content="${escapeAttribute(site.config.locale)}">`] : []),
         ...(head.ogImage ? [`<meta property="og:image" content="${escapeAttribute(absoluteUrl(site, head.ogImage))}">`] : []),
         ...(site.favicon ? [`<link rel="icon" href="${escapeAttribute(site.favicon)}" type="${faviconMimeType(site.favicon)}">`] : []),
