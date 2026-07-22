@@ -28,6 +28,7 @@ export function parseSiteConfig(yamlText: string): SiteConfig
             route: `/${mount.route.replace(/^\/+/, '').replace(/\/+$/, '')}`,
             title: mount.title,
         })),
+        analytics: raw.analytics,
     };
 }
 

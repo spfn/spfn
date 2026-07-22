@@ -23,6 +23,12 @@ export const SiteConfigSchema = Type.Object({
     social: Type.Optional(Type.Record(Type.String(), Type.String())),
     footerNote: Type.Optional(Type.String({ minLength: 1 })),
     mounts: Type.Optional(Type.Array(MountSchema)),
+    analytics: Type.Optional(Type.Object({
+        posthog: Type.Optional(Type.Object({
+            key: Type.String({ minLength: 1 }),
+            host: Type.Optional(Type.String({ pattern: '^https?://' })),
+        })),
+    })),
 });
 
 export const FrontmatterSchema = Type.Object({

@@ -14,6 +14,20 @@ describe('parseSiteConfig', () =>
         expect(config.social).toEqual({});
     });
 
+    it('parses opt-in analytics', () =>
+    {
+        const config = parseSiteConfig([
+            'name: Demo',
+            'analytics:',
+            '  posthog:',
+            '    key: phc_test123',
+            '    host: https://eu.i.posthog.com',
+        ].join('\n'));
+
+        expect(config.analytics?.posthog).toEqual({ key: 'phc_test123', host: 'https://eu.i.posthog.com' });
+        expect(parseSiteConfig('name: Demo\n').analytics).toBeUndefined();
+    });
+
     it('parses full config', () =>
     {
         const config = parseSiteConfig([

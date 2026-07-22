@@ -44,6 +44,22 @@ describe('serveSiteRequest', () =>
         expect(body).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
     });
 
+    it('injects the posthog loader only when analytics is configured', async () =>
+    {
+        const { site, source } = await fixtureSite();
+        const plain = await serveSiteRequest(site, source, '/about');
+        expect(plain?.body).not.toContain('posthog');
+
+        const withAnalytics = await loadSite(new MemoryContentSource({
+            'spfn.site.yaml': 'name: Demo\nanalytics:\n  posthog:\n    key: phc_abc\n',
+            'site/pages/about.md': '---\ntitle: About\n---\nHi.\n',
+        }));
+        const response = await serveSiteRequest(withAnalytics, source, '/about');
+        expect(response?.body).toContain('us-assets.i.posthog.com/static/array.js');
+        expect(response?.body).toContain('phc_abc');
+        expect(response?.body).toContain('api_host:"https://us.i.posthog.com"');
+    });
+
     it('serves raw html pages verbatim', async () =>
     {
         const { site, source } = await fixtureSite();

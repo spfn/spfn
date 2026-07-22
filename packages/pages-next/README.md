@@ -123,7 +123,8 @@ extension are gated to keep the route out of production builds entirely.
 
 The multi-tenant serving mode. The edge is a **plain HTTP server, no Next** —
 React runs server-side as the template engine over the same layouts, and every
-response is a complete document with zero client JS. Raw HTML pages serve
+response is a complete document with zero framework JS (the only script a page
+can carry is the site's own opt-in `analytics` loader). Raw HTML pages serve
 verbatim, `public/` assets stream as bytes.
 
 ```ts

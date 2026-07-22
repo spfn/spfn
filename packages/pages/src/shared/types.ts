@@ -33,6 +33,17 @@ export interface MountConfig
     title?: string;
 }
 
+/** Opt-in visitor analytics — the site owner's own keys, never injected by the host. */
+export interface SiteAnalytics
+{
+    /** PostHog project. The client key ships in every page by design (public token class). */
+    posthog?: {
+        key: string;
+        /** API host, default 'https://us.i.posthog.com'. */
+        host?: string;
+    };
+}
+
 export interface SiteConfig
 {
     name: string;
@@ -50,6 +61,8 @@ export interface SiteConfig
     footerNote?: string;
     /** Repo docs served as site routes — see MountConfig. */
     mounts: MountConfig[];
+    /** Opt-in visitor analytics, rendered as a loader script by the layouts. */
+    analytics?: SiteAnalytics;
 }
 
 export interface PageFrontmatter

@@ -20,6 +20,22 @@ function externalProps(url: string)
     return /^https?:\/\//.test(url) ? { target: '_blank', rel: 'noopener' } : {};
 }
 
+/**
+ * PostHog loader — fetches the library and inits on load. Pre-init event
+ * queueing (the official stub) is intentionally skipped: pageview capture
+ * happens at init, which is all a content site needs.
+ */
+export function posthogLoaderScript({ key, host }: { key: string; host?: string }): string
+{
+    const apiHost = (host ?? 'https://us.i.posthog.com').replace(/\/+$/, '');
+    const assetsHost = apiHost.replace('.i.posthog.com', '-assets.i.posthog.com');
+
+    return `(function(){var s=document.createElement('script');s.async=true;s.crossOrigin='anonymous';`
+        + `s.src=${JSON.stringify(`${assetsHost}/static/array.js`)};`
+        + `s.onload=function(){window.posthog&&window.posthog.init(${JSON.stringify(key)},{api_host:${JSON.stringify(apiHost)},defaults:'2025-05-24'})};`
+        + `document.head.appendChild(s)})();`;
+}
+
 export function SiteShell({ site, children }: { site: SiteContent; children: ReactNode })
 {
     // Social entries whose URL already sits in the nav would render twice in the footer.
@@ -29,6 +45,9 @@ export function SiteShell({ site, children }: { site: SiteContent; children: Rea
     return (
         <div className="sf-site">
             <style dangerouslySetInnerHTML={{ __html: `${DEFAULT_CSS}\n${site.themeCss}` }} />
+            {site.config.analytics?.posthog && (
+                <script dangerouslySetInnerHTML={{ __html: posthogLoaderScript(site.config.analytics.posthog) }} />
+            )}
             <header className="sf-header">
                 <a className="sf-brand" href="/">{site.config.name}</a>
                 <nav className="sf-nav">

@@ -15,3 +15,6 @@ nav:
 social:
   github: https://github.com/spfn/spfn
 footerNote: © 2026 FXY Inc.
+analytics:
+  posthog:
+    key: phc_sg3X7M6CtErmTgKkAk5ajcJbJyCCZsFkmVhikdjr4SLt
