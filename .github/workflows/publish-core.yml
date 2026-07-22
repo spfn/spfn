@@ -98,8 +98,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Add latest tag (stable releases only)
-        if: ${{ !inputs.dry_run && steps.pkg.outputs.tag == 'latest' && steps.check-npm.outputs.exists == 'false' }}
+      - name: Sync latest tag
+        if: ${{ !inputs.dry_run && (steps.check-npm.outputs.exists == 'false' || github.event_name == 'workflow_dispatch') }}
         run: npm dist-tag add @spfn/core@${{ steps.pkg.outputs.version }} latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

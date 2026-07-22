@@ -118,11 +118,19 @@ Packages are in **beta** (`0.x.y-beta.N`) / alpha. Do not bump a package to a st
 
 ## Publishing
 
-Packages are published **manually to the private Gitea registry**
-(`git.superfunction.xyz/api/packages/superfunction/npm/`) — *not* to public npm, and
-*not* through the `.github/workflows/publish-*.yml` GitHub Actions (those target public
-npm and are not the path this project uses). Auth is the `~/.npmrc` token for that
-registry; no `npm login` to npmjs.org is needed.
+Packages are published to **two registries** (2026-07-22):
+
+- **Private Gitea registry** (`git.superfunction.xyz/api/packages/superfunction/npm/`) —
+  manual local publish via the named scripts below. This is what internal apps consume
+  (`@spfn:registry` scope in `~/.npmrc`). No `npm login` to npmjs.org is needed locally.
+- **Public npmjs** — automatic via `.github/workflows/publish-<pkg>.yml`: pushing a
+  `packages/<pkg>/package.json` version change to `main` on GitHub triggers publish with
+  the tag matching the version (`-alpha`/`-beta`/stable) **and syncs the `latest`
+  dist-tag to that version**, so a bare `npm install` never serves a stale release.
+  Re-running a workflow via workflow_dispatch re-syncs `latest` even for an
+  already-published version (idempotent backfill). GitHub is kept current from Gitea
+  (mirror); `.github/workflows/publish.yml` (v*-tag bulk publish) is the stale old path —
+  per-package workflows supersede it.
 
 To release a package:
 
@@ -131,7 +139,8 @@ To release a package:
    deps `@spfn/core` + `@spfn/notification` first).
 2. Publish from the package dir with the **named script**, e.g.
    `cd packages/<pkg> && npm run publish:beta` (also `publish:alpha` / `publish:latest`).
-3. Commit the version bump to `main` and push to `origin` (Gitea).
+3. Commit the version bump to `main` and push to `origin` (Gitea). The GitHub mirror
+   picks it up and the Actions workflow publishes the same version to public npmjs.
 
 Gotchas:
 

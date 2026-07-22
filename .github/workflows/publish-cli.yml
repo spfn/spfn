@@ -11,10 +11,6 @@ on:
         description: 'Create git tag for this version'
         type: boolean
         default: false
-      promote_to_latest:
-        description: 'Also tag as latest (even for alpha/beta)'
-        type: boolean
-        default: false
       dry_run:
         description: 'Dry run (skip actual publish)'
         type: boolean
@@ -107,14 +103,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Add latest tag (stable releases)
-        if: ${{ !inputs.dry_run && steps.pkg.outputs.tag == 'latest' && steps.check-npm.outputs.exists == 'false' }}
-        run: npm dist-tag add spfn@${{ steps.pkg.outputs.version }} latest
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Promote to latest (manual)
-        if: ${{ !inputs.dry_run && inputs.promote_to_latest }}
+      - name: Sync latest tag
+        if: ${{ !inputs.dry_run && (steps.check-npm.outputs.exists == 'false' || github.event_name == 'workflow_dispatch') }}
         run: npm dist-tag add spfn@${{ steps.pkg.outputs.version }} latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

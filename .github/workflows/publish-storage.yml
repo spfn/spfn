@@ -1,10 +1,10 @@
-name: Publish @spfn/auth
+name: Publish @spfn/storage
 
 on:
   push:
     branches: [main, master]
     paths:
-      - 'packages/auth/package.json'
+      - 'packages/storage/package.json'
   workflow_dispatch:
     inputs:
       create_tag:
@@ -47,7 +47,7 @@ jobs:
 
       - name: Get version from package.json
         id: pkg
-        working-directory: packages/auth
+        working-directory: packages/storage
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -63,7 +63,7 @@ jobs:
       - name: Check if version already published
         id: check-npm
         run: |
-          if npm view @spfn/auth@${{ steps.pkg.outputs.version }} version 2>/dev/null; then
+          if npm view @spfn/storage@${{ steps.pkg.outputs.version }} version 2>/dev/null; then
             echo "exists=true" >> $GITHUB_OUTPUT
             echo "::notice::Version ${{ steps.pkg.outputs.version }} already published, skipping"
           else
@@ -73,48 +73,48 @@ jobs:
       - name: Check if tag exists
         if: ${{ inputs.create_tag && steps.check-npm.outputs.exists == 'false' }}
         run: |
-          TAG="@spfn/auth@${{ steps.pkg.outputs.version }}"
+          TAG="@spfn/storage@${{ steps.pkg.outputs.version }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "::error::Tag $TAG already exists"
             exit 1
           fi
 
-      - name: Build @spfn/auth (with dependencies)
+      - name: Build @spfn/storage
         if: ${{ steps.check-npm.outputs.exists == 'false' }}
-        run: pnpm --filter @spfn/core --filter @spfn/notification --filter @spfn/auth build
+        run: pnpm --filter @spfn/storage build
 
       - name: Create git tag
         if: ${{ inputs.create_tag && steps.check-npm.outputs.exists == 'false' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "@spfn/auth@${{ steps.pkg.outputs.version }}"
-          git push origin "@spfn/auth@${{ steps.pkg.outputs.version }}"
+          git tag "@spfn/storage@${{ steps.pkg.outputs.version }}"
+          git push origin "@spfn/storage@${{ steps.pkg.outputs.version }}"
 
-      - name: Publish @spfn/auth to npm
+      - name: Publish @spfn/storage to npm
         if: ${{ !inputs.dry_run && steps.check-npm.outputs.exists == 'false' }}
-        working-directory: packages/auth
+        working-directory: packages/storage
         run: pnpm publish --access public --tag ${{ steps.pkg.outputs.tag }} --provenance --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Sync latest tag
         if: ${{ !inputs.dry_run && (steps.check-npm.outputs.exists == 'false' || github.event_name == 'workflow_dispatch') }}
-        run: npm dist-tag add @spfn/auth@${{ steps.pkg.outputs.version }} latest
+        run: npm dist-tag add @spfn/storage@${{ steps.pkg.outputs.version }} latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Summary
         run: |
           if [[ "${{ steps.check-npm.outputs.exists }}" == "true" ]]; then
-            echo "## Skipped @spfn/auth (already published)" >> $GITHUB_STEP_SUMMARY
+            echo "## Skipped @spfn/storage (already published)" >> $GITHUB_STEP_SUMMARY
           else
-            echo "## Published @spfn/auth" >> $GITHUB_STEP_SUMMARY
+            echo "## Published @spfn/storage" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Version | \`${{ steps.pkg.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| npm tag | \`${{ steps.pkg.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| git tag | ${{ inputs.create_tag && format('`@spfn/auth@{0}`', steps.pkg.outputs.version) || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| git tag | ${{ inputs.create_tag && format('`@spfn/storage@{0}`', steps.pkg.outputs.version) || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Already published | ${{ steps.check-npm.outputs.exists }} |" >> $GITHUB_STEP_SUMMARY
