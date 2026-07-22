@@ -1,7 +1,7 @@
 # @spfn/auth — Authentication, OAuth, and RBAC for SPFN
 
 Asymmetric client-signed JWT auth (ES256/RS256), OTP verification, OAuth 2.0 (pluggable
-provider registry; Google, Kakao, and Naver built in), session cookies for Next.js, and runtime RBAC.
+provider registry; Google, GitHub, Kakao, and Naver built in), session cookies for Next.js, and runtime RBAC.
 Routes are exposed under the `/_auth/*` namespace and reached through a type-safe `authApi`
 client. Requires `@spfn/core`; Next.js is an optional peer (`^15 || ^16`).
 
@@ -125,6 +125,8 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_KAKAO_SCOPES` / `_REDIRECT_URI` | `.env.server` | — | default scope `account_email`; callback `/_auth/oauth/kakao/callback` |
 | `SPFN_AUTH_NAVER_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | both values enable Naver Login |
 | `SPFN_AUTH_NAVER_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_APP_URL\|\|SPFN_APP_URL}/_auth/oauth/naver/callback` |
+| `SPFN_AUTH_GITHUB_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | both values enable GitHub OAuth |
+| `SPFN_AUTH_GITHUB_SCOPES` / `_REDIRECT_URI` | `.env.server` | — | default scopes `read:user,user:email`; callback `/_auth/oauth/github/callback` |
 | `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated client IDs accepted as native id_token audience (iOS/Android/web); enables Google native sign-in |
 | `SPFN_AUTH_APPLE_CLIENT_IDS` | `.env.server` | — | comma-separated Apple client IDs (bundle ID / Services ID); enables Apple native sign-in |
 | `SPFN_AUTH_OAUTH_SUCCESS_URL` | `.env.server` | — | default `/auth/callback` |
@@ -214,10 +216,10 @@ Context helpers from `@spfn/auth/server`: `getAuth`, `getOptionalAuth`, `getUser
 ## OAuth
 
 OAuth uses a **pluggable provider registry** — not hardcoded branches. The built-in `google`,
-`kakao`, and `naver` web providers self-register on module load; `apple` provides native
+`github`, `kakao`, and `naver` web providers self-register on module load; `apple` provides native
 `id_token` sign-in. External packages add providers at runtime with `registerOAuthProvider()`.
-Google requires its client ID and secret, Kakao requires its REST API key (and sends its optional
-client secret when configured), and Naver requires its client ID and secret.
+Google, GitHub, and Naver each require their client ID and secret; Kakao requires its REST API
+key (and sends its optional client secret when configured).
 
 Client flow: call `authApi.getGoogleOAuthUrl.call({ body: { returnUrl } })`, redirect the browser
 to the returned `authUrl`, and render `OAuthCallback` on your success page. The Next.js interceptor
@@ -239,11 +241,11 @@ const { authUrl } = await authApi.getGoogleOAuthUrl.call({
 window.location.href = authUrl;
 ```
 
-Kakao and Naver use the provider-generic URL route:
+GitHub, Kakao, and Naver use the provider-generic URL route:
 
 ```typescript
 const { authUrl } = await authApi.getProviderOAuthUrl.call({
-    params: { provider: 'kakao' }, // or 'naver'
+    params: { provider: 'github' }, // or 'kakao', 'naver'
     body: {
         returnUrl: '/dashboard',
         metadata: { birthDate: '2000-01-01', termsAgreed: true },
@@ -263,7 +265,9 @@ valid Google access token (auto-refreshing via stored refresh token when near ex
 no Google account is linked or no refresh token is available).
 
 Kakao's `is_email_valid` and `is_email_verified` claims are both required before its email can
-link an existing SPFN account. Naver provides an email address but no verified-email claim, so
+link an existing SPFN account. GitHub uses the primary email from `/user/emails` (needs the
+`user:email` scope) and treats it as verified only when GitHub marks it verified; without that
+scope it falls back to the public profile email, unverified. Naver provides an email address but no verified-email claim, so
 Naver login never links an existing account by email; new Naver users can verify and add their
 email through the application's normal onboarding flow. Until then, the OAuth account is identified
 by its provider and provider user ID, so its user row may have both email and phone unset.

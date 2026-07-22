@@ -302,8 +302,8 @@ SPFN_AUTH_GOOGLE_CLIENT_ID=<client id>.apps.googleusercontent.com
 SPFN_AUTH_GOOGLE_CLIENT_SECRET=<client secret>
 ```
 
-(Kakao, Naver, and Apple are built in the same way — `SPFN_AUTH_KAKAO_*` etc.; more
-providers plug in via the OAuth provider registry.)
+(GitHub, Kakao, Naver, and Apple are built in the same way — `SPFN_AUTH_GITHUB_*`,
+`SPFN_AUTH_KAKAO_*` etc.; more providers plug in via the OAuth provider registry.)
 
 The login button asks the backend for Google's auth URL and follows it:
 

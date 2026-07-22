@@ -396,6 +396,42 @@ export const authEnvSchema = defineEnvSchema({
     },
 
     // ============================================================================
+    // OAuth Configuration - GitHub
+    // ============================================================================
+    SPFN_AUTH_GITHUB_CLIENT_ID: {
+        ...envString({
+            description: 'GitHub OAuth app client ID. When set, GitHub OAuth routes are automatically enabled.',
+            required: false,
+            examples: ['Iv1.abc123def456'],
+        }),
+    },
+
+    SPFN_AUTH_GITHUB_CLIENT_SECRET: {
+        ...envString({
+            description: 'GitHub OAuth app client secret.',
+            required: false,
+            sensitive: true,
+            examples: ['your-github-client-secret'],
+        }),
+    },
+
+    SPFN_AUTH_GITHUB_SCOPES: {
+        ...envString({
+            description: 'Comma-separated GitHub OAuth scopes. Defaults to "read:user,user:email".',
+            required: false,
+            examples: ['read:user,user:email'],
+        }),
+    },
+
+    SPFN_AUTH_GITHUB_REDIRECT_URI: {
+        ...envString({
+            description: 'GitHub OAuth callback URL. Defaults to {NEXT_PUBLIC_SPFN_APP_URL || SPFN_APP_URL}/_auth/oauth/github/callback.',
+            required: false,
+            examples: ['https://app.example.com/_auth/oauth/github/callback'],
+        }),
+    },
+
+    // ============================================================================
     // Native Social Login (mobile/web id_token verification)
     //
     // 네이티브 SDK가 받은 id_token을 서버가 JWKS로 검증하는 경로 전용 설정.
