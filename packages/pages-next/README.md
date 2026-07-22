@@ -42,6 +42,15 @@ site model into `public/` before the build:
 - raw HTML escape-hatch pages (`site/pages/*.html` → `public/<slug>/index.html`)
 - `site/public/` assets (copied as-is, binary-safe)
 
+When `spfn.site.yaml` sets `url:`, sync also generates the site-wide SEO
+surface. `sitemap.xml` enumerates every served route (markdown docs and html
+pages alike — sync is the one place that sees them all) and `robots.txt`
+allows crawling and points at the sitemap; a file of the same name in
+`site/public/` wins and suppresses generation. Each written html page gets a
+`<link rel="canonical">` injected before `</head>` unless it already declares
+one — the canonical URL is deployment config (`url:` + slug), not design
+content, so it lives here rather than in the authored html.
+
 Every output is recorded in `public/.spfn-pages-sync.json`; the next run deletes
 recorded outputs it no longer produces (a moved landing, a removed asset), so
 stale pages never ghost into the static export. Files sync never wrote — things
@@ -83,9 +92,11 @@ stacks above the content below `56rem`; styling rides on `.sf-sidebar` /
 
 `generateMetadata` also emits the site's well-known assets: `site.favicon`
 becomes the `<link rel="icon">` (svg/png/ico/jpg, typed by extension) and
-`site.ogImage` the default `og:image` (frontmatter `og:` wins per page). When
-`spfn.site.yaml` sets `url:`, it becomes `metadataBase` so OG image URLs
-resolve absolute.
+`site.ogImage` the default `og:image` (frontmatter `og:` wins per page).
+`og:site_name` is always the site name. When `spfn.site.yaml` sets `url:`,
+it becomes `metadataBase` and every doc page additionally gets a canonical
+link and `og:url` (slug resolved against the base); without `url:` those two
+are omitted rather than emitted as relative paths.
 
 ## Dev serving for html pages (`@spfn/pages-next/dev`)
 

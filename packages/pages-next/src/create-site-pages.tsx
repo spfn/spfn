@@ -153,13 +153,17 @@ function buildMetadata(site: SiteContent, doc: PageDoc | null, slug: string): Me
     const description = doc.frontmatter.description ?? site.config.description;
     const ogImage = doc.frontmatter.og ? `/${doc.frontmatter.og}` : site.ogImage;
 
+    // canonical/og:url are slugs resolved against metadataBase — emitted only when `url` provides it
     return {
         title,
         description,
         ...siteMetadata(site),
+        ...(site.config.url ? { alternates: { canonical: doc.slug } } : {}),
         openGraph: {
             title,
             description,
+            siteName: name,
+            ...(site.config.url ? { url: doc.slug } : {}),
             ...(site.config.locale ? { locale: site.config.locale } : {}),
             ...(ogImage ? { images: [ogImage] } : {}),
         },

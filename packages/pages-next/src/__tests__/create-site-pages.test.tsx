@@ -128,8 +128,19 @@ describe('createSitePages', () =>
         expect(home.metadataBase).toEqual(new URL('https://demo.example/'));
         expect(home.icons).toEqual({ icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }] });
         expect(home.openGraph?.images).toEqual(['/og.png']);
+        expect(home.alternates?.canonical).toBe('/');
+        expect(home.openGraph && 'url' in home.openGraph ? home.openGraph.url : undefined).toBe('/');
+        expect(home.openGraph && 'siteName' in home.openGraph ? home.openGraph.siteName : undefined).toBe('Demo');
 
         const html = await renderSlug(app, []);
         expect(html).toContain('>GitHub</a>');
+    });
+
+    it('omits canonical and og:url when the config has no url', async () =>
+    {
+        const about = await fixtureSite().generateMetadata({ params: Promise.resolve({ slug: ['about'] }) });
+
+        expect(about.alternates).toBeUndefined();
+        expect(about.openGraph && 'url' in about.openGraph ? about.openGraph.url : undefined).toBeUndefined();
     });
 });

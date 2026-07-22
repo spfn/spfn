@@ -17,7 +17,8 @@ async function main(): Promise<void>
         console.warn(`warn: ${problem.path} — ${problem.message}`);
     }
     const stale = result.removedStale > 0 ? `, removed ${result.removedStale} stale output(s)` : '';
-    console.log(`synced ${result.htmlPages} html page(s), theme.css${result.copiedAssets ? ', site public/ assets' : ' (site has no public/ dir)'}${stale}`);
+    const seo = result.seoFiles > 0 ? `, ${result.seoFiles} seo file(s)` : '';
+    console.log(`synced ${result.htmlPages} html page(s), theme.css${result.copiedAssets ? ', site public/ assets' : ' (site has no public/ dir)'}${seo}${stale}`);
 }
 
 function parseArgs(argv: string[]): SyncOptions
