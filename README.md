@@ -4,6 +4,8 @@
 
 Next.js handles your frontend. SPFN handles your backend.
 
+📖 **[superfunction.xyz](https://superfunction.xyz)** — docs, package guides, and a full-stack tutorial.
+
 [![npm core](https://img.shields.io/npm/v/@spfn/core/beta?label=%40spfn%2Fcore)](https://npmjs.com/package/@spfn/core)
 [![npm auth](https://img.shields.io/npm/v/@spfn/auth/beta?label=%40spfn%2Fauth)](https://npmjs.com/package/@spfn/auth)
 [![npm cms](https://img.shields.io/npm/v/@spfn/cms/beta?label=%40spfn%2Fcms)](https://npmjs.com/package/@spfn/cms)
@@ -171,6 +173,16 @@ export default async function Page() {
 - Version control
 - Multi-locale support
 
+**Storage** (`@spfn/storage`)
+- Provider-agnostic object storage (S3 / GCS / local)
+- Upload, download, and deletion APIs
+
+**Notifications** (`@spfn/notification`)
+- Multi-channel: Email, SMS, Slack, Push
+
+**Monitoring** (`@spfn/monitor`)
+- Error tracking, log management, dashboard
+
 ---
 
 ## Project Structure
@@ -202,6 +214,13 @@ src/
 | [spfn](./packages/cli) | Beta | CLI & Dev tools |
 | [@spfn/auth](./packages/auth) | Beta | Authentication & RBAC |
 | [@spfn/cms](./packages/cms) | Beta | Content Management |
+| [@spfn/storage](./packages/storage) | Beta | Object storage (S3 / GCS / local) |
+| [@spfn/notification](./packages/notification) | Beta | Email, SMS, Slack, Push notifications |
+| [@spfn/monitor](./packages/monitor) | Beta | Error tracking & monitoring dashboard |
+| [@spfn/migrate](./packages/migrate) | Beta | Code-based data migrations with a run-once ledger |
+| [@spfn/pages](./packages/pages) | Beta | Serve a markdown site from a GitHub repo |
+| [@spfn/pages-next](./packages/pages-next) | Beta | Next.js integration for @spfn/pages |
+| [@spfn/workflow](./packages/workflow) | Alpha | Pipeline orchestration |
 
 ### Install Packages
 
@@ -239,11 +258,15 @@ export const appRouter = defineRouter({
 
 ## Documentation
 
+- [superfunction.xyz](https://superfunction.xyz) — the documentation site
+- [Full-stack tutorial](https://superfunction.xyz/docs/tutorial) — from `spfn create` to auth-guarded pages
 - [Examples](./examples/README.md) — a step-by-step ladder, start at `01-minimal-api`
 - [Core API](./packages/core/README.md)
 - [CLI Guide](./packages/cli/README.md)
 - [Auth Package](./packages/auth/README.md)
 - [CMS Package](./packages/cms/README.md)
+
+Every package has a deep-dive README in [`packages/`](./packages) — see the table above.
 
 ---
 
