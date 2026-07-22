@@ -65,5 +65,10 @@
     "next": {
       "optional": true
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spfn/spfn.git",
+    "directory": "packages/pages-next"
   }
 }
