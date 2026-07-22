@@ -119,8 +119,37 @@ and `output: 'export'` refuses route handlers whose `generateStaticParams` it
 cannot statically see — so both the export mode and the `.dev.ts` route
 extension are gated to keep the route out of production builds entirely.
 
+## Hosted edge (`@spfn/pages-next/hosted`)
+
+The multi-tenant serving mode. The edge is a **plain HTTP server, no Next** —
+React runs server-side as the template engine over the same layouts, and every
+response is a complete document with zero client JS. Raw HTML pages serve
+verbatim, `public/` assets stream as bytes.
+
+```ts
+import { HostedSiteCache, serveSiteRequest } from '@spfn/pages-next/hosted';
+
+const cache = new HostedSiteCache({ headTtlMs: 30_000, maxSites: 100 });
+
+// per request: Host header → tenant record → repo URL
+const { site, source } = await cache.get(tenant.repoUrl);
+const response = await serveSiteRequest(site, source, url.pathname);
+// response: { status, contentType, body: string | Uint8Array } | null (edge's 404)
+```
+
+`HostedSiteCache` re-resolves a repo's HEAD at most once per TTL (an
+ETag-revalidated 304 when nothing changed — free against the rate limit) and
+caches site models under `repo@sha`. A SHA-keyed model is immutable, so pods
+never coordinate invalidation; a push shows up within one TTL. When GitHub is
+unreachable the last known commit keeps serving. `serveSiteRequest` resolves,
+in order: raw html page → rendered doc (with full head metadata — title,
+description, og, favicon) → virtual `/posts` index → `public/` asset; `null`
+means the edge renders its own not-found page. Path traversal is rejected
+before any read.
+
 ## Status
 
 Beta, stage 3 of the frontend serving primitive. Deploy targets being
 verified end-to-end: Cloudflare Pages, Vercel, SPFN hosting. Coming next:
-the site template repo (with `site/AGENTS.md`), then the hosted tenant edge.
+the site template repo (with `site/AGENTS.md`), then the hosted tenant edge
+service (registration, `*.spfn.app` subdomains, custom domains).
