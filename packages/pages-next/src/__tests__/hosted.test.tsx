@@ -195,7 +195,7 @@ describe('HostedSiteCache', () =>
         expect(loaded.site.config.name).toBe('Cached');
     });
 
-    it('reuses the cached model within the head ttl and reloads on a new sha', async () =>
+    it('serves the stale model immediately on a new sha, then converges in the background', async () =>
     {
         const state = { sha: 'aaa111', files: REPO_FILES };
         const fetchImpl = githubFetchMock(state);
@@ -208,9 +208,17 @@ describe('HostedSiteCache', () =>
         state.sha = 'bbb222';
         state.files = { ...REPO_FILES, 'site/pages/index.md': '---\ntitle: Home\n---\n# v2\n' };
 
-        const updated = await cache.get('https://github.com/spfn/demo');
-        expect(updated.sha).toBe('bbb222');
-        expect(updated.site).not.toBe(first.site);
+        // stale-while-revalidate: the request right after the push still gets v1
+        const stale = await cache.get('https://github.com/spfn/demo');
+        expect(stale.sha).toBe('aaa111');
+        expect(stale.site).toBe(first.site);
+
+        await vi.waitFor(async () =>
+        {
+            const updated = await cache.get('https://github.com/spfn/demo');
+            expect(updated.sha).toBe('bbb222');
+            expect(updated.site).not.toBe(first.site);
+        });
     });
 
     it('serves the last known sha when head resolution fails', async () =>

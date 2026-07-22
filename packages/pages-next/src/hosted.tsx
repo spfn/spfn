@@ -272,9 +272,22 @@ export interface LoadedTenantSite
 
 interface HeadState
 {
+    repoUrl: string;
     source: GithubContentSource;
     sha: string | null;
     checkedAt: number;
+    /** In-flight background HEAD re-check — deduped across requests. */
+    checking: Promise<void> | null;
+    /** Last fully loaded site for this repo — served while a newer SHA loads. */
+    current: LoadedTenantSite | null;
+}
+
+interface SiteEntry
+{
+    head: HeadState;
+    promise: Promise<LoadedTenantSite>;
+    /** Set once the load settles — a ready entry serves without awaiting. */
+    ready: LoadedTenantSite | null;
 }
 
 /**
@@ -282,6 +295,10 @@ interface HeadState
  * once per TTL (an ETag-revalidated 304 when nothing changed); site models are
  * cached under `repo@sha`, which is immutable — pods never need coordinated
  * invalidation, and a push shows up within one TTL.
+ *
+ * Stale-while-revalidate: only a repo's very first load awaits the network.
+ * After that, requests are answered from the last loaded model immediately —
+ * HEAD re-checks and new-SHA loads run in the background and swap in when done.
  */
 export class HostedSiteCache
 {
@@ -289,7 +306,7 @@ export class HostedSiteCache
     private readonly maxSites: number;
     private readonly options: HostedSiteCacheOptions;
     private readonly heads = new Map<string, HeadState>();
-    private readonly sites = new Map<string, Promise<LoadedTenantSite>>();
+    private readonly sites = new Map<string, SiteEntry>();
 
     constructor(options: HostedSiteCacheOptions = {})
     {
@@ -301,9 +318,26 @@ export class HostedSiteCache
     async get(repoUrl: string): Promise<LoadedTenantSite>
     {
         const head = this.headState(repoUrl);
-        const sha = await this.resolveSha(head);
+        if (head.sha === null)
+        {
+            await this.checkHead(head);
+        }
+        else if (Date.now() - head.checkedAt >= this.headTtlMs)
+        {
+            this.revalidateHead(head);
+        }
 
-        return await this.loadPinned(repoUrl, head.source, sha);
+        const entry = this.pinnedEntry(head, head.sha as string);
+        if (entry.ready)
+        {
+            return entry.ready;
+        }
+        if (head.current)
+        {
+            return head.current;
+        }
+
+        return await entry.promise;
     }
 
     private headState(repoUrl: string): HeadState
@@ -312,20 +346,15 @@ export class HostedSiteCache
         if (!head)
         {
             const { token, fetchImpl } = this.options;
-            head = { source: new GithubContentSource(repoUrl, { token, fetchImpl }), sha: null, checkedAt: 0 };
+            head = { repoUrl, source: new GithubContentSource(repoUrl, { token, fetchImpl }), sha: null, checkedAt: 0, checking: null, current: null };
             this.heads.set(repoUrl, head);
         }
 
         return head;
     }
 
-    private async resolveSha(head: HeadState): Promise<string>
+    private async checkHead(head: HeadState): Promise<void>
     {
-        if (head.sha !== null && Date.now() - head.checkedAt < this.headTtlMs)
-        {
-            return head.sha;
-        }
-
         try
         {
             head.sha = await head.source.resolveHeadSha();
@@ -339,13 +368,31 @@ export class HostedSiteCache
             // GitHub unreachable — keep serving the last known commit.
         }
         head.checkedAt = Date.now();
-
-        return head.sha;
     }
 
-    private loadPinned(repoUrl: string, branchSource: GithubContentSource, sha: string): Promise<LoadedTenantSite>
+    /** Background HEAD re-check; a changed SHA starts loading immediately so a hot page converges in one TTL. */
+    private revalidateHead(head: HeadState): void
     {
-        const key = `${repoUrl}@${sha}`;
+        if (head.checking)
+        {
+            return;
+        }
+
+        head.checking = this.checkHead(head)
+            .then(() =>
+            {
+                this.pinnedEntry(head, head.sha as string);
+            })
+            .catch(() => undefined)
+            .finally(() =>
+            {
+                head.checking = null;
+            });
+    }
+
+    private pinnedEntry(head: HeadState, sha: string): SiteEntry
+    {
+        const key = `${head.repoUrl}@${sha}`;
         const cached = this.sites.get(key);
         if (cached)
         {
@@ -355,12 +402,23 @@ export class HostedSiteCache
             return cached;
         }
 
-        const source = branchSource.atRef(sha);
-        const loading = loadSite(source).then(site => ({ site, source, sha }));
-        this.sites.set(key, loading);
-        loading.catch(() =>
+        const source = head.source.atRef(sha);
+        const entry: SiteEntry = { head, promise: Promise.resolve(null as never), ready: null };
+        entry.promise = loadSite(source).then(site =>
         {
-            if (this.sites.get(key) === loading)
+            const loaded = { site, source, sha };
+            if (this.sites.get(key) === entry)
+            {
+                entry.ready = loaded;
+                head.current = loaded;
+            }
+
+            return loaded;
+        });
+        this.sites.set(key, entry);
+        entry.promise.catch(() =>
+        {
+            if (this.sites.get(key) === entry)
             {
                 this.sites.delete(key);
             }
@@ -369,9 +427,15 @@ export class HostedSiteCache
         while (this.sites.size > this.maxSites)
         {
             const oldest = this.sites.keys().next().value as string;
+            const evicted = this.sites.get(oldest) as SiteEntry;
             this.sites.delete(oldest);
+            // an evicted model must not survive through head.current — maxSites is the memory bound
+            if (evicted.ready !== null && evicted.head.current === evicted.ready)
+            {
+                evicted.head.current = null;
+            }
         }
 
-        return loading;
+        return entry;
     }
 }

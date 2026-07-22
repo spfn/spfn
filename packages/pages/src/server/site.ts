@@ -7,6 +7,10 @@ import { renderMarkdown } from './markdown';
 import { CODE_DARK_CSS, buildThemeCss } from './theme';
 import type { ContentSource } from './content-source';
 import type { RewriteContext } from './rewrite';
+import { mapConcurrent } from './concurrency';
+
+/** Parallel reads per load stage — enough to collapse round-trip latency without hammering the origin. */
+const FETCH_CONCURRENCY = 16;
 
 /**
  * Load a full site from a content source: opt-in config, pages, posts, raw HTML
@@ -125,16 +129,18 @@ interface AuthoredFile
 async function readCollection(source: ContentSource, tree: string[], config: SiteConfig, collection: Collection, problems: SiteProblem[]): Promise<AuthoredFile[]>
 {
     const prefix = contentPath(config, collection) + '/';
+    const paths = collectionFiles(tree, config, collection, '.md');
+    const raws = await mapConcurrent(paths, FETCH_CONCURRENCY, path => source.getFile(path));
     const files: AuthoredFile[] = [];
 
-    for (const path of collectionFiles(tree, config, collection, '.md'))
+    for (const [index, raw] of raws.entries())
     {
-        const raw = await source.getFile(path);
         if (raw === null)
         {
             continue;
         }
 
+        const path = paths[index];
         const relative = path.slice(prefix.length);
         try
         {
@@ -178,18 +184,15 @@ function registerReferences(files: AuthoredFile[], repoFiles: ReadonlySet<string
 
 async function renderCollection(source: ContentSource, files: AuthoredFile[], shared: SharedContext): Promise<PageDoc[]>
 {
+    const published = files.filter(file => !file.parsed.frontmatter.draft);
+    const rendered = await mapConcurrent(published, FETCH_CONCURRENCY, file => renderAuthored(source, file, shared));
     const docs: PageDoc[] = [];
 
-    for (const file of files)
+    for (const [index, html] of rendered.entries())
     {
-        if (file.parsed.frontmatter.draft)
-        {
-            continue;
-        }
-
-        const html = await renderAuthored(source, file, shared);
         if (html !== null)
         {
+            const file = published[index];
             docs.push({ slug: file.slug, sourcePath: file.path, frontmatter: file.parsed.frontmatter, html });
         }
     }
@@ -320,11 +323,12 @@ function mountedRoute(route: string, relative: string): string
 
 async function loadMounted(source: ContentSource, shared: SharedContext, mountFiles: MountFile[], problems: SiteProblem[]): Promise<PageDoc[]>
 {
+    const raws = await mapConcurrent(mountFiles, FETCH_CONCURRENCY, file => source.getFile(file.path));
     const docs: PageDoc[] = [];
 
-    for (const file of mountFiles)
+    for (const [index, raw] of raws.entries())
     {
-        const raw = await source.getFile(file.path);
+        const file = mountFiles[index];
         if (raw === null)
         {
             continue;
@@ -367,11 +371,13 @@ async function loadMounted(source: ContentSource, shared: SharedContext, mountFi
 async function loadHtmlPages(source: ContentSource, tree: string[], config: SiteConfig, taken: Set<string>, problems: SiteProblem[]): Promise<HtmlPage[]>
 {
     const prefix = contentPath(config, 'pages') + '/';
+    const paths = collectionFiles(tree, config, 'pages', '.html');
+    const htmls = await mapConcurrent(paths, FETCH_CONCURRENCY, path => source.getFile(path));
     const docs: HtmlPage[] = [];
 
-    for (const path of collectionFiles(tree, config, 'pages', '.html'))
+    for (const [index, html] of htmls.entries())
     {
-        const html = await source.getFile(path);
+        const path = paths[index];
         if (html === null)
         {
             continue;
@@ -453,8 +459,10 @@ function findWellKnownAsset(tree: string[], config: SiteConfig, names: string[])
 async function loadTheme(source: ContentSource, config: SiteConfig, problems: SiteProblem[]): Promise<string>
 {
     const tokensPath = contentPath(config, 'theme/tokens.json');
-    const tokensJson = await source.getFile(tokensPath);
-    const customCss = await source.getFile(contentPath(config, 'theme/custom.css'));
+    const [tokensJson, customCss] = await Promise.all([
+        source.getFile(tokensPath),
+        source.getFile(contentPath(config, 'theme/custom.css')),
+    ]);
 
     try
     {
