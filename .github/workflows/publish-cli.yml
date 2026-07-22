@@ -99,7 +99,7 @@ jobs:
         # artifact doesn't carry an internal registry pin).
         run: |
           npm pkg delete publishConfig.registry
-          pnpm publish --access public --tag ${{ steps.pkg.outputs.tag }} --provenance --no-git-checks
+          npm publish --access public --tag ${{ steps.pkg.outputs.tag }} --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

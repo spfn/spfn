@@ -94,7 +94,7 @@ jobs:
       - name: Publish @spfn/notification to npm
         if: ${{ !inputs.dry_run && steps.check-npm.outputs.exists == 'false' }}
         working-directory: packages/notification
-        run: pnpm publish --access public --tag ${{ steps.pkg.outputs.tag }} --provenance --no-git-checks
+        run: npm publish --access public --tag ${{ steps.pkg.outputs.tag }} --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
