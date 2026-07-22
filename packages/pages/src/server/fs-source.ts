@@ -35,6 +35,18 @@ export class FsContentSource implements ContentSource
         }
     }
 
+    async getBinary(path: string): Promise<Uint8Array | null>
+    {
+        try
+        {
+            return new Uint8Array(await fs.readFile(join(this.root, path)));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     invalidate(): void
     {
     }

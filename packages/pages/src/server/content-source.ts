@@ -9,6 +9,8 @@ export interface ContentSource
     getTree(): Promise<string[]>;
     /** File content, or null when the file does not exist. */
     getFile(path: string): Promise<string | null>;
+    /** Raw file bytes (images, fonts, …), or null when the file does not exist. */
+    getBinary(path: string): Promise<Uint8Array | null>;
     /** Drop any cached state so the next read hits the origin. */
     invalidate(): void;
 }
@@ -16,7 +18,7 @@ export interface ContentSource
 /** In-memory source for tests and local previews. */
 export class MemoryContentSource implements ContentSource
 {
-    constructor(private readonly files: Record<string, string>)
+    constructor(private readonly files: Record<string, string | Uint8Array>)
     {
     }
 
@@ -27,7 +29,24 @@ export class MemoryContentSource implements ContentSource
 
     async getFile(path: string): Promise<string | null>
     {
-        return this.files[path] ?? null;
+        const file = this.files[path];
+        if (file === undefined)
+        {
+            return null;
+        }
+
+        return typeof file === 'string' ? file : new TextDecoder().decode(file);
+    }
+
+    async getBinary(path: string): Promise<Uint8Array | null>
+    {
+        const file = this.files[path];
+        if (file === undefined)
+        {
+            return null;
+        }
+
+        return typeof file === 'string' ? new TextEncoder().encode(file) : file;
     }
 
     invalidate(): void

@@ -170,7 +170,16 @@ site.problems;   // per-file failures (file skipped, site still loads)
 - `GithubContentSource` fetches the tree via the GitHub API and files via
   raw.githubusercontent.com, both with ETag conditional requests (304s don't
   count against the API rate limit). Pass `{ token }` to raise limits.
-- `MemoryContentSource` backs tests and local previews.
+- **SHA pinning (hosted serving):** `source.resolveHeadSha()` returns the commit
+  the bound ref points to (ETag-revalidated — cheap to poll), and
+  `source.atRef(sha)` (or `{ ref }` in the constructor) pins every read to that
+  commit. Content at a SHA is immutable, so anything cached under
+  `repo@sha` stays valid regardless of later pushes — cache invalidation
+  reduces to "what is HEAD now".
+- Every source also serves raw bytes via `getBinary(path)` (images, fonts —
+  `public/` assets in hosted mode).
+- `MemoryContentSource` backs tests and local previews (values may be strings
+  or `Uint8Array`s).
 - Per-file failures never take the site down — they land in `problems` and the
   file is skipped. Only a missing/invalid `spfn.site.yaml` is fatal.
 
