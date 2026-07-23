@@ -70,6 +70,8 @@ jobs:
           else
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Check if tag exists
         if: ${{ inputs.create_tag && steps.check-npm.outputs.exists == 'false' }}
@@ -98,6 +100,12 @@ jobs:
         if: ${{ !inputs.dry_run && steps.check-npm.outputs.exists == 'false' }}
         working-directory: packages/migrate
         run: npm publish --access public --tag ${{ steps.pkg.outputs.tag }} --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Ensure public access
+        if: ${{ !inputs.dry_run }}
+        run: npm access set status=public @spfn/migrate
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
