@@ -947,6 +947,20 @@ for ordering guarantees and per-channel notes.
 
 ## Troubleshooting
 
+### "relation \"auth.users\" does not exist" (missing auth tables)
+
+Auth tables are **not** created by `spfn db push`'s schema diff — package schemas are excluded
+from push on purpose. They are created by the migration files bundled inside `@spfn/auth`,
+which `spfn db migrate` (and the final step of a recent `spfn db push`) applies:
+
+```bash
+pnpm spfn db status    # shows applied/pending migrations per package
+pnpm spfn db migrate   # applies @spfn/auth migrations + project migrations
+```
+
+If you installed the package with plain `pnpm add @spfn/auth` (instead of `spfn add`), no
+migration has run yet — `spfn db migrate` is required once before the auth routes work.
+
 ### "SPFN_AUTH_SESSION_SECRET is required"
 
 `SPFN_AUTH_SESSION_SECRET` must be set in `.env.local` (Next.js side). It must be at least 32 characters.
