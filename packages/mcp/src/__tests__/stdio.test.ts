@@ -72,7 +72,10 @@ function createDispatcher(options: {
     });
 }
 
-function createHarness(dispatcher = createDispatcher())
+function createHarness(
+    dispatcher = createDispatcher(),
+    options: { maxBufferSize?: number } = {},
+)
 {
     const stdin = new PassThrough();
     const stdout = new PassThrough();
@@ -111,6 +114,7 @@ function createHarness(dispatcher = createDispatcher())
         stdout,
         stderr,
         signals: false,
+        maxBufferSize: options.maxBufferSize,
     });
 
     const send = async (message: Record<string, unknown>): Promise<JsonRpcMessage> =>
@@ -294,6 +298,21 @@ describe('serveMcpStdio', () =>
         harness.stdin.end();
 
         await expect(harness.handle.closed).resolves.toBeUndefined();
+    });
+
+    it('closes after a fatal transport error', async () =>
+    {
+        const errors: McpErrorEvent[] = [];
+        const harness = createHarness(
+            createDispatcher({ onError: event => void errors.push(event) }),
+            { maxBufferSize: 1 },
+        );
+
+        harness.stdin.write('{}\n');
+
+        await expect(harness.handle.closed).resolves.toBeUndefined();
+        expect(errors).toContainEqual(expect.objectContaining({ operation: 'transport' }));
+        expect(harness.diagnosticOutput()).toBe('[spfn:mcp] MCP stdio transport error\n');
     });
 
     it('matches argument validation and redacts handler failures', async () =>

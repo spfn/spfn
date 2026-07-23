@@ -4,6 +4,7 @@ import {
     StdioServerTransport,
     serveStdio,
 } from '@modelcontextprotocol/server/stdio';
+import type { StdioServerHandle } from '@modelcontextprotocol/server/stdio';
 import type {
     McpDispatchSession,
     McpDispatcher,
@@ -56,7 +57,67 @@ export function serveMcpStdio<Auth, Ctx>(
         stdout,
         { maxBufferSize: options.maxBufferSize },
     );
-    const handle = serveStdio(
+    let handle: StdioServerHandle | undefined;
+    let closeRequested = false;
+    let closing: Promise<void> | undefined;
+    let resolveClosed: () => void = () =>
+    {
+        // Replaced when the lifecycle promise is constructed below.
+    };
+    const closed = new Promise<void>(resolve =>
+    {
+        resolveClosed = resolve;
+    });
+    const signals = options.signals === false
+        ? []
+        : [...(options.signals ?? ['SIGINT', 'SIGTERM'])];
+    const cleanup = () =>
+    {
+        stdin.off('end', requestClose);
+        stdin.off('close', requestClose);
+        stdin.off('error', requestClose);
+        stdout.off('close', requestClose);
+        stdout.off('error', requestClose);
+        for (const signal of signals)
+        {
+            process.off(signal, requestClose);
+        }
+    };
+    const close = (): Promise<void> =>
+    {
+        closeRequested = true;
+        if (!handle)
+        {
+            return closed;
+        }
+        if (!closing)
+        {
+            cleanup();
+            closing = handle.close().finally(resolveClosed);
+        }
+
+        return closing;
+    };
+    const requestClose = () => void close().catch(error =>
+    {
+        writeDiagnostic(stderr, 'MCP stdio shutdown error');
+        void reportDispatcherError(
+            options.dispatcher,
+            { operation: 'transport', error },
+        );
+    });
+
+    stdin.once('end', requestClose);
+    stdin.once('close', requestClose);
+    stdin.once('error', requestClose);
+    stdout.once('close', requestClose);
+    stdout.once('error', requestClose);
+    for (const signal of signals)
+    {
+        process.once(signal, requestClose);
+    }
+
+    handle = serveStdio(
         async connection =>
         {
             const session = await options.createSession({ era: connection.era });
@@ -78,53 +139,13 @@ export function serveMcpStdio<Auth, Ctx>(
                     options.dispatcher,
                     { operation: 'transport', error },
                 );
+                requestClose();
             },
         },
     );
-    let closing: Promise<void> | undefined;
-    let resolveClosed: () => void = () =>
+    if (closeRequested)
     {
-        // Replaced when the lifecycle promise is constructed below.
-    };
-    const closed = new Promise<void>(resolve =>
-    {
-        resolveClosed = resolve;
-    });
-    const signals = options.signals === false
-        ? []
-        : [...(options.signals ?? ['SIGINT', 'SIGTERM'])];
-    const close = (): Promise<void> =>
-    {
-        if (!closing)
-        {
-            cleanup();
-            closing = handle.close().finally(resolveClosed);
-        }
-
-        return closing;
-    };
-    const requestClose = () => void close();
-    const cleanup = () =>
-    {
-        stdin.off('end', requestClose);
-        stdin.off('close', requestClose);
-        stdin.off('error', requestClose);
-        stdout.off('close', requestClose);
-        stdout.off('error', requestClose);
-        for (const signal of signals)
-        {
-            process.off(signal, requestClose);
-        }
-    };
-
-    stdin.once('end', requestClose);
-    stdin.once('close', requestClose);
-    stdin.once('error', requestClose);
-    stdout.once('close', requestClose);
-    stdout.once('error', requestClose);
-    for (const signal of signals)
-    {
-        process.once(signal, requestClose);
+        requestClose();
     }
 
     return { close, closed };
