@@ -18,6 +18,7 @@ the code.
 | [`@spfn/core`](../../../packages/core/README.md) | Server, routing, database, codegen — the kernel every app uses |
 | [`spfn` (CLI)](../../../packages/cli/README.md) | `create`, `init`, `codegen`, dev workflow |
 | [`@spfn/migrate`](../../../packages/migrate/README.md) | Database migration tooling |
+| [`@spfn/mcp`](../../../packages/mcp/README.md) | OAuth-protected Model Context Protocol endpoints backed by the official SDK |
 
 ## Batteries
 
@@ -29,6 +30,7 @@ the code.
 | [`@spfn/monitor`](../../../packages/monitor/README.md) | Health checks, metrics, request tracing |
 | [`@spfn/cms`](../../../packages/cms/README.md) | Content models and admin endpoints |
 | [`@spfn/workflow`](../../../packages/workflow/README.md) | Background jobs and step workflows |
+| [`@spfn/i18n`](../../../packages/i18n/README.md) | Translation catalogs, interpolation, fallbacks, and React context |
 
 ## Serving
 

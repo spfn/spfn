@@ -29,8 +29,8 @@ repo READMEs) are in scope as renderer feature work, not deferred.
 | `/docs`           | `pages/docs.md`           | Get started                                    |
 | `/docs/pattern`   | `pages/docs/pattern.md`   | SPFN pattern deep-dive                         |
 | `/packages`       | `pages/packages.md`       | Package index — all links internal             |
-| `/packages/<pkg>` | `pages/packages/<pkg>.md` (frontmatter `source:` → repo README) | 10 packages, served on-site |
-| `/functions/<pkg>` | `pages/functions/<pkg>.html` | Designed landings for all 11 functions (core 2026-07-21; auth·storage·notification·monitor·cms·workflow·pages·pages-next·migrate·cli 2026-07-22). Template: hero declaration → premise → core technique + why → what's-inside grid deep-linking into docs. |
+| `/packages/<pkg>` | `pages/packages/<pkg>.md` (frontmatter `source:` → repo README) | 13 packages, served on-site |
+| `/functions/<pkg>` | `pages/functions/<pkg>.html` | Designed landings for all 13 functions (core 2026-07-21; auth·storage·notification·monitor·cms·workflow·pages·pages-next·migrate·cli 2026-07-22; mcp·i18n 2026-07-23). Template: hero declaration → premise → core technique + why → what's-inside grid deep-linking into docs. |
 | `/posts`          | renderer virtual index    | Deferred until the first release note          |
 | `/posts/<slug>`   | `posts/YYYY-MM-DD-*.md`   | Deferred                                       |
 

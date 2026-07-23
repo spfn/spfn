@@ -2,6 +2,7 @@
 
 Repeated markup + css shared by the designed html pages
 (`pages/index.html`, `pages/functions.html`, `pages/functions/core.html`,
+`pages/functions/mcp.html`, `pages/functions/i18n.html`,
 `pages/about.html`). Pages are self-contained (inline CSS), so these are
 **copy templates**, not imports — copy the block, keep the class names, and
 change content only. When a pattern changes, update it here and sweep the

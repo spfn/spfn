@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@spfn/i18n</title>
+<meta name="description" content="A small, content-agnostic internationalization runtime for SPFN and React applications.">
+<meta property="og:title" content="@spfn/i18n — words, in context">
+<meta property="og:description" content="Application-owned translation catalogs with interpolation, fallback lookup, server helpers, and a React context.">
+<meta property="og:image" content="https://superfunction.xyz/og.png">
+<meta property="og:url" content="https://superfunction.xyz/functions/i18n">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+    /* @spfn/i18n package landing — design system "Poster" v2 (site/design/system.md) */
+    * { margin: 0; padding: 0; box-sizing: border-box; border-radius: 0; }
+    :root
+    {
+        --cobalt: #1d34f3; --ink: #10161a; --white: #ffffff; --signal: #ff3b1f;
+        --gray: #8a9096; --grotesk: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--white); color: var(--ink); font-family: var(--grotesk); }
+    a { color: inherit; text-decoration: none; }
+    .inner { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+    header { border-bottom: 1px solid var(--ink); }
+    .nav { display: flex; align-items: center; height: 64px; }
+    .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 800; }
+    .brand svg { width: auto; height: 19px; color: var(--cobalt); }
+    .nav nav { display: flex; gap: 28px; margin-left: auto; font-size: 14.5px; font-weight: 600; }
+    .nav nav a:hover { color: var(--cobalt); }
+    .hero { padding: 72px 0 0; }
+    .kicker { margin-bottom: 26px; font: 500 12px/1.4 var(--mono); letter-spacing: 0.12em; }
+    .kicker a { color: var(--cobalt); }
+    .display { color: var(--cobalt); font-size: clamp(44px, 7vw, 88px); font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; text-transform: uppercase; }
+    .display .inkline { color: var(--ink); }
+    .hero .sub { max-width: 58ch; margin-top: 26px; font-size: 17px; line-height: 1.6; }
+    .cta-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 34px; }
+    .btn { display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; }
+    .btn-cobalt { color: var(--white); background: var(--cobalt); }
+    .btn-cobalt:hover { background: var(--ink); }
+    .btn-outline { border: 1px solid var(--ink); }
+    .btn-outline:hover { color: var(--cobalt); border-color: var(--cobalt); }
+    .codebar { padding: 14px 18px; color: var(--white); background: var(--ink); font: 13px var(--mono); }
+    .strip { display: flex; height: 14px; margin-top: 56px; }
+    .strip .s1 { flex: 2.5; background: var(--cobalt); }
+    .strip .s2 { flex: 1.2; background: var(--ink); }
+    .strip .s3 { flex: 0.35; background: var(--signal); }
+    section { padding: 120px 0 0; }
+    section:last-of-type { padding-bottom: 120px; }
+    .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 44px; }
+    .sec-head .idx, .sec-head .name { font: 500 12px/1.4 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
+    .sec-head .rule { flex: 1; height: 1px; background: var(--ink); }
+    .sec-title { margin-bottom: 40px; font-size: clamp(28px, 3.4vw, 40px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.08; }
+    .sec-title em { color: var(--cobalt); font-style: normal; }
+    .premise-copy { max-width: 62ch; margin-bottom: 44px; font-size: 17px; line-height: 1.65; }
+    .premise-copy code { font: 14.5px var(--mono); }
+    .wireflow { display: flex; align-items: center; font: 12px var(--mono); }
+    .wnode { padding: 9px 14px; border: 1px solid var(--ink); white-space: nowrap; }
+    .wnode.hot { color: var(--cobalt); border-color: var(--cobalt); font-weight: 600; }
+    .wwire { position: relative; flex: 1; min-width: 18px; height: 1px; background: var(--ink); }
+    .wwire::after { position: absolute; top: -2px; right: 0; width: 5px; height: 5px; background: var(--ink); content: ''; }
+    .wwire.tohot::after { background: var(--cobalt); }
+    .flow-note { margin-top: 28px; color: var(--gray); font: 11px var(--mono); letter-spacing: 0.1em; }
+    .mod-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); border-left: 1px solid var(--ink); }
+    .mod { min-height: 118px; padding: 20px 20px 24px; border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+    .mod:hover { color: var(--white); background: var(--cobalt); }
+    .mod .mname { font: 600 13px var(--mono); }
+    .mod p { margin-top: 8px; color: #3c4248; font-size: 12.5px; line-height: 1.55; }
+    .mod:hover p { color: var(--white); }
+    .cta-band { padding: 56px 0; color: var(--white); background: var(--cobalt); }
+    .cta-band .inner { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+    .cta-band h2 { font-size: clamp(28px, 3.6vw, 44px); font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase; }
+    .cta-band .btns { display: flex; gap: 12px; margin-left: auto; }
+    .btn-white { color: var(--cobalt); background: var(--white); }
+    .btn-white:hover { color: var(--white); background: var(--ink); }
+    .btn-outline-w { color: var(--white); border: 1px solid var(--white); }
+    .btn-outline-w:hover { color: var(--cobalt); background: var(--white); }
+    footer { padding: 34px 0; color: var(--white); background: var(--ink); }
+    footer .inner { display: flex; align-items: center; gap: 26px; font: 12px var(--mono); letter-spacing: 0.06em; }
+    footer a { text-decoration: underline; text-underline-offset: 3px; }
+    footer .dim { margin-left: auto; color: #6d747c; }
+    @media (max-width: 900px)
+    {
+        .mod-grid { grid-template-columns: 1fr 1fr; }
+        .wireflow { flex-wrap: wrap; row-gap: 10px; }
+    }
+    @media (max-width: 600px)
+    {
+        .nav nav { gap: 12px; font-size: 12px; }
+        .brand { font-size: 0; }
+        .mod-grid { grid-template-columns: 1fr; }
+        section { padding: 80px 0 0; }
+        section:last-of-type { padding-bottom: 80px; }
+        .hero { padding-top: 56px; }
+        footer .inner { align-items: flex-start; flex-wrap: wrap; }
+        footer .dim { width: 100%; margin-left: 0; }
+    }
+</style>
+</head>
+<body>
+    <header>
+        <div class="inner nav">
+            <a class="brand" href="/"><svg viewBox="0 0 166 192" fill="none" aria-hidden="true"><path d="M137.954 26.8921C133.611 24.0908 129.082 22.0243 124.451 20.6696C120.622 15.8133 116.032 11.5655 110.752 8.16724C84.6518 -8.64033 51.2852 1.32481 36.2178 30.4281C21.1606 59.5313 30.1043 96.7514 56.2048 113.559C61.4948 116.969 67.0937 119.265 72.7645 120.539C57.728 101.481 54.4757 73.1244 66.4864 49.9221C78.4972 26.7313 102.128 15.687 124.451 20.6811C141.412 39.8077 145.58 69.9098 132.942 94.329L158.033 110.494C173.183 81.2182 164.198 43.7915 137.954 26.8921Z" fill="currentColor"/><path d="M108.874 78.4409C103.584 75.0312 97.9952 72.7236 92.314 71.4492C107.351 90.5185 110.603 118.876 98.5921 142.078C86.5814 165.28 62.951 176.324 40.6278 171.33C23.7798 152.284 19.7042 122.239 32.3427 97.8201L7.39499 81.7473C-7.75478 111.023 1.1169 148.369 27.207 165.177H27.1967C31.5194 167.955 36.0272 169.999 40.6278 171.342C44.4564 176.187 49.0466 180.423 54.3264 183.833C80.4268 200.64 113.793 190.675 128.861 161.572C143.918 132.469 134.974 95.2485 108.874 78.4409Z" fill="currentColor"/></svg>Superfunction</a>
+            <nav><a href="/docs">Docs</a><a href="/functions">Functions</a><a href="/about">About</a><a href="https://github.com/fxylabs/spfn" target="_blank" rel="noopener">GitHub</a></nav>
+        </div>
+    </header>
+    <div class="hero">
+        <div class="inner">
+            <div class="kicker"><a href="/functions">FUNCTIONS</a> / @SPFN/I18N — INTERNATIONALIZATION RUNTIME</div>
+            <h1 class="display">Words,<br><span class="inkline">in context.</span></h1>
+            <p class="sub"><code>@spfn/i18n</code> supplies the small runtime between your translation catalogs and your UI: interpolation, fallback lookup, server helpers, and React context. Your application keeps ownership of the words and the locale policy.</p>
+            <div class="cta-row">
+                <a class="btn btn-cobalt" href="/docs/packages/i18n">Read the reference</a>
+                <a class="btn btn-outline" href="/docs">Get started</a>
+                <span class="codebar">$ pnpm add @spfn/i18n</span>
+            </div>
+        </div>
+        <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
+    </div>
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">The boundary</span></div>
+            <h2 class="sec-title">The runtime translates.<br>Your app <em>decides.</em></h2>
+            <p class="premise-copy">Catalog loading, locale detection, routing, persistence, and content stay in the consuming application. The runtime accepts plain locale → namespace → message objects and turns them into predictable translators without imposing a file layout, fetch layer, or CMS.</p>
+            <div class="wireflow"><div class="wnode">app locale</div><div class="wwire"></div><div class="wnode">catalog namespace</div><div class="wwire"></div><div class="wnode">fallback merge</div><div class="wwire tohot"></div><div class="wnode hot">translated string</div></div>
+            <div class="flow-note">FIG 01 — APPLICATION-OWNED CONTENT · RUNTIME-OWNED LOOKUP</div>
+        </div>
+    </section>
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">Server to client</span></div>
+            <h2 class="sec-title">Only the messages<br>this subtree <em>needs.</em></h2>
+            <p class="premise-copy"><code>getClientMessages()</code> resolves selected namespaces on the server, merging fallback values first and locale-specific values second. Pass the serializable result through <code>I18nProvider</code>; client components call <code>useT()</code> without a loading flash or a second catalog request.</p>
+            <div class="wireflow"><div class="wnode">getClientMessages</div><div class="wwire"></div><div class="wnode">selected namespaces</div><div class="wwire"></div><div class="wnode">I18nProvider</div><div class="wwire tohot"></div><div class="wnode hot">useT</div></div>
+            <div class="flow-note">FIG 02 — RESOLVE ON THE SERVER · SERIALIZE ONCE · READ FROM CONTEXT</div>
+        </div>
+    </section>
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">What's inside</span></div>
+            <h2 class="sec-title">The translation layer,<br>nothing <em>extra.</em></h2>
+            <div class="mod-grid">
+                <a class="mod" href="/docs/packages/i18n#catalogs"><div class="mname">plain catalogs</div><p>Locale, namespace, key, message — application-owned objects.</p></a>
+                <a class="mod" href="/docs/packages/i18n#core-api"><div class="mname">createTranslator</div><p>Translate independently of React, Next.js, or SPFN.</p></a>
+                <a class="mod" href="/docs/packages/i18n#catalogs"><div class="mname">interpolation</div><p>Named string and number placeholders remain visible when missing.</p></a>
+                <a class="mod" href="/docs/packages/i18n#server-usage"><div class="mname">fallback lookup</div><p>Locale-specific values override a configured fallback locale.</p></a>
+                <a class="mod" href="/docs/packages/i18n#server-usage"><div class="mname">server registry</div><p>Configure once, then resolve namespace-scoped translators.</p></a>
+                <a class="mod" href="/docs/packages/i18n#react-and-nextjs-usage"><div class="mname">client messages</div><p>Serialize only selected, fully resolved namespaces.</p></a>
+                <a class="mod" href="/docs/packages/i18n#react-and-nextjs-usage"><div class="mname">React context</div><p>I18nProvider, useT, and useLocale for client subtrees.</p></a>
+                <a class="mod" href="/docs/packages/i18n#scope"><div class="mname">content agnostic</div><p>No loaders, locale detection, routing, or plural-rule policy.</p></a>
+            </div>
+        </div>
+    </section>
+    <div class="cta-band"><div class="inner"><h2>Translate the surface.</h2><div class="btns"><a class="btn btn-white" href="/docs/packages/i18n">Full reference</a><a class="btn btn-outline-w" href="/docs">Get started</a></div></div></div>
+    <footer><div class="inner"><span>SUPERFUNCTION</span><a href="/docs">DOCS</a><a href="/functions">FUNCTIONS</a><a href="/about">ABOUT</a><a href="https://github.com/fxylabs/spfn" target="_blank" rel="noopener">GITHUB</a><span class="dim">© 2026 FXY INC. · @SPFN/I18N — BETA</span></div></footer>
+</body>
+</html>
