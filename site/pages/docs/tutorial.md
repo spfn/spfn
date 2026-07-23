@@ -16,7 +16,7 @@ A Next.js app with a real SPFN backend and working authentication:
 
 with every screen guard living in a Next.js **layout file**, so nested pages inherit
 protection automatically. The finished code is
-[`examples/03-auth`](https://github.com/spfn/spfn/tree/main/examples/03-auth) — every
+[`examples/03-auth`](https://github.com/fxylabs/spfn/tree/main/examples/03-auth) — every
 snippet below is taken from it.
 
 ## 1. Create the project
@@ -358,5 +358,5 @@ Then walk the same loop this example was verified with:
   app is built on.
 - [`@spfn/auth` reference](./packages/auth.md) — sessions, RBAC, invitations,
   OAuth providers, deletion lifecycle.
-- [`examples/03-auth`](https://github.com/spfn/spfn/tree/main/examples/03-auth) —
+- [`examples/03-auth`](https://github.com/fxylabs/spfn/tree/main/examples/03-auth) —
   the finished code, runnable as-is.

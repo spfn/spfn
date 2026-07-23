@@ -2,7 +2,7 @@ name: Superfunction
 description: TypeScript framework for full-stack apps — a typed SPFN backend inside your Next.js project.
 root: site
 url: https://superfunction.xyz
-repo: https://github.com/spfn/spfn
+repo: https://github.com/fxylabs/spfn
 nav:
   - label: Docs
     path: /docs
@@ -11,9 +11,9 @@ nav:
   - label: About
     path: /about
   - label: GitHub
-    path: https://github.com/spfn/spfn
+    path: https://github.com/fxylabs/spfn
 social:
-  github: https://github.com/spfn/spfn
+  github: https://github.com/fxylabs/spfn
 footerNote: © 2026 FXY Inc.
 analytics:
   posthog:
