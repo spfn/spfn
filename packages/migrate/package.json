@@ -44,6 +44,15 @@
         "tsup": "^8.5.0",
         "typescript": "^5.3.3"
     },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/fxylabs/spfn.git",
+        "directory": "packages/migrate"
+    },
+    "bugs": {
+        "url": "https://github.com/fxylabs/spfn/issues"
+    },
+    "homepage": "https://github.com/fxylabs/spfn/tree/main/packages/migrate#readme",
     "publishConfig": {
         "access": "public",
         "tag": "beta"

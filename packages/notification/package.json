@@ -47,12 +47,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/spfn/spfn.git",
+    "url": "git+https://github.com/fxylabs/spfn.git",
     "directory": "packages/notification"
   },
-  "homepage": "https://github.com/spfn/spfn/tree/main/packages/notification#readme",
+  "homepage": "https://github.com/fxylabs/spfn/tree/main/packages/notification#readme",
   "bugs": {
-    "url": "https://github.com/spfn/spfn/issues"
+    "url": "https://github.com/fxylabs/spfn/issues"
   },
   "peerDependencies": {
     "@spfn/core": ">=0.2.0-beta.54",

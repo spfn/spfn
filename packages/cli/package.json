@@ -4,7 +4,7 @@
   "description": "Superfunction CLI - Add SPFN to your Next.js project",
   "type": "module",
   "bin": {
-    "spfn": "./bin/spfn.js"
+    "spfn": "bin/spfn.js"
   },
   "types": "./dist/index.d.ts",
   "files": [
@@ -41,7 +41,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/spfn/spfn.git",
+    "url": "git+https://github.com/fxylabs/spfn.git",
     "directory": "packages/cli"
   },
   "publishConfig": {
@@ -50,9 +50,9 @@
     "registry": "https://git.superfunction.xyz/api/packages/superfunction/npm/"
   },
   "bugs": {
-    "url": "https://github.com/spfn/spfn/issues"
+    "url": "https://github.com/fxylabs/spfn/issues"
   },
-  "homepage": "https://github.com/spfn/spfn/tree/main/packages/cli#readme",
+  "homepage": "https://github.com/fxylabs/spfn/tree/main/packages/cli#readme",
   "engines": {
     "node": ">=18.18.0"
   },

@@ -59,7 +59,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/spfn/spfn.git",
+    "url": "git+https://github.com/fxylabs/spfn.git",
     "directory": "packages/pages"
   }
 }

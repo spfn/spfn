@@ -174,13 +174,13 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/spfn/spfn.git",
+        "url": "git+https://github.com/fxylabs/spfn.git",
         "directory": "packages/core"
     },
     "bugs": {
-        "url": "https://github.com/spfn/spfn/issues"
+        "url": "https://github.com/fxylabs/spfn/issues"
     },
-    "homepage": "https://github.com/spfn/spfn/tree/main/packages/core#readme",
+    "homepage": "https://github.com/fxylabs/spfn/tree/main/packages/core#readme",
     "engines": {
         "node": ">=18.18.0"
     },
