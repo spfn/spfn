@@ -4,6 +4,12 @@ Provider-agnostic object storage for S3-compatible services, Google Cloud Storag
 and the local filesystem. The package exposes presigned upload, direct upload and
 download, public URL, finalization, and object deletion APIs without owning a database.
 
+## Installation
+
+```bash
+pnpm add @spfn/storage
+```
+
 ## Presigned upload size limits
 
 Server-side checks of a client-declared file size do not bind the upload itself —

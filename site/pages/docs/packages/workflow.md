@@ -1,5 +1,5 @@
 ---
 title: "@spfn/workflow"
-description: "Background jobs and step workflows"
+description: "Lightweight pipeline and step orchestration"
 source: packages/workflow/README.md
 ---

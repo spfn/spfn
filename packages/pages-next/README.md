@@ -11,6 +11,12 @@ site model into a deployable site. One package, two modes:
   helpers, resolving the tenant per request. No scaffold needed in the content
   repo; registering the repo link is enough.
 
+## Installation
+
+```bash
+pnpm add @spfn/pages @spfn/pages-next
+```
+
 ## Self-deploy usage
 
 The whole route surface is an optional catch-all:

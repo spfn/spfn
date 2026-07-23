@@ -1,5 +1,5 @@
 ---
 title: "@spfn/storage"
-description: "File uploads — local and GCS drivers"
+description: "Object storage for S3-compatible services, GCS, and local files"
 source: packages/storage/README.md
 ---

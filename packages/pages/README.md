@@ -9,6 +9,12 @@ This is the first source driver of SPFN's **frontend serving primitive**: the
 tenant edge (registration, `*.spfn.app` subdomains, custom domains, caching) is
 shared infrastructure; content sources plug in via the `ContentSource` interface.
 
+## Installation
+
+```bash
+pnpm add @spfn/pages
+```
+
 ## The site spec
 
 A publishable repo looks like this:

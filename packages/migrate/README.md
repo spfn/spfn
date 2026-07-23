@@ -4,6 +4,12 @@
 
 While schema changes (adding columns, creating tables) are handled by Drizzle's SQL migrations, `@spfn/migrate` handles **data transformations** (backfilling data, state transitions, complex calculations) using TypeScript.
 
+## Installation
+
+```bash
+pnpm add @spfn/migrate @spfn/core drizzle-orm
+```
+
 ## Setup
 
 `@spfn/migrate` uses a `data_migrations` table to track which migrations have been applied. This table must be created via your application's schema pipeline.

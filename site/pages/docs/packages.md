@@ -17,7 +17,7 @@ the code.
 | ------- | ------------ |
 | [`@spfn/core`](../../../packages/core/README.md) | Server, routing, database, codegen — the kernel every app uses |
 | [`spfn` (CLI)](../../../packages/cli/README.md) | `create`, `init`, `codegen`, dev workflow |
-| [`@spfn/migrate`](../../../packages/migrate/README.md) | Database migration tooling |
+| [`@spfn/migrate`](../../../packages/migrate/README.md) | Transactional, code-based data migrations with a run-once ledger |
 | [`@spfn/mcp`](../../../packages/mcp/README.md) | OAuth-protected Model Context Protocol endpoints backed by the official SDK |
 
 ## Batteries
@@ -25,11 +25,11 @@ the code.
 | Package | What it does |
 | ------- | ------------ |
 | [`@spfn/auth`](../../../packages/auth/README.md) | Sessions, OAuth providers, RBAC, invitations |
-| [`@spfn/storage`](../../../packages/storage/README.md) | File uploads — local and GCS drivers |
+| [`@spfn/storage`](../../../packages/storage/README.md) | Object storage for S3-compatible services, GCS, and local files |
 | [`@spfn/notification`](../../../packages/notification/README.md) | Email and messaging with pluggable providers |
-| [`@spfn/monitor`](../../../packages/monitor/README.md) | Health checks, metrics, request tracing |
+| [`@spfn/monitor`](../../../packages/monitor/README.md) | Error tracking, persisted logs, and an admin dashboard |
 | [`@spfn/cms`](../../../packages/cms/README.md) | Content models and admin endpoints |
-| [`@spfn/workflow`](../../../packages/workflow/README.md) | Background jobs and step workflows |
+| [`@spfn/workflow`](../../../packages/workflow/README.md) | Lightweight pipeline and step orchestration |
 | [`@spfn/i18n`](../../../packages/i18n/README.md) | Translation catalogs, interpolation, fallbacks, and React context |
 
 ## Serving
@@ -41,5 +41,6 @@ the code.
 
 ## Versioning
 
-Everything is beta (`0.x.y-beta.N`). APIs can move between betas; release
-notes will land on this site when they start shipping.
+Packages currently ship as alpha or beta prereleases (`0.x.y-alpha.N` /
+`0.x.y-beta.N`). APIs can move between prereleases; release notes will land on
+this site when they start shipping.

@@ -1,5 +1,5 @@
 ---
 title: "@spfn/monitor"
-description: "Health checks, metrics, request tracing"
+description: "Error tracking, persisted logs, and an admin dashboard"
 source: packages/monitor/README.md
 ---
