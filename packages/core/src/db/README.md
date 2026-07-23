@@ -1,8 +1,9 @@
 # @spfn/core/db — Type-safe PostgreSQL data access (Drizzle ORM)
 
 Standalone CRUD helpers, a `BaseRepository` base class, transaction-aware read/write
-routing, schema helpers, and PostgreSQL error mapping — all built on Drizzle ORM +
-postgres.js. Connection management, schema column helpers, and transactions each live in a
+routing, schema helpers, and PostgreSQL error mapping — built on PostgreSQL Drizzle drivers,
+with postgres.js as the default and external providers such as PGlite supported. Connection
+management, schema column helpers, and transactions each live in a
 sub-module with its own README (linked below); this file covers the **main module**
 (helpers, repository, query-utils, postgres-errors) and the connection/transaction entry
 points re-exported from it.
@@ -49,11 +50,14 @@ Everything re-exported from `@spfn/core/db` (`src/db/index.ts`):
 `fromPostgresError`
 
 **Connection / manager** (sub-module — see [manager/README](./manager/README.md)):
-`createDatabaseFromEnv`, `initDatabase`, `getDatabase`, `setDatabase`, `closeDatabase`,
+`createDatabaseFromEnv`, `initDatabase`, `getDatabase`, `setDatabase`,
+`setDatabaseProvider`, `closeDatabase`,
 `getDatabaseInfo`, `forceReconnectDatabase`, `createDatabaseConnection`, `checkConnection`,
 `reportDatabaseError`, `isConnectionLevelError`, `resetConnectionErrorCounter`,
 `getDrizzleConfig`, `detectDialect`, `generateDrizzleConfigFile`
-Types: `DatabaseClients`, `PoolConfig`, `RetryConfig`, `DrizzleConfigOptions`
+Types: `DatabaseClients`, `DatabaseInitOptions`, `DatabaseOptions`, `DatabaseProvider`,
+`DatabaseTransaction`, `DefaultDatabase`, `DrizzleDatabase`, `PoolConfig`, `RetryConfig`,
+`DrizzleConfigOptions`
 
 **Transactions** (sub-module — see [transaction/README](./transaction/README.md)):
 `Transactional`, `getTransaction`, `runWithTransaction`, `runInTransaction`, `onAfterCommit`
@@ -293,6 +297,19 @@ export class UserRepository extends BaseRepository<AppSchema>
 }
 ```
 
+For an injected driver, pass its database type as the second generic:
+
+```typescript
+import type { PgliteDatabase } from 'drizzle-orm/pglite';
+
+type AppDatabase = PgliteDatabase<AppSchema>;
+
+export class UserRepository extends BaseRepository<AppSchema, AppDatabase>
+{
+    // this.db and this.readDb are AppDatabase
+}
+```
+
 ---
 
 ## Where clauses & query options (`query-utils.ts`)
@@ -527,7 +544,10 @@ type User    = typeof users.$inferSelect;  // SELECT row shape
 type NewUser = typeof users.$inferInsert;  // INSERT shape
 
 // BaseRepository generic:
-abstract class BaseRepository<TSchema extends Record<string, unknown> = Record<string, unknown>>
+abstract class BaseRepository<
+    TSchema extends Record<string, unknown> = Record<string, unknown>,
+    TDatabase extends DrizzleDatabase = PostgresJsDatabase<TSchema>,
+>
 
 // RepositoryError fields:
 class RepositoryError extends Error {

@@ -119,7 +119,7 @@ There is **no validation in the builder** — validation runs inside `startServe
 | `.events(router, cfg?)` | `events` / `eventsConfig` | SSE router (`@spfn/core/event`); `cfg.path` default `/events/stream`, `cfg.auth` for token-gated streams; cross-pod fan-out auto-wires when a cache is set (`cfg.multiInstance`/`cfg.channelPrefix`) |
 | `.websockets(router, cfg?)` | `websockets` / `websocketsConfig` | WS router; `cfg.path` default `/ws`, `cfg.auth` for token auth; same `multiInstance`/`channelPrefix` cross-pod knobs as `.events()` |
 | `.workflows(router, cfg?)` | `workflows` / `workflowsConfig` | `@spfn/workflow` router; inits engine after DB |
-| `.database({...})` | `database` | Pool / healthCheck / monitoring overrides |
+| `.database({...})` | `database` | External Drizzle `provider`, or postgres.js pool / healthCheck / monitoring overrides |
 | `.timeout({...})` | `timeout` | `{ request?, keepAlive?, headers? }` (ms) |
 | `.shutdown({...})` | `shutdown` | `{ timeout? }` (ms) |
 | `.healthCheck({...})` | `healthCheck` | `{ enabled?, path?, detailed? }` |
@@ -282,6 +282,25 @@ When there is no `app.ts`, `createServer` builds the app in this **fixed order**
 ```typescript
 defineServerConfig()
     .infrastructure({ database: false, redis: true })
+    .build();
+```
+
+To use an externally owned PostgreSQL Drizzle driver such as PGlite, pass a provider. This
+replaces environment-based postgres.js initialization; graceful shutdown invokes `close`
+once. The driver remains an application dependency, not an `@spfn/core` runtime dependency.
+
+```typescript
+const client = await PGlite.create('file://./data/app');
+const db = drizzle(client, { schema });
+
+defineServerConfig()
+    .database({
+        provider: {
+            kind: 'pglite',
+            write: db,
+            close: () => client.close(),
+        },
+    })
     .build();
 ```
 

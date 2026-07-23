@@ -10,6 +10,7 @@ export {
     initDatabase,
     getDatabase,
     setDatabase,
+    setDatabaseProvider,
     closeDatabase,
     getDatabaseInfo,
     forceReconnectDatabase,
@@ -26,8 +27,14 @@ export {
 
 export type {
     DatabaseClients,
+    DatabaseInitOptions,
+    DatabaseOptions,
     PoolConfig,
     RetryConfig,
+    DatabaseProvider,
+    DatabaseTransaction,
+    DefaultDatabase,
+    DrizzleDatabase,
 } from './manager';
 
 // Drizzle Config Generator

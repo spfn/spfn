@@ -77,6 +77,20 @@ describe('Server Module', () =>
             expect(config.database!.healthCheck?.enabled).toBe(true);
             expect(config.database!.monitoring?.slowThreshold).toBe(1000);
         });
+
+        it('should accept an external database provider', () =>
+        {
+            const db: any = {};
+            const close = vi.fn(async () =>
+            {});
+            const provider = { kind: 'pglite', write: db, close };
+
+            const config = defineServerConfig()
+                .database({ provider })
+                .build();
+
+            expect(config.database?.provider).toBe(provider);
+        });
     });
 
     describe('Timeout Default Values', () => 

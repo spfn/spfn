@@ -49,6 +49,7 @@ vi.mock('../global-state', () => ({
     setMonitoringConfig: vi.fn(),
     getInitOptions: vi.fn(() => undefined),
     getIsClosing: vi.fn(() => false),
+    getDatabaseProvider: vi.fn(() => undefined),
 }));
 
 describe('Database Health Check', () =>
@@ -529,6 +530,20 @@ describe('Database Health Check', () =>
 
     describe('triggerForceReconnect', () =>
     {
+        it('returns false for an externally provided database', async () =>
+        {
+            const { getDatabaseProvider, getWriteInstance } = await import('../global-state');
+            vi.mocked(getDatabaseProvider).mockReturnValueOnce({
+                kind: 'pglite',
+                write: {} as any,
+            });
+            vi.mocked(getWriteInstance).mockReturnValue({ execute: vi.fn() } as any);
+
+            await expect(triggerForceReconnect('manual')).resolves.toBe(false);
+            const { createDatabaseFromEnv } = await import('../factory');
+            expect(createDatabaseFromEnv).not.toHaveBeenCalled();
+        });
+
         it('returns false and does nothing if DB is not initialized', async () =>
         {
             const { getWriteInstance, getIsClosing } = await import('../global-state');

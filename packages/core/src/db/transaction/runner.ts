@@ -49,6 +49,7 @@ import { getDatabase } from '../manager';
 import { runWithTransaction, getTransactionContext, type TransactionDB, type AfterCommitCallback } from './context';
 import { TransactionError } from '@spfn/core/errors';
 import { env } from '@spfn/core/config';
+import type { DefaultDatabase, DrizzleDatabase } from '../manager/types';
 
 /**
  * PostgreSQL maximum timeout value (max int4)
@@ -147,8 +148,8 @@ export interface RunInTransactionOptions
  * @throws TransactionError if database not initialized or timeout exceeded
  * @throws Any error thrown by callback function
  */
-export async function runInTransaction<T>(
-    callback: (tx: TransactionDB) => Promise<T>,
+export async function runInTransaction<T, TDatabase extends DrizzleDatabase = DefaultDatabase>(
+    callback: (tx: TransactionDB<TDatabase>) => Promise<T>,
     options: RunInTransactionOptions = {},
 ): Promise<T>
 {
@@ -258,7 +259,7 @@ export async function runInTransaction<T>(
     );
 
     // Get write database instance (after all input validations)
-    const writeDb = getDatabase('write');
+    const writeDb = getDatabase<TDatabase>('write');
     if (!writeDb)
     {
         const error = new TransactionError({
@@ -311,27 +312,29 @@ export async function runInTransaction<T>(
     try
     {
         // Execute transaction with PostgreSQL-level timeout
-        const result = await writeDb.transaction(async (tx: TransactionDB) =>
+        const result = await writeDb.transaction(async (tx) =>
         {
+            const transaction = tx as TransactionDB<TDatabase>;
+
             // Set PostgreSQL statement timeout only for root transactions
             // Nested transactions (SAVEPOINTs) would affect the entire outer transaction
             if (timeout > 0 && !isNested)
             {
                 // Using sql.raw() because SET commands don't support parameter binding
-                await tx.execute(sql.raw(`SET LOCAL statement_timeout = ${timeout}`));
+                await transaction.execute(sql.raw(`SET LOCAL statement_timeout = ${timeout}`));
             }
 
             // Idle-in-transaction backstop (root only): reclaims the pooled
             // connection if the transaction sits idle (e.g. awaiting external I/O)
             if (idleTimeout > 0 && !isNested)
             {
-                await tx.execute(sql.raw(`SET LOCAL idle_in_transaction_session_timeout = ${idleTimeout}`));
+                await transaction.execute(sql.raw(`SET LOCAL idle_in_transaction_session_timeout = ${idleTimeout}`));
             }
 
             // Store transaction in AsyncLocalStorage
-            return await runWithTransaction(tx, txId, async () =>
+            return await runWithTransaction(transaction, txId, async () =>
             {
-                const innerResult = await callback(tx);
+                const innerResult = await callback(transaction);
 
                 // Capture afterCommit callbacks before transaction context is destroyed
                 if (!isNested)

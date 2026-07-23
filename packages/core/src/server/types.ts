@@ -8,6 +8,7 @@ import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig } from '../event/sse/types';
 import type { WSRouterDef, WSHandlerConfig } from '../event/ws/types';
+import type { DatabaseProvider } from '@spfn/core/db';
 
 /**
  * Workflow router interface for @spfn/core integration
@@ -304,6 +305,14 @@ export interface ServerConfig
      * Database configuration
      */
     database?: {
+        /**
+         * Externally owned PostgreSQL Drizzle provider.
+         *
+         * When supplied, SPFN skips DATABASE_URL/postgres.js initialization
+         * and closes the provider during graceful shutdown.
+         */
+        provider?: DatabaseProvider;
+
         /**
          * Connection pool configuration
          * Overrides environment variables and defaults

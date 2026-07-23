@@ -1,7 +1,8 @@
 # @spfn/core — Type-safe Next.js + Hono backend framework (route DSL → RPC proxy → typed client)
 
 `@spfn/core` is the backend runtime for SPFN: a tRPC-style **route DSL** (TypeBox-validated,
-end-to-end typed), a Drizzle/postgres.js **data layer**, an HTTP **server** entry point, and a
+end-to-end typed), a PostgreSQL Drizzle **data layer** (postgres.js by default, injectable
+providers such as PGlite), an HTTP **server** entry point, and a
 Next.js **RPC proxy + typed client** that wires a browser/RSC app to that backend with
 compile-time-only type inference.
 

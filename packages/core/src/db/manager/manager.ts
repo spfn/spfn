@@ -4,12 +4,11 @@
  * Supports Primary + Replica pattern with separate read/write instances
  */
 
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 
 import { logger } from '@spfn/core/logger';
 import { createDatabaseFromEnv } from './factory';
-import type { DatabaseOptions, MonitoringConfig } from './config.js';
+import type { DatabaseInitOptions, MonitoringConfig } from './config.js';
 import { buildHealthCheckConfig, buildMonitoringConfig } from './config.js';
 import { env } from '@spfn/core/config';
 import {
@@ -26,13 +25,21 @@ import {
     setInitOptions,
     getIsClosing,
     setIsClosing,
+    getDatabaseProvider,
+    setDatabaseProviderInstance,
 } from './global-state';
 import {
     startHealthCheck,
     stopHealthCheck,
     triggerForceReconnect,
 } from './health-check';
-import type { DbConnectionType } from './types';
+import type {
+    DatabaseProvider,
+    DbConnectionType,
+    DefaultDatabase,
+    DrizzleDatabase,
+} from './types';
+import type { DatabaseClients } from './config';
 
 const dbLogger = logger.child('@spfn/core:database');
 
@@ -57,10 +64,7 @@ const STACK_TRACE_PATTERNS = {
 /**
  * Initialization promise to prevent concurrent initialization
  */
-let initPromise: Promise<{
-    write?: PostgresJsDatabase<Record<string, unknown>>;
-    read?: PostgresJsDatabase<Record<string, unknown>>;
-}> | null = null;
+let initPromise: Promise<DatabaseClients<DrizzleDatabase>> | null = null;
 
 // NOTE: the "closing" flag lives in global-state so reconnect paths in
 // health-check.ts can observe it without creating a circular import back
@@ -145,8 +149,8 @@ async function closeDatabaseClient(client: Sql, type: 'write' | 'read'): Promise
  * @internal
  */
 async function testDatabaseConnections(
-    write: PostgresJsDatabase<Record<string, unknown>> | undefined,
-    read: PostgresJsDatabase<Record<string, unknown>> | undefined,
+    write: DrizzleDatabase | undefined,
+    read: DrizzleDatabase | undefined,
 ): Promise<void>
 {
     if (write)
@@ -246,7 +250,9 @@ function createNotInitializedError(type: DbConnectionType): Error
  * const posts = await dbRead.select().from(postsTable);
  * ```
  */
-export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<string, unknown>>
+export function getDatabase<TDatabase extends DrizzleDatabase = DefaultDatabase>(
+    type?: DbConnectionType,
+): TDatabase
 {
     const writeInst = getWriteInstance();
     const readInst = getReadInstance();
@@ -271,7 +277,7 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
             throw createNotInitializedError('read');
         }
 
-        return db;
+        return db as TDatabase;
     }
 
     // Default: 'write' type
@@ -280,7 +286,7 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
         throw createNotInitializedError('write');
     }
 
-    return writeInst;
+    return writeInst as TDatabase;
 }
 
 /**
@@ -312,17 +318,49 @@ export function getDatabase(type?: DbConnectionType): PostgresJsDatabase<Record<
  * setDatabase(undefined, undefined);
  * ```
  */
-export function setDatabase(
-    write: PostgresJsDatabase<Record<string, unknown>> | undefined,
-    read?: PostgresJsDatabase<Record<string, unknown>> | undefined,
+export function setDatabase<TDatabase extends DrizzleDatabase = DefaultDatabase>(
+    write: TDatabase | undefined,
+    read?: TDatabase | undefined,
 ): void
 {
+    setDatabaseProviderInstance(undefined);
     setWriteInstance(write);
     setReadInstance(read ?? write);
 }
 
 /**
- * Initialize database from environment variables
+ * Register an externally owned PostgreSQL Drizzle provider.
+ *
+ * This is the synchronous/manual counterpart to `initDatabase({ provider })`.
+ * It performs no connection test. Use `closeDatabase()` to invoke the
+ * provider's close callback and clear the global instances.
+ */
+export function setDatabaseProvider<TDatabase extends DrizzleDatabase>(
+    provider: DatabaseProvider<TDatabase>,
+): DatabaseClients<TDatabase>
+{
+    if (!provider.kind.trim())
+    {
+        throw new Error('Database provider kind must be a non-empty string');
+    }
+
+    if (getIsClosing())
+    {
+        throw new Error('Cannot set database provider while closing');
+    }
+
+    setDatabaseProviderInstance(provider);
+    setWriteInstance(provider.write);
+    setReadInstance(provider.read ?? provider.write);
+
+    return {
+        write: provider.write,
+        read: provider.read ?? provider.write,
+    };
+}
+
+/**
+ * Initialize a database provider or create postgres.js clients from environment variables
  * Automatically called by server startup
  *
  * Supported environment variables:
@@ -367,10 +405,9 @@ export function setDatabase(
  * });
  * ```
  */
-export async function initDatabase(options?: DatabaseOptions): Promise<{
-    write?: PostgresJsDatabase<Record<string, unknown>>;
-    read?: PostgresJsDatabase<Record<string, unknown>>;
-}>
+export async function initDatabase<TDatabase extends DrizzleDatabase = DefaultDatabase>(
+    options?: DatabaseInitOptions<TDatabase>,
+): Promise<DatabaseClients<TDatabase>>
 {
     // Prevent initialization during close operation
     if (getIsClosing())
@@ -384,7 +421,10 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
     {
         dbLogger.debug('Database already initialized');
 
-        return { write: writeInst, read: getReadInstance() };
+        return {
+            write: writeInst as TDatabase,
+            read: getReadInstance() as TDatabase | undefined,
+        };
     }
 
     // Initialization in progress - wait for it to complete
@@ -392,7 +432,7 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
     {
         dbLogger.debug('Database initialization in progress, waiting...');
 
-        return await initPromise;
+        return await initPromise as DatabaseClients<TDatabase>;
     }
 
     // Start initialization with lock
@@ -400,6 +440,51 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
     {
         try
         {
+            if (options?.provider)
+            {
+                const provider = options.provider;
+
+                try
+                {
+                    await testDatabaseConnections(provider.write, provider.read);
+                }
+                catch (error: unknown)
+                {
+                    if (provider.close)
+                    {
+                        await Promise.resolve(provider.close()).catch((closeError) =>
+                        {
+                            dbLogger.debug('Database provider cleanup failed', { error: closeError });
+                        });
+                    }
+
+                    const message = error instanceof Error ? error.message : 'Unknown error';
+                    throw new Error(`Database connection test failed: ${message}`);
+                }
+
+                if (getIsClosing())
+                {
+                    if (provider.close)
+                    {
+                        await provider.close();
+                    }
+                    throw new Error('Database closed during initialization');
+                }
+
+                const result = setDatabaseProvider(provider);
+                setInitOptions(options);
+
+                const monConfig = buildMonitoringConfig(options.monitoring);
+                setMonitoringConfig(monConfig);
+
+                dbLogger.info('Database provider connected', {
+                    kind: provider.kind,
+                    hasReplica: !!(provider.read && provider.read !== provider.write),
+                });
+
+                return result;
+            }
+
             // Auto-detect from environment
             const result = await createDatabaseFromEnv(options);
 
@@ -469,13 +554,13 @@ export async function initDatabase(options?: DatabaseOptions): Promise<{
         }
     })();
 
-    return await initPromise;
+    return await initPromise as DatabaseClients<TDatabase>;
 }
 
 /**
- * Close all database connections and cleanup
+ * Close the active database provider or postgres.js connections and clean up
  *
- * Properly closes postgres connection pools with timeout.
+ * Invokes an external provider's close callback, or closes postgres.js pools with timeout.
  * Should be called during graceful shutdown or after tests.
  *
  * @example
@@ -526,7 +611,8 @@ export async function closeDatabase(): Promise<void>
 
     const writeInst = getWriteInstance();
     const readInst = getReadInstance();
-    if (!writeInst && !readInst)
+    const provider = getDatabaseProvider();
+    if (!writeInst && !readInst && !provider)
     {
         dbLogger.debug('No database connections to close');
         setIsClosing(false);
@@ -540,6 +626,17 @@ export async function closeDatabase(): Promise<void>
         stopHealthCheck();
 
         const closePromises: Promise<void>[] = [];
+
+        if (provider?.close)
+        {
+            closePromises.push(
+                Promise.resolve(provider.close()).catch((err) =>
+                {
+                    const error = err instanceof Error ? err : new Error(String(err));
+                    dbLogger.error(`Error closing ${provider.kind} database provider`, error);
+                }),
+            );
+        }
 
         // Close write client
         const writeC = getWriteClient();
@@ -567,6 +664,7 @@ export async function closeDatabase(): Promise<void>
         setReadInstance(undefined);
         setWriteClient(undefined);
         setReadClient(undefined);
+        setDatabaseProviderInstance(undefined);
         setMonitoringConfig(undefined);
         setInitOptions(undefined);
         setIsClosing(false);
@@ -604,6 +702,13 @@ export async function closeDatabase(): Promise<void>
  */
 export async function forceReconnectDatabase(reason = 'manual'): Promise<boolean>
 {
+    if (getDatabaseProvider())
+    {
+        dbLogger.debug('Force reconnect skipped: database is externally provided', { reason });
+
+        return false;
+    }
+
     return await triggerForceReconnect(reason);
 }
 
@@ -640,6 +745,7 @@ export function getDatabaseInfo(): {
     hasWrite: boolean;
     hasRead: boolean;
     isReplica: boolean;
+    providerKind?: string;
 }
 {
     const writeInst = getWriteInstance();
@@ -649,6 +755,7 @@ export function getDatabaseInfo(): {
         hasWrite: !!writeInst,
         hasRead: !!readInst,
         isReplica: !!(readInst && readInst !== writeInst),
+        providerKind: getDatabaseProvider()?.kind,
     };
 }
 

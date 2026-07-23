@@ -16,13 +16,14 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 import { parseNumber, parseBoolean } from '@spfn/core/env';
+import type { DatabaseProvider, DrizzleDatabase } from './types';
 
-export interface DatabaseClients
+export interface DatabaseClients<TDatabase extends DrizzleDatabase = PostgresJsDatabase>
 {
     /** Primary database for writes (or both read/write if no replica) */
-    write?: PostgresJsDatabase;
+    write?: TDatabase;
     /** Replica database for reads (optional, falls back to write) */
-    read?: PostgresJsDatabase;
+    read?: TDatabase;
     /** Raw postgres client for write operations (for cleanup) */
     writeClient?: Sql;
     /** Raw postgres client for read operations (for cleanup) */
@@ -73,6 +74,21 @@ export interface DatabaseOptions
      * Tracks slow queries and logs performance metrics
      */
     monitoring?: Partial<MonitoringConfig>;
+}
+
+/** Database initialization options, including an optional external provider. */
+export interface DatabaseInitOptions<TDatabase extends DrizzleDatabase = PostgresJsDatabase>
+    extends DatabaseOptions
+{
+    /**
+     * Externally owned PostgreSQL Drizzle provider.
+     *
+     * When set, environment-based postgres.js initialization, health checks,
+     * and automatic reconnect are skipped. The provider's `close` callback is
+     * used during shutdown.
+     */
+    provider?: DatabaseProvider<TDatabase>;
+
 }
 
 /**

@@ -30,6 +30,7 @@ import {
     getInitOptions,
     getWriteInstance,
     getIsClosing,
+    getDatabaseProvider,
 } from './global-state';
 import type { GetDatabaseFn } from './types';
 
@@ -302,6 +303,13 @@ export function startHealthCheck(
  */
 export async function triggerForceReconnect(reason: string): Promise<boolean>
 {
+    if (getDatabaseProvider())
+    {
+        dbLogger.debug('Force reconnect skipped: database is externally provided', { reason });
+
+        return false;
+    }
+
     // Do not implicitly initialize the database from a reconnect path.
     // initDatabase() must have run first; otherwise this is almost certainly
     // a test/misconfiguration scenario and we should fail quietly.

@@ -8,9 +8,9 @@
  * during development (e.g., with tsx watch mode).
  */
 
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 import type { DatabaseOptions, MonitoringConfig } from './config';
+import type { DatabaseProvider, DrizzleDatabase } from './types';
 
 // ============================================================================
 // Global Type Declarations
@@ -24,8 +24,9 @@ import type { DatabaseOptions, MonitoringConfig } from './config';
  */
 declare global
 {
-    var __SPFN_DB_WRITE__: PostgresJsDatabase<Record<string, unknown>> | undefined;
-    var __SPFN_DB_READ__: PostgresJsDatabase<Record<string, unknown>> | undefined;
+    var __SPFN_DB_WRITE__: DrizzleDatabase | undefined;
+    var __SPFN_DB_READ__: DrizzleDatabase | undefined;
+    var __SPFN_DB_PROVIDER__: DatabaseProvider | undefined;
     var __SPFN_DB_WRITE_CLIENT__: Sql | undefined;
     var __SPFN_DB_READ_CLIENT__: Sql | undefined;
     var __SPFN_DB_HEALTH_CHECK__: NodeJS.Timeout | undefined;
@@ -43,7 +44,7 @@ declare global
  *
  * @internal - This is an internal API. Use getDatabase() from @spfn/core/db instead.
  */
-export const getWriteInstance = (): PostgresJsDatabase<Record<string, unknown>> | undefined =>
+export const getWriteInstance = (): DrizzleDatabase | undefined =>
     globalThis.__SPFN_DB_WRITE__;
 
 /**
@@ -51,7 +52,7 @@ export const getWriteInstance = (): PostgresJsDatabase<Record<string, unknown>> 
  *
  * @internal - This is an internal API used by the database manager.
  */
-export const setWriteInstance = (instance: PostgresJsDatabase<Record<string, unknown>> | undefined): void => 
+export const setWriteInstance = (instance: DrizzleDatabase | undefined): void =>
 {
     globalThis.__SPFN_DB_WRITE__ = instance;
 };
@@ -61,7 +62,7 @@ export const setWriteInstance = (instance: PostgresJsDatabase<Record<string, unk
  *
  * @internal - This is an internal API. Use getDatabase() from @spfn/core/db instead.
  */
-export const getReadInstance = (): PostgresJsDatabase<Record<string, unknown>> | undefined =>
+export const getReadInstance = (): DrizzleDatabase | undefined =>
     globalThis.__SPFN_DB_READ__;
 
 /**
@@ -69,9 +70,19 @@ export const getReadInstance = (): PostgresJsDatabase<Record<string, unknown>> |
  *
  * @internal - This is an internal API used by the database manager.
  */
-export const setReadInstance = (instance: PostgresJsDatabase<Record<string, unknown>> | undefined): void => 
+export const setReadInstance = (instance: DrizzleDatabase | undefined): void =>
 {
     globalThis.__SPFN_DB_READ__ = instance;
+};
+
+/** Get the externally owned provider, when one is registered. @internal */
+export const getDatabaseProvider = (): DatabaseProvider | undefined =>
+    globalThis.__SPFN_DB_PROVIDER__;
+
+/** Store the externally owned provider. @internal */
+export const setDatabaseProviderInstance = (provider: DatabaseProvider | undefined): void =>
+{
+    globalThis.__SPFN_DB_PROVIDER__ = provider;
 };
 
 // ============================================================================

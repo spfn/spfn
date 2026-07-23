@@ -83,6 +83,7 @@ import { reportDatabaseError } from './manager/reconnect-trigger';
 import { getTransaction } from './transaction';
 import { isSQLWrapper, buildWhereFromObject } from './query-utils';
 import { env } from '@spfn/core/config';
+import type { DrizzleDatabase } from './manager/types';
 
 /**
  * Enhanced error class that includes repository context
@@ -120,8 +121,12 @@ export class RepositoryError extends Error
  * - Outside transaction: Uses global DB instance (with read/write separation)
  *
  * @template TSchema - Database schema type (defaults to Record<string, unknown>)
+ * @template TDatabase - PostgreSQL Drizzle driver type (defaults to postgres.js)
  */
-export abstract class BaseRepository<TSchema extends Record<string, unknown> = Record<string, unknown>>
+export abstract class BaseRepository<
+    TSchema extends Record<string, unknown> = Record<string, unknown>,
+    TDatabase extends DrizzleDatabase = PostgresJsDatabase<TSchema>,
+>
 {
     /**
      * Write database instance
@@ -139,17 +144,17 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      * }
      * ```
      */
-    protected get db(): PostgresJsDatabase<TSchema>
+    protected get db(): TDatabase
     {
         // Transaction context takes precedence
-        const txDb = getTransaction();
+        const txDb = getTransaction<TDatabase>();
         if (txDb)
         {
-            return txDb as PostgresJsDatabase<TSchema>;
+            return txDb as unknown as TDatabase;
         }
 
         // Fall back to global write instance
-        return getDatabase('write') as PostgresJsDatabase<TSchema>;
+        return getDatabase<TDatabase>('write');
     }
 
     /**
@@ -172,17 +177,17 @@ export abstract class BaseRepository<TSchema extends Record<string, unknown> = R
      * }
      * ```
      */
-    protected get readDb(): PostgresJsDatabase<TSchema>
+    protected get readDb(): TDatabase
     {
         // Transaction context takes precedence
-        const txDb = getTransaction();
+        const txDb = getTransaction<TDatabase>();
         if (txDb)
         {
-            return txDb as PostgresJsDatabase<TSchema>;
+            return txDb as unknown as TDatabase;
         }
 
         // Fall back to global read instance (uses replica if configured)
-        return getDatabase('read') as PostgresJsDatabase<TSchema>;
+        return getDatabase<TDatabase>('read');
     }
 
     /**

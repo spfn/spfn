@@ -4,13 +4,14 @@
 
 // Database Factory (Environment Detection)
 export { createDatabaseFromEnv } from './factory';
-export type { DatabaseClients } from './config';
+export type { DatabaseClients, DatabaseInitOptions, DatabaseOptions } from './config';
 
 // Database Manager (Singleton Pattern)
 export {
     initDatabase,
     getDatabase,
     setDatabase,
+    setDatabaseProvider,
     closeDatabase,
     getDatabaseInfo,
     getDatabaseMonitoringConfig,
@@ -29,4 +30,11 @@ export { createDatabaseConnection, checkConnection } from './connection';
 
 // Configuration Types
 export type { PoolConfig, RetryConfig } from './config';
-export type { DbConnectionType, GetDatabaseFn } from './types';
+export type {
+    DatabaseProvider,
+    DatabaseTransaction,
+    DbConnectionType,
+    DefaultDatabase,
+    DrizzleDatabase,
+    GetDatabaseFn,
+} from './types';

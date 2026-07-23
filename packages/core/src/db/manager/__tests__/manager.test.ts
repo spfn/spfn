@@ -9,10 +9,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     getDatabase,
     setDatabase,
+    setDatabaseProvider,
     initDatabase,
     closeDatabase,
     getDatabaseInfo,
     getDatabaseMonitoringConfig,
+    forceReconnectDatabase,
 } from '../manager';
 
 // Mock dependencies
@@ -194,6 +196,85 @@ describe('Database Manager', () =>
             setDatabase(mockWrite2);
 
             expect(getDatabase()).toBe(mockWrite2);
+        });
+    });
+
+    describe('database provider', () =>
+    {
+        it('should register write and read instances', () =>
+        {
+            const mockWrite: any = { _type: 'provider-write' };
+            const mockRead: any = { _type: 'provider-read' };
+
+            const result = setDatabaseProvider({
+                kind: 'test',
+                write: mockWrite,
+                read: mockRead,
+            });
+
+            expect(result).toEqual({ write: mockWrite, read: mockRead });
+            expect(getDatabase('write')).toBe(mockWrite);
+            expect(getDatabase('read')).toBe(mockRead);
+            expect(getDatabaseInfo().providerKind).toBe('test');
+        });
+
+        it('should initialize a provider without creating postgres.js clients', async () =>
+        {
+            const mockDb: any = { execute: vi.fn(async () =>
+            {}) };
+
+            await initDatabase({
+                provider: {
+                    kind: 'test',
+                    write: mockDb,
+                },
+            });
+
+            const { createDatabaseFromEnv } = await import('../factory');
+            const { startHealthCheck } = await import('../health-check');
+            expect(createDatabaseFromEnv).not.toHaveBeenCalled();
+            expect(startHealthCheck).not.toHaveBeenCalled();
+            expect(mockDb.execute).toHaveBeenCalledWith('SELECT 1');
+        });
+
+        it('should close an external provider exactly once', async () =>
+        {
+            const close = vi.fn(async () =>
+            {});
+            const mockDb: any = { execute: vi.fn(async () =>
+            {}) };
+
+            await initDatabase({
+                provider: {
+                    kind: 'test',
+                    write: mockDb,
+                    close,
+                },
+            });
+
+            await Promise.all([closeDatabase(), closeDatabase()]);
+            await closeDatabase();
+
+            expect(close).toHaveBeenCalledTimes(1);
+            expect(() => getDatabase()).toThrow('Database not initialized');
+        });
+
+        it('should skip postgres.js reconnect for an external provider', async () =>
+        {
+            const mockDb: any = { execute: vi.fn(async () =>
+            {}) };
+            await initDatabase({ provider: { kind: 'test', write: mockDb } });
+
+            await expect(forceReconnectDatabase('test')).resolves.toBe(false);
+        });
+
+        it('should reject an empty provider kind', () =>
+        {
+            const mockDb: any = {};
+
+            expect(() => setDatabaseProvider({ kind: '  ', write: mockDb })).toThrow(
+                'Database provider kind must be a non-empty string',
+            );
         });
     });
 

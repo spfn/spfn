@@ -206,6 +206,7 @@
         "ws": "^8.21.0"
     },
     "devDependencies": {
+        "@electric-sql/pglite": "0.5.4",
         "@types/micromatch": "^4.0.9",
         "@types/node": "^20.11.0",
         "@types/ws": "^8.18.1",

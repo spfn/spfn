@@ -1,8 +1,9 @@
 # @spfn/core/db/manager — DB connection lifecycle, pool, health-check & reconnect
 
-Global singleton database manager for postgres.js + Drizzle: connection acquisition,
-pool config, Primary+Replica detection, periodic health checks, and two-tier automatic
-pool recovery (periodic + query-error fast-path).
+Global singleton database manager for PostgreSQL Drizzle drivers. It provides a built-in
+postgres.js path (connection acquisition, pool config, Primary+Replica detection, periodic
+health checks, and two-tier automatic recovery) plus an external provider boundary for
+drivers such as PGlite.
 
 ## Import paths
 
@@ -15,6 +16,7 @@ import {
     initDatabase,
     getDatabase,
     setDatabase,
+    setDatabaseProvider,
     closeDatabase,
     getDatabaseInfo,
     forceReconnectDatabase,
@@ -26,7 +28,10 @@ import {
     resetConnectionErrorCounter,
 } from '@spfn/core/db';
 
-import type { DatabaseClients, PoolConfig, RetryConfig } from '@spfn/core/db';
+import type {
+    DatabaseClients, DatabaseProvider, DatabaseTransaction,
+    DrizzleDatabase, PoolConfig, RetryConfig,
+} from '@spfn/core/db';
 ```
 
 > `getDatabaseMonitoringConfig` and `getDatabaseInfo` are the only debug/introspection
@@ -40,14 +45,17 @@ import type { DatabaseClients, PoolConfig, RetryConfig } from '@spfn/core/db';
 
 Lifecycle:
 
-- `initDatabase(options?): Promise<{ write?, read? }>` — connect from env, test, start
-  health check. Idempotent + concurrency-locked.
-- `getDatabase(type?): PostgresJsDatabase` — get the singleton instance. **Throws** if not
-  initialized. `type` is `'read' | 'write'` (default `'write'`).
+- `initDatabase(options?): Promise<{ write?, read? }>` — connect from env, or register and
+  test `options.provider`. Idempotent + concurrency-locked.
+- `getDatabase<TDatabase>(type?): TDatabase` — get the singleton instance. **Throws** if
+  not initialized. `type` is `'read' | 'write'` (default `'write'`). The default remains
+  `PostgresJsDatabase`; pass the injected driver type for an external provider.
 - `setDatabase(write, read?): void` — directly set instances (testing/manual). No connect,
   no validation, no cleanup of previous instances.
+- `setDatabaseProvider(provider)` — synchronously register an external provider without a
+  connection test. `initDatabase({ provider })` is preferred for application startup.
 - `closeDatabase(): Promise<void>` — graceful shutdown: stop health check, end pools, clear
-  global state.
+  global state, or invoke the external provider's `close` callback exactly once.
 
 Recovery:
 
@@ -73,8 +81,9 @@ Introspection:
 
 - `getDatabaseInfo(): { hasWrite, hasRead, isReplica }` — non-throwing status snapshot.
 
-Types: `DatabaseClients`, `PoolConfig`, `RetryConfig` (also `DbConnectionType`,
-`GetDatabaseFn` from the barrel, but those are not re-exported by `@spfn/core/db`).
+Types: `DatabaseClients`, `DatabaseInitOptions`, `DatabaseOptions`, `DatabaseProvider`,
+`DatabaseTransaction`, `DrizzleDatabase`, `DefaultDatabase`, `PoolConfig`, `RetryConfig`
+(also `DbConnectionType`, `GetDatabaseFn` from the internal barrel).
 
 > **Not exported (internal):** `detectDatabasePattern`, `startHealthCheck`,
 > `stopHealthCheck`, `triggerForceReconnect`, `reconnectAndRestore`, all of
@@ -150,6 +159,11 @@ before init".
   recovery rebuild with the *same* pool/health/monitoring config.
 - Throws `Cannot initialize database while closing` if called during `closeDatabase()`.
 
+When `options.provider` is present, `initDatabase` tests its write/read Drizzle instances,
+registers them, and skips environment-based postgres.js pool creation, periodic health
+checks, and automatic reconnect. Provider implementations own their driver lifecycle;
+SPFN only calls their optional `close` callback during `closeDatabase()`.
+
 ```typescript
 await initDatabase({
     pool:        { max: 50, idleTimeout: 60 },
@@ -157,6 +171,50 @@ await initDatabase({
     monitoring:  { enabled: true, slowThreshold: 1000, logQueries: false },
 });
 ```
+
+### External provider (PGlite example)
+
+PGlite remains a consumer dependency; `@spfn/core` does not load it at runtime.
+
+```typescript
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
+import {
+    BaseRepository,
+    getDatabase,
+    initDatabase,
+    runInTransaction,
+} from '@spfn/core/db';
+
+const client = await PGlite.create('file://./data/app');
+const db = drizzle(client, { schema });
+
+await initDatabase({
+    provider: {
+        kind: 'pglite',
+        write: db,
+        close: () => client.close(),
+    },
+});
+
+type AppDatabase = PgliteDatabase<typeof schema>;
+
+const sameDb = getDatabase<AppDatabase>();
+
+class ProjectRepository extends BaseRepository<typeof schema, AppDatabase>
+{
+    // this.db / this.readDb preserve AppDatabase
+}
+
+await runInTransaction<void, AppDatabase>(async (tx) =>
+{
+    await tx.insert(schema.projects).values({ id: 'project-1' });
+});
+```
+
+Server configs use the same provider through
+`defineServerConfig().database({ provider }).build()`. `startServer()` registers it instead
+of creating a postgres.js pool, and graceful shutdown calls `provider.close`.
 
 ---
 
@@ -313,6 +371,12 @@ Stored at init; consumed internally by the repository layer for slow-query loggi
 - **`setDatabase()` does not clean up.** It swaps the global reference without closing the
   previous pool — passing `undefined` leaks connections. Use `closeDatabase()` for real
   teardown.
+- **`setDatabaseProvider()` also does not replace-and-close.** It is a synchronous manual
+  registration API. Register once, then use `closeDatabase()` for teardown; use
+  `initDatabase({ provider })` when connection validation is wanted.
+- **External providers do not use postgres.js recovery.** Health-check pool rebuilds and
+  `forceReconnectDatabase()` apply only to the built-in environment-backed postgres.js
+  path. A provider must implement any driver-specific recovery itself.
 - **Don't manually call `reportDatabaseError()` for repo/transactional queries** — they are
   already hooked. Manual calls there get **deduped** anyway (WeakSet across the error chain),
   so a single failure counts once. Only feed it for raw `db.execute(...)` outside those
@@ -387,9 +451,18 @@ catch (error)
 ```typescript
 type DbConnectionType = 'read' | 'write';
 
-interface DatabaseClients {
-    write?:       PostgresJsDatabase;   // primary (or both if no replica)
-    read?:        PostgresJsDatabase;   // replica (falls back to write)
+type DrizzleDatabase = PgDatabase<any, any, any>;
+
+interface DatabaseProvider<TDatabase extends DrizzleDatabase> {
+    write: TDatabase;
+    read?: TDatabase;
+    kind: string;
+    close?: () => void | Promise<void>;
+}
+
+interface DatabaseClients<TDatabase = PostgresJsDatabase> {
+    write?:       TDatabase;            // primary (or both if no replica)
+    read?:        TDatabase;            // replica (falls back to write)
     writeClient?: Sql;                  // raw client, for cleanup
     readClient?:  Sql;
 }
@@ -397,10 +470,14 @@ interface DatabaseClients {
 interface PoolConfig  { max: number; idleTimeout: number; }                       // seconds
 interface RetryConfig { maxRetries: number; initialDelay: number; maxDelay: number; factor: number; }
 
-interface DatabaseOptions {            // initDatabase() argument
+interface DatabaseOptions {            // postgres.js pool/health/monitoring options
     pool?:        Partial<PoolConfig>;
     healthCheck?: Partial<HealthCheckConfig>;
     monitoring?:  Partial<MonitoringConfig>;
+}
+
+interface DatabaseInitOptions<TDatabase> extends DatabaseOptions {
+    provider?: DatabaseProvider<TDatabase>;
 }
 ```
 

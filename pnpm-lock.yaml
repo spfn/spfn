@@ -25,7 +25,7 @@ importers:
         version: 0.34.41
       drizzle-typebox:
         specifier: ^0.3.3
-        version: 0.3.3(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
+        version: 0.3.3(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
     devDependencies:
       '@stylistic/eslint-plugin':
         specifier: ^5.10.0
@@ -108,10 +108,10 @@ importers:
         version: 9.2.1
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
       drizzle-typebox:
         specifier: ^0.1.0
-        version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
+        version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
       next:
         specifier: ^16.1.7
         version: 16.2.2(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -178,10 +178,10 @@ importers:
         version: 9.2.1
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
       drizzle-typebox:
         specifier: ^0.1.0
-        version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
+        version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
       next:
         specifier: ^16.1.7
         version: 16.2.2(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -239,7 +239,7 @@ importers:
         version: 1.10.7
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
       jose:
         specifier: ^6.1.0
         version: 6.1.0
@@ -318,7 +318,7 @@ importers:
         version: 0.31.8
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
       execa:
         specifier: ^8.0.1
         version: 8.0.1
@@ -380,7 +380,7 @@ importers:
         version: 0.34.41
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
       jiti:
         specifier: ^2.6.1
         version: 2.6.1
@@ -420,7 +420,7 @@ importers:
         version: 0.31.8
       drizzle-typebox:
         specifier: ^0.1.0
-        version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
+        version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
       glob:
         specifier: 11.1.0
         version: 11.1.0
@@ -465,10 +465,10 @@ importers:
         version: 17.2.3
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
       drizzle-typebox:
         specifier: ^0.1.0
-        version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
+        version: 0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7))
       hono:
         specifier: ^4.12.25
         version: 4.12.27
@@ -501,6 +501,9 @@ importers:
         specifier: ^8.21.0
         version: 8.21.0
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.4
+        version: 0.5.4
       '@types/micromatch':
         specifier: ^4.0.9
         version: 4.0.9
@@ -542,7 +545,7 @@ importers:
         version: 0.31.10
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
       tsup:
         specifier: ^8.5.0
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.8.2)
@@ -582,7 +585,7 @@ importers:
         version: 0.31.8
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
       madge:
         specifier: ^8.0.0
         version: 8.0.0(typescript@5.9.3)
@@ -619,7 +622,7 @@ importers:
         version: 0.31.8
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
       madge:
         specifier: ^8.0.0
         version: 8.0.0(typescript@5.9.3)
@@ -776,7 +779,7 @@ importers:
         version: 0.31.8
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
       tsup:
         specifier: ^8.5.0
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.8.2)
@@ -1682,6 +1685,9 @@ packages:
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
+
+  '@electric-sql/pglite@0.5.4':
+    resolution: {integrity: sha512-yYZUyyXrHU7tPlCjwZQJ6hIG9DscdCCn7Uk0mYKwC1FeHX286AbcmFveMiRBEak8e9iPupjsoVImN3yJZVed2g==}
 
   '@emnapi/core@1.11.1':
     resolution: {integrity: sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ==}
@@ -7792,6 +7798,8 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
+  '@electric-sql/pglite@0.5.4': {}
+
   '@emnapi/core@1.11.1':
     dependencies:
       '@emnapi/wasi-threads': 1.2.2
@@ -9883,22 +9891,23 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7):
+  drizzle-orm@0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7):
     optionalDependencies:
+      '@electric-sql/pglite': 0.5.4
       '@types/pg': 8.15.6
       gel: 2.1.1
       pg: 8.16.3
       postgres: 3.4.7
 
-  drizzle-typebox@0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)):
+  drizzle-typebox@0.1.1(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)):
     dependencies:
       '@sinclair/typebox': 0.34.41
-      drizzle-orm: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+      drizzle-orm: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
 
-  drizzle-typebox@0.3.3(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)):
+  drizzle-typebox@0.3.3(@sinclair/typebox@0.34.41)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)):
     dependencies:
       '@sinclair/typebox': 0.34.41
-      drizzle-orm: 0.45.2(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
+      drizzle-orm: 0.45.2(@electric-sql/pglite@0.5.4)(@types/pg@8.15.6)(gel@2.1.1)(pg@8.16.3)(postgres@3.4.7)
 
   dunder-proto@1.0.1:
     dependencies:

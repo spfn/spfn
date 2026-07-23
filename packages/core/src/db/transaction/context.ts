@@ -11,14 +11,18 @@
  * - Transaction nesting level tracking
  */
 import { AsyncLocalStorage } from 'async_hooks';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { logger } from '@spfn/core/logger'; // Assuming logger is accessible
+import type {
+    DatabaseTransaction,
+    DefaultDatabase,
+    DrizzleDatabase,
+} from '../manager/types';
 
 /**
- * Transaction database type
- * Uses Record<string, unknown> to accept any schema shape
+ * Transaction type belonging to a PostgreSQL Drizzle database.
  */
-export type TransactionDB = PostgresJsDatabase<Record<string, unknown>>;
+export type TransactionDB<TDatabase extends DrizzleDatabase = DefaultDatabase> =
+    DatabaseTransaction<TDatabase>;
 
 const txLogger = logger.child('@spfn/core:transaction');
 
@@ -30,9 +34,9 @@ export type AfterCommitCallback = () => void | Promise<void>;
 /**
  * Transaction context stored in AsyncLocalStorage
  */
-export type TransactionContext = {
+export type TransactionContext<TDatabase extends DrizzleDatabase = DrizzleDatabase> = {
     /** The actual Drizzle transaction object */
-    tx: TransactionDB;
+    tx: TransactionDB<TDatabase>;
     /** Unique transaction ID for logging and tracing */
     txId: string;
     level: number;
@@ -50,9 +54,9 @@ export const asyncContext = new AsyncLocalStorage<TransactionContext>();
  *
  * @returns TransactionContext if available, null otherwise
  */
-export function getTransactionContext(): TransactionContext | null
+export function getTransactionContext<TDatabase extends DrizzleDatabase = DefaultDatabase>(): TransactionContext<TDatabase> | null
 {
-    return asyncContext.getStore() ?? null;
+    return (asyncContext.getStore() as TransactionContext<TDatabase> | undefined) ?? null;
 }
 
 /**
@@ -60,9 +64,9 @@ export function getTransactionContext(): TransactionContext | null
  *
  * @returns Transaction if available, null otherwise
  */
-export function getTransaction(): TransactionDB | null
+export function getTransaction<TDatabase extends DrizzleDatabase = DefaultDatabase>(): TransactionDB<TDatabase> | null
 {
-    const context = getTransactionContext();
+    const context = getTransactionContext<TDatabase>();
 
     return context?.tx ?? null;
 }
@@ -90,8 +94,8 @@ export function getTransactionId(): string | null
  * @param callback - Function to run within transaction context
  * @returns Result of the callback
  */
-export function runWithTransaction<T>(
-    tx: TransactionDB,
+export function runWithTransaction<T, TDatabase extends DrizzleDatabase = DefaultDatabase>(
+    tx: TransactionDB<TDatabase>,
     txId: string, // Add txId parameter
     callback: () => Promise<T>,
 ): Promise<T>
@@ -122,7 +126,10 @@ export function runWithTransaction<T>(
         : [];
 
     // Store transaction, new ID, and the current nesting level
-    return asyncContext.run({ tx, txId, level: newLevel, afterCommitCallbacks }, callback);
+    return asyncContext.run(
+        { tx, txId, level: newLevel, afterCommitCallbacks } as TransactionContext,
+        callback,
+    );
 }
 
 /**

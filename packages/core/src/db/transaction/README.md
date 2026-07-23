@@ -167,6 +167,20 @@ function runInTransaction<T>(
 ): Promise<T>;
 ```
 
+For an injected driver, supply its database type as the second generic. The callback then
+receives that driver's matching Drizzle transaction type:
+
+```typescript
+import type { PgliteDatabase } from 'drizzle-orm/pglite';
+
+type AppDatabase = PgliteDatabase<typeof schema>;
+
+await runInTransaction<void, AppDatabase>(async (tx) =>
+{
+    await tx.insert(schema.users).values({ id: 'user-1' });
+});
+```
+
 ### `RunInTransactionOptions`
 
 | Option | Type | Default | Notes |
@@ -411,12 +425,12 @@ await runInTransaction(async (tx) =>
 ## Types reference
 
 ```typescript
-type TransactionDB = PostgresJsDatabase<Record<string, unknown>>;
+type TransactionDB<TDatabase = DefaultDatabase> = DatabaseTransaction<TDatabase>;
 
 type AfterCommitCallback = () => void | Promise<void>;
 
-type TransactionContext = {
-    tx: TransactionDB;                          // live Drizzle transaction
+type TransactionContext<TDatabase = DrizzleDatabase> = {
+    tx: TransactionDB<TDatabase>;               // live Drizzle transaction
     txId: string;                               // "tx_<uuid>" — tracing id
     level: number;                              // nesting depth, root = 1
     afterCommitCallbacks: AfterCommitCallback[]; // shared with the root
