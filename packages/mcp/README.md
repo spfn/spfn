@@ -1,14 +1,21 @@
 # @spfn/mcp
 
-`@spfn/mcp` mounts an OAuth-protected Model Context Protocol endpoint in an SPFN
-application. The official MCP TypeScript SDK handles protocol negotiation, JSON-RPC,
-Streamable HTTP, schema validation, and legacy compatibility. This package supplies the
-SPFN route adapter and application-facing tool, resource, prompt, and authentication hooks.
+`@spfn/mcp` serves one application-defined Model Context Protocol contract over remote
+Streamable HTTP or local stdio. The official MCP TypeScript SDK handles protocol
+negotiation, JSON-RPC, schema validation, and legacy compatibility. This package supplies
+a transport-neutral dispatcher, an OAuth-protected SPFN route adapter, and a local stdio
+bridge with application-facing tool, resource, prompt, and lifecycle hooks.
 
 The package is currently beta and requires Node.js 20 or newer. It pins the MCP v2 beta
 while the `2026-07-28` protocol release is being finalized. Its public SPFN API does not
 expose SDK-specific server or transport objects, so the SDK can be upgraded without
 rewriting application routes.
+
+Use Streamable HTTP when an MCP client connects over a network and needs OAuth, Host, and
+Origin validation. Use stdio when an Agent host starts a local child process and process
+spawn authority is the trust boundary. A stdio bridge should remain thin: inject a client
+for the already-running local daemon instead of opening a second database connection or
+mutating domain files itself.
 
 ## Migrating from 0.1
 
@@ -36,7 +43,34 @@ tool calls, pass an explicit application-owned handle as a tool argument.
 pnpm add @spfn/mcp @spfn/core
 ```
 
-## Create a route
+`@spfn/core` is only required for the HTTP route. A stdio-only bridge does not import it.
+
+## Define a transport-neutral dispatcher
+
+The dispatcher owns tool, resource, and prompt registration plus the shared validation and
+error policy. It does not authenticate a network request or read process streams.
+
+```ts
+import { createMcpDispatcher } from '@spfn/mcp/dispatcher';
+
+const dispatcher = createMcpDispatcher<Authority, Context>({
+    serverInfo: { name: 'example-app', version: '1.0.0' },
+    listTools: () => tools,
+    resources: {
+        list: ctx => listResources(ctx),
+        read: (ctx, uri) => readResource(ctx, uri),
+    },
+    prompts: {
+        list: ctx => listPrompts(ctx),
+        get: (ctx, name, args) => renderPrompt(ctx, name, args),
+    },
+});
+```
+
+The same dispatcher can be passed to `createMcpHttpRoute` and `serveMcpStdio`. The older
+`createMcpRoute` convenience API remains compatible and creates the dispatcher internally.
+
+## Remote Streamable HTTP
 
 ```ts
 import { createMcpRoute, McpError } from '@spfn/mcp/server';
@@ -111,6 +145,67 @@ export const appRouter = defineRouter({
 The adapter registers `POST`, `GET`, and `DELETE` handlers at `/mcp` and skips SPFN's
 session middleware. `validateToken` is therefore the authentication boundary and must
 validate the token audience against the supplied `resource` value.
+
+To reuse an existing dispatcher, use the explicit HTTP adapter:
+
+```ts
+import { createMcpHttpRoute } from '@spfn/mcp/server';
+
+export const mcpRouter = createMcpHttpRoute({
+    dispatcher,
+    appUrl: 'https://app.example.com',
+    validateToken,
+    resolveContext,
+});
+```
+
+## Local stdio
+
+```ts
+import { createMcpDispatcher } from '@spfn/mcp/dispatcher';
+import { serveMcpStdio } from '@spfn/mcp/stdio';
+
+const daemonClient = createLocalDaemonClient();
+const dispatcher = createMcpDispatcher<LocalAuthority, LocalDaemonClient>({
+    serverInfo: { name: 'local-workspace', version: '1.0.0' },
+    listTools: () => [{
+        name: 'greet',
+        inputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+        },
+        handler: (args, daemon) => daemon.greet(String(args.name)),
+    }],
+});
+
+const bridge = serveMcpStdio({
+    dispatcher,
+    createSession: () => ({
+        auth: { transport: 'stdio' },
+        ctx: daemonClient,
+    }),
+});
+
+await bridge.closed;
+```
+
+`serveMcpStdio` writes MCP frames only to stdout. Transport diagnostics use stderr and do
+not include the rejected frame or handler exception. EOF, stdin/stdout disconnect,
+`SIGINT`, `SIGTERM`, and an explicit `bridge.close()` all close the MCP server and transport
+gracefully. Set `signals: false` only when an embedding process owns signal handling.
+
+stdio does not run OAuth. The Agent host deciding which executable and arguments to spawn
+is the authorization boundary, so protect the executable and its configuration as local
+capabilities. See [`examples/stdio-bridge.ts`](./examples/stdio-bridge.ts) for a thin bridge
+that delegates every domain operation to an injected daemon client.
+
+## Package entry points
+
+- `@spfn/mcp` — shared public types and `McpError`
+- `@spfn/mcp/dispatcher` — transport-neutral dispatcher
+- `@spfn/mcp/server` — OAuth Streamable HTTP adapters for SPFN
+- `@spfn/mcp/stdio` — Node.js stdio bridge and lifecycle handle
 
 ## Request context
 

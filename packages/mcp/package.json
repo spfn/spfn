@@ -9,13 +9,22 @@
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
         },
+        "./dispatcher": {
+            "types": "./dist/dispatcher.d.ts",
+            "import": "./dist/dispatcher.js"
+        },
         "./server": {
             "types": "./dist/server.d.ts",
             "import": "./dist/server.js"
+        },
+        "./stdio": {
+            "types": "./dist/stdio.d.ts",
+            "import": "./dist/stdio.js"
         }
     },
     "files": [
         "dist",
+        "examples",
         "README.md",
         "LICENSE"
     ],
@@ -27,7 +36,7 @@
         "clean": "rm -rf dist",
         "test": "vitest run",
         "test:watch": "vitest",
-        "type-check": "tsc --noEmit",
+        "type-check": "tsc --noEmit && tsc -p tsconfig.examples.json",
         "check:circular": "madge --circular --extensions ts src/",
         "publish:alpha": "npm publish --access public --tag alpha",
         "publish:beta": "npm publish --access public --tag beta",
@@ -39,6 +48,7 @@
         "model-context-protocol",
         "hono",
         "oauth",
+        "stdio",
         "typescript"
     ],
     "author": "Ray Im <rayim@fxy.global>",
@@ -60,6 +70,11 @@
     },
     "peerDependencies": {
         "@spfn/core": ">=0.2.0-beta.64"
+    },
+    "peerDependenciesMeta": {
+        "@spfn/core": {
+            "optional": true
+        }
     },
     "devDependencies": {
         "@spfn/core": "workspace:*",

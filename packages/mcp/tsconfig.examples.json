@@ -1,0 +1,14 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noEmit": true,
+        "rootDir": ".",
+        "baseUrl": ".",
+        "paths": {
+            "@spfn/mcp/dispatcher": ["src/dispatcher-entry.ts"],
+            "@spfn/mcp/stdio": ["src/stdio.ts"]
+        }
+    },
+    "include": ["examples/**/*"],
+    "exclude": []
+}
