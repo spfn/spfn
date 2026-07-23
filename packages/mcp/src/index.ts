@@ -120,13 +120,14 @@ export type McpErrorEvent = {
     error: unknown;
 };
 
-export type McpRouteConfig<Auth extends McpAuth, Ctx> = {
-    appUrl: string;
+export type McpDispatchSession<Auth, Ctx> = {
+    auth: Auth;
+    ctx: Ctx;
+    requestId: string;
+};
+
+export type McpDispatcherConfig<Auth, Ctx> = {
     serverInfo: McpServerInfo;
-    resource?: string | ((appUrl: string) => string);
-    resourceMetadataUrl?: string;
-    validateToken: (token: string, resource: string) => Promise<Auth>;
-    resolveContext: (auth: Auth, request: McpRequestInfo) => Promise<Ctx>;
     listTools: (ctx: Ctx) => McpTool<Ctx>[] | Promise<McpTool<Ctx>[]>;
     resources?: {
         list: (ctx: Ctx) => McpResourceDefinition[] | Promise<McpResourceDefinition[]>;
@@ -136,19 +137,55 @@ export type McpRouteConfig<Auth extends McpAuth, Ctx> = {
         list: (ctx: Ctx) => McpPromptDefinition[] | Promise<McpPromptDefinition[]>;
         get: (ctx: Ctx, name: string, args: Record<string, string>) => Promise<McpPromptResult>;
     };
+    onToolCall?: (event: McpToolCallEvent<Auth, Ctx>) => void | Promise<void>;
+    onError?: (event: McpErrorEvent) => void | Promise<void>;
+};
+
+declare const dispatcherBrand: unique symbol;
+
+export type McpDispatcher<Auth, Ctx> = {
+    readonly serverInfo: McpServerInfo;
+    readonly [dispatcherBrand]: {
+        auth: Auth;
+        ctx: Ctx;
+    };
+};
+
+type McpHttpTransportConfig<Auth extends McpAuth, Ctx> = {
+    appUrl: string;
+    resource?: string | ((appUrl: string) => string);
+    resourceMetadataUrl?: string;
+    validateToken: (token: string, resource: string) => Promise<Auth>;
+    resolveContext: (auth: Auth, request: McpRequestInfo) => Promise<Ctx>;
     security?: {
         allowedHosts?: string[];
         allowedOrigins?: string[];
     };
     responseMode?: 'auto' | 'sse' | 'json';
-    onToolCall?: (event: McpToolCallEvent<Auth, Ctx>) => void | Promise<void>;
-    onError?: (event: McpErrorEvent) => void | Promise<void>;
 };
+
+export type McpHttpRouteConfig<Auth extends McpAuth, Ctx> =
+    McpHttpTransportConfig<Auth, Ctx> & {
+        dispatcher: McpDispatcher<Auth, Ctx>;
+    };
+
+export type McpRouteConfig<Auth extends McpAuth, Ctx> =
+    McpDispatcherConfig<Auth, Ctx> & McpHttpTransportConfig<Auth, Ctx>;
+
+const MCP_ERROR_BRAND = Symbol.for('@spfn/mcp.error');
 
 export class McpError extends Error
 {
     readonly code: number;
     readonly httpStatus?: number;
+    readonly [MCP_ERROR_BRAND] = true;
+
+    static [Symbol.hasInstance](value: unknown): boolean
+    {
+        return typeof value === 'object'
+            && value !== null
+            && MCP_ERROR_BRAND in value;
+    }
 
     constructor(code: number, message: string, httpStatus?: number)
     {
