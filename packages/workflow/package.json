@@ -1,6 +1,6 @@
 {
   "name": "@spfn/workflow",
-  "version": "0.1.0-alpha.18",
+    "version": "0.1.0-alpha.19",
   "description": "Lightweight workflow engine - Pipeline orchestration for @spfn/core",
   "type": "module",
   "exports": {
@@ -16,7 +16,10 @@
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "type-check": "tsc --noEmit"
+        "type-check": "tsc --noEmit",
+        "publish:alpha": "npm publish --access public --tag alpha",
+        "publish:beta": "npm publish --access public --tag beta",
+        "publish:latest": "npm publish --access public"
   },
   "keywords": [
     "spfn",
@@ -45,13 +48,14 @@
     "@sinclair/typebox": "^0.34.0"
   },
   "peerDependencies": {
-    "@spfn/core": ">=0.2.0-beta.54"
+    "@spfn/core": ">=0.2.0-beta.54",
+    "drizzle-orm": ">=1.0.0-rc.4 <2"
   },
   "devDependencies": {
     "@spfn/core": "workspace:*",
     "@types/node": "^20.11.0",
-    "drizzle-kit": "^0.31.8",
-    "drizzle-orm": "^0.45.0",
+    "drizzle-kit": "1.0.0-rc.4",
+    "drizzle-orm": "1.0.0-rc.4",
     "tsup": "^8.5.0",
     "typescript": "^5.3.3",
     "vitest": "^4.0.6"

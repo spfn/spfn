@@ -18,7 +18,7 @@ Lightweight workflow engine - Pipeline orchestration based on `@spfn/core` Jobs
 ## Installation
 
 ```bash
-pnpm add @spfn/workflow
+pnpm add @spfn/workflow drizzle-orm@1.0.0-rc.4
 ```
 
 ## Prerequisites

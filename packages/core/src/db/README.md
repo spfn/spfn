@@ -291,14 +291,18 @@ async findById(id: number)
 The built-in `_`-helpers do **not** auto-wrap with `withContext`; wrap raw `this.db` /
 `this.readDb` queries yourself when you want the enriched error + reconnect reporting.
 
-### Typed schema (optional)
+### Typed relations (optional)
 
 ```typescript
-import type { AppSchema } from './schema';
+import { defineRelations } from 'drizzle-orm';
+import * as schema from './schema';
 
-export class UserRepository extends BaseRepository<AppSchema>
+export const relations = defineRelations(schema);
+export type AppRelations = typeof relations;
+
+export class UserRepository extends BaseRepository<AppRelations>
 {
-    // this.db and this.readDb are now PostgresJsDatabase<AppSchema>
+    // this.db and this.readDb preserve AppRelations
 }
 ```
 
@@ -307,9 +311,9 @@ For an injected driver, pass its database type as the second generic:
 ```typescript
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 
-type AppDatabase = PgliteDatabase<AppSchema>;
+type AppDatabase = PgliteDatabase<AppRelations>;
 
-export class UserRepository extends BaseRepository<AppSchema, AppDatabase>
+export class UserRepository extends BaseRepository<AppRelations, AppDatabase>
 {
     // this.db and this.readDb are AppDatabase
 }
@@ -550,8 +554,8 @@ type NewUser = typeof users.$inferInsert;  // INSERT shape
 
 // BaseRepository generic:
 abstract class BaseRepository<
-    TSchema extends Record<string, unknown> = Record<string, unknown>,
-    TDatabase extends DrizzleDatabase = PostgresJsDatabase<TSchema>,
+    TRelations extends AnyRelations = EmptyRelations,
+    TDatabase extends DrizzleDatabase = PostgresJsDatabase<TRelations>,
 >
 
 // RepositoryError fields:

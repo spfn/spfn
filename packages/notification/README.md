@@ -14,7 +14,7 @@ Multi-channel notification system for SPFN applications.
 ## Installation
 
 ```bash
-pnpm add @spfn/notification
+pnpm add @spfn/notification drizzle-orm@1.0.0-rc.4
 ```
 
 ### Optional Dependencies

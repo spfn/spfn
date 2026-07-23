@@ -51,10 +51,10 @@
  *
  * @example With Custom Schema Type
  * ```typescript
- * import type { AppSchema } from './schema';
+ * import type { AppRelations } from './relations';
  *
- * export class UserRepository extends BaseRepository<AppSchema> {
- *     // Now this.db and this.readDb are typed with AppSchema
+ * export class UserRepository extends BaseRepository<AppRelations> {
+ *     // Now this.db and this.readDb preserve the app's Drizzle relations
  * }
  * ```
  *
@@ -75,19 +75,21 @@
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import type { SQL } from 'drizzle-orm';
+import type { AnyRelations, EmptyRelations, InferInsertModel, InferSelectModel, SQL } from 'drizzle-orm';
 import { count as sqlCount, and, gt, lt, asc, desc } from 'drizzle-orm';
-import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
+import type { PgAsyncDatabase, PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { getDatabase } from './manager';
 import { reportDatabaseError } from './manager/reconnect-trigger';
 import { getTransaction } from './transaction';
 import { isSQLWrapper, buildWhereFromObject } from './query-utils';
 import { env } from '@spfn/core/config';
-import type { DatabaseTransaction, DrizzleDatabase } from './manager/types';
+import type { DrizzleDatabase } from './manager/types';
 
 /** Database surface available to repositories inside and outside transactions. */
 export type RepositoryDatabase<TDatabase extends DrizzleDatabase> =
-    TDatabase | DatabaseTransaction<TDatabase>;
+    TDatabase extends PgAsyncDatabase<infer TQueryResult, infer TRelations>
+        ? PgAsyncDatabase<TQueryResult, TRelations>
+        : never;
 
 /**
  * Enhanced error class that includes repository context
@@ -124,12 +126,12 @@ export class RepositoryError extends Error
  * - Inside transaction: Uses transaction DB
  * - Outside transaction: Uses global DB instance (with read/write separation)
  *
- * @template TSchema - Database schema type (defaults to Record<string, unknown>)
+ * @template TRelations - Drizzle relations type (defaults to no relations)
  * @template TDatabase - PostgreSQL Drizzle driver type (defaults to postgres.js)
  */
 export abstract class BaseRepository<
-    TSchema extends Record<string, unknown> = Record<string, unknown>,
-    TDatabase extends DrizzleDatabase = PostgresJsDatabase<TSchema>,
+    TRelations extends AnyRelations = EmptyRelations,
+    TDatabase extends DrizzleDatabase = PostgresJsDatabase<TRelations>,
 >
 {
     /**
@@ -154,11 +156,11 @@ export abstract class BaseRepository<
         const txDb = getTransaction<TDatabase>();
         if (txDb)
         {
-            return txDb;
+            return txDb as RepositoryDatabase<TDatabase>;
         }
 
         // Fall back to global write instance
-        return getDatabase<TDatabase>('write');
+        return getDatabase<TDatabase>('write') as unknown as RepositoryDatabase<TDatabase>;
     }
 
     /**
@@ -187,11 +189,11 @@ export abstract class BaseRepository<
         const txDb = getTransaction<TDatabase>();
         if (txDb)
         {
-            return txDb;
+            return txDb as RepositoryDatabase<TDatabase>;
         }
 
         // Fall back to global read instance (uses replica if configured)
-        return getDatabase<TDatabase>('read');
+        return getDatabase<TDatabase>('read') as unknown as RepositoryDatabase<TDatabase>;
     }
 
     /**
@@ -271,7 +273,7 @@ export abstract class BaseRepository<
     protected async _findOne<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined,
-    ): Promise<T['$inferSelect'] | null>
+    ): Promise<InferSelectModel<T> | null>
     {
         const whereClause = isSQLWrapper(where)
             ? where
@@ -282,9 +284,9 @@ export abstract class BaseRepository<
             throw new Error('findOne requires at least one where condition');
         }
 
-        const results = await this.readDb.select().from(table as PgTable).where(whereClause).limit(1);
+        const results = await this.readDb.select().from(table as any).where(whereClause).limit(1);
 
-        return (results[0] as T['$inferSelect']) ?? null;
+        return (results[0] as InferSelectModel<T>) ?? null;
     }
 
     /**
@@ -311,9 +313,9 @@ export abstract class BaseRepository<
             limit?: number;
             offset?: number;
         },
-    ): Promise<T['$inferSelect'][]>
+    ): Promise<InferSelectModel<T>[]>
     {
-        let query = this.readDb.select().from(table as PgTable);
+        let query = this.readDb.select().from(table as any);
 
         // Apply where
         if (options?.where)
@@ -355,7 +357,7 @@ export abstract class BaseRepository<
             query = query.offset(options.offset) as any;
         }
 
-        return query as Promise<T['$inferSelect'][]>;
+        return query as unknown as Promise<InferSelectModel<T>[]>;
     }
 
     /**
@@ -386,7 +388,7 @@ export abstract class BaseRepository<
             order?: 'asc' | 'desc';
             where?: Record<string, any> | SQL | undefined;
         },
-    ): Promise<T['$inferSelect'][]>
+    ): Promise<InferSelectModel<T>[]>
     {
         const { cursorColumn, after, order = 'asc', where } = options;
 
@@ -407,7 +409,7 @@ export abstract class BaseRepository<
             ? and(baseWhere, cursorPredicate)
             : (cursorPredicate ?? baseWhere);
 
-        let query = this.readDb.select().from(table as PgTable);
+        let query = this.readDb.select().from(table as any);
 
         if (whereClause)
         {
@@ -417,7 +419,7 @@ export abstract class BaseRepository<
         query = query.orderBy(order === 'desc' ? desc(cursorColumn) : asc(cursorColumn)) as any;
         query = query.limit(limit) as any;
 
-        return query as Promise<T['$inferSelect'][]>;
+        return query as unknown as Promise<InferSelectModel<T>[]>;
     }
 
     /**
@@ -437,12 +439,13 @@ export abstract class BaseRepository<
      */
     protected async _create<T extends PgTable>(
         table: T,
-        data: T['$inferInsert'],
-    ): Promise<T['$inferSelect']>
+        data: InferInsertModel<T>,
+    ): Promise<InferSelectModel<T>>
     {
-        const [result] = await this.db.insert(table).values(data).returning();
+        const results = await this.db.insert(table).values(data as any).returning();
+        const result = (results as unknown as InferSelectModel<T>[])[0];
 
-        return result as T['$inferSelect'];
+        return result as InferSelectModel<T>;
     }
 
     /**
@@ -462,12 +465,12 @@ export abstract class BaseRepository<
      */
     protected async _createMany<T extends PgTable>(
         table: T,
-        data: T['$inferInsert'][],
-    ): Promise<T['$inferSelect'][]>
+        data: InferInsertModel<T>[],
+    ): Promise<InferSelectModel<T>[]>
     {
-        const results = await this.db.insert(table).values(data).returning();
+        const results = await this.db.insert(table).values(data as any).returning();
 
-        return results as T['$inferSelect'][];
+        return results as InferSelectModel<T>[];
     }
 
     /**
@@ -491,23 +494,24 @@ export abstract class BaseRepository<
      */
     protected async _upsert<T extends PgTable>(
         table: T,
-        data: T['$inferInsert'],
+        data: InferInsertModel<T>,
         options: {
             target: PgColumn[];
-            set?: Partial<T['$inferInsert']> | Record<string, SQL | any>;
+            set?: Partial<InferInsertModel<T>> | Record<string, SQL | any>;
         },
-    ): Promise<T['$inferSelect']>
+    ): Promise<InferSelectModel<T>>
     {
-        const [result] = await this.db
+        const results = await this.db
             .insert(table)
-            .values(data)
+            .values(data as any)
             .onConflictDoUpdate({
                 target: options.target,
-                set: options.set || data,
+                set: (options.set || data) as any,
             })
             .returning();
+        const result = (results as unknown as InferSelectModel<T>[])[0];
 
-        return result as T['$inferSelect'];
+        return result as InferSelectModel<T>;
     }
 
     /**
@@ -529,8 +533,8 @@ export abstract class BaseRepository<
     protected async _updateOne<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined,
-        data: Partial<T['$inferInsert']>,
-    ): Promise<T['$inferSelect'] | null>
+        data: Partial<InferInsertModel<T>>,
+    ): Promise<InferSelectModel<T> | null>
     {
         const whereClause = isSQLWrapper(where)
             ? where
@@ -541,9 +545,10 @@ export abstract class BaseRepository<
             throw new Error('updateOne requires at least one where condition');
         }
 
-        const [result] = await this.db.update(table).set(data).where(whereClause).returning();
+        const results = await this.db.update(table).set(data as any).where(whereClause).returning();
+        const result = (results as unknown as InferSelectModel<T>[])[0];
 
-        return (result as T['$inferSelect']) ?? null;
+        return (result as InferSelectModel<T>) ?? null;
     }
 
     /**
@@ -565,8 +570,8 @@ export abstract class BaseRepository<
     protected async _updateMany<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined,
-        data: Partial<T['$inferInsert']>,
-    ): Promise<T['$inferSelect'][]>
+        data: Partial<InferInsertModel<T>>,
+    ): Promise<InferSelectModel<T>[]>
     {
         const whereClause = isSQLWrapper(where)
             ? where
@@ -577,9 +582,9 @@ export abstract class BaseRepository<
             throw new Error('updateMany requires at least one where condition');
         }
 
-        const results = await this.db.update(table).set(data).where(whereClause).returning();
+        const results = await this.db.update(table).set(data as any).where(whereClause).returning();
 
-        return results as T['$inferSelect'][];
+        return results as InferSelectModel<T>[];
     }
 
     /**
@@ -597,7 +602,7 @@ export abstract class BaseRepository<
     protected async _deleteOne<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined,
-    ): Promise<T['$inferSelect'] | null>
+    ): Promise<InferSelectModel<T> | null>
     {
         const whereClause = isSQLWrapper(where)
             ? where
@@ -608,9 +613,10 @@ export abstract class BaseRepository<
             throw new Error('deleteOne requires at least one where condition');
         }
 
-        const [result] = await this.db.delete(table).where(whereClause).returning();
+        const results = await this.db.delete(table).where(whereClause).returning();
+        const result = (results as unknown as InferSelectModel<T>[])[0];
 
-        return (result as T['$inferSelect']) ?? null;
+        return (result as InferSelectModel<T>) ?? null;
     }
 
     /**
@@ -628,7 +634,7 @@ export abstract class BaseRepository<
     protected async _deleteMany<T extends PgTable>(
         table: T,
         where: Record<string, any> | SQL | undefined,
-    ): Promise<T['$inferSelect'][]>
+    ): Promise<InferSelectModel<T>[]>
     {
         const whereClause = isSQLWrapper(where)
             ? where
@@ -641,7 +647,7 @@ export abstract class BaseRepository<
 
         const results = await this.db.delete(table).where(whereClause).returning();
 
-        return results as T['$inferSelect'][];
+        return results as InferSelectModel<T>[];
     }
 
     /**
@@ -662,7 +668,7 @@ export abstract class BaseRepository<
         where?: Record<string, any> | SQL | undefined,
     ): Promise<number>
     {
-        let query = this.readDb.select({ count: sqlCount() }).from(table as PgTable);
+        let query = this.readDb.select({ count: sqlCount() }).from(table as any);
 
         if (where)
         {

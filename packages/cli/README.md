@@ -167,7 +167,7 @@ loaded `.env` chain.
 | Subcommand | Description |
 |------------|-------------|
 | `db generate` (`g`) | Generate migrations from schema changes (timestamp-prefixed) |
-| `db push` | Apply schema to DB. Safe by default; destructive changes need confirmation. `--force` applies destructive changes, `--dry-run` previews |
+| `db push` | Diff with Drizzle Kit's current PostgreSQL engine and apply the selected DDL atomically. Destructive changes need confirmation; `--force` applies them, `--dry-run` previews |
 | `db migrate` (`m`) | Run pending migrations. `--with-backup` snapshots first |
 | `db studio` | Open Drizzle Studio. `-p, --port` (auto-finds a free port) |
 | `db check` | Verify the database connection |
@@ -379,8 +379,9 @@ type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
 - **`spfn start` needs a prior `spfn build`.** It hard-fails without `.spfn/server`,
   `.spfn/prod-server.mjs`, and `.next`.
 - **Destructive DB commands are guarded.** `db drop` double-confirms (and verifies the
-  target); `db push` applies additive changes but withholds destructive ones unless
-  `--force`/confirmed. Prefer `db generate` + `db migrate` for production; `db push` is dev-only.
+  target); `db push` applies the selected statements in one transaction and withholds
+  destructive ones unless `--force`/confirmed. Prefer `db generate` + `db migrate` for
+  production; `db push` is dev-only.
 - **`spfn add` requires a scoped package name** (must contain `/`) and only applies
   migrations when `DATABASE_URL` is set — otherwise it skips with a hint.
 - **Package manager is auto-detected from lockfiles.** If detection is wrong (e.g. mixed

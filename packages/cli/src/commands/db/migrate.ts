@@ -77,7 +77,7 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
     if (existsSync(projectMigrationsDir))
     {
         const projConn = postgres.default(env.DATABASE_URL, { max: 1 });
-        const projDb = drizzle(projConn);
+        const projDb = drizzle({ client: projConn });
 
         try
         {

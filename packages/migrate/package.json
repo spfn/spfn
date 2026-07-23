@@ -1,6 +1,6 @@
 {
     "name": "@spfn/migrate",
-    "version": "0.1.0-beta.1",
+    "version": "0.1.0-beta.2",
     "description": "Code-based data migrations with a run-once ledger for SPFN apps.",
     "type": "module",
     "exports": {
@@ -19,7 +19,10 @@
         "dev": "tsup --watch",
         "type-check": "tsc --noEmit",
         "db:generate": "drizzle-kit generate",
-        "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
+        "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\"",
+        "publish:alpha": "npm publish --access public --tag alpha",
+        "publish:beta": "npm publish --access public --tag beta",
+        "publish:latest": "npm publish --access public"
     },
     "spfn": {
         "schemas": [
@@ -31,13 +34,13 @@
     },
     "peerDependencies": {
         "@spfn/core": "*",
-        "drizzle-orm": "*"
+        "drizzle-orm": ">=1.0.0-rc.4 <2"
     },
     "devDependencies": {
         "@spfn/core": "workspace:*",
         "@types/node": "^20.11.0",
-        "drizzle-kit": "^0.31.10",
-        "drizzle-orm": "^0.45.0",
+        "drizzle-kit": "1.0.0-rc.4",
+        "drizzle-orm": "1.0.0-rc.4",
         "tsup": "^8.5.0",
         "typescript": "^5.3.3"
     },

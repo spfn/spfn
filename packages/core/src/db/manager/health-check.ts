@@ -10,7 +10,6 @@
  * - isReconnecting flag prevents concurrent reconnection attempts
  */
 
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Sql } from 'postgres';
 
 import { logger } from '@spfn/core/logger';
@@ -32,7 +31,7 @@ import {
     getIsClosing,
     getDatabaseProvider,
 } from './global-state';
-import type { GetDatabaseFn } from './types';
+import type { DrizzleDatabase, GetDatabaseFn } from './types';
 
 const dbLogger = logger.child('@spfn/core:database');
 
@@ -69,7 +68,7 @@ export function isReconnectingNow(): boolean
  * @internal
  */
 async function testDatabaseConnection(
-    db: PostgresJsDatabase<Record<string, unknown>>,
+    db: DrizzleDatabase,
 ): Promise<void>
 {
     await db.execute('SELECT 1');

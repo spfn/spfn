@@ -192,7 +192,7 @@ SELECT * FROM __drizzle_migrations;
 
 ## spfn db push
 
-Push schema changes to the database (safe mode by default). Additive changes (CREATE TABLE, ADD COLUMN, etc.) are applied automatically, while destructive changes (DROP TABLE, DROP COLUMN, etc.) require confirmation.
+Push schema changes to the database (safe mode by default). The command uses Drizzle Kit's current PostgreSQL diff engine, including composite-primary-key introspection. Additive changes (CREATE TABLE, ADD COLUMN, etc.) are applied automatically, while destructive changes (DROP TABLE, DROP COLUMN, etc.) require confirmation. The selected statement set is applied in one transaction, so a failed statement rolls back the whole push.
 
 ```bash
 # Push schema changes (safe mode — prompts for destructive changes)

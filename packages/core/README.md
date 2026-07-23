@@ -14,23 +14,24 @@ end-to-end flow. Follow the links for API detail.
 ## Install
 
 ```bash
-pnpm add @spfn/core
+pnpm add @spfn/core drizzle-orm@1.0.0-rc.4
 # peer (optional): next ^15 || ^16
 # optional deps: ioredis (cache), ws (websocket events); pg-boss ships as a direct dep for jobs
 ```
 
 Node `>=18.18.0`. ESM-only.
 
-> **Apps that define entities must declare the Postgres driver directly:** add
-> `postgres` (and `pg`) to your app's `dependencies`. `@spfn/core` uses postgres.js
-> internally, and Drizzle branches its type resolution on the `postgres`/`pg` peer. If
-> the app doesn't pin the same driver, pnpm resolves `drizzle-orm` to a second instance,
-> `BaseRepository` generics collapse to `unknown`, and RPC responses lose their types.
+> **Apps that define entities must declare Drizzle and the Postgres driver directly:** add
+> `drizzle-orm@1.0.0-rc.4`, `postgres`, and `pg` to your app's `dependencies`.
+> `@spfn/core` consumes Drizzle as a peer, and Drizzle branches its type resolution on
+> optional driver peers. If the app doesn't pin the same ORM and drivers, pnpm can resolve
+> a second Drizzle instance, `BaseRepository` generics collapse to `unknown`, and RPC
+> responses lose their types.
 > `spfn create` adds these automatically; declare them by hand only when wiring SPFN into
 > an existing app.
 >
 > ```bash
-> pnpm add postgres pg
+> pnpm add drizzle-orm@1.0.0-rc.4 postgres pg
 > ```
 
 ## Modules

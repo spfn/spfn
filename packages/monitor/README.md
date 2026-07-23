@@ -8,7 +8,7 @@ React dashboard components. Integrates into an SPFN server via `defineServerConf
 ## Install
 
 ```bash
-pnpm add @spfn/monitor
+pnpm add @spfn/monitor drizzle-orm@1.0.0-rc.4
 ```
 
 Peer dep: `next` (`^15 || ^16`, optional — only needed for the `nextjs/client` components).

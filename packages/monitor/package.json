@@ -1,6 +1,6 @@
 {
   "name": "@spfn/monitor",
-  "version": "0.1.0-beta.26",
+    "version": "0.1.0-beta.27",
   "type": "module",
   "description": "Error tracking, log management, and monitoring dashboard for SPFN",
   "main": "./dist/index.js",
@@ -81,8 +81,8 @@
     "@types/node": "^20.11.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "drizzle-kit": "^0.31.6",
-    "drizzle-orm": "^0.45.0",
+    "drizzle-kit": "1.0.0-rc.4",
+    "drizzle-orm": "1.0.0-rc.4",
     "madge": "^8.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.3.3",
@@ -92,6 +92,7 @@
     "@spfn/auth": ">=0.2.0-beta.69",
     "@spfn/core": ">=0.2.0-beta.54",
     "@spfn/notification": ">=0.1.0-beta.21",
+    "drizzle-orm": ">=1.0.0-rc.4 <2",
     "next": "^15.0.0 || ^16.0.0"
   },
   "peerDependenciesMeta": {

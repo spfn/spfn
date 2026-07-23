@@ -9,6 +9,58 @@ import { validateDatabasePrerequisites, loadSchemaImports, createPushConnection 
 import { classifyStatements } from './utils/sql-classifier.js';
 import { displayClassifiedStatements, displayDryRunSummary, displayApplySummary } from './utils/push-display.js';
 
+export interface PushHint
+{
+    hint: string;
+    statement?: string;
+}
+
+export interface PushPlan
+{
+    statements: string[];
+    hints: PushHint[];
+}
+
+export async function resolvePushPlan(
+    imports: Record<string, unknown>,
+    db: Awaited<ReturnType<typeof createPushConnection>>['db'],
+    schemaFilter: string[],
+): Promise<PushPlan>
+{
+    const { pushSchema } = await import('drizzle-kit/api-postgres');
+    const { sqlStatements, hints } = await pushSchema(
+        imports,
+        db,
+        {
+            schemas: schemaFilter,
+            tables: [],
+            entities: undefined,
+            extensions: [],
+        },
+    );
+    const pushHints = hints as PushHint[];
+    const hintStatements = pushHints.flatMap(hint => hint.statement ? [hint.statement] : []);
+
+    return {
+        statements: [...hintStatements, ...sqlStatements],
+        hints: pushHints,
+    };
+}
+
+export async function applyStatements(
+    db: Awaited<ReturnType<typeof createPushConnection>>['db'],
+    statements: string[],
+): Promise<void>
+{
+    await db.transaction(async (tx: typeof db) =>
+    {
+        for (const statement of statements)
+        {
+            await tx.execute(sql.raw(statement));
+        }
+    });
+}
+
 /**
  * Push schema changes to database with safe-mode protection.
  *
@@ -72,44 +124,15 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
     try
     {
         // 5. Compute diff via pushSchema (does NOT apply yet)
-        const { pushSchema } = await import('drizzle-kit/api');
-        const { statementsToExecute } = await pushSchema(
-            imports,
-            db,
-            schemaFilter,
-        );
+        const { statements, hints } = await resolvePushPlan(imports, db, schemaFilter);
 
-        // 5.5 Patch drizzle-kit statement bugs:
-        //     - DROP SCHEMA for schemas we actively manage → false positive
-        //     - CREATE SCHEMA without IF NOT EXISTS → fails on existing schemas
-        //     - Missing CREATE SCHEMA for new non-public schemas
-        const managedSchemaSet = new Set(schemaFilter);
-        const patched = statementsToExecute
-            .filter(s =>
-            {
-                const dropMatch = s.match(/^\s*DROP\s+SCHEMA\s+"?([^"\s;]+)"?/i);
-                if (dropMatch && managedSchemaSet.has(dropMatch[1]))
-                {
-                    console.log(chalk.dim(`  [skip] DROP SCHEMA "${dropMatch[1]}" — managed schema, ignoring`));
+        for (const hint of hints)
+        {
+            console.log(chalk.yellow(`⚠️  ${hint.hint}`));
+        }
 
-                    return false;
-                }
-
-                return true;
-            })
-            .map(s =>
-                s.replace(/^CREATE SCHEMA(?!\s+IF\s+NOT\s+EXISTS)/i, 'CREATE SCHEMA IF NOT EXISTS'),
-            );
-
-        // Ensure CREATE SCHEMA IF NOT EXISTS for all non-public managed schemas
-        // (drizzle-kit sometimes omits CREATE SCHEMA when generating CREATE TABLE)
-        const ensureSchemas = schemaFilter
-            .filter(s => s !== 'public')
-            .map(s => `CREATE SCHEMA IF NOT EXISTS "${s}";\n`);
-        const statements = [...ensureSchemas, ...patched];
-
-        // 6. Empty diff? (ensureSchemas are idempotent, check actual changes)
-        if (patched.length === 0)
+        // 6. Empty diff?
+        if (statements.length === 0)
         {
             console.log(chalk.green('✅ No changes detected — database is up to date\n'));
             await applyFunctionMigrations();
@@ -136,35 +159,21 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
         {
             // --force: apply everything
             console.log(chalk.dim('\n--force: applying all changes...'));
-            for (const stmt of statements)
-            {
-                await db.execute(sql.raw(stmt));
-            }
+            await applyStatements(db, statements);
             displayApplySummary(statements.length, 0);
         }
         else if (result.destructive.length === 0)
         {
             // No destructive changes — safe to apply all
-            for (const stmt of statements)
-            {
-                await db.execute(sql.raw(stmt));
-            }
+            await applyStatements(db, statements);
             displayApplySummary(statements.length, 0);
         }
         else
         {
-            // Has destructive changes — apply non-destructive in original order, prompt for destructive
+            // Has destructive changes — prompt before applying anything so the
+            // selected plan can run atomically in one transaction.
             const destructiveSet = new Set(result.destructive.map(s => s.sql));
             const nonDestructive = statements.filter(s => !destructiveSet.has(s));
-
-            if (nonDestructive.length > 0)
-            {
-                for (const stmt of nonDestructive)
-                {
-                    await db.execute(sql.raw(stmt));
-                }
-                console.log(chalk.green(`\n✅ Applied ${nonDestructive.length} safe statement(s)`));
-            }
 
             // Prompt for destructive
             console.log(chalk.red(`\n❌ ${result.destructive.length} destructive change(s) require confirmation:`));
@@ -183,14 +192,15 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
 
             if (confirm)
             {
-                for (const stmt of result.destructive)
-                {
-                    await db.execute(sql.raw(stmt.sql));
-                }
+                await applyStatements(db, statements);
                 displayApplySummary(statements.length, 0);
             }
             else
             {
+                if (nonDestructive.length > 0)
+                {
+                    await applyStatements(db, nonDestructive);
+                }
                 displayApplySummary(nonDestructive.length, result.destructive.length);
                 console.log(chalk.dim('Tip: Use --force to apply all changes without prompting.\n'));
             }

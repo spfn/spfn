@@ -8,7 +8,7 @@ client. Requires `@spfn/core`; Next.js is an optional peer (`^15 || ^16`).
 ## Install
 
 ```bash
-pnpm add @spfn/auth
+pnpm add @spfn/auth drizzle-orm@1.0.0-rc.4
 ```
 
 ## Import paths

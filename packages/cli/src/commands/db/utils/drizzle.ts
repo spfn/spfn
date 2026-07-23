@@ -234,7 +234,7 @@ export async function createPushConnection(): Promise<{ db: any; close: () => Pr
         max: 1,
         ...(shouldRelaxDbTls(env.DATABASE_URL) ? { ssl: { rejectUnauthorized: false } } : {}),
     });
-    const db = drizzle(pool);
+    const db = drizzle({ client: pool });
 
     return {
         db,

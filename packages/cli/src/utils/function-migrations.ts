@@ -234,7 +234,7 @@ export async function executeFunctionMigrations(
     }
 
     const connection = postgres.default(env.DATABASE_URL, { max: 1 });
-    const db = drizzle(connection);
+    const db = drizzle({ client: connection });
 
     try
     {

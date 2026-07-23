@@ -22,21 +22,11 @@
  * ```
  */
 
-import type { SQL } from 'drizzle-orm';
+import type { InferInsertModel, InferSelectModel, SQL } from 'drizzle-orm';
 import { count as sqlCount } from 'drizzle-orm';
-import type { PgTable, PgColumn } from 'drizzle-orm/pg-core';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { getDatabase } from './manager';
 import { isSQLWrapper, buildWhereFromObject } from './query-utils';
-
-/**
- * Infer SELECT model from PgTable
- */
-type InferSelectModel<T extends PgTable> = T['$inferSelect'];
-
-/**
- * Infer INSERT model from PgTable
- */
-type InferInsertModel<T extends PgTable> = T['$inferInsert'];
 
 /**
  * Object-based where condition (AND only, equality only)
@@ -92,7 +82,7 @@ export async function findOne<T extends PgTable>(
         throw new Error('findOne requires at least one where condition');
     }
 
-    const results = await db.select().from(table as PgTable).where(whereClause).limit(1);
+    const results = await db.select().from(table as any).where(whereClause).limit(1);
 
     return (results[0] as InferSelectModel<T>) ?? null;
 }
@@ -143,7 +133,7 @@ export async function findMany<T extends PgTable>(
         throw new Error('Database not initialized. Call initDatabase() first.');
     }
 
-    let query = db.select().from(table as PgTable);
+    let query = db.select().from(table as any);
 
     // Apply where
     if (options?.where)
@@ -177,7 +167,7 @@ export async function findMany<T extends PgTable>(
         query = query.offset(options.offset) as any;
     }
 
-    return query as Promise<InferSelectModel<T>[]>;
+    return query as unknown as Promise<InferSelectModel<T>[]>;
 }
 
 /**
@@ -206,7 +196,8 @@ export async function create<T extends PgTable>(
         throw new Error('Database not initialized. Call initDatabase() first.');
     }
 
-    const [result] = await db.insert(table).values(data).returning();
+    const results = await db.insert(table).values(data as any).returning();
+    const result = (results as unknown as InferSelectModel<T>[])[0];
 
     return result as InferSelectModel<T>;
 }
@@ -237,7 +228,7 @@ export async function createMany<T extends PgTable>(
         throw new Error('Database not initialized. Call initDatabase() first.');
     }
 
-    const results = await db.insert(table).values(data).returning();
+    const results = await db.insert(table).values(data as any).returning();
 
     return results as InferSelectModel<T>[];
 }
@@ -290,14 +281,15 @@ export async function upsert<T extends PgTable>(
         throw new Error('Database not initialized. Call initDatabase() first.');
     }
 
-    const [result] = await db
+    const results = await db
         .insert(table)
-        .values(data)
+        .values(data as any)
         .onConflictDoUpdate({
             target: options.target,
-            set: options.set || data,
+            set: (options.set || data) as any,
         })
         .returning();
+    const result = (results as unknown as InferSelectModel<T>[])[0];
 
     return result as InferSelectModel<T>;
 }
@@ -340,7 +332,8 @@ export async function updateOne<T extends PgTable>(
         throw new Error('updateOne requires at least one where condition');
     }
 
-    const [result] = await db.update(table).set(data).where(whereClause).returning();
+    const results = await db.update(table).set(data as any).where(whereClause).returning();
+    const result = (results as unknown as InferSelectModel<T>[])[0];
 
     return (result as InferSelectModel<T>) ?? null;
 }
@@ -382,7 +375,7 @@ export async function updateMany<T extends PgTable>(
         throw new Error('updateMany requires at least one where condition');
     }
 
-    const results = await db.update(table).set(data).where(whereClause).returning();
+    const results = await db.update(table).set(data as any).where(whereClause).returning();
 
     return results as InferSelectModel<T>[];
 }
@@ -423,7 +416,8 @@ export async function deleteOne<T extends PgTable>(
         throw new Error('deleteOne requires at least one where condition');
     }
 
-    const [result] = await db.delete(table).where(whereClause).returning();
+    const results = await db.delete(table).where(whereClause).returning();
+    const result = (results as unknown as InferSelectModel<T>[])[0];
 
     return (result as InferSelectModel<T>) ?? null;
 }
@@ -490,7 +484,7 @@ export async function count<T extends PgTable>(
         throw new Error('Database not initialized. Call initDatabase() first.');
     }
 
-    let query = db.select({ count: sqlCount() }).from(table as PgTable);
+    let query = db.select({ count: sqlCount() }).from(table as any);
 
     if (where)
     {

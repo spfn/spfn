@@ -1,6 +1,6 @@
 {
     "name": "@spfn/core",
-    "version": "0.2.0-beta.65",
+    "version": "0.2.0-beta.66",
     "description": "SPFN Framework Core - File-based routing, transactions, repository pattern",
     "type": "module",
     "exports": {
@@ -190,8 +190,7 @@
         "chalk": "^5.6.2",
         "chokidar": "^4.0.3",
         "dotenv": "^17.2.3",
-        "drizzle-orm": "^0.45.2",
-        "drizzle-typebox": "^0.1.0",
+        "drizzle-typebox": "^0.3.3",
         "hono": "^4.12.25",
         "jiti": "^2.6.1",
         "micromatch": "^4.0.8",
@@ -199,7 +198,7 @@
         "postgres": "^3.4.0",
         "typescript": "^5.3.3",
         "undici": "^7.28.0",
-        "zod": "^4.1.11"
+        "zod": "^4.4.3"
     },
     "optionalDependencies": {
         "ioredis": "^5.4.1",
@@ -211,13 +210,15 @@
         "@types/node": "^20.11.0",
         "@types/ws": "^8.18.1",
         "@vitest/coverage-v8": "^4.0.6",
-        "drizzle-kit": "^0.31.6",
+        "drizzle-kit": "1.0.0-rc.4",
+        "drizzle-orm": "1.0.0-rc.4",
         "madge": "^8.0.0",
         "next": "^16.0.0",
         "tsup": "^8.5.0",
         "vitest": "^4.0.6"
     },
     "peerDependencies": {
+        "drizzle-orm": ">=1.0.0-rc.4 <2",
         "next": "^15.0.0 || ^16.0.0"
     },
     "peerDependenciesMeta": {

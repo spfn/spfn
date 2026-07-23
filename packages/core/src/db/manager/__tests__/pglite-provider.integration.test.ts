@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { PGlite } from '@electric-sql/pglite';
 import { Type } from '@sinclair/typebox';
-import { sql } from 'drizzle-orm';
+import { sql, type EmptyRelations } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { Hono } from 'hono';
@@ -36,8 +36,6 @@ const works = pgTable('provider_works', {
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-const schema = { projects, works };
-
 type Work = typeof works.$inferSelect;
 
 describe('PGlite database provider', () =>
@@ -60,10 +58,10 @@ describe('PGlite database provider', () =>
         dataDirectory = await mkdtemp(join(tmpdir(), 'spfn-pglite-provider-'));
         const dataDir = pathToFileURL(dataDirectory).href;
         const client = await PGlite.create(dataDir);
-        const db = drizzle(client, { schema });
+        const db = drizzle({ client });
         let closeCalls = 0;
 
-        class PgliteRepository extends BaseRepository<typeof schema, typeof db>
+        class PgliteRepository extends BaseRepository<EmptyRelations, typeof db>
         {
             createProject(id: string, name: string): Promise<typeof projects.$inferSelect>
             {
@@ -159,7 +157,7 @@ describe('PGlite database provider', () =>
         expect(closeCalls).toBe(1);
 
         const reopenedClient = await PGlite.create(dataDir);
-        const reopenedDb = drizzle(reopenedClient, { schema });
+        const reopenedDb = drizzle({ client: reopenedClient });
         const persisted = await reopenedDb.select().from(works);
 
         expect(persisted).toHaveLength(1);

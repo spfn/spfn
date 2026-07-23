@@ -1,6 +1,6 @@
 {
   "name": "@spfn/notification",
-  "version": "0.1.0-beta.26",
+    "version": "0.1.0-beta.27",
   "type": "module",
   "description": "Multi-channel notification system for SPFN - Email, SMS, Slack, Push",
   "exports": {
@@ -28,7 +28,10 @@
     "test:watch": "vitest",
     "check:circular": "madge --circular --extensions ts src/",
     "type-check": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate"
+        "db:generate": "drizzle-kit generate",
+        "publish:alpha": "npm publish --access public --tag alpha",
+        "publish:beta": "npm publish --access public --tag beta",
+        "publish:latest": "npm publish --access public"
   },
   "keywords": [
     "spfn",
@@ -54,7 +57,8 @@
   "peerDependencies": {
     "@spfn/core": ">=0.2.0-beta.54",
     "@aws-sdk/client-sesv2": "^3.0.0",
-    "@aws-sdk/client-sns": "^3.0.0"
+    "@aws-sdk/client-sns": "^3.0.0",
+    "drizzle-orm": ">=1.0.0-rc.4 <2"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-sesv2": {
@@ -69,8 +73,8 @@
     "@aws-sdk/client-sesv2": "^3.1024.0",
     "@sinclair/typebox": "^0.34.30",
     "@types/node": "^20.11.0",
-    "drizzle-kit": "^0.31.8",
-    "drizzle-orm": "^0.45.0",
+    "drizzle-kit": "1.0.0-rc.4",
+    "drizzle-orm": "1.0.0-rc.4",
     "madge": "^8.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.3.3",

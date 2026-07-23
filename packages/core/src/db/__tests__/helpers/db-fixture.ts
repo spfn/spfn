@@ -19,7 +19,7 @@ export interface DbTestFixture
      * Database instance (only available when isAvailable is true)
      * @throws Error if accessed when database is not available
      */
-    readonly db: PostgresJsDatabase<Record<string, unknown>>;
+    readonly db: PostgresJsDatabase;
 
     /**
      * Whether the database is available for testing
@@ -71,7 +71,7 @@ export interface DbTestFixture
  */
 export function createDbTestFixture(): DbTestFixture
 {
-    let _db!: PostgresJsDatabase<Record<string, unknown>>;
+    let _db!: PostgresJsDatabase;
     let _isAvailable = false;
 
     return {

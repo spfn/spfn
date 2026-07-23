@@ -10,7 +10,6 @@ import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
 import { fileURLToPath } from 'node:url';
 import { initDatabase, closeDatabase } from '@spfn/core/db';
-import * as schema from '@/server/entities';
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://authtest:authtest123@localhost:5435/spfn_auth_test';
 
@@ -79,7 +78,7 @@ export async function setupTestDb()
     }
 
     testClient = postgres(TEST_DATABASE_URL);
-    testDb = drizzle(testClient, { schema });
+    testDb = drizzle({ client: testClient });
 
     // Set DATABASE_URL environment variable for @spfn/core/db
     process.env.DATABASE_URL = TEST_DATABASE_URL;

@@ -187,6 +187,7 @@ PGlite remains a consumer dependency; `@spfn/core` does not load it at runtime.
 
 ```typescript
 import { PGlite } from '@electric-sql/pglite';
+import { defineRelations } from 'drizzle-orm';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import {
     BaseRepository,
@@ -196,7 +197,8 @@ import {
 } from '@spfn/core/db';
 
 const client = await PGlite.create('file://./data/app');
-const db = drizzle(client, { schema });
+const relations = defineRelations(schema);
+const db = drizzle({ client, schema: relations });
 
 await initDatabase({
     provider: {
@@ -206,11 +208,11 @@ await initDatabase({
     },
 });
 
-type AppDatabase = PgliteDatabase<typeof schema>;
+type AppDatabase = PgliteDatabase<typeof relations>;
 
 const sameDb = getDatabase<AppDatabase>();
 
-class ProjectRepository extends BaseRepository<typeof schema, AppDatabase>
+class ProjectRepository extends BaseRepository<typeof relations, AppDatabase>
 {
     // this.db / this.readDb preserve AppDatabase
 }
@@ -460,7 +462,7 @@ catch (error)
 ```typescript
 type DbConnectionType = 'read' | 'write';
 
-type DrizzleDatabase = PgDatabase<any, any, any>;
+type DrizzleDatabase = PgAsyncDatabase<any, any>;
 
 interface DatabaseProvider<TDatabase extends DrizzleDatabase> {
     write: TDatabase;

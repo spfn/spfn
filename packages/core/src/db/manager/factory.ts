@@ -144,8 +144,8 @@ async function createWriteReadClients(
         readClient = await createDatabaseConnection(readUrl, readPoolConfig, retryConfig);
 
         return {
-            write: drizzle(writeClient),
-            read: drizzle(readClient),
+            write: drizzle({ client: writeClient }),
+            read: drizzle({ client: readClient }),
             writeClient,
             readClient,
         };
@@ -166,8 +166,8 @@ async function createWriteReadClients(
 
         // Use write connection for both read and write
         return {
-            write: drizzle(writeClient),
-            read: drizzle(writeClient),
+            write: drizzle({ client: writeClient }),
+            read: drizzle({ client: writeClient }),
             writeClient,
             readClient: writeClient,
         };
@@ -189,7 +189,7 @@ async function createSingleClient(
 ): Promise<DatabaseClients>
 {
     const client = await createDatabaseConnection(url, poolConfig, retryConfig);
-    const db = drizzle(client);
+    const db = drizzle({ client });
 
     return {
         write: db,
