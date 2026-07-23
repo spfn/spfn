@@ -1,0 +1,77 @@
+{
+    "name": "@spfn/mcp",
+    "version": "0.2.0-beta.1",
+    "description": "Official-SDK-based Model Context Protocol adapter for SPFN applications.",
+    "type": "module",
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./server": {
+            "types": "./dist/server.d.ts",
+            "import": "./dist/server.js"
+        }
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "pnpm check:circular && tsup",
+        "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\"",
+        "prepublishOnly": "pnpm type-check && pnpm build && pnpm test",
+        "dev": "tsup --watch",
+        "clean": "rm -rf dist",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "type-check": "tsc --noEmit",
+        "check:circular": "madge --circular --extensions ts src/",
+        "publish:alpha": "npm publish --access public --tag alpha",
+        "publish:beta": "npm publish --access public --tag beta",
+        "publish:latest": "npm publish --access public"
+    },
+    "keywords": [
+        "spfn",
+        "mcp",
+        "model-context-protocol",
+        "hono",
+        "oauth",
+        "typescript"
+    ],
+    "author": "Ray Im <rayim@fxy.global>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/fxylabs/spfn.git",
+        "directory": "packages/mcp"
+    },
+    "bugs": {
+        "url": "https://github.com/fxylabs/spfn/issues"
+    },
+    "homepage": "https://github.com/fxylabs/spfn/tree/main/packages/mcp#readme",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/server": "2.0.0-beta.5"
+    },
+    "peerDependencies": {
+        "@spfn/core": ">=0.2.0-beta.64"
+    },
+    "devDependencies": {
+        "@spfn/core": "workspace:*",
+        "@types/node": "^20.11.0",
+        "hono": "^4.12.25",
+        "madge": "^8.0.0",
+        "tsup": "^8.5.0",
+        "typescript": "^5.9.3",
+        "vitest": "^4.0.6"
+    },
+    "publishConfig": {
+        "access": "public",
+        "tag": "beta"
+    }
+}

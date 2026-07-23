@@ -1,0 +1,85 @@
+{
+    "name": "@spfn/i18n",
+    "version": "0.2.0-beta.1",
+    "description": "Small, content-agnostic internationalization runtime for SPFN and React applications.",
+    "type": "module",
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./server": {
+            "types": "./dist/server.d.ts",
+            "import": "./dist/server.js"
+        },
+        "./client": {
+            "types": "./dist/client.d.ts",
+            "import": "./dist/client.js"
+        }
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "pnpm check:circular && tsup && tsup --config tsup.client.config.ts",
+        "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\"",
+        "prepublishOnly": "pnpm type-check && pnpm build && pnpm test",
+        "dev": "tsup --watch",
+        "clean": "rm -rf dist",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "type-check": "tsc --noEmit",
+        "check:circular": "madge --circular --extensions ts,tsx src/",
+        "publish:alpha": "npm publish --access public --tag alpha",
+        "publish:beta": "npm publish --access public --tag beta",
+        "publish:latest": "npm publish --access public"
+    },
+    "keywords": [
+        "spfn",
+        "i18n",
+        "internationalization",
+        "localization",
+        "react",
+        "nextjs",
+        "typescript"
+    ],
+    "author": "Ray Im <rayim@fxy.global>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/fxylabs/spfn.git",
+        "directory": "packages/i18n"
+    },
+    "bugs": {
+        "url": "https://github.com/fxylabs/spfn/issues"
+    },
+    "homepage": "https://github.com/fxylabs/spfn/tree/main/packages/i18n#readme",
+    "engines": {
+        "node": ">=18.18.0"
+    },
+    "peerDependencies": {
+        "react": "^18.0.0 || ^19.0.0"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "madge": "^8.0.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "tsup": "^8.5.0",
+        "typescript": "^5.9.3",
+        "vitest": "^4.0.6"
+    },
+    "publishConfig": {
+        "access": "public",
+        "tag": "beta"
+    }
+}

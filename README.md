@@ -220,6 +220,8 @@ src/
 | [@spfn/migrate](./packages/migrate) | Beta | Code-based data migrations with a run-once ledger |
 | [@spfn/pages](./packages/pages) | Beta | Serve a markdown site from a GitHub repo |
 | [@spfn/pages-next](./packages/pages-next) | Beta | Next.js integration for @spfn/pages |
+| [@spfn/i18n](./packages/i18n) | Beta | Small server and React internationalization runtime |
+| [@spfn/mcp](./packages/mcp) | Beta | Official-SDK-based MCP route adapter |
 | [@spfn/workflow](./packages/workflow) | Alpha | Pipeline orchestration |
 
 ### Install Packages
@@ -265,6 +267,8 @@ export const appRouter = defineRouter({
 - [CLI Guide](./packages/cli/README.md)
 - [Auth Package](./packages/auth/README.md)
 - [CMS Package](./packages/cms/README.md)
+- [i18n Package](./packages/i18n/README.md)
+- [MCP Package](./packages/mcp/README.md)
 
 Every package has a deep-dive README in [`packages/`](./packages) — see the table above.
 
