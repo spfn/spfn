@@ -9,7 +9,7 @@
  */
 
 import type { Sql } from 'postgres';
-import type { DatabaseOptions, MonitoringConfig } from './config';
+import type { DatabaseClients, DatabaseOptions, MonitoringConfig } from './config';
 import type { DatabaseProvider, DrizzleDatabase } from './types';
 
 // ============================================================================
@@ -32,6 +32,9 @@ declare global
     var __SPFN_DB_HEALTH_CHECK__: NodeJS.Timeout | undefined;
     var __SPFN_DB_MONITORING__: MonitoringConfig | undefined;
     var __SPFN_DB_INIT_OPTIONS__: DatabaseOptions | undefined;
+    var __SPFN_DB_INIT_PROMISE__: Promise<DatabaseClients<DrizzleDatabase>> | undefined;
+    var __SPFN_DB_INIT_PROVIDER__: DatabaseProvider | undefined;
+    var __SPFN_DB_CLOSE_PROMISE__: Promise<void> | undefined;
     var __SPFN_DB_CLOSING__: boolean | undefined;
 }
 
@@ -193,6 +196,38 @@ export const getInitOptions = (): DatabaseOptions | undefined =>
 export const setInitOptions = (options: DatabaseOptions | undefined): void => 
 {
     globalThis.__SPFN_DB_INIT_OPTIONS__ = options;
+};
+
+/** Get the shared initialization lock. @internal */
+export const getInitPromise = (): Promise<DatabaseClients<DrizzleDatabase>> | undefined =>
+    globalThis.__SPFN_DB_INIT_PROMISE__;
+
+/** Store the shared initialization lock. @internal */
+export const setInitPromise = (
+    promise: Promise<DatabaseClients<DrizzleDatabase>> | undefined,
+): void =>
+{
+    globalThis.__SPFN_DB_INIT_PROMISE__ = promise;
+};
+
+/** Get the provider associated with the shared initialization lock. @internal */
+export const getInitProvider = (): DatabaseProvider | undefined =>
+    globalThis.__SPFN_DB_INIT_PROVIDER__;
+
+/** Store the provider associated with the shared initialization lock. @internal */
+export const setInitProvider = (provider: DatabaseProvider | undefined): void =>
+{
+    globalThis.__SPFN_DB_INIT_PROVIDER__ = provider;
+};
+
+/** Get the shared close lock. @internal */
+export const getClosePromise = (): Promise<void> | undefined =>
+    globalThis.__SPFN_DB_CLOSE_PROMISE__;
+
+/** Store the shared close lock. @internal */
+export const setClosePromise = (promise: Promise<void> | undefined): void =>
+{
+    globalThis.__SPFN_DB_CLOSE_PROMISE__ = promise;
 };
 
 // ============================================================================

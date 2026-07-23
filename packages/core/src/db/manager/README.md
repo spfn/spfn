@@ -51,7 +51,10 @@ Lifecycle:
   not initialized. `type` is `'read' | 'write'` (default `'write'`). The default remains
   `PostgresJsDatabase`; pass the injected driver type for an external provider.
 - `setDatabase(write, read?): void` — directly set instances (testing/manual). No connect,
-  no validation, no cleanup of previous instances.
+  no validation, no cleanup of previous instances. Consume a manually registered instance
+  with `getDatabase()`; `initDatabase()` rejects it until it is cleared or closed. It also
+  rejects writes during initialization/close or while managed connections or an external
+  provider are active.
 - `setDatabaseProvider(provider)` — synchronously register an external provider without a
   connection test. `initDatabase({ provider })` is preferred for application startup.
 - `closeDatabase(): Promise<void>` — graceful shutdown: stop health check, end pools, clear
@@ -79,7 +82,7 @@ Low-level / factory:
 
 Introspection:
 
-- `getDatabaseInfo(): { hasWrite, hasRead, isReplica }` — non-throwing status snapshot.
+- `getDatabaseInfo(): { hasWrite, hasRead, isReplica, providerKind? }` — non-throwing status snapshot.
 
 Types: `DatabaseClients`, `DatabaseInitOptions`, `DatabaseOptions`, `DatabaseProvider`,
 `DatabaseTransaction`, `DrizzleDatabase`, `DefaultDatabase`, `PoolConfig`, `RetryConfig`
@@ -149,9 +152,13 @@ before init".
 
 ### `initDatabase(options?)` semantics
 
-- **Idempotent**: if a write instance already exists, returns it immediately.
-- **Concurrency-locked**: an in-flight `initDatabase()` is shared via an internal
-  `initPromise`; parallel callers await the same promise.
+- **Idempotent for the same source**: an environment-backed caller may reuse the active
+  environment-backed database, and a provider caller may reuse the exact same provider object.
+  Supplying a different provider (or omitting the active external provider) throws instead of
+  returning a database under the wrong driver type.
+- **Concurrency-locked**: an in-flight `initDatabase()` is shared through a global lifecycle
+  lock (including across development module reloads); parallel callers for the same source
+  await the same promise. A different provider is rejected while initialization is in flight.
 - **Tests connections** (`SELECT 1` on write, and on read if distinct) before marking ready;
   on failure it cleans up the half-open clients and throws
   `Database connection test failed: …`.
@@ -162,7 +169,9 @@ before init".
 When `options.provider` is present, `initDatabase` tests its write/read Drizzle instances,
 registers them, and skips environment-based postgres.js pool creation, periodic health
 checks, and automatic reconnect. Provider implementations own their driver lifecycle;
-SPFN only calls their optional `close` callback during `closeDatabase()`.
+SPFN calls their optional `close` callback during `closeDatabase()` and when provider
+initialization fails after ownership has been handed to `initDatabase()`. To replace a
+provider, await `closeDatabase()` before registering the next one.
 
 ```typescript
 await initDatabase({

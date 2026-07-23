@@ -67,3 +67,4 @@ export {
 
 // Repository Pattern
 export { BaseRepository, RepositoryError } from './repository';
+export type { RepositoryDatabase } from './repository';

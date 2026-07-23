@@ -361,6 +361,13 @@ async function attemptReconnection(
     reason: string,
 ): Promise<boolean>
 {
+    if (getDatabaseProvider())
+    {
+        dbLogger.debug('Reconnection skipped: database is externally provided', { reason });
+
+        return false;
+    }
+
     // Atomic check-and-set (sync, pre-await) — coalesces concurrent callers.
     if (isReconnecting)
     {

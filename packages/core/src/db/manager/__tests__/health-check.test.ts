@@ -281,6 +281,35 @@ describe('Database Health Check', () =>
             expect(setWriteInstance).toHaveBeenCalled();
         });
 
+        it('should not reconnect an external provider from the periodic health check', async () =>
+        {
+            const config = {
+                enabled: true,
+                interval: 10000,
+                reconnect: true,
+                maxRetries: 2,
+                retryInterval: 5000,
+            };
+            const mockDb = {
+                execute: vi.fn(async () =>
+                {
+                    throw new Error('Provider health check failed');
+                }),
+            };
+            const getDatabase = vi.fn(() => mockDb) as any;
+            const { getDatabaseProvider } = await import('../global-state');
+            vi.mocked(getDatabaseProvider).mockReturnValueOnce({
+                kind: 'pglite',
+                write: mockDb as any,
+            });
+
+            startHealthCheck(config, undefined, getDatabase);
+            await vi.advanceTimersByTimeAsync(10000);
+
+            const { createDatabaseFromEnv } = await import('../factory');
+            expect(createDatabaseFromEnv).not.toHaveBeenCalled();
+        });
+
         it('should retry reconnection up to maxRetries', async () =>
         {
             const config = {

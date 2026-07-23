@@ -44,7 +44,7 @@ Everything re-exported from `@spfn/core/db` (`src/db/index.ts`):
 `deleteOne`, `deleteMany`, `count`
 
 **Repository** (`repository.ts`):
-`BaseRepository` (abstract class), `RepositoryError` (class)
+`BaseRepository` (abstract class), `RepositoryError` (class), `RepositoryDatabase` (type)
 
 **PostgreSQL error mapping** (`postgres-errors.ts`):
 `fromPostgresError`
@@ -266,6 +266,11 @@ both return that transaction's DB so all work runs in the same transaction. Outs
 transaction, `this.db` returns the write/primary instance and `this.readDb` the read/replica
 instance. Use `readDb` for SELECT, `db` for INSERT/UPDATE/DELETE. The `_`-helpers already do
 this (`_findOne`/`_findMany`/`_count` use `readDb`; writes use `db`).
+
+Their type is the injected database **or its matching transaction type**. Common Drizzle
+query methods remain available in both contexts, while driver-only members such as a raw
+`$client` are intentionally not exposed through these transaction-aware getters. Use the
+provider outside repository operations when direct driver access is required.
 
 ### `withContext` — error tracking
 

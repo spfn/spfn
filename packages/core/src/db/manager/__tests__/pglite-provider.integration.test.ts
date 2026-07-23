@@ -6,20 +6,21 @@ import { pathToFileURL } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { Type } from '@sinclair/typebox';
 import { sql } from 'drizzle-orm';
-import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
+import { drizzle } from 'drizzle-orm/pglite';
 import { jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { Hono } from 'hono';
 import { afterEach, describe, expect, expectTypeOf, it } from 'vitest';
 
 import { defineRouter, registerRoutes, route } from '../../../route';
-import { BaseRepository } from '../../repository';
-import { runInTransaction } from '../../transaction';
 import {
+    BaseRepository,
     closeDatabase,
     getDatabase,
     initDatabase,
-} from '../manager';
-import type { DatabaseProvider, DatabaseTransaction } from '../types';
+    runInTransaction,
+    type DatabaseProvider,
+    type DatabaseTransaction,
+} from '../../index';
 
 const projects = pgTable('provider_projects', {
     id: text('id').primaryKey(),
@@ -37,26 +38,7 @@ const works = pgTable('provider_works', {
 
 const schema = { projects, works };
 
-type PgliteDB = PgliteDatabase<typeof schema>;
-
 type Work = typeof works.$inferSelect;
-
-class PgliteRepository extends BaseRepository<typeof schema, PgliteDB>
-{
-    createProject(id: string, name: string): Promise<typeof projects.$inferSelect>
-    {
-        return this._create(projects, {
-            id,
-            name,
-            metadata: { source: 'pglite' },
-        });
-    }
-
-    createWork(id: string, projectId: string, title: string): Promise<Work>
-    {
-        return this._create(works, { id, projectId, title });
-    }
-}
 
 describe('PGlite database provider', () =>
 {
@@ -80,6 +62,29 @@ describe('PGlite database provider', () =>
         const client = await PGlite.create(dataDir);
         const db = drizzle(client, { schema });
         let closeCalls = 0;
+
+        class PgliteRepository extends BaseRepository<typeof schema, typeof db>
+        {
+            createProject(id: string, name: string): Promise<typeof projects.$inferSelect>
+            {
+                return this._create(projects, {
+                    id,
+                    name,
+                    metadata: { source: 'pglite' },
+                });
+            }
+
+            createWork(id: string, projectId: string, title: string): Promise<Work>
+            {
+                return this._create(works, { id, projectId, title });
+            }
+
+            driverClientIsNotTransactionSafe(): unknown
+            {
+                // @ts-expect-error Driver-only members are unavailable in transaction-aware repositories.
+                return this.db.$client;
+            }
+        }
 
         const provider = {
             kind: 'pglite',
@@ -125,9 +130,9 @@ describe('PGlite database provider', () =>
             {
                 const { params, body } = await c.data();
 
-                return await runInTransaction<Work, PgliteDB>(async (tx) =>
+                return await runInTransaction<Work, typeof db>(async (tx) =>
                 {
-                    expectTypeOf(tx).toEqualTypeOf<DatabaseTransaction<PgliteDB>>();
+                    expectTypeOf(tx).toEqualTypeOf<DatabaseTransaction<typeof db>>();
 
                     return await repository.createWork(body.id, params.projectId, body.title);
                 });

@@ -23,6 +23,12 @@ import {
     getMonitoringConfig,
     setMonitoringConfig,
     setInitOptions,
+    getInitPromise,
+    setInitPromise,
+    getInitProvider,
+    setInitProvider,
+    getClosePromise,
+    setClosePromise,
     getIsClosing,
     setIsClosing,
     getDatabaseProvider,
@@ -61,14 +67,8 @@ const STACK_TRACE_PATTERNS = {
     withoutParens: /at (.+):(\d+):(\d+)/,
 };
 
-/**
- * Initialization promise to prevent concurrent initialization
- */
-let initPromise: Promise<DatabaseClients<DrizzleDatabase>> | null = null;
-
-// NOTE: the "closing" flag lives in global-state so reconnect paths in
-// health-check.ts can observe it without creating a circular import back
-// into manager.ts. Access via getIsClosing() / setIsClosing().
+// NOTE: lifecycle locks live in global-state so HMR module instances and
+// reconnect paths observe the same initialization and close operations.
 
 // ============================================================================
 // Helper Functions (Private)
@@ -162,6 +162,51 @@ async function testDatabaseConnections(
         {
             await read.execute('SELECT 1');
         }
+    }
+}
+
+function validateDatabaseProvider(provider: DatabaseProvider<DrizzleDatabase>): void
+{
+    if (typeof provider.kind !== 'string' || !provider.kind.trim())
+    {
+        throw new Error('Database provider kind must be a non-empty string');
+    }
+}
+
+function registerDatabaseProvider<TDatabase extends DrizzleDatabase>(
+    provider: DatabaseProvider<TDatabase>,
+): DatabaseClients<TDatabase>
+{
+    setDatabaseProviderInstance(provider);
+    setWriteInstance(provider.write);
+    setReadInstance(provider.read ?? provider.write);
+
+    return {
+        write: provider.write,
+        read: provider.read ?? provider.write,
+    };
+}
+
+async function closeDatabaseProvider(
+    provider: DatabaseProvider<DrizzleDatabase>,
+    context: string,
+): Promise<void>
+{
+    if (!provider.close)
+    {
+        return;
+    }
+
+    try
+    {
+        await provider.close();
+    }
+    catch (error: unknown)
+    {
+        const closeError = error instanceof Error ? error : new Error(String(error));
+        dbLogger.error(`Error closing ${provider.kind || 'unknown'} database provider`, closeError, {
+            context,
+        });
     }
 }
 
@@ -323,6 +368,30 @@ export function setDatabase<TDatabase extends DrizzleDatabase = DefaultDatabase>
     read?: TDatabase | undefined,
 ): void
 {
+    if (getIsClosing())
+    {
+        throw new Error('Cannot set database while closing');
+    }
+
+    if (getInitPromise())
+    {
+        throw new Error('Cannot set database while initialization is in progress');
+    }
+
+    if (getDatabaseProvider())
+    {
+        throw new Error(
+            'An external database provider is active. Call closeDatabase() before setting a database manually.',
+        );
+    }
+
+    if (getWriteClient() || getReadClient())
+    {
+        throw new Error(
+            'Managed database connections are active. Call closeDatabase() before setting a database manually.',
+        );
+    }
+
     setDatabaseProviderInstance(undefined);
     setWriteInstance(write);
     setReadInstance(read ?? write);
@@ -339,24 +408,35 @@ export function setDatabaseProvider<TDatabase extends DrizzleDatabase>(
     provider: DatabaseProvider<TDatabase>,
 ): DatabaseClients<TDatabase>
 {
-    if (!provider.kind.trim())
-    {
-        throw new Error('Database provider kind must be a non-empty string');
-    }
+    validateDatabaseProvider(provider);
 
+    const activeProvider = getDatabaseProvider();
     if (getIsClosing())
     {
         throw new Error('Cannot set database provider while closing');
     }
 
-    setDatabaseProviderInstance(provider);
-    setWriteInstance(provider.write);
-    setReadInstance(provider.read ?? provider.write);
+    if (getInitPromise())
+    {
+        throw new Error('Cannot set database provider while initialization is in progress');
+    }
 
-    return {
-        write: provider.write,
-        read: provider.read ?? provider.write,
-    };
+    if (activeProvider === provider)
+    {
+        return {
+            write: provider.write,
+            read: provider.read ?? provider.write,
+        };
+    }
+
+    if (getWriteInstance() || getReadInstance() || getWriteClient() || getReadClient() || activeProvider)
+    {
+        throw new Error(
+            'Database already initialized. Call closeDatabase() before registering a different provider.',
+        );
+    }
+
+    return registerDatabaseProvider(provider);
 }
 
 /**
@@ -419,6 +499,22 @@ export async function initDatabase<TDatabase extends DrizzleDatabase = DefaultDa
     const writeInst = getWriteInstance();
     if (writeInst)
     {
+        const activeProvider = getDatabaseProvider();
+        if (!activeProvider && !getWriteClient())
+        {
+            throw new Error(
+                'Database was registered manually. Use getDatabase() directly or call closeDatabase() before initDatabase().',
+            );
+        }
+
+        if (options?.provider !== activeProvider)
+        {
+            const detail = options?.provider
+                ? 'a different provider was supplied'
+                : 'the active external provider was not supplied';
+            throw new Error(`Database already initialized: ${detail}`);
+        }
+
         dbLogger.debug('Database already initialized');
 
         return {
@@ -428,15 +524,22 @@ export async function initDatabase<TDatabase extends DrizzleDatabase = DefaultDa
     }
 
     // Initialization in progress - wait for it to complete
-    if (initPromise)
+    const activeInitPromise = getInitPromise();
+    if (activeInitPromise)
     {
+        if (options?.provider !== getInitProvider())
+        {
+            throw new Error('Database initialization already in progress with a different provider');
+        }
+
         dbLogger.debug('Database initialization in progress, waiting...');
 
-        return await initPromise as DatabaseClients<TDatabase>;
+        return await activeInitPromise as DatabaseClients<TDatabase>;
     }
 
     // Start initialization with lock
-    initPromise = (async () =>
+    setInitProvider(options?.provider);
+    const currentInit = (async () =>
     {
         try
         {
@@ -446,43 +549,41 @@ export async function initDatabase<TDatabase extends DrizzleDatabase = DefaultDa
 
                 try
                 {
+                    validateDatabaseProvider(provider);
                     await testDatabaseConnections(provider.write, provider.read);
+
+                    if (getIsClosing())
+                    {
+                        throw new Error('Database closed during initialization');
+                    }
+
+                    const monConfig = buildMonitoringConfig(options.monitoring);
+                    const result = registerDatabaseProvider(provider);
+                    setInitOptions(options);
+                    setMonitoringConfig(monConfig);
+
+                    dbLogger.info('Database provider connected', {
+                        kind: provider.kind,
+                        hasReplica: !!(provider.read && provider.read !== provider.write),
+                    });
+
+                    return result;
                 }
                 catch (error: unknown)
                 {
-                    if (provider.close)
+                    await closeDatabaseProvider(provider, 'initialization_failed');
+
+                    if (error instanceof Error && (
+                        error.message === 'Database provider kind must be a non-empty string'
+                        || error.message === 'Database closed during initialization'
+                    ))
                     {
-                        await Promise.resolve(provider.close()).catch((closeError) =>
-                        {
-                            dbLogger.debug('Database provider cleanup failed', { error: closeError });
-                        });
+                        throw error;
                     }
 
                     const message = error instanceof Error ? error.message : 'Unknown error';
                     throw new Error(`Database connection test failed: ${message}`);
                 }
-
-                if (getIsClosing())
-                {
-                    if (provider.close)
-                    {
-                        await provider.close();
-                    }
-                    throw new Error('Database closed during initialization');
-                }
-
-                const result = setDatabaseProvider(provider);
-                setInitOptions(options);
-
-                const monConfig = buildMonitoringConfig(options.monitoring);
-                setMonitoringConfig(monConfig);
-
-                dbLogger.info('Database provider connected', {
-                    kind: provider.kind,
-                    hasReplica: !!(provider.read && provider.read !== provider.write),
-                });
-
-                return result;
             }
 
             // Auto-detect from environment
@@ -550,11 +651,13 @@ export async function initDatabase<TDatabase extends DrizzleDatabase = DefaultDa
         finally
         {
             // Clear lock after initialization completes (success or failure)
-            initPromise = null;
+            setInitPromise(undefined);
+            setInitProvider(undefined);
         }
     })();
+    setInitPromise(currentInit);
 
-    return await initPromise as DatabaseClients<TDatabase>;
+    return await currentInit as DatabaseClients<TDatabase>;
 }
 
 /**
@@ -581,93 +684,103 @@ export async function initDatabase<TDatabase extends DrizzleDatabase = DefaultDa
  */
 export async function closeDatabase(): Promise<void>
 {
-    // Prevent concurrent close operations
-    if (getIsClosing())
+    const activeClosePromise = getClosePromise();
+    if (activeClosePromise)
     {
         dbLogger.debug('Database close already in progress');
 
-        return;
+        return await activeClosePromise;
     }
 
-    // Set closing flag early to prevent new operations.
-    // Shared via global-state so reconnect paths in health-check.ts observe it.
-    setIsClosing(true);
-
-    // Wait for any in-progress initialization to complete before closing
-    if (initPromise)
+    const currentClose = (async () =>
     {
-        dbLogger.debug('Waiting for database initialization to complete before closing...');
+        // Set closing flag early to prevent new operations.
+        // Shared via global-state so reconnect paths in health-check.ts observe it.
+        setIsClosing(true);
+
+        // Wait for any in-progress initialization to complete before closing
+        const activeInitPromise = getInitPromise();
+        if (activeInitPromise)
+        {
+            dbLogger.debug('Waiting for database initialization to complete before closing...');
+
+            try
+            {
+                await activeInitPromise;
+            }
+            catch (_error: unknown)
+            {
+                // Initialization failed, but we still need to cleanup any partial state
+                dbLogger.debug('Initialization failed during close, proceeding with cleanup');
+            }
+        }
+
+        const writeInst = getWriteInstance();
+        const readInst = getReadInstance();
+        const provider = getDatabaseProvider();
+        if (!writeInst && !readInst && !provider)
+        {
+            dbLogger.debug('No database connections to close');
+
+            return;
+        }
 
         try
         {
-            await initPromise;
+            // Stop health check
+            stopHealthCheck();
+
+            const closePromises: Promise<void>[] = [];
+
+            if (provider)
+            {
+                closePromises.push(closeDatabaseProvider(provider, 'shutdown'));
+            }
+
+            // Close write client
+            const writeC = getWriteClient();
+            if (writeC)
+            {
+                closePromises.push(closeDatabaseClient(writeC, 'write'));
+            }
+
+            // Close read client (if different from write)
+            const readC = getReadClient();
+            if (readC && readC !== writeC)
+            {
+                closePromises.push(closeDatabaseClient(readC, 'read'));
+            }
+
+            // Wait for all connections to close (use allSettled to ensure all cleanup attempts complete)
+            await Promise.allSettled(closePromises);
+
+            dbLogger.info('All database connections closed');
         }
-        catch (_error: unknown)
+        finally
         {
-            // Initialization failed, but we still need to cleanup any partial state
-            dbLogger.debug('Initialization failed during close, proceeding with cleanup');
+            // Always clear instances and reset flag
+            setWriteInstance(undefined);
+            setReadInstance(undefined);
+            setWriteClient(undefined);
+            setReadClient(undefined);
+            setDatabaseProviderInstance(undefined);
+            setMonitoringConfig(undefined);
+            setInitOptions(undefined);
         }
-    }
+    })();
 
-    const writeInst = getWriteInstance();
-    const readInst = getReadInstance();
-    const provider = getDatabaseProvider();
-    if (!writeInst && !readInst && !provider)
-    {
-        dbLogger.debug('No database connections to close');
-        setIsClosing(false);
-
-        return;
-    }
-
+    setClosePromise(currentClose);
     try
     {
-        // Stop health check
-        stopHealthCheck();
-
-        const closePromises: Promise<void>[] = [];
-
-        if (provider?.close)
-        {
-            closePromises.push(
-                Promise.resolve(provider.close()).catch((err) =>
-                {
-                    const error = err instanceof Error ? err : new Error(String(err));
-                    dbLogger.error(`Error closing ${provider.kind} database provider`, error);
-                }),
-            );
-        }
-
-        // Close write client
-        const writeC = getWriteClient();
-        if (writeC)
-        {
-            closePromises.push(closeDatabaseClient(writeC, 'write'));
-        }
-
-        // Close read client (if different from write)
-        const readC = getReadClient();
-        if (readC && readC !== writeC)
-        {
-            closePromises.push(closeDatabaseClient(readC, 'read'));
-        }
-
-        // Wait for all connections to close (use allSettled to ensure all cleanup attempts complete)
-        await Promise.allSettled(closePromises);
-
-        dbLogger.info('All database connections closed');
+        await currentClose;
     }
     finally
     {
-        // Always clear instances and reset flag
-        setWriteInstance(undefined);
-        setReadInstance(undefined);
-        setWriteClient(undefined);
-        setReadClient(undefined);
-        setDatabaseProviderInstance(undefined);
-        setMonitoringConfig(undefined);
-        setInitOptions(undefined);
-        setIsClosing(false);
+        if (getClosePromise() === currentClose)
+        {
+            setClosePromise(undefined);
+            setIsClosing(false);
+        }
     }
 }
 

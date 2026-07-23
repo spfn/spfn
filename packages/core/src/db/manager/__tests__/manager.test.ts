@@ -197,6 +197,36 @@ describe('Database Manager', () =>
 
             expect(getDatabase()).toBe(mockWrite2);
         });
+
+        it('should reject environment initialization after manual registration', async () =>
+        {
+            const mockWrite: any = { _type: 'manual-write' };
+            setDatabase(mockWrite);
+
+            await expect(initDatabase()).rejects.toThrow('Database was registered manually');
+            expect(getDatabase()).toBe(mockWrite);
+        });
+
+        it('should not replace an active external provider', async () =>
+        {
+            const close = vi.fn(async () =>
+            {});
+            const providerWrite: any = { execute: vi.fn(async () =>
+            {}) };
+            const manualWrite: any = { _type: 'manual-write' };
+
+            await initDatabase({
+                provider: { kind: 'test', write: providerWrite, close },
+            });
+
+            expect(() => setDatabase(manualWrite)).toThrow(
+                'An external database provider is active',
+            );
+            expect(getDatabase()).toBe(providerWrite);
+
+            await closeDatabase();
+            expect(close).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe('database provider', () =>
@@ -259,6 +289,57 @@ describe('Database Manager', () =>
             expect(() => getDatabase()).toThrow('Database not initialized');
         });
 
+        it('should make concurrent close callers wait for the same provider close', async () =>
+        {
+            let releaseClose: (() => void) | undefined;
+            const closeBarrier = new Promise<void>((resolve) =>
+            {
+                releaseClose = resolve;
+            });
+            const close = vi.fn(() => closeBarrier);
+            const mockDb: any = { execute: vi.fn(async () =>
+            {}) };
+            const provider = { kind: 'test', write: mockDb, close };
+
+            await initDatabase({ provider });
+
+            let secondCloseSettled = false;
+            const firstClose = closeDatabase();
+            const secondClose = closeDatabase().then(() =>
+            {
+                secondCloseSettled = true;
+            });
+            await Promise.resolve();
+            await Promise.resolve();
+
+            expect(close).toHaveBeenCalledTimes(1);
+            expect(secondCloseSettled).toBe(false);
+            expect(() => setDatabaseProvider(provider)).toThrow(
+                'Cannot set database provider while closing',
+            );
+            expect(() => setDatabase({} as any)).toThrow('Cannot set database while closing');
+
+            releaseClose!();
+            await Promise.all([firstClose, secondClose]);
+            expect(secondCloseSettled).toBe(true);
+        });
+
+        it('should absorb synchronous provider close errors and clear state', async () =>
+        {
+            const close = vi.fn(() =>
+            {
+                throw new Error('Synchronous close failed');
+            });
+            const mockDb: any = { execute: vi.fn(async () =>
+            {}) };
+
+            await initDatabase({ provider: { kind: 'test', write: mockDb, close } });
+
+            await expect(closeDatabase()).resolves.not.toThrow();
+            expect(close).toHaveBeenCalledTimes(1);
+            expect(() => getDatabase()).toThrow('Database not initialized');
+        });
+
         it('should skip postgres.js reconnect for an external provider', async () =>
         {
             const mockDb: any = { execute: vi.fn(async () =>
@@ -275,6 +356,139 @@ describe('Database Manager', () =>
             expect(() => setDatabaseProvider({ kind: '  ', write: mockDb })).toThrow(
                 'Database provider kind must be a non-empty string',
             );
+        });
+
+        it('should close a provider rejected for an empty kind', async () =>
+        {
+            const close = vi.fn(async () =>
+            {});
+            const mockDb: any = { execute: vi.fn(async () =>
+            {}) };
+
+            await expect(initDatabase({
+                provider: { kind: '  ', write: mockDb, close },
+            })).rejects.toThrow('Database provider kind must be a non-empty string');
+
+            expect(mockDb.execute).not.toHaveBeenCalled();
+            expect(close).toHaveBeenCalledTimes(1);
+            expect(() => getDatabase()).toThrow('Database not initialized');
+        });
+
+        it('should reject replacing an initialized database with a provider', async () =>
+        {
+            await initDatabase();
+            const mockDb: any = { execute: vi.fn(async () =>
+            {}) };
+
+            expect(() => setDatabaseProvider({ kind: 'replacement', write: mockDb })).toThrow(
+                'Database already initialized',
+            );
+            expect(getDatabaseInfo().providerKind).toBeUndefined();
+        });
+
+        it('should reject manual provider registration during environment initialization', async () =>
+        {
+            let releaseInitialization: (() => void) | undefined;
+            const initializationBarrier = new Promise<void>((resolve) =>
+            {
+                releaseInitialization = resolve;
+            });
+            const environmentWrite: any = { execute: vi.fn(async () =>
+            {}) };
+            const environmentRead: any = { execute: vi.fn(async () =>
+            {}) };
+            const { createDatabaseFromEnv } = await import('../factory');
+            vi.mocked(createDatabaseFromEnv).mockImplementationOnce(async () =>
+            {
+                await initializationBarrier;
+
+                return {
+                    write: environmentWrite,
+                    read: environmentRead,
+                    writeClient: { end: vi.fn(async () =>
+                    {}) } as any,
+                    readClient: { end: vi.fn(async () =>
+                    {}) } as any,
+                };
+            });
+            const initialization = initDatabase();
+            const providerDb: any = { execute: vi.fn(async () =>
+            {}) };
+
+            expect(() => setDatabaseProvider({ kind: 'provider', write: providerDb })).toThrow(
+                'Cannot set database provider while initialization is in progress',
+            );
+            expect(() => setDatabase(providerDb)).toThrow(
+                'Cannot set database while initialization is in progress',
+            );
+
+            releaseInitialization!();
+            await initialization;
+            expect(getDatabase()).toBe(environmentWrite);
+            expect(getDatabaseInfo().providerKind).toBeUndefined();
+        });
+
+        it('should reject sequential initialization with a different provider', async () =>
+        {
+            const closeA = vi.fn(async () =>
+            {});
+            const mockA: any = { execute: vi.fn(async () =>
+            {}) };
+            const mockB: any = { execute: vi.fn(async () =>
+            {}) };
+            const providerA = { kind: 'a', write: mockA, close: closeA };
+            const providerB = { kind: 'b', write: mockB };
+
+            await initDatabase({ provider: providerA });
+
+            await expect(initDatabase({ provider: providerB })).rejects.toThrow(
+                'Database already initialized: a different provider was supplied',
+            );
+            expect(mockB.execute).not.toHaveBeenCalled();
+            expect(getDatabase()).toBe(mockA);
+
+            await closeDatabase();
+            expect(closeA).toHaveBeenCalledTimes(1);
+        });
+
+        it('should reject concurrent initialization with a different provider', async () =>
+        {
+            let releaseInitialization: (() => void) | undefined;
+            const initializationBarrier = new Promise<void>((resolve) =>
+            {
+                releaseInitialization = resolve;
+            });
+            const mockA: any = { execute: vi.fn(() => initializationBarrier) };
+            const mockB: any = { execute: vi.fn(async () =>
+            {}) };
+            const providerA = { kind: 'a', write: mockA };
+            const providerB = { kind: 'b', write: mockB };
+
+            const firstInitialization = initDatabase({ provider: providerA });
+            await expect(initDatabase({ provider: providerB })).rejects.toThrow(
+                'Database initialization already in progress with a different provider',
+            );
+            expect(mockB.execute).not.toHaveBeenCalled();
+
+            releaseInitialization!();
+            await expect(firstInitialization).resolves.toEqual({ write: mockA, read: mockA });
+        });
+
+        it('should preserve a connection-test error when provider close throws synchronously', async () =>
+        {
+            const close = vi.fn(() =>
+            {
+                throw new Error('Close failed');
+            });
+            const mockDb: any = { execute: vi.fn(async () =>
+            {
+                throw new Error('Connection failed');
+            }) };
+
+            await expect(initDatabase({
+                provider: { kind: 'test', write: mockDb, close },
+            })).rejects.toThrow('Database connection test failed: Connection failed');
+            expect(close).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -508,6 +722,25 @@ describe('Database Manager', () =>
         it('should do nothing when no connections', async () =>
         {
             await expect(closeDatabase()).resolves.not.toThrow();
+        });
+
+        it('should keep initialization blocked until an empty-state close settles', async () =>
+        {
+            const firstClose = closeDatabase();
+            const mockDb: any = { execute: vi.fn(async () =>
+            {}) };
+            const provider = { kind: 'test', write: mockDb };
+
+            await expect(initDatabase({ provider })).rejects.toThrow(
+                'Cannot initialize database while closing',
+            );
+            const secondClose = closeDatabase();
+            await Promise.all([firstClose, secondClose]);
+
+            await expect(initDatabase({ provider })).resolves.toEqual({
+                write: mockDb,
+                read: mockDb,
+            });
         });
 
         it('should stop health check', async () =>

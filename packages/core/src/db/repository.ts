@@ -83,7 +83,11 @@ import { reportDatabaseError } from './manager/reconnect-trigger';
 import { getTransaction } from './transaction';
 import { isSQLWrapper, buildWhereFromObject } from './query-utils';
 import { env } from '@spfn/core/config';
-import type { DrizzleDatabase } from './manager/types';
+import type { DatabaseTransaction, DrizzleDatabase } from './manager/types';
+
+/** Database surface available to repositories inside and outside transactions. */
+export type RepositoryDatabase<TDatabase extends DrizzleDatabase> =
+    TDatabase | DatabaseTransaction<TDatabase>;
 
 /**
  * Enhanced error class that includes repository context
@@ -144,13 +148,13 @@ export abstract class BaseRepository<
      * }
      * ```
      */
-    protected get db(): TDatabase
+    protected get db(): RepositoryDatabase<TDatabase>
     {
         // Transaction context takes precedence
         const txDb = getTransaction<TDatabase>();
         if (txDb)
         {
-            return txDb as unknown as TDatabase;
+            return txDb;
         }
 
         // Fall back to global write instance
@@ -177,13 +181,13 @@ export abstract class BaseRepository<
      * }
      * ```
      */
-    protected get readDb(): TDatabase
+    protected get readDb(): RepositoryDatabase<TDatabase>
     {
         // Transaction context takes precedence
         const txDb = getTransaction<TDatabase>();
         if (txDb)
         {
-            return txDb as unknown as TDatabase;
+            return txDb;
         }
 
         // Fall back to global read instance (uses replica if configured)
