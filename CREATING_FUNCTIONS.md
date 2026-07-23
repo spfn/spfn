@@ -144,7 +144,7 @@ Create `package.json` with SPFN metadata:
   },
   "peerDependencies": {
     "@spfn/core": "^0.1.0-alpha",
-    "drizzle-orm": "^0.44.0"
+    "drizzle-orm": ">=1.0.0-rc.4 <2"
   }
 }
 ```
