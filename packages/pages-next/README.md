@@ -42,6 +42,11 @@ site model into `public/` before the build:
 - raw HTML escape-hatch pages (`site/pages/*.html` → `public/<slug>/index.html`)
 - `site/public/` assets (copied as-is, binary-safe)
 
+The package ships a stable `bin/spfn-pages.js` launcher so package managers can
+link the command during installation, before the compiled `dist/cli.js` exists.
+Build `@spfn/pages-next` before invoking the command in a fresh workspace; the
+root Turborepo build enforces that dependency order.
+
 When `spfn.site.yaml` sets `url:`, sync also generates the site-wide SEO
 surface. `sitemap.xml` enumerates every served route (markdown docs and html
 pages alike — sync is the one place that sees them all) and `robots.txt`

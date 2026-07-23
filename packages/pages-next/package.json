@@ -21,10 +21,11 @@
     }
   },
   "bin": {
-    "spfn-pages": "./dist/cli.js"
+    "spfn-pages": "./bin/spfn-pages.js"
   },
   "files": [
     "dist",
+    "bin",
     "README.md"
   ],
   "publishConfig": {
