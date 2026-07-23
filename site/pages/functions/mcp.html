@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>@spfn/mcp</title>
-<meta name="description" content="OAuth-protected Model Context Protocol endpoints for SPFN, backed by the official MCP TypeScript SDK.">
+<meta name="description" content="Serve one MCP contract over OAuth Streamable HTTP or local stdio with a shared SPFN dispatcher.">
 <meta property="og:title" content="@spfn/mcp — your app, callable">
-<meta property="og:description" content="Expose application tools, resources, and prompts through an authenticated MCP endpoint while your app retains policy and context ownership.">
+<meta property="og:description" content="Expose one application-owned tool contract over remote HTTP or a thin local stdio bridge.">
 <meta property="og:image" content="https://superfunction.xyz/og.png">
 <meta property="og:url" content="https://superfunction.xyz/functions/mcp">
 <meta property="og:type" content="website">
@@ -63,6 +63,9 @@
     .wwire::after { position: absolute; top: -2px; right: 0; width: 5px; height: 5px; background: var(--ink); content: ''; }
     .wwire.tohot::after { background: var(--cobalt); }
     .flow-note { margin-top: 28px; color: var(--gray); font: 11px var(--mono); letter-spacing: 0.1em; }
+    .transport-stack { border-top: 1px solid var(--ink); }
+    .transport-row { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 24px; padding: 24px 0; border-bottom: 1px solid var(--ink); }
+    .transport-label { color: var(--cobalt); font: 600 12px/1.4 var(--mono); letter-spacing: 0.1em; }
     .mod-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); border-left: 1px solid var(--ink); }
     .mod { min-height: 118px; padding: 20px 20px 24px; border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
     .mod:hover { color: var(--white); background: var(--cobalt); }
@@ -94,6 +97,7 @@
         section { padding: 80px 0 0; }
         section:last-of-type { padding-bottom: 80px; }
         .hero { padding-top: 56px; }
+        .transport-row { grid-template-columns: 1fr; gap: 12px; }
         footer .inner { align-items: flex-start; flex-wrap: wrap; }
         footer .dim { width: 100%; margin-left: 0; }
     }
@@ -110,11 +114,11 @@
         <div class="inner">
             <div class="kicker"><a href="/functions">FUNCTIONS</a> / @SPFN/MCP — MODEL CONTEXT PROTOCOL</div>
             <h1 class="display">Your app,<br><span class="inkline">callable.</span></h1>
-            <p class="sub"><code>@spfn/mcp</code> exposes your application's tools, resources, and prompts through an OAuth-protected MCP endpoint. The official SDK owns the protocol; your application owns identity, policy, context, and business logic.</p>
+            <p class="sub"><code>@spfn/mcp</code> serves one application-defined set of tools, resources, and prompts over OAuth Streamable HTTP or local stdio. The official SDK owns the protocol; your application owns identity, policy, context, and business logic.</p>
             <div class="cta-row">
                 <a class="btn btn-cobalt" href="/docs/packages/mcp">Read the reference</a>
                 <a class="btn btn-outline" href="/docs">Get started</a>
-                <span class="codebar">$ pnpm add @spfn/mcp @spfn/core</span>
+                <span class="codebar">$ pnpm add @spfn/mcp</span>
             </div>
         </div>
         <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
@@ -123,37 +127,40 @@
         <div class="inner">
             <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">The boundary</span></div>
             <h2 class="sec-title">Protocol below.<br>Your policy <em>above.</em></h2>
-            <p class="premise-copy">MCP negotiation, JSON-RPC, Streamable HTTP, schema validation, and legacy compatibility belong to the official SDK. Token validation, authorization, catalog filtering, billing, and application state stay in application code. The adapter connects those layers without exporting transport internals into your routes.</p>
-            <div class="wireflow"><div class="wnode">MCP client</div><div class="wwire"></div><div class="wnode">official SDK</div><div class="wwire"></div><div class="wnode">validateToken</div><div class="wwire tohot"></div><div class="wnode hot">application tools</div></div>
-            <div class="flow-note">FIG 01 — TRANSPORT IS INFRASTRUCTURE · AUTHORIZATION REMAINS APPLICATION POLICY</div>
+            <p class="premise-copy">MCP negotiation, JSON-RPC, schema validation, and legacy compatibility belong to the official SDK. A transport-neutral dispatcher keeps tool behavior identical across network and process transports while authentication and domain policy stay at the application boundary.</p>
+            <div class="wireflow"><div class="wnode">MCP client</div><div class="wwire"></div><div class="wnode">HTTP / stdio</div><div class="wwire"></div><div class="wnode">dispatcher</div><div class="wwire tohot"></div><div class="wnode hot">application tools</div></div>
+            <div class="flow-note">FIG 01 — ONE CONTRACT · TRANSPORT-SPECIFIC TRUST BOUNDARIES</div>
         </div>
     </section>
     <section>
         <div class="inner">
-            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">The mount</span></div>
-            <h2 class="sec-title">One router.<br>Three transport <em>methods.</em></h2>
-            <p class="premise-copy"><code>createMcpRoute()</code> registers POST, GET, and DELETE at <code>/mcp</code>, then mounts through the same <code>defineRouter(...).packages()</code> composition used across SPFN. Every request resolves validated auth and request metadata before a handler sees application context.</p>
-            <div class="wireflow"><div class="wnode">Bearer token</div><div class="wwire"></div><div class="wnode">resolveContext</div><div class="wwire"></div><div class="wnode">listTools</div><div class="wwire tohot"></div><div class="wnode hot">typed handler</div></div>
-            <div class="flow-note">FIG 02 — REQUEST-SCOPED TRANSPORT · EXPLICIT APPLICATION-OWNED STATE</div>
+            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">Choose the boundary</span></div>
+            <h2 class="sec-title">Network trust.<br>Local <em>trust.</em></h2>
+            <p class="premise-copy">Use HTTP when clients connect over a network and need OAuth plus Host and Origin validation. Use stdio when an Agent host starts a local child process; the executable, arguments, and process configuration become the capability boundary.</p>
+            <div class="transport-stack">
+                <div class="transport-row"><div class="transport-label">REMOTE</div><div class="wireflow"><div class="wnode">network client</div><div class="wwire"></div><div class="wnode">OAuth</div><div class="wwire"></div><div class="wnode">Streamable HTTP</div><div class="wwire tohot"></div><div class="wnode hot">dispatcher</div></div></div>
+                <div class="transport-row"><div class="transport-label">LOCAL</div><div class="wireflow"><div class="wnode">Agent host</div><div class="wwire"></div><div class="wnode">spawn authority</div><div class="wwire"></div><div class="wnode">stdio bridge</div><div class="wwire tohot"></div><div class="wnode hot">dispatcher</div></div></div>
+            </div>
+            <div class="flow-note">FIG 02 — HTTP AUTHENTICATES REQUESTS · STDIO TRUSTS THE SPAWNING HOST</div>
         </div>
     </section>
     <section>
         <div class="inner">
             <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">What's inside</span></div>
-            <h2 class="sec-title">The protocol adapter,<br>kept <em>narrow.</em></h2>
+            <h2 class="sec-title">Two adapters,<br>one <em>contract.</em></h2>
             <div class="mod-grid">
-                <a class="mod" href="/docs/packages/mcp#create-a-route"><div class="mname">createMcpRoute</div><p>Mount a standards-backed MCP endpoint in an SPFN router.</p></a>
-                <a class="mod" href="/docs/packages/mcp#create-a-route"><div class="mname">tools</div><p>JSON Schema inputs, annotations, typed context, structured results.</p></a>
-                <a class="mod" href="/docs/packages/mcp#request-context"><div class="mname">request context</div><p>Validated auth, protocol era, and per-request correlation IDs.</p></a>
-                <a class="mod" href="/docs/packages/mcp#create-a-route"><div class="mname">resources</div><p>Application-provided readable resources through MCP primitives.</p></a>
-                <a class="mod" href="/docs/packages/mcp#create-a-route"><div class="mname">prompts</div><p>Discoverable, application-owned prompt definitions.</p></a>
+                <a class="mod" href="/docs/packages/mcp#define-a-transport-neutral-dispatcher"><div class="mname">createMcpDispatcher</div><p>Define tools, resources, prompts, validation, and error policy once.</p></a>
+                <a class="mod" href="/docs/packages/mcp#remote-streamable-http"><div class="mname">createMcpRoute</div><p>Mount an OAuth-protected MCP endpoint in an SPFN router.</p></a>
+                <a class="mod" href="/docs/packages/mcp#remote-streamable-http"><div class="mname">createMcpHttpRoute</div><p>Attach an existing dispatcher to Streamable HTTP.</p></a>
+                <a class="mod" href="/docs/packages/mcp#local-stdio"><div class="mname">serveMcpStdio</div><p>Run the same contract through a thin local process bridge.</p></a>
+                <a class="mod" href="/docs/packages/mcp#local-stdio"><div class="mname">stdout purity</div><p>Protocol frames use stdout; redacted diagnostics stay on stderr.</p></a>
+                <a class="mod" href="/docs/packages/mcp#local-stdio"><div class="mname">graceful lifecycle</div><p>EOF, signals, disconnects, and fatal transport errors close cleanly.</p></a>
                 <a class="mod" href="/docs/packages/mcp#tool-results-and-errors"><div class="mname">safe errors</div><p>Explicit McpError messages; internal failures stay internal.</p></a>
-                <a class="mod" href="/docs/packages/mcp#host-and-origin-validation"><div class="mname">origin controls</div><p>Optional Host and Origin allowlists for remote deployments.</p></a>
-                <a class="mod" href="/docs/packages/mcp#scope"><div class="mname">policy boundary</div><p>No bundled catalog, grants, billing, or rate-limit policy.</p></a>
+                <a class="mod" href="/docs/packages/mcp#package-entry-points"><div class="mname">public entry points</div><p>Import dispatcher, HTTP, and stdio APIs without transport internals.</p></a>
             </div>
         </div>
     </section>
-    <div class="cta-band"><div class="inner"><h2>Expose the capability.</h2><div class="btns"><a class="btn btn-white" href="/docs/packages/mcp">Full reference</a><a class="btn btn-outline-w" href="/docs">Get started</a></div></div></div>
+    <div class="cta-band"><div class="inner"><h2>Choose the transport.</h2><div class="btns"><a class="btn btn-white" href="/docs/packages/mcp">Full reference</a><a class="btn btn-outline-w" href="/docs/packages/mcp#local-stdio">Local stdio</a></div></div></div>
     <footer><div class="inner"><span>SUPERFUNCTION</span><a href="/docs">DOCS</a><a href="/functions">FUNCTIONS</a><a href="/about">ABOUT</a><a href="https://github.com/fxylabs/spfn" target="_blank" rel="noopener">GITHUB</a><span class="dim">© 2026 FXY INC. · @SPFN/MCP — BETA</span></div></footer>
 </body>
 </html>

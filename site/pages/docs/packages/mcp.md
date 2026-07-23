@@ -1,5 +1,5 @@
 ---
 title: "@spfn/mcp"
-description: "OAuth-protected MCP endpoints for SPFN, backed by the official Model Context Protocol SDK."
+description: "Serve one MCP contract over OAuth Streamable HTTP or local stdio with a shared dispatcher."
 source: packages/mcp/README.md
 ---

@@ -18,7 +18,7 @@ the code.
 | [`@spfn/core`](../../../packages/core/README.md) | Server, routing, database, codegen — the kernel every app uses |
 | [`spfn` (CLI)](../../../packages/cli/README.md) | `create`, `init`, `codegen`, dev workflow |
 | [`@spfn/migrate`](../../../packages/migrate/README.md) | Transactional, code-based data migrations with a run-once ledger |
-| [`@spfn/mcp`](../../../packages/mcp/README.md) | OAuth-protected Model Context Protocol endpoints backed by the official SDK |
+| [`@spfn/mcp`](../../../packages/mcp/README.md) | One MCP contract over OAuth Streamable HTTP or a local stdio bridge |
 
 ## Batteries
 
