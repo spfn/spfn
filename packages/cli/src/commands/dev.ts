@@ -102,6 +102,11 @@ export const devCommand = new Command('dev')
 
         const serverEnv = { ...process.env, ...keychainEnv };
 
+        // Warn about pending package/project migrations before starting —
+        // missing package tables (e.g. @spfn/auth) otherwise fail only at request time
+        const { warnPendingMigrations } = await import('../utils/migration-status.js');
+        await warnPendingMigrations(cwd, serverEnv.DATABASE_URL);
+
         // Check if Next.js project
         const packageJsonPath = join(cwd, 'package.json');
         let hasNext = false;

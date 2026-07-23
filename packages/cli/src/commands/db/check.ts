@@ -3,20 +3,21 @@ import ora from 'ora';
 import { runDrizzleCommand } from './utils/drizzle.js';
 
 /**
- * Check database connection
+ * Check migration file consistency (drizzle-kit check).
+ * For applied/pending migration state, use `spfn db status`.
  */
 export async function dbCheck(): Promise<void>
 {
-    const spinner = ora('Checking database connection...').start();
+    const spinner = ora('Checking migration files...').start();
 
     try
     {
         await runDrizzleCommand('check');
-        spinner.succeed('Database connection OK');
+        spinner.succeed('Migration files consistent');
     }
     catch (error)
     {
-        spinner.fail('Database connection failed');
+        spinner.fail('Migration file check failed');
         console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
         process.exit(1);
     }

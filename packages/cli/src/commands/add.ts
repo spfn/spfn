@@ -74,9 +74,10 @@ async function addPackage(packageName: string): Promise<void>
 
         if (!env.DATABASE_URL)
         {
-            console.log(chalk.yellow('⚠️  DATABASE_URL not found'));
-            console.log(chalk.gray('Skipping database setup. Run migrations manually when ready:\n'));
-            console.log(chalk.gray('  pnpm spfn db push\n'));
+            console.log(chalk.yellow('⚠️  DATABASE_URL not found — skipping database setup.'));
+            console.log(chalk.yellow(`   ${packageName} tables are created by its bundled migrations, not by schema push.`));
+            console.log(chalk.cyan('   Once DATABASE_URL is set, run: pnpm spfn db migrate'));
+            console.log(chalk.gray('   (check state anytime with: pnpm spfn db status)\n'));
         }
         else
         {
