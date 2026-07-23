@@ -85,5 +85,5 @@ catches up — the compiler catches what integration tests used to.
 
 - [Get started](../docs.md) — create a project and run it.
 - [Packages](./packages.md) — what ships beyond the core.
-- [Runnable examples](https://github.com/spfn/spfn/tree/main/examples) — the
+- [Runnable examples](https://github.com/fxylabs/spfn/tree/main/examples) — the
   pattern end to end, from minimal API to auth.
