@@ -8,6 +8,12 @@ import { getTableConfig } from 'drizzle-orm/pg-core';
 import { validateDatabasePrerequisites, loadSchemaImports, createPushConnection } from './utils/drizzle.js';
 import { classifyStatements } from './utils/sql-classifier.js';
 import { displayClassifiedStatements, displayDryRunSummary, displayApplySummary } from './utils/push-display.js';
+import {
+    discoverFunctionMigrations,
+    loadFunctionMigrationPlans,
+    executeFunctionMigrations,
+    type FunctionMigrationPlan,
+} from '../../utils/function-migrations.js';
 
 export interface PushHint
 {
@@ -118,6 +124,10 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
     }
     const schemaFilter = Array.from(detectedSchemas);
 
+    // 3.7 Preflight: parse function package migrations before touching the DB,
+    //     so an incompatible package fails without applying the project schema.
+    const functionPlans = loadFunctionPlansOrExit();
+
     // 4. Create DB connection
     const { db, close } = await createPushConnection();
 
@@ -135,7 +145,7 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
         if (statements.length === 0)
         {
             console.log(chalk.green('✅ No changes detected — database is up to date\n'));
-            await applyFunctionMigrations();
+            await applyFunctionMigrations(functionPlans);
 
             return;
         }
@@ -207,7 +217,7 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
         }
 
         // 11. Function package migrations
-        await applyFunctionMigrations();
+        await applyFunctionMigrations(functionPlans);
     }
     finally
     {
@@ -216,33 +226,51 @@ export async function dbPush(options: { force?: boolean; dryRun?: boolean } = {}
 }
 
 /**
- * Discover and run function package migrations (e.g., @spfn/cms)
+ * Discover function packages and parse their migration folders.
+ * Exits before any DB work when a package ships unreadable migrations.
  */
-async function applyFunctionMigrations(): Promise<void>
+function loadFunctionPlansOrExit(): FunctionMigrationPlan[]
 {
-    const { discoverFunctionMigrations, executeFunctionMigrations } = await import('../../utils/function-migrations.js');
     const functions = discoverFunctionMigrations(process.cwd());
 
-    if (functions.length === 0)
+    try
+    {
+        return loadFunctionMigrationPlans(functions);
+    }
+    catch (error)
+    {
+        console.error(chalk.red('\n❌ Invalid function package migrations — nothing was applied'));
+        console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
+        process.exit(1);
+    }
+}
+
+/**
+ * Run function package migrations (e.g., @spfn/cms)
+ */
+async function applyFunctionMigrations(plans: FunctionMigrationPlan[]): Promise<void>
+{
+    if (plans.length === 0)
     {
         return;
     }
 
     console.log(chalk.blue('\n📦 Applying function package migrations:'));
-    functions.forEach(func =>
+    plans.forEach(plan =>
     {
-        console.log(chalk.dim(`  - ${func.packageName}`));
+        console.log(chalk.dim(`  - ${plan.packageName}`));
     });
 
     try
     {
-        await executeFunctionMigrations(functions);
+        await executeFunctionMigrations(plans);
         console.log(chalk.green('\n✅ All function migrations applied\n'));
     }
     catch (error)
     {
-        console.error(chalk.red('\n❌ Failed to apply function migrations'));
+        console.error(chalk.red('\n❌ Failed to apply function package migrations'));
         console.error(chalk.red(error instanceof Error ? error.message : 'Unknown error'));
+        console.error(chalk.yellow('Project schema changes (if any) were already applied — only function package migrations failed.'));
         process.exit(1);
     }
 }
