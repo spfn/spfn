@@ -184,6 +184,12 @@ loaded `.env` chain.
 > `db push` is for development. For production, use `db generate` + `db migrate` to keep
 > migration history.
 
+Database TLS is controlled by `DATABASE_URL`. Loopback URLs (`localhost`, `127.0.0.1`,
+and `::1`) default to `ssl: false`; add an explicit `sslmode` when the local server uses
+TLS. For a TLS connection with a self-signed certificate, set
+`SPFN_DB_INSECURE_TLS=1` to disable certificate verification. This opt-in never enables
+TLS by itself and `sslmode=disable` remains authoritative.
+
 ### `spfn env`
 
 Schema-driven environment variable tooling (schema comes from a package's `envSchema`,
