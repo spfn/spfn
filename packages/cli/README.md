@@ -69,6 +69,9 @@ already exists). See [Scaffold structure](#scaffold-structure) for what lands on
 |--------|-------------|
 | `-y, --yes` | Skip prompts, use defaults |
 
+Generated projects pin `drizzle-orm` and `drizzle-kit` to `1.0.0-rc.4`, matching
+`@spfn/core` and the rest of the published SPFN database packages.
+
 ### `spfn add <package>`
 
 Installs an SPFN ecosystem package and applies its pre-built migrations. The package

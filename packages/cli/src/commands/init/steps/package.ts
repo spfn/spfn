@@ -39,8 +39,8 @@ export async function setupPackageJson(
     const spfnTag = getSpfnTag();
     packageJson.dependencies['@spfn/core'] = spfnTag;
     packageJson.dependencies['@sinclair/typebox'] = '^0.34.0';
-    packageJson.dependencies['drizzle-orm'] = '^0.45.0';
-    packageJson.dependencies['drizzle-typebox'] = '^0.1.0';
+    packageJson.dependencies['drizzle-orm'] = '1.0.0-rc.4';
+    packageJson.dependencies['drizzle-typebox'] = '^0.3.3';
     packageJson.dependencies['postgres'] = '^3.4.0';
     packageJson.dependencies['pg'] = '^8.16.3';
     packageJson.dependencies['spfn'] = spfnTag;
@@ -58,7 +58,7 @@ export async function setupPackageJson(
     packageJson.devDependencies['@types/node'] = '^20.11.0';
     packageJson.devDependencies['tsx'] = '^4.20.6';
     packageJson.devDependencies['tsup'] = '^8.5.0';
-    packageJson.devDependencies['drizzle-kit'] = '^0.31.5';
+    packageJson.devDependencies['drizzle-kit'] = '1.0.0-rc.4';
     packageJson.devDependencies['dotenv'] = '^17.2.3';
 
     // Add SPFN-specific scripts
