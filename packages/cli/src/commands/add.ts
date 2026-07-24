@@ -81,7 +81,7 @@ async function addPackage(packageName: string): Promise<void>
         else
         {
             // Apply pre-generated function migrations
-            const { discoverFunctionMigrations, executeFunctionMigrations } =
+            const { discoverFunctionMigrations, loadFunctionMigrationPlans, executeFunctionMigrations } =
                 await import('../utils/function-migrations.js');
 
             const functions = discoverFunctionMigrations(process.cwd());
@@ -93,7 +93,7 @@ async function addPackage(packageName: string): Promise<void>
 
                 try
                 {
-                    await executeFunctionMigrations([targetFunction]);
+                    await executeFunctionMigrations(loadFunctionMigrationPlans([targetFunction]));
                     spinner.succeed('Migrations applied');
                 }
                 catch (error)

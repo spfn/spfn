@@ -184,6 +184,16 @@ loaded `.env` chain.
 > `db push` is for development. For production, use `db generate` + `db migrate` to keep
 > migration history.
 
+`db push` and `db migrate` also replay migrations shipped by installed SPFN function
+packages (`@spfn/auth`, `@spfn/cms`, …) into per-package tracking tables
+(`drizzle.__spfn_fn_<pkg>_migrations`). The CLI applies these with a built-in runner
+that reads both migration layouts — drizzle-kit ≤0.31 (`NNNN_name.sql` +
+`meta/_journal.json`) and drizzle-kit 1.0 (`<timestamp>_name/migration.sql`) — so a
+package's layout never has to match the CLI's bundled drizzle version. `db push`
+validates every package's migration folder before applying the project schema, and a
+function-migration failure after a successful schema apply exits 1 with a message
+making clear the project schema was already committed.
+
 Database TLS is controlled by `DATABASE_URL`. Loopback URLs (`localhost`, `127.0.0.1`,
 and `::1`) default to `ssl: false`; add an explicit `sslmode` when the local server uses
 TLS. For a TLS connection with a self-signed certificate, set

@@ -56,7 +56,7 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
     }
 
     // First, execute function package migrations (per-package tables)
-    const { discoverFunctionMigrations, executeFunctionMigrations } =
+    const { discoverFunctionMigrations, loadFunctionMigrationPlans, executeFunctionMigrations } =
         await import('../../utils/function-migrations.js');
     const functions = discoverFunctionMigrations(process.cwd());
 
@@ -68,7 +68,7 @@ export async function dbMigrate(options: { withBackup?: boolean } = {}): Promise
             console.log(chalk.dim(`  - ${func.packageName}`));
         });
 
-        await executeFunctionMigrations(functions);
+        await executeFunctionMigrations(loadFunctionMigrationPlans(functions));
         console.log(chalk.green('✅ Function migrations applied\n'));
     }
 
