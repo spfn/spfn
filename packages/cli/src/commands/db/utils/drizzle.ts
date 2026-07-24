@@ -7,36 +7,113 @@ import ora from 'ora';
 import { env } from '@spfn/core/config';
 import { loadEnv } from '@spfn/core/server';
 
-/**
- * Whether to relax TLS certificate verification for the DB connection.
- *
- * Only for explicit local hosts (localhost/127.0.0.1/::1) or an opt-in env
- * (SPFN_DB_INSECURE_TLS=1) — NEVER unconditionally. Disabling verification for a
- * remote/production DATABASE_URL lets a network MITM capture the credentials and
- * tamper with migration traffic.
- */
-export function shouldRelaxDbTls(databaseUrl: string | undefined): boolean
-{
-    if (process.env.SPFN_DB_INSECURE_TLS === '1' || process.env.SPFN_DB_INSECURE_TLS === 'true')
-    {
-        return true;
-    }
+const TLS_SSL_MODES = new Set(['no-verify', 'prefer', 'require', 'verify-ca', 'verify-full']);
 
+function parseDatabaseUrl(databaseUrl: string | undefined): URL | undefined
+{
     if (!databaseUrl)
     {
-        return false;
+        return undefined;
     }
 
     try
     {
-        const host = new URL(databaseUrl).hostname.replace(/^\[|\]$/g, '');
-
-        return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+        return new URL(databaseUrl);
     }
     catch
     {
-        return false;
+        return undefined;
     }
+}
+
+function isLoopbackDatabaseUrl(databaseUrl: URL): boolean
+{
+    const host = databaseUrl.hostname.replace(/^\[|\]$/g, '');
+
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+}
+
+function requestsDbTls(databaseUrl: URL): boolean
+{
+    const sslMode = databaseUrl.searchParams.get('sslmode')?.toLowerCase();
+    if (sslMode)
+    {
+        return TLS_SSL_MODES.has(sslMode);
+    }
+
+    return databaseUrl.searchParams.get('ssl')?.toLowerCase() === 'true';
+}
+
+function insecureDbTlsEnabled(): boolean
+{
+    return process.env.SPFN_DB_INSECURE_TLS === '1' || process.env.SPFN_DB_INSECURE_TLS === 'true';
+}
+
+/**
+ * Whether to relax TLS certificate verification for the DB connection.
+ *
+ * This opt-in applies only when DATABASE_URL explicitly requests TLS. It must
+ * never turn TLS on by itself: a normal loopback PostgreSQL server commonly has
+ * no TLS support at all.
+ */
+export function shouldRelaxDbTls(databaseUrl: string | undefined): boolean
+{
+    const parsedUrl = parseDatabaseUrl(databaseUrl);
+    const sslMode = parsedUrl?.searchParams.get('sslmode')?.toLowerCase();
+
+    return insecureDbTlsEnabled()
+        && parsedUrl !== undefined
+        && requestsDbTls(parsedUrl)
+        && sslMode !== 'no-verify';
+}
+
+export interface PushConnectionConfig
+{
+    connectionString: string;
+    ssl?: false;
+}
+
+/**
+ * Resolve node-postgres connection options without conflating TLS enablement
+ * with certificate verification.
+ *
+ * Loopback URLs default to plaintext unless their URL explicitly requests TLS.
+ * URL sslmode remains authoritative. The insecure-TLS opt-in only replaces a
+ * requested TLS mode with an equivalent per-connection unverified TLS option.
+ */
+export function resolvePushConnectionConfig(databaseUrl: string): PushConnectionConfig
+{
+    const parsedUrl = parseDatabaseUrl(databaseUrl);
+    if (!parsedUrl)
+    {
+        return { connectionString: databaseUrl };
+    }
+
+    const sslMode = parsedUrl.searchParams.get('sslmode')?.toLowerCase();
+    const hasExplicitSslSetting = parsedUrl.searchParams.has('sslmode') || parsedUrl.searchParams.has('ssl');
+    if (sslMode === 'disable')
+    {
+        return { connectionString: databaseUrl, ssl: false };
+    }
+
+    const tlsRequested = requestsDbTls(parsedUrl);
+    if (!hasExplicitSslSetting && isLoopbackDatabaseUrl(parsedUrl))
+    {
+        return { connectionString: databaseUrl, ssl: false };
+    }
+
+    if (!tlsRequested || !insecureDbTlsEnabled())
+    {
+        return { connectionString: databaseUrl };
+    }
+
+    // SSL parameters in a node-postgres connection string override a top-level
+    // ssl object. Express the opt-in in the URL so any certificate/key parameters
+    // continue to be parsed together with it.
+    parsedUrl.searchParams.set('sslmode', 'no-verify');
+    parsedUrl.searchParams.delete('ssl');
+
+    return { connectionString: parsedUrl.toString() };
 }
 
 /**
@@ -227,12 +304,10 @@ export async function createPushConnection(): Promise<{ db: any; close: () => Pr
     const pg = await import('pg');
     const { drizzle } = await import('drizzle-orm/node-postgres');
 
-    // Relax TLS verification only for local/opt-in connections — per-connection,
-    // not by mutating process.env (which would weaken every TLS client in-process).
+    const connectionConfig = resolvePushConnectionConfig(env.DATABASE_URL);
     const pool = new pg.default.Pool({
-        connectionString: env.DATABASE_URL,
+        ...connectionConfig,
         max: 1,
-        ...(shouldRelaxDbTls(env.DATABASE_URL) ? { ssl: { rejectUnauthorized: false } } : {}),
     });
     const db = drizzle({ client: pool });
 
