@@ -197,7 +197,9 @@ SELECT * FROM __drizzle_migrations;
 
 Show applied/pending migration status for every migration source — installed `@spfn/*`
 packages with bundled migrations and the project's own `src/server/drizzle` — without
-touching the database. Use this first when tables seem to be missing.
+modifying the database. Both drizzle-kit layouts are recognized (`meta/_journal.json`
+journals and `<timestamp>_name/migration.sql` folders). Use this first when tables seem
+to be missing.
 
 ```bash
 spfn db status

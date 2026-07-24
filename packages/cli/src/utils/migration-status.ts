@@ -2,18 +2,22 @@
  * Migration status inspection
  *
  * Shared by `spfn db status` and the `spfn dev` startup warning.
- * Compares each migration journal (function packages + project) against the
- * applied-migration tables that drizzle's migrator maintains.
+ * Compares each migration folder (function packages + project, both drizzle-kit
+ * layouts) against the applied-migration tracking tables.
  */
 
 import { join } from 'path';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import chalk from 'chalk';
 
 import { env } from '@spfn/core/config';
 import { loadEnv } from '@spfn/core/server';
 
-import { discoverFunctionMigrations } from './function-migrations.js';
+import {
+    discoverFunctionMigrations,
+    readMigrationEntries,
+    type FunctionMigrationEntry,
+} from './function-migrations.js';
 
 export type MigrationTargetStatus = {
     name: string;
@@ -28,8 +32,6 @@ export type MigrationStatus = {
     project: MigrationTargetStatus | null;
 };
 
-type JournalEntry = { when: number; tag: string };
-
 /**
  * Per-package migrations table name — must match executeFunctionMigrations()
  */
@@ -38,24 +40,43 @@ export function functionMigrationsTable(packageName: string): string
     return `__spfn_fn_${packageName.replace('@spfn/', '')}_migrations`;
 }
 
-function readJournal(migrationsDir: string): JournalEntry[]
+/**
+ * An entry counts as applied when its name is recorded (drizzle-orm 1.0
+ * projects) or its timestamp is not newer than the last applied record —
+ * the rule the CLI's function-migration runner and drizzle-orm ≤0.45 share.
+ */
+export function filterPendingEntries(
+    entries: FunctionMigrationEntry[],
+    lastAppliedMillis: number,
+    appliedNames: Set<string>,
+): FunctionMigrationEntry[]
 {
-    const journalPath = join(migrationsDir, 'meta', '_journal.json');
-
-    if (!existsSync(journalPath))
-    {
-        return [];
-    }
-
-    const journal = JSON.parse(readFileSync(journalPath, 'utf-8'));
-
-    return journal.entries ?? [];
+    return entries.filter(entry => entry.millis > lastAppliedMillis && !appliedNames.has(entry.name));
 }
 
 /**
- * drizzle's migrator applies journal entries whose `when` is newer than the
- * last `created_at` recorded in the migrations table — mirror that comparison.
+ * drizzle-orm 1.0 records a `name` column and treats a migration as applied
+ * when its name is present; CLI-owned per-package tables have no such column.
  */
+async function readAppliedNames(sql: any, tableName: string): Promise<Set<string>>
+{
+    const columnCheck = await sql`
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'drizzle' AND table_name = ${tableName} AND column_name = 'name'
+        ) AS "exists"`;
+
+    if (!columnCheck[0]?.exists)
+    {
+        return new Set();
+    }
+
+    const rows: { name: string }[] = await sql`
+        SELECT name FROM drizzle.${sql(tableName)} WHERE name IS NOT NULL`;
+
+    return new Set(rows.map(row => row.name));
+}
+
 async function collectTargetStatus(
     sql: any,
     name: string,
@@ -63,7 +84,7 @@ async function collectTargetStatus(
     tableName: string,
 ): Promise<MigrationTargetStatus>
 {
-    const entries = readJournal(migrationsDir);
+    const entries = readMigrationEntries(migrationsDir, name);
 
     const tableCheck = await sql`
         SELECT EXISTS (
@@ -72,6 +93,7 @@ async function collectTargetStatus(
         ) AS "exists"`;
 
     let lastApplied = 0;
+    let appliedNames = new Set<string>();
 
     if (tableCheck[0]?.exists)
     {
@@ -79,16 +101,17 @@ async function collectTargetStatus(
             SELECT created_at FROM drizzle.${sql(tableName)}
             ORDER BY created_at DESC LIMIT 1`;
         lastApplied = rows[0]?.created_at ? Number(rows[0].created_at) : 0;
+        appliedNames = await readAppliedNames(sql, tableName);
     }
 
-    const pendingEntries = entries.filter(e => e.when > lastApplied);
+    const pendingEntries = filterPendingEntries(entries, lastApplied, appliedNames);
 
     return {
         name,
         total: entries.length,
         applied: entries.length - pendingEntries.length,
         pending: pendingEntries.length,
-        pendingTags: pendingEntries.map(e => e.tag),
+        pendingTags: pendingEntries.map(e => e.name),
     };
 }
 
@@ -127,11 +150,11 @@ export async function getMigrationStatus(
         }
 
         const projectDir = join(cwd, 'src', 'server', 'drizzle');
-        const project = existsSync(join(projectDir, 'meta', '_journal.json'))
+        const project = existsSync(projectDir)
             ? await collectTargetStatus(sql, 'project (src/server/drizzle)', projectDir, '__drizzle_migrations')
             : null;
 
-        return { packages, project };
+        return { packages, project: project && project.total > 0 ? project : null };
     }
     finally
     {
