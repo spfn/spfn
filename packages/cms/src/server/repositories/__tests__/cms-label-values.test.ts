@@ -51,7 +51,7 @@ describe('CmsLabelValuesRepository', () =>
             expect(result.value).toEqual({ type: 'text', content: '환영합니다' });
         });
 
-        it('should update existing value', async () =>
+        it('should update an existing draft value', async () =>
         {
             const label = await cmsLabelsRepository.create({
                 key: 'home.hero.title',
@@ -62,7 +62,7 @@ describe('CmsLabelValuesRepository', () =>
             // First insert
             await cmsLabelValuesRepository.upsert({
                 labelId: label.id,
-                version: 1,
+                version: null,
                 locale: 'ko',
                 value: { type: 'text', content: 'V1' },
             });
@@ -70,7 +70,7 @@ describe('CmsLabelValuesRepository', () =>
             // Update
             const updated = await cmsLabelValuesRepository.upsert({
                 labelId: label.id,
-                version: 1,
+                version: null,
                 locale: 'ko',
                 value: { type: 'text', content: 'V2' },
             });
@@ -78,7 +78,7 @@ describe('CmsLabelValuesRepository', () =>
             expect(updated.value).toEqual({ type: 'text', content: 'V2' });
 
             // Verify only one record exists
-            const values = await cmsLabelValuesRepository.findByLabelIdAndVersion(label.id, 1);
+            const values = await cmsLabelValuesRepository.findDraftsByLabelId(label.id);
             expect(values).toHaveLength(1);
         });
 
@@ -182,7 +182,7 @@ describe('CmsLabelValuesRepository', () =>
             // Pre-existing value
             await cmsLabelValuesRepository.upsert({
                 labelId: label.id,
-                version: 1,
+                version: null,
                 locale: 'ko',
                 value: { type: 'text', content: 'Old' },
             });
@@ -191,19 +191,19 @@ describe('CmsLabelValuesRepository', () =>
             await cmsLabelValuesRepository.upsertMany([
                 {
                     labelId: label.id,
-                    version: 1,
+                    version: null,
                     locale: 'ko',
                     value: { type: 'text', content: 'New' },
                 },
                 {
                     labelId: label.id,
-                    version: 1,
+                    version: null,
                     locale: 'en',
                     value: { type: 'text', content: 'English' },
                 },
             ]);
 
-            const values = await cmsLabelValuesRepository.findByLabelIdAndVersion(label.id, 1);
+            const values = await cmsLabelValuesRepository.findDraftsByLabelId(label.id);
             expect(values).toHaveLength(2);
         });
     });

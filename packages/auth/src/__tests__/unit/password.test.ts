@@ -247,14 +247,17 @@ describe('Password - Strength Validation', () =>
 
 describe('Password - Performance', () =>
 {
+    // Cost-12 bcrypt is intentionally CPU-intensive. This is a regression
+    // ceiling, not a benchmark; shared CI runners can heavily delay worker-pool work.
+    const operationBudgetMs = 2_000;
+
     it('should hash password within reasonable time', async () =>
     {
         const start = Date.now();
         await hashPassword('TestPassword123!');
         const duration = Date.now() - start;
 
-        // 10 rounds should take less than 500ms on modern hardware
-        expect(duration).toBeLessThan(500);
+        expect(duration).toBeLessThan(operationBudgetMs);
     });
 
     it('should verify password within reasonable time', async () =>
@@ -265,8 +268,7 @@ describe('Password - Performance', () =>
         await verifyPassword('TestPassword123!', hash);
         const duration = Date.now() - start;
 
-        // Verification should be faster than hashing
-        expect(duration).toBeLessThan(500);
+        expect(duration).toBeLessThan(operationBudgetMs);
     });
 
     it('should validate password strength instantly', () =>

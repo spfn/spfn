@@ -177,7 +177,7 @@ describe('CmsLabelsRepository', () =>
 
     describe('findMany', () =>
     {
-        it('should return all labels with pagination', async () =>
+        it('should return all labels', async () =>
         {
             // Create test data
             for (let i = 0; i < 15; i++)
@@ -190,12 +190,9 @@ describe('CmsLabelsRepository', () =>
                 });
             }
 
-            const result = await cmsLabelsRepository.findMany({
-                limit: 10,
-                offset: 0,
-            });
+            const result = await cmsLabelsRepository.findMany();
 
-            expect(result).toHaveLength(10);
+            expect(result).toHaveLength(15);
         });
 
         it('should filter labels by section', async () =>
@@ -222,7 +219,7 @@ describe('CmsLabelsRepository', () =>
             expect(result[0].section).toBe('home');
         });
 
-        it('should return second page correctly', async () =>
+        it('should return labels ordered by key', async () =>
         {
             // Create 15 labels
             for (let i = 0; i < 15; i++)
@@ -235,12 +232,10 @@ describe('CmsLabelsRepository', () =>
                 });
             }
 
-            const page2 = await cmsLabelsRepository.findMany({
-                limit: 10,
-                offset: 10,
-            });
+            const result = await cmsLabelsRepository.findMany();
 
-            expect(page2).toHaveLength(5);
+            const keys = result.map(label => label.key);
+            expect(keys).toEqual([...keys].sort());
         });
     });
 

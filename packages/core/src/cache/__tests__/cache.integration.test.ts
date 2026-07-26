@@ -36,7 +36,7 @@ describe('Cache Integration Tests', () =>
     {
         it('should connect to single Redis instance', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             const { write, read } = await createCacheFromEnv();
 
@@ -56,7 +56,7 @@ describe('Cache Integration Tests', () =>
 
         it('should perform basic Redis operations', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             const { write } = await createCacheFromEnv();
 
@@ -82,7 +82,7 @@ describe('Cache Integration Tests', () =>
 
         it('should handle JSON data', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             const { write } = await createCacheFromEnv();
 
@@ -108,7 +108,7 @@ describe('Cache Integration Tests', () =>
 
         it('should handle expiration (TTL)', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             const { write } = await createCacheFromEnv();
 
@@ -137,8 +137,8 @@ describe('Cache Integration Tests', () =>
     {
         it('should connect to master and replica separately', async () =>
         {
-            process.env.REDIS_WRITE_URL = 'redis://localhost:6380';
-            process.env.REDIS_READ_URL = 'redis://localhost:6381';
+            process.env.CACHE_WRITE_URL = 'redis://localhost:6480';
+            process.env.CACHE_READ_URL = 'redis://localhost:6481';
 
             const { write, read } = await createCacheFromEnv();
 
@@ -162,8 +162,8 @@ describe('Cache Integration Tests', () =>
 
         it('should write to master and read from replica', async () =>
         {
-            process.env.REDIS_WRITE_URL = 'redis://localhost:6380';
-            process.env.REDIS_READ_URL = 'redis://localhost:6381';
+            process.env.CACHE_WRITE_URL = 'redis://localhost:6480';
+            process.env.CACHE_READ_URL = 'redis://localhost:6481';
 
             const { write, read } = await createCacheFromEnv();
 
@@ -194,7 +194,7 @@ describe('Cache Integration Tests', () =>
     {
         it('should initialize Redis via initCache()', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             const result = await initCache();
 
@@ -216,7 +216,7 @@ describe('Cache Integration Tests', () =>
 
         it('should test connection with ping() before accepting', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             const result = await initCache();
 
@@ -231,7 +231,7 @@ describe('Cache Integration Tests', () =>
 
         it('should fail gracefully with invalid host', async () =>
         {
-            process.env.REDIS_URL = 'redis://invalid-host-that-does-not-exist:6379';
+            process.env.CACHE_URL = 'redis://invalid-host-that-does-not-exist:6379';
 
             const result = await initCache();
 
@@ -245,8 +245,8 @@ describe('Cache Integration Tests', () =>
 
         it('should provide separate read instance for master-replica', async () =>
         {
-            process.env.REDIS_WRITE_URL = 'redis://localhost:6380';
-            process.env.REDIS_READ_URL = 'redis://localhost:6381';
+            process.env.CACHE_WRITE_URL = 'redis://localhost:6480';
+            process.env.CACHE_READ_URL = 'redis://localhost:6481';
 
             await initCache();
 
@@ -267,7 +267,7 @@ describe('Cache Integration Tests', () =>
 
         it('should use write instance as read fallback for single instance', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             await initCache();
 
@@ -291,7 +291,7 @@ describe('Cache Integration Tests', () =>
     {
         it('should connect to Redis with password', async () =>
         {
-            process.env.REDIS_URL = 'redis://:secret123@localhost:6382';
+            process.env.CACHE_URL = 'redis://:secret123@localhost:6482';
 
             const { write } = await createCacheFromEnv();
 
@@ -317,7 +317,7 @@ describe('Cache Integration Tests', () =>
     {
         it('should properly close connections', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             await initCache();
 
@@ -336,8 +336,8 @@ describe('Cache Integration Tests', () =>
 
         it('should close both write and read instances', async () =>
         {
-            process.env.REDIS_WRITE_URL = 'redis://localhost:6380';
-            process.env.REDIS_READ_URL = 'redis://localhost:6381';
+            process.env.CACHE_WRITE_URL = 'redis://localhost:6480';
+            process.env.CACHE_READ_URL = 'redis://localhost:6481';
 
             await initCache();
 
@@ -356,7 +356,7 @@ describe('Cache Integration Tests', () =>
 
         it('should be safe to call closeCache() multiple times', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             await initCache();
             await closeCache();
@@ -372,7 +372,7 @@ describe('Cache Integration Tests', () =>
     {
         it('should handle concurrent operations', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             await initCache();
             const redis = getCache();
@@ -416,7 +416,7 @@ describe('Cache Integration Tests', () =>
 
         it('should handle pipelines for bulk operations', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             await initCache();
             const redis = getCache();
@@ -455,7 +455,7 @@ describe('Cache Integration Tests', () =>
 
         it('should handle sets and sorted sets', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             await initCache();
             const redis = getCache();
@@ -486,7 +486,7 @@ describe('Cache Integration Tests', () =>
 
         it('should handle lists for queues', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             await initCache();
             const redis = getCache();
@@ -521,7 +521,7 @@ describe('Cache Integration Tests', () =>
 
         it('should handle hash operations', async () =>
         {
-            process.env.REDIS_URL = 'redis://localhost:6379';
+            process.env.CACHE_URL = 'redis://localhost:6479';
 
             await initCache();
             const redis = getCache();

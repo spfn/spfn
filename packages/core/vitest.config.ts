@@ -18,7 +18,8 @@ export default defineConfig({
         include: ['src/**/*.{test,spec}.{js,ts}'],
 
         // Sequential execution to reduce memory usage and avoid global state conflicts
-        maxConcurrency: 1,  // Run only 1 test file at a time
+        fileParallelism: false,
+        maxConcurrency: 1,
         pool: 'forks',  // Use forks for better isolation with global state
 
         // Pool options for proper cleanup
