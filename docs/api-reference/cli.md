@@ -134,7 +134,10 @@ spfn db migrate
 
 ## spfn db migrate
 
-Apply pending migrations to the database.
+Apply pending migrations to the database. This applies **function package migrations first**
+(the `migrations/` directory bundled inside installed `@spfn/*` packages such as `@spfn/auth`),
+then project migrations from `src/server/drizzle`. It is the command that creates package
+tables — they are not part of `spfn db push`'s schema diff.
 
 ```bash
 # Apply all pending migrations
@@ -190,6 +193,31 @@ SELECT * FROM __drizzle_migrations;
 | 2  | def456...  | 2024-01-16 11:30:00 |
 ```
 
+## spfn db status
+
+Show applied/pending migration status for every migration source — installed `@spfn/*`
+packages with bundled migrations and the project's own `src/server/drizzle` — without
+modifying the database. Both drizzle-kit layouts are recognized (`meta/_journal.json`
+journals and `<timestamp>_name/migration.sql` folders). Use this first when tables seem
+to be missing.
+
+```bash
+spfn db status
+
+# Output
+📦 Migration status:
+
+  @spfn/auth                       12/12 applied
+  @spfn/cms                        4/6 applied, 2 pending
+      - 0005_label_defaults
+      - 0006_locale_index
+  project (src/server/drizzle)     8/8 applied
+
+⚠️  2 pending migration(s) — run: pnpm spfn db migrate
+```
+
+`spfn dev` runs the same check at startup and warns when anything is pending.
+
 ## spfn db push
 
 Push schema changes to the database (safe mode by default). The command uses Drizzle Kit's current PostgreSQL diff engine, including composite-primary-key introspection. Additive changes (CREATE TABLE, ADD COLUMN, etc.) are applied automatically, while destructive changes (DROP TABLE, DROP COLUMN, etc.) require confirmation. The selected statement set is applied in one transaction, so a failed statement rolls back the whole push.
@@ -223,6 +251,12 @@ spfn db push --force
 > **⚠️ Warning:** Development Only
 >
 > `spfn db push` is intended for development only. For production, always use `spfn db generate` and `spfn db migrate` to maintain migration history.
+
+> **Note:** Package tables are not diffed by push
+>
+> Schemas from installed `@spfn/*` packages (e.g. `@spfn/auth`) are excluded from the push
+> diff — their tables come from the packages' bundled migrations, which push applies as its
+> final step. If package tables are missing, check `spfn db status` and run `spfn db migrate`.
 
 ## spfn db reindex
 

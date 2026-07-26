@@ -612,6 +612,11 @@ router) double-registers the same job name against pg-boss instead of overriding
 
 ## Pitfalls & anti-patterns
 
+- **"relation \"auth.users\" does not exist" — tables come from bundled migrations, not push.**
+  Package schemas are excluded from `spfn db push`'s diff; the `auth.*` tables are created by the
+  migration files shipped in this package. Run `pnpm spfn db migrate` (state check:
+  `pnpm spfn db status`). Installing via plain `pnpm add @spfn/auth` runs no migration — only
+  `spfn add @spfn/auth` auto-applies them.
 - **Wrong entry point.** `@spfn/auth/server` and `@spfn/auth/nextjs/*` are server-only (Node /
   `server-only`). Importing them in a client component breaks the build. Entities, services, and
   repositories are on `/server`, not on root `@spfn/auth`.

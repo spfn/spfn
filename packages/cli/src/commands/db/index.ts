@@ -8,6 +8,7 @@ import { Command } from 'commander';
 import { dbGenerate } from './generate.js';
 import { dbPush } from './push.js';
 import { dbMigrate } from './migrate.js';
+import { dbStatus } from './status.js';
 import { dbStudio } from './studio.js';
 import { dbDrop } from './drop.js';
 import { dbCheck } from './check.js';
@@ -44,6 +45,11 @@ dbCommand
     .action((options) => dbMigrate(options));
 
 dbCommand
+    .command('status')
+    .description('Show applied/pending migration status (function packages + project)')
+    .action(dbStatus);
+
+dbCommand
     .command('studio')
     .description('Open Drizzle Studio (database GUI)')
     .option('-p, --port <port>', 'Studio port (auto-finds if in use)')
@@ -56,7 +62,7 @@ dbCommand
 
 dbCommand
     .command('check')
-    .description('Check database connection')
+    .description('Check migration file consistency (drizzle-kit check)')
     .action(dbCheck);
 
 dbCommand
