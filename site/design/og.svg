@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#10161a"/>
+  <rect x="930" width="270" height="630" fill="#1d34f3"/>
+  <rect x="1168" width="32" height="630" fill="#ff3b1f"/>
+  <g transform="translate(84 68) scale(.26)" fill="#1d34f3">
+    <path d="M137.954 26.8921C133.611 24.0908 129.082 22.0243 124.451 20.6696C120.622 15.8133 116.032 11.5655 110.752 8.16724C84.6518 -8.64033 51.2852 1.32481 36.2178 30.4281C21.1606 59.5313 30.1043 96.7514 56.2048 113.559C61.4948 116.969 67.0937 119.265 72.7645 120.539C57.728 101.481 54.4757 73.1244 66.4864 49.9221C78.4972 26.7313 102.128 15.687 124.451 20.6811C141.412 39.8077 145.58 69.9098 132.942 94.329L158.033 110.494C173.183 81.2182 164.198 43.7915 137.954 26.8921Z"/>
+    <path d="M108.874 78.4409C103.584 75.0312 97.9952 72.7236 92.314 71.4492C107.351 90.5185 110.603 118.876 98.5921 142.078C86.5814 165.28 62.951 176.324 40.6278 171.33C23.7798 152.284 19.7042 122.239 32.3427 97.8201L7.39499 81.7473C-7.75478 111.023 1.1169 148.369 27.207 165.177H27.1967C31.5194 167.955 36.0272 169.999 40.6278 171.342C44.4564 176.187 49.0466 180.423 54.3264 183.833C80.4268 200.64 113.793 190.675 128.861 161.572C143.918 132.469 134.974 95.2485 108.874 78.4409Z"/>
+  </g>
+  <text x="144" y="112" fill="#ffffff" font-family="Helvetica Neue,Arial,sans-serif" font-size="34" font-weight="700">Superfunction</text>
+  <text x="84" y="295" fill="#ffffff" font-family="Helvetica Neue,Arial,sans-serif" font-size="80" font-weight="800">PROTOTYPE</text>
+  <text x="84" y="382" fill="#ffffff" font-family="Helvetica Neue,Arial,sans-serif" font-size="80" font-weight="800">TO PRODUCTION.</text>
+  <text x="84" y="504" fill="#8a9096" font-family="Helvetica Neue,Arial,sans-serif" font-size="25">The AI-native full-stack architecture</text>
+  <text x="978" y="86" fill="#ffffff" font-family="Menlo,monospace" font-size="16" letter-spacing="2">BUILD</text>
+  <line x1="978" y1="108" x2="1118" y2="108" stroke="#ffffff" stroke-width="1"/>
+  <text x="978" y="144" fill="#ffffff" font-family="Menlo,monospace" font-size="16" letter-spacing="2">DEPLOY</text>
+  <line x1="978" y1="166" x2="1118" y2="166" stroke="#ffffff" stroke-width="1"/>
+  <text x="978" y="202" fill="#ffffff" font-family="Menlo,monospace" font-size="16" letter-spacing="2">OPERATE</text>
+  <rect x="978" y="518" width="10" height="10" fill="#ffffff"/>
+  <line x1="988" y1="523" x2="1118" y2="523" stroke="#ffffff" stroke-width="1"/>
+  <text x="978" y="564" fill="#ffffff" font-family="Menlo,monospace" font-size="14" letter-spacing="1.5">@SPFN/*</text>
+</svg>

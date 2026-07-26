@@ -79,10 +79,13 @@ headlines on white may be set in cobalt, ink, or a mix of both.
 
 ## Voice
 
-- Declarative and short. "Typed end to end." not "We help you build…".
+- Declarative and short. "Prototype to production." not "We help you build…".
 - Display lines may break mid-phrase for composition; no exclamation marks.
 - Captions and annotations in mono uppercase read like figure labels
-  (`FIG 01 — TYPE FLOW`).
+  (`FIG 01 — BUILD LOOP`).
+- Lead with the product journey and agent-legible architecture. Present type
+  safety as one production guardrail alongside validation, migrations, and
+  explicit boundaries — never as the whole product.
 
 ## Theme sync
 

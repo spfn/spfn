@@ -1,7 +1,7 @@
 ---
 title: "Tutorial: Full-Stack Auth"
 navTitle: Tutorial
-order: 1
+order: 2
 description: Build a full-stack app with @spfn/core and @spfn/auth — seeded admin, login form, social login, and layout guards — running locally.
 ---
 

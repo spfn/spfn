@@ -1,5 +1,5 @@
 name: Superfunction
-description: TypeScript framework for full-stack apps — a typed SPFN backend inside your Next.js project.
+description: AI-native full-stack architecture for taking a Next.js product from prototype to production.
 root: site
 url: https://superfunction.xyz
 repo: https://github.com/fxylabs/spfn

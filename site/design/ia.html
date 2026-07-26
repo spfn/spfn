@@ -90,20 +90,28 @@
     <div class="inner">
         <div class="kicker">SUPERFUNCTION.XYZ — PHASE 2 · IA STRUCTURE</div>
         <h1>Site structure, <em>drawn.</em></h1>
-        <p class="status">STATUS: AGREED (2026-07-21) — DOCS STARTS WITH PATTERN + PACKAGES · /POSTS DEFERRED
-           UNTIL THE FIRST RELEASE NOTE · PACKAGE DOC MOUNTS ARE IN SCOPE (RENDERER FEATURE, IN PROGRESS)</p>
+        <p class="status">STATUS: V3 AGREED (2026-07-26) — PROTOTYPE TO PRODUCTION LEADS · FULL MODE IS THE
+           RECOMMENDED PRODUCT PATH · MCP EXTENDS THE AGENT LOOP INTO OPERATIONS</p>
 
         <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">Route tree</span></div>
         <div class="tree">
             <ul>
                 <li>
                     <span class="node hot">/ <span class="badge b-html">HTML</span></span>
-                    <span class="note">Landing — phase 3 draft exists. Poster hero, why, type flow, packages, CTA.</span>
+                    <span class="note">Landing — Poster hero, full-stack foundation, build loop, scaffold modes, MCP operations, functions, CTA.</span>
                     <ul>
                         <li>
                             <span class="node">/docs <span class="badge b-md">MD</span></span>
                             <span class="note">Get started — install, first slice. Exists.</span>
                             <ul>
+                                <li>
+                                    <span class="node">/docs/prototype-to-production <span class="badge b-md">MD</span> <span class="badge b-new">NEW</span></span>
+                                    <span class="note">Full scaffold → agent build → deployment → authenticated MCP operations.</span>
+                                </li>
+                                <li>
+                                    <span class="node">/docs/tutorial <span class="badge b-md">MD</span></span>
+                                    <span class="note">Full-stack auth tutorial: sessions, social login, and layout guards.</span>
+                                </li>
                                 <li>
                                     <span class="node">/docs/pattern <span class="badge b-md">MD</span> <span class="badge b-new">NEW</span></span>
                                     <span class="note">The SPFN pattern deep-dive: slice anatomy, codegen, errors.</span>
@@ -154,29 +162,30 @@
 
         <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">User journeys</span></div>
         <div class="journey">
-            <div class="jname">J1 — Evaluator (first visit)</div>
+            <div class="jname">J1 — Builder (first visit)</div>
             <div class="jflow">
                 <span class="jnode hot">/</span><span class="jwire"></span>
-                <span class="jnode">/docs</span><span class="jwire"></span>
-                <span class="jnode">npx spfn create</span><span class="jwire"></span>
-                <span class="jnode ext">github</span>
+                <span class="jnode">/docs/prototype-to-production</span><span class="jwire"></span>
+                <span class="jnode">create --mode full</span><span class="jwire"></span>
+                <span class="jnode ext">agent build</span>
             </div>
         </div>
         <div class="journey">
-            <div class="jname">J2 — Builder (returning)</div>
+            <div class="jname">J2 — Operator (after deployment)</div>
+            <div class="jflow">
+                <span class="jnode">deploy</span><span class="jwire"></span>
+                <span class="jnode">connect /mcp</span><span class="jwire"></span>
+                <span class="jnode">authorize</span><span class="jwire"></span>
+                <span class="jnode ext">agent operations</span>
+            </div>
+        </div>
+        <div class="journey">
+            <div class="jname">J3 — Deep evaluator</div>
             <div class="jflow">
                 <span class="jnode">/docs</span><span class="jwire"></span>
                 <span class="jnode">/docs/pattern</span><span class="jwire"></span>
                 <span class="jnode">/docs/packages</span><span class="jwire"></span>
-                <span class="jnode ext">package README</span>
-            </div>
-        </div>
-        <div class="journey">
-            <div class="jname">J3 — Follower (release watcher)</div>
-            <div class="jflow">
-                <span class="jnode">/posts</span><span class="jwire"></span>
-                <span class="jnode">/posts/&lt;slug&gt;</span><span class="jwire"></span>
-                <span class="jnode">/docs</span>
+                <span class="jnode ext">package reference</span>
             </div>
         </div>
 
