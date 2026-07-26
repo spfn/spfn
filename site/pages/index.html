@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Superfunction — Ship full-stack TypeScript, typed end to end</title>
-<meta name="description" content="TypeScript framework for full-stack apps — a typed SPFN backend inside your Next.js project.">
-<meta property="og:title" content="Superfunction">
-<meta property="og:description" content="TypeScript framework for full-stack apps — a typed SPFN backend inside your Next.js project.">
+<title>Superfunction — Prototype to production with AI</title>
+<meta name="description" content="The AI-native full-stack architecture for going from prototype to production — scaffold, build, deploy, and operate one structured Next.js app.">
+<meta property="og:title" content="Superfunction — Prototype to production">
+<meta property="og:description" content="Scaffold a working full stack, give your agent a structure it can extend, and operate the deployed product through MCP.">
 <meta property="og:image" content="https://superfunction.xyz/og.png">
 <meta property="og:url" content="https://superfunction.xyz/">
 <meta property="og:type" content="website">
@@ -101,6 +101,32 @@
     .codeblock .hot { color: #b9c4ff; }
     .flow-note { margin-top: 28px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--gray); }
 
+    /* modes */
+    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--ink); }
+    .mode { padding: 30px; }
+    .mode + .mode { border-left: 1px solid var(--ink); }
+    .mode.featured { background: var(--cobalt); color: var(--white); }
+    .mode-top { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+    .mode .mname { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .mode .tag { margin-left: auto; border: 1px solid currentColor; padding: 5px 8px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; }
+    .mode h3 { font-size: 25px; line-height: 1.15; margin-bottom: 14px; }
+    .mode p { font-size: 14px; line-height: 1.65; max-width: 48ch; }
+    .mode ul { list-style: none; margin-top: 24px; border-top: 1px solid currentColor; }
+    .mode li { padding: 10px 0; border-bottom: 1px solid currentColor; font-family: var(--mono); font-size: 12px; }
+    .mode code { font-family: var(--mono); font-size: 12px; }
+
+    /* operations */
+    .ops-grid { display: grid; grid-template-columns: 5fr 7fr; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+    .ops-copy { padding: 34px 34px 34px 0; }
+    .ops-copy p { font-size: 16px; line-height: 1.65; max-width: 45ch; }
+    .ops-copy .btn { margin-top: 28px; }
+    .ops-list { border-left: 1px solid var(--ink); }
+    .op-row { display: grid; grid-template-columns: 74px 1fr; gap: 18px; padding: 22px 26px; border-bottom: 1px solid var(--ink); }
+    .op-row:last-child { border-bottom: 0; }
+    .op-row .step { color: var(--cobalt); font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; }
+    .op-row h3 { font-size: 17px; margin-bottom: 6px; }
+    .op-row p { color: #3c4248; font-size: 13px; line-height: 1.55; }
+
     /* packages */
     .pkg-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); border-left: 1px solid var(--ink); }
     .pkg { border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 20px 20px 24px; min-height: 118px; }
@@ -132,6 +158,9 @@
         .why { border-top: 1px solid var(--ink); }
         .why:nth-child(-n+2) { border-top: none; }
         .code-cols { grid-template-columns: 1fr; gap: 28px; }
+        .ops-grid { grid-template-columns: 1fr; }
+        .ops-copy { padding-right: 0; }
+        .ops-list { border-top: 1px solid var(--ink); border-left: 0; }
         .pkg-grid { grid-template-columns: 1fr 1fr; }
         .wireflow { flex-wrap: wrap; row-gap: 10px; }
     }
@@ -140,7 +169,14 @@
         .why-grid { grid-template-columns: 1fr; }
         .why { border-left: none; border-top: 1px solid var(--ink); }
         .why:first-child { border-top: none; }
+        .mode-grid { grid-template-columns: 1fr; }
+        .mode + .mode { border-top: 1px solid var(--ink); border-left: 0; }
         .pkg-grid { grid-template-columns: 1fr; }
+        .nav nav { gap: 12px; font-size: 12px; }
+        .brand { font-size: 0; }
+        .op-row { grid-template-columns: 1fr; gap: 8px; }
+        footer .inner { align-items: flex-start; flex-wrap: wrap; }
+        footer .dim { width: 100%; margin-left: 0; }
         section { padding: 80px 0 0; }
         section:last-of-type { padding-bottom: 80px; }
         .hero { padding-top: 64px; }
@@ -164,15 +200,14 @@
 
     <div class="hero">
         <div class="inner">
-            <div class="kicker">SUPERFUNCTION — A BACKEND INSIDE NEXT.JS</div>
-            <h1 class="display">Typed<br>end to <span class="inkline">end.</span></h1>
-            <p class="sub">A real backend inside your Next.js project — entities, repositories, routes, and
-               a generated RPC client sharing one type system. No separate server repo, no hand-written API
-               contracts. Change a route and the client type changes with it.</p>
+            <div class="kicker">SUPERFUNCTION — AI-NATIVE FULL-STACK ARCHITECTURE</div>
+            <h1 class="display">Prototype<br>to <span class="inkline">production.</span></h1>
+            <p class="sub">Scaffold a working Next.js product with backend, auth, i18n, and MCP in one command.
+               Give your agent a structure it can understand, extend, deploy, and operate.</p>
             <div class="cta-row">
-                <a class="btn btn-cobalt" href="/docs">Get started</a>
-                <a class="btn btn-outline" href="https://github.com/fxylabs/spfn" target="_blank" rel="noopener">GitHub</a>
-                <span class="codebar">$ npx spfn@beta create my-app</span>
+                <a class="btn btn-cobalt" href="/docs/prototype-to-production">Follow the guide</a>
+                <a class="btn btn-outline" href="/docs">Read the docs</a>
+                <span class="codebar">$ pnpm dlx spfn@beta create my-app --mode full</span>
             </div>
         </div>
         <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
@@ -180,32 +215,32 @@
 
     <section>
         <div class="inner">
-            <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">Why SPFN</span></div>
-            <h2 class="sec-title">The compiler catches what<br>integration tests <em>used to.</em></h2>
+            <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">Start with the product</span></div>
+            <h2 class="sec-title">Build the business.<br>Not the <em>plumbing.</em></h2>
             <div class="why-grid">
                 <div class="why">
                     <div class="num">01</div>
-                    <h3>Typed end to end</h3>
-                    <p>Drizzle entities → TypeBox-validated routes → a generated
-                       <code>createApi&lt;AppRouter&gt;()</code> client. One type system, zero drift.</p>
+                    <h3>One scaffold</h3>
+                    <p>Next.js, the SPFN backend, database wiring, auth, i18n, and MCP arrive as one
+                       working full-stack foundation.</p>
                 </div>
                 <div class="why">
                     <div class="num">02</div>
-                    <h3>One slice per feature</h3>
-                    <p>Entity, Repository, Route, Router — each in its own file. Humans and AI agents both
-                       know exactly where things go.</p>
+                    <h3>Connect the keys</h3>
+                    <p>Add the OAuth, storage, and infrastructure credentials your product needs. Spend the
+                       first session on the idea, not login plumbing.</p>
                 </div>
                 <div class="why">
                     <div class="num">03</div>
-                    <h3>Batteries as packages</h3>
-                    <p>Auth, storage, MCP, i18n, notifications, monitoring, CMS, workflow — composable
-                       <code>@spfn/*</code> packages, not a monolith.</p>
+                    <h3>Agent-legible</h3>
+                    <p>Entity, Repository, Route, Router — the same vertical slice for every feature. Your
+                       agent knows where to read and where to write.</p>
                 </div>
                 <div class="why">
                     <div class="num">04</div>
-                    <h3>Next.js native</h3>
-                    <p>One repo, one dev command. The backend runs beside your app with its own port and
-                       lifecycle.</p>
+                    <h3>Production guardrails</h3>
+                    <p>Runtime validation, generated migrations, explicit boundaries, and end-to-end types
+                       keep fast changes reviewable.</p>
                 </div>
             </div>
         </div>
@@ -213,48 +248,104 @@
 
     <section>
         <div class="inner">
-            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">Type flow</span></div>
-            <h2 class="sec-title">Change the route.<br>The client <em>follows.</em></h2>
+            <div class="sec-head"><span class="idx">02</span><div class="rule"></div><span class="name">The build loop</span></div>
+            <h2 class="sec-title">One path from first prompt<br>to live <em>operations.</em></h2>
             <div class="wireflow">
-                <div class="wnode">entity</div><div class="wwire"></div>
-                <div class="wnode">repository</div><div class="wwire"></div>
-                <div class="wnode">route</div><div class="wwire tohot"></div>
-                <div class="wnode hot">typed client</div>
+                <div class="wnode">idea</div><div class="wwire"></div>
+                <div class="wnode">scaffold</div><div class="wwire"></div>
+                <div class="wnode">vertical slices</div><div class="wwire"></div>
+                <div class="wnode">deploy</div><div class="wwire tohot"></div>
+                <div class="wnode hot">MCP operations</div>
             </div>
             <div class="code-cols">
                 <div class="code-col">
-                    <div class="clabel">entities/todo.ts</div>
-                    <div class="codeblock"><span class="kw">export const</span> todos = pgTable(<span class="str">'todos'</span>, {
-    id: bigserial(<span class="str">'id'</span>),
-    title: text(<span class="str">'title'</span>).notNull(),
-    done: boolean(<span class="str">'done'</span>)
-});</div>
-                </div>
-                <div class="code-col">
-                    <div class="clabel">routes/todos.ts</div>
-                    <div class="codeblock">route.post(<span class="str">'/todos'</span>, {
-    body: Type.Object({
-        title: Type.String()
-    })
-}, <span class="kw">async</span> c =&gt; repo.save(c.body));</div>
-                </div>
-                <div class="code-col">
-                    <div class="clabel">app — generated client</div>
-                    <div class="codeblock"><span class="kw">const</span> api = createApi&lt;AppRouter&gt;();
+                    <div class="clabel">01 — scaffold</div>
+                    <div class="codeblock">$ pnpm dlx spfn@beta create my-app <span class="hot">--mode full</span>
 
-<span class="kw">await</span> api.todos.post({
-    title: <span class="str">'ship it'</span>
-}); <span class="dim">// ← body type-checked</span></div>
+<span class="dim"># core · auth · i18n · MCP</span>
+$ cd my-app &amp;&amp; docker compose up -d
+$ pnpm spfn:dev</div>
+                </div>
+                <div class="code-col">
+                    <div class="clabel">02 — give the agent a path</div>
+                    <div class="codeblock">src/server/
+├── entities/<span class="str">idea.ts</span>
+├── repositories/<span class="str">idea.ts</span>
+├── routes/<span class="str">ideas.ts</span>
+└── router.ts
+
+<span class="dim"># same slice, every feature</span></div>
+                </div>
+                <div class="code-col">
+                    <div class="clabel">03 — operate what shipped</div>
+                    <div class="codeblock">agent → Bearer key → /mcp
+
+tools/
+├── <span class="str">customers.list</span>
+├── <span class="str">orders.refund</span>
+└── <span class="str">content.publish</span>
+
+<span class="dim"># your tools · your policy</span></div>
                 </div>
             </div>
-            <div class="flow-note">FIG 01 — TYPE FLOW · EDIT THE ROUTE, RUN CODEGEN, EVERY CONSUMER IS RE-CHECKED</div>
+            <div class="flow-note">FIG 01 — ONE APP · ONE REPEATABLE PATTERN · ONE AGENT-ACCESSIBLE OPERATING SURFACE</div>
         </div>
     </section>
 
     <section>
         <div class="inner">
-            <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">Functions</span></div>
-            <h2 class="sec-title">Take what you need.</h2>
+            <div class="sec-head"><span class="idx">03</span><div class="rule"></div><span class="name">Choose your starting line</span></div>
+            <h2 class="sec-title">Full when speed matters.<br>Bare when you want the <em>kernel.</em></h2>
+            <div class="mode-grid">
+                <div class="mode featured">
+                    <div class="mode-top"><span class="mname">Full mode</span><span class="tag">RECOMMENDED</span></div>
+                    <h3>Prototype-to-production default.</h3>
+                    <p>Start with the foundation most products need, already arranged for an agent to continue building.</p>
+                    <ul>
+                        <li>@spfn/core</li>
+                        <li>@spfn/auth</li>
+                        <li>@spfn/i18n</li>
+                        <li>@spfn/mcp</li>
+                    </ul>
+                </div>
+                <div class="mode">
+                    <div class="mode-top"><span class="mname">Bare mode</span><span class="tag">MINIMAL</span></div>
+                    <h3>The smallest SPFN architecture.</h3>
+                    <p>Start with the core full-stack pattern and choose every additional function yourself.</p>
+                    <ul>
+                        <li>@spfn/core</li>
+                        <li>Next.js + SPFN server</li>
+                        <li>Database + route codegen</li>
+                        <li>Add functions as needed</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="flow-note">FULL IS THE INTERACTIVE RECOMMENDATION · AUTOMATION SHOULD PASS --MODE EXPLICITLY</div>
+        </div>
+    </section>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">04</span><div class="rule"></div><span class="name">Operate with MCP</span></div>
+            <h2 class="sec-title">Deploy the product.<br>Keep the agent <em>on the team.</em></h2>
+            <div class="ops-grid">
+                <div class="ops-copy">
+                    <p>Expose the application operations you choose as authenticated MCP tools. Connect your agent after deployment and handle routine work through the same domain layer — without building a separate admin dashboard first.</p>
+                    <a class="btn btn-cobalt" href="/docs/prototype-to-production">Read the full guide</a>
+                </div>
+                <div class="ops-list">
+                    <div class="op-row"><span class="step">01 / BUILD</span><div><h3>Domain operations stay in the app</h3><p>Routes and MCP tools call the same repositories and services instead of duplicating business rules.</p></div></div>
+                    <div class="op-row"><span class="step">02 / SECURE</span><div><h3>Identity and policy remain explicit</h3><p>The generated operator key protects MCP today. Tool schemas and application authorization still define what an agent can do.</p></div></div>
+                    <div class="op-row"><span class="step">03 / RUN</span><div><h3>Operate through conversation</h3><p>Inspect customers, publish content, or run workflows with auditable tools tailored to your product.</p></div></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="inner">
+            <div class="sec-head"><span class="idx">05</span><div class="rule"></div><span class="name">Functions</span></div>
+            <h2 class="sec-title">Add capability.<br>Keep the <em>architecture.</em></h2>
             <div class="pkg-grid">
                 <a class="pkg" href="/functions/core">
                     <div class="pname">@spfn/core</div>
@@ -290,7 +381,7 @@
                 </a>
                 <a class="pkg" href="/functions/mcp">
                     <div class="pname">@spfn/mcp</div>
-                    <p>One MCP contract over OAuth HTTP or local stdio.</p>
+                    <p>One MCP contract over authenticated HTTP or local stdio.</p>
                 </a>
                 <a class="pkg" href="/functions/i18n">
                     <div class="pname">@spfn/i18n</div>
@@ -302,9 +393,9 @@
 
     <div class="cta-band">
         <div class="inner">
-            <h2>Ship it typed.</h2>
+            <h2>Take the prototype all the way.</h2>
             <div class="btns">
-                <a class="btn btn-white" href="/docs">Get started</a>
+                <a class="btn btn-white" href="/docs/prototype-to-production">Follow the guide</a>
                 <a class="btn btn-outline-w" href="https://github.com/fxylabs/spfn" target="_blank" rel="noopener">GitHub</a>
             </div>
         </div>

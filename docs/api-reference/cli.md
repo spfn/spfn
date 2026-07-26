@@ -9,6 +9,53 @@ available: true
 
 Superfunction provides a powerful CLI for development, building, and database management.
 
+## spfn create
+
+Create a new Next.js application and scaffold SPFN into the same project. Select the
+starting architecture explicitly in scripts and agent workflows:
+
+```bash
+# Recommended Prototype-to-Production baseline: core + auth + i18n + MCP
+spfn create my-app --mode full
+
+# Core-only kernel
+spfn create my-api --mode bare
+```
+
+Interactive runs without `--mode` recommend `full`. For backward compatibility,
+non-interactive `--yes` runs without an explicit mode remain `bare`. Full mode requires
+Node.js 20 or newer because it includes the MCP server.
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--mode <mode>` | `bare` (core only) or `full` (core, auth, i18n, MCP) |
+| `--pm <manager>` | Force `npm`, `pnpm`, `yarn`, or `bun` |
+| `--shadcn` | Also run `shadcn init` |
+| `--skip-install` | Skip dependency installation |
+| `--skip-git` | Skip `git init` |
+| `-y, --yes` | Skip prompts and use defaults |
+
+## spfn init
+
+Add SPFN to an existing Next.js application using the same two modes:
+
+```bash
+spfn init --mode full
+spfn init --mode bare
+```
+
+Full mode also wires the auth rewrite, login and callback pages, i18n catalogs, and an
+API-key-protected MCP starter. Bare mode installs only the core full-stack structure.
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--mode <mode>` | `bare` (core only) or `full` (core, auth, i18n, MCP) |
+| `-y, --yes` | Skip prompts and use defaults |
+
 ## spfn dev
 
 Start development servers for both Next.js and Hono server. Automatically runs codegen on contract changes. Use `--watch` flag to enable hot reload.

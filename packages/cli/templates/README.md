@@ -1,7 +1,7 @@
 # {{projectName}}
 
-A full-stack app built with [SPFN](https://github.com/spfn/spfn) — a typed SPFN
-backend running alongside Next.js.
+A full-stack app built with [SPFN](https://github.com/spfn/spfn) — a consistent
+architecture for taking an AI-built prototype to production. Scaffold mode: `{{mode}}`.
 
 ## Getting started
 
@@ -10,7 +10,7 @@ backend running alongside Next.js.
 docker compose up -d
 
 # 2. The env files are generated for you:
-#    .env.local  — Next.js-facing values (gitignored)
+#    .env.local  — values loaded by Next.js, including auth session crypto (gitignored)
 #    .env.server — server secrets: DB, cache (gitignored, never loaded by Next.js)
 #    Review them and adjust as needed.
 
@@ -30,7 +30,7 @@ src/
   app/                 Next.js App Router
   server/              SPFN backend (entities, repositories, routes, router)
   generated/           codegen output (route map) — do not edit by hand
-.env.local             Next.js-facing env (gitignored)
+.env.local             Next.js runtime env (gitignored)
 .env.server            server secrets (gitignored)
 .env.example           committed reference — keys only, placeholder values
 .spfnrc.ts             codegen configuration
@@ -46,15 +46,15 @@ A feature is a vertical slice: `Entity` (Drizzle table) → `Repository` →
 {{pmRun}} spfn:dev          # dev: Next.js + SPFN API (add --watch to restart on changes)
 {{pmRun}} spfn:build        # production build
 {{pmRun}} spfn:start        # run the production build
-{{pm}} spfn db generate     # create a migration from schema changes
-{{pm}} spfn db migrate      # apply pending migrations
-{{pm}} spfn env check       # check .env files against the schema
-{{pm}} spfn secret set DB_URL   # store a secret (keychain locally, SOPS for deploys)
+{{pmExec}} spfn db generate     # create a migration from schema changes
+{{pmExec}} spfn db migrate      # apply pending migrations
+{{pmExec}} spfn env check       # check .env files against the schema
+{{pmExec}} spfn secret set DB_URL   # store a secret (keychain locally, SOPS for deploys)
 ```
 
 ## Environment & secrets
 
-`.env.server` holds server-only secrets and is gitignored — Next.js never loads it.
+`.env.server` holds backend-only secrets and is gitignored — Next.js never loads it.
 For a managed workflow use `spfn secret`: local values go to the OS keychain (only a
 `secret:keychain:` reference lands in `.env.server`), and deployed secrets are stored
 in encrypted SOPS files. See the [SPFN CLI docs](https://github.com/spfn/spfn).
@@ -63,8 +63,21 @@ in encrypted SOPS files. See the [SPFN CLI docs](https://github.com/spfn/spfn).
 ## Authentication
 
 This project includes `@spfn/auth`. Configure providers and session settings in your
-server setup, and read `@spfn/auth`'s README for the full Entity → Repository →
-Service → Route flow and the typed `authApi` client.
+generated env files, then run `{{pmExec}} spfn db migrate`. The lifecycle, router,
+Next.js interceptor, `/login` starter UI, OAuth callback, and route map are already wired.
+
+## Internationalization
+
+Edit `src/i18n/catalogs.ts` to add application-owned messages. Server components
+and handlers can import `getT` or `getClientMessages` from `@/i18n/server`.
+
+## Agent operations with MCP
+
+The SPFN API serves MCP at `http://localhost:8790/mcp`. Connect with the Bearer
+token stored as `SPFN_MCP_API_KEY` in `.env.server`, then replace the starter
+`app_status` tool in `src/server/mcp.ts` with operations from your domain layer.
+Before third-party access, replace the generated operator-key validator with your
+OAuth access-token validator and scope each tool to the resolved operator.
 <!-- {{/auth}} -->
 
 ## Deployment

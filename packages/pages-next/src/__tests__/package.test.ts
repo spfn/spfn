@@ -20,7 +20,7 @@ describe('package manifest', () =>
         ) as PackageManifest;
         const launcher = manifest.bin?.['spfn-pages'];
 
-        expect(launcher).toBe('./bin/spfn-pages.js');
+        expect(launcher).toBe('bin/spfn-pages.js');
         expect(manifest.files).toContain('bin');
         await expect(access(resolve(packageRoot, launcher!))).resolves.toBeUndefined();
     });

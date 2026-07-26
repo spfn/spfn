@@ -5,6 +5,7 @@ import { logger } from '../../../utils/logger.js';
 import { getRunCommand, type PackageManager } from '../../../utils/package-manager.js';
 import { findTemplatesPath } from '../utils/templates.js';
 import type { PackageJson } from './validate.js';
+import type { ScaffoldMode } from '../mode.js';
 
 const { writeFileSync } = fse;
 
@@ -12,7 +13,7 @@ interface ReadmeContext
 {
     pm: PackageManager;
     packageJson: PackageJson;
-    includeAuth: boolean;
+    mode: ScaffoldMode;
     // `spfn create` sets this so the SPFN README replaces the create-next-app
     // default; a standalone `spfn init` leaves it false to keep any existing README.
     overwrite: boolean;
@@ -22,8 +23,9 @@ interface RenderVars
 {
     projectName: string;
     pm: string;
+    pmExec: string;
     pmRun: string;
-    includeAuth: boolean;
+    mode: ScaffoldMode;
 }
 
 /**
@@ -62,8 +64,9 @@ export async function setupReadme(cwd: string, ctx: ReadmeContext): Promise<void
     const content = renderReadme(template, {
         projectName: ctx.packageJson.name || basename(cwd) || 'my-app',
         pm: ctx.pm,
+        pmExec: ctx.pm === 'npm' ? 'npx' : ctx.pm,
         pmRun: getRunCommand(ctx.pm),
-        includeAuth: ctx.includeAuth,
+        mode: ctx.mode,
     });
 
     writeFileSync(readmePath, content);
@@ -84,8 +87,10 @@ function renderReadme(template: string, vars: RenderVars): string
     // Function replacers so a value containing `$` (e.g. a directory name used as
     // projectName) is inserted literally, not read as a $1/$& replacement pattern.
     return template
-        .replace(authBlock, vars.includeAuth ? '\n$1\n' : '\n')
+        .replace(authBlock, vars.mode === 'full' ? '\n$1\n' : '\n')
+        .replaceAll('{{mode}}', () => vars.mode)
         .replaceAll('{{projectName}}', () => vars.projectName)
         .replaceAll('{{pmRun}}', () => vars.pmRun)
+        .replaceAll('{{pmExec}}', () => vars.pmExec)
         .replaceAll('{{pm}}', () => vars.pm);
 }

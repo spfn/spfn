@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { bigint, pgTable, primaryKey } from 'drizzle-orm/pg-core';
@@ -14,17 +14,21 @@ const blocks = pgTable('blocks', {
 
 describe('db push', () =>
 {
-    let client: PGlite | undefined;
+    let client: PGlite;
+
+    beforeEach(async () =>
+    {
+        client = new PGlite();
+        await client.waitReady;
+    });
 
     afterEach(async () =>
     {
-        await client?.close();
-        client = undefined;
+        await client.close();
     });
 
     it('introspects an existing composite primary key without producing a second diff', async () =>
     {
-        client = new PGlite();
         const db = drizzle({ client });
 
         const first = await resolvePushPlan({ blocks }, db, ['public']);
@@ -38,7 +42,6 @@ describe('db push', () =>
 
     it('rolls back the whole DDL plan when one statement fails', async () =>
     {
-        client = new PGlite();
         const db = drizzle({ client });
 
         await expect(applyStatements(db, [

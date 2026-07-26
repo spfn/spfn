@@ -141,13 +141,14 @@
             <div class="kicker"><a href="/functions">FUNCTIONS</a> / SPFN CLI — THE BACKEND LAYER FOR NEXT.JS</div>
             <h1 class="display">One binary,<br><span class="inkline">whole lifecycle.</span></h1>
             <p class="sub">The <code>spfn</code> CLI scaffolds and runs a Hono-based backend that lives inside
-               your Next.js project. It creates the server structure, drives the dev/build/start lifecycle,
-               manages the database with Drizzle Kit, generates the RPC route map, and validates environment
-               variables. No global install — run it through <code>npx</code> or your package manager's dlx.</p>
+               your Next.js project. Choose <code>full</code> for core, auth, i18n, and MCP already wired, or
+               <code>bare</code> for the core-only kernel. It then drives the dev/build/start lifecycle, manages
+               the database with Drizzle Kit, generates the RPC route map, and validates environment variables.
+               No global install — run it through <code>npx</code> or your package manager's dlx.</p>
             <div class="cta-row">
                 <a class="btn btn-cobalt" href="/docs/packages/cli">Read the reference</a>
                 <a class="btn btn-outline" href="/docs">Get started</a>
-                <span class="codebar">$ npx spfn@beta create my-app</span>
+                <span class="codebar">$ npx spfn@beta create my-app --mode full</span>
             </div>
         </div>
         <div class="strip"><div class="s1"></div><div class="s2"></div><div class="s3"></div></div>
@@ -157,10 +158,11 @@
         <div class="inner">
             <div class="sec-head"><span class="idx">01</span><div class="rule"></div><span class="name">The premise</span></div>
             <h2 class="sec-title">The backend lives<br><em>inside</em> the Next.js project.</h2>
-            <p class="premise-copy">SPFN doesn't put your API in a second repo. <code>spfn create</code> runs
-               <code>create-next-app</code> with SPFN-recommended flags and then <code>init</code> — which lays
+            <p class="premise-copy">SPFN doesn't put your API in a second repo. <code>spfn create --mode full</code>
+               runs <code>create-next-app</code> with SPFN-recommended flags and then <code>init</code> — which lays
                down the server templates, wires the RPC proxy route, adds the Docker and codegen config, and
-               patches <code>package.json</code>. From there one binary covers every phase:
+               patches <code>package.json</code>. Full mode adds auth, i18n, and MCP on top of core; use
+               <code>--mode bare</code> when you deliberately want only the kernel. From there one binary covers every phase:
                <code>spfn dev</code> runs the SPFN server and Next.js together, <code>spfn build</code> compiles
                both, <code>spfn start</code> serves the built output. The server must report ready before
                Next.js launches in dev, and <code>start</code> hard-fails without a prior <code>build</code>.</p>
@@ -204,11 +206,11 @@
             <div class="mod-grid">
                 <a class="mod" href="/docs/packages/cli#spfn-create-name">
                     <div class="mname">create</div>
-                    <p>create-next-app with SPFN flags, SVGR icons, then init — a project from zero.</p>
+                    <p>create-next-app, then a recommended full or core-only bare SPFN foundation.</p>
                 </a>
                 <a class="mod" href="/docs/packages/cli#spfn-init">
                     <div class="mname">init</div>
-                    <p>Adds SPFN to an existing Next.js app — templates, RPC proxy, Docker, scripts.</p>
+                    <p>Adds full or bare SPFN to an existing app — templates, RPC proxy, Docker, scripts.</p>
                 </a>
                 <a class="mod" href="/docs/packages/cli#spfn-add-package">
                     <div class="mname">add</div>

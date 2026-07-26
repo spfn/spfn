@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>@spfn/mcp</title>
-<meta name="description" content="Serve one MCP contract over OAuth Streamable HTTP or local stdio with a shared SPFN dispatcher.">
+<meta name="description" content="Serve one MCP contract over authenticated Streamable HTTP or local stdio with a shared SPFN dispatcher.">
 <meta property="og:title" content="@spfn/mcp — your app, callable">
 <meta property="og:description" content="Expose one application-owned tool contract over remote HTTP or a thin local stdio bridge.">
 <meta property="og:image" content="https://superfunction.xyz/og.png">
@@ -114,7 +114,7 @@
         <div class="inner">
             <div class="kicker"><a href="/functions">FUNCTIONS</a> / @SPFN/MCP — MODEL CONTEXT PROTOCOL</div>
             <h1 class="display">Your app,<br><span class="inkline">callable.</span></h1>
-            <p class="sub"><code>@spfn/mcp</code> serves one application-defined set of tools, resources, and prompts over OAuth Streamable HTTP or local stdio. The official SDK owns the protocol; your application owns identity, policy, context, and business logic.</p>
+            <p class="sub"><code>@spfn/mcp</code> serves one application-defined set of tools, resources, and prompts over authenticated Streamable HTTP or local stdio. The official SDK owns the protocol; your application supplies identity and owns policy, context, and business logic.</p>
             <div class="cta-row">
                 <a class="btn btn-cobalt" href="/docs/packages/mcp">Read the reference</a>
                 <a class="btn btn-outline" href="/docs">Get started</a>
@@ -138,7 +138,7 @@
             <h2 class="sec-title">Network trust.<br>Local <em>trust.</em></h2>
             <p class="premise-copy">Use HTTP when clients connect over a network and need OAuth plus Host and Origin validation. Use stdio when an Agent host starts a local child process; the executable, arguments, and process configuration become the capability boundary.</p>
             <div class="transport-stack">
-                <div class="transport-row"><div class="transport-label">REMOTE</div><div class="wireflow"><div class="wnode">network client</div><div class="wwire"></div><div class="wnode">OAuth</div><div class="wwire"></div><div class="wnode">Streamable HTTP</div><div class="wwire tohot"></div><div class="wnode hot">dispatcher</div></div></div>
+                <div class="transport-row"><div class="transport-label">REMOTE</div><div class="wireflow"><div class="wnode">network client</div><div class="wwire"></div><div class="wnode">application auth</div><div class="wwire"></div><div class="wnode">Streamable HTTP</div><div class="wwire tohot"></div><div class="wnode hot">dispatcher</div></div></div>
                 <div class="transport-row"><div class="transport-label">LOCAL</div><div class="wireflow"><div class="wnode">Agent host</div><div class="wwire"></div><div class="wnode">spawn authority</div><div class="wwire"></div><div class="wnode">stdio bridge</div><div class="wwire tohot"></div><div class="wnode hot">dispatcher</div></div></div>
             </div>
             <div class="flow-note">FIG 02 — HTTP AUTHENTICATES REQUESTS · STDIO TRUSTS THE SPAWNING HOST</div>
@@ -150,7 +150,7 @@
             <h2 class="sec-title">Two adapters,<br>one <em>contract.</em></h2>
             <div class="mod-grid">
                 <a class="mod" href="/docs/packages/mcp#define-a-transport-neutral-dispatcher"><div class="mname">createMcpDispatcher</div><p>Define tools, resources, prompts, validation, and error policy once.</p></a>
-                <a class="mod" href="/docs/packages/mcp#remote-streamable-http"><div class="mname">createMcpRoute</div><p>Mount an OAuth-protected MCP endpoint in an SPFN router.</p></a>
+                <a class="mod" href="/docs/packages/mcp#remote-streamable-http"><div class="mname">createMcpRoute</div><p>Mount an MCP endpoint with application-supplied authentication.</p></a>
                 <a class="mod" href="/docs/packages/mcp#remote-streamable-http"><div class="mname">createMcpHttpRoute</div><p>Attach an existing dispatcher to Streamable HTTP.</p></a>
                 <a class="mod" href="/docs/packages/mcp#local-stdio"><div class="mname">serveMcpStdio</div><p>Run the same contract through a thin local process bridge.</p></a>
                 <a class="mod" href="/docs/packages/mcp#local-stdio"><div class="mname">stdout purity</div><p>Protocol frames use stdout; redacted diagnostics stay on stderr.</p></a>

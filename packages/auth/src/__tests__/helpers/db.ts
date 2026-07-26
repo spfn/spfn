@@ -5,9 +5,10 @@
  */
 
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initDatabase, closeDatabase } from '@spfn/core/db';
 
@@ -144,7 +145,53 @@ async function applyMigrations(db: ReturnType<typeof drizzle>)
     await db.execute(sql`DROP SCHEMA IF EXISTS spfn_auth CASCADE`);
     await db.execute(sql`DROP SCHEMA IF EXISTS drizzle CASCADE`);
 
-    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+    const journalPath = resolve(MIGRATIONS_FOLDER, 'meta', '_journal.json');
+    const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
+        entries?: { idx?: unknown; tag?: unknown }[];
+    };
+
+    if (!Array.isArray(journal.entries))
+    {
+        throw new Error(`Invalid migration journal: ${journalPath}`);
+    }
+
+    const seenIndexes = new Set<number>();
+    const migrations = journal.entries.map((entry) =>
+    {
+        if (!Number.isInteger(entry.idx) || typeof entry.tag !== 'string'
+            || !/^[A-Za-z0-9_-]+$/.test(entry.tag))
+        {
+            throw new Error(`Invalid migration journal entry: ${JSON.stringify(entry)}`);
+        }
+
+        const index = entry.idx as number;
+        if (seenIndexes.has(index))
+        {
+            throw new Error(`Duplicate migration journal index: ${index}`);
+        }
+        seenIndexes.add(index);
+
+        const content = readFileSync(resolve(MIGRATIONS_FOLDER, `${entry.tag}.sql`), 'utf8');
+
+        return {
+            index,
+            statements: content
+                .split('--> statement-breakpoint')
+                .map(statement => statement.trim())
+                .filter(Boolean),
+        };
+    }).sort((a, b) => a.index - b.index);
+
+    await db.transaction(async (tx) =>
+    {
+        for (const migration of migrations)
+        {
+            for (const statement of migration.statements)
+            {
+                await tx.execute(sql.raw(statement));
+            }
+        }
+    });
 }
 
 /**

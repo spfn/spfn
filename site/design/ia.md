@@ -1,24 +1,28 @@
 # superfunction.xyz — story & IA (phase 0 → phase 2)
 
-Status: **v2 agreed** (2026-07-21), drawn in `ia.html`. Decisions: docs starts
-with `pattern` + `packages`; `/posts` is deferred until the first release note
-is published (nav item appears then); package doc mounts (`/docs/<pkg>` from
-repo READMEs) are in scope as renderer feature work, not deferred.
+Status: **v3 agreed** (2026-07-26), reflected in `ia.html`. The landing now leads
+with prototype-to-production for AI-assisted full-stack work. Type safety remains
+a production guardrail rather than the primary positioning. `/posts` stays deferred
+until the first release note is published.
 
 ## Story axes
 
-1. **Typed end to end.** One type system from Drizzle entity to the generated
-   client — change a route, every consumer is type-checked. The compiler
-   catches what integration tests used to.
+1. **Prototype to production.** One scaffold starts a working full stack; the
+   same architecture carries the product through deployment and operations.
 2. **Built for agents.** One vertical slice per feature, each layer in its own
-   file — humans and AI agents both know exactly where things go. The
-   framework is structured the way agents work best.
+   file — humans and AI agents know where things go and can extend the product
+   without inventing a new structure.
+3. **Operate through the product.** Application-owned MCP tools let an agent
+   operate the deployed system through its real domain layer without requiring
+   a separate administrator dashboard first.
+4. **Guarded for production.** Runtime validation, generated migrations,
+   explicit boundaries, and end-to-end types keep fast iteration reviewable.
 
 ## Audience
 
-- A developer evaluating a full-stack TypeScript framework for a Next.js app.
-- A developer who builds primarily with AI agents and wants a codebase
-  structure agents don't get lost in.
+- A founder or developer using AI to turn a product idea into a working business.
+- A team that wants the speed of vibe coding without treating production as a rewrite.
+- A developer who wants a codebase and operating surface agents do not get lost in.
 
 ## Sitemap (v3 — everything consumed on-site; see ia.html)
 
@@ -27,6 +31,8 @@ repo READMEs) are in scope as renderer feature work, not deferred.
 | `/`               | `pages/index.html`        | Designed landing                               |
 | `/about`          | `pages/about.html`        | Designed manifesto — why SPFN exists (2026-07-22) |
 | `/docs`           | `pages/docs.md`           | Get started                                    |
+| `/docs/prototype-to-production` | `pages/docs/prototype-to-production.md` | Scaffold → build → deploy → MCP operations guide |
+| `/docs/tutorial`  | `pages/docs/tutorial.md`  | Full-stack auth tutorial                       |
 | `/docs/pattern`   | `pages/docs/pattern.md`   | SPFN pattern deep-dive                         |
 | `/packages`       | `pages/packages.md`       | Package index — all links internal             |
 | `/packages/<pkg>` | `pages/packages/<pkg>.md` (frontmatter `source:` → repo README) | 13 packages, served on-site |
@@ -39,9 +45,9 @@ code files auto-resolve to repo blob URLs (renderer `repo` config).
 
 ## Journeys
 
-- **J1 Evaluator**: `/` → `/docs` → `npx spfn create` → GitHub.
-- **J2 Builder** (returning): `/docs` → `/docs/pattern` → `/docs/packages` → package README.
-- **J3 Follower**: `/posts` → post → `/docs`.
+- **J1 Builder**: `/` → `/docs/prototype-to-production` → `spfn create --mode full` → agent-assisted feature work.
+- **J2 Operator**: deploy → connect `/mcp` → authorize agent → operate application tools.
+- **J3 Deep evaluator**: `/docs` → `/docs/pattern` → `/docs/packages` → package reference.
 
 ## Navigation
 
@@ -52,12 +58,15 @@ outgrows ~5 pages.
 
 ## Landing narrative (top to bottom)
 
-1. Hero — one-liner + `npx spfn@beta create` command.
-2. Why — typed e2e, vertical slice, batteries as packages, Next.js native.
-3. Code walkthrough — entity → route → typed client, the type flowing through.
-4. Packages grid — `@spfn/core`, `auth`, `storage`, `notification`, ….
-5. CTA — Get started (`/docs`) + GitHub.
+1. Hero — “Prototype to production” + explicit full-mode scaffold command.
+2. Foundation — one scaffold, key connection, agent-legible slices, production guardrails.
+3. Build loop — idea → scaffold → vertical slices → deploy → MCP operations.
+4. Starting modes — recommended full (`core`, `auth`, `i18n`, `mcp`) versus bare (`core`).
+5. Operations — application-owned MCP tools instead of a prerequisite admin dashboard.
+6. Functions grid — optional capabilities that preserve the same architecture.
+7. CTA — follow the prototype-to-production guide + GitHub.
 
-## Open items
+## Positioning boundary
 
-- Whether the packages grid links to GitHub READMEs or waits for docs mounts.
+“Vibe coding” describes the fast build loop, not disposable output. Copy should pair
+AI speed with production continuity and avoid presenting type safety as the product.

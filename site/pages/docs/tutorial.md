@@ -1,7 +1,7 @@
 ---
 title: "Tutorial: Full-Stack Auth"
 navTitle: Tutorial
-order: 1
+order: 2
 description: Build a full-stack app with @spfn/core and @spfn/auth — seeded admin, login form, social login, and layout guards — running locally.
 ---
 
@@ -22,13 +22,17 @@ snippet below is taken from it.
 ## 1. Create the project
 
 ```bash
-npx spfn@beta create my-app
+npx spfn@beta create my-app --mode bare
 cd my-app
 docker compose up -d       # Postgres + Redis
 ```
 
-`spfn create` scaffolds a Next.js app with the SPFN backend beside it
-(`src/server/`), env files included. Check the app runs before adding auth:
+This tutorial deliberately starts in `bare` mode so you can see each auth wiring point.
+For a product baseline with core, auth, i18n, and MCP already connected, use
+`npx spfn@beta create my-app --mode full` instead.
+
+Bare mode scaffolds a Next.js app with the SPFN backend beside it (`src/server/`),
+env files included. Check the app runs before adding auth:
 
 ```bash
 pnpm spfn:dev              # Next.js + SPFN API

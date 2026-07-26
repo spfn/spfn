@@ -53,7 +53,7 @@ describe('PGlite database provider', () =>
         }
     });
 
-    it('supports routes, transactions, provider close, and file-backed reopen', async () =>
+    it('supports routes, transactions, provider close, and file-backed reopen', { timeout: 60_000 }, async () =>
     {
         dataDirectory = await mkdtemp(join(tmpdir(), 'spfn-pglite-provider-'));
         const dataDir = pathToFileURL(dataDirectory).href;

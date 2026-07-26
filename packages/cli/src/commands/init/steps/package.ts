@@ -4,6 +4,7 @@ import fse from 'fs-extra';
 import { logger } from '../../../utils/logger.js';
 import { getSpfnTag } from '../../../utils/version.js';
 import type { PackageJson } from './validate.js';
+import type { ScaffoldMode } from '../mode.js';
 
 const { writeFileSync } = fse;
 
@@ -16,7 +17,7 @@ export async function setupPackageJson(
     packageJsonPath: string,
     packageJson: PackageJson,
     packageManager: string,
-    includeAuth: boolean,
+    mode: ScaffoldMode,
 ): Promise<void>
 {
     const spinner = ora('Updating package.json...').start();
@@ -46,10 +47,25 @@ export async function setupPackageJson(
     packageJson.dependencies['spfn'] = spfnTag;
     packageJson.dependencies['concurrently'] = '^9.2.1';
 
-    // Add authentication package if selected
-    if (includeAuth)
+    // The full profile is the Prototype-to-Production baseline. Auth's
+    // notification peer is installed explicitly so a fresh pnpm scaffold has a
+    // single, compatible SPFN dependency graph.
+    if (mode === 'full')
     {
         packageJson.dependencies['@spfn/auth'] = spfnTag;
+        packageJson.dependencies['@spfn/i18n'] = spfnTag;
+        packageJson.dependencies['@spfn/mcp'] = spfnTag;
+        packageJson.dependencies['@spfn/notification'] = spfnTag;
+        packageJson.engines = packageJson.engines || {};
+        const existingNodeRange = packageJson.engines.node;
+        if (!existingNodeRange || !requiresNode20OrNewer(existingNodeRange))
+        {
+            packageJson.engines.node = '>=20.0.0';
+            if (existingNodeRange)
+            {
+                logger.warn(`Updated engines.node from "${existingNodeRange}" to ">=20.0.0" because full mode includes @spfn/mcp`);
+            }
+        }
     }
 
     // Add SPFN dev dependencies (fixes Issue #2)
@@ -103,4 +119,28 @@ export async function setupPackageJson(
         logger.error(String(error));
         process.exit(1);
     }
+}
+
+/**
+ * Return true only when every alternative has an obvious lower bound of Node
+ * 20 or newer. Unknown or upper-bound-only syntax is treated conservatively and
+ * upgraded to the full scaffold's supported baseline.
+ */
+function requiresNode20OrNewer(range: string): boolean
+{
+    return range
+        .split('||')
+        .map(alternative => alternative.trim())
+        .every((alternative) =>
+        {
+            const lowerBound = alternative.match(/^(?:>=|>|\^|~|=)?\s*v?(\d+)/);
+            if (!lowerBound)
+            {
+                return false;
+            }
+
+            const major = Number(lowerBound[1]);
+
+            return major >= 20;
+        });
 }

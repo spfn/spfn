@@ -122,19 +122,19 @@ describe('CmsPublishedCacheRepository', () =>
             expect(result).toBeNull();
         });
 
-        it('should use default locale ko', async () =>
+        it('should use default locale en', async () =>
         {
             await cmsPublishedCacheRepository.upsert({
                 section: 'home',
-                locale: 'ko',
-                content: { 'home.title': 'Korean' },
+                locale: 'en',
+                content: { 'home.title': 'English' },
                 publishedAt: new Date(),
                 publishedBy: 'test-user',
             });
 
             const result = await cmsPublishedCacheRepository.findBySection('home');
 
-            expect(result?.locale).toBe('ko');
+            expect(result?.locale).toBe('en');
         });
     });
 

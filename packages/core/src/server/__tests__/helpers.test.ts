@@ -111,7 +111,7 @@ describe('Server Helpers', () =>
         {
             const timeout = getShutdownTimeout();
 
-            expect(timeout).toBe(30000); // 30 seconds from schema default
+            expect(timeout).toBe(280000); // Schema default leaves room for graceful draining
         });
 
         it('should prioritize config over env defaults', () => 
@@ -270,7 +270,7 @@ describe('Server Helpers', () =>
                     headers: '60000ms',
                 },
                 shutdown: {
-                    timeout: '30000ms',
+                    timeout: '280000ms',
                 },
             });
         });

@@ -48,7 +48,7 @@ describe('setupPackageJson', () =>
             packageJsonPath,
             packageJson,
             'pnpm',
-            false,
+            'bare',
         );
 
         const generated = JSON.parse(
@@ -60,5 +60,89 @@ describe('setupPackageJson', () =>
         expect(mocks.execa).toHaveBeenCalledWith('pnpm', ['install'], {
             cwd: testDirectory,
         });
+    });
+
+    it('adds the Prototype-to-Production dependency set in full mode', async () =>
+    {
+        testDirectory = await mkdtemp(join(tmpdir(), 'spfn-init-package-full-'));
+        const packageJsonPath = join(testDirectory, 'package.json');
+        const packageJson: PackageJson = {
+            name: 'full-app',
+            dependencies: {},
+            devDependencies: {},
+            scripts: {},
+        };
+
+        await setupPackageJson(
+            testDirectory,
+            packageJsonPath,
+            packageJson,
+            'pnpm',
+            'full',
+        );
+
+        const generated = JSON.parse(
+            await readFile(packageJsonPath, 'utf8'),
+        ) as PackageJson;
+        expect(generated.dependencies).toMatchObject({
+            '@spfn/core': 'beta',
+            '@spfn/auth': 'beta',
+            '@spfn/i18n': 'beta',
+            '@spfn/mcp': 'beta',
+            '@spfn/notification': 'beta',
+        });
+        expect(generated.engines?.node).toBe('>=20.0.0');
+    });
+
+    it('upgrades an existing Node 18 engine for full mode', async () =>
+    {
+        testDirectory = await mkdtemp(join(tmpdir(), 'spfn-init-package-node18-'));
+        const packageJsonPath = join(testDirectory, 'package.json');
+        const packageJson: PackageJson = {
+            name: 'node-18-app',
+            dependencies: {},
+            devDependencies: {},
+            scripts: {},
+            engines: { node: '>=18.18.0' },
+        };
+
+        await setupPackageJson(
+            testDirectory,
+            packageJsonPath,
+            packageJson,
+            'pnpm',
+            'full',
+        );
+
+        const generated = JSON.parse(
+            await readFile(packageJsonPath, 'utf8'),
+        ) as PackageJson;
+        expect(generated.engines?.node).toBe('>=20.0.0');
+    });
+
+    it('preserves a clearly stricter existing Node engine', async () =>
+    {
+        testDirectory = await mkdtemp(join(tmpdir(), 'spfn-init-package-node22-'));
+        const packageJsonPath = join(testDirectory, 'package.json');
+        const packageJson: PackageJson = {
+            name: 'node-22-app',
+            dependencies: {},
+            devDependencies: {},
+            scripts: {},
+            engines: { node: '>=22.0.0 <23 || ^24.0.0' },
+        };
+
+        await setupPackageJson(
+            testDirectory,
+            packageJsonPath,
+            packageJson,
+            'pnpm',
+            'full',
+        );
+
+        const generated = JSON.parse(
+            await readFile(packageJsonPath, 'utf8'),
+        ) as PackageJson;
+        expect(generated.engines?.node).toBe('>=22.0.0 <23 || ^24.0.0');
     });
 });

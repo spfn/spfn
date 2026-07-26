@@ -1,0 +1,93 @@
+/**
+ * Test database setup for CMS repository integration tests.
+ */
+
+import { closeDatabase, initDatabase } from '@spfn/core/db';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import postgres from 'postgres';
+
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL
+    || 'postgresql://cmstest:cmstest123@localhost:5436/spfn_cms_test';
+
+const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../../migrations', import.meta.url));
+
+let testDb: ReturnType<typeof drizzle> | null = null;
+let testClient: ReturnType<typeof postgres> | null = null;
+
+export async function setupTestDb()
+{
+    if (testDb)
+    {
+        return testDb;
+    }
+
+    testClient = postgres(TEST_DATABASE_URL);
+    testDb = drizzle({ client: testClient });
+
+    process.env.DATABASE_URL = TEST_DATABASE_URL;
+    await initDatabase();
+    await applyMigrations(testDb);
+
+    return testDb;
+}
+
+export async function teardownTestDb()
+{
+    await closeDatabase();
+
+    if (testClient)
+    {
+        await testClient.end();
+        testClient = null;
+        testDb = null;
+    }
+}
+
+export async function clearTables(db: ReturnType<typeof drizzle>)
+{
+    await db.execute(sql`
+        TRUNCATE TABLE
+            spfn_cms.label_values,
+            spfn_cms.published_cache,
+            spfn_cms.labels
+        RESTART IDENTITY CASCADE
+    `);
+}
+
+export function getTestDb()
+{
+    if (!testDb)
+    {
+        throw new Error('Test database not initialized. Call setupTestDb() first.');
+    }
+
+    return testDb;
+}
+
+async function applyMigrations(db: ReturnType<typeof drizzle>)
+{
+    await db.execute(sql`DROP SCHEMA IF EXISTS spfn_cms CASCADE`);
+    await db.execute(sql`DROP SCHEMA IF EXISTS drizzle CASCADE`);
+
+    const migrationFiles = readdirSync(MIGRATIONS_FOLDER)
+        .filter(file => file.endsWith('.sql'))
+        .sort();
+
+    for (const file of migrationFiles)
+    {
+        const migration = readFileSync(resolve(MIGRATIONS_FOLDER, file), 'utf8');
+        const statements = migration
+            .split('--> statement-breakpoint')
+            .map(statement => statement.trim())
+            .filter(Boolean);
+
+        for (const statement of statements)
+        {
+            await db.execute(sql.raw(statement));
+        }
+    }
+}
