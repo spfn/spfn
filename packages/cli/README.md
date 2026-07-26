@@ -1,8 +1,9 @@
 # spfn — the SPFN CLI (backend layer for Next.js)
 
-`spfn` scaffolds and runs a Hono-based backend that lives inside a Next.js project.
-It creates the server structure, runs the dev/build/start lifecycle, manages the
-database (Drizzle Kit), generates the RPC route map, and validates environment variables.
+`spfn` takes a Next.js idea from prototype to production with a consistent full-stack
+architecture. It can scaffold either a core-only backend or a production baseline with
+authentication, internationalization, and an agent-facing MCP endpoint, then runs the
+dev/build/start lifecycle, database tooling, RPC codegen, and environment validation.
 
 > Beta: install with the `@beta` tag (`spfn@beta`). The binary is `spfn`.
 
@@ -18,20 +19,25 @@ pnpm dlx spfn@beta <command>
 Or add it as a project dependency (`spfn init`/`spfn create` do this for you), then
 call it via `pnpm spfn <command>` / `npm run spfn:<script>`.
 
-Requirements: Node.js 18.18+, Next.js 15+ (App Router, `src/` dir), PostgreSQL (Redis optional).
+Requirements: Node.js 18.18+ for bare mode, Node.js 20+ for full mode's MCP server,
+Next.js 15+ (App Router, `src/` dir), PostgreSQL (Redis optional).
 
 ## Usage
 
 ```bash
-# New project (runs create-next-app + spfn init)
-npx spfn@beta create my-app
+# Prototype-to-Production baseline: core + auth + i18n + MCP
+npx spfn@beta create my-app --mode full
 cd my-app
 docker compose up -d            # Postgres + Redis
-# .env.local & .env.server are generated — put server secrets in .env.server
+# .env.local & .env.server are generated — keep both gitignored
+pnpm spfn db migrate            # Apply auth migrations
 pnpm spfn:dev                   # Next.js :3790 + SPFN API :8790
 
+# Core-only full-stack skeleton
+npx spfn@beta create my-api --mode bare
+
 # Add SPFN to an existing Next.js project
-npx spfn@beta init
+npx spfn@beta init --mode full
 ```
 
 The package manager is auto-detected (pnpm > yarn > bun > npm) from lockfiles; override
@@ -49,24 +55,32 @@ Registered top-level commands: `create`, `init`, `add`, `dev`, `build`, `start`,
 Runs `create-next-app` with SPFN-recommended flags (TypeScript, App Router, `src/`,
 Tailwind, import alias `@/*`, no ESLint), sets up SVGR icons, then runs `init`.
 
+Choose `full` for the recommended Prototype-to-Production baseline or `bare` for the
+historical core-only skeleton. Without `--mode`, interactive runs show a mode selector
+with `full` recommended. For backward compatibility, non-interactive `--yes` runs without
+an explicit mode continue to generate `bare`; automation that wants full should always
+pass `--mode full`.
+
 | Option | Description |
 |--------|-------------|
 | `--pm <manager>` | Force package manager: `npm` \| `pnpm` \| `yarn` \| `bun` |
 | `--shadcn` | Also run `shadcn init` |
+| `--mode <mode>` | `bare` (core only) \| `full` (core, auth, i18n, MCP) |
 | `--skip-install` | Skip dependency install |
 | `--skip-git` | Skip `git init` |
 | `-y, --yes` | Skip prompts, use defaults |
 
 ### `spfn init`
 
-Adds SPFN to an existing Next.js project: copies the server templates, wires the RPC
+Adds SPFN to an existing Next.js project: copies the selected server templates, wires the RPC
 proxy route, Docker files, deploy + codegen config, updates `package.json` scripts/deps,
-and installs. With auth enabled it also adds the `/_auth/:path*` → SPFN API rewrite to
+and installs. Full mode also adds the `/_auth/:path*` → SPFN API rewrite to
 `next.config` (OAuth callbacks return to the app origin; merged manually if a `rewrites()`
 already exists). See [Scaffold structure](#scaffold-structure) for what lands on disk.
 
 | Option | Description |
 |--------|-------------|
+| `--mode <mode>` | `bare` (core only) \| `full` (core, auth, i18n, MCP) |
 | `-y, --yes` | Skip prompts, use defaults |
 
 Generated projects pin `drizzle-orm` and `drizzle-kit` to `1.0.0-rc.4`, matching
@@ -280,7 +294,7 @@ Install and configure SVGR for SVG-as-component imports (Next.js only).
 
 ## Scaffold structure
 
-`spfn init` (and `create`, which calls it) produces:
+Both modes produce the core full-stack skeleton:
 
 ```
 src/
@@ -303,13 +317,37 @@ docker-compose.production.yml
 Dockerfile, .dockerignore
 next.config.ts                       # patched when auth is enabled: /_auth/:path* rewrite → SPFN API
 .env.example                         # committed reference — every key, placeholder values
-.env.local                           # generated, gitignored (Next.js-facing URLs)
+.env.local                           # generated, gitignored (values loaded by Next.js)
 .env.server                          # generated, gitignored (server secrets: DB, cache)
 ```
 
+Full mode overlays the Prototype-to-Production baseline:
+
+```
+src/
+  app/login/page.tsx                 # provider login starter UI
+  app/auth/callback/page.tsx         # OAuth session handoff
+  i18n/catalogs.ts                   # application-owned en/ko starter messages
+  i18n/server.ts                     # configured server-side i18n registry
+  server/mcp.ts                      # authenticated /mcp endpoint + starter app_status tool
+  server/router.ts                   # authRouter + mcpRouter + global authenticate
+  server/server.config.ts            # createAuthLifecycle + i18n startup
+next.config.ts                       # /_auth/* callback rewrite
+.env.local                           # generated auth session secret (gitignored)
+.env.server                          # auth keyring + MCP operator key (gitignored)
+```
+
+The full RPC proxy imports the auth interceptor and merges `authRouteMap`. Internal auth
+and MCP keys are generated with cryptographic randomness in ignored local env files;
+`.env.example` contains placeholders only. Add only the provider keys you use, then run
+`pnpm spfn db migrate`. The starter MCP endpoint accepts `SPFN_MCP_API_KEY` as a Bearer
+token for first-party operation; replace that validator with OAuth before third-party access.
+
 `init` also patches `package.json` (scripts: `spfn:dev`, `spfn:server`, `spfn:next`,
 `spfn:build`, `spfn:start`, `codegen`; deps: `@spfn/core`, `spfn`, `drizzle-orm`,
-`@sinclair/typebox`, `concurrently`, etc.), excludes `src/server` from the root
+`@sinclair/typebox`, `concurrently`, etc.; full also adds `@spfn/auth`, `@spfn/i18n`,
+`@spfn/mcp`, auth's `@spfn/notification` peer, and a Node `>=20.0.0` engine when the
+existing range still permits older Node versions), excludes `src/server` from the root
 `tsconfig.json` (Vercel compat), and adds `.spfn/`, `.env.local`, `.env.server` to
 `.gitignore`.
 
@@ -387,8 +425,9 @@ type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
 
 ## Pitfalls
 
-- **`.env.server` is gitignored and server-only.** Put DB/secret values there, not in
-  `.env` (committed) and not in `.env.local` (that's Next.js's local file). There is no
+- **`.env.server` is gitignored and server-only.** Put backend-only DB/secret values there,
+  not in `.env` (committed). Full mode's session-cookie secret is the intentional exception:
+  it lives in gitignored `.env.local` because Next.js must encrypt the cookie. There is no
   `.env.server.local`. `spfn init` generates `.env.server`; put DB/secret values there.
   Load order is the standard dotenv chain ending with `.env.server`.
 - **Never commit secrets in `spfn.config.js`.** It's checked into Git; its `env` block is
@@ -406,6 +445,9 @@ type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
 - **Package manager is auto-detected from lockfiles.** If detection is wrong (e.g. mixed
   lockfiles), pass `--pm` to `create`. In a pnpm workspace, `create` installs from the
   workspace root, not the new project dir.
+- **Make scaffold mode explicit in automation.** Interactive runs recommend `full`, while
+  historical `--yes` calls without `--mode` remain `bare`. Pass `--mode full` or
+  `--mode bare` so scripts state their intended architecture.
 - **Regenerate the route map after route changes outside dev.** If
   `src/generated/route-map.ts` is missing or stale, run `spfn codegen run` — the RPC proxy
   depends on it.
@@ -416,5 +458,3 @@ type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
 
 - `@spfn/core` — server, route DSL, codegen, db, client runtime.
 - Project root README — framework overview and getting started.
-</content>
-</invoke>

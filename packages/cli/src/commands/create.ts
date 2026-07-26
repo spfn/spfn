@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { existsSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import prompts from 'prompts';
@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import { logger } from '../utils/logger.js';
 import { detectPackageManager, getRunCommand } from '../utils/package-manager.js';
 import { ENV_FILES_HINT } from '../utils/messages.js';
+import { selectScaffoldMode, type ScaffoldMode } from './init/mode.js';
 
 interface CreateOptions
 {
@@ -17,6 +18,7 @@ interface CreateOptions
     pm?: 'npm' | 'pnpm' | 'yarn' | 'bun';
     shadcn?: boolean;
     yes?: boolean;
+    mode?: ScaffoldMode;
 }
 
 /**
@@ -86,6 +88,9 @@ async function createProject(projectName: string, options: CreateOptions): Promi
     }
 
     logger.step(`Using package manager: ${pm}`);
+
+    const mode = await selectScaffoldMode(options);
+    logger.step(`Using scaffold mode: ${mode}`);
 
     // 3. Detect pnpm workspace (monorepo)
     const workspaceRoot = pm === 'pnpm' ? findPnpmWorkspaceRoot(cwd) : null;
@@ -249,7 +254,7 @@ async function createProject(projectName: string, options: CreateOptions): Promi
     {
         // Run spfn init programmatically
         const { initializeSpfn } = await import('./init/index.js');
-        await initializeSpfn({ yes: true, overwriteReadme: true });
+        await initializeSpfn({ yes: true, overwriteReadme: true, mode });
 
         initSpinner.succeed('SPFN initialized');
     }
@@ -267,6 +272,11 @@ async function createProject(projectName: string, options: CreateOptions): Promi
     console.log(`  ${chalk.cyan('cd')} ${projectName}`);
     console.log(`  ${chalk.cyan('docker compose up -d')}  ${chalk.gray('# Start PostgreSQL & Redis')}`);
     console.log(`  ${chalk.gray(`# .env.local & .env.server are generated — ${ENV_FILES_HINT}`)}`);
+    if (mode === 'full')
+    {
+        const spfnCommand = pm === 'npm' ? 'npx spfn' : `${pm} spfn`;
+        console.log(`  ${chalk.cyan(`${spfnCommand} db migrate`)}  ${chalk.gray('# Apply auth migrations')}`);
+    }
     console.log(`  ${chalk.cyan(`${getRunCommand(pm)} spfn:dev`)}  ${chalk.gray('# Start dev server')}\n`);
 
     console.log(chalk.bold('Your app will be available at:\n'));
@@ -292,6 +302,8 @@ export const createCommand = new Command('create')
     .option('--skip-git', 'Skip initializing a git repository')
     .option('--pm <manager>', 'Package manager to use (npm, pnpm, yarn, bun)')
     .option('--shadcn', 'Setup shadcn/ui (component library)')
+    .addOption(new Option('--mode <mode>', 'Scaffold mode: bare (core) or full (core, auth, i18n, MCP)')
+        .choices(['bare', 'full']))
     .option('-y, --yes', 'Skip prompts and use defaults')
     .action(async (projectName: string, options: CreateOptions) =>
     {

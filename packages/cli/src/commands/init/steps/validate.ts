@@ -10,13 +10,13 @@ export interface PackageJson
     scripts?: Record<string, string>;
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
+    engines?: Record<string, string>;
 }
 
 export interface ValidationResult
 {
     packageJson: PackageJson;
     packageJsonPath: string;
-    includeAuth: boolean;
 }
 
 /**
@@ -85,20 +85,5 @@ export async function validateProject(cwd: string, skipPrompts: boolean): Promis
         }
     }
 
-    // Ask if user wants to include authentication
-    let includeAuth = false;
-    if (!skipPrompts)
-    {
-        const { auth } = await prompts(
-            {
-                type: 'confirm',
-                name: 'auth',
-                message: 'Include authentication (@spfn/auth)?',
-                initial: true,
-            });
-
-        includeAuth = auth;
-    }
-
-    return { packageJson, packageJsonPath, includeAuth };
+    return { packageJson, packageJsonPath };
 }

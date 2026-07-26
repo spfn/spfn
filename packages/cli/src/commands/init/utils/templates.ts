@@ -32,5 +32,12 @@ export function findTemplatesPath(): string
         return devPath;
     }
 
+    // Case 4: direct TypeScript execution/tests from src/commands/init/utils.
+    const sourcePath = join(__dirname, '..', '..', '..', '..', 'templates');
+    if (existsSync(sourcePath))
+    {
+        return sourcePath;
+    }
+
     throw new Error('Templates directory not found. Please rebuild the package.');
 }

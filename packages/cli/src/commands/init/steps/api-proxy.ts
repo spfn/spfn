@@ -42,7 +42,10 @@ export async function setupApiProxy(cwd: string, includeAuth: boolean): Promise<
 
     ensureDirSync(rpcDir);
 
-    const authImport = includeAuth ? `import '@spfn/auth/nextjs/api';\n` : '';
+    const authImports = includeAuth
+        ? `import '@spfn/auth/nextjs/api';\nimport { authRouteMap } from '@spfn/auth';\n`
+        : '';
+    const proxyRouteMap = includeAuth ? '{ ...routeMap, ...authRouteMap }' : 'routeMap';
 
     const routeContent = `/**
  * SPFN RPC Proxy
@@ -57,10 +60,10 @@ export async function setupApiProxy(cwd: string, includeAuth: boolean): Promise<
  * Run \`spfn codegen run\` if route-map.ts is missing.
  */
 
-${authImport}import { routeMap } from '@/generated/route-map';
+${authImports}import { routeMap } from '@/generated/route-map';
 import { createRpcProxy } from '@spfn/core/nextjs/server';
 
-export const { GET, POST } = createRpcProxy({ routeMap });
+export const { GET, POST } = createRpcProxy({ routeMap: ${proxyRouteMap} });
 `;
     writeFileSync(rpcRoutePath, routeContent);
 
