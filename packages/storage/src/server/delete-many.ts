@@ -1,15 +1,5 @@
 import type { DeleteManyResult } from '../shared/index';
 
-const URL_KEY_PATTERN = /^[a-z][a-z\d+.-]*:\/\//i;
-
-export function assertStorageKey(key: string): void
-{
-    if (!key || URL_KEY_PATTERN.test(key) || key.startsWith('//'))
-    {
-        throw new Error('Object deletion requires a storage key, not a URL');
-    }
-}
-
 export async function deleteManyIndividually(
     keys: string[],
     deleteObject: (key: string) => Promise<void>,

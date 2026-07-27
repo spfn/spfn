@@ -8,17 +8,25 @@
  */
 
 import { Storage, type Bucket } from '@google-cloud/storage';
-import { DEFAULT_EXPIRES_IN, MAX_FILE_SIZE } from '../shared/index';
-import { assertStorageKey, deleteManyIndividually } from './delete-many';
+import { DEFAULT_EXPIRES_IN, MAX_FILE_SIZE, StorageObjectNotFoundError } from '../shared/index';
+import { deleteManyIndividually } from './delete-many';
 import { isPublicKey } from './keys';
+import { assertKeyPrefix, assertObjectKey, resolveMaxKeys } from './object-key';
+import { awaitStreamStart } from './object-stream';
+import { deleteEveryListedObject } from './prefix-delete';
 import { assertSizeLimits, gcsContentLengthRange } from './size-limit';
+import type { Readable } from 'node:stream';
 import type {
     DeleteManyResult,
     GcsProviderConfig,
     IStorageProvider,
+    PrefixDeleteResult,
     PresignedUrlParams,
     PublicUploadParams,
     PresignedUrlResult,
+    StorageListOptions,
+    StorageListResult,
+    StorageObject,
 } from '../shared/index';
 
 export class GcsStorageProvider implements IStorageProvider
@@ -91,6 +99,7 @@ export class GcsStorageProvider implements IStorageProvider
 
     async upload(key: string, body: string | Buffer, contentType: string): Promise<void>
     {
+        assertObjectKey(key);
         await this.resolveBucket(key).file(key).save(
             typeof body === 'string' ? Buffer.from(body) : body,
             { contentType, resumable: false },
@@ -99,14 +108,70 @@ export class GcsStorageProvider implements IStorageProvider
 
     async download(key: string): Promise<Buffer>
     {
-        const [buffer] = await this.resolveBucket(key).file(key).download();
+        assertObjectKey(key);
+        const [buffer] = await this.resolveBucket(key).file(key).download().catch((error: unknown) =>
+        {
+            throw isGcsNotFound(error) ? new StorageObjectNotFoundError(key) : error;
+        });
 
         return buffer;
     }
 
+    async getStream(key: string): Promise<Readable>
+    {
+        assertObjectKey(key);
+
+        return awaitStreamStart(
+            this.resolveBucket(key).file(key).createReadStream(),
+            error => (isGcsNotFound(error) ? new StorageObjectNotFoundError(key) : error),
+        );
+    }
+
+    /** 서버사이드 rewrite. `public/` 규칙상 원본과 대상이 다른 버킷일 수 있어 대상 File을 넘긴다. */
+    async copy(from: string, to: string): Promise<void>
+    {
+        assertObjectKey(from);
+        assertObjectKey(to);
+        await this.resolveBucket(from).file(from).copy(this.resolveBucket(to).file(to)).catch((error: unknown) =>
+        {
+            throw isGcsNotFound(error) ? new StorageObjectNotFoundError(from) : error;
+        });
+    }
+
+    async list(prefix: string, options: StorageListOptions = {}): Promise<StorageListResult>
+    {
+        assertKeyPrefix(prefix);
+        const [files, nextQuery] = await this.resolveBucket(prefix).getFiles({
+            prefix: `${prefix}/`,
+            maxResults: resolveMaxKeys(options.maxKeys),
+            autoPaginate: false,
+            ...(options.cursor ? { pageToken: options.cursor } : {}),
+        });
+        const cursor = (nextQuery as { pageToken?: string } | null | undefined)?.pageToken;
+
+        return {
+            objects: files.map(file => toStorageObject(file.name, file.metadata)),
+            ...(cursor ? { cursor } : {}),
+        };
+    }
+
+    /**
+     * 키 단위 삭제 루프. GCS 네이티브 SDK에는 `deleteFiles`가 있지만 페이지 경계와 부분 실패
+     * 보고가 provider마다 갈리지 않도록 S3 provider와 같은 드라이버를 쓴다.
+     */
+    async deletePrefix(prefix: string): Promise<PrefixDeleteResult>
+    {
+        assertKeyPrefix(prefix);
+
+        return deleteEveryListedObject(
+            cursor => this.list(prefix, cursor === undefined ? {} : { cursor }),
+            key => this.delete(key),
+        );
+    }
+
     async delete(key: string): Promise<void>
     {
-        assertStorageKey(key);
+        assertObjectKey(key);
         await this.resolveBucket(key).file(key).delete({ ignoreNotFound: true });
     }
 
@@ -144,6 +209,17 @@ export class GcsStorageProvider implements IStorageProvider
 }
 
 const TEMP_KEY_PREFIX = 'tmp/';
+
+function toStorageObject(key: string, metadata: { size?: string | number; updated?: string }): StorageObject
+{
+    const updated = metadata.updated;
+
+    return {
+        key,
+        size: Number(metadata.size ?? 0),
+        ...(updated ? { lastModified: new Date(updated) } : {}),
+    };
+}
 
 function isGcsNotFound(error: unknown): boolean
 {

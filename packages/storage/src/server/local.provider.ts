@@ -2,22 +2,34 @@
  * 로컬 파일시스템 프로바이더 — 개발용.
  *
  * 객체를 `LOCAL_STORAGE_DIR`(기본 `.storage`) 아래 key 경로로 그대로 기록한다.
- * 공개 URL은 소비 앱이 `getStorageService().download(key)`로 스트리밍하는
+ * 공개 URL은 소비 앱이 `getStorageService().getStream(key)`로 스트리밍하는
  * provider-중립 라우트(`LOCAL_STORAGE_BASE_URL`, 기본 `/api/storage`)를 가리킨다.
  * presigned PUT은 서명 개념이 없어 미지원 — 그림 생성 등 서버 직접 업로드만 쓴다.
+ *
+ * 파일시스템이라 객체 저장소와 다른 점 하나: 같은 이름이 파일이면서 디렉터리일 수 없으므로
+ * `a/b`와 `a/b/c.png`를 동시에 저장할 수 없다(S3·GCS는 가능). README 참고.
  */
 
-import { mkdir, readFile, realpath, unlink, writeFile } from 'node:fs/promises';
-import { dirname, resolve, sep } from 'node:path';
-import { DEFAULT_EXPIRES_IN, MAX_FILE_SIZE } from '../shared/index';
-import { assertStorageKey, deleteManyIndividually } from './delete-many';
+import { createReadStream } from 'node:fs';
+import { copyFile, mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve, sep } from 'node:path';
+import { DEFAULT_EXPIRES_IN, MAX_FILE_SIZE, StorageKeyError, StorageObjectNotFoundError } from '../shared/index';
+import { deleteManyIndividually } from './delete-many';
+import { assertKeyPrefix, assertObjectKey, compareKeys, resolveMaxKeys } from './object-key';
+import { awaitStreamStart } from './object-stream';
+import { deleteEveryListedObject } from './prefix-delete';
+import type { Readable } from 'node:stream';
 import type {
     DeleteManyResult,
     IStorageProvider,
     LocalProviderConfig,
+    PrefixDeleteResult,
     PresignedUrlParams,
     PublicUploadParams,
     PresignedUrlResult,
+    StorageListOptions,
+    StorageListResult,
+    StorageObject,
 } from '../shared/index';
 
 export class LocalStorageProvider implements IStorageProvider
@@ -65,19 +77,72 @@ export class LocalStorageProvider implements IStorageProvider
 
     async upload(key: string, body: string | Buffer, _contentType: string): Promise<void>
     {
-        const path = this.pathFor(key);
-        await mkdir(dirname(path), { recursive: true });
-        await writeFile(path, body);
+        assertObjectKey(key);
+        await writeFile(await this.prepareTarget(key), body);
     }
 
     async download(key: string): Promise<Buffer>
     {
-        return readFile(this.pathFor(key));
+        assertObjectKey(key);
+
+        return readFile(this.pathFor(key)).catch((error: unknown) =>
+        {
+            throw isNotFoundError(error) ? new StorageObjectNotFoundError(key) : error;
+        });
+    }
+
+    async getStream(key: string): Promise<Readable>
+    {
+        assertObjectKey(key);
+
+        return awaitStreamStart(
+            createReadStream(this.pathFor(key)),
+            error => (isNotFoundError(error) ? new StorageObjectNotFoundError(key) : error),
+        );
+    }
+
+    /** 원본 부재를 raw ENOENT가 아니라 계약 오류로 통일한다 — 대상은 만들지 않는다. */
+    async copy(from: string, to: string): Promise<void>
+    {
+        assertObjectKey(from);
+        assertObjectKey(to);
+        const source = this.pathFor(from);
+        const found = await stat(source).catch(() => null);
+        if (!found?.isFile())
+        {
+            throw new StorageObjectNotFoundError(from);
+        }
+        await copyFile(source, await this.prepareTarget(to));
+    }
+
+    async list(prefix: string, options: StorageListOptions = {}): Promise<StorageListResult>
+    {
+        assertKeyPrefix(prefix);
+        const maxKeys = resolveMaxKeys(options.maxKeys);
+        const remaining = (await this.walk(prefix))
+            .filter(object => options.cursor === undefined || compareKeys(object.key, options.cursor) > 0);
+        const objects = remaining.slice(0, maxKeys);
+
+        return {
+            objects,
+            ...(remaining.length > objects.length ? { cursor: objects[objects.length - 1].key } : {}),
+        };
+    }
+
+    /** 빈 디렉터리는 남을 수 있다 — `list`가 파일만 세므로 API 상으로는 보이지 않는다. */
+    async deletePrefix(prefix: string): Promise<PrefixDeleteResult>
+    {
+        assertKeyPrefix(prefix);
+
+        return deleteEveryListedObject(
+            cursor => this.list(prefix, cursor === undefined ? {} : { cursor }),
+            key => this.delete(key),
+        );
     }
 
     async delete(key: string): Promise<void>
     {
-        assertStorageKey(key);
+        assertObjectKey(key);
         const path = this.pathFor(key);
 
         try
@@ -115,11 +180,72 @@ export class LocalStorageProvider implements IStorageProvider
     {
         return MAX_FILE_SIZE;
     }
+
+    /**
+     * 쓰기 대상 경로를 만들고 반환한다. 디렉터리를 만든 뒤 실제 경로를 확인하므로
+     * 스토리지 루트 밖을 가리키는 심볼릭 링크를 타고 파일을 쓰지 않는다(`delete`와 같은 판정).
+     */
+    private async prepareTarget(key: string): Promise<string>
+    {
+        const path = this.pathFor(key);
+        const parent = dirname(path);
+        await mkdir(parent, { recursive: true });
+        const [realBaseDir, realParentDir] = await Promise.all([realpath(this.baseDir), realpath(parent)]);
+        if (!isWithin(realBaseDir, realParentDir))
+        {
+            throw new StorageKeyError(`Invalid storage key: ${key} — resolves outside the storage root`);
+        }
+
+        return path;
+    }
+
+    private async walk(prefix: string): Promise<StorageObject[]>
+    {
+        const objects: StorageObject[] = [];
+        await collectFiles(this.pathFor(prefix), prefix, objects);
+
+        return objects.sort((left, right) => compareKeys(left.key, right.key));
+    }
+}
+
+/**
+ * `<prefix>/` 아래 일반 파일만 모은다. 심볼릭 링크는 파일도 디렉터리도 아니라 건너뛰므로
+ * 링크를 타고 스토리지 루트 밖으로 나가지 않는다.
+ */
+async function collectFiles(dir: string, keyPrefix: string, objects: StorageObject[]): Promise<void>
+{
+    const entries = await readdir(dir, { withFileTypes: true }).catch((error: unknown) =>
+    {
+        if (isNotFoundError(error) || isNotDirectoryError(error))
+        {
+            return [];
+        }
+
+        throw error;
+    });
+    for (const entry of entries)
+    {
+        const key = `${keyPrefix}/${entry.name}`;
+        if (entry.isDirectory())
+        {
+            await collectFiles(join(dir, entry.name), key, objects);
+        }
+        else if (entry.isFile())
+        {
+            const info = await stat(join(dir, entry.name));
+            objects.push({ key, size: info.size, lastModified: info.mtime });
+        }
+    }
 }
 
 function isWithin(root: string, candidate: string): boolean
 {
     return candidate === root || candidate.startsWith(root + sep);
+}
+
+function isNotDirectoryError(error: unknown): boolean
+{
+    return error instanceof Error && 'code' in error && error.code === 'ENOTDIR';
 }
 
 function isNotFoundError(error: unknown): boolean

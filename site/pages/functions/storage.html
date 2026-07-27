@@ -141,9 +141,9 @@
             <div class="kicker"><a href="/functions">FUNCTIONS</a> / @SPFN/STORAGE — PROVIDER-AGNOSTIC OBJECT STORAGE</div>
             <h1 class="display">Files,<br><span class="inkline">handled.</span></h1>
             <p class="sub">One interface over Google Cloud Storage, S3-compatible services, and the local
-               filesystem. <code>@spfn/storage</code> ships presigned upload, direct upload and download,
-               public URLs, finalization, and deletion — and owns no database. It speaks in object keys,
-               never arbitrary URLs.</p>
+               filesystem. <code>@spfn/storage</code> ships presigned upload, direct and streaming download,
+               server-side copy, prefix listing and cleanup, public URLs, finalization, and deletion — and
+               owns no database. It speaks in object keys, never arbitrary URLs.</p>
             <div class="cta-row">
                 <a class="btn btn-cobalt" href="/docs/packages/storage">Read the reference</a>
                 <a class="btn btn-outline" href="/docs">Get started</a>
@@ -224,6 +224,22 @@
                 <a class="mod" href="/docs/packages/storage#deleting-objects">
                     <div class="mname">batch delete</div>
                     <p>deleteMany returns per-key results; S3 batches up to 1,000 keys.</p>
+                </a>
+                <a class="mod" href="/docs/packages/storage#server-side-object-operations">
+                    <div class="mname">server-side copy</div>
+                    <p>copy(from, to) moves nothing through your app — the source stays put.</p>
+                </a>
+                <a class="mod" href="/docs/packages/storage#prefixes-match-on-the-path-boundary">
+                    <div class="mname">prefix cleanup</div>
+                    <p>list and deletePrefix match on the path boundary, so req-1 never eats req-10.</p>
+                </a>
+                <a class="mod" href="/docs/packages/storage#streaming-download">
+                    <div class="mname">streaming download</div>
+                    <p>getStream serves large private objects without buffering them in memory.</p>
+                </a>
+                <a class="mod" href="/docs/packages/storage#missing-objects">
+                    <div class="mname">one not-found error</div>
+                    <p>StorageObjectNotFoundError on every provider — one check, three backends.</p>
                 </a>
                 <a class="mod" href="/docs/packages/storage#cdn-and-versioning-caveats">
                     <div class="mname">cdn &amp; versioning</div>

@@ -1,8 +1,8 @@
 {
   "name": "@spfn/storage",
-  "version": "0.2.0-beta.1",
+  "version": "0.3.0-beta.1",
   "type": "module",
-  "description": "Provider-agnostic object storage (S3/GCS/local) with upload, download, and deletion APIs.",
+  "description": "Provider-agnostic object storage (S3/GCS/local) with upload, streaming download, server-side copy, prefix listing, and deletion APIs.",
   "exports": {
     ".": {
       "types": "./dist/shared/index.d.ts",
@@ -29,12 +29,13 @@
     "tag": "beta"
   },
   "scripts": {
-    "build": "pnpm check:circular && tsup",
+    "build": "pnpm check:circular && tsup && pnpm check:bundle",
     "dev": "tsup --watch",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "type-check": "tsc --noEmit",
     "check:circular": "madge --circular --extensions ts src/",
+    "check:bundle": "node scripts/check-bundle.mjs",
     "publish:alpha": "npm publish --tag alpha",
     "publish:beta": "npm publish --tag beta",
     "publish:latest": "npm publish --tag latest"

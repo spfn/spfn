@@ -13,7 +13,9 @@ export default defineConfig({
     dts: true,
     sourcemap: true,
     clean: true,
-    splitting: false,
+    // shared/index의 오류 클래스가 엔트리마다 복제되면 `error instanceof StorageObjectNotFoundError`가
+    // 엔트리를 가로지를 때 false가 된다. 코드 분할로 공용 청크를 하나만 두어 클래스 동일성을 지킨다.
+    splitting: true,
     external: [
         '@aws-sdk/client-s3',
         '@aws-sdk/s3-request-presigner',
