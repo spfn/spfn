@@ -39,15 +39,25 @@ export async function getStorageService(options: StorageServiceOptions = {}): Pr
 }
 
 export * from './keys';
+export { assertKeyPrefix, assertObjectKey } from './object-key';
 export type {
     DeleteManyResult,
     GcsProviderConfig,
     IStorageProvider,
     LocalProviderConfig,
+    PrefixDeleteResult,
     PresignedUrlParams,
     PublicUploadParams,
     PresignedUrlResult,
     S3ProviderConfig,
+    StorageListOptions,
+    StorageListResult,
+    StorageObject,
     StorageServiceOptions,
 } from '../shared/index';
-export { MAX_FILE_SIZE, DEFAULT_EXPIRES_IN } from '../shared/index';
+export {
+    DEFAULT_EXPIRES_IN,
+    MAX_FILE_SIZE,
+    StorageKeyError,
+    StorageObjectNotFoundError,
+} from '../shared/index';

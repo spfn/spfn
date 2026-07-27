@@ -1,5 +1,7 @@
+import { Readable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GcsStorageProvider } from '../server/gcs.provider';
+import { StorageObjectNotFoundError } from '../shared/index';
 
 interface TestProviderInternals
 {
@@ -207,9 +209,182 @@ describe('GcsStorageProvider temp upload and finalize', () =>
     });
 });
 
+describe('GcsStorageProvider server-side copy', () =>
+{
+    it('rewrites into the bucket that owns the destination key', async () =>
+    {
+        const copy = vi.fn().mockResolvedValue([]);
+        const { provider, publicFile, privateFile } = providerWithBuckets({ copy }, {});
+
+        await provider.copy('gen/req-1/a.png', 'public/confirmed/a.png');
+
+        expect(privateFile).toHaveBeenCalledWith('gen/req-1/a.png');
+        expect(publicFile).toHaveBeenCalledWith('public/confirmed/a.png');
+        expect(copy).toHaveBeenCalledWith(expect.anything());
+    });
+
+    it('normalizes a 404 source error to the not-found contract error', async () =>
+    {
+        const copy = vi.fn().mockRejectedValue(notFoundError());
+        const { provider } = providerWithFiles({ copy });
+
+        await expect(provider.copy('gen/missing.png', 'confirmed/a.png'))
+            .rejects.toMatchObject({ name: 'StorageObjectNotFoundError', key: 'gen/missing.png' });
+    });
+
+    it('propagates non-404 copy failures unchanged', async () =>
+    {
+        const copy = vi.fn().mockRejectedValue(new Error('gcs unavailable'));
+        const { provider } = providerWithFiles({ copy });
+
+        await expect(provider.copy('gen/a.png', 'confirmed/a.png')).rejects.toThrow('gcs unavailable');
+    });
+});
+
+describe('GcsStorageProvider streaming download', () =>
+{
+    it('returns a stream for an existing object', async () =>
+    {
+        const createReadStream = vi.fn().mockImplementation(() => Readable.from(['chunk']));
+        const { provider } = providerWithFiles({ createReadStream });
+
+        const stream = await provider.getStream('gen/a.png');
+
+        expect((await collect(stream)).toString()).toBe('chunk');
+    });
+
+    it('turns a 404 stream error into the not-found contract error', async () =>
+    {
+        const createReadStream = vi.fn().mockImplementation(() => failingStream(notFoundError()));
+        const { provider } = providerWithFiles({ createReadStream });
+
+        await expect(provider.getStream('gen/missing.png')).rejects.toBeInstanceOf(StorageObjectNotFoundError);
+    });
+
+    it('propagates a non-404 stream error unchanged', async () =>
+    {
+        const createReadStream = vi.fn().mockImplementation(() => failingStream(new Error('connection reset')));
+        const { provider } = providerWithFiles({ createReadStream });
+
+        await expect(provider.getStream('gen/a.png')).rejects.toThrow('connection reset');
+    });
+
+    it('normalizes a 404 on buffered download too', async () =>
+    {
+        const download = vi.fn().mockRejectedValue(notFoundError());
+        const { provider } = providerWithFiles({ download });
+
+        await expect(provider.download('gen/missing.png')).rejects.toBeInstanceOf(StorageObjectNotFoundError);
+    });
+});
+
+describe('GcsStorageProvider prefix listing and cleanup', () =>
+{
+    it('lists on the path boundary and maps the page token to a cursor', async () =>
+    {
+        const getFiles = vi.fn().mockResolvedValue([
+            [{ name: 'gen/req-1/a.png', metadata: { size: '3', updated: '2026-07-27T00:00:00.000Z' } }],
+            { pageToken: 'token-2' },
+        ]);
+        const provider = providerWithGetFiles(getFiles);
+
+        const listed = await provider.list('gen/req-1', { maxKeys: 1, cursor: 'token-1' });
+
+        expect(getFiles).toHaveBeenCalledWith({
+            prefix: 'gen/req-1/',
+            maxResults: 1,
+            autoPaginate: false,
+            pageToken: 'token-1',
+        });
+        expect(listed).toEqual({
+            objects: [{ key: 'gen/req-1/a.png', size: 3, lastModified: new Date('2026-07-27T00:00:00.000Z') }],
+            cursor: 'token-2',
+        });
+    });
+
+    it('drops the cursor on the last page', async () =>
+    {
+        const getFiles = vi.fn().mockResolvedValue([[{ name: 'gen/req-1/a.png', metadata: {} }], null]);
+        const provider = providerWithGetFiles(getFiles);
+
+        expect(await provider.list('gen/req-1')).toEqual({ objects: [{ key: 'gen/req-1/a.png', size: 0 }] });
+    });
+
+    it('deletes a prefix key by key across pages', async () =>
+    {
+        const pages = [
+            [[{ name: 'gen/req-1/a.png', metadata: {} }], { pageToken: 'token-2' }],
+            [[{ name: 'gen/req-1/b.png', metadata: {} }], null],
+        ];
+        const deleteObject = vi.fn().mockResolvedValue([]);
+        const file = vi.fn().mockReturnValue({ delete: deleteObject });
+        const provider = new GcsStorageProvider({ publicBucket: 'public-test', privateBucket: 'private-test' });
+        const bucket = { file, getFiles: vi.fn().mockImplementation(() => Promise.resolve(pages.shift())) };
+        Object.assign(provider as unknown as Record<string, unknown>, { publicBucket: bucket, privateBucket: bucket });
+
+        expect(await provider.deletePrefix('gen/req-1')).toEqual({ deleted: 2, failed: [] });
+        expect(file.mock.calls.map(call => call[0])).toEqual(['gen/req-1/a.png', 'gen/req-1/b.png']);
+    });
+
+    it('rejects an empty prefix before calling GCS', async () =>
+    {
+        const getFiles = vi.fn();
+        const provider = providerWithGetFiles(getFiles);
+
+        await expect(provider.deletePrefix('')).rejects.toThrow('Invalid storage prefix');
+        expect(getFiles).not.toHaveBeenCalled();
+    });
+});
+
 function notFoundError(): Error & { code: number }
 {
     return Object.assign(new Error('No such object'), { code: 404 });
+}
+
+function failingStream(error: Error): Readable
+{
+    return new Readable({
+        read()
+        {
+            this.destroy(error);
+        },
+    });
+}
+
+async function collect(stream: Readable): Promise<Buffer>
+{
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream)
+    {
+        chunks.push(Buffer.from(chunk as Buffer));
+    }
+
+    return Buffer.concat(chunks);
+}
+
+function providerWithGetFiles(getFiles: ReturnType<typeof vi.fn>): GcsStorageProvider
+{
+    const provider = new GcsStorageProvider({ publicBucket: 'public-test', privateBucket: 'private-test' });
+    const bucket = { file: vi.fn().mockReturnValue({}), getFiles };
+    Object.assign(provider as unknown as Record<string, unknown>, { publicBucket: bucket, privateBucket: bucket });
+
+    return provider;
+}
+
+function providerWithBuckets(
+    privateHandlers: Record<string, unknown>,
+    publicHandlers: Record<string, unknown>,
+): { provider: GcsStorageProvider; publicFile: ReturnType<typeof vi.fn>; privateFile: ReturnType<typeof vi.fn> }
+{
+    const provider = new GcsStorageProvider({ publicBucket: 'public-test', privateBucket: 'private-test' });
+    const publicFile = vi.fn().mockReturnValue(publicHandlers);
+    const privateFile = vi.fn().mockReturnValue(privateHandlers);
+    Object.assign(provider as unknown as Record<string, unknown>, {
+        publicBucket: { file: publicFile },
+        privateBucket: { file: privateFile },
+    });
+
+    return { provider, publicFile, privateFile };
 }
 
 function providerWithFiles(handlers: Record<string, unknown>): { provider: GcsStorageProvider; file: ReturnType<typeof vi.fn> }
