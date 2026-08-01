@@ -6,6 +6,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { env } from '@spfn/core/config';
+import { toPosixPath } from './path-utils';
 
 // ============================================================================
 // Constants
@@ -15,24 +16,17 @@ import { env } from '@spfn/core/config';
  * Barrel file patterns to exclude from schema discovery.
  * These are re-export files that would cause circular imports
  * when loaded alongside the individual entity files they re-export.
+ * Paths are normalized to POSIX separators before matching.
  */
 const BARREL_FILE_PATTERNS = [
     '/index',
     '/index.ts',
     '/index.js',
     '/index.mjs',
-    '\\index',
-    '\\index.ts',
-    '\\index.js',
-    '\\index.mjs',
     '/config',
     '/config.ts',
     '/config.js',
     '/config.mjs',
-    '\\config',
-    '\\config.ts',
-    '\\config.js',
-    '\\config.mjs',
 ];
 
 /**
@@ -54,7 +48,9 @@ const SUPPORTED_EXTENSIONS = ['.ts', '.js', '.mjs'];
  */
 function isBarrelFile(filePath: string): boolean
 {
-    return BARREL_FILE_PATTERNS.some(pattern => filePath.endsWith(pattern));
+    const posixPath = toPosixPath(filePath);
+
+    return BARREL_FILE_PATTERNS.some(pattern => posixPath.endsWith(pattern));
 }
 
 /**
@@ -513,7 +509,7 @@ export function getDrizzleConfig(options: DrizzleConfigOptions = {})
 
         // Filter to only the specified package
         const filteredSchemas = packageSchemas.filter(schemaPath =>
-            schemaPath.includes(`node_modules/${options.packageFilter}/`),
+            toPosixPath(schemaPath).includes(`node_modules/${options.packageFilter}/`),
         );
 
         if (filteredSchemas.length === 0)
