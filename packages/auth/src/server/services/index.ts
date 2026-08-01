@@ -129,6 +129,7 @@ export {
     requireEnabledProvider,
     getEnabledOAuthProviders,
     getGoogleAccessToken,
+    oauthUnlinkNotifyService,
 } from './oauth.service';
 
 export type {
@@ -136,6 +137,7 @@ export type {
     OAuthStartResult,
     OAuthCallbackParams,
     OAuthCallbackResult,
+    UnlinkNotifyResult,
 } from './oauth.service';
 
 // Native Social Login Service

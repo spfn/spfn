@@ -351,6 +351,15 @@ export const authEnvSchema = defineEnvSchema({
         }),
     },
 
+    SPFN_AUTH_KAKAO_ADMIN_KEY: {
+        ...envString({
+            description: 'Kakao app admin key. Required to verify the User Unlinked webhook (Authorization: KakaoAK header).',
+            required: false,
+            sensitive: true,
+            examples: ['your-kakao-admin-key'],
+        }),
+    },
+
     SPFN_AUTH_KAKAO_SCOPES: {
         ...envString({
             description: 'Comma-separated Kakao consent scopes. Defaults to account_email.',

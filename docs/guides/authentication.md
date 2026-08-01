@@ -681,6 +681,7 @@ export default function OAuthCallbackPage()
 | `/_auth/oauth/start` | POST | Get OAuth URL (API mode) |
 | `/_auth/oauth/providers` | GET | List enabled providers |
 | `/_auth/oauth/finalize` | POST | Finalize OAuth session |
+| `/_auth/oauth/:provider/unlink-notify` | GET/POST | Provider발 연동 해제 웹훅 수신 (카카오 연결 해제 웹훅 · 네이버 연결끊기 Callback URL 등록용, 서명 검증 후 소셜 연결·저장 토큰 삭제) |
 
 ### Custom Providers (Pluggable)
 
@@ -917,6 +918,7 @@ authRegisterEvent.on((payload) =>
 | `authRegisterEvent` | `{ userId, provider, email?, phone?, metadata? }` |
 | `invitationCreatedEvent` | `{ invitationId, email, token, roleId, invitedBy, expiresAt, isResend, metadata? }` |
 | `invitationAcceptedEvent` | `{ invitationId, email, userId, roleId, invitedBy, metadata? }` |
+| `oauthUnlinkedEvent` | `{ userId, provider, providerUserId, reason? }` — provider 쪽에서 연동을 끊어 소셜 연결이 삭제된 직후. 계정 탈퇴 연계 등 후속 정책은 이 이벤트를 구독해 처리 |
 
 ### Rejecting a Registration (`beforeRegister`)
 

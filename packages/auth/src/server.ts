@@ -101,6 +101,7 @@ export {
     authDeletionRequestedEvent,
     authDeletionCancelledEvent,
     authDeletionCompletedEvent,
+    oauthUnlinkedEvent,
     AuthProviderSchema,
 } from './server/events';
 
@@ -112,4 +113,5 @@ export type {
     AuthDeletionRequestedPayload,
     AuthDeletionCancelledPayload,
     AuthDeletionCompletedPayload,
+    OAuthUnlinkedPayload,
 } from './server/events';

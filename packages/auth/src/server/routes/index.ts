@@ -37,6 +37,8 @@ import {
     oauthProviderCallback,
     getProviderOAuthUrl,
     oauthNative,
+    oauthUnlinkNotify,
+    oauthUnlinkNotifyGet,
 } from './oauth';
 import {
     listRoles,
@@ -85,6 +87,8 @@ export const mainAuthRouter = defineRouter({
     oauthProviderCallback,
     getProviderOAuthUrl,
     oauthNative,
+    oauthUnlinkNotify,
+    oauthUnlinkNotifyGet,
     // Invitation routes
     getInvitation,
     acceptInvitation,

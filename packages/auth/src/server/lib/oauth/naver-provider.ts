@@ -5,12 +5,17 @@
 import { ValidationError } from '@spfn/core/errors';
 
 import { env } from '../../../config';
+import { createDecipheriv, createHash, createHmac, timingSafeEqual } from 'node:crypto';
+
 import {
     registerOAuthProvider,
+    UnlinkNotifyRejection,
     type NormalizedIdentity,
     type OAuthCodeExchangeOptions,
     type OAuthProvider,
     type OAuthTokens,
+    type UnlinkNotification,
+    type UnlinkNotifyRequest,
 } from './provider';
 
 const NAVER_AUTH_URL = 'https://nid.naver.com/oauth2.0/authorize';
@@ -83,6 +88,47 @@ async function requestNaverTokens(params: URLSearchParams): Promise<OAuthTokens>
         refreshToken: typeof body.refresh_token === 'string' ? body.refresh_token : undefined,
         expiresIn,
     };
+}
+
+/**
+ * 네이버 연결 끊기 알림의 암호화/서명 키
+ *
+ * 네이버 규격: encryptKey(16byte) = md5(CLIENT_SECRET)의 앞 16바이트.
+ * AES-128-CBC 복호화 키와 HMAC-SHA256 서명 키로 공용된다.
+ */
+function deriveNaverUnlinkKey(clientSecret: string): Buffer
+{
+    return createHash('md5').update(clientSecret).digest().subarray(0, 16);
+}
+
+/**
+ * base64url·base64 혼용 입력을 표준 base64로 정규화해 디코드
+ */
+function decodeBase64Url(value: string): Buffer
+{
+    return Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+}
+
+/**
+ * encryptUniqueId 복호화. 형식이 깨진 입력이면 null.
+ */
+function decryptNaverUniqueId(encryptUniqueId: string, key: Buffer): string | null
+{
+    try
+    {
+        const payload = decodeBase64Url(encryptUniqueId);
+        const decipher = createDecipheriv('aes-128-cbc', key, payload.subarray(0, 16));
+        const uniqueId = Buffer.concat([
+            decipher.update(payload.subarray(16)),
+            decipher.final(),
+        ]).toString('utf8');
+
+        return uniqueId || null;
+    }
+    catch
+    {
+        return null;
+    }
 }
 
 export const naverProvider: OAuthProvider = {
@@ -163,6 +209,59 @@ export const naverProvider: OAuthProvider = {
             client_secret: config.clientSecret,
             refresh_token: refreshToken,
         }));
+    },
+
+    // 네이버 연결 끊기 알림 규격은 성공 응답으로 204 No Content를 요구한다.
+    unlinkNotifyAckStatus: 204,
+
+    /**
+     * 네이버 연결 끊기 알림 검증
+     *
+     * 파라미터: clientId · encryptUniqueId · timestamp · signature.
+     * signature = base64url( HMAC-SHA256( "clientId=..&encryptUniqueId=..&timestamp=..", key ) ),
+     * encryptUniqueId = base64url( iv(16) + AES-128-CBC-PKCS5(uniqueId, key) ),
+     * key = md5(CLIENT_SECRET)[0..16].
+     *
+     * 복호화된 uniqueId는 프로필 API(/v1/nid/me)의 id와 동일한 이용자 고유 식별자다.
+     * 네이버는 실패 요청을 재시도하지 않으므로 재전송(replay) 방어는 검증 통과 후
+     * 삭제가 멱등이라는 점에 의존한다.
+     */
+    async verifyUnlinkNotification(request: UnlinkNotifyRequest): Promise<UnlinkNotification>
+    {
+        const clientId = env.SPFN_AUTH_NAVER_CLIENT_ID;
+        const clientSecret = env.SPFN_AUTH_NAVER_CLIENT_SECRET;
+        if (!clientId || !clientSecret)
+        {
+            throw new UnlinkNotifyRejection(403, 'Naver OAuth is not configured');
+        }
+
+        const { clientId: requestClientId, encryptUniqueId, timestamp, signature } = request.fields;
+        if (!requestClientId || !encryptUniqueId || !timestamp || !signature)
+        {
+            throw new UnlinkNotifyRejection(400, 'Naver unlink notification is missing required parameters');
+        }
+
+        if (requestClientId !== clientId)
+        {
+            throw new UnlinkNotifyRejection(403, 'Naver unlink notification clientId mismatch');
+        }
+
+        const key = deriveNaverUnlinkKey(clientSecret);
+        const baseString = `clientId=${requestClientId}&encryptUniqueId=${encryptUniqueId}&timestamp=${timestamp}`;
+        const expected = createHmac('sha256', key).update(baseString).digest();
+        const actual = decodeBase64Url(signature);
+        if (expected.length !== actual.length || !timingSafeEqual(expected, actual))
+        {
+            throw new UnlinkNotifyRejection(403, 'Naver unlink notification signature mismatch');
+        }
+
+        const uniqueId = decryptNaverUniqueId(encryptUniqueId, key);
+        if (!uniqueId)
+        {
+            throw new UnlinkNotifyRejection(400, 'Naver encryptUniqueId cannot be decrypted');
+        }
+
+        return { providerUserId: uniqueId, reason: 'NAVER_UNLINK' };
     },
 };
 

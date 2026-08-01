@@ -5,11 +5,16 @@
 import { ValidationError } from '@spfn/core/errors';
 
 import { env } from '../../../config';
+import { timingSafeEqual } from 'node:crypto';
+
 import {
     registerOAuthProvider,
+    UnlinkNotifyRejection,
     type NormalizedIdentity,
     type OAuthProvider,
     type OAuthTokens,
+    type UnlinkNotification,
+    type UnlinkNotifyRequest,
 } from './provider';
 
 const KAKAO_AUTH_URL = 'https://kauth.kakao.com/oauth/authorize';
@@ -185,6 +190,40 @@ export const kakaoProvider: OAuthProvider = {
         }
 
         return requestKakaoTokens(params);
+    },
+
+    /**
+     * 카카오 연결 해제 웹훅(User Unlinked) 검증
+     *
+     * 카카오는 `Authorization: KakaoAK ${대표 어드민 키}` 헤더로 요청하므로
+     * 어드민 키 일치가 곧 발신자 검증이다. 웹훅 규격상 GET/POST 모두 가능하며
+     * 본문 필드는 app_id · user_id · referrer_type.
+     */
+    async verifyUnlinkNotification(request: UnlinkNotifyRequest): Promise<UnlinkNotification>
+    {
+        const adminKey = env.SPFN_AUTH_KAKAO_ADMIN_KEY;
+        if (!adminKey)
+        {
+            throw new UnlinkNotifyRejection(401, 'SPFN_AUTH_KAKAO_ADMIN_KEY is not configured');
+        }
+
+        const expected = Buffer.from(`KakaoAK ${adminKey}`);
+        const actual = Buffer.from(request.authorization ?? '');
+        if (expected.length !== actual.length || !timingSafeEqual(expected, actual))
+        {
+            throw new UnlinkNotifyRejection(401, 'Kakao admin key mismatch');
+        }
+
+        const userId = request.fields.user_id;
+        if (!userId)
+        {
+            throw new UnlinkNotifyRejection(400, 'Kakao unlink webhook is missing user_id');
+        }
+
+        return {
+            providerUserId: userId,
+            reason: request.fields.referrer_type,
+        };
     },
 };
 

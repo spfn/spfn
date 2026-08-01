@@ -122,6 +122,7 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_GOOGLE_SCOPES` | `.env.server` | — | comma-separated; default `email,profile` |
 | `SPFN_AUTH_GOOGLE_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_APP_URL\|\|SPFN_APP_URL}/_auth/oauth/google/callback` — see [OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite) |
 | `SPFN_AUTH_KAKAO_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | REST API key enables Kakao Login; secret is included when configured |
+| `SPFN_AUTH_KAKAO_ADMIN_KEY` | `.env.server` | — | app admin key; required to verify the Kakao User Unlinked webhook |
 | `SPFN_AUTH_KAKAO_SCOPES` / `_REDIRECT_URI` | `.env.server` | — | default scope `account_email`; callback `/_auth/oauth/kakao/callback` |
 | `SPFN_AUTH_NAVER_CLIENT_ID` / `_CLIENT_SECRET` | `.env.server` | — | both values enable Naver Login |
 | `SPFN_AUTH_NAVER_REDIRECT_URI` | `.env.server` | — | default `{NEXT_PUBLIC_SPFN_APP_URL\|\|SPFN_APP_URL}/_auth/oauth/naver/callback` |
@@ -271,6 +272,40 @@ scope it falls back to the public profile email, unverified. Naver provides an e
 Naver login never links an existing account by email; new Naver users can verify and add their
 email through the application's normal onboarding flow. Until then, the OAuth account is identified
 by its provider and provider user ID, so its user row may have both email and phone unset.
+
+### Provider-initiated unlink notifications (`unlink-notify`)
+
+Kakao and Naver notify the service when a user disconnects the app **from the provider's side**
+(account deletion, "연결된 서비스 관리" 해제 등). Without handling this, the service keeps the
+OAuth link and stored tokens for a user who already revoked consent — a privacy-compliance gap
+(Kakao shows a permanent console warning until the webhook is registered).
+
+`GET|POST /_auth/oauth/:provider/unlink-notify` is a public endpoint that verifies the
+provider's signature, deletes the `user_social_accounts` row (destroying the stored
+access/refresh tokens with it), and emits `auth.oauth.unlinked`. Requests that fail
+verification are rejected by status code and touch nothing.
+
+Register in the provider console:
+
+| Provider | Console setting | URL to register | Verification | Success response |
+|----------|-----------------|-----------------|--------------|------------------|
+| Kakao | [앱] > [웹훅] > 연결 해제 웹훅 | `https://<host>/_auth/oauth/kakao/unlink-notify` | `Authorization: KakaoAK <admin key>` vs `SPFN_AUTH_KAKAO_ADMIN_KEY` | 200 within 3s |
+| Naver | API 설정 > 연결끊기 Callback URL | `https://<host>/_auth/oauth/naver/unlink-notify` | HMAC-SHA256 signature + AES-128-CBC `encryptUniqueId` (key = `md5(client_secret)[0..16]`) | 204 No Content |
+
+The framework only severs the link. What happens next (keep the account, start account
+deletion, …) is app policy — subscribe to the event:
+
+```typescript
+import { oauthUnlinkedEvent } from '@spfn/auth/server';
+
+oauthUnlinkedEvent.subscribe(async ({ userId, provider, providerUserId, reason }) =>
+{
+    // e.g. delete the account when the social link was its only credential
+});
+```
+
+Custom providers opt in by implementing `verifyUnlinkNotification()` (and optionally
+`unlinkNotifyAckStatus`) — providers without it answer 404 on this route.
 
 ### OAuth callback origin (web app host + rewrite)
 
@@ -461,7 +496,9 @@ authRegisterEvent.subscribe(async ({ userId, email, provider, metadata }) =>
 
 Payload types: `AuthLoginPayload`, `AuthRegisterPayload`, `InvitationCreatedPayload`,
 `InvitationAcceptedPayload`, `AuthDeletionRequestedPayload`, `AuthDeletionCancelledPayload`,
-`AuthDeletionCompletedPayload`. These events also bind to `@spfn/core/job` jobs via `.on(event)`.
+`AuthDeletionCompletedPayload`, `OAuthUnlinkedPayload` (`auth.oauth.unlinked` — provider-side
+disconnect, see the OAuth unlink-notify section). These events also bind to `@spfn/core/job`
+jobs via `.on(event)`.
 
 ## Registration gate (`beforeRegister`)
 
