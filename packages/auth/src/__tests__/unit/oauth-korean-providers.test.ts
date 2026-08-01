@@ -149,7 +149,7 @@ describe('Naver OAuth provider', () =>
         expect(params.get('client_secret')).toBe('naver-client-secret');
     });
 
-    it('normalizes Naver profile but keeps email unverified', async () =>
+    it('normalizes Naver profile and treats a present email as verified', async () =>
     {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
             resultcode: '00',
@@ -166,9 +166,29 @@ describe('Naver OAuth provider', () =>
         await expect(naverProvider.getUserInfo('access-token')).resolves.toEqual({
             providerUserId: 'naver-user-id',
             email: 'member@example.com',
-            emailVerified: false,
+            emailVerified: true,
             name: 'Member',
             avatar: 'https://example.com/profile.png',
+        });
+    });
+
+    it('keeps email unverified when the Naver profile has no email', async () =>
+    {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+            resultcode: '00',
+            message: 'success',
+            response: {
+                id: 'naver-user-id',
+                nickname: 'Nickname',
+            },
+        })));
+
+        await expect(naverProvider.getUserInfo('access-token')).resolves.toEqual({
+            providerUserId: 'naver-user-id',
+            email: null,
+            emailVerified: false,
+            name: 'Nickname',
+            avatar: undefined,
         });
     });
 

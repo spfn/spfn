@@ -190,8 +190,9 @@ export const naverProvider: OAuthProvider = {
         return {
             providerUserId: profile.id,
             email: typeof profile.email === 'string' ? profile.email : null,
-            // Naver returns an email address but no independently verified-email claim.
-            emailVerified: false,
+            // 네이버 프로필 이메일은 네이버 계정 이메일이거나 인증 절차를 거친 연락처
+            // 이메일이다 — 존재하면 검증된 것으로 취급한다(카카오와 같은 신뢰 수준).
+            emailVerified: typeof profile.email === 'string',
             name: typeof profile.name === 'string'
                 ? profile.name
                 : (typeof profile.nickname === 'string' ? profile.nickname : undefined),

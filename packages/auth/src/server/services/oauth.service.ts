@@ -12,6 +12,7 @@ import { ValidationError } from '@spfn/core/errors';
 import { AccountDisabledError, AccountPendingDeletionError } from '@spfn/auth/errors';
 
 import { usersRepository, socialAccountsRepository } from '../repositories';
+import { authLogger } from '../logger';
 import { runBeforeRegister } from '../lib/config';
 import { type SocialProvider, type KeyAlgorithmType } from '../types';
 import {
@@ -202,6 +203,8 @@ export async function oauthCallbackService(
             refreshToken: tokens.refreshToken ?? existingSocialAccount.refreshToken,
             tokenExpiresAt: tokenExpiryDate(tokens.expiresIn),
         });
+
+        await backfillVerifiedEmail(userId, identity);
     }
     else
     {
@@ -302,6 +305,52 @@ export async function assertActiveForOAuthSession(userId: number): Promise<void>
     }
 
     throw new AccountDisabledError({ status: user.status });
+}
+
+/**
+ * 기존 소셜 계정 재로그인 시 비어 있는 users.email을 검증된 이메일로 소급 채움
+ *
+ * 과거 provider가 emailVerified=false를 보고해 email=null로 만들어진 계정(네이버 등)의
+ * 구제 경로 — provider 판정이 바뀐 뒤 재로그인하면 이메일이 계정에 실린다.
+ * 같은 이메일을 가진 다른 계정이 이미 있으면 건너뛴다(unique 충돌·계정 탈취 방지).
+ */
+export async function backfillVerifiedEmail(
+    userId: number,
+    identity: NormalizedIdentity,
+): Promise<void>
+{
+    if (!identity.email || !identity.emailVerified)
+    {
+        return;
+    }
+
+    const user = await usersRepository.findById(userId);
+    if (!user || user.email)
+    {
+        return;
+    }
+
+    const emailOwner = await usersRepository.findByEmail(identity.email);
+    if (emailOwner && emailOwner.id !== userId)
+    {
+        return;
+    }
+
+    try
+    {
+        await usersRepository.updateById(userId, {
+            email: identity.email,
+            emailVerifiedAt: new Date(),
+        });
+    }
+    catch (error)
+    {
+        // best-effort — 동시 가입으로 unique 충돌이 나도 로그인은 계속돼야 한다
+        authLogger.service.warn('Verified-email backfill failed; continuing login', {
+            userId: String(userId),
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
 }
 
 /**
