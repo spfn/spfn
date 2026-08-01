@@ -8,6 +8,7 @@ import type { Sql } from 'postgres';
 
 import { logger } from '@spfn/core/logger';
 import { createDatabaseFromEnv } from './factory';
+import { toPosixPath } from './path-utils';
 import type { DatabaseInitOptions, MonitoringConfig } from './config.js';
 import { buildHealthCheckConfig, buildMonitoringConfig } from './config.js';
 import { env } from '@spfn/core/config';
@@ -224,7 +225,7 @@ function getCallerInfo(): string | undefined
         // Skip first 3 lines: Error, getCallerInfo, getDatabase
         for (let i = STACK_TRACE_SKIP_LINES; i < lines.length; i++)
         {
-            const line = lines[i];
+            const line = toPosixPath(lines[i]);
             // Find first meaningful caller (not node_modules/@spfn/core/db)
             if (!line.includes('node_modules') && !line.includes('/db/manager/'))
             {

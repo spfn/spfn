@@ -10,6 +10,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { getDrizzleConfig } from '../config-generator';
+import { toPosixPath } from '../path-utils';
 
 const DB_URL = 'postgresql://user:pass@localhost:5432/testdb';
 
@@ -65,5 +66,42 @@ describe('getDrizzleConfig schema discovery', () =>
 
         expect(schemas).toHaveLength(2);
         expect(new Set(schemas).size).toBe(schemas.length);
+    });
+
+    it('filters package schemas by packageFilter', () =>
+    {
+        const pkgDir = join(cwd, 'node_modules', '@spfn', 'fake-pkg');
+        mkdirSync(join(pkgDir, 'entities'), { recursive: true });
+        writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({
+            name: '@spfn/fake-pkg',
+            spfn: { schemas: ['entities/*.ts'] },
+        }));
+        writeFileSync(join(pkgDir, 'entities', 'thing.entity.ts'), 'export const things = {};');
+
+        const config = getDrizzleConfig({
+            databaseUrl: DB_URL,
+            cwd,
+            packageFilter: '@spfn/fake-pkg',
+        });
+
+        const schemas = Array.isArray(config.schema) ? config.schema : [config.schema];
+
+        expect(schemas).toHaveLength(1);
+        expect(schemas[0].endsWith('thing.entity.ts')).toBe(true);
+    });
+});
+
+describe('toPosixPath', () =>
+{
+    it('normalizes Windows separators to forward slashes', () =>
+    {
+        expect(toPosixPath('C:\\app\\node_modules\\@spfn\\pkg\\entities\\config.ts'))
+            .toBe('C:/app/node_modules/@spfn/pkg/entities/config.ts');
+    });
+
+    it('leaves POSIX paths unchanged', () =>
+    {
+        expect(toPosixPath('/app/src/server/entities/config.ts'))
+            .toBe('/app/src/server/entities/config.ts');
     });
 });
