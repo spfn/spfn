@@ -268,10 +268,13 @@ no Google account is linked or no refresh token is available).
 Kakao's `is_email_valid` and `is_email_verified` claims are both required before its email can
 link an existing SPFN account. GitHub uses the primary email from `/user/emails` (needs the
 `user:email` scope) and treats it as verified only when GitHub marks it verified; without that
-scope it falls back to the public profile email, unverified. Naver provides an email address but no verified-email claim, so
-Naver login never links an existing account by email; new Naver users can verify and add their
-email through the application's normal onboarding flow. Until then, the OAuth account is identified
-by its provider and provider user ID, so its user row may have both email and phone unset.
+scope it falls back to the public profile email, unverified. Naver's profile email is either the
+Naver account email or a contact email that passed Naver's own verification, so a present email
+is treated as verified — it is stored on the user row and may link an existing account by email,
+the same trust level as Kakao. Accounts created before this policy (user row with `email` null)
+are backfilled on their next login: if the provider reports a verified email and no other account
+owns it, `email` and `emailVerifiedAt` are filled in (best-effort; a conflict skips the backfill
+and the login continues).
 
 ### Provider-initiated unlink notifications (`unlink-notify`)
 

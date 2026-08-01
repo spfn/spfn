@@ -16,7 +16,7 @@ import { runInTransaction, onAfterCommit } from '@spfn/core/db';
 import { socialAccountsRepository } from '../repositories';
 import { type SocialProvider, type KeyAlgorithmType } from '../types';
 import { getOAuthProvider, type NormalizedIdentity } from '../lib/oauth';
-import { createOrLinkUser, assertActiveForOAuthSession } from './oauth.service';
+import { createOrLinkUser, assertActiveForOAuthSession, backfillVerifiedEmail } from './oauth.service';
 import { registerPublicKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
 import { authLoginEvent, authRegisterEvent } from '../events';
@@ -95,6 +95,7 @@ async function persistNativeLogin(
         if (existing)
         {
             userId = existing.userId;
+            await backfillVerifiedEmail(userId, identity);
         }
         else
         {
