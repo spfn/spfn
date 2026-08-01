@@ -23,11 +23,12 @@ import {
     type OAuthProvider,
     type OAuthTokens,
     type NormalizedIdentity,
+    type UnlinkNotification,
 } from '../lib/oauth';
 import { registerPublicKeyService } from './key.service';
 import { updateLastLoginService } from './user.service';
 import { getPendingDeletionInfo } from './account-deletion.service';
-import { authLoginEvent, authRegisterEvent } from '../events';
+import { authLoginEvent, authRegisterEvent, oauthUnlinkedEvent } from '../events';
 
 export interface OAuthStartParams
 {
@@ -496,4 +497,52 @@ export async function getGoogleAccessToken(userId: number): Promise<string>
     });
 
     return tokens.access_token;
+}
+
+export interface UnlinkNotifyResult
+{
+    /** provider 규격이 요구하는 성공 응답 status */
+    ackStatus: 200 | 204;
+    /** 대상 소셜 계정을 찾아 삭제했는지 (미존재·이미 삭제면 false) */
+    handled: boolean;
+}
+
+/**
+ * Provider발 연동 해제 알림(unlink-notify) 처리
+ *
+ * 검증(verifyUnlinkNotification)을 통과한 요청만 여기 도달한다.
+ * 소셜 계정 연결 row를 삭제해 저장 토큰(access/refresh)까지 함께 파기하고,
+ * 후속 정책(계정 탈퇴 연계 등)은 auth.oauth.unlinked 이벤트 구독에 맡긴다.
+ *
+ * 대상 계정이 없어도 성공으로 응답한다 — provider 재전송·이미 해제된 계정에
+ * 대한 알림은 정상 시나리오다.
+ */
+export async function oauthUnlinkNotifyService(
+    provider: SocialProvider,
+    notification: UnlinkNotification,
+): Promise<UnlinkNotifyResult>
+{
+    const oauthProvider = requireEnabledProvider(provider);
+    const ackStatus = oauthProvider.unlinkNotifyAckStatus ?? 200;
+
+    const account = await socialAccountsRepository.findByProviderAndProviderId(
+        provider,
+        notification.providerUserId,
+    );
+
+    if (!account)
+    {
+        return { ackStatus, handled: false };
+    }
+
+    await socialAccountsRepository.deleteById(account.id);
+
+    await oauthUnlinkedEvent.emit({
+        userId: String(account.userId),
+        provider,
+        providerUserId: notification.providerUserId,
+        reason: notification.reason,
+    });
+
+    return { ackStatus, handled: true };
 }

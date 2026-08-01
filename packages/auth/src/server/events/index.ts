@@ -185,6 +185,34 @@ export const authDeletionCompletedEvent = defineEvent(
 );
 
 /**
+ * auth.oauth.unlinked - provider발 연동 해제 이벤트
+ *
+ * 발행 시점:
+ * - provider(카카오·네이버 등)가 unlink-notify 웹훅으로 연동 해제를 알려와
+ *   소셜 계정 연결과 저장 토큰이 삭제된 직후
+ *
+ * 연결 삭제까지는 프레임워크가 수행하고, 그 이후(계정 탈퇴로 이어갈지 등)는
+ * 앱 정책이므로 이 이벤트를 구독해 처리한다.
+ *
+ * @example
+ * ```typescript
+ * oauthUnlinkedEvent.subscribe(async (payload) => {
+ *     await requestAccountDeletionService({ userId: payload.userId, requestedBy: 'self' });
+ * });
+ * ```
+ */
+export const oauthUnlinkedEvent = defineEvent(
+    'auth.oauth.unlinked',
+    Type.Object({
+        userId: Type.String(),
+        provider: AuthProviderSchema,
+        providerUserId: Type.String(),
+        /** provider가 전달한 해제 경로 (kakao referrer_type 등) */
+        reason: Type.Optional(Type.String()),
+    }),
+);
+
+/**
  * Auth event payload types
  */
 export type AuthLoginPayload = typeof authLoginEvent._payload;
@@ -194,3 +222,4 @@ export type InvitationAcceptedPayload = typeof invitationAcceptedEvent._payload;
 export type AuthDeletionRequestedPayload = typeof authDeletionRequestedEvent._payload;
 export type AuthDeletionCancelledPayload = typeof authDeletionCancelledEvent._payload;
 export type AuthDeletionCompletedPayload = typeof authDeletionCompletedEvent._payload;
+export type OAuthUnlinkedPayload = typeof oauthUnlinkedEvent._payload;

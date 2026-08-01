@@ -8,23 +8,25 @@
  */
 
 import { Type } from '@sinclair/typebox';
+import { type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Transactional } from '@spfn/core/db';
 import { ValidationError } from '@spfn/core/errors';
 import { rateLimitPolicy } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 
-import { KEY_ALGORITHM, SOCIAL_PROVIDERS } from '../../types';
+import { KEY_ALGORITHM, SOCIAL_PROVIDERS, type SocialProvider } from '../../types';
 import { COOKIE_NAMES, matchOAuthCsrfCookies } from '../../lib/config';
 import {
     oauthStartService,
     oauthCallbackService,
     oauthNativeService,
+    oauthUnlinkNotifyService,
     buildOAuthErrorUrl,
     getEnabledOAuthProviders,
     requireEnabledProvider,
 } from '../../services';
-import { isGoogleOAuthEnabled, getGoogleAuthUrl, getOAuthProvider } from '../../lib/oauth';
+import { isGoogleOAuthEnabled, getGoogleAuthUrl, getOAuthProvider, UnlinkNotifyRejection } from '../../lib/oauth';
 import { generateOAuthNonce } from '../../lib/oauth/state';
 
 /**
@@ -488,6 +490,118 @@ export const oauthNative = route.post('/_auth/oauth/:provider/native')
         return await oauthNativeService({ provider: params.provider, ...body });
     });
 
+/**
+ * unlink-notify 요청의 query·body(form/JSON)를 문자열 맵으로 병합
+ *
+ * 카카오는 GET/POST 모두 보낼 수 있고, 네이버는 POST면서 샘플상 파라미터가
+ * query string에도 실리므로 두 소스를 합쳐 provider 검증에 넘긴다.
+ */
+async function collectUnlinkNotifyFields(raw: Context): Promise<Record<string, string>>
+{
+    const fields: Record<string, string> = { ...raw.req.query() };
+
+    if (raw.req.method === 'GET')
+    {
+        return fields;
+    }
+
+    const contentType = raw.req.header('content-type') ?? '';
+
+    if (contentType.includes('application/json'))
+    {
+        const body = await raw.req.json().catch(() => null) as Record<string, unknown> | null;
+        for (const [key, value] of Object.entries(body ?? {}))
+        {
+            if (typeof value === 'string' || typeof value === 'number')
+            {
+                fields[key] = String(value);
+            }
+        }
+
+        return fields;
+    }
+
+    const body = await raw.req.parseBody().catch(() => ({} as Record<string, unknown>));
+    for (const [key, value] of Object.entries(body))
+    {
+        if (typeof value === 'string')
+        {
+            fields[key] = value;
+        }
+    }
+
+    return fields;
+}
+
+/**
+ * provider 검증 → 소셜 연결 삭제까지의 unlink-notify 공통 처리
+ *
+ * 웹훅 호출자는 provider 서버라서 에러 응답 본문이 소비되지 않는다 —
+ * status 코드로만 결과를 표현한다(카카오 성공 200 · 네이버 성공 204).
+ */
+async function processUnlinkNotify(
+    provider: SocialProvider,
+    raw: Context,
+): Promise<200 | 204 | 400 | 401 | 403 | 404>
+{
+    const oauthProvider = getOAuthProvider(provider);
+
+    if (!oauthProvider?.isEnabled() || !oauthProvider.verifyUnlinkNotification)
+    {
+        return 404;
+    }
+
+    const request = {
+        authorization: raw.req.header('authorization') ?? null,
+        fields: await collectUnlinkNotifyFields(raw),
+    };
+
+    try
+    {
+        const notification = await oauthProvider.verifyUnlinkNotification(request);
+        const result = await oauthUnlinkNotifyService(provider, notification);
+
+        return result.ackStatus;
+    }
+    catch (error)
+    {
+        return error instanceof UnlinkNotifyRejection ? error.status : 400;
+    }
+}
+
+/**
+ * POST /_auth/oauth/:provider/unlink-notify - provider발 연동 해제 알림 수신
+ *
+ * 카카오 [연결 해제 웹훅]·네이버 [연결끊기 Callback URL]에 등록하는 공개
+ * 엔드포인트. provider별 서명/키 검증을 통과한 요청만 소셜 연결을 삭제한다.
+ */
+export const oauthUnlinkNotify = route.post('/_auth/oauth/:provider/unlink-notify')
+    .input({ params: providerParams })
+    .use([rateLimitPolicy('oauth-unlink-notify', { limit: 300, windowMs: 60_000 })])
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        const status = await processUnlinkNotify(params.provider, c.raw);
+
+        return status === 204 ? c.noContent() : c.json({}, status);
+    });
+
+/**
+ * GET /_auth/oauth/:provider/unlink-notify - 카카오 웹훅의 GET 발송 대응
+ */
+export const oauthUnlinkNotifyGet = route.get('/_auth/oauth/:provider/unlink-notify')
+    .input({ params: providerParams })
+    .use([rateLimitPolicy('oauth-unlink-notify', { limit: 300, windowMs: 60_000 })])
+    .skip(['auth'])
+    .handler(async (c) =>
+    {
+        const { params } = await c.data();
+        const status = await processUnlinkNotify(params.provider, c.raw);
+
+        return status === 204 ? c.noContent() : c.json({}, status);
+    });
+
 // Export router
 export const oauthRouter = defineRouter({
     oauthGoogleStart,
@@ -500,6 +614,8 @@ export const oauthRouter = defineRouter({
     oauthProviderCallback,
     getProviderOAuthUrl,
     oauthNative,
+    oauthUnlinkNotify,
+    oauthUnlinkNotifyGet,
 });
 
 export default oauthRouter;

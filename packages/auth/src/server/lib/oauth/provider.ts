@@ -54,6 +54,47 @@ export interface OAuthCodeExchangeOptions
 }
 
 /**
+ * Provider가 서비스로 보내는 연동 해제 알림의 원재료
+ *
+ * provider마다 전달 방식(query/form/JSON, 헤더 인증)이 달라 route가 정규화해 넘긴다.
+ * fields는 query string과 body(form/JSON)를 병합한 문자열 맵이다.
+ */
+export interface UnlinkNotifyRequest
+{
+    /** Authorization 헤더 원문 (없으면 null) */
+    authorization: string | null;
+    fields: Record<string, string>;
+}
+
+/**
+ * 검증에 성공한 연동 해제 알림
+ */
+export interface UnlinkNotification
+{
+    providerUserId: string;
+    /** provider가 전달한 해제 경로 (kakao referrer_type 등) */
+    reason?: string;
+}
+
+/**
+ * 연동 해제 알림 검증 실패
+ *
+ * API 에러 응답 체계를 타지 않는다 — route가 잡아 status만 반환한다.
+ * (provider 웹훅은 사람이 아닌 provider 서버가 호출자라서 에러 본문이 무의미하다)
+ */
+export class UnlinkNotifyRejection extends Error
+{
+    readonly status: 400 | 401 | 403;
+
+    constructor(status: 400 | 401 | 403, message: string)
+    {
+        super(message);
+        this.name = 'UnlinkNotifyRejection';
+        this.status = status;
+    }
+}
+
+/**
  * OAuth provider 구현 인터페이스
  *
  * google, superself 등 모든 provider가 이 형태를 만족해야 registry에 등록된다.
@@ -101,6 +142,22 @@ export interface OAuthProvider
      * Android·웹도 이 경로를 쓴다).
      */
     verifyNativeIdToken?(idToken: string, options: NativeVerifyOptions): Promise<NormalizedIdentity>;
+
+    /**
+     * Provider발 연동 해제 알림(웹훅)을 검증하고 대상 사용자를 식별한다.
+     *
+     * 인증 없는 공개 엔드포인트로 들어오므로 provider별 규격(카카오: 어드민 키 헤더,
+     * 네이버: HMAC 서명 + AES 복호화)의 검증을 통과해야만 처리된다.
+     * 검증 실패는 UnlinkNotifyRejection을 던진다.
+     */
+    verifyUnlinkNotification?(request: UnlinkNotifyRequest): Promise<UnlinkNotification>;
+
+    /**
+     * 연동 해제 알림 처리 성공 시 응답할 HTTP status (미지정 시 200)
+     *
+     * 네이버는 204 No Content를 요구한다.
+     */
+    unlinkNotifyAckStatus?: 200 | 204;
 }
 
 const registry = new Map<SocialProvider, OAuthProvider>();
