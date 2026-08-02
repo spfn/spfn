@@ -49,6 +49,7 @@ function parseKeys(raw: string | undefined): Record<string, string>
         }
         keys[pair.slice(0, idx)] = pair.slice(idx + 1);
     }
+
     return keys;
 }
 
