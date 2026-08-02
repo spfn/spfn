@@ -1,0 +1,128 @@
+{
+  "note": "Expected values were derived by Contracts/fixtures/derive-expected-values.py, a third implementation independent of both SDKs. Two SDKs agreeing with each other would prove nothing; agreeing with an outside implementation is the actual evidence.",
+  "profile": "clientProofV1",
+  "syntheticKey": {
+    "note": "TEST VECTOR ONLY. keyUtf8 is a synthetic string, not a credential. It authenticates nothing, was never issued by anything, and must never be presented to a real endpoint.",
+    "keyUtf8": "spfn-test-key-not-a-secret-0001"
+  },
+  "requestContentType": "application/json",
+  "headerNames": {
+    "profile": "x-spfn-auth-profile",
+    "clientId": "x-spfn-client-id",
+    "keyId": "x-spfn-key-id",
+    "nonce": "x-spfn-nonce",
+    "issuedAtMillis": "x-spfn-issued-at",
+    "proof": "x-spfn-proof",
+    "session": "x-spfn-session"
+  },
+  "headerOrder": [
+    "profile",
+    "clientId",
+    "keyId",
+    "nonce",
+    "issuedAtMillis",
+    "proof",
+    "session"
+  ],
+  "sessionRule": "requiresSession operations carry x-spfn-session; the handshake never does",
+  "vectors": [
+    {
+      "name": "handshake",
+      "why": "the handshake carries every proof header and no session header, and its body is digested like any other body rather than treated as absent",
+      "operationId": "auth.clientProof.handshake",
+      "method": "POST",
+      "path": "/v1/auth/client-proof/handshake",
+      "requiresSession": false,
+      "sessionId": null,
+      "body": {
+        "clientId": "client-test-0001",
+        "keyId": "key-test-0001",
+        "nonce": "nonce-000000000001",
+        "issuedAtMillis": 1750000000000
+      },
+      "canonicalBody": "{\"clientId\":\"client-test-0001\",\"issuedAtMillis\":1750000000000,\"keyId\":\"key-test-0001\",\"nonce\":\"nonce-000000000001\"}",
+      "bodySha256": "0261f8b70f9ee8f7014eb87fd8aefeaac9bd0caef9c105bca572960c4c2cda9b",
+      "proof": "3ff8b8af5f3b300ca5253b1796d76df74db89f6f5631d9dc28c2a3ebf9c19c9c",
+      "headers": [
+        [
+          "content-type",
+          "application/json"
+        ],
+        [
+          "x-spfn-auth-profile",
+          "clientProofV1"
+        ],
+        [
+          "x-spfn-client-id",
+          "client-test-0001"
+        ],
+        [
+          "x-spfn-key-id",
+          "key-test-0001"
+        ],
+        [
+          "x-spfn-nonce",
+          "nonce-000000000001"
+        ],
+        [
+          "x-spfn-issued-at",
+          "1750000000000"
+        ],
+        [
+          "x-spfn-proof",
+          "3ff8b8af5f3b300ca5253b1796d76df74db89f6f5631d9dc28c2a3ebf9c19c9c"
+        ]
+      ]
+    },
+    {
+      "name": "echo-with-session",
+      "why": "a requiresSession operation carries the session header last; every other header is assembled exactly as it is for the handshake",
+      "operationId": "echo.send",
+      "method": "POST",
+      "path": "/v1/echo",
+      "requiresSession": true,
+      "sessionId": "session-test-0001",
+      "body": {
+        "message": "hello",
+        "sequence": 7
+      },
+      "canonicalBody": "{\"message\":\"hello\",\"sequence\":7}",
+      "bodySha256": "7ebd40a4b02f42649c0808ee91edc724f61afac3ac550f4e7c37905bcc1a6edb",
+      "proof": "45e41e7a897cc2bf6d9a8e2cb5b66bb545b9d24a6a810f47d98a80eeb879b465",
+      "headers": [
+        [
+          "content-type",
+          "application/json"
+        ],
+        [
+          "x-spfn-auth-profile",
+          "clientProofV1"
+        ],
+        [
+          "x-spfn-client-id",
+          "client-test-0001"
+        ],
+        [
+          "x-spfn-key-id",
+          "key-test-0001"
+        ],
+        [
+          "x-spfn-nonce",
+          "nonce-000000000002"
+        ],
+        [
+          "x-spfn-issued-at",
+          "1750000000000"
+        ],
+        [
+          "x-spfn-proof",
+          "45e41e7a897cc2bf6d9a8e2cb5b66bb545b9d24a6a810f47d98a80eeb879b465"
+        ],
+        [
+          "x-spfn-session",
+          "session-test-0001"
+        ]
+      ]
+    }
+  ]
+}

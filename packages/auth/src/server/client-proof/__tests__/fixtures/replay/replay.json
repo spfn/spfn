@@ -1,0 +1,93 @@
+{
+  "note": "Expected values were derived by Contracts/fixtures/derive-expected-values.py, a third implementation independent of both SDKs. Two SDKs agreeing with each other would prove nothing; agreeing with an outside implementation is the actual evidence.",
+  "profile": "clientProofV1",
+  "replayWindowMillis": 300000,
+  "base": {
+    "method": "POST",
+    "path": "/v1/echo",
+    "clientId": "client-test-0001",
+    "keyId": "key-test-0001",
+    "bodySha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "vectors": [
+    {
+      "name": "same-nonce-twice",
+      "why": "a (clientId, nonce) pair is spendable exactly once inside the window",
+      "steps": [
+        {
+          "nonce": "nonce-replay-01",
+          "issuedAtMillis": 1750000000000,
+          "nowMillis": 1750000001000,
+          "proof": "4be4028881bd8dac0811b6fda4863b81b65b51e028aa15c930766d5b0d75b57c",
+          "expect": "accept"
+        },
+        {
+          "nonce": "nonce-replay-01",
+          "issuedAtMillis": 1750000000000,
+          "nowMillis": 1750000002000,
+          "proof": "4be4028881bd8dac0811b6fda4863b81b65b51e028aa15c930766d5b0d75b57c",
+          "expect": "PROOF_REPLAYED"
+        }
+      ]
+    },
+    {
+      "name": "distinct-nonces",
+      "why": "a fresh nonce is unaffected by an earlier one",
+      "steps": [
+        {
+          "nonce": "nonce-replay-02",
+          "issuedAtMillis": 1750000000000,
+          "nowMillis": 1750000001000,
+          "proof": "612c357d63f16d1b4857a82d83e7de4e81737b10e5edae1d9c2d59e2df440900",
+          "expect": "accept"
+        },
+        {
+          "nonce": "nonce-replay-03",
+          "issuedAtMillis": 1750000000000,
+          "nowMillis": 1750000001000,
+          "proof": "bde6288c318a84cda258cd377dd9a01e19e40fd95d8f3e6698ae1e96c2fc55fe",
+          "expect": "accept"
+        }
+      ]
+    },
+    {
+      "name": "outside-window",
+      "why": "expiry is checked before replay, so a stale proof is PROOF_EXPIRED",
+      "steps": [
+        {
+          "nonce": "nonce-replay-04",
+          "issuedAtMillis": 1750000000000,
+          "nowMillis": 1750000300001,
+          "proof": "c4c04fd0099445917dd3471747544353cf2b14d74a00a385e5668498c17d0178",
+          "expect": "PROOF_EXPIRED"
+        }
+      ]
+    },
+    {
+      "name": "issued-in-the-future",
+      "why": "a negative age is refused rather than treated as fresh",
+      "steps": [
+        {
+          "nonce": "nonce-replay-05",
+          "issuedAtMillis": 1750000000000,
+          "nowMillis": 1749999999999,
+          "proof": "39b07b516d6ec134c315cd93165742f1e0c3ca976ea8822ce1f381434b590aa0",
+          "expect": "PROOF_EXPIRED"
+        }
+      ]
+    },
+    {
+      "name": "wrong-proof",
+      "why": "a proof that does not verify is PROOF_INVALID, checked after replay",
+      "steps": [
+        {
+          "nonce": "nonce-replay-06",
+          "issuedAtMillis": 1750000000000,
+          "nowMillis": 1750000001000,
+          "proof": "0000000000000000000000000000000000000000000000000000000000000000",
+          "expect": "PROOF_INVALID"
+        }
+      ]
+    }
+  ]
+}

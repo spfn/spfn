@@ -2,6 +2,7 @@ export const sharedExternal = [
     // Internal entrypoints (prevent bundling into each other)
     '@spfn/auth',
     '@spfn/auth/client',
+    '@spfn/auth/client-proof',
     '@spfn/auth/config',
     '@spfn/auth/errors',
     '@spfn/auth/nextjs/api',

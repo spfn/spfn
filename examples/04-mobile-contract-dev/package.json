@@ -1,0 +1,19 @@
+{
+    "name": "04-mobile-contract-dev",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "tsx src/server.ts",
+        "type-check": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@hono/node-server": "^1.19.13",
+        "@spfn/auth": "workspace:*"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.0",
+        "tsx": "^4.20.6",
+        "typescript": "^5"
+    }
+}

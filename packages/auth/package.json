@@ -32,6 +32,11 @@
       "import": "./dist/errors.js",
       "require": "./dist/errors.js"
     },
+    "./client-proof": {
+      "types": "./dist/client-proof.d.ts",
+      "import": "./dist/client-proof.js",
+      "require": "./dist/client-proof.js"
+    },
     "./nextjs/api": {
       "types": "./dist/nextjs/api.d.ts",
       "import": "./dist/nextjs/api.js",

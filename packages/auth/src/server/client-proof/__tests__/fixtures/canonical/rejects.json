@@ -1,0 +1,46 @@
+{
+  "algorithm": "SPFN-CANON-JSON-1",
+  "note": "Each input must be refused with exactly the named error code, on both platforms.",
+  "vectors": [
+    {
+      "name": "duplicate-key",
+      "input": "{\"a\":1,\"a\":2}",
+      "errorCode": "DUPLICATE_KEY"
+    },
+    {
+      "name": "fractional-number",
+      "input": "{\"n\":1.5}",
+      "errorCode": "NON_INTEGER_NUMBER"
+    },
+    {
+      "name": "exponent-number",
+      "input": "{\"n\":1e3}",
+      "errorCode": "NON_INTEGER_NUMBER"
+    },
+    {
+      "name": "trailing-content",
+      "input": "{\"a\":1} x",
+      "errorCode": "TRAILING_CONTENT"
+    },
+    {
+      "name": "unterminated-object",
+      "input": "{\"a\":",
+      "errorCode": "UNEXPECTED_END"
+    },
+    {
+      "name": "raw-control-in-string",
+      "input": "{\"a\":\"\u0001\"}",
+      "errorCode": "INVALID_TOKEN"
+    },
+    {
+      "name": "invalid-escape",
+      "input": "{\"a\":\"\\q\"}",
+      "errorCode": "INVALID_ESCAPE"
+    },
+    {
+      "name": "lone-surrogate-escape",
+      "input": "{\"a\":\"\\ud800\"}",
+      "errorCode": "INVALID_ESCAPE"
+    }
+  ]
+}
