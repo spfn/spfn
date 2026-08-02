@@ -28,11 +28,17 @@ import {
 } from './proof';
 import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
 
-/** The version this export publishes. A mistake becomes a new version. */
-export const CONTRACT_VERSION = '1.0.0';
+/**
+ * The version this export publishes. A mistake becomes a new version.
+ *
+ * 1.0.1 — 1.0.0 spelled the array field `Item[]`, which the consumer's codegen
+ * parses as a named type rather than an array. The contract means what it
+ * always meant; only the spelling is corrected.
+ */
+export const CONTRACT_VERSION = '1.0.1';
 export const CONTRACT_MAJOR = 1;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
-export const CONTRACT_SUPPORTED_RANGE = '>=1.0.0 <2.0.0';
+export const CONTRACT_SUPPORTED_RANGE = '>=1.0.1 <2.0.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
@@ -40,10 +46,20 @@ export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
 /** Bumped whenever the assembled shape changes, independent of the contract. */
 export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@1.0.0';
 
+/**
+ * The field-type grammar the consumer's codegen parses.
+ *
+ * `array<T>` is the only array spelling: spfn-mobile's `FieldType.parse` treats
+ * `array<…>` as an array and everything else as a named type, so `Item[]` would
+ * silently become a type named "Item[]" and fail at compile time rather than at
+ * parse time.
+ */
+type FieldTypeName = 'string' | 'integer' | 'array<Item>';
+
 interface FieldDeclaration
 {
     name: string;
-    type: 'string' | 'integer' | 'Item[]';
+    type: FieldTypeName;
     optional: boolean;
 }
 
@@ -120,7 +136,7 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
     {
         name: 'ListItemsResponse',
         fields: [
-            required('items', 'Item[]'),
+            required('items', 'array<Item>'),
             optional('nextCursor', 'string'),
         ],
     },
@@ -212,6 +228,14 @@ export function buildMobileContractBundle(): MobileContractBundle
                 'the content-type header is present exactly when the request carries a body, and the body is always '
                 + 'the canonical JSON of the request type',
             sessionRule: `requiresSession operations carry ${CLIENT_PROOF_HEADERS.session}; the handshake never does`,
+        },
+        typeGrammar: {
+            scalars: ['string', 'integer'],
+            array: 'array<T>, where T is itself a field type. This is the only array spelling.',
+            named: 'any other value names one of the types below',
+            rule:
+                'a field type outside this grammar is a contract error, not something to guess at: a consumer that '
+                + 'does not recognise an array spelling reads it as a type name and fails at compile time',
         },
         types: CONTRACT_TYPES.map((type) => ({
             name: type.name,
