@@ -52,9 +52,9 @@
     "docker:test:down": "docker compose -f docker-compose.test.yml down",
     "docker:test:logs": "docker compose -f docker-compose.test.yml logs -f",
         "check:circular": "madge --circular --extensions ts src/",
-        "publish:alpha": "npm publish --access public --tag alpha",
-        "publish:beta": "npm publish --access public --tag beta",
-        "publish:latest": "npm publish --access public"
+        "publish:alpha": "node ../../scripts/publish-package.mjs alpha",
+        "publish:beta": "node ../../scripts/publish-package.mjs beta",
+        "publish:latest": "node ../../scripts/publish-package.mjs latest"
   },
   "keywords": [
     "spfn",

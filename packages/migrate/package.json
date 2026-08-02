@@ -20,9 +20,9 @@
         "type-check": "tsc --noEmit",
         "db:generate": "drizzle-kit generate",
         "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\"",
-        "publish:alpha": "npm publish --access public --tag alpha",
-        "publish:beta": "npm publish --access public --tag beta",
-        "publish:latest": "npm publish --access public"
+        "publish:alpha": "node ../../scripts/publish-package.mjs alpha",
+        "publish:beta": "node ../../scripts/publish-package.mjs beta",
+        "publish:latest": "node ../../scripts/publish-package.mjs latest"
     },
     "spfn": {
         "schemas": [
