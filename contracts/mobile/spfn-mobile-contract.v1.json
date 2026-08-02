@@ -1,0 +1,187 @@
+{
+  "bundleKind": "UPSTREAM_EXPORT",
+  "origin": "spfn-primitives-ci-export",
+  "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
+  "contractName": "spfn-mobile-contract",
+  "contractMajor": 1,
+  "contractVersion": "1.0.0",
+  "supportedRange": ">=1.0.0 <2.0.0",
+  "exporterVersion": "@spfn/auth/contract-bundle@1.0.0",
+  "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
+  "canonicalJson": {
+    "algorithm": "SPFN-CANON-JSON-1",
+    "objectKeyOrder": "ascending by UTF-8 byte sequence",
+    "whitespace": "none",
+    "numbers": "signed 64-bit integers only; a fractional or non-finite number is a canonicalization error",
+    "stringEscapes": "quotation mark and reverse solidus escaped; C0 controls use \\b \\f \\n \\r \\t where defined and \\u00XX otherwise; every other scalar is emitted literally",
+    "encoding": "UTF-8"
+  },
+  "clientProofV1": {
+    "profile": "clientProofV1",
+    "proofInput": {
+      "algorithm": "SPFN-PROOF-INPUT-1",
+      "separator": "\n",
+      "fields": ["profile", "method", "path", "clientId", "keyId", "nonce", "issuedAtMillis", "bodySha256"],
+      "fieldRules": "no field value may contain a C0 control character; a value that does is a proof-input error, because the separator would otherwise be ambiguous",
+      "bodySha256": "lowercase base16 SHA-256 of the canonical JSON request body; the literal string of 64 zero characters when an operation has no body"
+    },
+    "digest": "SHA-256",
+    "mac": "HMAC-SHA-256",
+    "proofEncoding": "base16-lower",
+    "replayWindowMillis": 300000,
+    "replayRule": "a (clientId, nonce) pair is accepted at most once inside the replay window; a repeat is PROOF_REPLAYED",
+    "revocationRule": "a revoked keyId is rejected before the proof is verified; the outcome is SESSION_REVOKED and never PROOF_INVALID, so revocation is not inferable from a proof failure",
+    "admissionOrder": ["revocation", "session", "expiry", "replay", "proof"],
+    "nonceRule": "a nonce is spent only when the request is admitted; a refused request leaves it unused"
+  },
+  "wireMapping": {
+    "requestContentType": "application/json",
+    "headers": {
+      "profile": "x-spfn-auth-profile",
+      "clientId": "x-spfn-client-id",
+      "keyId": "x-spfn-key-id",
+      "nonce": "x-spfn-nonce",
+      "issuedAtMillis": "x-spfn-issued-at",
+      "proof": "x-spfn-proof",
+      "session": "x-spfn-session"
+    },
+    "headerOrder": ["profile", "clientId", "keyId", "nonce", "issuedAtMillis", "proof", "session"],
+    "contentTypeRule": "the content-type header is present exactly when the request carries a body, and the body is always the canonical JSON of the request type",
+    "sessionRule": "requiresSession operations carry x-spfn-session; the handshake never does"
+  },
+  "types": [
+    {
+      "name": "HandshakeRequest",
+      "fields": [
+        { "name": "clientId", "type": "string", "optional": false },
+        { "name": "keyId", "type": "string", "optional": false },
+        { "name": "nonce", "type": "string", "optional": false },
+        { "name": "issuedAtMillis", "type": "integer", "optional": false }
+      ]
+    },
+    {
+      "name": "HandshakeResponse",
+      "fields": [
+        { "name": "sessionId", "type": "string", "optional": false },
+        { "name": "expiresAtMillis", "type": "integer", "optional": false }
+      ]
+    },
+    {
+      "name": "EchoRequest",
+      "fields": [
+        { "name": "message", "type": "string", "optional": false },
+        { "name": "sequence", "type": "integer", "optional": false }
+      ]
+    },
+    {
+      "name": "EchoResponse",
+      "fields": [
+        { "name": "message", "type": "string", "optional": false },
+        { "name": "sequence", "type": "integer", "optional": false },
+        { "name": "serverTimeMillis", "type": "integer", "optional": false }
+      ]
+    },
+    {
+      "name": "ListItemsRequest",
+      "fields": [
+        { "name": "limit", "type": "integer", "optional": false },
+        { "name": "cursor", "type": "string", "optional": true }
+      ]
+    },
+    {
+      "name": "Item",
+      "fields": [
+        { "name": "id", "type": "string", "optional": false },
+        { "name": "name", "type": "string", "optional": false },
+        { "name": "updatedAtMillis", "type": "integer", "optional": false }
+      ]
+    },
+    {
+      "name": "ListItemsResponse",
+      "fields": [
+        { "name": "items", "type": "Item[]", "optional": false },
+        { "name": "nextCursor", "type": "string", "optional": true }
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "id": "auth.clientProof.handshake",
+      "method": "POST",
+      "path": "/v1/auth/client-proof/handshake",
+      "authProfile": "clientProofV1",
+      "requiresSession": false,
+      "requestType": "HandshakeRequest",
+      "responseType": "HandshakeResponse",
+      "summary": "Presents a client proof and opens a session."
+    },
+    {
+      "id": "echo.send",
+      "method": "POST",
+      "path": "/v1/echo",
+      "authProfile": "clientProofV1",
+      "requiresSession": true,
+      "requestType": "EchoRequest",
+      "responseType": "EchoResponse",
+      "summary": "Authenticated round trip used as the smallest real vertical slice."
+    },
+    {
+      "id": "items.list",
+      "method": "POST",
+      "path": "/v1/items/list",
+      "authProfile": "clientProofV1",
+      "requiresSession": true,
+      "requestType": "ListItemsRequest",
+      "responseType": "ListItemsResponse",
+      "summary": "Authenticated paged read covering optional fields and arrays."
+    }
+  ],
+  "errorEnvelope": {
+    "shape": "{\"error\":{\"code\":<string>,\"message\":<string>,\"requestId\":<string>}}",
+    "unknownCodePolicy": "reject",
+    "unknownCodeRule": "a code outside this list is never mapped to a neighbouring code; it surfaces as an unknown-code failure carrying the raw string"
+  },
+  "errors": [
+    {
+      "code": "PROOF_INVALID",
+      "httpStatus": 401,
+      "retryable": false,
+      "summary": "the client proof did not verify"
+    },
+    {
+      "code": "PROOF_REPLAYED",
+      "httpStatus": 401,
+      "retryable": false,
+      "summary": "the nonce was already used inside the replay window"
+    },
+    {
+      "code": "PROOF_EXPIRED",
+      "httpStatus": 401,
+      "retryable": false,
+      "summary": "issuedAtMillis falls outside the replay window"
+    },
+    {
+      "code": "SESSION_REVOKED",
+      "httpStatus": 401,
+      "retryable": false,
+      "summary": "the key or session was revoked"
+    },
+    {
+      "code": "PROFILE_REJECTED",
+      "httpStatus": 400,
+      "retryable": false,
+      "summary": "an auth profile outside the allowlist was named"
+    },
+    {
+      "code": "CONTRACT_UNSUPPORTED",
+      "httpStatus": 409,
+      "retryable": false,
+      "summary": "the request is not the shape this contract describes"
+    }
+  ],
+  "notes": [
+    "This bundle contains no secret, no real key and no production endpoint. Paths are shapes, not deployed routes.",
+    "It is generated output. Edit packages/auth/src/server/client-proof and re-run the export; never edit this file.",
+    "The single authority for this contract is SPFN primitives."
+  ]
+}

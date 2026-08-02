@@ -20,6 +20,23 @@ export const ABSENT_BODY_SHA256 = '0'.repeat(64);
 /** The contract's `clientProofV1.replayWindowMillis`. */
 export const DEFAULT_REPLAY_WINDOW_MILLIS = 300_000;
 
+/** The eight proof-input fields, in the order the MAC is taken over. */
+export const PROOF_INPUT_FIELDS = [
+    'profile',
+    'method',
+    'path',
+    'clientId',
+    'keyId',
+    'nonce',
+    'issuedAtMillis',
+    'bodySha256',
+] as const;
+
+/** What joins the proof-input fields. */
+export const PROOF_INPUT_SEPARATOR = '\n';
+
+type ProofInputField = (typeof PROOF_INPUT_FIELDS)[number];
+
 export interface ClientProofInput
 {
     method: string;
@@ -48,16 +65,17 @@ export class ProofInputError extends Error
  */
 export function canonicalProofInput(input: ClientProofInput): string
 {
-    const fields = [
-        CLIENT_PROOF_PROFILE,
-        input.method,
-        input.path,
-        input.clientId,
-        input.keyId,
-        input.nonce,
-        input.issuedAtMillis.toString(),
-        input.bodySha256,
-    ];
+    const values: Record<ProofInputField, string> = {
+        profile: CLIENT_PROOF_PROFILE,
+        method: input.method,
+        path: input.path,
+        clientId: input.clientId,
+        keyId: input.keyId,
+        nonce: input.nonce,
+        issuedAtMillis: input.issuedAtMillis.toString(),
+        bodySha256: input.bodySha256,
+    };
+    const fields = PROOF_INPUT_FIELDS.map((name) => values[name]);
     for (const field of fields)
     {
         for (const ch of field)
@@ -69,7 +87,7 @@ export function canonicalProofInput(input: ClientProofInput): string
         }
     }
 
-    return fields.join('\n');
+    return fields.join(PROOF_INPUT_SEPARATOR);
 }
 
 /** The base16-lower HMAC-SHA-256 proof for `input` under `key`. */

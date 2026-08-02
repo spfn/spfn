@@ -3,8 +3,10 @@
  * canonical values. Strict on purpose: a missing required field, a wrong type
  * or an unknown field is "not the request type this operation declares".
  *
- * Source of truth: spfn-mobile Contracts/spfn-mobile-contract.v1.json
- * (dev bundle sha256 07fd8268…a433e45) — `types` and `operations`.
+ * This module is the source of truth for `operations`. The exported contract
+ * bundle (`contracts/mobile/spfn-mobile-contract.v1.json`) is generated from it
+ * by `contract-bundle.ts`; spfn-mobile consumes that export rather than the
+ * other way round.
  *
  * @module server/client-proof/contract-types
  */
@@ -15,13 +17,44 @@ export interface ContractOperation
     id: 'auth.clientProof.handshake' | 'echo.send' | 'items.list';
     method: 'POST';
     path: string;
+    authProfile: 'clientProofV1';
     requiresSession: boolean;
+    requestType: string;
+    responseType: string;
+    summary: string;
 }
 
 export const CONTRACT_OPERATIONS: readonly ContractOperation[] = [
-    { id: 'auth.clientProof.handshake', method: 'POST', path: '/v1/auth/client-proof/handshake', requiresSession: false },
-    { id: 'echo.send', method: 'POST', path: '/v1/echo', requiresSession: true },
-    { id: 'items.list', method: 'POST', path: '/v1/items/list', requiresSession: true },
+    {
+        id: 'auth.clientProof.handshake',
+        method: 'POST',
+        path: '/v1/auth/client-proof/handshake',
+        authProfile: 'clientProofV1',
+        requiresSession: false,
+        requestType: 'HandshakeRequest',
+        responseType: 'HandshakeResponse',
+        summary: 'Presents a client proof and opens a session.',
+    },
+    {
+        id: 'echo.send',
+        method: 'POST',
+        path: '/v1/echo',
+        authProfile: 'clientProofV1',
+        requiresSession: true,
+        requestType: 'EchoRequest',
+        responseType: 'EchoResponse',
+        summary: 'Authenticated round trip used as the smallest real vertical slice.',
+    },
+    {
+        id: 'items.list',
+        method: 'POST',
+        path: '/v1/items/list',
+        authProfile: 'clientProofV1',
+        requiresSession: true,
+        requestType: 'ListItemsRequest',
+        responseType: 'ListItemsResponse',
+        summary: 'Authenticated paged read covering optional fields and arrays.',
+    },
 ];
 
 /** The body is canonical JSON but not the declared request type. */
