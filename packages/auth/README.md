@@ -580,6 +580,66 @@ HTTP status).
 - Dev/test scope: key provisioning is injection at construction; no persistence. A production
   key/issuance story is a separate work item.
 
+### Usage — dev surface (mobile integration target)
+
+The fastest path: run the packaged dev handler, which already serves the three contract
+operations and `/control`. `examples/04-mobile-contract-dev` is exactly this, runnable.
+
+```typescript
+import { serve } from '@hono/node-server';
+import { createClientProofDevHandler } from '@spfn/auth/client-proof';
+
+const handler = createClientProofDevHandler({
+    keys: { 'key-dev-0001': process.env.SPFN_CLIENT_PROOF_KEY! },  // keyId → HMAC key
+    sessionTtlMillis: 600_000,
+});
+serve({ fetch: handler.fetch, port: 8791, hostname: '127.0.0.1' });
+// handler.controlToken — pass to the test harness for /control routes
+// handler.state       — revokeKey() / expireSessions() / stats() from code
+```
+
+### Usage — mounting on your own Hono/SPFN server
+
+Protect `requiresSession` operations with the guard, and assemble the handshake route from
+the exported primitives (`admitClientProofRequest` + `state.openSession`):
+
+```typescript
+import { Hono } from 'hono';
+import {
+    ClientProofState, createClientProofGuard, admitClientProofRequest,
+    decodeHandshakeRequest, encodeHandshakeResponse, encodeCanonicalJson,
+    ClientProofRefusal, newHexId,
+} from '@spfn/auth/client-proof';
+
+const state = new ClientProofState({ keys: { 'key-dev-0001': process.env.SPFN_CLIENT_PROOF_KEY! } });
+const app = new Hono();
+
+app.post('/v1/auth/client-proof/handshake', async (c) =>
+{
+    const body = new Uint8Array(await c.req.arrayBuffer());
+    const admission = admitClientProofRequest({
+        state, headers: c.req.raw.headers, method: 'POST',
+        path: '/v1/auth/client-proof/handshake', requiresSession: false, body,
+    });
+    if (!admission.admitted)
+    {
+        return c.newResponse(admission.refusal.envelopeBytes(newHexId()).slice().buffer,
+            admission.refusal.httpStatus as 401, { 'content-type': 'application/json' });
+    }
+    const request = decodeHandshakeRequest(admission.value);
+    const opened = state.openSession(request.clientId, request.keyId);
+    return c.newResponse(
+        encodeCanonicalJson(encodeHandshakeResponse(opened.sessionId, BigInt(opened.expiresAtMillis))).slice().buffer,
+        200, { 'content-type': 'application/json' });
+});
+
+// Any route behind the guard sees clientType='mobile' and c.get('clientProof')
+app.post('/v1/echo', createClientProofGuard(state), (c) => { /* handler */ });
+```
+
+Responses and errors MUST be canonical bytes with the contract envelope — build them with
+`encodeCanonicalJson`/`ClientProofRefusal`, never `c.json()` (key order and int64 differ).
+
 ## Account Deletion & Recovery
 
 Grace-period deletion with in-window recovery, an admin/GDPR-response entry point for immediate

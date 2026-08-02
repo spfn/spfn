@@ -947,6 +947,31 @@ for ordering guarantees and per-channel notes.
 
 ---
 
+## Mobile clientProofV1 (`@spfn/auth/client-proof`)
+
+Auth profile for native mobile SDKs (spfn-mobile Swift/Kotlin). Instead of cookies or JWT,
+each request carries an HMAC-SHA-256 proof over `(profile, method, path, clientId, keyId,
+nonce, issuedAtMillis, bodySha256)` in `x-spfn-*` headers; the server verifies in the fixed
+order revoked → session → expired → replayed → HMAC and answers with a 6-code contract error
+envelope. Request/response bodies must be byte-canonical JSON (SPFN-CANON-JSON-1).
+
+Two ways to serve it:
+
+- **Dev surface** — `createClientProofDevHandler(...)` serves the three contract operations
+  (`/v1/auth/client-proof/handshake`, `/v1/echo`, `/v1/items/list`) plus `/control` test
+  hooks. `examples/04-mobile-contract-dev` is the runnable wiring; the spfn-mobile
+  integration suites point at its base URL.
+- **Your own server** — `createClientProofGuard(state)` protects session-required routes
+  (tags `clientType: 'mobile'`), and the handshake route is assembled from
+  `admitClientProofRequest` + `state.openSession`.
+
+Usage snippets, the admission-order rationale, and the canonical-bytes rule live in the
+[`@spfn/auth` README](../../packages/auth/README.md#mobile-clientproofv1-spfnauthclient-proof).
+Key provisioning is currently injection at construction (dev/test scope); a production
+issuance flow is tracked separately.
+
+---
+
 ## Troubleshooting
 
 ### "relation \"auth.users\" does not exist" (missing auth tables)
