@@ -1,0 +1,60 @@
+name: Verify mobile contract export
+
+# The mobile contract bundle in contracts/mobile/ is generated from
+# packages/auth/src/server/client-proof. spfn-mobile pins it by digest and
+# claims upstream provenance, so what is committed here must be exactly what
+# the exporter produces — this workflow is the evidence behind that claim.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'contracts/mobile/**'
+      - 'packages/auth/src/server/client-proof/**'
+      - 'packages/auth/scripts/export-mobile-contract.ts'
+  pull_request:
+    paths:
+      - 'contracts/mobile/**'
+      - 'packages/auth/src/server/client-proof/**'
+      - 'packages/auth/scripts/export-mobile-contract.ts'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Regenerate the export
+        run: pnpm --filter @spfn/auth export:mobile-contract
+
+      - name: Fail if the committed export differs from what the exporter produces
+        run: |
+          if ! git diff --exit-code -- contracts/mobile/
+          then
+            echo "::error::contracts/mobile/ is not what the exporter produces."
+            echo "Run: pnpm --filter @spfn/auth export:mobile-contract, then commit the result."
+            exit 1
+          fi
+
+      - name: Contract export and conformance suites
+        run: pnpm --filter @spfn/auth exec vitest run src/server/client-proof
+
+      - name: Record the published digest
+        run: |
+          echo "sha256  $(shasum -a 256 contracts/mobile/spfn-mobile-contract.v1.json | cut -d' ' -f1)"
+          echo "commit  ${{ github.sha }}"

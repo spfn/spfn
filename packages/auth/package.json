@@ -67,6 +67,7 @@
     "clean": "rm -rf dist",
     "db:generate": "drizzle-kit generate",
     "codegen": "spfn codegen run",
+    "export:mobile-contract": "tsx scripts/export-mobile-contract.ts",
     "test": "vitest run",
     "test:unit": "vitest run src/__tests__/unit/",
     "test:integration": "vitest run src/__tests__/integration/",

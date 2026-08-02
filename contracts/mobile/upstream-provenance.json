@@ -1,0 +1,33 @@
+{
+  "evidenceVersion": 1,
+  "origin": "spfn-primitives-ci-export",
+  "exportedByUpstreamCI": true,
+  "exporterVersion": "@spfn/auth/contract-bundle@1.0.0",
+  "statement": "This contract bundle was generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) by packages/auth/scripts/export-mobile-contract.ts. It was not transcribed from any consumer.",
+  "source": {
+    "repository": "git.superfunction.xyz/superfunction/primitives",
+    "bundlePath": "contracts/mobile/spfn-mobile-contract.v1.json",
+    "commit": "RECORDED_BY_CONSUMER",
+    "commitRule": "The consumer sets its own lock source.commit to the exact primitives commit it read this bundle from. A file cannot carry its own commit SHA."
+  },
+  "contract": {
+    "name": "spfn-mobile-contract",
+    "version": "1.0.0",
+    "major": 1,
+    "supportedRange": ">=1.0.0 <2.0.0",
+    "bundleSha256": "ed23d7b582939f970ccc6114d76175250cc70246837c9f7a8d6d8cca4b8a33a7"
+  },
+  "verification": {
+    "digest": "shasum -a 256 contracts/mobile/spfn-mobile-contract.v1.json",
+    "regenerate": "pnpm --filter @spfn/auth export:mobile-contract",
+    "enforcedBy": [
+      "packages/auth/src/server/client-proof/__tests__/contract-export.test.ts",
+      ".github/workflows/verify-mobile-contract.yml"
+    ],
+    "rule": "The committed bundle must be byte-identical to what the exporter produces. The test above regenerates and compares, so an edited bundle fails the suite rather than shipping."
+  },
+  "notes": [
+    "The bundle carries no secret, no real key and no production endpoint.",
+    "A published contract version and digest are never modified. A mistake becomes a new version."
+  ]
+}

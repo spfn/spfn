@@ -31,7 +31,18 @@ export type ClientProofErrorCode =
     | 'PROFILE_REJECTED'
     | 'CONTRACT_UNSUPPORTED';
 
-const HTTP_STATUS: Record<ClientProofErrorCode, number> = {
+/** The declaration order of the six codes — the contract export emits this order. */
+export const CLIENT_PROOF_ERROR_CODES: readonly ClientProofErrorCode[] = [
+    'PROOF_INVALID',
+    'PROOF_REPLAYED',
+    'PROOF_EXPIRED',
+    'SESSION_REVOKED',
+    'PROFILE_REJECTED',
+    'CONTRACT_UNSUPPORTED',
+];
+
+/** The status each code answers with. The contract export reads this. */
+export const HTTP_STATUS: Record<ClientProofErrorCode, number> = {
     PROOF_INVALID: 401,
     PROOF_REPLAYED: 401,
     PROOF_EXPIRED: 401,
