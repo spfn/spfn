@@ -1,0 +1,4 @@
+@spfn:registry=https://git.superfunction.xyz/api/packages/superfunction/npm/
+@superself:registry=https://git.superfunction.xyz/api/packages/superfunction/npm/
+//git.superfunction.xyz/api/packages/superfunction/npm/:_authToken=${GITEA_NPM_TOKEN}
+//git.superfunction.xyz/api/packages/superfunction/npm/:always-auth=true

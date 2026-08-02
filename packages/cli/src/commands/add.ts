@@ -11,12 +11,21 @@ import { execa } from 'execa';
 import chalk from 'chalk';
 import ora from 'ora';
 import { detectPackageManager } from '../utils/package-manager.js';
+import { addVercel } from './add-vercel.js';
 
 /**
  * Add and set up an SPFN ecosystem package
  */
 async function addPackage(packageName: string): Promise<void>
 {
+    // `spfn add vercel` scaffolds the serverless target instead of installing a package
+    if (packageName === 'vercel')
+    {
+        await addVercel();
+
+        return;
+    }
+
     // Validate package name format
     if (!packageName.includes('/'))
     {
@@ -131,6 +140,6 @@ async function addPackage(packageName: string): Promise<void>
  * Add command group
  */
 export const addCommand = new Command('add')
-    .description('Install and set up SPFN ecosystem packages')
-    .argument('<package>', 'Package name (e.g., @spfn/cms, @mycompany/spfn-analytics)')
+    .description('Install and set up SPFN ecosystem packages, or scaffold a deploy target (vercel)')
+    .argument('<package>', 'Package name (e.g., @spfn/cms, @mycompany/spfn-analytics) or "vercel"')
     .action(addPackage);
