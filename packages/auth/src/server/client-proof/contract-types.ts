@@ -4,7 +4,7 @@
  * or an unknown field is "not the request type this operation declares".
  *
  * This module is the source of truth for `operations`. The exported contract
- * bundle (`contracts/mobile/spfn-mobile-contract.v1.json`) is generated from it
+ * bundle (`contracts/mobile/spfn-mobile-contract.json`) is generated from it
  * by `contract-bundle.ts`; spfn-mobile consumes that export rather than the
  * other way round.
  *

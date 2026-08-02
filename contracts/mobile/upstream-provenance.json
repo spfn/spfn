@@ -6,19 +6,19 @@
   "statement": "This contract bundle was generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) by packages/auth/scripts/export-mobile-contract.ts. It was not transcribed from any consumer.",
   "source": {
     "repository": "git.superfunction.xyz/superfunction/primitives",
-    "bundlePath": "contracts/mobile/spfn-mobile-contract.v1.json",
+    "bundlePath": "contracts/mobile/spfn-mobile-contract.json",
     "commit": "RECORDED_BY_CONSUMER",
     "commitRule": "The consumer sets its own lock source.commit to the exact primitives commit it read this bundle from. A file cannot carry its own commit SHA."
   },
   "contract": {
     "name": "spfn-mobile-contract",
-    "version": "1.0.1",
-    "major": 1,
-    "supportedRange": ">=1.0.1 <2.0.0",
-    "bundleSha256": "d18f15b6ffca1f4509541eb859d906e71d72599aa36fd9d0cdb5bd7f12626888"
+    "version": "0.1.0",
+    "major": 0,
+    "supportedRange": ">=0.1.0 <0.2.0",
+    "bundleSha256": "96c48f9c01fb92817d86cad0ddddbe788018e886b1db92f8132ad5ef64a9b12c"
   },
   "verification": {
-    "digest": "shasum -a 256 contracts/mobile/spfn-mobile-contract.v1.json",
+    "digest": "shasum -a 256 contracts/mobile/spfn-mobile-contract.json",
     "regenerate": "pnpm --filter @spfn/auth export:mobile-contract",
     "enforcedBy": [
       "packages/auth/src/server/client-proof/__tests__/contract-export.test.ts",

@@ -6,7 +6,7 @@ primitives test suite does not depend on a sibling checkout.
 These fixtures still name the dev bundle they were derived against
 (`07fd82683576e3343753b590e00b5bf9725b2e598e1e5e6282f251e73a433e45`). That
 bundle is superseded by this repository's export at
-`contracts/mobile/spfn-mobile-contract.v1.json` — see issue #48. The vectors
+`contracts/mobile/spfn-mobile-contract.json` — see issue #48. The vectors
 remain valid because the export restates the same contract facts: what changed
 is where the contract is authored, not what it says. spfn-mobile re-derives the
 fixtures against the export when it re-pins, and the refreshed copies land here
