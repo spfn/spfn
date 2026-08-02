@@ -130,6 +130,57 @@ describe('operations describe the routes the server answers', () =>
     });
 });
 
+describe('every declared field type is inside the grammar the consumer parses', () =>
+{
+    // spfn-mobile's FieldType.parse recognises `array<…>` and treats anything
+    // else as a named type. `Item[]` therefore becomes a type named "Item[]"
+    // and breaks at compile time, not at parse time — which is exactly how it
+    // reached a published bundle once. These assertions are that slip's fence.
+    const SCALARS = ['string', 'integer'];
+    const declaredNames = declaredTypes.map((type) => type.name);
+
+    function resolvable(type: string): boolean
+    {
+        if (SCALARS.includes(type))
+        {
+            return true;
+        }
+        if (type.startsWith('array<') && type.endsWith('>'))
+        {
+            return resolvable(type.slice('array<'.length, -1));
+        }
+
+        return declaredNames.includes(type);
+    }
+
+    it('the grammar the bundle states is the one these types are written in', () =>
+    {
+        expect((bundle.typeGrammar as { scalars: string[] }).scalars).toEqual(SCALARS);
+    });
+
+    it('no field uses a bracket array spelling', () =>
+    {
+        for (const type of declaredTypes)
+        {
+            for (const field of type.fields)
+            {
+                expect(field.type, `${type.name}.${field.name}`).not.toMatch(/\[\]$/);
+            }
+        }
+    });
+
+    it('every field type resolves to a scalar, an array of one, or a declared type', () =>
+    {
+        for (const type of declaredTypes)
+        {
+            for (const field of type.fields)
+            {
+                expect(resolvable(field.type), `${type.name}.${field.name} is "${field.type}"`).toBe(true);
+            }
+        }
+    });
+});
+
 describe('declared request types match the decoders', () =>
 {
     for (const [typeName, decode] of Object.entries(DECODERS))
