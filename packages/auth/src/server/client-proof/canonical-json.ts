@@ -1,7 +1,7 @@
 /**
  * SPFN-CANON-JSON-1 — the canonical JSON form the mobile contract pins.
  *
- * The rules (Contracts/spfn-mobile-contract.v1.json `canonicalJson`):
+ * The rules (contracts/mobile/spfn-mobile-contract.json `canonicalJson`):
  * - object keys sorted ascending by UTF-8 byte sequence
  * - no insignificant whitespace
  * - numbers are signed 64-bit integers only

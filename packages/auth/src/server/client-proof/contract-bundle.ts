@@ -31,14 +31,20 @@ import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
 /**
  * The version this export publishes. A mistake becomes a new version.
  *
- * 1.0.1 — 1.0.0 spelled the array field `Item[]`, which the consumer's codegen
- * parses as a named type rather than an array. The contract means what it
- * always meant; only the spelling is corrected.
+ * The line is 0.x on purpose. The contract has one consumer, it is still
+ * alpha, and its first export shipped a type spelling the consumer could not
+ * parse — a surface that green has not earned a stable major. Under 0.x a
+ * breaking change is a minor bump, which is what that correction actually was;
+ * publishing it as 1.0.1 called a breaking change a patch.
+ *
+ * 1.0.0 and 1.0.1 existed briefly and are withdrawn. Neither was consumed.
  */
-export const CONTRACT_VERSION = '1.0.1';
-export const CONTRACT_MAJOR = 1;
+export const CONTRACT_VERSION = '0.1.0';
+export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
-export const CONTRACT_SUPPORTED_RANGE = '>=1.0.1 <2.0.0';
+
+/** Under 0.x the minor carries breaking changes, so the range stops at 0.2.0. */
+export const CONTRACT_SUPPORTED_RANGE = '>=0.1.0 <0.2.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
@@ -263,7 +269,12 @@ export function buildMobileContractBundle(): MobileContractBundle
     };
 }
 
-export const BUNDLE_FILENAME = 'spfn-mobile-contract.v1.json';
+/**
+ * No major in the filename while the line is 0.x: under 0.x the minor is what
+ * breaks, so `v0` would name nothing useful. The version lives in the bundle
+ * and the pin is the digest.
+ */
+export const BUNDLE_FILENAME = 'spfn-mobile-contract.json';
 export const PROVENANCE_FILENAME = 'upstream-provenance.json';
 export const REPOSITORY = 'git.superfunction.xyz/superfunction/primitives';
 export const BUNDLE_REPO_PATH = `contracts/mobile/${BUNDLE_FILENAME}`;

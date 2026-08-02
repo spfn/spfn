@@ -1,12 +1,21 @@
 # Mobile contract export
 
-`spfn-mobile-contract.v1.json` is what the spfn-mobile Swift and Kotlin SDKs
+`spfn-mobile-contract.json` is what the spfn-mobile Swift and Kotlin SDKs
 generate their client code from. It is **generated output** — do not edit it.
 
 | File | What it is |
 |---|---|
-| `spfn-mobile-contract.v1.json` | The contract bundle the SDK codegen reads |
+| `spfn-mobile-contract.json` | The contract bundle the SDK codegen reads |
 | `upstream-provenance.json` | The evidence spfn-mobile's validator requires before a lock may claim an upstream export |
+
+## Versioning
+
+The line is **0.x**: one consumer, still alpha, and a surface that has not yet
+survived a full consume cycle. Under 0.x the **minor** carries breaking changes
+— `0.1.0` to `0.2.0` may break you, `0.1.x` will not. `supportedRange` says so.
+
+The filename carries no major while the line is 0.x, because under 0.x the
+major would name nothing useful. Pin the digest, not the path shape.
 
 ## Regenerating
 
@@ -36,9 +45,9 @@ is not an acceptable lock source.
 
 ```
 repository  git.superfunction.xyz/superfunction/primitives
-path        contracts/mobile/spfn-mobile-contract.v1.json
+path        contracts/mobile/spfn-mobile-contract.json
 commit      <the exact 40-hex commit you read it from>
-digest      shasum -a 256 contracts/mobile/spfn-mobile-contract.v1.json
+digest      shasum -a 256 contracts/mobile/spfn-mobile-contract.json
 ```
 
 `upstream-provenance.json` carries everything except the commit. A file cannot
