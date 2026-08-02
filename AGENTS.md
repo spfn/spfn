@@ -123,6 +123,9 @@ Packages are published to **two registries** (2026-07-22):
 - **Private Gitea registry** (`git.superfunction.xyz/api/packages/superfunction/npm/`) —
   manual local publish via the named scripts below. This is what internal apps consume
   (`@spfn:registry` scope in `~/.npmrc`). No `npm login` to npmjs.org is needed locally.
+  The named scripts run `scripts/publish-package.mjs`, which publishes on the requested
+  channel **and then moves `latest` onto the same version** — mirroring what the GitHub
+  workflow does for public npmjs.
 - **Public npmjs** — automatic via `.github/workflows/publish-<pkg>.yml`: pushing a
   `packages/<pkg>/package.json` version change to `main` on GitHub triggers publish with
   the tag matching the version (`-alpha`/`-beta`/stable) **and syncs the `latest`
@@ -150,6 +153,11 @@ Gotchas:
 - `@spfn/*` scoped packages resolve to the Gitea registry automatically via the
   `@spfn:registry` scope in `~/.npmrc`. The unscoped `spfn` CLI is pinned to Gitea via
   its own `publishConfig.registry`.
+- **`npm view @spfn/…` reads Gitea, not npmjs — and `--registry` does not override it.**
+  A scope entry in `~/.npmrc` wins over the `--registry` flag, so a dist-tag or version
+  reported this way describes the private registry. To inspect public npmjs, query it
+  directly: `curl -s https://registry.npmjs.org/@spfn%2Fauth`. Issue #52 was filed against
+  the wrong registry for exactly this reason.
 - `RELEASE.md` / `.github/PUBLISHING.md` still describe the old public-npm + GitHub
   Actions flow; the process above supersedes them.
 
@@ -164,9 +172,30 @@ command is unavailable.
 - Substantive work attaches to a work unit: `self work add "<required outcome>"`,
   then `self work start <id>`. Report progress with `self report <id> "<summary>"`
   after committing — HEAD is attached as evidence automatically.
+- The long-term goal and time-boxed objectives are separate state: `self goal set`
+  keeps the goal, `self objective add "<outcome>" --horizon week --target <date>`
+  adds an objective, and `self milestone add "<outcome>" --objective <id> --exit "<criterion>"`
+  adds a checkpoint under it. `self objective` lists both with the reason for each state.
+- State what work contributes to: `self work link <id> --milestone <id>`. A milestone
+  is reached only when every exit criterion is covered — `self milestone met <id>
+  --criterion <c> --why "<how the evidence covers it>"`, then `self milestone reach <id>`.
+  Finishing work never reaches a milestone on its own, and progress is never a percentage.
+- Revising an objective or a milestone leaves what it already settled stale. Re-judge it
+  at the current revision with `self milestone recheck <id> [--criterion <c>] --why "<what
+  you re-judged>"` — a reach still needs every live criterion covered first.
+- A passing attempt never marks work done: settlement records what a run produced
+  and frees the unit. Declare what the outcome must cover with `self work require <id>
+  "<statement>"`, cover each with `self work met <id> --requirement <r> --why "<how the
+  evidence covers it>"`, and only then `self work done <id>`. `self work approval-required`
+  makes a unit wait for a person, and `self work policy <id> --model <class> --fresh-review`
+  states what its implementation had to be — all four are checked before done is admitted.
+- Found a gap between an objective and current state? Propose the work with
+  `self work propose` and its full brief; the user accepts or declines it.
 - Record decisions the user confirmed: `self decide "<text>" --why "<reason>"`.
   Use `--proposed` when the user has not confirmed. One decision per event.
 - Blocked? `self work block <id> --on decision|dependency|external --why "..."`.
+- Superseded or moved to another unit or project? `self work retire <id> --why "..."
+  [--successor <work-id>]` — never mark it done and never leave it falsely blocked.
 - Picking up existing work? `self work show <id>` prints its full brief and
   report history. Leave a brief for the next session with `self report <id> --file <path>`.
 - Proposed next work, or suggested continuing in the next session, and the
@@ -175,6 +204,11 @@ command is unavailable.
 - Deferring work for later? Attach a scoping brief the moment you create it:
   `self report <id> --file <path>` covering scope, design anchors, and known
   pitfalls — a bare outcome line loses the context that created the work.
+- A branch that will reach main is a change set: `self integration register --repo <name>
+  --base <sha> --head <sha> --domain <contract@v> --check <ci>`, then `self integration plan`
+  before touching git. Order, review validity and the merge gate are enforced there, not here:
+  a receipt exists only through `self review ingest --file <envelope.json>`, and no wording in
+  this block, in a prompt, or in a session can relax it.
 - Search past state with `self search <query>`; list work with `self work`.
 - Never hand-edit generated state files or anything under `.superself/`.
 <!-- superself:end -->

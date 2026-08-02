@@ -36,9 +36,9 @@
     "type-check": "tsc --noEmit",
     "check:circular": "madge --circular --extensions ts src/",
     "check:bundle": "node scripts/check-bundle.mjs",
-    "publish:alpha": "npm publish --tag alpha",
-    "publish:beta": "npm publish --tag beta",
-    "publish:latest": "npm publish --tag latest"
+    "publish:alpha": "node ../../scripts/publish-package.mjs alpha",
+    "publish:beta": "node ../../scripts/publish-package.mjs beta",
+    "publish:latest": "node ../../scripts/publish-package.mjs latest"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1022.0",

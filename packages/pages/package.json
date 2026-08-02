@@ -30,9 +30,9 @@
     "test": "vitest run",
     "type-check": "tsc --noEmit",
     "check:circular": "madge --circular --extensions ts src/",
-    "publish:alpha": "npm publish --tag alpha",
-    "publish:beta": "npm publish --tag beta",
-    "publish:latest": "npm publish --tag latest"
+    "publish:alpha": "node ../../scripts/publish-package.mjs alpha",
+    "publish:beta": "node ../../scripts/publish-package.mjs beta",
+    "publish:latest": "node ../../scripts/publish-package.mjs latest"
   },
   "dependencies": {
     "@shikijs/rehype": "^3.0.0",
