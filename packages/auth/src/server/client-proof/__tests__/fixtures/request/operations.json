@@ -1,0 +1,103 @@
+{
+  "note": "Expected values were derived by Contracts/fixtures/derive-expected-values.py, a third implementation independent of both SDKs. Two SDKs agreeing with each other would prove nothing; agreeing with an outside implementation is the actual evidence.",
+  "requests": [
+    {
+      "name": "handshake",
+      "operationId": "auth.clientProof.handshake",
+      "type": "HandshakeRequest",
+      "why": "",
+      "value": {
+        "clientId": "client-test-0001",
+        "keyId": "key-test-0001",
+        "nonce": "nonce-000000000001",
+        "issuedAtMillis": 1750000000000
+      },
+      "canonical": "{\"clientId\":\"client-test-0001\",\"issuedAtMillis\":1750000000000,\"keyId\":\"key-test-0001\",\"nonce\":\"nonce-000000000001\"}",
+      "sha256": "0261f8b70f9ee8f7014eb87fd8aefeaac9bd0caef9c105bca572960c4c2cda9b"
+    },
+    {
+      "name": "echo",
+      "operationId": "echo.send",
+      "type": "EchoRequest",
+      "why": "",
+      "value": {
+        "message": "hello",
+        "sequence": 7
+      },
+      "canonical": "{\"message\":\"hello\",\"sequence\":7}",
+      "sha256": "7ebd40a4b02f42649c0808ee91edc724f61afac3ac550f4e7c37905bcc1a6edb"
+    },
+    {
+      "name": "items-list-without-cursor",
+      "operationId": "items.list",
+      "type": "ListItemsRequest",
+      "why": "an absent optional field is omitted from the canonical form, never written as null",
+      "value": {
+        "limit": 25
+      },
+      "canonical": "{\"limit\":25}",
+      "sha256": "d837ac99c8a7517b99d9b2a3bb8bb57640707eae5d3b3f8458cac9bbe13dd8dc"
+    },
+    {
+      "name": "items-list-with-cursor",
+      "operationId": "items.list",
+      "type": "ListItemsRequest",
+      "why": "",
+      "value": {
+        "limit": 25,
+        "cursor": "cursor-000000000010"
+      },
+      "canonical": "{\"cursor\":\"cursor-000000000010\",\"limit\":25}",
+      "sha256": "5c42c270dbd74e5b78f9bee21f1085d5065aa21a3ccd3521a85a704c76873306"
+    }
+  ],
+  "responses": [
+    {
+      "name": "handshake-response",
+      "type": "HandshakeResponse",
+      "why": "",
+      "wire": "{\"expiresAtMillis\":1750000300000,\"sessionId\":\"session-test-0001\"}",
+      "value": {
+        "sessionId": "session-test-0001",
+        "expiresAtMillis": 1750000300000
+      },
+      "canonical": "{\"expiresAtMillis\":1750000300000,\"sessionId\":\"session-test-0001\"}",
+      "sha256": "c6fac9031003881fabc9ce154aff1997b62cdb38cfcc821893371550896e83b8"
+    },
+    {
+      "name": "echo-response",
+      "type": "EchoResponse",
+      "why": "",
+      "wire": "{\"message\":\"hello\",\"sequence\":7,\"serverTimeMillis\":1750000000123}",
+      "value": {
+        "message": "hello",
+        "sequence": 7,
+        "serverTimeMillis": 1750000000123
+      },
+      "canonical": "{\"message\":\"hello\",\"sequence\":7,\"serverTimeMillis\":1750000000123}",
+      "sha256": "3332d27a0269c410dfbec660b0697a73f2c66de9a92a7b3a2f817f113ced26d2"
+    },
+    {
+      "name": "items-list-response",
+      "type": "ListItemsResponse",
+      "why": "an array of nested objects plus an absent optional nextCursor",
+      "wire": "{\"items\":[{\"id\":\"item-0001\",\"name\":\"first\",\"updatedAtMillis\":1750000000001},{\"id\":\"item-0002\",\"name\":\"second\",\"updatedAtMillis\":1750000000002}]}",
+      "value": {
+        "items": [
+          {
+            "id": "item-0001",
+            "name": "first",
+            "updatedAtMillis": 1750000000001
+          },
+          {
+            "id": "item-0002",
+            "name": "second",
+            "updatedAtMillis": 1750000000002
+          }
+        ]
+      },
+      "canonical": "{\"items\":[{\"id\":\"item-0001\",\"name\":\"first\",\"updatedAtMillis\":1750000000001},{\"id\":\"item-0002\",\"name\":\"second\",\"updatedAtMillis\":1750000000002}]}",
+      "sha256": "3210a3a5505760ad6306f81275f762ce7d3852e611839fe004fb8e79f7c71d80"
+    }
+  ]
+}

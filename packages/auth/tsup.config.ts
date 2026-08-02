@@ -6,6 +6,7 @@ export default defineConfig({
     entry: {
         index: 'src/index.ts',
         client: 'src/client.ts',
+        'client-proof': 'src/server/client-proof/index.ts',
         config: 'src/config/index.ts',
         errors: 'src/errors/index.ts',
         'nextjs/api': 'src/nextjs/api.ts',

@@ -1,0 +1,62 @@
+{
+  "note": "Expected values were derived by Contracts/fixtures/derive-expected-values.py, a third implementation independent of both SDKs. Two SDKs agreeing with each other would prove nothing; agreeing with an outside implementation is the actual evidence.",
+  "profile": "clientProofV1",
+  "replayWindowMillis": 300000,
+  "base": {
+    "method": "POST",
+    "path": "/v1/echo",
+    "clientId": "client-test-0001",
+    "keyId": "key-test-0001",
+    "bodySha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "vectors": [
+    {
+      "name": "revoked-key-before-proof-check",
+      "why": "revocation is decided before the proof is verified, so a revoked key with a perfectly valid proof still reports SESSION_REVOKED rather than PROOF_INVALID",
+      "revokedKeyIds": [
+        "key-test-0001"
+      ],
+      "steps": [
+        {
+          "nonce": "nonce-revoke-01",
+          "issuedAtMillis": 1750000000000,
+          "nowMillis": 1750000001000,
+          "proof": "b7c813100fb3a02e38c2c71fdb4c4285b1bf329d8d4a4b1698890a480f6ff354",
+          "expect": "SESSION_REVOKED"
+        }
+      ]
+    },
+    {
+      "name": "revoked-key-with-stale-proof",
+      "why": "revocation also precedes the expiry check, so the reason never depends on timing",
+      "revokedKeyIds": [
+        "key-test-0001"
+      ],
+      "steps": [
+        {
+          "nonce": "nonce-revoke-02",
+          "issuedAtMillis": 1750000000000,
+          "nowMillis": 1750000305000,
+          "proof": "0000000000000000000000000000000000000000000000000000000000000000",
+          "expect": "SESSION_REVOKED"
+        }
+      ]
+    },
+    {
+      "name": "unrevoked-key-still-accepted",
+      "why": "revoking one key does not revoke the rest",
+      "revokedKeyIds": [
+        "key-test-9999"
+      ],
+      "steps": [
+        {
+          "nonce": "nonce-revoke-03",
+          "issuedAtMillis": 1750000000000,
+          "nowMillis": 1750000001000,
+          "proof": "d4b1095c9d28055dff80720a0f328eb45dc1c1f5ec37ff13cbfd6c6a75a2129d",
+          "expect": "accept"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "algorithm": "SPFN-PROOF-INPUT-1",
+  "note": "A C0 control character in any proof field is refused, because the newline separator would otherwise be ambiguous.",
+  "vectors": [
+    {
+      "name": "newline-in-nonce",
+      "field": "nonce",
+      "input": {
+        "method": "POST",
+        "path": "/v1/echo",
+        "clientId": "client-test-0001",
+        "keyId": "key-test-0001",
+        "nonce": "nonce\n-injected",
+        "issuedAtMillis": 1750000000000,
+        "bodySha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "errorCode": "PROOF_INPUT_INVALID"
+    },
+    {
+      "name": "tab-in-path",
+      "field": "path",
+      "input": {
+        "method": "POST",
+        "path": "/v1/e\tcho",
+        "clientId": "client-test-0001",
+        "keyId": "key-test-0001",
+        "nonce": "nonce-000000000004",
+        "issuedAtMillis": 1750000000000,
+        "bodySha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "errorCode": "PROOF_INPUT_INVALID"
+    }
+  ]
+}

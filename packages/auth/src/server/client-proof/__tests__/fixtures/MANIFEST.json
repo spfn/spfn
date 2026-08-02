@@ -1,0 +1,56 @@
+{
+  "status": "RESOLVED_DEV_BUNDLE",
+  "contractVersion": "1.0.0-dev.1",
+  "bundleSha256": "07fd82683576e3343753b590e00b5bf9725b2e598e1e5e6282f251e73a433e45",
+  "fixtureCount": 9,
+  "derivedBy": "Contracts/fixtures/derive-expected-values.py",
+  "note": "Expected values were derived by Contracts/fixtures/derive-expected-values.py, a third implementation independent of both SDKs. Two SDKs agreeing with each other would prove nothing; agreeing with an outside implementation is the actual evidence.",
+  "secrets": "TEST VECTOR ONLY. keyUtf8 is a synthetic string, not a credential. It authenticates nothing, was never issued by anything, and must never be presented to a real endpoint.",
+  "fixtures": [
+    {
+      "path": "Contracts/fixtures/canonical/rejects.json",
+      "sha256": "97a59072c99cd493ba07bb50b1bdaff61768ac68e514f58fc714caef45ae2161",
+      "bytes": 1093
+    },
+    {
+      "path": "Contracts/fixtures/canonical/serialization.json",
+      "sha256": "d45fef239fe3431795294bc42875e56bb10e1b4a8e8fd6f18a16c62fe574f7c7",
+      "bytes": 2920
+    },
+    {
+      "path": "Contracts/fixtures/error/envelopes.json",
+      "sha256": "413fa7309c4991556bbb0bef48892445be74f74e1d2e81fe94cdd1d18e4af0a3",
+      "bytes": 2896
+    },
+    {
+      "path": "Contracts/fixtures/proof/proof-input.json",
+      "sha256": "5787020c4b5a5e1aa998e572a09baca264fd1b0655ffb2873b5fce7955413dd6",
+      "bytes": 3208
+    },
+    {
+      "path": "Contracts/fixtures/proof/rejects.json",
+      "sha256": "94aa40f3f872198d7aae81bf8c31f03e4c8adfaaa1b3e9dfa2405b6d861683e0",
+      "bytes": 1050
+    },
+    {
+      "path": "Contracts/fixtures/replay/replay.json",
+      "sha256": "96301ce7ae551391f069477628a33c77020092951cc2c858767c55bfd43bf6da",
+      "bytes": 3114
+    },
+    {
+      "path": "Contracts/fixtures/request/operations.json",
+      "sha256": "8a1c39f5848de2532955d2a977d2f41af2b415412f0774e43026083accaf2b61",
+      "bytes": 3855
+    },
+    {
+      "path": "Contracts/fixtures/request/wire.json",
+      "sha256": "97b30bb3a93c8204d890556dfe6af4f16324aeb89b4b78916fbb1517cccc1643",
+      "bytes": 3947
+    },
+    {
+      "path": "Contracts/fixtures/revoke/revoke.json",
+      "sha256": "f0c0db1e0524cdff72d26e6d3248b964a315137b8c4443574dea7776b0575f0a",
+      "bytes": 2093
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "algorithm": "SPFN-PROOF-INPUT-1",
+  "profile": "clientProofV1",
+  "note": "Expected values were derived by Contracts/fixtures/derive-expected-values.py, a third implementation independent of both SDKs. Two SDKs agreeing with each other would prove nothing; agreeing with an outside implementation is the actual evidence.",
+  "syntheticKey": {
+    "note": "TEST VECTOR ONLY. keyUtf8 is a synthetic string, not a credential. It authenticates nothing, was never issued by anything, and must never be presented to a real endpoint.",
+    "keyUtf8": "spfn-test-key-not-a-secret-0001"
+  },
+  "vectors": [
+    {
+      "name": "handshake-no-body",
+      "why": "an operation with no body carries the absent-body digest, not the digest of an empty string",
+      "input": {
+        "method": "POST",
+        "path": "/v1/auth/client-proof/handshake",
+        "clientId": "client-test-0001",
+        "keyId": "key-test-0001",
+        "nonce": "nonce-000000000001",
+        "issuedAtMillis": 1750000000000,
+        "bodySha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "canonicalString": "clientProofV1\nPOST\n/v1/auth/client-proof/handshake\nclient-test-0001\nkey-test-0001\nnonce-000000000001\n1750000000000\n0000000000000000000000000000000000000000000000000000000000000000",
+      "canonicalSha256": "c58bd3236fc53e6cead257b7e8d8cff29686e2f95e16adacbf81821a57ff7c01",
+      "proofHmacSha256": "d5530f999283ee35acd6689ed3f50c798423d2fead23a1929395df0387c7065a"
+    },
+    {
+      "name": "echo-with-canonical-body",
+      "why": "bodySha256 is taken over the canonical body, so it is stable across key order",
+      "input": {
+        "method": "POST",
+        "path": "/v1/echo",
+        "clientId": "client-test-0001",
+        "keyId": "key-test-0001",
+        "nonce": "nonce-000000000002",
+        "issuedAtMillis": 1750000000000,
+        "bodySha256": "7ebd40a4b02f42649c0808ee91edc724f61afac3ac550f4e7c37905bcc1a6edb"
+      },
+      "canonicalString": "clientProofV1\nPOST\n/v1/echo\nclient-test-0001\nkey-test-0001\nnonce-000000000002\n1750000000000\n7ebd40a4b02f42649c0808ee91edc724f61afac3ac550f4e7c37905bcc1a6edb",
+      "canonicalSha256": "c28f9c33369ad2a2140523a5813233fba27ff95a64fadd30c9850f4380951742",
+      "proofHmacSha256": "45e41e7a897cc2bf6d9a8e2cb5b66bb545b9d24a6a810f47d98a80eeb879b465"
+    },
+    {
+      "name": "unicode-in-nonce",
+      "why": "proof input is UTF-8, so a non-ASCII nonce must not change length semantics",
+      "input": {
+        "method": "POST",
+        "path": "/v1/items/list",
+        "clientId": "client-test-0002",
+        "keyId": "key-test-0002",
+        "nonce": "nonce-한국-0003",
+        "issuedAtMillis": 1750000000999,
+        "bodySha256": "d837ac99c8a7517b99d9b2a3bb8bb57640707eae5d3b3f8458cac9bbe13dd8dc"
+      },
+      "canonicalString": "clientProofV1\nPOST\n/v1/items/list\nclient-test-0002\nkey-test-0002\nnonce-한국-0003\n1750000000999\nd837ac99c8a7517b99d9b2a3bb8bb57640707eae5d3b3f8458cac9bbe13dd8dc",
+      "canonicalSha256": "f10eb530c78b289d1d5f73297350724886afe2297f98f67370430f755dc561cb",
+      "proofHmacSha256": "ccf4a36693bc8ea9f71b6c4b5de803735be9586a485dc2c32bf2cca4190a9b24"
+    }
+  ]
+}

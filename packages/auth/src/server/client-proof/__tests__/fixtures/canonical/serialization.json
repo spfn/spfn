@@ -1,0 +1,62 @@
+{
+  "algorithm": "SPFN-CANON-JSON-1",
+  "note": "Expected values were derived by Contracts/fixtures/derive-expected-values.py, a third implementation independent of both SDKs. Two SDKs agreeing with each other would prove nothing; agreeing with an outside implementation is the actual evidence.",
+  "vectors": [
+    {
+      "name": "key-order-ascii",
+      "why": "uppercase C sorts before lowercase letters because ordering is by UTF-8 bytes",
+      "input": "{\"b\":1,\"a\":2,\"C\":3}",
+      "canonical": "{\"C\":3,\"a\":2,\"b\":1}",
+      "sha256": "27e01c26743085bff8e4a98d76dca93ebdb6c805f8136fae1216ee257d33f5c5"
+    },
+    {
+      "name": "nested-object-and-array",
+      "why": "ordering applies at every depth; array order is preserved",
+      "input": "{\"z\":[1,2,{\"b\":true,\"a\":null}],\"y\":\"x\"}",
+      "canonical": "{\"y\":\"x\",\"z\":[1,2,{\"a\":null,\"b\":true}]}",
+      "sha256": "e37e8b2b7465ad116597934543b55662b3ac11feed02a616da04d640b3172c11"
+    },
+    {
+      "name": "escapes",
+      "why": "the five short escapes and the two mandatory ones",
+      "input": "{\"k\":\"line\\nbreak\\ttab\\\"quote\\\\slash\"}",
+      "canonical": "{\"k\":\"line\\nbreak\\ttab\\\"quote\\\\slash\"}",
+      "sha256": "68580f1ae808f72f562a53def8623ff8eeb84486d425cf8edff900b27c15d9e4"
+    },
+    {
+      "name": "control-characters",
+      "why": "C0 controls with no short form use lowercase \\u00XX",
+      "input": "{\"k\":\"\\u0001\\u001f\"}",
+      "canonical": "{\"k\":\"\\u0001\\u001f\"}",
+      "sha256": "e522c7b5daea66c35f856f871160e2f6c87814174022b472720a9be7114978f7"
+    },
+    {
+      "name": "unicode-literal",
+      "why": "non-ASCII is emitted literally as UTF-8, never re-escaped",
+      "input": "{\"k\":\"한국어 ✓\"}",
+      "canonical": "{\"k\":\"한국어 ✓\"}",
+      "sha256": "eedfb957df623e880a06dc58ddf0d0659717d8e729aebfa30fa073e6d02c084c"
+    },
+    {
+      "name": "int64-bounds",
+      "why": "the full signed 64-bit range survives a round trip",
+      "input": "{\"min\":-9223372036854775808,\"max\":9223372036854775807}",
+      "canonical": "{\"max\":9223372036854775807,\"min\":-9223372036854775808}",
+      "sha256": "161a1dcda7bae00f28f0ba32675f218fd4977065d2aa0439cf451c6d066dbbfb"
+    },
+    {
+      "name": "key-order-utf8-vs-utf16",
+      "why": "U+FF21 sorts BEFORE U+10000 by UTF-8 bytes and AFTER it by UTF-16 code units; a platform that sorted keys with its native string comparison would fail here",
+      "input": "{\"𐀀\":1,\"Ａ\":2}",
+      "canonical": "{\"Ａ\":2,\"𐀀\":1}",
+      "sha256": "39ac4ad02388724a3b609e419b893a5e00459731145bb3e95be16ca076a4daaf"
+    },
+    {
+      "name": "empty-containers",
+      "why": "empty object and empty array have canonical forms",
+      "input": "{\"o\":{},\"a\":[]}",
+      "canonical": "{\"a\":[],\"o\":{}}",
+      "sha256": "9bee7ebfc94b459dacb8cbc72cb2900e61f0aa42189df18329f84f92568f4f89"
+    }
+  ]
+}

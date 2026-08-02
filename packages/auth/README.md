@@ -13,8 +13,8 @@ pnpm add @spfn/auth drizzle-orm@1.0.0-rc.4
 
 ## Import paths
 
-Five entry points (from `package.json` `exports`). Picking the wrong one breaks the build —
-`/server` and `/nextjs/*` pull in Node/`server-only` code and must never reach the browser bundle.
+Entry points (from `package.json` `exports`). Picking the wrong one breaks the build —
+`/server`, `/client-proof` and `/nextjs/*` pull in Node code and must never reach the browser bundle.
 
 ```typescript
 import { authApi, authRouteMap }      from '@spfn/auth';          // isomorphic: client + route map + types/constants
@@ -25,6 +25,7 @@ import { InvalidCredentialsError }    from '@spfn/auth/errors';    // error clas
 import '@spfn/auth/nextjs/api';                                    // SERVER: auto-registers RPC interceptors (side-effect)
 import { RequireAuth, getSession }    from '@spfn/auth/nextjs/server'; // SERVER: RSC guards, session helpers, OAuth handler
 import { OAuthCallback }              from '@spfn/auth/nextjs/client';  // 'use client' OAuth callback component
+import { createClientProofDevHandler } from '@spfn/auth/client-proof';  // SERVER: mobile clientProofV1 profile (see below)
 ```
 
 > Database entities (`users`, `userPublicKeys`, …) and all services/repositories are exported
@@ -548,6 +549,36 @@ Notes:
 For short-lived authenticated handshakes (e.g. SSE) where a `Bearer` header is awkward: issue
 with `authApi.issueOneTimeToken`, protect the consuming route with the `oneTimeTokenAuth`
 middleware. Call `initOneTimeTokenManager({ ttl, store })` during setup for a custom TTL/store.
+
+## Mobile clientProofV1 (`@spfn/auth/client-proof`)
+
+Server side of the spfn-mobile native SDK auth profile (issue #46). Implements the pinned
+mobile contract exactly: SPFN-CANON-JSON-1 canonical JSON (custom parser/encoder — int64 via
+BigInt, duplicate-key rejection, UTF-8 byte key order), SPFN-PROOF-INPUT-1 HMAC-SHA-256 proof
+verification (constant-time), the contract admission order (revoked → session → expired →
+replayed → HMAC; a nonce is spent only on admission), in-memory session issuance/expiry, and
+the fixed-string contract error envelope (`PROOF_INVALID` · `PROOF_REPLAYED` · `PROOF_EXPIRED` ·
+`SESSION_REVOKED` · `PROFILE_REJECTED` · `CONTRACT_UNSUPPORTED` — SDKs classify by code, never
+HTTP status).
+
+- Wire headers (D23, ratified): `x-spfn-auth-profile`, `x-spfn-client-id`, `x-spfn-key-id`,
+  `x-spfn-nonce`, `x-spfn-issued-at`, `x-spfn-proof`, `x-spfn-session`.
+- A request body must be **byte-canonical** — a body that parses but re-encodes differently is
+  refused even when its proof verifies (the proof binds the received bytes).
+- `createClientProofDevHandler(...)` — framework-free `fetch(Request) → Response` dev surface
+  with the three contract operations and the `/control` test hooks the spfn-mobile integration
+  suites drive (`examples/04-mobile-contract-dev` is the runnable wiring).
+- `createClientProofGuard(state)` — Hono middleware for mounting `requiresSession` operations
+  on an SPFN server; tags admitted requests `clientType: 'mobile'` (the attestation slot
+  proxy-guard reserved). hono is a type-only import here.
+- Replay ledger is module-local, NOT core's `NonceStore` — `checkAndSet` records on check,
+  which would spend a nonce on a refused request; the contract requires spending only on
+  admission.
+- Conformance: spfn-mobile fixtures are vendored under
+  `src/server/client-proof/__tests__/fixtures/` (digest-pinned to upstream `MANIFEST.json`,
+  dev bundle sha256 `07fd8268…a433e45`) and run in the unit suite.
+- Dev/test scope: key provisioning is injection at construction; no persistence. A production
+  key/issuance story is a separate work item.
 
 ## Account Deletion & Recovery
 

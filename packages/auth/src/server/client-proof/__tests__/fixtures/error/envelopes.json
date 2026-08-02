@@ -1,0 +1,62 @@
+{
+  "note": "Expected values were derived by Contracts/fixtures/derive-expected-values.py, a third implementation independent of both SDKs. Two SDKs agreeing with each other would prove nothing; agreeing with an outside implementation is the actual evidence.",
+  "known": [
+    {
+      "name": "proof-invalid",
+      "wire": "{\"error\":{\"code\":\"PROOF_INVALID\",\"message\":\"test vector for PROOF_INVALID\",\"requestId\":\"req-proof-invalid\"}}",
+      "code": "PROOF_INVALID",
+      "httpStatus": 401,
+      "retryable": false,
+      "sha256": "0402cb7b7c571f888a0f58faaad47d1e217ded15a9be4d4352b7064eac63e306"
+    },
+    {
+      "name": "proof-replayed",
+      "wire": "{\"error\":{\"code\":\"PROOF_REPLAYED\",\"message\":\"test vector for PROOF_REPLAYED\",\"requestId\":\"req-proof-replayed\"}}",
+      "code": "PROOF_REPLAYED",
+      "httpStatus": 401,
+      "retryable": false,
+      "sha256": "1d34e78aed6e5a43bb1548082fba79995b557e846ad8f4fe99fbd95c1f79680a"
+    },
+    {
+      "name": "proof-expired",
+      "wire": "{\"error\":{\"code\":\"PROOF_EXPIRED\",\"message\":\"test vector for PROOF_EXPIRED\",\"requestId\":\"req-proof-expired\"}}",
+      "code": "PROOF_EXPIRED",
+      "httpStatus": 401,
+      "retryable": false,
+      "sha256": "013b2c08ad3a98c9c948d7e553594ff544a81dc95a0cfda4e8ecc39b90cc75e6"
+    },
+    {
+      "name": "session-revoked",
+      "wire": "{\"error\":{\"code\":\"SESSION_REVOKED\",\"message\":\"test vector for SESSION_REVOKED\",\"requestId\":\"req-session-revoked\"}}",
+      "code": "SESSION_REVOKED",
+      "httpStatus": 401,
+      "retryable": false,
+      "sha256": "7cf916592365d52f14ac63fb9036776a36ff4c07147be3a9da97e9475716f288"
+    },
+    {
+      "name": "profile-rejected",
+      "wire": "{\"error\":{\"code\":\"PROFILE_REJECTED\",\"message\":\"test vector for PROFILE_REJECTED\",\"requestId\":\"req-profile-rejected\"}}",
+      "code": "PROFILE_REJECTED",
+      "httpStatus": 400,
+      "retryable": false,
+      "sha256": "14496cd2757cd3d8120574c60ca7e19562599d6e1c669e37196ed2ed36a7a780"
+    },
+    {
+      "name": "contract-unsupported",
+      "wire": "{\"error\":{\"code\":\"CONTRACT_UNSUPPORTED\",\"message\":\"test vector for CONTRACT_UNSUPPORTED\",\"requestId\":\"req-contract-unsupported\"}}",
+      "code": "CONTRACT_UNSUPPORTED",
+      "httpStatus": 409,
+      "retryable": false,
+      "sha256": "281f6d6e911267c4cf77c829e4645241a35e4be62e423b8ea176e1b14ffe91d8"
+    }
+  ],
+  "rejected": [
+    {
+      "name": "unknown-code-is-not-mapped-to-a-neighbour",
+      "why": "an unrecognised code surfaces as an unknown-code failure carrying the raw string, rather than being rounded to the nearest known code",
+      "wire": "{\"error\":{\"code\":\"SOMETHING_ELSE_V2\",\"message\":\"a code this SDK does not know\",\"requestId\":\"req-unknown\"}}",
+      "rawCode": "SOMETHING_ELSE_V2",
+      "errorCode": "UNKNOWN_ERROR_CODE"
+    }
+  ]
+}
