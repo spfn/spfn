@@ -950,10 +950,12 @@ for ordering guarantees and per-channel notes.
 ## Mobile clientProofV1 (`@spfn/auth/client-proof`)
 
 Auth profile for native mobile SDKs (spfn-mobile Swift/Kotlin). Instead of cookies or JWT,
-each request carries an HMAC-SHA-256 proof over `(profile, method, path, clientId, keyId,
-nonce, issuedAtMillis, bodySha256)` in `x-spfn-*` headers; the server verifies in the fixed
-order revoked → session → expired → replayed → HMAC and answers with a 6-code contract error
-envelope. Request/response bodies must be byte-canonical JSON (SPFN-CANON-JSON-1).
+each request carries an ECDSA P-256 signature (SHA-256, raw `r‖s` 64 bytes as base16-lower —
+DER is rejected) over `(profile, method, path, clientId, keyId, nonce, issuedAtMillis,
+bodySha256)` in `x-spfn-*` headers; the server verifies against the public key registered
+under `x-spfn-key-id`, in the fixed order revoked → session → expired → replayed → signature,
+and answers with a 6-code contract error envelope. Request/response bodies must be
+byte-canonical JSON (SPFN-CANON-JSON-1).
 
 Two ways to serve it:
 
@@ -967,8 +969,9 @@ Two ways to serve it:
 
 Usage snippets, the admission-order rationale, and the canonical-bytes rule live in the
 [`@spfn/auth` README](../../packages/auth/README.md#mobile-clientproofv1-spfnauthclient-proof).
-Key provisioning is currently injection at construction (dev/test scope); a production
-issuance flow is tracked separately.
+Public keys (SPKI DER base64) are registered at construction or via the dev
+`/control/register-key` hook — the private half stays on the client (hardware-held on
+mobile). A production enrollment/rotation flow is tracked separately (phase 2).
 
 ---
 

@@ -11,13 +11,20 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { CLIENT_PROOF_HEADERS } from '../admission';
 import { parseCanonicalJson, type CanonicalObject } from '../canonical-json';
-import { computeClientProof, sha256Hex } from '../proof';
+import { sha256Hex, signClientProof } from '../proof';
 import { CONTROL_TOKEN_HEADER } from '../dev-control';
 import {
     createClientProofDevHandler,
     type ClientProofDevHandler,
 } from '../dev-handler';
 import { TestClock } from '../state';
+import {
+    OTHER_KEY_ID,
+    OTHER_PRIVATE_KEY_PKCS8_B64,
+    OTHER_PUBLIC_KEY_SPKI_B64,
+    TEST_PRIVATE_KEY_PKCS8_B64,
+    TEST_PUBLIC_KEYS,
+} from './test-keys';
 
 const FIXTURES = join(__dirname, 'fixtures');
 
@@ -25,8 +32,6 @@ const utf8 = new TextEncoder();
 
 const KEY_ID = 'key-test-0001';
 const CLIENT_ID = 'client-test-0001';
-const KEY_UTF8 = 'spfn-test-key-not-a-secret-0001';
-const SYNTHETIC_KEYS = { [KEY_ID]: KEY_UTF8 };
 
 const BASE_URL = 'http://127.0.0.1';
 const NOW = 1_750_000_000_000;
@@ -46,7 +51,7 @@ interface WireVector
 
 function makeHandler(clock = new TestClock(NOW)): { handler: ClientProofDevHandler; clock: TestClock }
 {
-    const handler = createClientProofDevHandler({ keys: SYNTHETIC_KEYS, clock });
+    const handler = createClientProofDevHandler({ publicKeys: TEST_PUBLIC_KEYS, clock });
 
     return { handler, clock };
 }
@@ -57,28 +62,31 @@ function contractRequest(args: {
     nonce: string;
     issuedAtMillis?: bigint;
     sessionId?: string;
+    keyId?: string;
+    privateKey?: string;
     overrideHeaders?: Record<string, string | null>;
 }): Request
 {
     const bodyBytes = utf8.encode(args.body);
     const issuedAtMillis = args.issuedAtMillis ?? BigInt(NOW);
-    const proof = computeClientProof(
+    const keyId = args.keyId ?? KEY_ID;
+    const proof = signClientProof(
         {
             method: 'POST',
             path: args.path,
             clientId: CLIENT_ID,
-            keyId: KEY_ID,
+            keyId,
             nonce: args.nonce,
             issuedAtMillis,
             bodySha256: sha256Hex(bodyBytes),
         },
-        utf8.encode(KEY_UTF8),
+        args.privateKey ?? TEST_PRIVATE_KEY_PKCS8_B64,
     );
     const headers = new Headers({
         'content-type': 'application/json',
         [CLIENT_PROOF_HEADERS.profile]: 'clientProofV1',
         [CLIENT_PROOF_HEADERS.clientId]: CLIENT_ID,
-        [CLIENT_PROOF_HEADERS.keyId]: KEY_ID,
+        [CLIENT_PROOF_HEADERS.keyId]: keyId,
         [CLIENT_PROOF_HEADERS.nonce]: args.nonce,
         [CLIENT_PROOF_HEADERS.issuedAtMillis]: issuedAtMillis.toString(),
         [CLIENT_PROOF_HEADERS.proof]: proof,
@@ -138,7 +146,11 @@ describe('wire-fixture round trips', () =>
         expect(wire.headerNames).toEqual(CLIENT_PROOF_HEADERS);
     });
 
-    it.each(wire.vectors.map((v) => [v.name, v] as const))('%s: exact fixture bytes are admitted', async (_, vector) =>
+    // The fixture's pinned x-spfn-proof values are HMAC and retired: an ECDSA
+    // signature is random per run, so each vector's proof header is re-signed
+    // here with the fixed test keypair. Everything else — body bytes, digest,
+    // header names and values — is presented exactly as vendored.
+    it.each(wire.vectors.map((v) => [v.name, v] as const))('%s: fixture bytes with a re-signed proof are admitted', async (_, vector) =>
     {
         const { handler } = makeHandler();
         if (vector.sessionId !== null)
@@ -147,9 +159,22 @@ describe('wire-fixture round trips', () =>
         }
         const bodyBytes = utf8.encode(vector.canonicalBody);
         expect(sha256Hex(bodyBytes)).toBe(vector.bodySha256);
+        const headers = new Headers(vector.headers);
+        headers.set(CLIENT_PROOF_HEADERS.proof, signClientProof(
+            {
+                method: vector.method,
+                path: vector.path,
+                clientId: headers.get(CLIENT_PROOF_HEADERS.clientId)!,
+                keyId: headers.get(CLIENT_PROOF_HEADERS.keyId)!,
+                nonce: headers.get(CLIENT_PROOF_HEADERS.nonce)!,
+                issuedAtMillis: BigInt(headers.get(CLIENT_PROOF_HEADERS.issuedAtMillis)!),
+                bodySha256: vector.bodySha256,
+            },
+            TEST_PRIVATE_KEY_PKCS8_B64,
+        ));
         const response = await handler.fetch(new Request(`${BASE_URL}${vector.path}`, {
             method: vector.method,
-            headers: vector.headers,
+            headers,
             body: bodyBytes,
         }));
         expect(response.status).toBe(200);
@@ -283,11 +308,11 @@ describe('refusal semantics', () =>
         expect(await errorCode(response)).toBe('CONTRACT_UNSUPPORTED');
     });
 
-    it('an unknown keyId is PROOF_INVALID, not SESSION_REVOKED', async () =>
+    it('an unregistered keyId is PROOF_INVALID, not SESSION_REVOKED', async () =>
     {
         const body = `{"clientId":"${CLIENT_ID}","issuedAtMillis":${NOW},"keyId":"key-unknown","nonce":"nonce-unknown-01"}`;
         const bodyBytes = utf8.encode(body);
-        const proof = computeClientProof(
+        const proof = signClientProof(
             {
                 method: 'POST',
                 path: '/v1/auth/client-proof/handshake',
@@ -297,7 +322,7 @@ describe('refusal semantics', () =>
                 issuedAtMillis: BigInt(NOW),
                 bodySha256: sha256Hex(bodyBytes),
             },
-            utf8.encode(KEY_UTF8),
+            TEST_PRIVATE_KEY_PKCS8_B64,
         );
         const response = await handler.fetch(new Request(`${BASE_URL}/v1/auth/client-proof/handshake`, {
             method: 'POST',
@@ -454,6 +479,71 @@ describe('/control surface', () =>
         const parsed = parseCanonicalJson(new Uint8Array(await stats.arrayBuffer())) as CanonicalObject;
         expect(parsed.get('handshakeCount')).toBe(1n);
         expect(parsed.get('refusalCount')).toBe(1n);
+    });
+
+    it('register-key admits proofs under a newly registered public key', async () =>
+    {
+        const { handler } = makeHandler();
+
+        const before = await handler.fetch(contractRequest({
+            path: '/v1/auth/client-proof/handshake',
+            body: `{"clientId":"${CLIENT_ID}","issuedAtMillis":${NOW},"keyId":"${OTHER_KEY_ID}","nonce":"nonce-reg-01"}`,
+            nonce: 'nonce-reg-01',
+            keyId: OTHER_KEY_ID,
+            privateKey: OTHER_PRIVATE_KEY_PKCS8_B64,
+        }));
+        expect(before.status).toBe(401);
+        expect(await errorCode(before)).toBe('PROOF_INVALID');
+
+        const register = await handler.fetch(new Request(`${BASE_URL}/control/register-key`, {
+            method: 'POST',
+            headers: { [CONTROL_TOKEN_HEADER]: handler.controlToken },
+            body: `{"keyId":"${OTHER_KEY_ID}","publicKey":"${OTHER_PUBLIC_KEY_SPKI_B64}"}`,
+        }));
+        expect(register.status).toBe(200);
+
+        const after = await handler.fetch(contractRequest({
+            path: '/v1/auth/client-proof/handshake',
+            body: `{"clientId":"${CLIENT_ID}","issuedAtMillis":${NOW},"keyId":"${OTHER_KEY_ID}","nonce":"nonce-reg-02"}`,
+            nonce: 'nonce-reg-02',
+            keyId: OTHER_KEY_ID,
+            privateKey: OTHER_PRIVATE_KEY_PKCS8_B64,
+        }));
+        expect(after.status).toBe(200);
+    });
+
+    it('register-key refuses a value that is not a P-256 SPKI public key', async () =>
+    {
+        const { handler } = makeHandler();
+        const response = await handler.fetch(new Request(`${BASE_URL}/control/register-key`, {
+            method: 'POST',
+            headers: { [CONTROL_TOKEN_HEADER]: handler.controlToken },
+            body: `{"keyId":"${OTHER_KEY_ID}","publicKey":"bm90IGEga2V5"}`,
+        }));
+        expect(response.status).toBe(400);
+    });
+
+    it('reset drops keys registered at runtime and keeps the constructed ones', async () =>
+    {
+        const { handler } = makeHandler();
+        await handler.fetch(new Request(`${BASE_URL}/control/register-key`, {
+            method: 'POST',
+            headers: { [CONTROL_TOKEN_HEADER]: handler.controlToken },
+            body: `{"keyId":"${OTHER_KEY_ID}","publicKey":"${OTHER_PUBLIC_KEY_SPKI_B64}"}`,
+        }));
+        handler.state.reset();
+
+        const dropped = await handler.fetch(contractRequest({
+            path: '/v1/auth/client-proof/handshake',
+            body: `{"clientId":"${CLIENT_ID}","issuedAtMillis":${NOW},"keyId":"${OTHER_KEY_ID}","nonce":"nonce-reg-03"}`,
+            nonce: 'nonce-reg-03',
+            keyId: OTHER_KEY_ID,
+            privateKey: OTHER_PRIVATE_KEY_PKCS8_B64,
+        }));
+        expect(await errorCode(dropped)).toBe('PROOF_INVALID');
+
+        const kept = await handshake(handler, 'nonce-reg-04');
+        expect(typeof kept).toBe('string');
     });
 
     it('advance-clock moves a test clock and expires sessions for real', async () =>

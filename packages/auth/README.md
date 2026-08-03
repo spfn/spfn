@@ -552,11 +552,14 @@ middleware. Call `initOneTimeTokenManager({ ttl, store })` during setup for a cu
 
 ## Mobile clientProofV1 (`@spfn/auth/client-proof`)
 
-Server side of the spfn-mobile native SDK auth profile (issue #46). Implements the pinned
-mobile contract exactly: SPFN-CANON-JSON-1 canonical JSON (custom parser/encoder — int64 via
-BigInt, duplicate-key rejection, UTF-8 byte key order), SPFN-PROOF-INPUT-1 HMAC-SHA-256 proof
-verification (constant-time), the contract admission order (revoked → session → expired →
-replayed → HMAC; a nonce is spent only on admission), in-memory session issuance/expiry, and
+Server side of the spfn-mobile native SDK auth profile (issue #46; asymmetric revision in
+contract 0.2.0). Implements the pinned mobile contract exactly: SPFN-CANON-JSON-1 canonical
+JSON (custom parser/encoder — int64 via BigInt, duplicate-key rejection, UTF-8 byte key
+order), SPFN-PROOF-INPUT-1 proof assembly with ECDSA P-256 + SHA-256 signature verification
+(wire form: raw `r‖s`, 64 bytes, base16-lower; DER is rejected, low-S is not required — the
+nonce + replay window own uniqueness), the contract admission order (revoked → session →
+expired → replayed → signature; a nonce is spent only on admission), in-memory session
+issuance/expiry, and
 the fixed-string contract error envelope (`PROOF_INVALID` · `PROOF_REPLAYED` · `PROOF_EXPIRED` ·
 `SESSION_REVOKED` · `PROFILE_REJECTED` · `CONTRACT_UNSUPPORTED` — SDKs classify by code, never
 HTTP status).
@@ -577,8 +580,9 @@ HTTP status).
 - Conformance: spfn-mobile fixtures are vendored under
   `src/server/client-proof/__tests__/fixtures/` (digest-pinned to upstream `MANIFEST.json`,
   dev bundle sha256 `07fd8268…a433e45`) and run in the unit suite.
-- Dev/test scope: key provisioning is injection at construction; no persistence. A production
-  key/issuance story is a separate work item.
+- Dev/test scope: public keys (SPKI DER base64, keyed by `x-spfn-key-id`) are registered at
+  construction or through the `/control/register-key` hook; the private half never reaches
+  the server. No persistence — a production enrollment/rotation story is phase 2.
 
 ### Usage — dev surface (mobile integration target)
 
@@ -590,7 +594,8 @@ import { serve } from '@hono/node-server';
 import { createClientProofDevHandler } from '@spfn/auth/client-proof';
 
 const handler = createClientProofDevHandler({
-    keys: { 'key-dev-0001': process.env.SPFN_CLIENT_PROOF_KEY! },  // keyId → HMAC key
+    // keyId → registered public key (SPKI DER base64); the private key stays on the client
+    publicKeys: { 'key-dev-0001': process.env.SPFN_CLIENT_PROOF_PUBLIC_KEY! },
     sessionTtlMillis: 600_000,
 });
 serve({ fetch: handler.fetch, port: 8791, hostname: '127.0.0.1' });
@@ -611,7 +616,7 @@ import {
     ClientProofRefusal, newHexId,
 } from '@spfn/auth/client-proof';
 
-const state = new ClientProofState({ keys: { 'key-dev-0001': process.env.SPFN_CLIENT_PROOF_KEY! } });
+const state = new ClientProofState({ publicKeys: { 'key-dev-0001': process.env.SPFN_CLIENT_PROOF_PUBLIC_KEY! } });
 const app = new Hono();
 
 app.post('/v1/auth/client-proof/handshake', async (c) =>

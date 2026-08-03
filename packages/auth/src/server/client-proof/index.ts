@@ -2,11 +2,11 @@
  * @spfn/auth/client-proof — server-side clientProofV1 (issue #46).
  *
  * Implements the mobile contract's auth profile: SPFN-CANON-JSON-1 canonical
- * JSON, SPFN-PROOF-INPUT-1 proof assembly/verification (constant-time), the
- * contract admission order (revoked → expired → replayed → HMAC), session
- * issuance/expiry, the contract error envelope, a Hono guard for SPFN
- * servers, and the dev surface + `/control` hooks the spfn-mobile integration
- * suites drive.
+ * JSON, SPFN-PROOF-INPUT-1 proof assembly and ECDSA P-256 signature
+ * verification (raw r‖s wire encoding), the contract admission order
+ * (revoked → expired → replayed → signature), session issuance/expiry, the
+ * contract error envelope, a Hono guard for SPFN servers, and the dev surface
+ * + `/control` hooks the spfn-mobile integration suites drive.
  *
  * Contract authority: SPFN primitives. The spfn-mobile dev bundle
  * (sha256 07fd8268…a433e45) is the pinned statement this module implements;
@@ -28,10 +28,13 @@ export {
     CLIENT_PROOF_PROFILE,
     ABSENT_BODY_SHA256,
     DEFAULT_REPLAY_WINDOW_MILLIS,
+    PROOF_SIGNATURE_BYTES,
+    PROOF_SIGNATURE_HEX_LENGTH,
     canonicalProofInput,
-    computeClientProof,
+    parseClientProofPublicKey,
+    signClientProof,
+    verifyClientProof,
     sha256Hex,
-    constantTimeEqualsProof,
     ProofInputError,
     type ClientProofInput,
 } from './proof';

@@ -4,9 +4,9 @@
   "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
   "contractName": "spfn-mobile-contract",
   "contractMajor": 0,
-  "contractVersion": "0.1.0",
-  "supportedRange": ">=0.1.0 <0.2.0",
-  "exporterVersion": "@spfn/auth/contract-bundle@1.0.0",
+  "contractVersion": "0.2.0",
+  "supportedRange": ">=0.2.0 <0.3.0",
+  "exporterVersion": "@spfn/auth/contract-bundle@2.0.0",
   "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
   "canonicalJson": {
     "algorithm": "SPFN-CANON-JSON-1",
@@ -26,7 +26,13 @@
       "bodySha256": "lowercase base16 SHA-256 of the canonical JSON request body; the literal string of 64 zero characters when an operation has no body"
     },
     "digest": "SHA-256",
-    "mac": "HMAC-SHA-256",
+    "signature": {
+      "algorithm": "ECDSA P-256 with SHA-256",
+      "encoding": "raw r||s, two 32-byte big-endian integers, 64 bytes total, base16-lower (128 hex characters)",
+      "derRule": "a DER-encoded signature is rejected on the wire; a platform signer that emits DER converts to raw r||s before sending",
+      "lowS": "low-S normalization is not required; uniqueness is owned by the nonce and replay window, so signature malleability cannot replay a request",
+      "publicKey": "SPKI DER, base64; x-spfn-key-id names a registered public key"
+    },
     "proofEncoding": "base16-lower",
     "replayWindowMillis": 300000,
     "replayRule": "a (clientId, nonce) pair is accepted at most once inside the replay window; a repeat is PROOF_REPLAYED",

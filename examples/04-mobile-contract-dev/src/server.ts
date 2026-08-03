@@ -6,12 +6,15 @@
  * /control test hooks, so the spfn-mobile Swift/Kotlin integration suites can
  * run against SPFN primitives with only a base-URL change.
  *
- * Dev keys default to the synthetic conformance vectors (TEST VECTOR ONLY —
- * they authenticate nothing). Provide real dev triples via SPFN_CLIENT_PROOF_KEYS.
+ * The default registered key is the synthetic conformance test keypair's
+ * public half (TEST VECTOR ONLY — it authenticates nothing). Register other
+ * public keys via SPFN_CLIENT_PROOF_PUBLIC_KEYS or, at runtime, the
+ * /control/register-key hook — a client generates its own P-256 keypair and
+ * only the public half (SPKI DER base64) ever reaches this server.
  *
  * Environment:
  * - PORT                          listen port (default 8791)
- * - SPFN_CLIENT_PROOF_KEYS        comma-separated keyId:keyUtf8 pairs
+ * - SPFN_CLIENT_PROOF_PUBLIC_KEYS comma-separated keyId:spkiDerBase64 pairs
  * - SPFN_CLIENT_PROOF_SESSION_TTL_MS  session TTL (default 600000)
  * - SPFN_CLIENT_PROOF_CONTROL_TOKEN   /control token (default: generated)
  * - SPFN_CLIENT_PROOF_TEST_CLOCK_MS   start on a test clock at this epoch ms
@@ -28,16 +31,20 @@ import {
     TestClock,
 } from '@spfn/auth/client-proof';
 
-const SYNTHETIC_DEV_KEYS: Record<string, string> = {
-    // TEST VECTOR ONLY — the synthetic conformance key, not a credential.
-    'key-test-0001': 'spfn-test-key-not-a-secret-0001',
+const SYNTHETIC_DEV_PUBLIC_KEYS: Record<string, string> = {
+    // TEST VECTOR ONLY — the public half of the synthetic conformance keypair,
+    // not a credential. The matching private key is published in the test
+    // suite; registering this key grants access to nothing.
+    'key-test-0001':
+        'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAES7xktjK+fMydT7UZcfuW/vzU9rU/'
+        + '+RPVVQKKgxrB1sd9bh6N1bqiBwU/zuw9/LaQ91lWPeWSN9OlT8OlDYXIYg==',
 };
 
-function parseKeys(raw: string | undefined): Record<string, string>
+function parsePublicKeys(raw: string | undefined): Record<string, string>
 {
     if (raw === undefined || raw.trim() === '')
     {
-        return SYNTHETIC_DEV_KEYS;
+        return SYNTHETIC_DEV_PUBLIC_KEYS;
     }
     const keys: Record<string, string> = {};
     for (const pair of raw.split(','))
@@ -45,7 +52,7 @@ function parseKeys(raw: string | undefined): Record<string, string>
         const idx = pair.indexOf(':');
         if (idx <= 0)
         {
-            throw new Error('SPFN_CLIENT_PROOF_KEYS must be comma-separated keyId:key pairs');
+            throw new Error('SPFN_CLIENT_PROOF_PUBLIC_KEYS must be comma-separated keyId:spkiDerBase64 pairs');
         }
         keys[pair.slice(0, idx)] = pair.slice(idx + 1);
     }
@@ -57,7 +64,7 @@ const port = Number(process.env.PORT ?? 8791);
 const testClockMs = process.env.SPFN_CLIENT_PROOF_TEST_CLOCK_MS;
 
 const handler = createClientProofDevHandler({
-    keys: parseKeys(process.env.SPFN_CLIENT_PROOF_KEYS),
+    publicKeys: parsePublicKeys(process.env.SPFN_CLIENT_PROOF_PUBLIC_KEYS),
     sessionTtlMillis: Number(process.env.SPFN_CLIENT_PROOF_SESSION_TTL_MS ?? DEFAULT_SESSION_TTL_MILLIS),
     controlToken: process.env.SPFN_CLIENT_PROOF_CONTROL_TOKEN,
     clock: testClockMs === undefined ? undefined : new TestClock(Number(testClockMs)),

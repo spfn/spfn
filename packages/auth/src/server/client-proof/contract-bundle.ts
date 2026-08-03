@@ -38,19 +38,24 @@ import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
  * publishing it as 1.0.1 called a breaking change a patch.
  *
  * 1.0.0 and 1.0.1 existed briefly and are withdrawn. Neither was consumed.
+ *
+ * 0.2.0 revises the proof mechanism from HMAC-SHA-256 (a shared key) to ECDSA
+ * P-256 (a registered public key) — breaking, hence a minor bump, taken while
+ * the consumer count is zero. The proof-input, wire headers, admission order
+ * and error codes are unchanged.
  */
-export const CONTRACT_VERSION = '0.1.0';
+export const CONTRACT_VERSION = '0.2.0';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
-/** Under 0.x the minor carries breaking changes, so the range stops at 0.2.0. */
-export const CONTRACT_SUPPORTED_RANGE = '>=0.1.0 <0.2.0';
+/** Under 0.x the minor carries breaking changes, so the range stops at 0.3.0. */
+export const CONTRACT_SUPPORTED_RANGE = '>=0.2.0 <0.3.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
 
 /** Bumped whenever the assembled shape changes, independent of the contract. */
-export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@1.0.0';
+export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@2.0.0';
 
 /**
  * The field-type grammar the consumer's codegen parses.
@@ -215,7 +220,17 @@ export function buildMobileContractBundle(): MobileContractBundle
                     + 'characters when an operation has no body',
             },
             digest: 'SHA-256',
-            mac: 'HMAC-SHA-256',
+            signature: {
+                algorithm: 'ECDSA P-256 with SHA-256',
+                encoding: 'raw r||s, two 32-byte big-endian integers, 64 bytes total, base16-lower (128 hex characters)',
+                derRule:
+                    'a DER-encoded signature is rejected on the wire; a platform signer that emits DER converts to '
+                    + 'raw r||s before sending',
+                lowS:
+                    'low-S normalization is not required; uniqueness is owned by the nonce and replay window, so '
+                    + 'signature malleability cannot replay a request',
+                publicKey: 'SPKI DER, base64; x-spfn-key-id names a registered public key',
+            },
             proofEncoding: 'base16-lower',
             replayWindowMillis: DEFAULT_REPLAY_WINDOW_MILLIS,
             replayRule:

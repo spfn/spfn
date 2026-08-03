@@ -56,6 +56,8 @@ export async function handleControlRequest(
             state.expireSessions();
 
             return ok();
+        case '/control/register-key':
+            return registerKey(state, body);
         case '/control/revoke-key':
             return revokeKey(state, body);
         case '/control/session-ttl':
@@ -84,6 +86,36 @@ function stats(state: ClientProofState): Response
         ['requestCount', BigInt(counters.requestCount)],
         ['spentNonceCount', BigInt(counters.spentNonceCount)],
     ])));
+}
+
+/**
+ * Registers the public key a test client generated — the asymmetric
+ * counterpart of the shared-key provisioning the HMAC profile injected at
+ * construction. The body carries only the public half (SPKI DER base64); no
+ * secret ever crosses this route.
+ */
+function registerKey(state: ClientProofState, body: Uint8Array): Response
+{
+    const keyId = stringField(body, 'keyId');
+    const publicKey = stringField(body, 'publicKey');
+    if (keyId === null)
+    {
+        return badRequest('keyId');
+    }
+    if (publicKey === null)
+    {
+        return badRequest('publicKey');
+    }
+    try
+    {
+        state.registerPublicKey(keyId, publicKey);
+    }
+    catch
+    {
+        return badRequest('publicKey');
+    }
+
+    return ok();
 }
 
 function revokeKey(state: ClientProofState, body: Uint8Array): Response

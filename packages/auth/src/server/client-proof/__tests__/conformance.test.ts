@@ -18,9 +18,11 @@ import {
 } from '../canonical-json';
 import {
     canonicalProofInput,
-    computeClientProof,
+    parseClientProofPublicKey,
     ProofInputError,
     sha256Hex,
+    signClientProof,
+    verifyClientProof,
     type ClientProofInput,
 } from '../proof';
 import { ClientProofRefusal, type ClientProofErrorCode } from '../refusal';
@@ -30,6 +32,12 @@ import {
     decodeHandshakeRequest,
     decodeListItemsRequest,
 } from '../contract-types';
+import {
+    OTHER_PRIVATE_KEY_PKCS8_B64,
+    TEST_PRIVATE_KEY_PKCS8_B64,
+    TEST_PUBLIC_KEY_SPKI_B64,
+    TEST_PUBLIC_KEYS,
+} from './test-keys';
 
 const FIXTURES = join(__dirname, 'fixtures');
 
@@ -147,20 +155,21 @@ function toProofInput(input: ProofFixtureInput): ClientProofInput
 
 describe('SPFN-PROOF-INPUT-1 conformance', () =>
 {
+    // The vendored vectors still carry the retired HMAC fields (syntheticKey,
+    // proofHmacSha256) until upstream re-vendors for contract 0.2.0. The
+    // proof-input derivation stays deterministic and byte-pinned; the
+    // signature itself is random per run, so it is judged by verification
+    // against the fixed test keypair rather than by a pinned value.
     interface ProofVector
     {
         name: string;
         input: ProofFixtureInput;
         canonicalString: string;
         canonicalSha256: string;
-        proofHmacSha256: string;
     }
 
-    const proofFixture = fixture<{
-        syntheticKey: { keyUtf8: string };
-        vectors: ProofVector[];
-    }>('proof/proof-input.json');
-    const key = utf8.encode(proofFixture.syntheticKey.keyUtf8);
+    const proofFixture = fixture<{ vectors: ProofVector[] }>('proof/proof-input.json');
+    const publicKey = parseClientProofPublicKey(TEST_PUBLIC_KEY_SPKI_B64);
 
     it.each(proofFixture.vectors.map((v) => [v.name, v] as const))('assembles and signs %s', (_, vector) =>
     {
@@ -168,7 +177,9 @@ describe('SPFN-PROOF-INPUT-1 conformance', () =>
         const canonical = canonicalProofInput(input);
         expect(canonical).toBe(vector.canonicalString);
         expect(sha256Hex(utf8.encode(canonical))).toBe(vector.canonicalSha256);
-        expect(computeClientProof(input, key)).toBe(vector.proofHmacSha256);
+        const proof = signClientProof(input, TEST_PRIVATE_KEY_PKCS8_B64);
+        expect(proof).toMatch(/^[0-9a-f]{128}$/);
+        expect(verifyClientProof(input, proof, publicKey)).toBe(true);
     });
 
     interface ProofRejectVector
@@ -207,8 +218,14 @@ interface AdmissionBase
     bodySha256: string;
 }
 
-const SYNTHETIC_KEYS = { 'key-test-0001': 'spfn-test-key-not-a-secret-0001' };
-
+/**
+ * The fixture's pinned HMAC `proof` values are retired: an ECDSA signature is
+ * random per run, so each step is signed here with the fixed test keypair
+ * instead. A fixture step whose proof was deliberately wrong (all zeros, or
+ * one expecting PROOF_INVALID) is signed with the second keypair — well-formed
+ * wire bytes whose signature does not verify — which preserves each vector's
+ * intent, including that revocation and expiry are decided before the proof.
+ */
 function runAdmissionSteps(
     base: AdmissionBase,
     steps: AdmissionStep[],
@@ -217,7 +234,7 @@ function runAdmissionSteps(
 ): void
 {
     const clock = new TestClock(steps[0].nowMillis);
-    const state = new ClientProofState({ keys: SYNTHETIC_KEYS, clock, replayWindowMillis });
+    const state = new ClientProofState({ publicKeys: TEST_PUBLIC_KEYS, clock, replayWindowMillis });
     for (const keyId of revokedKeyIds)
     {
         state.revokeKey(keyId);
@@ -225,21 +242,24 @@ function runAdmissionSteps(
     for (const step of steps)
     {
         clock.advance(step.nowMillis - clock.nowMillis());
+        const proofInput = {
+            method: base.method,
+            path: base.path,
+            clientId: base.clientId,
+            keyId: base.keyId,
+            nonce: step.nonce,
+            issuedAtMillis: BigInt(step.issuedAtMillis),
+            bodySha256: base.bodySha256,
+        };
+        const wrongProof = step.expect === 'PROOF_INVALID' || /^0+$/.test(step.proof);
+        const signingKey = wrongProof ? OTHER_PRIVATE_KEY_PKCS8_B64 : TEST_PRIVATE_KEY_PKCS8_B64;
         const refusal = state.admit({
             clientId: base.clientId,
             keyId: base.keyId,
             presentedSessionId: null,
             requiresSession: false,
-            proofInput: {
-                method: base.method,
-                path: base.path,
-                clientId: base.clientId,
-                keyId: base.keyId,
-                nonce: step.nonce,
-                issuedAtMillis: BigInt(step.issuedAtMillis),
-                bodySha256: base.bodySha256,
-            },
-            presentedProof: step.proof,
+            proofInput,
+            presentedProof: signClientProof(proofInput, signingKey),
         });
         if (step.expect === 'accept')
         {

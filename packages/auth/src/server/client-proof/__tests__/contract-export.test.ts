@@ -323,7 +323,27 @@ describe('declared wire mapping matches the reader', () =>
 
 describe('declared proof rules match the implementation', () =>
 {
-    const profile = bundle.clientProofV1 as { proofInput: { fields: string[]; separator: string }; replayWindowMillis: number };
+    const profile = bundle.clientProofV1 as {
+        proofInput: { fields: string[]; separator: string };
+        signature: Record<string, string>;
+        replayWindowMillis: number;
+    };
+
+    it('the contract line is the asymmetric revision', () =>
+    {
+        expect(bundle.contractVersion).toBe('0.2.0');
+    });
+
+    it('the signature section states the algorithm, wire encoding and key representation; mac is gone', async () =>
+    {
+        const { PROOF_SIGNATURE_BYTES, PROOF_SIGNATURE_HEX_LENGTH } = await import('../proof');
+        expect(profile.signature.algorithm).toBe('ECDSA P-256 with SHA-256');
+        expect(profile.signature.encoding).toContain(`${PROOF_SIGNATURE_BYTES} bytes`);
+        expect(profile.signature.encoding).toContain(`${PROOF_SIGNATURE_HEX_LENGTH} hex characters`);
+        expect(profile.signature.publicKey).toContain('SPKI DER, base64');
+        expect(profile.signature.derRule).toContain('rejected');
+        expect(bundle.clientProofV1).not.toHaveProperty('mac');
+    });
 
     it('the proof-input field list is the one the MAC is taken over', async () =>
     {

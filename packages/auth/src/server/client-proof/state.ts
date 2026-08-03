@@ -9,7 +9,7 @@
  *    verification, so revocation stays distinguishable from a bad proof;
  * 2. issuedAtMillis outside the replay window (0 <= age <= window) → PROOF_EXPIRED;
  * 3. a repeated (clientId, nonce) pair inside the window → PROOF_REPLAYED;
- * 4. only then HMAC verification → PROOF_INVALID on mismatch.
+ * 4. only then signature verification → PROOF_INVALID when it does not verify.
  *
  * A nonce is recorded as spent only on admission: a request refused for any
  * earlier reason has not spent anything, so a client that fixes the reason and
@@ -22,10 +22,12 @@
  *
  * @module server/client-proof/state
  */
+import type { KeyObject } from 'node:crypto';
+
 import {
-    computeClientProof,
-    constantTimeEqualsProof,
     DEFAULT_REPLAY_WINDOW_MILLIS,
+    parseClientProofPublicKey,
+    verifyClientProof,
     type ClientProofInput,
 } from './proof';
 import { ClientProofRefusal, newHexId } from './refusal';
@@ -86,11 +88,13 @@ interface PathHold
 export interface ClientProofStateOptions
 {
     /**
-     * keyId → HMAC key. A string is taken as UTF-8 bytes. Dev provisioning is
-     * injection at construction; any issuance flow works as long as
-     * clientId/keyId/key triples exist on both ends.
+     * keyId → registered public key, as SPKI DER base64. The private half
+     * never reaches the server: a client generates its keypair (hardware-held
+     * on mobile) and only the public key is registered — at construction here,
+     * or later through `registerPublicKey` (the dev `/control/register-key`
+     * route).
      */
-    keys: Record<string, string | Uint8Array>;
+    publicKeys: Record<string, string>;
 
     clock?: ClientProofClock;
 
@@ -114,7 +118,8 @@ export class ClientProofState
     readonly replayWindowMillis: number;
 
     private readonly clock: ClientProofClock;
-    private readonly keys = new Map<string, Uint8Array>();
+    private readonly initialPublicKeys: ReadonlyMap<string, KeyObject>;
+    private readonly publicKeys = new Map<string, KeyObject>();
     private readonly sessions = new Map<string, ClientProofSession>();
 
     /** replayKeyOf(...) → the issuedAtMillis it was spent at. */
@@ -138,10 +143,27 @@ export class ClientProofState
         this.initialSessionTtlMillis = options.sessionTtlMillis ?? DEFAULT_SESSION_TTL_MILLIS;
         this.sessionTtlMillis = this.initialSessionTtlMillis;
         this.replayWindowMillis = options.replayWindowMillis ?? DEFAULT_REPLAY_WINDOW_MILLIS;
-        for (const [keyId, key] of Object.entries(options.keys))
+        // Parsed once here, so a key that is not P-256 SPKI fails loudly at
+        // construction rather than as a PROOF_INVALID mystery at request time.
+        this.initialPublicKeys = new Map(
+            Object.entries(options.publicKeys).map(([keyId, spki]) => [keyId, parseClientProofPublicKey(spki)]),
+        );
+        for (const [keyId, key] of this.initialPublicKeys)
         {
-            this.keys.set(keyId, typeof key === 'string' ? new TextEncoder().encode(key) : key);
+            this.publicKeys.set(keyId, key);
         }
+    }
+
+    // ---- key registration --------------------------------------------------
+
+    /**
+     * Registers (or replaces) the public key `keyId` presents proofs under.
+     *
+     * @throws when the key is not base64 SPKI DER naming a P-256 key.
+     */
+    registerPublicKey(keyId: string, publicKeySpkiDerBase64: string): void
+    {
+        this.publicKeys.set(keyId, parseClientProofPublicKey(publicKeySpkiDerBase64));
     }
 
     // ---- admission ---------------------------------------------------------
@@ -194,15 +216,18 @@ export class ClientProofState
         }
 
         // 4. The proof itself, last, so the three answers above stay
-        //    distinguishable. An unrecognised keyId lands here rather than in
-        //    step 1: it was never issued, so it was never revoked, and there is
-        //    nothing for a new session to fix.
-        const key = this.keys.get(args.keyId);
-        if (key === undefined)
+        //    distinguishable. An unregistered keyId lands here rather than in
+        //    step 1, and shares PROOF_INVALID with a failed signature: it was
+        //    never registered, so it was never revoked, there is nothing for a
+        //    new session to fix, and whether a keyId exists is not inferable
+        //    from the refusal — the same non-disclosure the revocation rule
+        //    keeps.
+        const publicKey = this.publicKeys.get(args.keyId);
+        if (publicKey === undefined)
         {
             return ClientProofRefusal.proofInvalid();
         }
-        if (!constantTimeEqualsProof(computeClientProof(args.proofInput, key), args.presentedProof))
+        if (!verifyClientProof(args.proofInput, args.presentedProof, publicKey))
         {
             return ClientProofRefusal.proofInvalid();
         }
@@ -256,9 +281,14 @@ export class ClientProofState
         this.sessionTtlMillis = millis;
     }
 
-    /** Returns the state to how it started, counters included. */
+    /** Returns the state to how it started, counters and registered keys included. */
     reset(): void
     {
+        this.publicKeys.clear();
+        for (const [keyId, key] of this.initialPublicKeys)
+        {
+            this.publicKeys.set(keyId, key);
+        }
         this.sessions.clear();
         this.spentNonces.clear();
         this.revokedKeyIds.clear();
