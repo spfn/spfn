@@ -6,6 +6,7 @@
 
 import { type KeyAlgorithmType } from '../types';
 import { verifyKeyFingerprint } from '../helpers/jwt';
+import { KEY_TTL_DAYS } from '../lib/key-policy';
 import { InvalidKeyFingerprintError } from '@spfn/auth/errors';
 import { keysRepository } from '../repositories';
 
@@ -42,12 +43,12 @@ export interface RevokeKeyParams
 }
 
 /**
- * Helper: Calculate key expiry date (90 days from now)
+ * Helper: Calculate key expiry date (KEY_TTL_DAYS from now)
  */
 function getKeyExpiryDate(): Date
 {
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 90);
+    expiresAt.setDate(expiresAt.getDate() + KEY_TTL_DAYS);
 
     return expiresAt;
 }

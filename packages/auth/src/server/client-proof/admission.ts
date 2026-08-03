@@ -142,8 +142,11 @@ function refused(refusal: ClientProofRefusal): Admission
  * Fetch `Headers` folds a repeated field into one comma-joined value, so
  * "sent more than once" is not directly observable here; a folded value fails
  * either the issuedAt grammar or proof verification instead.
+ *
+ * Exported for the authenticate middleware's profile path, which runs the
+ * same shape checks over arbitrary routes.
  */
-function readCredentials(headers: Headers): ClientProofCredentials | null
+export function readCredentials(headers: Headers): ClientProofCredentials | null
 {
     const profile = headers.get(CLIENT_PROOF_HEADERS.profile);
     const clientId = headers.get(CLIENT_PROOF_HEADERS.clientId);
@@ -188,7 +191,8 @@ function parseInt64(raw: string): bigint | null
     return value;
 }
 
-function isRequestContentType(value: string | null): boolean
+/** Exported for the authenticate middleware's profile path. */
+export function isRequestContentType(value: string | null): boolean
 {
     if (value === null)
     {

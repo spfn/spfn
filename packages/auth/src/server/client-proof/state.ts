@@ -31,6 +31,7 @@ import {
     type ClientProofInput,
 } from './proof';
 import { ClientProofRefusal, newHexId } from './refusal';
+import { MemoryReplayLedger } from './replay-store';
 
 /** Millisecond clock. Injectable so expiry paths are testable without waiting. */
 export interface ClientProofClock
@@ -107,12 +108,6 @@ export interface ClientProofStateOptions
 
 export const DEFAULT_SESSION_TTL_MILLIS = 600_000;
 
-/** The ledger key: joined with a C0 control, which no proof field may contain. */
-function replayKeyOf(clientId: string, nonce: string): string
-{
-    return `${clientId}${nonce}`;
-}
-
 export class ClientProofState
 {
     readonly replayWindowMillis: number;
@@ -122,8 +117,8 @@ export class ClientProofState
     private readonly publicKeys = new Map<string, KeyObject>();
     private readonly sessions = new Map<string, ClientProofSession>();
 
-    /** replayKeyOf(...) → the issuedAtMillis it was spent at. */
-    private readonly spentNonces = new Map<string, number>();
+    /** The replay ledger — the shared memory implementation, used dev-only here. */
+    private readonly spentNonces = new MemoryReplayLedger();
 
     private readonly revokedKeyIds = new Set<string>();
     private readonly holds = new Map<string, PathHold>();
@@ -209,8 +204,7 @@ export class ClientProofState
         }
 
         // 3. One acceptance per (clientId, nonce) inside that window.
-        const replayKey = replayKeyOf(args.clientId, args.proofInput.nonce);
-        if (this.spentNonces.has(replayKey))
+        if (this.spentNonces.isSpent(args.clientId, args.proofInput.nonce))
         {
             return ClientProofRefusal.proofReplayed();
         }
@@ -232,7 +226,7 @@ export class ClientProofState
             return ClientProofRefusal.proofInvalid();
         }
 
-        this.spentNonces.set(replayKey, Number(args.proofInput.issuedAtMillis));
+        this.spentNonces.spend(args.clientId, args.proofInput.nonce, Number(args.proofInput.issuedAtMillis));
 
         return null;
     }
@@ -398,12 +392,6 @@ export class ClientProofState
                 this.sessions.delete(sessionId);
             }
         }
-        for (const [key, issuedAtMillis] of this.spentNonces)
-        {
-            if (nowMillis - issuedAtMillis > this.replayWindowMillis)
-            {
-                this.spentNonces.delete(key);
-            }
-        }
+        this.spentNonces.prune(nowMillis, this.replayWindowMillis);
     }
 }

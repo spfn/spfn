@@ -23,25 +23,18 @@
 import { defineMiddleware } from '@spfn/core/route';
 import { UnauthorizedError } from '@spfn/core/errors';
 
-import type { User, KeyAlgorithmType } from '@spfn/auth/server';
-import { verifyClientToken, decodeToken, authLogger, keysRepository, usersRepository, userProfilesRepository, getPendingDeletionInfo } from '@spfn/auth/server';
+import type { KeyAlgorithmType } from '@spfn/auth/server';
+import { verifyClientToken, decodeToken, authLogger, keysRepository, usersRepository, userProfilesRepository } from '@spfn/auth/server';
 import {
     InvalidTokenError,
     TokenExpiredError,
     KeyExpiredError,
-    AccountDisabledError,
-    AccountPendingDeletionError,
 } from '@spfn/auth/errors';
 
-// Auth context type
-export interface AuthContext
-{
-    user: User;
-    userId: string;
-    keyId: string;
-    role: string | null;
-    locale: string;
-}
+import { resolveAuthenticatedUser, selectAuthProfile, type AuthContext } from './auth-profiles';
+
+// Auth context type — one principal shape for every scheme (see auth-profiles).
+export type { AuthContext } from './auth-profiles';
 
 // Extend Hono context with auth
 declare module 'hono'
@@ -84,6 +77,19 @@ declare module 'hono'
  */
 export const authenticate = defineMiddleware('auth', async (c, next) =>
 {
+    // Profile-named requests (x-spfn-auth-profile) are answered by the
+    // registered verifier; mixing with Bearer and unknown profiles throw
+    // inside selectAuthProfile. Everything below this block is the
+    // unchanged Bearer path.
+    const profileVerifier = selectAuthProfile(c);
+    if (profileVerifier !== null)
+    {
+        c.set('auth', await profileVerifier.verify(c));
+        await next();
+
+        return;
+    }
+
     // Extract Authorization header
     const authHeader = c.req.header('Authorization');
 
@@ -164,30 +170,9 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
         throw new UnauthorizedError({ message: 'Authentication failed' });
     }
 
-    // 5. Get user from database (with role via leftJoin) + locale in parallel
-    const [result, locale] = await Promise.all([
-        usersRepository.findByIdWithRole(keyRecord.userId),
-        userProfilesRepository.findLocaleByUserId(keyRecord.userId),
-    ]);
-    if (!result)
-    {
-        throw new UnauthorizedError({ message: 'User not found' });
-    }
-
-    const { user, role } = result;
-
-    // 6. Check if user account is active
-    // Status can be: active, inactive, suspended, pending_deletion, deleted
-    if (user.status !== 'active')
-    {
-        if (user.status === 'pending_deletion')
-        {
-            const pending = await getPendingDeletionInfo(user.id);
-            throw new AccountPendingDeletionError({ purgeScheduledAt: pending?.purgeScheduledAt.toISOString() });
-        }
-
-        throw new AccountDisabledError({ status: user.status });
-    }
+    // 5.–6. Load the user and apply the account-status rules — the shared
+    // path every scheme takes (see resolveAuthenticatedUser).
+    const { user, role, locale } = await resolveAuthenticatedUser(keyRecord.userId);
 
     // 7. Update last used timestamp (fire-and-forget)
     // Don't await to avoid blocking the request
@@ -204,8 +189,9 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
         user,
         userId: String(user.id),
         keyId,
-        role: role?.name ?? null,
+        role,
         locale,
+        scheme: 'bearer',
     });
 
     // Log API access
@@ -254,6 +240,19 @@ export const authenticate = defineMiddleware('auth', async (c, next) =>
  */
 export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
 {
+    // Presented profile credentials are verified exactly as authenticate
+    // does: credentials that are presented but invalid are refused, never
+    // downgraded to anonymous passage. Only "presented nothing" continues
+    // without an auth context.
+    const profileVerifier = selectAuthProfile(c);
+    if (profileVerifier !== null)
+    {
+        c.set('auth', await profileVerifier.verify(c));
+        await next();
+
+        return;
+    }
+
     const authHeader = c.req.header('Authorization');
 
     if (!authHeader || !authHeader.startsWith('Bearer '))
@@ -323,6 +322,7 @@ export const optionalAuth = defineMiddleware('optionalAuth', async (c, next) =>
             keyId,
             role: role?.name ?? null,
             locale,
+            scheme: 'bearer',
         });
     }
     catch

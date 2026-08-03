@@ -26,7 +26,9 @@ import {
     PROVENANCE_FILENAME,
     renderMobileContractExport,
 } from '../contract-bundle';
+import { KEY_TTL_DAYS } from '../../lib/key-policy';
 import {
+    AUTH_SURFACE_OPERATIONS,
     CONTRACT_OPERATIONS,
     ContractTypeError,
     decodeEchoRequest,
@@ -70,10 +72,24 @@ function sampleOf(typeName: string, only?: (field: FieldShape) => boolean): Map<
         {
             continue;
         }
-        members.set(field.name, field.type === 'integer' ? 1n : 'x');
+        members.set(field.name, sampleValueOf(field.type));
     }
 
     return members;
+}
+
+function sampleValueOf(type: string): CanonicalValue
+{
+    if (type === 'integer')
+    {
+        return 1n;
+    }
+    if (type === 'boolean')
+    {
+        return true;
+    }
+
+    return 'x';
 }
 
 const DECODERS: Record<string, (value: CanonicalValue) => unknown> = {
@@ -115,17 +131,71 @@ describe('the committed export matches the assembler', () =>
 
 describe('operations describe the routes the server answers', () =>
 {
+    const ALL_OPERATIONS = [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS];
+
     it('the bundle carries exactly the implemented operations', () =>
     {
-        expect(bundle.operations).toEqual(CONTRACT_OPERATIONS.map((operation) => ({ ...operation })));
+        expect(bundle.operations).toEqual(ALL_OPERATIONS.map((operation) => ({ ...operation })));
     });
 
     it('every operation names types the bundle declares', () =>
     {
-        for (const operation of CONTRACT_OPERATIONS)
+        for (const operation of ALL_OPERATIONS)
         {
             expect(declaredTypes.map((type) => type.name)).toContain(operation.requestType);
             expect(declaredTypes.map((type) => type.name)).toContain(operation.responseType);
+        }
+    });
+
+    // I1 — the /_auth surface is exported as contract operations.
+    it('I1: register, login, oauthNative and keys/rotate are exported operations', () =>
+    {
+        const byId = new Map(AUTH_SURFACE_OPERATIONS.map((operation) => [operation.id, operation]));
+        expect(byId.get('auth.enroll.register')?.path).toBe('/_auth/register');
+        expect(byId.get('auth.enroll.login')?.path).toBe('/_auth/login');
+        expect(byId.get('auth.enroll.oauthNative')?.path).toBe('/_auth/oauth/{provider}/native');
+        expect(byId.get('auth.keys.rotate')?.path).toBe('/_auth/keys/rotate');
+    });
+
+    // I2 — the unproven class is stated, and covers exactly the enrollment ops.
+    it('I2: exactly the three enrollment operations are the unproven class, and the bundle states it', () =>
+    {
+        const unproven = [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS]
+            .filter((operation) => operation.authProfile === 'none')
+            .map((operation) => operation.id)
+            .sort();
+        expect(unproven).toEqual(['auth.enroll.login', 'auth.enroll.oauthNative', 'auth.enroll.register']);
+
+        const classes = bundle.operationAuthClasses as Record<string, string>;
+        expect(classes.none).toContain('neither proof headers nor a session header');
+        expect(classes.rule).toContain('refuses an unproven call');
+    });
+
+    // I2 — key rotation is not unproven: it requires an admitted proof.
+    it('I2: keys/rotate is a proven operation', () =>
+    {
+        const rotate = AUTH_SURFACE_OPERATIONS.find((operation) => operation.id === 'auth.keys.rotate');
+        expect(rotate?.authProfile).toBe('clientProofV1');
+        expect(rotate?.requiresSession).toBe(false);
+    });
+
+    // I4 — the advertised TTL is the one the key service stamps.
+    it('I4: keyPolicy states the 90-day TTL the key service actually applies', () =>
+    {
+        const keyPolicy = bundle.keyPolicy as { ttlDays: number; rotationOperation: string };
+        expect(keyPolicy.ttlDays).toBe(KEY_TTL_DAYS);
+        expect(keyPolicy.ttlDays).toBe(90);
+        expect(keyPolicy.rotationOperation).toBe('auth.keys.rotate');
+    });
+
+    // I5 — the three dev operations survive the 0.3.0 export.
+    it('I5: the dev operations are still exported, unchanged in id and path', () =>
+    {
+        const ids = CONTRACT_OPERATIONS.map((operation) => operation.id);
+        expect(ids).toEqual(['auth.clientProof.handshake', 'echo.send', 'items.list']);
+        for (const operation of CONTRACT_OPERATIONS)
+        {
+            expect(operation.authProfile).toBe('clientProofV1');
         }
     });
 });
@@ -136,7 +206,7 @@ describe('every declared field type is inside the grammar the consumer parses', 
     // else as a named type. `Item[]` therefore becomes a type named "Item[]"
     // and breaks at compile time, not at parse time — which is exactly how it
     // reached a published bundle once. These assertions are that slip's fence.
-    const SCALARS = ['string', 'integer'];
+    const SCALARS = ['string', 'integer', 'boolean'];
     const declaredNames = declaredTypes.map((type) => type.name);
 
     function resolvable(type: string): boolean
@@ -329,9 +399,9 @@ describe('declared proof rules match the implementation', () =>
         replayWindowMillis: number;
     };
 
-    it('the contract line is the asymmetric revision', () =>
+    it('the contract line is the enrollment-surface revision', () =>
     {
-        expect(bundle.contractVersion).toBe('0.2.0');
+        expect(bundle.contractVersion).toBe('0.3.0');
     });
 
     it('the signature section states the algorithm, wire encoding and key representation; mac is gone', async () =>

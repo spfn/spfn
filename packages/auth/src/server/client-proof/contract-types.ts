@@ -14,10 +14,24 @@ import type { CanonicalObject, CanonicalValue } from './canonical-json';
 
 export interface ContractOperation
 {
-    id: 'auth.clientProof.handshake' | 'echo.send' | 'items.list';
+    id:
+        | 'auth.clientProof.handshake'
+        | 'echo.send'
+        | 'items.list'
+        | 'auth.enroll.register'
+        | 'auth.enroll.login'
+        | 'auth.enroll.oauthNative'
+        | 'auth.keys.rotate';
     method: 'POST';
     path: string;
-    authProfile: 'clientProofV1';
+
+    /**
+     * How a call is admitted. `clientProofV1` operations run the proof
+     * admission order; `none` operations are the unproven class — accepted
+     * with neither proof headers nor a session header, because enrollment is
+     * called before any key exists to sign with.
+     */
+    authProfile: 'clientProofV1' | 'none';
     requiresSession: boolean;
     requestType: string;
     responseType: string;
@@ -54,6 +68,61 @@ export const CONTRACT_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'ListItemsRequest',
         responseType: 'ListItemsResponse',
         summary: 'Authenticated paged read covering optional fields and arrays.',
+    },
+];
+
+/**
+ * The `/_auth` surface exported into the mobile contract: enrollment, login
+ * and key rotation. These are ordinary SPFN REST routes, not canonical-JSON
+ * operations — the dev handler never serves them, and their wire rules are
+ * the `restOperations` section of the bundle, not `canonicalJson`.
+ *
+ * The three `authProfile: 'none'` operations are the unproven class: they are
+ * accepted with neither proof headers nor a session header, because they are
+ * how a client obtains a key in the first place. `auth.keys.rotate` requires
+ * an authenticated caller (a clientProofV1 proof on this surface); an
+ * unproven call to it is refused like any failed admission.
+ */
+export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
+    {
+        id: 'auth.enroll.register',
+        method: 'POST',
+        path: '/_auth/register',
+        authProfile: 'none',
+        requiresSession: false,
+        requestType: 'RegisterRequest',
+        responseType: 'RegisterResponse',
+        summary: 'Registers an account with a verification token and enrolls the client-generated public key.',
+    },
+    {
+        id: 'auth.enroll.login',
+        method: 'POST',
+        path: '/_auth/login',
+        authProfile: 'none',
+        requiresSession: false,
+        requestType: 'LoginRequest',
+        responseType: 'LoginResponse',
+        summary: 'Authenticates with password credentials and enrolls a fresh client-generated public key.',
+    },
+    {
+        id: 'auth.enroll.oauthNative',
+        method: 'POST',
+        path: '/_auth/oauth/{provider}/native',
+        authProfile: 'none',
+        requiresSession: false,
+        requestType: 'OauthNativeRequest',
+        responseType: 'OauthNativeResponse',
+        summary: 'Verifies a native/web social id_token server-side and enrolls the client-generated public key.',
+    },
+    {
+        id: 'auth.keys.rotate',
+        method: 'POST',
+        path: '/_auth/keys/rotate',
+        authProfile: 'clientProofV1',
+        requiresSession: false,
+        requestType: 'RotateKeyRequest',
+        responseType: 'RotateKeyResponse',
+        summary: 'Replaces the authenticated key with a new client-generated public key before its TTL runs out.',
     },
 ];
 

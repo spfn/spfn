@@ -4,10 +4,28 @@
   "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
   "contractName": "spfn-mobile-contract",
   "contractMajor": 0,
-  "contractVersion": "0.2.0",
-  "supportedRange": ">=0.2.0 <0.3.0",
-  "exporterVersion": "@spfn/auth/contract-bundle@2.0.0",
+  "contractVersion": "0.3.0",
+  "supportedRange": ">=0.3.0 <0.4.0",
+  "exporterVersion": "@spfn/auth/contract-bundle@3.0.0",
   "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
+  "operationAuthClasses": {
+    "none": "the unproven class: the operation is accepted with neither proof headers nor a session header, because it is called before any key exists to sign with (enrollment and login)",
+    "clientProofV1": "the operation is admitted by the clientProofV1 admission order; requiresSession states whether the session header travels",
+    "rule": "an operation whose authProfile is not none refuses an unproven call exactly as it refuses any failed admission; nothing is downgraded to anonymous handling"
+  },
+  "keyPolicy": {
+    "ttlDays": 90,
+    "rotationOperation": "auth.keys.rotate",
+    "rule": "a registered public key expires ttlDays after registration; an expired or revoked key is refused at the revocation step (SESSION_REVOKED, non-disclosing), so the client rotates its key via the rotation operation before the TTL runs out"
+  },
+  "restOperations": {
+    "appliesTo": "every operation whose path starts with /_auth",
+    "requestBody": "plain JSON of the request type, validated server-side; canonical-JSON encoding is required only when the call is proven (the proof binds the canonical bytes)",
+    "responseBody": "the response type as plain JSON, with no envelope around it",
+    "errorEnvelope": "the SPFN error shape {\"error\": {...}} with HTTP status semantics, not the six-code contract envelope; only proven calls can receive the contract refusal codes, via the middleware",
+    "pathTemplate": "a {name} segment is a path parameter the client substitutes before signing or sending; {provider} is the social provider id (google, apple, kakao, naver)",
+    "policy": "rate limits and other route policies are server posture, not contract surface: this bundle states wire shapes only"
+  },
   "canonicalJson": {
     "algorithm": "SPFN-CANON-JSON-1",
     "objectKeyOrder": "ascending by UTF-8 byte sequence",
@@ -35,6 +53,7 @@
     },
     "proofEncoding": "base16-lower",
     "replayWindowMillis": 300000,
+    "clientIdRule": "clientId identifies the key owner; the REST surface refuses a proof whose clientId is not the key's owner id, with the same PROOF_INVALID a failed signature answers",
     "replayRule": "a (clientId, nonce) pair is accepted at most once inside the replay window; a repeat is PROOF_REPLAYED",
     "revocationRule": "a revoked keyId is rejected before the proof is verified; the outcome is SESSION_REVOKED and never PROOF_INVALID, so revocation is not inferable from a proof failure",
     "admissionOrder": ["revocation", "session", "expiry", "replay", "proof"],
@@ -56,7 +75,7 @@
     "sessionRule": "requiresSession operations carry x-spfn-session; the handshake never does"
   },
   "typeGrammar": {
-    "scalars": ["string", "integer"],
+    "scalars": ["string", "integer", "boolean"],
     "array": "array<T>, where T is itself a field type. This is the only array spelling.",
     "named": "any other value names one of the types below",
     "rule": "a field type outside this grammar is a contract error, not something to guess at: a consumer that does not recognise an array spelling reads it as a type name and fails at compile time"
@@ -114,6 +133,86 @@
         { "name": "items", "type": "array<Item>", "optional": false },
         { "name": "nextCursor", "type": "string", "optional": true }
       ]
+    },
+    {
+      "name": "RegisterRequest",
+      "fields": [
+        { "name": "email", "type": "string", "optional": true },
+        { "name": "phone", "type": "string", "optional": true },
+        { "name": "verificationToken", "type": "string", "optional": false },
+        { "name": "password", "type": "string", "optional": false },
+        { "name": "publicKey", "type": "string", "optional": false },
+        { "name": "keyId", "type": "string", "optional": false },
+        { "name": "fingerprint", "type": "string", "optional": false },
+        { "name": "algorithm", "type": "string", "optional": false }
+      ]
+    },
+    {
+      "name": "RegisterResponse",
+      "fields": [
+        { "name": "userId", "type": "string", "optional": false },
+        { "name": "publicId", "type": "string", "optional": false },
+        { "name": "email", "type": "string", "optional": true },
+        { "name": "phone", "type": "string", "optional": true }
+      ]
+    },
+    {
+      "name": "LoginRequest",
+      "fields": [
+        { "name": "email", "type": "string", "optional": true },
+        { "name": "phone", "type": "string", "optional": true },
+        { "name": "password", "type": "string", "optional": false },
+        { "name": "publicKey", "type": "string", "optional": false },
+        { "name": "keyId", "type": "string", "optional": false },
+        { "name": "fingerprint", "type": "string", "optional": false },
+        { "name": "algorithm", "type": "string", "optional": false },
+        { "name": "oldKeyId", "type": "string", "optional": true }
+      ]
+    },
+    {
+      "name": "LoginResponse",
+      "fields": [
+        { "name": "userId", "type": "string", "optional": false },
+        { "name": "publicId", "type": "string", "optional": false },
+        { "name": "email", "type": "string", "optional": true },
+        { "name": "phone", "type": "string", "optional": true },
+        { "name": "passwordChangeRequired", "type": "boolean", "optional": false }
+      ]
+    },
+    {
+      "name": "OauthNativeRequest",
+      "fields": [
+        { "name": "idToken", "type": "string", "optional": false },
+        { "name": "nonce", "type": "string", "optional": false },
+        { "name": "publicKey", "type": "string", "optional": false },
+        { "name": "keyId", "type": "string", "optional": false },
+        { "name": "fingerprint", "type": "string", "optional": false },
+        { "name": "algorithm", "type": "string", "optional": false }
+      ]
+    },
+    {
+      "name": "OauthNativeResponse",
+      "fields": [
+        { "name": "userId", "type": "string", "optional": false },
+        { "name": "keyId", "type": "string", "optional": false },
+        { "name": "isNewUser", "type": "boolean", "optional": false }
+      ]
+    },
+    {
+      "name": "RotateKeyRequest",
+      "fields": [
+        { "name": "publicKey", "type": "string", "optional": false },
+        { "name": "keyId", "type": "string", "optional": false },
+        { "name": "fingerprint", "type": "string", "optional": false },
+        { "name": "algorithm", "type": "string", "optional": false }
+      ]
+    },
+    {
+      "name": "RotateKeyResponse",
+      "fields": [
+        { "name": "success", "type": "boolean", "optional": false },
+        { "name": "keyId", "type": "string", "optional": false }
+      ]
     }
   ],
   "operations": [
@@ -146,6 +245,46 @@
       "requestType": "ListItemsRequest",
       "responseType": "ListItemsResponse",
       "summary": "Authenticated paged read covering optional fields and arrays."
+    },
+    {
+      "id": "auth.enroll.register",
+      "method": "POST",
+      "path": "/_auth/register",
+      "authProfile": "none",
+      "requiresSession": false,
+      "requestType": "RegisterRequest",
+      "responseType": "RegisterResponse",
+      "summary": "Registers an account with a verification token and enrolls the client-generated public key."
+    },
+    {
+      "id": "auth.enroll.login",
+      "method": "POST",
+      "path": "/_auth/login",
+      "authProfile": "none",
+      "requiresSession": false,
+      "requestType": "LoginRequest",
+      "responseType": "LoginResponse",
+      "summary": "Authenticates with password credentials and enrolls a fresh client-generated public key."
+    },
+    {
+      "id": "auth.enroll.oauthNative",
+      "method": "POST",
+      "path": "/_auth/oauth/{provider}/native",
+      "authProfile": "none",
+      "requiresSession": false,
+      "requestType": "OauthNativeRequest",
+      "responseType": "OauthNativeResponse",
+      "summary": "Verifies a native/web social id_token server-side and enrolls the client-generated public key."
+    },
+    {
+      "id": "auth.keys.rotate",
+      "method": "POST",
+      "path": "/_auth/keys/rotate",
+      "authProfile": "clientProofV1",
+      "requiresSession": false,
+      "requestType": "RotateKeyRequest",
+      "responseType": "RotateKeyResponse",
+      "summary": "Replaces the authenticated key with a new client-generated public key before its TTL runs out."
     }
   ],
   "errorEnvelope": {

@@ -69,6 +69,7 @@ export const oneTimeTokenAuth = defineMiddleware('oneTimeTokenAuth', async (c, n
         keyId: '',  // No key involved in OTT auth
         role: role?.name ?? null,
         locale,
+        scheme: 'oneTimeToken',
     });
 
     await next();

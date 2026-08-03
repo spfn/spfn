@@ -59,12 +59,25 @@ export {
     CLIENT_PROOF_HEADERS,
     CLIENT_PROOF_CONTENT_TYPE,
     admitClientProofRequest,
+    readCredentials,
+    isRequestContentType,
     type Admission,
     type ClientProofCredentials,
 } from './admission';
 
 export {
+    MemoryReplayLedger,
+    MemoryReplayStore,
+    RedisReplayStore,
+    configureClientProofReplayStore,
+    getClientProofReplayStore,
+    replayLedgerKey,
+    type ClientProofReplayStore,
+} from './replay-store';
+
+export {
     CONTRACT_OPERATIONS,
+    AUTH_SURFACE_OPERATIONS,
     ContractTypeError,
     decodeHandshakeRequest,
     decodeEchoRequest,

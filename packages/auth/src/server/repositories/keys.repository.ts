@@ -199,6 +199,24 @@ export class KeysRepository extends BaseRepository
     }
 
     /**
+     * Key ID로 공개키 조회 — 활성 여부 무관 (clientProofV1 admission의 revocation 판정용)
+     *
+     * 폐기(isActive=false)·만료(expiresAt 경과)를 SESSION_REVOKED로, 미등록을
+     * PROOF_INVALID로 구분해야 하므로 활성 필터 없이 조회한다. keyId는 UNIQUE.
+     * Read replica 사용
+     */
+    async findByKeyId(keyId: string)
+    {
+        const result = await this.readDb
+            .select()
+            .from(userPublicKeys)
+            .where(eq(userPublicKeys.keyId, keyId))
+            .limit(1);
+
+        return result[0] ?? null;
+    }
+
+    /**
      * Key ID로 활성 공개키 조회 (authenticate용)
      * Read replica 사용
      */

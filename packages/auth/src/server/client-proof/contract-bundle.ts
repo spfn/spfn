@@ -18,8 +18,9 @@
  */
 import { createHash } from 'node:crypto';
 
+import { KEY_TTL_DAYS } from '../lib/key-policy';
 import { CLIENT_PROOF_CONTENT_TYPE, CLIENT_PROOF_HEADERS } from './admission';
-import { CONTRACT_OPERATIONS } from './contract-types';
+import { AUTH_SURFACE_OPERATIONS, CONTRACT_OPERATIONS } from './contract-types';
 import {
     CLIENT_PROOF_PROFILE,
     DEFAULT_REPLAY_WINDOW_MILLIS,
@@ -43,19 +44,25 @@ import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
  * P-256 (a registered public key) — breaking, hence a minor bump, taken while
  * the consumer count is zero. The proof-input, wire headers, admission order
  * and error codes are unchanged.
+ *
+ * 0.3.0 exports the existing `/_auth` enrollment surface (register, login,
+ * native OAuth, key rotation) as contract operations, introduces the unproven
+ * operation class (`authProfile: 'none'`), the `boolean` scalar the enrollment
+ * responses need, and the key-TTL metadata. A surface addition under 0.x is a
+ * minor bump. The clientProofV1 profile itself is unchanged from 0.2.0.
  */
-export const CONTRACT_VERSION = '0.2.0';
+export const CONTRACT_VERSION = '0.3.0';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
-/** Under 0.x the minor carries breaking changes, so the range stops at 0.3.0. */
-export const CONTRACT_SUPPORTED_RANGE = '>=0.2.0 <0.3.0';
+/** Under 0.x the minor carries breaking changes, so the range stops at 0.4.0. */
+export const CONTRACT_SUPPORTED_RANGE = '>=0.3.0 <0.4.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
 
 /** Bumped whenever the assembled shape changes, independent of the contract. */
-export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@2.0.0';
+export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@3.0.0';
 
 /**
  * The field-type grammar the consumer's codegen parses.
@@ -65,7 +72,7 @@ export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@2.0.0';
  * silently become a type named "Item[]" and fail at compile time rather than at
  * parse time.
  */
-type FieldTypeName = 'string' | 'integer' | 'array<Item>';
+type FieldTypeName = 'string' | 'integer' | 'boolean' | 'array<Item>';
 
 interface FieldDeclaration
 {
@@ -91,11 +98,18 @@ function optional(name: string, type: FieldDeclaration['type']): FieldDeclaratio
 }
 
 /**
- * The seven contract types.
+ * The contract types.
  *
- * The request types mirror the decoders in `contract-types.ts` and the response
- * types mirror the encoders. Neither reads this table — the conformance vectors
- * are what hold the two in agreement.
+ * The clientProofV1 request types mirror the decoders in `contract-types.ts`
+ * and the response types mirror the encoders. Neither reads this table — the
+ * conformance vectors are what hold the two in agreement.
+ *
+ * The `/_auth` surface types mirror the TypeBox route schemas (input body +
+ * Next.js interceptor body merged, since a mobile client sends the whole
+ * body itself) and the service result interfaces. The optional free-form
+ * extension fields (`metadata`, `profile`) are deliberately not declared:
+ * they are outside this grammar, the server tolerates their absence, and a
+ * consumer generated from this contract never needs to send them.
  */
 export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
     {
@@ -151,6 +165,86 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
             optional('nextCursor', 'string'),
         ],
     },
+    {
+        name: 'RegisterRequest',
+        fields: [
+            optional('email', 'string'),
+            optional('phone', 'string'),
+            required('verificationToken', 'string'),
+            required('password', 'string'),
+            required('publicKey', 'string'),
+            required('keyId', 'string'),
+            required('fingerprint', 'string'),
+            required('algorithm', 'string'),
+        ],
+    },
+    {
+        name: 'RegisterResponse',
+        fields: [
+            required('userId', 'string'),
+            required('publicId', 'string'),
+            optional('email', 'string'),
+            optional('phone', 'string'),
+        ],
+    },
+    {
+        name: 'LoginRequest',
+        fields: [
+            optional('email', 'string'),
+            optional('phone', 'string'),
+            required('password', 'string'),
+            required('publicKey', 'string'),
+            required('keyId', 'string'),
+            required('fingerprint', 'string'),
+            required('algorithm', 'string'),
+            optional('oldKeyId', 'string'),
+        ],
+    },
+    {
+        name: 'LoginResponse',
+        fields: [
+            required('userId', 'string'),
+            required('publicId', 'string'),
+            optional('email', 'string'),
+            optional('phone', 'string'),
+            required('passwordChangeRequired', 'boolean'),
+        ],
+    },
+    {
+        name: 'OauthNativeRequest',
+        fields: [
+            required('idToken', 'string'),
+            required('nonce', 'string'),
+            required('publicKey', 'string'),
+            required('keyId', 'string'),
+            required('fingerprint', 'string'),
+            required('algorithm', 'string'),
+        ],
+    },
+    {
+        name: 'OauthNativeResponse',
+        fields: [
+            required('userId', 'string'),
+            required('keyId', 'string'),
+            required('isNewUser', 'boolean'),
+        ],
+    },
+    {
+        name: 'RotateKeyRequest',
+        fields: [
+            required('publicKey', 'string'),
+            required('keyId', 'string'),
+            required('fingerprint', 'string'),
+            required('algorithm', 'string'),
+        ],
+    },
+    {
+        name: 'RotateKeyResponse',
+        fields: [
+            required('success', 'boolean'),
+            required('keyId', 'string'),
+        ],
+    },
 ];
 
 /** One line per code describing what it means on the wire. */
@@ -196,6 +290,41 @@ export function buildMobileContractBundle(): MobileContractBundle
             unknownProfilePolicy: 'reject',
             mixingWithinSession: 'prohibited',
         },
+        operationAuthClasses: {
+            none:
+                'the unproven class: the operation is accepted with neither proof headers nor a session header, '
+                + 'because it is called before any key exists to sign with (enrollment and login)',
+            [CLIENT_PROOF_PROFILE]:
+                'the operation is admitted by the clientProofV1 admission order; requiresSession states whether '
+                + 'the session header travels',
+            rule:
+                'an operation whose authProfile is not none refuses an unproven call exactly as it refuses any '
+                + 'failed admission; nothing is downgraded to anonymous handling',
+        },
+        keyPolicy: {
+            ttlDays: KEY_TTL_DAYS,
+            rotationOperation: 'auth.keys.rotate',
+            rule:
+                'a registered public key expires ttlDays after registration; an expired or revoked key is refused '
+                + 'at the revocation step (SESSION_REVOKED, non-disclosing), so the client rotates its key via the '
+                + 'rotation operation before the TTL runs out',
+        },
+        restOperations: {
+            appliesTo: 'every operation whose path starts with /_auth',
+            requestBody:
+                'plain JSON of the request type, validated server-side; canonical-JSON encoding is required only '
+                + 'when the call is proven (the proof binds the canonical bytes)',
+            responseBody: 'the response type as plain JSON, with no envelope around it',
+            errorEnvelope:
+                'the SPFN error shape {"error": {...}} with HTTP status semantics, not the six-code contract '
+                + 'envelope; only proven calls can receive the contract refusal codes, via the middleware',
+            pathTemplate:
+                'a {name} segment is a path parameter the client substitutes before signing or sending; '
+                + '{provider} is the social provider id (google, apple, kakao, naver)',
+            policy:
+                'rate limits and other route policies are server posture, not contract surface: this bundle '
+                + 'states wire shapes only',
+        },
         canonicalJson: {
             algorithm: 'SPFN-CANON-JSON-1',
             objectKeyOrder: 'ascending by UTF-8 byte sequence',
@@ -233,6 +362,9 @@ export function buildMobileContractBundle(): MobileContractBundle
             },
             proofEncoding: 'base16-lower',
             replayWindowMillis: DEFAULT_REPLAY_WINDOW_MILLIS,
+            clientIdRule:
+                "clientId identifies the key owner; the REST surface refuses a proof whose clientId is not the key's "
+                + 'owner id, with the same PROOF_INVALID a failed signature answers',
             replayRule:
                 'a (clientId, nonce) pair is accepted at most once inside the replay window; a repeat is PROOF_REPLAYED',
             revocationRule:
@@ -251,7 +383,7 @@ export function buildMobileContractBundle(): MobileContractBundle
             sessionRule: `requiresSession operations carry ${CLIENT_PROOF_HEADERS.session}; the handshake never does`,
         },
         typeGrammar: {
-            scalars: ['string', 'integer'],
+            scalars: ['string', 'integer', 'boolean'],
             array: 'array<T>, where T is itself a field type. This is the only array spelling.',
             named: 'any other value names one of the types below',
             rule:
@@ -262,7 +394,7 @@ export function buildMobileContractBundle(): MobileContractBundle
             name: type.name,
             fields: type.fields.map((field) => ({ ...field })),
         })),
-        operations: CONTRACT_OPERATIONS.map((operation) => ({ ...operation })),
+        operations: [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS].map((operation) => ({ ...operation })),
         errorEnvelope: {
             shape: '{"error":{"code":<string>,"message":<string>,"requestId":<string>}}',
             unknownCodePolicy: 'reject',
