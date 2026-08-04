@@ -1,5 +1,7 @@
 # @spfn/pages
 
+> **Push markdown to a GitHub repo, and that is the deploy**
+
 Serve a website from a public GitHub repo. The repo opts in with a root-level
 `spfn.site.yaml`, keeps AI-authored markdown content under a content root
 (default `site/`), and this package turns it into a validated, sanitized,

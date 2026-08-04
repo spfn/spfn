@@ -1,14 +1,23 @@
 # @spfn/cms
 
-Type-safe Content Management System for Next.js with automatic database synchronization and published cache.
+> **Let someone edit the words on the site without touching the code**
 
-## Features
+Every product reaches the day when a headline is wrong, a price changed, or a legal line
+has to be reworded — and the person who knows it should not need a pull request to fix it.
+Hardcoded strings make that a deploy. A general-purpose CMS makes it an integration
+project.
+
+`@spfn/cms` keeps the text in your own database with types that follow it: labels are
+declared in code, so autocomplete knows them and a typo fails the build, while the values
+stay editable at runtime with drafts, versions and an audit trail behind them.
+
+## What you get
 
 - 🎯 **Type-safe labels** - Full TypeScript support with autocomplete
 - 🔄 **Auto-sync** - Database synchronization on server startup
 - 🌐 **Multi-language** - Type-checked locale support
 - 🍪 **Smart locale detection** - Cookie-based with automatic fallback
-- 💾 **Published cache** - 17x faster queries (5ms vs 87ms)
+- 💾 **Published cache** - reads hit one denormalized table instead of joining the normalized ones
 - 🎨 **Nested structure** - Organize labels hierarchically
 - 🔧 **Template variables** - Dynamic content with `{placeholder}` syntax
 - 📝 **Draft & versioning** - Version control and audit logs
@@ -539,16 +548,19 @@ cms_published_cache (performance)
 
 ### Query Flow
 
-1. **getLabels()** → published_cache (single query, 5ms)
+1. **getLabels()** → published_cache (a single query, no joins)
 2. **Fallback** → bindLocale(defaults)
 3. **Merge** → cache overrides defaults
 4. **Return** → type-safe nested object
 
 ## Performance
 
-- **Published cache:** 5ms (vs 87ms with JOINs) - 17x faster
+- **Published cache:** one denormalized read replaces the join across the normalized
+  tables. On the authors' data that was roughly 5ms against 87ms; treat it as a shape, not
+  a promise, and measure your own.
 - **N+1 prevention:** Bulk section queries with `inArray()`
-- **Section filtering:** Only requested sections processed (10x faster for selective access)
+- **Section filtering:** only the requested sections are processed, so asking for one
+  section does not pay for the whole catalog.
 - **Unchanged labels:** Skipped during sync (deep equality check)
 - **Client caching:** Version-based invalidation
 
