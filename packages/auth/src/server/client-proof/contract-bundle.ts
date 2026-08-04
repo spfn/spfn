@@ -57,13 +57,20 @@ import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
  * sends the field still matches the server, and the supported range is
  * unchanged — so a consumer pinned at 0.3.0 stays inside it rather than
  * falling out of a range it is in fact still compatible with.
+ *
+ * 0.4.0 binds `OauthNativeRequest.nonce` to the key being enrolled: it must be
+ * the `fingerprint` of the submitted `publicKey`. The field list is untouched,
+ * but a consumer that mints a random nonce is now refused, so this is breaking
+ * and the range moves with it. Without the binding a valid id_token is enough
+ * to enroll any key — the token is bearer-shaped and travels, while the web
+ * OAuth flow keeps its key inside CSRF-bound encrypted state.
  */
-export const CONTRACT_VERSION = '0.3.1';
+export const CONTRACT_VERSION = '0.4.0';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
-/** Under 0.x the minor carries breaking changes, so the range stops at 0.4.0. */
-export const CONTRACT_SUPPORTED_RANGE = '>=0.3.0 <0.4.0';
+/** Under 0.x the minor carries breaking changes, so the range stops at 0.5.0. */
+export const CONTRACT_SUPPORTED_RANGE = '>=0.4.0 <0.5.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
@@ -316,6 +323,21 @@ export function buildMobileContractBundle(): MobileContractBundle
                 'a registered public key expires ttlDays after registration; an expired or revoked key is refused '
                 + 'at the revocation step (SESSION_REVOKED, non-disclosing), so the client rotates its key via the '
                 + 'rotation operation before the TTL runs out',
+        },
+        nativeEnrollment: {
+            appliesTo: 'auth.oauth.native',
+            nonceRule:
+                'the nonce sent with a native id_token must be the fingerprint field of the same request, which '
+                + 'is the SHA-256 of the DER bytes of publicKey in lowercase hex; the server refuses the call '
+                + 'when the two differ or when the fingerprint is not that key\'s hash',
+            appleVariant:
+                'Apple hashes the nonce it receives, so the client puts sha256hex(fingerprint) in Apple\'s '
+                + 'authorization request while still sending the raw fingerprint as nonce; every other provider '
+                + 'carries the raw value both ways',
+            rationale:
+                'an id_token is bearer-shaped and travels, so verifying it alone lets whoever holds one enroll '
+                + 'any key on that account; deriving the nonce from the key means a stolen id_token carries the '
+                + 'victim\'s fingerprint and cannot be paired with the attacker\'s key',
         },
         restOperations: {
             appliesTo: 'every operation whose path starts with /_auth',

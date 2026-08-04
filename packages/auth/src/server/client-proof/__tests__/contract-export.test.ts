@@ -401,13 +401,23 @@ describe('declared proof rules match the implementation', () =>
 
     it('the contract line is the enrollment-surface revision', () =>
     {
-        expect(bundle.contractVersion).toBe('0.3.1');
+        expect(bundle.contractVersion).toBe('0.4.0');
     });
 
-    it('the supported range still admits the revision before it', () =>
+    it('the supported range moves with the breaking nonce rule', () =>
     {
-        // 0.3.1은 하위호환 추가라 0.3.0을 핀한 소비자가 범위 밖으로 밀려나지 않아야 한다.
-        expect(bundle.supportedRange).toBe('>=0.3.0 <0.4.0');
+        // 0.4.0은 nonce의 뜻을 바꿔 난수 nonce를 보내던 소비자를 거절한다. 0.x에서 minor가
+        // breaking을 나르므로 범위도 함께 올라가야 한다 — 0.3.x 소비자가 남아 있으면 안 된다.
+        expect(bundle.supportedRange).toBe('>=0.4.0 <0.5.0');
+    });
+
+    it('states the rule that binds a native id_token to the key it enrolls', () =>
+    {
+        const enrollment = bundle.nativeEnrollment as Record<string, string>;
+
+        expect(enrollment.appliesTo).toBe('auth.oauth.native');
+        expect(enrollment.nonceRule).toContain('fingerprint');
+        expect(enrollment.appleVariant).toContain('sha256hex(fingerprint)');
     });
 
     it('the signature section states the algorithm, wire encoding and key representation; mac is gone', async () =>

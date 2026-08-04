@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 
 const {
     createOrLinkUser,
@@ -53,14 +54,19 @@ vi.mock('../../server/lib/oauth', () => ({
 
 import { oauthNativeService } from '../../server/services/oauth-native.service';
 
+// nonce는 publicKey의 fingerprint여야 통과한다 (issue #63) — 실제 키 한 벌로 값을 만든다.
+const { publicKey: clientPublicKeyPem } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+const clientKeyDer = clientPublicKeyPem.export({ type: 'spki', format: 'der' });
+const fingerprint = createHash('sha256').update(clientKeyDer).digest('hex');
+
 const params = {
     provider: 'kakao' as const,
     idToken: 'id.token.value',
-    nonce: 'n',
+    nonce: fingerprint,
     accessToken: 'provider-access-token',
-    publicKey: 'pk',
+    publicKey: clientKeyDer.toString('base64'),
     keyId: 'kid',
-    fingerprint: 'fp',
+    fingerprint,
     algorithm: 'ES256' as const,
 };
 
@@ -76,7 +82,7 @@ describe('native sign-in does not persist the provider access token', () =>
         await oauthNativeService(params);
 
         expect(verifyNativeIdToken).toHaveBeenCalledWith('id.token.value', {
-            nonce: 'n',
+            nonce: fingerprint,
             accessToken: 'provider-access-token',
         });
     });

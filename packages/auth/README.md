@@ -389,6 +389,28 @@ the raw value for any provider. `profile.name` captures the name Apple returns o
 sign-in. Trade-off: skipping code exchange means no Apple refresh token / server-side revoke —
 revoke SPFN access by revoking the registered key instead.
 
+> **The nonce must be the `fingerprint` of the key being registered.** Since contract 0.4.0 the
+> server refuses the call when `nonce !== fingerprint`, or when that fingerprint is not the
+> SHA-256 of the submitted `publicKey`'s DER bytes. So the client does not mint a random nonce —
+> it asks the provider for a token bound to the key it is about to enroll:
+>
+> ```typescript
+> const fingerprint = sha256Hex(derBytesOf(publicKey));   // lowercase hex, 64 chars
+> const nonce = fingerprint;                              // what the provider echoes back
+> // Apple only: put sha256Hex(nonce) in the authorization request — Apple hashes what it receives
+> ```
+>
+> Why: an `id_token` is a bearer credential. It is not bound to the channel it came over, so
+> verifying it alone means whoever holds one valid token can enroll **their own** key on **someone
+> else's** account — by extracting the app key from a real app binary, from a rooted device, or
+> from a leaked log. The web OAuth flow is not exposed this way: there the public key travels
+> inside encrypted `state` whose nonce must match the browser's CSRF cookie. Deriving the nonce
+> from the key gives the native path the same binding, because a stolen token carries the victim's
+> fingerprint and cannot be re-paired with an attacker's key. Re-submitting the victim's own key
+> stays possible and is worthless — the attacker has no matching private key.
+>
+> Naver's trailing-`A` problem (below) is satisfied for free: a SHA-256 hex digest is lowercase.
+
 > **Generate the nonce as lowercase hex, not base64.** Naver drops a trailing `A` from a base64url
 > nonce before putting it in the id_token. A 16-byte base64url value ends in one of `A Q g w` —
 > its last character carries only 2 bits of data plus 4 bits of padding — so a base64 nonce fails

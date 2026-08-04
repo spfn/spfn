@@ -463,7 +463,12 @@ export const oauthNative = route.post('/_auth/oauth/:provider/native')
         params: providerParams,
         body: Type.Object({
             idToken: Type.String({ description: 'id_token from native/web social SDK' }),
-            nonce: Type.String({ description: 'Raw nonce used when requesting the id_token' }),
+            nonce: Type.String({
+                description:
+                    'Raw nonce used when requesting the id_token. Must equal `fingerprint` — the nonce is what '
+                    + 'binds the id_token to this public key, so a stolen id_token cannot be paired with a '
+                    + 'different key.',
+            }),
             accessToken: Type.Optional(Type.String({
                 description:
                     'Provider access token from the same sign-in. Optional — sent only when the provider '

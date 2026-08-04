@@ -267,6 +267,26 @@ export class InvalidKeyFingerprintError extends ValidationError
 }
 
 /**
+ * Nonce Key Binding Error (400)
+ *
+ * Thrown when a native id_token sign-in submits a nonce that is not the public
+ * key's fingerprint. The nonce is what the provider echoed back inside the
+ * id_token, so tying it to the key is what proves the id_token and the key came
+ * from the same device — see the native section of the README.
+ */
+export class NonceKeyBindingError extends ValidationError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'nonce must be the fingerprint of the submitted public key',
+            details: data.details,
+        });
+        this.name = 'NonceKeyBindingError';
+    }
+}
+
+/**
  * Verification Token Purpose Mismatch Error (400)
  *
  * Thrown when verification token purpose doesn't match expected purpose
