@@ -1,15 +1,22 @@
 /**
  * @spfn/core - Rate limit middleware
  *
- * Redis-backed fixed-window rate limiter, registered under the named
- * 'rateLimit' middleware so routes can opt out with `.skip(['rateLimit'])`.
+ * Fixed-window rate limiter, registered under the named 'rateLimit' middleware
+ * so routes can opt out with `.skip(['rateLimit'])`.
  *
- * Storage is the shared cache (ioredis). The counter is incremented and given
- * its window expiry in a single atomic Lua call, so concurrent requests cannot
- * race between INCR and PEXPIRE. When no cache is configured the limiter fails
- * OPEN by default (logs a warning) — matching the proxy-guard nonce store's
- * graceful degradation — so development without Redis still works. Set
- * `failClosed` to reject instead.
+ * Counters live in the shared cache (ioredis) when one is configured: a single
+ * atomic Lua call does the increment and the window expiry, so concurrent
+ * requests cannot race between INCR and PEXPIRE, and every instance counts
+ * against the same window.
+ *
+ * With no cache — or with the cache down — the limiter counts **in this
+ * process** instead (`MemoryRateLimitStore`), the same in-memory-default shape
+ * the clientProofV1 replay ledger and the SSE token manager use. Per-process
+ * counters mean the effective limit multiplies by the instance count, which is
+ * worse than Redis and much better than the alternative that used to apply:
+ * having nowhere to count, and so either passing everything through or
+ * refusing everything. `failClosed` is what asks for the strict reading —
+ * refuse rather than count locally — and stays off by default.
  */
 
 import type { Context, MiddlewareHandler } from 'hono';
@@ -19,21 +26,21 @@ import type { NamedMiddleware } from '../route/define-middleware';
 import { getCache, isCacheDisabled } from '../cache';
 import { TooManyRequestsError } from '../errors';
 import { logger } from '../logger';
+import { CacheRateLimitStore, MemoryRateLimitStore, type RateLimitStore } from './rate-limit-store';
 
 const rateLimitLogger = logger.child('@spfn/core:rate-limit');
 
 /**
- * Atomic fixed-window counter: increment, set the window expiry on the first
- * hit, and return [count, pttlMs]. Keeping incr+expire in one round trip avoids
- * a leaked key that never expires when a process dies between the two calls.
+ * The process-local counters, shared by every limiter instance so one scope's
+ * keys cannot be counted twice under two middlewares.
  */
-const FIXED_WINDOW_LUA = `
-local count = redis.call('INCR', KEYS[1])
-if count == 1 then
-    redis.call('PEXPIRE', KEYS[1], ARGV[1])
-end
-return { count, redis.call('PTTL', KEYS[1]) }
-`;
+const memoryStore = new MemoryRateLimitStore();
+
+/** Test seam: forget every process-local window. */
+export function resetMemoryRateLimitStore(): void
+{
+    memoryStore.clear();
+}
 
 /**
  * One identity dimension to limit on. A bare string uses the top-level `limit`;
@@ -64,7 +71,11 @@ export interface RateLimitOptions
      */
     by?: (c: Context) => (RateLimitDimension | null | undefined)[] | Promise<(RateLimitDimension | null | undefined)[]>;
 
-    /** Reject with 429 instead of allowing through when the cache is unavailable. */
+    /**
+     * Refuse with 429 when the shared cache is unavailable, instead of counting
+     * in this process. For a surface where a per-process count is not an
+     * acceptable substitute for a shared one.
+     */
     failClosed?: boolean;
 
     /** Message for the 429 response. */
@@ -123,7 +134,76 @@ function socketRemoteAddress(c: Context): string | undefined
 }
 
 /**
- * Redis-backed fixed-window rate limiter.
+ * Picks where this request's counters live.
+ *
+ * Resolved per request, not once at boot: the cache can come up after the
+ * server did, or go away under it, and a limiter that decided at startup would
+ * keep counting in the wrong place either way.
+ *
+ * `failClosed` is what makes a missing cache fatal — it reads as "a
+ * process-local count is not good enough here", which is a deployment's call to
+ * make, not a default.
+ */
+function selectStore(failClosed: boolean, message: string | undefined, path: string): RateLimitStore
+{
+    const cache = getCache();
+
+    if (cache && !isCacheDisabled())
+    {
+        return new CacheRateLimitStore(cache);
+    }
+
+    if (failClosed)
+    {
+        throw new TooManyRequestsError({ message: message || 'Rate limiter unavailable' });
+    }
+
+    rateLimitLogger.debug('No cache — counting rate limits in this process', { path });
+
+    return memoryStore;
+}
+
+/**
+ * Counts one hit, falling back to process-local counters when the cache throws.
+ *
+ * A cache that answers `getCache()` can still fail mid-command — the connection
+ * drops, the server is loading its dataset, the Lua call times out. That used
+ * to escape as a 500: the request neither counted nor was refused, it just
+ * broke. Now it counts locally, which is the same degradation a cacheless boot
+ * gets, and `failClosed` still overrides.
+ */
+async function hitWithFallback(
+    store: RateLimitStore,
+    key: string,
+    windowMs: number,
+    failClosed: boolean,
+    message: string | undefined,
+    path: string,
+): Promise<{ count: number; pttl: number }>
+{
+    try
+    {
+        return await store.hit(key, windowMs);
+    }
+    catch (error)
+    {
+        if (failClosed)
+        {
+            throw new TooManyRequestsError({ message: message || 'Rate limiter unavailable' });
+        }
+
+        rateLimitLogger.warn('Cache failed — counting this rate limit in the process instead', {
+            path,
+            error: error instanceof Error ? error.message : String(error),
+        });
+
+        return memoryStore.hit(key, windowMs);
+    }
+}
+
+/**
+ * Fixed-window rate limiter — counters in the shared cache when there is one,
+ * in this process otherwise.
  *
  * @example
  * ```typescript
@@ -140,21 +220,7 @@ export const rateLimit = defineMiddlewareFactory(
 
         return async (c, next) =>
         {
-            const cache = getCache();
-
-            if (!cache || isCacheDisabled())
-            {
-                if (failClosed)
-                {
-                    throw new TooManyRequestsError({ message: message || 'Rate limiter unavailable' });
-                }
-
-                rateLimitLogger.warn('Cache unavailable — rate limit not enforced (fail-open)', {
-                    path: c.req.path,
-                });
-
-                return next();
-            }
+            const store = selectStore(failClosed, message, c.req.path);
 
             const dimensions = (by ? await by(c) : [getClientIp(c)])
                 .filter((d): d is RateLimitDimension => Boolean(d));
@@ -171,12 +237,14 @@ export const rateLimit = defineMiddlewareFactory(
 
                 const dimLimit = typeof dimension === 'string' ? limit : (dimension.limit ?? limit);
 
-                const [count, pttl] = await cache.eval(
-                    FIXED_WINDOW_LUA,
-                    1,
+                const { count, pttl } = await hitWithFallback(
+                    store,
                     `ratelimit:${ns}:${key}`,
-                    String(windowMs),
-                ) as [number, number];
+                    windowMs,
+                    failClosed,
+                    message,
+                    c.req.path,
+                );
 
                 if (count > dimLimit)
                 {

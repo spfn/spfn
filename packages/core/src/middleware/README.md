@@ -423,6 +423,10 @@ Or via env: `RATE_LIMIT_MODE=on`, `RATE_LIMIT_DEFAULT_LIMIT`, `RATE_LIMIT_DEFAUL
 `RATE_LIMIT_FAIL_CLOSED`. Health, SSE and WebSocket endpoints register outside the
 named-middleware pipeline, so they are always exempt.
 
+Counters live in the shared cache when `CACHE_URL` points at one, and in the process
+otherwise — see [Limitations & operational notes](#limitations--operational-notes) for what
+per-process counting costs.
+
 ### Named policies — `rateLimitPolicy(name, fallback)`
 
 Lets a **package** tag a sensitive route while the **consuming app** tunes the numbers
@@ -473,10 +477,21 @@ Read these before relying on rate limiting as a security control:
   falls back to the TCP peer address (Node adapter), and only to the literal `'unknown'` when
   even that is unavailable (non-Node runtime). Still: enable the global default behind a proxy
   that sets a trustworthy client IP, since the header — when present — is taken on trust.
-- **Fail-open by default.** When the cache (Redis) is down, limiters pass requests through.
-  Set `RATE_LIMIT_FAIL_CLOSED=true` to reject instead — this now applies to **both** the
-  global default and named policy tags (a tag may still opt back to fail-open with
-  `failClosed: false`).
+- **Counters fall back to memory, not to nothing.** With no cache configured — or with the
+  cache down, or a command failing mid-request — the limiter counts in the process
+  (`MemoryRateLimitStore`) instead of having nowhere to count. Limits still apply, but
+  **per process**: behind N instances the effective limit is N × the configured one, since
+  each keeps its own windows. Point `CACHE_URL` at Redis for the configured limit to be the
+  actual limit.
+- **The memory store is bounded** at 10,000 live windows. Expired windows are dropped first;
+  if every window is still live the oldest is evicted, losing its count. `evictionCount`
+  going up means this process is past what an in-memory limiter should hold — that
+  deployment wants a real cache.
+- **`RATE_LIMIT_FAIL_CLOSED=true` refuses instead of counting locally.** For a surface where a
+  per-process count is not an acceptable substitute for a shared one; a 429 is preferred to a
+  looser limit. It applies to **both** the global default and named policy tags (a tag may opt
+  out with `failClosed: false`). Note this rejects every request while the cache is away, so it
+  turns a cache outage into an auth outage — which is the point, but it is a deployment's call.
 - **Counter scopes differ by layer.** The global default is keyed per-route
   (`${method} ${routePath}`); a named policy is keyed by its **name**, so routes sharing a
   policy share one bucket. Pass an explicit `scope` to change either.

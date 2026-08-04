@@ -473,7 +473,7 @@ export const coreEnvSchema = defineEnvSchema({
     }),
 
     RATE_LIMIT_FAIL_CLOSED: envBoolean({
-        description: 'When the cache (Redis/Valkey) backing the limiter is unavailable, reject with 429 instead of allowing requests through. Default false (fail open) so development without a cache still works.',
+        description: 'When the cache (Redis/Valkey) backing the limiter is unavailable, reject with 429 instead of counting in-process. Default false: the limiter falls back to per-process counters, so limits still apply — but the effective limit multiplies by the instance count, since each process counts alone. Set true only where a shared count is required and refusing traffic is preferable to a looser one.',
         default: false,
     }),
 
