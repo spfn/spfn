@@ -2,13 +2,8 @@
  * CMS Published Cache Entity
  *
  * 발행된 콘텐츠를 섹션+언어 단위로 캐싱합니다.
- * - 초고속 읽기 성능 (5ms)
- * - 단일 쿼리로 섹션 전체 로드
+ * - 단일 쿼리로 섹션 전체 로드 (정규화 테이블 JOIN 대신 비정규화 단일 읽기)
  * - JSONB로 즉시 사용 가능한 데이터
- *
- * 성능 비교:
- * - 정규화 테이블 JOIN: 87ms
- * - 캐시 테이블: 5ms (17배 빠름!)
  */
 
 import { text, integer, index, unique } from 'drizzle-orm/pg-core';
