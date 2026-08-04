@@ -49,9 +49,9 @@ pnpm check:circular     # madge --circular
 
 Integration tests need PostgreSQL and Redis. They run against the machine's own
 installation, not containers: PostgreSQL is shared, one logical database per
-package (`spfn_auth_test` for `@spfn/auth`), and Redis runs as four small
-instances on dedicated ports because the cache tests need a replication pair and
-a password-protected instance. One script sets all of it up:
+package (`spfn_test`, `spfn_auth_test`, `spfn_cms_test`), and Redis runs as four
+small instances on dedicated ports because the cache tests need a replication
+pair and a password-protected instance. One script sets all of it up:
 
 ```bash
 ./scripts/test-services.sh start    # from the repo root; also `stop` and `status`

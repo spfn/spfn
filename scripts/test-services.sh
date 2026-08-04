@@ -103,24 +103,38 @@ stop_redis()
     done
 }
 
+# package:role:password:database — one logical database per package, all inside
+# the single local PostgreSQL instance.
+PG_DATABASES=(
+    "@spfn/core:testuser:testpass:spfn_test"
+    "@spfn/auth:authtest:authtest123:spfn_auth_test"
+    "@spfn/cms:cmstest:cmstest123:spfn_cms_test"
+)
+
+run_sql()
+{
+    psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_SUPERUSER" -d postgres -v ON_ERROR_STOP=1 "$@"
+}
+
 create_databases()
 {
-    psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_SUPERUSER" -d postgres -v ON_ERROR_STOP=1 <<'SQL'
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authtest') THEN
-        CREATE ROLE authtest LOGIN PASSWORD 'authtest123';
-    END IF;
-END $$;
-SQL
+    for entry in "${PG_DATABASES[@]}"
+    do
+        IFS=':' read -r package role password database <<< "$entry"
 
-    if ! psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_SUPERUSER" -d postgres -Atc \
-        "SELECT 1 FROM pg_database WHERE datname = 'spfn_auth_test'" | grep -q 1
-    then
-        psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_SUPERUSER" -d postgres \
-            -c "CREATE DATABASE spfn_auth_test OWNER authtest"
-    fi
+        run_sql -q -c "DO \$\$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$role') THEN
+                CREATE ROLE $role LOGIN PASSWORD '$password';
+            END IF;
+        END \$\$;"
 
-    echo "postgres :$PG_PORT — spfn_auth_test ready"
+        if ! run_sql -Atc "SELECT 1 FROM pg_database WHERE datname = '$database'" | grep -q 1
+        then
+            run_sql -q -c "CREATE DATABASE $database OWNER $role"
+        fi
+
+        echo "postgres :$PG_PORT — $database ready ($package)"
+    done
 }
 
 report_status()
@@ -138,9 +152,17 @@ report_status()
     replication=$(redis-cli -p 6481 info replication 2>/dev/null | grep -c 'master_link_status:up' || true)
     echo "redis 6480→6481 replication — $([ "$replication" = 1 ] && echo up || echo down)"
 
-    databases=$(psql -h "$PG_HOST" -p "$PG_PORT" -U "$PG_SUPERUSER" -d postgres -Atc \
-        "SELECT datname FROM pg_database WHERE datname = 'spfn_auth_test'" 2>/dev/null || true)
-    echo "postgres :$PG_PORT — ${databases:-spfn_auth_test missing}"
+    for entry in "${PG_DATABASES[@]}"
+    do
+        IFS=':' read -r _ _ _ database <<< "$entry"
+
+        if run_sql -Atc "SELECT 1 FROM pg_database WHERE datname = '$database'" 2>/dev/null | grep -q 1
+        then
+            echo "postgres :$PG_PORT — $database up"
+        else
+            echo "postgres :$PG_PORT — $database missing"
+        fi
+    done
 }
 
 case "${1:-start}" in

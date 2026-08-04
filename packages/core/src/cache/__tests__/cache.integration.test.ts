@@ -1,6 +1,6 @@
 /**
  * Integration tests with real Redis instances
- * Requires Docker: docker-compose -f docker-compose.test.yml up -d
+ * Requires the local test services: ./scripts/test-services.sh start
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -13,9 +13,9 @@ describe('Cache Integration Tests', () =>
 
     beforeAll(() =>
     {
-        // Ensure Cache containers are running
-        console.log('📝 Integration tests require running Cache containers');
-        console.log('   Run: docker-compose -f docker-compose.test.yml up -d');
+        // Ensure the local Redis instances are running
+        console.log('📝 Integration tests require the local Redis test instances');
+        console.log('   Run: ./scripts/test-services.sh start');
     });
 
     beforeEach(async () =>

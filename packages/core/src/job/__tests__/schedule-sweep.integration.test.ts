@@ -6,7 +6,7 @@
  * router in a later deploy) must be unscheduled, while its queue and job
  * rows stay untouched.
  *
- * Requires docker:test:up to be running (spfn-test-postgres on 5532).
+ * Requires the local test services (./scripts/test-services.sh start).
  * Tests self-skip with a warning if the fixture cannot connect.
  */
 

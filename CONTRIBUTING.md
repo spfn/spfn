@@ -34,8 +34,8 @@ up-to-date docs for each package.
 4. Make sure `pnpm build`, `pnpm test`, and `pnpm lint` pass.
 5. Open a PR against `main` and fill in the template.
 
-Integration tests need a database — start the throwaway containers with
-`docker compose -f docker-compose.test.yml up -d` inside the relevant package.
+Integration tests need PostgreSQL and Redis on your own machine — start them with
+`./scripts/test-services.sh start` from the repo root.
 
 ## Pull requests
 
