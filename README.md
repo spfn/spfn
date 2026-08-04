@@ -377,7 +377,7 @@ docker compose -f docker-compose.production.yml up --build -d
 ```
 
 Background jobs, WebSocket events, and the periodic database health-check all need this
-path. See [the deployment guide](https://superfunction.xyz/docs/guides/deployment).
+path. See [the deployment guide](./docs/guides/deployment.md).
 
 ---
 

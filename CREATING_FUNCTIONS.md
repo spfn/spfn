@@ -523,7 +523,7 @@ The `@spfn/cms` package is a complete example of an SPFN function:
 - Zustand store for state management
 
 **Source code:**
-- GitHub: [github.com/spfnio/spfn/tree/main/packages/cms](https://github.com/spfnio/spfn/tree/main/packages/cms)
+- GitHub: [github.com/fxylabs/spfn/tree/main/packages/cms](https://github.com/fxylabs/spfn/tree/main/packages/cms)
 - Package structure, schemas, routes, generators
 
 ---
@@ -570,9 +570,9 @@ The `@spfn/cms` package is a complete example of an SPFN function:
 
 ## Support
 
-- **Documentation**: [superfunction.xyz/docs/creating-functions](https://superfunction.xyz/docs/creating-functions)
-- **GitHub Issues**: [github.com/spfnio/spfn/issues](https://github.com/spfnio/spfn/issues)
-- **Discussions**: [github.com/spfnio/spfn/discussions](https://github.com/spfnio/spfn/discussions)
+- **Documentation**: [superfunction.xyz](https://superfunction.xyz) — and this file, which is the canonical version
+- **GitHub Issues**: [github.com/fxylabs/spfn/issues](https://github.com/fxylabs/spfn/issues)
+- **Discussions**: [github.com/fxylabs/spfn/discussions](https://github.com/fxylabs/spfn/discussions)
 
 ---
 
