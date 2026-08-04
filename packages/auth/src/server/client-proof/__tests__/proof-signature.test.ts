@@ -49,6 +49,7 @@ function derProofHex(input: ClientProofInput): string
         format: 'der',
         type: 'pkcs8',
     });
+
     return sign(
         'sha256',
         Buffer.from(canonicalProofInput(input), 'utf8'),
