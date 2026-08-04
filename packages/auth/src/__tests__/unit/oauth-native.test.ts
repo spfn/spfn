@@ -573,8 +573,8 @@ describe('Native id_token - Naver', () =>
     {
         const naver = getOAuthProvider('naver')!;
 
-        // 네이버는 base64url nonce의 끝 A를 떨어뜨린다. 엄격 비교라 거절되어야 한다 —
-        // 처방은 서버의 관대한 비교가 아니라 클라이언트가 hex nonce를 쓰는 것이다.
+        // 네이버는 nonce의 끝 A를 떨어뜨린다. 엄격 비교라 거절되어야 한다 — 처방은 서버의
+        // 관대한 비교가 아니라 클라이언트가 소문자 hex nonce를 쓰는 것이다(A가 안 나온다).
         const sent = 'hlvx137s33MX1kT-3bUhgA';
         const returned = 'hlvx137s33MX1kT-3bUhg';
 

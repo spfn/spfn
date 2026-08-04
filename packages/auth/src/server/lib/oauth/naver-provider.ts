@@ -287,8 +287,9 @@ export const naverProvider: OAuthProvider = {
      * 네이티브/웹 SDK가 받은 네이버 id_token을 검증한다.
      *
      * 표준 OIDC라 nonce는 raw 그대로 대조한다(Apple 같은 해싱이 없다). 다만 네이버는
-     * base64url nonce의 끝 문자가 A일 때 그것을 떨어뜨려 돌려주므로, 클라이언트는 nonce를
-     * base64가 아닌 형태(hex 등)로 만들어야 한다 — 그렇지 않으면 간헐적으로 검증에 실패한다.
+     * nonce의 끝 문자가 A일 때 그것을 떨어뜨려 돌려주므로, 클라이언트는 nonce를 소문자
+     * hex로 만들어야 한다 — 문자집합에 A가 없어야 이 경우를 만나지 않는다. base64url은
+     * 16바이트 값의 끝이 A·Q·g·w 중 하나라 4번에 1번, 대문자 hex는 16번에 1번 걸린다.
      *
      * id_token에는 이메일도 프로필도 없다. 이메일은 access token이 함께 왔을 때만 얻는다.
      */
