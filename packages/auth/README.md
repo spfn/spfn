@@ -131,6 +131,7 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_GITHUB_SCOPES` / `_REDIRECT_URI` | `.env.server` | — | default scopes `read:user,user:email`; callback `/_auth/oauth/github/callback` |
 | `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated client IDs accepted as native id_token audience (iOS/Android/web); enables Google native sign-in |
 | `SPFN_AUTH_APPLE_CLIENT_IDS` | `.env.server` | — | comma-separated Apple client IDs (bundle ID / Services ID); enables Apple native sign-in |
+| `SPFN_AUTH_KAKAO_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated Kakao app keys accepted as native id_token audience (native app key); enables Kakao native sign-in. `SPFN_AUTH_KAKAO_CLIENT_ID` is also accepted |
 | `SPFN_AUTH_OAUTH_SUCCESS_URL` | `.env.server` | — | default `/auth/callback` |
 | `SPFN_AUTH_OAUTH_ERROR_URL` | `.env.server` | — | default `/auth/error?error={error}` |
 | `SPFN_AUTH_RESERVED_USERNAMES` / `_USERNAME_MIN_LENGTH` / `_USERNAME_MAX_LENGTH` | `.env.server` | — | username rules |
@@ -361,21 +362,43 @@ its own Bearer client token by signing with the on-device private key (the same 
 server-verifies model as the rest of auth).
 
 Enable per provider by declaring the accepted audiences: `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` for
-Google (the web `SPFN_AUTH_GOOGLE_CLIENT_ID` is also accepted) and `SPFN_AUTH_APPLE_CLIENT_IDS` for
-Apple. Apple is native-only here — its web OAuth (code-exchange) methods throw.
+Google (the web `SPFN_AUTH_GOOGLE_CLIENT_ID` is also accepted), `SPFN_AUTH_APPLE_CLIENT_IDS` for
+Apple, and `SPFN_AUTH_KAKAO_NATIVE_CLIENT_IDS` for Kakao (the REST API key in
+`SPFN_AUTH_KAKAO_CLIENT_ID` is also accepted). Apple is native-only here — its web OAuth
+(code-exchange) methods throw.
 
 ```typescript
 await authApi.oauthNative.call({
-    params: { provider: 'apple' },                 // or 'google'
+    params: { provider: 'apple' },                 // or 'google', 'kakao'
     body: { idToken, nonce, publicKey, keyId, fingerprint, algorithm: 'ES256', profile: { name } },
 });
 // → { userId, keyId, isNewUser }; client then signs its own ES256 Bearer token with keyId
 ```
 
 The `nonce` is the **raw** nonce the client used; Apple hashes it (SHA-256) into the token, so send
-the raw value for either provider. `profile.name` captures the name Apple returns only on first
+the raw value for any provider. `profile.name` captures the name Apple returns only on first
 sign-in. Trade-off: skipping code exchange means no Apple refresh token / server-side revoke —
 revoke SPFN access by revoking the registered key instead.
+
+**Kakao.** Enable OpenID Connect in the Kakao developer console and request the `openid` scope, or
+the SDK returns no `idToken`. One Kakao app issues several keys (native app key, REST API key), and
+the `aud` claim is whichever key obtained the token — so list the native app key and let the REST
+API key be accepted alongside it. The `sub` (회원번호) is per-app, not per-key, so web and app
+sign-ins resolve to the same user.
+
+Kakao's id_token carries `email` but no `email_verified`, so the identity comes back **unverified**
+and the account is created with a null email. To match the web flow's strength, send the
+`accessToken` the SDK returned in the same sign-in as an optional body field: the server then reads
+`is_email_valid` / `is_email_verified` from `/v2/user/me`. That token is client-supplied, so the
+lookup is trusted only when its 회원번호 equals the id_token's `sub`; a mismatch or a failed lookup
+leaves the email unverified and the sign-in still succeeds.
+
+```typescript
+await authApi.oauthNative.call({
+    params: { provider: 'kakao' },
+    body: { idToken, nonce, accessToken, publicKey, keyId, fingerprint, algorithm: 'ES256' },
+});
+```
 
 ### Custom providers
 

@@ -45,6 +45,17 @@ export interface NativeVerifyOptions
 {
     /** 클라이언트가 생성한 raw nonce. provider별 규약(raw 또는 SHA-256 해시)으로 대조된다. */
     nonce: string;
+
+    /**
+     * 같은 로그인에서 SDK가 함께 받은 provider access token (선택).
+     *
+     * id_token만으로는 알 수 없는 claim을 provider API로 보강하려는 provider가 쓴다
+     * (카카오: id_token에 email_verified가 없어 /v2/user/me의 이메일 유효·인증 플래그를 본다).
+     *
+     * ⚠️ 클라이언트가 보낸 검증되지 않은 값이다. 다른 사용자의 토큰일 수 있으므로,
+     * 이 값으로 조회한 신원은 반드시 id_token의 sub와 대조한 뒤에만 신뢰해야 한다.
+     */
+    accessToken?: string;
 }
 
 export interface OAuthCodeExchangeOptions

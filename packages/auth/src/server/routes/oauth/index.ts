@@ -463,6 +463,11 @@ export const oauthNative = route.post('/_auth/oauth/:provider/native')
         body: Type.Object({
             idToken: Type.String({ description: 'id_token from native/web social SDK' }),
             nonce: Type.String({ description: 'Raw nonce used when requesting the id_token' }),
+            accessToken: Type.Optional(Type.String({
+                description:
+                    'Provider access token from the same sign-in. Optional — sent only when the provider '
+                    + 'needs it to resolve claims the id_token omits (Kakao email verification).',
+            })),
             publicKey: Type.String({ description: 'Client public key (Base64 DER)' }),
             keyId: Type.String({ description: 'Key identifier (UUID)' }),
             fingerprint: Type.String({ description: 'Key fingerprint (SHA-256 hex)' }),
