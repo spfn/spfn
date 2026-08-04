@@ -18,3 +18,10 @@ footerNote: © 2026 FXY Inc.
 analytics:
   posthog:
     key: phc_sg3X7M6CtErmTgKkAk5ajcJbJyCCZsFkmVhikdjr4SLt
+mounts:
+  # Guides live with the code and are served on-site rather than read on GitHub.
+  # A directory mount serves every .md beneath it, so a new guide needs no site edit.
+  # docs/api-reference is deliberately NOT mounted: its CLI page duplicates
+  # packages/cli/README.md and is less complete — one of the two has to go first.
+  - source: docs/guides
+    route: /docs/guides
