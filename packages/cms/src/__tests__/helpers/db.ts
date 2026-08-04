@@ -10,8 +10,10 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 
+// Integration tests run against the local PostgreSQL instance, one logical
+// database per package. Override with TEST_DATABASE_URL to point elsewhere.
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL
-    || 'postgresql://cmstest:cmstest123@localhost:5436/spfn_cms_test';
+    || 'postgresql://cmstest:cmstest123@localhost:5432/spfn_cms_test';
 
 const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../../migrations', import.meta.url));
 

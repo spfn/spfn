@@ -9,9 +9,14 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { initDatabase, getDatabase, closeDatabase } from '../../manager';
 
 /**
- * Connection string for the throwaway test postgres (docker-compose.test.yml)
+ * Connection string for the local test database.
+ *
+ * Integration tests run against the machine's own PostgreSQL, one logical
+ * database per package — see scripts/test-services.sh. Override with
+ * TEST_DATABASE_URL to point elsewhere.
  */
-export const TEST_DATABASE_URL = 'postgresql://testuser:testpass@localhost:5532/spfn_test';
+export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL
+    || 'postgresql://testuser:testpass@localhost:5432/spfn_test';
 
 export interface DbTestFixture
 {
@@ -106,9 +111,8 @@ export function createDbTestFixture(): DbTestFixture
                 _isAvailable = false;
                 console.log('\n⚠️  PostgreSQL not available - skipping integration tests');
                 console.log('   To run integration tests:');
-                console.log('   1. Run: pnpm docker:test:up');
-                console.log('   2. Wait for containers to be ready');
-                console.log('   3. Run tests again\n');
+                console.log('   1. Run: ./scripts/test-services.sh start');
+                console.log('   2. Run tests again\n');
             }
         },
 
