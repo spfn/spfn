@@ -54,6 +54,14 @@ function getKeyExpiryDate(): Date
 }
 
 /**
+ * Helper: 만료 시각이 지났는지 (null이면 만료 없음)
+ */
+function isExpired(expiresAt: Date | null): boolean
+{
+    return expiresAt !== null && new Date() > expiresAt;
+}
+
+/**
  * Register a new public key for a user
  *
  * `keyId` is UNIQUE across all users, so the lookup must ignore `isActive` —
@@ -75,8 +83,18 @@ export async function registerPublicKeyService(
     {
         // 같은 사용자가 자기 활성 키를 다시 등록하는 것만 무시한다 — 한 기기에서
         // 반복 로그인할 때 걸리는 정상 경로다.
+        //
+        // 만료(expiresAt 경과)는 여기서 함께 본다. 만료로 isActive가 뒤집히지는 않으므로
+        // 그냥 무시하고 반환하면 로그인은 200인데 authenticate가 KeyExpiredError로 모든
+        // 요청을 막는다 — 로그인됐다고 믿는 채로 아무것도 안 되는 상태가 된다. 방금 로그인이
+        // 신원을 다시 증명했으니 만료만 연장한다.
         if (existing.userId === userId && existing.isActive)
         {
+            if (isExpired(existing.expiresAt))
+            {
+                await keysRepository.extendExpiry(keyId, userId, getKeyExpiryDate());
+            }
+
             return;
         }
 

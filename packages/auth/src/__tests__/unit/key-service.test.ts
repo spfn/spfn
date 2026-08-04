@@ -14,6 +14,7 @@ const { keysRepository } = vi.hoisted(() => ({
         findByKeyId: vi.fn(),
         findActiveByKeyId: vi.fn(),
         create: vi.fn(async () => undefined),
+        extendExpiry: vi.fn(async () => null),
         revokeByKeyIdAndUserId: vi.fn(async () => null),
     },
 }));
@@ -121,6 +122,49 @@ describe('registerPublicKeyService - keyId collisions', () =>
 
         expect((ownRevoked as Error).name).toBe((otherActive as Error).name);
         expect((ownRevoked as Error).message).toBe((otherActive as Error).message);
+    });
+
+    it('extends the expiry when the same user re-registers an expired-but-active key', async () =>
+    {
+        // 만료는 isActive를 뒤집지 않는다. 그냥 무시하고 반환하면 로그인은 200인데
+        // authenticate가 KeyExpiredError로 모든 요청을 막아, 회복할 방법이 없어진다.
+        keysRepository.findByKeyId.mockResolvedValue(keyRow({
+            expiresAt: new Date(Date.now() - 86_400_000),
+        }));
+
+        await expect(registerPublicKeyService(params())).resolves.toBeUndefined();
+
+        expect(keysRepository.extendExpiry).toHaveBeenCalledTimes(1);
+        const [keyId, userId, expiresAt] = keysRepository.extendExpiry.mock.calls[0] as unknown as [string, number, Date];
+        expect(keyId).toBe(KEY_ID);
+        expect(userId).toBe(OWNER_ID);
+        expect(expiresAt.getTime()).toBeGreaterThan(Date.now());
+        expect(keysRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('does not touch the expiry of a key that has not expired', async () =>
+    {
+        keysRepository.findByKeyId.mockResolvedValue(keyRow({
+            expiresAt: new Date(Date.now() + 86_400_000),
+        }));
+
+        await registerPublicKeyService(params());
+
+        expect(keysRepository.extendExpiry).not.toHaveBeenCalled();
+    });
+
+    it('does not resurrect an expired key that was also revoked', async () =>
+    {
+        keysRepository.findByKeyId.mockResolvedValue(keyRow({
+            isActive: false,
+            revokedAt: new Date(),
+            expiresAt: new Date(Date.now() - 86_400_000),
+        }));
+
+        await expect(registerPublicKeyService(params())).rejects.toBeInstanceOf(KeyIdAlreadyRegisteredError);
+
+        expect(keysRepository.extendExpiry).not.toHaveBeenCalled();
+        expect(keysRepository.create).not.toHaveBeenCalled();
     });
 
     it('looks the keyId up without an isActive filter', async () =>

@@ -180,6 +180,14 @@ sends the public key on register/login, signs request JWTs locally, and the serv
 with the stored public key (`keyId` carried in the JWT). The server never holds a private key.
 Keys expire after 90 days — rotate with `rotateKey`.
 
+A `keyId` is **single-use for its lifetime**: it is unique across all users and is never reissued
+once revoked. A client that logs out, rotates, or is revoked must generate a **fresh keypair and
+`keyId`** for its next sign-in — resending the old one is refused with
+`KeyIdAlreadyRegisteredError` (409), on every path that registers a key. Re-registering a key that
+is still active is the one
+exception: it stays a no-op success, so repeated logins from the same device keep working, and an
+expired-but-active key has its expiry extended by the sign-in that proved the identity again.
+
 ### Writing protected routes (route DSL)
 
 This is the current SPFN route DSL — `route.<method>().input().use().skip().handler()` registered
