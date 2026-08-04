@@ -13,6 +13,8 @@
 import { ValidationError } from '@spfn/core/errors';
 import { runInTransaction, onAfterCommit } from '@spfn/core/db';
 
+import { InvalidKeyFingerprintError, NonceKeyBindingError } from '@spfn/auth/errors';
+import { verifyKeyFingerprint } from '../helpers/jwt';
 import { socialAccountsRepository } from '../repositories';
 import { type SocialProvider, type KeyAlgorithmType } from '../types';
 import { getOAuthProvider, type NormalizedIdentity } from '../lib/oauth';
@@ -66,7 +68,10 @@ export async function oauthNativeService(params: OAuthNativeParams): Promise<OAu
         });
     }
 
-    // 1. id_token 검증 (외부 JWKS 조회 — 트랜잭션 밖)
+    // 1. nonce ↔ publicKey 결속 (id_token 검증 전 — 네트워크 없이 끝나는 검사부터)
+    assertNonceBindsPublicKey(params);
+
+    // 2. id_token 검증 (외부 JWKS 조회 — 트랜잭션 밖)
     const identity = await oauthProvider.verifyNativeIdToken(params.idToken, {
         nonce: params.nonce,
         accessToken: params.accessToken,
@@ -78,8 +83,38 @@ export async function oauthNativeService(params: OAuthNativeParams): Promise<OAu
         identity.name = params.profile.name;
     }
 
-    // 2. persist (트랜잭션)
+    // 3. persist (트랜잭션)
     return persistNativeLogin(identity, params);
+}
+
+/**
+ * nonce가 이 요청의 publicKey에서 유도된 값인지 확인한다.
+ *
+ * id_token은 소지만 하면 되는 자격증명이라 복사해서 다른 곳에서 제출해도 통한다. 그것만
+ * 검사하면 유효한 id_token 하나를 쥔 쪽이 남의 계정에 자기 공개키를 올릴 수 있다. nonce는
+ * 클라이언트가 provider에 넘겨 id_token에 실려 돌아오는 값이므로, 그것을 키의 fingerprint로
+ * 못박으면 훔친 id_token은 피해자 키의 fingerprint를 담고 있어 공격자 키로 바꿔 낼 수 없다.
+ *
+ * 두 검사가 모두 있어야 결속이 성립한다. fingerprint 검증만 있으면 nonce는 아무 값이나 될 수
+ * 있고, 동등 검사만 있으면 fingerprint가 실제 키의 해시가 아니어도 통과한다.
+ *
+ * registerPublicKeyService에 기대지 않는 이유: 그쪽은 같은 사용자의 활성 키 재등록을 early
+ * return으로 흘려보내 fingerprint를 검증하지 않는다. 결속은 여기서 끝나야 구멍이 없다.
+ *
+ * @throws NonceKeyBindingError nonce가 fingerprint와 다를 때
+ * @throws InvalidKeyFingerprintError fingerprint가 publicKey의 해시가 아닐 때
+ */
+function assertNonceBindsPublicKey(params: OAuthNativeParams): void
+{
+    if (params.nonce !== params.fingerprint)
+    {
+        throw new NonceKeyBindingError();
+    }
+
+    if (!verifyKeyFingerprint(params.publicKey, params.fingerprint))
+    {
+        throw new InvalidKeyFingerprintError();
+    }
 }
 
 /**
