@@ -477,6 +477,16 @@ export const authEnvSchema = defineEnvSchema({
         }),
     },
 
+    SPFN_AUTH_NAVER_NATIVE_CLIENT_IDS: {
+        ...envString({
+            description: 'Comma-separated Naver client IDs accepted as id_token audience for native sign-in. SPFN_AUTH_NAVER_CLIENT_ID is also accepted automatically, and one Naver application has a single client ID covering web and app environments — set this only when the app uses a separate application.',
+            required: false,
+            examples: [
+                'your-naver-app-client-id',
+            ],
+        }),
+    },
+
     SPFN_AUTH_OAUTH_SUCCESS_URL: {
         ...envString({
             description: 'OAuth callback page URL. This page should use OAuthCallback component to finalize session.',

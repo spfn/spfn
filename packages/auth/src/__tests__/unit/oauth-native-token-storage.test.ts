@@ -1,0 +1,93 @@
+/**
+ * native 로그인은 provider access token을 저장하지 않는다 (issue #56, #57)
+ *
+ * 클라이언트가 보내는 accessToken은 id_token이 담지 못한 이메일을 provider API로 확인하는
+ * 용도로만 쓰이고, 검증이 끝나면 버려진다. 소비자(spfn-mobile)가 이 필드를 받아들인 조건이
+ * 바로 그 성질이라, 저장 경로가 생기면 이 테스트가 깨져야 한다.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const {
+    createOrLinkUser,
+    socialAccountsRepository,
+    registerPublicKeyService,
+} = vi.hoisted(() => ({
+    createOrLinkUser: vi.fn(async () => ({ userId: 1, isNewUser: true })),
+    socialAccountsRepository: {
+        findByProviderAndProviderId: vi.fn(async () => null),
+    },
+    registerPublicKeyService: vi.fn(async () => undefined),
+}));
+
+vi.mock('@spfn/core/db', () => ({
+    runInTransaction: (fn: () => unknown) => fn(),
+    onAfterCommit: (fn: () => void) => fn(),
+}));
+
+vi.mock('../../server/repositories', () => ({ socialAccountsRepository }));
+
+vi.mock('../../server/services/oauth.service', () => ({
+    createOrLinkUser,
+    assertActiveForOAuthSession: vi.fn(async () => undefined),
+    backfillVerifiedEmail: vi.fn(async () => undefined),
+}));
+
+vi.mock('../../server/services/key.service', () => ({ registerPublicKeyService }));
+vi.mock('../../server/services/user.service', () => ({ updateLastLoginService: vi.fn(async () => undefined) }));
+
+vi.mock('../../server/events', () => ({
+    authLoginEvent: { emit: vi.fn() },
+    authRegisterEvent: { emit: vi.fn() },
+}));
+
+const verifyNativeIdToken = vi.fn(async () => ({
+    providerUserId: 'kakao-1',
+    email: 'user@example.com',
+    emailVerified: true,
+}));
+
+vi.mock('../../server/lib/oauth', () => ({
+    getOAuthProvider: () => ({ id: 'kakao', verifyNativeIdToken }),
+}));
+
+import { oauthNativeService } from '../../server/services/oauth-native.service';
+
+const params = {
+    provider: 'kakao' as const,
+    idToken: 'id.token.value',
+    nonce: 'n',
+    accessToken: 'provider-access-token',
+    publicKey: 'pk',
+    keyId: 'kid',
+    fingerprint: 'fp',
+    algorithm: 'ES256' as const,
+};
+
+describe('native sign-in does not persist the provider access token', () =>
+{
+    beforeEach(() =>
+    {
+        vi.clearAllMocks();
+    });
+
+    it('passes the access token to the provider for verification only', async () =>
+    {
+        await oauthNativeService(params);
+
+        expect(verifyNativeIdToken).toHaveBeenCalledWith('id.token.value', {
+            nonce: 'n',
+            accessToken: 'provider-access-token',
+        });
+    });
+
+    it('creates the account without provider tokens', async () =>
+    {
+        await oauthNativeService(params);
+
+        // createOrLinkUser(provider, identity, tokens, metadata) — tokens 자리가 비어 있어야
+        // social_accounts에 accessToken/refreshToken이 저장되지 않는다.
+        const [, , tokens] = createOrLinkUser.mock.calls[0] as unknown[];
+        expect(tokens).toBeUndefined();
+    });
+});

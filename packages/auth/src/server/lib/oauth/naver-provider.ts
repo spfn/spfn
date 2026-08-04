@@ -1,5 +1,5 @@
 /**
- * Naver Login OAuthProvider (web authorization-code flow).
+ * Naver Login OAuthProvider (web authorization-code flow + native id_token verification).
  */
 
 import { ValidationError } from '@spfn/core/errors';
@@ -7,9 +7,12 @@ import { ValidationError } from '@spfn/core/errors';
 import { env } from '../../../config';
 import { createDecipheriv, createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
+import { authLogger } from '../../logger';
+import { verifyIdToken } from './jwks-verify';
 import {
     registerOAuthProvider,
     UnlinkNotifyRejection,
+    type NativeVerifyOptions,
     type NormalizedIdentity,
     type OAuthCodeExchangeOptions,
     type OAuthProvider,
@@ -21,6 +24,15 @@ import {
 const NAVER_AUTH_URL = 'https://nid.naver.com/oauth2.0/authorize';
 const NAVER_TOKEN_URL = 'https://nid.naver.com/oauth2.0/token';
 const NAVER_USERINFO_URL = 'https://openapi.naver.com/v1/nid/me';
+
+/**
+ * 네이버는 로그인 표면이 두 벌이다.
+ *
+ * 위의 /oauth2.0/*는 순수 OAuth2로 id_token을 발급하지 않고, 웹 리다이렉트 흐름이 쓴다.
+ * 아래 상수는 id_token을 발급하는 OIDC 표면이며 native 검증만 이쪽을 본다.
+ */
+const NAVER_ISSUER = 'https://nid.naver.com';
+const NAVER_JWKS_URI = 'https://nid.naver.com/oauth2/jwks';
 
 interface NaverTokenResponse
 {
@@ -61,6 +73,26 @@ function getNaverConfig()
         redirectUri: env.SPFN_AUTH_NAVER_REDIRECT_URI
             || `${baseUrl}/_auth/oauth/naver/callback`,
     };
+}
+
+/**
+ * native id_token의 audience로 허용할 Naver client id 목록
+ *
+ * 네이버는 애플리케이션 하나에 Client ID가 하나이고 PC웹·Android·iOS를 그 안의 환경으로
+ * 등록하므로, 기존 웹 client id를 그대로 허용한다. 앱이 별도 애플리케이션을 쓰는 구성만
+ * 추가 지정이 필요하다.
+ */
+function getNaverNativeAudiences(): string[]
+{
+    const ids = (env.SPFN_AUTH_NAVER_NATIVE_CLIENT_IDS || '')
+        .split(',').map(s => s.trim()).filter(Boolean);
+
+    if (env.SPFN_AUTH_NAVER_CLIENT_ID)
+    {
+        ids.push(env.SPFN_AUTH_NAVER_CLIENT_ID);
+    }
+
+    return ids;
 }
 
 async function requestNaverTokens(params: URLSearchParams): Promise<OAuthTokens>
@@ -131,6 +163,83 @@ function decryptNaverUniqueId(encryptUniqueId: string, key: Buffer): string | nu
     }
 }
 
+/**
+ * access token으로 네이버 사용자 정보를 조회해 공통 신원으로 정규화한다.
+ */
+async function fetchNaverIdentity(accessToken: string): Promise<NormalizedIdentity>
+{
+    const response = await fetch(NAVER_USERINFO_URL, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok)
+    {
+        throw new Error(`Naver user-info request failed with status ${response.status}`);
+    }
+
+    const body = await response.json() as NaverUserInfo;
+    const profile = body.response;
+    if (body.resultcode !== '00' || typeof profile?.id !== 'string')
+    {
+        throw new Error('Naver user-info response is invalid');
+    }
+
+    return {
+        providerUserId: profile.id,
+        email: typeof profile.email === 'string' ? profile.email : null,
+        // 네이버 프로필 이메일은 네이버 계정 이메일이거나 인증 절차를 거친 연락처
+        // 이메일이다 — 존재하면 검증된 것으로 취급한다(카카오와 같은 신뢰 수준).
+        emailVerified: typeof profile.email === 'string',
+        name: typeof profile.name === 'string'
+            ? profile.name
+            : (typeof profile.nickname === 'string' ? profile.nickname : undefined),
+        avatar: typeof profile.profile_image === 'string' ? profile.profile_image : undefined,
+    };
+}
+
+/**
+ * id_token이 담지 않는 이메일을 user-info 조회로 채운다.
+ *
+ * 네이버 id_token의 claim은 iss·aud·azp·sub·nonce·jti·iat·exp뿐이라 이메일도 프로필도 없다.
+ * access token이 함께 온 경우에만 웹 흐름과 같은 신원을 얻는다.
+ *
+ * ⚠️ access token은 클라이언트가 보낸 검증되지 않은 값이다. 다른 사용자의 토큰이 섞이면
+ * 남의 이메일이 계정에 붙으므로, 조회 결과의 식별자가 id_token의 sub와 같을 때만 신뢰한다.
+ * sub가 pairwise라 다른 애플리케이션에서 발급된 토큰은 이 대조에서 걸린다.
+ *
+ * 조회 실패는 로그인을 막지 않는다 — 이메일 없이 진행한다(id_token 검증은 이미 통과했다).
+ */
+async function withNaverProfile(
+    identity: NormalizedIdentity,
+    accessToken: string,
+): Promise<NormalizedIdentity>
+{
+    const fetched = await fetchNaverIdentity(accessToken).catch((err: unknown) =>
+    {
+        authLogger.service.warn('Naver user-info lookup failed; continuing without email', {
+            reason: err instanceof Error ? err.message : 'unknown',
+        });
+
+        return null;
+    });
+
+    if (!fetched)
+    {
+        return identity;
+    }
+
+    if (fetched.providerUserId !== identity.providerUserId)
+    {
+        authLogger.service.warn('Naver access token belongs to another user; ignoring it', {
+            subject: identity.providerUserId,
+        });
+
+        return identity;
+    }
+
+    return fetched;
+}
+
 export const naverProvider: OAuthProvider = {
     id: 'naver',
 
@@ -171,33 +280,47 @@ export const naverProvider: OAuthProvider = {
 
     async getUserInfo(accessToken: string): Promise<NormalizedIdentity>
     {
-        const response = await fetch(NAVER_USERINFO_URL, {
-            headers: { Authorization: `Bearer ${accessToken}` },
+        return fetchNaverIdentity(accessToken);
+    },
+
+    /**
+     * 네이티브/웹 SDK가 받은 네이버 id_token을 검증한다.
+     *
+     * 표준 OIDC라 nonce는 raw 그대로 대조한다(Apple 같은 해싱이 없다). 다만 네이버는
+     * base64url nonce의 끝 문자가 A일 때 그것을 떨어뜨려 돌려주므로, 클라이언트는 nonce를
+     * base64가 아닌 형태(hex 등)로 만들어야 한다 — 그렇지 않으면 간헐적으로 검증에 실패한다.
+     *
+     * id_token에는 이메일도 프로필도 없다. 이메일은 access token이 함께 왔을 때만 얻는다.
+     */
+    async verifyNativeIdToken(idToken: string, options: NativeVerifyOptions): Promise<NormalizedIdentity>
+    {
+        const audiences = getNaverNativeAudiences();
+        if (audiences.length === 0)
+        {
+            throw new ValidationError({
+                message: 'Naver native sign-in is not configured. Set SPFN_AUTH_NAVER_NATIVE_CLIENT_IDS.',
+            });
+        }
+
+        const payload = await verifyIdToken({
+            idToken,
+            jwksUri: NAVER_JWKS_URI,
+            issuer: NAVER_ISSUER,
+            audiences,
+            algorithms: ['RS256'],
+            expectedNonce: options.nonce,
         });
 
-        if (!response.ok)
-        {
-            throw new Error(`Naver user-info request failed with status ${response.status}`);
-        }
-
-        const body = await response.json() as NaverUserInfo;
-        const profile = body.response;
-        if (body.resultcode !== '00' || typeof profile?.id !== 'string')
-        {
-            throw new Error('Naver user-info response is invalid');
-        }
-
-        return {
-            providerUserId: profile.id,
-            email: typeof profile.email === 'string' ? profile.email : null,
-            // 네이버 프로필 이메일은 네이버 계정 이메일이거나 인증 절차를 거친 연락처
-            // 이메일이다 — 존재하면 검증된 것으로 취급한다(카카오와 같은 신뢰 수준).
-            emailVerified: typeof profile.email === 'string',
-            name: typeof profile.name === 'string'
-                ? profile.name
-                : (typeof profile.nickname === 'string' ? profile.nickname : undefined),
-            avatar: typeof profile.profile_image === 'string' ? profile.profile_image : undefined,
+        // sub은 verifyIdToken이 string으로 보장한다.
+        const identity: NormalizedIdentity = {
+            providerUserId: payload.sub as string,
+            email: null,
+            emailVerified: false,
         };
+
+        return options.accessToken
+            ? withNaverProfile(identity, options.accessToken)
+            : identity;
     },
 
     async refreshTokens(refreshToken: string): Promise<OAuthTokens>
