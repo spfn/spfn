@@ -132,6 +132,7 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated client IDs accepted as native id_token audience (iOS/Android/web); enables Google native sign-in |
 | `SPFN_AUTH_APPLE_CLIENT_IDS` | `.env.server` | — | comma-separated Apple client IDs (bundle ID / Services ID); enables Apple native sign-in |
 | `SPFN_AUTH_KAKAO_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated Kakao app keys accepted as native id_token audience (native app key); `SPFN_AUTH_KAKAO_CLIENT_ID` is also accepted, so either one enables Kakao native sign-in |
+| `SPFN_AUTH_NAVER_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated Naver client IDs accepted as native id_token audience. `SPFN_AUTH_NAVER_CLIENT_ID` is also accepted, so this is only needed for a separate app application |
 | `SPFN_AUTH_OAUTH_SUCCESS_URL` | `.env.server` | — | default `/auth/callback` |
 | `SPFN_AUTH_OAUTH_ERROR_URL` | `.env.server` | — | default `/auth/error?error={error}` |
 | `SPFN_AUTH_RESERVED_USERNAMES` / `_USERNAME_MIN_LENGTH` / `_USERNAME_MAX_LENGTH` | `.env.server` | — | username rules |
@@ -407,6 +408,7 @@ data: `createOrLinkUser` matches an existing account by verified email. Display-
 | Google | No | id_token carries `email` + `email_verified` |
 | Apple | No | same, and Apple relay addresses are already the authoritative value |
 | Kakao | **Optional, recommended** | id_token carries `email` but no `email_verified`; without it the address is stored unverified |
+| Naver | **Optional, recommended** | id_token carries no profile claim at all; userinfo returns the address and the provider treats its presence as verified |
 
 Whatever the provider, the server trusts a lookup made with this token only after the identity it
 returns matches the id_token's `sub`. A mismatch, or a failed lookup, is treated as if the token
@@ -431,6 +433,34 @@ await authApi.oauthNative.call({
     body: { idToken, nonce, accessToken, publicKey, keyId, fingerprint, algorithm: 'ES256' },
 });
 ```
+
+**Naver.** Naver runs two login surfaces. The web redirect flow uses `/oauth2.0/*`, which is plain
+OAuth2 and issues no id_token; native verification uses the OIDC surface at `/oauth2/*`. The
+`SPFN_AUTH_NAVER_CLIENT_ID` you already have is accepted as the audience — one Naver application
+has a single client ID covering its web and app environments — so
+`SPFN_AUTH_NAVER_NATIVE_CLIENT_IDS` is only needed when the app registers a separate application.
+
+Naver's native SDK cannot produce an id_token: it is pinned to `/oauth2.0/*` and its authorize
+request has no `scope` parameter at all. The app therefore obtains the id_token through a browser
+flow (`ASWebAuthenticationSession` / Custom Tab) against `/oauth2/authorize?scope=openid` with PKCE
+— `token_endpoint_auth_methods_supported` includes `none`, so no client secret is needed. The
+server contract is the same whichever way the token was obtained.
+
+The id_token carries `iss`, `aud`, `azp`, `sub`, `nonce`, `jti`, `iat`, `exp` — no email, no name,
+no picture, even when the application marks email as required. Send `accessToken` to fill it: the
+server reads `/v1/nid/me`, whose `id` is the same pairwise value as the id_token's `sub`, and
+treats a returned address as verified (the same rule the web flow uses). `sub` being pairwise helps
+here — a token from another application resolves to a different `sub` and is rejected by the match.
+
+```typescript
+await authApi.oauthNative.call({
+    params: { provider: 'naver' },
+    body: { idToken, nonce, accessToken, publicKey, keyId, fingerprint, algorithm: 'ES256' },
+});
+```
+
+Without `accessToken` a Naver sign-in has no email at all, so every user is created fresh and never
+links to an existing account.
 
 ### Custom providers
 

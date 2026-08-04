@@ -22,10 +22,14 @@ import { getOAuthProvider } from '../../server/lib/oauth';
 const GOOGLE_ISS = 'https://accounts.google.com';
 const APPLE_ISS = 'https://appleid.apple.com';
 const KAKAO_ISS = 'https://kauth.kakao.com';
+const NAVER_ISS = 'https://nid.naver.com';
 
 // 카카오는 앱 하나가 키를 여러 벌 쓴다 — 네이티브 앱 키(앱 SDK)와 REST API 키(웹).
 const KAKAO_NATIVE_KEY = 'kakao-native-app-key';
 const KAKAO_REST_KEY = 'kakao-rest-api-key';
+
+// 네이버는 애플리케이션 하나에 client id가 하나다.
+const NAVER_CLIENT_ID = 'naver-client-id';
 
 let privateKey: CryptoKey;
 let publicKey: CryptoKey;
@@ -44,6 +48,7 @@ beforeEach(async () =>
     vi.stubEnv('SPFN_AUTH_APPLE_CLIENT_IDS', 'com.example.app');
     vi.stubEnv('SPFN_AUTH_KAKAO_NATIVE_CLIENT_IDS', KAKAO_NATIVE_KEY);
     vi.stubEnv('SPFN_AUTH_KAKAO_CLIENT_ID', KAKAO_REST_KEY);
+    vi.stubEnv('SPFN_AUTH_NAVER_CLIENT_ID', NAVER_CLIENT_ID);
 });
 
 afterEach(() =>
@@ -542,12 +547,180 @@ describe('Native id_token - Kakao', () =>
     });
 });
 
+/**
+ * 네이버 user-info(/v1/nid/me) 응답을 흉내낸다.
+ *
+ * `response.id`는 pairwise 식별자로, id_token의 sub와 같은 값이어야 정상 경로다.
+ */
+function mockNaverUserInfo(response: Record<string, unknown>, resultcode = '00'): void
+{
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ resultcode, message: 'success', response }),
+    })));
+}
+
+describe('Native id_token - Naver', () =>
+{
+    async function signNaverToken(sub: string, nonce = 'n'): Promise<string>
+    {
+        // 네이버 id_token은 프로필 claim을 담지 않는다 — iss·aud·sub·nonce 등이 전부다.
+        return signToken({ nonce, azp: NAVER_CLIENT_ID }, { iss: NAVER_ISS, aud: NAVER_CLIENT_ID, sub });
+    }
+
+    it('verifies a valid id_token and returns an identity without profile claims', async () =>
+    {
+        const naver = getOAuthProvider('naver')!;
+
+        const identity = await naver.verifyNativeIdToken!(await signNaverToken('naver-sub-43'), { nonce: 'n' });
+
+        expect(identity.providerUserId).toBe('naver-sub-43');
+        expect(identity.email).toBeNull();
+        expect(identity.emailVerified).toBe(false);
+        expect(identity.name).toBeUndefined();
+        expect(identity.avatar).toBeUndefined();
+    });
+
+    it('rejects a mismatched nonce (naver sends the raw nonce, unhashed)', async () =>
+    {
+        const naver = getOAuthProvider('naver')!;
+
+        await expect(naver.verifyNativeIdToken!(await signNaverToken('s', 'real-nonce'), { nonce: 'attacker-nonce' }))
+            .rejects.toThrow(/nonce/i);
+    });
+
+    it('rejects a nonce whose trailing character naver dropped', async () =>
+    {
+        const naver = getOAuthProvider('naver')!;
+
+        // 네이버는 nonce의 끝 A를 떨어뜨린다. 엄격 비교라 거절되어야 한다 — 처방은 서버의
+        // 관대한 비교가 아니라 클라이언트가 소문자 hex nonce를 쓰는 것이다(A가 안 나온다).
+        const sent = 'hlvx137s33MX1kT-3bUhgA';
+        const returned = 'hlvx137s33MX1kT-3bUhg';
+
+        await expect(naver.verifyNativeIdToken!(await signNaverToken('s', returned), { nonce: sent }))
+            .rejects.toThrow(/nonce/i);
+    });
+
+    it('rejects an expired token', async () =>
+    {
+        const naver = getOAuthProvider('naver')!;
+        const token = await signToken({ nonce: 'n' }, { iss: NAVER_ISS, aud: NAVER_CLIENT_ID, sub: 's', expSeconds: 1 });
+
+        await expect(naver.verifyNativeIdToken!(token, { nonce: 'n' })).rejects.toThrow();
+    });
+
+    it('rejects a token from the wrong issuer', async () =>
+    {
+        const naver = getOAuthProvider('naver')!;
+        const token = await signToken({ nonce: 'n' }, { iss: 'https://evil.example.com', aud: NAVER_CLIENT_ID, sub: 's' });
+
+        await expect(naver.verifyNativeIdToken!(token, { nonce: 'n' })).rejects.toThrow();
+    });
+
+    it('rejects a token whose audience is not an allowed client id', async () =>
+    {
+        const naver = getOAuthProvider('naver')!;
+        const token = await signToken({ nonce: 'n' }, { iss: NAVER_ISS, aud: 'someone-elses-client-id', sub: 's' });
+
+        await expect(naver.verifyNativeIdToken!(token, { nonce: 'n' })).rejects.toThrow();
+    });
+
+    it('rejects a token without a sub claim', async () =>
+    {
+        const naver = getOAuthProvider('naver')!;
+        const token = await new SignJWT({ nonce: 'n' })
+            .setProtectedHeader({ alg: 'RS256' })
+            .setIssuer(NAVER_ISS)
+            .setAudience(NAVER_CLIENT_ID)
+            .setIssuedAt()
+            .setExpirationTime('1h')
+            .sign(privateKey);
+
+        await expect(naver.verifyNativeIdToken!(token, { nonce: 'n' })).rejects.toThrow(/sub/i);
+    });
+
+    it('throws when no naver client id is configured', async () =>
+    {
+        vi.stubEnv('SPFN_AUTH_NAVER_CLIENT_ID', '');
+        vi.stubEnv('SPFN_AUTH_NAVER_NATIVE_CLIENT_IDS', '');
+        const naver = getOAuthProvider('naver')!;
+
+        await expect(naver.verifyNativeIdToken!('any.token.here', { nonce: 'n' }))
+            .rejects.toThrow(/not configured/i);
+    });
+
+    describe('email via access token', () =>
+    {
+        it('fills the verified email when user-info confirms the same subject', async () =>
+        {
+            const naver = getOAuthProvider('naver')!;
+            mockNaverUserInfo({ id: 'naver-sub-43', email: 'user@example.com' });
+
+            const identity = await naver.verifyNativeIdToken!(await signNaverToken('naver-sub-43'), {
+                nonce: 'n',
+                accessToken: 'naver-access-token',
+            });
+
+            expect(identity.email).toBe('user@example.com');
+            // 네이버 프로필 이메일은 존재 자체가 검증을 뜻한다(웹 흐름과 같은 판정).
+            expect(identity.emailVerified).toBe(true);
+        });
+
+        it('ignores an access token that belongs to another user', async () =>
+        {
+            const naver = getOAuthProvider('naver')!;
+
+            // pairwise라 다른 애플리케이션에서 발급된 토큰은 sub가 다르다.
+            mockNaverUserInfo({ id: 'attacker-sub', email: 'victim@example.com' });
+
+            const identity = await naver.verifyNativeIdToken!(await signNaverToken('naver-sub-43'), {
+                nonce: 'n',
+                accessToken: 'attacker-access-token',
+            });
+
+            expect(identity.providerUserId).toBe('naver-sub-43');
+            expect(identity.email).toBeNull();
+            expect(identity.emailVerified).toBe(false);
+        });
+
+        it('continues the sign-in when the user-info lookup fails', async () =>
+        {
+            const naver = getOAuthProvider('naver')!;
+            vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })));
+
+            const identity = await naver.verifyNativeIdToken!(await signNaverToken('naver-sub-43'), {
+                nonce: 'n',
+                accessToken: 'naver-access-token',
+            });
+
+            expect(identity.providerUserId).toBe('naver-sub-43');
+            expect(identity.email).toBeNull();
+        });
+
+        it('continues the sign-in when user-info reports a non-success resultcode', async () =>
+        {
+            const naver = getOAuthProvider('naver')!;
+            mockNaverUserInfo({ id: 'naver-sub-43', email: 'user@example.com' }, '024');
+
+            const identity = await naver.verifyNativeIdToken!(await signNaverToken('naver-sub-43'), {
+                nonce: 'n',
+                accessToken: 'naver-access-token',
+            });
+
+            expect(identity.email).toBeNull();
+        });
+    });
+});
+
 describe('Native id_token - provider registry', () =>
 {
-    it('auto-registers google, apple and kakao providers on module load', () =>
+    it('auto-registers google, apple, kakao and naver providers on module load', () =>
     {
         expect(getOAuthProvider('google')?.verifyNativeIdToken).toBeTypeOf('function');
         expect(getOAuthProvider('apple')?.verifyNativeIdToken).toBeTypeOf('function');
         expect(getOAuthProvider('kakao')?.verifyNativeIdToken).toBeTypeOf('function');
+        expect(getOAuthProvider('naver')?.verifyNativeIdToken).toBeTypeOf('function');
     });
 });
