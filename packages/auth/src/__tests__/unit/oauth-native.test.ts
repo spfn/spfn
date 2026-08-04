@@ -293,6 +293,17 @@ function mockKakaoUserInfo(body: Record<string, unknown>): void
     })));
 }
 
+/**
+ * AbortSignal.timeout이 만료 시 던지는 것과 같은 모양의 에러
+ *
+ * DOMException은 Error를 상속하므로 provider의 `.catch`가 `err instanceof Error`로 걸러
+ * `reason`에 사람이 읽을 수 있는 문자열을 남긴다 — 정체불명의 shape가 아니다.
+ */
+function timeoutError(): Error
+{
+    return new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+}
+
 function kakaoAccount(email: string | null, valid: boolean, verified: boolean): Record<string, unknown>
 {
     return {
@@ -531,6 +542,44 @@ describe('Native id_token - Kakao', () =>
             expect(identity.providerUserId).toBe('k-1');
             expect(identity.emailVerified).toBe(false);
         });
+
+        it('bounds the user-info request with an abort signal', async () =>
+        {
+            const kakao = getOAuthProvider('kakao')!;
+            const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 'k-1', kakao_account: kakaoAccount('user@example.com', true, true) }),
+            }));
+            vi.stubGlobal('fetch', fetchMock);
+
+            await kakao.verifyNativeIdToken!(await signKakaoToken('k-1'), {
+                nonce: 'n',
+                accessToken: 'kakao-access-token',
+            });
+
+            const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+            expect(init?.signal).toBeInstanceOf(AbortSignal);
+        });
+
+        it('continues the sign-in when the user-info request times out', async () =>
+        {
+            const kakao = getOAuthProvider('kakao')!;
+            // AbortSignal.timeout이 던지는 것과 같은 모양(name: 'TimeoutError', Error 상속).
+            vi.stubGlobal('fetch', vi.fn(async () =>
+            {
+                throw timeoutError();
+            }));
+
+            const identity = await kakao.verifyNativeIdToken!(await signKakaoToken('k-1'), {
+                nonce: 'n',
+                accessToken: 'kakao-access-token',
+            });
+
+            expect(identity.providerUserId).toBe('k-1');
+            expect(identity.email).toBe('from-token@example.com');
+            expect(identity.emailVerified).toBe(false);
+        });
     });
 });
 
@@ -676,6 +725,42 @@ describe('Native id_token - Naver', () =>
         {
             const naver = getOAuthProvider('naver')!;
             vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })));
+
+            const identity = await naver.verifyNativeIdToken!(await signNaverToken('naver-sub-43'), {
+                nonce: 'n',
+                accessToken: 'naver-access-token',
+            });
+
+            expect(identity.providerUserId).toBe('naver-sub-43');
+            expect(identity.email).toBeNull();
+        });
+
+        it('bounds the user-info request with an abort signal', async () =>
+        {
+            const naver = getOAuthProvider('naver')!;
+            const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+                ok: true,
+                status: 200,
+                json: async () => ({ resultcode: '00', message: 'success', response: { id: 'naver-sub-43' } }),
+            }));
+            vi.stubGlobal('fetch', fetchMock);
+
+            await naver.verifyNativeIdToken!(await signNaverToken('naver-sub-43'), {
+                nonce: 'n',
+                accessToken: 'naver-access-token',
+            });
+
+            const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+            expect(init?.signal).toBeInstanceOf(AbortSignal);
+        });
+
+        it('continues the sign-in when the user-info request times out', async () =>
+        {
+            const naver = getOAuthProvider('naver')!;
+            vi.stubGlobal('fetch', vi.fn(async () =>
+            {
+                throw timeoutError();
+            }));
 
             const identity = await naver.verifyNativeIdToken!(await signNaverToken('naver-sub-43'), {
                 nonce: 'n',

@@ -26,6 +26,16 @@ const KAKAO_USERINFO_URL = 'https://kapi.kakao.com/v2/user/me';
 const KAKAO_ISSUER = 'https://kauth.kakao.com';
 const KAKAO_JWKS_URI = 'https://kauth.kakao.com/.well-known/jwks.json';
 
+/**
+ * user-info 조회의 응답 대기 한도(ms)
+ *
+ * undici의 기본값은 사실상 무제한이라, 카카오가 응답을 붙들고 있으면 요청 핸들러가 몇 분씩
+ * 살아남는다. 작은 GET 하나의 정상 응답은 수백 ms 수준이므로 5초면 넉넉하다.
+ * 초과 시 native 로그인은 이메일 보강만 건너뛰고 계속되고(withKakaoVerifiedEmail의 catch),
+ * 웹 흐름은 로그인이 실패해 사용자가 재시도한다 — 어느 쪽도 무한 대기보다 낫다.
+ */
+const USERINFO_TIMEOUT_MS = 5_000;
+
 interface KakaoTokenResponse
 {
     access_token?: unknown;
@@ -135,6 +145,7 @@ async function fetchKakaoIdentity(accessToken: string): Promise<NormalizedIdenti
 {
     const response = await fetch(KAKAO_USERINFO_URL, {
         headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(USERINFO_TIMEOUT_MS),
     });
 
     if (!response.ok)
