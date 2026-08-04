@@ -31,20 +31,26 @@ export interface SerializedError
 const RESERVED_RESPONSE_KEYS = new Set(['__type', 'message', 'error']);
 
 /**
+ * Environments where a developer is watching and can still rename the class.
+ * Anything else is a running deployment, `staging` included — there the throw
+ * would replace a real failure with a failure about serializing it, and the
+ * original error would never reach the log or the client.
+ */
+const AUTHORING_ENVIRONMENTS = new Set(['local', 'development', 'test']);
+
+/**
  * Answer a reserved field name: loudly while it can still be renamed, quietly
  * once a rename is no longer possible.
  *
- * Throwing in production would replace a real failure with a failure about
- * serializing it — the original error would never reach the log or the client.
- * Outside production the throw is the point: the class is renamed the first
- * time a test serializes it.
+ * While authoring, the throw is the point — the class is renamed the first time
+ * a test serializes it.
  */
 function refuseReservedKey(className: string, key: string): never | void
 {
     const detail = `${className} declares the reserved field "${key}". `
         + `Reserved response keys: ${[...RESERVED_RESPONSE_KEYS].join(', ')}. Rename the field.`;
 
-    if (process.env.NODE_ENV !== 'production')
+    if (AUTHORING_ENVIRONMENTS.has(process.env.NODE_ENV ?? 'local'))
     {
         throw new Error(detail);
     }

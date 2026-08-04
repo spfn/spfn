@@ -8,7 +8,7 @@
  */
 
 import { env } from '@spfn/auth/config';
-import { ValidationError } from '@spfn/core/errors';
+import { NativeSignInUnsupportedError } from '@spfn/auth/errors';
 
 import {
     isGoogleOAuthEnabled,
@@ -98,7 +98,7 @@ export const googleProvider: OAuthProvider =
             const audiences = getGoogleNativeAudiences();
             if (audiences.length === 0)
             {
-                throw new ValidationError({
+                throw new NativeSignInUnsupportedError({
                     message: 'Google native sign-in is not configured. Set SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS.',
                 });
             }

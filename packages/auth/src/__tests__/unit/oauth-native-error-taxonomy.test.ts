@@ -205,8 +205,9 @@ describe('native sign-in answers each failure path with its own code', () =>
 
     it('every cell of the table is a contract code with the same status', () =>
     {
-        // 1·10·11은 서비스가 아니라 프레임워크가 만든다: 입력 스키마 검증, rate limit,
-        // 그리고 서버가 설명하지 않는 실패. 계약에는 그 셋도 있어야 앱이 분류할 수 있다.
+        // 1·10·11·12는 서비스가 아니라 프레임워크가 만든다: 입력 스키마 검증, rate limit,
+        // 서버가 설명하지 않는 실패, 그리고 앱이 끼운 beforeRegister 검사의 가입 거부.
+        // 계약에는 그 넷도 있어야 앱이 분류할 수 있다.
         const table = [
             { code: 'ValidationError', status: 400, retryable: false },
             { code: 'NativeSignInUnsupportedError', status: 400, retryable: false },
@@ -216,6 +217,7 @@ describe('native sign-in answers each failure path with its own code', () =>
             { code: 'UnverifiedEmailLinkError', status: 400, retryable: false },
             { code: 'AccountDisabledError', status: 403, retryable: false },
             { code: 'AccountPendingDeletionError', status: 403, retryable: false },
+            { code: 'RegistrationRejectedError', status: 403, retryable: false },
             { code: 'KeyIdAlreadyRegisteredError', status: 409, retryable: false },
             { code: 'TooManyRequestsError', status: 429, retryable: true },
             { code: 'Error', status: 500, retryable: false },

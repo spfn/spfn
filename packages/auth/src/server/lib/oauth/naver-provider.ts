@@ -3,6 +3,7 @@
  */
 
 import { ValidationError } from '@spfn/core/errors';
+import { NativeSignInUnsupportedError } from '@spfn/auth/errors';
 
 import { env } from '../../../config';
 import { createDecipheriv, createHash, createHmac, timingSafeEqual } from 'node:crypto';
@@ -315,7 +316,7 @@ export const naverProvider: OAuthProvider = {
         const audiences = getNaverNativeAudiences();
         if (audiences.length === 0)
         {
-            throw new ValidationError({
+            throw new NativeSignInUnsupportedError({
                 message: 'Naver native sign-in is not configured. Set SPFN_AUTH_NAVER_NATIVE_CLIENT_IDS.',
             });
         }

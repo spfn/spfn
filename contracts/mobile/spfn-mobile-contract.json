@@ -366,6 +366,7 @@
   ],
   "errorEnvelope": {
     "shape": "{\"error\":{\"code\":<string>,\"message\":<string>,\"requestId\":<string>}}",
+    "additionalFields": "the body carries further top-level fields — __type, message, and the error class's own public fields — which a decoder must ignore rather than reject; only error.code classifies the failure",
     "unknownCodePolicy": "reject",
     "unknownCodeRule": "a code outside this list is never mapped to a neighbouring code; it surfaces as an unknown-code failure carrying the raw string"
   },
@@ -466,6 +467,13 @@
       "httpStatus": 403,
       "retryable": false,
       "summary": "the account is scheduled for deletion and must be restored before it can sign in",
+      "surface": "rest"
+    },
+    {
+      "code": "RegistrationRejectedError",
+      "httpStatus": 403,
+      "retryable": false,
+      "summary": "the app refused this sign-up in its own beforeRegister check — reached only when the identity would create a new account, never when it links to an existing one",
       "surface": "rest"
     },
     {

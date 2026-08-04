@@ -68,18 +68,27 @@ describe('SerializableError.toJSON', () =>
         });
     });
 
-    it('throws outside production on a field named error, while it can still be renamed', () =>
+    it('throws while authoring on a field named error, while it can still be renamed', () =>
     {
         process.env.NODE_ENV = 'test';
 
         expect(() => new ErrorFieldError().toJSON()).toThrow(/reserved field "error"/);
     });
 
-    it('throws outside production on a field named __type', () =>
+    it('throws while authoring on a field named __type', () =>
     {
         process.env.NODE_ENV = 'test';
 
         expect(() => new TypeFieldError().toJSON()).toThrow(/reserved field "__type"/);
+    });
+
+    it('drops the field in staging too — a deployment must not answer with a bare 500', () =>
+    {
+        process.env.NODE_ENV = 'staging';
+
+        const json = new ErrorFieldError().toJSON();
+
+        expect(json).toEqual({ __type: 'ErrorFieldError', message: 'vendor refused' });
     });
 
     it('drops the field in production instead of replacing the real failure with this one', () =>

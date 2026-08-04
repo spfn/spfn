@@ -74,7 +74,7 @@ import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
  *
  * 0.4.2 gives the REST surface a readable failure: every error response now
  * carries the `{"error":{"code","message","requestId"}}` envelope next to the
- * web fields, and `auth.enroll.oauthNative`'s eleven refusals are listed as
+ * web fields, and `auth.enroll.oauthNative`'s twelve refusals are listed as
  * codes with their status and retryability. A patch: no request or response
  * type moves, and a consumer generated against 0.4.1 could not read these
  * failures at all — it saw one undecodable body whatever went wrong — so
@@ -360,6 +360,11 @@ interface RestSurfaceError
 /**
  * Every way `auth.enroll.oauthNative` refuses, as codes a consumer can switch on.
  *
+ * "Every way" includes the app's own `beforeRegister` check: what that check
+ * decides is the app's business, but the response it produces is the
+ * framework's — a fixed class name at a fixed status. Leaving it out would hand
+ * every app that uses the hook an undecodable refusal.
+ *
  * The codes are the server's own error class names rather than a second
  * vocabulary invented for mobile: two vocabularies would have to be kept in
  * step, and the mapping between them is exactly the place a wrong answer
@@ -420,6 +425,14 @@ const REST_SURFACE_ERRORS: readonly RestSurfaceError[] = [
         httpStatus: 403,
         retryable: false,
         summary: 'the account is scheduled for deletion and must be restored before it can sign in',
+    },
+    {
+        code: 'RegistrationRejectedError',
+        httpStatus: 403,
+        retryable: false,
+        summary:
+            'the app refused this sign-up in its own beforeRegister check — reached only when the identity would '
+            + 'create a new account, never when it links to an existing one',
     },
     {
         code: 'KeyIdAlreadyRegisteredError',
@@ -591,6 +604,9 @@ export function buildMobileContractBundle(): MobileContractBundle
         operations: [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS].map((operation) => ({ ...operation })),
         errorEnvelope: {
             shape: '{"error":{"code":<string>,"message":<string>,"requestId":<string>}}',
+            additionalFields:
+                'the body carries further top-level fields — __type, message, and the error class\'s own public '
+                + 'fields — which a decoder must ignore rather than reject; only error.code classifies the failure',
             unknownCodePolicy: 'reject',
             unknownCodeRule:
                 'a code outside this list is never mapped to a neighbouring code; it surfaces as an unknown-code '

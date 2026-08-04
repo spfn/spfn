@@ -3,6 +3,7 @@
  */
 
 import { ValidationError } from '@spfn/core/errors';
+import { NativeSignInUnsupportedError } from '@spfn/auth/errors';
 
 import { env } from '../../../config';
 import { timingSafeEqual } from 'node:crypto';
@@ -296,7 +297,7 @@ export const kakaoProvider: OAuthProvider = {
         const audiences = getKakaoNativeAudiences();
         if (audiences.length === 0)
         {
-            throw new ValidationError({
+            throw new NativeSignInUnsupportedError({
                 message: 'Kakao native sign-in is not configured. Set SPFN_AUTH_KAKAO_NATIVE_CLIENT_IDS.',
             });
         }

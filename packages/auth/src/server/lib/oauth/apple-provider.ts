@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 
 import { env } from '@spfn/auth/config';
 import { ValidationError } from '@spfn/core/errors';
+import { NativeSignInUnsupportedError } from '@spfn/auth/errors';
 
 import { verifyIdToken } from './jwks-verify';
 import {
@@ -81,7 +82,7 @@ export const appleProvider: OAuthProvider =
             const audiences = getAppleClientIds();
             if (audiences.length === 0)
             {
-                throw new ValidationError({
+                throw new NativeSignInUnsupportedError({
                     message: 'Apple native sign-in is not configured. Set SPFN_AUTH_APPLE_CLIENT_IDS.',
                 });
             }
