@@ -16,7 +16,10 @@ vi.mock('../../cache', () => ({
     isCacheDisabled: () => cacheDisabled,
 }));
 
-import { rateLimit, rateLimitPolicy, getClientIp, setRateLimitPolicies, getRateLimitPolicy, setRateLimitFailClosedDefault } from '../rate-limit';
+import {
+    rateLimit, rateLimitPolicy, getClientIp, setRateLimitPolicies, getRateLimitPolicy,
+    setRateLimitFailClosedDefault, resetMemoryRateLimitStore,
+} from '../rate-limit';
 import { TooManyRequestsError } from '../../errors';
 
 function makeCtx(headers: Record<string, string> = {})
@@ -46,6 +49,7 @@ describe('rateLimit middleware', () =>
         evalMock.mockReset();
         cacheClient = { eval: evalMock };
         cacheDisabled = false;
+        resetMemoryRateLimitStore();
     });
 
     it('allows a request under the limit', async () =>
@@ -70,18 +74,21 @@ describe('rateLimit middleware', () =>
         expect(ctx._setHeaders['Retry-After']).toBe('30');
     });
 
-    it('fails open (allows through) when the cache is unavailable', async () =>
+    it('counts in the process when the cache is unavailable, rather than not counting', async () =>
     {
         cacheClient = undefined;
-        const next = vi.fn().mockResolvedValue(undefined);
+        const limiter = rateLimit({ limit: 2, windowMs: 60_000 });
+        const ctx = () => makeCtx({ 'x-forwarded-for': '1.2.3.4' });
 
-        await rateLimit({ limit: 5, windowMs: 60_000 })(makeCtx(), next);
+        await limiter(ctx(), vi.fn().mockResolvedValue(undefined));
+        await limiter(ctx(), vi.fn().mockResolvedValue(undefined));
 
-        expect(next).toHaveBeenCalledTimes(1);
+        // 세 번째는 한도를 넘는다 — 캐시가 없어도 제한이 사라지지 않는다.
+        await expect(limiter(ctx(), vi.fn())).rejects.toBeInstanceOf(TooManyRequestsError);
         expect(evalMock).not.toHaveBeenCalled();
     });
 
-    it('fails closed when configured and the cache is unavailable', async () =>
+    it('refuses instead of counting locally when failClosed is set', async () =>
     {
         cacheClient = undefined;
         const next = vi.fn();
@@ -209,7 +216,7 @@ describe('rateLimitPolicy named policies', () =>
             .rejects.toBeInstanceOf(TooManyRequestsError);
     });
 
-    it('a tag/policy may still opt to fail open despite the default', async () =>
+    it('a tag/policy may still opt out of fail-closed despite the default', async () =>
     {
         setRateLimitFailClosedDefault(true);
         cacheClient = undefined;

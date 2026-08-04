@@ -8,5 +8,10 @@ export { RequestLogger, maskSensitiveData } from './request-logger';
 export type { RequestLoggerOptions, RequestLoggerConfig } from './request-logger';
 export { createProxyGuard, createCacheNonceStore, createInMemoryNonceStore } from './proxy-guard';
 export type { ProxyGuardConfig, ProxyGuardMode, ClientType, NonceStore } from './proxy-guard';
-export { rateLimit, rateLimitPolicy, getClientIp, setRateLimitPolicies, getRateLimitPolicy, setRateLimitFailClosedDefault } from './rate-limit';
+export {
+    rateLimit, rateLimitPolicy, getClientIp, setRateLimitPolicies, getRateLimitPolicy,
+    setRateLimitFailClosedDefault, resetMemoryRateLimitStore,
+} from './rate-limit';
 export type { RateLimitOptions, RateLimitDimension } from './rate-limit';
+export { CacheRateLimitStore, MemoryRateLimitStore } from './rate-limit-store';
+export type { RateLimitStore, RateLimitHit } from './rate-limit-store';
