@@ -64,8 +64,15 @@ import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
  * and the range moves with it. Without the binding a valid id_token is enough
  * to enroll any key — the token is bearer-shaped and travels, while the web
  * OAuth flow keeps its key inside CSRF-bound encrypted state.
+ *
+ * 0.4.1 adds the key-management operations (list, revoke, revoke-all) and the
+ * types they carry. A patch: existing operations and types are untouched, and a
+ * consumer generated against 0.4.0 keeps matching the server, so the supported
+ * range does not move. All three are POST with their arguments in the body —
+ * the proof signs body bytes, which have a canonicalization rule, while a value
+ * in the path does not.
  */
-export const CONTRACT_VERSION = '0.4.0';
+export const CONTRACT_VERSION = '0.4.1';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
@@ -86,7 +93,7 @@ export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@3.0.0';
  * silently become a type named "Item[]" and fail at compile time rather than at
  * parse time.
  */
-type FieldTypeName = 'string' | 'integer' | 'boolean' | 'array<Item>';
+type FieldTypeName = 'string' | 'integer' | 'boolean' | 'array<Item>' | 'array<KeySummary>';
 
 interface FieldDeclaration
 {
@@ -258,6 +265,60 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
         fields: [
             required('success', 'boolean'),
             required('keyId', 'string'),
+        ],
+    },
+    {
+        name: 'ListKeysRequest',
+        fields: [
+            optional('includeRevoked', 'boolean'),
+        ],
+    },
+    {
+        name: 'KeySummary',
+        fields: [
+            required('keyId', 'string'),
+            optional('deviceName', 'string'),
+            optional('platform', 'string'),
+            required('algorithm', 'string'),
+            required('fingerprintPrefix', 'string'),
+            required('createdAt', 'string'),
+            optional('lastUsedAt', 'string'),
+            optional('expiresAt', 'string'),
+            required('isExpired', 'boolean'),
+            required('isActive', 'boolean'),
+            optional('revokedAt', 'string'),
+        ],
+    },
+    {
+        name: 'ListKeysResponse',
+        fields: [
+            required('keys', 'array<KeySummary>'),
+        ],
+    },
+    {
+        name: 'RevokeKeyRequest',
+        fields: [
+            required('keyId', 'string'),
+        ],
+    },
+    {
+        name: 'RevokeKeyResponse',
+        fields: [
+            required('keyId', 'string'),
+            required('selfRevoked', 'boolean'),
+        ],
+    },
+    {
+        name: 'RevokeAllKeysRequest',
+        fields: [
+            optional('includeCurrent', 'boolean'),
+        ],
+    },
+    {
+        name: 'RevokeAllKeysResponse',
+        fields: [
+            required('revokedCount', 'integer'),
+            required('currentKeyRevoked', 'boolean'),
         ],
     },
 ];

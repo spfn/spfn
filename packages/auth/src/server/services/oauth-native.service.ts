@@ -16,7 +16,7 @@ import { runInTransaction, onAfterCommit } from '@spfn/core/db';
 import { InvalidKeyFingerprintError, NonceKeyBindingError } from '@spfn/auth/errors';
 import { verifyKeyFingerprint } from '../helpers/jwt';
 import { socialAccountsRepository } from '../repositories';
-import { type SocialProvider, type KeyAlgorithmType } from '../types';
+import { type SocialProvider, type KeyAlgorithmType, type KeyPlatformType } from '../types';
 import { getOAuthProvider, type NormalizedIdentity } from '../lib/oauth';
 import { createOrLinkUser, assertActiveForOAuthSession, backfillVerifiedEmail } from './oauth.service';
 import { registerPublicKeyService } from './key.service';
@@ -32,6 +32,9 @@ export interface OAuthNativeParams
     keyId: string;
     fingerprint: string;
     algorithm: KeyAlgorithmType;
+    /** 키 목록에 보일 기기 라벨 (선택). 표시용이라 권한 판정에 쓰이지 않는다. */
+    deviceName?: string;
+    platform?: KeyPlatformType;
     /**
      * SDK가 id_token과 함께 받은 provider access token (선택).
      *
@@ -159,6 +162,8 @@ async function persistNativeLogin(
             publicKey: params.publicKey,
             fingerprint: params.fingerprint,
             algorithm: params.algorithm,
+            deviceName: params.deviceName,
+            platform: params.platform,
         });
 
         await updateLastLoginService(userId);

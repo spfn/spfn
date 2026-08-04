@@ -164,6 +164,9 @@ routes use `.skip(['auth'])`; the rest require `Authorization: Bearer <client-si
 | `login` | POST `/_auth/login` | public | password login + new session key |
 | `logout` | POST `/_auth/logout` | yes | revoke current key |
 | `rotateKey` | POST `/_auth/keys/rotate` | yes | rotate public key before 90-day expiry |
+| `listKeys` | POST `/_auth/keys/list` | yes | the caller's registered devices — see [Registered devices](#registered-devices-key-management) |
+| `revokeKey` | POST `/_auth/keys/revoke` | yes | sign one device out |
+| `revokeAllKeys` | POST `/_auth/keys/revoke-all` | yes | sign every device out (spares the caller by default) |
 | `changePassword` | PUT `/_auth/password` | yes | change password |
 | `getAuthSession` | GET `/_auth/session` | yes | current session/user |
 | `issueOneTimeToken` | POST | yes | short-lived token (e.g. SSE handshake) |
@@ -179,6 +182,58 @@ Auth uses **asymmetric, client-signed JWTs**: the client generates an ES256/RS25
 sends the public key on register/login, signs request JWTs locally, and the server verifies
 with the stored public key (`keyId` carried in the JWT). The server never holds a private key.
 Keys expire after 90 days — rotate with `rotateKey`.
+
+### Registered devices (key management)
+
+Keys are per-device, so a login never revokes the previous key and they accumulate on purpose.
+`listKeys` / `revokeKey` / `revokeAllKeys` are what let the account owner see what accumulated and
+cut off anything they no longer recognise.
+
+```typescript
+const { keys } = await authApi.listKeys.call({ body: {} });
+// → [{ keyId, deviceName?, platform?, algorithm, fingerprintPrefix, createdAt,
+//      lastUsedAt?, expiresAt?, isExpired, isActive, revokedAt? }]
+
+await authApi.listKeys.call({ body: { includeRevoked: true } });   // also what was cut off
+
+await authApi.revokeKey.call({ body: { keyId } });            // → { keyId, selfRevoked }
+await authApi.revokeAllKeys.call({ body: {} });               // other devices only
+await authApi.revokeAllKeys.call({ body: { includeCurrent: true } });   // everything
+```
+
+> **All three are POST with their arguments in the body, deliberately.** The mobile auth
+> profile (clientProofV1) signs the request body, and `canonical-json` fixes exactly how those
+> bytes are written. A `GET` has no body to sign, and a value in the path has no such rule —
+> client and server could disagree on the signed string over percent-encoding, a trailing
+> slash, or a proxy rewrite alone, and the request would be refused with nothing in the logs
+> naming the cause. Every operation in the contract is shaped this way.
+
+- **The public key never leaves the server**, and the fingerprint is truncated to 8 characters.
+  The list exists to recognise a device and point at it; the full fingerprint is what a native
+  sign-in sends as its nonce, not a label.
+- **`isExpired` is computed, not stored.** Nothing flips `isActive` when the TTL runs out —
+  `authenticate` refuses the key at request time. A list that showed such a key as simply active
+  would report something the server does not act on.
+- **Revoking your own key is allowed.** It is this device's sign-out, which `logout` already does.
+  `selfRevoked` in the response tells the two cases apart.
+- **`revokeAllKeys` spares the calling device unless you ask otherwise**, so the common case is
+  "sign out my other devices". `includeCurrent: true` is the full sign-out — until now reachable
+  only as a side effect of changing a password, which nobody does for that reason.
+- **A key id you do not own answers 404** (`KeyNotFoundError`). Every lookup is scoped by user, so
+  the answer is only ever "not yours" and reveals nothing about other accounts.
+- **Revocation takes effect immediately.** `authenticate` reads the key from the database on every
+  request with no cache in front of it.
+- **`includeRevoked: true` shows what was already cut off**, with `revokedAt`. The default is only
+  keys that can still sign.
+
+Every path that registers a key (`register`, `login`, `rotateKey`, native OAuth) accepts optional
+`deviceName` (≤64 chars) and `platform` (`ios` / `android` / `web` / `desktop`). Both are display
+only — nothing is authorized by them — and both are absent on keys registered before they existed.
+Rotation carries the replaced key's label over unless the client sends a new one.
+
+All three are in the mobile contract (0.4.1) as `auth.keys.list` / `auth.keys.revoke` /
+`auth.keys.revokeAll`, so a generated mobile client reaches them the same way it reaches key
+rotation.
 
 A `keyId` is **single-use for its lifetime**: it is unique across all users and is never reissued
 once revoked. A client that logs out, rotates, or is revoked must generate a **fresh keypair and

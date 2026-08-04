@@ -4,7 +4,7 @@
   "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
   "contractName": "spfn-mobile-contract",
   "contractMajor": 0,
-  "contractVersion": "0.4.0",
+  "contractVersion": "0.4.1",
   "supportedRange": ">=0.4.0 <0.5.0",
   "exporterVersion": "@spfn/auth/contract-bundle@3.0.0",
   "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
@@ -220,6 +220,46 @@
         { "name": "success", "type": "boolean", "optional": false },
         { "name": "keyId", "type": "string", "optional": false }
       ]
+    },
+    { "name": "ListKeysRequest", "fields": [{ "name": "includeRevoked", "type": "boolean", "optional": true }] },
+    {
+      "name": "KeySummary",
+      "fields": [
+        { "name": "keyId", "type": "string", "optional": false },
+        { "name": "deviceName", "type": "string", "optional": true },
+        { "name": "platform", "type": "string", "optional": true },
+        { "name": "algorithm", "type": "string", "optional": false },
+        { "name": "fingerprintPrefix", "type": "string", "optional": false },
+        { "name": "createdAt", "type": "string", "optional": false },
+        { "name": "lastUsedAt", "type": "string", "optional": true },
+        { "name": "expiresAt", "type": "string", "optional": true },
+        { "name": "isExpired", "type": "boolean", "optional": false },
+        { "name": "isActive", "type": "boolean", "optional": false },
+        { "name": "revokedAt", "type": "string", "optional": true }
+      ]
+    },
+    {
+      "name": "ListKeysResponse",
+      "fields": [{ "name": "keys", "type": "array<KeySummary>", "optional": false }]
+    },
+    { "name": "RevokeKeyRequest", "fields": [{ "name": "keyId", "type": "string", "optional": false }] },
+    {
+      "name": "RevokeKeyResponse",
+      "fields": [
+        { "name": "keyId", "type": "string", "optional": false },
+        { "name": "selfRevoked", "type": "boolean", "optional": false }
+      ]
+    },
+    {
+      "name": "RevokeAllKeysRequest",
+      "fields": [{ "name": "includeCurrent", "type": "boolean", "optional": true }]
+    },
+    {
+      "name": "RevokeAllKeysResponse",
+      "fields": [
+        { "name": "revokedCount", "type": "integer", "optional": false },
+        { "name": "currentKeyRevoked", "type": "boolean", "optional": false }
+      ]
     }
   ],
   "operations": [
@@ -292,6 +332,36 @@
       "requestType": "RotateKeyRequest",
       "responseType": "RotateKeyResponse",
       "summary": "Replaces the authenticated key with a new client-generated public key before its TTL runs out."
+    },
+    {
+      "id": "auth.keys.list",
+      "method": "POST",
+      "path": "/_auth/keys/list",
+      "authProfile": "clientProofV1",
+      "requiresSession": false,
+      "requestType": "ListKeysRequest",
+      "responseType": "ListKeysResponse",
+      "summary": "Lists the keys registered to the caller, one per device that can sign for them."
+    },
+    {
+      "id": "auth.keys.revoke",
+      "method": "POST",
+      "path": "/_auth/keys/revoke",
+      "authProfile": "clientProofV1",
+      "requiresSession": false,
+      "requestType": "RevokeKeyRequest",
+      "responseType": "RevokeKeyResponse",
+      "summary": "Revokes one of the caller's keys, signing that device out."
+    },
+    {
+      "id": "auth.keys.revokeAll",
+      "method": "POST",
+      "path": "/_auth/keys/revoke-all",
+      "authProfile": "clientProofV1",
+      "requiresSession": false,
+      "requestType": "RevokeAllKeysRequest",
+      "responseType": "RevokeAllKeysResponse",
+      "summary": "Revokes every key the caller has, sparing the calling device unless asked otherwise."
     }
   ],
   "errorEnvelope": {

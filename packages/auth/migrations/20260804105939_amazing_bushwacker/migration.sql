@@ -1,0 +1,3 @@
+DROP INDEX "spfn_auth"."account_deletion_requests_user_pending_unique_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "account_deletion_requests_user_pending_unique_idx" ON "spfn_auth"."account_deletion_requests" ("user_id") WHERE "status" = 'pending';--> statement-breakpoint
+ALTER TABLE "spfn_auth"."verification_codes" DROP CONSTRAINT "attempts_limit_check", ADD CONSTRAINT "attempts_limit_check" CHECK ("attempts" >= 0 AND "attempts" <= 10);

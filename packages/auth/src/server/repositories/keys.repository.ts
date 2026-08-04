@@ -7,7 +7,7 @@
 
 import { NewUserPublicKey, userPublicKeys } from '../entities/user-public-keys';
 import { BaseRepository } from '@spfn/core/db';
-import { eq, and, or, isNull, lt } from 'drizzle-orm';
+import { eq, and, or, isNull, lt, ne, desc } from 'drizzle-orm';
 
 /**
  * Throttle window for lastUsedAt writes. The column is for audit / inactive-key
@@ -76,6 +76,43 @@ export class KeysRepository extends BaseRepository
     }
 
     /**
+     * 키 목록 화면이 쓰는 공개키 조회 — 최근 등록순
+     *
+     * publicKey 원문은 고르지 않는다. 목록의 용도는 기기를 알아보고 지목하는 것이고,
+     * 공개키는 그 어느 쪽에도 필요 없다. fingerprint는 호출자가 잘라서 내보낸다.
+     *
+     * `includeRevoked`는 이미 끊은 기기까지 보여준다 — "내가 언제 무엇을 끊었나"를
+     * 확인하는 용도라, 폐기 시각과 사유를 함께 고른다.
+     * Read replica 사용
+     */
+    async listForUser(userId: number, includeRevoked = false)
+    {
+        return this.readDb
+            .select({
+                keyId: userPublicKeys.keyId,
+                deviceName: userPublicKeys.deviceName,
+                platform: userPublicKeys.platform,
+                algorithm: userPublicKeys.algorithm,
+                fingerprint: userPublicKeys.fingerprint,
+                isActive: userPublicKeys.isActive,
+                createdAt: userPublicKeys.createdAt,
+                lastUsedAt: userPublicKeys.lastUsedAt,
+                expiresAt: userPublicKeys.expiresAt,
+                revokedAt: userPublicKeys.revokedAt,
+            })
+            .from(userPublicKeys)
+            .where(
+                includeRevoked
+                    ? eq(userPublicKeys.userId, userId)
+                    : and(
+                        eq(userPublicKeys.userId, userId),
+                        eq(userPublicKeys.isActive, true),
+                    ),
+            )
+            .orderBy(desc(userPublicKeys.createdAt));
+    }
+
+    /**
      * 공개키 생성
      * Write primary 사용
      */
@@ -135,6 +172,32 @@ export class KeysRepository extends BaseRepository
                 and(
                     eq(userPublicKeys.userId, userId),
                     eq(userPublicKeys.isActive, true),
+                ),
+            )
+            .returning();
+    }
+
+    /**
+     * 지정한 키 하나만 남기고 사용자의 활성 공개키를 전부 revoke
+     *
+     * "다른 기기 전부 로그아웃" — 요청을 보낸 기기는 살려 둔다. 남길 키를 별도 조회로
+     * 확인하지 않고 조건에 담아, 그 사이에 다른 요청이 키를 바꾸는 경쟁을 만들지 않는다.
+     * Write primary 사용
+     */
+    async revokeAllActiveByUserIdExcept(userId: number, keepKeyId: string, reason: string)
+    {
+        return await this.db
+            .update(userPublicKeys)
+            .set({
+                isActive: false,
+                revokedAt: new Date(),
+                revokedReason: reason,
+            })
+            .where(
+                and(
+                    eq(userPublicKeys.userId, userId),
+                    eq(userPublicKeys.isActive, true),
+                    ne(userPublicKeys.keyId, keepKeyId),
                 ),
             )
             .returning();

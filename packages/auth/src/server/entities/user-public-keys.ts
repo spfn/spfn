@@ -5,7 +5,7 @@
  * Supports key rotation and multi-key management per user
  */
 
-import { KEY_ALGORITHM } from '../types';
+import { KEY_ALGORITHM, KEY_PLATFORM } from '../types';
 import { text, boolean, index } from 'drizzle-orm/pg-core';
 import { id, foreignKey, enumText, utcTimestamp } from '@spfn/core/db';
 import { users } from './users';
@@ -47,6 +47,17 @@ export const userPublicKeys = authSchema.table(
         // Format: hex-encoded string (64 chars)
         // Used for: duplicate detection, key verification
         fingerprint: text('fingerprint').notNull(),
+
+        // Device label the client supplied at registration
+        // null: the client sent none (every key registered before this column existed)
+        // Used for: telling one entry apart from another in the key list
+        // Display only — nothing is authorized by it, so a client that lies gains nothing
+        deviceName: text('device_name'),
+
+        // Platform the key lives on, as the client declared it
+        // null: the client sent none
+        // Used for: the same list, alongside deviceName
+        platform: enumText('platform', KEY_PLATFORM),
 
         // Key status
         // false: Key is deactivated (cannot be used for verification)

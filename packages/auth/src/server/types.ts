@@ -18,6 +18,23 @@ export const KEY_ALGORITHM = ['ES256', 'RS256'] as const;
 export type KeyAlgorithmType = typeof KEY_ALGORITHM[number];
 
 /**
+ * Where a registered key lives, as the client declares it.
+ *
+ * Only for telling one entry apart from another in the key list — nothing is
+ * authorized or refused by it, so a client that lies gains nothing. Stored via
+ * `enumText`, so adding a value here needs no migration.
+ */
+export const KEY_PLATFORM = ['ios', 'android', 'web', 'desktop'] as const;
+
+/**
+ * Key platform type derived from the const array
+ */
+export type KeyPlatformType = typeof KEY_PLATFORM[number];
+
+/** Longest device label accepted at registration, and what the list returns. */
+export const KEY_DEVICE_NAME_MAX_LENGTH = 64;
+
+/**
  * Invitation status enum values
  * Single source of truth for all invitation statuses
  */

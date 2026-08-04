@@ -267,6 +267,22 @@ export class InvalidKeyFingerprintError extends ValidationError
 }
 
 /**
+ * Key Not Found Error (404)
+ *
+ * Thrown when a key operation names a keyId the caller does not own. It says
+ * nothing about whether that keyId exists on another account — the repository
+ * scopes every lookup by userId, so the answer is only ever "not yours".
+ */
+export class KeyNotFoundError extends NotFoundError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({ message: data.message || 'Key not found', details: data.details });
+        this.name = 'KeyNotFoundError';
+    }
+}
+
+/**
  * Nonce Key Binding Error (400)
  *
  * Thrown when a native id_token sign-in submits a nonce that is not the public

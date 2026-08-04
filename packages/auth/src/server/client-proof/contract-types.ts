@@ -21,7 +21,10 @@ export interface ContractOperation
         | 'auth.enroll.register'
         | 'auth.enroll.login'
         | 'auth.enroll.oauthNative'
-        | 'auth.keys.rotate';
+        | 'auth.keys.rotate'
+        | 'auth.keys.list'
+        | 'auth.keys.revoke'
+        | 'auth.keys.revokeAll';
     method: 'POST';
     path: string;
 
@@ -123,6 +126,36 @@ export const AUTH_SURFACE_OPERATIONS: readonly ContractOperation[] = [
         requestType: 'RotateKeyRequest',
         responseType: 'RotateKeyResponse',
         summary: 'Replaces the authenticated key with a new client-generated public key before its TTL runs out.',
+    },
+    {
+        id: 'auth.keys.list',
+        method: 'POST',
+        path: '/_auth/keys/list',
+        authProfile: 'clientProofV1',
+        requiresSession: false,
+        requestType: 'ListKeysRequest',
+        responseType: 'ListKeysResponse',
+        summary: 'Lists the keys registered to the caller, one per device that can sign for them.',
+    },
+    {
+        id: 'auth.keys.revoke',
+        method: 'POST',
+        path: '/_auth/keys/revoke',
+        authProfile: 'clientProofV1',
+        requiresSession: false,
+        requestType: 'RevokeKeyRequest',
+        responseType: 'RevokeKeyResponse',
+        summary: 'Revokes one of the caller\'s keys, signing that device out.',
+    },
+    {
+        id: 'auth.keys.revokeAll',
+        method: 'POST',
+        path: '/_auth/keys/revoke-all',
+        authProfile: 'clientProofV1',
+        requiresSession: false,
+        requestType: 'RevokeAllKeysRequest',
+        responseType: 'RevokeAllKeysResponse',
+        summary: 'Revokes every key the caller has, sparing the calling device unless asked otherwise.',
     },
 ];
 

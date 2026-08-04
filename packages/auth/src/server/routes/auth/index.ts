@@ -4,15 +4,22 @@
  * Thin route handlers that delegate to services
  */
 
-import { EmailSchema, PhoneSchema, PasswordSchema, TargetTypeSchema, VerificationPurposeSchema } from '../schema';
+import {
+    EmailSchema, PhoneSchema, PasswordSchema, TargetTypeSchema, VerificationPurposeSchema,
+    DeviceNameSchema, PlatformSchema,
+} from '../schema';
 import { getAuth, getUser } from '../../helpers';
 import { KEY_ALGORITHM } from '../../types';
+import { KeyNotFoundError } from '@spfn/auth/errors';
 import {
     changePasswordService,
     loginService,
     logoutService,
     registerService,
     rotateKeyService,
+    listKeysService,
+    revokeKeyService,
+    revokeAllKeysService,
     sendVerificationCodeService,
     verifyCodeService,
     getAuthSessionService,
@@ -108,6 +115,8 @@ export const register = route.post('/_auth/register')
             keyId: Type.String({ description: 'Key identifier' }),
             fingerprint: Type.String({ description: 'Key fingerprint' }),
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
+            deviceName: Type.Optional(DeviceNameSchema),
+            platform: Type.Optional(PlatformSchema),
         }),
     })
     .use([rateLimitPolicy('auth-register', { limit: 10, windowMs: 60_000, by: byIpAndAccount({ ipLimit: 100 }) }), Transactional()])
@@ -145,6 +154,8 @@ export const login = route.post('/_auth/login')
             fingerprint: Type.String({ description: 'Key fingerprint' }),
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
             oldKeyId: Type.Optional(Type.String({ description: 'Previous key ID for rotation' })),
+            deviceName: Type.Optional(DeviceNameSchema),
+            platform: Type.Optional(PlatformSchema),
         }),
     })
     .use([rateLimitPolicy('auth-login', { limit: 10, windowMs: 60_000, by: byIpAndAccount({ ipLimit: 100 }) }), Transactional()])
@@ -190,6 +201,8 @@ export const rotateKey = route.post('/_auth/keys/rotate')
             keyId: Type.String({ description: 'New key identifier' }),
             fingerprint: Type.String({ description: 'New key fingerprint' }),
             algorithm: Type.Union(KEY_ALGORITHM.map(algo => Type.Literal(algo)), { description: 'Signature algorithm' }),
+            deviceName: Type.Optional(DeviceNameSchema),
+            platform: Type.Optional(PlatformSchema),
         }),
     })
     .use([Transactional()])
@@ -205,6 +218,98 @@ export const rotateKey = route.post('/_auth/keys/rotate')
             newPublicKey: body.publicKey,
             fingerprint: body.fingerprint,
             algorithm: body.algorithm,
+            deviceName: body.deviceName,
+            platform: body.platform,
+        });
+    });
+
+/**
+ * POST /_auth/keys/list - List the caller's registered devices
+ *
+ * POST rather than GET, and the identifier in the body rather than the path, because
+ * clientProofV1 signs the request body: a GET has no body to sign, and a value in the
+ * path has no canonicalization rule the way the body does (`canonical-json`), so client
+ * and server could disagree on the signed string over percent-encoding alone. Every
+ * operation in the mobile contract is shaped this way.
+ *
+ * The public key itself never leaves the server and the fingerprint is truncated: the
+ * list exists to recognise a device and point at it, and neither value serves that.
+ */
+export const listKeys = route.post('/_auth/keys/list')
+    .input({
+        body: Type.Object({
+            includeRevoked: Type.Optional(Type.Boolean({
+                description: 'Also return keys already revoked, for reviewing what was cut off. Default false.',
+            })),
+        }),
+    })
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const { userId } = getAuth(c);
+
+        return { keys: await listKeysService({ userId: Number(userId), includeRevoked: body.includeRevoked }) };
+    });
+
+/**
+ * POST /_auth/keys/revoke - Sign one device out
+ *
+ * Revoking the key the request itself is signed with is allowed — it is this device's
+ * own sign-out, which `POST /_auth/logout` already does. The response says which
+ * happened so a client can tell "that other phone is gone" from "I just signed myself out".
+ */
+export const revokeKey = route.post('/_auth/keys/revoke')
+    .input({
+        body: Type.Object({
+            keyId: Type.String({ description: 'Key to revoke — must belong to the caller' }),
+        }),
+    })
+    .use([Transactional()])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const { userId, keyId: currentKeyId } = getAuth(c);
+
+        const revoked = await revokeKeyService({
+            userId: Number(userId),
+            keyId: body.keyId,
+            reason: 'Revoked by user',
+        });
+
+        if (!revoked)
+        {
+            throw new KeyNotFoundError();
+        }
+
+        return { keyId: body.keyId, selfRevoked: body.keyId === currentKeyId };
+    });
+
+/**
+ * POST /_auth/keys/revoke-all - Sign every device out
+ *
+ * Spares the calling device by default, so this is "sign out my other devices".
+ * `includeCurrent: true` is the full sign-out — until now reachable only as a
+ * side effect of changing a password, which nobody does for that reason.
+ */
+export const revokeAllKeys = route.post('/_auth/keys/revoke-all')
+    .input({
+        body: Type.Object({
+            includeCurrent: Type.Optional(Type.Boolean({
+                description: 'Also revoke the key this request is signed with. Default false.',
+            })),
+        }),
+    })
+    .use([Transactional()])
+    .handler(async (c) =>
+    {
+        const { body } = await c.data();
+        const { userId, keyId } = getAuth(c);
+
+        return await revokeAllKeysService({
+            userId: Number(userId),
+            currentKeyId: keyId,
+            includeCurrent: body.includeCurrent,
+            reason: 'Revoked by user',
         });
     });
 
@@ -281,6 +386,9 @@ export const authRouter = defineRouter({
     login: login,
     logout: logout,
     rotateKey: rotateKey,
+    listKeys: listKeys,
+    revokeKey: revokeKey,
+    revokeAllKeys: revokeAllKeys,
     changePassword: changePassword,
     getAuthSession: getAuthSession,
     issueOneTimeToken: issueOneTimeToken,

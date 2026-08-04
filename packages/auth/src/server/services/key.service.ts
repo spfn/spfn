@@ -4,7 +4,7 @@
  * Handles public key registration, rotation, and revocation
  */
 
-import { type KeyAlgorithmType } from '../types';
+import { type KeyAlgorithmType, type KeyPlatformType } from '../types';
 import { verifyKeyFingerprint } from '../helpers/jwt';
 import { KEY_TTL_DAYS } from '../lib/key-policy';
 import { InvalidKeyFingerprintError, KeyIdAlreadyRegisteredError } from '@spfn/auth/errors';
@@ -17,6 +17,9 @@ export interface RegisterPublicKeyParams
     publicKey: string;
     fingerprint: string;
     algorithm?: KeyAlgorithmType;
+    /** Device label for the key list. Display only — nothing is authorized by it. */
+    deviceName?: string;
+    platform?: KeyPlatformType;
 }
 
 export interface RotateKeyParams
@@ -27,6 +30,9 @@ export interface RotateKeyParams
     newPublicKey: string;
     fingerprint: string;
     algorithm?: KeyAlgorithmType;
+    /** Omitted: the replaced key's label carries over, so rotation keeps its name. */
+    deviceName?: string;
+    platform?: KeyPlatformType;
 }
 
 export interface RotateKeyResult
@@ -41,6 +47,52 @@ export interface RevokeKeyParams
     keyId: string;
     reason: string;
 }
+
+export interface RevokeAllKeysParams
+{
+    userId: number;
+    /** The key the request itself is signed with — spared unless includeCurrent. */
+    currentKeyId: string;
+    /** true signs the caller out too. Default false: "my other devices". */
+    includeCurrent?: boolean;
+    reason: string;
+}
+
+export interface RevokeAllKeysResult
+{
+    revokedCount: number;
+    currentKeyRevoked: boolean;
+}
+
+/** One registered device as the account surface shows it. */
+export interface KeySummary
+{
+    keyId: string;
+    deviceName?: string;
+    platform?: string;
+    algorithm: KeyAlgorithmType;
+    /** First bytes of the fingerprint — enough to tell two entries apart. */
+    fingerprintPrefix: string;
+    createdAt: string;
+    lastUsedAt?: string;
+    expiresAt?: string;
+    /** The TTL has run out. The key still reads as active; authenticate refuses it. */
+    isExpired: boolean;
+    /** False once revoked. Only ever false when the caller asked for revoked keys. */
+    isActive: boolean;
+    /** When it was revoked, for the "what did I cut off, and when" reading. */
+    revokedAt?: string;
+}
+
+export interface ListKeysParams
+{
+    userId: number;
+    /** Also return keys already revoked. Default false: only what can still sign. */
+    includeRevoked?: boolean;
+}
+
+/** How much of the fingerprint the list returns. */
+export const KEY_FINGERPRINT_PREFIX_LENGTH = 8;
 
 /**
  * Helper: Calculate key expiry date (KEY_TTL_DAYS from now)
@@ -76,7 +128,7 @@ export async function registerPublicKeyService(
     params: RegisterPublicKeyParams,
 ): Promise<void>
 {
-    const { userId, keyId, publicKey, fingerprint, algorithm = 'ES256' } = params;
+    const { userId, keyId, publicKey, fingerprint, algorithm = 'ES256', deviceName, platform } = params;
 
     const existing = await keysRepository.findByKeyId(keyId);
     if (existing)
@@ -117,6 +169,8 @@ export async function registerPublicKeyService(
         publicKey,
         algorithm,
         fingerprint,
+        deviceName,
+        platform,
         isActive: true,
         createdAt: new Date(),
         expiresAt: getKeyExpiryDate(),
@@ -139,6 +193,11 @@ export async function rotateKeyService(
         throw new InvalidKeyFingerprintError();
     }
 
+    // Rotation replaces a key on the same device, so its label carries over unless
+    // the client renames it. Read before the revoke — the row survives either way,
+    // but the intent is "what this device was called", not "what it is called now".
+    const replaced = await keysRepository.findByKeyIdAndUserId(oldKeyId, userId);
+
     // Revoke old key
     await keysRepository.revokeByKeyIdAndUserId(
         oldKeyId,
@@ -153,6 +212,8 @@ export async function rotateKeyService(
         publicKey: newPublicKey,
         algorithm,
         fingerprint,
+        deviceName: params.deviceName ?? replaced?.deviceName ?? undefined,
+        platform: params.platform ?? replaced?.platform ?? undefined,
         isActive: true,
         createdAt: new Date(),
         expiresAt: getKeyExpiryDate(),
@@ -165,13 +226,72 @@ export async function rotateKeyService(
 }
 
 /**
- * Revoke a user's public key
+ * Revoke a user's public key.
+ *
+ * Returns false when the key does not belong to this user, so a caller acting
+ * on a key id from outside (the device list) can answer "not found" instead of
+ * reporting a revocation that never happened. The repository already scopes the
+ * update by userId, so someone else's key is never touched either way.
  */
 export async function revokeKeyService(
     params: RevokeKeyParams,
-): Promise<void>
+): Promise<boolean>
 {
     const { userId, keyId, reason } = params;
 
-    await keysRepository.revokeByKeyIdAndUserId(keyId, userId, reason);
+    const revoked = await keysRepository.revokeByKeyIdAndUserId(keyId, userId, reason);
+
+    return revoked !== null;
+}
+
+/**
+ * List the caller's active keys — one entry per device that can sign for them.
+ *
+ * `isExpired` is computed rather than stored: an expired key keeps `isActive`
+ * true (nothing flips it), and `authenticate` refuses it at request time. A list
+ * that showed it as simply "active" would be telling the user something the
+ * server does not act on.
+ *
+ * The fingerprint is truncated. Its full value is what a native sign-in must
+ * send as its nonce (issue #63), and an account page has no use for it beyond
+ * telling two entries apart.
+ */
+export async function listKeysService(params: ListKeysParams): Promise<KeySummary[]>
+{
+    const rows = await keysRepository.listForUser(params.userId, params.includeRevoked);
+
+    return rows.map(row => ({
+        keyId: row.keyId,
+        deviceName: row.deviceName ?? undefined,
+        platform: row.platform ?? undefined,
+        algorithm: row.algorithm,
+        fingerprintPrefix: row.fingerprint.slice(0, KEY_FINGERPRINT_PREFIX_LENGTH),
+        createdAt: row.createdAt.toISOString(),
+        lastUsedAt: row.lastUsedAt?.toISOString(),
+        expiresAt: row.expiresAt?.toISOString(),
+        isExpired: isExpired(row.expiresAt),
+        isActive: row.isActive,
+        revokedAt: row.revokedAt?.toISOString(),
+    }));
+}
+
+/**
+ * Revoke every active key the user has, optionally sparing the current one.
+ *
+ * The caller's own key is spared by default, so "sign out my other devices"
+ * does not also end the session making the request. Passing
+ * `includeCurrent: true` is the full sign-out, which until now was reachable
+ * only as a side effect of changing a password.
+ */
+export async function revokeAllKeysService(
+    params: RevokeAllKeysParams,
+): Promise<RevokeAllKeysResult>
+{
+    const { userId, currentKeyId, includeCurrent = false, reason } = params;
+
+    const revoked = includeCurrent
+        ? await keysRepository.revokeAllActiveByUserId(userId, reason)
+        : await keysRepository.revokeAllActiveByUserIdExcept(userId, currentKeyId, reason);
+
+    return { revokedCount: revoked.length, currentKeyRevoked: includeCurrent };
 }
