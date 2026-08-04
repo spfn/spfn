@@ -71,8 +71,16 @@ import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
  * range does not move. All three are POST with their arguments in the body —
  * the proof signs body bytes, which have a canonicalization rule, while a value
  * in the path does not.
+ *
+ * 0.4.2 gives the REST surface a readable failure: every error response now
+ * carries the `{"error":{"code","message","requestId"}}` envelope next to the
+ * web fields, and `auth.enroll.oauthNative`'s twelve refusals are listed as
+ * codes with their status and retryability. A patch: no request or response
+ * type moves, and a consumer generated against 0.4.1 could not read these
+ * failures at all — it saw one undecodable body whatever went wrong — so
+ * nothing it relies on changes and the supported range stays put.
  */
-export const CONTRACT_VERSION = '0.4.1';
+export const CONTRACT_VERSION = '0.4.2';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
@@ -341,6 +349,111 @@ const ERROR_SUMMARIES: Record<string, string> = {
  */
 const RETRYABLE = false;
 
+interface RestSurfaceError
+{
+    code: string;
+    httpStatus: number;
+    retryable: boolean;
+    summary: string;
+}
+
+/**
+ * Every way `auth.enroll.oauthNative` refuses, as codes a consumer can switch on.
+ *
+ * "Every way" includes the app's own `beforeRegister` check: what that check
+ * decides is the app's business, but the response it produces is the
+ * framework's — a fixed class name at a fixed status. Leaving it out would hand
+ * every app that uses the hook an undecodable refusal.
+ *
+ * The codes are the server's own error class names rather than a second
+ * vocabulary invented for mobile: two vocabularies would have to be kept in
+ * step, and the mapping between them is exactly the place a wrong answer
+ * hides.
+ *
+ * Only this operation's codes are listed. The `error` envelope now reaches
+ * every REST operation, but a code list is a promise, and a promise about
+ * routes whose failure paths have not been enumerated one by one would be a
+ * guess. An unlisted code arriving on another operation is handled by
+ * `unknownCodePolicy`, which surfaces the raw string instead of guessing at a
+ * neighbour.
+ */
+const REST_SURFACE_ERRORS: readonly RestSurfaceError[] = [
+    {
+        code: 'ValidationError',
+        httpStatus: 400,
+        retryable: false,
+        summary: 'the request body is not the shape the operation declares',
+    },
+    {
+        code: 'NativeSignInUnsupportedError',
+        httpStatus: 400,
+        retryable: false,
+        summary: 'this provider has no native id_token sign-in — a server configuration fact, not a user error',
+    },
+    {
+        code: 'NonceKeyBindingError',
+        httpStatus: 400,
+        retryable: false,
+        summary: 'the nonce is not the fingerprint of the submitted public key',
+    },
+    {
+        code: 'InvalidKeyFingerprintError',
+        httpStatus: 400,
+        retryable: false,
+        summary: 'the fingerprint is not the hash of the submitted public key',
+    },
+    {
+        code: 'UnverifiedEmailLinkError',
+        httpStatus: 400,
+        retryable: false,
+        summary: 'that email already has an account and the provider never verified it, so linking is refused',
+    },
+    {
+        code: 'InvalidSocialTokenError',
+        httpStatus: 401,
+        retryable: false,
+        summary: 'the id_token failed signature, issuer, audience, expiry, nonce or subject verification',
+    },
+    {
+        code: 'AccountDisabledError',
+        httpStatus: 403,
+        retryable: false,
+        summary: 'the account cannot open a session in its current status',
+    },
+    {
+        code: 'AccountPendingDeletionError',
+        httpStatus: 403,
+        retryable: false,
+        summary: 'the account is scheduled for deletion and must be restored before it can sign in',
+    },
+    {
+        code: 'RegistrationRejectedError',
+        httpStatus: 403,
+        retryable: false,
+        summary:
+            'the app refused this sign-up in its own beforeRegister check — reached only when the identity would '
+            + 'create a new account, never when it links to an existing one',
+    },
+    {
+        code: 'KeyIdAlreadyRegisteredError',
+        httpStatus: 409,
+        retryable: false,
+        summary: 'that keyId is taken or was revoked — generate a fresh keyId and retry',
+    },
+    {
+        code: 'TooManyRequestsError',
+        httpStatus: 429,
+        retryable: true,
+        summary: 'the rate limit for this endpoint was exceeded; the same request succeeds after the window',
+    },
+    {
+        code: 'Error',
+        httpStatus: 500,
+        retryable: false,
+        summary: 'the server failed for a reason it does not describe to the client',
+    },
+];
+
 export interface MobileContractBundle
 {
     [key: string]: unknown;
@@ -407,8 +520,11 @@ export function buildMobileContractBundle(): MobileContractBundle
                 + 'when the call is proven (the proof binds the canonical bytes)',
             responseBody: 'the response type as plain JSON, with no envelope around it',
             errorEnvelope:
-                'the SPFN error shape {"error": {...}} with HTTP status semantics, not the six-code contract '
-                + 'envelope; only proven calls can receive the contract refusal codes, via the middleware',
+                'the same {"error":{"code","message","requestId"}} envelope every operation uses, carried '
+                + 'alongside the SPFN web fields (__type and the error class\'s own public fields) in one body: '
+                + 'the web client restores an error class from __type while a generated client reads error.code '
+                + 'and ignores the rest. The codes are the server error class names listed under errors with '
+                + 'surface "rest", not the six clientProofV1 refusal codes — those reach only proven calls',
             pathTemplate:
                 'a {name} segment is a path parameter the client substitutes before signing or sending; '
                 + '{provider} is the social provider id (google, apple, kakao, naver)',
@@ -488,17 +604,24 @@ export function buildMobileContractBundle(): MobileContractBundle
         operations: [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS].map((operation) => ({ ...operation })),
         errorEnvelope: {
             shape: '{"error":{"code":<string>,"message":<string>,"requestId":<string>}}',
+            additionalFields:
+                'the body carries further top-level fields — __type, message, and the error class\'s own public '
+                + 'fields — which a decoder must ignore rather than reject; only error.code classifies the failure',
             unknownCodePolicy: 'reject',
             unknownCodeRule:
                 'a code outside this list is never mapped to a neighbouring code; it surfaces as an unknown-code '
                 + 'failure carrying the raw string',
         },
-        errors: CLIENT_PROOF_ERROR_CODES.map((code) => ({
-            code,
-            httpStatus: HTTP_STATUS[code],
-            retryable: RETRYABLE,
-            summary: ERROR_SUMMARIES[code],
-        })),
+        errors: [
+            ...CLIENT_PROOF_ERROR_CODES.map((code) => ({
+                code,
+                httpStatus: HTTP_STATUS[code],
+                retryable: RETRYABLE,
+                summary: ERROR_SUMMARIES[code],
+                surface: 'clientProofV1',
+            })),
+            ...REST_SURFACE_ERRORS.map((error) => ({ ...error, surface: 'rest' })),
+        ],
         notes: [
             'This bundle contains no secret, no real key and no production endpoint. Paths are shapes, not deployed routes.',
             'It is generated output. Edit packages/auth/src/server/client-proof and re-run the export; never edit this file.',

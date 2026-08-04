@@ -192,17 +192,20 @@ the error's `statusCode`:
 
 ```json
 // production
-{ "__type": "NotFoundError", "message": "User not found", "resource": "User" }
+{ "__type": "NotFoundError", "message": "User not found", "resource": "User",
+  "error": { "code": "NotFoundError", "message": "User not found", "requestId": "9f2c…" } }
 
 // development (includeStack) adds:
 { "__type": "NotFoundError", "message": "User not found", "resource": "User",
+  "error": { "code": "NotFoundError", "message": "User not found", "requestId": "9f2c…" },
   "stack": "Error: User not found\n    at ..." }
 ```
 
 Standard error fallback:
 
 ```json
-{ "__type": "Error", "message": "Internal Server Error" }
+{ "__type": "Error", "message": "Internal Server Error",
+  "error": { "code": "Error", "message": "Internal Server Error", "requestId": "9f2c…" } }
 // + "cause": "..."  when the error has a cause
 // + "stack": "..."  only when includeStack is true
 ```
@@ -210,6 +213,21 @@ Standard error fallback:
 > The serialized field is **`__type`**, and the status code is carried by the **HTTP
 > status**, not a body field. (Older docs showing `{ "error": "...", "statusCode": 400 }`
 > are stale.)
+
+#### The `error` envelope
+
+Every error response also carries `error: { code, message, requestId }`. Two consumers read
+one body: a TypeScript client restores the error class from `__type` through its error
+registry, while a client generated for another language has no such registry and classifies
+by `code` alone. `code` repeats `__type`; `message` repeats the body's message, masking and
+all; `requestId` is `RequestLogger`'s id when one is set, and a fresh one otherwise.
+
+`__type`, `message` and `error` are reserved — an error class declaring a field with one of
+those names throws outside production (see `errors/README.md`).
+
+Set `errorEnvelope: false` to leave the body exactly as it was before the envelope existed.
+Only do that to keep bodies byte-identical to an older release; any route a generated client
+calls needs the envelope.
 
 ### `OnErrorContext`
 

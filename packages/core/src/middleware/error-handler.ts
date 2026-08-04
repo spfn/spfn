@@ -3,9 +3,11 @@
  *
  * Handles SerializableError with automatic serialization and standard errors
  */
+import { randomBytes } from 'node:crypto';
+
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { SerializableError } from '@spfn/core/errors';
+import { SerializableError, type SerializedError } from '@spfn/core/errors';
 import { logger } from '@spfn/core/logger';
 import { env } from '@spfn/core/config';
 
@@ -33,6 +35,22 @@ export interface ErrorHandlerOptions
      * @default true
      */
     enableLogging?: boolean;
+
+    /**
+     * Attach the `error` envelope to every error response
+     *
+     * The envelope is `{ code, message, requestId }` sitting next to the
+     * existing `__type` and `message` fields, never replacing them: a web
+     * client restores its error class from `__type` while a generated client
+     * in another language classifies by `code` alone and cannot read a
+     * discriminator it has no registry for.
+     *
+     * Turn it off only to keep error bodies byte-identical to an older
+     * release. A route reached by a generated client needs it.
+     *
+     * @default true
+     */
+    errorEnvelope?: boolean;
 
     /**
      * Callback invoked when an error occurs
@@ -72,7 +90,7 @@ interface ErrorWithStatusCode extends Error
 interface SerializableErrorLike extends Error
 {
     statusCode: number;
-    toJSON(): Record<string, unknown>;
+    toJSON(): SerializedError;
 }
 
 interface ErrorLogData extends Record<string, unknown>
@@ -91,6 +109,56 @@ interface StandardErrorResponse
     message: string;
     cause?: string;
     stack?: string;
+}
+
+/**
+ * The machine-readable half of an error response.
+ *
+ * `code` repeats what `__type` already says. The repetition is the point: a
+ * generated client in another language has no error registry to look a
+ * discriminator up in, so it classifies by one documented field and refuses
+ * anything else. `requestId` is what a user can read out to support.
+ */
+interface ErrorEnvelope
+{
+    code: string;
+    message: string;
+    requestId: string;
+}
+
+/**
+ * Attach the envelope to an already-serialized error body.
+ *
+ * `code` and `message` are read back out of the body rather than off the error
+ * so the two halves of the response can never disagree — whatever masking the
+ * caller applied to the body applies to the envelope too.
+ */
+function withEnvelope<T extends { __type: string; message: string }>(
+    body: T,
+    c: Context,
+): T & { error: ErrorEnvelope }
+{
+    return {
+        ...body,
+        error: {
+            code: body.__type,
+            message: body.message,
+            requestId: resolveRequestId(c),
+        },
+    };
+}
+
+/**
+ * The request id the envelope carries.
+ *
+ * RequestLogger sets one per request; without it there is nothing to correlate
+ * a report with, so one is minted for this response alone.
+ */
+function resolveRequestId(c: Context): string
+{
+    const existing = c.get('requestId') as string | undefined;
+
+    return existing ?? randomBytes(16).toString('hex');
 }
 
 /**
@@ -220,6 +288,10 @@ function isSerializableError(err: Error): err is SerializableErrorLike
  * SerializableError instances are serialized using their toJSON() method,
  * preserving custom fields like `resource`, `fields`, etc.
  *
+ * Every response also carries an `error` envelope — `{ code, message,
+ * requestId }` — for clients that classify by a single documented field
+ * instead of restoring an error class from `__type`.
+ *
  * @param options - Configuration options
  * @returns Error handler function for Hono's onError hook
  *
@@ -239,7 +311,8 @@ function isSerializableError(err: Error): err is SerializableErrorLike
  * // Throw SerializableError in routes
  * app.get('/users/:id', (c) => {
  *     throw new NotFoundError({ message: 'User not found', resource: 'User' });
- *     // Response: { __type: 'NotFoundError', message: 'User not found', resource: 'User' }
+ *     // Response: { __type: 'NotFoundError', message: 'User not found', resource: 'User',
+ *     //             error: { code: 'NotFoundError', message: 'User not found', requestId: '…' } }
  * });
  * ```
  */
@@ -248,8 +321,21 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
     const {
         includeStack = env.NODE_ENV !== 'production',
         enableLogging = true,
+        errorEnvelope = true,
         onError,
     } = options;
+
+    const respond = <T extends { __type: string; message: string }>(
+        c: Context,
+        body: T,
+        statusCode: number,
+    ): Response =>
+    {
+        return c.json(
+            errorEnvelope ? withEnvelope(body, c) : body,
+            statusCode as ContentfulStatusCode,
+        );
+    };
 
     return (err: Error, c: Context) =>
     {
@@ -288,9 +374,10 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
             // kept in the log above; the client gets a generic message.
             if ((err as { internal?: boolean }).internal === true && !includeStack)
             {
-                return c.json(
+                return respond(
+                    c,
                     { __type: err.constructor.name, message: 'Internal server error' },
-                    statusCode as ContentfulStatusCode,
+                    statusCode,
                 );
             }
 
@@ -303,7 +390,7 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
                 serialized.stack = err.stack;
             }
 
-            return c.json(serialized, statusCode as ContentfulStatusCode);
+            return respond(c, serialized, statusCode);
         }
 
         // Handle standard errors (fallback)
@@ -348,6 +435,6 @@ export function ErrorHandler(options: ErrorHandlerOptions = {}): (err: Error, c:
             response.stack = err.stack;
         }
 
-        return c.json(response, statusCode as ContentfulStatusCode);
+        return respond(c, response, statusCode);
     };
 }

@@ -9,7 +9,11 @@
 
 import { env } from '@spfn/auth/config';
 import { ValidationError } from '@spfn/core/errors';
-import { AccountDisabledError, AccountPendingDeletionError } from '@spfn/auth/errors';
+import {
+    AccountDisabledError,
+    AccountPendingDeletionError,
+    UnverifiedEmailLinkError,
+} from '@spfn/auth/errors';
 
 import { usersRepository, socialAccountsRepository } from '../repositories';
 import { authLogger } from '../logger';
@@ -381,9 +385,7 @@ export async function createOrLinkUser(
         // 미검증 이메일로는 기존 계정 연결 차단 (계정 탈취 방지)
         if (!identity.emailVerified)
         {
-            throw new ValidationError({
-                message: 'Cannot link to existing account with unverified email. Please verify your email with the provider first.',
-            });
+            throw new UnverifiedEmailLinkError();
         }
 
         // 기존 사용자에 소셜 계정 연결
