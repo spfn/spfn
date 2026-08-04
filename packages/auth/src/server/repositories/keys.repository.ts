@@ -199,6 +199,26 @@ export class KeysRepository extends BaseRepository
     }
 
     /**
+     * 만료 시각 연장 — 같은 사용자가 로그인으로 신원을 다시 증명했을 때 쓴다.
+     * Write primary 사용
+     */
+    async extendExpiry(keyId: string, userId: number, expiresAt: Date)
+    {
+        const result = await this.db
+            .update(userPublicKeys)
+            .set({ expiresAt })
+            .where(
+                and(
+                    eq(userPublicKeys.keyId, keyId),
+                    eq(userPublicKeys.userId, userId),
+                ),
+            )
+            .returning();
+
+        return result[0] ?? null;
+    }
+
+    /**
      * Key ID로 공개키 조회 — 활성 여부 무관 (clientProofV1 admission의 revocation 판정용)
      *
      * 폐기(isActive=false)·만료(expiresAt 경과)를 SESSION_REVOKED로, 미등록을

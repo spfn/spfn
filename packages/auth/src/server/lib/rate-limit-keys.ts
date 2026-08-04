@@ -12,6 +12,7 @@
  */
 
 import type { Context } from 'hono';
+import { createHash } from 'node:crypto';
 import { getClientIp, type RateLimitDimension } from '@spfn/core/middleware';
 
 interface KeyOptions
@@ -74,6 +75,43 @@ export function byIpAndAccount(options: KeyOptions = {})
         return [
             { key: `ip:${getClientIp(c)}`, limit: options.ipLimit },
             account ? `acct:${account}` : undefined,
+        ];
+    };
+}
+
+/**
+ * The submitted id_token as a counter key, hashed.
+ *
+ * The raw token is a credential — it must not be written into a cache key. SHA-256
+ * gives a fixed-length, irreversible stand-in that still identifies one token.
+ */
+function idTokenKey(body: Record<string, unknown>): string | undefined
+{
+    if (typeof body.idToken !== 'string' || !body.idToken)
+    {
+        return undefined;
+    }
+
+    return `tok:${createHash('sha256').update(body.idToken).digest('hex')}`;
+}
+
+/**
+ * Limit by client IP (loose) AND the id_token being exchanged (tight, uses the
+ * policy limit). Use on native sign-in: the nonce arrives in the same body as the
+ * token, so the server cannot tell a replay from a first use — this at least caps
+ * how many times ONE captured token can be presented, however many IPs it comes
+ * from. A legitimate client sends a fresh token per sign-in and only repeats one
+ * when retrying a failed request.
+ */
+export function byIpAndIdToken(options: KeyOptions = {})
+{
+    return async (c: Context): Promise<(RateLimitDimension | undefined)[]> =>
+    {
+        const body = await readJsonBody(c);
+
+        return [
+            { key: `ip:${getClientIp(c)}`, limit: options.ipLimit },
+            idTokenKey(body),
         ];
     };
 }

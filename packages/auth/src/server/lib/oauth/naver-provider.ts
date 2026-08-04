@@ -34,6 +34,16 @@ const NAVER_USERINFO_URL = 'https://openapi.naver.com/v1/nid/me';
 const NAVER_ISSUER = 'https://nid.naver.com';
 const NAVER_JWKS_URI = 'https://nid.naver.com/oauth2/jwks';
 
+/**
+ * user-info 조회의 응답 대기 한도(ms)
+ *
+ * undici의 기본값은 사실상 무제한이라, 네이버가 응답을 붙들고 있으면 요청 핸들러가 몇 분씩
+ * 살아남는다. 작은 GET 하나의 정상 응답은 수백 ms 수준이므로 5초면 넉넉하다.
+ * 초과 시 native 로그인은 프로필 보강만 건너뛰고 계속되고(withNaverProfile의 catch),
+ * 웹 흐름은 로그인이 실패해 사용자가 재시도한다 — 어느 쪽도 무한 대기보다 낫다.
+ */
+const USERINFO_TIMEOUT_MS = 5_000;
+
 interface NaverTokenResponse
 {
     access_token?: unknown;
@@ -170,6 +180,7 @@ async function fetchNaverIdentity(accessToken: string): Promise<NormalizedIdenti
 {
     const response = await fetch(NAVER_USERINFO_URL, {
         headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(USERINFO_TIMEOUT_MS),
     });
 
     if (!response.ok)
@@ -187,8 +198,14 @@ async function fetchNaverIdentity(accessToken: string): Promise<NormalizedIdenti
     return {
         providerUserId: profile.id,
         email: typeof profile.email === 'string' ? profile.email : null,
-        // 네이버 프로필 이메일은 네이버 계정 이메일이거나 인증 절차를 거친 연락처
-        // 이메일이다 — 존재하면 검증된 것으로 취급한다(카카오와 같은 신뢰 수준).
+        // 존재하면 검증된 것으로 취급한다. 응답에는 검증 플래그가 없고, 근거는 네이버가
+        // 연락처 이메일을 바꿀 때 새 주소로 보낸 인증번호를 요구한다는 것 하나다. 그래서
+        // 이 값은 소유가 확인된 주소이지 안정적인 식별자는 아니다 — 사용자가 바꿀 수 있고,
+        // 하나의 주소를 최대 6개 아이디가 공유할 수 있으며, 아예 없을 수도 있다.
+        // 계정을 가리키는 유일 키는 providerUserId뿐이다.
+        //
+        // 카카오와 근거가 다르다. 카카오는 응답의 is_email_valid·is_email_verified를
+        // 직접 보고, 네이버는 변경 시점의 인증에 의존한다.
         emailVerified: typeof profile.email === 'string',
         name: typeof profile.name === 'string'
             ? profile.name

@@ -180,6 +180,14 @@ sends the public key on register/login, signs request JWTs locally, and the serv
 with the stored public key (`keyId` carried in the JWT). The server never holds a private key.
 Keys expire after 90 days — rotate with `rotateKey`.
 
+A `keyId` is **single-use for its lifetime**: it is unique across all users and is never reissued
+once revoked. A client that logs out, rotates, or is revoked must generate a **fresh keypair and
+`keyId`** for its next sign-in — resending the old one is refused with
+`KeyIdAlreadyRegisteredError` (409), on every path that registers a key. Re-registering a key that
+is still active is the one
+exception: it stays a no-op success, so repeated logins from the same device keep working, and an
+expired-but-active key has its expiry extended by the sign-in that proved the identity again.
+
 ### Writing protected routes (route DSL)
 
 This is the current SPFN route DSL — `route.<method>().input().use().skip().handler()` registered
@@ -408,7 +416,7 @@ data: `createOrLinkUser` matches an existing account by verified email. Display-
 | Google | No | id_token carries `email` + `email_verified` |
 | Apple | No | same, and Apple relay addresses are already the authoritative value |
 | Kakao | **Optional, recommended** | id_token carries `email` but no `email_verified`; without it the address is stored unverified |
-| Naver | **Optional, recommended** | id_token carries no profile claim at all; userinfo returns the address and the provider treats its presence as verified |
+| Naver | **Optional, recommended** | id_token carries no profile claim at all; userinfo returns the address, which carries no verification flag (see below) |
 
 Whatever the provider, the server trusts a lookup made with this token only after the identity it
 returns matches the id_token's `sub`. A mismatch, or a failed lookup, is treated as if the token
@@ -451,6 +459,15 @@ no picture, even when the application marks email as required. Send `accessToken
 server reads `/v1/nid/me`, whose `id` is the same pairwise value as the id_token's `sub`, and
 treats a returned address as verified (the same rule the web flow uses). `sub` being pairwise helps
 here — a token from another application resolves to a different `sub` and is rejected by the match.
+
+That verified verdict rests on one fact and it is worth stating plainly, because `createOrLinkUser`
+links a social identity to an existing account on a verified address alone. The `/v1/nid/me`
+response carries **no** verification flag — unlike Kakao, which reports `is_email_valid` and
+`is_email_verified` and is checked against both. What Naver guarantees instead is at change time:
+moving the contact email requires a code sent to the new address, so the returned value is an
+address the user has proven they control. It is **not** a stable identifier: the user can change it,
+one address can be shared by up to six Naver IDs, and it may be absent entirely. `providerUserId` is
+the only key that identifies the account.
 
 ```typescript
 await authApi.oauthNative.call({

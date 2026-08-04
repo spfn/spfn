@@ -63,6 +63,10 @@ interface TokenOptions
     aud: string;
     sub: string;
     expSeconds?: number;
+    /** iat claim (Unix seconds). 생략하면 현재 시각. 토큰 나이 상한 검사에 쓴다. */
+    iatSeconds?: number;
+    /** true면 iat claim을 아예 넣지 않는다. */
+    omitIat?: boolean;
 }
 
 async function signToken(claims: Record<string, unknown>, opts: TokenOptions): Promise<string>
@@ -71,8 +75,12 @@ async function signToken(claims: Record<string, unknown>, opts: TokenOptions): P
         .setProtectedHeader({ alg: 'RS256' })
         .setIssuer(opts.iss)
         .setAudience(opts.aud)
-        .setSubject(opts.sub)
-        .setIssuedAt();
+        .setSubject(opts.sub);
+
+    if (!opts.omitIat)
+    {
+        jwt.setIssuedAt(opts.iatSeconds);
+    }
 
     if (opts.expSeconds !== undefined)
     {
@@ -283,6 +291,17 @@ function mockKakaoUserInfo(body: Record<string, unknown>): void
         status: 200,
         json: async () => body,
     })));
+}
+
+/**
+ * AbortSignal.timeout이 만료 시 던지는 것과 같은 모양의 에러
+ *
+ * DOMException은 Error를 상속하므로 provider의 `.catch`가 `err instanceof Error`로 걸러
+ * `reason`에 사람이 읽을 수 있는 문자열을 남긴다 — 정체불명의 shape가 아니다.
+ */
+function timeoutError(): Error
+{
+    return new DOMException('The operation was aborted due to timeout', 'TimeoutError');
 }
 
 function kakaoAccount(email: string | null, valid: boolean, verified: boolean): Record<string, unknown>
@@ -544,6 +563,44 @@ describe('Native id_token - Kakao', () =>
             expect(identity.providerUserId).toBe('k-1');
             expect(identity.emailVerified).toBe(false);
         });
+
+        it('bounds the user-info request with an abort signal', async () =>
+        {
+            const kakao = getOAuthProvider('kakao')!;
+            const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+                ok: true,
+                status: 200,
+                json: async () => ({ id: 'k-1', kakao_account: kakaoAccount('user@example.com', true, true) }),
+            }));
+            vi.stubGlobal('fetch', fetchMock);
+
+            await kakao.verifyNativeIdToken!(await signKakaoToken('k-1'), {
+                nonce: 'n',
+                accessToken: 'kakao-access-token',
+            });
+
+            const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+            expect(init?.signal).toBeInstanceOf(AbortSignal);
+        });
+
+        it('continues the sign-in when the user-info request times out', async () =>
+        {
+            const kakao = getOAuthProvider('kakao')!;
+            // AbortSignal.timeout이 던지는 것과 같은 모양(name: 'TimeoutError', Error 상속).
+            vi.stubGlobal('fetch', vi.fn(async () =>
+            {
+                throw timeoutError();
+            }));
+
+            const identity = await kakao.verifyNativeIdToken!(await signKakaoToken('k-1'), {
+                nonce: 'n',
+                accessToken: 'kakao-access-token',
+            });
+
+            expect(identity.providerUserId).toBe('k-1');
+            expect(identity.email).toBe('from-token@example.com');
+            expect(identity.emailVerified).toBe(false);
+        });
     });
 });
 
@@ -699,6 +756,42 @@ describe('Native id_token - Naver', () =>
             expect(identity.email).toBeNull();
         });
 
+        it('bounds the user-info request with an abort signal', async () =>
+        {
+            const naver = getOAuthProvider('naver')!;
+            const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+                ok: true,
+                status: 200,
+                json: async () => ({ resultcode: '00', message: 'success', response: { id: 'naver-sub-43' } }),
+            }));
+            vi.stubGlobal('fetch', fetchMock);
+
+            await naver.verifyNativeIdToken!(await signNaverToken('naver-sub-43'), {
+                nonce: 'n',
+                accessToken: 'naver-access-token',
+            });
+
+            const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+            expect(init?.signal).toBeInstanceOf(AbortSignal);
+        });
+
+        it('continues the sign-in when the user-info request times out', async () =>
+        {
+            const naver = getOAuthProvider('naver')!;
+            vi.stubGlobal('fetch', vi.fn(async () =>
+            {
+                throw timeoutError();
+            }));
+
+            const identity = await naver.verifyNativeIdToken!(await signNaverToken('naver-sub-43'), {
+                nonce: 'n',
+                accessToken: 'naver-access-token',
+            });
+
+            expect(identity.providerUserId).toBe('naver-sub-43');
+            expect(identity.email).toBeNull();
+        });
+
         it('continues the sign-in when user-info reports a non-success resultcode', async () =>
         {
             const naver = getOAuthProvider('naver')!;
@@ -712,6 +805,83 @@ describe('Native id_token - Naver', () =>
             expect(identity.email).toBeNull();
         });
     });
+});
+
+/**
+ * 토큰 나이 상한 (jwks-verify의 MAX_TOKEN_AGE_SECONDS = 600초)
+ *
+ * nonce가 요청 본문으로 함께 오는 구조라 재사용 자체는 탐지할 수 없다. exp만으로는 유출된
+ * 토큰이 provider 수명 내내 통하므로(카카오 12시간), iat 기준 상한이 그 창을 좁힌다.
+ * exp는 항상 미래로 두어 이 검사만 단독으로 확인한다.
+ */
+describe('Native id_token - token age', () =>
+{
+    const nowSeconds = (): number => Math.floor(Date.now() / 1000);
+
+    interface AgeCase
+    {
+        provider: 'google' | 'apple' | 'kakao' | 'naver';
+        iss: string;
+        aud: string;
+        /** id_token의 nonce claim (Apple만 SHA-256 해시). */
+        tokenNonce: string;
+        /** 클라이언트가 보내는 raw nonce. */
+        rawNonce: string;
+    }
+
+    const cases: AgeCase[] = [
+        { provider: 'google', iss: GOOGLE_ISS, aud: 'ios.example.com', tokenNonce: 'n', rawNonce: 'n' },
+        {
+            provider: 'apple',
+            iss: APPLE_ISS,
+            aud: 'com.example.app',
+            tokenNonce: createHash('sha256').update('n').digest('hex'),
+            rawNonce: 'n',
+        },
+        { provider: 'kakao', iss: KAKAO_ISS, aud: KAKAO_NATIVE_KEY, tokenNonce: 'n', rawNonce: 'n' },
+        { provider: 'naver', iss: NAVER_ISS, aud: NAVER_CLIENT_ID, tokenNonce: 'n', rawNonce: 'n' },
+    ];
+
+    for (const c of cases)
+    {
+        // 상한(600초)을 시계 오차 허용치(30초)와 함께 넘긴 값 — 경계 근처가 아니라 확실히 밖.
+        it(`rejects a ${c.provider} token issued outside the age window`, async () =>
+        {
+            const provider = getOAuthProvider(c.provider)!;
+            const token = await signToken(
+                { nonce: c.tokenNonce },
+                { iss: c.iss, aud: c.aud, sub: `${c.provider}-old`, iatSeconds: nowSeconds() - 1800 },
+            );
+
+            await expect(provider.verifyNativeIdToken!(token, { nonce: c.rawNonce })).rejects.toThrow();
+        });
+
+        // 정상 클라이언트가 겪을 수 있는 지연(수 분)은 그대로 통과해야 한다.
+        it(`accepts a ${c.provider} token issued inside the age window`, async () =>
+        {
+            const provider = getOAuthProvider(c.provider)!;
+            const token = await signToken(
+                { nonce: c.tokenNonce },
+                { iss: c.iss, aud: c.aud, sub: `${c.provider}-fresh`, iatSeconds: nowSeconds() - 300 },
+            );
+
+            const identity = await provider.verifyNativeIdToken!(token, { nonce: c.rawNonce });
+
+            expect(identity.providerUserId).toBe(`${c.provider}-fresh`);
+        });
+
+        // iat은 OIDC 필수 claim이다. 없으면 나이를 판정할 수 없으므로 거부한다.
+        it(`rejects a ${c.provider} token without an iat claim`, async () =>
+        {
+            const provider = getOAuthProvider(c.provider)!;
+            const token = await signToken(
+                { nonce: c.tokenNonce },
+                { iss: c.iss, aud: c.aud, sub: `${c.provider}-no-iat`, omitIat: true },
+            );
+
+            await expect(provider.verifyNativeIdToken!(token, { nonce: c.rawNonce })).rejects.toThrow();
+        });
+    }
 });
 
 describe('Native id_token - provider registry', () =>

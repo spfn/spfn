@@ -7,7 +7,7 @@
 import { type KeyAlgorithmType } from '../types';
 import { verifyKeyFingerprint } from '../helpers/jwt';
 import { KEY_TTL_DAYS } from '../lib/key-policy';
-import { InvalidKeyFingerprintError } from '@spfn/auth/errors';
+import { InvalidKeyFingerprintError, KeyIdAlreadyRegisteredError } from '@spfn/auth/errors';
 import { keysRepository } from '../repositories';
 
 export interface RegisterPublicKeyParams
@@ -54,7 +54,23 @@ function getKeyExpiryDate(): Date
 }
 
 /**
+ * Helper: 만료 시각이 지났는지 (null이면 만료 없음)
+ */
+function isExpired(expiresAt: Date | null): boolean
+{
+    return expiresAt !== null && new Date() > expiresAt;
+}
+
+/**
  * Register a new public key for a user
+ *
+ * `keyId` is UNIQUE across all users, so the lookup must ignore `isActive` —
+ * filtering on it misses a revoked row and the insert then fails on the unique
+ * index, rolling the whole login transaction back into a 500. Reuse is refused
+ * with a domain error instead, telling the client to generate a fresh keyId.
+ *
+ * @throws KeyIdAlreadyRegisteredError keyId가 이미 쓰인 값일 때 (자기 폐기 키 재사용 · 남의 키)
+ * @throws InvalidKeyFingerprintError fingerprint가 publicKey와 맞지 않을 때
  */
 export async function registerPublicKeyService(
     params: RegisterPublicKeyParams,
@@ -62,11 +78,29 @@ export async function registerPublicKeyService(
 {
     const { userId, keyId, publicKey, fingerprint, algorithm = 'ES256' } = params;
 
-    // Idempotent: skip if key already registered
-    const existing = await keysRepository.findActiveByKeyId(keyId);
+    const existing = await keysRepository.findByKeyId(keyId);
     if (existing)
     {
-        return;
+        // 같은 사용자가 자기 활성 키를 다시 등록하는 것만 무시한다 — 한 기기에서
+        // 반복 로그인할 때 걸리는 정상 경로다.
+        //
+        // 만료(expiresAt 경과)는 여기서 함께 본다. 만료로 isActive가 뒤집히지는 않으므로
+        // 그냥 무시하고 반환하면 로그인은 200인데 authenticate가 KeyExpiredError로 모든
+        // 요청을 막는다 — 로그인됐다고 믿는 채로 아무것도 안 되는 상태가 된다. 방금 로그인이
+        // 신원을 다시 증명했으니 만료만 연장한다.
+        if (existing.userId === userId && existing.isActive)
+        {
+            if (isExpired(existing.expiresAt))
+            {
+                await keysRepository.extendExpiry(keyId, userId, getKeyExpiryDate());
+            }
+
+            return;
+        }
+
+        // 폐기된 자기 키 재사용과 남의 활성 키는 같은 에러로 답한다. 응답이 갈리면
+        // 임의의 keyId가 존재하는지를 caller가 떠볼 수 있다. 폐기는 되돌리지 않는다.
+        throw new KeyIdAlreadyRegisteredError();
     }
 
     // Verify fingerprint matches public key
