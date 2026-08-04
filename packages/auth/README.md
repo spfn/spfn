@@ -380,6 +380,33 @@ the raw value for any provider. `profile.name` captures the name Apple returns o
 sign-in. Trade-off: skipping code exchange means no Apple refresh token / server-side revoke —
 revoke SPFN access by revoking the registered key instead.
 
+> **Generate the nonce as hex, not base64.** Naver drops a trailing `A` from a base64url nonce
+> before putting it in the id_token — the last character of a 16-byte base64url value is one of
+> `A Q g w`, so a base64 nonce fails verification for roughly one sign-in in four, intermittently
+> and with nothing in the logs pointing at the cause. Nonce comparison is exact by design
+> (`jwks-verify.ts`), so the fix belongs on the client: use an encoding where every position
+> carries meaning. Confirmed on Naver; not yet measured on the other providers, and hex is safe
+> for all of them.
+
+#### The optional `accessToken`
+
+`accessToken` is the provider access token from the same sign-in. It is **optional and
+provider-specific** — the server never requires it, and a client that omits it still signs in.
+
+Send it only when a provider's id_token cannot establish the user's **email**, which is identity
+data: `createOrLinkUser` matches an existing account by verified email. Display-side profile
+(name, avatar) is deliberately *not* a reason to send it — that belongs to the app, not to auth.
+
+| Provider | Send `accessToken`? | Why |
+|---|---|---|
+| Google | No | id_token carries `email` + `email_verified` |
+| Apple | No | same, and Apple relay addresses are already the authoritative value |
+| Kakao | **Optional, recommended** | id_token carries `email` but no `email_verified`; without it the address is stored unverified |
+
+Whatever the provider, the server trusts a lookup made with this token only after the identity it
+returns matches the id_token's `sub`. A mismatch, or a failed lookup, is treated as if the token
+had not been sent.
+
 **Kakao.** Enable OpenID Connect in the Kakao developer console and request the `openid` scope, or
 the SDK returns no `idToken`. One Kakao app issues several keys (native app key, REST API key), and
 the `aud` claim is whichever key obtained the token — so list the native app key and let the REST
