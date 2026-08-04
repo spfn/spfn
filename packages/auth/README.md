@@ -1,9 +1,27 @@
-# @spfn/auth — Authentication, OAuth, and RBAC for SPFN
+# @spfn/auth
 
-Asymmetric client-signed JWT auth (ES256/RS256), OTP verification, OAuth 2.0 (pluggable
-provider registry; Google, GitHub, Kakao, and Naver built in), session cookies for Next.js, and runtime RBAC.
-Routes are exposed under the `/_auth/*` namespace and reached through a type-safe `authApi`
-client. Requires `@spfn/core`; Next.js is an optional peer (`^15 || ^16`).
+> **Two applications' worth of auth, in one package**
+
+Nothing ships until people can sign in. `@spfn/auth` clears that gate twice over — once
+for the people who use your product, and once for the people who operate it.
+
+- **For your users** — registration, password and OTP login, social sign-in, sessions,
+  registered devices, and account deletion with a recovery window.
+- **For your operators** — admin accounts seeded from the environment, roles and
+  permissions enforced on every route, invitations, and role administration your
+  superadmins can change at runtime.
+
+The second half is what usually becomes a second application: an admin dashboard with its
+own auth, its own screens, and its own maintenance, growing for as long as the product
+does. Attach [`@spfn/mcp`](../mcp/README.md) instead and those operations become tools an
+AI agent runs, gated by the same roles — see
+[Can I operate the app without building an admin dashboard?](#can-i-operate-the-app-without-building-an-admin-dashboard).
+
+Underneath: asymmetric client-signed JWTs (ES256/RS256), OTP verification, OAuth 2.0
+through a pluggable provider registry (Google, GitHub, Kakao and Naver built in), session
+cookies for Next.js, and runtime RBAC. Routes mount under `/_auth/*` and are reached
+through a typed `authApi` client. Requires `@spfn/core`; Next.js is an optional peer
+(`^15 || ^16`).
 
 ## Install
 
@@ -31,9 +49,9 @@ import { createClientProofDevHandler } from '@spfn/auth/client-proof';  // SERVE
 > Database entities (`users`, `userPublicKeys`, …) and all services/repositories are exported
 > from `@spfn/auth/server`, **not** from the root `@spfn/auth`.
 
-## Setup (4 wiring points)
+## How do I add auth to an SPFN app?
 
-Auth needs four edits in the consuming app. All four are required for the flow to work end to end.
+Four edits in the consuming app. All four are required for the flow to work end to end.
 
 ### 1. Lifecycle — `server.config.ts`
 
@@ -101,7 +119,7 @@ import { authApi } from '@spfn/auth';
 const session = await authApi.getAuthSession.call({});   // → GET /_auth/session
 ```
 
-## Environment variables
+## Which environment variables do I need?
 
 Set across **two files** by audience. Server-only secrets go in `.env.server`; values the
 Next.js runtime needs (session cookie crypto) go in `.env.local`. Names only below — supply
@@ -627,7 +645,7 @@ receives the same account/token context and owns its key rotation policy.
 - `auth.login` / `auth.register` events now carry any `SOCIAL_PROVIDERS` value in `provider` —
   update any `switch(provider)` in subscribers.
 
-## Sessions (Next.js)
+## How do I read the session in a Next.js page?
 
 Sessions are HttpOnly cookies encrypted with `SPFN_AUTH_SESSION_SECRET` (JWE), holding the
 client private key + `keyId` (`SessionData`: `{ userId, privateKey, keyId, algorithm }`). The
@@ -661,7 +679,7 @@ export default async function AdminPage()
 Also exported: `getAuthSessionData`, `getUserRole`, `getUserPermissions`, `hasAnyRole`,
 `hasAnyPermission`, the OAuth pending-session helpers, and `createOAuthCallbackHandler`.
 
-## RBAC
+## How do I define roles and permissions?
 
 Built-in roles: `superadmin` (priority 100), `admin` (80), `user` (10). Built-in permissions:
 `auth:self:manage`, `user:read|write|delete|invite`, `rbac:role:manage`, `rbac:permission:manage`.
@@ -680,6 +698,55 @@ Programmatic checks (server): `hasPermission`, `hasAnyPermission`, `hasAllPermis
 `hasAnyRole`, `getUserRole`, `getUserPermissions`. Runtime role admin: `createRole`, `updateRole`,
 `deleteRole`, `setRolePermissions`, `addPermissionToRole`, `removePermissionFromRole`,
 `getAllRoles`, `getRoleByName`, `getRolePermissions`.
+
+## Can I operate the app without building an admin dashboard?
+
+Yes, and that is the point of the operator half of this package. The day after you deploy,
+someone has to refund an order, look up a user, publish a change, retry a failed job. The
+usual answer is to build screens for each of those. `@spfn/auth` already knows who your
+operators are and which of them may do what; [`@spfn/mcp`](../mcp/README.md) turns those
+operations into tools an AI agent can run, so the screens never get built.
+
+The connection is app code, deliberately. `@spfn/mcp` does not read this package's RBAC on
+its own — it asks you for a `validateToken` and a `listTools`, and those are where auth's
+answers go:
+
+```typescript
+import { createMcpRoute } from '@spfn/mcp/server';
+import { hasPermission, getUserRole } from '@spfn/auth/server';
+
+// one required permission per tool — the same permission names your routes check
+const allTools = [
+    { name: 'orders.refund',   permission: 'order:refund',   /* … */ },
+    { name: 'content.publish', permission: 'post:publish',   /* … */ },
+];
+
+export const mcpRouter = createMcpRoute({
+    appUrl: 'https://app.example.com',
+    serverInfo: { name: 'example-app', version: '1.0.0' },
+
+    validateToken: async (token, resource) => verifyAccessToken(token, resource),
+
+    resolveContext: async (auth) => ({
+        userId: auth.userId,
+        role: await getUserRole(auth.userId),
+    }),
+
+    listTools: async (ctx) =>
+    {
+        const allowed = await Promise.all(
+            allTools.map(t => hasPermission(ctx.userId, t.permission)),
+        );
+
+        return allTools.filter((_, i) => allowed[i]);
+    },
+});
+```
+
+Two rules keep this safe. **Expose operations, not tables** — `orders.refund` carries an
+authorization rule; a generic `db.query` carries none. And **check the permission inside
+the handler too**, not only in `listTools`: hiding a tool from the list is discovery
+control, not authorization.
 
 ## Events
 
@@ -943,6 +1010,50 @@ Register **only one** of `authJobRouter` / `createAuthDeletionJobRouter(...)` �
 named `auth.deletion.purge`, so registering both (e.g. the static export *and* a custom-cron
 router) double-registers the same job name against pg-boss instead of overriding it.
 
+## FAQ
+
+**How do I add one social provider?**
+Set its two environment variables. Google, GitHub, Kakao and Naver each turn on when their
+client ID and secret are both present — there is no separate registration step. Then
+register the callback URL in that provider's console, and read the next answer before you
+deploy.
+
+**Social login worked locally and broke after deploying. Why?**
+Almost always the callback origin. The CSRF check is a double-submit against a host-only
+cookie set on your **web app** host, so the provider must return to the web app origin, and
+the app must forward `/_auth/*` to the API with a Next.js rewrite. Without that rewrite the
+callback 404s — including in local dev. Details in
+[OAuth callback origin](#oauth-callback-origin-web-app-host--rewrite).
+
+**Does the server hold my users' private keys?**
+No. The client generates an ES256/RS256 keypair, sends only the public key on register or
+login, and signs each request itself. The server verifies with the stored public key. Keys
+expire after 90 days; `rotateKey` renews one.
+
+**Does signing in on a new device sign the old one out?**
+No, and that is on purpose — keys are per-device and accumulate. `listKeys` shows the
+account owner what accumulated, `revokeKey` cuts one off, `revokeAllKeys` cuts off
+everything but the caller.
+
+**How long does a session last?**
+`SPFN_AUTH_SESSION_TTL`, seven days by default. It accepts `7d`, `12h`, `45m`.
+
+**Is account deletion immediate?**
+No. A request moves the account to `pending_deletion`, revokes every session key, and
+schedules the purge for 30 days later by default. The user can cancel with their
+credentials during that window. Two things need your attention: the purge sweep is a job
+you register explicitly (`.jobs(authJobRouter)`), and a purged account's email becomes
+reusable immediately. See [Account Deletion & Recovery](#account-deletion--recovery).
+
+**Can an admin delete a user's account?**
+Yes, through `requestAccountDeletionService(userId, { requestedBy: 'admin', immediate })`
+and `purgeUserService(userId)`. The package exports the services; you own the route and its
+authorization.
+
+**Where do my admin accounts come from?**
+The environment, seeded on startup by `createAuthLifecycle()`. Seeded accounts are email
+verified, active, and required to change their password on first login.
+
 ## Pitfalls & anti-patterns
 
 - **"relation \"auth.users\" does not exist" — tables come from bundled migrations, not push.**
@@ -1028,7 +1139,9 @@ const session = await authApi.getAuthSession.call({});
 
 ## Related
 
-- `@spfn/core` — route DSL (`route`, `defineRouter`), `createApi`, env (`@spfn/core/env`),
-  errors (`ErrorRegistry`), db (`Transactional`), events, jobs.
+- [`@spfn/core`](../core/README.md) — route DSL (`route`, `defineRouter`), `createApi`, env
+  (`@spfn/core/env`), errors (`ErrorRegistry`), db (`Transactional`), events, jobs.
+- [`@spfn/mcp`](../mcp/README.md) — exposes operations as MCP tools, so the operator half of
+  this package needs no admin dashboard.
 - `@spfn/notification` — email/SMS/push (verification codes, invitation emails).
 - Full guide: `docs/guides/authentication.md`.
