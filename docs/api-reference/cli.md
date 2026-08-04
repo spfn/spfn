@@ -879,6 +879,41 @@ const user = await api.getUser.call({ params: { id: '123' } });
 //    ^? { id: string; name: string }
 ```
 
+## spfn contract
+
+Manage the route contract — what a **separately deployed** client (a mobile app, an external API
+consumer) is promised. A web client needs none of this: it derives its types from `AppRouter` in the
+same build, so a broken response already fails the compile.
+
+Requires the `@spfn/core:contract` generator in `.spfnrc.ts`. Every command regenerates the contract
+from the router first, so a stale `contracts/current.json` is never what gets checked or released.
+
+```bash
+# Regenerate and compare against the newest released snapshot
+spfn contract check
+
+# Cut a release — writes contracts/released/1.3.0.json. Commit it.
+spfn contract release 1.3.0
+
+# List released snapshots
+spfn contract list
+```
+
+| Command | What it does | Exit code |
+|---------|--------------|-----------|
+| `check` | Compares the current contract against the newest released snapshot | 1 when a promise is broken |
+| `release <version>` | Writes the snapshot every later build is compared against | 1 when the contract is broken, the version already exists, or it is not newer than the newest one |
+| `list` (`ls`) | Lists released snapshots | 0 |
+
+`--dir <path>` overrides the contracts directory; by default it comes from the generator's
+`outputDir` in `.spfnrc.ts`.
+
+**`spfn build` runs the same gate.** A broken contract fails the build with a non-zero exit code —
+that is the point of hanging the check off codegen rather than leaving it to a separate step.
+
+See [`packages/core/src/contract/README.md`](../../packages/core/src/contract/README.md) for the
+case table and the removal rules.
+
 > **Note:** Types Update Instantly
 >
 > With the define-route pattern, types are inferred at compile time. When you modify a route, TypeScript immediately reflects the changes—no code generation step required.
