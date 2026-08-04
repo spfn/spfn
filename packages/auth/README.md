@@ -380,13 +380,18 @@ the raw value for any provider. `profile.name` captures the name Apple returns o
 sign-in. Trade-off: skipping code exchange means no Apple refresh token / server-side revoke —
 revoke SPFN access by revoking the registered key instead.
 
-> **Generate the nonce as hex, not base64.** Naver drops a trailing `A` from a base64url nonce
-> before putting it in the id_token — the last character of a 16-byte base64url value is one of
-> `A Q g w`, so a base64 nonce fails verification for roughly one sign-in in four, intermittently
-> and with nothing in the logs pointing at the cause. Nonce comparison is exact by design
-> (`jwks-verify.ts`), so the fix belongs on the client: use an encoding where every position
-> carries meaning. Confirmed on Naver; not yet measured on the other providers, and hex is safe
-> for all of them.
+> **Generate the nonce as lowercase hex, not base64.** Naver drops a trailing `A` from a base64url
+> nonce before putting it in the id_token. A 16-byte base64url value ends in one of `A Q g w` —
+> its last character carries only 2 bits of data plus 4 bits of padding — so a base64 nonce fails
+> verification for roughly one sign-in in four, intermittently and with nothing in the logs
+> pointing at the cause.
+>
+> The trigger is the character `A`, not the encoding as such. **Uppercase hex ends in `A` once in
+> sixteen and breaks the same way**; lowercase hex (`0-9a-f`) has no `A` in its alphabet, so it
+> cannot hit the case at all. Nonce comparison is exact by design (`jwks-verify.ts`) — accepting a
+> truncated value would also accept any other nonce sharing those first characters — so the fix
+> belongs on the client. Confirmed on Naver; not yet measured on the other providers, and
+> lowercase hex is safe for all of them.
 
 #### The optional `accessToken`
 
