@@ -230,6 +230,29 @@ export class InvalidVerificationTokenError extends ValidationError
 }
 
 /**
+ * Key ID Already Registered Error (409)
+ *
+ * Thrown when a sign-in submits a keyId that is already taken — the client's own
+ * revoked keyId, or a keyId belonging to another user. `keyId` is unique across
+ * all users, so either case would collide on insert.
+ *
+ * The same error covers both cases on purpose: a distinguishable response would
+ * let a caller probe whether an arbitrary keyId exists. Revoked stays revoked —
+ * the client must generate a fresh keyId and retry.
+ */
+export class KeyIdAlreadyRegisteredError extends ConflictError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'This keyId is already registered. Generate a new keyId and retry.',
+            details: data.details,
+        });
+        this.name = 'KeyIdAlreadyRegisteredError';
+    }
+}
+
+/**
  * Invalid Key Fingerprint Error (400)
  *
  * Thrown when public key fingerprint doesn't match the public key
