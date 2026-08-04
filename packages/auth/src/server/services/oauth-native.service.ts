@@ -10,10 +10,13 @@
  *   2) persist — 사용자 link/create + 공개키 등록을 한 트랜잭션으로. 이벤트는 커밋 후 발행.
  */
 
-import { ValidationError } from '@spfn/core/errors';
 import { runInTransaction, onAfterCommit } from '@spfn/core/db';
 
-import { InvalidKeyFingerprintError, NonceKeyBindingError } from '@spfn/auth/errors';
+import {
+    InvalidKeyFingerprintError,
+    NativeSignInUnsupportedError,
+    NonceKeyBindingError,
+} from '@spfn/auth/errors';
 import { verifyKeyFingerprint } from '../helpers/jwt';
 import { socialAccountsRepository } from '../repositories';
 import { type SocialProvider, type KeyAlgorithmType, type KeyPlatformType } from '../types';
@@ -57,7 +60,7 @@ export interface OAuthNativeResult
 /**
  * native id_token 로그인 처리
  *
- * @throws ValidationError provider가 native sign-in을 지원하지 않을 때
+ * @throws NativeSignInUnsupportedError provider가 native sign-in을 지원하지 않을 때
  * @throws InvalidSocialTokenError id_token 검증 실패 시
  */
 export async function oauthNativeService(params: OAuthNativeParams): Promise<OAuthNativeResult>
@@ -66,7 +69,7 @@ export async function oauthNativeService(params: OAuthNativeParams): Promise<OAu
 
     if (!oauthProvider?.verifyNativeIdToken)
     {
-        throw new ValidationError({
+        throw new NativeSignInUnsupportedError({
             message: `Provider '${params.provider}' does not support native id_token sign-in.`,
         });
     }

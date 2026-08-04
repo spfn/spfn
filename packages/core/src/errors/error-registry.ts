@@ -156,8 +156,14 @@ export class ErrorRegistry
             throw new Error(`Unknown error type: ${data.__type}`);
         }
 
-        // Pass entire data object to constructor
-        return new ErrorClass(data);
+        // `__type` routed this lookup and `error` is the response envelope: both
+        // describe the response, not the error. The documented constructor shape
+        // is Object.assign(this, data), which would otherwise copy them onto the
+        // instance as reserved fields — and a reserved field refuses to serialize
+        // the moment a server re-throws this error.
+        const { __type: _type, error: _envelope, ...fields } = data;
+
+        return new ErrorClass(fields);
     }
 
     /**

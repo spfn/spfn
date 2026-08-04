@@ -4,7 +4,7 @@
   "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
   "contractName": "spfn-mobile-contract",
   "contractMajor": 0,
-  "contractVersion": "0.4.1",
+  "contractVersion": "0.4.2",
   "supportedRange": ">=0.4.0 <0.5.0",
   "exporterVersion": "@spfn/auth/contract-bundle@3.0.0",
   "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
@@ -28,7 +28,7 @@
     "appliesTo": "every operation whose path starts with /_auth",
     "requestBody": "plain JSON of the request type, validated server-side; canonical-JSON encoding is required only when the call is proven (the proof binds the canonical bytes)",
     "responseBody": "the response type as plain JSON, with no envelope around it",
-    "errorEnvelope": "the SPFN error shape {\"error\": {...}} with HTTP status semantics, not the six-code contract envelope; only proven calls can receive the contract refusal codes, via the middleware",
+    "errorEnvelope": "the same {\"error\":{\"code\",\"message\",\"requestId\"}} envelope every operation uses, carried alongside the SPFN web fields (__type and the error class's own public fields) in one body: the web client restores an error class from __type while a generated client reads error.code and ignores the rest. The codes are the server error class names listed under errors with surface \"rest\", not the six clientProofV1 refusal codes — those reach only proven calls",
     "pathTemplate": "a {name} segment is a path parameter the client substitutes before signing or sending; {provider} is the social provider id (google, apple, kakao, naver)",
     "policy": "rate limits and other route policies are server posture, not contract surface: this bundle states wire shapes only"
   },
@@ -374,37 +374,120 @@
       "code": "PROOF_INVALID",
       "httpStatus": 401,
       "retryable": false,
-      "summary": "the client proof did not verify"
+      "summary": "the client proof did not verify",
+      "surface": "clientProofV1"
     },
     {
       "code": "PROOF_REPLAYED",
       "httpStatus": 401,
       "retryable": false,
-      "summary": "the nonce was already used inside the replay window"
+      "summary": "the nonce was already used inside the replay window",
+      "surface": "clientProofV1"
     },
     {
       "code": "PROOF_EXPIRED",
       "httpStatus": 401,
       "retryable": false,
-      "summary": "issuedAtMillis falls outside the replay window"
+      "summary": "issuedAtMillis falls outside the replay window",
+      "surface": "clientProofV1"
     },
     {
       "code": "SESSION_REVOKED",
       "httpStatus": 401,
       "retryable": false,
-      "summary": "the key or session was revoked"
+      "summary": "the key or session was revoked",
+      "surface": "clientProofV1"
     },
     {
       "code": "PROFILE_REJECTED",
       "httpStatus": 400,
       "retryable": false,
-      "summary": "an auth profile outside the allowlist was named"
+      "summary": "an auth profile outside the allowlist was named",
+      "surface": "clientProofV1"
     },
     {
       "code": "CONTRACT_UNSUPPORTED",
       "httpStatus": 409,
       "retryable": false,
-      "summary": "the request is not the shape this contract describes"
+      "summary": "the request is not the shape this contract describes",
+      "surface": "clientProofV1"
+    },
+    {
+      "code": "ValidationError",
+      "httpStatus": 400,
+      "retryable": false,
+      "summary": "the request body is not the shape the operation declares",
+      "surface": "rest"
+    },
+    {
+      "code": "NativeSignInUnsupportedError",
+      "httpStatus": 400,
+      "retryable": false,
+      "summary": "this provider has no native id_token sign-in — a server configuration fact, not a user error",
+      "surface": "rest"
+    },
+    {
+      "code": "NonceKeyBindingError",
+      "httpStatus": 400,
+      "retryable": false,
+      "summary": "the nonce is not the fingerprint of the submitted public key",
+      "surface": "rest"
+    },
+    {
+      "code": "InvalidKeyFingerprintError",
+      "httpStatus": 400,
+      "retryable": false,
+      "summary": "the fingerprint is not the hash of the submitted public key",
+      "surface": "rest"
+    },
+    {
+      "code": "UnverifiedEmailLinkError",
+      "httpStatus": 400,
+      "retryable": false,
+      "summary": "that email already has an account and the provider never verified it, so linking is refused",
+      "surface": "rest"
+    },
+    {
+      "code": "InvalidSocialTokenError",
+      "httpStatus": 401,
+      "retryable": false,
+      "summary": "the id_token failed signature, issuer, audience, expiry, nonce or subject verification",
+      "surface": "rest"
+    },
+    {
+      "code": "AccountDisabledError",
+      "httpStatus": 403,
+      "retryable": false,
+      "summary": "the account cannot open a session in its current status",
+      "surface": "rest"
+    },
+    {
+      "code": "AccountPendingDeletionError",
+      "httpStatus": 403,
+      "retryable": false,
+      "summary": "the account is scheduled for deletion and must be restored before it can sign in",
+      "surface": "rest"
+    },
+    {
+      "code": "KeyIdAlreadyRegisteredError",
+      "httpStatus": 409,
+      "retryable": false,
+      "summary": "that keyId is taken or was revoked — generate a fresh keyId and retry",
+      "surface": "rest"
+    },
+    {
+      "code": "TooManyRequestsError",
+      "httpStatus": 429,
+      "retryable": true,
+      "summary": "the rate limit for this endpoint was exceeded; the same request succeeds after the window",
+      "surface": "rest"
+    },
+    {
+      "code": "Error",
+      "httpStatus": 500,
+      "retryable": false,
+      "summary": "the server failed for a reason it does not describe to the client",
+      "surface": "rest"
     }
   ],
   "notes": [

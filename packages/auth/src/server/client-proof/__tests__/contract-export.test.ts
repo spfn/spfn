@@ -383,19 +383,36 @@ describe('declared errors match the refusals', () =>
         CONTRACT_UNSUPPORTED: () => ClientProofRefusal.unroutable(),
     };
 
-    const declared = bundle.errors as { code: ClientProofErrorCode; httpStatus: number }[];
+    const declared = bundle.errors as { code: string; httpStatus: number; surface: string }[];
+
+    // 두 표면은 어휘가 다르다. 프로필 안의 거절은 여섯 코드로 닫혀 있고, REST 표면은 서버
+    // 에러 클래스 이름을 그대로 쓴다. 한 목록에 같이 실리므로 surface로 갈라 검사한다.
+    const proofErrors = declared.filter((error) => error.surface === 'clientProofV1');
 
     it('the bundle declares every code the server can answer with, and no other', () =>
     {
-        expect(declared.map((error) => error.code).sort()).toEqual(Object.keys(REFUSALS).sort());
+        expect(proofErrors.map((error) => error.code).sort()).toEqual(Object.keys(REFUSALS).sort());
     });
 
     it('every declared status is the status that code actually answers with', () =>
     {
-        for (const error of declared)
+        for (const error of proofErrors)
         {
-            expect(REFUSALS[error.code]().httpStatus, error.code).toBe(error.httpStatus);
+            expect(REFUSALS[error.code as ClientProofErrorCode]().httpStatus, error.code).toBe(error.httpStatus);
         }
+    });
+
+    it('the REST surface carries its own vocabulary, never the six refusal codes', () =>
+    {
+        const restCodes = declared.filter((error) => error.surface === 'rest').map((error) => error.code);
+
+        expect(restCodes.length).toBeGreaterThan(0);
+        expect(restCodes.filter((code) => code in REFUSALS)).toEqual([]);
+    });
+
+    it('every declared error names the surface it can appear on', () =>
+    {
+        expect(declared.filter((error) => !['clientProofV1', 'rest'].includes(error.surface))).toEqual([]);
     });
 });
 
@@ -429,7 +446,7 @@ describe('declared proof rules match the implementation', () =>
 
     it('the contract line is the enrollment-surface revision', () =>
     {
-        expect(bundle.contractVersion).toBe('0.4.1');
+        expect(bundle.contractVersion).toBe('0.4.2');
     });
 
     it('the supported range moves with the breaking nonce rule', () =>

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { ErrorHandler, type OnErrorContext } from '../error-handler';
 import {
     NotFoundError,
@@ -396,6 +396,101 @@ describe('ErrorHandler Middleware', () =>
             expect(json.message).toBe('Internal Server Error');
             expect(json.cause).toBeUndefined();
             expect(JSON.stringify(json)).not.toContain('secret');
+        });
+    });
+
+    describe('Error envelope', () =>
+    {
+        const envelopeApp = (throwing: () => never) =>
+        {
+            const app = new Hono();
+            app.onError(ErrorHandler({ enableLogging: false }));
+            app.get('/x', throwing);
+
+            return app;
+        };
+
+        it('carries code, message and requestId next to __type', async () =>
+        {
+            const app = envelopeApp(() =>
+            {
+                throw new NotFoundError({ message: 'User not found', resource: 'User' });
+            });
+
+            const json: any = await (await app.request('/x')).json();
+
+            expect(json.__type).toBe('NotFoundError');
+            expect(json.resource).toBe('User');
+            expect(json.error.code).toBe('NotFoundError');
+            expect(json.error.message).toBe('User not found');
+            expect(json.error.requestId).toMatch(/^[0-9a-f]{32}$/);
+        });
+
+        it('reuses the request id RequestLogger set, so logs and body agree', async () =>
+        {
+            const app = new Hono();
+            app.onError(ErrorHandler({ enableLogging: false }));
+            // RequestLogger sets this on a bare Context; the app-typed one here needs the cast.
+            app.use('*', async (c, next) =>
+            {
+                (c as Context).set('requestId', 'fixed-request-id');
+                await next();
+            });
+            app.get('/x', () =>
+            {
+                throw new NotFoundError({ message: 'gone' });
+            });
+
+            const json: any = await (await app.request('/x')).json();
+
+            expect(json.error.requestId).toBe('fixed-request-id');
+        });
+
+        it('codes a standard error as Error without leaking its message', async () =>
+        {
+            const app = new Hono();
+            app.onError(ErrorHandler({ enableLogging: false, includeStack: false }));
+            app.get('/x', () =>
+            {
+                throw new Error('connection string secret');
+            });
+
+            const json: any = await (await app.request('/x')).json();
+
+            expect(json.error.code).toBe('Error');
+            expect(json.error.message).toBe('Internal Server Error');
+            expect(JSON.stringify(json)).not.toContain('secret');
+        });
+
+        it('masks the envelope message on an internal error exactly like the body', async () =>
+        {
+            const app = new Hono();
+            app.onError(ErrorHandler({ enableLogging: false, includeStack: false }));
+            app.get('/x', () =>
+            {
+                throw new QueryError({ message: 'select * from users where token = $1' });
+            });
+
+            const json: any = await (await app.request('/x')).json();
+
+            expect(json.message).toBe('Internal server error');
+            expect(json.error.message).toBe('Internal server error');
+            expect(JSON.stringify(json)).not.toContain('select *');
+        });
+
+        it('is omitted when the option is off, leaving the body as it was', async () =>
+        {
+            const app = new Hono();
+            app.onError(ErrorHandler({ enableLogging: false, errorEnvelope: false }));
+            app.get('/x', () =>
+            {
+                throw new NotFoundError({ message: 'User not found' });
+            });
+
+            const json: any = await (await app.request('/x')).json();
+
+            expect(json.__type).toBe('NotFoundError');
+            expect(json.error).toBeUndefined();
         });
     });
 

@@ -439,6 +439,24 @@ await authApi.oauthNative.call({
 // → { userId, keyId, isNewUser }; client then signs its own ES256 Bearer token with keyId
 ```
 
+Every refusal names itself. The response body carries `error.code` — the server's error class
+name — alongside the usual `__type`, so a client that has no TypeScript error registry can still
+tell the eleven ways this call fails apart:
+
+| `error.code` | HTTP | What the client does |
+| --- | --- | --- |
+| `ValidationError` | 400 | fix the request body |
+| `NativeSignInUnsupportedError` | 400 | hide that provider's native button — server configuration |
+| `NonceKeyBindingError` | 400 | send `nonce === fingerprint` |
+| `InvalidKeyFingerprintError` | 400 | send the SHA-256 of the submitted key |
+| `UnverifiedEmailLinkError` | 400 | send the user to verify that address |
+| `InvalidSocialTokenError` | 401 | obtain a fresh id_token |
+| `AccountDisabledError` | 403 | show the account status |
+| `AccountPendingDeletionError` | 403 | offer restore |
+| `KeyIdAlreadyRegisteredError` | 409 | generate a new keyId and retry |
+| `TooManyRequestsError` | 429 | **the only retry-the-same-request code** |
+| `Error` | 500 | generic failure |
+
 The `nonce` is the **raw** nonce the client used; Apple hashes it (SHA-256) into the token, so send
 the raw value for any provider. `profile.name` captures the name Apple returns only on first
 sign-in. Trade-off: skipping code exchange means no Apple refresh token / server-side revoke —

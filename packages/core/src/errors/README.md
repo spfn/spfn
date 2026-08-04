@@ -54,10 +54,11 @@ From `@spfn/core/errors`:
 > `new DatabaseError('msg', 500, {...})`, `new HttpError(404, 'msg')` do **not** exist —
 > these were old signatures and will not compile. Use the object forms below.
 >
-> There is **no** `name` or `timestamp` field on the serialized output, and **no**
-> `code` field. Serialized JSON is `{ __type, message, ...publicFields }` — `statusCode`
-> is intentionally excluded (it is inferred from the type on deserialize). Old docs
-> showing `{ "name": ..., "timestamp": ... }` responses are wrong.
+> There is **no** `name` or `timestamp` field on the serialized output. Serialized JSON is
+> `{ __type, message, ...publicFields }` — `statusCode` is intentionally excluded (it is
+> inferred from the type on deserialize). Old docs showing `{ "name": ..., "timestamp": ... }`
+> responses are wrong. The `code` a response carries lives inside the `error` envelope the
+> handler adds (below), never as a top-level field.
 
 ---
 
@@ -91,7 +92,12 @@ Response for the `NotFoundError` above (HTTP 404):
 {
     "__type": "NotFoundError",
     "message": "User not found",
-    "resource": "User"
+    "resource": "User",
+    "error": {
+        "code": "NotFoundError",
+        "message": "User not found",
+        "requestId": "9f2c8b1e4d6a70f3c5b2e8a1d4f70c93"
+    }
 }
 ```
 
@@ -210,7 +216,36 @@ catch (error) { throw fromPostgresError(error); }
 
 `SerializableError.toJSON()` emits `{ __type: this.constructor.name, message, ...publicFields }`,
 skipping `name`, `message`, `stack`, and `statusCode`. The `ErrorHandler` middleware calls
-`toJSON()` and responds with the matching status code (plus `stack` when `includeStack` is on).
+`toJSON()`, adds the `error` envelope, and responds with the matching status code (plus
+`stack` when `includeStack` is on).
+
+### Reserved field names
+
+`__type`, `message` and `error` are reserved. They are the slots the response shape itself
+occupies: `__type` is the discriminator the client registry looks up, `message` is the text,
+and `error` is the `{ code, message, requestId }` envelope a client generated for another
+language reads. A public field with one of those names would land in the same slot, and
+either outcome is a loss — overwrite the envelope and the generated client cannot classify
+the failure, drop the field and the app silently loses data it meant to send.
+
+So the collision is refused rather than arbitrated. An error class declaring one of the three
+throws on serialization outside production, which surfaces the first time a test serializes
+it. In production the field is dropped and the class name is logged: throwing there would
+replace the real failure with a failure about serializing it, and the original would never
+reach the log or the client.
+
+```typescript
+class OrderFailedError extends SerializableError
+{
+    readonly statusCode = 400;
+    error!: { vendorCode: string };   // ✗ reserved — rename to vendor, detail, …
+}
+```
+
+Going the other way, `ErrorRegistry.deserialize()` drops `__type` and `error` before calling the
+constructor: `__type` routed the lookup and `error` describes the response, so neither is a field
+of the error. Without that, the documented `Object.assign(this, data)` constructor would copy both
+onto the instance and the error would refuse to serialize the moment a server re-threw it.
 
 On the client, the SPFN API client deserializes a response body that has a `__type` field
 back into a real error instance using an `ErrorRegistry`. Built-in HTTP and DB errors are

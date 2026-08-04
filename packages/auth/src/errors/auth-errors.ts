@@ -303,6 +303,56 @@ export class NonceKeyBindingError extends ValidationError
 }
 
 /**
+ * Native Sign-In Unsupported Error (400)
+ *
+ * Thrown when a provider is asked for native id_token sign-in and has no
+ * implementation for it — a server configuration fact, not something the user
+ * did. A client reading this hides that provider's native button instead of
+ * asking the user to try again.
+ *
+ * Split out of ValidationError because the other native-enrollment refusal
+ * (linking to an account whose email the provider never verified) needs a
+ * different response from the app, and one code cannot ask for two.
+ */
+export class NativeSignInUnsupportedError extends ValidationError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message || 'This provider does not support native id_token sign-in.',
+            details: data.details,
+        });
+        this.name = 'NativeSignInUnsupportedError';
+    }
+}
+
+/**
+ * Unverified Email Link Error (400)
+ *
+ * Thrown when a social identity carries an email that already belongs to an
+ * account, but the provider never verified it. Linking on an unverified email
+ * is account takeover, so the refusal stands and the user is sent to a path
+ * that proves the address.
+ *
+ * This says an account exists for that address. It is not a leak introduced
+ * here: the message this replaces already stated the same fact in prose, and
+ * the paths that must not disclose account existence (password login, deletion
+ * re-auth, verification issuance) answer uniformly and are untouched.
+ */
+export class UnverifiedEmailLinkError extends ValidationError
+{
+    constructor(data: { message?: string; details?: Record<string, any> } = {})
+    {
+        super({
+            message: data.message
+                || 'Cannot link to existing account with unverified email. Please verify your email with the provider first.',
+            details: data.details,
+        });
+        this.name = 'UnverifiedEmailLinkError';
+    }
+}
+
+/**
  * Verification Token Purpose Mismatch Error (400)
  *
  * Thrown when verification token purpose doesn't match expected purpose
