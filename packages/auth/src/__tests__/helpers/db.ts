@@ -7,12 +7,14 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initDatabase, closeDatabase } from '@spfn/core/db';
 
-const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://authtest:authtest123@localhost:5435/spfn_auth_test';
+// Integration tests run against the local PostgreSQL instance, one logical
+// database per package. Override with TEST_DATABASE_URL to point elsewhere.
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://authtest:authtest123@localhost:5432/spfn_auth_test';
 
 // The package's committed migrations (./migrations), resolved from this file.
 const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../../migrations', import.meta.url));
@@ -135,8 +137,12 @@ export async function clearTables(db: ReturnType<typeof drizzle>)
  * Drizzle entities (missing columns like public_id / username / metadata).
  * The migrations in ./migrations are the same ones shipped to consumers and are
  * verified in sync with the entities, so the test schema can no longer fall
- * behind. Starts from a clean schema each run so a reused container keeps no
+ * behind. Starts from a clean schema each run so a reused database keeps no
  * stale state.
+ *
+ * Layout is drizzle-kit 1.0: one directory per migration, named
+ * `<utc-timestamp>_<label>`, each holding `migration.sql`. The timestamp prefix
+ * is fixed width, so sorting the directory names sorts the migrations.
  */
 async function applyMigrations(db: ReturnType<typeof drizzle>)
 {
@@ -145,42 +151,28 @@ async function applyMigrations(db: ReturnType<typeof drizzle>)
     await db.execute(sql`DROP SCHEMA IF EXISTS spfn_auth CASCADE`);
     await db.execute(sql`DROP SCHEMA IF EXISTS drizzle CASCADE`);
 
-    const journalPath = resolve(MIGRATIONS_FOLDER, 'meta', '_journal.json');
-    const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
-        entries?: { idx?: unknown; tag?: unknown }[];
-    };
+    const directories = readdirSync(MIGRATIONS_FOLDER, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .map(entry => entry.name)
+        .filter(name => /^\d{14}_[A-Za-z0-9_-]+$/.test(name))
+        .sort();
 
-    if (!Array.isArray(journal.entries))
+    if (directories.length === 0)
     {
-        throw new Error(`Invalid migration journal: ${journalPath}`);
+        throw new Error(`No migrations found in ${MIGRATIONS_FOLDER}`);
     }
 
-    const seenIndexes = new Set<number>();
-    const migrations = journal.entries.map((entry) =>
+    const migrations = directories.map((name) =>
     {
-        if (!Number.isInteger(entry.idx) || typeof entry.tag !== 'string'
-            || !/^[A-Za-z0-9_-]+$/.test(entry.tag))
-        {
-            throw new Error(`Invalid migration journal entry: ${JSON.stringify(entry)}`);
-        }
-
-        const index = entry.idx as number;
-        if (seenIndexes.has(index))
-        {
-            throw new Error(`Duplicate migration journal index: ${index}`);
-        }
-        seenIndexes.add(index);
-
-        const content = readFileSync(resolve(MIGRATIONS_FOLDER, `${entry.tag}.sql`), 'utf8');
+        const content = readFileSync(resolve(MIGRATIONS_FOLDER, name, 'migration.sql'), 'utf8');
 
         return {
-            index,
             statements: content
                 .split('--> statement-breakpoint')
                 .map(statement => statement.trim())
                 .filter(Boolean),
         };
-    }).sort((a, b) => a.index - b.index);
+    });
 
     await db.transaction(async (tx) =>
     {
