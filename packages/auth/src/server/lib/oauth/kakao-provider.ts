@@ -206,9 +206,12 @@ async function withKakaoVerifiedEmail(
         return identity;
     }
 
-    // 동의 범위가 두 응답에서 다를 수 있어, user-info에 없는 값은 id_token 쪽을 남긴다.
+    // 동의 범위가 두 응답에서 다를 수 있어, user-info에 없는 값(이메일·이름·프로필)은 id_token 쪽을 남긴다.
+    // 이메일이 없는 응답이면 fetchKakaoIdentity가 emailVerified를 false로 두므로, id_token 이메일을
+    // 되살려도 검증 판정은 그대로 미인증이다.
     return {
         ...fetched,
+        email: fetched.email ?? identity.email,
         name: fetched.name ?? identity.name,
         avatar: fetched.avatar ?? identity.avatar,
     };
