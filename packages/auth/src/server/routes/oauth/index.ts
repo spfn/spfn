@@ -17,6 +17,7 @@ import { defineRouter, route } from '@spfn/core/route';
 
 import { KEY_ALGORITHM, SOCIAL_PROVIDERS, type SocialProvider } from '../../types';
 import { COOKIE_NAMES, matchOAuthCsrfCookies } from '../../lib/config';
+import { byIpAndIdToken } from '../../lib/rate-limit-keys';
 import {
     oauthStartService,
     oauthCallbackService,
@@ -486,7 +487,15 @@ export const oauthNative = route.post('/_auth/oauth/:provider/native')
     })
     // Transactional 미들웨어를 쓰지 않는다. id_token 검증(외부 JWKS 조회)을 트랜잭션 밖에서
     // 먼저 하고, DB 쓰기만 oauthNativeService 내부의 runInTransaction으로 감싼다.
-    .use([rateLimitPolicy('oauth-native', { limit: 20, windowMs: 60_000 })])
+    // IP만으로는 토큰 하나를 여러 IP에서 되던지는 것을 못 막는다. id_token 자체를 두 번째
+    // 축으로 두어 한 토큰의 제출 횟수를 조인다(분당 5회 — 정상 클라이언트는 로그인마다
+    // 새 토큰을 쓰고, 같은 토큰은 재시도할 때만 반복한다). IP 축은 기존 20회 그대로 둬서
+    // 공유 NAT 뒤의 정상 사용자를 새로 조이지 않는다.
+    .use([rateLimitPolicy('oauth-native', {
+        limit: 5,
+        windowMs: 60_000,
+        by: byIpAndIdToken({ ipLimit: 20 }),
+    })])
     .skip(['auth'])
     .handler(async (c) =>
     {
