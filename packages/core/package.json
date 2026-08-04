@@ -69,6 +69,11 @@
             "import": "./dist/codegen/index.js",
             "require": "./dist/codegen/index.js"
         },
+        "./contract": {
+            "types": "./dist/contract/index.d.ts",
+            "import": "./dist/contract/index.js",
+            "require": "./dist/contract/index.js"
+        },
         "./env": {
             "types": "./dist/env/index.d.ts",
             "import": "./dist/env/index.js",
