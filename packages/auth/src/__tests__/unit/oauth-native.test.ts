@@ -480,6 +480,25 @@ describe('Native id_token - Kakao', () =>
             expect(identity.avatar).toBe('https://token/pic');
         });
 
+        it('keeps the id_token email when user-info returns none', async () =>
+        {
+            const kakao = getOAuthProvider('kakao')!;
+
+            // 프로필만 동의하고 이메일은 동의하지 않은 응답 — access token의 동의 범위가 id_token보다 좁다.
+            mockKakaoUserInfo({
+                id: 'k-1',
+                kakao_account: { profile: { nickname: '카카오사용자', profile_image_url: 'https://kakao/pic' } },
+            });
+
+            const identity = await kakao.verifyNativeIdToken!(await signKakaoToken('k-1'), {
+                nonce: 'n',
+                accessToken: 'kakao-access-token',
+            });
+
+            expect(identity.email).toBe('from-token@example.com');
+            expect(identity.emailVerified).toBe(false);
+        });
+
         it('keeps the email unverified when kakao reports it as not verified', async () =>
         {
             const kakao = getOAuthProvider('kakao')!;
@@ -490,6 +509,8 @@ describe('Native id_token - Kakao', () =>
                 accessToken: 'kakao-access-token',
             });
 
+            // user-info가 이메일을 주면 id_token 이메일로 대체하지 않는다.
+            expect(identity.email).toBe('user@example.com');
             expect(identity.emailVerified).toBe(false);
         });
 

@@ -469,7 +469,7 @@ export const authEnvSchema = defineEnvSchema({
 
     SPFN_AUTH_KAKAO_NATIVE_CLIENT_IDS: {
         ...envString({
-            description: 'Comma-separated Kakao app keys accepted as id_token audience for native sign-in (native app key). When set, Kakao native sign-in is enabled. SPFN_AUTH_KAKAO_CLIENT_ID (REST API key) is also accepted automatically. Requires OpenID Connect to be enabled in the Kakao developer console.',
+            description: 'Comma-separated Kakao app keys accepted as id_token audience for native sign-in (native app key). SPFN_AUTH_KAKAO_CLIENT_ID (REST API key) is also accepted automatically, so native sign-in is available when either variable is set. Requires OpenID Connect to be enabled in the Kakao developer console.',
             required: false,
             examples: [
                 'your-kakao-native-app-key',
