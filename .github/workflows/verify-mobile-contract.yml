@@ -54,7 +54,10 @@ jobs:
       - name: Contract export and conformance suites
         run: pnpm --filter @spfn/auth exec vitest run src/server/client-proof
 
+      # 파일명은 contract-bundle.ts의 BUNDLE_FILENAME과 같아야 한다. 이름이 어긋나면
+      # 조용히 빈 digest를 찍고 통과하지 않도록 pipefail로 실패하게 둔다.
       - name: Record the published digest
         run: |
-          echo "sha256  $(shasum -a 256 contracts/mobile/spfn-mobile-contract.v1.json | cut -d' ' -f1)"
+          set -euo pipefail
+          shasum -a 256 contracts/mobile/spfn-mobile-contract.json
           echo "commit  ${{ github.sha }}"
