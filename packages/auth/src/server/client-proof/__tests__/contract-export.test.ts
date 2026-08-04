@@ -401,7 +401,13 @@ describe('declared proof rules match the implementation', () =>
 
     it('the contract line is the enrollment-surface revision', () =>
     {
-        expect(bundle.contractVersion).toBe('0.3.0');
+        expect(bundle.contractVersion).toBe('0.3.1');
+    });
+
+    it('the supported range still admits the revision before it', () =>
+    {
+        // 0.3.1은 하위호환 추가라 0.3.0을 핀한 소비자가 범위 밖으로 밀려나지 않아야 한다.
+        expect(bundle.supportedRange).toBe('>=0.3.0 <0.4.0');
     });
 
     it('the signature section states the algorithm, wire encoding and key representation; mac is gone', async () =>

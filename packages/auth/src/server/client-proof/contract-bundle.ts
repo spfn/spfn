@@ -50,8 +50,15 @@ import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
  * operation class (`authProfile: 'none'`), the `boolean` scalar the enrollment
  * responses need, and the key-TTL metadata. A surface addition under 0.x is a
  * minor bump. The clientProofV1 profile itself is unchanged from 0.2.0.
+ *
+ * 0.3.1 adds the optional `accessToken` field to `OauthNativeRequest`, which
+ * Kakao needs to resolve an email claim its id_token omits. A patch, not a
+ * minor: nothing existing changes meaning, a generated consumer that never
+ * sends the field still matches the server, and the supported range is
+ * unchanged — so a consumer pinned at 0.3.0 stays inside it rather than
+ * falling out of a range it is in fact still compatible with.
  */
-export const CONTRACT_VERSION = '0.3.0';
+export const CONTRACT_VERSION = '0.3.1';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
@@ -215,6 +222,7 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
         fields: [
             required('idToken', 'string'),
             required('nonce', 'string'),
+            optional('accessToken', 'string'),
             required('publicKey', 'string'),
             required('keyId', 'string'),
             required('fingerprint', 'string'),

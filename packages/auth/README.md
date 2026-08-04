@@ -131,6 +131,7 @@ real secret values out of band, never commit them.
 | `SPFN_AUTH_GITHUB_SCOPES` / `_REDIRECT_URI` | `.env.server` | — | default scopes `read:user,user:email`; callback `/_auth/oauth/github/callback` |
 | `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated client IDs accepted as native id_token audience (iOS/Android/web); enables Google native sign-in |
 | `SPFN_AUTH_APPLE_CLIENT_IDS` | `.env.server` | — | comma-separated Apple client IDs (bundle ID / Services ID); enables Apple native sign-in |
+| `SPFN_AUTH_KAKAO_NATIVE_CLIENT_IDS` | `.env.server` | — | comma-separated Kakao app keys accepted as native id_token audience (native app key); `SPFN_AUTH_KAKAO_CLIENT_ID` is also accepted, so either one enables Kakao native sign-in |
 | `SPFN_AUTH_OAUTH_SUCCESS_URL` | `.env.server` | — | default `/auth/callback` |
 | `SPFN_AUTH_OAUTH_ERROR_URL` | `.env.server` | — | default `/auth/error?error={error}` |
 | `SPFN_AUTH_RESERVED_USERNAMES` / `_USERNAME_MIN_LENGTH` / `_USERNAME_MAX_LENGTH` | `.env.server` | — | username rules |
@@ -361,21 +362,75 @@ its own Bearer client token by signing with the on-device private key (the same 
 server-verifies model as the rest of auth).
 
 Enable per provider by declaring the accepted audiences: `SPFN_AUTH_GOOGLE_NATIVE_CLIENT_IDS` for
-Google (the web `SPFN_AUTH_GOOGLE_CLIENT_ID` is also accepted) and `SPFN_AUTH_APPLE_CLIENT_IDS` for
-Apple. Apple is native-only here — its web OAuth (code-exchange) methods throw.
+Google (the web `SPFN_AUTH_GOOGLE_CLIENT_ID` is also accepted), `SPFN_AUTH_APPLE_CLIENT_IDS` for
+Apple, and `SPFN_AUTH_KAKAO_NATIVE_CLIENT_IDS` for Kakao (the REST API key in
+`SPFN_AUTH_KAKAO_CLIENT_ID` is also accepted). Apple is native-only here — its web OAuth
+(code-exchange) methods throw.
 
 ```typescript
 await authApi.oauthNative.call({
-    params: { provider: 'apple' },                 // or 'google'
+    params: { provider: 'apple' },                 // or 'google', 'kakao'
     body: { idToken, nonce, publicKey, keyId, fingerprint, algorithm: 'ES256', profile: { name } },
 });
 // → { userId, keyId, isNewUser }; client then signs its own ES256 Bearer token with keyId
 ```
 
 The `nonce` is the **raw** nonce the client used; Apple hashes it (SHA-256) into the token, so send
-the raw value for either provider. `profile.name` captures the name Apple returns only on first
+the raw value for any provider. `profile.name` captures the name Apple returns only on first
 sign-in. Trade-off: skipping code exchange means no Apple refresh token / server-side revoke —
 revoke SPFN access by revoking the registered key instead.
+
+> **Generate the nonce as lowercase hex, not base64.** Naver drops a trailing `A` from a base64url
+> nonce before putting it in the id_token. A 16-byte base64url value ends in one of `A Q g w` —
+> its last character carries only 2 bits of data plus 4 bits of padding — so a base64 nonce fails
+> verification for roughly one sign-in in four, intermittently and with nothing in the logs
+> pointing at the cause.
+>
+> The trigger is the character `A`, not the encoding as such. **Uppercase hex ends in `A` once in
+> sixteen and breaks the same way**; lowercase hex (`0-9a-f`) has no `A` in its alphabet, so it
+> cannot hit the case at all. Nonce comparison is exact by design (`jwks-verify.ts`) — accepting a
+> truncated value would also accept any other nonce sharing those first characters — so the fix
+> belongs on the client. Confirmed on Naver; not yet measured on the other providers, and
+> lowercase hex is safe for all of them.
+
+#### The optional `accessToken`
+
+`accessToken` is the provider access token from the same sign-in. It is **optional and
+provider-specific** — the server never requires it, and a client that omits it still signs in.
+
+Send it only when a provider's id_token cannot establish the user's **email**, which is identity
+data: `createOrLinkUser` matches an existing account by verified email. Display-side profile
+(name, avatar) is deliberately *not* a reason to send it — that belongs to the app, not to auth.
+
+| Provider | Send `accessToken`? | Why |
+|---|---|---|
+| Google | No | id_token carries `email` + `email_verified` |
+| Apple | No | same, and Apple relay addresses are already the authoritative value |
+| Kakao | **Optional, recommended** | id_token carries `email` but no `email_verified`; without it the address is stored unverified |
+
+Whatever the provider, the server trusts a lookup made with this token only after the identity it
+returns matches the id_token's `sub`. A mismatch, or a failed lookup, is treated as if the token
+had not been sent.
+
+**Kakao.** Enable OpenID Connect in the Kakao developer console and request the `openid` scope, or
+the SDK returns no `idToken`. One Kakao app issues several keys (native app key, REST API key), and
+the `aud` claim is whichever key obtained the token — so list the native app key and let the REST
+API key be accepted alongside it. The `sub` (회원번호) is per-app, not per-key, so web and app
+sign-ins resolve to the same user.
+
+Kakao's id_token carries `email` but no `email_verified`, so the identity comes back **unverified**
+and the account is created with a null email. To match the web flow's strength, send the
+`accessToken` the SDK returned in the same sign-in as an optional body field: the server then reads
+`is_email_valid` / `is_email_verified` from `/v2/user/me`. That token is client-supplied, so the
+lookup is trusted only when its 회원번호 equals the id_token's `sub`; a mismatch or a failed lookup
+leaves the email unverified and the sign-in still succeeds.
+
+```typescript
+await authApi.oauthNative.call({
+    params: { provider: 'kakao' },
+    body: { idToken, nonce, accessToken, publicKey, keyId, fingerprint, algorithm: 'ES256' },
+});
+```
 
 ### Custom providers
 

@@ -30,6 +30,13 @@ export interface OAuthNativeParams
     keyId: string;
     fingerprint: string;
     algorithm: KeyAlgorithmType;
+    /**
+     * SDK가 id_token과 함께 받은 provider access token (선택).
+     *
+     * provider가 id_token만으로 확인할 수 없는 claim을 보강할 때만 쓴다. 없으면 provider는
+     * id_token이 담은 정보만으로 신원을 정규화한다.
+     */
+    accessToken?: string;
     /** Apple은 첫 로그인에만 이름을 별도로 주므로 클라이언트가 전달할 수 있다. */
     profile?: { name?: string };
     metadata?: Record<string, unknown>;
@@ -60,7 +67,10 @@ export async function oauthNativeService(params: OAuthNativeParams): Promise<OAu
     }
 
     // 1. id_token 검증 (외부 JWKS 조회 — 트랜잭션 밖)
-    const identity = await oauthProvider.verifyNativeIdToken(params.idToken, { nonce: params.nonce });
+    const identity = await oauthProvider.verifyNativeIdToken(params.idToken, {
+        nonce: params.nonce,
+        accessToken: params.accessToken,
+    });
 
     // Apple 첫 로그인 등 id_token에 이름이 없을 때 클라이언트 profile로 보강
     if (params.profile?.name && !identity.name)
