@@ -1,15 +1,57 @@
 # @spfn/storage
 
-Provider-agnostic object storage for S3-compatible services, Google Cloud Storage,
-and the local filesystem. The package exposes presigned upload, direct upload and
-download, streaming download, server-side copy, prefix listing and cleanup, public
-URL, finalization, and object deletion APIs without owning a database.
+> **File uploads that never pass through your server**
+
+The moment your product accepts a profile photo, an attachment or a generated image,
+you need somewhere to put it — and the naive version, where the bytes travel through
+your API process, falls over on the first large file. The correct version is a
+presigned URL the browser uploads to directly, and getting that right means size
+limits that actually bind, orphan cleanup when a user abandons an upload, and keys a
+caller cannot escape.
+
+`@spfn/storage` is provider-agnostic object storage for S3-compatible services, Google
+Cloud Storage and the local filesystem. It exposes presigned upload, direct upload and
+download, streaming download, server-side copy, prefix listing and cleanup, public URL,
+finalization and object deletion. It owns no database — the record of which object
+belongs to what stays in your tables.
 
 ## Installation
 
 ```bash
 pnpm add @spfn/storage
 ```
+
+## How does a user upload a file?
+
+The browser uploads to the provider; your server only signs the request and records
+the result.
+
+```ts
+// 1. server — sign an upload for a key you choose
+const { uploadUrl, requiredHeaders } = await storage.getUploadUrl({
+    key: `private/attachments/${attachmentId}.webp`,
+    contentType: 'image/webp',
+    contentLength: exactSize,   // signed — a mismatched size fails
+    temp: true,                 // unconfirmed until you say otherwise
+});
+
+// 2. browser — PUT the bytes straight to uploadUrl, sending requiredHeaders verbatim
+
+// 3. server — the upload is confirmed only once your own flow completes
+await storage.finalizeObject(`private/attachments/${attachmentId}.webp`);
+```
+
+Three details decide whether this holds up in production, and each has its own
+section below:
+
+| Concern | Where |
+|---|---|
+| A client that declares 1 byte and uploads gigabytes | [Presigned upload size limits](#presigned-upload-size-limits) |
+| A user who starts an upload and never comes back | [Temp uploads and orphan cleanup](#temp-uploads-and-orphan-cleanup) |
+| A key built from user input escaping its prefix | [Key validation](#key-validation) |
+
+Local filesystem storage does not support presigned upload at all — `getUploadUrl`
+throws — so a dev setup on `local` needs the direct upload path instead.
 
 ## Server-side object operations
 
