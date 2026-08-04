@@ -16,6 +16,7 @@ import { rateLimitPolicy } from '@spfn/core/middleware';
 import { defineRouter, route } from '@spfn/core/route';
 
 import { KEY_ALGORITHM, SOCIAL_PROVIDERS, type SocialProvider } from '../../types';
+import { DeviceNameSchema, PlatformSchema } from '../schema';
 import { COOKIE_NAMES, matchOAuthCsrfCookies } from '../../lib/config';
 import { byIpAndIdToken } from '../../lib/rate-limit-keys';
 import {
@@ -480,6 +481,8 @@ export const oauthNative = route.post('/_auth/oauth/:provider/native')
             algorithm: Type.Union(KEY_ALGORITHM.map(a => Type.Literal(a)), {
                 description: 'Key algorithm (ES256 or RS256)',
             }),
+            deviceName: Type.Optional(DeviceNameSchema),
+            platform: Type.Optional(PlatformSchema),
             profile: Type.Optional(Type.Object({
                 name: Type.Optional(Type.String()),
             }, {

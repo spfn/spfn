@@ -39,6 +39,9 @@ export {
     registerPublicKeyService,
     rotateKeyService,
     revokeKeyService,
+    listKeysService,
+    revokeAllKeysService,
+    KEY_FINGERPRINT_PREFIX_LENGTH,
 } from './key.service';
 
 export type {
@@ -46,6 +49,9 @@ export type {
     RotateKeyParams,
     RotateKeyResult,
     RevokeKeyParams,
+    RevokeAllKeysParams,
+    RevokeAllKeysResult,
+    KeySummary,
 } from './key.service';
 
 // User Service

@@ -17,7 +17,7 @@ import {
 
 import { usersRepository, keysRepository } from '../repositories';
 import { runBeforeRegister } from '../lib/config';
-import { type KeyAlgorithmType } from '../types';
+import { type KeyAlgorithmType, type KeyPlatformType } from '../types';
 import { hashPassword, verifyPassword, getDummyPasswordHash } from '../helpers';
 import { validateVerificationToken } from './verification.service';
 import { registerPublicKeyService, revokeKeyService } from './key.service';
@@ -35,6 +35,8 @@ export interface RegisterParams
     keyId: string;
     fingerprint: string;
     algorithm?: KeyAlgorithmType;
+    deviceName?: string;
+    platform?: KeyPlatformType;
     metadata?: Record<string, unknown>;
 }
 
@@ -56,6 +58,8 @@ export interface LoginParams
     fingerprint: string;
     oldKeyId?: string;
     algorithm?: KeyAlgorithmType;
+    deviceName?: string;
+    platform?: KeyPlatformType;
 }
 
 export interface LoginResult
@@ -158,6 +162,8 @@ export async function registerService(
         publicKey,
         fingerprint,
         algorithm,
+        deviceName: params.deviceName,
+        platform: params.platform,
     });
 
     const result = {
@@ -241,6 +247,8 @@ export async function loginService(
         publicKey,
         fingerprint,
         algorithm,
+        deviceName: params.deviceName,
+        platform: params.platform,
     });
 
     // Update last login

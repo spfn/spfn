@@ -148,13 +148,41 @@ describe('operations describe the routes the server answers', () =>
     });
 
     // I1 — the /_auth surface is exported as contract operations.
-    it('I1: register, login, oauthNative and keys/rotate are exported operations', () =>
+    it('I1: register, login, oauthNative and the key operations are exported', () =>
     {
         const byId = new Map(AUTH_SURFACE_OPERATIONS.map((operation) => [operation.id, operation]));
         expect(byId.get('auth.enroll.register')?.path).toBe('/_auth/register');
         expect(byId.get('auth.enroll.login')?.path).toBe('/_auth/login');
         expect(byId.get('auth.enroll.oauthNative')?.path).toBe('/_auth/oauth/{provider}/native');
         expect(byId.get('auth.keys.rotate')?.path).toBe('/_auth/keys/rotate');
+        expect(byId.get('auth.keys.list')?.path).toBe('/_auth/keys/list');
+        expect(byId.get('auth.keys.revoke')?.path).toBe('/_auth/keys/revoke');
+        expect(byId.get('auth.keys.revokeAll')?.path).toBe('/_auth/keys/revoke-all');
+    });
+
+    // 서명은 본문 바이트를 덮는다. 주소에 값이 끼면 클라이언트와 서버가 같은 문자열을
+    // 만들어야 하는데 그 정규화 규칙이 없다 — 그래서 모든 operation이 POST이고 인자는 본문에 있다.
+    it('every operation is POST with its arguments in the body', () =>
+    {
+        for (const operation of [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS])
+        {
+            expect(operation.method).toBe('POST');
+        }
+
+        const proven = AUTH_SURFACE_OPERATIONS.filter(op => op.authProfile === 'clientProofV1');
+        for (const operation of proven)
+        {
+            expect(operation.path).not.toMatch(/\{/);
+        }
+    });
+
+    // 필드가 없는 타입은 소비자 codegen이 만들지 못한다 (Kotlin data class는 인자가 1개 이상).
+    it('no declared type is empty — a consumer cannot generate one', () =>
+    {
+        for (const type of declaredTypes)
+        {
+            expect(type.fields.length).toBeGreaterThan(0);
+        }
     });
 
     // I2 — the unproven class is stated, and covers exactly the enrollment ops.
@@ -401,7 +429,7 @@ describe('declared proof rules match the implementation', () =>
 
     it('the contract line is the enrollment-surface revision', () =>
     {
-        expect(bundle.contractVersion).toBe('0.4.0');
+        expect(bundle.contractVersion).toBe('0.4.1');
     });
 
     it('the supported range moves with the breaking nonce rule', () =>

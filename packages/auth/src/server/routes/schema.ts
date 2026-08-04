@@ -7,6 +7,7 @@
 
 import { Type, Static } from '@sinclair/typebox';
 import { EMAIL_PATTERN, PHONE_PATTERN } from '@spfn/auth';
+import { KEY_DEVICE_NAME_MAX_LENGTH, KEY_PLATFORM } from '../types';
 
 // ============================================================================
 // Basic Schemas
@@ -21,6 +22,24 @@ export const PhoneSchema = Type.String({
     pattern: PHONE_PATTERN,
     description: 'Phone number in E.164 format (e.g., +821012345678)',
 });
+
+/**
+ * Optional device labels a client may send when registering a key.
+ *
+ * Display only: the key list uses them to tell one device from another, and
+ * nothing is authorized or refused by either value, so a client that lies about
+ * them gains nothing. Both are omitted by every key registered before they
+ * existed, hence optional rather than defaulted.
+ */
+export const DeviceNameSchema = Type.String({
+    maxLength: KEY_DEVICE_NAME_MAX_LENGTH,
+    description: `Device label shown in the key list (max ${KEY_DEVICE_NAME_MAX_LENGTH} chars)`,
+});
+
+export const PlatformSchema = Type.Union(
+    KEY_PLATFORM.map(platform => Type.Literal(platform)),
+    { description: 'Platform the key lives on' },
+);
 
 export const PasswordSchema = Type.String({
     minLength: 8,
