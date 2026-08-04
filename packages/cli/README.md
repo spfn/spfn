@@ -101,6 +101,23 @@ How it works: if not already present it installs the package, then reads the pac
 function migrations to `DATABASE_URL`. If `DATABASE_URL` is unset, migration is skipped
 with a hint to run `spfn db push` later. Works with published and workspace packages.
 
+### `spfn add vercel`
+
+`vercel` is not a package — it is a built-in target, and the one argument to `add` that is
+not a scoped package name. It scaffolds the three files a Next.js + SPFN app needs to run
+its backend as Vercel Functions:
+
+| File | What it is |
+|------|------------|
+| `src/app/api/backend/[[...route]]/route.ts` | `hono/vercel` adapter, mounts the SPFN app under `/api/backend` |
+| `vercel.json` | build config (`pnpm spfn:build`) |
+| `.npmrc` | `@spfn` registry auth, reading `GITEA_NPM_TOKEN` from the environment — never committed |
+
+Existing files are never overwritten; they are reported and skipped. The runtime behind
+the adapter is `createServerlessApp()` from `@spfn/core/server`. Afterwards, point
+`SPFN_API_URL` at `https://<your-domain>/api/backend`, and make sure `hono` is a direct
+dependency of the app so `hono/vercel` resolves.
+
 ### `spfn dev`
 
 Starts the SPFN server + Next.js (and a codegen watcher). The server must report ready
@@ -396,7 +413,16 @@ the SPFN API with cookie forwarding and interceptors, resolving routes via the g
 
 ## Deployment
 
-`spfn build` then `spfn start`, or use the generated Docker files.
+Two targets, both shipping from the same repository.
+
+**Vercel — serverless, one origin, no container.** Run `spfn add vercel` (above) and
+deploy. Frontend and backend share a single Vercel origin. One caveat: the in-process job
+worker does not run there, so enqueuing works but nothing drains the queue — schedule a
+route that processes a batch (Vercel Cron), or run jobs on an always-on target.
+
+**Always-on — a long-lived process.** `spfn build` then `spfn start`, or the generated
+Docker files. Background jobs, WebSocket events and the periodic database health check all
+need this path.
 
 ```bash
 # Build + run locally
@@ -423,6 +449,42 @@ type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
 
 ---
 
+## FAQ
+
+**`create` or `init` — which one?**
+`create` starts a new project: it runs `create-next-app` with SPFN's flags and then runs
+`init` inside it. `init` adds SPFN to a Next.js app that already exists. If you built
+something with an AI coding agent and now want a real backend under it, `init` is the one.
+
+**`bare` or `full`?**
+`full` is the recommended baseline: core, auth, i18n and MCP wired together, so you get a
+working authenticated app on day one. `bare` is core only — the architecture with nothing
+else decided. Automation should always pass `--mode` explicitly, because a `--yes` run
+without one still produces `bare` for backward compatibility.
+
+**Why doesn't my server restart when I edit a file?**
+Because hot reload is off by default. `spfn dev --watch` restarts the server on `src/server`
+changes. Next.js reloads on its own either way.
+
+**Do I have to use Docker?**
+No. Vercel is a first-class target and needs no container. Docker is the always-on path,
+and `docker compose up -d` is also the convenient way to get PostgreSQL and Redis locally —
+pointing at your own PostgreSQL works too. PostgreSQL itself is not optional.
+
+**Which Node version do I need?**
+18.18 or later for bare mode, 20 or later for full mode, because full mode includes the
+MCP server.
+
+**When do I have to run codegen by hand?**
+Whenever routes change outside `spfn dev`, which runs a codegen watcher for you. A stale or
+missing `src/generated/route-map.ts` makes the RPC proxy answer 404 — run `spfn codegen run`
+and commit the result.
+
+**Where do secrets go?**
+`.env.server` (gitignored, server-only) for backend values, `.env.local` for the session
+cookie secret that the Next.js runtime itself needs. Never `spfn.config.js` — that file is
+committed.
+
 ## Pitfalls
 
 - **`.env.server` is gitignored and server-only.** Put backend-only DB/secret values there,
@@ -441,7 +503,8 @@ type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
   destructive ones unless `--force`/confirmed. Prefer `db generate` + `db migrate` for
   production; `db push` is dev-only.
 - **`spfn add` requires a scoped package name** (must contain `/`) and only applies
-  migrations when `DATABASE_URL` is set — otherwise it skips with a hint.
+  migrations when `DATABASE_URL` is set — otherwise it skips with a hint. The single
+  exception is `spfn add vercel`, a built-in target rather than a package.
 - **Package manager is auto-detected from lockfiles.** If detection is wrong (e.g. mixed
   lockfiles), pass `--pm` to `create`. In a pnpm workspace, `create` installs from the
   workspace root, not the new project dir.
@@ -456,5 +519,7 @@ type ships from `spfn` (`@type {import('spfn').SpfnConfig}`).
 
 ## Related
 
-- `@spfn/core` — server, route DSL, codegen, db, client runtime.
+- [`@spfn/core`](../core/README.md) — server, route DSL, codegen, db, client runtime.
+- [`@spfn/auth`](../auth/README.md) — what `--mode full` wires in for accounts and roles.
+- [`@spfn/mcp`](../mcp/README.md) — what `--mode full` wires in for operating the app.
 - Project root README — framework overview and getting started.
