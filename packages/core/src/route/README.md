@@ -278,6 +278,10 @@ the clients TypeScript cannot reach.
 `.contract()` is opt-in per route and changes nothing at runtime — no response validation, no
 middleware. It only puts a value on `RouteDef` that the `@spfn/core:contract` generator reads.
 
+**Not on a multipart route.** A route declaring `formData` cannot also carry `.contract()` — the
+contract describes JSON values and a file part has no spelling among them, so the generator refuses
+it rather than describing the operation incompletely. `formData` without `.contract()` is fine.
+
 Full behaviour — the generator, the released snapshots, the compatibility case table and the
 removal rules — is in [`../contract/README.md`](../contract/README.md).
 

@@ -79,13 +79,33 @@ import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
  * type moves, and a consumer generated against 0.4.1 could not read these
  * failures at all — it saw one undecodable body whatever went wrong — so
  * nothing it relies on changes and the supported range stays put.
+ *
+ * 0.5.0 widens the type grammar so an app contract can describe shapes the auth
+ * surface never needed — a floating-point `number`, `map<string,T>`, and a named
+ * enum whose declaration carries values instead of fields — and states the date
+ * convention rather than adding a date scalar: a moment is an integer of
+ * milliseconds since the Unix epoch in a field whose name ends `AtMillis`.
+ *
+ * Widening the grammar alone would have been a patch. What makes this breaking is
+ * that `KeySummary` did not follow the convention: `createdAt`, `lastUsedAt`,
+ * `expiresAt` and `revokedAt` were ISO 8601 strings, so the same contract stated
+ * one representation and shipped two. They are now `createdAtMillis`,
+ * `lastUsedAtMillis`, `expiresAtMillis` and `revokedAtMillis` integers, and
+ * `listKeys` returns milliseconds.
+ *
+ * Taken now because the cost only grows: no generated consumer reads these types
+ * yet — spfn-mobile's codegen path is unbuilt — and an exception documented
+ * instead of removed would have kept Swift's `ISO8601DateFormatter` rejecting
+ * fractional seconds as a live way for the two SDKs to disagree, on exactly
+ * these four fields. An app reading `createdAt` from `authApi.listKeys()` must
+ * move to `createdAtMillis`.
  */
-export const CONTRACT_VERSION = '0.4.2';
+export const CONTRACT_VERSION = '0.5.0';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
-/** Under 0.x the minor carries breaking changes, so the range stops at 0.5.0. */
-export const CONTRACT_SUPPORTED_RANGE = '>=0.4.0 <0.5.0';
+/** Under 0.x the minor carries breaking changes, so the range stops at 0.6.0. */
+export const CONTRACT_SUPPORTED_RANGE = '>=0.5.0 <0.6.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
@@ -94,14 +114,52 @@ export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
 export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@3.0.0';
 
 /**
+ * The scalars the grammar admits.
+ *
+ * `integer` and `number` are separate on purpose. Collapsing a price or a
+ * coordinate into `integer` makes the unit a convention nobody wrote down, and
+ * collapsing a count into `number` hands Swift and Kotlin a floating-point type
+ * for a value that is never fractional.
+ *
+ * There is no date scalar. A moment is an integer of milliseconds since the Unix
+ * epoch in a field whose name ends `AtMillis`, which is what every existing type
+ * already does.
+ */
+type ScalarTypeName = 'string' | 'integer' | 'number' | 'boolean';
+
+/**
+ * Declared names a field is allowed to reference — the types in
+ * `CONTRACT_TYPES` and the enums in `CONTRACT_ENUMS` that are actually used.
+ *
+ * Hand-listed rather than derived: the declarations below are what would define
+ * it, so deriving it would be circular, and a misspelled name has to fail here
+ * rather than reach the consumer as a type it cannot find.
+ */
+type ReferencedTypeName = 'Item' | 'KeySummary';
+
+type ElementTypeName = ScalarTypeName | ReferencedTypeName;
+
+/**
  * The field-type grammar the consumer's codegen parses.
  *
- * `array<T>` is the only array spelling: spfn-mobile's `FieldType.parse` treats
- * `array<…>` as an array and everything else as a named type, so `Item[]` would
- * silently become a type named "Item[]" and fail at compile time rather than at
- * parse time.
+ * `array<T>` and `map<string,T>` are the only container spellings: spfn-mobile's
+ * `FieldType.parse` reads a recognised container prefix as a container and
+ * everything else as a named type, so `Item[]` would silently become a type
+ * named "Item[]" and fail at compile time rather than at parse time.
+ *
+ * A map's key is always a string because JSON has no other key type. Spelling it
+ * out anyway keeps the consumer from having to assume it.
+ *
+ * This union is narrower than the grammar it guards: the grammar lets a
+ * container hold another container, and the consumer's parser recurses, while
+ * here a container holds one element type. Narrower is the safe direction —
+ * nothing invalid can be declared — and it widens when a nested container is
+ * first needed.
  */
-type FieldTypeName = 'string' | 'integer' | 'boolean' | 'array<Item>' | 'array<KeySummary>';
+type FieldTypeName =
+    | ElementTypeName
+    | `array<${ElementTypeName}>`
+    | `map<string,${ElementTypeName}>`;
 
 interface FieldDeclaration
 {
@@ -114,6 +172,24 @@ interface TypeDeclaration
 {
     name: string;
     fields: FieldDeclaration[];
+}
+
+/**
+ * A closed set of string values, declared by name so a field can reference it
+ * the same way it references an object type.
+ *
+ * Empty today. The first candidate is the `algorithm` field carried by
+ * `RegisterRequest`, `OauthNativeRequest` and `RotateKeyRequest`: the routes
+ * constrain it to a union of `KEY_ALGORITHM` literals while this contract still
+ * declares it `string`, so the contract understates the server. Declaring it
+ * would change what codegen produces for a field that already exists — a
+ * breaking change for the consumer's source, so a minor bump and a decision of
+ * its own rather than a side effect of widening the grammar.
+ */
+interface EnumDeclaration
+{
+    name: string;
+    values: readonly string[];
 }
 
 function required(name: string, type: FieldDeclaration['type']): FieldDeclaration
@@ -289,12 +365,12 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
             optional('platform', 'string'),
             required('algorithm', 'string'),
             required('fingerprintPrefix', 'string'),
-            required('createdAt', 'string'),
-            optional('lastUsedAt', 'string'),
-            optional('expiresAt', 'string'),
+            required('createdAtMillis', 'integer'),
+            optional('lastUsedAtMillis', 'integer'),
+            optional('expiresAtMillis', 'integer'),
             required('isExpired', 'boolean'),
             required('isActive', 'boolean'),
-            optional('revokedAt', 'string'),
+            optional('revokedAtMillis', 'integer'),
         ],
     },
     {
@@ -330,6 +406,14 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
         ],
     },
 ];
+
+/**
+ * The enums this contract declares.
+ *
+ * Empty: the auth surface has one candidate and converting it is breaking. See
+ * `EnumDeclaration` for which field and why it waits.
+ */
+export const CONTRACT_ENUMS: readonly EnumDeclaration[] = [];
 
 /** One line per code describing what it means on the wire. */
 const ERROR_SUMMARIES: Record<string, string> = {
@@ -590,16 +674,34 @@ export function buildMobileContractBundle(): MobileContractBundle
             sessionRule: `requiresSession operations carry ${CLIENT_PROOF_HEADERS.session}; the handshake never does`,
         },
         typeGrammar: {
-            scalars: ['string', 'integer', 'boolean'],
+            scalars: ['string', 'integer', 'number', 'boolean'],
+            integerVersusNumber:
+                'integer is a whole number and number is floating point. A price, a coordinate and a rating are '
+                + 'number; a count and a millisecond timestamp are integer.',
             array: 'array<T>, where T is itself a field type. This is the only array spelling.',
-            named: 'any other value names one of the types below',
+            map:
+                'map<string,T>, where T is itself a field type. The key is always string because JSON has no other '
+                + 'key type. This is the only map spelling.',
+            named: 'any other value names one of the types or enums below',
+            enumRule:
+                'a name listed in "enums" is a closed set of string values rather than an object: its declaration '
+                + 'carries values instead of fields, and a value outside the set is a decode failure',
+            dateConvention:
+                'there is no date type. A moment in time is an integer of milliseconds since the Unix epoch and its '
+                + 'field name ends in AtMillis — issuedAtMillis, expiresAtMillis, createdAtMillis. A second '
+                + 'representation would leave a consumer choosing between two spellings of the same value.',
+            dateConventionExceptions: 'none — every moment in this contract is an AtMillis integer',
             rule:
                 'a field type outside this grammar is a contract error, not something to guess at: a consumer that '
-                + 'does not recognise an array spelling reads it as a type name and fails at compile time',
+                + 'does not recognise a container spelling reads it as a type name and fails at compile time',
         },
         types: CONTRACT_TYPES.map((type) => ({
             name: type.name,
             fields: type.fields.map((field) => ({ ...field })),
+        })),
+        enums: CONTRACT_ENUMS.map((declaration) => ({
+            name: declaration.name,
+            values: [...declaration.values],
         })),
         operations: [...CONTRACT_OPERATIONS, ...AUTH_SURFACE_OPERATIONS].map((operation) => ({ ...operation })),
         errorEnvelope: {

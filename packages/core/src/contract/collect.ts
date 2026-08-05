@@ -52,7 +52,13 @@ function toJsonSchema(schema: unknown): JsonSchema
     return JSON.parse(JSON.stringify(schema)) as JsonSchema;
 }
 
-const REQUEST_SECTIONS = ['params', 'query', 'body', 'formData', 'headers', 'cookies'] as const;
+/**
+ * `formData` is absent on purpose — a contracted route carrying it is refused
+ * before it gets here (see `assertNoFormData`). Emitting its schema alongside
+ * the JSON sections described a multipart route as if it were JSON-shaped, and a
+ * generated client built from that reads as correct right up to the request.
+ */
+const REQUEST_SECTIONS = ['params', 'query', 'body', 'headers', 'cookies'] as const;
 
 function toContractRequest(input: RouteInput | undefined): ContractRequest
 {
@@ -113,10 +119,39 @@ function visitRouter(router: Router<any>, trail: string[], found: Map<string, Fo
     }
 }
 
+/**
+ * Refuse a contracted route that takes multipart form data.
+ *
+ * Multipart is a transport-format problem, not a type problem: the contract's
+ * grammar describes JSON values, and a file part has no spelling in it. The
+ * refusal is loud rather than a quiet omission — a contract that silently
+ * dropped the section would still claim to describe the operation, and an app
+ * generated from it would break against the running server instead of at build.
+ */
+function assertNoFormData(where: string, routeDef: RouteDef<any>): void
+{
+    const input = routeDef.input as RouteInput | undefined;
+    const interceptor = routeDef.interceptor as RouteInput | undefined;
+    const section = input?.formData ? 'input' : interceptor?.formData ? 'interceptor' : undefined;
+
+    if (!section)
+    {
+        return;
+    }
+
+    throw new ContractCollectionError(
+        `Contracted route "${where}" declares ${section}.formData, which a contract cannot describe. `
+        + 'The contract grammar covers JSON values, and multipart carries file parts that have no spelling in it. '
+        + 'Drop .contract() from this route, or move the operation to a JSON body.',
+    );
+}
+
 function addOperation(name: string, routeDef: RouteDef<any>, trail: string[], found: Map<string, Found>): void
 {
     const where = trail.join('.');
     const contract = routeDef.contract!;
+
+    assertNoFormData(where, routeDef);
 
     if (!routeDef.method || !routeDef.path)
     {

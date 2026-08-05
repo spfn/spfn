@@ -234,8 +234,9 @@ describe('every declared field type is inside the grammar the consumer parses', 
     // else as a named type. `Item[]` therefore becomes a type named "Item[]"
     // and breaks at compile time, not at parse time — which is exactly how it
     // reached a published bundle once. These assertions are that slip's fence.
-    const SCALARS = ['string', 'integer', 'boolean'];
+    const SCALARS = ['string', 'integer', 'number', 'boolean'];
     const declaredNames = declaredTypes.map((type) => type.name);
+    const declaredEnums = (bundle.enums as { name: string; values: string[] }[]);
 
     function resolvable(type: string): boolean
     {
@@ -247,13 +248,106 @@ describe('every declared field type is inside the grammar the consumer parses', 
         {
             return resolvable(type.slice('array<'.length, -1));
         }
+        if (type.startsWith('map<string,') && type.endsWith('>'))
+        {
+            return resolvable(type.slice('map<string,'.length, -1));
+        }
 
-        return declaredNames.includes(type);
+        return declaredNames.includes(type) || declaredEnums.some((declared) => declared.name === type);
     }
 
     it('the grammar the bundle states is the one these types are written in', () =>
     {
         expect((bundle.typeGrammar as { scalars: string[] }).scalars).toEqual(SCALARS);
+    });
+
+    it('the grammar names both container spellings and no others', () =>
+    {
+        const grammar = bundle.typeGrammar as Record<string, string>;
+
+        expect(grammar.array).toContain('array<T>');
+        expect(grammar.map).toContain('map<string,T>');
+        expect(grammar.map).toContain('only map spelling');
+    });
+
+    it('the grammar states the millisecond date convention instead of a date scalar', () =>
+    {
+        const grammar = bundle.typeGrammar as Record<string, string>;
+
+        expect(SCALARS).not.toContain('date');
+        expect(grammar.dateConvention).toContain('AtMillis');
+        expect(grammar.dateConvention).toContain('milliseconds since the Unix epoch');
+    });
+
+    it('every field naming a moment in time is an integer ending in AtMillis', () =>
+    {
+        // Both halves of the convention. A `string` holding an ISO timestamp is the
+        // second representation the grammar refuses, so the type is asserted too —
+        // checking only the name would let one through. KeySummary's four date
+        // fields were exactly that until 0.5.0.
+        for (const type of declaredTypes)
+        {
+            for (const field of type.fields)
+            {
+                const path = `${type.name}.${field.name}`;
+
+                if (!/(^|[a-z])(At|Time)([A-Z]|$)/.test(field.name))
+                {
+                    continue;
+                }
+
+                expect(field.type, path).toBe('integer');
+                expect(field.name, path).toMatch(/Millis$/);
+            }
+        }
+    });
+
+    it('no string field holds a date', () =>
+    {
+        // The rule above passes vacuously if a date field is renamed out of the
+        // pattern. This catches the other direction: a string that reads like a
+        // moment, whatever it is called.
+        for (const type of declaredTypes)
+        {
+            for (const field of type.fields)
+            {
+                if (field.type !== 'string')
+                {
+                    continue;
+                }
+
+                expect(field.name, `${type.name}.${field.name}`).not.toMatch(/(^|[a-z])(At|Time|Date)([A-Z]|$)/);
+            }
+        }
+    });
+
+    it('the bundle states that the date convention has no exceptions', () =>
+    {
+        const grammar = bundle.typeGrammar as Record<string, string>;
+
+        expect(grammar.dateConventionExceptions).toContain('none');
+    });
+
+    it('every declared enum is a closed set of string values', () =>
+    {
+        for (const declared of declaredEnums)
+        {
+            expect(declared.values.length, `${declared.name} has no values`).toBeGreaterThan(0);
+            expect(new Set(declared.values).size, `${declared.name} repeats a value`).toBe(declared.values.length);
+
+            for (const value of declared.values)
+            {
+                expect(typeof value, `${declared.name} value ${String(value)}`).toBe('string');
+            }
+        }
+    });
+
+    it('no enum name collides with a type name', () =>
+    {
+        for (const declared of declaredEnums)
+        {
+            expect(declaredNames, `enum ${declared.name}`).not.toContain(declared.name);
+        }
     });
 
     it('no field uses a bracket array spelling', () =>
@@ -444,16 +538,17 @@ describe('declared proof rules match the implementation', () =>
         replayWindowMillis: number;
     };
 
-    it('the contract line is the enrollment-surface revision', () =>
+    it('the contract line is the widened-grammar revision', () =>
     {
-        expect(bundle.contractVersion).toBe('0.4.2');
+        expect(bundle.contractVersion).toBe('0.5.0');
     });
 
-    it('the supported range moves with the breaking nonce rule', () =>
+    it('the supported range moves with the breaking date representation', () =>
     {
-        // 0.4.0은 nonce의 뜻을 바꿔 난수 nonce를 보내던 소비자를 거절한다. 0.x에서 minor가
-        // breaking을 나르므로 범위도 함께 올라가야 한다 — 0.3.x 소비자가 남아 있으면 안 된다.
-        expect(bundle.supportedRange).toBe('>=0.4.0 <0.5.0');
+        // 0.5.0은 KeySummary의 네 날짜 필드를 ISO 문자열에서 AtMillis 정수로 바꿔 이름과
+        // 타입을 함께 옮긴다. 0.x에서 minor가 breaking을 나르므로 범위도 같이 올라간다 —
+        // 0.4.x 소비자가 남아 있으면 안 된다.
+        expect(bundle.supportedRange).toBe('>=0.5.0 <0.6.0');
     });
 
     it('states the rule that binds a native id_token to the key it enrolls', () =>

@@ -4,8 +4,8 @@
   "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
   "contractName": "spfn-mobile-contract",
   "contractMajor": 0,
-  "contractVersion": "0.4.2",
-  "supportedRange": ">=0.4.0 <0.5.0",
+  "contractVersion": "0.5.0",
+  "supportedRange": ">=0.5.0 <0.6.0",
   "exporterVersion": "@spfn/auth/contract-bundle@3.0.0",
   "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
   "operationAuthClasses": {
@@ -81,10 +81,15 @@
     "sessionRule": "requiresSession operations carry x-spfn-session; the handshake never does"
   },
   "typeGrammar": {
-    "scalars": ["string", "integer", "boolean"],
+    "scalars": ["string", "integer", "number", "boolean"],
+    "integerVersusNumber": "integer is a whole number and number is floating point. A price, a coordinate and a rating are number; a count and a millisecond timestamp are integer.",
     "array": "array<T>, where T is itself a field type. This is the only array spelling.",
-    "named": "any other value names one of the types below",
-    "rule": "a field type outside this grammar is a contract error, not something to guess at: a consumer that does not recognise an array spelling reads it as a type name and fails at compile time"
+    "map": "map<string,T>, where T is itself a field type. The key is always string because JSON has no other key type. This is the only map spelling.",
+    "named": "any other value names one of the types or enums below",
+    "enumRule": "a name listed in \"enums\" is a closed set of string values rather than an object: its declaration carries values instead of fields, and a value outside the set is a decode failure",
+    "dateConvention": "there is no date type. A moment in time is an integer of milliseconds since the Unix epoch and its field name ends in AtMillis — issuedAtMillis, expiresAtMillis, createdAtMillis. A second representation would leave a consumer choosing between two spellings of the same value.",
+    "dateConventionExceptions": "none — every moment in this contract is an AtMillis integer",
+    "rule": "a field type outside this grammar is a contract error, not something to guess at: a consumer that does not recognise a container spelling reads it as a type name and fails at compile time"
   },
   "types": [
     {
@@ -230,12 +235,12 @@
         { "name": "platform", "type": "string", "optional": true },
         { "name": "algorithm", "type": "string", "optional": false },
         { "name": "fingerprintPrefix", "type": "string", "optional": false },
-        { "name": "createdAt", "type": "string", "optional": false },
-        { "name": "lastUsedAt", "type": "string", "optional": true },
-        { "name": "expiresAt", "type": "string", "optional": true },
+        { "name": "createdAtMillis", "type": "integer", "optional": false },
+        { "name": "lastUsedAtMillis", "type": "integer", "optional": true },
+        { "name": "expiresAtMillis", "type": "integer", "optional": true },
         { "name": "isExpired", "type": "boolean", "optional": false },
         { "name": "isActive", "type": "boolean", "optional": false },
-        { "name": "revokedAt", "type": "string", "optional": true }
+        { "name": "revokedAtMillis", "type": "integer", "optional": true }
       ]
     },
     {
@@ -262,6 +267,7 @@
       ]
     }
   ],
+  "enums": [],
   "operations": [
     {
       "id": "auth.clientProof.handshake",
