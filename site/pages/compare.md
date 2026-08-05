@@ -28,3 +28,6 @@ If you want to know how SPFN works rather than whether to use it, the
 - [Error tracking without another service](./compare/error-tracking-without-another-service.md)
   — hosted Sentry, self-hosted Sentry, GlitchTip and `@spfn/monitor`, compared by what you
   have to run and where the error data lives.
+- [File uploads in Next.js](./compare/file-uploads-presigned-urls.md) — writing presigned
+  URLs by hand, a hosted service, or `@spfn/storage` over your own bucket, compared by who
+  answers the three warnings every tutorial ends with.
