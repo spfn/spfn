@@ -4,9 +4,9 @@
   "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
   "contractName": "spfn-mobile-contract",
   "contractMajor": 0,
-  "contractVersion": "0.6.1",
-  "supportedRange": ">=0.6.0 <0.7.0",
-  "exporterVersion": "@spfn/auth/contract-bundle@4.1.0",
+  "contractVersion": "0.7.0",
+  "supportedRange": ">=0.7.0 <0.8.0",
+  "exporterVersion": "@spfn/auth/contract-bundle@5.0.0",
   "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
   "operationAuthClasses": {
     "none": "the unproven class: the operation is accepted with neither proof headers nor a session header, because it is called before any key exists to sign with (enrollment and login)",
@@ -116,15 +116,17 @@
     "availability": "the since, deprecatedIn and removedIn fields on each operation, described under operationAvailability, are recorded here as well. Under allOrNothing they are descriptive: they are history, not a verdict input. Recording them regardless is what lets a deprecation be announced at all, and is the same shape a perOperation contract decides from"
   },
   "typeGrammar": {
-    "scalars": ["string", "integer", "number", "boolean"],
-    "integerVersusNumber": "integer is a whole number and number is floating point. A price, a coordinate and a rating are number; a count and a millisecond timestamp are integer.",
+    "scalars": ["string", "integer", "boolean"],
+    "decimal": "decimal<scale>, where scale is an integer from 1 to 18. The value on the wire is an integer and what it means is that integer divided by 10 to the scale, so decimal<2> carries 1999 for 19.99. There is no floating-point scalar: canonical JSON admits signed 64-bit integers only and treats a fraction as an error. Scale 0 is integer written the long way and is not a valid scale, and 18 is the ceiling because 10^18 is the largest power of ten a signed 64-bit integer holds — above it no integer part is left to carry. This is the only decimal spelling.",
+    "decimalScaleRule": "the scale is part of the type. Changing it is a breaking change and takes a version bump, and the field is renamed to carry its new unit rather than be remeasured under the same name — the same reason every moment in this contract is named AtMillis. A consumer that kept reading the old name would otherwise decode the same field at a scale nobody told it had moved.",
+    "decimalGeneratorRule": "a generator emits a decimal type — Swift Decimal, Kotlin BigDecimal — and never a binary float. A value finer than the declared scale is rejected at encoding time and never rounded: rounding would let the client decide what a value the server declared exactly is worth, and it would do so silently.",
     "array": "array<T>, where T is itself a field type. This is the only array spelling.",
     "map": "map<string,T>, where T is itself a field type. The key is always string because JSON has no other key type. This is the only map spelling.",
     "named": "any other value names one of the types or enums below",
     "enumRule": "a name listed in \"enums\" is a set of string values rather than an object: its declaration carries values instead of fields. The values are the ones the server accepts and sends now; no set is promised to stay as it is, since a value can be added and one can be withdrawn for a weakness found later. What a consumer does with a value outside the set is the consumer's decision",
     "dateConvention": "there is no date type. A moment in time is an integer of milliseconds since the Unix epoch and its field name ends in AtMillis — issuedAtMillis, expiresAtMillis, createdAtMillis. A second representation would leave a consumer choosing between two spellings of the same value.",
     "dateConventionExceptions": "none — every moment in this contract is an AtMillis integer",
-    "rule": "a field type outside this grammar is a contract error, not something to guess at: a consumer that does not recognise a container spelling reads it as a type name and fails at compile time"
+    "rule": "a field type outside this grammar is a contract error, not something to guess at: a consumer that does not recognise a container or decimal spelling reads it as a type name and fails at compile time"
   },
   "types": [
     {

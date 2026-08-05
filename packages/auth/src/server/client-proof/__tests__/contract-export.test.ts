@@ -119,6 +119,21 @@ describe('the committed export matches the assembler', () =>
         expect(provenance.contract.bundleSha256).toBe(rendered.bundleSha256);
     });
 
+    it('the decimal grammar reaches the committed file, not only the TypeScript comments', () =>
+    {
+        // A rule a consumer cannot read is not a declared rule. These four are
+        // what the 0.7.0 grammar change promises, so they are asserted against the
+        // bytes on disk rather than the assembled object.
+        const committed = JSON.parse(readFileSync(join(exportDir, BUNDLE_FILENAME), 'utf8'));
+        const grammar = committed.typeGrammar;
+
+        expect(grammar.scalars).toEqual(['string', 'integer', 'boolean']);
+        expect(grammar.decimal).toContain('decimal<scale>');
+        expect(grammar.decimalScaleRule).toContain('breaking change');
+        expect(grammar.decimalGeneratorRule).toContain('never rounded');
+        expect(grammar).not.toHaveProperty('integerVersusNumber');
+    });
+
     it('serialization is stable across runs', () =>
     {
         expect(renderMobileContractExport().bundle).toBe(rendered.bundle);
@@ -386,15 +401,30 @@ describe('every declared field type is inside the grammar the consumer parses', 
     // else as a named type. `Item[]` therefore becomes a type named "Item[]"
     // and breaks at compile time, not at parse time — which is exactly how it
     // reached a published bundle once. These assertions are that slip's fence.
-    const SCALARS = ['string', 'integer', 'number', 'boolean'];
+    const SCALARS = ['string', 'integer', 'boolean'];
+    const MIN_DECIMAL_SCALE = 1;
+    const MAX_DECIMAL_SCALE = 18;
     const declaredNames = declaredTypes.map((type) => type.name);
     const declaredEnums = (bundle.enums as { name: string; values: string[] }[]);
+
+    function decimalScale(type: string): number | null
+    {
+        const match = /^decimal<(\d+)>$/.exec(type);
+
+        return match === null ? null : Number(match[1]);
+    }
 
     function resolvable(type: string): boolean
     {
         if (SCALARS.includes(type))
         {
             return true;
+        }
+
+        const scale = decimalScale(type);
+        if (scale !== null)
+        {
+            return scale >= MIN_DECIMAL_SCALE && scale <= MAX_DECIMAL_SCALE;
         }
         if (type.startsWith('array<') && type.endsWith('>'))
         {
@@ -411,6 +441,80 @@ describe('every declared field type is inside the grammar the consumer parses', 
     it('the grammar the bundle states is the one these types are written in', () =>
     {
         expect((bundle.typeGrammar as { scalars: string[] }).scalars).toEqual(SCALARS);
+    });
+
+    it('the scalar list carries no floating-point type', () =>
+    {
+        // 0.7.0 removed `number`. The encoding never admitted one — canonical
+        // JSON calls a fraction an error — so a grammar that kept offering it was
+        // declaring a shape the server could not have written.
+        const grammar = bundle.typeGrammar as Record<string, unknown>;
+
+        expect(SCALARS).not.toContain('number');
+        expect(grammar).not.toHaveProperty('integerVersusNumber');
+        expect(JSON.stringify(grammar.scalars)).not.toContain('number');
+    });
+
+    it('the grammar states the decimal spelling and what its wire value means', () =>
+    {
+        const grammar = bundle.typeGrammar as Record<string, string>;
+
+        expect(grammar.decimal).toContain('decimal<scale>');
+        expect(grammar.decimal).toContain('integer divided by 10 to the scale');
+        expect(grammar.decimal).toContain('only decimal spelling');
+    });
+
+    it('the grammar states the scale bounds that keep the wire value inside int64', () =>
+    {
+        // The wire value is a signed 64-bit integer, so the scale cannot run past
+        // the largest power of ten one holds. Scale 0 is `integer` spelled the
+        // long way and is not a scale at all.
+        const grammar = bundle.typeGrammar as Record<string, string>;
+
+        expect(grammar.decimal).toContain(`from ${MIN_DECIMAL_SCALE} to ${MAX_DECIMAL_SCALE}`);
+        expect(grammar.decimal).toContain('Scale 0 is integer written the long way and is not a valid scale');
+        expect(grammar.decimal).toContain('signed 64-bit integers only');
+    });
+
+    it('the grammar declares that a scale change is breaking and renames the field', () =>
+    {
+        // Promoted from the #95 decision: a scale is part of the type, so moving
+        // it is a version bump, and the unit belongs in the name the way AtMillis
+        // is in every moment's name.
+        const grammar = bundle.typeGrammar as Record<string, string>;
+
+        expect(grammar.decimalScaleRule).toContain('breaking change');
+        expect(grammar.decimalScaleRule).toContain('version bump');
+        expect(grammar.decimalScaleRule).toContain('renamed');
+        expect(grammar.decimalScaleRule).toContain('AtMillis');
+    });
+
+    it('the grammar declares the decimal type a generator emits and its refusal to round', () =>
+    {
+        // The other promoted rule. A binary float would reintroduce exactly the
+        // representation the removal of `number` took out, and rounding would move
+        // the decision about a value's worth into the client.
+        const grammar = bundle.typeGrammar as Record<string, string>;
+
+        expect(grammar.decimalGeneratorRule).toContain('Swift Decimal');
+        expect(grammar.decimalGeneratorRule).toContain('Kotlin BigDecimal');
+        expect(grammar.decimalGeneratorRule).toContain('never a binary float');
+        expect(grammar.decimalGeneratorRule).toContain('rejected at encoding time and never rounded');
+    });
+
+    it('an unknown spelling stays a contract error rather than something to guess at', () =>
+    {
+        // The fence an old consumer meets: `decimal<2>` reaching a generator that
+        // predates the spelling is read as a type name and fails at compile time,
+        // which is the outcome this rule asks for.
+        const grammar = bundle.typeGrammar as Record<string, string>;
+
+        expect(grammar.rule).toContain('contract error');
+        expect(grammar.rule).toContain('fails at compile');
+        expect(resolvable('decimal<0>')).toBe(false);
+        expect(resolvable(`decimal<${MAX_DECIMAL_SCALE + 1}>`)).toBe(false);
+        expect(resolvable('decimal<2>')).toBe(true);
+        expect(resolvable('number')).toBe(false);
     });
 
     it('the grammar names both container spellings and no others', () =>
@@ -802,18 +906,18 @@ describe('declared proof rules match the implementation', () =>
         replayWindowMillis: number;
     };
 
-    it('the contract line is the revision that records per-operation availability', () =>
+    it('the contract line is the revision that replaced number with decimal<scale>', () =>
     {
-        expect(bundle.contractVersion).toBe('0.6.1');
+        expect(bundle.contractVersion).toBe('0.7.0');
     });
 
-    it('the supported range stays where the breaking header and enum changes put it', () =>
+    it('the supported range moved with the removal of a declared scalar', () =>
     {
-        // 0.6.0은 클라이언트 신원 헤더를 요구하고 algorithm을 enum으로 바꾼다. 둘 다
-        // 소비자의 생성 코드를 바꾸므로 breaking이고, 0.x에서 minor가 breaking을
-        // 나르므로 범위도 같이 올라갔다 — 0.5.x 소비자가 남아 있으면 안 된다.
-        // 0.6.1은 metadata만 더하는 patch라 범위를 움직이지 않는다.
-        expect(bundle.supportedRange).toBe('>=0.6.0 <0.7.0');
+        // 문법에서 선언된 스칼라(`number`)가 빠졌다. 0.x에서 breaking을 나르는 건
+        // minor이므로 범위 바닥도 같이 올라간다 — 0.6.x로 생성된 소비자는 이제
+        // 서버가 말하지 않는 문법으로 만들어진 것이라 CONTRACT_UNSUPPORTED로
+        // 거절된다. 배포된 소비자가 없어서 지금 치르는 비용이다.
+        expect(bundle.supportedRange).toBe('>=0.7.0 <0.8.0');
     });
 
     it('states the rule that binds a native id_token to the key it enrolls', () =>
