@@ -10,16 +10,13 @@
 #
 # Needs the GITEA_NPM_TOKEN secret: a Gitea token allowed to write packages
 # under the superfunction org.
-# Runs on a main push that touched a package.json, or on a manual run from the
-# Woodpecker UI — the manual path exists for backfill: the registry guard makes
-# it a no-op unless some version is actually missing.
+# Runs on every main push and on a manual run from the Woodpecker UI (backfill).
+# No path filter: the real gate is scripts/publish-changed.mjs asking the
+# registry, which makes a push without a version bump a fast no-op — and a path
+# condition kept the manual event from matching any workflow at all.
 when:
-    - branch: main
-      event: push
-      path:
-          include: ['packages/*/package.json']
-    - branch: main
-      event: manual
+    branch: main
+    event: [push, manual]
 
 steps:
     publish-gitea:
