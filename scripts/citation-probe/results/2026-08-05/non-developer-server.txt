@@ -1,0 +1,82 @@
+신규
+⌘K
+Computer
+아티팩트
+사용자 지정
+프로젝트
+프로젝트 없음
+세션
+I am not a developer. I built an app with an AI coding agent and I need a server with a database and user accounts. What should I use?
+로그인
+답변
+링크
+이미지
+공유
+Comet 다운로드
+I am not a developer. I built an app with an AI coding agent and I need a server with a database and user accounts. What should I use?
+웹 검색
+
+If you’re not a developer and just want a simple, scalable server, database, and user accounts, use a managed backend platform that handles hosting, authentication, and data storage for you.
+
+Direct recommendation:
+
+Supabase: provides a Postgres database, authentication, and auto-generated APIs in one dashboard. Great for web apps and simple to set up.
+
+Firebase (with Firestore or Realtime Database) is another solid option, especially if you’re targeting mobile and need real-time features.
+
+Why these are good for non-developers:
+
+End-to-end managed services with out-of-the-box auth and database.
+
+Free tiers or affordable starts for small apps.
+
+Documentation and community support to guide you through setup without writing server code.
+
+Other concepts to consider:
+
+If you want to stay fully no-code, consider AI-assisted builders that bundle backend hosting, database, and auth in one package.
+
+For hosting the frontend, you can pair these backends with a simple static site hosting service.
+
+Key questions to decide:
+
+Do you need real-time data and mobile-specific features? Firebase might be preferable.
+
+Do you want a familiar SQL database with strong relational capabilities? Supabase (Postgres) is a good fit.
+
+Do you plan to scale later or need more fine-grained access control? Look for built-in role-based access control and row-level security in the backend you choose.
+
+If you’d like, tell me your app’s rough data model (types of users, key data stored, and any auth requirements), and I’ll map out a concrete setup plan using one of these platforms.
+
+10개 출처
+후속 조치
+answer_guess will suggest a stack like Node.js with Express and PostgreSQL or Python with FastAPI and PostgreSQL, plus auth services
+How to choose between SQL and NoSQL databases for a small app
+What cloud providers offer easy serverless databases with user auth tools
+Best beginner friendly tutorials for setting up a full stack with authentication
+What are common security best practices for user accounts and data storage
+소스
+10
+
+
+
+
+후속 질문하기
+검색
+Computer
+모델
+아래에서 가입하여 Perplexity의 모든 잠재력을 활용하세요
+계속 진행하면 개인정보 처리방침에 동의하는 것으로 간주됩니다.
+홈으로 돌아가기
+Google로 계속하기
+Apple으로 계속하기
+이메일로 계속
+싱글 사인온(SSO)
+쿠키 정책
+
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+
+쿠키 정책
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+모두 허용
+필수 항목만 허용

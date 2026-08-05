@@ -1,0 +1,79 @@
+신규
+⌘K
+Computer
+아티팩트
+사용자 지정
+프로젝트
+프로젝트 없음
+세션
+How can I let Claude or an AI agent safely run operations against my own app backend and database?
+로그인
+답변
+링크
+이미지
+공유
+Comet 다운로드
+How can I let Claude or an AI agent safely run operations against my own app backend and database?
+웹 검색
+
+Direct approach: use a managed agent solution with strong isolation, least privilege, and a secure proxy for credentials.
+
+Start with a managed agent platform that runs in controlled infrastructure and supports long-running or asynchronous tasks. This gives you a sandboxed environment and configurable isolation.
+platform.claude
++1
+
+Implement least-privilege access: restrict the agent to only the capabilities it needs (filesystem, network endpoints, credentials via proxy, minimal system capabilities).
+code.claude
+
+Use defense-in-depth: container isolation, network restrictions, proxy-based credential injection, and thorough request validation. Combine with cloud-network controls (private subnets, strict egress rules, and a proxy) for better security.
+platform.claude
++1
+
+Manage credentials safely: inject credentials via a proxy rather than exposing them to the agent; log traffic at the proxy for auditing. This minimizes credential exposure.
+platform.claude
++1
+
+Consider secure deployment patterns: run agents behind a proxy that enforces domain allowlists, validates requests, and forwards to external APIs; assign minimal IAM permissions to the agent service account.
+platform.claude
++1
+
+Notes:
+
+Claude’s documentation emphasizes secure deployment, including network controls, credential protection via a proxy, and isolation technologies. If you’re evaluating Claude specifically, these are the recommended patterns.
+code.claude
+
+There are practical guides on configuring permissions for a locked-down agent and using a proxy to inject credentials, which helps minimize risk when agents interact with your backend and database.
+code.claude
+
+10개 출처
+후속 조치
+answer_guess
+How to sandbox AI backend interactions securely
+What auth standards to use for AI access to databases
+What permissions should AI have in a production DB
+Auditing and logging strategies for AI-initiated actions
+소스
+10
+
+
+
+
+후속 질문하기
+검색
+Computer
+모델
+아래에서 가입하여 Perplexity의 모든 잠재력을 활용하세요
+계속 진행하면 개인정보 처리방침에 동의하는 것으로 간주됩니다.
+홈으로 돌아가기
+Google로 계속하기
+Apple으로 계속하기
+이메일로 계속
+싱글 사인온(SSO)
+쿠키 정책
+
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+
+쿠키 정책
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+모두 허용
+필수 항목만 허용

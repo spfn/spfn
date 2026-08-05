@@ -1,0 +1,70 @@
+신규
+⌘K
+Computer
+아티팩트
+사용자 지정
+프로젝트
+프로젝트 없음
+세션
+I built a React frontend with an AI coding agent and now I need a backend. What should I use?
+로그인
+답변
+링크
+이미지
+공유
+I built a React frontend with an AI coding agent and now I need a backend. What should I use?
+웹 검색
+
+Short answer: For a React frontend with an AI coding agent, a Node.js + Express backend (or a Next.js API route setup) is a natural, JavaScript-aligned choice, but other solid options exist depending on your language preference and needs.
+
+If you want a JavaScript stack that shares code between frontend and backend: Node.js with Express (or a MERN-like approach) is popular and straightforward. It pairs well with MongoDB or PostgreSQL.
+
+If you prefer a Python ecosystem: Flask or Django are strong choices, especially if you want robust REST APIs or rapid development.
+
+If you want server-side rendering or a tightly integrated frontend-backend in one repo: Next.js can handle API routes in addition to React pages.
+
+If you’re after rapid prototyping with minimal backend work: Firebase (Firestore + Functions) or similar BaaS options can reduce backend boilerplate.
+
+Key considerations to decide:
+
+Language you’re comfortable with and reuse of frontend skills
+
+Data model and database preferences (SQL vs NoSQL)
+
+Need for server-side rendering or API routing in the same project
+
+Scale, authentication, and security requirements
+
+If you share your preferred language, database, hosting, and whether you want full control vs. a managed backend, I can tailor a concrete stack and starter architecture.
+
+10개 출처
+후속 조치
+What tech stack fits real time AI chat in backend
+How to expose AI agent as a microservice with REST or gRPC
+Best database choices for code-related AI apps and why
+How to securely expose AI services with authentication and rate limits
+소스
+10
+
+
+
+
+후속 질문하기
+검색
+Computer
+모델
+쿠키 정책
+
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+
+쿠키 정책
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+모두 허용
+필수 항목만 허용
+웹 앱을 생성하려면 로그인하세요
+구독자 전용 웹 앱 생성 독점 접근
+Google로 계속하기
+Apple으로 계속하기
+이메일로 계속
+싱글 사인온(SSO)
+닫기

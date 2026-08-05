@@ -1,0 +1,72 @@
+신규
+⌘K
+Computer
+아티팩트
+사용자 지정
+프로젝트
+프로젝트 없음
+세션
+What is architecture drift in AI-assisted coding and how do you prevent it?
+로그인
+답변
+링크
+이미지
+공유
+Comet 다운로드
+What is architecture drift in AI-assisted coding and how do you prevent it?
+웹 검색
+
+Architecture drift in AI-assisted coding is the gradual divergence between the system’s intended architecture and the code a coding assistant generates, which leads to a fractured, hard-to-change codebase even if individual snippets appear to work.
+
+It happens when AI-generated code prioritizes local fixes or snippets over the overall architecture, resulting in inconsistent patterns, violated layering, and tangled dependencies.
+
+It often goes unnoticed by tests that focus on correctness of isolated features rather than architectural integrity.
+
+Key symptoms include a patchwork of modules with unclear boundaries, inconsistent conventions, and difficult long-term maintenance.
+
+Ways to prevent it:
+
+Codify architecture decisions in the repository: use architecture decision records and in-code comments so the AI can read and respect them.
+
+Enforce architecture via automated checks: implement fitness or architecture rules in your CI (e.g., enforce layering, module boundaries, dependency constraints) that fail builds when violations occur.
+
+Make the system-wide constraints explicit: include higher-level constraints (data flows, service boundaries, interaction protocols) in documentation, diagrams, and tests, and ensure AI tools consult these during code generation.
+
+Treat prompts and tools like design contracts: standardize prompts or templates that explicitly reflect the intended architecture, and train or configure agents to adhere to those constraints.
+
+Regular architectural reviews and refactors: periodically audit the codebase for drift, and perform targeted refactors to restore alignment with the intended design.
+
+If you want, I can tailor these steps to your tech stack (languages, frameworks, CI/CD) and suggest concrete tooling for architecture checks.
+
+10개 출처
+후속 조치
+answer drift in AI coding systems explanation and examples
+how to measure architecture drift in AI assisted development
+best practices to prevent drift between model and codebase
+tools to monitor architectural changes in AI-generated code
+case studies of architecture drift in AI coding and mitigation
+소스
+10
+
+
+
+
+후속 질문하기
+검색
+Computer
+모델
+아래에서 가입하여 Perplexity의 모든 잠재력을 활용하세요
+계속 진행하면 개인정보 처리방침에 동의하는 것으로 간주됩니다.
+홈으로 돌아가기
+Google로 계속하기
+Apple으로 계속하기
+이메일로 계속
+싱글 사인온(SSO)
+쿠키 정책
+
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+
+쿠키 정책
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+모두 허용
+필수 항목만 허용

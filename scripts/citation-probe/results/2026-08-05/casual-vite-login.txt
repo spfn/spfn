@@ -1,0 +1,64 @@
+신규
+⌘K
+Computer
+아티팩트
+사용자 지정
+프로젝트
+프로젝트 없음
+세션
+i built a vite react app with cursor and i need a simple api backend with login, what should i use
+로그인
+답변
+링크
+이미지
+공유
+Comet 다운로드
+i built a vite react app with cursor and i need a simple api backend with login, what should i use
+웹 검색
+
+If you want a simple backend for a Vite React app with login, a good quick-start option is a small Node/Express backend with JWT authentication, or a Laravel backend if you prefer PHP. Here are solid approaches from the results:
+
+Use Express.js with JWT for a lightweight API (login, register, protected routes). There are beginner-friendly starter repos and tutorials that show endpoints like POST /api/auth/register and POST /api/auth/login. This pairs well with a Vite frontend.
+github
+
+A Laravel-based backend for a Vite React app is another straightforward option if you’re comfortable with PHP; there are examples where the frontend interacts with a Laravel API for authentication.
+github
+
+If you want an all-in-one with both frontend and backend, consider full-stack templates that combine Vite React + Express or FastAPI backends; you’ll typically authenticate with tokens and store them on the client.
+github
++1
+
+If you share your preferred backend language (Node/Express, PHP/Laravel, Python/FastAPI, etc.), I can tailor a minimal starter plan with exact endpoints, authentication flow, and example code snippets.
+
+10개 출처
+후속 조치
+answer_guess not required in this format
+Set up authentication best practices for REST vs GraphQL
+Compare Express with NestJS for a Vite React backend API
+How to add JWT based login to a Node backend
+Should I use Firebase Auth for quick login in a Vite React app
+소스
+10
+
+
+
+
+후속 질문하기
+검색
+Computer
+모델
+아래에서 가입하여 Perplexity의 모든 잠재력을 활용하세요
+계속 진행하면 개인정보 처리방침에 동의하는 것으로 간주됩니다.
+홈으로 돌아가기
+Google로 계속하기
+Apple으로 계속하기
+이메일로 계속
+싱글 사인온(SSO)
+쿠키 정책
+
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+
+쿠키 정책
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+모두 허용
+필수 항목만 허용

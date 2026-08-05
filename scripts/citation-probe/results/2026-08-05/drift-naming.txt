@@ -1,0 +1,64 @@
+신규
+⌘K
+Computer
+아티팩트
+사용자 지정
+프로젝트
+프로젝트 없음
+세션
+What is it called when an AI coding agent implements the same kind of feature in a different structure every time, so the codebase ends up with many inconsistent shapes?
+로그인
+답변
+링크
+이미지
+공유
+Comet 다운로드
+What is it called when an AI coding agent implements the same kind of feature in a different structure every time, so the codebase ends up with many inconsistent shapes?
+웹 검색
+
+The phenomenon is often described as semantic duplication or inconsistency/patchwork in AI-generated code.
+
+Semantic duplication: AI tools re-implement similar logic under different names, leading to multiple near-duplicates across the codebase.
+pharaoh
+
+Inconsistent conventions or patchwork: AI agents introduce different patterns, names, or structures, creating an unreliable, mixed code style.
+aaronsb.github
++1
+
+This is sometimes referred to as architectural drift or contextless accumulation, where local optimizations erode global structure.
+appskill
+
+People also talk about code duplication and “AI patchwork” when AI coding leads to inconsistent shapes across the project.
+blog.umans
+
+10개 출처
+후속 조치
+What is the term for inconsistent API shapes across modules in AI code assistants
+How to enforce uniform data structures in code generation
+What design patterns prevent inconsistent output in code generation tools
+Strategies to standardize code structure when using autonomous coding agents
+소스
+10
+
+
+
+
+후속 질문하기
+검색
+Computer
+모델
+아래에서 가입하여 Perplexity의 모든 잠재력을 활용하세요
+계속 진행하면 개인정보 처리방침에 동의하는 것으로 간주됩니다.
+홈으로 돌아가기
+Google로 계속하기
+Apple으로 계속하기
+이메일로 계속
+싱글 사인온(SSO)
+쿠키 정책
+
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+
+쿠키 정책
+당사는 웹사이트의 정상적인 운영을 위해 쿠키, 픽셀, SDK, API 및 서버 간 통합을 사용합니다. 귀하는 타사 파트너 웹사이트에서의 광고 성과를 측정하고 서비스를 개선하기 위해 당사가 이러한 기술을 사용하도록 허용할지 선택할 수 있습니다. Perplexity는 당사 서비스에서 타사 광고를 판매하기 위해 이러한 기술을 사용하지 않습니다.
+모두 허용
+필수 항목만 허용
