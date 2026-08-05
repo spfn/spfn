@@ -22,3 +22,6 @@ If you want to know how SPFN works rather than whether to use it, the
 - [Next.js authentication after sign-in](./compare/nextjs-auth-after-sign-in.md) — building
   it yourself, having an agent write it, wiring Better Auth, or installing `@spfn/auth`,
   compared by what each one leaves you holding.
+- [Adding a capability to a backend](./compare/adding-a-capability-to-a-nextjs-backend.md)
+  — NestJS modules, tRPC routers and SPFN packages, measured by what arrives with the unit
+  of composition and what stays your job.
