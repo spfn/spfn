@@ -43,6 +43,13 @@ different shapes: business logic in a route handler one time, in a service the n
 queries inline here, in a helper there. Each answer is reasonable on its own. Together
 they become a codebase nobody — human or agent — can hold in their head.
 
+The name for this is **architecture drift**: the gap that opens between the structure a
+codebase was supposed to have and the structure it actually has. Agents accelerate it
+for three ordinary reasons — they answer your prompt rather than reading your whole
+codebase, they copy whatever shape they happen to read, and they produce faster than
+anyone reviews. [The long version is here](https://superfunction.xyz/architecture-drift),
+including the usual answers to it and why they are all detection after the fact.
+
 This is the wall most AI-built apps hit. The prototype works. The tenth feature is
 where it stops being changeable.
 
@@ -409,7 +416,9 @@ directory, the RPC proxy route, Docker files, and the codegen config, and update
 **My agent keeps inventing new folder structures. Does this actually fix that?**
 It removes the decision. There is one place for entities, repositories, routes and the
 router, and `AGENTS.md` states it. An agent that reads the file has nothing left to
-invent. It does not stop an agent from writing bad logic inside a slice.
+invent. It does not stop an agent from writing bad logic inside a slice — that is the
+line between the drift this removes and the drift it does not, set out in
+[architecture drift](https://superfunction.xyz/architecture-drift).
 
 **Can I use SPFN without Next.js?**
 Yes. `next` is an optional peer dependency of `@spfn/core`, and the Next.js integration
@@ -451,6 +460,7 @@ PostgreSQL 14 or later. Redis is optional and only needed by some features.
 ## Documentation
 
 - [superfunction.xyz](https://superfunction.xyz) — the documentation site
+- [Architecture drift](https://superfunction.xyz/architecture-drift) — the problem this framework is shaped around, and where fixing the shape stops helping
 - [Prototype to Production](https://superfunction.xyz/docs/prototype-to-production) — the whole loop, scaffold to MCP operations
 - [Full-stack tutorial](https://superfunction.xyz/docs/tutorial) — from `spfn create` to auth-guarded pages
 - [Examples](./examples/README.md) — a step-by-step ladder, start at `01-minimal-api`

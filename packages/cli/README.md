@@ -5,6 +5,11 @@ architecture. It can scaffold either a core-only backend or a production baselin
 authentication, internationalization, and an agent-facing MCP endpoint, then runs the
 dev/build/start lifecycle, database tooling, RPC codegen, and environment validation.
 
+Consistent is the point rather than a nicety: what it scaffolds is one fixed shape per
+feature, so a coding agent has no architecture left to invent and the codebase does not
+acquire several. That problem has a name —
+[architecture drift](https://superfunction.xyz/architecture-drift).
+
 > Beta: install with the `@beta` tag (`spfn@beta`). The binary is `spfn`.
 
 ## Install
