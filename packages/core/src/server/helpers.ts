@@ -5,6 +5,7 @@ import { getDatabase } from '@spfn/core/db';
 import { getCache } from '@spfn/core/cache';
 import { env } from '@spfn/core/config';
 import { getShutdownManager } from './shutdown-manager';
+import type { NamedMiddleware, Router } from '@spfn/core/route';
 
 // ============================================================================
 // Types
@@ -141,6 +142,53 @@ export function createHealthCheckHandler(detailed: boolean): Handler
 
         return c.json(response, statusCode);
     };
+}
+
+/**
+ * The named middleware guarding an endpoint the server registers by itself — the SSE
+ * and WebSocket token endpoints. Those endpoints belong to no router, so they never
+ * pass through `registerRoutes` and have to be handed their middleware directly.
+ *
+ * An app guards its routes from either level: `defineServerConfig().middlewares([...])`
+ * or `defineRouter(...).use([...])`. Only the first lands in `config.middlewares` —
+ * router-level middleware travels with the router — so both are collected here, or an
+ * app that authenticates through its router would publish an unauthenticated token
+ * endpoint. Names are deduplicated: a middleware present at both levels runs once.
+ */
+export function resolveEndpointMiddlewares(config: {
+    middlewares?: ReadonlyArray<NamedMiddleware>;
+    routes?: Router<any>;
+}): NamedMiddleware[]
+{
+    const candidates: NamedMiddleware[] = [
+        ...(config.middlewares ?? []),
+        ...(config.routes?._globalMiddlewares ?? []),
+    ];
+
+    for (const pkgRouter of config.routes?._packageRouters ?? [])
+    {
+        candidates.push(...(pkgRouter._globalMiddlewares ?? []));
+    }
+
+    const seen = new Set<string>();
+
+    return candidates.filter((mw) =>
+    {
+        // An unnamed entry is never collapsed — unrelated handlers share the empty name.
+        if (!mw.name)
+        {
+            return true;
+        }
+
+        if (seen.has(mw.name))
+        {
+            return false;
+        }
+
+        seen.add(mw.name);
+
+        return true;
+    });
 }
 
 export function applyServerTimeouts(

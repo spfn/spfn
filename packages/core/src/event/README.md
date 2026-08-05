@@ -243,7 +243,8 @@ export default defineServerConfig()
 ```
 
 The token endpoint path is **derived** from the stream path: `/events/stream` →
-`/events/token`, `/sse` → `/token`. It is registered with `config.middlewares` applied, so
+`/events/token`, `/sse` → `/token`. It is registered with your app's named middleware
+applied — both the server-level `.middlewares([...])` and the router's `.use([...])` — so
 whatever authenticates your routes also authenticates token issuance.
 
 ### Token store (multi-instance)

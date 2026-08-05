@@ -6,7 +6,7 @@
 
 import type { MiddlewareHandler } from 'hono';
 import type { ServerConfig } from './types';
-import type { Router, NamedMiddleware } from '@spfn/core/route';
+import type { Router } from '@spfn/core/route';
 import type { JobRouter, BossOptions } from '../job';
 import type { EventRouterDef } from '../event/router';
 import type { SSEHandlerConfig, SSEAuthConfig } from '../event/sse/types';
@@ -168,9 +168,16 @@ export class ServerConfigBuilder
     /**
      * Register define-route based router
      *
-     * Automatically applies:
-     * - Global middlewares from router._globalMiddlewares (via .use())
-     * - Package routers from router._packageRouters (via .packages())
+     * Router-level middleware (`.use()`) and package routers (`.packages()`) travel
+     * with the router itself and are applied by `registerRoutes` when the routes are
+     * mounted — this method only records which router to mount.
+     *
+     * It deliberately does **not** copy `router._globalMiddlewares` into
+     * `config.middlewares`: that copy used to make `registerRoutes` see the same
+     * middleware twice (once from the config list, once from the router it was
+     * handed) and attach both to every route. Middleware that verifies a JWT survives
+     * running twice; middleware that consumes one-shot state — a nonce replay ledger —
+     * rejects its own request the second time round.
      *
      * @example
      * ```typescript
@@ -181,43 +188,13 @@ export class ServerConfigBuilder
      * .use([authMiddleware]);
      *
      * export default defineServerConfig()
-     *   .routes(appRouter)  // middlewares auto-applied
+     *   .routes(appRouter)  // .use() middleware applied once, at registration
      *   .build();
      * ```
      */
     routes(router: Router<any>): this
     {
         this.config.routes = router;
-
-        // Collect all global middlewares from router and package routers
-        const allGlobalMiddlewares: NamedMiddleware[] = [];
-
-        // Add main router's global middlewares
-        if (router._globalMiddlewares?.length > 0)
-        {
-            allGlobalMiddlewares.push(...router._globalMiddlewares);
-        }
-
-        // Add package routers' global middlewares
-        if (router._packageRouters?.length > 0)
-        {
-            for (const pkgRouter of router._packageRouters)
-            {
-                if (pkgRouter._globalMiddlewares?.length > 0)
-                {
-                    allGlobalMiddlewares.push(...pkgRouter._globalMiddlewares);
-                }
-            }
-        }
-
-        // Merge with existing middlewares
-        if (allGlobalMiddlewares.length > 0)
-        {
-            this.config.middlewares = [
-                ...(this.config.middlewares || []),
-                ...allGlobalMiddlewares,
-            ];
-        }
 
         return this;
     }

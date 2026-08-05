@@ -28,6 +28,7 @@ import {
     getFetchTimeoutConfig,
     getShutdownTimeout,
     getTimeoutConfig,
+    resolveEndpointMiddlewares,
 } from './helpers';
 import { getShutdownManager, resetShutdownManager } from './shutdown-manager';
 
@@ -401,7 +402,10 @@ async function initializeWebSocket(
         // Register the WS token endpoint on the Hono app. The path replaces the WS
         // path's last segment with `token`, so the default '/ws' becomes '/token'.
         const tokenPath = wsPath.replace(/\/[^/]+$/, '/token');
-        const mwHandlers = (config.middlewares ?? []).map(mw => mw.handler);
+        // Guard the token endpoint with the app's own middleware — from the server
+        // config and from the router's .use(), which registerRoutes owns and this
+        // endpoint never passes through.
+        const mwHandlers = resolveEndpointMiddlewares(config).map(mw => mw.handler);
         const getSubject = authConfig.getSubject
             ?? ((c: Context) => (c.get('auth') as Record<string, string> | undefined)?.userId ?? null);
 

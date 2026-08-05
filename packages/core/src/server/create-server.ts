@@ -16,7 +16,7 @@ import { env } from '@spfn/core/config';
 import { createSSEHandler } from '../event/sse/handler';
 import { SSETokenManager, CacheTokenStore } from '../event/sse/token-manager';
 import { wireEventRouterCache } from '../event/cache-transport';
-import { createHealthCheckHandler } from './helpers';
+import { createHealthCheckHandler, resolveEndpointMiddlewares } from './helpers';
 import { serverLogger } from './logger';
 
 import type { ServerConfig, AppFactory } from './types';
@@ -432,8 +432,10 @@ async function registerSSEEndpoint(app: Hono, config?: ServerConfig): Promise<vo
         // Derive token path: /events/stream → /events/token
         const tokenPath = streamPath.replace(/\/[^/]+$/, '/token');
 
-        // Apply config.middlewares (e.g., authenticate) to token endpoint
-        const mwHandlers = (config.middlewares ?? []).map(mw => mw.handler);
+        // Guard the token endpoint with the app's own middleware — from the server
+        // config and from the router's .use(), which registerRoutes owns and this
+        // endpoint never passes through.
+        const mwHandlers = resolveEndpointMiddlewares(config).map(mw => mw.handler);
         const getSubject = authConfig.getSubject
             ?? ((c: Context) => (c.get('auth') as Record<string, string> | undefined)?.userId ?? null);
 
