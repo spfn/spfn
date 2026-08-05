@@ -27,3 +27,8 @@ jobs:
       # No install: the check reads package.json manifests and markdown, nothing else.
       - name: Compare declared peer ranges with the documentation
         run: node scripts/check-doc-versions.mjs
+
+      # Every published exports subpath must carry a require condition — an ESM-only
+      # map breaks the spfn dev config loader at consumer boot (issue #102).
+      - name: Check exports subpaths resolve under require
+        run: node scripts/check-exports-require.mjs
