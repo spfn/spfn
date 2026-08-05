@@ -171,7 +171,10 @@ Packages are published to **two registries** (2026-07-22):
   the tag matching the version (`-alpha`/`-beta`/stable) **and syncs the `latest`
   dist-tag to that version**, so a bare `npm install` never serves a stale release.
   Re-running a workflow via workflow_dispatch re-syncs `latest` even for an
-  already-published version (idempotent backfill). GitHub is kept current from Gitea
+  already-published version (idempotent backfill). A GitHub Release is never
+  created automatically — run the workflow via workflow_dispatch with
+  `create_release` enabled when one is wanted (auto-generated notes,
+  alpha/beta marked prerelease). GitHub is kept current from Gitea
   (mirror); `.github/workflows/publish.yml` (v*-tag bulk publish) is the stale old path —
   per-package workflows supersede it.
 

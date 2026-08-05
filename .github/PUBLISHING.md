@@ -79,6 +79,9 @@ curl -s https://registry.npmjs.org/@spfn%2Fauth
   그 외 → `latest`.
 - publish 후 `latest` dist-tag 를 그 버전으로 동기화한다. workflow_dispatch 로
   다시 돌리면 이미 배포된 버전에 대해서도 `latest` 만 다시 맞춘다 (백필용).
+- GitHub Release 는 자동으로 만들지 않는다. 원할 때 workflow_dispatch 의
+  `create_release` 를 켜서 돌리면 그 버전 태그로 Release 를 만든다 — 노트는
+  자동 생성이고, alpha/beta 는 prerelease 로 표시된다.
 - unscoped `spfn` CLI 워크플로우는 publish 직전에 `publishConfig.registry` 를 지운다.
   그래야 npmjs 로 나가고, 배포된 아티팩트에 내부 레지스트리 주소가 박히지 않는다.
 

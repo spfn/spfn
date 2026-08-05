@@ -11,6 +11,10 @@ on:
         description: 'Create git tag for this version'
         type: boolean
         default: false
+      create_release:
+        description: 'Create a GitHub release for this version'
+        type: boolean
+        default: false
       dry_run:
         description: 'Dry run (skip actual publish)'
         type: boolean
@@ -108,6 +112,20 @@ jobs:
         run: npm dist-tag add @spfn/mcp@${{ steps.pkg.outputs.version }} latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub release
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release && !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="@spfn/mcp@${{ steps.pkg.outputs.version }}"
+          PRERELEASE=""
+          if [[ "${{ steps.pkg.outputs.tag }}" != "latest" ]]; then
+            PRERELEASE="--prerelease"
+          fi
+          gh release create "$TAG" --target "${{ github.sha }}" --title "$TAG" \
+            --generate-notes $PRERELEASE \
+            || echo "::warning::GitHub release creation failed for $TAG"
 
       - name: Summary
         run: |
