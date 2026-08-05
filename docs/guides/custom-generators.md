@@ -39,8 +39,8 @@ export default function createMyGenerator(): Generator {
     watchPatterns: ['src/features/**/*.config.ts'],
 
     // When to run: 'watch' | 'manual' | 'build' | 'start'
-    // Default: ['watch', 'manual', 'build']
-    runOn: ['watch', 'manual'],
+    // Default: ['watch', 'manual', 'build'] — omit it unless you mean to narrow it
+    runOn: ['watch', 'manual', 'build'],
 
     // Main generation function
     async generate(options: GeneratorOptions): Promise<void> {
@@ -64,28 +64,27 @@ The `runOn` option controls when your generator executes:
 
 | Trigger | Fired by | Use Case |
 |---------|----------|----------|
-| `watch` | `spfn dev` (initial pass + every file change) | Development-time updates |
-| `manual` | `spfn codegen run` **and `spfn build`** | On-demand and build-time generation |
-| `build` | nothing in the shipped CLI today | reserved |
-| `start` | nothing in the shipped CLI today | reserved |
+| `watch` | `spfn dev` — the initial pass and every file change | Development-time updates |
+| `manual` | `spfn codegen run` and `spfn contract` | On-demand generation |
+| `build` | `spfn build` | Build-time generation |
+| `start` | nothing in the shipped CLI | reserved for a programmatic caller |
 
-> **Include `manual` if you want the generator to run at build time.** `spfn build` calls
-> `orchestrator.generateAll()` with no argument, and that argument defaults to `'manual'` —
-> so a generator declaring only `runOn: ['build']` never runs. Nothing in the CLI fires
-> `'build'` or `'start'`; they exist for programmatic callers that pass the trigger
-> themselves (`orchestrator.generateAll('build')`).
+> **Include `build` if the generator has to run during `spfn build`.** This is the trap:
+> `runOn: ['watch', 'manual']` looks like "development and on demand", but it silently skips
+> the build. Both built-in generators list `build` for exactly this reason — a route map or a
+> contract that is not regenerated during the build is a stale artifact shipped to production.
 
 **Examples:**
 
 ```typescript
-// Run during development, on `spfn codegen run`, and during `spfn build`
-runOn: ['watch', 'manual']
-
-// Run only on demand / at build time, never in the dev watcher
-runOn: ['manual']
-
-// The default when `runOn` is omitted
+// The default when `runOn` is omitted — every trigger the CLI actually fires
 runOn: ['watch', 'manual', 'build']
+
+// Development and builds, but not `spfn codegen run`
+runOn: ['watch', 'build']
+
+// Only on an explicit run — for something too slow to sit in the watcher
+runOn: ['manual']
 ```
 
 ## Example: Admin Navigation Generator
@@ -125,7 +124,7 @@ export default function createAdminNavGenerator(): Generator {
   return {
     name: 'admin-nav',
     watchPatterns: ['src/app/admin/**/nav.config.tsx'],
-    runOn: ['watch', 'manual'],
+    runOn: ['watch', 'manual', 'build'],
 
     async generate(options: GeneratorOptions): Promise<void> {
       const { cwd, debug } = options;
@@ -559,11 +558,14 @@ export default function createDbSchemaGenerator(): Generator {
 
 **Check `runOn` configuration:**
 ```typescript
-// If generator isn't running during `spfn dev`
-runOn: ['watch', 'manual']  // Include 'watch'
+// If the generator isn't running during `spfn dev`
+runOn: ['watch', ...]   // include 'watch'
 
-// If not running on `spfn codegen run` or `spfn build`
-runOn: ['manual', 'watch']  // Include 'manual' — `spfn build` also uses the 'manual' trigger
+// If it isn't running on `spfn codegen run`
+runOn: ['manual', ...]  // include 'manual'
+
+// If it isn't running during `spfn build`
+runOn: ['build', ...]   // include 'build' — this one is easy to miss
 ```
 
 **Verify registration:**
