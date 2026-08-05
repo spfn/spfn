@@ -156,21 +156,29 @@ import { CLIENT_IDENTITY_HEADERS, CLIENT_KINDS, SERVER_CONTRACT_HEADERS } from '
  * guess at. Nothing deployed breaks: no type in this contract used `number`, so
  * the removal has zero usages, and it is taken now because the alternative is
  * carrying a scalar the encoding refuses until something depends on it.
+ *
+ * 0.8.0 applies to the error envelope the rule 0.6.0 applied to the grammar.
+ * `unknownCodePolicy: 'reject'` and the rule beside it told a decoder what to do
+ * with a code this bundle does not list, and `additionalFields` told it to ignore
+ * the extra top-level fields rather than reject them. The test is whether the
+ * server would notice a client doing the opposite, and it would not. Both are
+ * replaced by the fact behind them: the server sends codes outside the list, and
+ * the body carries fields beside the error object. Breaking, because removing a
+ * declaration changes what a generated consumer is built from.
  */
-export const CONTRACT_VERSION = '0.7.0';
+export const CONTRACT_VERSION = '0.8.0';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
 /**
- * Under 0.x the minor carries breaking changes, so the range stops at 0.8.0.
+ * Under 0.x the minor carries breaking changes, so the range stops at 0.9.0.
  *
- * 0.7.0 moves the floor with it. A consumer generated against 0.6.x was generated
- * from a grammar this server no longer states, so it is refused
- * CONTRACT_UNSUPPORTED rather than left to meet a spelling it cannot parse. That
- * refusal is the cost of removing a scalar, and it is paid now because no such
- * consumer is deployed.
+ * 0.8.0 moves the floor with it, for the same reason 0.7.0 did. A consumer
+ * generated against 0.7.x was generated from declarations this bundle no longer
+ * carries, so it is refused CONTRACT_UNSUPPORTED rather than left reading a field
+ * that is gone. No such consumer is deployed.
  */
-export const CONTRACT_SUPPORTED_RANGE = '>=0.7.0 <0.8.0';
+export const CONTRACT_SUPPORTED_RANGE = '>=0.8.0 <0.9.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
@@ -557,9 +565,9 @@ interface RestSurfaceError
  * Only this operation's codes are listed. The `error` envelope now reaches
  * every REST operation, but a code list is a promise, and a promise about
  * routes whose failure paths have not been enumerated one by one would be a
- * guess. An unlisted code arriving on another operation is handled by
- * `unknownCodePolicy`, which surfaces the raw string instead of guessing at a
- * neighbour.
+ * guess. That the server sends codes outside this list is stated as
+ * `unlistedCodes`; what a decoder does when it meets one is the decoder's
+ * decision.
  */
 const REST_SURFACE_ERRORS: readonly RestSurfaceError[] = [
     {
@@ -891,12 +899,12 @@ export function buildMobileContractBundle(): MobileContractBundle
         errorEnvelope: {
             shape: '{"error":{"code":<string>,"message":<string>,"requestId":<string>}}',
             additionalFields:
-                'the body carries further top-level fields — __type, message, and the error class\'s own public '
-                + 'fields — which a decoder must ignore rather than reject; only error.code classifies the failure',
-            unknownCodePolicy: 'reject',
-            unknownCodeRule:
-                'a code outside this list is never mapped to a neighbouring code; it surfaces as an unknown-code '
-                + 'failure carrying the raw string',
+                'the body carries further top-level fields beside the error object — __type, message, and the '
+                + 'error class\'s own public fields. Only error.code classifies the failure',
+            unlistedCodes:
+                'the server sends codes this list does not carry. Only the operations enumerated here have had '
+                + 'their failure paths listed one by one, and every code is a server error class name rather '
+                + 'than a value minted for this contract',
         },
         errors: [
             ...CLIENT_PROOF_ERROR_CODES.map((code) => ({

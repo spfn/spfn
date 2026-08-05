@@ -4,8 +4,8 @@
   "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
   "contractName": "spfn-mobile-contract",
   "contractMajor": 0,
-  "contractVersion": "0.7.0",
-  "supportedRange": ">=0.7.0 <0.8.0",
+  "contractVersion": "0.8.0",
+  "supportedRange": ">=0.8.0 <0.9.0",
   "exporterVersion": "@spfn/auth/contract-bundle@5.0.0",
   "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
   "operationAuthClasses": {
@@ -419,9 +419,8 @@
   ],
   "errorEnvelope": {
     "shape": "{\"error\":{\"code\":<string>,\"message\":<string>,\"requestId\":<string>}}",
-    "additionalFields": "the body carries further top-level fields — __type, message, and the error class's own public fields — which a decoder must ignore rather than reject; only error.code classifies the failure",
-    "unknownCodePolicy": "reject",
-    "unknownCodeRule": "a code outside this list is never mapped to a neighbouring code; it surfaces as an unknown-code failure carrying the raw string"
+    "additionalFields": "the body carries further top-level fields beside the error object — __type, message, and the error class's own public fields. Only error.code classifies the failure",
+    "unlistedCodes": "the server sends codes this list does not carry. Only the operations enumerated here have had their failure paths listed one by one, and every code is a server error class name rather than a value minted for this contract"
   },
   "errors": [
     {

@@ -906,18 +906,18 @@ describe('declared proof rules match the implementation', () =>
         replayWindowMillis: number;
     };
 
-    it('the contract line is the revision that replaced number with decimal<scale>', () =>
+    it('the contract line is the revision that takes client policy out of the error envelope', () =>
     {
-        expect(bundle.contractVersion).toBe('0.7.0');
+        expect(bundle.contractVersion).toBe('0.8.0');
     });
 
-    it('the supported range moved with the removal of a declared scalar', () =>
+    it('the supported range moves with the removed envelope declarations', () =>
     {
-        // 문법에서 선언된 스칼라(`number`)가 빠졌다. 0.x에서 breaking을 나르는 건
-        // minor이므로 범위 바닥도 같이 올라간다 — 0.6.x로 생성된 소비자는 이제
-        // 서버가 말하지 않는 문법으로 만들어진 것이라 CONTRACT_UNSUPPORTED로
-        // 거절된다. 배포된 소비자가 없어서 지금 치르는 비용이다.
-        expect(bundle.supportedRange).toBe('>=0.7.0 <0.8.0');
+        // 0.8.0은 errorEnvelope에서 unknownCodePolicy와 unknownCodeRule을 없앤다.
+        // 선언이 사라지면 소비자의 생성 코드가 달라지므로 breaking이고, 0.x에서
+        // minor가 breaking을 나르므로 범위도 같이 올라간다 — 0.7.x 소비자가 남아
+        // 있으면 안 된다.
+        expect(bundle.supportedRange).toBe('>=0.8.0 <0.9.0');
     });
 
     it('states the rule that binds a native id_token to the key it enrolls', () =>
