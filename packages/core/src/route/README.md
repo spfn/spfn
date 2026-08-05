@@ -38,12 +38,15 @@ Values:
 - `defineMiddlewareFactory(name, factory)` — explicit factory form (use when the factory itself takes exactly 2 args).
 - `Nullable(schema)` → `T | null`; `OptionalNullable(schema)` → `T | null | undefined`.
 - `isHttpMethod(value)` — type guard for `'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'`.
+- `.contract({ since, response, auth?, requiresSession?, deprecatedIn? })` — builder method; publishes
+  the route as a versioned promise. See [`../contract/README.md`](../contract/README.md).
 - File schemas: `FileSchema(opts?)`, `FileArraySchema(opts?)`, `OptionalFileSchema(opts?)` — **all are functions, call with `()`**.
 - File helpers: `isFileSchema`, `isFileArraySchema`, `getFileOptions`, `formatFileSize`.
 
 Types:
 
 - `RouteInput`, `RouteDef`, `RouteHandlerFn`, `Router`, `RegisteredRoute`
+- `RouteContract`, `RouteAuthProfile`
 - `RouteBuilderContext`, `MergedInput`, `PaginatedResult`
 - `HttpMethod`, `NamedMiddleware`, `NamedMiddlewareFactory`, `ExtractMiddlewareNames`
 - `FileSchemaOptions`, `FileArraySchemaOptions`, `FileSchemaType`, `FileArraySchemaType`
@@ -59,7 +62,9 @@ docs and AI completions invent them — they will not compile:
 - **`RouteMeta`, `RouteMetadata`, `RouterMetadata`, `InferResponseData`** — not exported
   from `types.ts` (which only exports `HttpMethod`). Do not import them.
 - **`.meta(...)`, `.public()`, `.tags(...)`, `.description(...)` builder methods** — the
-  builder only has `input`, `interceptor`, `middleware`/`use`, `skip`, `handler`.
+  builder only has `input`, `interceptor`, `middleware`/`use`, `skip`, `contract`, `handler`.
+- **`.output(schema)`** — does not exist. The response shape is declared inside `.contract({ response })`;
+  see [Contract](#contract).
 - **`route.head(...)` / `route.options(...)`** — not defined.
 - **`c.success(...)` / `c.error(...)`** — not context helpers (see the helper list below).
 
@@ -118,6 +123,7 @@ route.get('/users/:id')          // method + path fixed here
     .interceptor({ ... })        // optional — middleware-injected fields (see below)
     .use([mwA, mwB])             // optional — route-level middleware (alias: .middleware)
     .skip(['auth'])              // optional — skip named server-level middleware
+    .contract({ ... })           // optional — publish as a versioned promise (see below)
     .handler(async (c) => { ... }); // required — terminal
 ```
 
@@ -128,9 +134,11 @@ route.get('/users/:id')          // method + path fixed here
 | `.interceptor(schemas)` | Declare fields injected by middleware — typed in handler, excluded from client types. |
 | `.use(mws)` / `.middleware(mws)` | Attach route-level middleware (regular `MiddlewareHandler` or `NamedMiddleware`). Identical. |
 | `.skip(names \| '*')` | Skip server-level named middleware for this route. |
+| `.contract(contract)` | Publish the route as a versioned promise to separately deployed clients. |
 | `.handler(fn)` | Terminal. Return value type becomes the response type. |
 
-Chain order between `.input`/`.interceptor`/`.use`/`.skip` is free; only `.handler` must be last.
+Chain order between `.input`/`.interceptor`/`.use`/`.skip`/`.contract` is free; only `.handler`
+must be last.
 
 ---
 
@@ -230,6 +238,48 @@ route.post('/upload')
 
 File constraints (`maxSize`/`minSize`/`allowedTypes`/`maxFiles`/`minFiles`) are enforced
 separately from TypeBox and also surface as `ValidationError`.
+
+---
+
+## Contract
+
+`.contract()` marks a route as a versioned promise to clients that are **compiled and deployed
+separately from the server** — a mobile app in the store, an external API consumer. The build then
+refuses a change that would break one of them.
+
+```typescript
+export const getUser = route.get('/users/:id')
+    .input({ params: Type.Object({ id: Type.String() }) })
+    .contract({
+        since: '1.2.0',
+        auth: 'clientProofV1',
+        requiresSession: true,
+        response: Type.Object({
+            id: Type.String(),
+            name: Type.String(),
+            email: Type.Optional(Type.String()),
+        }),
+    })
+    .handler(async (c) => { ... });
+```
+
+| Field | Meaning |
+|-------|---------|
+| `response` | Response shape as a TypeBox schema — **declared, not inferred**. No body → `Type.Null()`. |
+| `since` | Contract version this operation first appeared in. |
+| `auth` | `'none'` or `'clientProofV1'`. Default `'none'`. |
+| `requiresSession` | Whether the call carries a session. Default `false`. |
+| `deprecatedIn` | Version the operation was announced for removal in. Optional. |
+
+**A web client needs none of this.** `createApi<AppRouter>()` derives its types from the router in
+the same build, so a removed response field breaks the TypeScript compile. `.contract()` exists for
+the clients TypeScript cannot reach.
+
+`.contract()` is opt-in per route and changes nothing at runtime — no response validation, no
+middleware. It only puts a value on `RouteDef` that the `@spfn/core:contract` generator reads.
+
+Full behaviour — the generator, the released snapshots, the compatibility case table and the
+removal rules — is in [`../contract/README.md`](../contract/README.md).
 
 ---
 
