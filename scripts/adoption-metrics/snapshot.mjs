@@ -18,6 +18,7 @@
 // The record is append-only: a bad row is corrected by appending a new row.
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -81,6 +82,37 @@ async function fetchNpm(names)
         downloads[name] = d.downloads ?? 0;
     }
     return downloads;
+}
+
+// PostHog: one project (513406) receives events from several products, so the
+// host filter is what scopes the count to superfunction.xyz. The personal API
+// key (query:read only) lives in the macOS keychain; its value never reaches
+// stdout. Missing key or a failed query degrades to null, and the --posthog
+// flag still overrides.
+const POSTHOG_PROJECT = 513406;
+const LLM_DOMAINS = "'chatgpt.com','chat.openai.com','perplexity.ai','www.perplexity.ai','claude.ai','gemini.google.com','copilot.microsoft.com'";
+
+async function fetchPosthogLlmReferrals()
+{
+    let key;
+    try
+    {
+        key = execFileSync('security', ['find-generic-password', '-s', 'posthog', '-a', 'personal-api-key', '-w'],
+            { encoding: 'utf8' }).trim();
+    }
+    catch
+    {
+        return null;
+    }
+    const query = `select count() from events where event='$pageview' and properties.$host='superfunction.xyz' and properties.$referring_domain in (${LLM_DOMAINS}) and timestamp > now() - interval 7 day`;
+    const res = await fetch(`https://us.posthog.com/api/projects/${POSTHOG_PROJECT}/query/`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
+    }).catch(() => null);
+    if (!res || !res.ok) return null;
+    const data = await res.json();
+    return data.results?.[0]?.[0] ?? null;
 }
 
 function manualFields()
@@ -148,11 +180,17 @@ if (has('--view'))
     process.exit(0);
 }
 
+const manual = manualFields();
+if (manual.posthogLlmReferrals === null)
+{
+    manual.posthogLlmReferrals = await fetchPosthogLlmReferrals();
+}
+
 const row = {
     date: new Date().toISOString().slice(0, 10),
     github: await fetchGithub(),
     npm: await fetchNpm(packageNames()),
-    manual: manualFields(),
+    manual,
 };
 
 if (has('--dry'))

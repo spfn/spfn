@@ -18,16 +18,19 @@ node scripts/adoption-metrics/snapshot.mjs --view     # show the record only
 | Stars, forks, watchers | api.github.com/repos/fxylabs/spfn | unauthenticated |
 | External issues / PRs | same, `author_association` + an explicit internal-account list | the maintainer's personal account is only CONTRIBUTOR, so association alone cannot exclude it |
 | npm weekly downloads | api.npmjs.org, every non-private `packages/*` | secondary signal — includes our own CI |
+| LLM-referral pageviews (7d) | PostHog query API, project 513406 | key from the macOS keychain (`service=posthog account=personal-api-key`, query:read scope); the project also receives superselfs.com events, so the query filters `$host='superfunction.xyz'` |
+
+Without the keychain entry the PostHog field degrades to null — nothing fails.
 
 ## What it cannot fetch
 
-PostHog LLM referrals and Search Console numbers need credentials; the citation
-probe (`scripts/citation-probe`) runs on its own cadence. Enter them by hand when
+Search Console numbers need Google OAuth; the citation probe
+(`scripts/citation-probe`) runs on its own cadence. Enter them by hand when
 known:
 
 ```bash
 node scripts/adoption-metrics/snapshot.mjs \
-    --posthog 12 --gsc-impressions 340 --gsc-clicks 9 --probe not-cited
+    --gsc-impressions 340 --gsc-clicks 9 --probe not-cited
 ```
 
 Omitted fields are recorded as null and shown as `—`.
