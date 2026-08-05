@@ -1,9 +1,11 @@
 # Publishing Packages
 
 > **이 프로젝트는 레지스트리 두 곳에 배포한다** (2026-07-22 이후).
-> 비공개 Gitea 레지스트리는 로컬에서 수동으로, 공개 npmjs 는 패키지별 GitHub Actions
-> 워크플로우로 — 둘 다 현재 살아 있는 경로다. 아래 Gitea 절차를 먼저 밟고,
-> 버전 범프 커밋이 `main` 에 올라가면 공개 npmjs 쪽은 자동으로 따라온다.
+> 둘 다 버전 범프 커밋이 `main` 에 닿으면 자동으로 나간다 (2026-08-05 이후):
+> 비공개 Gitea 레지스트리는 Woodpecker(`.woodpecker.yml` →
+> `scripts/publish-changed.mjs`)가, 공개 npmjs 는 GitHub 미러의 패키지별
+> Actions 워크플로우가 맡는다. 레지스트리에 이미 있는 버전은 양쪽 다 건너뛴다.
+> 아래 로컬 수동 절차는 파이프라인이 못 돌 때의 fallback 이다.
 
 ## 어디로 — Gitea 비공개 레지스트리
 

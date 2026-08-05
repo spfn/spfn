@@ -1,0 +1,32 @@
+# primitives CI — publish version-bumped packages to the private Gitea registry.
+#
+# The public npmjs side is separate and unchanged: the GitHub mirror runs
+# .github/workflows/publish-<pkg>.yml on the same push. This pipeline is the
+# Gitea-registry counterpart, replacing the manual local `npm run publish:beta`.
+#
+# The registry is the idempotency guard (scripts/publish-changed.mjs skips
+# versions it already has), so re-running is safe and a package.json change
+# without a version bump publishes nothing.
+#
+# Needs the GITEA_NPM_TOKEN secret: a Gitea token allowed to write packages
+# under the superfunction org.
+# Runs on a main push that touched a package.json, or on a manual run from the
+# Woodpecker UI — the manual path exists for backfill: the registry guard makes
+# it a no-op unless some version is actually missing.
+when:
+    - branch: main
+      event: push
+      path:
+          include: ['packages/*/package.json']
+    - branch: main
+      event: manual
+
+steps:
+    publish-gitea:
+        image: node:22
+        environment:
+            GITEA_NPM_TOKEN: { from_secret: GITEA_NPM_TOKEN }
+        commands:
+            - printf '%s\n' '@spfn:registry=https://git.superfunction.xyz/api/packages/superfunction/npm/' "//git.superfunction.xyz/api/packages/superfunction/npm/:_authToken=$GITEA_NPM_TOKEN" > ~/.npmrc
+            - corepack enable
+            - node scripts/publish-changed.mjs

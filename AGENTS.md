@@ -161,7 +161,10 @@ Packages are in **beta** (`0.x.y-beta.N`) / alpha. Do not bump a package to a st
 Packages are published to **two registries** (2026-07-22):
 
 - **Private Gitea registry** (`git.superfunction.xyz/api/packages/superfunction/npm/`) —
-  manual local publish via the named scripts below. This is what internal apps consume
+  published by Woodpecker on a main push that changed a `packages/*/package.json`
+  (`.woodpecker.yml` → `scripts/publish-changed.mjs`; the registry is the idempotency
+  guard, and a manual UI run backfills anything missing). The named scripts below remain
+  as the local fallback. This is what internal apps consume
   (`@spfn:registry` scope in `~/.npmrc`). No `npm login` to npmjs.org is needed locally.
   The named scripts run `scripts/publish-package.mjs`, which publishes on the requested
   channel **and then moves `latest` onto the same version** — mirroring what the GitHub
