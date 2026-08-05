@@ -19,6 +19,7 @@
 import { createHash } from 'node:crypto';
 
 import { KEY_TTL_DAYS } from '../lib/key-policy';
+import { KEY_ALGORITHM } from '../types';
 import { CLIENT_PROOF_CONTENT_TYPE, CLIENT_PROOF_HEADERS } from './admission';
 import { AUTH_SURFACE_OPERATIONS, CONTRACT_OPERATIONS } from './contract-types';
 import {
@@ -28,6 +29,7 @@ import {
     PROOF_INPUT_SEPARATOR,
 } from './proof';
 import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
+import { CLIENT_IDENTITY_HEADERS, CLIENT_KINDS, SERVER_CONTRACT_HEADERS } from './wire-headers';
 
 /**
  * The version this export publishes. A mistake becomes a new version.
@@ -99,19 +101,38 @@ import { CLIENT_PROOF_ERROR_CODES, HTTP_STATUS } from './refusal';
  * fractional seconds as a live way for the two SDKs to disagree, on exactly
  * these four fields. An app reading `createdAt` from `authApi.listKeys()` must
  * move to `createdAtMillis`.
+ *
+ * 0.6.0 puts the contract version on the wire. A client states its kind, its own
+ * release and the contract version it was generated from; the server answers on
+ * every response with the version it serves and the range it accepts. A client
+ * that ships separately from the server and states no contract version is
+ * refused — until now the disagreement surfaced as an undecodable body, which
+ * told the user nothing. None of it enters the proof input.
+ *
+ * `algorithm` becomes the `KeyAlgorithm` enum in the three requests that carry it
+ * and in `KeySummary`. The routes have always constrained it to those values while
+ * this contract said `string`, so the contract understated the server; it is
+ * breaking because it changes what codegen produces for an existing field.
+ *
+ * The grammar also stops telling a consumer what to do with a value outside a
+ * declared set. That was an instruction to the decoder, and a contract states
+ * what the server does — how to survive a list that grows is the client's
+ * decision to make. No list here is promised to be closed: an algorithm can be
+ * withdrawn for a weakness found after this was written, and a contract that
+ * promised otherwise would be promising something it cannot keep.
  */
-export const CONTRACT_VERSION = '0.5.0';
+export const CONTRACT_VERSION = '0.6.0';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
-/** Under 0.x the minor carries breaking changes, so the range stops at 0.6.0. */
-export const CONTRACT_SUPPORTED_RANGE = '>=0.5.0 <0.6.0';
+/** Under 0.x the minor carries breaking changes, so the range stops at 0.7.0. */
+export const CONTRACT_SUPPORTED_RANGE = '>=0.6.0 <0.7.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
 
 /** Bumped whenever the assembled shape changes, independent of the contract. */
-export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@3.0.0';
+export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@4.0.0';
 
 /**
  * The scalars the grammar admits.
@@ -135,7 +156,7 @@ type ScalarTypeName = 'string' | 'integer' | 'number' | 'boolean';
  * it, so deriving it would be circular, and a misspelled name has to fail here
  * rather than reach the consumer as a type it cannot find.
  */
-type ReferencedTypeName = 'Item' | 'KeySummary';
+type ReferencedTypeName = 'Item' | 'KeySummary' | 'KeyAlgorithm';
 
 type ElementTypeName = ScalarTypeName | ReferencedTypeName;
 
@@ -175,16 +196,15 @@ interface TypeDeclaration
 }
 
 /**
- * A closed set of string values, declared by name so a field can reference it
- * the same way it references an object type.
+ * A named set of string values, declared by name so a field can reference it the
+ * same way it references an object type.
  *
- * Empty today. The first candidate is the `algorithm` field carried by
- * `RegisterRequest`, `OauthNativeRequest` and `RotateKeyRequest`: the routes
- * constrain it to a union of `KEY_ALGORITHM` literals while this contract still
- * declares it `string`, so the contract understates the server. Declaring it
- * would change what codegen produces for a field that already exists — a
- * breaking change for the consumer's source, so a minor bump and a decision of
- * its own rather than a side effect of widening the grammar.
+ * The values are the ones the server accepts and sends **now**. A set is not
+ * promised to stay as it is: an algorithm can be added, and one can be withdrawn
+ * for a weakness found after this was written. What a consumer does when it meets
+ * a value it does not know is the consumer's decision — a generated client that
+ * cannot survive a grown list is a defect in the generator, not something this
+ * contract can prevent by declaring the set closed.
  */
 interface EnumDeclaration
 {
@@ -280,7 +300,7 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
             required('publicKey', 'string'),
             required('keyId', 'string'),
             required('fingerprint', 'string'),
-            required('algorithm', 'string'),
+            required('algorithm', 'KeyAlgorithm'),
         ],
     },
     {
@@ -301,7 +321,7 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
             required('publicKey', 'string'),
             required('keyId', 'string'),
             required('fingerprint', 'string'),
-            required('algorithm', 'string'),
+            required('algorithm', 'KeyAlgorithm'),
             optional('oldKeyId', 'string'),
         ],
     },
@@ -324,7 +344,7 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
             required('publicKey', 'string'),
             required('keyId', 'string'),
             required('fingerprint', 'string'),
-            required('algorithm', 'string'),
+            required('algorithm', 'KeyAlgorithm'),
         ],
     },
     {
@@ -341,7 +361,7 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
             required('publicKey', 'string'),
             required('keyId', 'string'),
             required('fingerprint', 'string'),
-            required('algorithm', 'string'),
+            required('algorithm', 'KeyAlgorithm'),
         ],
     },
     {
@@ -363,7 +383,7 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
             required('keyId', 'string'),
             optional('deviceName', 'string'),
             optional('platform', 'string'),
-            required('algorithm', 'string'),
+            required('algorithm', 'KeyAlgorithm'),
             required('fingerprintPrefix', 'string'),
             required('createdAtMillis', 'integer'),
             optional('lastUsedAtMillis', 'integer'),
@@ -410,10 +430,12 @@ export const CONTRACT_TYPES: readonly TypeDeclaration[] = [
 /**
  * The enums this contract declares.
  *
- * Empty: the auth surface has one candidate and converting it is breaking. See
- * `EnumDeclaration` for which field and why it waits.
+ * `KeyAlgorithm` is read from the server's own list rather than transcribed, so
+ * an algorithm added or withdrawn there moves this declaration with it.
  */
-export const CONTRACT_ENUMS: readonly EnumDeclaration[] = [];
+export const CONTRACT_ENUMS: readonly EnumDeclaration[] = [
+    { name: 'KeyAlgorithm', values: [...KEY_ALGORITHM] },
+];
 
 /** One line per code describing what it means on the wire. */
 const ERROR_SUMMARIES: Record<string, string> = {
@@ -672,6 +694,46 @@ export function buildMobileContractBundle(): MobileContractBundle
                 'the content-type header is present exactly when the request carries a body, and the body is always '
                 + 'the canonical JSON of the request type',
             sessionRule: `requiresSession operations carry ${CLIENT_PROOF_HEADERS.session}; the handshake never does`,
+            clientIdentity: {
+                headers: { ...CLIENT_IDENTITY_HEADERS },
+                kinds: [...CLIENT_KINDS],
+                appliesTo:
+                    'every operation, proven or not — enrollment and login are where a stale client is met first, '
+                    + 'and they carry no proof',
+                kindRule:
+                    'ios and android ship independently of the server and state the contract version they were '
+                    + 'generated from; web does not, because a browser bundle is deployed with the server that '
+                    + 'serves it and has no second version to reconcile',
+                versionRule:
+                    'the client version is the client\'s own release — a store version for an app, a build for a '
+                    + 'browser bundle. It is unauthenticated and nothing is authorized by it',
+                refusalRule:
+                    'an ios or android client that states no contract version, or one outside the range in the '
+                    + 'response headers, is refused CONTRACT_UNSUPPORTED; a request naming no kind is not a '
+                    + 'deployed client and passes',
+                proofRule:
+                    'none of these headers enters the proof input: they are diagnostic, and PROOF_INPUT_FIELDS is '
+                    + 'unchanged from 0.5.0',
+            },
+            serverAnnouncement: {
+                headers: { ...SERVER_CONTRACT_HEADERS },
+                appliesTo: 'every response, including a refusal',
+                rule:
+                    'the server states the contract version it serves and the range it accepts. It states no more '
+                    + 'than that: comparing those against its own version and deciding what a user should be told '
+                    + 'is the client\'s judgment, made in the client',
+            },
+        },
+        compatibilityPolicy: {
+            policy: 'allOrNothing',
+            rule:
+                'one contract version is this whole surface\'s pass or refusal. Partial compatibility in an auth '
+                + 'primitive would mean admitting a client that agrees about some of the admission sequence and '
+                + 'not the rest',
+            contrast:
+                'an app contract generated from SPFN routes uses perOperation instead, where availability is '
+                + 'recorded per operation and the verdict narrows to the operations a client actually calls. The '
+                + 'two share this bundle format, so the policy is stated rather than inferred',
         },
         typeGrammar: {
             scalars: ['string', 'integer', 'number', 'boolean'],
@@ -684,8 +746,10 @@ export function buildMobileContractBundle(): MobileContractBundle
                 + 'key type. This is the only map spelling.',
             named: 'any other value names one of the types or enums below',
             enumRule:
-                'a name listed in "enums" is a closed set of string values rather than an object: its declaration '
-                + 'carries values instead of fields, and a value outside the set is a decode failure',
+                'a name listed in "enums" is a set of string values rather than an object: its declaration carries '
+                + 'values instead of fields. The values are the ones the server accepts and sends now; no set is '
+                + 'promised to stay as it is, since a value can be added and one can be withdrawn for a weakness '
+                + 'found later. What a consumer does with a value outside the set is the consumer\'s decision',
             dateConvention:
                 'there is no date type. A moment in time is an integer of milliseconds since the Unix epoch and its '
                 + 'field name ends in AtMillis — issuedAtMillis, expiresAtMillis, createdAtMillis. A second '

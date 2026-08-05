@@ -18,6 +18,7 @@ const ROOT = resolve(process.cwd(), '.test-tmp-contract-snapshot');
 
 const document: ContractDocument = {
     documentVersion: 1,
+    compatibilityPolicy: 'perOperation',
     operations: [{
         name: 'getUser',
         method: 'GET',
@@ -30,6 +31,12 @@ const document: ContractDocument = {
         response: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
     }],
 };
+
+/** The same document at a stated version — the release name comes from here. */
+function at(version: string): ContractDocument
+{
+    return { ...document, contractVersion: version };
+}
 
 describe('version ordering', () =>
 {
@@ -63,38 +70,50 @@ describe('released snapshots', () =>
 
     it('writes a snapshot that reads back', () =>
     {
-        const file = writeSnapshot(ROOT, '1.2.0', document);
+        const file = writeSnapshot(ROOT, at('1.2.0'));
         const snapshot = readSnapshot(file);
 
         expect(snapshot.version).toBe('1.2.0');
-        expect(snapshot.document).toEqual(document);
+        expect(snapshot.document).toEqual(at('1.2.0'));
+    });
+
+    it('names the release from the document, not from a second argument', () =>
+    {
+        const file = writeSnapshot(ROOT, at('1.2.0'));
+
+        expect(file.endsWith('1.2.0.json')).toBe(true);
+    });
+
+    it('refuses a release when the router declared no version', () =>
+    {
+        expect(() => writeSnapshot(ROOT, document)).toThrow(/declares no version/);
     });
 
     it('picks the newest release as the baseline', () =>
     {
-        writeSnapshot(ROOT, '1.9.0', document);
-        writeSnapshot(ROOT, '1.10.0', document);
+        writeSnapshot(ROOT, at('1.9.0'));
+        writeSnapshot(ROOT, at('1.10.0'));
 
         expect(newestSnapshot(ROOT)?.version).toBe('1.10.0');
     });
 
     it('refuses to rewrite a released version', () =>
     {
-        writeSnapshot(ROOT, '1.2.0', document);
+        writeSnapshot(ROOT, at('1.2.0'));
 
-        expect(() => writeSnapshot(ROOT, '1.2.0', document)).toThrow(/never rewritten/);
+        expect(() => writeSnapshot(ROOT, at('1.2.0'))).toThrow(/never rewritten/);
     });
 
     it('refuses a snapshot filled in behind the newest one', () =>
     {
-        writeSnapshot(ROOT, '1.2.0', document);
+        writeSnapshot(ROOT, at('1.2.0'));
 
-        expect(() => writeSnapshot(ROOT, '1.1.0', document)).toThrow(/not newer than/);
+        expect(() => writeSnapshot(ROOT, at('1.1.0'))).toThrow(/not newer than/);
     });
 
     it('refuses a snapshot that was edited after release', () =>
     {
-        const file = writeSnapshot(ROOT, '1.2.0', document);
+        const file = writeSnapshot(ROOT, at('1.2.0'));
         const snapshot = JSON.parse(readFileSync(file, 'utf-8'));
 
         snapshot.document.operations[0].path = '/edited';
@@ -141,6 +160,7 @@ describe('current.json', () =>
                 method: operation.method,
                 name: operation.name,
             })),
+            compatibilityPolicy: 'perOperation',
             documentVersion: 1,
         };
 

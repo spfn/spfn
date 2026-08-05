@@ -31,6 +31,7 @@ import {
 import { ClientProofRefusal, newHexId } from './refusal';
 import { ClientProofState, type ClientProofStateOptions, TestClock } from './state';
 import { handleControlRequest, CONTROL_PREFIX } from './dev-control';
+import { serverContractHeaders } from './wire-version';
 
 /** Far above any contract request and far below anything worth buffering. */
 const MAX_BODY_BYTES = 1 << 20;
@@ -250,7 +251,7 @@ function contractResponse(status: number, body: Uint8Array): Response
 {
     return new Response(toArrayBuffer(body), {
         status,
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...serverContractHeaders() },
     });
 }
 

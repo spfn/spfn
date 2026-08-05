@@ -328,7 +328,43 @@ describe('every declared field type is inside the grammar the consumer parses', 
         expect(grammar.dateConventionExceptions).toContain('none');
     });
 
-    it('every declared enum is a closed set of string values', () =>
+    it('KeyAlgorithm carries the values the server actually accepts', async () =>
+    {
+        // Read from the server's own list rather than transcribed, so an
+        // algorithm added or withdrawn there moves the declaration with it.
+        const { KEY_ALGORITHM } = await import('../../types');
+        const declared = declaredEnums.find((entry) => entry.name === 'KeyAlgorithm');
+
+        expect(declared?.values).toEqual([...KEY_ALGORITHM]);
+    });
+
+    it('every algorithm field references the enum rather than string', () =>
+    {
+        const algorithmFields = declaredTypes
+            .flatMap((type) => type.fields.map((field) => ({ type: type.name, field })))
+            .filter((entry) => entry.field.name === 'algorithm');
+
+        expect(algorithmFields.length).toBeGreaterThan(0);
+
+        for (const entry of algorithmFields)
+        {
+            expect(entry.field.type, `${entry.type}.algorithm`).toBe('KeyAlgorithm');
+        }
+    });
+
+    it('the grammar does not tell a consumer what to do with a value outside a set', () =>
+    {
+        // A contract states what the server sends. How a decoder survives a set
+        // that grew is the consumer's decision, and a set is not promised closed:
+        // an algorithm can be withdrawn for a weakness found after this was written.
+        const grammar = bundle.typeGrammar as Record<string, string>;
+
+        expect(grammar.enumRule).not.toMatch(/decode failure/i);
+        expect(grammar.enumRule).toContain('the consumer\'s decision');
+        expect(grammar.enumRule).toContain('no set is promised to stay as it is');
+    });
+
+    it('every declared enum states values that are non-empty and unique', () =>
     {
         for (const declared of declaredEnums)
         {
@@ -528,6 +564,82 @@ describe('declared wire mapping matches the reader', () =>
     {
         expect(wire.requestContentType).toBe(CLIENT_PROOF_CONTENT_TYPE);
     });
+
+    it('the proof header block does not absorb the identity headers', async () =>
+    {
+        // headerOrder is what a consumer builds a proven request from, and every
+        // header named there is required. The identity headers are optional for
+        // a caller that is not a deployed client, so they live in their own block.
+        const { CLIENT_IDENTITY_HEADERS } = await import('../wire-headers');
+
+        for (const name of Object.values(CLIENT_IDENTITY_HEADERS))
+        {
+            expect(Object.values(wire.headers)).not.toContain(name);
+        }
+    });
+});
+
+describe('the version each end announces', () =>
+{
+    const wire = bundle.wireMapping as Record<string, any>;
+
+    it('the client identity headers are the ones the reader reads', async () =>
+    {
+        const { CLIENT_IDENTITY_HEADERS, CLIENT_KINDS } = await import('../wire-headers');
+
+        expect(wire.clientIdentity.headers).toEqual({ ...CLIENT_IDENTITY_HEADERS });
+        expect(wire.clientIdentity.kinds).toEqual([...CLIENT_KINDS]);
+    });
+
+    it('the server announcement headers are the ones the server writes', async () =>
+    {
+        const { SERVER_CONTRACT_HEADERS, serverContractHeaders } = await import('../wire-version');
+
+        expect(wire.serverAnnouncement.headers).toEqual({ ...SERVER_CONTRACT_HEADERS });
+        expect(Object.keys(serverContractHeaders()).sort())
+            .toEqual(Object.values(SERVER_CONTRACT_HEADERS).sort());
+    });
+
+    it('states that the identity headers stay out of the proof input', async () =>
+    {
+        const { PROOF_INPUT_FIELDS } = await import('../proof');
+        const { CLIENT_IDENTITY_HEADERS } = await import('../wire-headers');
+
+        expect(wire.clientIdentity.proofRule).toContain('PROOF_INPUT_FIELDS');
+
+        for (const name of Object.values(CLIENT_IDENTITY_HEADERS))
+        {
+            expect([...PROOF_INPUT_FIELDS]).not.toContain(name);
+        }
+    });
+
+    it('states that the check reaches unproven operations too', () =>
+    {
+        // Enrollment and login carry no proof, and they are where a stale client
+        // is met first. A rule that applied only to proven calls would never see it.
+        expect(wire.clientIdentity.appliesTo).toContain('proven or not');
+    });
+
+    it('leaves the update decision to the client', () =>
+    {
+        expect(wire.serverAnnouncement.rule).toContain('the client\'s judgment');
+        expect(JSON.stringify(wire.serverAnnouncement)).not.toMatch(/must update/i);
+    });
+});
+
+describe('the compatibility policy is stated rather than inferred', () =>
+{
+    const policy = bundle.compatibilityPolicy as Record<string, string>;
+
+    it('this contract is all-or-nothing', () =>
+    {
+        expect(policy.policy).toBe('allOrNothing');
+    });
+
+    it('names the other policy an app contract uses, so the two cannot be confused', () =>
+    {
+        expect(policy.contrast).toContain('perOperation');
+    });
 });
 
 describe('declared proof rules match the implementation', () =>
@@ -538,17 +650,17 @@ describe('declared proof rules match the implementation', () =>
         replayWindowMillis: number;
     };
 
-    it('the contract line is the widened-grammar revision', () =>
+    it('the contract line is the revision that puts the version on the wire', () =>
     {
-        expect(bundle.contractVersion).toBe('0.5.0');
+        expect(bundle.contractVersion).toBe('0.6.0');
     });
 
-    it('the supported range moves with the breaking date representation', () =>
+    it('the supported range moves with the breaking header and enum changes', () =>
     {
-        // 0.5.0은 KeySummary의 네 날짜 필드를 ISO 문자열에서 AtMillis 정수로 바꿔 이름과
-        // 타입을 함께 옮긴다. 0.x에서 minor가 breaking을 나르므로 범위도 같이 올라간다 —
-        // 0.4.x 소비자가 남아 있으면 안 된다.
-        expect(bundle.supportedRange).toBe('>=0.5.0 <0.6.0');
+        // 0.6.0은 클라이언트 신원 헤더를 요구하고 algorithm을 enum으로 바꾼다. 둘 다
+        // 소비자의 생성 코드를 바꾸므로 breaking이고, 0.x에서 minor가 breaking을
+        // 나르므로 범위도 같이 올라간다 — 0.5.x 소비자가 남아 있으면 안 된다.
+        expect(bundle.supportedRange).toBe('>=0.6.0 <0.7.0');
     });
 
     it('states the rule that binds a native id_token to the key it enrolls', () =>

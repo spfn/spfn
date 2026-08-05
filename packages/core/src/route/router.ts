@@ -16,6 +16,9 @@ export interface Router<TRoutes extends Record<string, RouteDef<any, any, any> |
     _packageRouters: Router<any>[];
     _globalMiddlewares: NamedMiddleware<string>[];
 
+    /** The contract version these routes publish, or null when uncontracted. */
+    _contractVersion: string | null;
+
     /**
      * Register package routers (type-hidden)
      *
@@ -59,6 +62,32 @@ export interface Router<TRoutes extends Record<string, RouteDef<any, any, any> |
      * ```
      */
     use(middlewares: NamedMiddleware<string>[]): Router<TRoutes>;
+
+    /**
+     * Declare the contract version these routes publish.
+     *
+     * A client compiled against this server — a mobile app in a store — is
+     * generated from one version of the contract and cannot be updated when the
+     * server changes. The server announces this version on every response so
+     * that client can tell whether the two ends still agree.
+     *
+     * This is the version's source. A released snapshot is written to
+     * `contracts/released/<version>.json` from what is declared here, so the
+     * filename follows the code rather than the code having to be told what the
+     * filename said.
+     *
+     * Only a server with contracted routes needs it. Without it the contract
+     * generator still writes `current.json` and still runs the compatibility
+     * gate; what it cannot do is cut a release or announce a version.
+     *
+     * @example
+     * ```ts
+     * export const appRouter = defineRouter({ getRoot, listItems })
+     *     .contractVersion('1.2.0')
+     *     .packages([authRouter]);
+     * ```
+     */
+    contractVersion(version: string): Router<TRoutes>;
 }
 
 /**
@@ -68,6 +97,7 @@ function createRouterInstance<TRoutes extends Record<string, RouteDef<any, any, 
     routes: TRoutes,
     packageRouters: Router<any>[] = [],
     globalMiddlewares: NamedMiddleware<string>[] = [],
+    contractVersion: string | null = null,
 ): Router<TRoutes>
 {
     return {
@@ -75,6 +105,7 @@ function createRouterInstance<TRoutes extends Record<string, RouteDef<any, any, 
         _routes: routes,
         _packageRouters: packageRouters,
         _globalMiddlewares: globalMiddlewares,
+        _contractVersion: contractVersion,
 
         packages(routers: Router<any>[]): Router<TRoutes>
         {
@@ -89,14 +120,53 @@ function createRouterInstance<TRoutes extends Record<string, RouteDef<any, any, 
                 }
             }
 
-            return createRouterInstance(this.routes, newPackageRouters, this._globalMiddlewares);
+            return createRouterInstance(
+                this.routes,
+                newPackageRouters,
+                this._globalMiddlewares,
+                this._contractVersion,
+            );
         },
 
         use(middlewares: NamedMiddleware<string>[]): Router<TRoutes>
         {
-            return createRouterInstance(this.routes, this._packageRouters, [...this._globalMiddlewares, ...middlewares]);
+            return createRouterInstance(
+                this.routes,
+                this._packageRouters,
+                [...this._globalMiddlewares, ...middlewares],
+                this._contractVersion,
+            );
+        },
+
+        contractVersion(version: string): Router<TRoutes>
+        {
+            assertContractVersion(version);
+
+            return createRouterInstance(
+                this.routes,
+                this._packageRouters,
+                this._globalMiddlewares,
+                version,
+            );
         },
     };
+}
+
+/**
+ * A version that cannot be ordered cannot gate a release.
+ *
+ * Checked when it is declared rather than when a snapshot is cut: the failure
+ * belongs next to the typo, not in a build step that runs much later.
+ */
+function assertContractVersion(version: string): void
+{
+    if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)*$/.test(version))
+    {
+        throw new Error(
+            `contractVersion("${version}") is not a version of the form major.minor.patch. `
+            + 'The released snapshot is named from this value and releases are compared by it.',
+        );
+    }
 }
 
 /**

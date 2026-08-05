@@ -2,7 +2,7 @@
   "evidenceVersion": 1,
   "origin": "spfn-primitives-ci-export",
   "exportedByUpstreamCI": true,
-  "exporterVersion": "@spfn/auth/contract-bundle@3.0.0",
+  "exporterVersion": "@spfn/auth/contract-bundle@4.0.0",
   "statement": "This contract bundle was generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) by packages/auth/scripts/export-mobile-contract.ts. It was not transcribed from any consumer.",
   "source": {
     "repository": "git.superfunction.xyz/superfunction/primitives",
@@ -12,10 +12,10 @@
   },
   "contract": {
     "name": "spfn-mobile-contract",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "major": 0,
-    "supportedRange": ">=0.5.0 <0.6.0",
-    "bundleSha256": "703719302fe20d4b58643ff2d56a7e75289316e8668dd2d0844a0b86da7130f8"
+    "supportedRange": ">=0.6.0 <0.7.0",
+    "bundleSha256": "0a91612158aaf9917be8487cf70e1df9ab4c12ac6c1106973afa99122e458795"
   },
   "verification": {
     "digest": "shasum -a 256 contracts/mobile/spfn-mobile-contract.json",

@@ -38,8 +38,10 @@ Values:
 - `defineMiddlewareFactory(name, factory)` — explicit factory form (use when the factory itself takes exactly 2 args).
 - `Nullable(schema)` → `T | null`; `OptionalNullable(schema)` → `T | null | undefined`.
 - `isHttpMethod(value)` — type guard for `'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'`.
-- `.contract({ since, response, auth?, requiresSession?, deprecatedIn? })` — builder method; publishes
+- `.contract({ since, response, auth?, requiresSession?, deprecatedIn?, removedIn? })` — builder method; publishes
   the route as a versioned promise. See [`../contract/README.md`](../contract/README.md).
+- `defineRouter({...}).contractVersion('1.2.0')` — the version those promises are published under.
+  A released snapshot is named from it, and a running server announces it.
 - File schemas: `FileSchema(opts?)`, `FileArraySchema(opts?)`, `OptionalFileSchema(opts?)` — **all are functions, call with `()`**.
 - File helpers: `isFileSchema`, `isFileArraySchema`, `getFileOptions`, `formatFileSize`.
 
@@ -270,6 +272,7 @@ export const getUser = route.get('/users/:id')
 | `auth` | `'none'` or `'clientProofV1'`. Default `'none'`. |
 | `requiresSession` | Whether the call carries a session. Default `false`. |
 | `deprecatedIn` | Version the operation was announced for removal in. Optional. |
+| `removedIn` | Version the operation was removed in. Optional — kept on a route that stays only to carry the record, so a client generated before the removal learns the operation went and when. |
 
 **A web client needs none of this.** `createApi<AppRouter>()` derives its types from the router in
 the same build, so a removed response field breaks the TypeScript compile. `.contract()` exists for

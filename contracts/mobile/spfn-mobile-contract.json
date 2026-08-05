@@ -4,9 +4,9 @@
   "originStatement": "Generated from the route and contract definitions in SPFN primitives (packages/auth/src/server/client-proof) and published from that repository. This file is generated output: edit the source modules and re-export, never this file.",
   "contractName": "spfn-mobile-contract",
   "contractMajor": 0,
-  "contractVersion": "0.5.0",
-  "supportedRange": ">=0.5.0 <0.6.0",
-  "exporterVersion": "@spfn/auth/contract-bundle@3.0.0",
+  "contractVersion": "0.6.0",
+  "supportedRange": ">=0.6.0 <0.7.0",
+  "exporterVersion": "@spfn/auth/contract-bundle@4.0.0",
   "authProfiles": { "allowed": ["clientProofV1"], "unknownProfilePolicy": "reject", "mixingWithinSession": "prohibited" },
   "operationAuthClasses": {
     "none": "the unproven class: the operation is accepted with neither proof headers nor a session header, because it is called before any key exists to sign with (enrollment and login)",
@@ -78,7 +78,33 @@
     },
     "headerOrder": ["profile", "clientId", "keyId", "nonce", "issuedAtMillis", "proof", "session"],
     "contentTypeRule": "the content-type header is present exactly when the request carries a body, and the body is always the canonical JSON of the request type",
-    "sessionRule": "requiresSession operations carry x-spfn-session; the handshake never does"
+    "sessionRule": "requiresSession operations carry x-spfn-session; the handshake never does",
+    "clientIdentity": {
+      "headers": {
+        "kind": "x-spfn-client-kind",
+        "version": "x-spfn-client-version",
+        "contractVersion": "x-spfn-client-contract-version"
+      },
+      "kinds": ["web", "ios", "android"],
+      "appliesTo": "every operation, proven or not — enrollment and login are where a stale client is met first, and they carry no proof",
+      "kindRule": "ios and android ship independently of the server and state the contract version they were generated from; web does not, because a browser bundle is deployed with the server that serves it and has no second version to reconcile",
+      "versionRule": "the client version is the client's own release — a store version for an app, a build for a browser bundle. It is unauthenticated and nothing is authorized by it",
+      "refusalRule": "an ios or android client that states no contract version, or one outside the range in the response headers, is refused CONTRACT_UNSUPPORTED; a request naming no kind is not a deployed client and passes",
+      "proofRule": "none of these headers enters the proof input: they are diagnostic, and PROOF_INPUT_FIELDS is unchanged from 0.5.0"
+    },
+    "serverAnnouncement": {
+      "headers": {
+        "version": "x-spfn-server-contract-version",
+        "supportedRange": "x-spfn-supported-contract-range"
+      },
+      "appliesTo": "every response, including a refusal",
+      "rule": "the server states the contract version it serves and the range it accepts. It states no more than that: comparing those against its own version and deciding what a user should be told is the client's judgment, made in the client"
+    }
+  },
+  "compatibilityPolicy": {
+    "policy": "allOrNothing",
+    "rule": "one contract version is this whole surface's pass or refusal. Partial compatibility in an auth primitive would mean admitting a client that agrees about some of the admission sequence and not the rest",
+    "contrast": "an app contract generated from SPFN routes uses perOperation instead, where availability is recorded per operation and the verdict narrows to the operations a client actually calls. The two share this bundle format, so the policy is stated rather than inferred"
   },
   "typeGrammar": {
     "scalars": ["string", "integer", "number", "boolean"],
@@ -86,7 +112,7 @@
     "array": "array<T>, where T is itself a field type. This is the only array spelling.",
     "map": "map<string,T>, where T is itself a field type. The key is always string because JSON has no other key type. This is the only map spelling.",
     "named": "any other value names one of the types or enums below",
-    "enumRule": "a name listed in \"enums\" is a closed set of string values rather than an object: its declaration carries values instead of fields, and a value outside the set is a decode failure",
+    "enumRule": "a name listed in \"enums\" is a set of string values rather than an object: its declaration carries values instead of fields. The values are the ones the server accepts and sends now; no set is promised to stay as it is, since a value can be added and one can be withdrawn for a weakness found later. What a consumer does with a value outside the set is the consumer's decision",
     "dateConvention": "there is no date type. A moment in time is an integer of milliseconds since the Unix epoch and its field name ends in AtMillis — issuedAtMillis, expiresAtMillis, createdAtMillis. A second representation would leave a consumer choosing between two spellings of the same value.",
     "dateConventionExceptions": "none — every moment in this contract is an AtMillis integer",
     "rule": "a field type outside this grammar is a contract error, not something to guess at: a consumer that does not recognise a container spelling reads it as a type name and fails at compile time"
@@ -155,7 +181,7 @@
         { "name": "publicKey", "type": "string", "optional": false },
         { "name": "keyId", "type": "string", "optional": false },
         { "name": "fingerprint", "type": "string", "optional": false },
-        { "name": "algorithm", "type": "string", "optional": false }
+        { "name": "algorithm", "type": "KeyAlgorithm", "optional": false }
       ]
     },
     {
@@ -176,7 +202,7 @@
         { "name": "publicKey", "type": "string", "optional": false },
         { "name": "keyId", "type": "string", "optional": false },
         { "name": "fingerprint", "type": "string", "optional": false },
-        { "name": "algorithm", "type": "string", "optional": false },
+        { "name": "algorithm", "type": "KeyAlgorithm", "optional": false },
         { "name": "oldKeyId", "type": "string", "optional": true }
       ]
     },
@@ -199,7 +225,7 @@
         { "name": "publicKey", "type": "string", "optional": false },
         { "name": "keyId", "type": "string", "optional": false },
         { "name": "fingerprint", "type": "string", "optional": false },
-        { "name": "algorithm", "type": "string", "optional": false }
+        { "name": "algorithm", "type": "KeyAlgorithm", "optional": false }
       ]
     },
     {
@@ -216,7 +242,7 @@
         { "name": "publicKey", "type": "string", "optional": false },
         { "name": "keyId", "type": "string", "optional": false },
         { "name": "fingerprint", "type": "string", "optional": false },
-        { "name": "algorithm", "type": "string", "optional": false }
+        { "name": "algorithm", "type": "KeyAlgorithm", "optional": false }
       ]
     },
     {
@@ -233,7 +259,7 @@
         { "name": "keyId", "type": "string", "optional": false },
         { "name": "deviceName", "type": "string", "optional": true },
         { "name": "platform", "type": "string", "optional": true },
-        { "name": "algorithm", "type": "string", "optional": false },
+        { "name": "algorithm", "type": "KeyAlgorithm", "optional": false },
         { "name": "fingerprintPrefix", "type": "string", "optional": false },
         { "name": "createdAtMillis", "type": "integer", "optional": false },
         { "name": "lastUsedAtMillis", "type": "integer", "optional": true },
@@ -267,7 +293,7 @@
       ]
     }
   ],
-  "enums": [],
+  "enums": [{ "name": "KeyAlgorithm", "values": ["ES256", "RS256"] }],
   "operations": [
     {
       "id": "auth.clientProof.handshake",

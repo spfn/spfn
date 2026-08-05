@@ -18,6 +18,7 @@ import { admitClientProofRequest, type ClientProofCredentials } from './admissio
 import type { CanonicalValue } from './canonical-json';
 import { newHexId } from './refusal';
 import type { ClientProofState } from './state';
+import { serverContractHeaders } from './wire-version';
 
 /** What the guard leaves in the context for the route handler. */
 export interface ClientProofContext
@@ -67,6 +68,7 @@ export function createClientProofGuard(
 
             return c.newResponse(buffer, admission.refusal.httpStatus as 401, {
                 'content-type': 'application/json',
+                ...serverContractHeaders(),
             });
         }
         c.set('clientType', 'mobile');

@@ -110,3 +110,22 @@ export {
     type ClientProofContext,
     type ClientProofGuardOptions,
 } from './guard';
+
+export {
+    CLIENT_IDENTITY_HEADERS,
+    SERVER_CONTRACT_HEADERS,
+    CLIENT_KINDS,
+    isAppKind,
+    readClientIdentity,
+    judgeClientIdentity,
+    isContractVersionSupported,
+    applyServerContractHeaders,
+    serverContractHeaders,
+    type ClientKind,
+    type ClientIdentity,
+} from './wire-version';
+
+export {
+    createClientVersionMiddleware,
+    CLIENT_IDENTITY_CONTEXT_KEY,
+} from './version-middleware';

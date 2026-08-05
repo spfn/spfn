@@ -54,4 +54,13 @@ export interface RouteContract
 
     /** Contract version this operation was announced for removal in. */
     deprecatedIn?: string;
+
+    /**
+     * Contract version this operation was removed in.
+     *
+     * Set on a route kept alive only to carry the record. A client generated
+     * before the removal still calls it, and this is what tells that client the
+     * operation went and when — a route that simply disappears says nothing.
+     */
+    removedIn?: string;
 }

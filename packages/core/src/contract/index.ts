@@ -38,6 +38,7 @@ export type { SnapshotFile } from './snapshot';
 export { callersOf, readUsageRecords } from './usage';
 export type { UsageReadResult, UsageRecord } from './usage';
 export type {
+    CompatibilityPolicy,
     ContractDocument,
     ContractOperation,
     ContractRequest,
