@@ -25,3 +25,6 @@ If you want to know how SPFN works rather than whether to use it, the
 - [Adding a capability to a backend](./compare/adding-a-capability-to-a-nextjs-backend.md)
   — NestJS modules, tRPC routers and SPFN packages, measured by what arrives with the unit
   of composition and what stays your job.
+- [Error tracking without another service](./compare/error-tracking-without-another-service.md)
+  — hosted Sentry, self-hosted Sentry, GlitchTip and `@spfn/monitor`, compared by what you
+  have to run and where the error data lives.
