@@ -253,6 +253,15 @@ if (has('--view'))
     process.exit(0);
 }
 
+// One row per date: a rerun on a day that already has its row (manual run after
+// the scheduled one, or vice versa) must not duplicate it.
+const today = new Date().toISOString().slice(0, 10);
+if (!has('--dry') && readRecord().some((r) => r.date === today))
+{
+    console.log(`snapshot for ${today} already recorded; skipping`);
+    process.exit(0);
+}
+
 const manual = manualFields();
 if (manual.posthogLlmReferrals === null)
 {
