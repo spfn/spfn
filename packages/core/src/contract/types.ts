@@ -50,6 +50,15 @@ export interface ContractOperation
     /** Present only when the operation is announced for removal. */
     deprecatedIn?: string;
 
+    /**
+     * Present only when the operation is gone.
+     *
+     * A client generated before this version may still call it, so the record
+     * outlives the route: without it a caller sees an operation that simply
+     * stopped existing, with nothing saying when or that it was announced.
+     */
+    removedIn?: string;
+
     /** What the client sends. */
     request: ContractRequest;
 
@@ -66,11 +75,37 @@ export interface ContractOperation
     response: JsonSchema;
 }
 
+/**
+ * How a client's version is judged against the server's.
+ *
+ * - `allOrNothing` — one contract version is the whole surface's pass or
+ *   refusal. Right for an auth primitive, where admitting a client that agrees
+ *   about part of the admission sequence and not the rest is not a safe middle.
+ * - `perOperation` — availability is recorded per operation, so the verdict
+ *   narrows to the operations a client actually calls. Deleting a response field
+ *   from one route then stops blocking a client that never calls it.
+ *
+ * Stated rather than inferred: an app contract and @spfn/auth's mobile contract
+ * share this format under different rules, and a consumer must not have to guess
+ * which one it is holding.
+ */
+export type CompatibilityPolicy = 'allOrNothing' | 'perOperation';
+
 /** The generated contract. */
 export interface ContractDocument
 {
     /** Shape version of this document, not of the API it describes. */
     documentVersion: 1;
+
+    /**
+     * The version this document publishes, from `.contractVersion()` on the
+     * router. Absent when the router declares none — the gate still runs, but
+     * nothing can be released or announced.
+     */
+    contractVersion?: string;
+
+    /** Always `perOperation` for an app contract. See the type. */
+    compatibilityPolicy: CompatibilityPolicy;
 
     /** Sorted by name, so the file does not churn on router reordering. */
     operations: ContractOperation[];

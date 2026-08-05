@@ -196,6 +196,7 @@ function addOperation(name: string, routeDef: RouteDef<any>, trail: string[], fo
             auth: contract.auth ?? 'none',
             requiresSession: contract.requiresSession ?? false,
             ...(contract.deprecatedIn ? { deprecatedIn: contract.deprecatedIn } : {}),
+            ...(contract.removedIn ? { removedIn: contract.removedIn } : {}),
             request: toContractRequest(routeDef.input),
             interceptor: toContractRequest(routeDef.interceptor),
             response: toJsonSchema(contract.response),
@@ -217,5 +218,10 @@ export function collectContractDocument(router: Router<any>): ContractDocument
         .map(entry => entry.operation)
         .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
-    return { documentVersion: 1, operations };
+    return {
+        documentVersion: 1,
+        ...(router._contractVersion ? { contractVersion: router._contractVersion } : {}),
+        compatibilityPolicy: 'perOperation',
+        operations,
+    };
 }

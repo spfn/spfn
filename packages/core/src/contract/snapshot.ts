@@ -212,11 +212,25 @@ export function readSnapshot(file: string): ContractSnapshot
 /**
  * Write the snapshot for a release.
  *
+ * The version comes from the document, which took it from `.contractVersion()`
+ * on the router. The filename follows the declaration rather than being told
+ * separately what to say — a second place to state the version is a second place
+ * for it to be wrong.
+ *
  * Refuses to overwrite: a published version's promise does not change, a
  * mistake becomes a new version.
  */
-export function writeSnapshot(contractsDir: string, version: string, document: ContractDocument): string
+export function writeSnapshot(contractsDir: string, document: ContractDocument): string
 {
+    const version = document.contractVersion;
+
+    if (!version)
+    {
+        throw new ContractSnapshotError(
+            'The contract declares no version, so a release cannot be named. '
+            + 'Add .contractVersion("x.y.z") to the router before cutting one.',
+        );
+    }
     compareVersions(version, version);
 
     const dir = releasedDir(contractsDir);

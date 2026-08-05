@@ -137,6 +137,22 @@ export class ClientProofRefusal
         return contractViolation('the request could not be processed');
     }
 
+    /**
+     * A client that ships separately from the server said nothing about which
+     * contract it was built against. Without it the server cannot tell whether
+     * the two ends agree, and answering as though they do is what produces the
+     * undecodable body this check exists to replace.
+     */
+    static contractVersionMissing(): ClientProofRefusal
+    {
+        return contractViolation('a client of this kind must state the contract version it was generated from');
+    }
+
+    static contractVersionUnsupported(): ClientProofRefusal
+    {
+        return contractViolation('the stated contract version is outside the range this server serves');
+    }
+
     // ---- the profile allowlist ----------------------------------------------
 
     static profileRejected(): ClientProofRefusal

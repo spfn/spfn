@@ -30,9 +30,14 @@ function operation(overrides: Partial<ContractOperation> = {}): ContractOperatio
     };
 }
 
-function document(operations: ContractOperation[]): ContractDocument
+function document(operations: ContractOperation[], contractVersion?: string): ContractDocument
 {
-    return { documentVersion: 1, operations };
+    return {
+        documentVersion: 1,
+        ...(contractVersion ? { contractVersion } : {}),
+        compatibilityPolicy: 'perOperation',
+        operations,
+    };
 }
 
 function writeUsage(name: string, content: unknown): void
@@ -65,7 +70,7 @@ describe('against a released snapshot', () =>
     beforeEach(() =>
     {
         rmSync(ROOT, { recursive: true, force: true });
-        writeSnapshot(ROOT, '1.0.0', document([operation()]));
+        writeSnapshot(ROOT, document([operation()], '1.0.0'));
     });
 
     afterEach(() => rmSync(ROOT, { recursive: true, force: true }));

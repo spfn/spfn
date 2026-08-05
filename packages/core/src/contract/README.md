@@ -59,8 +59,37 @@ export const getUser = route.get('/users/:id')
 | `auth` | `'none'` (called before any key exists — enrollment, login) or `'clientProofV1'`. Defaults to `'none'`. |
 | `requiresSession` | Whether the call carries a session. Defaults to `false`. |
 | `deprecatedIn` | Contract version the operation was announced for removal in. Optional. |
+| `removedIn` | Contract version the operation was removed in. Optional — see below. |
 
 A route without `.contract()` is untouched — it simply never appears in the contract.
+
+**`removedIn` outlives the route it names.** A client generated before the removal still calls the
+operation, and a route that simply disappears tells that client nothing — the call fails and no
+record says the operation went, or when. Keeping the route alive with `removedIn` set is what turns
+a disappearance into an announcement. The three markers are one deprecation path: mark
+`deprecatedIn` and the build still passes; wait while deployed clients roll over; remove and record
+`removedIn`. How long the middle step runs depends on how fast clients update, which is policy and
+not something the contract decides.
+
+## 1b. Declare the contract version
+
+```ts
+export const appRouter = defineRouter({ getUser, listItems })
+    .contractVersion('1.2.0')
+    .packages([authRouter]);
+```
+
+This is the version's **source**. A released snapshot is named from it — `writeSnapshot` reads
+`document.contractVersion` and writes `contracts/released/1.2.0.json` — so the filename follows the
+code rather than the code having to be told what the filename said. It is also what lets a running
+server announce the version it serves, which a filename cannot do.
+
+Without it the generator still writes `current.json` and still runs the compatibility gate. What it
+cannot do is cut a release, and `writeSnapshot` refuses with a message saying so.
+
+A value that is not `major.minor.patch` throws where it is declared, rather than much later in a
+build step: releases are ordered by this string, and a version that cannot be ordered cannot gate
+anything.
 
 **Why response shape is declared and not inferred.** A TypeScript-type extractor was considered and
 rejected: generics, conditional and utility types make it emit silently wrong types, and a wrong
@@ -268,7 +297,8 @@ JSON body and upload the file through its own uncontracted route.
 
 ```ts
 // @spfn/core/route
-route.get('/x').contract({ since, response, auth?, requiresSession?, deprecatedIn? })
+route.get('/x').contract({ since, response, auth?, requiresSession?, deprecatedIn?, removedIn? })
+defineRouter({...}).contractVersion('1.2.0')    // the version's source
 type RouteContract, RouteAuthProfile
 
 // @spfn/core/contract
@@ -279,7 +309,7 @@ checkContract(contractsDir, current)            // the gate → { baselineVersio
 formatViolations(violations)                    // → the message a failing build prints
 
 readCurrentDocument(dir) / writeCurrentDocument(dir, document)
-listSnapshots(dir) / newestSnapshot(dir) / readSnapshot(file) / writeSnapshot(dir, version, document)
+listSnapshots(dir) / newestSnapshot(dir) / readSnapshot(file) / writeSnapshot(dir, document)
 readUsageRecords(usageDir) / callersOf(operation, records)
 compareVersions(a, b)
 canonicalize / stableStringify / stableStringifyPretty / stableDigest

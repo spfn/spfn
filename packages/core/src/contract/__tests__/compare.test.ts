@@ -41,7 +41,7 @@ function operation(overrides: OperationOverrides = {}): ContractOperation
 
 function document(operations: ContractOperation[]): ContractDocument
 {
-    return { documentVersion: 1, operations };
+    return { documentVersion: 1, compatibilityPolicy: 'perOperation', operations };
 }
 
 function kinds(before: ContractOperation, after: ContractOperation): string[]

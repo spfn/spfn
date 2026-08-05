@@ -224,6 +224,12 @@ surface, so a generated Swift or Kotlin client reads an integer instead of choos
 formatter. This changed in mobile contract 0.5.0; an app still reading `createdAt` moves to
 `createdAtMillis`.
 
+`algorithm` is the `KeyAlgorithm` enum from contract 0.6.0 rather than a bare string — the routes
+have always constrained it to those values, and the contract had been understating the server. The
+declared values are the ones the server accepts and sends **now**: one can be added, and one can be
+withdrawn for a weakness found later, so a generated client should be built to meet a value it does
+not recognise rather than assume the set is closed.
+
 ```typescript
 await authApi.revokeKey.call({ body: { keyId } });            // → { keyId, selfRevoked }
 await authApi.revokeAllKeys.call({ body: {} });               // other devices only
@@ -859,6 +865,44 @@ HTTP status).
 - Dev/test scope: public keys (SPKI DER base64, keyed by `x-spfn-key-id`) are registered at
   construction or through the `/control/register-key` hook; the private half never reaches
   the server. No persistence — a production enrollment/rotation story is phase 2.
+
+### The contract version on the wire (contract 0.6.0)
+
+A client compiled and shipped separately from the server cannot be fixed by redeploying. Until
+0.6.0 a mismatch between what that client was generated against and what the server serves
+surfaced as an undecodable body: the app looked broken and nothing said why.
+
+Both ends now say what they are.
+
+| Header | Direction | Sent by |
+|--------|-----------|---------|
+| `x-spfn-client-kind` | request | every client — `web`, `ios` or `android` |
+| `x-spfn-client-version` | request | the client's own release: a store version, or a bundle build |
+| `x-spfn-client-contract-version` | request | `ios` and `android` only |
+| `x-spfn-server-contract-version` | response | the server, on every response including a refusal |
+| `x-spfn-supported-contract-range` | response | the server, likewise |
+
+```typescript
+import { createClientVersionMiddleware } from '@spfn/auth/client-proof';
+
+// Mount before authentication: enrollment and login carry no proof, and they are
+// where a stale client arrives first.
+app.use('*', createClientVersionMiddleware());
+```
+
+- **`web` states no contract version**, because a browser bundle is deployed with the server that
+  serves it and has no second version to reconcile. It is exempt by construction, not by leniency.
+- **An `ios` or `android` client that states no contract version, or one outside the range, is
+  refused** `CONTRACT_UNSUPPORTED` (409) with the usual envelope.
+- **A request naming no kind passes** — a curl, a health probe, a server-to-server call is not a
+  deployed client this rule is about.
+- **None of it enters the proof input.** These are diagnostic; `PROOF_INPUT_FIELDS` is unchanged.
+- **The server states facts and stops there.** Comparing the announced range against its own version
+  and deciding a user should see an update prompt is the client's judgment, made in the client. The
+  server has no way to make an app update and does not pretend to.
+
+Response header names are deliberately distinct from the request ones: a proxy that echoes a request
+header into the response would otherwise make the client's own version look like the server's.
 
 ### Usage — dev surface (mobile integration target)
 
