@@ -8,6 +8,8 @@ nav:
     path: /docs
   - label: Functions
     path: /functions
+  - label: Compare
+    path: /compare
   - label: About
     path: /about
   - label: GitHub
