@@ -118,6 +118,17 @@ infrastructure; the other decides where code goes.
 
 ## If you want to look further
 
+Three pages take this from a different starting point, depending on where you are:
+
+- [Stopping Claude Code building the same feature two ways](./architecture-drift/claude-code.md)
+  — what to put in `AGENTS.md`, and why an instruction nothing checks only goes so far.
+- [The backend your agent wrote is hard to change](./architecture-drift/ai-coding-agent.md)
+  — how to tell unfamiliar from inconsistent, and the four options once you know.
+- [Your vibe-coded app works but you can't change it](./architecture-drift/vibe-coding.md)
+  — the same problem without the code, for someone who does not read it.
+
+And the surrounding material:
+
 - [Full-stack TypeScript frameworks compared](./compare/fullstack-typescript-frameworks.md)
   — where SPFN sits against Next.js alone, Wasp, TanStack Start and NestJS, including
   when one of those is the better call.
