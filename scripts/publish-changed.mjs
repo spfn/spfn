@@ -88,10 +88,15 @@ for (const { pkg } of pending)
     console.log(`pending: ${pkg.name}@${pkg.version} (${channelOf(pkg.version)})`);
 }
 
-// One build for the whole graph: turbo orders dependencies, and a single pass
-// is simpler than per-package filters when more than one version bumped.
+// Build only packages/* — turbo pulls their workspace dependencies in and orders
+// them. Examples and the website are not published, and their Next.js builds
+// need runtime env (SPFN_API_URL) this pipeline rightly does not have.
 execFileSync("pnpm", ["install", "--frozen-lockfile"], { cwd: ROOT, stdio: "inherit" });
-execFileSync("pnpm", ["build"], { cwd: ROOT, stdio: "inherit" });
+execFileSync(
+    "pnpm",
+    ["exec", "turbo", "run", "build", "--filter=./packages/*"],
+    { cwd: ROOT, stdio: "inherit" },
+);
 
 const failed = [];
 
