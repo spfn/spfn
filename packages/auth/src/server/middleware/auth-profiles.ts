@@ -60,6 +60,7 @@ import {
 } from '../client-proof/proof';
 import { ClientProofRefusal } from '../client-proof/refusal';
 import { getClientProofReplayStore } from '../client-proof/replay-store';
+import { readContextClientIdentity } from '../client-proof/version-middleware';
 
 /** What a verified request leaves in the context — one shape for every scheme. */
 export interface AuthContext
@@ -283,7 +284,7 @@ async function verifyClientProofProfile(c: Context): Promise<AuthContext>
     const { user, role, locale } = await resolveAuthenticatedUser(keyRecord.userId);
 
     // Fire-and-forget, as the Bearer path does.
-    keysRepository.updateLastUsedById(keyRecord.id)
+    keysRepository.updateLastUsedById(keyRecord.id, readContextClientIdentity(c))
         .catch((err: unknown) => authLogger.middleware.error('Failed to update lastUsedAt', err));
 
     authLogger.middleware.info('API access', {

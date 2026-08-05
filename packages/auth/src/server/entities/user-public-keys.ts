@@ -8,6 +8,7 @@
 import { KEY_ALGORITHM, KEY_PLATFORM } from '../types';
 import { text, boolean, index } from 'drizzle-orm/pg-core';
 import { id, foreignKey, enumText, utcTimestamp } from '@spfn/core/db';
+import { CLIENT_KINDS } from '../client-proof/wire-headers';
 import { users } from './users';
 import { authSchema } from './schema';
 
@@ -58,6 +59,28 @@ export const userPublicKeys = authSchema.table(
         // null: the client sent none
         // Used for: the same list, alongside deviceName
         platform: enumText('platform', KEY_PLATFORM),
+
+        // What the client said about itself on the last request signed by this key.
+        //
+        // The three come from x-spfn-client-kind, x-spfn-client-version and
+        // x-spfn-client-contract-version. They are client-supplied and
+        // unauthenticated, exactly like deviceName above: nothing is authorized by
+        // them, and a client that lies about its version gains nothing but a wrong
+        // entry in its owner's own device list.
+        //
+        // They exist so the server knows which release each deployed client runs.
+        // Refusing an outdated client is the last resort; reaching its owner first
+        // needs a list of who runs what, and announcing a version is not the same
+        // as the server having recorded it.
+        clientKind: enumText('client_kind', CLIENT_KINDS),
+        clientVersion: text('client_version'),
+        clientContractVersion: text('client_contract_version'),
+
+        // When any of the three above last changed — an app update, in practice.
+        // Not when they were last seen: a value that moves on every request is a
+        // write on every request, and the question this answers is "since when has
+        // this device been on this release", which only a change can answer.
+        clientSeenAt: utcTimestamp('client_seen_at'),
 
         // Key status
         // false: Key is deactivated (cannot be used for verification)
