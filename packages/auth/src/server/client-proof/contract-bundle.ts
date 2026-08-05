@@ -133,39 +133,98 @@ import { CLIENT_IDENTITY_HEADERS, CLIENT_KINDS, SERVER_CONTRACT_HEADERS } from '
  * surface. They are here so a deprecation has somewhere to be recorded when the
  * first one happens, and so an app contract, which decides per operation, reads
  * availability in the same shape rather than inventing a second one.
+ *
+ * 0.7.0 removes the `number` scalar and gives the grammar `decimal<scale>`: the
+ * wire value is an integer and what it means is that integer divided by 10 to the
+ * scale, so `decimal<2>` carries 1999 for 19.99. Canonical JSON does not move —
+ * it already admits signed 64-bit integers only and calls a fraction an error,
+ * which is what a `number` field would have had to be written as. The grammar and
+ * the encoding had been stating different things, and only the encoding ran.
+ *
+ * Two rules ride the spelling. The scale is part of the type, so changing it is
+ * breaking and takes a version bump, and the field is renamed to carry its new
+ * unit rather than be quietly remeasured under the old name — the same reasoning
+ * that put `AtMillis` in the name of every moment here. And a generator emits a
+ * decimal type — Swift `Decimal`, Kotlin `BigDecimal` — never a binary float, and
+ * rejects a value finer than the declared scale at encoding time instead of
+ * rounding it, because rounding lets the client decide what a value the server
+ * declared exactly is worth.
+ *
+ * Breaking because a declared scalar is gone. A consumer generated against 0.6.x
+ * that meets `decimal<2>` fails at generation time, which is what this grammar's
+ * own rule asks for — an unknown spelling is a contract error, not something to
+ * guess at. Nothing deployed breaks: no type in this contract used `number`, so
+ * the removal has zero usages, and it is taken now because the alternative is
+ * carrying a scalar the encoding refuses until something depends on it.
  */
-export const CONTRACT_VERSION = '0.6.1';
+export const CONTRACT_VERSION = '0.7.0';
 export const CONTRACT_MAJOR = 0;
 export const CONTRACT_NAME = 'spfn-mobile-contract';
 
 /**
- * Under 0.x the minor carries breaking changes, so the range stops at 0.7.0.
+ * Under 0.x the minor carries breaking changes, so the range stops at 0.8.0.
  *
- * 0.6.1 leaves it where 0.6.0 put it: a patch adds nothing a 0.6.0-generated
- * consumer has to know, so a client pinned at 0.6.0 stays inside a range it is
- * in fact still compatible with.
+ * 0.7.0 moves the floor with it. A consumer generated against 0.6.x was generated
+ * from a grammar this server no longer states, so it is refused
+ * CONTRACT_UNSUPPORTED rather than left to meet a spelling it cannot parse. That
+ * refusal is the cost of removing a scalar, and it is paid now because no such
+ * consumer is deployed.
  */
-export const CONTRACT_SUPPORTED_RANGE = '>=0.6.0 <0.7.0';
+export const CONTRACT_SUPPORTED_RANGE = '>=0.7.0 <0.8.0';
 
 /** What spfn-mobile's validator expects an upstream-exported bundle to name. */
 export const EXPORT_ORIGIN = 'spfn-primitives-ci-export';
 
-/** Bumped whenever the assembled shape changes, independent of the contract. */
-export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@4.1.0';
+/**
+ * Bumped whenever the assembled shape changes, independent of the contract.
+ *
+ * The bump follows what a reader of this shape can still find. A major when a
+ * section or key is removed or renamed, so code reading it stops finding what it
+ * read; a minor when the shape only grows. 5.0.0 is a major because `typeGrammar`
+ * lost `integerVersusNumber`, where 4.1.0 was a minor for availability fields that
+ * were purely added.
+ */
+export const EXPORTER_VERSION = '@spfn/auth/contract-bundle@5.0.0';
 
 /**
  * The scalars the grammar admits.
  *
- * `integer` and `number` are separate on purpose. Collapsing a price or a
- * coordinate into `integer` makes the unit a convention nobody wrote down, and
- * collapsing a count into `number` hands Swift and Kotlin a floating-point type
- * for a value that is never fractional.
+ * There is no floating-point scalar. A fractional value is `decimal<scale>`, an
+ * integer on the wire with its scale declared in the type, because canonical JSON
+ * carries signed 64-bit integers only and treats a fraction as an error — a
+ * floating-point scalar was a shape the encoding would have refused. `integer`
+ * stays separate from it so a count is never given a scale it does not have.
  *
  * There is no date scalar. A moment is an integer of milliseconds since the Unix
  * epoch in a field whose name ends `AtMillis`, which is what every existing type
  * already does.
  */
-type ScalarTypeName = 'string' | 'integer' | 'number' | 'boolean';
+type ScalarTypeName = 'string' | 'integer' | 'boolean';
+
+/**
+ * The scales `decimal<scale>` admits.
+ *
+ * Scale 0 is `integer` written the long way, so it is not a scale. The ceiling is
+ * 18 because 10^18 is the largest power of ten a signed 64-bit integer holds, and
+ * the wire value is such an integer — above 18 there is no integer part left to
+ * carry.
+ *
+ * Spelled as a union rather than checked at runtime so an out-of-range scale
+ * fails to compile here, where the declaration is written, rather than reaching a
+ * consumer's generator as a type it cannot parse.
+ */
+type DecimalScale =
+    | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+    | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18;
+
+/**
+ * A fixed-point value: the integer on the wire divided by 10 to the scale.
+ *
+ * Parameterized like `array<T>`, and read by the same parser — a consumer that
+ * does not recognise the prefix reads `decimal<2>` as a type named "decimal<2>"
+ * and fails at compile time, which is the grammar's rule for an unknown spelling.
+ */
+type DecimalTypeName = `decimal<${DecimalScale}>`;
 
 /**
  * Declared names a field is allowed to reference — the types in
@@ -177,7 +236,7 @@ type ScalarTypeName = 'string' | 'integer' | 'number' | 'boolean';
  */
 type ReferencedTypeName = 'Item' | 'KeySummary' | 'KeyAlgorithm';
 
-type ElementTypeName = ScalarTypeName | ReferencedTypeName;
+type ElementTypeName = ScalarTypeName | DecimalTypeName | ReferencedTypeName;
 
 /**
  * The field-type grammar the consumer's codegen parses.
@@ -782,10 +841,24 @@ export function buildMobileContractBundle(): MobileContractBundle
                 + 'be announced at all, and is the same shape a perOperation contract decides from',
         },
         typeGrammar: {
-            scalars: ['string', 'integer', 'number', 'boolean'],
-            integerVersusNumber:
-                'integer is a whole number and number is floating point. A price, a coordinate and a rating are '
-                + 'number; a count and a millisecond timestamp are integer.',
+            scalars: ['string', 'integer', 'boolean'],
+            decimal:
+                'decimal<scale>, where scale is an integer from 1 to 18. The value on the wire is an integer and '
+                + 'what it means is that integer divided by 10 to the scale, so decimal<2> carries 1999 for 19.99. '
+                + 'There is no floating-point scalar: canonical JSON admits signed 64-bit integers only and treats '
+                + 'a fraction as an error. Scale 0 is integer written the long way and is not a valid scale, and 18 '
+                + 'is the ceiling because 10^18 is the largest power of ten a signed 64-bit integer holds — above '
+                + 'it no integer part is left to carry. This is the only decimal spelling.',
+            decimalScaleRule:
+                'the scale is part of the type. Changing it is a breaking change and takes a version bump, and the '
+                + 'field is renamed to carry its new unit rather than be remeasured under the same name — the same '
+                + 'reason every moment in this contract is named AtMillis. A consumer that kept reading the old '
+                + 'name would otherwise decode the same field at a scale nobody told it had moved.',
+            decimalGeneratorRule:
+                'a generator emits a decimal type — Swift Decimal, Kotlin BigDecimal — and never a binary float. A '
+                + 'value finer than the declared scale is rejected at encoding time and never rounded: rounding '
+                + 'would let the client decide what a value the server declared exactly is worth, and it would do '
+                + 'so silently.',
             array: 'array<T>, where T is itself a field type. This is the only array spelling.',
             map:
                 'map<string,T>, where T is itself a field type. The key is always string because JSON has no other '
@@ -803,7 +876,8 @@ export function buildMobileContractBundle(): MobileContractBundle
             dateConventionExceptions: 'none — every moment in this contract is an AtMillis integer',
             rule:
                 'a field type outside this grammar is a contract error, not something to guess at: a consumer that '
-                + 'does not recognise a container spelling reads it as a type name and fails at compile time',
+                + 'does not recognise a container or decimal spelling reads it as a type name and fails at compile '
+                + 'time',
         },
         types: CONTRACT_TYPES.map((type) => ({
             name: type.name,

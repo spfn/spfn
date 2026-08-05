@@ -64,26 +64,31 @@ describe('whether the server serves a stated contract version', () =>
         expect(isContractVersionSupported(CONTRACT_VERSION)).toBe(true);
     });
 
+    // 버전 문자열을 그대로 적으면 CONTRACT_VERSION이 오를 때마다 이 검사들이
+    // 조용히 뒤집힌다. #70에서 범위 검사를 minor 규칙에서 유도하도록 고친 것과
+    // 같은 이유로, 이웃 버전도 지금 버전에서 계산한다.
+    const [major, minor] = CONTRACT_VERSION.split('.').map(Number);
+
     it('serves a different patch of the same minor', () =>
     {
-        expect(isContractVersionSupported('0.6.99')).toBe(true);
+        expect(isContractVersionSupported(`${major}.${minor}.99`)).toBe(true);
     });
 
     it('does not serve a different minor while the line is 0.x', () =>
     {
-        expect(isContractVersionSupported('0.5.0')).toBe(false);
-        expect(isContractVersionSupported('0.7.0')).toBe(false);
+        expect(isContractVersionSupported(`${major}.${minor - 1}.0`)).toBe(false);
+        expect(isContractVersionSupported(`${major}.${minor + 1}.0`)).toBe(false);
     });
 
     it('does not serve a different major', () =>
     {
-        expect(isContractVersionSupported('1.6.0')).toBe(false);
+        expect(isContractVersionSupported(`${major + 1}.${minor}.0`)).toBe(false);
     });
 
     it('does not serve something that is not a version', () =>
     {
         expect(isContractVersionSupported('latest')).toBe(false);
-        expect(isContractVersionSupported('0.6')).toBe(false);
+        expect(isContractVersionSupported(`${major}.${minor}`)).toBe(false);
         expect(isContractVersionSupported('')).toBe(false);
     });
 
@@ -95,8 +100,6 @@ describe('whether the server serves a stated contract version', () =>
         // 0.x에서 breaking을 나르는 건 minor다. 그래서 범위의 바닥은 지금 버전이
         // 아니라 그 minor의 .0 이다 — 0.6.0 -> 0.6.1 같은 patch는 0.6.0으로 생성된
         // 소비자가 새로 알아야 할 게 없으므로 바닥을 그 위로 밀면 안 된다.
-        const [major, minor] = CONTRACT_VERSION.split('.').map(Number);
-
         expect(CONTRACT_SUPPORTED_RANGE).toBe(`>=${major}.${minor}.0 <${major}.${minor + 1}.0`);
     });
 
