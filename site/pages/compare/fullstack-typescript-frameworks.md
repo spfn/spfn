@@ -138,12 +138,57 @@ Three things follow, each checkable in
 Nothing compiles your application. Code generation produces one file, the route map that
 the RPC handler resolves against; the code you write is the code that runs.
 
-Authentication ships as a first-party package,
-[@spfn/auth](../docs/packages/auth.md) — accounts, sessions, OAuth providers and
-role-based access — so it is maintained with the framework rather than adapted to it.
-Operations are answered by [@spfn/mcp](../docs/packages/mcp.md), which exposes your app
-to an AI agent over the Model Context Protocol instead of asking you to build an admin
-dashboard.
+### A feature is one vertical slice, not five scattered files
+
+Ask any assistant what to add to a Next.js prototype and you get a shopping list: an auth
+service, a database host, an ORM, a validation library, object storage, a payments
+vendor, an error tracker. Each arrives with its own console, its own data store, its own
+way of being typed, and its own opinion about where your user records live. Assembling
+them is the work, and re-assembling them is what happens the next time.
+
+SPFN answers the same list differently. A feature is written as one vertical slice, each
+layer in its own file, and the layers know each other's types:
+
+```
+Entity (Drizzle table) → Repository → Route → Router → generated route map → typed client
+```
+
+The framework's own capabilities arrive the same way. Each `@spfn/*` package is a
+finished vertical slice — its own tables, its own migrations, repositories, services,
+routes, and the client those routes are exposed through. You mount one with a single
+call:
+
+```ts
+export const appRouter = defineRouter({ /* your routes */ })
+    .packages([authRouter])   // mounts /_auth/* and exposes them on the typed authApi client
+    .use([authenticate]);     // apply auth globally; routes opt out per-route
+```
+
+That one line brings the routes, the client, and the tables. Six packages ship their own
+migrations directly in the repository, so adopting a capability does not mean hand-writing
+schema for it.
+
+The set available today:
+
+| Package | What the slice covers |
+|---|---|
+| [@spfn/auth](../docs/packages/auth.md) | accounts, sessions, OAuth providers, role-based access |
+| [@spfn/cms](../docs/packages/cms.md) | content models, entries, and the routes over them |
+| [@spfn/storage](../docs/packages/storage.md) | file upload and object storage |
+| [@spfn/notification](../docs/packages/notification.md) | outbound messages and templates |
+| [@spfn/workflow](../docs/packages/workflow.md) | long-running and scheduled work |
+| [@spfn/i18n](../docs/packages/i18n.md) | translations across server and client |
+| [@spfn/monitor](../docs/packages/monitor.md) | operational metrics and health |
+| [@spfn/migrate](../docs/packages/migrate.md) | schema migration for all of the above |
+| [@spfn/mcp](../docs/packages/mcp.md) | your app exposed to an AI agent over the Model Context Protocol |
+
+That last one is the answer to operations. Instead of building an admin dashboard, you
+let an agent read and act on the app through a typed interface you already declared.
+
+The honest limit: this only pays off if the slices fit what you need. A first-party
+package you have to fight is worse than a third-party service that fits, and the vendors
+on that shopping list are each larger and more battle-tested than the equivalent slice
+here.
 
 **Choose it** when the Next.js app already exists and you want a real typed backend
 inside it rather than a second project beside it.
@@ -169,6 +214,7 @@ Four honest ones.
 | Add to an existing Next.js app | — | no | no | as a separate service | yes |
 | Frontend it assumes | Next.js | its own React app | its own React app | none | Next.js |
 | Auth from the framework's own authors | no | yes | no | ecosystem | yes |
+| Modules that ship their own tables and migrations | no | auth only | no | schema is yours | yes — 9 packages |
 | End-to-end typed API | with tRPC | yes | yes | hand-typed or generated | yes |
 | Compiles your application | no | yes — client and server | no | no | no — route map only |
 | Build step for types | no | compile | no | optional codegen | codegen |
@@ -200,8 +246,13 @@ cover you, add nothing.
 SPFN exists for a narrower case, and only that one: the app already exists, it is a
 Next.js app, and what you want is a real backend inside it rather than a second project
 beside it. Every other framework on this page asks you to start over to get what it
-offers. That is the whole difference, and whether it matters depends entirely on whether
+offers. That is the first difference, and whether it matters depends entirely on whether
 you already have something worth keeping.
+
+The second is what you assemble afterwards. The usual answer to "my prototype needs
+accounts" is a list of vendors to wire together. SPFN's answer is a set of vertical
+slices that already know your types, mount in one line, and bring their own schema. That
+is a smaller world with fewer options in it, which is the point and also the risk.
 
 - [The SPFN pattern](../docs/pattern.md) — how a feature is built, layer by layer
 - [Prototype to production](../docs/prototype-to-production.md) — what changes between the
