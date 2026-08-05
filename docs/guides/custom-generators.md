@@ -38,8 +38,8 @@ export default function createMyGenerator(): Generator {
     // File patterns to watch (glob syntax)
     watchPatterns: ['src/features/**/*.config.ts'],
 
-    // When to run: 'watch' | 'manual' | 'build' | 'start'
-    // Default: ['watch', 'manual', 'build']
+    // When to run: 'watch' | 'manual'
+    // Default: ['watch', 'manual']
     runOn: ['watch', 'manual'],
 
     // Main generation function
@@ -60,32 +60,31 @@ export default function createMyGenerator(): Generator {
 
 ## Understanding `runOn`
 
-The `runOn` option controls when your generator executes:
+There are two triggers, and `runOn` says which of them your generator answers:
 
 | Trigger | Fired by | Use Case |
 |---------|----------|----------|
-| `watch` | `spfn dev` (initial pass + every file change) | Development-time updates |
+| `watch` | `spfn dev` — the initial pass and every file change | Development-time updates |
 | `manual` | `spfn codegen run` **and `spfn build`** | On-demand and build-time generation |
-| `build` | nothing in the shipped CLI today | reserved |
-| `start` | nothing in the shipped CLI today | reserved |
 
-> **Include `manual` if you want the generator to run at build time.** `spfn build` calls
-> `orchestrator.generateAll()` with no argument, and that argument defaults to `'manual'` —
-> so a generator declaring only `runOn: ['build']` never runs. Nothing in the CLI fires
-> `'build'` or `'start'`; they exist for programmatic callers that pass the trigger
-> themselves (`orchestrator.generateAll('build')`).
+> **Include `manual` if you want the generator to run at build time.** `spfn build` runs
+> codegen through the same `manual` trigger, so a generator that lists only `watch` is
+> skipped during a build.
+
+Earlier versions also declared `build` and `start`. Nothing ever dispatched them, so a
+generator that opted into only those silently never ran; they have been removed.
 
 **Examples:**
 
 ```typescript
-// Run during development, on `spfn codegen run`, and during `spfn build`
+// The default when `runOn` is omitted — development, `spfn codegen run`, and `spfn build`
 runOn: ['watch', 'manual']
 
 // Run only on demand / at build time, never in the dev watcher
 runOn: ['manual']
 
-// The default when `runOn` is omitted
-runOn: ['watch', 'manual', 'build']
+// Run only in the dev watcher
+runOn: ['watch']
 ```
 
 ## Example: Admin Navigation Generator

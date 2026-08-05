@@ -172,7 +172,7 @@ export type RouteName = keyof RouteMap;
 ```
 
 `watchPatterns` are `[routerPath, 'src/server/routes/**/*.ts', ...additionalRouteDirs]` and
-`runOn` is `['watch', 'build', 'start', 'manual']` (runs in every mode).
+`runOn` is `['watch', 'manual']` — every trigger there is, so it runs in every mode.
 
 ---
 
@@ -211,7 +211,7 @@ const orchestrator = new CodegenOrchestrator({ generators, cwd, debug: true });
 
 // Run once. Trigger defaults to 'manual'; only generators whose runOn includes it execute.
 await orchestrator.generateAll();            // 'manual'
-await orchestrator.generateAll('build');     // e.g. build-time
+await orchestrator.generateAll('watch');     // as the dev watcher does
 
 // Watch mode: runs an initial 'watch' pass, then returns a promise that stays pending
 // (keeping the process alive) until close() is called.
@@ -251,7 +251,7 @@ export default function createAdminNavGenerator(): Generator
     return {
         name: 'admin-nav',
         watchPatterns: ['src/app/admin/**/nav.config.tsx'],
-        runOn: ['watch', 'build'],
+        runOn: ['watch', 'manual'],
 
         async generate(options: GeneratorOptions): Promise<void>
         {
@@ -302,13 +302,13 @@ else is passed through as options).
 ### `Generator` interface
 
 ```typescript
-type GeneratorTrigger = 'watch' | 'manual' | 'build' | 'start';
+type GeneratorTrigger = 'watch' | 'manual';
 
 interface Generator
 {
     name: string;
     watchPatterns: string[];                 // globs; orchestrator watches their base dirs
-    runOn?: GeneratorTrigger[];              // default ['watch', 'manual', 'build']
+    runOn?: GeneratorTrigger[];              // default ['watch', 'manual']
     generate(options: GeneratorOptions): Promise<void>;
 }
 
@@ -431,13 +431,13 @@ type GeneratorConfig =
     | { path: string }                                   // file-based
     | ({ name: string; enabled?: boolean } & Record<string, any>); // package-based
 
-type GeneratorTrigger = 'watch' | 'manual' | 'build' | 'start';
+type GeneratorTrigger = 'watch' | 'manual';
 
 interface Generator
 {
     name: string;
     watchPatterns: string[];
-    runOn?: GeneratorTrigger[];        // default ['watch', 'manual', 'build']
+    runOn?: GeneratorTrigger[];        // default ['watch', 'manual']
     generate(options: GeneratorOptions): Promise<void>;
 }
 

@@ -6,8 +6,13 @@
 
 /**
  * Generator execution trigger types
+ *
+ * Only two triggers are ever dispatched: `watch` while `spfn dev` is watching files, and
+ * `manual` for everything else — `spfn codegen run` and the codegen step of `spfn build`
+ * both arrive as `manual`. Earlier versions also declared `build` and `start`, but nothing
+ * ever dispatched them, so a generator that opted into only those never ran.
  */
-export type GeneratorTrigger = 'watch' | 'manual' | 'build' | 'start';
+export type GeneratorTrigger = 'watch' | 'manual';
 
 export interface GeneratorOptions
 {
@@ -44,13 +49,11 @@ export interface Generator
     /**
      * When this generator should run
      *
-     * @default ['watch', 'manual', 'build']
+     * @default ['watch', 'manual'] — both triggers, which is almost always what you want
      *
      * Examples:
-     * - ['watch', 'build']: Run during development and build (e.g., admin-nav-generator)
-     * - ['build', 'start']: Run during build and server start (e.g., db-migration)
-     * - ['watch', 'manual']: Run during development and manual CLI (e.g., contract-generator)
-     * - ['start']: Run only on server start (e.g., runtime config generator)
+     * - ['watch']: only while `spfn dev` is watching, never from `spfn codegen run`
+     * - ['manual']: only on an explicit run, never mid-edit — for something slow
      */
     runOn?: GeneratorTrigger[];
 

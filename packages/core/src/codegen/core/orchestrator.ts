@@ -69,7 +69,7 @@ export class CodegenOrchestrator
      */
     private shouldRun(generator: Generator, trigger: GeneratorTrigger): boolean
     {
-        const runOn = generator.runOn ?? ['watch', 'manual', 'build'];
+        const runOn = generator.runOn ?? ['watch', 'manual'];
 
         return runOn.includes(trigger);
     }

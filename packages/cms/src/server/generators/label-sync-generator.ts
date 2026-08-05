@@ -39,7 +39,7 @@ export interface LabelSyncGeneratorConfig
 export function createLabelSyncGenerator(config: LabelSyncGeneratorConfig = {}): Generator
 {
     const labelsDir = config.labelsDir ?? 'src/lib/labels';
-    const runOn = config.runOn ?? ['watch', 'manual', 'build'];
+    const runOn = config.runOn ?? ['watch', 'manual'];
 
     return {
         name: 'label-sync',

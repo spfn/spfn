@@ -231,6 +231,17 @@ export class SSETokenManager
     }
 
     /**
+     * How long an issued token stays valid, in milliseconds.
+     *
+     * Exposed so a caller that has to report an expiry to its client computes the same
+     * number this manager stamps on the token, instead of assuming the default.
+     */
+    get ttlMs(): number
+    {
+        return this.ttl;
+    }
+
+    /**
      * Issue a new one-time-use token for the given subject
      */
     async issue(subject: string): Promise<string>
