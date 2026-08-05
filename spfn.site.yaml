@@ -10,6 +10,8 @@ nav:
     path: /functions
   - label: Compare
     path: /compare
+  - label: Architecture drift
+    path: /architecture-drift
   - label: About
     path: /about
   - label: GitHub
