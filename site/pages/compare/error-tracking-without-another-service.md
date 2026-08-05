@@ -106,6 +106,9 @@ Longer than the feature list, deliberately.
 - **The fingerprint includes the path**, so the same error on two routes becomes two
   groups, and a path with an embedded id fragments a group per id unless you normalise it
   first.
+- **The migrations run `CREATE EXTENSION IF NOT EXISTS pg_trgm`** for the trigram search
+  index, and some managed PostgreSQL providers do not allow it. Check yours before
+  adopting.
 - **It only runs inside an SPFN app.**
 
 ## Side by side
