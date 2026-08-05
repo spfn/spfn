@@ -19,9 +19,9 @@ import {
 } from '@spfn/core/errors';
 ```
 
-Everything in this module is also re-exported from the package root `@spfn/core`, so
-`import { NotFoundError } from '@spfn/core'` works too. Prefer the `@spfn/core/errors`
-subpath in new code.
+There is **no** root `.` export for `@spfn/core`, so `import { NotFoundError } from
+'@spfn/core'` does not resolve. Import from the `@spfn/core/errors` subpath. (Older
+snippets showing the root form are stale.)
 
 Related symbols that live in **other** subpaths (a common mistake):
 
